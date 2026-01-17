@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/services/active"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -81,7 +82,7 @@ func TestCleanupStaleAttendance_ClosesStaleRecords(t *testing.T) {
 	device := testpkg.CreateTestDevice(t, db, "cleanup-device-001")
 
 	// Create a stale attendance record (yesterday, no checkout)
-	yesterday := time.Now().UTC().AddDate(0, 0, -1).Truncate(24 * time.Hour)
+	yesterday := timezone.Today().AddDate(0, 0, -1)
 	checkInTime := yesterday.Add(8 * time.Hour) // 8:00 AM yesterday
 
 	var attendanceID int64
@@ -148,7 +149,7 @@ func TestPreviewAttendanceCleanup_ShowsStaleRecords(t *testing.T) {
 	device := testpkg.CreateTestDevice(t, db, "preview-device-001")
 
 	// Create a stale attendance record (2 days ago, no checkout)
-	twoDaysAgo := time.Now().UTC().AddDate(0, 0, -2).Truncate(24 * time.Hour)
+	twoDaysAgo := timezone.Today().AddDate(0, 0, -2)
 	checkInTime := twoDaysAgo.Add(9 * time.Hour) // 9:00 AM
 
 	var attendanceID int64

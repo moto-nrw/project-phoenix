@@ -38,7 +38,7 @@ func cleanupPermissionByID(t *testing.T, db *bun.DB, permissionID int64) {
 
 	// Clean up any role_permissions referencing this permission
 	_, _ = db.NewDelete().
-		Model((*interface{})(nil)).
+		Model((*any)(nil)).
 		Table("auth.role_permissions").
 		Where("permission_id = ?", permissionID).
 		Exec(ctx)
@@ -388,7 +388,7 @@ func TestAccountPermissionRepository_List(t *testing.T) {
 		err := repo.GrantPermission(ctx, account.ID, permission.ID)
 		require.NoError(t, err)
 
-		perms, err := repo.List(ctx, map[string]interface{}{
+		perms, err := repo.List(ctx, map[string]any{
 			"granted": true,
 		})
 		require.NoError(t, err)
@@ -408,7 +408,7 @@ func TestAccountPermissionRepository_List(t *testing.T) {
 		err := repo.GrantPermission(ctx, account.ID, permission.ID)
 		require.NoError(t, err)
 
-		perms, err := repo.List(ctx, map[string]interface{}{
+		perms, err := repo.List(ctx, map[string]any{
 			"account_id": account.ID,
 		})
 		require.NoError(t, err)
@@ -417,6 +417,52 @@ func TestAccountPermissionRepository_List(t *testing.T) {
 		for _, p := range perms {
 			assert.Equal(t, account.ID, p.AccountID)
 		}
+	})
+}
+
+// ============================================================================
+// AccountPermissionRepository DeleteByPermissionID Tests
+// ============================================================================
+
+func TestAccountPermissionRepository_DeleteByPermissionID(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).AccountPermission
+	ctx := context.Background()
+
+	t.Run("deletes all account permissions for a permission", func(t *testing.T) {
+		account1 := testpkg.CreateTestAccount(t, db, "del_by_perm1")
+		account2 := testpkg.CreateTestAccount(t, db, "del_by_perm2")
+		permission := testpkg.CreateTestPermission(t, db, "DeletePerm", "delete", "read")
+		defer cleanupAccountRecords(t, db, account1.ID)
+		defer cleanupAccountRecords(t, db, account2.ID)
+		defer cleanupPermissionByID(t, db, permission.ID)
+
+		// Grant permission to both accounts
+		err := repo.GrantPermission(ctx, account1.ID, permission.ID)
+		require.NoError(t, err)
+		err = repo.GrantPermission(ctx, account2.ID, permission.ID)
+		require.NoError(t, err)
+
+		// Verify both exist
+		perms, err := repo.FindByPermissionID(ctx, permission.ID)
+		require.NoError(t, err)
+		assert.Len(t, perms, 2)
+
+		// Delete by permission ID
+		err = repo.DeleteByPermissionID(ctx, permission.ID)
+		require.NoError(t, err)
+
+		// Verify all deleted
+		perms, err = repo.FindByPermissionID(ctx, permission.ID)
+		require.NoError(t, err)
+		assert.Empty(t, perms)
+	})
+
+	t.Run("does not error when deleting non-existent permission mappings", func(t *testing.T) {
+		err := repo.DeleteByPermissionID(ctx, 999999)
+		require.NoError(t, err)
 	})
 }
 
@@ -436,7 +482,7 @@ func TestAccountPermissionRepository_FindAccountPermissionsWithDetails(t *testin
 		err := repo.GrantPermission(ctx, account.ID, permission.ID)
 		require.NoError(t, err)
 
-		perms, err := repo.FindAccountPermissionsWithDetails(ctx, map[string]interface{}{
+		perms, err := repo.FindAccountPermissionsWithDetails(ctx, map[string]any{
 			"account_id": account.ID,
 		})
 		require.NoError(t, err)
@@ -452,7 +498,7 @@ func TestAccountPermissionRepository_FindAccountPermissionsWithDetails(t *testin
 		err := repo.GrantPermission(ctx, account.ID, permission.ID)
 		require.NoError(t, err)
 
-		perms, err := repo.FindAccountPermissionsWithDetails(ctx, map[string]interface{}{
+		perms, err := repo.FindAccountPermissionsWithDetails(ctx, map[string]any{
 			"permission_id": permission.ID,
 		})
 		require.NoError(t, err)

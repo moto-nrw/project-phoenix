@@ -8,12 +8,14 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/auth/device"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/logging"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	facilityModels "github.com/moto-nrw/project-phoenix/models/facilities"
+	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/education"
@@ -66,6 +68,7 @@ type ServiceDependencies struct {
 	ActivityGroupRepo  activitiesModels.GroupRepository
 	ActivityCatRepo    activitiesModels.CategoryRepository
 	EducationGroupRepo educationModels.GroupRepository
+	DeviceRepo         iotModels.DeviceRepository
 
 	// External services
 	EducationService education.Service
@@ -91,6 +94,7 @@ type service struct {
 	activityCatRepo    activitiesModels.CategoryRepository
 	educationGroupRepo educationModels.GroupRepository
 	personRepo         userModels.PersonRepository
+	deviceRepo         iotModels.DeviceRepository
 
 	// New dependencies for attendance tracking
 	attendanceRepo   active.AttendanceRepository
@@ -120,6 +124,7 @@ func NewService(deps ServiceDependencies) Service {
 		activityCatRepo:    deps.ActivityCatRepo,
 		educationGroupRepo: deps.EducationGroupRepo,
 		personRepo:         deps.PersonRepo,
+		deviceRepo:         deps.DeviceRepo,
 		attendanceRepo:     deps.AttendanceRepo,
 		educationService:   deps.EducationService,
 		usersService:       deps.UsersService,
@@ -145,6 +150,7 @@ func (s *service) WithTx(tx bun.Tx) interface{} {
 	var activityCatRepo = s.activityCatRepo
 	var educationGroupRepo = s.educationGroupRepo
 	var personRepo = s.personRepo
+	var deviceRepo = s.deviceRepo
 	var attendanceRepo = s.attendanceRepo
 	var teacherRepo = s.teacherRepo
 	var staffRepo = s.staffRepo
@@ -183,6 +189,9 @@ func (s *service) WithTx(tx bun.Tx) interface{} {
 	if txRepo, ok := s.personRepo.(base.TransactionalRepository); ok {
 		personRepo = txRepo.WithTx(tx).(userModels.PersonRepository)
 	}
+	if txRepo, ok := s.deviceRepo.(base.TransactionalRepository); ok {
+		deviceRepo = txRepo.WithTx(tx).(iotModels.DeviceRepository)
+	}
 	if txRepo, ok := s.attendanceRepo.(base.TransactionalRepository); ok {
 		attendanceRepo = txRepo.WithTx(tx).(active.AttendanceRepository)
 	}
@@ -206,6 +215,7 @@ func (s *service) WithTx(tx bun.Tx) interface{} {
 		activityCatRepo:    activityCatRepo,
 		educationGroupRepo: educationGroupRepo,
 		personRepo:         personRepo,
+		deviceRepo:         deviceRepo,
 		attendanceRepo:     attendanceRepo,
 		educationService:   s.educationService,
 		usersService:       s.usersService,
@@ -1240,10 +1250,8 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 		LastUpdated: time.Now(),
 	}
 
-	// Use local date for analytics (school operates in local timezone)
-	// This must match the query in GetStudentCurrentStatus which also uses local date
-	now := time.Now()
-	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	// Use timezone.Today() for consistent Europe/Berlin timezone handling
+	today := timezone.Today()
 
 	// Phase 1: Fetch all base data
 	baseData, err := s.fetchDashboardBaseData(ctx, today)
@@ -2212,9 +2220,8 @@ func (s *service) GetStudentsAttendanceStatuses(ctx context.Context, studentIDs 
 		attendanceRecords = make(map[int64]*active.Attendance)
 	}
 
-	// Use local date (school operates in local timezone)
-	now := time.Now()
-	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	// Use timezone.Today() for consistent Europe/Berlin timezone handling
+	today := timezone.Today()
 
 	for _, studentID := range studentIDs {
 		status := &AttendanceStatus{
@@ -2244,13 +2251,11 @@ func (s *service) GetStudentsAttendanceStatuses(ctx context.Context, studentIDs 
 func (s *service) GetStudentAttendanceStatus(ctx context.Context, studentID int64) (*AttendanceStatus, error) {
 	attendance, err := s.attendanceRepo.GetStudentCurrentStatus(ctx, studentID)
 	if err != nil {
-		// Use local date (school operates in local timezone)
-		now := time.Now()
-		today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+		// Use timezone.Today() for consistent Europe/Berlin timezone handling
 		return &AttendanceStatus{
 			StudentID: studentID,
 			Status:    "not_checked_in",
-			Date:      today,
+			Date:      timezone.Today(),
 		}, nil
 	}
 
@@ -2311,9 +2316,8 @@ func (s *service) ToggleStudentAttendance(ctx context.Context, studentID, staffI
 	}
 
 	now := time.Now()
-	// Use local date for attendance tracking (school operates in local timezone)
-	// This must match the query in GetStudentCurrentStatus which also uses local date
-	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	// Use timezone.Today() for consistent Europe/Berlin timezone handling
+	today := timezone.Today()
 
 	if currentStatus.Status == "not_checked_in" || currentStatus.Status == "checked_out" {
 		return s.performCheckIn(ctx, studentID, authorizedStaffID, deviceID, now, today)

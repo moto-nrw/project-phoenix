@@ -6,6 +6,7 @@ import (
 	"os"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/active"
@@ -166,37 +167,28 @@ func TestScheduler_StartWithTokenCleanupOnly(t *testing.T) {
 		_ = os.Unsetenv("SESSION_CLEANUP_ENABLED")
 	}()
 
-	auth := &fakeAuthCleanup{
-		tokenResult:     1,
-		passwordResult:  2,
-		rateLimitResult: 3,
-	}
+	synctest.Test(t, func(t *testing.T) {
+		auth := &fakeAuthCleanup{
+			tokenResult:     1,
+			passwordResult:  2,
+			rateLimitResult: 3,
+		}
 
-	s := NewScheduler(nil, nil, auth, nil)
-	s.Start()
+		s := NewScheduler(nil, nil, auth, nil)
+		s.Start()
 
-	// Give token cleanup task time to register and run once
-	time.Sleep(100 * time.Millisecond)
+		// Wait for goroutines to be durably blocked (fake time makes sleeps instant)
+		synctest.Wait()
 
-	// Verify task was registered
-	s.mu.RLock()
-	_, hasTokenCleanup := s.tasks["token-cleanup"]
-	s.mu.RUnlock()
-	assert.True(t, hasTokenCleanup, "token-cleanup task should be registered")
+		// Verify task was registered
+		s.mu.RLock()
+		_, hasTokenCleanup := s.tasks["token-cleanup"]
+		s.mu.RUnlock()
+		assert.True(t, hasTokenCleanup, "token-cleanup task should be registered")
 
-	// Stop and wait
-	done := make(chan struct{})
-	go func() {
+		// Stop scheduler
 		s.Stop()
-		close(done)
-	}()
-
-	select {
-	case <-done:
-		// Success
-	case <-time.After(2 * time.Second):
-		t.Fatal("Stop() did not complete within timeout")
-	}
+	})
 }
 
 // =============================================================================
@@ -471,26 +463,28 @@ func TestScheduler_DisabledByEnvVars(t *testing.T) {
 		_ = os.Unsetenv("SESSION_CLEANUP_ENABLED")
 	}()
 
-	s := NewScheduler(nil, nil, nil, nil)
-	s.Start()
+	synctest.Test(t, func(t *testing.T) {
+		s := NewScheduler(nil, nil, nil, nil)
+		s.Start()
 
-	// Give tasks time to register
-	time.Sleep(50 * time.Millisecond)
+		// Wait for goroutines to be durably blocked (fake time makes sleeps instant)
+		synctest.Wait()
 
-	// Only token-cleanup should be registered (it's always enabled)
-	s.mu.RLock()
-	taskCount := len(s.tasks)
-	_, hasVisitCleanup := s.tasks["visit-cleanup"]
-	_, hasSessionEnd := s.tasks["session-end"]
-	_, hasSessionCleanup := s.tasks["session-cleanup"]
-	s.mu.RUnlock()
+		// Only token-cleanup should be registered (it's always enabled)
+		s.mu.RLock()
+		taskCount := len(s.tasks)
+		_, hasVisitCleanup := s.tasks["visit-cleanup"]
+		_, hasSessionEnd := s.tasks["session-end"]
+		_, hasSessionCleanup := s.tasks["session-cleanup"]
+		s.mu.RUnlock()
 
-	assert.Equal(t, 1, taskCount, "Only token-cleanup should be registered")
-	assert.False(t, hasVisitCleanup, "visit-cleanup should be disabled")
-	assert.False(t, hasSessionEnd, "session-end should be disabled")
-	assert.False(t, hasSessionCleanup, "session-cleanup should be disabled")
+		assert.Equal(t, 1, taskCount, "Only token-cleanup should be registered")
+		assert.False(t, hasVisitCleanup, "visit-cleanup should be disabled")
+		assert.False(t, hasSessionEnd, "session-end should be disabled")
+		assert.False(t, hasSessionCleanup, "session-cleanup should be disabled")
 
-	s.Stop()
+		s.Stop()
+	})
 }
 
 func TestScheduler_DefaultEnvValues(t *testing.T) {
@@ -539,26 +533,28 @@ func TestScheduleCleanupTask_InvalidTimeFormat(t *testing.T) {
 		_ = os.Unsetenv("CLEANUP_SCHEDULER_TIME")
 	}()
 
-	s := &Scheduler{
-		tasks: make(map[string]*ScheduledTask),
-		done:  make(chan struct{}),
-	}
+	synctest.Test(t, func(t *testing.T) {
+		s := &Scheduler{
+			tasks: make(map[string]*ScheduledTask),
+			done:  make(chan struct{}),
+		}
 
-	// Schedule cleanup task with invalid time
-	s.scheduleCleanupTask()
+		// Schedule cleanup task with invalid time
+		s.scheduleCleanupTask()
 
-	// Give goroutine time to start and parse time
-	time.Sleep(50 * time.Millisecond)
+		// Wait for goroutines to be durably blocked (fake time makes sleeps instant)
+		synctest.Wait()
 
-	// Stop scheduler
-	close(s.done)
-	s.wg.Wait()
+		// Task should be registered even with invalid time (will fail silently in goroutine)
+		s.mu.RLock()
+		_, hasTask := s.tasks["visit-cleanup"]
+		s.mu.RUnlock()
+		assert.True(t, hasTask)
 
-	// Task should be registered even with invalid time (will fail silently in goroutine)
-	s.mu.RLock()
-	_, hasTask := s.tasks["visit-cleanup"]
-	s.mu.RUnlock()
-	assert.True(t, hasTask)
+		// Stop scheduler
+		close(s.done)
+		s.wg.Wait()
+	})
 }
 
 func TestScheduleCleanupTask_InvalidHour(t *testing.T) {
@@ -569,20 +565,22 @@ func TestScheduleCleanupTask_InvalidHour(t *testing.T) {
 		_ = os.Unsetenv("CLEANUP_SCHEDULER_TIME")
 	}()
 
-	s := &Scheduler{
-		tasks: make(map[string]*ScheduledTask),
-		done:  make(chan struct{}),
-	}
+	synctest.Test(t, func(t *testing.T) {
+		s := &Scheduler{
+			tasks: make(map[string]*ScheduledTask),
+			done:  make(chan struct{}),
+		}
 
-	// Schedule cleanup task with invalid hour
-	s.scheduleCleanupTask()
+		// Schedule cleanup task with invalid hour
+		s.scheduleCleanupTask()
 
-	// Give goroutine time to start and parse time
-	time.Sleep(50 * time.Millisecond)
+		// Wait for goroutines to be durably blocked (fake time makes sleeps instant)
+		synctest.Wait()
 
-	// Stop scheduler
-	close(s.done)
-	s.wg.Wait()
+		// Stop scheduler
+		close(s.done)
+		s.wg.Wait()
+	})
 }
 
 func TestScheduleCleanupTask_InvalidMinute(t *testing.T) {
@@ -593,20 +591,22 @@ func TestScheduleCleanupTask_InvalidMinute(t *testing.T) {
 		_ = os.Unsetenv("CLEANUP_SCHEDULER_TIME")
 	}()
 
-	s := &Scheduler{
-		tasks: make(map[string]*ScheduledTask),
-		done:  make(chan struct{}),
-	}
+	synctest.Test(t, func(t *testing.T) {
+		s := &Scheduler{
+			tasks: make(map[string]*ScheduledTask),
+			done:  make(chan struct{}),
+		}
 
-	// Schedule cleanup task with invalid minute
-	s.scheduleCleanupTask()
+		// Schedule cleanup task with invalid minute
+		s.scheduleCleanupTask()
 
-	// Give goroutine time to start and parse time
-	time.Sleep(50 * time.Millisecond)
+		// Wait for goroutines to be durably blocked (fake time makes sleeps instant)
+		synctest.Wait()
 
-	// Stop scheduler
-	close(s.done)
-	s.wg.Wait()
+		// Stop scheduler
+		close(s.done)
+		s.wg.Wait()
+	})
 }
 
 func TestScheduleSessionEndTask_InvalidTimeFormat(t *testing.T) {
@@ -617,20 +617,22 @@ func TestScheduleSessionEndTask_InvalidTimeFormat(t *testing.T) {
 		_ = os.Unsetenv("SESSION_END_TIME")
 	}()
 
-	s := &Scheduler{
-		tasks: make(map[string]*ScheduledTask),
-		done:  make(chan struct{}),
-	}
+	synctest.Test(t, func(t *testing.T) {
+		s := &Scheduler{
+			tasks: make(map[string]*ScheduledTask),
+			done:  make(chan struct{}),
+		}
 
-	// Schedule session end task with invalid time
-	s.scheduleSessionEndTask()
+		// Schedule session end task with invalid time
+		s.scheduleSessionEndTask()
 
-	// Give goroutine time to start and parse time
-	time.Sleep(50 * time.Millisecond)
+		// Wait for goroutines to be durably blocked (fake time makes sleeps instant)
+		synctest.Wait()
 
-	// Stop scheduler
-	close(s.done)
-	s.wg.Wait()
+		// Stop scheduler
+		close(s.done)
+		s.wg.Wait()
+	})
 }
 
 func TestScheduleSessionEndTask_InvalidHour(t *testing.T) {
@@ -641,20 +643,22 @@ func TestScheduleSessionEndTask_InvalidHour(t *testing.T) {
 		_ = os.Unsetenv("SESSION_END_TIME")
 	}()
 
-	s := &Scheduler{
-		tasks: make(map[string]*ScheduledTask),
-		done:  make(chan struct{}),
-	}
+	synctest.Test(t, func(t *testing.T) {
+		s := &Scheduler{
+			tasks: make(map[string]*ScheduledTask),
+			done:  make(chan struct{}),
+		}
 
-	// Schedule session end task with invalid hour
-	s.scheduleSessionEndTask()
+		// Schedule session end task with invalid hour
+		s.scheduleSessionEndTask()
 
-	// Give goroutine time to start and parse time
-	time.Sleep(50 * time.Millisecond)
+		// Wait for goroutines to be durably blocked (fake time makes sleeps instant)
+		synctest.Wait()
 
-	// Stop scheduler
-	close(s.done)
-	s.wg.Wait()
+		// Stop scheduler
+		close(s.done)
+		s.wg.Wait()
+	})
 }
 
 func TestScheduleSessionEndTask_InvalidMinute(t *testing.T) {
@@ -665,20 +669,22 @@ func TestScheduleSessionEndTask_InvalidMinute(t *testing.T) {
 		_ = os.Unsetenv("SESSION_END_TIME")
 	}()
 
-	s := &Scheduler{
-		tasks: make(map[string]*ScheduledTask),
-		done:  make(chan struct{}),
-	}
+	synctest.Test(t, func(t *testing.T) {
+		s := &Scheduler{
+			tasks: make(map[string]*ScheduledTask),
+			done:  make(chan struct{}),
+		}
 
-	// Schedule session end task with invalid minute
-	s.scheduleSessionEndTask()
+		// Schedule session end task with invalid minute
+		s.scheduleSessionEndTask()
 
-	// Give goroutine time to start and parse time
-	time.Sleep(50 * time.Millisecond)
+		// Wait for goroutines to be durably blocked (fake time makes sleeps instant)
+		synctest.Wait()
 
-	// Stop scheduler
-	close(s.done)
-	s.wg.Wait()
+		// Stop scheduler
+		close(s.done)
+		s.wg.Wait()
+	})
 }
 
 // NOTE: Session cleanup task tests are skipped because they spawn goroutines
@@ -1465,21 +1471,26 @@ func TestScheduleSessionCleanupTask_CustomInterval(t *testing.T) {
 		_ = os.Unsetenv("SESSION_CLEANUP_INTERVAL_MINUTES")
 	}()
 
-	s := &Scheduler{
-		activeService: &mockActiveService{}, // Needed for session cleanup
-		tasks:         make(map[string]*ScheduledTask),
-		done:          make(chan struct{}),
-	}
+	synctest.Test(t, func(t *testing.T) {
+		s := &Scheduler{
+			activeService: &mockActiveService{}, // Needed for session cleanup
+			tasks:         make(map[string]*ScheduledTask),
+			done:          make(chan struct{}),
+		}
 
-	// Schedule session cleanup task
-	s.scheduleSessionCleanupTask()
+		// Schedule session cleanup task
+		s.scheduleSessionCleanupTask()
 
-	// Verify config was parsed
-	assert.Equal(t, 30, s.sessionCleanupIntervalMinutes)
+		// Wait for goroutines to be durably blocked (fake time makes sleeps instant)
+		synctest.Wait()
 
-	// Stop scheduler immediately (don't wait for the 30-second delay)
-	close(s.done)
-	s.wg.Wait()
+		// Verify config was parsed
+		assert.Equal(t, 30, s.sessionCleanupIntervalMinutes)
+
+		// Stop scheduler
+		close(s.done)
+		s.wg.Wait()
+	})
 }
 
 func TestScheduleSessionCleanupTask_CustomThreshold(t *testing.T) {
@@ -1490,21 +1501,26 @@ func TestScheduleSessionCleanupTask_CustomThreshold(t *testing.T) {
 		_ = os.Unsetenv("SESSION_ABANDONED_THRESHOLD_MINUTES")
 	}()
 
-	s := &Scheduler{
-		activeService: &mockActiveService{}, // Needed for session cleanup
-		tasks:         make(map[string]*ScheduledTask),
-		done:          make(chan struct{}),
-	}
+	synctest.Test(t, func(t *testing.T) {
+		s := &Scheduler{
+			activeService: &mockActiveService{}, // Needed for session cleanup
+			tasks:         make(map[string]*ScheduledTask),
+			done:          make(chan struct{}),
+		}
 
-	// Schedule session cleanup task
-	s.scheduleSessionCleanupTask()
+		// Schedule session cleanup task
+		s.scheduleSessionCleanupTask()
 
-	// Verify config was parsed
-	assert.Equal(t, 120, s.sessionAbandonedThresholdMinutes)
+		// Wait for goroutines to be durably blocked (fake time makes sleeps instant)
+		synctest.Wait()
 
-	// Stop scheduler immediately (don't wait for the 30-second delay)
-	close(s.done)
-	s.wg.Wait()
+		// Verify config was parsed
+		assert.Equal(t, 120, s.sessionAbandonedThresholdMinutes)
+
+		// Stop scheduler
+		close(s.done)
+		s.wg.Wait()
+	})
 }
 
 func TestScheduleSessionCleanupTask_InvalidInterval(t *testing.T) {
@@ -1515,21 +1531,26 @@ func TestScheduleSessionCleanupTask_InvalidInterval(t *testing.T) {
 		_ = os.Unsetenv("SESSION_CLEANUP_INTERVAL_MINUTES")
 	}()
 
-	s := &Scheduler{
-		activeService: &mockActiveService{}, // Needed for session cleanup
-		tasks:         make(map[string]*ScheduledTask),
-		done:          make(chan struct{}),
-	}
+	synctest.Test(t, func(t *testing.T) {
+		s := &Scheduler{
+			activeService: &mockActiveService{}, // Needed for session cleanup
+			tasks:         make(map[string]*ScheduledTask),
+			done:          make(chan struct{}),
+		}
 
-	// Schedule session cleanup task
-	s.scheduleSessionCleanupTask()
+		// Schedule session cleanup task
+		s.scheduleSessionCleanupTask()
 
-	// Verify default was used (invalid config should fallback to default)
-	assert.Equal(t, 15, s.sessionCleanupIntervalMinutes)
+		// Wait for goroutines to be durably blocked (fake time makes sleeps instant)
+		synctest.Wait()
 
-	// Stop scheduler immediately
-	close(s.done)
-	s.wg.Wait()
+		// Verify default was used (invalid config should fallback to default)
+		assert.Equal(t, 15, s.sessionCleanupIntervalMinutes)
+
+		// Stop scheduler
+		close(s.done)
+		s.wg.Wait()
+	})
 }
 
 func TestScheduleSessionCleanupTask_NegativeInterval(t *testing.T) {
@@ -1540,21 +1561,26 @@ func TestScheduleSessionCleanupTask_NegativeInterval(t *testing.T) {
 		_ = os.Unsetenv("SESSION_CLEANUP_INTERVAL_MINUTES")
 	}()
 
-	s := &Scheduler{
-		activeService: &mockActiveService{}, // Needed for session cleanup
-		tasks:         make(map[string]*ScheduledTask),
-		done:          make(chan struct{}),
-	}
+	synctest.Test(t, func(t *testing.T) {
+		s := &Scheduler{
+			activeService: &mockActiveService{}, // Needed for session cleanup
+			tasks:         make(map[string]*ScheduledTask),
+			done:          make(chan struct{}),
+		}
 
-	// Schedule session cleanup task
-	s.scheduleSessionCleanupTask()
+		// Schedule session cleanup task
+		s.scheduleSessionCleanupTask()
 
-	// Verify default was used (negative should fallback to default)
-	assert.Equal(t, 15, s.sessionCleanupIntervalMinutes)
+		// Wait for goroutines to be durably blocked (fake time makes sleeps instant)
+		synctest.Wait()
 
-	// Stop scheduler immediately
-	close(s.done)
-	s.wg.Wait()
+		// Verify default was used (negative should fallback to default)
+		assert.Equal(t, 15, s.sessionCleanupIntervalMinutes)
+
+		// Stop scheduler
+		close(s.done)
+		s.wg.Wait()
+	})
 }
 
 func TestScheduleCleanupTask_CustomTime(t *testing.T) {
@@ -1565,27 +1591,29 @@ func TestScheduleCleanupTask_CustomTime(t *testing.T) {
 		_ = os.Unsetenv("CLEANUP_SCHEDULER_TIME")
 	}()
 
-	s := &Scheduler{
-		tasks: make(map[string]*ScheduledTask),
-		done:  make(chan struct{}),
-	}
+	synctest.Test(t, func(t *testing.T) {
+		s := &Scheduler{
+			tasks: make(map[string]*ScheduledTask),
+			done:  make(chan struct{}),
+		}
 
-	// Schedule cleanup task
-	s.scheduleCleanupTask()
+		// Schedule cleanup task
+		s.scheduleCleanupTask()
 
-	// Give goroutine time to start
-	time.Sleep(50 * time.Millisecond)
+		// Wait for goroutines to be durably blocked (fake time makes sleeps instant)
+		synctest.Wait()
 
-	// Verify task was created with custom schedule
-	s.mu.RLock()
-	task, hasTask := s.tasks["visit-cleanup"]
-	s.mu.RUnlock()
-	assert.True(t, hasTask)
-	assert.Equal(t, "03:30", task.Schedule)
+		// Verify task was created with custom schedule
+		s.mu.RLock()
+		task, hasTask := s.tasks["visit-cleanup"]
+		s.mu.RUnlock()
+		assert.True(t, hasTask)
+		assert.Equal(t, "03:30", task.Schedule)
 
-	// Stop scheduler
-	close(s.done)
-	s.wg.Wait()
+		// Stop scheduler
+		close(s.done)
+		s.wg.Wait()
+	})
 }
 
 func TestScheduleSessionEndTask_CustomTime(t *testing.T) {
@@ -1596,77 +1624,86 @@ func TestScheduleSessionEndTask_CustomTime(t *testing.T) {
 		_ = os.Unsetenv("SESSION_END_TIME")
 	}()
 
-	s := &Scheduler{
-		tasks: make(map[string]*ScheduledTask),
-		done:  make(chan struct{}),
-	}
+	synctest.Test(t, func(t *testing.T) {
+		s := &Scheduler{
+			tasks: make(map[string]*ScheduledTask),
+			done:  make(chan struct{}),
+		}
 
-	// Schedule session end task
-	s.scheduleSessionEndTask()
+		// Schedule session end task
+		s.scheduleSessionEndTask()
 
-	// Give goroutine time to start
-	time.Sleep(50 * time.Millisecond)
+		// Wait for goroutines to be durably blocked (fake time makes sleeps instant)
+		synctest.Wait()
 
-	// Verify task was created with custom schedule
-	s.mu.RLock()
-	task, hasTask := s.tasks["session-end"]
-	s.mu.RUnlock()
-	assert.True(t, hasTask)
-	assert.Equal(t, "17:00", task.Schedule)
+		// Verify task was created with custom schedule
+		s.mu.RLock()
+		task, hasTask := s.tasks["session-end"]
+		s.mu.RUnlock()
+		assert.True(t, hasTask)
+		assert.Equal(t, "17:00", task.Schedule)
 
-	// Stop scheduler
-	close(s.done)
-	s.wg.Wait()
+		// Stop scheduler
+		close(s.done)
+		s.wg.Wait()
+	})
 }
 
 func TestScheduleSessionEndTask_DefaultEnabled(t *testing.T) {
 	// Clear env var to test default behavior (enabled)
 	_ = os.Unsetenv("SESSION_END_SCHEDULER_ENABLED")
 
-	s := &Scheduler{
-		tasks: make(map[string]*ScheduledTask),
-		done:  make(chan struct{}),
-	}
+	synctest.Test(t, func(t *testing.T) {
+		s := &Scheduler{
+			tasks: make(map[string]*ScheduledTask),
+			done:  make(chan struct{}),
+		}
 
-	// Schedule session end task (should be enabled by default)
-	s.scheduleSessionEndTask()
+		// Schedule session end task (should be enabled by default)
+		s.scheduleSessionEndTask()
 
-	// Give goroutine time to start
-	time.Sleep(50 * time.Millisecond)
+		// Wait for goroutines to be durably blocked (fake time makes sleeps instant)
+		synctest.Wait()
 
-	// Verify task was created
-	s.mu.RLock()
-	_, hasTask := s.tasks["session-end"]
-	s.mu.RUnlock()
-	assert.True(t, hasTask, "Session end should be enabled by default")
+		// Verify task was created
+		s.mu.RLock()
+		_, hasTask := s.tasks["session-end"]
+		s.mu.RUnlock()
+		assert.True(t, hasTask, "Session end should be enabled by default")
 
-	// Stop scheduler
-	close(s.done)
-	s.wg.Wait()
+		// Stop scheduler
+		close(s.done)
+		s.wg.Wait()
+	})
 }
 
 func TestScheduleSessionCleanupTask_DefaultEnabled(t *testing.T) {
 	// Clear env var to test default behavior (enabled)
 	_ = os.Unsetenv("SESSION_CLEANUP_ENABLED")
 
-	s := &Scheduler{
-		activeService: &mockActiveService{}, // Needed for session cleanup
-		tasks:         make(map[string]*ScheduledTask),
-		done:          make(chan struct{}),
-	}
+	synctest.Test(t, func(t *testing.T) {
+		s := &Scheduler{
+			activeService: &mockActiveService{}, // Needed for session cleanup
+			tasks:         make(map[string]*ScheduledTask),
+			done:          make(chan struct{}),
+		}
 
-	// Schedule session cleanup task (should be enabled by default)
-	s.scheduleSessionCleanupTask()
+		// Schedule session cleanup task (should be enabled by default)
+		s.scheduleSessionCleanupTask()
 
-	// Verify task was created
-	s.mu.RLock()
-	_, hasTask := s.tasks["session-cleanup"]
-	s.mu.RUnlock()
-	assert.True(t, hasTask, "Session cleanup should be enabled by default")
+		// Wait for goroutines to be durably blocked (fake time makes sleeps instant)
+		synctest.Wait()
 
-	// Stop scheduler immediately
-	close(s.done)
-	s.wg.Wait()
+		// Verify task was created
+		s.mu.RLock()
+		_, hasTask := s.tasks["session-cleanup"]
+		s.mu.RUnlock()
+		assert.True(t, hasTask, "Session cleanup should be enabled by default")
+
+		// Stop scheduler
+		close(s.done)
+		s.wg.Wait()
+	})
 }
 
 // =============================================================================

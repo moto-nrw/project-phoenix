@@ -291,11 +291,13 @@ describe("StaffPage location filter logic", () => {
     ): boolean => {
       if (filter === "all") return true;
       if (filter === "zuhause") return location === "Zuhause";
+      if (filter === "anwesend") return location === "Anwesend";
       if (filter === "schulhof") return location === "Schulhof";
       if (filter === "unterwegs") return location === "Unterwegs";
       if (filter === "im_raum") {
         return (
           location !== "Zuhause" &&
+          location !== "Anwesend" &&
           location !== "Schulhof" &&
           location !== "Unterwegs"
         );
@@ -305,10 +307,39 @@ describe("StaffPage location filter logic", () => {
 
     const filter = "im_raum";
     expect(matchesLocationFilter("Zuhause", filter)).toBe(false);
+    expect(matchesLocationFilter("Anwesend", filter)).toBe(false);
     expect(matchesLocationFilter("Schulhof", filter)).toBe(false);
     expect(matchesLocationFilter("Unterwegs", filter)).toBe(false);
     expect(matchesLocationFilter("Raum 101", filter)).toBe(true);
     expect(matchesLocationFilter("Musik", filter)).toBe(true);
+  });
+
+  it("matches only 'Anwesend' when filter is 'anwesend'", () => {
+    const matchesLocationFilter = (
+      location: string,
+      filter: string,
+    ): boolean => {
+      if (filter === "all") return true;
+      if (filter === "zuhause") return location === "Zuhause";
+      if (filter === "anwesend") return location === "Anwesend";
+      if (filter === "schulhof") return location === "Schulhof";
+      if (filter === "unterwegs") return location === "Unterwegs";
+      if (filter === "im_raum") {
+        return (
+          location !== "Zuhause" &&
+          location !== "Anwesend" &&
+          location !== "Schulhof" &&
+          location !== "Unterwegs"
+        );
+      }
+      return true;
+    };
+
+    const filter = "anwesend";
+    expect(matchesLocationFilter("Anwesend", filter)).toBe(true);
+    expect(matchesLocationFilter("Zuhause", filter)).toBe(false);
+    expect(matchesLocationFilter("Schulhof", filter)).toBe(false);
+    expect(matchesLocationFilter("Raum 101", filter)).toBe(false);
   });
 });
 
