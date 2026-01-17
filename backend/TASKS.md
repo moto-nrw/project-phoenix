@@ -630,3 +630,13 @@
 
 ---
 
+## Iteration 2026-01-17_05:25:17
+
+**Changed:** align DB config docs with required envs
+
+**Files:** dev.env.example, internal/adapter/repository/postgres/database/db.go
+
+**Commit:** f7ea4c85
+
+---
+
