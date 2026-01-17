@@ -51,11 +51,11 @@ func (s *service) GetSettingByID(ctx context.Context, id int64) (*config.Setting
 
 // UpdateSetting updates an existing configuration setting
 func (s *service) UpdateSetting(ctx context.Context, setting *config.Setting) error {
+	// Validate input
 	if setting == nil || setting.ID <= 0 {
 		return &ConfigError{Op: "UpdateSetting", Err: ErrInvalidSettingData}
 	}
 
-	// Validate setting data
 	if err := setting.Validate(); err != nil {
 		return &ConfigError{Op: "UpdateSetting", Err: err}
 	}
@@ -70,24 +70,33 @@ func (s *service) UpdateSetting(ctx context.Context, setting *config.Setting) er
 		return &ConfigError{Op: "UpdateSetting", Err: ErrSettingNotFound}
 	}
 
-	// If this is a system setting, verify that only the value is being changed
-	if existingSetting.IsSystemSetting() {
-		if existingSetting.Key != setting.Key || existingSetting.Category != setting.Category {
-			return &ConfigError{Op: "UpdateSetting", Err: &SystemSettingsLockedError{Key: existingSetting.Key}}
-		}
-	}
-
-	// Check for duplicate key if changed
-	if existingSetting.Key != setting.Key || existingSetting.Category != setting.Category {
-		duplicateCheck, err := s.settingRepo.FindByKeyAndCategory(ctx, setting.Key, setting.Category)
-		if err == nil && duplicateCheck != nil && duplicateCheck.ID > 0 && duplicateCheck.ID != setting.ID {
-			return &ConfigError{Op: "UpdateSetting", Err: &DuplicateKeyError{Key: setting.Key}}
-		}
+	// Validate update is allowed
+	if err := s.validateSettingUpdate(ctx, existingSetting, setting); err != nil {
+		return err
 	}
 
 	// Update the setting
 	if err := s.settingRepo.Update(ctx, setting); err != nil {
 		return &ConfigError{Op: "UpdateSetting", Err: err}
+	}
+
+	return nil
+}
+
+func (s *service) validateSettingUpdate(ctx context.Context, existing, updated *config.Setting) error {
+	// If this is a system setting, verify that only the value is being changed
+	if existing.IsSystemSetting() {
+		if existing.Key != updated.Key || existing.Category != updated.Category {
+			return &ConfigError{Op: "UpdateSetting", Err: &SystemSettingsLockedError{Key: existing.Key}}
+		}
+	}
+
+	// Check for duplicate key if changed
+	if existing.Key != updated.Key || existing.Category != updated.Category {
+		duplicateCheck, err := s.settingRepo.FindByKeyAndCategory(ctx, updated.Key, updated.Category)
+		if err == nil && duplicateCheck != nil && duplicateCheck.ID > 0 && duplicateCheck.ID != updated.ID {
+			return &ConfigError{Op: "UpdateSetting", Err: &DuplicateKeyError{Key: updated.Key}}
+		}
 	}
 
 	return nil
