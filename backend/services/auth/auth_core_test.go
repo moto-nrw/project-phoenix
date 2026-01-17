@@ -3,7 +3,9 @@ package auth_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -25,6 +27,11 @@ func init() {
 	viper.Set("auth_jwt_secret", "test-jwt-secret-for-unit-tests-minimum-32-chars")
 	viper.Set("auth_jwt_expiry", "15m")         // Access token expiry
 	viper.Set("auth_jwt_refresh_expiry", "24h") // Refresh token expiry
+}
+
+// strPtr returns a pointer to the given string (helper for optional fields)
+func strPtr(s string) *string {
+	return &s
 }
 
 // setupAuthService creates an Auth Service with real database connection
@@ -1636,6 +1643,492 @@ func TestInvitationService_CleanupExpiredInvitations(t *testing.T) {
 		// ASSERT
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, count, 0)
+	})
+}
+
+func TestInvitationService_CreateInvitation(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	invitationService := setupInvitationService(t, db)
+	if invitationService == nil {
+		t.Skip("Invitation service not available")
+	}
+	authService := setupAuthService(t, db)
+	ctx := context.Background()
+
+	t.Run("creates invitation with valid data", func(t *testing.T) {
+		// ARRANGE - Get a role (use existing "User" role or create one)
+		role := testpkg.GetOrCreateTestRole(t, db, "User")
+
+		// Create an account to be the creator
+		creatorEmail := fmt.Sprintf("creator-%d@test.local", time.Now().UnixNano())
+		creator, err := authService.Register(ctx, creatorEmail, fmt.Sprintf("creator%d", time.Now().UnixNano()), "Test1234%", nil)
+		require.NoError(t, err)
+		defer testpkg.CleanupAuthFixtures(t, db, creator.ID)
+
+		inviteeEmail := fmt.Sprintf("invitee-%d@test.local", time.Now().UnixNano())
+
+		// ACT
+		invitation, err := invitationService.CreateInvitation(ctx, auth.InvitationRequest{
+			Email:     inviteeEmail,
+			RoleID:    role.ID,
+			CreatedBy: creator.ID,
+			FirstName: strPtr("Test"),
+			LastName:  strPtr("User"),
+		})
+
+		// ASSERT
+		require.NoError(t, err)
+		require.NotNil(t, invitation)
+		assert.Equal(t, inviteeEmail, invitation.Email)
+		assert.Equal(t, role.ID, invitation.RoleID)
+		assert.NotEmpty(t, invitation.Token)
+		assert.True(t, invitation.ExpiresAt.After(time.Now()))
+
+		// Cleanup
+		testpkg.CleanupInvitationFixtures(t, db, invitation.ID)
+	})
+
+	t.Run("normalizes email to lowercase", func(t *testing.T) {
+		// ARRANGE
+		role := testpkg.GetOrCreateTestRole(t, db, "User")
+		creatorEmail := fmt.Sprintf("creator2-%d@test.local", time.Now().UnixNano())
+		creator, err := authService.Register(ctx, creatorEmail, fmt.Sprintf("creator2%d", time.Now().UnixNano()), "Test1234%", nil)
+		require.NoError(t, err)
+		defer testpkg.CleanupAuthFixtures(t, db, creator.ID)
+
+		mixedCaseEmail := fmt.Sprintf("MixedCase-%d@Test.Local", time.Now().UnixNano())
+
+		// ACT
+		invitation, err := invitationService.CreateInvitation(ctx, auth.InvitationRequest{
+			Email:     mixedCaseEmail,
+			RoleID:    role.ID,
+			CreatedBy: creator.ID,
+		})
+
+		// ASSERT
+		require.NoError(t, err)
+		require.NotNil(t, invitation)
+		assert.Equal(t, strings.ToLower(mixedCaseEmail), invitation.Email)
+
+		testpkg.CleanupInvitationFixtures(t, db, invitation.ID)
+	})
+}
+
+func TestInvitationService_ValidateInvitation(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	invitationService := setupInvitationService(t, db)
+	if invitationService == nil {
+		t.Skip("Invitation service not available")
+	}
+	authService := setupAuthService(t, db)
+	ctx := context.Background()
+
+	t.Run("validates valid invitation token", func(t *testing.T) {
+		// ARRANGE
+		role := testpkg.GetOrCreateTestRole(t, db, "User")
+		creatorEmail := fmt.Sprintf("creator-val-%d@test.local", time.Now().UnixNano())
+		creator, err := authService.Register(ctx, creatorEmail, fmt.Sprintf("creatorval%d", time.Now().UnixNano()), "Test1234%", nil)
+		require.NoError(t, err)
+		defer testpkg.CleanupAuthFixtures(t, db, creator.ID)
+
+		invitation := testpkg.CreateTestInvitationTokenWithDetails(
+			t, db, "validate",
+			role.ID, creator.ID,
+			time.Now().Add(24*time.Hour),
+			"Grace", "Hopper",
+		)
+		defer testpkg.CleanupInvitationFixtures(t, db, invitation.ID)
+
+		// ACT
+		result, err := invitationService.ValidateInvitation(ctx, invitation.Token)
+
+		// ASSERT
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		assert.Equal(t, invitation.Email, result.Email)
+		assert.Equal(t, "Grace", *result.FirstName)
+		assert.Equal(t, "Hopper", *result.LastName)
+	})
+
+	t.Run("returns error for expired invitation", func(t *testing.T) {
+		// ARRANGE
+		role := testpkg.GetOrCreateTestRole(t, db, "User")
+		creatorEmail := fmt.Sprintf("creator-exp-%d@test.local", time.Now().UnixNano())
+		creator, err := authService.Register(ctx, creatorEmail, fmt.Sprintf("creatorexp%d", time.Now().UnixNano()), "Test1234%", nil)
+		require.NoError(t, err)
+		defer testpkg.CleanupAuthFixtures(t, db, creator.ID)
+
+		// Create expired invitation
+		invitation := testpkg.CreateTestInvitationToken(
+			t, db, "expired",
+			role.ID, creator.ID,
+			time.Now().Add(-1*time.Hour), // Expired
+		)
+		defer testpkg.CleanupInvitationFixtures(t, db, invitation.ID)
+
+		// ACT
+		_, err = invitationService.ValidateInvitation(ctx, invitation.Token)
+
+		// ASSERT
+		require.Error(t, err)
+		assert.True(t, errors.Is(err, auth.ErrInvitationExpired))
+	})
+
+	t.Run("returns error for non-existent token", func(t *testing.T) {
+		// ACT
+		_, err := invitationService.ValidateInvitation(ctx, "non-existent-token-12345")
+
+		// ASSERT
+		require.Error(t, err)
+	})
+}
+
+func TestInvitationService_AcceptInvitation(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	invitationService := setupInvitationService(t, db)
+	if invitationService == nil {
+		t.Skip("Invitation service not available")
+	}
+	authService := setupAuthService(t, db)
+	ctx := context.Background()
+
+	t.Run("accepts invitation and creates account", func(t *testing.T) {
+		// ARRANGE
+		role := testpkg.GetOrCreateTestRole(t, db, "User")
+		creatorEmail := fmt.Sprintf("creator-acc-%d@test.local", time.Now().UnixNano())
+		creator, err := authService.Register(ctx, creatorEmail, fmt.Sprintf("creatoracc%d", time.Now().UnixNano()), "Test1234%", nil)
+		require.NoError(t, err)
+		defer testpkg.CleanupAuthFixtures(t, db, creator.ID)
+
+		invitation := testpkg.CreateTestInvitationToken(
+			t, db, "accept",
+			role.ID, creator.ID,
+			time.Now().Add(24*time.Hour),
+		)
+		defer testpkg.CleanupInvitationFixtures(t, db, invitation.ID)
+
+		// ACT
+		account, err := invitationService.AcceptInvitation(ctx, invitation.Token, auth.UserRegistrationData{
+			FirstName:       "Katherine",
+			LastName:        "Johnson",
+			Password:        "Test1234%",
+			ConfirmPassword: "Test1234%",
+		})
+
+		// ASSERT
+		require.NoError(t, err)
+		require.NotNil(t, account)
+		assert.Equal(t, invitation.Email, account.Email)
+		assert.True(t, account.Active)
+
+		// Cleanup the created account
+		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+		// Verify the invitation is now marked as used
+		_, err = invitationService.ValidateInvitation(ctx, invitation.Token)
+		require.Error(t, err)
+		assert.True(t, errors.Is(err, auth.ErrInvitationUsed))
+	})
+
+	t.Run("rejects weak password", func(t *testing.T) {
+		// ARRANGE
+		role := testpkg.GetOrCreateTestRole(t, db, "User")
+		creatorEmail := fmt.Sprintf("creator-weak-%d@test.local", time.Now().UnixNano())
+		creator, err := authService.Register(ctx, creatorEmail, fmt.Sprintf("creatorweak%d", time.Now().UnixNano()), "Test1234%", nil)
+		require.NoError(t, err)
+		defer testpkg.CleanupAuthFixtures(t, db, creator.ID)
+
+		invitation := testpkg.CreateTestInvitationToken(
+			t, db, "weakpass",
+			role.ID, creator.ID,
+			time.Now().Add(24*time.Hour),
+		)
+		defer testpkg.CleanupInvitationFixtures(t, db, invitation.ID)
+
+		// ACT
+		_, err = invitationService.AcceptInvitation(ctx, invitation.Token, auth.UserRegistrationData{
+			FirstName:       "Test",
+			LastName:        "User",
+			Password:        "weak",
+			ConfirmPassword: "weak",
+		})
+
+		// ASSERT
+		require.Error(t, err)
+		assert.True(t, errors.Is(err, auth.ErrPasswordTooWeak))
+
+		// Verify invitation is NOT marked as used
+		_, err = invitationService.ValidateInvitation(ctx, invitation.Token)
+		require.NoError(t, err) // Should still be valid
+	})
+
+	t.Run("rejects expired invitation", func(t *testing.T) {
+		// ARRANGE
+		role := testpkg.GetOrCreateTestRole(t, db, "User")
+		creatorEmail := fmt.Sprintf("creator-exprej-%d@test.local", time.Now().UnixNano())
+		creator, err := authService.Register(ctx, creatorEmail, fmt.Sprintf("creatorexprej%d", time.Now().UnixNano()), "Test1234%", nil)
+		require.NoError(t, err)
+		defer testpkg.CleanupAuthFixtures(t, db, creator.ID)
+
+		invitation := testpkg.CreateTestInvitationToken(
+			t, db, "expiredaccept",
+			role.ID, creator.ID,
+			time.Now().Add(-1*time.Hour), // Expired
+		)
+		defer testpkg.CleanupInvitationFixtures(t, db, invitation.ID)
+
+		// ACT
+		_, err = invitationService.AcceptInvitation(ctx, invitation.Token, auth.UserRegistrationData{
+			FirstName:       "Test",
+			LastName:        "User",
+			Password:        "Test1234%",
+			ConfirmPassword: "Test1234%",
+		})
+
+		// ASSERT
+		require.Error(t, err)
+		assert.True(t, errors.Is(err, auth.ErrInvitationExpired))
+	})
+}
+
+func TestInvitationService_RevokeInvitation(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	invitationService := setupInvitationService(t, db)
+	if invitationService == nil {
+		t.Skip("Invitation service not available")
+	}
+	authService := setupAuthService(t, db)
+	ctx := context.Background()
+
+	t.Run("revokes pending invitation", func(t *testing.T) {
+		// ARRANGE
+		role := testpkg.GetOrCreateTestRole(t, db, "User")
+		creatorEmail := fmt.Sprintf("creator-rev-%d@test.local", time.Now().UnixNano())
+		creator, err := authService.Register(ctx, creatorEmail, fmt.Sprintf("creatorrev%d", time.Now().UnixNano()), "Test1234%", nil)
+		require.NoError(t, err)
+		defer testpkg.CleanupAuthFixtures(t, db, creator.ID)
+
+		invitation := testpkg.CreateTestInvitationToken(
+			t, db, "revoke",
+			role.ID, creator.ID,
+			time.Now().Add(24*time.Hour),
+		)
+		defer testpkg.CleanupInvitationFixtures(t, db, invitation.ID)
+
+		// ACT
+		err = invitationService.RevokeInvitation(ctx, invitation.ID, creator.ID)
+
+		// ASSERT
+		require.NoError(t, err)
+
+		// Verify the invitation is now marked as used
+		_, err = invitationService.ValidateInvitation(ctx, invitation.Token)
+		require.Error(t, err)
+		assert.True(t, errors.Is(err, auth.ErrInvitationUsed))
+	})
+}
+
+// =============================================================================
+// Password Reset Integration Tests
+// =============================================================================
+
+func TestAuthService_InitiatePasswordReset(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupAuthService(t, db)
+	ctx := context.Background()
+
+	t.Run("creates password reset token for existing account", func(t *testing.T) {
+		// ARRANGE - Create an account
+		email := fmt.Sprintf("reset-%d@test.local", time.Now().UnixNano())
+		account, err := service.Register(ctx, email, fmt.Sprintf("resetuser%d", time.Now().UnixNano()), "Test1234%", nil)
+		require.NoError(t, err)
+		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+		// ACT
+		token, err := service.InitiatePasswordReset(ctx, email)
+
+		// ASSERT
+		require.NoError(t, err)
+		require.NotNil(t, token)
+		assert.NotEmpty(t, token.Token)
+		assert.Equal(t, account.ID, token.AccountID)
+		assert.True(t, token.Expiry.After(time.Now()))
+
+		// Cleanup
+		testpkg.CleanupTableRecords(t, db, "auth.password_reset_tokens", token.ID)
+	})
+
+	t.Run("returns nil for non-existent email (security by design)", func(t *testing.T) {
+		// NOTE: The service intentionally returns (nil, nil) for non-existent emails
+		// to avoid revealing whether an email address exists in the system.
+
+		// ACT
+		token, err := service.InitiatePasswordReset(ctx, "nonexistent-for-reset@test.local")
+
+		// ASSERT - Both should be nil (no error, no token)
+		require.NoError(t, err)
+		assert.Nil(t, token)
+	})
+}
+
+func TestAuthService_ResetPassword(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupAuthService(t, db)
+	ctx := context.Background()
+
+	t.Run("resets password with valid token", func(t *testing.T) {
+		// ARRANGE - Create an account and initiate password reset
+		email := fmt.Sprintf("resetpw-%d@test.local", time.Now().UnixNano())
+		account, err := service.Register(ctx, email, fmt.Sprintf("resetpw%d", time.Now().UnixNano()), "Test1234%", nil)
+		require.NoError(t, err)
+		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+		token, err := service.InitiatePasswordReset(ctx, email)
+		require.NoError(t, err)
+		defer testpkg.CleanupTableRecords(t, db, "auth.password_reset_tokens", token.ID)
+
+		newPassword := "NewStr0ng!Pass"
+
+		// ACT
+		err = service.ResetPassword(ctx, token.Token, newPassword)
+
+		// ASSERT
+		require.NoError(t, err)
+
+		// Verify we can login with the new password
+		accessToken, refreshToken, err := service.Login(ctx, email, newPassword)
+		require.NoError(t, err)
+		assert.NotEmpty(t, accessToken)
+		assert.NotEmpty(t, refreshToken)
+	})
+
+	t.Run("rejects weak password", func(t *testing.T) {
+		// ARRANGE
+		email := fmt.Sprintf("weakreset-%d@test.local", time.Now().UnixNano())
+		account, err := service.Register(ctx, email, fmt.Sprintf("weakreset%d", time.Now().UnixNano()), "Test1234%", nil)
+		require.NoError(t, err)
+		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+		token, err := service.InitiatePasswordReset(ctx, email)
+		require.NoError(t, err)
+		defer testpkg.CleanupTableRecords(t, db, "auth.password_reset_tokens", token.ID)
+
+		// ACT
+		err = service.ResetPassword(ctx, token.Token, "weak")
+
+		// ASSERT
+		require.Error(t, err)
+		assert.True(t, errors.Is(err, auth.ErrPasswordTooWeak))
+	})
+
+	t.Run("rejects invalid token", func(t *testing.T) {
+		// ACT
+		err := service.ResetPassword(ctx, "invalid-token-12345", "NewStr0ng!Pass")
+
+		// ASSERT
+		require.Error(t, err)
+		assert.True(t, errors.Is(err, auth.ErrInvalidToken))
+	})
+
+	t.Run("rejects already-used token", func(t *testing.T) {
+		// ARRANGE
+		email := fmt.Sprintf("usedtoken-%d@test.local", time.Now().UnixNano())
+		account, err := service.Register(ctx, email, fmt.Sprintf("usedtoken%d", time.Now().UnixNano()), "Test1234%", nil)
+		require.NoError(t, err)
+		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+		token, err := service.InitiatePasswordReset(ctx, email)
+		require.NoError(t, err)
+		defer testpkg.CleanupTableRecords(t, db, "auth.password_reset_tokens", token.ID)
+
+		// Use the token once
+		err = service.ResetPassword(ctx, token.Token, "FirstReset!123")
+		require.NoError(t, err)
+
+		// ACT - Try to use the same token again
+		err = service.ResetPassword(ctx, token.Token, "SecondReset!456")
+
+		// ASSERT
+		require.Error(t, err)
+		assert.True(t, errors.Is(err, auth.ErrInvalidToken))
+	})
+}
+
+func TestAuthService_PasswordResetRateLimit(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	// Enable rate limiting for these tests
+	prevRateLimitEnabled := viper.GetBool("rate_limit_enabled")
+	viper.Set("rate_limit_enabled", true)
+	t.Cleanup(func() {
+		viper.Set("rate_limit_enabled", prevRateLimitEnabled)
+	})
+
+	service := setupAuthService(t, db)
+	ctx := context.Background()
+
+	t.Run("allows multiple reset requests within limit", func(t *testing.T) {
+		// ARRANGE
+		email := fmt.Sprintf("ratelimit-%d@test.local", time.Now().UnixNano())
+		account, err := service.Register(ctx, email, fmt.Sprintf("ratelimit%d", time.Now().UnixNano()), "Test1234%", nil)
+		require.NoError(t, err)
+		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+		var tokenIDs []int64
+
+		// ACT - Request password reset 3 times (within typical rate limit)
+		for i := 0; i < 3; i++ {
+			token, err := service.InitiatePasswordReset(ctx, email)
+			require.NoError(t, err, "Request %d should succeed", i+1)
+			tokenIDs = append(tokenIDs, token.ID)
+		}
+
+		// Cleanup
+		for _, id := range tokenIDs {
+			testpkg.CleanupTableRecords(t, db, "auth.password_reset_tokens", id)
+		}
+	})
+
+	t.Run("blocks requests after exceeding rate limit", func(t *testing.T) {
+		// ARRANGE
+		email := fmt.Sprintf("exceededlimit-%d@test.local", time.Now().UnixNano())
+		account, err := service.Register(ctx, email, fmt.Sprintf("exceededlimit%d", time.Now().UnixNano()), "Test1234%", nil)
+		require.NoError(t, err)
+		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+		var tokenIDs []int64
+
+		// Make 3 requests (the typical limit)
+		for i := 0; i < 3; i++ {
+			token, err := service.InitiatePasswordReset(ctx, email)
+			require.NoError(t, err)
+			tokenIDs = append(tokenIDs, token.ID)
+		}
+
+		// ACT - The 4th request should be rate limited
+		_, err = service.InitiatePasswordReset(ctx, email)
+
+		// ASSERT
+		require.Error(t, err)
+		assert.True(t, errors.Is(err, auth.ErrRateLimitExceeded))
+
+		// Cleanup
+		for _, id := range tokenIDs {
+			testpkg.CleanupTableRecords(t, db, "auth.password_reset_tokens", id)
+		}
 	})
 }
 
