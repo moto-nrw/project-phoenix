@@ -500,3 +500,13 @@
 
 ---
 
+## Iteration 2026-01-17_01:18:57
+
+**Changed:** Align IoT feedback handler logging with wide-event fields
+
+**Files:** internal/adapter/handler/http/iot/feedback/handlers.go
+
+**Commit:** 4ece8be026962c33530a6f6fa8ae6e5845a21ba4
+
+---
+
