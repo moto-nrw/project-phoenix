@@ -28,6 +28,12 @@ func NewServer() (*Server, error) {
 		return nil, err
 	}
 
+	// Load HTTP server configuration from environment
+	httpConfig, err := LoadHTTPServerConfig()
+	if err != nil {
+		return nil, fmt.Errorf("failed to load HTTP server config: %w", err)
+	}
+
 	api, err := New(viper.GetBool("enable_cors"))
 	if err != nil {
 		return nil, err
@@ -48,13 +54,11 @@ func NewServer() (*Server, error) {
 
 	srv := &Server{
 		Server: &http.Server{
-			Addr:    addr,
-			Handler: api,
-			// ReadTimeout stays modest to protect against slowloris attacks,
-			// but WriteTimeout must be disabled to allow long-lived SSE streams.
-			ReadTimeout:  15 * time.Second,
-			WriteTimeout: 0,
-			IdleTimeout:  0,
+			Addr:         addr,
+			Handler:      api,
+			ReadTimeout:  httpConfig.ReadTimeout,
+			WriteTimeout: httpConfig.WriteTimeout,
+			IdleTimeout:  httpConfig.IdleTimeout,
 		},
 		scheduler: nil, // Will be initialized if cleanup is enabled
 	}
@@ -112,8 +116,15 @@ func (srv *Server) Start() {
 		srv.scheduler.Stop()
 	}
 
+	// Load shutdown timeout from config
+	httpConfig, err := LoadHTTPServerConfig()
+	if err != nil {
+		logger.Logger.WithError(err).Warn("Failed to load HTTP config for shutdown timeout, using default 30s")
+		httpConfig = &HTTPServerConfig{ShutdownTimeout: 30 * time.Second}
+	}
+
 	// Create a deadline for graceful shutdown
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), httpConfig.ShutdownTimeout)
 	defer cancel()
 
 	// Attempt graceful shutdown

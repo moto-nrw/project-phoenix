@@ -181,7 +181,13 @@ func (conn *sseConnection) sendHeartbeat() error {
 func (conn *sseConnection) runHeartbeatOnlyLoop(ctx context.Context) {
 	logInfo("SSE connection - no available topics (heartbeat only)", conn.staffID)
 
-	ticker := time.NewTicker(30 * time.Second)
+	cfg, err := LoadSSEConfig()
+	if err != nil {
+		logError("Failed to load SSE config for heartbeat, using default 30s", err, conn.staffID)
+		cfg = &SSEConfig{HeartbeatInterval: 30 * time.Second}
+	}
+
+	ticker := time.NewTicker(cfg.HeartbeatInterval)
 	defer ticker.Stop()
 
 	for {
@@ -210,7 +216,13 @@ func (rs *Resource) createAndRegisterClient(conn *sseConnection) {
 func (rs *Resource) runEventLoop(ctx context.Context, conn *sseConnection) {
 	defer rs.hub.Unregister(conn.client)
 
-	heartbeat := time.NewTicker(30 * time.Second)
+	cfg, err := LoadSSEConfig()
+	if err != nil {
+		logError("Failed to load SSE config for heartbeat, using default 30s", err, conn.staffID)
+		cfg = &SSEConfig{HeartbeatInterval: 30 * time.Second}
+	}
+
+	heartbeat := time.NewTicker(cfg.HeartbeatInterval)
 	defer heartbeat.Stop()
 
 	for {
