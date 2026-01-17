@@ -126,53 +126,32 @@ interface ActiveSupervisionDashboardResponse {
  */
 export const GET = createGetHandler<ActiveSupervisionDashboardResponse>(
   async (_request: NextRequest, token: string) => {
-    const startTime = Date.now();
-    console.log("⏱️ [BFF] Starting Active Supervision dashboard data fetch...");
-
     // Step 1: Fetch all initial data in parallel
-    const initialStart = Date.now();
     const [supervisedResult, unclaimedResult, staffResult, groupsResult] =
       await Promise.all([
         // User's supervised active groups
         apiGet<{ data: BackendActiveGroup[] | null }>(
           "/api/me/groups/supervised",
           token,
-        ).catch((err) => {
-          console.error("[BFF] Supervised groups fetch error:", err);
-          return { data: [] as BackendActiveGroup[] };
-        }),
+        ).catch(() => ({ data: [] as BackendActiveGroup[] })),
 
         // Unclaimed groups available to claim
         apiGet<{ data: BackendUnclaimedGroup[] | null }>(
           "/api/active/groups/unclaimed",
           token,
-        ).catch((err) => {
-          console.error("[BFF] Unclaimed groups fetch error:", err);
-          return { data: [] as BackendUnclaimedGroup[] };
-        }),
+        ).catch(() => ({ data: [] as BackendUnclaimedGroup[] })),
 
         // Current staff info
-        apiGet<{ data: BackendStaff }>("/api/me/staff", token).catch((err) => {
-          // 404 is expected if user is not linked to staff
-          if (!String(err).includes("404")) {
-            console.error("[BFF] Staff fetch error:", err);
-          }
-          return { data: null as BackendStaff | null };
-        }),
+        apiGet<{ data: BackendStaff }>("/api/me/staff", token).catch(() => ({
+          data: null as BackendStaff | null,
+        })),
 
         // Educational groups for permission checking
         apiGet<{ data: BackendEducationalGroup[] | null }>(
           "/api/me/groups",
           token,
-        ).catch((err) => {
-          console.error("[BFF] Educational groups fetch error:", err);
-          return { data: [] as BackendEducationalGroup[] };
-        }),
+        ).catch(() => ({ data: [] as BackendEducationalGroup[] })),
       ]);
-
-    console.log(
-      `⏱️ [BFF] Initial parallel fetches: ${Date.now() - initialStart}ms`,
-    );
 
     // Extract data with null safety
     const supervisedGroups = Array.isArray(supervisedResult.data)
@@ -186,15 +165,8 @@ export const GET = createGetHandler<ActiveSupervisionDashboardResponse>(
       ? groupsResult.data
       : [];
 
-    console.log(
-      `⏱️ [BFF] Found ${supervisedGroups.length} supervised groups, ${unclaimedGroups.length} unclaimed groups`,
-    );
-
     // If no supervised groups, return early with just unclaimed groups data
     if (supervisedGroups.length === 0) {
-      console.log(`⏱️ [BFF] No supervised groups, returning early`);
-      console.log(`⏱️ [BFF] ✅ Total: ${Date.now() - startTime}ms`);
-
       return {
         supervisedGroups: [],
         unclaimedGroups: unclaimedGroups.map((g) => ({
@@ -218,7 +190,6 @@ export const GET = createGetHandler<ActiveSupervisionDashboardResponse>(
     const firstGroupId = firstGroup ? firstGroup.id.toString() : null;
 
     // Prepare parallel requests for room info (for groups missing room data)
-    const roomFetchStart = Date.now();
     const enrichedGroups = await Promise.all(
       supervisedGroups.map(async (group) => {
         // If room info already present, use it
@@ -249,11 +220,7 @@ export const GET = createGetHandler<ActiveSupervisionDashboardResponse>(
                   }
                 : undefined,
             };
-          } catch (err) {
-            console.error(
-              `[BFF] Room fetch error for room ${group.room_id}:`,
-              err,
-            );
+          } catch {
             return {
               id: group.id.toString(),
               name: group.name,
@@ -272,14 +239,11 @@ export const GET = createGetHandler<ActiveSupervisionDashboardResponse>(
       }),
     );
 
-    console.log(`⏱️ [BFF] Room enrichment: ${Date.now() - roomFetchStart}ms`);
-
     // Step 3: Fetch visits for first room (pre-load for immediate display)
     let firstRoomVisits: ActiveSupervisionDashboardResponse["firstRoomVisits"] =
       [];
 
     if (firstGroupId) {
-      const visitsStart = Date.now();
       try {
         const visitsResponse = await apiGet<{ data: BackendVisitDisplay[] }>(
           `/api/active/groups/${firstGroupId}/visits/display`,
@@ -297,20 +261,10 @@ export const GET = createGetHandler<ActiveSupervisionDashboardResponse>(
             checkInTime: v.check_in_time,
             isActive: v.is_active,
           }));
-
-        console.log(
-          `⏱️ [BFF] Visits fetch: ${Date.now() - visitsStart}ms (${firstRoomVisits.length} active visits)`,
-        );
-      } catch (err) {
-        // 403 is expected if user doesn't have permission
-        if (!String(err).includes("403")) {
-          console.error("[BFF] Visits fetch error:", err);
-        }
+      } catch {
         firstRoomVisits = [];
       }
     }
-
-    console.log(`⏱️ [BFF] ✅ Total: ${Date.now() - startTime}ms`);
 
     return {
       supervisedGroups: enrichedGroups,

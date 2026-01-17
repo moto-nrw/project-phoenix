@@ -191,15 +191,12 @@ describe("useGlobalSSE", () => {
       expect(mutate).toHaveBeenCalled();
     });
 
-    it("logs warning for unknown event types", () => {
-      const consoleSpy = vi
-        .spyOn(console, "warn")
-        .mockImplementation(() => undefined);
-
+    it("silently ignores unknown event types without invalidating caches", () => {
       renderHook(() => useGlobalSSE());
 
       const onMessage = vi.mocked(useSSE).mock.calls[0]?.[1]?.onMessage;
 
+      // Unknown events should be silently ignored (no cache invalidation)
       onMessage?.({
         type: "unknown_event" as never,
         active_group_id: "123",
@@ -207,12 +204,8 @@ describe("useGlobalSSE", () => {
         timestamp: new Date().toISOString(),
       });
 
-      expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining("Unknown event type"),
-        "unknown_event",
-      );
-
-      consoleSpy.mockRestore();
+      // Verify no caches were invalidated for unknown event type
+      expect(vi.mocked(mutate)).not.toHaveBeenCalled();
     });
   });
 });

@@ -1492,7 +1492,6 @@ async function retryPutWithRefreshedToken(
   url: string,
   requestData: unknown,
 ): Promise<Response | null> {
-  console.log("Token expired, attempting to refresh...");
   const refreshSuccessful = await handleAuthFailure();
 
   if (!refreshSuccessful) {
