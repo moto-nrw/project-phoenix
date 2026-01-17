@@ -1,6 +1,9 @@
 package middleware
 
 import (
+	"bufio"
+	"io"
+	"net"
 	"net/http"
 	"strings"
 	"time"
@@ -126,4 +129,36 @@ func (rw *statusRecorder) Write(b []byte) (int, error) {
 		rw.statusCode = http.StatusOK
 	}
 	return rw.ResponseWriter.Write(b)
+}
+
+func (rw *statusRecorder) Flush() {
+	if flusher, ok := rw.ResponseWriter.(http.Flusher); ok {
+		flusher.Flush()
+	}
+}
+
+func (rw *statusRecorder) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	hijacker, ok := rw.ResponseWriter.(http.Hijacker)
+	if !ok {
+		return nil, nil, http.ErrNotSupported
+	}
+	return hijacker.Hijack()
+}
+
+func (rw *statusRecorder) Push(target string, opts *http.PushOptions) error {
+	pusher, ok := rw.ResponseWriter.(http.Pusher)
+	if !ok {
+		return http.ErrNotSupported
+	}
+	return pusher.Push(target, opts)
+}
+
+func (rw *statusRecorder) ReadFrom(reader io.Reader) (int64, error) {
+	if rw.statusCode == 0 {
+		rw.statusCode = http.StatusOK
+	}
+	if rf, ok := rw.ResponseWriter.(io.ReaderFrom); ok {
+		return rf.ReadFrom(reader)
+	}
+	return io.Copy(rw.ResponseWriter, reader)
 }
