@@ -143,12 +143,9 @@ func (s *StudentLocationSnapshot) ResolveStudentLocationWithTime(studentID int64
 		return StudentLocationInfo{Location: "Abwesend"}
 	}
 
-	// If checked out, return "Abwesend" with checkout time (for hasFullAccess users)
+	// Handle checked-out status
 	if status.Status == activeService.StatusCheckedOut {
-		if hasFullAccess && status.CheckOutTime != nil {
-			return StudentLocationInfo{Location: "Abwesend", Since: status.CheckOutTime}
-		}
-		return StudentLocationInfo{Location: "Abwesend"}
+		return s.resolveCheckedOutLocation(status, hasFullAccess)
 	}
 
 	// If not checked in at all, return "Abwesend" without time
@@ -156,10 +153,22 @@ func (s *StudentLocationSnapshot) ResolveStudentLocationWithTime(studentID int64
 		return StudentLocationInfo{Location: "Abwesend"}
 	}
 
+	// User is checked in; resolve detailed location based on access level
 	if !hasFullAccess {
 		return StudentLocationInfo{Location: "Anwesend"}
 	}
 
+	return s.resolveDetailedLocation(studentID)
+}
+
+func (s *StudentLocationSnapshot) resolveCheckedOutLocation(status *activeService.AttendanceStatus, hasFullAccess bool) StudentLocationInfo {
+	if hasFullAccess && status.CheckOutTime != nil {
+		return StudentLocationInfo{Location: "Abwesend", Since: status.CheckOutTime}
+	}
+	return StudentLocationInfo{Location: "Abwesend"}
+}
+
+func (s *StudentLocationSnapshot) resolveDetailedLocation(studentID int64) StudentLocationInfo {
 	visit, ok := s.Visits[studentID]
 	if !ok || visit == nil || visit.ActiveGroupID <= 0 {
 		return StudentLocationInfo{Location: "Unterwegs"}
