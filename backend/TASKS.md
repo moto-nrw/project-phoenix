@@ -1076,3 +1076,13 @@
 
 ---
 
+## Iteration 2026-01-17_17:24:17
+
+**Changed:** Recorded registration role assignment warnings in wide event logs
+
+**Files:** internal/adapter/handler/http/auth/api.go
+
+**Commit:** ae005822b59d05d739e50cda0ae45eaed9c3974d
+
+---
+
