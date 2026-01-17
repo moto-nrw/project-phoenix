@@ -650,3 +650,13 @@
 
 ---
 
+## Iteration 2026-01-17_06:00:29
+
+**Changed:** Split config service into focused modules
+
+**Files:** internal/core/service/config/config_service.go, internal/core/service/config/settings_crud.go, internal/core/service/config/settings_defaults.go, internal/core/service/config/settings_import.go, internal/core/service/config/settings_values.go, internal/core/service/config/system_state.go
+
+**Commit:** 7125bae73153c54710d3fb8e8b08d504b4796f5d
+
+---
+
