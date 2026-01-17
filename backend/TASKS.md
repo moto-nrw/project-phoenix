@@ -928,3 +928,13 @@
 
 ---
 
+## Iteration 2026-01-17_15:23:01
+
+**Changed:** split staff handlers into resource/handler/helper files
+
+**Files:** internal/adapter/handler/http/staff/resource.go, internal/adapter/handler/http/staff/staff_handlers.go, internal/adapter/handler/http/staff/staff_helpers.go
+
+**Commit:** 1490e263
+
+---
+
