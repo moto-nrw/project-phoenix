@@ -538,3 +538,13 @@
 
 ---
 
+## Iteration 2026-01-17_02:20:26
+
+**Changed:** Split simulator engine attendance and supervisor swap logic into dedicated files
+
+**Files:** simulator/iot/engine.go, simulator/iot/engine_attendance.go, simulator/iot/engine_helpers.go, simulator/iot/engine_supervisor_swap.go
+
+**Commit:** ab7cc59638e21f51c56d594b40e8b62beee1662d
+
+---
+
