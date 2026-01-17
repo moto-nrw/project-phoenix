@@ -986,3 +986,13 @@
 
 ---
 
+## Iteration 2026-01-17_16:11:24
+
+**Changed:** split user handler request/response types into dedicated file
+
+**Files:** internal/adapter/handler/http/users/handlers.go, internal/adapter/handler/http/users/person_types.go
+
+**Commit:** b72b7382f476d6fc8e75e0866f2fc992495e3ff2
+
+---
+
