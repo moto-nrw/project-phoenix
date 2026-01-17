@@ -1016,3 +1016,13 @@
 
 ---
 
+## Iteration 2026-01-17_16:34:37
+
+**Changed:** load optional .env config via godotenv (env-only config)
+
+**Files:** cmd/root.go
+
+**Commit:** ef4c0d33e339dd054919a086ffae8eb0bddbcecb
+
+---
+
