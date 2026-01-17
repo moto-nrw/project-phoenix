@@ -1525,6 +1525,7 @@ func CreateTestJWT(tb testing.TB, accountID int64, permissions []string) string 
 
 	claims := jwt.AppClaims{
 		ID:          int(accountID),
+		Sub:         fmt.Sprintf("%d", accountID), // Required claim - subject identifier
 		Roles:       []string{"user"},
 		Permissions: permissions,
 	}
