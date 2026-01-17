@@ -5,6 +5,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/joho/godotenv"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -54,18 +55,16 @@ func initConfig() {
 			fmt.Fprintln(os.Stderr, err.Error())
 			os.Exit(1)
 		}
-		// Use config file from the flag.
-		viper.SetConfigFile(cfgFile)
-		// If a config file is found, read it in.
-		if err := viper.ReadInConfig(); err != nil {
-			fmt.Fprintln(os.Stderr, "Failed to read config file:", err.Error())
+		// Load .env file into environment (12-Factor: config via env vars).
+		if err := godotenv.Load(cfgFile); err != nil {
+			fmt.Fprintln(os.Stderr, "Failed to load env file:", err.Error())
 			os.Exit(1)
 		}
 		if err := ensureConfigFileAllowed(cfgFile); err != nil {
 			fmt.Fprintln(os.Stderr, err.Error())
 			os.Exit(1)
 		}
-		fmt.Println("Using config file:", viper.ConfigFileUsed())
+		fmt.Println("Loaded env file:", cfgFile)
 	}
 
 	if err := requireAppEnv(); err != nil {
