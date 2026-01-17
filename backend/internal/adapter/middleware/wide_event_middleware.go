@@ -17,7 +17,10 @@ func WideEventMiddleware(next http.Handler) http.Handler {
 		start := time.Now()
 		requestID := chimiddleware.GetReqID(r.Context())
 		if requestID == "" {
-			requestID = strings.TrimSpace(r.Header.Get("X-Request-ID"))
+			requestID = strings.TrimSpace(r.Header.Get(chimiddleware.RequestIDHeader))
+		}
+		if requestID != "" && w.Header().Get(chimiddleware.RequestIDHeader) == "" {
+			w.Header().Set(chimiddleware.RequestIDHeader, requestID)
 		}
 
 		event := &WideEvent{
