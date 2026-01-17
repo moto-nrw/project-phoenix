@@ -640,3 +640,13 @@
 
 ---
 
+## Iteration 2026-01-17_05:41:06
+
+**Changed:** Tightened combined group error handling; preserve DB error context and correct not-found detection
+
+**Files:** internal/core/service/active/combined_group_operations.go
+
+**Commit:** a6952024f149a0b37d58b00ece02f034719fb6a3
+
+---
+
