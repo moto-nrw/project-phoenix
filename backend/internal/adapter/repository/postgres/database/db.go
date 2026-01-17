@@ -14,7 +14,7 @@ import (
 
 // DBConn returns a postgres connection pool.
 func DBConn() (*bun.DB, error) {
-	// Get DSN from environment with smart defaults based on APP_ENV
+	// Get DSN from environment (fail fast if missing).
 	dsn := GetDatabaseDSN()
 
 	sqldb := sql.OpenDB(pgdriver.NewConnector(pgdriver.WithDSN(dsn)))
