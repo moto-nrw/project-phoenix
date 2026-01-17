@@ -3,9 +3,11 @@ package common
 import (
 	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
+	adaptermiddleware "github.com/moto-nrw/project-phoenix/internal/adapter/middleware"
 )
 
 // RenderError renders an error response and logs any render failures.
@@ -73,6 +75,7 @@ type ErrResponse struct {
 // Render implements the render.Renderer interface for ErrResponse
 func (e *ErrResponse) Render(_ http.ResponseWriter, r *http.Request) error {
 	render.Status(r, e.HTTPStatusCode)
+	recordWideEventError(r, e)
 	return nil
 }
 
@@ -154,4 +157,33 @@ func ErrorGone(err error) render.Renderer {
 		Status:         "error",
 		ErrorText:      err.Error(),
 	}
+}
+
+func recordWideEventError(r *http.Request, errResp *ErrResponse) {
+	if r == nil || errResp == nil {
+		return
+	}
+	event := adaptermiddleware.GetWideEvent(r.Context())
+	if event == nil || event.Timestamp.IsZero() || event.ErrorType != "" {
+		return
+	}
+
+	event.ErrorType = "http_error"
+	if code := statusCodeToErrorCode(errResp.HTTPStatusCode); code != "" {
+		event.ErrorCode = code
+	}
+
+	if errResp.Err != nil {
+		event.ErrorMessage = errResp.Err.Error()
+	} else if errResp.ErrorText != "" {
+		event.ErrorMessage = errResp.ErrorText
+	}
+}
+
+func statusCodeToErrorCode(status int) string {
+	text := strings.TrimSpace(http.StatusText(status))
+	if text == "" {
+		return ""
+	}
+	return strings.ReplaceAll(strings.ToLower(text), " ", "_")
 }

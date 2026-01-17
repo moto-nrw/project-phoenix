@@ -8,6 +8,7 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/common"
 	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
+	adaptermiddleware "github.com/moto-nrw/project-phoenix/internal/adapter/middleware"
 	activeSvc "github.com/moto-nrw/project-phoenix/internal/core/service/active"
 	feedbackSvc "github.com/moto-nrw/project-phoenix/internal/core/service/feedback"
 	iotSvc "github.com/moto-nrw/project-phoenix/internal/core/service/iot"
@@ -18,6 +19,7 @@ import (
 // logging render failures, addressing DRY and error handling concerns.
 // Exported for use by sub-packages (devices, checkin, etc.)
 func RenderError(w http.ResponseWriter, r *http.Request, renderer render.Renderer) {
+	recordIoTErrorEvent(r, renderer)
 	if err := render.Render(w, r, renderer); err != nil {
 		if logger.Logger != nil {
 			logger.Logger.WithError(err).Warn("failed to render error response")
@@ -118,6 +120,35 @@ func ErrorActivityCapacityExceeded(activityID int64, activityName string, curren
 			CurrentOccupancy: currentOccupancy,
 			MaxCapacity:      maxCapacity,
 		},
+	}
+}
+
+func recordIoTErrorEvent(r *http.Request, renderer render.Renderer) {
+	if r == nil || renderer == nil {
+		return
+	}
+	event := adaptermiddleware.GetWideEvent(r.Context())
+	if event == nil || event.Timestamp.IsZero() || event.ErrorType != "" {
+		return
+	}
+
+	switch resp := renderer.(type) {
+	case *CapacityErrorResponse:
+		event.ErrorType = "iot_capacity"
+		if resp.Code != "" {
+			event.ErrorCode = resp.Code
+		}
+		if resp.Message != "" {
+			event.ErrorMessage = resp.Message
+		}
+	case *ActivityCapacityErrorResponse:
+		event.ErrorType = "iot_capacity"
+		if resp.Code != "" {
+			event.ErrorCode = resp.Code
+		}
+		if resp.Message != "" {
+			event.ErrorMessage = resp.Message
+		}
 	}
 }
 
