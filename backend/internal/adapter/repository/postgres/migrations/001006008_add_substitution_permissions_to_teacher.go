@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 
-	"github.com/sirupsen/logrus"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
 	"github.com/uptrace/bun"
 )
 
@@ -34,7 +34,7 @@ func init() {
 }
 
 func addSubstitutionPermissionsToRoles(ctx context.Context, db *bun.DB) error {
-	logrus.Info("Adding substitution permissions to teacher and staff roles...")
+	logger.Logger.Info("Adding substitution permissions to teacher and staff roles...")
 
 	// Begin a transaction
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
@@ -47,7 +47,7 @@ func addSubstitutionPermissionsToRoles(ctx context.Context, db *bun.DB) error {
 	defer func() {
 		if !committed {
 			if rbErr := tx.Rollback(); rbErr != nil && rbErr != sql.ErrTxDone {
-				logrus.Warnf("Failed to rollback transaction: %v", rbErr)
+				logger.Logger.Warnf("Failed to rollback transaction: %v", rbErr)
 			}
 		}
 	}()
@@ -100,7 +100,7 @@ func addSubstitutionPermissionsToRoles(ctx context.Context, db *bun.DB) error {
 	_, err = tx.ExecContext(ctx, staffQuery)
 	if err != nil {
 		// Staff role might not exist, which is okay
-		logrus.Warnf("Note: Could not add permissions to staff role (role might not exist): %v", err)
+		logger.Logger.Warnf("Note: Could not add permissions to staff role (role might not exist): %v", err)
 	}
 
 	// Commit the transaction
@@ -109,12 +109,12 @@ func addSubstitutionPermissionsToRoles(ctx context.Context, db *bun.DB) error {
 	}
 	committed = true
 
-	logrus.Info("Successfully added substitution permissions to teacher and staff roles")
+	logger.Logger.Info("Successfully added substitution permissions to teacher and staff roles")
 	return nil
 }
 
 func removeSubstitutionPermissionsFromRoles(ctx context.Context, db *bun.DB) error {
-	logrus.Info("Removing substitution permissions from teacher and staff roles...")
+	logger.Logger.Info("Removing substitution permissions from teacher and staff roles...")
 
 	// Remove substitution permissions from teacher role
 	_, err := db.ExecContext(ctx, `
@@ -150,9 +150,9 @@ func removeSubstitutionPermissionsFromRoles(ctx context.Context, db *bun.DB) err
 	`)
 	if err != nil {
 		// Staff role might not exist, which is okay
-		logrus.Warnf("Note: Could not remove permissions from staff role (role might not exist): %v", err)
+		logger.Logger.Warnf("Note: Could not remove permissions from staff role (role might not exist): %v", err)
 	}
 
-	logrus.Info("Successfully removed substitution permissions from teacher and staff roles")
+	logger.Logger.Info("Successfully removed substitution permissions from teacher and staff roles")
 	return nil
 }

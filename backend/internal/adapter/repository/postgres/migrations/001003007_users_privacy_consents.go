@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 
-	"github.com/sirupsen/logrus"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
 	"github.com/uptrace/bun"
 )
 
@@ -35,7 +35,7 @@ func init() {
 
 // usersPrivacyConsentsUp creates the users.privacy_consents table
 func usersPrivacyConsentsUp(ctx context.Context, db *bun.DB) error {
-	logrus.Info("Migration 1.3.7: Creating users.privacy_consents table...")
+	logger.Logger.Info("Migration 1.3.7: Creating users.privacy_consents table...")
 
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
@@ -44,7 +44,7 @@ func usersPrivacyConsentsUp(ctx context.Context, db *bun.DB) error {
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err != sql.ErrTxDone {
-			logrus.WithError(err).Warn("Failed to rollback transaction")
+			logger.Logger.WithError(err).Warn("Failed to rollback transaction")
 		}
 	}()
 
@@ -195,7 +195,7 @@ func usersPrivacyConsentsUp(ctx context.Context, db *bun.DB) error {
 
 // usersPrivacyConsentsDown removes the users.privacy_consents table
 func usersPrivacyConsentsDown(ctx context.Context, db *bun.DB) error {
-	logrus.Info("Rolling back migration 1.3.7: Removing users.privacy_consents table...")
+	logger.Logger.Info("Rolling back migration 1.3.7: Removing users.privacy_consents table...")
 
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
@@ -204,7 +204,7 @@ func usersPrivacyConsentsDown(ctx context.Context, db *bun.DB) error {
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err != sql.ErrTxDone {
-			logrus.WithError(err).Warn("Failed to rollback transaction in down migration")
+			logger.Logger.WithError(err).Warn("Failed to rollback transaction in down migration")
 		}
 	}()
 

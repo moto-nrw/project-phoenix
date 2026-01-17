@@ -111,7 +111,7 @@ func LogMigrationError(version string, msg string, err error) {
 
 // logRollbackError logs a transaction rollback error in migrations.
 // This is a fire-and-forget helper for defer blocks where we can't return errors.
-// Uses logrus for 12-Factor compliant structured logging to stdout.
+// Uses the configured adapter logger for 12-Factor compliant structured logging to stdout.
 func logRollbackError(err error) {
 	if logger.Logger != nil && err != nil {
 		logger.Logger.WithError(err).Warn("migration transaction rollback failed")

@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 
-	"github.com/sirupsen/logrus"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
 	"github.com/uptrace/bun"
 )
 
@@ -44,7 +44,7 @@ func createImportPerformanceIndexes(ctx context.Context, db *bun.DB) error {
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err != sql.ErrTxDone {
-			logrus.Warnf("Failed to rollback transaction in up migration: %v", err)
+			logger.Logger.Warnf("Failed to rollback transaction in up migration: %v", err)
 		}
 	}()
 
@@ -111,7 +111,7 @@ func createImportPerformanceIndexes(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
-	logrus.Info("✓ Migration 1.6.18: Performance indexes created successfully")
+	logger.Logger.Info("✓ Migration 1.6.18: Performance indexes created successfully")
 	return nil
 }
 
@@ -131,6 +131,6 @@ func dropImportPerformanceIndexes(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error dropping performance indexes: %w", err)
 	}
 
-	logrus.Info("✓ Migration 1.6.18: Performance indexes dropped successfully")
+	logger.Logger.Info("✓ Migration 1.6.18: Performance indexes dropped successfully")
 	return nil
 }

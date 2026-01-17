@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 
-	"github.com/sirupsen/logrus"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
 	"github.com/uptrace/bun"
 )
 
@@ -44,7 +44,7 @@ func makeStudentGuardianFieldsOptionalUp(ctx context.Context, db *bun.DB) error 
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			logrus.Warnf("Error rolling back transaction: %v", err)
+			logger.Logger.Warnf("Error rolling back transaction: %v", err)
 		}
 	}()
 
@@ -83,7 +83,7 @@ func makeStudentGuardianFieldsOptionalDown(ctx context.Context, db *bun.DB) erro
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			logrus.Warnf("Error rolling back transaction: %v", err)
+			logger.Logger.Warnf("Error rolling back transaction: %v", err)
 		}
 	}()
 

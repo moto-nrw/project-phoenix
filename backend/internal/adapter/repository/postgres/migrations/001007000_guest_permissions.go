@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 
-	"github.com/sirupsen/logrus"
+	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
 	"github.com/uptrace/bun"
 )
 
@@ -44,7 +44,7 @@ func assignGuestPermissions(ctx context.Context, db *bun.DB) error {
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err != sql.ErrTxDone {
-			logrus.Warnf("Failed to rollback transaction in guest permissions migration: %v", err)
+			logger.Logger.Warnf("Failed to rollback transaction in guest permissions migration: %v", err)
 		}
 	}()
 
@@ -94,7 +94,7 @@ func removeGuestPermissions(ctx context.Context, db *bun.DB) error {
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err != sql.ErrTxDone {
-			logrus.Warnf("Failed to rollback transaction in guest permissions migration: %v", err)
+			logger.Logger.Warnf("Failed to rollback transaction in guest permissions migration: %v", err)
 		}
 	}()
 
