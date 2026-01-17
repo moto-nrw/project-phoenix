@@ -798,3 +798,13 @@
 
 ---
 
+## Iteration 2026-01-17_11:09:20
+
+**Changed:** validate daily checkout env during IoT resource init and make checkin validation return errors
+
+**Files:** internal/adapter/handler/http/iot/checkin/helpers.go, internal/adapter/handler/http/iot/checkin/resource.go, internal/adapter/handler/http/iot/api.go, internal/adapter/handler/http/base.go, internal/adapter/handler/http/iot/api_test.go
+
+**Commit:** ddb346eb5a2ca0929b9d7781d1deb8deeb2b7576
+
+---
+
