@@ -518,3 +518,13 @@
 
 ---
 
+## Iteration 2026-01-17_01:54:54
+
+**Changed:** regenerated dependency graphs
+
+**Files:** architecture.svg, deps.dot, deps.svg, TASKS.md
+
+**Commit:** 97cf4acb1baa43b6a5732ef8857b88871d625995
+
+---
+
