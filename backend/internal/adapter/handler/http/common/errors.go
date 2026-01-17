@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/go-chi/render"
-	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
 	adaptermiddleware "github.com/moto-nrw/project-phoenix/internal/adapter/middleware"
 )
 
@@ -15,9 +14,7 @@ import (
 // logging render failures, reducing code duplication across handlers.
 func RenderError(w http.ResponseWriter, r *http.Request, renderer render.Renderer) {
 	if err := render.Render(w, r, renderer); err != nil {
-		if logger.Logger != nil {
-			logger.Logger.WithField("error", err).Error("Error rendering error response")
-		}
+		recordWideEventRenderError(r, err)
 	}
 }
 
@@ -32,9 +29,6 @@ var (
 	ErrTooManyRequests  = errors.New("too many requests")
 	ErrGone             = errors.New("resource no longer available")
 )
-
-// LogRenderError is the format string for logging render errors
-const LogRenderError = "Error rendering error response: %v"
 
 // Validation error messages
 const (
@@ -177,6 +171,27 @@ func recordWideEventError(r *http.Request, errResp *ErrResponse) {
 		event.ErrorMessage = errResp.Err.Error()
 	} else if errResp.ErrorText != "" {
 		event.ErrorMessage = errResp.ErrorText
+	}
+}
+
+func recordWideEventRenderError(r *http.Request, err error) {
+	if r == nil || err == nil {
+		return
+	}
+
+	event := adaptermiddleware.GetWideEvent(r.Context())
+	if event == nil || event.Timestamp.IsZero() {
+		return
+	}
+
+	if event.ErrorType == "" {
+		event.ErrorType = "render_error"
+	}
+	if event.ErrorCode == "" {
+		event.ErrorCode = "response_render_failed"
+	}
+	if event.ErrorMessage == "" {
+		event.ErrorMessage = err.Error()
 	}
 }
 
