@@ -808,3 +808,13 @@
 
 ---
 
+## Iteration 2026-01-17_11:43:22
+
+**Changed:** record render errors in wide event instead of extra log lines
+
+**Files:** internal/adapter/handler/http/common/errors.go
+
+**Commit:** 8d8d2d9be0edcebef7fa2be6468bbe55836a8e69
+
+---
+
