@@ -633,6 +633,145 @@ Then this loop iteration ends and the next one starts.
 Read also RALPH_LOOP_TASK_codex.md
 Use go vet ./... and go test ./... to verify
 
+---
+
+## Repository Cleanup (Sicheres Löschen)
+
+### Ziel
+
+Entferne nicht mehr benötigte Dateien und Verzeichnisse um das Repository sauber zu halten. **ABER NUR SICHER!**
+
+### Sicherheits-Checkliste VOR dem Löschen
+
+**IMMER diese Schritte durchführen:**
+
+```bash
+# 1. Prüfe ob die Datei/das Verzeichnis noch importiert wird
+grep -r "package_name" --include="*.go" . | grep -v "_test.go"
+
+# 2. Prüfe ob es noch Referenzen gibt
+grep -r "FunctionName\|TypeName" --include="*.go" .
+
+# 3. Build MUSS erfolgreich sein
+go build ./...
+
+# 4. Tests MÜSSEN laufen
+go test ./... -short
+```
+
+### Was SICHER gelöscht werden kann
+
+| Typ | Erkennung | Sicher zu löschen? |
+|-----|-----------|-------------------|
+| **Leere Packages** | `ls -la dir/` zeigt nur `doc.go` oder nichts | ✅ Ja |
+| **Dead Code** | `deadcode ./...` listet es | ✅ Ja, nach Verifikation |
+| **Backup-Dateien** | `*.bak`, `*.old`, `*~` | ✅ Ja |
+| **Alte Migrations nach Reset** | Bereits angewandt + nicht mehr benötigt | ⚠️ Vorsicht, nur wenn DB komplett neu aufgesetzt wird |
+| **Duplikate nach Migration** | Altes `api/` nach Move zu `internal/adapter/handler/http/` | ✅ Ja, NACHDEM neue Imports funktionieren |
+| **Generierte Dateien** | `.gitignore`'d, kann neu generiert werden | ✅ Ja |
+
+### Was NIEMALS gelöscht werden darf
+
+| Typ | Warum |
+|-----|-------|
+| **Aktive Migrations** | DB-Schema kaputt |
+| **Test-Dateien** | Qualitätssicherung |
+| **Config-Beispiele** | `.env.example`, `docker-compose.yml` |
+| **Dokumentation** | `README.md`, `CLAUDE.md`, `*.md` docs |
+| **CI/CD Files** | `.github/`, `Dockerfile` |
+
+### Cleanup-Workflow
+
+```bash
+# 1. Identifiziere Kandidaten
+echo "=== Leere Verzeichnisse ==="
+find . -type d -empty -not -path "./.git/*"
+
+echo "=== Backup-Dateien ==="
+find . -name "*.bak" -o -name "*.old" -o -name "*~" | grep -v ".git"
+
+echo "=== Dead Code ==="
+deadcode ./... 2>/dev/null | head -20
+
+echo "=== Verwaiste Go-Dateien (keine Imports) ==="
+# Dateien die von nichts importiert werden
+for f in $(find . -name "*.go" -not -name "*_test.go" -not -path "./vendor/*"); do
+    pkg=$(dirname "$f" | sed 's|^\./||' | sed 's|/|/|g')
+    if ! grep -r "\".*$pkg\"" --include="*.go" . | grep -v "$f" > /dev/null 2>&1; then
+        echo "Possibly orphaned: $f"
+    fi
+done
+```
+
+### Sichere Lösch-Prozedur
+
+```bash
+# Schritt 1: Verifiziere BEVOR du löschst
+FILE_TO_DELETE="path/to/file_or_dir"
+
+# Keine Imports?
+grep -r "$(basename $FILE_TO_DELETE .go)" --include="*.go" . | wc -l
+# Erwartung: 0 oder nur Selbst-Referenzen
+
+# Schritt 2: Git Status sauber?
+git status --porcelain | wc -l
+# Erwartung: 0 (alles committed)
+
+# Schritt 3: Lösche mit git rm (trackbar!)
+git rm -r "$FILE_TO_DELETE"
+# ODER für untracked:
+rm -rf "$FILE_TO_DELETE"
+
+# Schritt 4: SOFORT verifizieren
+go build ./...
+go test ./... -short
+
+# Schritt 5: Wenn Fehler → SOFORT rückgängig
+git checkout -- "$FILE_TO_DELETE"  # Wenn git rm
+# ODER
+git checkout HEAD -- .             # Alles zurück
+```
+
+### Beispiel: Alte Struktur nach Hexagonal-Migration löschen
+
+```bash
+# NACHDEM internal/adapter/handler/http/ funktioniert:
+
+# 1. Prüfe dass KEINE Imports mehr auf api/ zeigen
+grep -r "project-phoenix/api/" --include="*.go" .
+# Erwartung: 0 Treffer (außer in api/ selbst)
+
+# 2. Build mit neuer Struktur erfolgreich?
+go build ./...
+# Erwartung: OK
+
+# 3. Jetzt sicher löschen
+git rm -r api/
+
+# 4. Final verify
+go build ./...
+go test ./... -short
+
+# 5. Commit
+git commit -m "chore: remove old api/ after migration to internal/adapter/handler/http/"
+```
+
+### Cleanup Log
+
+Nach jedem Cleanup in TASKS.md dokumentieren:
+
+```bash
+echo "### Cleanup $(date +%Y-%m-%d_%H:%M:%S)" >> TASKS.md
+echo "" >> TASKS.md
+echo "**Removed:**" >> TASKS.md
+echo "- \`path/to/removed/item\` - Grund: [warum gelöscht]" >> TASKS.md
+echo "" >> TASKS.md
+echo "**Verification:** build ✅ tests ✅" >> TASKS.md
+echo "" >> TASKS.md
+```
+
+---
+
 ## Regeln
 
 - **Zusammenhängende Änderungen dürfen gebündelt werden**
@@ -640,6 +779,7 @@ Use go vet ./... and go test ./... to verify
 - **Kein Database-Schema ändern**
 - **Tests nicht löschen** (verschieben wenn nötig)
 - **Immer committen** bevor Iteration endet
+- **Cleanup NUR mit Verifikation** (build + test MUSS grün sein)
 
 ## Priorität
 
