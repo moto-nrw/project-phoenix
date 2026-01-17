@@ -101,7 +101,14 @@ func (rs *Resource) parseAndValidateCheckinRequest(ctx context.Context, r *http.
 
 	// Get and validate the active group
 	activeGroup, groupErr := rs.ActiveService.GetActiveGroup(ctx, req.ActiveGroupID)
-	if groupErr != nil || activeGroup == nil {
+	if groupErr != nil {
+		// Distinguish "not found" from other errors (DB failures, timeouts)
+		if errors.Is(groupErr, activeService.ErrActiveGroupNotFound) {
+			return nil, &checkinError{http.StatusNotFound, "Active group not found"}
+		}
+		return nil, &checkinError{http.StatusInternalServerError, "Failed to retrieve active group"}
+	}
+	if activeGroup == nil {
 		return nil, &checkinError{http.StatusNotFound, "Active group not found"}
 	}
 
@@ -192,6 +199,18 @@ func (rs *Resource) createCheckinVisit(ctx context.Context, checkinCtx *checkinC
 			}).Error("Failed to create visit during check-in")
 		}
 		return nil, &checkinError{http.StatusInternalServerError, "Failed to check in student to room"}
+	}
+
+	// Update last_activity on the active group to prevent session timeout
+	// while staff are actively using the web check-in feature
+	if activityErr := rs.ActiveService.UpdateSessionActivity(ctx, checkinCtx.request.ActiveGroupID); activityErr != nil {
+		// Log but don't fail - the visit was created successfully
+		if logging.Logger != nil {
+			logging.Logger.WithFields(map[string]interface{}{
+				"active_group_id": checkinCtx.request.ActiveGroupID,
+				"error":           activityErr.Error(),
+			}).Warn("Failed to update session activity after check-in")
+		}
 	}
 
 	return visit, nil
