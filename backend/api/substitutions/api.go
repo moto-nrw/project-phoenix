@@ -13,6 +13,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	modelEducation "github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/services/education"
@@ -243,7 +244,7 @@ func (rs *Resource) create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Validate no backdating - start date must be today or in the future
-	today := time.Now().Truncate(24 * time.Hour)
+	today := timezone.Today()
 	if startDate.Before(today) {
 		common.RespondWithError(w, r, http.StatusBadRequest, ErrSubstitutionBackdated.Error())
 		return
@@ -351,7 +352,7 @@ func validateSubstitutionDates(sub *modelEducation.GroupSubstitution) error {
 		return ErrSubstitutionDateRange
 	}
 
-	today := time.Now().Truncate(24 * time.Hour)
+	today := timezone.Today()
 	if sub.StartDate.Before(today) {
 		return ErrSubstitutionBackdated
 	}

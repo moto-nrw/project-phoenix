@@ -24,6 +24,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -97,9 +98,8 @@ func TestGetStudentAttendanceStatus_NotCheckedIn(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, student.ID, result.StudentID)
 	assert.Equal(t, "not_checked_in", result.Status)
-	// Service uses local date (school operates in local timezone)
-	now := time.Now()
-	expectedDate := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	// Service uses timezone.Today() for consistent Europe/Berlin timezone handling
+	expectedDate := timezone.Today()
 	assert.Equal(t, expectedDate, result.Date)
 	assert.Nil(t, result.CheckInTime)
 	assert.Nil(t, result.CheckOutTime)
@@ -370,18 +370,18 @@ func TestCheckTeacherStudentAccess(t *testing.T) {
 	service := setupActiveService(t, db)
 	ctx := context.Background()
 
-	t.Run("returns error for staff without teacher record", func(t *testing.T) {
+	t.Run("returns false for staff without teacher record", func(t *testing.T) {
 		// ARRANGE: Create student and staff (staff is not a teacher)
 		student := testpkg.CreateTestStudent(t, db, "Unrelated", "Student", "6a")
 		staff := testpkg.CreateTestStaff(t, db, "Unrelated", "Staff")
 		defer testpkg.CleanupActivityFixtures(t, db, student.ID, staff.ID)
 
-		// ACT: Check access - should fail because staff is not a teacher
-		_, err := service.CheckTeacherStudentAccess(ctx, staff.ID, student.ID)
+		// ACT: Check access - should return false because staff is not a teacher
+		hasAccess, err := service.CheckTeacherStudentAccess(ctx, staff.ID, student.ID)
 
-		// ASSERT: Expected error because staff has no teacher record
-		// The service returns an error when no teacher record is found
-		assert.Error(t, err, "Expected error when staff is not a teacher")
+		// ASSERT: No error, but access denied
+		require.NoError(t, err)
+		assert.False(t, hasAccess, "Staff without teacher record should not have access")
 	})
 
 	t.Run("returns false for non-existent staff", func(t *testing.T) {

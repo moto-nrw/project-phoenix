@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/feedback"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -28,7 +29,7 @@ func TestEntryRepository_Create(t *testing.T) {
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 	t.Run("creates entry with valid data", func(t *testing.T) {
-		now := time.Now().Truncate(24 * time.Hour)
+		now := timezone.Today()
 		entry := &feedback.Entry{
 			Value:     feedback.ValuePositive,
 			Day:       now,
@@ -44,7 +45,7 @@ func TestEntryRepository_Create(t *testing.T) {
 	})
 
 	t.Run("creates mensa feedback entry", func(t *testing.T) {
-		now := time.Now().Truncate(24 * time.Hour)
+		now := timezone.Today()
 		entry := &feedback.Entry{
 			Value:           feedback.ValueNegative,
 			Day:             now,
@@ -68,7 +69,7 @@ func TestEntryRepository_Create(t *testing.T) {
 	})
 
 	t.Run("create with invalid value should fail", func(t *testing.T) {
-		now := time.Now().Truncate(24 * time.Hour)
+		now := timezone.Today()
 		entry := &feedback.Entry{
 			Value:     "invalid_value",
 			Day:       now,
@@ -92,7 +93,7 @@ func TestEntryRepository_FindByID(t *testing.T) {
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 	t.Run("finds existing entry", func(t *testing.T) {
-		now := time.Now().Truncate(24 * time.Hour)
+		now := timezone.Today()
 		entry := &feedback.Entry{
 			Value:     feedback.ValueNeutral,
 			Day:       now,
@@ -127,7 +128,7 @@ func TestEntryRepository_Update(t *testing.T) {
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 	t.Run("updates entry", func(t *testing.T) {
-		now := time.Now().Truncate(24 * time.Hour)
+		now := timezone.Today()
 		entry := &feedback.Entry{
 			Value:     feedback.ValuePositive,
 			Day:       now,
@@ -159,7 +160,7 @@ func TestEntryRepository_Delete(t *testing.T) {
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 	t.Run("deletes existing entry", func(t *testing.T) {
-		now := time.Now().Truncate(24 * time.Hour)
+		now := timezone.Today()
 		entry := &feedback.Entry{
 			Value:     feedback.ValuePositive,
 			Day:       now,
@@ -195,7 +196,7 @@ func TestEntryRepository_FindByStudentID(t *testing.T) {
 	defer testpkg.CleanupActivityFixtures(t, db, student1.ID, student2.ID)
 
 	t.Run("finds entries by student ID", func(t *testing.T) {
-		now := time.Now().Truncate(24 * time.Hour)
+		now := timezone.Today()
 		entry1 := &feedback.Entry{
 			Value:     feedback.ValuePositive,
 			Day:       now,
@@ -244,7 +245,7 @@ func TestEntryRepository_FindByDay(t *testing.T) {
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 	t.Run("finds entries by day", func(t *testing.T) {
-		today := time.Now().Truncate(24 * time.Hour)
+		today := timezone.Today()
 		yesterday := today.AddDate(0, 0, -1)
 
 		entry1 := &feedback.Entry{
@@ -291,7 +292,7 @@ func TestEntryRepository_FindByDateRange(t *testing.T) {
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 	t.Run("finds entries in date range", func(t *testing.T) {
-		today := time.Now().Truncate(24 * time.Hour)
+		today := timezone.Today()
 		yesterday := today.AddDate(0, 0, -1)
 		weekAgo := today.AddDate(0, 0, -7)
 
@@ -331,7 +332,7 @@ func TestEntryRepository_FindMensaFeedback(t *testing.T) {
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 	t.Run("finds mensa feedback entries", func(t *testing.T) {
-		now := time.Now().Truncate(24 * time.Hour)
+		now := timezone.Today()
 		mensaEntry := &feedback.Entry{
 			Value:           feedback.ValuePositive,
 			Day:             now,
@@ -382,7 +383,7 @@ func TestEntryRepository_FindByStudentAndDateRange(t *testing.T) {
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 	t.Run("finds student entries in date range", func(t *testing.T) {
-		today := time.Now().Truncate(24 * time.Hour)
+		today := timezone.Today()
 		yesterday := today.AddDate(0, 0, -1)
 		weekAgo := today.AddDate(0, 0, -7)
 
@@ -427,7 +428,7 @@ func TestEntryRepository_CountByDay(t *testing.T) {
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 	t.Run("counts entries by day", func(t *testing.T) {
-		today := time.Now().Truncate(24 * time.Hour)
+		today := timezone.Today()
 
 		entry1 := &feedback.Entry{
 			Value:     feedback.ValuePositive,
@@ -465,7 +466,7 @@ func TestEntryRepository_CountByStudentID(t *testing.T) {
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 	t.Run("counts entries by student", func(t *testing.T) {
-		today := time.Now().Truncate(24 * time.Hour)
+		today := timezone.Today()
 
 		entry1 := &feedback.Entry{
 			Value:     feedback.ValuePositive,
@@ -503,7 +504,7 @@ func TestEntryRepository_CountMensaFeedback(t *testing.T) {
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 	t.Run("counts mensa feedback entries", func(t *testing.T) {
-		today := time.Now().Truncate(24 * time.Hour)
+		today := timezone.Today()
 
 		mensaEntry := &feedback.Entry{
 			Value:           feedback.ValuePositive,
@@ -534,7 +535,7 @@ func TestEntryRepository_List(t *testing.T) {
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 	t.Run("lists all entries", func(t *testing.T) {
-		today := time.Now().Truncate(24 * time.Hour)
+		today := timezone.Today()
 		entry := &feedback.Entry{
 			Value:     feedback.ValuePositive,
 			Day:       today,
@@ -552,7 +553,7 @@ func TestEntryRepository_List(t *testing.T) {
 	})
 
 	t.Run("lists with is_mensa_feedback filter", func(t *testing.T) {
-		today := time.Now().Truncate(24 * time.Hour)
+		today := timezone.Today()
 		entry := &feedback.Entry{
 			Value:           feedback.ValueNeutral,
 			Day:             today,
@@ -577,7 +578,7 @@ func TestEntryRepository_List(t *testing.T) {
 	})
 
 	t.Run("lists with day_from filter", func(t *testing.T) {
-		today := time.Now().Truncate(24 * time.Hour)
+		today := timezone.Today()
 		yesterday := today.AddDate(0, 0, -1)
 		entry := &feedback.Entry{
 			Value:     feedback.ValuePositive,
@@ -602,7 +603,7 @@ func TestEntryRepository_List(t *testing.T) {
 	})
 
 	t.Run("lists with day_to filter", func(t *testing.T) {
-		today := time.Now().Truncate(24 * time.Hour)
+		today := timezone.Today()
 		entry := &feedback.Entry{
 			Value:     feedback.ValuePositive,
 			Day:       today,
@@ -623,7 +624,7 @@ func TestEntryRepository_List(t *testing.T) {
 	})
 
 	t.Run("lists with value_like filter", func(t *testing.T) {
-		today := time.Now().Truncate(24 * time.Hour)
+		today := timezone.Today()
 		entry := &feedback.Entry{
 			Value:     feedback.ValuePositive,
 			Day:       today,
@@ -647,7 +648,7 @@ func TestEntryRepository_List(t *testing.T) {
 	})
 
 	t.Run("lists with student_id filter (default case)", func(t *testing.T) {
-		today := time.Now().Truncate(24 * time.Hour)
+		today := timezone.Today()
 		entry := &feedback.Entry{
 			Value:     feedback.ValuePositive,
 			Day:       today,
@@ -671,7 +672,7 @@ func TestEntryRepository_List(t *testing.T) {
 	})
 
 	t.Run("lists with nil value in filters", func(t *testing.T) {
-		today := time.Now().Truncate(24 * time.Hour)
+		today := timezone.Today()
 		entry := &feedback.Entry{
 			Value:     feedback.ValuePositive,
 			Day:       today,
@@ -709,7 +710,7 @@ func TestEntryRepository_Update_EdgeCases(t *testing.T) {
 	})
 
 	t.Run("update with invalid value should fail", func(t *testing.T) {
-		now := time.Now().Truncate(24 * time.Hour)
+		now := timezone.Today()
 		entry := &feedback.Entry{
 			Value:     feedback.ValuePositive,
 			Day:       now,
@@ -741,7 +742,7 @@ func TestEntryRepository_List_InvalidFilterTypes(t *testing.T) {
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 	// Create entry for testing
-	now := time.Now().Truncate(24 * time.Hour)
+	now := timezone.Today()
 	entry := &feedback.Entry{
 		Value:     feedback.ValuePositive,
 		Day:       now,

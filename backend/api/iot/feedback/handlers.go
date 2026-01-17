@@ -11,6 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	iotCommon "github.com/moto-nrw/project-phoenix/api/iot/common"
 	"github.com/moto-nrw/project-phoenix/auth/device"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/feedback"
 )
 
@@ -61,8 +62,8 @@ func (rs *Resource) deviceSubmitFeedback(w http.ResponseWriter, r *http.Request)
 	entry := &feedback.Entry{
 		StudentID:       req.StudentID,
 		Value:           req.Value,
-		Day:             now.Truncate(24 * time.Hour), // Date only
-		Time:            now,                          // Full timestamp
+		Day:             timezone.DateOf(now), // Date only (Berlin timezone)
+		Time:            now,                  // Full timestamp
 		IsMensaFeedback: false,
 	}
 

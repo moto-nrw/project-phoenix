@@ -14,6 +14,7 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	activitiesSvc "github.com/moto-nrw/project-phoenix/services/activities"
@@ -1369,7 +1370,7 @@ func (rs *Resource) getAvailableTimeSlots(w http.ResponseWriter, r *http.Request
 	}
 
 	// Set date range for the next 7 days
-	startDate := time.Now().Truncate(24 * time.Hour)
+	startDate := timezone.Today()
 	endDate := startDate.AddDate(0, 0, 7)
 
 	// Find available time slots

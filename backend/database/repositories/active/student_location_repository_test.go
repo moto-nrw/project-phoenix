@@ -13,6 +13,7 @@ import (
 	"time"
 
 	activeRepo "github.com/moto-nrw/project-phoenix/database/repositories/active"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -37,8 +38,8 @@ func TestAttendanceRepository_GetTodayByStudentIDs(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, db, student1.ID, student2.ID, staff.ID, device.ID)
 
 		// Create multiple attendance records for student1 (different check-in times)
-		now := time.Now()
-		today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+		// Use timezone.Today() for consistent Europe/Berlin timezone handling
+		today := timezone.Today()
 
 		// Earlier check-in for student1
 		_ = testpkg.CreateTestAttendance(t, db, student1.ID, staff.ID, device.ID,

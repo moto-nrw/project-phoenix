@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/iot"
 	"github.com/moto-nrw/project-phoenix/models/users"
@@ -63,7 +64,7 @@ func TestAttendanceRepository_Create(t *testing.T) {
 
 	t.Run("create valid attendance record", func(t *testing.T) {
 		now := time.Now()
-		date := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+		date := timezone.Today()
 
 		attendance := &active.Attendance{
 			StudentID:   data.Student1.ID,
@@ -87,7 +88,7 @@ func TestAttendanceRepository_Create(t *testing.T) {
 
 	t.Run("create with check-out time", func(t *testing.T) {
 		now := time.Now()
-		date := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+		date := timezone.Today()
 		checkOutTime := now.Add(2 * time.Hour)
 		checkedOutBy := data.Staff2.ID
 
@@ -120,7 +121,7 @@ func TestAttendanceRepository_Create(t *testing.T) {
 
 	t.Run("verify IsCheckedIn helper method", func(t *testing.T) {
 		now := time.Now()
-		date := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+		date := timezone.Today()
 
 		// Create attendance without check-out
 		attendanceCheckedIn := &active.Attendance{
@@ -177,7 +178,7 @@ func TestAttendanceRepository_FindByStudentAndDate(t *testing.T) {
 
 	t.Run("single record for student on date", func(t *testing.T) {
 		now := time.Now()
-		date := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+		date := timezone.Today()
 
 		attendance := &active.Attendance{
 			StudentID:   data.Student1.ID,
@@ -210,7 +211,7 @@ func TestAttendanceRepository_FindByStudentAndDate(t *testing.T) {
 
 	t.Run("multiple records for student on same date ordered by check-in time", func(t *testing.T) {
 		now := time.Now()
-		date := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+		date := timezone.Today()
 
 		// Create three attendance records with different check-in times
 		attendance1 := &active.Attendance{
@@ -261,7 +262,7 @@ func TestAttendanceRepository_FindByStudentAndDate(t *testing.T) {
 
 	t.Run("no records for student on date", func(t *testing.T) {
 		// Use a date with no records
-		emptyDate := time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC)
+		emptyDate := time.Date(2023, 1, 1, 0, 0, 0, 0, timezone.Berlin)
 
 		records, err := repo.FindByStudentAndDate(ctx, data.Student1.ID, emptyDate)
 		require.NoError(t, err)
@@ -271,7 +272,7 @@ func TestAttendanceRepository_FindByStudentAndDate(t *testing.T) {
 
 	t.Run("date filtering ignores time component", func(t *testing.T) {
 		now := time.Now()
-		date := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+		date := timezone.Today()
 
 		attendance := &active.Attendance{
 			StudentID:   data.Student1.ID,
@@ -286,7 +287,7 @@ func TestAttendanceRepository_FindByStudentAndDate(t *testing.T) {
 		createdIDs = append(createdIDs, attendance.ID)
 
 		// Query with different time component but same date
-		queryDate := time.Date(now.Year(), now.Month(), now.Day(), 14, 30, 45, 0, time.UTC)
+		queryDate := timezone.Today().Add(14*time.Hour + 30*time.Minute + 45*time.Second)
 
 		records, err := repo.FindByStudentAndDate(ctx, data.Student1.ID, queryDate)
 		require.NoError(t, err)
@@ -303,7 +304,7 @@ func TestAttendanceRepository_FindByStudentAndDate(t *testing.T) {
 
 	t.Run("different students on same date", func(t *testing.T) {
 		now := time.Now()
-		date := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+		date := timezone.Today()
 
 		// Create attendance for student1
 		attendance1 := &active.Attendance{
@@ -346,7 +347,7 @@ func TestAttendanceRepository_FindByStudentAndDate(t *testing.T) {
 
 	t.Run("different dates for same student", func(t *testing.T) {
 		now := time.Now()
-		date1 := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+		date1 := timezone.Today()
 		date2 := date1.AddDate(0, 0, 1) // Next day
 
 		// Create attendance for date1
@@ -418,9 +419,9 @@ func TestAttendanceRepository_FindLatestByStudent(t *testing.T) {
 
 	t.Run("latest record across multiple dates", func(t *testing.T) {
 		now := time.Now()
-		date1 := time.Date(now.Year(), now.Month(), now.Day()-2, 0, 0, 0, 0, time.UTC) // 2 days ago
-		date2 := time.Date(now.Year(), now.Month(), now.Day()-1, 0, 0, 0, 0, time.UTC) // Yesterday
-		date3 := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)   // Today
+		date1 := timezone.Today().AddDate(0, 0, -2) // 2 days ago
+		date2 := timezone.Today().AddDate(0, 0, -1) // Yesterday
+		date3 := timezone.Today()                    // Today
 
 		// Create attendance for date1 (oldest)
 		attendance1 := &active.Attendance{
@@ -466,7 +467,7 @@ func TestAttendanceRepository_FindLatestByStudent(t *testing.T) {
 
 	t.Run("latest record same day with multiple check-ins", func(t *testing.T) {
 		now := time.Now()
-		date := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+		date := timezone.Today()
 
 		// Create multiple attendance records on same day with different check-in times
 		attendance1 := &active.Attendance{
@@ -518,7 +519,7 @@ func TestAttendanceRepository_FindLatestByStudent(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, db, singleStudent.ID)
 
 		now := time.Now()
-		date := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+		date := timezone.Today()
 
 		attendance := &active.Attendance{
 			StudentID:   singleStudent.ID,
@@ -547,7 +548,7 @@ func TestAttendanceRepository_FindLatestByStudent(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, db, complexStudent.ID)
 
 		now := time.Now()
-		today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+		today := timezone.Today()
 		yesterday := today.AddDate(0, 0, -1)
 
 		// Yesterday: multiple records
@@ -594,7 +595,7 @@ func TestAttendanceRepository_FindLatestByStudent(t *testing.T) {
 
 	t.Run("different students do not interfere", func(t *testing.T) {
 		now := time.Now()
-		date := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+		date := timezone.Today()
 
 		// Create attendance for student1 (earlier)
 		attendanceStudent1 := &active.Attendance{
@@ -670,7 +671,7 @@ func TestAttendanceRepository_GetStudentCurrentStatus(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, db, checkedInStudent.ID)
 
 		now := time.Now()
-		today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+		today := timezone.Today()
 
 		attendance := &active.Attendance{
 			StudentID:   checkedInStudent.ID,
@@ -702,7 +703,7 @@ func TestAttendanceRepository_GetStudentCurrentStatus(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, db, checkedOutStudent.ID)
 
 		now := time.Now()
-		today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+		today := timezone.Today()
 		checkOutTime := now.Add(2 * time.Hour)
 		checkedOutBy := data.Staff2.ID
 
@@ -737,7 +738,7 @@ func TestAttendanceRepository_GetStudentCurrentStatus(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, db, multiRecordStudent.ID)
 
 		now := time.Now()
-		today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+		today := timezone.Today()
 
 		// First check-in (earlier)
 		attendance1 := &active.Attendance{
@@ -792,7 +793,7 @@ func TestAttendanceRepository_GetStudentCurrentStatus(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, db, historicalStudent.ID)
 
 		now := time.Now()
-		yesterday := time.Date(now.Year(), now.Month(), now.Day()-1, 0, 0, 0, 0, now.Location())
+		yesterday := timezone.Today().AddDate(0, 0, -1)
 
 		// Create attendance for yesterday
 		attendance := &active.Attendance{
@@ -821,7 +822,7 @@ func TestAttendanceRepository_GetStudentCurrentStatus(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, db, diffStudent1.ID, diffStudent2.ID)
 
 		now := time.Now()
-		today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+		today := timezone.Today()
 
 		// Create attendance for student1
 		attendance1 := &active.Attendance{
@@ -873,8 +874,7 @@ func TestAttendanceRepository_GetStudentCurrentStatus(t *testing.T) {
 		tzStudent := testpkg.CreateTestStudent(t, db, "Timezone", "StatusTest", "2h")
 		defer testpkg.CleanupActivityFixtures(t, db, tzStudent.ID)
 
-		now := time.Now()
-		today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+		today := timezone.Today()
 
 		// Create attendance record for today but late in the day
 		attendance := &active.Attendance{
@@ -917,7 +917,7 @@ func TestAttendanceRepository_Update(t *testing.T) {
 
 	t.Run("updates attendance with check-out time", func(t *testing.T) {
 		now := time.Now()
-		date := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+		date := timezone.Today()
 
 		attendance := &active.Attendance{
 			StudentID:   data.Student1.ID,
@@ -974,7 +974,7 @@ func TestAttendanceRepository_FindByID(t *testing.T) {
 
 	t.Run("finds existing attendance by ID", func(t *testing.T) {
 		now := time.Now()
-		date := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+		date := timezone.Today()
 
 		attendance := &active.Attendance{
 			StudentID:   data.Student1.ID,
@@ -1012,7 +1012,7 @@ func TestAttendanceRepository_Delete(t *testing.T) {
 
 	t.Run("deletes existing attendance record", func(t *testing.T) {
 		now := time.Now()
-		date := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+		date := timezone.Today()
 
 		attendance := &active.Attendance{
 			StudentID:   data.Student1.ID,
@@ -1052,7 +1052,7 @@ func TestAttendanceRepository_GetTodayByStudentID(t *testing.T) {
 
 	t.Run("gets today's attendance for student", func(t *testing.T) {
 		now := time.Now()
-		today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+		today := timezone.Today()
 
 		attendance := &active.Attendance{
 			StudentID:   data.Student1.ID,
@@ -1100,7 +1100,7 @@ func TestAttendanceRepository_FindForDate(t *testing.T) {
 
 	t.Run("finds all attendance for specific date", func(t *testing.T) {
 		now := time.Now()
-		date := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+		date := timezone.Today()
 
 		// Create multiple attendance records for same date
 		attendance1 := &active.Attendance{
@@ -1147,7 +1147,7 @@ func TestAttendanceRepository_FindForDate(t *testing.T) {
 	})
 
 	t.Run("returns empty for date with no attendance", func(t *testing.T) {
-		emptyDate := time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC)
+		emptyDate := time.Date(2023, 1, 1, 0, 0, 0, 0, timezone.Berlin)
 
 		records, err := repo.FindForDate(ctx, emptyDate)
 		require.NoError(t, err)
