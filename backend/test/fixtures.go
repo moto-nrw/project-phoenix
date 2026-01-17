@@ -16,6 +16,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/models/iot"
+	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -1485,4 +1486,181 @@ func CreateTestPersonGuardian(tb testing.TB, db *bun.DB, personID, guardianAccou
 	require.NoError(tb, err, "Failed to create test person guardian relationship")
 
 	return pg
+}
+
+// ============================================================================
+// Schedule Domain Fixtures
+// ============================================================================
+
+// CreateTestTimeframe creates a timeframe in the database.
+// This is used for schedule-related tests that need a timeframe reference.
+func CreateTestTimeframe(tb testing.TB, db *bun.DB, description string) *schedule.Timeframe {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Make description unique
+	uniqueDesc := fmt.Sprintf("%s-%d", description, time.Now().UnixNano())
+
+	now := time.Now()
+	startTime := time.Date(now.Year(), now.Month(), now.Day(), 8, 0, 0, 0, now.Location())
+	endTime := time.Date(now.Year(), now.Month(), now.Day(), 16, 0, 0, 0, now.Location())
+
+	timeframe := &schedule.Timeframe{
+		StartTime:   startTime,
+		EndTime:     &endTime,
+		IsActive:    true,
+		Description: uniqueDesc,
+	}
+
+	err := db.NewInsert().
+		Model(timeframe).
+		ModelTableExpr(`schedule.timeframes`).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to create test timeframe")
+
+	return timeframe
+}
+
+// CleanupScheduleFixtures removes schedule-related fixtures from the database.
+func CleanupScheduleFixtures(tb testing.TB, db *bun.DB, timeframeIDs ...int64) {
+	tb.Helper()
+
+	if len(timeframeIDs) == 0 {
+		return
+	}
+
+	for _, id := range timeframeIDs {
+		cleanupDelete(tb, db.NewDelete().
+			Model((*interface{})(nil)).
+			Table("schedule.timeframes").
+			Where(whereIDEquals, id),
+			"schedule.timeframes")
+	}
+}
+
+// ============================================================================
+// Auth Domain Extended Fixtures (Invitations)
+// ============================================================================
+
+// InvitationTokenOptions contains optional fields for creating test invitation tokens.
+type InvitationTokenOptions struct {
+	FirstName *string
+	LastName  *string
+}
+
+// CreateTestInvitationToken creates an invitation token in the database.
+// Requires a role and creator account to exist.
+func CreateTestInvitationToken(tb testing.TB, db *bun.DB, email string, roleID, createdBy int64, expiresAt time.Time) *auth.InvitationToken {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Make email unique
+	uniqueEmail := fmt.Sprintf(testEmailFormat, email, time.Now().UnixNano())
+	token := fmt.Sprintf("test-token-%d", time.Now().UnixNano())
+
+	invitation := &auth.InvitationToken{
+		Email:     uniqueEmail,
+		Token:     token,
+		RoleID:    roleID,
+		CreatedBy: createdBy,
+		ExpiresAt: expiresAt,
+	}
+
+	err := db.NewInsert().
+		Model(invitation).
+		ModelTableExpr(`auth.invitation_tokens`).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to create test invitation token")
+
+	return invitation
+}
+
+// CreateTestInvitationTokenWithOptions creates an invitation token with optional fields.
+func CreateTestInvitationTokenWithOptions(tb testing.TB, db *bun.DB, email string, roleID, createdBy int64, expiresAt time.Time, opts *InvitationTokenOptions) *auth.InvitationToken {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Make email unique
+	uniqueEmail := fmt.Sprintf(testEmailFormat, email, time.Now().UnixNano())
+	token := fmt.Sprintf("test-token-%d", time.Now().UnixNano())
+
+	invitation := &auth.InvitationToken{
+		Email:     uniqueEmail,
+		Token:     token,
+		RoleID:    roleID,
+		CreatedBy: createdBy,
+		ExpiresAt: expiresAt,
+	}
+
+	if opts != nil {
+		invitation.FirstName = opts.FirstName
+		invitation.LastName = opts.LastName
+	}
+
+	err := db.NewInsert().
+		Model(invitation).
+		ModelTableExpr(`auth.invitation_tokens`).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to create test invitation token with options")
+
+	return invitation
+}
+
+// CleanupInvitationFixtures removes invitation tokens from the database.
+func CleanupInvitationFixtures(tb testing.TB, db *bun.DB, invitationIDs ...int64) {
+	tb.Helper()
+
+	if len(invitationIDs) == 0 {
+		return
+	}
+
+	for _, id := range invitationIDs {
+		cleanupDelete(tb, db.NewDelete().
+			Model((*interface{})(nil)).
+			Table("auth.invitation_tokens").
+			Where(whereIDEquals, id),
+			"auth.invitation_tokens")
+	}
+}
+
+// GetOrCreateTestRole gets an existing role by name or creates a test role.
+// This is useful for invitation tests that need a valid role.
+func GetOrCreateTestRole(tb testing.TB, db *bun.DB, name string) *auth.Role {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Try to find existing role first
+	var role auth.Role
+	err := db.NewSelect().
+		Model(&role).
+		ModelTableExpr(`auth.roles AS "role"`).
+		Where(`"role".name = ?`, name).
+		Scan(ctx)
+
+	if err == nil {
+		return &role
+	}
+
+	// Create a new role if not found
+	role = auth.Role{
+		Name:        fmt.Sprintf("%s-%d", name, time.Now().UnixNano()),
+		Description: "Test role for " + name,
+		IsSystem:    false,
+	}
+
+	err = db.NewInsert().
+		Model(&role).
+		ModelTableExpr(`auth.roles`).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to create test role")
+
+	return &role
 }
