@@ -750,3 +750,13 @@
 
 ---
 
+## Iteration 2026-01-17_09:34:58
+
+**Changed:** moved invitation handler logs into wide event fields; added resource_id to wide events
+
+**Files:** internal/adapter/handler/http/auth/invitation_handlers.go, internal/adapter/middleware/wide_event.go, internal/adapter/middleware/wide_event_middleware.go
+
+**Commit:** 9930860566f79e50dbceaa5ad332fa79b459064f
+
+---
+
