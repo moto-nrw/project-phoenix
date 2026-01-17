@@ -82,10 +82,16 @@ func (rs *Resource) Router() chi.Router {
 
 // downloadStudentTemplate handles template download (CSV or Excel)
 func (rs *Resource) downloadStudentTemplate(w http.ResponseWriter, r *http.Request) {
+	event := adaptermiddleware.GetWideEvent(r.Context())
+	event.Action = "student_import_template"
+
 	// Get format from query parameter (default: csv)
 	format := r.URL.Query().Get("format")
 	if format == "" {
 		format = "csv"
+	}
+	if event.ResourceID == "" {
+		event.ResourceID = format
 	}
 
 	if format == "xlsx" {
@@ -109,7 +115,6 @@ func (rs *Resource) downloadStudentTemplateCSV(w http.ResponseWriter, r *http.Re
 	}
 
 	if err := csvWriter.Write(headers); err != nil {
-		logger.Logger.WithError(err).Error("Error writing CSV headers")
 		renderTemplateError(w, r, err, "csv_header_write_failed")
 		return
 	}
@@ -140,13 +145,12 @@ func (rs *Resource) downloadStudentTemplateCSV(w http.ResponseWriter, r *http.Re
 
 	for _, row := range examples {
 		if err := csvWriter.Write(row); err != nil {
-			logger.Logger.WithError(err).Warn("Error writing CSV row")
+			recordTemplateError(r, err, "csv_row_write_failed")
 		}
 	}
 
 	csvWriter.Flush()
 	if err := csvWriter.Error(); err != nil {
-		logger.Logger.WithError(err).Error("Error flushing CSV writer")
 		renderTemplateError(w, r, err, "csv_flush_failed")
 		return
 	}
@@ -154,7 +158,6 @@ func (rs *Resource) downloadStudentTemplateCSV(w http.ResponseWriter, r *http.Re
 	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
 	w.Header().Set("Content-Disposition", "attachment; filename=schueler-import-vorlage.csv")
 	if _, err := w.Write(buf.Bytes()); err != nil {
-		logger.Logger.WithError(err).Error("Error writing CSV response")
 		recordTemplateError(r, err, "csv_response_write_failed")
 	}
 }
@@ -164,25 +167,32 @@ func (rs *Resource) downloadStudentTemplateXLSX(w http.ResponseWriter, r *http.R
 	f := excelize.NewFile()
 	defer func() {
 		if err := f.Close(); err != nil {
-			logger.Logger.WithError(err).Warn("Error closing Excel file")
+			recordTemplateError(r, err, "xlsx_close_failed")
 		}
 	}()
 
 	sheetName := "Schüler"
 	if err := setupExcelSheet(f, sheetName); err != nil {
-		logger.Logger.WithError(err).Error("Error setting up sheet")
 		renderTemplateError(w, r, err, "xlsx_sheet_setup_failed")
 		return
 	}
 
 	headers := getStudentImportHeaders()
-	writeExcelHeaders(f, sheetName, headers)
-	writeExcelExampleRows(f, sheetName, getStudentImportExamples())
-	setExcelColumnWidths(f, sheetName, len(headers), 15)
+	if err := writeExcelHeaders(f, sheetName, headers); err != nil {
+		renderTemplateError(w, r, err, "xlsx_header_write_failed")
+		return
+	}
+	if err := writeExcelExampleRows(f, sheetName, getStudentImportExamples()); err != nil {
+		renderTemplateError(w, r, err, "xlsx_example_write_failed")
+		return
+	}
+	if err := setExcelColumnWidths(f, sheetName, len(headers), 15); err != nil {
+		renderTemplateError(w, r, err, "xlsx_column_width_failed")
+		return
+	}
 
 	var buf bytes.Buffer
 	if err := f.Write(&buf); err != nil {
-		logger.Logger.WithError(err).Error("Error writing Excel file")
 		renderTemplateError(w, r, err, "xlsx_write_failed")
 		return
 	}
@@ -190,7 +200,6 @@ func (rs *Resource) downloadStudentTemplateXLSX(w http.ResponseWriter, r *http.R
 	w.Header().Set("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 	w.Header().Set("Content-Disposition", "attachment; filename=schueler-import-vorlage.xlsx")
 	if _, err := w.Write(buf.Bytes()); err != nil {
-		logger.Logger.WithError(err).Error("Error writing Excel response")
 		recordTemplateError(r, err, "xlsx_response_write_failed")
 	}
 }
@@ -231,35 +240,38 @@ func getStudentImportExamples() [][]interface{} {
 }
 
 // writeExcelHeaders writes headers to the first row
-func writeExcelHeaders(f *excelize.File, sheetName string, headers []string) {
+func writeExcelHeaders(f *excelize.File, sheetName string, headers []string) error {
 	for i, header := range headers {
 		cell, _ := excelize.CoordinatesToCellName(i+1, 1)
 		if err := f.SetCellValue(sheetName, cell, header); err != nil {
-			logger.Logger.WithError(err).WithField("cell", cell).Warn("Error setting header")
+			return fmt.Errorf("set header %s: %w", cell, err)
 		}
 	}
+	return nil
 }
 
 // writeExcelExampleRows writes example data rows starting from row 2
-func writeExcelExampleRows(f *excelize.File, sheetName string, examples [][]interface{}) {
+func writeExcelExampleRows(f *excelize.File, sheetName string, examples [][]interface{}) error {
 	for rowIdx, row := range examples {
 		for colIdx, value := range row {
 			cell, _ := excelize.CoordinatesToCellName(colIdx+1, rowIdx+2)
 			if err := f.SetCellValue(sheetName, cell, value); err != nil {
-				logger.Logger.WithError(err).WithField("cell", cell).Warn("Error setting cell value")
+				return fmt.Errorf("set cell %s: %w", cell, err)
 			}
 		}
 	}
+	return nil
 }
 
 // setExcelColumnWidths sets uniform column widths
-func setExcelColumnWidths(f *excelize.File, sheetName string, numCols int, width float64) {
+func setExcelColumnWidths(f *excelize.File, sheetName string, numCols int, width float64) error {
 	for i := 1; i <= numCols; i++ {
 		col, _ := excelize.ColumnNumberToName(i)
 		if err := f.SetColWidth(sheetName, col, col, width); err != nil {
-			logger.Logger.WithError(err).WithField("column", col).Warn("Error setting column width")
+			return fmt.Errorf("set column width %s: %w", col, err)
 		}
 	}
+	return nil
 }
 
 func renderTemplateError(w http.ResponseWriter, r *http.Request, err error, code string) {
@@ -286,6 +298,9 @@ func recordTemplateError(r *http.Request, err error, code string) {
 
 // previewStudentImport handles import preview (dry-run)
 func (rs *Resource) previewStudentImport(w http.ResponseWriter, r *http.Request) {
+	event := adaptermiddleware.GetWideEvent(r.Context())
+	event.Action = "student_import_preview"
+
 	// Validate and parse CSV file
 	uploadResult, ok := rs.validateAndParseCSVFile(w, r)
 	if !ok {
@@ -324,6 +339,9 @@ func (rs *Resource) previewStudentImport(w http.ResponseWriter, r *http.Request)
 
 // importStudents handles actual student import
 func (rs *Resource) importStudents(w http.ResponseWriter, r *http.Request) {
+	event := adaptermiddleware.GetWideEvent(r.Context())
+	event.Action = "student_import"
+
 	// Validate and parse CSV file
 	uploadResult, ok := rs.validateAndParseCSVFile(w, r)
 	if !ok {
@@ -353,14 +371,6 @@ func (rs *Resource) importStudents(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInternalServer(fmt.Errorf("import fehlgeschlagen: %s", err.Error())))
 		return
 	}
-
-	// Log import summary
-	logger.Logger.WithFields(map[string]interface{}{
-		"created":  result.CreatedCount,
-		"updated":  result.UpdatedCount,
-		"errors":   result.ErrorCount,
-		"filename": uploadResult.Filename,
-	}).Info("Student import completed")
 
 	// GDPR Compliance: Audit log for actual import (Article 30)
 	rs.logImportAudit(uploadResult.Filename, result, userID, false)
