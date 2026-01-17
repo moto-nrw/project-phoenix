@@ -918,3 +918,13 @@
 
 ---
 
+## Iteration 2026-01-17_15:13:46
+
+**Changed:** Split feedback service interfaces and narrowed handler dependencies
+
+**Files:** internal/core/service/feedback/interface.go, internal/adapter/handler/http/feedback/api.go, internal/adapter/handler/http/iot/api.go, internal/adapter/handler/http/iot/feedback/resource.go
+
+**Commit:** 647bb5202c68890e022e457bec5e759d4f7a027d
+
+---
+
