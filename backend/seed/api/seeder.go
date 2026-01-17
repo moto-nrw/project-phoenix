@@ -61,7 +61,12 @@ func (s *Seeder) Seed(ctx context.Context, email, password, staffPIN string) (*S
 	result.Runtime = runtimeResult
 	fmt.Println()
 
-	// 5. Print success summary
+	// 5. Mark some students as sick (AFTER check-in to avoid auto-clear)
+	if err := fixedSeeder.MarkStudentsSick(ctx, fixedResult); err != nil {
+		return nil, s.formatError("Marking students sick", err)
+	}
+
+	// 6. Print success summary
 	s.printSuccessSummary(email, result)
 
 	return result, nil
@@ -99,6 +104,7 @@ func (s *Seeder) printSuccessSummary(email string, result *SeedResult) {
 	fmt.Printf("║   Accounts:          %-45d ║\n", result.Fixed.AccountCount)
 	fmt.Printf("║   Gruppen:           %-45d ║\n", result.Fixed.GroupCount)
 	fmt.Printf("║   Schüler:           %-45d ║\n", result.Fixed.StudentCount)
+	fmt.Printf("║   Krankmeldungen:    %-45d ║\n", result.Fixed.SickStudentCount)
 	fmt.Printf("║   Erziehungsber.:    %-45d ║\n", result.Fixed.GuardianCount)
 	fmt.Printf("║   Aktivitäten:       %-45d ║\n", result.Fixed.ActivityCount)
 	fmt.Printf("║   IoT Geräte:        %-45d ║\n", result.Fixed.DeviceCount)

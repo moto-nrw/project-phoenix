@@ -37,9 +37,11 @@ type Service interface {
 // RoomWithOccupancy represents a room with its current occupancy status
 type RoomWithOccupancy struct {
 	*facilities.Room
-	IsOccupied   bool    `json:"is_occupied"`
-	GroupName    *string `json:"group_name,omitempty"`
-	CategoryName *string `json:"category_name,omitempty"`
+	IsOccupied      bool    `json:"is_occupied"`
+	GroupName       *string `json:"group_name,omitempty"`
+	CategoryName    *string `json:"category_name,omitempty"`
+	StudentCount    int     `json:"student_count"`
+	SupervisorNames *string `json:"supervisor_names,omitempty"`
 }
 
 // RoomHistoryEntry represents a single room history entry

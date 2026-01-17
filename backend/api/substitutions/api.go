@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -21,6 +22,7 @@ import (
 const (
 	dateFormatYMD           = "2006-01-02"
 	errSubstitutionNotFound = "substitution not found"
+	errContainsNotFound     = "not found" // Used for error message checks
 )
 
 type Resource struct {
@@ -282,7 +284,7 @@ func (rs *Resource) get(w http.ResponseWriter, r *http.Request) {
 
 	substitution, err := rs.Service.GetSubstitution(r.Context(), id)
 	if err != nil {
-		if err.Error() == errSubstitutionNotFound {
+		if strings.Contains(err.Error(), errContainsNotFound) {
 			common.RespondWithError(w, r, http.StatusNotFound, ErrSubstitutionNotFound.Error())
 			return
 		}
@@ -358,7 +360,7 @@ func validateSubstitutionDates(sub *modelEducation.GroupSubstitution) error {
 
 // handleGetSubstitutionError handles errors from GetSubstitution
 func (rs *Resource) handleGetSubstitutionError(w http.ResponseWriter, r *http.Request, err error) {
-	if err.Error() == errSubstitutionNotFound {
+	if strings.Contains(err.Error(), errContainsNotFound) {
 		common.RespondWithError(w, r, http.StatusNotFound, ErrSubstitutionNotFound.Error())
 		return
 	}
@@ -407,7 +409,7 @@ func (rs *Resource) delete(w http.ResponseWriter, r *http.Request) {
 	// Check if substitution exists
 	_, err = rs.Service.GetSubstitution(r.Context(), id)
 	if err != nil {
-		if err.Error() == errSubstitutionNotFound {
+		if strings.Contains(err.Error(), errContainsNotFound) {
 			common.RespondWithError(w, r, http.StatusNotFound, ErrSubstitutionNotFound.Error())
 			return
 		}
@@ -423,3 +425,25 @@ func (rs *Resource) delete(w http.ResponseWriter, r *http.Request) {
 
 	common.RespondNoContent(w, r)
 }
+
+// =============================================================================
+// HANDLER ACCESSOR METHODS (for testing)
+// =============================================================================
+
+// ListHandler returns the list handler
+func (rs *Resource) ListHandler() http.HandlerFunc { return rs.list }
+
+// ListActiveHandler returns the list active handler
+func (rs *Resource) ListActiveHandler() http.HandlerFunc { return rs.listActive }
+
+// GetHandler returns the get handler
+func (rs *Resource) GetHandler() http.HandlerFunc { return rs.get }
+
+// CreateHandler returns the create handler
+func (rs *Resource) CreateHandler() http.HandlerFunc { return rs.create }
+
+// UpdateHandler returns the update handler
+func (rs *Resource) UpdateHandler() http.HandlerFunc { return rs.update }
+
+// DeleteHandler returns the delete handler
+func (rs *Resource) DeleteHandler() http.HandlerFunc { return rs.delete }

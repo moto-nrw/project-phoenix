@@ -1440,22 +1440,23 @@ func (s *service) StartActivitySessionWithSupervisors(ctx context.Context, activ
 }
 
 // executeSessionStart handles common session start logic: conflict checking, device validation, and room determination
+// Uses PostgreSQL advisory locks to prevent race conditions when multiple requests try to start the same activity concurrently
 func (s *service) executeSessionStart(ctx context.Context, activityID, deviceID int64, roomID *int64, operation string, createSession func(context.Context, int64) (*active.Group, error)) error {
-	conflictInfo, err := s.CheckActivityConflict(ctx, activityID, deviceID)
-	if err != nil {
-		return &ActiveError{Op: operation, Err: err}
-	}
-	if conflictInfo.HasConflict {
-		return &ActiveError{Op: operation, Err: ErrSessionConflict}
-	}
-
 	return s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
-		existingSession, err := s.groupRepo.FindActiveByDeviceID(ctx, deviceID)
-		if err != nil {
-			return err
+		// Acquire advisory lock on activity ID to serialize concurrent session starts
+		// This prevents race conditions where two requests both pass conflict check before either creates a session
+		// The lock is automatically released when the transaction commits or rolls back
+		if _, err := tx.ExecContext(ctx, "SELECT pg_advisory_xact_lock(?)", activityID); err != nil {
+			return &ActiveError{Op: operation, Err: fmt.Errorf("failed to acquire activity lock: %w", err)}
 		}
-		if existingSession != nil {
-			return ErrDeviceAlreadyActive
+
+		// Check for conflicts inside the transaction with the lock held
+		conflictInfo, err := s.CheckActivityConflict(ctx, activityID, deviceID)
+		if err != nil {
+			return &ActiveError{Op: operation, Err: err}
+		}
+		if conflictInfo.HasConflict {
+			return &ActiveError{Op: operation, Err: ErrSessionConflict}
 		}
 
 		finalRoomID, err := s.determineSessionRoomID(ctx, activityID, roomID)

@@ -310,6 +310,8 @@ export function StudentDetailHeader({
     location_since: student.location_since,
     group_id: student.group_id,
     group_name: student.group_name,
+    sick: student.sick,
+    sick_since: student.sick_since,
   };
 
   return (

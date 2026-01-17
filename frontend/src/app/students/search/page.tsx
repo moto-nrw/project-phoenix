@@ -1,15 +1,7 @@
 "use client";
 
-import {
-  useState,
-  useEffect,
-  useCallback,
-  useRef,
-  Suspense,
-  useMemo,
-} from "react";
-import { useSSE } from "~/lib/hooks/use-sse";
-import type { SSEEvent } from "~/lib/sse-types";
+import { useState, useEffect, useRef, Suspense, useMemo } from "react";
+// SSE is handled globally by AuthWrapper - real-time updates work automatically
 import { useSession } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ResponsiveLayout } from "~/components/dashboard";
@@ -18,7 +10,7 @@ import { PageHeaderWithSearch } from "~/components/ui/page-header";
 import type { FilterConfig, ActiveFilter } from "~/components/ui/page-header";
 import { studentService, groupService } from "~/lib/api";
 import type { Student, Group } from "~/lib/api";
-import { userContextService } from "~/lib/usercontext-api";
+import { useUserContext } from "~/lib/hooks/use-user-context";
 import { Loading } from "~/components/ui/loading";
 import { LocationBadge } from "@/components/ui/location-badge";
 import {
@@ -34,15 +26,19 @@ import {
   GroupIcon,
   StudentInfoRow,
 } from "~/components/students/student-card";
+import { useSWRAuth, useImmutableSWR } from "~/lib/swr";
 
 function SearchPageContent() {
-  const { data: session, status } = useSession();
   const router = useRouter();
+  // Use required: true to auto-redirect unauthenticated users (same pattern as /active-supervisions)
+  const { data: session, status } = useSession({
+    required: true,
+    onUnauthenticated() {
+      router.push("/");
+    },
+  });
   const searchParams = useSearchParams();
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const abortControllerRef = useRef<AbortController | null>(null);
-  const requestIdRef = useRef(0);
-  const isInitialMountRef = useRef(true);
 
   // Read initial filter from URL params (supports deep-linking from dashboard)
   const initialStatus = searchParams.get("status") ?? "all";
@@ -59,204 +55,29 @@ function SearchPageContent() {
 
   // Search and filter state
   const [searchTerm, setSearchTerm] = useState("");
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState(""); // Debounced version for SWR key
   const [selectedGroup, setSelectedGroup] = useState("");
   const [selectedYear, setSelectedYear] = useState("all");
   const [attendanceFilter, setAttendanceFilter] = useState(
     initialAttendanceFilter,
   );
 
-  // Data state
-  const [students, setStudents] = useState<Student[]>([]);
-  const [groups, setGroups] = useState<Group[]>([]);
-  const [isSearching, setIsSearching] = useState(true); // Start with loading state
-  const [error, setError] = useState<string | null>(null);
+  // OGS group tracking via shared BFF endpoint with SWR caching
+  // This eliminates 2 separate API calls with 2 auth() calls each
+  const { userContext } = useUserContext();
+  const myGroups = userContext?.educationalGroupIds ?? [];
+  const myGroupRooms = userContext?.educationalGroupRoomNames ?? [];
+  const mySupervisedRooms = userContext?.supervisedRoomNames ?? [];
 
-  // OGS group tracking
-  const [myGroups, setMyGroups] = useState<string[]>([]);
-  const [myGroupRooms, setMyGroupRooms] = useState<string[]>([]); // Räume meiner OGS-Gruppen
-  const [mySupervisedRooms, setMySupervisedRooms] = useState<string[]>([]);
-  const [groupsLoaded, setGroupsLoaded] = useState(false);
-
-  // Refs to track current filter values without triggering re-renders
-  const searchTermRef = useRef(searchTerm);
-  const selectedGroupRef = useRef(selectedGroup);
-
-  // Update refs when state changes
+  // Debounce search term for SWR key (prevents excessive API calls while typing)
   useEffect(() => {
-    searchTermRef.current = searchTerm;
-  }, [searchTerm]);
-
-  useEffect(() => {
-    selectedGroupRef.current = selectedGroup;
-  }, [selectedGroup]);
-
-  // Silent refetch for SSE updates (no loading spinner)
-  const silentRefetchStudents = useCallback(async () => {
-    try {
-      const fetchedStudents = await studentService.getStudents({
-        search: searchTermRef.current,
-        groupId: selectedGroupRef.current,
-      });
-      setStudents(fetchedStudents.students);
-    } catch (err) {
-      // Silently fail on background refresh - don't disrupt UI
-      console.error("SSE background refresh failed:", err);
-    }
-  }, []);
-
-  // SSE event handler - refresh when students check in/out
-  // Always refresh on location events to handle:
-  // 1. Students already in list whose location changed
-  // 2. Students who should appear/disappear due to attendance filters
-  const handleSSEEvent = useCallback(
-    (event: SSEEvent) => {
-      if (
-        event.type === "student_checkin" ||
-        event.type === "student_checkout"
-      ) {
-        silentRefetchStudents().catch(() => undefined);
-      }
-    },
-    [silentRefetchStudents],
-  );
-
-  // SSE connection for real-time location updates
-  // Backend enforces staff-only access via person/staff record check
-  useSSE("/api/sse/events", {
-    onMessage: handleSSEEvent,
-    enabled: groupsLoaded,
-  });
-
-  const fetchStudentsData = useCallback(
-    async (filters?: { search?: string; groupId?: string }) => {
-      // Cancel any previous request
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-      }
-
-      // Create new abort controller for this request
-      const abortController = new AbortController();
-      abortControllerRef.current = abortController;
-
-      // Track request ID to ignore stale responses
-      const currentRequestId = ++requestIdRef.current;
-
-      try {
-        setIsSearching(true);
-        setError(null);
-
-        // Fetch students from API using refs for current values
-        const fetchedStudents = await studentService.getStudents({
-          search: filters?.search ?? searchTermRef.current,
-          groupId: filters?.groupId ?? selectedGroupRef.current,
-        });
-
-        // Only update state if this is still the latest request
-        if (currentRequestId === requestIdRef.current) {
-          setStudents(fetchedStudents.students);
-        }
-      } catch (err) {
-        // Ignore aborted requests
-        if (err instanceof Error && err.name === "AbortError") {
-          return;
-        }
-
-        // Only update state if this is still the latest request
-        if (currentRequestId !== requestIdRef.current) {
-          return;
-        }
-
-        // Error fetching students - handle gracefully with specific messages
-        const errorMessage = err instanceof Error ? err.message : String(err);
-
-        // Check for 403 Forbidden (missing permissions)
-        if (errorMessage.includes("403")) {
-          setError(
-            "Du hast keine Berechtigung, Schülerdaten anzuzeigen. Bitte wende dich an einen Administrator.",
-          );
-        } else if (errorMessage.includes("401")) {
-          setError("Deine Sitzung ist abgelaufen. Bitte melde dich erneut an.");
-        } else {
-          setError("Fehler beim Laden der Schülerdaten.");
-        }
-      } finally {
-        // Only update loading state if this is still the latest request
-        if (currentRequestId === requestIdRef.current) {
-          setIsSearching(false);
-        }
-      }
-    },
-    [], // No dependencies - function is stable
-  );
-
-  // Load groups and user's OGS groups on mount
-  useEffect(() => {
-    const loadInitialData = async () => {
-      // Load all groups for filter (non-fatal if user lacks permission)
-      try {
-        const fetchedGroups = await groupService.getGroups();
-        setGroups(fetchedGroups);
-      } catch (error) {
-        // User might not have groups:read permission - continue with empty list
-        console.warn("Could not load groups for filter:", error);
-        setGroups([]);
-      }
-
-      // Load user's OGS groups and supervised rooms
-      if (session?.user?.token) {
-        try {
-          const myOgsGroups = await userContextService.getMyEducationalGroups();
-          setMyGroups(myOgsGroups.map((g) => g.id));
-
-          // Extract room names from OGS groups (for green color detection)
-          const ogsGroupRoomNames = myOgsGroups
-            .map((group) => group.room?.name)
-            .filter((name): name is string => !!name);
-          setMyGroupRooms(ogsGroupRoomNames);
-
-          // Load supervised rooms (active sessions) for room-based access
-          const supervisedGroups =
-            await userContextService.getMySupervisedGroups();
-          const roomNames = supervisedGroups
-            .map((group) => group.room?.name)
-            .filter((name): name is string => !!name);
-          setMySupervisedRooms(roomNames);
-        } catch (ogsError) {
-          console.error("Error loading OGS groups:", ogsError);
-          // User might not have OGS groups, which is fine
-        }
-      }
-
-      // Always mark groups as loaded so student search can proceed
-      setGroupsLoaded(true);
-    };
-
-    loadInitialData().catch(console.error);
-  }, [session?.user?.token]);
-
-  // Load initial students after groups are loaded
-  useEffect(() => {
-    if (groupsLoaded) {
-      fetchStudentsData().catch(console.error);
-      // Mark initial mount as complete after first successful fetch
-      isInitialMountRef.current = false;
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [groupsLoaded]);
-
-  // Debounced search effect (skip initial mount - handled by groupsLoaded effect)
-  useEffect(() => {
-    if (isInitialMountRef.current) {
-      return;
-    }
-
     if (searchTimeoutRef.current) {
       clearTimeout(searchTimeoutRef.current);
     }
 
     searchTimeoutRef.current = setTimeout(() => {
       if (searchTerm.length >= 2 || searchTerm.length === 0) {
-        fetchStudentsData().catch(console.error);
+        setDebouncedSearchTerm(searchTerm);
       }
     }, 300);
 
@@ -265,17 +86,87 @@ function SearchPageContent() {
         clearTimeout(searchTimeoutRef.current);
       }
     };
-    // fetchStudentsData is stable (empty deps array), so no need to include it
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchTerm]);
 
-  // Re-fetch when group filter changes (skip initial mount - handled by groupsLoaded effect)
-  useEffect(() => {
-    if (!isInitialMountRef.current) {
-      fetchStudentsData().catch(console.error);
+  // Fetch groups with SWR (immutable - only fetched once)
+  const { data: groups = [] } = useImmutableSWR<Group[]>(
+    "search-groups-list",
+    async () => {
+      try {
+        return await groupService.getGroups();
+      } catch {
+        // User might not have groups:read permission - continue with empty list
+        console.warn("Could not load groups for filter");
+        return [];
+      }
+    },
+  );
+
+  // Generate SWR cache key for students (changes when filters change → SWR auto-cancels old requests)
+  // Note: User context is only for badge styling, not for fetching students
+  const studentsCacheKey = `search-students-${debouncedSearchTerm}-${selectedGroup}`;
+
+  // Fetch students with SWR (automatic deduplication, cancellation, and revalidation)
+  const {
+    data: studentsData,
+    isLoading: isSearching,
+    error: studentsError,
+  } = useSWRAuth<{ students: Student[] }>(
+    studentsCacheKey,
+    async () => {
+      return await studentService.getStudents({
+        search: debouncedSearchTerm,
+        groupId: selectedGroup,
+      });
+    },
+    {
+      // Keep previous data while fetching (prevents loading flash)
+      keepPreviousData: true,
+    },
+  );
+
+  const students = studentsData?.students ?? [];
+
+  // Error type for proper heading display (Fix P3: substring matching on transformed string)
+  type ErrorType = "permission" | "session" | "generic" | null;
+
+  // Parse error messages for user-friendly display, returning both type and message
+  const [errorType, errorMessage]: [ErrorType, string | null] = useMemo(() => {
+    if (!studentsError) return [null, null];
+
+    const rawMessage =
+      studentsError instanceof Error
+        ? studentsError.message
+        : String(studentsError);
+
+    if (rawMessage.includes("403")) {
+      return [
+        "permission",
+        "Du hast keine Berechtigung, Schülerdaten anzuzeigen. Bitte wende dich an einen Administrator.",
+      ];
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedGroup]);
+    if (rawMessage.includes("401")) {
+      return [
+        "session",
+        "Deine Sitzung ist abgelaufen. Bitte melde dich erneut an.",
+      ];
+    }
+    return ["generic", "Fehler beim Laden der Schülerdaten."];
+  }, [studentsError]);
+
+  // Fix P1: Detect when auth prevents fetching (user can't fetch but no error from SWR)
+  const canFetch = status === "authenticated" && !!session?.user?.token;
+  const isAuthError = !canFetch && !studentsError && status !== "loading";
+
+  // Fix P2: Track initialization state to prevent empty state flash
+  // Only wait for session - user context loads in parallel (for badge styling only)
+  const isInitializing = status === "loading";
+  const hasFetchedOnce =
+    studentsData !== undefined || studentsError !== undefined;
+
+  // SSE is handled globally by AuthWrapper - no page-level setup needed.
+  // When student_checkin/checkout events occur, global SSE invalidates "student*" caches,
+  // which triggers SWR refetch for search-students-* keys automatically.
 
   // Prepare filter configurations for PageHeaderWithSearch
   const filterConfigs: FilterConfig[] = useMemo(
@@ -401,9 +292,9 @@ function SearchPageContent() {
       }
     }
 
-    // Apply year filter - extract year from school_class (e.g., "1a" → year 1)
+    // Apply year filter - extract year from school_class (e.g., "Klasse 3a" → year 3)
     if (selectedYear !== "all") {
-      const yearMatch = /^(\d)/.exec(student.school_class);
+      const yearMatch = /(\d)/.exec(student.school_class);
       const studentYear = yearMatch ? yearMatch[1] : null;
       if (studentYear !== selectedYear) {
         return false;
@@ -413,7 +304,9 @@ function SearchPageContent() {
     return true;
   });
 
-  if (status === "loading") {
+  // Fix P2: Show loading during initialization (prevents empty state flash)
+  // Note: With required: true, unauthenticated users are auto-redirected to login
+  if (isInitializing || isAuthError) {
     return <Loading />;
   }
 
@@ -457,18 +350,19 @@ function SearchPageContent() {
         />
 
         {/* Mobile Error Display */}
-        {error && (
+        {errorMessage && (
           <div className="mb-4 md:hidden">
-            <Alert type="error" message={error} />
+            <Alert type="error" message={errorMessage} />
           </div>
         )}
 
         {/* Student Grid - Mobile Optimized with Playful Design */}
         {(() => {
-          if (isSearching) {
+          // Fix P2: Show loading while first fetch is in progress (not yet hasFetchedOnce)
+          if (isSearching && !hasFetchedOnce) {
             return <Loading fullPage={false} />;
           }
-          if (error) {
+          if (errorMessage) {
             return (
               <div className="py-12 text-center">
                 <div className="flex flex-col items-center gap-4">
@@ -486,16 +380,20 @@ function SearchPageContent() {
                     />
                   </svg>
                   <div>
+                    {/* Fix P3: Use errorType instead of substring matching */}
                     <h3 className="text-lg font-medium text-gray-900">
-                      {error.includes("403") ? "Keine Berechtigung" : "Fehler"}
+                      {errorType === "permission"
+                        ? "Keine Berechtigung"
+                        : "Fehler"}
                     </h3>
-                    <p className="text-gray-600">{error}</p>
+                    <p className="text-gray-600">{errorMessage}</p>
                   </div>
                 </div>
               </div>
             );
           }
-          if (filteredStudents.length === 0) {
+          // Fix P2: Only show empty state if we've fetched at least once
+          if (filteredStudents.length === 0 && hasFetchedOnce) {
             return (
               <div className="py-12 text-center">
                 <div className="flex flex-col items-center gap-4">

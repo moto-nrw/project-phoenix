@@ -71,3 +71,10 @@ func (rs *Resource) eventsHandler(w http.ResponseWriter, r *http.Request) {
 	rs.createAndRegisterClient(conn)
 	rs.runEventLoop(ctx, conn)
 }
+
+// =============================================================================
+// HANDLER ACCESSOR METHODS (for testing)
+// =============================================================================
+
+// EventsHandler returns the eventsHandler
+func (rs *Resource) EventsHandler() http.HandlerFunc { return rs.eventsHandler }

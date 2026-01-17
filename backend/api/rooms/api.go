@@ -89,35 +89,39 @@ func (req *RoomRequest) Bind(_ *http.Request) error {
 
 // RoomResponse represents a room response
 type RoomResponse struct {
-	ID           int64     `json:"id"`
-	Name         string    `json:"name"`
-	Building     string    `json:"building,omitempty"`
-	Floor        *int      `json:"floor,omitempty"`
-	Capacity     *int      `json:"capacity,omitempty"`
-	Category     *string   `json:"category,omitempty"`
-	Color        *string   `json:"color,omitempty"`
-	IsOccupied   bool      `json:"is_occupied"`
-	GroupName    *string   `json:"group_name,omitempty"`
-	CategoryName *string   `json:"category_name,omitempty"`
-	CreatedAt    time.Time `json:"created_at"`
-	UpdatedAt    time.Time `json:"updated_at"`
+	ID              int64     `json:"id"`
+	Name            string    `json:"name"`
+	Building        string    `json:"building,omitempty"`
+	Floor           *int      `json:"floor,omitempty"`
+	Capacity        *int      `json:"capacity,omitempty"`
+	Category        *string   `json:"category,omitempty"`
+	Color           *string   `json:"color,omitempty"`
+	IsOccupied      bool      `json:"is_occupied"`
+	GroupName       *string   `json:"group_name,omitempty"`
+	CategoryName    *string   `json:"category_name,omitempty"`
+	StudentCount    int       `json:"student_count"`
+	SupervisorNames *string   `json:"supervisor_names,omitempty"`
+	CreatedAt       time.Time `json:"created_at"`
+	UpdatedAt       time.Time `json:"updated_at"`
 }
 
 // Convert a RoomWithOccupancy to a RoomResponse
 func newRoomResponse(roomWithOcc facilityService.RoomWithOccupancy) RoomResponse {
 	return RoomResponse{
-		ID:           roomWithOcc.ID,
-		Name:         roomWithOcc.Name,
-		Building:     roomWithOcc.Building,
-		Floor:        roomWithOcc.Floor,
-		Capacity:     roomWithOcc.Capacity,
-		Category:     roomWithOcc.Category,
-		Color:        roomWithOcc.Color,
-		IsOccupied:   roomWithOcc.IsOccupied,
-		GroupName:    roomWithOcc.GroupName,
-		CategoryName: roomWithOcc.CategoryName,
-		CreatedAt:    roomWithOcc.CreatedAt,
-		UpdatedAt:    roomWithOcc.UpdatedAt,
+		ID:              roomWithOcc.ID,
+		Name:            roomWithOcc.Name,
+		Building:        roomWithOcc.Building,
+		Floor:           roomWithOcc.Floor,
+		Capacity:        roomWithOcc.Capacity,
+		Category:        roomWithOcc.Category,
+		Color:           roomWithOcc.Color,
+		IsOccupied:      roomWithOcc.IsOccupied,
+		GroupName:       roomWithOcc.GroupName,
+		CategoryName:    roomWithOcc.CategoryName,
+		StudentCount:    roomWithOcc.StudentCount,
+		SupervisorNames: roomWithOcc.SupervisorNames,
+		CreatedAt:       roomWithOcc.CreatedAt,
+		UpdatedAt:       roomWithOcc.UpdatedAt,
 	}
 }
 
@@ -415,3 +419,39 @@ func (rs *Resource) getRoomHistory(w http.ResponseWriter, r *http.Request) {
 	// Return response
 	common.Respond(w, r, http.StatusOK, history, "Room history retrieved successfully")
 }
+
+// =============================================================================
+// Exported Handler Methods for Testing
+// =============================================================================
+// These methods expose the underlying handlers for test access without going
+// through the router's middleware chain.
+
+// ListRoomsHandler returns the handler for listing rooms.
+func (rs *Resource) ListRoomsHandler() http.HandlerFunc { return rs.listRooms }
+
+// GetRoomHandler returns the handler for getting a single room.
+func (rs *Resource) GetRoomHandler() http.HandlerFunc { return rs.getRoom }
+
+// CreateRoomHandler returns the handler for creating a room.
+func (rs *Resource) CreateRoomHandler() http.HandlerFunc { return rs.createRoom }
+
+// UpdateRoomHandler returns the handler for updating a room.
+func (rs *Resource) UpdateRoomHandler() http.HandlerFunc { return rs.updateRoom }
+
+// DeleteRoomHandler returns the handler for deleting a room.
+func (rs *Resource) DeleteRoomHandler() http.HandlerFunc { return rs.deleteRoom }
+
+// GetRoomsByCategoryHandler returns the handler for getting rooms by category.
+func (rs *Resource) GetRoomsByCategoryHandler() http.HandlerFunc { return rs.getRoomsByCategory }
+
+// GetBuildingListHandler returns the handler for getting the building list.
+func (rs *Resource) GetBuildingListHandler() http.HandlerFunc { return rs.getBuildingList }
+
+// GetCategoryListHandler returns the handler for getting the category list.
+func (rs *Resource) GetCategoryListHandler() http.HandlerFunc { return rs.getCategoryList }
+
+// GetAvailableRoomsHandler returns the handler for getting available rooms.
+func (rs *Resource) GetAvailableRoomsHandler() http.HandlerFunc { return rs.getAvailableRooms }
+
+// GetRoomHistoryHandler returns the handler for getting room history.
+func (rs *Resource) GetRoomHistoryHandler() http.HandlerFunc { return rs.getRoomHistory }

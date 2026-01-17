@@ -87,9 +87,11 @@ func (s *service) GetRoomWithOccupancy(ctx context.Context, id int64) (RoomWithO
 		UpdatedAt time.Time `bun:"updated_at"`
 
 		// Occupancy fields
-		IsOccupied   bool    `bun:"is_occupied"`
-		GroupName    *string `bun:"group_name"`
-		CategoryName *string `bun:"category_name"`
+		IsOccupied      bool    `bun:"is_occupied"`
+		GroupName       *string `bun:"group_name"`
+		CategoryName    *string `bun:"category_name"`
+		StudentCount    int     `bun:"student_count"`
+		SupervisorNames *string `bun:"supervisor_names"`
 	}
 
 	// Build query with LEFT JOINs for occupancy information
@@ -100,6 +102,20 @@ func (s *service) GetRoomWithOccupancy(ctx context.Context, id int64) (RoomWithO
 		ColumnExpr("CASE WHEN ag.id IS NOT NULL THEN true ELSE false END AS is_occupied").
 		ColumnExpr("act_group.name AS group_name").
 		ColumnExpr("cat.name AS category_name").
+		// Student count: count active visits for this room's active group
+		ColumnExpr(`COALESCE((
+			SELECT COUNT(DISTINCT v.student_id)
+			FROM active.visits v
+			WHERE v.active_group_id = ag.id AND v.exit_time IS NULL
+		), 0)::int AS student_count`).
+		// Supervisor names: aggregate staff names for this room's active group
+		ColumnExpr(`(
+			SELECT string_agg(DISTINCT CONCAT(p.first_name, ' ', p.last_name), ', ')
+			FROM active.group_supervisors gs
+			INNER JOIN users.staff st ON st.id = gs.staff_id
+			INNER JOIN users.persons p ON p.id = st.person_id
+			WHERE gs.group_id = ag.id AND gs.end_date IS NULL
+		) AS supervisor_names`).
 		Join("LEFT JOIN active.groups AS ag ON ag.room_id = r.id AND ag.end_time IS NULL").
 		Join("LEFT JOIN activities.groups AS act_group ON act_group.id = ag.group_id").
 		Join("LEFT JOIN activities.categories AS cat ON cat.id = act_group.category_id").
@@ -129,9 +145,11 @@ func (s *service) GetRoomWithOccupancy(ctx context.Context, id int64) (RoomWithO
 			Category: result.Category,
 			Color:    result.Color,
 		},
-		IsOccupied:   result.IsOccupied,
-		GroupName:    result.GroupName,
-		CategoryName: result.CategoryName,
+		IsOccupied:      result.IsOccupied,
+		GroupName:       result.GroupName,
+		CategoryName:    result.CategoryName,
+		StudentCount:    result.StudentCount,
+		SupervisorNames: result.SupervisorNames,
 	}, nil
 }
 
@@ -217,22 +235,40 @@ func (s *service) ListRooms(ctx context.Context, options *base.QueryOptions) ([]
 		UpdatedAt time.Time `bun:"updated_at"`
 
 		// Occupancy fields
-		IsOccupied   bool    `bun:"is_occupied"`
-		GroupName    *string `bun:"group_name"`
-		CategoryName *string `bun:"category_name"`
+		IsOccupied      bool    `bun:"is_occupied"`
+		GroupName       *string `bun:"group_name"`
+		CategoryName    *string `bun:"category_name"`
+		StudentCount    int     `bun:"student_count"`
+		SupervisorNames *string `bun:"supervisor_names"`
 	}
 
 	// Build query with LEFT JOINs for occupancy information
+	// Use DISTINCT ON to handle rooms with multiple active groups (e.g., Schulhof with Freispiel + Garten)
 	query := s.db.NewSelect().
 		TableExpr("facilities.rooms AS r").
+		DistinctOn("r.id").
 		ColumnExpr("r.id, r.name, r.building, r.floor, r.capacity, r.category, r.color, r.created_at, r.updated_at").
 		ColumnExpr("CASE WHEN ag.id IS NOT NULL THEN true ELSE false END AS is_occupied").
 		ColumnExpr("act_group.name AS group_name").
 		ColumnExpr("cat.name AS category_name").
+		// Student count: count active visits for this room's active group
+		ColumnExpr(`COALESCE((
+			SELECT COUNT(DISTINCT v.student_id)
+			FROM active.visits v
+			WHERE v.active_group_id = ag.id AND v.exit_time IS NULL
+		), 0)::int AS student_count`).
+		// Supervisor names: aggregate staff names for this room's active group
+		ColumnExpr(`(
+			SELECT string_agg(DISTINCT CONCAT(p.first_name, ' ', p.last_name), ', ')
+			FROM active.group_supervisors gs
+			INNER JOIN users.staff st ON st.id = gs.staff_id
+			INNER JOIN users.persons p ON p.id = st.person_id
+			WHERE gs.group_id = ag.id AND gs.end_date IS NULL
+		) AS supervisor_names`).
 		Join("LEFT JOIN active.groups AS ag ON ag.room_id = r.id AND ag.end_time IS NULL").
 		Join("LEFT JOIN activities.groups AS act_group ON act_group.id = ag.group_id").
 		Join("LEFT JOIN activities.categories AS cat ON cat.id = act_group.category_id").
-		OrderExpr("r.name ASC")
+		OrderExpr("r.id, r.name ASC")
 
 	// Apply filters if provided
 	if options != nil && options.Filter != nil {
@@ -268,9 +304,11 @@ func (s *service) ListRooms(ctx context.Context, options *base.QueryOptions) ([]
 				Category: r.Category,
 				Color:    r.Color,
 			},
-			IsOccupied:   r.IsOccupied,
-			GroupName:    r.GroupName,
-			CategoryName: r.CategoryName,
+			IsOccupied:      r.IsOccupied,
+			GroupName:       r.GroupName,
+			CategoryName:    r.CategoryName,
+			StudentCount:    r.StudentCount,
+			SupervisorNames: r.SupervisorNames,
 		}
 	}
 
@@ -355,22 +393,29 @@ func (s *service) GetAvailableRoomsWithOccupancy(ctx context.Context, capacity i
 		return nil, &FacilitiesError{Op: "get available rooms with occupancy", Err: err}
 	}
 
-	// Filter rooms by capacity and check occupancy
-	var roomsWithOccupancy []RoomWithOccupancy
+	// First pass: filter rooms by capacity and collect IDs
+	var availableRooms []*facilities.Room
+	var roomIDs []int64
 	for _, room := range allRooms {
 		if room.IsAvailable(capacity) {
-			// Check if room is occupied
-			activeGroups, err := s.activeGroupRepo.FindActiveByRoomID(ctx, room.ID)
-			if err != nil {
-				return nil, &FacilitiesError{Op: "check room occupancy", Err: err}
-			}
-
-			roomWithOccupancy := RoomWithOccupancy{
-				Room:       room,
-				IsOccupied: len(activeGroups) > 0,
-			}
-			roomsWithOccupancy = append(roomsWithOccupancy, roomWithOccupancy)
+			availableRooms = append(availableRooms, room)
+			roomIDs = append(roomIDs, room.ID)
 		}
+	}
+
+	// Batch fetch occupied room IDs (avoids N+1 query problem)
+	occupiedRoomIDs, err := s.activeGroupRepo.GetOccupiedRoomIDs(ctx, roomIDs)
+	if err != nil {
+		return nil, &FacilitiesError{Op: "check room occupancy", Err: err}
+	}
+
+	// Build response with occupancy status from map lookup
+	roomsWithOccupancy := make([]RoomWithOccupancy, 0, len(availableRooms))
+	for _, room := range availableRooms {
+		roomsWithOccupancy = append(roomsWithOccupancy, RoomWithOccupancy{
+			Room:       room,
+			IsOccupied: occupiedRoomIDs[room.ID],
+		})
 	}
 
 	return roomsWithOccupancy, nil

@@ -376,3 +376,94 @@ func TestGroupSubstitution_SetSubstituteStaff(t *testing.T) {
 		}
 	})
 }
+
+func TestGroupSubstitution_TableName(t *testing.T) {
+	gs := &GroupSubstitution{}
+	if got := gs.TableName(); got != "education.group_substitution" {
+		t.Errorf("TableName() = %v, want education.group_substitution", got)
+	}
+}
+
+func TestGroupSubstitution_GetID(t *testing.T) {
+	gs := &GroupSubstitution{
+		Model:             base.Model{ID: 42},
+		GroupID:           1,
+		SubstituteStaffID: 1,
+	}
+
+	if got, ok := gs.GetID().(int64); !ok || got != 42 {
+		t.Errorf("GetID() = %v, want 42", gs.GetID())
+	}
+}
+
+func TestGroupSubstitution_GetCreatedAt(t *testing.T) {
+	now := time.Now()
+	gs := &GroupSubstitution{
+		Model:             base.Model{CreatedAt: now},
+		GroupID:           1,
+		SubstituteStaffID: 1,
+	}
+
+	if got := gs.GetCreatedAt(); !got.Equal(now) {
+		t.Errorf("GetCreatedAt() = %v, want %v", got, now)
+	}
+}
+
+func TestGroupSubstitution_GetUpdatedAt(t *testing.T) {
+	now := time.Now()
+	gs := &GroupSubstitution{
+		Model:             base.Model{UpdatedAt: now},
+		GroupID:           1,
+		SubstituteStaffID: 1,
+	}
+
+	if got := gs.GetUpdatedAt(); !got.Equal(now) {
+		t.Errorf("GetUpdatedAt() = %v, want %v", got, now)
+	}
+}
+
+func TestGroupSubstitution_IsCurrentlyActive(t *testing.T) {
+	now := time.Now()
+	yesterday := now.AddDate(0, 0, -1)
+	tomorrow := now.AddDate(0, 0, 1)
+	lastWeek := now.AddDate(0, 0, -7)
+
+	tests := []struct {
+		name string
+		gs   *GroupSubstitution
+		want bool
+	}{
+		{
+			name: "currently active",
+			gs: &GroupSubstitution{
+				StartDate: yesterday,
+				EndDate:   tomorrow,
+			},
+			want: true,
+		},
+		{
+			name: "already ended",
+			gs: &GroupSubstitution{
+				StartDate: lastWeek,
+				EndDate:   yesterday,
+			},
+			want: false,
+		},
+		{
+			name: "not yet started",
+			gs: &GroupSubstitution{
+				StartDate: tomorrow,
+				EndDate:   tomorrow.AddDate(0, 0, 1),
+			},
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.gs.IsCurrentlyActive(); got != tt.want {
+				t.Errorf("IsCurrentlyActive() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}

@@ -23,9 +23,6 @@ type GroupRepository interface {
 	// EndSession marks a group session as ended at the current time
 	EndSession(ctx context.Context, id int64) error
 
-	// FindBySourceIDs finds active groups based on source IDs and source type
-	FindBySourceIDs(ctx context.Context, sourceIDs []int64, sourceType string) ([]*Group, error)
-
 	// Relations methods
 	FindWithRelations(ctx context.Context, id int64) (*Group, error)
 	FindWithVisits(ctx context.Context, id int64) (*Group, error)
@@ -53,6 +50,9 @@ type GroupRepository interface {
 
 	// FindByIDs finds active groups by their IDs
 	FindByIDs(ctx context.Context, ids []int64) (map[int64]*Group, error)
+
+	// GetOccupiedRoomIDs returns a set of room IDs that currently have active groups
+	GetOccupiedRoomIDs(ctx context.Context, roomIDs []int64) (map[int64]bool, error)
 }
 
 // VisitRepository defines operations for managing active visits

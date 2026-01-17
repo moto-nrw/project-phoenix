@@ -396,3 +396,67 @@ func TestAccount_ClearPIN(t *testing.T) {
 		t.Error("PINLockedUntil should be nil after ClearPIN")
 	}
 }
+
+func TestAccount_TableName(t *testing.T) {
+	account := &Account{}
+	if got := account.TableName(); got != "auth.accounts" {
+		t.Errorf("TableName() = %v, want auth.accounts", got)
+	}
+}
+
+func TestAccount_BeforeAppendModel(t *testing.T) {
+	// BeforeAppendModel modifies query table expressions for different query types
+	// It doesn't set timestamps - those are handled by the base model or repository
+
+	t.Run("handles nil query", func(t *testing.T) {
+		account := &Account{Email: "test@example.com"}
+		err := account.BeforeAppendModel(nil)
+		if err != nil {
+			t.Errorf("BeforeAppendModel() error = %v", err)
+		}
+	})
+
+	t.Run("returns no error for unknown query type", func(t *testing.T) {
+		account := &Account{Email: "test@example.com"}
+		err := account.BeforeAppendModel("some string")
+		if err != nil {
+			t.Errorf("BeforeAppendModel() error = %v", err)
+		}
+	})
+}
+
+func TestAccount_GetID(t *testing.T) {
+	account := &Account{
+		Model: base.Model{ID: 42},
+		Email: "test@example.com",
+	}
+
+	// GetID returns interface{}, so we compare with int64
+	if got, ok := account.GetID().(int64); !ok || got != 42 {
+		t.Errorf("GetID() = %v, want 42", account.GetID())
+	}
+}
+
+func TestAccount_GetCreatedAt(t *testing.T) {
+	now := time.Now()
+	account := &Account{
+		Model: base.Model{CreatedAt: now},
+		Email: "test@example.com",
+	}
+
+	if got := account.GetCreatedAt(); !got.Equal(now) {
+		t.Errorf("GetCreatedAt() = %v, want %v", got, now)
+	}
+}
+
+func TestAccount_GetUpdatedAt(t *testing.T) {
+	now := time.Now()
+	account := &Account{
+		Model: base.Model{UpdatedAt: now},
+		Email: "test@example.com",
+	}
+
+	if got := account.GetUpdatedAt(); !got.Equal(now) {
+		t.Errorf("GetUpdatedAt() = %v, want %v", got, now)
+	}
+}

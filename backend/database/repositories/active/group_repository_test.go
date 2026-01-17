@@ -77,9 +77,8 @@ func TestActiveGroupRepository_Create(t *testing.T) {
 
 		err := repo.Create(ctx, group)
 		require.NoError(t, err)
+		defer cleanupActiveGroupRecords(t, db, group.ID)
 		assert.NotZero(t, group.ID)
-
-		cleanupActiveGroupRecords(t, db, group.ID)
 	})
 
 	t.Run("creates active group without device", func(t *testing.T) {
@@ -98,10 +97,9 @@ func TestActiveGroupRepository_Create(t *testing.T) {
 
 		err := repo.Create(ctx, group)
 		require.NoError(t, err)
+		defer cleanupActiveGroupRecords(t, db, group.ID)
 		assert.NotZero(t, group.ID)
 		assert.Nil(t, group.DeviceID)
-
-		cleanupActiveGroupRecords(t, db, group.ID)
 	})
 
 	t.Run("create with nil group should fail", func(t *testing.T) {
@@ -569,6 +567,159 @@ func TestActiveGroupRepository_FindActiveByDeviceID(t *testing.T) {
 // Room Conflict Detection Tests
 // ============================================================================
 
+func TestActiveGroupRepository_FindActiveByDeviceIDWithNames(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).ActiveGroup
+	ctx := context.Background()
+
+	t.Run("finds active session with activity and room names", func(t *testing.T) {
+		activityGroup := testpkg.CreateTestActivityGroup(t, db, "WithNames")
+		room := testpkg.CreateTestRoom(t, db, "WithNamesRoom")
+		device := testpkg.CreateTestDevice(t, db, "with-names-device")
+		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, device.ID, activityGroup.CategoryID, room.ID)
+
+		now := time.Now()
+		group := &active.Group{
+			StartTime:      now,
+			LastActivity:   now,
+			TimeoutMinutes: 30,
+			GroupID:        activityGroup.ID,
+			DeviceID:       &device.ID,
+			RoomID:         room.ID,
+		}
+		err := repo.Create(ctx, group)
+		require.NoError(t, err)
+		defer cleanupActiveGroupRecords(t, db, group.ID)
+
+		found, err := repo.FindActiveByDeviceIDWithNames(ctx, device.ID)
+		require.NoError(t, err)
+		require.NotNil(t, found)
+		assert.Equal(t, group.ID, found.ID)
+		// Check that relations are loaded (names may have timestamp suffix)
+		if found.ActualGroup != nil {
+			assert.Contains(t, found.ActualGroup.Name, "WithNames")
+		}
+		if found.Room != nil {
+			assert.Contains(t, found.Room.Name, "WithNamesRoom")
+		}
+	})
+
+	t.Run("returns nil for device with no active session", func(t *testing.T) {
+		device := testpkg.CreateTestDevice(t, db, "no-session-names-device")
+		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, device.ID, 0, 0)
+
+		found, err := repo.FindActiveByDeviceIDWithNames(ctx, device.ID)
+		require.NoError(t, err)
+		assert.Nil(t, found)
+	})
+}
+
+func TestActiveGroupRepository_GetOccupiedRoomIDs(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).ActiveGroup
+	ctx := context.Background()
+
+	t.Run("returns occupied room IDs", func(t *testing.T) {
+		activityGroup := testpkg.CreateTestActivityGroup(t, db, "OccupiedRooms")
+		room1 := testpkg.CreateTestRoom(t, db, "OccupiedRoom1")
+		room2 := testpkg.CreateTestRoom(t, db, "OccupiedRoom2")
+		room3 := testpkg.CreateTestRoom(t, db, "EmptyRoom3")
+		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, activityGroup.CategoryID, room1.ID)
+		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, 0, room2.ID)
+		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, 0, room3.ID)
+
+		now := time.Now()
+		// Create active group in room1
+		group1 := &active.Group{
+			StartTime:      now,
+			LastActivity:   now,
+			TimeoutMinutes: 30,
+			GroupID:        activityGroup.ID,
+			RoomID:         room1.ID,
+		}
+		err := repo.Create(ctx, group1)
+		require.NoError(t, err)
+		// Create active group in room2
+		group2 := &active.Group{
+			StartTime:      now,
+			LastActivity:   now,
+			TimeoutMinutes: 30,
+			GroupID:        activityGroup.ID,
+			RoomID:         room2.ID,
+		}
+		err = repo.Create(ctx, group2)
+		require.NoError(t, err)
+		defer cleanupActiveGroupRecords(t, db, group1.ID, group2.ID)
+
+		// Check which rooms are occupied
+		occupiedMap, err := repo.GetOccupiedRoomIDs(ctx, []int64{room1.ID, room2.ID, room3.ID})
+		require.NoError(t, err)
+
+		assert.True(t, occupiedMap[room1.ID], "room1 should be occupied")
+		assert.True(t, occupiedMap[room2.ID], "room2 should be occupied")
+		assert.False(t, occupiedMap[room3.ID], "room3 should not be occupied")
+	})
+
+	t.Run("returns empty map for empty input", func(t *testing.T) {
+		occupiedMap, err := repo.GetOccupiedRoomIDs(ctx, []int64{})
+		require.NoError(t, err)
+		assert.Empty(t, occupiedMap)
+	})
+
+	t.Run("returns empty map for non-existent rooms", func(t *testing.T) {
+		occupiedMap, err := repo.GetOccupiedRoomIDs(ctx, []int64{999997, 999998, 999999})
+		require.NoError(t, err)
+		assert.Empty(t, occupiedMap)
+	})
+}
+
+func TestActiveGroupRepository_FindInactiveSessions(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).ActiveGroup
+	ctx := context.Background()
+
+	t.Run("finds inactive sessions exceeding timeout", func(t *testing.T) {
+		activityGroup := testpkg.CreateTestActivityGroup(t, db, "InactiveSessions")
+		room := testpkg.CreateTestRoom(t, db, "InactiveRoom")
+		device := testpkg.CreateTestDevice(t, db, "inactive-device")
+		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, device.ID, activityGroup.CategoryID, room.ID)
+
+		// Create a session that's been inactive for longer than its timeout
+		oldLastActivity := time.Now().Add(-2 * time.Hour)
+		group := &active.Group{
+			StartTime:      oldLastActivity.Add(-1 * time.Hour),
+			LastActivity:   oldLastActivity,
+			TimeoutMinutes: 30, // 30 min timeout, but inactive for 2 hours
+			GroupID:        activityGroup.ID,
+			DeviceID:       &device.ID,
+			RoomID:         room.ID,
+		}
+		err := repo.Create(ctx, group)
+		require.NoError(t, err)
+		defer cleanupActiveGroupRecords(t, db, group.ID)
+
+		// Find sessions inactive for at least 1 hour
+		inactiveSessions, err := repo.FindInactiveSessions(ctx, 1*time.Hour)
+		require.NoError(t, err)
+
+		// Our group should be in the results
+		var found bool
+		for _, s := range inactiveSessions {
+			if s.ID == group.ID {
+				found = true
+				break
+			}
+		}
+		assert.True(t, found, "should find the inactive session")
+	})
+}
+
 func TestActiveGroupRepository_CheckRoomConflict(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
@@ -848,103 +999,5 @@ func TestActiveGroupRepository_FindWithSupervisors(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, group.ID, found.ID)
 		// Empty or nil supervisors is ok
-	})
-}
-
-func TestActiveGroupRepository_FindBySourceIDs(t *testing.T) {
-	// Skip: FindBySourceIDs requires source_id and source_type columns which don't exist.
-	// This feature requires a migration to add these columns to active.groups table.
-	t.Skip("FindBySourceIDs feature not yet implemented - requires source_id/source_type migration")
-
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	repo := repositories.NewFactory(db).ActiveGroup
-	ctx := context.Background()
-
-	t.Run("finds active groups by source IDs", func(t *testing.T) {
-		activityGroup := testpkg.CreateTestActivityGroup(t, db, "BySourceID")
-		room := testpkg.CreateTestRoom(t, db, "BySourceIDRoom")
-		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, activityGroup.CategoryID, room.ID)
-
-		now := time.Now()
-		group := &active.Group{
-			StartTime:      now,
-			LastActivity:   now,
-			TimeoutMinutes: 30,
-			GroupID:        activityGroup.ID,
-			RoomID:         room.ID,
-		}
-		err := repo.Create(ctx, group)
-		require.NoError(t, err)
-		defer cleanupActiveGroupRecords(t, db, group.ID)
-
-		// Set source_id and source_type using update
-		_, err = db.NewUpdate().
-			Table("active.groups").
-			Set("source_id = ?", activityGroup.ID).
-			Set("source_type = ?", "activity").
-			Where("id = ?", group.ID).
-			Exec(ctx)
-		require.NoError(t, err)
-
-		// Find by source IDs
-		groups, err := repo.FindBySourceIDs(ctx, []int64{activityGroup.ID}, "activity")
-		require.NoError(t, err)
-
-		var found bool
-		for _, g := range groups {
-			if g.ID == group.ID {
-				found = true
-				break
-			}
-		}
-		assert.True(t, found)
-	})
-
-	t.Run("returns empty for empty input", func(t *testing.T) {
-		groups, err := repo.FindBySourceIDs(ctx, []int64{}, "activity")
-		require.NoError(t, err)
-		assert.Empty(t, groups)
-	})
-
-	t.Run("filters by source type", func(t *testing.T) {
-		activityGroup := testpkg.CreateTestActivityGroup(t, db, "SourceTypeFilter")
-		room := testpkg.CreateTestRoom(t, db, "SourceTypeFilterRoom")
-		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, activityGroup.CategoryID, room.ID)
-
-		now := time.Now()
-		group := &active.Group{
-			StartTime:      now,
-			LastActivity:   now,
-			TimeoutMinutes: 30,
-			GroupID:        activityGroup.ID,
-			RoomID:         room.ID,
-		}
-		err := repo.Create(ctx, group)
-		require.NoError(t, err)
-		defer cleanupActiveGroupRecords(t, db, group.ID)
-
-		// Set source with type "activity"
-		_, err = db.NewUpdate().
-			Table("active.groups").
-			Set("source_id = ?", activityGroup.ID).
-			Set("source_type = ?", "activity").
-			Where("id = ?", group.ID).
-			Exec(ctx)
-		require.NoError(t, err)
-
-		// Search with different type - should not find
-		groups, err := repo.FindBySourceIDs(ctx, []int64{activityGroup.ID}, "other")
-		require.NoError(t, err)
-
-		var found bool
-		for _, g := range groups {
-			if g.ID == group.ID {
-				found = true
-				break
-			}
-		}
-		assert.False(t, found)
 	})
 }

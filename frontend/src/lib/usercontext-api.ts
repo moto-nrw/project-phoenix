@@ -157,7 +157,10 @@ export const userContextService = {
   },
 
   // Get educational groups for current user
-  getMyEducationalGroups: async (): Promise<EducationalGroup[]> => {
+  // Pass token to skip redundant getSession() call (saves ~600ms per request)
+  getMyEducationalGroups: async (
+    token?: string,
+  ): Promise<EducationalGroup[]> => {
     const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
       ? "/api/me/groups"
@@ -165,10 +168,16 @@ export const userContextService = {
 
     try {
       if (useProxyApi) {
-        const session = await getSession();
+        // Use provided token or fall back to getSession()
+        let authToken = token;
+        if (!authToken) {
+          const session = await getSession();
+          authToken = session?.user?.token;
+        }
+
         const response = await fetchWithAuth(url, {
           headers: {
-            Authorization: `Bearer ${session?.user?.token}`,
+            Authorization: `Bearer ${authToken}`,
             "Content-Type": "application/json",
           },
         });

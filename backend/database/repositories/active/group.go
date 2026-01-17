@@ -245,29 +245,6 @@ func (r *GroupRepository) FindWithSupervisors(ctx context.Context, id int64) (*a
 	return group, nil
 }
 
-// FindBySourceIDs finds active groups based on source IDs and source type
-func (r *GroupRepository) FindBySourceIDs(ctx context.Context, sourceIDs []int64, sourceType string) ([]*active.Group, error) {
-	if len(sourceIDs) == 0 {
-		return []*active.Group{}, nil
-	}
-
-	var groups []*active.Group
-	err := r.db.NewSelect().
-		Model(&groups).
-		ModelTableExpr(`active.groups AS "group"`).
-		Where("source_id IN (?) AND source_type = ? AND end_time IS NULL", bun.In(sourceIDs), sourceType).
-		Scan(ctx)
-
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "find by source IDs",
-			Err: err,
-		}
-	}
-
-	return groups, nil
-}
-
 // Activity session conflict detection methods
 
 // FindActiveByGroupIDWithDevice finds all active instances of a specific activity group with device information
@@ -863,4 +840,36 @@ func assignActivityGroupsToGroups(groups []*active.Group, activityGroups []*acti
 			g.ActualGroup = ag
 		}
 	}
+}
+
+// GetOccupiedRoomIDs returns a set of room IDs that currently have active groups
+// This is optimized for checking room occupancy without fetching full group records
+func (r *GroupRepository) GetOccupiedRoomIDs(ctx context.Context, roomIDs []int64) (map[int64]bool, error) {
+	if len(roomIDs) == 0 {
+		return make(map[int64]bool), nil
+	}
+
+	// Only fetch the room_id column for active groups in the specified rooms
+	var occupiedRoomIDs []int64
+	err := r.db.NewSelect().
+		TableExpr(tableExprActiveGroupsAG).
+		ColumnExpr("DISTINCT ag.room_id").
+		Where("ag.room_id IN (?)", bun.In(roomIDs)).
+		Where("ag.end_time IS NULL").
+		Scan(ctx, &occupiedRoomIDs)
+
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "get occupied room IDs",
+			Err: err,
+		}
+	}
+
+	// Convert to set for O(1) lookup
+	result := make(map[int64]bool, len(occupiedRoomIDs))
+	for _, id := range occupiedRoomIDs {
+		result[id] = true
+	}
+
+	return result, nil
 }

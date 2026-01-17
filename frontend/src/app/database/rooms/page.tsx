@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useMemo } from "react";
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
 import { DatabasePageLayout } from "~/components/database/database-page-layout";
@@ -22,11 +22,9 @@ import { ConfirmationModal } from "~/components/ui/modal";
 import { useToast } from "~/contexts/ToastContext";
 import { useIsMobile } from "~/hooks/useIsMobile";
 import { useDeleteConfirmation } from "~/hooks/useDeleteConfirmation";
+import { useSWRAuth, mutate } from "~/lib/swr";
 
 export default function RoomsPage() {
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [rooms, setRooms] = useState<Room[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const isMobile = useIsMobile();
@@ -59,33 +57,23 @@ export default function RoomsPage() {
 
   const service = useMemo(() => createCrudService(roomsConfig), []);
 
-  // Fetch rooms
-  const fetchRooms = useCallback(async () => {
-    try {
-      setLoading(true);
-      const data = await service.getList({ page: 1, pageSize: 500 });
-      const arr = Array.isArray(data.data) ? data.data : [];
-      setRooms(arr);
-      setError(null);
-    } catch (err) {
-      console.error("Error fetching rooms:", err);
-      setError(
-        "Fehler beim Laden der Räume. Bitte versuchen Sie es später erneut.",
-      );
-      setRooms([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [service]);
+  // Fetch rooms with SWR (automatic caching, deduplication, revalidation)
+  const {
+    data: roomsData,
+    isLoading: loading,
+    error: roomsError,
+  } = useSWRAuth("database-rooms-list", async () => {
+    const data = await service.getList({ page: 1, pageSize: 500 });
+    return Array.isArray(data.data) ? data.data : [];
+  });
 
-  useEffect(() => {
-    fetchRooms().catch(() => {
-      // Error already handled in fetchRooms
-    });
-  }, [fetchRooms]);
+  const error = roomsError
+    ? "Fehler beim Laden der Räume. Bitte versuchen Sie es später erneut."
+    : null;
 
   // Unique categories from current data
   const uniqueCategories = useMemo(() => {
+    const rooms = roomsData ?? [];
     const set = new Set<string>();
     rooms.forEach((r) => {
       if (r.category) set.add(r.category);
@@ -93,7 +81,7 @@ export default function RoomsPage() {
     return Array.from(set)
       .sort((a, b) => a.localeCompare(b, "de"))
       .map((c) => ({ value: c, label: c }));
-  }, [rooms]);
+  }, [roomsData]);
 
   // Filters config
   const filters: FilterConfig[] = useMemo(
@@ -130,8 +118,9 @@ export default function RoomsPage() {
     return list;
   }, [searchTerm, categoryFilter]);
 
-  // Derived list
+  // Derived list (use roomsData directly to avoid dependency issues)
   const filteredRooms = useMemo(() => {
+    const rooms = roomsData ?? [];
     let arr = [...rooms];
     if (searchTerm) {
       const q = searchTerm.toLowerCase();
@@ -148,7 +137,7 @@ export default function RoomsPage() {
     // Sort by name
     arr.sort((a, b) => a.name.localeCompare(b.name, "de"));
     return arr;
-  }, [rooms, searchTerm, categoryFilter]);
+  }, [roomsData, searchTerm, categoryFilter]);
 
   // Select room => open detail and refresh details
   const handleSelectRoom = async (room: Room) => {
@@ -180,7 +169,7 @@ export default function RoomsPage() {
         ),
       );
       setShowCreateModal(false);
-      await fetchRooms();
+      await mutate("database-rooms-list");
     } finally {
       setCreateLoading(false);
     }
@@ -204,7 +193,7 @@ export default function RoomsPage() {
       setSelectedRoom(refreshed);
       setShowEditModal(false);
       setShowDetailModal(true);
-      await fetchRooms();
+      await mutate("database-rooms-list");
     } catch (e) {
       console.error("Error updating room", e);
       throw e;
@@ -228,7 +217,7 @@ export default function RoomsPage() {
       );
       setShowDetailModal(false);
       setSelectedRoom(null);
-      await fetchRooms();
+      await mutate("database-rooms-list");
     } finally {
       setDetailLoading(false);
     }

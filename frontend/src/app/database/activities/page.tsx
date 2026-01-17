@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useMemo } from "react";
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
 import { DatabasePageLayout } from "~/components/database/database-page-layout";
@@ -22,11 +22,9 @@ import {
 } from "@/components/activities";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { useDeleteConfirmation } from "~/hooks/useDeleteConfirmation";
+import { useSWRAuth, mutate } from "~/lib/swr";
 
 export default function ActivitiesPage() {
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [activities, setActivities] = useState<Activity[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const isMobile = useIsMobile();
@@ -62,33 +60,23 @@ export default function ActivitiesPage() {
 
   const service = useMemo(() => createCrudService(activitiesConfig), []);
 
-  // Fetch activities
-  const fetchActivities = useCallback(async () => {
-    try {
-      setLoading(true);
-      const data = await service.getList({ page: 1, pageSize: 500 });
-      const arr = Array.isArray(data.data) ? data.data : [];
-      setActivities(arr);
-      setError(null);
-    } catch (err) {
-      console.error("Error fetching activities:", err);
-      setError(
-        "Fehler beim Laden der Aktivitäten. Bitte versuchen Sie es später erneut.",
-      );
-      setActivities([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [service]);
+  // Fetch activities with SWR (automatic caching, deduplication, revalidation)
+  const {
+    data: activitiesData,
+    isLoading: loading,
+    error: activitiesError,
+  } = useSWRAuth("database-activities-list", async () => {
+    const data = await service.getList({ page: 1, pageSize: 500 });
+    return Array.isArray(data.data) ? data.data : [];
+  });
 
-  useEffect(() => {
-    fetchActivities().catch(() => {
-      // Error already handled in fetchActivities
-    });
-  }, [fetchActivities]);
+  const error = activitiesError
+    ? "Fehler beim Laden der Aktivitäten. Bitte versuchen Sie es später erneut."
+    : null;
 
   // Unique categories
   const uniqueCategories = useMemo(() => {
+    const activities = activitiesData ?? [];
     const set = new Set<string>();
     activities.forEach((a) => {
       if (a.category_name) set.add(a.category_name);
@@ -96,7 +84,7 @@ export default function ActivitiesPage() {
     return Array.from(set)
       .sort((a, b) => a.localeCompare(b, "de"))
       .map((c) => ({ value: c, label: c }));
-  }, [activities]);
+  }, [activitiesData]);
 
   // Filters config
   const filters: FilterConfig[] = useMemo(
@@ -133,8 +121,9 @@ export default function ActivitiesPage() {
     return list;
   }, [searchTerm, categoryFilter]);
 
-  // Derived list
+  // Derived list (use activitiesData directly to avoid dependency issues)
   const filteredActivities = useMemo(() => {
+    const activities = activitiesData ?? [];
     let arr = [...activities];
     if (searchTerm) {
       const q = searchTerm.toLowerCase();
@@ -150,7 +139,7 @@ export default function ActivitiesPage() {
     }
     arr.sort((a, b) => a.name.localeCompare(b.name, "de"));
     return arr;
-  }, [activities, searchTerm, categoryFilter]);
+  }, [activitiesData, searchTerm, categoryFilter]);
 
   // Select activity => open detail and fetch fresh
   const handleSelectActivity = async (activity: Activity) => {
@@ -182,7 +171,7 @@ export default function ActivitiesPage() {
         ),
       );
       setShowCreateModal(false);
-      await fetchActivities();
+      await mutate("database-activities-list");
     } finally {
       setCreateLoading(false);
     }
@@ -205,7 +194,7 @@ export default function ActivitiesPage() {
       setSelectedActivity(refreshed);
       setShowEditModal(false);
       setShowDetailModal(true);
-      await fetchActivities();
+      await mutate("database-activities-list");
     } catch (e) {
       console.error("Error updating activity", e);
       throw e;
@@ -229,7 +218,7 @@ export default function ActivitiesPage() {
       );
       setShowDetailModal(false);
       setSelectedActivity(null);
-      await fetchActivities();
+      await mutate("database-activities-list");
     } finally {
       setDetailLoading(false);
     }
@@ -494,8 +483,8 @@ export default function ActivitiesPage() {
         >
           <p className="text-sm text-gray-700">
             Möchten Sie die Aktivität{" "}
-            <span className="font-medium">{selectedActivity.name}</span> wirklich
-            löschen? Diese Aktion kann nicht rückgängig gemacht werden.
+            <span className="font-medium">{selectedActivity.name}</span>{" "}
+            wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.
           </p>
         </ConfirmationModal>
       )}

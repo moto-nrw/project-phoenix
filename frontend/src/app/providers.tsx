@@ -6,6 +6,7 @@ import { ProfileProvider } from "~/lib/profile-context";
 import { SupervisionProvider } from "~/lib/supervision-context";
 import { AlertProvider } from "~/contexts/AlertContext";
 import { ToastProvider } from "~/contexts/ToastContext";
+import { AuthWrapper } from "~/components/auth-wrapper";
 
 export function Providers({
   children,
@@ -18,15 +19,17 @@ export function Providers({
       // Disable focus refetch to avoid duplicate session calls (interval handles refresh)
       refetchOnWindowFocus={false}
     >
-      <ProfileProvider>
-        <SupervisionProvider>
-          <ModalProvider>
-            <AlertProvider>
-              <ToastProvider>{children}</ToastProvider>
-            </AlertProvider>
-          </ModalProvider>
-        </SupervisionProvider>
-      </ProfileProvider>
+      <AuthWrapper>
+        <ProfileProvider>
+          <SupervisionProvider>
+            <ModalProvider>
+              <AlertProvider>
+                <ToastProvider>{children}</ToastProvider>
+              </AlertProvider>
+            </ModalProvider>
+          </SupervisionProvider>
+        </ProfileProvider>
+      </AuthWrapper>
     </SessionProvider>
   );
 }
