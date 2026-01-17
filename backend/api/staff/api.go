@@ -14,6 +14,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	authSvc "github.com/moto-nrw/project-phoenix/services/auth"
@@ -23,11 +24,12 @@ import (
 
 // Resource defines the staff API resource
 type Resource struct {
-	PersonService    usersSvc.PersonService
-	StaffRepo        users.StaffRepository
-	TeacherRepo      users.TeacherRepository
-	EducationService educationSvc.Service
-	AuthService      authSvc.AuthService
+	PersonService       usersSvc.PersonService
+	StaffRepo           users.StaffRepository
+	TeacherRepo         users.TeacherRepository
+	EducationService    educationSvc.Service
+	AuthService         authSvc.AuthService
+	GroupSupervisorRepo active.GroupSupervisorRepository
 }
 
 // NewResource creates a new staff resource
@@ -35,13 +37,15 @@ func NewResource(
 	personService usersSvc.PersonService,
 	educationService educationSvc.Service,
 	authService authSvc.AuthService,
+	groupSupervisorRepo active.GroupSupervisorRepository,
 ) *Resource {
 	return &Resource{
-		PersonService:    personService,
-		StaffRepo:        personService.StaffRepository(),
-		TeacherRepo:      personService.TeacherRepository(),
-		EducationService: educationService,
-		AuthService:      authService,
+		PersonService:       personService,
+		StaffRepo:           personService.StaffRepository(),
+		TeacherRepo:         personService.TeacherRepository(),
+		EducationService:    educationService,
+		AuthService:         authService,
+		GroupSupervisorRepo: groupSupervisorRepo,
 	}
 }
 
@@ -94,13 +98,14 @@ type PersonResponse struct {
 
 // StaffResponse represents a staff response
 type StaffResponse struct {
-	ID         int64           `json:"id"`
-	PersonID   int64           `json:"person_id"`
-	StaffNotes string          `json:"staff_notes,omitempty"`
-	Person     *PersonResponse `json:"person,omitempty"`
-	IsTeacher  bool            `json:"is_teacher"`
-	CreatedAt  time.Time       `json:"created_at"`
-	UpdatedAt  time.Time       `json:"updated_at"`
+	ID              int64           `json:"id"`
+	PersonID        int64           `json:"person_id"`
+	StaffNotes      string          `json:"staff_notes,omitempty"`
+	Person          *PersonResponse `json:"person,omitempty"`
+	IsTeacher       bool            `json:"is_teacher"`
+	WasPresentToday bool            `json:"was_present_today"`
+	CreatedAt       time.Time       `json:"created_at"`
+	UpdatedAt       time.Time       `json:"updated_at"`
 }
 
 // TeacherResponse represents a teacher response (extends staff)
@@ -228,14 +233,15 @@ func (rs *Resource) parseAndGetStaff(w http.ResponseWriter, r *http.Request) (*u
 // =============================================================================
 
 // newStaffResponse creates a staff response
-func newStaffResponse(staff *users.Staff, isTeacher bool) StaffResponse {
+func newStaffResponse(staff *users.Staff, isTeacher bool, wasPresentToday bool) StaffResponse {
 	response := StaffResponse{
-		ID:         staff.ID,
-		PersonID:   staff.PersonID,
-		StaffNotes: staff.StaffNotes,
-		IsTeacher:  isTeacher,
-		CreatedAt:  staff.CreatedAt,
-		UpdatedAt:  staff.UpdatedAt,
+		ID:              staff.ID,
+		PersonID:        staff.PersonID,
+		StaffNotes:      staff.StaffNotes,
+		IsTeacher:       isTeacher,
+		WasPresentToday: wasPresentToday,
+		CreatedAt:       staff.CreatedAt,
+		UpdatedAt:       staff.UpdatedAt,
 	}
 
 	if staff.Person != nil {
@@ -246,8 +252,8 @@ func newStaffResponse(staff *users.Staff, isTeacher bool) StaffResponse {
 }
 
 // newTeacherResponse creates a teacher response
-func newTeacherResponse(staff *users.Staff, teacher *users.Teacher) TeacherResponse {
-	staffResponse := newStaffResponse(staff, true)
+func newTeacherResponse(staff *users.Staff, teacher *users.Teacher, wasPresentToday bool) TeacherResponse {
+	staffResponse := newStaffResponse(staff, true, wasPresentToday)
 
 	response := TeacherResponse{
 		StaffResponse:  staffResponse,
@@ -286,10 +292,24 @@ func (rs *Resource) listStaff(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Batch-load staff who had supervision activity today (for "Anwesend" status)
+	presentStaffIDs, err := rs.GroupSupervisorRepo.GetStaffIDsWithSupervisionToday(ctx)
+	if err != nil {
+		// Log warning but continue - presence status is non-critical
+		log.Printf("Warning: failed to fetch present staff IDs: %v", err)
+		presentStaffIDs = []int64{}
+	}
+
+	// Build presentMap for O(1) lookup
+	presentMap := make(map[int64]bool, len(presentStaffIDs))
+	for _, id := range presentStaffIDs {
+		presentMap[id] = true
+	}
+
 	// Build response objects using pre-loaded data
 	responses := make([]interface{}, 0, len(staffMembers))
 	for _, staff := range staffMembers {
-		if response, include := rs.processStaffForListOptimized(ctx, staff, teacherMap, filters); include {
+		if response, include := rs.processStaffForListOptimized(ctx, staff, teacherMap, presentMap, filters); include {
 			responses = append(responses, response)
 		}
 	}
@@ -328,14 +348,14 @@ func (rs *Resource) getStaff(w http.ResponseWriter, r *http.Request) {
 
 	teacher, err = rs.TeacherRepo.FindByStaffID(r.Context(), staff.ID)
 	if err == nil && teacher != nil {
-		// Create teacher response
-		response := newTeacherResponse(staff, teacher)
+		// Create teacher response (false for wasPresentToday - individual GET doesn't need this)
+		response := newTeacherResponse(staff, teacher, false)
 		common.Respond(w, r, http.StatusOK, response, "Teacher retrieved successfully")
 		return
 	}
 
-	// Create staff response
-	response := newStaffResponse(staff, isTeacher)
+	// Create staff response (false for wasPresentToday - individual GET doesn't need this)
+	response := newStaffResponse(staff, isTeacher, false)
 	common.Respond(w, r, http.StatusOK, response, "Staff member retrieved successfully")
 }
 
@@ -401,7 +421,7 @@ func (rs *Resource) createStaff(w http.ResponseWriter, r *http.Request) {
 		if rs.TeacherRepo.Create(r.Context(), teacher) != nil {
 			// Still return staff member even if teacher creation fails
 			isTeacher = false
-			response := newStaffResponse(staff, isTeacher)
+			response := newStaffResponse(staff, isTeacher, false)
 			common.Respond(w, r, http.StatusCreated, response, "Staff member created successfully, but failed to create teacher record")
 			return
 		}
@@ -412,7 +432,7 @@ func (rs *Resource) createStaff(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Return teacher response
-		response := newTeacherResponse(staff, teacher)
+		response := newTeacherResponse(staff, teacher, false)
 		common.Respond(w, r, http.StatusCreated, response, "Teacher created successfully")
 		return
 	}
@@ -423,7 +443,7 @@ func (rs *Resource) createStaff(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Return staff response
-	response := newStaffResponse(staff, isTeacher)
+	response := newStaffResponse(staff, isTeacher, false)
 	common.Respond(w, r, http.StatusCreated, response, "Staff member created successfully")
 }
 
@@ -514,10 +534,10 @@ func (rs *Resource) buildUpdateStaffResponse(
 
 	// Return existing teacher response if they have a teacher record
 	if existingTeacher != nil {
-		return newTeacherResponse(staff, existingTeacher), "Teacher updated successfully"
+		return newTeacherResponse(staff, existingTeacher, false), "Teacher updated successfully"
 	}
 
-	return newStaffResponse(staff, false), "Staff member updated successfully"
+	return newStaffResponse(staff, false, false), "Staff member updated successfully"
 }
 
 // deleteStaff handles deleting a staff member
@@ -609,8 +629,8 @@ func (rs *Resource) getAvailableStaff(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
-		// Create teacher response using pre-loaded data
-		responses = append(responses, newTeacherResponse(teacher.Staff, teacher))
+		// Create teacher response using pre-loaded data (false for wasPresentToday - not needed here)
+		responses = append(responses, newTeacherResponse(teacher.Staff, teacher, false))
 	}
 
 	common.Respond(w, r, http.StatusOK, responses, "Available staff members retrieved successfully")
@@ -693,7 +713,7 @@ func (rs *Resource) buildStaffSubstitutionStatus(
 	teacher *users.Teacher,
 	subs []*education.GroupSubstitution,
 ) StaffWithSubstitutionStatus {
-	staffResp := newStaffResponse(staff, false)
+	staffResp := newStaffResponse(staff, false, false)
 	result := StaffWithSubstitutionStatus{
 		StaffResponse:     &staffResp,
 		IsSubstituting:    len(subs) > 0,
@@ -1096,7 +1116,9 @@ func (rs *Resource) GetStaffSubstitutionsHandler() http.HandlerFunc { return rs.
 func (rs *Resource) GetAvailableStaffHandler() http.HandlerFunc { return rs.getAvailableStaff }
 
 // GetAvailableForSubstitutionHandler returns the getAvailableForSubstitution handler for testing.
-func (rs *Resource) GetAvailableForSubstitutionHandler() http.HandlerFunc { return rs.getAvailableForSubstitution }
+func (rs *Resource) GetAvailableForSubstitutionHandler() http.HandlerFunc {
+	return rs.getAvailableForSubstitution
+}
 
 // GetStaffByRoleHandler returns the getStaffByRole handler for testing.
 func (rs *Resource) GetStaffByRoleHandler() http.HandlerFunc { return rs.getStaffByRole }

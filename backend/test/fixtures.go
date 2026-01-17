@@ -206,6 +206,27 @@ func CreateTestStaff(tb testing.TB, db *bun.DB, firstName, lastName string) *use
 	return staff
 }
 
+// CreateTestStaffForPerson creates a staff record for an existing person
+// Use this when you need to control the person record separately
+func CreateTestStaffForPerson(tb testing.TB, db *bun.DB, personID int64) *users.Staff {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	staff := &users.Staff{
+		PersonID: personID,
+	}
+
+	err := db.NewInsert().
+		Model(staff).
+		ModelTableExpr(`users.staff`).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to create test staff for person")
+
+	return staff
+}
+
 // CreateTestStudent creates a real student in the database
 // This requires a person, so it creates one automatically
 func CreateTestStudent(tb testing.TB, db *bun.DB, firstName, lastName, schoolClass string) *users.Student {

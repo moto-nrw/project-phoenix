@@ -114,6 +114,9 @@ type GroupSupervisorRepository interface {
 
 	// EndSupervision marks a supervision as ended at the current date
 	EndSupervision(ctx context.Context, id int64) error
+
+	// GetStaffIDsWithSupervisionToday returns staff IDs who had any supervision activity today
+	GetStaffIDsWithSupervisionToday(ctx context.Context) ([]int64, error)
 }
 
 // CombinedGroupRepository defines operations for managing active combined groups
