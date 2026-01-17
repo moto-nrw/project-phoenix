@@ -660,3 +660,13 @@
 
 ---
 
+## Iteration 2026-01-17_06:18:43
+
+**Changed:** Read IoT auth and checkout time config through viper with env fallback
+
+**Files:** internal/adapter/middleware/device/device_auth.go, internal/adapter/handler/http/iot/checkin/helpers.go
+
+**Commit:** 6e2b185dd10dbe0d10bf69ac866986244a12f05b
+
+---
+
