@@ -908,3 +908,13 @@
 
 ---
 
+## Iteration 2026-01-17_15:04:32
+
+**Changed:** staff handler error mapping to distinguish not-found vs internal errors
+
+**Files:** internal/adapter/handler/http/staff/api.go
+
+**Commit:** e8753e1dfb0a375eabee6d6924fd1fcd68d0bae6
+
+---
+
