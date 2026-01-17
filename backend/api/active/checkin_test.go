@@ -13,7 +13,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/active"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
-	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/stretchr/testify/assert"
@@ -73,24 +72,6 @@ func (m *mockActiveService) CheckTeacherStudentAccess(ctx context.Context, teach
 // mockPersonService implements the person service interface for testing
 type mockPersonService struct {
 	findByAccountIDFn func(ctx context.Context, accountID int64) (*users.Person, error)
-	staffRepositoryFn func() staffRepository
-}
-
-type staffRepository interface {
-	FindByPersonID(ctx context.Context, personID int64) (*users.Staff, error)
-}
-
-type mockStaffRepo struct {
-	findByPersonIDFn func(ctx context.Context, personID int64) (*users.Staff, error)
-}
-
-func (m *mockStaffRepo) FindByPersonID(ctx context.Context, personID int64) (*users.Staff, error) {
-	if m.findByPersonIDFn != nil {
-		return m.findByPersonIDFn(ctx, personID)
-	}
-	staff := &users.Staff{}
-	staff.Model.ID = 1
-	return staff, nil
 }
 
 func (m *mockPersonService) FindByAccountID(ctx context.Context, accountID int64) (*users.Person, error) {
@@ -98,17 +79,8 @@ func (m *mockPersonService) FindByAccountID(ctx context.Context, accountID int64
 		return m.findByAccountIDFn(ctx, accountID)
 	}
 	person := &users.Person{}
-	person.Model.ID = 1
+	person.ID = 1
 	return person, nil
-}
-
-func (m *mockPersonService) StaffRepository() interface {
-	FindByPersonID(context.Context, int64) (*users.Staff, error)
-} {
-	if m.staffRepositoryFn != nil {
-		return m.staffRepositoryFn()
-	}
-	return &mockStaffRepo{}
 }
 
 // =============================================================================
@@ -247,7 +219,7 @@ func TestMockActiveService_GetActiveGroup(t *testing.T) {
 		mock := &mockActiveService{
 			getActiveGroupFn: func(ctx context.Context, id int64) (*activeModels.Group, error) {
 				group := &activeModels.Group{RoomID: 1}
-				group.Model = base.Model{ID: id}
+				group.ID = id
 				return group, nil
 			},
 		}
@@ -412,7 +384,7 @@ func TestMockPersonService_FindByAccountID(t *testing.T) {
 					FirstName: "Test",
 					LastName:  "User",
 				}
-				person.Model.ID = accountID
+				person.ID = accountID
 				return person, nil
 			},
 		}
@@ -433,25 +405,6 @@ func TestMockPersonService_FindByAccountID(t *testing.T) {
 		person, err := mock.FindByAccountID(context.Background(), 999)
 		require.NoError(t, err)
 		assert.Nil(t, person)
-	})
-}
-
-func TestMockStaffRepo_FindByPersonID(t *testing.T) {
-	t.Run("returns staff when found", func(t *testing.T) {
-		repo := &mockStaffRepo{
-			findByPersonIDFn: func(ctx context.Context, personID int64) (*users.Staff, error) {
-				staff := &users.Staff{
-					PersonID: personID,
-				}
-				staff.Model.ID = 10
-				return staff, nil
-			},
-		}
-
-		staff, err := repo.FindByPersonID(context.Background(), 5)
-		require.NoError(t, err)
-		assert.Equal(t, int64(10), staff.ID)
-		assert.Equal(t, int64(5), staff.PersonID)
 	})
 }
 
