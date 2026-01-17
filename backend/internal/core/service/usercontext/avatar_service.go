@@ -29,17 +29,6 @@ var allowedImageTypes = map[string]bool{
 	"image/webp": true,
 }
 
-// avatarStorage provides file storage for avatar operations.
-// This is set via SetAvatarStorage during service initialization.
-// If nil, avatar operations will return an error.
-var avatarStorage port.FileStorage
-
-// SetAvatarStorage configures the file storage backend for avatar operations.
-// This should be called during application initialization.
-func SetAvatarStorage(storage port.FileStorage) {
-	avatarStorage = storage
-}
-
 // AvatarUploadInput represents the input for uploading an avatar
 type AvatarUploadInput struct {
 	File        io.ReadSeeker
@@ -49,7 +38,7 @@ type AvatarUploadInput struct {
 
 // UploadAvatar handles the complete avatar upload flow
 func (s *userContextService) UploadAvatar(ctx context.Context, input AvatarUploadInput) (map[string]interface{}, error) {
-	if avatarStorage == nil {
+	if s.avatarStorage == nil {
 		return nil, &UserContextError{Op: "upload avatar", Err: errors.New("avatar storage not configured")}
 	}
 
@@ -63,7 +52,7 @@ func (s *userContextService) UploadAvatar(ctx context.Context, input AvatarUploa
 		return nil, &UserContextError{Op: "upload avatar", Err: err}
 	}
 
-	avatarURL, err := saveAvatarFile(ctx, input.File, input.Filename, contentType, user.ID)
+	avatarURL, err := s.saveAvatarFile(ctx, input.File, input.Filename, contentType, user.ID)
 	if err != nil {
 		return nil, &UserContextError{Op: "upload avatar", Err: err}
 	}
@@ -73,7 +62,7 @@ func (s *userContextService) UploadAvatar(ctx context.Context, input AvatarUploa
 		// Attempt to clean up the saved file on error
 		key := extractStorageKey(avatarURL)
 		if key != "" {
-			_ = avatarStorage.Delete(ctx, key)
+			_ = s.avatarStorage.Delete(ctx, key)
 		}
 		return nil, err
 	}
@@ -99,9 +88,9 @@ func (s *userContextService) DeleteAvatar(ctx context.Context) (map[string]inter
 	}
 
 	// Delete the file from storage
-	if avatarStorage != nil {
+	if s.avatarStorage != nil {
 		if key := extractStorageKey(avatarPath); key != "" {
-			if err := avatarStorage.Delete(ctx, key); err != nil {
+			if err := s.avatarStorage.Delete(ctx, key); err != nil {
 				logger.Logger.WithError(err).WithField("key", key).Warn("Failed to delete avatar file from storage")
 			}
 		}
@@ -130,13 +119,13 @@ func (s *userContextService) ValidateAvatarAccess(ctx context.Context, filename 
 }
 
 // GetAvatarFile validates and returns an avatar file for streaming.
-func GetAvatarFile(ctx context.Context, filename string) (port.StoredFile, error) {
-	if avatarStorage == nil {
+func (s *userContextService) GetAvatarFile(ctx context.Context, filename string) (port.StoredFile, error) {
+	if s.avatarStorage == nil {
 		return port.StoredFile{}, errors.New("avatar storage not configured")
 	}
 
 	key := filepath.Join(avatarSubdir, filename)
-	return avatarStorage.Open(ctx, key)
+	return s.avatarStorage.Open(ctx, key)
 }
 
 // detectAndValidateContentType reads file header and validates content type
@@ -159,8 +148,8 @@ func detectAndValidateContentType(file io.ReadSeeker) (string, error) {
 }
 
 // saveAvatarFile saves the uploaded file using the storage backend and returns the public URL
-func saveAvatarFile(ctx context.Context, file io.Reader, originalFilename, contentType string, userID int64) (string, error) {
-	if avatarStorage == nil {
+func (s *userContextService) saveAvatarFile(ctx context.Context, file io.Reader, originalFilename, contentType string, userID int64) (string, error) {
+	if s.avatarStorage == nil {
 		return "", errors.New("avatar storage not configured")
 	}
 
@@ -173,7 +162,7 @@ func saveAvatarFile(ctx context.Context, file io.Reader, originalFilename, conte
 	filename := fmt.Sprintf("%d_%s%s", userID, randomStr, fileExt)
 	key := filepath.Join(avatarSubdir, filename)
 
-	publicURL, err := avatarStorage.Save(ctx, key, file, contentType)
+	publicURL, err := s.avatarStorage.Save(ctx, key, file, contentType)
 	if err != nil {
 		return "", fmt.Errorf("failed to save file: %w", err)
 	}

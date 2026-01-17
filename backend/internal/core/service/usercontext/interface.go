@@ -9,6 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/base"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/education"
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/users"
+	"github.com/moto-nrw/project-phoenix/internal/core/port"
 )
 
 // CurrentUserProvider retrieves the currently authenticated user and related entities
@@ -75,6 +76,9 @@ type AvatarManager interface {
 
 	// ValidateAvatarAccess checks if the current user can access the requested avatar
 	ValidateAvatarAccess(ctx context.Context, filename string) error
+
+	// GetAvatarFile validates and returns an avatar file for streaming
+	GetAvatarFile(ctx context.Context, filename string) (port.StoredFile, error)
 }
 
 // UserContextService composes all user context operations.

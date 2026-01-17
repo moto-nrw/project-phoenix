@@ -4,6 +4,7 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/internal/core/domain/base"
+	corePort "github.com/moto-nrw/project-phoenix/internal/core/port"
 	activePort "github.com/moto-nrw/project-phoenix/internal/core/port/active"
 	activitiesPort "github.com/moto-nrw/project-phoenix/internal/core/port/activities"
 	authPort "github.com/moto-nrw/project-phoenix/internal/core/port/auth"
@@ -50,12 +51,13 @@ type userContextService struct {
 	profileRepo               userPort.ProfileRepository
 	substitutionRepo          educationPort.GroupSubstitutionRepository
 	substitutionRelationsRepo educationPort.GroupSubstitutionRelationsRepository
+	avatarStorage             corePort.FileStorage
 	db                        *bun.DB
 	txHandler                 *base.TxHandler
 }
 
 // NewUserContextServiceWithRepos creates a new user context service using a repositories struct
-func NewUserContextServiceWithRepos(repos UserContextRepositories, db *bun.DB) UserContextService {
+func NewUserContextServiceWithRepos(repos UserContextRepositories, db *bun.DB, avatarStorage corePort.FileStorage) UserContextService {
 	return &userContextService{
 		accountRepo:               repos.AccountRepo,
 		personRepo:                repos.PersonRepo,
@@ -70,6 +72,7 @@ func NewUserContextServiceWithRepos(repos UserContextRepositories, db *bun.DB) U
 		profileRepo:               repos.ProfileRepo,
 		substitutionRepo:          repos.SubstitutionRepo,
 		substitutionRelationsRepo: repos.SubstitutionRelationsRepo,
+		avatarStorage:             avatarStorage,
 		db:                        db,
 		txHandler:                 base.NewTxHandler(db),
 	}
@@ -148,6 +151,7 @@ func (s *userContextService) WithTx(tx bun.Tx) any {
 		profileRepo:               profileRepo,
 		substitutionRepo:          substitutionRepo,
 		substitutionRelationsRepo: substitutionRelationsRepo,
+		avatarStorage:             s.avatarStorage,
 		db:                        s.db,
 		txHandler:                 s.txHandler.WithTx(tx),
 	}

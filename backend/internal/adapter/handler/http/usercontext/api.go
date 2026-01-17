@@ -344,7 +344,7 @@ func (res *Resource) serveAvatar(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	storedFile, err := usercontext.GetAvatarFile(r.Context(), filename)
+	storedFile, err := res.service.GetAvatarFile(r.Context(), filename)
 	if err != nil {
 		if errors.Is(err, port.ErrFileNotFound) {
 			render.Status(r, http.StatusNotFound)

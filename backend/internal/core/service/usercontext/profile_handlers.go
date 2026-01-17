@@ -236,7 +236,7 @@ func (s *userContextService) UpdateAvatar(ctx context.Context, avatarURL string)
 		return nil, &UserContextError{Op: "update avatar", Err: err}
 	}
 
-	cleanupOldAvatar(ctx, oldAvatarKey)
+	s.cleanupOldAvatar(ctx, oldAvatarKey)
 
 	return s.GetCurrentProfile(ctx)
 }
@@ -274,12 +274,12 @@ func getOldAvatarKey(currentAvatar string) string {
 }
 
 // cleanupOldAvatar deletes old avatar from storage if key is provided.
-func cleanupOldAvatar(ctx context.Context, oldAvatarKey string) {
-	if oldAvatarKey == "" || avatarStorage == nil {
+func (s *userContextService) cleanupOldAvatar(ctx context.Context, oldAvatarKey string) {
+	if oldAvatarKey == "" || s.avatarStorage == nil {
 		return
 	}
 
-	if err := avatarStorage.Delete(ctx, oldAvatarKey); err != nil {
+	if err := s.avatarStorage.Delete(ctx, oldAvatarKey); err != nil {
 		logger.Logger.WithError(err).WithField("key", oldAvatarKey).Warn("Failed to delete old avatar file")
 	}
 }

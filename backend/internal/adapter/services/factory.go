@@ -73,7 +73,6 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, fileStorage port.FileSt
 
 	// Configure avatar storage if provided (injected from adapter layer)
 	if fileStorage != nil {
-		usercontext.SetAvatarStorage(fileStorage)
 		logger.Logger.Info("storage: avatar storage configured")
 	} else {
 		logger.Logger.Debug("storage: no file storage provided, avatar operations will be disabled")
@@ -351,7 +350,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, fileStorage port.FileSt
 		ProfileRepo:               repos.Profile,
 		SubstitutionRepo:          repos.GroupSubstitution,
 		SubstitutionRelationsRepo: repos.GroupSubstitutionRelations,
-	}, db)
+	}, db, fileStorage)
 
 	// Initialize database stats service
 	databaseService := database.NewService(database.Repositories{
