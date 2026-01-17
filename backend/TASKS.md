@@ -1096,3 +1096,13 @@
 
 ---
 
+## Iteration 2026-01-17_17:43:14
+
+**Changed:** Split person service implementation into CRUD/links/profile files
+
+**Files:** internal/core/service/users/person_service.go, internal/core/service/users/person_service_crud.go, internal/core/service/users/person_service_links.go, internal/core/service/users/person_service_profile.go
+
+**Commit:** 2922055f76d86cfe5dd781d5d037d90ffba97ca8
+
+---
+
