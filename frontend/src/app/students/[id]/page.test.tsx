@@ -309,10 +309,12 @@ vi.mock("~/lib/api", () => ({
 }));
 
 // Mock useToast hook
+const mockToastSuccess = vi.fn();
+const mockToastError = vi.fn();
 vi.mock("~/contexts/ToastContext", () => ({
   useToast: vi.fn(() => ({
-    success: vi.fn(),
-    error: vi.fn(),
+    success: mockToastSuccess,
+    error: mockToastError,
     info: vi.fn(),
     warning: vi.fn(),
     remove: vi.fn(),
@@ -588,11 +590,11 @@ describe("StudentDetailPage", () => {
       await waitFor(() => {
         expect(mockUpdateStudent).toHaveBeenCalledWith("1", expect.any(Object));
         expect(mockRefreshData).toHaveBeenCalled();
-        expect(screen.getByTestId("alert-success")).toBeInTheDocument();
+        expect(mockToastSuccess).toHaveBeenCalled();
       });
     });
 
-    it("shows error alert when save fails", async () => {
+    it("shows error toast when save fails", async () => {
       mockUpdateStudent.mockRejectedValue(new Error("Save failed"));
 
       render(<StudentDetailPage />);
@@ -612,7 +614,7 @@ describe("StudentDetailPage", () => {
       });
 
       await waitFor(() => {
-        expect(screen.getByTestId("alert-error")).toBeInTheDocument();
+        expect(mockToastError).toHaveBeenCalled();
       });
     });
   });
@@ -673,11 +675,11 @@ describe("StudentDetailPage", () => {
       await waitFor(() => {
         expect(mockCheckoutStudent).toHaveBeenCalledWith("1");
         expect(mockRefreshData).toHaveBeenCalled();
-        expect(screen.getByTestId("alert-success")).toBeInTheDocument();
+        expect(mockToastSuccess).toHaveBeenCalled();
       });
     });
 
-    it("shows error when checkout fails", async () => {
+    it("shows error toast when checkout fails", async () => {
       mockCheckoutStudent.mockRejectedValue(new Error("Checkout failed"));
 
       render(<StudentDetailPage />);
@@ -695,7 +697,7 @@ describe("StudentDetailPage", () => {
       });
 
       await waitFor(() => {
-        expect(screen.getByTestId("alert-error")).toBeInTheDocument();
+        expect(mockToastError).toHaveBeenCalled();
       });
     });
   });
@@ -765,11 +767,11 @@ describe("StudentDetailPage", () => {
       await waitFor(() => {
         expect(mockPerformImmediateCheckin).toHaveBeenCalledWith(1, 1);
         expect(mockRefreshData).toHaveBeenCalled();
-        expect(screen.getByTestId("alert-success")).toBeInTheDocument();
+        expect(mockToastSuccess).toHaveBeenCalled();
       });
     });
 
-    it("shows error when checkin fails", async () => {
+    it("shows error toast when checkin fails", async () => {
       mockPerformImmediateCheckin.mockRejectedValue(
         new Error("Checkin failed"),
       );
@@ -795,7 +797,7 @@ describe("StudentDetailPage", () => {
       });
 
       await waitFor(() => {
-        expect(screen.getByTestId("alert-error")).toBeInTheDocument();
+        expect(mockToastError).toHaveBeenCalled();
       });
     });
 
