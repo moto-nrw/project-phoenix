@@ -61,13 +61,15 @@ func initConfig() {
 	}
 
 	// If a config file is found, read it in.
-	if viper.ReadInConfig() == nil {
-		if err := ensureConfigFileAllowed(cfgFile); err != nil {
-			fmt.Fprintln(os.Stderr, err.Error())
-			os.Exit(1)
-		}
-		fmt.Println("Using config file:", viper.ConfigFileUsed())
+	if err := viper.ReadInConfig(); err != nil {
+		fmt.Fprintln(os.Stderr, "Failed to read config file:", err.Error())
+		os.Exit(1)
 	}
+	if err := ensureConfigFileAllowed(cfgFile); err != nil {
+		fmt.Fprintln(os.Stderr, err.Error())
+		os.Exit(1)
+	}
+	fmt.Println("Using config file:", viper.ConfigFileUsed())
 }
 
 func ensureConfigFileAllowed(path string) error {
