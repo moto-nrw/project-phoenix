@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/auth"
@@ -1217,4 +1218,48 @@ func CreateTestPersonGuardian(tb testing.TB, db *bun.DB, personID, guardianAccou
 	require.NoError(tb, err, "Failed to create test person guardian relationship")
 
 	return pg
+}
+
+// ============================================================================
+// JWT Test Helpers
+// ============================================================================
+
+// TestTokenAuth is a shared TokenAuth instance for tests using a known secret.
+// This allows tests to generate valid JWT tokens without needing the app config.
+var testTokenAuthInstance *jwt.TokenAuth
+
+// testJWTSecret is a fixed secret for testing (never use in production)
+const testJWTSecret = "test-jwt-secret-32-chars-minimum"
+
+// GetTestTokenAuth returns a TokenAuth instance for testing.
+// Uses a singleton pattern to ensure all tests use the same secret.
+func GetTestTokenAuth(tb testing.TB) *jwt.TokenAuth {
+	tb.Helper()
+
+	if testTokenAuthInstance == nil {
+		var err error
+		testTokenAuthInstance, err = jwt.NewTokenAuthWithSecret(testJWTSecret)
+		require.NoError(tb, err, "Failed to create test TokenAuth")
+	}
+
+	return testTokenAuthInstance
+}
+
+// CreateTestJWT creates a valid JWT access token for the given account ID.
+// This token can be used in the Authorization header for authenticated API requests.
+func CreateTestJWT(tb testing.TB, accountID int64, permissions []string) string {
+	tb.Helper()
+
+	tokenAuth := GetTestTokenAuth(tb)
+
+	claims := jwt.AppClaims{
+		ID:          int(accountID),
+		Roles:       []string{"user"},
+		Permissions: permissions,
+	}
+
+	token, err := tokenAuth.CreateJWT(claims)
+	require.NoError(tb, err, "Failed to create test JWT")
+
+	return token
 }
