@@ -216,7 +216,10 @@ func (s *service) UpdateSettingValue(ctx context.Context, key string, value stri
 // GetStringValue retrieves the value of a setting as a string
 func (s *service) GetStringValue(ctx context.Context, key string, defaultValue string) (string, error) {
 	setting, err := s.settingRepo.FindByKey(ctx, key)
-	if err != nil || setting == nil || setting.ID <= 0 {
+	if err != nil {
+		return defaultValue, &ConfigError{Op: "GetStringValue", Err: err}
+	}
+	if setting == nil || setting.ID <= 0 {
 		return defaultValue, nil
 	}
 
@@ -226,7 +229,10 @@ func (s *service) GetStringValue(ctx context.Context, key string, defaultValue s
 // GetBoolValue retrieves the value of a setting as a boolean
 func (s *service) GetBoolValue(ctx context.Context, key string, defaultValue bool) (bool, error) {
 	setting, err := s.settingRepo.FindByKey(ctx, key)
-	if err != nil || setting == nil || setting.ID <= 0 {
+	if err != nil {
+		return defaultValue, &ConfigError{Op: "GetBoolValue", Err: err}
+	}
+	if setting == nil || setting.ID <= 0 {
 		return defaultValue, nil
 	}
 
@@ -251,7 +257,10 @@ func (s *service) GetBoolValue(ctx context.Context, key string, defaultValue boo
 // GetIntValue retrieves the value of a setting as an integer
 func (s *service) GetIntValue(ctx context.Context, key string, defaultValue int) (int, error) {
 	setting, err := s.settingRepo.FindByKey(ctx, key)
-	if err != nil || setting == nil || setting.ID <= 0 {
+	if err != nil {
+		return defaultValue, &ConfigError{Op: "GetIntValue", Err: err}
+	}
+	if setting == nil || setting.ID <= 0 {
 		return defaultValue, nil
 	}
 
@@ -273,7 +282,10 @@ func (s *service) GetIntValue(ctx context.Context, key string, defaultValue int)
 // GetFloatValue retrieves the value of a setting as a float
 func (s *service) GetFloatValue(ctx context.Context, key string, defaultValue float64) (float64, error) {
 	setting, err := s.settingRepo.FindByKey(ctx, key)
-	if err != nil || setting == nil || setting.ID <= 0 {
+	if err != nil {
+		return defaultValue, &ConfigError{Op: "GetFloatValue", Err: err}
+	}
+	if setting == nil || setting.ID <= 0 {
 		return defaultValue, nil
 	}
 

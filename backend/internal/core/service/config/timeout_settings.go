@@ -94,8 +94,7 @@ func (s *service) GetDeviceTimeoutSettings(ctx context.Context, deviceID int64) 
 	deviceKey := fmt.Sprintf("device_%d_timeout_minutes", deviceID)
 	deviceTimeoutStr, err := s.GetStringValue(ctx, deviceKey, "")
 	if err != nil {
-		// No device-specific setting found, return global settings
-		return settings, nil
+		return nil, &ConfigError{Op: "GetDeviceTimeoutSettings", Err: fmt.Errorf("failed to get device timeout: %w", err)}
 	}
 
 	if deviceTimeoutStr != "" {
