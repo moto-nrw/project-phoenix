@@ -15,6 +15,20 @@ global.fetch = mockFetch;
 import { auth } from "~/server/auth";
 const mockAuth = vi.mocked(auth);
 
+// Type definitions for API responses
+interface ErrorResponse {
+  error: string;
+}
+
+interface SuccessResponse {
+  success: boolean;
+  data: {
+    visit_id: number;
+    student_id: number;
+    action: string;
+  };
+}
+
 describe("POST /api/active/visits/student/[studentId]/checkin", () => {
   const mockToken = "test-jwt-token";
 
@@ -45,7 +59,7 @@ describe("POST /api/active/visits/student/[studentId]/checkin", () => {
     const response = await POST(request, context);
 
     expect(response.status).toBe(401);
-    const data = await response.json();
+    const data = (await response.json()) as ErrorResponse;
     expect(data.error).toBe("Unauthorized");
   });
 
@@ -66,7 +80,7 @@ describe("POST /api/active/visits/student/[studentId]/checkin", () => {
     const response = await POST(request, context);
 
     expect(response.status).toBe(500);
-    const data = await response.json();
+    const data = (await response.json()) as ErrorResponse;
     expect(data.error).toContain("Student ID is required");
   });
 
@@ -87,7 +101,7 @@ describe("POST /api/active/visits/student/[studentId]/checkin", () => {
     const response = await POST(request, context);
 
     expect(response.status).toBe(500);
-    const data = await response.json();
+    const data = (await response.json()) as ErrorResponse;
     expect(data.error).toContain("active_group_id is required");
   });
 
@@ -113,7 +127,7 @@ describe("POST /api/active/visits/student/[studentId]/checkin", () => {
     const response = await POST(request, context);
 
     expect(response.status).toBe(500);
-    const data = await response.json();
+    const data = (await response.json()) as ErrorResponse;
     expect(data.error).toContain("Backend error");
   });
 
@@ -147,7 +161,7 @@ describe("POST /api/active/visits/student/[studentId]/checkin", () => {
     const response = await POST(request, context);
 
     expect(response.status).toBe(200);
-    const data = await response.json();
+    const data = (await response.json()) as SuccessResponse;
     expect(data.success).toBe(true);
     expect(data.data).toEqual({
       visit_id: 789,
@@ -163,7 +177,7 @@ describe("POST /api/active/visits/student/[studentId]/checkin", () => {
         headers: expect.objectContaining({
           Authorization: `Bearer ${mockToken}`,
           "Content-Type": "application/json",
-        }),
+        }) as Record<string, string>,
         body: JSON.stringify({ active_group_id: 456 }),
       }),
     );
