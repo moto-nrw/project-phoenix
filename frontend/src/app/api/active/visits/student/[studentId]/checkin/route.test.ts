@@ -1,19 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
-import { POST } from "./route";
-
-// Mock next-auth
-vi.mock("~/server/auth", () => ({
-  auth: vi.fn(),
-}));
-
-// Mock fetch
-const mockFetch = vi.fn();
-global.fetch = mockFetch;
-
-// Import after mocking to get mocked version
-import { auth } from "~/server/auth";
-const mockAuth = vi.mocked(auth);
+import type { Session } from "next-auth";
 
 // Type definitions for API responses
 interface ErrorResponse {
@@ -29,15 +16,37 @@ interface SuccessResponse {
   };
 }
 
+// Mock fetch
+const mockFetch = vi.fn();
+global.fetch = mockFetch;
+
+// Create typed mock for auth
+const mockAuth = vi.fn<() => Promise<Session | null>>();
+
+// Mock next-auth
+vi.mock("~/server/auth", () => ({
+  auth: () => mockAuth(),
+}));
+
+// Import after mocking
+import { POST } from "./route";
+
 describe("POST /api/active/visits/student/[studentId]/checkin", () => {
   const mockToken = "test-jwt-token";
 
+  const createMockSession = (token: string): Session => ({
+    user: {
+      id: "1",
+      token,
+      name: "Test User",
+      email: "test@example.com",
+    },
+    expires: new Date(Date.now() + 3600000).toISOString(),
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
-    mockAuth.mockResolvedValue({
-      user: { token: mockToken },
-      expires: new Date(Date.now() + 3600000).toISOString(),
-    });
+    mockAuth.mockResolvedValue(createMockSession(mockToken));
   });
 
   it("returns 401 when no session", async () => {
