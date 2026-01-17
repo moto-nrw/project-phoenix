@@ -996,3 +996,13 @@
 
 ---
 
+## Iteration 2026-01-17_16:18:48
+
+**Changed:** align import handlers with wide-event logging and error propagation
+
+**Files:** internal/adapter/handler/http/import/api.go
+
+**Commit:** 8f60e065a237b114e7dd27c8114cfb65aef18e59
+
+---
+
