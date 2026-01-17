@@ -26,12 +26,13 @@ export function getStaffLocationStatus(staff: Staff): LocationStatus {
     };
   } else if (location === "Anwesend") {
     // Staff who was present today but not currently supervising
+    // Uses same green as student "Anwesend" badge (LOCATION_COLORS.GROUP_ROOM from location-helper.ts)
     return {
       label: "Anwesend",
       badgeColor: "text-white backdrop-blur-sm",
       cardGradient: "from-green-50/80 to-emerald-100/80",
-      customBgColor: "#22C55E",
-      customShadow: "0 8px 25px rgba(34, 197, 94, 0.4)",
+      customBgColor: "#83CD2D",
+      customShadow: "0 8px 25px rgba(131, 205, 45, 0.4)",
     };
   } else if (location === "Schulhof") {
     return {
