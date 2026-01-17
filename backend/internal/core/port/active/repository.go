@@ -89,9 +89,13 @@ type GroupRelationsRepository interface {
 	FindWithSupervisors(ctx context.Context, id int64) (*Group, error)
 }
 
-// VisitRepository defines operations for managing active visits
-type VisitRepository interface {
-	base.Repository[*Visit]
+// VisitReadRepository defines read-only visit operations.
+type VisitReadRepository interface {
+	// FindByID retrieves a visit by ID
+	FindByID(ctx context.Context, id interface{}) (*Visit, error)
+
+	// List retrieves visits matching the provided filters
+	List(ctx context.Context, options *base.QueryOptions) ([]*Visit, error)
 
 	// FindActiveByStudentID finds all active visits for a specific student
 	FindActiveByStudentID(ctx context.Context, studentID int64) ([]*Visit, error)
@@ -102,13 +106,39 @@ type VisitRepository interface {
 	// FindByTimeRange finds all visits active during a specific time range
 	FindByTimeRange(ctx context.Context, start, end time.Time) ([]*Visit, error)
 
+	// GetCurrentByStudentID finds the current active visit for a student
+	GetCurrentByStudentID(ctx context.Context, studentID int64) (*Visit, error)
+
+	// GetCurrentByStudentIDs finds the current active visit for multiple students
+	GetCurrentByStudentIDs(ctx context.Context, studentIDs []int64) (map[int64]*Visit, error)
+
+	// FindActiveVisits finds all visits with no exit time (currently active)
+	FindActiveVisits(ctx context.Context) ([]*Visit, error)
+
+	// FindActiveByGroupIDWithDisplayData finds active visits for a group with student display info
+	FindActiveByGroupIDWithDisplayData(ctx context.Context, activeGroupID int64) ([]VisitWithDisplayData, error)
+}
+
+// VisitWriteRepository defines write operations for visits.
+type VisitWriteRepository interface {
+	// Create inserts a new visit into the database
+	Create(ctx context.Context, visit *Visit) error
+
+	// Update updates an existing visit
+	Update(ctx context.Context, visit *Visit) error
+
+	// Delete removes a visit
+	Delete(ctx context.Context, id interface{}) error
+
 	// EndVisit marks a visit as ended at the current time
 	EndVisit(ctx context.Context, id int64) error
 
 	// TransferVisitsFromRecentSessions transfers active visits from recent ended sessions on the same device to a new session
 	TransferVisitsFromRecentSessions(ctx context.Context, newActiveGroupID, deviceID int64) (int, error)
+}
 
-	// Cleanup operations for data retention
+// VisitRetentionRepository defines retention-related operations.
+type VisitRetentionRepository interface {
 	// DeleteExpiredVisits deletes visits older than retention days for a specific student
 	DeleteExpiredVisits(ctx context.Context, studentID int64, retentionDays int) (int64, error)
 
@@ -126,18 +156,13 @@ type VisitRepository interface {
 
 	// GetExpiredVisitsByMonth returns counts of expired visits grouped by month
 	GetExpiredVisitsByMonth(ctx context.Context) (map[string]int64, error)
+}
 
-	// GetCurrentByStudentID finds the current active visit for a student
-	GetCurrentByStudentID(ctx context.Context, studentID int64) (*Visit, error)
-
-	// GetCurrentByStudentIDs finds the current active visit for multiple students
-	GetCurrentByStudentIDs(ctx context.Context, studentIDs []int64) (map[int64]*Visit, error)
-
-	// FindActiveVisits finds all visits with no exit time (currently active)
-	FindActiveVisits(ctx context.Context) ([]*Visit, error)
-
-	// FindActiveByGroupIDWithDisplayData finds active visits for a group with student display info
-	FindActiveByGroupIDWithDisplayData(ctx context.Context, activeGroupID int64) ([]VisitWithDisplayData, error)
+// VisitRepository composes all visit operations.
+type VisitRepository interface {
+	VisitReadRepository
+	VisitWriteRepository
+	VisitRetentionRepository
 }
 
 // GroupSupervisorRepository defines operations for managing active group supervisors

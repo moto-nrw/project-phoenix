@@ -16,7 +16,7 @@ import (
 
 // cleanupService implements the CleanupService interface
 type cleanupService struct {
-	visitRepo          activePort.VisitRepository
+	visitRepo          activePort.VisitRetentionRepository
 	attendanceRepo     activePort.AttendanceRepository
 	privacyConsentRepo userPort.PrivacyConsentRepository
 	dataDeletionRepo   auditPort.DataDeletionRepository
@@ -26,7 +26,7 @@ type cleanupService struct {
 
 // NewCleanupService creates a new cleanup service instance
 func NewCleanupService(
-	visitRepo activePort.VisitRepository,
+	visitRepo activePort.VisitRetentionRepository,
 	attendanceRepo activePort.AttendanceRepository,
 	privacyConsentRepo userPort.PrivacyConsentRepository,
 	dataDeletionRepo auditPort.DataDeletionRepository,
