@@ -55,8 +55,9 @@ git diff --name-only --diff-filter=U  # Sollte leer sein
 
 # Build + Test
 go build ./...
+go vet ./...
 go test ./... -short
-
+golangci-lint run --enable unused --timeout 10m
 # Commit
 git add -A
 git commit -m "merge: sync with development, apply changes to hexagonal structure"
