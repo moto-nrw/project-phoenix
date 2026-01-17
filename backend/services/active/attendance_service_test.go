@@ -370,18 +370,18 @@ func TestCheckTeacherStudentAccess(t *testing.T) {
 	service := setupActiveService(t, db)
 	ctx := context.Background()
 
-	t.Run("returns error for staff without teacher record", func(t *testing.T) {
+	t.Run("returns false for staff without teacher record", func(t *testing.T) {
 		// ARRANGE: Create student and staff (staff is not a teacher)
 		student := testpkg.CreateTestStudent(t, db, "Unrelated", "Student", "6a")
 		staff := testpkg.CreateTestStaff(t, db, "Unrelated", "Staff")
 		defer testpkg.CleanupActivityFixtures(t, db, student.ID, staff.ID)
 
-		// ACT: Check access - should fail because staff is not a teacher
-		_, err := service.CheckTeacherStudentAccess(ctx, staff.ID, student.ID)
+		// ACT: Check access - should return false because staff is not a teacher
+		hasAccess, err := service.CheckTeacherStudentAccess(ctx, staff.ID, student.ID)
 
-		// ASSERT: Expected error because staff has no teacher record
-		// The service returns an error when no teacher record is found
-		assert.Error(t, err, "Expected error when staff is not a teacher")
+		// ASSERT: No error, but access denied
+		require.NoError(t, err)
+		assert.False(t, hasAccess, "Staff without teacher record should not have access")
 	})
 
 	t.Run("returns false for non-existent staff", func(t *testing.T) {
