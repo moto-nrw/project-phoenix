@@ -578,3 +578,13 @@
 
 ---
 
+## Iteration 2026-01-17_03:32:27
+
+**Changed:** Removed per-request password reset logs (including email PII) to rely on wide-event logging
+
+**Files:** internal/adapter/handler/http/auth/password_handlers.go
+
+**Commit:** f9070ae2eb6064dfb04c70d129e297d3bfafaf3d
+
+---
+
