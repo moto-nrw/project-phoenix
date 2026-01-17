@@ -14,6 +14,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/active"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -162,7 +163,7 @@ func TestCheckinRequest_JSONDecoding(t *testing.T) {
 func TestAttendance_Fields(t *testing.T) {
 	t.Run("attendance has required fields", func(t *testing.T) {
 		now := time.Now()
-		today := time.Now().UTC().Truncate(24 * time.Hour)
+		today := timezone.Today()
 		attendance := &activeModels.Attendance{
 			StudentID:   123,
 			Date:        today,
@@ -187,7 +188,7 @@ func TestAttendance_Fields(t *testing.T) {
 
 		attendance := &activeModels.Attendance{
 			StudentID:    123,
-			Date:         time.Now().UTC().Truncate(24 * time.Hour),
+			Date:         timezone.Today(),
 			CheckInTime:  now,
 			CheckedInBy:  456,
 			DeviceID:     111,

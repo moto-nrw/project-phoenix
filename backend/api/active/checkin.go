@@ -87,6 +87,12 @@ func (rs *Resource) parseAndValidateCheckinRequest(ctx context.Context, r *http.
 		return nil, &checkinError{http.StatusBadRequest, "Invalid student ID"}
 	}
 
+	// Verify the student exists before any further processing
+	student, studentErr := rs.PersonService.StudentRepository().FindByID(ctx, studentID)
+	if studentErr != nil || student == nil {
+		return nil, &checkinError{http.StatusNotFound, "Student not found"}
+	}
+
 	// Parse request body
 	var req CheckinRequest
 	err = json.NewDecoder(r.Body).Decode(&req)
@@ -191,6 +197,10 @@ func (rs *Resource) createCheckinVisit(ctx context.Context, checkinCtx *checkinC
 	}
 
 	if createErr := rs.ActiveService.CreateVisit(ctx, visit); createErr != nil {
+		// Handle race condition: another request already created a visit for this student
+		if errors.Is(createErr, activeService.ErrStudentAlreadyActive) {
+			return nil, &checkinError{http.StatusConflict, "Student already has an active visit"}
+		}
 		if logging.Logger != nil {
 			logging.Logger.WithFields(map[string]interface{}{
 				"student_id":      checkinCtx.studentID,

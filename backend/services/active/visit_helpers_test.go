@@ -8,6 +8,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/services"
 	active "github.com/moto-nrw/project-phoenix/services/active"
@@ -159,7 +160,7 @@ func createAttendanceWithCheckout(t *testing.T, db *bun.DB, studentID, staffID, 
 	checkedOutBy := staffID
 	attendance := &activeModels.Attendance{
 		StudentID:    studentID,
-		Date:         time.Now().UTC().Truncate(24 * time.Hour),
+		Date:         timezone.Today(),
 		CheckInTime:  time.Now().Add(-4 * time.Hour),
 		CheckOutTime: &checkoutTime,
 		CheckedInBy:  staffID,

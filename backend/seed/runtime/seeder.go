@@ -7,6 +7,7 @@ import (
 	"math/rand"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/seed/fixed"
@@ -288,7 +289,7 @@ func (s *Seeder) checkInStudents(ctx context.Context, currentTime time.Time) err
 // createAttendanceRecords creates daily attendance records
 func (s *Seeder) createAttendanceRecords(ctx context.Context, currentTime time.Time) error {
 	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
-	today := currentTime.Truncate(24 * time.Hour)
+	today := timezone.DateOf(currentTime)
 
 	visitEntryByStudent := make(map[int64]time.Time)
 	for _, visit := range s.result.Visits {

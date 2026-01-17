@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -80,7 +81,7 @@ func TestGroupSupervisorRepository_Create(t *testing.T) {
 	defer cleanupSupervisorTestData(t, db, data)
 
 	t.Run("creates group supervisor with valid data", func(t *testing.T) {
-		today := time.Now().Truncate(24 * time.Hour)
+		today := timezone.Today()
 		supervisor := &active.GroupSupervisor{
 			GroupID:   data.ActiveGroup.ID,
 			StaffID:   data.Staff1.ID,
@@ -96,7 +97,7 @@ func TestGroupSupervisorRepository_Create(t *testing.T) {
 	})
 
 	t.Run("creates supervisor with end date", func(t *testing.T) {
-		today := time.Now().Truncate(24 * time.Hour)
+		today := timezone.Today()
 		endDate := today.AddDate(0, 0, 7) // One week
 		supervisor := &active.GroupSupervisor{
 			GroupID:   data.ActiveGroup.ID,
@@ -131,7 +132,7 @@ func TestGroupSupervisorRepository_FindByID(t *testing.T) {
 	defer cleanupSupervisorTestData(t, db, data)
 
 	t.Run("finds existing group supervisor", func(t *testing.T) {
-		today := time.Now().Truncate(24 * time.Hour)
+		today := timezone.Today()
 		supervisor := &active.GroupSupervisor{
 			GroupID:   data.ActiveGroup.ID,
 			StaffID:   data.Staff1.ID,
@@ -164,7 +165,7 @@ func TestGroupSupervisorRepository_Update(t *testing.T) {
 	defer cleanupSupervisorTestData(t, db, data)
 
 	t.Run("updates supervisor role", func(t *testing.T) {
-		today := time.Now().Truncate(24 * time.Hour)
+		today := timezone.Today()
 		supervisor := &active.GroupSupervisor{
 			GroupID:   data.ActiveGroup.ID,
 			StaffID:   data.Staff1.ID,
@@ -195,7 +196,7 @@ func TestGroupSupervisorRepository_Delete(t *testing.T) {
 	defer cleanupSupervisorTestData(t, db, data)
 
 	t.Run("deletes existing supervisor", func(t *testing.T) {
-		today := time.Now().Truncate(24 * time.Hour)
+		today := timezone.Today()
 		supervisor := &active.GroupSupervisor{
 			GroupID:   data.ActiveGroup.ID,
 			StaffID:   data.Staff1.ID,
@@ -227,7 +228,7 @@ func TestGroupSupervisorRepository_List(t *testing.T) {
 	defer cleanupSupervisorTestData(t, db, data)
 
 	t.Run("lists all group supervisors", func(t *testing.T) {
-		today := time.Now().Truncate(24 * time.Hour)
+		today := timezone.Today()
 		supervisor := &active.GroupSupervisor{
 			GroupID:   data.ActiveGroup.ID,
 			StaffID:   data.Staff1.ID,
@@ -254,7 +255,7 @@ func TestGroupSupervisorRepository_FindActiveByStaffID(t *testing.T) {
 	defer cleanupSupervisorTestData(t, db, data)
 
 	t.Run("finds active supervisions for staff", func(t *testing.T) {
-		today := time.Now().Truncate(24 * time.Hour)
+		today := timezone.Today()
 		supervisor := &active.GroupSupervisor{
 			GroupID:   data.ActiveGroup.ID,
 			StaffID:   data.Staff1.ID,
@@ -296,7 +297,7 @@ func TestGroupSupervisorRepository_FindByActiveGroupID(t *testing.T) {
 	defer cleanupSupervisorTestData(t, db, data)
 
 	t.Run("finds all supervisors for active group", func(t *testing.T) {
-		today := time.Now().Truncate(24 * time.Hour)
+		today := timezone.Today()
 		supervisor1 := &active.GroupSupervisor{
 			GroupID:   data.ActiveGroup.ID,
 			StaffID:   data.Staff1.ID,
@@ -326,7 +327,7 @@ func TestGroupSupervisorRepository_FindByActiveGroupID(t *testing.T) {
 	})
 
 	t.Run("finds only active supervisors when activeOnly is true", func(t *testing.T) {
-		today := time.Now().Truncate(24 * time.Hour)
+		today := timezone.Today()
 		endDate := today.AddDate(0, 0, -1) // Yesterday (ended)
 
 		activeSupervisor := &active.GroupSupervisor{
@@ -390,7 +391,7 @@ func TestGroupSupervisorRepository_FindByActiveGroupIDs(t *testing.T) {
 		require.NoError(t, err)
 		defer cleanupActiveGroupRecords(t, db, activeGroup2.ID)
 
-		today := time.Now().Truncate(24 * time.Hour)
+		today := timezone.Today()
 		supervisor1 := &active.GroupSupervisor{
 			GroupID:   data.ActiveGroup.ID,
 			StaffID:   data.Staff1.ID,
@@ -439,7 +440,7 @@ func TestGroupSupervisorRepository_EndSupervision(t *testing.T) {
 	defer cleanupSupervisorTestData(t, db, data)
 
 	t.Run("ends active supervision", func(t *testing.T) {
-		today := time.Now().Truncate(24 * time.Hour)
+		today := timezone.Today()
 		supervisor := &active.GroupSupervisor{
 			GroupID:   data.ActiveGroup.ID,
 			StaffID:   data.Staff1.ID,

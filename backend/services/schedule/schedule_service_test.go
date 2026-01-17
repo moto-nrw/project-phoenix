@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -144,7 +145,7 @@ func TestScheduleService_GetDateframe(t *testing.T) {
 
 	t.Run("returns dateframe for valid ID", func(t *testing.T) {
 		// ARRANGE
-		startDate := time.Now().AddDate(0, 0, 1).Truncate(24 * time.Hour)
+		startDate := timezone.Today().AddDate(0, 0, 1)
 		endDate := startDate.AddDate(0, 1, 0)
 		df := createTestDateframe(t, db, "GetTest", startDate, endDate)
 		defer cleanupScheduleFixtures(t, db, []int64{df.ID}, nil, nil)
@@ -178,7 +179,7 @@ func TestScheduleService_CreateDateframe(t *testing.T) {
 
 	t.Run("creates dateframe successfully", func(t *testing.T) {
 		// ARRANGE
-		startDate := time.Now().AddDate(0, 0, 1).Truncate(24 * time.Hour)
+		startDate := timezone.Today().AddDate(0, 0, 1)
 		endDate := startDate.AddDate(0, 1, 0)
 		df := &schedule.Dateframe{
 			Name:        "CreateTest-" + time.Now().Format("20060102150405"),
@@ -204,8 +205,8 @@ func TestScheduleService_CreateDateframe(t *testing.T) {
 
 	t.Run("rejects dateframe with end before start", func(t *testing.T) {
 		// ARRANGE
-		startDate := time.Now().AddDate(0, 1, 0).Truncate(24 * time.Hour)
-		endDate := time.Now().Truncate(24 * time.Hour) // End before start
+		startDate := timezone.Today().AddDate(0, 1, 0)
+		endDate := timezone.Today() // End before start
 		df := &schedule.Dateframe{
 			Name:      "InvalidDateRange",
 			StartDate: startDate,
@@ -243,7 +244,7 @@ func TestScheduleService_UpdateDateframe(t *testing.T) {
 
 	t.Run("updates dateframe successfully", func(t *testing.T) {
 		// ARRANGE
-		startDate := time.Now().AddDate(0, 0, 1).Truncate(24 * time.Hour)
+		startDate := timezone.Today().AddDate(0, 0, 1)
 		endDate := startDate.AddDate(0, 1, 0)
 		df := createTestDateframe(t, db, "UpdateTest", startDate, endDate)
 		defer cleanupScheduleFixtures(t, db, []int64{df.ID}, nil, nil)
@@ -273,7 +274,7 @@ func TestScheduleService_DeleteDateframe(t *testing.T) {
 
 	t.Run("deletes dateframe successfully", func(t *testing.T) {
 		// ARRANGE
-		startDate := time.Now().AddDate(0, 0, 1).Truncate(24 * time.Hour)
+		startDate := timezone.Today().AddDate(0, 0, 1)
 		endDate := startDate.AddDate(0, 1, 0)
 		df := createTestDateframe(t, db, "DeleteTest", startDate, endDate)
 		dfID := df.ID
@@ -299,7 +300,7 @@ func TestScheduleService_ListDateframes(t *testing.T) {
 
 	t.Run("lists all dateframes", func(t *testing.T) {
 		// ARRANGE
-		startDate := time.Now().AddDate(0, 0, 1).Truncate(24 * time.Hour)
+		startDate := timezone.Today().AddDate(0, 0, 1)
 		df1 := createTestDateframe(t, db, "List1", startDate, startDate.AddDate(0, 1, 0))
 		df2 := createTestDateframe(t, db, "List2", startDate.AddDate(0, 2, 0), startDate.AddDate(0, 3, 0))
 		defer cleanupScheduleFixtures(t, db, []int64{df1.ID, df2.ID}, nil, nil)
@@ -335,7 +336,7 @@ func TestScheduleService_FindDateframesByDate(t *testing.T) {
 
 	t.Run("finds dateframes containing a specific date", func(t *testing.T) {
 		// ARRANGE
-		today := time.Now().Truncate(24 * time.Hour)
+		today := timezone.Today()
 		startDate := today.AddDate(0, 0, -5)
 		endDate := today.AddDate(0, 0, 5)
 		df := createTestDateframe(t, db, "ContainsToday", startDate, endDate)
@@ -369,7 +370,7 @@ func TestScheduleService_FindOverlappingDateframes(t *testing.T) {
 
 	t.Run("finds overlapping dateframes", func(t *testing.T) {
 		// ARRANGE
-		today := time.Now().Truncate(24 * time.Hour)
+		today := timezone.Today()
 		df := createTestDateframe(t, db, "Overlapping", today, today.AddDate(0, 1, 0))
 		defer cleanupScheduleFixtures(t, db, []int64{df.ID}, nil, nil)
 
@@ -1019,7 +1020,7 @@ func TestScheduleService_GenerateEvents(t *testing.T) {
 		rr := createTestRecurrenceRule(t, db, schedule.FrequencyDaily, 1)
 		defer cleanupScheduleFixtures(t, db, nil, nil, []int64{rr.ID})
 
-		startDate := time.Now().Truncate(24 * time.Hour)
+		startDate := timezone.Today()
 		endDate := startDate.AddDate(0, 0, 7) // 1 week
 
 		// ACT
@@ -1042,7 +1043,7 @@ func TestScheduleService_GenerateEvents(t *testing.T) {
 		defer cleanupScheduleFixtures(t, db, nil, nil, []int64{rr.ID})
 
 		// Find a Monday to start
-		startDate := time.Now().Truncate(24 * time.Hour)
+		startDate := timezone.Today()
 		for startDate.Weekday() != time.Monday {
 			startDate = startDate.AddDate(0, 0, 1)
 		}
@@ -1094,7 +1095,7 @@ func TestScheduleService_GenerateEvents(t *testing.T) {
 		require.NoError(t, err)
 		defer cleanupScheduleFixtures(t, db, nil, nil, []int64{rr.ID})
 
-		startDate := time.Now().Truncate(24 * time.Hour)
+		startDate := timezone.Today()
 		endDate := startDate.AddDate(0, 0, 30) // 1 month
 
 		// ACT
@@ -1207,7 +1208,7 @@ func TestScheduleService_GenerateEvents(t *testing.T) {
 		require.NoError(t, err)
 		defer cleanupScheduleFixtures(t, db, nil, nil, []int64{rr.ID})
 
-		startDate := time.Now().Truncate(24 * time.Hour)
+		startDate := timezone.Today()
 		endDate := startDate.AddDate(0, 0, 10) // 10 days
 
 		// ACT
@@ -1231,7 +1232,7 @@ func TestScheduleService_GenerateEvents(t *testing.T) {
 		defer cleanupScheduleFixtures(t, db, nil, nil, []int64{rr.ID})
 
 		// Find a Monday to start
-		startDate := time.Now().Truncate(24 * time.Hour)
+		startDate := timezone.Today()
 		for startDate.Weekday() != time.Monday {
 			startDate = startDate.AddDate(0, 0, 1)
 		}
@@ -1248,7 +1249,7 @@ func TestScheduleService_GenerateEvents(t *testing.T) {
 
 	t.Run("generates events respecting rule end date", func(t *testing.T) {
 		// ARRANGE
-		ruleEndDate := time.Now().AddDate(0, 0, 5).Truncate(24 * time.Hour)
+		ruleEndDate := timezone.Today().AddDate(0, 0, 5)
 		rr := &schedule.RecurrenceRule{
 			Frequency:     schedule.FrequencyDaily,
 			IntervalCount: 1,
@@ -1258,7 +1259,7 @@ func TestScheduleService_GenerateEvents(t *testing.T) {
 		require.NoError(t, err)
 		defer cleanupScheduleFixtures(t, db, nil, nil, []int64{rr.ID})
 
-		startDate := time.Now().Truncate(24 * time.Hour)
+		startDate := timezone.Today()
 		endDate := startDate.AddDate(0, 0, 30) // Request 30 days
 
 		// ACT
@@ -1402,7 +1403,7 @@ func TestScheduleService_GetCurrentDateframe(t *testing.T) {
 
 	t.Run("returns current dateframe when exists", func(t *testing.T) {
 		// ARRANGE - Create a dateframe that includes today
-		today := time.Now().Truncate(24 * time.Hour)
+		today := timezone.Today()
 		startDate := today.AddDate(0, 0, -5)
 		endDate := today.AddDate(0, 0, 5)
 		df := createTestDateframe(t, db, "Current", startDate, endDate)

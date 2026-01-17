@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/feedback"
 	feedbackSvc "github.com/moto-nrw/project-phoenix/services/feedback"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -86,7 +87,7 @@ func TestFeedbackService_CreateEntry(t *testing.T) {
 		// ARRANGE
 		entry := &feedback.Entry{
 			Value:           feedback.ValuePositive,
-			Day:             time.Now().Truncate(24 * time.Hour),
+			Day:             timezone.Today(),
 			Time:            time.Now(),
 			StudentID:       student.ID,
 			IsMensaFeedback: false,
@@ -387,7 +388,7 @@ func TestFeedbackService_GetEntriesByDay(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, db, "Feedback", "DayQuery", "7a")
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID, 0, 0, 0, 0)
 
-	today := time.Now().Truncate(24 * time.Hour)
+	today := timezone.Today()
 	entry := createTestFeedbackEntry(t, db, student.ID, feedback.ValuePositive, today)
 	defer cleanupFeedbackFixtures(t, db, []int64{entry.ID})
 
@@ -420,7 +421,7 @@ func TestFeedbackService_GetEntriesByDateRange(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, db, "Feedback", "RangeQuery", "8a")
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID, 0, 0, 0, 0)
 
-	today := time.Now().Truncate(24 * time.Hour)
+	today := timezone.Today()
 	entry := createTestFeedbackEntry(t, db, student.ID, feedback.ValueNeutral, today)
 	defer cleanupFeedbackFixtures(t, db, []int64{entry.ID})
 
@@ -500,7 +501,7 @@ func TestFeedbackService_GetEntriesByStudentAndDateRange(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, db, "Feedback", "StudentRange", "9a")
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID, 0, 0, 0, 0)
 
-	today := time.Now().Truncate(24 * time.Hour)
+	today := timezone.Today()
 	entry := createTestFeedbackEntry(t, db, student.ID, feedback.ValuePositive, today)
 	defer cleanupFeedbackFixtures(t, db, []int64{entry.ID})
 
@@ -557,7 +558,7 @@ func TestFeedbackService_CountByDay(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, db, "Feedback", "CountDay", "10a")
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID, 0, 0, 0, 0)
 
-	today := time.Now().Truncate(24 * time.Hour)
+	today := timezone.Today()
 	entry := createTestFeedbackEntry(t, db, student.ID, feedback.ValuePositive, today)
 	defer cleanupFeedbackFixtures(t, db, []int64{entry.ID})
 

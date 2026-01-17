@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/uptrace/bun"
@@ -30,8 +31,9 @@ func NewAttendanceRepository(db *bun.DB) active.AttendanceRepository {
 func (r *AttendanceRepository) FindByStudentAndDate(ctx context.Context, studentID int64, date time.Time) ([]*active.Attendance, error) {
 	var attendance []*active.Attendance
 
-	// Extract date only (ignore time component) - use UTC to match other methods
-	dateOnly := date.Truncate(24 * time.Hour)
+	// Extract date only using Berlin timezone since the school operates in Germany.
+	// This ensures consistency with CURRENT_DATE queries (PostgreSQL timezone = Europe/Berlin).
+	dateOnly := timezone.DateOf(date)
 
 	err := r.db.NewSelect().
 		Model(&attendance).
@@ -187,8 +189,9 @@ func (r *AttendanceRepository) GetTodayByStudentIDs(ctx context.Context, student
 func (r *AttendanceRepository) FindForDate(ctx context.Context, date time.Time) ([]*active.Attendance, error) {
 	var attendance []*active.Attendance
 
-	// Extract date only (ignore time component) - use UTC to match other methods
-	dateOnly := date.Truncate(24 * time.Hour)
+	// Extract date only using Berlin timezone since the school operates in Germany.
+	// This ensures consistency with CURRENT_DATE queries (PostgreSQL timezone = Europe/Berlin).
+	dateOnly := timezone.DateOf(date)
 
 	err := r.db.NewSelect().
 		Model(&attendance).

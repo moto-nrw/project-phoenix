@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/logging"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -43,10 +44,9 @@ func (s *service) resolveStaffIDForAttendance(ctx context.Context, staffID, devi
 
 // ensureOrUpdateAttendance handles attendance creation or re-entry update
 func (s *service) ensureOrUpdateAttendance(ctx context.Context, visit *active.Visit, staffID, deviceID int64) error {
-	// Use UTC date for attendance tracking to avoid timezone conversion issues.
-	// The repository's FindByStudentAndDate uses date.Truncate(24 * time.Hour) which
-	// truncates in UTC, so we need to match that here.
-	visitDate := visit.EntryTime.UTC().Truncate(24 * time.Hour)
+	// Use Berlin timezone for date calculation since the school operates in Germany.
+	// This ensures a check-in at 00:30 CET is recorded for the correct day.
+	visitDate := timezone.DateOf(visit.EntryTime)
 	attendanceRecords, err := s.attendanceRepo.FindByStudentAndDate(ctx, visit.StudentID, visitDate)
 	if err != nil {
 		return &ActiveError{Op: "CreateVisit", Err: err}
