@@ -79,14 +79,14 @@ func (r *AttendanceRepository) FindLatestByStudent(ctx context.Context, studentI
 func (r *AttendanceRepository) GetStudentCurrentStatus(ctx context.Context, studentID int64) (*active.Attendance, error) {
 	attendance := new(active.Attendance)
 
-	// Use CURRENT_DATE to avoid timezone conversion issues between Go and PostgreSQL.
-	// The DATE column stores dates without timezone, so comparing with Go's time.Time
-	// (which includes timezone info) can cause mismatches when the server runs in CET.
-	// CURRENT_DATE uses the database server's timezone setting consistently.
+	// Use timezone.Today() for consistent Europe/Berlin timezone handling.
+	// This ensures the date comparison matches records created via CreateVisit,
+	// which also uses timezone.Today().
+	today := timezone.Today()
 	err := r.db.NewSelect().
 		Model(attendance).
 		ModelTableExpr(`active.attendance AS "attendance"`).
-		Where(`"attendance".student_id = ? AND "attendance".date = CURRENT_DATE`, studentID).
+		Where(`"attendance".student_id = ? AND "attendance".date = ?`, studentID, today).
 		Order(`check_in_time DESC`).
 		Limit(1).
 		Scan(ctx)
@@ -158,14 +158,15 @@ func (r *AttendanceRepository) GetTodayByStudentIDs(ctx context.Context, student
 		uniqueIDs = append(uniqueIDs, id)
 	}
 
-	// Use CURRENT_DATE to avoid timezone conversion issues between Go and PostgreSQL.
-	// See GetStudentCurrentStatus for detailed explanation.
+	// Use timezone.Today() for consistent Europe/Berlin timezone handling.
+	// This ensures the date comparison matches records created via CreateVisit.
+	today := timezone.Today()
 	var attendances []*active.Attendance
 	err := r.db.NewSelect().
 		Model(&attendances).
 		ModelTableExpr(`active.attendance AS "attendance"`).
 		Where(`"attendance".student_id IN (?)`, bun.In(uniqueIDs)).
-		Where(`"attendance".date = CURRENT_DATE`).
+		Where(`"attendance".date = ?`, today).
 		OrderExpr(`"attendance".student_id ASC`).
 		OrderExpr(`"attendance".check_in_time DESC`).
 		Scan(ctx)

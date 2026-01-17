@@ -87,6 +87,7 @@ func TestAttendanceRepository_Create(t *testing.T) {
 	})
 
 	t.Run("create with check-out time", func(t *testing.T) {
+		now := time.Now()
 		date := timezone.Today()
 		checkOutTime := now.Add(2 * time.Hour)
 		checkedOutBy := data.Staff2.ID
@@ -119,6 +120,7 @@ func TestAttendanceRepository_Create(t *testing.T) {
 	})
 
 	t.Run("verify IsCheckedIn helper method", func(t *testing.T) {
+		now := time.Now()
 		date := timezone.Today()
 
 		// Create attendance without check-out
@@ -208,6 +210,7 @@ func TestAttendanceRepository_FindByStudentAndDate(t *testing.T) {
 	})
 
 	t.Run("multiple records for student on same date ordered by check-in time", func(t *testing.T) {
+		now := time.Now()
 		date := timezone.Today()
 
 		// Create three attendance records with different check-in times
@@ -300,6 +303,7 @@ func TestAttendanceRepository_FindByStudentAndDate(t *testing.T) {
 	})
 
 	t.Run("different students on same date", func(t *testing.T) {
+		now := time.Now()
 		date := timezone.Today()
 
 		// Create attendance for student1
@@ -462,6 +466,7 @@ func TestAttendanceRepository_FindLatestByStudent(t *testing.T) {
 	})
 
 	t.Run("latest record same day with multiple check-ins", func(t *testing.T) {
+		now := time.Now()
 		date := timezone.Today()
 
 		// Create multiple attendance records on same day with different check-in times
@@ -589,6 +594,7 @@ func TestAttendanceRepository_FindLatestByStudent(t *testing.T) {
 	})
 
 	t.Run("different students do not interfere", func(t *testing.T) {
+		now := time.Now()
 		date := timezone.Today()
 
 		// Create attendance for student1 (earlier)
@@ -868,7 +874,6 @@ func TestAttendanceRepository_GetStudentCurrentStatus(t *testing.T) {
 		tzStudent := testpkg.CreateTestStudent(t, db, "Timezone", "StatusTest", "2h")
 		defer testpkg.CleanupActivityFixtures(t, db, tzStudent.ID)
 
-		now := time.Now()
 		today := timezone.Today()
 
 		// Create attendance record for today but late in the day
@@ -1094,6 +1099,7 @@ func TestAttendanceRepository_FindForDate(t *testing.T) {
 	}()
 
 	t.Run("finds all attendance for specific date", func(t *testing.T) {
+		now := time.Now()
 		date := timezone.Today()
 
 		// Create multiple attendance records for same date
