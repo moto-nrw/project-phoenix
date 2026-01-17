@@ -259,11 +259,11 @@ func (r *GroupSupervisorRepository) GetStaffIDsWithSupervisionToday(ctx context.
 		Column("staff_id").
 		Distinct().
 		Where(`(
-			DATE("group_supervisor"."start_date") = CURRENT_DATE
-			OR DATE("group_supervisor"."end_date") = CURRENT_DATE
+			"group_supervisor"."start_date" = CURRENT_DATE
+			OR "group_supervisor"."end_date" = CURRENT_DATE
 			OR (
-				DATE("group_supervisor"."start_date") < CURRENT_DATE
-				AND ("group_supervisor"."end_date" IS NULL OR DATE("group_supervisor"."end_date") > CURRENT_DATE)
+				"group_supervisor"."start_date" < CURRENT_DATE
+				AND ("group_supervisor"."end_date" IS NULL OR "group_supervisor"."end_date" > CURRENT_DATE)
 			)
 		)`).
 		Scan(ctx, &staffIDs)
