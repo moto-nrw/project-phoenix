@@ -191,8 +191,13 @@ func (r *GroupSupervisorRepository) List(ctx context.Context, options *modelBase
 		if options.Filter != nil {
 			// Handle special active_only filter (not a real column)
 			if activeOnly, ok := options.Filter.Get("active_only"); ok {
-				if isActive, isBool := activeOnly.(bool); isBool && isActive {
-					query = query.Where(`"group_supervisor".end_date IS NULL OR "group_supervisor".end_date >= CURRENT_DATE`)
+				if isActive, isBool := activeOnly.(bool); isBool {
+					if isActive {
+						query = query.Where(`"group_supervisor".end_date IS NULL OR "group_supervisor".end_date >= CURRENT_DATE`)
+					} else {
+						// active=false returns only inactive (ended) supervisors
+						query = query.Where(`"group_supervisor".end_date IS NOT NULL AND "group_supervisor".end_date < CURRENT_DATE`)
+					}
 				}
 				// Remove from filter so ApplyToQuery doesn't try to use it as a column
 				options.Filter.Remove("active_only")

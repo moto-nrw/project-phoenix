@@ -688,17 +688,15 @@ func (s *Service) validateGroupExists(ctx context.Context, txService ActivitySer
 
 // validateStaffExists checks if a staff member exists before creating supervisor
 func (s *Service) validateStaffExists(ctx context.Context, staffID int64) error {
-	var exists bool
-	err := s.db.NewSelect().
+	exists, err := s.db.NewSelect().
 		TableExpr("users.staff").
-		ColumnExpr("1").
 		Where("id = ?", staffID).
-		Scan(ctx, &exists)
+		Exists(ctx)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return &ActivityError{Op: "validate staff", Err: errors.New("staff not found")}
-		}
 		return &ActivityError{Op: "validate staff", Err: err}
+	}
+	if !exists {
+		return &ActivityError{Op: "validate staff", Err: errors.New("staff not found")}
 	}
 	return nil
 }

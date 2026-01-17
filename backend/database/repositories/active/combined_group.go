@@ -182,8 +182,13 @@ func (r *CombinedGroupRepository) List(ctx context.Context, options *modelBase.Q
 		if options.Filter != nil {
 			// Handle special active_only filter (not a real column)
 			if activeOnly, ok := options.Filter.Get("active_only"); ok {
-				if isActive, isBool := activeOnly.(bool); isBool && isActive {
-					query = query.Where(`"combined_group".end_time IS NULL`)
+				if isActive, isBool := activeOnly.(bool); isBool {
+					if isActive {
+						query = query.Where(`"combined_group".end_time IS NULL`)
+					} else {
+						// active=false returns only inactive (ended) combined groups
+						query = query.Where(`"combined_group".end_time IS NOT NULL`)
+					}
 				}
 				// Remove from filter so ApplyToQuery doesn't try to use it as a column
 				options.Filter.Remove("active_only")
