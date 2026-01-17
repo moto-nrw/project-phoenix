@@ -189,10 +189,11 @@ func (r *CombinedGroupRepository) applyActiveOnlyFilter(query *bun.SelectQuery, 
 	}
 
 	if isActive {
-		return query.Where(`"combined_group".end_time IS NULL`)
+		// Match FindByTimeRange semantics: active means not yet ended (includes future end_time)
+		return query.Where(`"combined_group".end_time IS NULL OR "combined_group".end_time > NOW()`)
 	}
 	// active=false returns only inactive (ended) combined groups
-	return query.Where(`"combined_group".end_time IS NOT NULL`)
+	return query.Where(`"combined_group".end_time IS NOT NULL AND "combined_group".end_time <= NOW()`)
 }
 
 // List overrides the base List method to accept the new QueryOptions type
