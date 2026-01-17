@@ -42,85 +42,74 @@ func WideEventMiddleware(next http.Handler) http.Handler {
 		defer func() {
 			event.StatusCode = wrapped.statusCode
 			event.DurationMS = time.Since(start).Milliseconds()
-
-			fields := logrus.Fields{
-				"timestamp":   event.Timestamp.Format(time.RFC3339Nano),
-				"method":      event.Method,
-				"path":        event.Path,
-				"status_code": event.StatusCode,
-				"duration_ms": event.DurationMS,
-			}
-			if event.RequestID != "" {
-				fields["request_id"] = event.RequestID
-			}
-			if event.Service != "" {
-				fields["service"] = event.Service
-			}
-			if event.Version != "" {
-				fields["version"] = event.Version
-			}
-			if event.Environment != "" {
-				fields["environment"] = event.Environment
-			}
-			if event.UserID != "" {
-				fields["user_id"] = event.UserID
-			}
-			if event.UserRole != "" {
-				fields["user_role"] = event.UserRole
-			}
-			if event.AccountID != "" {
-				fields["account_id"] = event.AccountID
-			}
-			if event.StudentID != "" {
-				fields["student_id"] = event.StudentID
-			}
-			if event.GroupID != "" {
-				fields["group_id"] = event.GroupID
-			}
-			if event.ActivityID != "" {
-				fields["activity_id"] = event.ActivityID
-			}
-			if event.RoomID != "" {
-				fields["room_id"] = event.RoomID
-			}
-			if event.Action != "" {
-				fields["action"] = event.Action
-			}
-			if event.ResourceID != "" {
-				fields["resource_id"] = event.ResourceID
-			}
-			if event.ErrorType != "" {
-				fields["error_type"] = event.ErrorType
-				if event.ErrorCode != "" {
-					fields["error_code"] = event.ErrorCode
-				}
-				if event.ErrorMessage != "" {
-					fields["error_message"] = event.ErrorMessage
-				}
-			}
-			if event.WarningType != "" {
-				fields["warning_type"] = event.WarningType
-				if event.WarningCode != "" {
-					fields["warning_code"] = event.WarningCode
-				}
-				if event.WarningMessage != "" {
-					fields["warning_message"] = event.WarningMessage
-				}
-			}
-
-			entry := logger.Logger.WithFields(fields)
-			switch {
-			case event.StatusCode >= http.StatusInternalServerError:
-				entry.Error("request_completed")
-			case event.StatusCode >= http.StatusBadRequest:
-				entry.Warn("request_completed")
-			default:
-				entry.Info("request_completed")
-			}
+			fields := buildWideEventFields(event)
+			emitWideEventLog(fields, event.StatusCode)
 		}()
 
 		next.ServeHTTP(wrapped, r.WithContext(ctx))
 	})
+}
+
+// buildWideEventFields creates logrus.Fields from WideEvent, only including non-empty values.
+// This reduces cyclomatic complexity by centralizing field mapping logic.
+func buildWideEventFields(event *WideEvent) logrus.Fields {
+	fields := logrus.Fields{
+		"timestamp":   event.Timestamp.Format(time.RFC3339Nano),
+		"method":      event.Method,
+		"path":        event.Path,
+		"status_code": event.StatusCode,
+		"duration_ms": event.DurationMS,
+	}
+
+	// Helper to add optional string fields
+	addOptional := func(key string, value string) {
+		if value != "" {
+			fields[key] = value
+		}
+	}
+
+	addOptional("request_id", event.RequestID)
+	addOptional("service", event.Service)
+	addOptional("version", event.Version)
+	addOptional("environment", event.Environment)
+	addOptional("user_id", event.UserID)
+	addOptional("user_role", event.UserRole)
+	addOptional("account_id", event.AccountID)
+	addOptional("student_id", event.StudentID)
+	addOptional("group_id", event.GroupID)
+	addOptional("activity_id", event.ActivityID)
+	addOptional("room_id", event.RoomID)
+	addOptional("action", event.Action)
+	addOptional("resource_id", event.ResourceID)
+
+	// Add error fields if present
+	if event.ErrorType != "" {
+		fields["error_type"] = event.ErrorType
+		addOptional("error_code", event.ErrorCode)
+		addOptional("error_message", event.ErrorMessage)
+	}
+
+	// Add warning fields if present
+	if event.WarningType != "" {
+		fields["warning_type"] = event.WarningType
+		addOptional("warning_code", event.WarningCode)
+		addOptional("warning_message", event.WarningMessage)
+	}
+
+	return fields
+}
+
+// emitWideEventLog logs the wide event with appropriate level based on status code.
+func emitWideEventLog(fields logrus.Fields, statusCode int) {
+	entry := logger.Logger.WithFields(fields)
+	switch {
+	case statusCode >= http.StatusInternalServerError:
+		entry.Error("request_completed")
+	case statusCode >= http.StatusBadRequest:
+		entry.Warn("request_completed")
+	default:
+		entry.Info("request_completed")
+	}
 }
 
 type statusRecorder struct {
