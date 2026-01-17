@@ -976,3 +976,13 @@
 
 ---
 
+## Iteration 2026-01-17_16:03:51
+
+**Changed:** record avatar actions and close errors in wide events; remove per-request logrus warnings
+
+**Files:** internal/adapter/handler/http/usercontext/api.go
+
+**Commit:** 01fd5619
+
+---
+
