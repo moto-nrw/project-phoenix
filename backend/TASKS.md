@@ -868,3 +868,13 @@
 
 ---
 
+## Iteration 2026-01-17_13:39:27
+
+**Changed:** normalized viper storage config keys to lower-case
+
+**Files:** internal/adapter/handler/http/base.go
+
+**Commit:** 72d3a51068880a314db9db597ecc05a71533407c
+
+---
+
