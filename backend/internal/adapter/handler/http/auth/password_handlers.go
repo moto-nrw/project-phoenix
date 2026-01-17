@@ -10,7 +10,6 @@ import (
 	"github.com/go-chi/render"
 
 	"github.com/moto-nrw/project-phoenix/internal/adapter/handler/http/common"
-	"github.com/moto-nrw/project-phoenix/internal/adapter/logger"
 	authService "github.com/moto-nrw/project-phoenix/internal/core/service/auth"
 )
 
@@ -43,8 +42,6 @@ func (rs *Resource) initiatePasswordReset(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	logger.Logger.WithField("email", req.Email).Info("Password reset initiated")
-
 	common.Respond(w, r, http.StatusOK, nil, "If the email exists, a password reset link has been sent")
 }
 
@@ -57,8 +54,6 @@ func (rs *Resource) resetPassword(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := rs.AuthService.ResetPassword(r.Context(), req.Token, req.NewPassword); err != nil {
-		logger.Logger.WithError(err).Warn("Password reset failed")
-
 		var authErr *authService.AuthError
 		if errors.As(err, &authErr) {
 			switch {
@@ -76,8 +71,6 @@ func (rs *Resource) resetPassword(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}
-
-	logger.Logger.Info("Password reset completed successfully")
 
 	common.Respond(w, r, http.StatusOK, nil, "Password reset successfully")
 }
