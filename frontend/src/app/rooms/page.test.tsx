@@ -10,8 +10,16 @@ vi.mock("next/navigation", () => ({
   useRouter: vi.fn(),
 }));
 
+vi.mock("swr", () => ({
+  default: vi.fn(),
+  mutate: vi.fn(),
+}));
+
 vi.mock("~/lib/swr", () => ({
   useSWRAuth: vi.fn(),
+  useImmutableSWR: vi.fn(),
+  useSWRWithId: vi.fn(),
+  mutate: vi.fn(),
 }));
 
 vi.mock("~/components/dashboard", () => ({
@@ -66,12 +74,15 @@ const mockRooms = [
     building: "Main",
     isOccupied: true,
     groupName: "Gruppe A",
+    studentCount: 8,
+    supervisorName: "Petra Huber",
   },
   {
     id: "2",
     name: "Musikraum",
     building: "Annex",
     isOccupied: false,
+    capacity: 25,
   },
 ];
 
@@ -218,6 +229,69 @@ describe("RoomsPage", () => {
     expect(screen.getByText("Belegt")).toBeInTheDocument();
     expect(screen.getByText(/Aktuelle Aktivität:/)).toBeInTheDocument();
     expect(screen.getByText("Gruppe A")).toBeInTheDocument();
+  });
+
+  it("displays student count and supervisor on occupied room", () => {
+    vi.mocked(useSWRAuth).mockReturnValue({
+      data: mockRooms,
+      isLoading: false,
+      error: null,
+    } as never);
+
+    render(<RoomsPage />);
+
+    expect(screen.getByText("8 Kinder")).toBeInTheDocument();
+    expect(screen.getByText("Petra Huber")).toBeInTheDocument();
+  });
+
+  it("displays placeholder text and capacity for free room", () => {
+    vi.mocked(useSWRAuth).mockReturnValue({
+      data: mockRooms,
+      isLoading: false,
+      error: null,
+    } as never);
+
+    render(<RoomsPage />);
+
+    expect(screen.getByText("Für Aktivitäten buchbar")).toBeInTheDocument();
+    expect(screen.getByText("Kapazität: 25 Plätze")).toBeInTheDocument();
+  });
+
+  it("displays click hint on all room cards", () => {
+    vi.mocked(useSWRAuth).mockReturnValue({
+      data: mockRooms,
+      isLoading: false,
+      error: null,
+    } as never);
+
+    render(<RoomsPage />);
+
+    const hints = screen.getAllByText("Tippen für mehr Infos");
+    expect(hints).toHaveLength(2);
+  });
+
+  it("displays singular 'Kind' when only one student", () => {
+    const roomsWithOneStudent = [
+      {
+        id: "1",
+        name: "Raum 101",
+        building: "Main",
+        isOccupied: true,
+        groupName: "Gruppe A",
+        studentCount: 1,
+        supervisorName: "Petra Huber",
+      },
+    ];
+
+    vi.mocked(useSWRAuth).mockReturnValue({
+      data: roomsWithOneStudent,
+      isLoading: false,
+      error: null,
+    } as never);
+
+    render(<RoomsPage />);
+
+    expect(screen.getByText("1 Kind")).toBeInTheDocument();
   });
 
   it("displays free room status", () => {

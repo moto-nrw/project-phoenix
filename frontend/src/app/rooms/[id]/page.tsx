@@ -77,7 +77,8 @@ interface BackendRoom {
   is_occupied: boolean;
   group_name?: string;
   activity_name?: string;
-  supervisor_name?: string;
+  supervisor_name?: string; // Legacy singular field
+  supervisor_names?: string; // New: comma-separated list of supervisors
   device_id?: string;
   student_count?: number;
   color?: string | null; // Optional (nullable in DB)
@@ -119,7 +120,7 @@ function mapBackendToFrontendRoom(backendRoom: BackendRoom): Room {
     isOccupied: backendRoom.is_occupied,
     groupName: backendRoom.group_name,
     activityName: backendRoom.activity_name,
-    supervisorName: backendRoom.supervisor_name,
+    supervisorName: backendRoom.supervisor_names ?? backendRoom.supervisor_name,
     deviceId: backendRoom.device_id,
     studentCount: backendRoom.student_count,
     color:
@@ -446,7 +447,7 @@ export default function RoomDetailPage() {
 
             {/* Current Occupation - integrated into room info */}
             {room.isOccupied && room.groupName && (
-              <div className="pt-3">
+              <>
                 <InfoItem
                   label="Aktuelle Aktivität"
                   value={
@@ -470,7 +471,54 @@ export default function RoomDetailPage() {
                     </div>
                   }
                 />
-              </div>
+                {room.studentCount !== undefined && room.studentCount > 0 && (
+                  <InfoItem
+                    label="Aktuell anwesend"
+                    value={
+                      <span className="inline-flex items-center gap-1.5">
+                        <svg
+                          className="h-4 w-4"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+                          />
+                        </svg>
+                        {room.studentCount}{" "}
+                        {room.studentCount === 1 ? "Kind" : "Kinder"}
+                      </span>
+                    }
+                  />
+                )}
+                {room.supervisorName && (
+                  <InfoItem
+                    label="Aktuelle Aufsicht"
+                    value={
+                      <span className="inline-flex items-center gap-1.5">
+                        <svg
+                          className="h-4 w-4"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2"
+                          />
+                        </svg>
+                        {room.supervisorName}
+                      </span>
+                    }
+                  />
+                )}
+              </>
             )}
           </InfoCard>
 

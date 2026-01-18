@@ -43,6 +43,7 @@ interface BackendRoomResponse {
     activity_name?: string;
     group_name?: string;
     supervisor_name?: string;
+    supervisor_names?: string; // Backend uses plural
     student_count?: number;
     created_at: string;
     updated_at: string;
@@ -59,6 +60,7 @@ interface BackendRoomResponse {
   activity_name?: string;
   group_name?: string;
   supervisor_name?: string;
+  supervisor_names?: string; // Backend uses plural
   student_count?: number;
   created_at?: string;
   updated_at?: string;
@@ -108,7 +110,8 @@ export const GET = createGetHandler(
             is_occupied: roomData.is_occupied ?? false,
             activity_name: roomData.activity_name,
             group_name: roomData.group_name,
-            supervisor_name: roomData.supervisor_name,
+            supervisor_names:
+              roomData.supervisor_names ?? roomData.supervisor_name,
             student_count: roomData.student_count,
             created_at: roomData.created_at,
             updated_at: roomData.updated_at,
@@ -127,7 +130,8 @@ export const GET = createGetHandler(
             is_occupied: response.is_occupied ?? false,
             activity_name: response.activity_name,
             group_name: response.group_name,
-            supervisor_name: response.supervisor_name,
+            supervisor_names:
+              response.supervisor_names ?? response.supervisor_name,
             student_count: response.student_count,
             created_at: response.created_at,
             updated_at: response.updated_at,
