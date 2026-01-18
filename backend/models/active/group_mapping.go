@@ -10,8 +10,8 @@ import (
 
 // Table name constants for BUN ORM schema qualification
 const (
-	tableActiveGroupMappings       = "active.group_mappings"
-	tableExprGroupMappingsAsGM     = `active.group_mappings AS "group_mapping"`
+	tableActiveGroupMappings   = "active.group_mappings"
+	tableExprGroupMappingsAsGM = `active.group_mappings AS "group_mapping"`
 )
 
 // GroupMapping represents a mapping between a combined group and an active group

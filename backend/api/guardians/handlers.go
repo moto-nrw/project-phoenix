@@ -964,13 +964,17 @@ func (rs *Resource) ListGuardiansWithoutAccountHandler() http.HandlerFunc {
 }
 
 // ListInvitableGuardiansHandler returns the list invitable guardians handler
-func (rs *Resource) ListInvitableGuardiansHandler() http.HandlerFunc { return rs.listInvitableGuardians }
+func (rs *Resource) ListInvitableGuardiansHandler() http.HandlerFunc {
+	return rs.listInvitableGuardians
+}
 
 // SendInvitationHandler returns the send invitation handler
 func (rs *Resource) SendInvitationHandler() http.HandlerFunc { return rs.sendInvitation }
 
 // ListPendingInvitationsHandler returns the list pending invitations handler
-func (rs *Resource) ListPendingInvitationsHandler() http.HandlerFunc { return rs.listPendingInvitations }
+func (rs *Resource) ListPendingInvitationsHandler() http.HandlerFunc {
+	return rs.listPendingInvitations
+}
 
 // GetStudentGuardiansHandler returns the get student guardians handler
 func (rs *Resource) GetStudentGuardiansHandler() http.HandlerFunc { return rs.getStudentGuardians }

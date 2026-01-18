@@ -154,30 +154,30 @@ func (rs *Resource) Router() chi.Router {
 
 // StudentResponse represents a student response
 type StudentResponse struct {
-	ID                int64                  `json:"id"`
-	PersonID          int64                  `json:"person_id"`
-	FirstName         string                 `json:"first_name"`
-	LastName          string                 `json:"last_name"`
-	TagID             string                 `json:"tag_id,omitempty"`
-	Birthday          string                 `json:"birthday,omitempty"` // Date in YYYY-MM-DD format
-	SchoolClass       string                 `json:"school_class"`
-	Location          string                 `json:"current_location"`
-	LocationSince     *time.Time             `json:"location_since,omitempty"` // When student entered current location
-	GuardianName      string                 `json:"guardian_name,omitempty"`
-	GuardianContact   string                 `json:"guardian_contact,omitempty"`
-	GuardianEmail     string                 `json:"guardian_email,omitempty"`
-	GuardianPhone     string                 `json:"guardian_phone,omitempty"`
-	GroupID   int64  `json:"group_id,omitempty"`
-	GroupName string `json:"group_name,omitempty"`
-	ExtraInfo string `json:"extra_info,omitempty"`
-	HealthInfo        string                 `json:"health_info,omitempty"`
-	SupervisorNotes   string                 `json:"supervisor_notes,omitempty"`
-	PickupStatus      string                 `json:"pickup_status,omitempty"`
-	Bus               bool                   `json:"bus"`
-	Sick              bool                   `json:"sick"`
-	SickSince         *time.Time             `json:"sick_since,omitempty"`
-	CreatedAt         time.Time              `json:"created_at"`
-	UpdatedAt         time.Time              `json:"updated_at"`
+	ID              int64      `json:"id"`
+	PersonID        int64      `json:"person_id"`
+	FirstName       string     `json:"first_name"`
+	LastName        string     `json:"last_name"`
+	TagID           string     `json:"tag_id,omitempty"`
+	Birthday        string     `json:"birthday,omitempty"` // Date in YYYY-MM-DD format
+	SchoolClass     string     `json:"school_class"`
+	Location        string     `json:"current_location"`
+	LocationSince   *time.Time `json:"location_since,omitempty"` // When student entered current location
+	GuardianName    string     `json:"guardian_name,omitempty"`
+	GuardianContact string     `json:"guardian_contact,omitempty"`
+	GuardianEmail   string     `json:"guardian_email,omitempty"`
+	GuardianPhone   string     `json:"guardian_phone,omitempty"`
+	GroupID         int64      `json:"group_id,omitempty"`
+	GroupName       string     `json:"group_name,omitempty"`
+	ExtraInfo       string     `json:"extra_info,omitempty"`
+	HealthInfo      string     `json:"health_info,omitempty"`
+	SupervisorNotes string     `json:"supervisor_notes,omitempty"`
+	PickupStatus    string     `json:"pickup_status,omitempty"`
+	Bus             bool       `json:"bus"`
+	Sick            bool       `json:"sick"`
+	SickSince       *time.Time `json:"sick_since,omitempty"`
+	CreatedAt       time.Time  `json:"created_at"`
+	UpdatedAt       time.Time  `json:"updated_at"`
 }
 
 // SupervisorContact represents contact information for a group supervisor
@@ -1769,10 +1769,14 @@ func (rs *Resource) GetStudentCurrentLocationHandler() http.HandlerFunc {
 func (rs *Resource) GetStudentInGroupRoomHandler() http.HandlerFunc { return rs.getStudentInGroupRoom }
 
 // GetStudentCurrentVisitHandler returns the handler for getting a student's current visit.
-func (rs *Resource) GetStudentCurrentVisitHandler() http.HandlerFunc { return rs.getStudentCurrentVisit }
+func (rs *Resource) GetStudentCurrentVisitHandler() http.HandlerFunc {
+	return rs.getStudentCurrentVisit
+}
 
 // GetStudentVisitHistoryHandler returns the handler for getting a student's visit history.
-func (rs *Resource) GetStudentVisitHistoryHandler() http.HandlerFunc { return rs.getStudentVisitHistory }
+func (rs *Resource) GetStudentVisitHistoryHandler() http.HandlerFunc {
+	return rs.getStudentVisitHistory
+}
 
 // GetStudentPrivacyConsentHandler returns the handler for getting a student's privacy consent.
 func (rs *Resource) GetStudentPrivacyConsentHandler() http.HandlerFunc {

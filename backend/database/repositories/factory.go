@@ -78,12 +78,12 @@ type Factory struct {
 	StudentEnrollment  activitiesModels.StudentEnrollmentRepository
 
 	// Active domain
-	ActiveGroup       activeModels.GroupRepository
-	ActiveVisit       activeModels.VisitRepository
-	GroupSupervisor   activeModels.GroupSupervisorRepository
-	CombinedGroup     activeModels.CombinedGroupRepository
-	GroupMapping      activeModels.GroupMappingRepository
-	Attendance activeModels.AttendanceRepository
+	ActiveGroup     activeModels.GroupRepository
+	ActiveVisit     activeModels.VisitRepository
+	GroupSupervisor activeModels.GroupSupervisorRepository
+	CombinedGroup   activeModels.CombinedGroupRepository
+	GroupMapping    activeModels.GroupMappingRepository
+	Attendance      activeModels.AttendanceRepository
 
 	// Feedback domain
 	FeedbackEntry feedbackModels.EntryRepository
@@ -151,12 +151,12 @@ func NewFactory(db *bun.DB) *Factory {
 		StudentEnrollment:  activities.NewStudentEnrollmentRepository(db),
 
 		// Active repositories
-		ActiveGroup:       active.NewGroupRepository(db),
-		ActiveVisit:       active.NewVisitRepository(db),
-		GroupSupervisor:   active.NewGroupSupervisorRepository(db),
-		CombinedGroup:     active.NewCombinedGroupRepository(db),
-		GroupMapping:      active.NewGroupMappingRepository(db),
-		Attendance: active.NewAttendanceRepository(db),
+		ActiveGroup:     active.NewGroupRepository(db),
+		ActiveVisit:     active.NewVisitRepository(db),
+		GroupSupervisor: active.NewGroupSupervisorRepository(db),
+		CombinedGroup:   active.NewCombinedGroupRepository(db),
+		GroupMapping:    active.NewGroupMappingRepository(db),
+		Attendance:      active.NewAttendanceRepository(db),
 
 		// Feedback repositories
 		FeedbackEntry: feedback.NewEntryRepository(db),

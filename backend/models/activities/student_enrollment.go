@@ -19,7 +19,7 @@ const (
 
 // Table name constants for BUN ORM schema qualification
 const (
-	tableActivitiesStudentEnrollments     = "activities.student_enrollments"
+	tableActivitiesStudentEnrollments       = "activities.student_enrollments"
 	tableExprStudentEnrollmentsAsEnrollment = `activities.student_enrollments AS "student_enrollment"`
 )
 

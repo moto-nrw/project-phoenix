@@ -11,10 +11,10 @@ import (
 )
 
 const (
-	permissionTable            = "auth.permissions"
-	permissionTableAlias       = `auth.permissions AS "permission"`
-	rolePermissionsTable       = "auth.role_permissions"
-	whereAccountAndPermission  = "account_id = ? AND permission_id = ?"
+	permissionTable           = "auth.permissions"
+	permissionTableAlias      = `auth.permissions AS "permission"`
+	rolePermissionsTable      = "auth.role_permissions"
+	whereAccountAndPermission = "account_id = ? AND permission_id = ?"
 )
 
 // PermissionRepository implements auth.PermissionRepository interface

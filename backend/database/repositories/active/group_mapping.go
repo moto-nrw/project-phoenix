@@ -15,9 +15,9 @@ import (
 
 // Table name constants for BUN ORM schema qualification
 const (
-	tableActiveGroupMappings     = "active.group_mappings"
-	tableExprGroupMappingsAsGM   = `active.group_mappings AS "group_mapping"`
-	whereIDEquals                = "id = ?"
+	tableActiveGroupMappings   = "active.group_mappings"
+	tableExprGroupMappingsAsGM = `active.group_mappings AS "group_mapping"`
+	whereIDEquals              = "id = ?"
 )
 
 // GroupMappingRepository implements active.GroupMappingRepository interface

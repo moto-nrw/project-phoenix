@@ -737,10 +737,14 @@ func (rs *Resource) InitializeDefaultsHandler() http.HandlerFunc { return rs.ini
 func (rs *Resource) GetRetentionSettingsHandler() http.HandlerFunc { return rs.getRetentionSettings }
 
 // UpdateRetentionSettingsHandler returns the updateRetentionSettings handler for testing.
-func (rs *Resource) UpdateRetentionSettingsHandler() http.HandlerFunc { return rs.updateRetentionSettings }
+func (rs *Resource) UpdateRetentionSettingsHandler() http.HandlerFunc {
+	return rs.updateRetentionSettings
+}
 
 // TriggerRetentionCleanupHandler returns the triggerRetentionCleanup handler for testing.
-func (rs *Resource) TriggerRetentionCleanupHandler() http.HandlerFunc { return rs.triggerRetentionCleanup }
+func (rs *Resource) TriggerRetentionCleanupHandler() http.HandlerFunc {
+	return rs.triggerRetentionCleanup
+}
 
 // GetRetentionStatsHandler returns the getRetentionStats handler for testing.
 func (rs *Resource) GetRetentionStatsHandler() http.HandlerFunc { return rs.getRetentionStats }
