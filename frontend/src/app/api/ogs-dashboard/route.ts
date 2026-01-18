@@ -79,23 +79,15 @@ interface OGSDashboardResponse {
  */
 export const GET = createGetHandler<OGSDashboardResponse>(
   async (_request: NextRequest, token: string) => {
-    const startTime = Date.now();
-    console.log("⏱️ [BFF] Starting OGS dashboard data fetch...");
-
     // Step 1: Fetch user's educational groups first (we need the first group ID)
-    const groupsStart = Date.now();
     const groupsResponse = await apiGet<{ data: BackendEducationalGroup[] }>(
       "/api/me/groups",
       token,
     );
     const groups = groupsResponse.data ?? [];
-    console.log(
-      `⏱️ [BFF] Groups fetch: ${Date.now() - groupsStart}ms (${groups.length} groups)`,
-    );
 
     // If no groups, return early with empty data
     if (groups.length === 0) {
-      console.log(`⏱️ [BFF] No groups found, returning early`);
       return {
         groups: [],
         students: [],
@@ -119,41 +111,26 @@ export const GET = createGetHandler<OGSDashboardResponse>(
     const firstGroupId = firstGroup.id.toString();
 
     // Step 2: Fetch students, room status, and substitutions in parallel
-    const parallelStart = Date.now();
     const [studentsResult, roomStatusResult, substitutionsResult] =
       await Promise.all([
         // Fetch students for first group
         apiGet<{ data: BackendStudent[] }>(
           `/api/students?group_id=${firstGroupId}`,
           token,
-        ).catch((err) => {
-          console.error("[BFF] Students fetch error:", err);
-          return { data: [] as BackendStudent[] };
-        }),
+        ).catch(() => ({ data: [] as BackendStudent[] })),
 
         // Fetch room status for first group
         apiGet<{ data: BackendRoomStatus }>(
           `/api/groups/${firstGroupId}/students/room-status`,
           token,
-        ).catch((err) => {
-          console.error("[BFF] Room status fetch error:", err);
-          return { data: null as BackendRoomStatus | null };
-        }),
+        ).catch(() => ({ data: null as BackendRoomStatus | null })),
 
         // Fetch substitutions for first group
         apiGet<{ data: BackendSubstitution[] }>(
           `/api/groups/${firstGroupId}/substitutions`,
           token,
-        ).catch((err) => {
-          console.error("[BFF] Substitutions fetch error:", err);
-          return { data: [] as BackendSubstitution[] };
-        }),
+        ).catch(() => ({ data: [] as BackendSubstitution[] })),
       ]);
-
-    console.log(
-      `⏱️ [BFF] Parallel fetches: ${Date.now() - parallelStart}ms (students, roomStatus, substitutions)`,
-    );
-    console.log(`⏱️ [BFF] ✅ Total: ${Date.now() - startTime}ms`);
 
     return {
       groups,

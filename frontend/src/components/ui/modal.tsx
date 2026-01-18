@@ -227,6 +227,7 @@ interface ConfirmationModalProps {
   readonly confirmText?: string;
   readonly cancelText?: string;
   readonly isConfirmLoading?: boolean;
+  readonly isConfirmDisabled?: boolean;
   readonly confirmButtonClass?: string;
 }
 
@@ -239,6 +240,7 @@ export function ConfirmationModal({
   confirmText = "Bestätigen",
   cancelText = "Abbrechen",
   isConfirmLoading = false,
+  isConfirmDisabled = false,
   confirmButtonClass = "bg-blue-500 hover:bg-blue-600",
 }: ConfirmationModalProps) {
   const modalFooter = (
@@ -254,7 +256,7 @@ export function ConfirmationModal({
       <button
         type="button"
         onClick={onConfirm}
-        disabled={isConfirmLoading}
+        disabled={isConfirmLoading || isConfirmDisabled}
         className={`flex-1 rounded-lg px-4 py-2 ${confirmButtonClass} text-sm font-medium text-white transition-all duration-200 hover:scale-105 hover:shadow-lg active:scale-100 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100`}
       >
         {isConfirmLoading ? (

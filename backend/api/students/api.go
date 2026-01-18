@@ -16,6 +16,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/education"
@@ -1725,7 +1726,7 @@ func (rs *Resource) getStudentVisitHistory(w http.ResponseWriter, r *http.Reques
 	}
 
 	// Filter to today's visits only
-	today := time.Now().Truncate(24 * time.Hour)
+	today := timezone.Today()
 	tomorrow := today.Add(24 * time.Hour)
 
 	var todaysVisits []*active.Visit

@@ -3,6 +3,8 @@ package users
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
@@ -26,6 +28,7 @@ func NewTeacherRepository(db *bun.DB) users.TeacherRepository {
 }
 
 // FindByStaffID retrieves a teacher by their staff ID
+// Returns (nil, nil) if no teacher record exists for the given staff ID
 func (r *TeacherRepository) FindByStaffID(ctx context.Context, staffID int64) (*users.Teacher, error) {
 	teacher := new(users.Teacher)
 	err := r.db.NewSelect().
@@ -35,6 +38,9 @@ func (r *TeacherRepository) FindByStaffID(ctx context.Context, staffID int64) (*
 		Scan(ctx)
 
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil // Staff exists but is not a teacher
+		}
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by staff ID",
 			Err: err,

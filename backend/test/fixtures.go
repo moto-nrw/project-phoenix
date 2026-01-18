@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"golang.org/x/crypto/argon2"
 
 	"github.com/moto-nrw/project-phoenix/models/active"
@@ -200,6 +202,30 @@ func CreateTestStaff(tb testing.TB, db *bun.DB, firstName, lastName string) *use
 		Scan(ctx)
 	require.NoError(tb, err, "Failed to create test staff")
 
+	// Store person reference for convenience
+	staff.Person = person
+
+	return staff
+}
+
+// CreateTestStaffForPerson creates a staff record for an existing person
+// Use this when you need to control the person record separately
+func CreateTestStaffForPerson(tb testing.TB, db *bun.DB, personID int64) *users.Staff {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	staff := &users.Staff{
+		PersonID: personID,
+	}
+
+	err := db.NewInsert().
+		Model(staff).
+		ModelTableExpr(`users.staff`).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to create test staff for person")
+
 	return staff
 }
 
@@ -242,10 +268,9 @@ func CreateTestAttendance(tb testing.TB, db *bun.DB, studentID, staffID, deviceI
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// Use today's date in local time (school operates in local timezone)
-	// Repository queries use: time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
-	now := time.Now()
-	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	// Use timezone.Today() for consistent Europe/Berlin timezone handling.
+	// This matches the repository queries which also use timezone.Today().
+	today := timezone.Today()
 
 	attendance := &active.Attendance{
 		StudentID:    studentID,
@@ -1494,4 +1519,49 @@ func CreateTestPersonGuardian(tb testing.TB, db *bun.DB, personID, guardianAccou
 	require.NoError(tb, err, "Failed to create test person guardian relationship")
 
 	return pg
+}
+
+// ============================================================================
+// JWT Test Helpers
+// ============================================================================
+
+// TestTokenAuth is a shared TokenAuth instance for tests using a known secret.
+// This allows tests to generate valid JWT tokens without needing the app config.
+var testTokenAuthInstance *jwt.TokenAuth
+
+// testJWTSecret is a fixed secret for testing (never use in production)
+const testJWTSecret = "test-jwt-secret-32-chars-minimum"
+
+// GetTestTokenAuth returns a TokenAuth instance for testing.
+// Uses a singleton pattern to ensure all tests use the same secret.
+func GetTestTokenAuth(tb testing.TB) *jwt.TokenAuth {
+	tb.Helper()
+
+	if testTokenAuthInstance == nil {
+		var err error
+		testTokenAuthInstance, err = jwt.NewTokenAuthWithSecret(testJWTSecret)
+		require.NoError(tb, err, "Failed to create test TokenAuth")
+	}
+
+	return testTokenAuthInstance
+}
+
+// CreateTestJWT creates a valid JWT access token for the given account ID.
+// This token can be used in the Authorization header for authenticated API requests.
+func CreateTestJWT(tb testing.TB, accountID int64, permissions []string) string {
+	tb.Helper()
+
+	tokenAuth := GetTestTokenAuth(tb)
+
+	claims := jwt.AppClaims{
+		ID:          int(accountID),
+		Sub:         fmt.Sprintf("%d", accountID), // Required claim - subject identifier
+		Roles:       []string{"user"},
+		Permissions: permissions,
+	}
+
+	token, err := tokenAuth.CreateJWT(claims)
+	require.NoError(tb, err, "Failed to create test JWT")
+
+	return token
 }
