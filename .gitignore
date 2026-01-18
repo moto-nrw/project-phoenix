@@ -467,3 +467,7 @@ docs/openapi.yaml
 
 # OpenSpec local specification files
 openspec/
+
+# Devbox + direnv
+.devbox/
+.direnv/
