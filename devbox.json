@@ -37,7 +37,13 @@
     "glow@latest",
     "yq@latest",
     "xh@latest",
-    "pg_activity@latest"
+    "pg_activity@latest",
+    "go-swag@latest",
+    "govulncheck@latest",
+    "gomodifytags@latest",
+    "impl@latest",
+    "hey@latest",
+    "go-mockery@latest"
   ],
   "env": {
     "GOPATH":      "$PWD/.devbox/go",
