@@ -909,11 +909,18 @@ func (s *FixedSeeder) seedStaffAccounts(_ context.Context, result *FixedResult) 
 			return fmt.Errorf("person not found for staff account %s", personKey)
 		}
 
-		// Generate email and credentials
-		email := fmt.Sprintf("%s.%s@example.com",
-			normalizeForEmail(staff.FirstName),
-			normalizeForEmail(staff.LastName))
-		password := "Test1234%"
+		// Generate email and credentials for demo accounts
+		// Email: demo{n}@mail.de where n = account number (1-20)
+		// Password: hardcoded unique passwords so accounts survive cronjob resets
+		demoPasswords := []string{
+			"sdlXK26%", "mQp9Wy3$", "kJt4Nz8!", "hBv7Rx5@", "fGn2Lm6#",
+			"pYc8Dq1&", "wZa3Ks9*", "vTe5Hj4%", "xUi6Fo7$", "cRo1Pn2!",
+			"bWs4Mv8@", "nLk7Qx3#", "jHd9Zt5&", "gFa2Yc6*", "tEr8Ub1%",
+			"qDm3Wp4$", "yKn5Sj7!", "uBx6Gi9@", "iCv1Lh2#", "oAz4Rk8&",
+		}
+		accountNum := i + 1
+		email := fmt.Sprintf("demo%d@mail.de", accountNum)
+		password := demoPasswords[i]
 		pin := fmt.Sprintf("%04d", 1000+i)
 
 		// Assign role based on position:
@@ -933,7 +940,7 @@ func (s *FixedSeeder) seedStaffAccounts(_ context.Context, result *FixedResult) 
 		// Create account via /register with role_id
 		registerBody := map[string]any{
 			"email":            email,
-			"username":         fmt.Sprintf("%s.%s", normalizeForEmail(staff.FirstName), normalizeForEmail(staff.LastName)),
+			"username":         fmt.Sprintf("demo%d", accountNum),
 			"password":         password,
 			"confirm_password": password,
 			"role_id":          roleID,
@@ -981,29 +988,4 @@ func (s *FixedSeeder) seedStaffAccounts(_ context.Context, result *FixedResult) 
 		fmt.Printf("  ✓ %d staff accounts created and linked\n", result.AccountCount)
 	}
 	return nil
-}
-
-// normalizeForEmail converts a name to a valid email component
-func normalizeForEmail(name string) string {
-	// Convert to lowercase
-	result := []rune{}
-	for _, r := range name {
-		switch r {
-		case 'ä', 'Ä':
-			result = append(result, 'a', 'e')
-		case 'ö', 'Ö':
-			result = append(result, 'o', 'e')
-		case 'ü', 'Ü':
-			result = append(result, 'u', 'e')
-		case 'ß':
-			result = append(result, 's', 's')
-		default:
-			if r >= 'A' && r <= 'Z' {
-				result = append(result, r+32) // lowercase
-			} else if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
-				result = append(result, r)
-			}
-		}
-	}
-	return string(result)
 }
