@@ -1,0 +1,26 @@
+{
+  "$schema": "https://raw.githubusercontent.com/jetify-com/devbox/0.16.0/.schema/devbox.schema.json",
+  "packages": [
+    "go@1.25.5",
+    "nodejs_20@latest",
+    "golangci-lint@latest",
+    "goimports@latest",
+    "bruno-cli@latest",
+    "openssl@latest",
+    "jq@latest",
+    "ripgrep@latest",
+    "fd@latest",
+    "tree@latest",
+    "curl@latest",
+    "git@latest"
+  ],
+  "env": {
+    "GOPATH":      "$PWD/.devbox/go",
+    "CGO_ENABLED": "0"
+  },
+  "shell": {
+    "init_hook": [
+      "echo \"phoenix dev ready - go $(go version | cut -d' ' -f3 | sed 's/go//'), node $(node -v | sed 's/v//')\""
+    ]
+  }
+}

@@ -70,10 +70,45 @@ Project Phoenix is a comprehensive room and student management system designed f
 
 ### Prerequisites
 
-- Docker and Docker Compose (recommended)
-- Go 1.23+ (for backend development)
-- Node.js 20+ (for frontend development)
-- PostgreSQL 17+ (if running without Docker)
+- **Docker and Docker Compose** — For running PostgreSQL and optional containerized development
+- **Devbox** — Reproducible development environment (installs Go, Node.js, and all CLI tools)
+- **direnv** — Automatic environment activation when entering the project directory
+
+> **Why Devbox?** We use Devbox to ensure every developer has identical tool versions. No more "works on my machine" issues — everyone gets the same Go, Node.js, golangci-lint, etc.
+
+### Install Development Tools
+
+<details>
+<summary><strong>macOS</strong></summary>
+
+```bash
+# Install Devbox
+curl -fsSL https://get.jetify.com/devbox | bash
+
+# Install direnv
+brew install direnv
+
+# Add to ~/.zshrc (or ~/.bashrc)
+eval "$(direnv hook zsh)"
+```
+
+</details>
+
+<details>
+<summary><strong>Windows (WSL) / Linux</strong></summary>
+
+```bash
+# Install Devbox
+curl -fsSL https://get.jetify.com/devbox | bash
+
+# Install direnv (Ubuntu/Debian)
+sudo apt install direnv
+
+# Add to ~/.bashrc (or ~/.zshrc)
+eval "$(direnv hook bash)"
+```
+
+</details>
 
 ### One-Command Setup
 
@@ -82,12 +117,22 @@ Project Phoenix is a comprehensive room and student management system designed f
 git clone https://github.com/moto-nrw/project-phoenix.git
 cd project-phoenix
 
+# Allow direnv to activate the environment (one-time)
+direnv allow
+
 # Run the automated setup script
 ./scripts/setup-dev.sh
 
 # Start all services
 docker compose up -d
 ```
+
+When you `cd` into the project, direnv automatically activates Devbox and you'll see:
+```
+phoenix dev ready - go 1.25.5, node 20.20.0
+```
+
+All tools (Go, Node, npm, golangci-lint, bruno-cli, etc.) are now available.
 
 The application will be available at:
 - **Frontend:** http://localhost:3000

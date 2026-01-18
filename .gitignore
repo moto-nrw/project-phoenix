@@ -270,7 +270,7 @@ celerybeat.pid
 .env.test
 .env.staging
 
-# Project-specific environment files 
+# Project-specific environment files
 **/dev.env
 **/prod.env
 **/.env.local
@@ -467,3 +467,7 @@ docs/openapi.yaml
 
 # OpenSpec local specification files
 openspec/
+.worktrees
+
+# Devbox
+.devbox/
