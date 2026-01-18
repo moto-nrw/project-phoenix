@@ -524,17 +524,6 @@ func (s *service) validateStaffExists(ctx context.Context, staffID int64) error 
 	return nil
 }
 
-// validateCombinedGroupExists checks if a combined group exists, returning appropriate errors
-func (s *service) validateCombinedGroupExists(ctx context.Context, groupID int64) error {
-	if _, err := s.combinedGroupRepo.FindByID(ctx, groupID); err != nil {
-		if isNotFoundError(err) {
-			return ErrCombinedGroupNotFound
-		}
-		return err
-	}
-	return nil
-}
-
 // extractContextIDs extracts device and staff IDs from context
 func (s *service) extractContextIDs(ctx context.Context) (deviceID, staffID int64) {
 	if deviceCtx := device.DeviceFromCtx(ctx); deviceCtx != nil {
