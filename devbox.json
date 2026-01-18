@@ -24,7 +24,16 @@
     "tree@latest",
     "curl@latest",
     "git@latest",
-    "dyff@latest"
+    "dyff@latest",
+    "air@latest",
+    "delve@latest",
+    "gotestsum@latest",
+    "lazydocker@latest",
+    "lazygit@latest",
+    "gh@latest",
+    "act@latest",
+    "k6@latest",
+    "trivy@latest"
   ],
   "env": {
     "GOPATH":      "$PWD/.devbox/go",
