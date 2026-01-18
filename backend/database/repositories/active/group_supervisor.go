@@ -196,10 +196,10 @@ func (r *GroupSupervisorRepository) applyActiveOnlyFilter(query *bun.SelectQuery
 	}
 
 	if isActive {
-		return query.Where(`"group_supervisor".end_date IS NULL OR "group_supervisor".end_date >= CURRENT_DATE`)
+		return query.Where(`"group_supervisor".end_date IS NULL OR "group_supervisor".end_date > NOW()`)
 	}
 	// active=false returns only inactive (ended) supervisors
-	return query.Where(`"group_supervisor".end_date IS NOT NULL AND "group_supervisor".end_date < CURRENT_DATE`)
+	return query.Where(`"group_supervisor".end_date IS NOT NULL AND "group_supervisor".end_date <= NOW()`)
 }
 
 // List overrides the base List method to accept the new QueryOptions type
