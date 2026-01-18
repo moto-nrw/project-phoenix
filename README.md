@@ -113,19 +113,18 @@ eval "$(direnv hook bash)"
 <details>
 <summary><strong>Optional: Suppress direnv output</strong></summary>
 
-By default, direnv prints all exported environment variables when entering the project. To silence this output:
+By default, direnv prints all exported environment variables when entering the project. To silence this output, create a direnv config file:
 
-**Fish:**
-```fish
-# Add to ~/.config/fish/config.fish
-set -gx DIRENV_LOG_FORMAT ""
-```
-
-**Zsh/Bash:**
 ```bash
-# Add to ~/.zshrc or ~/.bashrc
-export DIRENV_LOG_FORMAT=""
+mkdir -p ~/.config/direnv
+cat > ~/.config/direnv/direnv.toml << 'EOF'
+[global]
+log_format = "-"
+log_filter = "^$"
+EOF
 ```
+
+> **Note:** The `DIRENV_LOG_FORMAT` environment variable no longer works in direnv 2.36.0+ due to a [known regression](https://github.com/direnv/direnv/issues/1418). The TOML config above is the correct solution.
 
 </details>
 
