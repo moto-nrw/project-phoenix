@@ -111,3 +111,6 @@ func (rs *Resource) ClaimGroupHandler() http.HandlerFunc          { return rs.cl
 
 // Checkout Handler
 func (rs *Resource) CheckoutStudentHandler() http.HandlerFunc { return rs.checkoutStudent }
+
+// Checkin Handler
+func (rs *Resource) CheckinStudentHandler() http.HandlerFunc { return rs.checkinStudent }
