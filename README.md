@@ -110,6 +110,25 @@ eval "$(direnv hook bash)"
 
 </details>
 
+<details>
+<summary><strong>Optional: Suppress direnv output</strong></summary>
+
+By default, direnv prints all exported environment variables when entering the project. To silence this output:
+
+**Fish:**
+```fish
+# Add to ~/.config/fish/config.fish
+set -gx DIRENV_LOG_FORMAT ""
+```
+
+**Zsh/Bash:**
+```bash
+# Add to ~/.zshrc or ~/.bashrc
+export DIRENV_LOG_FORMAT=""
+```
+
+</details>
+
 ### One-Command Setup
 
 ```bash
