@@ -473,7 +473,7 @@ export default function RoomDetailPage() {
                 />
                 {room.studentCount !== undefined && room.studentCount > 0 && (
                   <InfoItem
-                    label="Kinder"
+                    label="Aktuell anwesend"
                     value={
                       <span className="inline-flex items-center gap-1.5">
                         <svg
@@ -497,7 +497,7 @@ export default function RoomDetailPage() {
                 )}
                 {room.supervisorName && (
                   <InfoItem
-                    label="Betreuer"
+                    label="Aktuelle Aufsicht"
                     value={
                       <span className="inline-flex items-center gap-1.5">
                         <svg
