@@ -18,6 +18,9 @@ pre-commit:
 pre-push:
   parallel: true
   commands:
+    git-secrets:
+      run: git secrets --pre_commit_hook 2>/dev/null || true
+
     go-vet:
       glob: "backend/**/*.go"
       run: cd backend && go vet ./...
