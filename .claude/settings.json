@@ -1,6 +1,5 @@
 {
   "cleanupPeriodDays": 30,
-  "includeCoAuthoredBy": false,
   "env": {
     "MAX_MCP_OUTPUT_TOKENS": "50000",
     "MAX_THINKING_TOKENS": "10000",
@@ -8,6 +7,7 @@
     "BASH_DEFAULT_TIMEOUT_MS": "120000",
     "BASH_MAX_OUTPUT_LENGTH": "50000"
   },
+  "includeCoAuthoredBy": false,
   "permissions": {
     "allow": [
       "Bash(cd:*)",
@@ -151,13 +151,11 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/format-go.sh",
-            "description": "Auto-format Go files with gofmt and goimports"
+            "command": "bash .claude/hooks/format-go.sh"
           },
           {
             "type": "command",
-            "command": "bash .claude/hooks/format-typescript.sh",
-            "description": "Auto-format TypeScript/JavaScript with Prettier"
+            "command": "bash .claude/hooks/format-typescript.sh"
           }
         ]
       }
@@ -168,8 +166,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/check-commit-message.sh",
-            "description": "Validate conventional commit format"
+            "command": "bash .claude/hooks/check-commit-message.sh"
           }
         ]
       }
@@ -180,11 +177,14 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/check-env-files.sh",
-            "description": "Verify environment files exist"
+            "command": "bash .claude/hooks/check-env-files.sh"
           }
         ]
       }
     ]
-  }
+  },
+  "enabledPlugins": {
+    "playwright@claude-plugins-official": true
+  },
+  "alwaysThinkingEnabled": true
 }
