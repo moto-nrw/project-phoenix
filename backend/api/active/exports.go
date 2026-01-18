@@ -69,6 +69,9 @@ func (rs *Resource) EndCombinedGroupHandler() http.HandlerFunc    { return rs.en
 func (rs *Resource) GetActiveCombinedGroupsHandler() http.HandlerFunc {
 	return rs.getActiveCombinedGroups
 }
+func (rs *Resource) GetCombinedGroupGroupsHandler() http.HandlerFunc {
+	return rs.getCombinedGroupGroups
+}
 
 // Group by filters Handlers
 func (rs *Resource) GetActiveGroupsByRoomHandler() http.HandlerFunc {
