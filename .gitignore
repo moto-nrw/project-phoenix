@@ -474,3 +474,4 @@ openspec/
 .direnv/
 .playwright/**/*
 .playwright-mcp
+.husky/

@@ -19,8 +19,7 @@
     "test:ui": "vitest --ui",
     "test:run": "vitest run",
     "typecheck": "tsc --noEmit",
-    "knip": "knip",
-    "prepare": "husky"
+    "knip": "knip"
   },
   "dependencies": {
     "@fontsource/geist-sans": "^5.2.5",
@@ -51,8 +50,7 @@
     "eslint": "^9.39.2",
     "eslint-config-next": "^15.2.3",
     "happy-dom": "^20.1.0",
-    "husky": "^9.1.7",
-    "jsdom": "^27.4.0",
+        "jsdom": "^27.4.0",
     "knip": "^5.80.2",
     "lint-staged": "^16.2.7",
     "postcss": "^8.5.3",

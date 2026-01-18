@@ -1,0 +1,31 @@
+# Lefthook - Git hooks manager
+# https://github.com/evilmartians/lefthook
+
+# Pre-commit: Frontend linting (runs on staged files only)
+pre-commit:
+  commands:
+    # Git secrets check (if installed)
+    git-secrets:
+      run: git secrets --pre_commit_hook 2>/dev/null || true
+
+    # Frontend lint-staged (prettier + eslint with auto-fix)
+    frontend-lint:
+      glob: "frontend/**/*.{ts,tsx,js,jsx,mdx}"
+      run: cd frontend && npx lint-staged
+      stage_fixed: true
+
+# Pre-push: Backend quality checks (runs before pushing to remote)
+pre-push:
+  parallel: true
+  commands:
+    go-vet:
+      glob: "backend/**/*.go"
+      run: cd backend && go vet ./...
+
+    golangci-lint:
+      glob: "backend/**/*.go"
+      run: cd backend && golangci-lint run --timeout 5m
+
+    frontend-typecheck:
+      glob: "frontend/**/*.{ts,tsx}"
+      run: cd frontend && npm run typecheck

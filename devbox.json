@@ -18,6 +18,9 @@
     "btop@latest",
     "pgcli@latest",
     "dotenv-linter@latest",
+    "lefthook@latest",
+    "git-secrets@latest",
+    "ni@latest",
     "tree@latest",
     "curl@latest",
     "git@latest"
@@ -28,7 +31,9 @@
   },
   "shell": {
     "init_hook": [
-      "echo \"phoenix dev ready - go $(go version | cut -d' ' -f3 | sed 's/go//'), node $(node -v | sed 's/v//')\""
+      "lefthook install --force > /dev/null 2>&1 || true",
+      "[ ! -d frontend/node_modules ] && echo 'installing frontend deps...' && cd frontend && nci --silent || true",
+      "echo \"phoenix ready | go $(go version | cut -d' ' -f3 | sed 's/go//') node $(node -v | sed 's/v//') | ni nr nci pgcli bat eza fzf btop tldr\""
     ]
   }
 }
