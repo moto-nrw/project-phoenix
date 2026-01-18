@@ -325,8 +325,8 @@ function RoomsPageContent() {
                   {/* Modern border highlight */}
                   <div className="absolute inset-0 rounded-3xl ring-1 ring-white/20 transition-all duration-300 md:group-hover:ring-blue-200/60"></div>
 
-                  <div className="relative p-6">
-                    {/* Header with room name and status */}
+                  <div className="relative flex min-h-[180px] flex-col p-6">
+                    {/* Top section: Header with room name and status */}
                     <div className="mb-3 flex items-start justify-between">
                       <div className="min-w-0 flex-1">
                         <h3 className="overflow-hidden text-lg font-bold text-ellipsis whitespace-nowrap text-gray-800 transition-colors duration-300 md:group-hover:text-blue-600">
@@ -367,9 +367,9 @@ function RoomsPageContent() {
                       </span>
                     </div>
 
-                    {/* Room details */}
-                    <div className="space-y-2">
-                      {/* Current Activity (only shown when occupied) */}
+                    {/* Middle section: Room details (grows to fill space) */}
+                    <div className="flex-1 space-y-2">
+                      {/* When occupied: Activity + Student count + Supervisor */}
                       {room.isOccupied && room.groupName && (
                         <div className="text-sm text-gray-700">
                           <span className="font-medium">
@@ -378,7 +378,6 @@ function RoomsPageContent() {
                           {room.groupName}
                         </div>
                       )}
-                      {/* Student count and supervisors (only shown when occupied) */}
                       {room.isOccupied &&
                         ((room.studentCount !== undefined &&
                           room.studentCount > 0) ||
@@ -397,7 +396,7 @@ function RoomsPageContent() {
                                       strokeLinecap="round"
                                       strokeLinejoin="round"
                                       strokeWidth={2}
-                                      d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"
+                                      d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
                                     />
                                   </svg>
                                   {room.studentCount}{" "}
@@ -416,7 +415,7 @@ function RoomsPageContent() {
                                     strokeLinecap="round"
                                     strokeLinejoin="round"
                                     strokeWidth={2}
-                                    d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+                                    d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2"
                                   />
                                 </svg>
                                 {room.supervisorName}
@@ -424,7 +423,26 @@ function RoomsPageContent() {
                             )}
                           </div>
                         )}
+
+                      {/* When free: Placeholder text */}
+                      {!room.isOccupied && (
+                        <>
+                          <div className="text-sm text-gray-600">
+                            Für Aktivitäten buchbar
+                          </div>
+                          {room.capacity !== undefined && room.capacity > 0 && (
+                            <div className="text-sm text-gray-600">
+                              Kapazität: {room.capacity} Plätze
+                            </div>
+                          )}
+                        </>
+                      )}
                     </div>
+
+                    {/* Bottom section: Tap hint (always at bottom) */}
+                    <p className="mt-2 text-xs text-gray-400 transition-colors duration-300 md:group-hover:text-blue-400">
+                      Tippen für mehr Infos
+                    </p>
 
                     {/* Decorative elements */}
                     <div className="absolute top-4 left-4 h-4 w-4 animate-ping rounded-full bg-white/20"></div>
