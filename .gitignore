@@ -471,3 +471,4 @@ openspec/
 
 # Devbox
 .devbox/
+.playwright/**/*
