@@ -32,7 +32,7 @@ func (r *GroupSupervisorRepository) FindActiveByStaffID(ctx context.Context, sta
 	err := r.db.NewSelect().
 		Model(&supervisions).
 		ModelTableExpr(`active.group_supervisors AS "group_supervisor"`).
-		Where("staff_id = ? AND (end_date IS NULL OR end_date >= CURRENT_DATE)", staffID).
+		Where("staff_id = ? AND (end_date IS NULL OR end_date > NOW())", staffID).
 		Scan(ctx)
 
 	if err != nil {
