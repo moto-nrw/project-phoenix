@@ -469,7 +469,8 @@ docs/openapi.yaml
 openspec/
 .worktrees
 
-# Devbox
+# Devbox + direnv
 .devbox/
+.direnv/
 .playwright/**/*
 .playwright-mcp
