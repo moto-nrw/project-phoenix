@@ -159,6 +159,43 @@ func CreateTestDevice(tb testing.TB, db *bun.DB, deviceID string) *iot.Device {
 	return device
 }
 
+// EnsureWebManualDevice creates or returns the web manual device needed for manual check-ins.
+// This device is normally created by migration 001007005 but may need to be created in tests.
+func EnsureWebManualDevice(tb testing.TB, db *bun.DB) *iot.Device {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	const webManualDeviceCode = "WEB-MANUAL-001"
+
+	// Use upsert pattern to avoid race conditions
+	device := &iot.Device{
+		DeviceID:   webManualDeviceCode,
+		DeviceType: "virtual",
+		Name:       stringPtr("Web-Portal (Manuell)"),
+		Status:     iot.DeviceStatusActive,
+	}
+
+	_, err := db.NewInsert().
+		Model(device).
+		ModelTableExpr(`iot.devices`).
+		On("CONFLICT (device_id) DO NOTHING").
+		Exec(ctx)
+	require.NoError(tb, err, "Failed to ensure web manual device")
+
+	// Fetch the device (either just created or existing)
+	var existingDevice iot.Device
+	err = db.NewSelect().
+		Model(&existingDevice).
+		ModelTableExpr(`iot.devices AS "device"`).
+		Where(`"device".device_id = ?`, webManualDeviceCode).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to fetch web manual device")
+
+	return &existingDevice
+}
+
 // CreateTestPerson creates a real person in the database (required for staff creation)
 func CreateTestPerson(tb testing.TB, db *bun.DB, firstName, lastName string) *users.Person {
 	tb.Helper()
