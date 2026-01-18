@@ -33,7 +33,11 @@
     "gh@latest",
     "act@latest",
     "k6@latest",
-    "trivy@latest"
+    "trivy@latest",
+    "glow@latest",
+    "yq@latest",
+    "xh@latest",
+    "pg_activity@latest"
   ],
   "env": {
     "GOPATH":      "$PWD/.devbox/go",
