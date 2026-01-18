@@ -472,3 +472,4 @@ openspec/
 # Devbox
 .devbox/
 .playwright/**/*
+.playwright-mcp
