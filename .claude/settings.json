@@ -185,6 +185,16 @@
           }
         ]
       }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/skill-reminder.sh"
+          }
+        ]
+      }
     ]
   },
   "enabledPlugins": {
