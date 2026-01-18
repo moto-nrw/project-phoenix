@@ -664,3 +664,162 @@ func TestActiveService_GetGroupMappingsByCombinedGroupID(t *testing.T) {
 		assert.Empty(t, result)
 	})
 }
+
+// =============================================================================
+// FindCombinedGroupsByTimeRange Error Path Tests
+// =============================================================================
+
+func TestActiveService_FindCombinedGroupsByTimeRange_InvalidRange(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := buildCombinedGroupService(t, db)
+	ctx := context.Background()
+
+	t.Run("returns error when start is after end", func(t *testing.T) {
+		// ARRANGE
+		start := time.Now().Add(1 * time.Hour) // Future
+		end := time.Now()                      // Now (before start)
+
+		// ACT
+		result, err := service.FindCombinedGroupsByTimeRange(ctx, start, end)
+
+		// ASSERT
+		require.Error(t, err)
+		assert.Nil(t, result)
+		var activeErr *active.ActiveError
+		require.ErrorAs(t, err, &activeErr)
+	})
+}
+
+// =============================================================================
+// AddGroupToCombination Duplicate Test
+// =============================================================================
+
+func TestActiveService_AddGroupToCombination_Duplicate(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := buildCombinedGroupService(t, db)
+	ctx := context.Background()
+
+	t.Run("returns error when group already in combination", func(t *testing.T) {
+		// ARRANGE
+		activity := testpkg.CreateTestActivityGroup(t, db, "dup-combo")
+		room := testpkg.CreateTestRoom(t, db, "Dup Combo Room")
+		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
+		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID)
+
+		now := time.Now()
+		combinedGroup := &activeModels.CombinedGroup{
+			StartTime: now,
+		}
+		err := service.CreateCombinedGroup(ctx, combinedGroup)
+		require.NoError(t, err)
+		defer testpkg.CleanupActivityFixtures(t, db, combinedGroup.ID)
+
+		// Add first time - should succeed
+		err = service.AddGroupToCombination(ctx, combinedGroup.ID, activeGroup.ID)
+		require.NoError(t, err)
+
+		// ACT - Add second time - should fail
+		err = service.AddGroupToCombination(ctx, combinedGroup.ID, activeGroup.ID)
+
+		// ASSERT
+		require.Error(t, err)
+		var activeErr *active.ActiveError
+		require.ErrorAs(t, err, &activeErr)
+	})
+}
+
+// =============================================================================
+// DeleteCombinedGroup with Mappings Test
+// =============================================================================
+
+func TestActiveService_DeleteCombinedGroup_WithMappings(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := buildCombinedGroupService(t, db)
+	ctx := context.Background()
+
+	t.Run("deletes combined group with mappings successfully", func(t *testing.T) {
+		// ARRANGE: Create combined group with mappings
+		activity := testpkg.CreateTestActivityGroup(t, db, "delete-with-mappings")
+		room := testpkg.CreateTestRoom(t, db, "Delete Mappings Room")
+		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
+		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID)
+
+		now := time.Now()
+		combinedGroup := &activeModels.CombinedGroup{
+			StartTime: now,
+		}
+		err := service.CreateCombinedGroup(ctx, combinedGroup)
+		require.NoError(t, err)
+
+		// Add a mapping
+		err = service.AddGroupToCombination(ctx, combinedGroup.ID, activeGroup.ID)
+		require.NoError(t, err)
+
+		// Verify mapping exists
+		mappings, err := service.GetGroupMappingsByCombinedGroupID(ctx, combinedGroup.ID)
+		require.NoError(t, err)
+		require.Len(t, mappings, 1)
+
+		// ACT
+		err = service.DeleteCombinedGroup(ctx, combinedGroup.ID)
+
+		// ASSERT
+		require.NoError(t, err)
+
+		// Verify combined group is deleted
+		_, err = service.GetCombinedGroup(ctx, combinedGroup.ID)
+		require.Error(t, err)
+	})
+}
+
+// =============================================================================
+// ListCombinedGroups Error Path Tests
+// =============================================================================
+
+func TestActiveService_ListCombinedGroups_ErrorPath(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := buildCombinedGroupService(t, db)
+
+	t.Run("returns error on database failure", func(t *testing.T) {
+		// ARRANGE - use canceled context to trigger DB error
+		canceledCtx, cancel := context.WithCancel(context.Background())
+		cancel()
+
+		// ACT
+		_, err := service.ListCombinedGroups(canceledCtx, nil)
+
+		// ASSERT
+		require.Error(t, err)
+	})
+}
+
+// =============================================================================
+// FindActiveCombinedGroups Error Path Tests
+// =============================================================================
+
+func TestActiveService_FindActiveCombinedGroups_ErrorPath(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := buildCombinedGroupService(t, db)
+
+	t.Run("returns error on database failure", func(t *testing.T) {
+		// ARRANGE - use canceled context to trigger DB error
+		canceledCtx, cancel := context.WithCancel(context.Background())
+		cancel()
+
+		// ACT
+		_, err := service.FindActiveCombinedGroups(canceledCtx)
+
+		// ASSERT
+		require.Error(t, err)
+	})
+}
