@@ -483,15 +483,13 @@ func TestPersonService_FindByName(t *testing.T) {
 		assert.NotNil(t, result)
 	})
 
-	t.Run("returns results when filtering", func(t *testing.T) {
-		// ACT - FindByName uses ILIKE prefix matching
-		// Note: Filter conversion in List() is not yet fully implemented (see #557)
-		// so this test verifies the call succeeds, not specific filtering
+	t.Run("returns empty slice when no matches found", func(t *testing.T) {
+		// ACT - FindByName uses ILIKE prefix matching, non-existent names return empty
 		result, err := service.FindByName(ctx, "ZZZZNOEXIST99999XYZ", "ZZZZNOEXIST99999ABC")
 
-		// ASSERT - call succeeds (filter behavior is repository-specific)
+		// ASSERT - call succeeds with empty result (filters are now applied via #557)
 		require.NoError(t, err)
-		assert.NotNil(t, result)
+		assert.Empty(t, result)
 	})
 }
 

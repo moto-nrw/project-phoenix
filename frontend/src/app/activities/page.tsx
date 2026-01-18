@@ -316,10 +316,10 @@ export default function ActivitiesPage() {
           />
         </div>
 
-        {/* Mobile FAB Create Button */}
+        {/* Mobile FAB Create Button - z-40 to appear below drawer modal (z-50) */}
         <button
           onClick={() => setIsQuickCreateOpen(true)}
-          className="group fixed right-4 bottom-24 z-[9999] flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-[#FF3130] to-[#e02020] text-white shadow-[0_8px_30px_rgb(0,0,0,0.12)] transition-all duration-300 hover:shadow-[0_8px_40px_rgb(255,49,48,0.3)] active:scale-95 md:hidden"
+          className="group fixed right-4 bottom-24 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-[#FF3130] to-[#e02020] text-white shadow-[0_8px_30px_rgb(0,0,0,0.12)] transition-all duration-300 hover:shadow-[0_8px_40px_rgb(255,49,48,0.3)] active:scale-95 md:hidden"
           style={{
             background:
               "linear-gradient(135deg, rgb(255, 49, 48) 0%, rgb(224, 32, 32) 100%)",

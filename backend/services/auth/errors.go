@@ -44,6 +44,9 @@ var (
 	// ErrPermissionNotFound returned when permission doesn't exist
 	ErrPermissionNotFound = errors.New("permission not found")
 
+	// ErrRoleNotFound returned when role doesn't exist
+	ErrRoleNotFound = errors.New("role not found")
+
 	// ErrParentAccountNotFound returned when parent account doesn't exist
 	ErrParentAccountNotFound = errors.New("parent account not found")
 
