@@ -5,7 +5,6 @@
     "nodejs_20@latest",
     "golangci-lint@latest",
     "goimports@latest",
-    "bruno-cli@latest",
     "openssl@latest",
     "jq@latest",
     "ripgrep@latest",
@@ -13,8 +12,6 @@
     "bat@latest",
     "eza@latest",
     "fzf@latest",
-    "delta@latest",
-    "tealdeer@latest",
     "btop@latest",
     "pgcli@latest",
     "dotenv-linter@latest",
@@ -26,34 +23,26 @@
     "git@latest",
     "dyff@latest",
     "air@latest",
-    "delve@latest",
     "gotestsum@latest",
     "lazydocker@latest",
     "lazygit@latest",
     "gh@latest",
-    "act@latest",
-    "k6@latest",
-    "trivy@latest",
     "glow@latest",
     "yq@latest",
     "xh@latest",
     "pg_activity@latest",
     "go-swag@latest",
-    "govulncheck@latest",
-    "gomodifytags@latest",
-    "impl@latest",
-    "hey@latest",
-    "go-mockery@latest"
+    "govulncheck@latest"
   ],
   "env": {
-    "GOPATH":      "$PWD/.devbox/go",
+    "GOPATH": "$PWD/.devbox/go",
     "CGO_ENABLED": "0"
   },
   "shell": {
     "init_hook": [
       "lefthook install --force > /dev/null 2>&1 || true",
       "[ ! -d frontend/node_modules ] && echo 'installing frontend deps...' && cd frontend && nci --silent || true",
-      "echo \"go $(go version | cut -d' ' -f3 | sed 's/go//') node $(node -v | sed 's/v//') | ni nci bat eza fzf btop tldr pgcli jq rg fd delta dyff | air dlv gotestsum lazygit lazydocker gh act k6 trivy glow yq xh swag hey mockery govulncheck\""
+      "echo \"go $(go version | cut -d' ' -f3 | sed 's/go//') node $(node -v | sed 's/v//') | bat eza fzf rg fd tree jq yq glow xh btop curl | ni pgcli air gotestsum lazygit lazydocker gh swag govulncheck\""
     ]
   }
 }
