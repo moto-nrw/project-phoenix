@@ -553,6 +553,143 @@ describe("SubstitutionsPage", () => {
         expect(screen.queryByTestId("assignment-modal")).not.toBeInTheDocument();
       });
     });
+
+    it("displays group selection dropdown in modal", async () => {
+      render(<SubstitutionsPage />);
+
+      // Open modal
+      const teacherCard = screen.getByRole("button", { name: /Anna Meyer/i });
+      fireEvent.click(teacherCard);
+
+      await waitFor(() => {
+        expect(screen.getByTestId("assignment-modal")).toBeInTheDocument();
+      });
+
+      // Check group dropdown exists
+      const groupSelect = screen.getByRole("combobox");
+      expect(groupSelect).toBeInTheDocument();
+    });
+
+    it("displays days stepper in modal", async () => {
+      render(<SubstitutionsPage />);
+
+      // Open modal
+      const teacherCard = screen.getByRole("button", { name: /Anna Meyer/i });
+      fireEvent.click(teacherCard);
+
+      await waitFor(() => {
+        expect(screen.getByTestId("assignment-modal")).toBeInTheDocument();
+      });
+
+      // Check days stepper exists
+      expect(screen.getByLabelText("Tage verringern")).toBeInTheDocument();
+      expect(screen.getByLabelText("Tage erhöhen")).toBeInTheDocument();
+    });
+
+    it("increments days when plus button clicked", async () => {
+      render(<SubstitutionsPage />);
+
+      // Open modal
+      const teacherCard = screen.getByRole("button", { name: /Anna Meyer/i });
+      fireEvent.click(teacherCard);
+
+      await waitFor(() => {
+        expect(screen.getByTestId("assignment-modal")).toBeInTheDocument();
+      });
+
+      // Default is 1 day
+      expect(screen.getByText("Vertretung für heute")).toBeInTheDocument();
+
+      // Click plus
+      fireEvent.click(screen.getByLabelText("Tage erhöhen"));
+
+      await waitFor(() => {
+        expect(screen.getByText("Vertretung für 2 Tage")).toBeInTheDocument();
+      });
+    });
+
+    it("decrements days when minus button clicked", async () => {
+      render(<SubstitutionsPage />);
+
+      // Open modal
+      const teacherCard = screen.getByRole("button", { name: /Anna Meyer/i });
+      fireEvent.click(teacherCard);
+
+      await waitFor(() => {
+        expect(screen.getByTestId("assignment-modal")).toBeInTheDocument();
+      });
+
+      // Click plus twice to get to 3
+      fireEvent.click(screen.getByLabelText("Tage erhöhen"));
+      fireEvent.click(screen.getByLabelText("Tage erhöhen"));
+
+      await waitFor(() => {
+        expect(screen.getByText("Vertretung für 3 Tage")).toBeInTheDocument();
+      });
+
+      // Click minus
+      fireEvent.click(screen.getByLabelText("Tage verringern"));
+
+      await waitFor(() => {
+        expect(screen.getByText("Vertretung für 2 Tage")).toBeInTheDocument();
+      });
+    });
+
+    it("successfully assigns substitution when form is complete", async () => {
+      mockCreateSubstitution.mockResolvedValueOnce({ id: "new-sub" });
+      mockMutateTeachers.mockResolvedValueOnce(undefined);
+      mockMutateSubstitutions.mockResolvedValueOnce(undefined);
+
+      render(<SubstitutionsPage />);
+
+      // Open modal
+      const teacherCard = screen.getByRole("button", { name: /Anna Meyer/i });
+      fireEvent.click(teacherCard);
+
+      await waitFor(() => {
+        expect(screen.getByTestId("assignment-modal")).toBeInTheDocument();
+      });
+
+      // Get the modal element to scope our queries
+      const modal = screen.getByTestId("assignment-modal");
+
+      // Select a group
+      const groupSelect = within(modal).getByRole("combobox");
+      fireEvent.change(groupSelect, { target: { value: "Gruppe 1A" } });
+
+      // Click assign button (the one inside the modal with exact text "Zuweisen")
+      const assignButton = within(modal).getByRole("button", {
+        name: /^Zuweisen$/,
+      });
+      fireEvent.click(assignButton);
+
+      await waitFor(() => {
+        expect(mockCreateSubstitution).toHaveBeenCalled();
+        expect(mockToastSuccess).toHaveBeenCalledWith(
+          expect.stringContaining("Vertretung für"),
+        );
+      });
+    });
+
+    it("closes modal via cancel button", async () => {
+      render(<SubstitutionsPage />);
+
+      // Open modal
+      const teacherCard = screen.getByRole("button", { name: /Anna Meyer/i });
+      fireEvent.click(teacherCard);
+
+      await waitFor(() => {
+        expect(screen.getByTestId("assignment-modal")).toBeInTheDocument();
+      });
+
+      // Click cancel
+      const cancelButton = screen.getByRole("button", { name: /Abbrechen/i });
+      fireEvent.click(cancelButton);
+
+      await waitFor(() => {
+        expect(screen.queryByTestId("assignment-modal")).not.toBeInTheDocument();
+      });
+    });
   });
 
   describe("End Substitution", () => {
@@ -623,6 +760,116 @@ describe("SubstitutionsPage", () => {
           screen.queryByTestId("confirmation-modal"),
         ).not.toBeInTheDocument();
       });
+    });
+
+    it("handles error when ending substitution fails", async () => {
+      mockDeleteSubstitution.mockRejectedValueOnce(new Error("Delete failed"));
+
+      render(<SubstitutionsPage />);
+
+      // Click end button
+      const endButtons = screen.getAllByRole("button", { name: /Beenden/i });
+      const firstEndButton = endButtons[0];
+      if (firstEndButton) {
+        fireEvent.click(firstEndButton);
+      }
+
+      await waitFor(() => {
+        expect(screen.getByTestId("confirmation-modal")).toBeInTheDocument();
+      });
+
+      // Confirm
+      fireEvent.click(screen.getByTestId("confirm-end"));
+
+      await waitFor(() => {
+        expect(mockDeleteSubstitution).toHaveBeenCalled();
+        // Error message should be displayed
+        expect(
+          screen.getByText("Fehler beim Beenden der Vertretung."),
+        ).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe("Status Filter", () => {
+    it("filters by available status", async () => {
+      render(<SubstitutionsPage />);
+
+      const teacherSection = screen.getByText(
+        "Verfügbare pädagogische Fachkräfte",
+      ).parentElement!;
+
+      // Initially all teachers shown
+      expect(
+        within(teacherSection).getAllByText(/Anna Meyer|Ben Schulz|Clara Fischer/i)
+          .length,
+      ).toBeGreaterThan(0);
+
+      // Click available filter
+      fireEvent.click(screen.getByTestId("filter-available"));
+
+      // Only available teachers shown (Anna is not in substitution)
+      await waitFor(() => {
+        expect(
+          within(teacherSection).getByText("Anna Meyer"),
+        ).toBeInTheDocument();
+      });
+    });
+
+    it("filters by substitution status", async () => {
+      render(<SubstitutionsPage />);
+
+      const teacherSection = screen.getByText(
+        "Verfügbare pädagogische Fachkräfte",
+      ).parentElement!;
+
+      // Click substitution filter
+      fireEvent.click(screen.getByTestId("filter-substitution"));
+
+      // Only teachers in substitution should be shown (Ben and Clara)
+      await waitFor(() => {
+        expect(
+          within(teacherSection).getByText("Ben Schulz"),
+        ).toBeInTheDocument();
+        expect(
+          within(teacherSection).getByText("Clara Fischer"),
+        ).toBeInTheDocument();
+      });
+
+      // Anna should not be visible (she's available)
+      expect(
+        within(teacherSection).queryByText("Anna Meyer"),
+      ).not.toBeInTheDocument();
+    });
+  });
+
+  describe("Empty Substitutions State", () => {
+    it("shows empty state when no active substitutions", () => {
+      vi.mocked(useSWRAuth).mockImplementation((key: string | null) => {
+        if (key === "substitution-teachers") {
+          return {
+            data: mockTeachers,
+            isLoading: false,
+            error: null,
+            mutate: mockMutateTeachers,
+          } as never;
+        }
+        if (key === "active-substitutions") {
+          return {
+            data: mockActiveSubstitutions.filter((s) => s.isTransfer),
+            isLoading: false,
+            error: null,
+            mutate: mockMutateSubstitutions,
+          } as never;
+        }
+        return { data: null, isLoading: false, error: null } as never;
+      });
+
+      render(<SubstitutionsPage />);
+
+      expect(
+        screen.getByText("Keine aktiven Vertretungen"),
+      ).toBeInTheDocument();
     });
   });
 });
