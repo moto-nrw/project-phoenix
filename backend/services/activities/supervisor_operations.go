@@ -23,6 +23,10 @@ func (s *Service) AddSupervisor(ctx context.Context, groupID int64, staffID int6
 			return err
 		}
 
+		if err := s.validateStaffExists(ctx, staffID); err != nil {
+			return err
+		}
+
 		existingSupervisors, err := txService.(*Service).supervisorRepo.FindByGroupID(ctx, groupID)
 		if err != nil {
 			return &ActivityError{Op: "get existing supervisors", Err: err}
@@ -89,6 +93,21 @@ func (s *Service) unsetPrimarySupervisorsInTx(ctx context.Context, txService Act
 				return &ActivityError{Op: "update existing supervisor", Err: err}
 			}
 		}
+	}
+	return nil
+}
+
+// validateStaffExists checks if a staff member exists before creating supervisor
+func (s *Service) validateStaffExists(ctx context.Context, staffID int64) error {
+	exists, err := s.db.NewSelect().
+		TableExpr("users.staff").
+		Where("id = ?", staffID).
+		Exists(ctx)
+	if err != nil {
+		return &ActivityError{Op: "validate staff", Err: err}
+	}
+	if !exists {
+		return ErrStaffNotFound
 	}
 	return nil
 }
@@ -419,6 +438,11 @@ func (s *Service) removeUnwantedSupervisorsInTx(ctx context.Context, txService A
 func (s *Service) addNewSupervisorsInTx(ctx context.Context, txService ActivityService, groupID int64, currentStaffIDs map[int64]int64, newStaffIDs map[int64]bool, staffIDs []int64) error {
 	for i, staffID := range staffIDs {
 		if _, exists := currentStaffIDs[staffID]; !exists {
+			// Validate staff exists before creating supervisor
+			if err := s.validateStaffExists(ctx, staffID); err != nil {
+				return err
+			}
+
 			isPrimary := i == 0 && len(newStaffIDs) == len(staffIDs)
 
 			supervisor := &activities.SupervisorPlanned{
