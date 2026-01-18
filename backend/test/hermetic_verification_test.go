@@ -93,44 +93,51 @@ func checkHardcodedIDs(t *testing.T, root string) []string {
 	hardcodedIDPattern := regexp.MustCompile(`int64\([1-9]\)`)
 
 	// Patterns that indicate legitimate uses (not IDs)
+	// Note: Some patterns use simple substring matching, others use word boundaries
 	legitimatePatterns := []string{
-		"//",                // Comments
-		"i :=",              // Loop variables
-		"i =",               // Loop variables
-		"count",             // Counts
-		"offset",            // Pagination
-		"limit",             // Pagination
-		"page",              // Pagination
-		"Weekday",           // Day of week
-		"weekday",           // Day of week
-		"day",               // Time-related
-		"hour",              // Time-related
-		"minute",            // Time-related
-		"second",            // Time-related
-		"duration",          // Time-related
-		"timeout",           // Time-related
-		"retry",             // Retry counts
-		"max",               // Limits
-		"min",               // Limits
-		"size",              // Sizes
-		"len",               // Lengths
-		"cap",               // Capacities
-		"index",             // Array indices
-		"999999",            // Non-existent ID patterns (intentional)
-		"GreaterOrEqual",    // Assertions checking >= 1
-		"LessOrEqual",       // Assertions checking <= n
-		"Greater",           // Assertions checking > n
-		"Less",              // Assertions checking < n
-		"func()",            // Inline functions creating pointers
-		"return &id",        // Pointer helpers in model tests
+		"//",             // Comments
+		"i :=",           // Loop variables
+		"i =",            // Loop variables
+		"offset",         // Pagination
+		"limit",          // Pagination
+		"page",           // Pagination
+		"Weekday",        // Day of week
+		"weekday",        // Day of week
+		"day",            // Time-related
+		"hour",           // Time-related
+		"minute",         // Time-related
+		"second",         // Time-related
+		"duration",       // Time-related
+		"timeout",        // Time-related
+		"retry",          // Retry counts
+		"max",            // Limits
+		"min",            // Limits
+		"size",           // Sizes
+		"len",            // Lengths
+		"cap",            // Capacities
+		"index",          // Array indices
+		"999999",         // Non-existent ID patterns (intentional)
+		"GreaterOrEqual", // Assertions checking >= 1
+		"LessOrEqual",    // Assertions checking <= n
+		"Greater",        // Assertions checking > n
+		"Less",           // Assertions checking < n
+		"func()",         // Inline functions creating pointers
+		"return &id",     // Pointer helpers in model tests
+	}
+
+	// Patterns that require word boundary matching to avoid false negatives.
+	// For example, "count" should NOT match "AccountID" (Acc-ount-ID).
+	wordBoundaryPatterns := []*regexp.Regexp{
+		regexp.MustCompile(`\bcount\b`), // Counts (word boundary to avoid matching "AccountID")
 	}
 
 	// Files to skip (mock tests, model unit tests without DB)
 	skipPatterns := []string{
-		"_internal_test.go",  // Internal tests often use mocks
-		"_mock_test.go",      // Mock tests
-		"models/",            // Model unit tests don't hit DB
-		"invitation_service_test.go", // Uses mocks
+		"_internal_test.go",                   // Internal tests often use mocks
+		"_mock_test.go",                       // Mock tests
+		"models/",                             // Model unit tests don't hit DB
+		"invitation_service_test.go",          // Uses mocks
+		"password_reset_integration_test.go",  // Uses mocks (sqlmock + stubs)
 	}
 
 	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
@@ -179,6 +186,16 @@ func checkHardcodedIDs(t *testing.T, root string) []string {
 				if strings.Contains(line, pattern) {
 					isLegitimate = true
 					break
+				}
+			}
+
+			// Also check word-boundary patterns if not already flagged as legitimate
+			if !isLegitimate {
+				for _, pattern := range wordBoundaryPatterns {
+					if pattern.MatchString(line) {
+						isLegitimate = true
+						break
+					}
 				}
 			}
 

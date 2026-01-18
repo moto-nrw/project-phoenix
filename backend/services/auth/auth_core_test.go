@@ -1685,6 +1685,11 @@ func TestInvitationService_CreateInvitation(t *testing.T) {
 			LastName:  strPtr("User"),
 		})
 
+		// Cleanup must be registered before assertions to ensure it runs even if assertions fail
+		if invitation != nil {
+			t.Cleanup(func() { testpkg.CleanupInvitationFixtures(t, db, invitation.ID) })
+		}
+
 		// ASSERT
 		require.NoError(t, err)
 		require.NotNil(t, invitation)
@@ -1692,9 +1697,6 @@ func TestInvitationService_CreateInvitation(t *testing.T) {
 		assert.Equal(t, role.ID, invitation.RoleID)
 		assert.NotEmpty(t, invitation.Token)
 		assert.True(t, invitation.ExpiresAt.After(time.Now()))
-
-		// Cleanup
-		testpkg.CleanupInvitationFixtures(t, db, invitation.ID)
 	})
 
 	t.Run("normalizes email to lowercase", func(t *testing.T) {
@@ -1714,12 +1716,15 @@ func TestInvitationService_CreateInvitation(t *testing.T) {
 			CreatedBy: creator.ID,
 		})
 
+		// Cleanup must be registered before assertions to ensure it runs even if assertions fail
+		if invitation != nil {
+			t.Cleanup(func() { testpkg.CleanupInvitationFixtures(t, db, invitation.ID) })
+		}
+
 		// ASSERT
 		require.NoError(t, err)
 		require.NotNil(t, invitation)
 		assert.Equal(t, strings.ToLower(mixedCaseEmail), invitation.Email)
-
-		testpkg.CleanupInvitationFixtures(t, db, invitation.ID)
 	})
 }
 
@@ -1829,14 +1834,16 @@ func TestInvitationService_AcceptInvitation(t *testing.T) {
 			ConfirmPassword: testPassword,
 		})
 
+		// Cleanup must be registered before assertions to ensure it runs even if assertions fail
+		if account != nil {
+			t.Cleanup(func() { testpkg.CleanupAuthFixtures(t, db, account.ID) })
+		}
+
 		// ASSERT
 		require.NoError(t, err)
 		require.NotNil(t, account)
 		assert.Equal(t, invitation.Email, account.Email)
 		assert.True(t, account.Active)
-
-		// Cleanup the created account
-		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 		// Verify the invitation is now marked as used
 		_, err = invitationService.ValidateInvitation(ctx, invitation.Token)
@@ -2093,7 +2100,10 @@ func TestAuthService_PasswordResetRateLimit(t *testing.T) {
 		email := fmt.Sprintf("ratelimit-%d@test.local", time.Now().UnixNano())
 		account, err := service.Register(ctx, email, fmt.Sprintf("ratelimit%d", time.Now().UnixNano()), testPassword, nil)
 		require.NoError(t, err)
-		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+		t.Cleanup(func() {
+			testpkg.CleanupAuthFixtures(t, db, account.ID)
+			testpkg.CleanupRateLimitsByEmail(t, db, email)
+		})
 
 		var tokenIDs []int64
 
@@ -2104,7 +2114,7 @@ func TestAuthService_PasswordResetRateLimit(t *testing.T) {
 			tokenIDs = append(tokenIDs, token.ID)
 		}
 
-		// Cleanup
+		// Cleanup tokens
 		for _, id := range tokenIDs {
 			testpkg.CleanupTableRecords(t, db, "auth.password_reset_tokens", id)
 		}
@@ -2115,7 +2125,10 @@ func TestAuthService_PasswordResetRateLimit(t *testing.T) {
 		email := fmt.Sprintf("exceededlimit-%d@test.local", time.Now().UnixNano())
 		account, err := service.Register(ctx, email, fmt.Sprintf("exceededlimit%d", time.Now().UnixNano()), testPassword, nil)
 		require.NoError(t, err)
-		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+		t.Cleanup(func() {
+			testpkg.CleanupAuthFixtures(t, db, account.ID)
+			testpkg.CleanupRateLimitsByEmail(t, db, email)
+		})
 
 		var tokenIDs []int64
 
@@ -2133,7 +2146,7 @@ func TestAuthService_PasswordResetRateLimit(t *testing.T) {
 		require.Error(t, err)
 		assert.True(t, errors.Is(err, auth.ErrRateLimitExceeded))
 
-		// Cleanup
+		// Cleanup tokens
 		for _, id := range tokenIDs {
 			testpkg.CleanupTableRecords(t, db, "auth.password_reset_tokens", id)
 		}
