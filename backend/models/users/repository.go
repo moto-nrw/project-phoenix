@@ -57,6 +57,9 @@ type PersonRepository interface {
 	// List retrieves persons matching the filters
 	List(ctx context.Context, filters map[string]interface{}) ([]*Person, error)
 
+	// ListWithOptions retrieves persons with type-safe query options
+	ListWithOptions(ctx context.Context, options *base.QueryOptions) ([]*Person, error)
+
 	// LinkToAccount associates a person with an account
 	LinkToAccount(ctx context.Context, personID int64, accountID int64) error
 
