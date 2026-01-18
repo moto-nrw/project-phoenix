@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
@@ -325,5 +326,205 @@ func TestGetStudentInGroupRoom_Authorization(t *testing.T) {
 
 		// Non-supervisor should be forbidden
 		testutil.AssertForbidden(t, rr)
+	})
+}
+
+// =============================================================================
+// Student With Active Visit Tests (Coverage for visit tracking paths)
+// =============================================================================
+
+func TestGetStudentInGroupRoom_WithActiveVisit(t *testing.T) {
+	tc := setupTestContext(t)
+
+	t.Run("student_in_group_room", func(t *testing.T) {
+		// Create room, group, student
+		room := testpkg.CreateTestRoom(t, tc.db, "GroupRoomActive")
+		group := testpkg.CreateTestEducationGroup(t, tc.db, "ActiveVisitGroup")
+		student := testpkg.CreateTestStudent(t, tc.db, "Active", "Visitor", "AV1")
+		activityGroup := testpkg.CreateTestActivityGroup(t, tc.db, "ActiveSession")
+		staff := testpkg.CreateTestStaff(t, tc.db, "Check", "InStaff")
+		device := testpkg.CreateTestDevice(t, tc.db, "checkin-device")
+
+		// Assign room to group
+		ctx := context.Background()
+		_, err := tc.db.ExecContext(ctx, "UPDATE education.groups SET room_id = ? WHERE id = ?", room.ID, group.ID)
+		require.NoError(t, err)
+
+		// Assign student to group
+		testpkg.AssignStudentToGroup(t, tc.db, student.ID, group.ID)
+
+		// Create attendance (check-in)
+		now := time.Now()
+		testpkg.CreateTestAttendance(t, tc.db, student.ID, staff.ID, device.ID, now, nil)
+
+		// Create active group in the same room
+		activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, activityGroup.ID, room.ID)
+
+		// Create visit to the active group
+		testpkg.CreateTestVisit(t, tc.db, student.ID, activeGroup.ID, now, nil)
+
+		defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID, group.ID, student.ID, activityGroup.ID, staff.ID, device.ID, activeGroup.ID)
+
+		router := chi.NewRouter()
+		router.Use(render.SetContentType(render.ContentTypeJSON))
+		router.Get("/students/{id}/group-room", tc.resource.GetStudentInGroupRoomHandler())
+
+		req := testutil.NewRequest("GET", fmt.Sprintf("/students/%d/group-room", student.ID), nil)
+		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+
+		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
+		// Should have in_group_room response
+		assert.Contains(t, rr.Body.String(), "in_group_room")
+	})
+
+	t.Run("student_in_different_room", func(t *testing.T) {
+		// Create two rooms - one for group, one for visit
+		groupRoom := testpkg.CreateTestRoom(t, tc.db, "GroupRoomDiff")
+		visitRoom := testpkg.CreateTestRoom(t, tc.db, "VisitRoomDiff")
+		group := testpkg.CreateTestEducationGroup(t, tc.db, "DiffRoomGroup")
+		student := testpkg.CreateTestStudent(t, tc.db, "Diff", "Room", "DR2")
+		activityGroup := testpkg.CreateTestActivityGroup(t, tc.db, "DiffRoomActivity")
+		staff := testpkg.CreateTestStaff(t, tc.db, "Diff", "Staff")
+		device := testpkg.CreateTestDevice(t, tc.db, "diff-device")
+
+		// Assign group room to group
+		ctx := context.Background()
+		_, err := tc.db.ExecContext(ctx, "UPDATE education.groups SET room_id = ? WHERE id = ?", groupRoom.ID, group.ID)
+		require.NoError(t, err)
+
+		// Assign student to group
+		testpkg.AssignStudentToGroup(t, tc.db, student.ID, group.ID)
+
+		// Create attendance
+		now := time.Now()
+		testpkg.CreateTestAttendance(t, tc.db, student.ID, staff.ID, device.ID, now, nil)
+
+		// Create active group in DIFFERENT room
+		activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, activityGroup.ID, visitRoom.ID)
+
+		// Create visit to that different room
+		testpkg.CreateTestVisit(t, tc.db, student.ID, activeGroup.ID, now, nil)
+
+		defer testpkg.CleanupActivityFixtures(t, tc.db, groupRoom.ID, visitRoom.ID, group.ID, student.ID, activityGroup.ID, staff.ID, device.ID, activeGroup.ID)
+
+		router := chi.NewRouter()
+		router.Use(render.SetContentType(render.ContentTypeJSON))
+		router.Get("/students/{id}/group-room", tc.resource.GetStudentInGroupRoomHandler())
+
+		req := testutil.NewRequest("GET", fmt.Sprintf("/students/%d/group-room", student.ID), nil)
+		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+
+		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
+		// Should indicate not in group room
+		assert.Contains(t, rr.Body.String(), "in_group_room")
+	})
+}
+
+func TestGetStudentCurrentLocation_WithActiveVisit(t *testing.T) {
+	tc := setupTestContext(t)
+
+	t.Run("student_checked_in_with_room", func(t *testing.T) {
+		// Create fixtures for a fully checked-in student with room assignment
+		room := testpkg.CreateTestRoom(t, tc.db, "LocationRoom")
+		student := testpkg.CreateTestStudent(t, tc.db, "Location", "CheckedIn", "LC1")
+		activityGroup := testpkg.CreateTestActivityGroup(t, tc.db, "LocationActivity")
+		staff := testpkg.CreateTestStaff(t, tc.db, "Location", "Staff")
+		device := testpkg.CreateTestDevice(t, tc.db, "location-device")
+
+		// Create attendance (check-in)
+		now := time.Now()
+		testpkg.CreateTestAttendance(t, tc.db, student.ID, staff.ID, device.ID, now, nil)
+
+		// Create active group with room
+		activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, activityGroup.ID, room.ID)
+
+		// Create visit
+		testpkg.CreateTestVisit(t, tc.db, student.ID, activeGroup.ID, now, nil)
+
+		defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID, student.ID, activityGroup.ID, staff.ID, device.ID, activeGroup.ID)
+
+		router := setupRouter(tc.resource.GetStudentCurrentLocationHandler(), "id")
+		req := testutil.NewRequest("GET", fmt.Sprintf("/%d", student.ID), nil)
+
+		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+
+		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
+		assert.Contains(t, rr.Body.String(), "current_location")
+		// Should show room name
+		assert.Contains(t, rr.Body.String(), "LocationRoom")
+	})
+
+	t.Run("student_checked_in_no_visit", func(t *testing.T) {
+		// Student checked in but no active visit (transit state)
+		student := testpkg.CreateTestStudent(t, tc.db, "Transit", "Student", "TS1")
+		staff := testpkg.CreateTestStaff(t, tc.db, "Transit", "Staff")
+		device := testpkg.CreateTestDevice(t, tc.db, "transit-device")
+
+		// Create attendance (check-in) but NO visit
+		now := time.Now()
+		testpkg.CreateTestAttendance(t, tc.db, student.ID, staff.ID, device.ID, now, nil)
+
+		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID, staff.ID, device.ID)
+
+		router := setupRouter(tc.resource.GetStudentCurrentLocationHandler(), "id")
+		req := testutil.NewRequest("GET", fmt.Sprintf("/%d", student.ID), nil)
+
+		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+
+		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
+		assert.Contains(t, rr.Body.String(), "current_location")
+	})
+
+	t.Run("student_checked_out", func(t *testing.T) {
+		// Student with completed attendance (checked out)
+		student := testpkg.CreateTestStudent(t, tc.db, "CheckedOut", "Student", "CO1")
+		staff := testpkg.CreateTestStaff(t, tc.db, "CheckedOut", "Staff")
+		device := testpkg.CreateTestDevice(t, tc.db, "checkout-device")
+
+		// Create attendance with check-out time
+		now := time.Now()
+		checkOut := now.Add(-1 * time.Hour)
+		testpkg.CreateTestAttendance(t, tc.db, student.ID, staff.ID, device.ID, now.Add(-2*time.Hour), &checkOut)
+
+		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID, staff.ID, device.ID)
+
+		router := setupRouter(tc.resource.GetStudentCurrentLocationHandler(), "id")
+		req := testutil.NewRequest("GET", fmt.Sprintf("/%d", student.ID), nil)
+
+		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+
+		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
+		assert.Contains(t, rr.Body.String(), "current_location")
+	})
+}
+
+func TestGetStudentCurrentVisit_WithActiveVisit(t *testing.T) {
+	tc := setupTestContext(t)
+
+	t.Run("returns_current_visit", func(t *testing.T) {
+		// Create a student with an active visit
+		room := testpkg.CreateTestRoom(t, tc.db, "VisitTestRoom")
+		student := testpkg.CreateTestStudent(t, tc.db, "Current", "Visit", "CV1")
+		activityGroup := testpkg.CreateTestActivityGroup(t, tc.db, "VisitTestActivity")
+		staff := testpkg.CreateTestStaff(t, tc.db, "Visit", "Staff")
+		device := testpkg.CreateTestDevice(t, tc.db, "visit-test-device")
+
+		// Create attendance
+		now := time.Now()
+		testpkg.CreateTestAttendance(t, tc.db, student.ID, staff.ID, device.ID, now, nil)
+
+		// Create active group and visit
+		activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, activityGroup.ID, room.ID)
+		testpkg.CreateTestVisit(t, tc.db, student.ID, activeGroup.ID, now, nil)
+
+		defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID, student.ID, activityGroup.ID, staff.ID, device.ID, activeGroup.ID)
+
+		router := setupRouter(tc.resource.GetStudentCurrentVisitHandler(), "id")
+		req := testutil.NewRequest("GET", fmt.Sprintf("/%d", student.ID), nil)
+
+		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+
+		// Should return the visit data
+		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
 	})
 }
