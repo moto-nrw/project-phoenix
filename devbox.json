@@ -10,6 +10,12 @@
     "jq@latest",
     "ripgrep@latest",
     "fd@latest",
+    "bat@latest",
+    "eza@latest",
+    "fzf@latest",
+    "delta@latest",
+    "tealdeer@latest",
+    "btop@latest",
     "tree@latest",
     "curl@latest",
     "git@latest"
