@@ -32,3 +32,20 @@ pre-push:
     frontend-typecheck:
       glob: "frontend/**/*.{ts,tsx}"
       run: cd frontend && npm run typecheck
+
+# Post-merge: Check env sync after git pull
+post-merge:
+  commands:
+    env-sync-check:
+      run: |
+        dotenv-linter diff .env .env.example 2>/dev/null | grep "missing" || true
+        dotenv-linter diff backend/dev.env backend/dev.env.example 2>/dev/null | grep "missing" || true
+        dotenv-linter diff frontend/.env.local frontend/.env.example 2>/dev/null | grep "missing" || true
+
+    docker-compose-sync:
+      run: |
+        if [ -f docker-compose.yml ] && [ -f docker-compose.example.yml ]; then
+          dyff between --omit-header docker-compose.example.yml docker-compose.yml 2>/dev/null || true
+        elif [ ! -f docker-compose.yml ] && [ -f docker-compose.example.yml ]; then
+          echo "docker-compose.yml missing - copy from docker-compose.example.yml"
+        fi

@@ -23,7 +23,8 @@
     "ni@latest",
     "tree@latest",
     "curl@latest",
-    "git@latest"
+    "git@latest",
+    "dyff@latest"
   ],
   "env": {
     "GOPATH":      "$PWD/.devbox/go",
