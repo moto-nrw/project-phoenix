@@ -18,8 +18,8 @@ import (
 func cleanupParentAccount(tb testing.TB, db *bun.DB, accountID int64) {
 	tb.Helper()
 	_, _ = db.NewDelete().
-		Model((*auth.AccountParent)(nil)).
-		TableExpr("auth.accounts_parents").
+		Model((*interface{})(nil)).
+		Table("auth.accounts_parents").
 		Where("id = ?", accountID).
 		Exec(context.Background())
 }

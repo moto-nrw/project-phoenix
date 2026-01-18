@@ -75,8 +75,7 @@ func TestListSettings_WithCategoryFilter(t *testing.T) {
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 }
 
-func TestListSettings_WithSearchFilter_NotImplemented(t *testing.T) {
-	// Note: Search filter is not implemented in the repository
+func TestListSettings_WithSearchFilter(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
@@ -90,8 +89,8 @@ func TestListSettings_WithSearchFilter_NotImplemented(t *testing.T) {
 
 	rr := testutil.ExecuteRequest(router, req)
 
-	// Search filter causes database error (column doesn't exist)
-	testutil.AssertErrorResponse(t, rr, http.StatusInternalServerError)
+	// Search filter now searches across key, value, and description columns
+	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 }
 
 // =============================================================================

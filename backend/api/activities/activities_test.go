@@ -55,10 +55,10 @@ func cleanupActivity(t *testing.T, db *bun.DB, activityID int64) {
 	t.Helper()
 	ctx := context.Background()
 
-	// Delete enrollments
+	// Delete enrollments (actual table name is student_enrollments)
 	_, _ = db.NewDelete().
-		TableExpr("activities.enrollments").
-		Where("group_id = ?", activityID).
+		TableExpr("activities.student_enrollments").
+		Where("activity_group_id = ?", activityID).
 		Exec(ctx)
 
 	// Delete schedules
@@ -67,9 +67,9 @@ func cleanupActivity(t *testing.T, db *bun.DB, activityID int64) {
 		Where("activity_group_id = ?", activityID).
 		Exec(ctx)
 
-	// Delete supervisors
+	// Delete supervisors (actual table name is supervisors, not supervisors_planned)
 	_, _ = db.NewDelete().
-		TableExpr("activities.supervisors_planned").
+		TableExpr("activities.supervisors").
 		Where("group_id = ?", activityID).
 		Exec(ctx)
 
@@ -80,11 +80,18 @@ func cleanupActivity(t *testing.T, db *bun.DB, activityID int64) {
 		Exec(ctx)
 }
 
-// cleanupCategory cleans up a category
+// cleanupCategory cleans up a category and any groups referencing it
 func cleanupCategory(t *testing.T, db *bun.DB, categoryID int64) {
 	t.Helper()
 	ctx := context.Background()
 
+	// First delete any groups that reference this category (FK constraint)
+	_, _ = db.NewDelete().
+		TableExpr("activities.groups").
+		Where("category_id = ?", categoryID).
+		Exec(ctx)
+
+	// Then delete the category
 	_, _ = db.NewDelete().
 		TableExpr("activities.categories").
 		Where("id = ?", categoryID).

@@ -377,14 +377,21 @@ func CleanupActivityFixtures(tb testing.TB, db *bun.DB, ids ...int64) {
 		// Activities domain cleanup
 		// ========================================
 
-		// Delete from activities.groups
+		// Delete from activities.student_enrollments (depends on activities.groups)
+		cleanupDelete(tb, db.NewDelete().
+			Model((*interface{})(nil)).
+			Table("activities.student_enrollments").
+			Where("activity_group_id = ?", id),
+			"activities.student_enrollments")
+
+		// Delete from activities.groups by ID or by category_id (to handle FK constraint)
 		cleanupDelete(tb, db.NewDelete().
 			Model((*interface{})(nil)).
 			Table("activities.groups").
-			Where(whereIDEquals, id),
+			Where("id = ? OR category_id = ?", id, id),
 			"activities.groups")
 
-		// Delete from activities.categories
+		// Delete from activities.categories (now safe after groups referencing them are deleted)
 		cleanupDelete(tb, db.NewDelete().
 			Model((*interface{})(nil)).
 			Table("activities.categories").
@@ -785,13 +792,14 @@ func CleanupStaffFixtures(tb testing.TB, db *bun.DB, staffIDs ...int64) {
 
 	for _, staffID := range staffIDs {
 		// First get the staff to find the person ID
+		// Use TableExpr and ColumnExpr to generate valid SQL
 		var staff struct {
 			PersonID int64 `bun:"person_id"`
 		}
 		_ = db.NewSelect().
 			Model(&staff).
-			Table(tableUsersStaff).
-			Column("person_id").
+			TableExpr(tableUsersStaff).
+			ColumnExpr("person_id").
 			Where(whereIDEquals, staffID).
 			Scan(ctx)
 
@@ -835,13 +843,14 @@ func CleanupTeacherFixtures(tb testing.TB, db *bun.DB, teacherIDs ...int64) {
 
 	for _, teacherID := range teacherIDs {
 		// Get the teacher to find the staff ID
+		// Use TableExpr and ColumnExpr to generate valid SQL
 		var teacher struct {
 			StaffID int64 `bun:"staff_id"`
 		}
 		_ = db.NewSelect().
 			Model(&teacher).
-			Table(tableUsersTeachers).
-			Column("staff_id").
+			TableExpr(tableUsersTeachers).
+			ColumnExpr("staff_id").
 			Where(whereIDEquals, teacherID).
 			Scan(ctx)
 
@@ -851,8 +860,8 @@ func CleanupTeacherFixtures(tb testing.TB, db *bun.DB, teacherIDs ...int64) {
 		}
 		_ = db.NewSelect().
 			Model(&staff).
-			Table(tableUsersStaff).
-			Column("person_id").
+			TableExpr(tableUsersStaff).
+			ColumnExpr("person_id").
 			Where(whereIDEquals, teacher.StaffID).
 			Scan(ctx)
 
@@ -862,8 +871,8 @@ func CleanupTeacherFixtures(tb testing.TB, db *bun.DB, teacherIDs ...int64) {
 		}
 		_ = db.NewSelect().
 			Model(&person).
-			Table(tableUsersPersons).
-			Column("account_id").
+			TableExpr(tableUsersPersons).
+			ColumnExpr("account_id").
 			Where(whereIDEquals, staff.PersonID).
 			Scan(ctx)
 

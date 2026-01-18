@@ -700,6 +700,24 @@ func TestActivityService_AddSupervisor(t *testing.T) {
 		require.Error(t, err)
 		assert.Nil(t, result)
 	})
+
+	t.Run("returns error for nonexistent staff", func(t *testing.T) {
+		// ARRANGE
+		group := testpkg.CreateTestActivityGroup(t, db, "no-staff-super")
+		defer testpkg.CleanupActivityFixtures(t, db, group.ID)
+
+		// ACT
+		result, err := service.AddSupervisor(ctx, group.ID, 99999999, false)
+
+		// ASSERT
+		require.Error(t, err)
+		assert.Nil(t, result)
+		// Verify it's a staff not found error
+		var actErr *activities.ActivityError
+		if errors.As(err, &actErr) {
+			assert.True(t, errors.Is(actErr.Err, activities.ErrStaffNotFound), "expected ErrStaffNotFound, got: %v", actErr.Err)
+		}
+	})
 }
 
 func TestActivityService_GetStaffAssignments(t *testing.T) {

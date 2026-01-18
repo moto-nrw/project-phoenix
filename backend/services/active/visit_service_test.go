@@ -118,7 +118,13 @@ func TestActiveService_CreateVisit(t *testing.T) {
 		activity := testpkg.CreateTestActivityGroup(t, db, "invalid-student-visit")
 		room := testpkg.CreateTestRoom(t, db, "Invalid Student Room")
 		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
-		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID)
+		staff := testpkg.CreateTestStaff(t, db, "Invalid", "Student")
+		iotDevice := testpkg.CreateTestDevice(t, db, "invalid-student-device")
+		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, staff.ID, iotDevice.ID)
+
+		// CreateVisit requires staff and device context for attendance FK constraints
+		staffCtx := context.WithValue(ctx, device.CtxStaff, staff)
+		deviceCtx := context.WithValue(staffCtx, device.CtxDevice, iotDevice)
 
 		visit := &activeModels.Visit{
 			StudentID:     99999999, // invalid
@@ -127,7 +133,7 @@ func TestActiveService_CreateVisit(t *testing.T) {
 		}
 
 		// ACT
-		err := service.CreateVisit(ctx, visit)
+		err := service.CreateVisit(deviceCtx, visit)
 
 		// ASSERT
 		require.Error(t, err)

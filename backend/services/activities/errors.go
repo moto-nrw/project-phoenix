@@ -41,6 +41,9 @@ var (
 
 	// ErrCannotDeletePrimary returned when attempting to delete a primary supervisor
 	ErrCannotDeletePrimary = errors.New("cannot delete primary supervisor")
+
+	// ErrStaffNotFound returned when a staff member doesn't exist
+	ErrStaffNotFound = errors.New("staff not found")
 )
 
 // ActivityError represents an activity-related error

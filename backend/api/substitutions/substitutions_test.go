@@ -48,7 +48,7 @@ func setupTestContext(t *testing.T) *testContext {
 func cleanupSubstitution(t *testing.T, db *bun.DB, id int64) {
 	t.Helper()
 	_, _ = db.NewDelete().
-		TableExpr("education.group_substitutions").
+		TableExpr("education.group_substitution").
 		Where("id = ?", id).
 		Exec(context.Background())
 }
