@@ -17,6 +17,7 @@
     "tealdeer@latest",
     "btop@latest",
     "pgcli@latest",
+    "dotenv-linter@latest",
     "tree@latest",
     "curl@latest",
     "git@latest"
