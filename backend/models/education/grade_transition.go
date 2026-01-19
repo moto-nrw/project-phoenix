@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
 
 // Transition status constants
@@ -39,20 +38,6 @@ type GradeTransition struct {
 
 // JSONMap is a helper type for JSONB columns
 type JSONMap map[string]interface{}
-
-// BeforeAppendModel sets the correct table expression
-func (t *GradeTransition) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.SelectQuery); ok {
-		q.ModelTableExpr(`education.grade_transitions AS "grade_transition"`)
-	}
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(`education.grade_transitions AS "grade_transition"`)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(`education.grade_transitions AS "grade_transition"`)
-	}
-	return nil
-}
 
 // TableName returns the database table name
 func (t *GradeTransition) TableName() string {

@@ -2,9 +2,11 @@ package education_test
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
+	"github.com/gofrs/uuid"
 	"github.com/moto-nrw/project-phoenix/database/repositories/education"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -432,8 +434,8 @@ func TestGradeTransitionRepository_GetStudentCountByClass(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("counts students in class", func(t *testing.T) {
-		// Create unique class name to avoid conflicts
-		className := "test-count-class"
+		// Create unique class name using UUID to ensure test isolation
+		className := fmt.Sprintf("test-count-%s", uuid.Must(uuid.NewV4()).String()[:8])
 		student1 := testpkg.CreateTestStudent(t, db, "Count1", "Student1", className)
 		student2 := testpkg.CreateTestStudent(t, db, "Count2", "Student2", className)
 		defer testpkg.CleanupActivityFixtures(t, db, student1.ID, student2.ID)
@@ -458,14 +460,16 @@ func TestGradeTransitionRepository_GetStudentsByClasses(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("gets students by classes", func(t *testing.T) {
-		class1 := "test-get-class1"
-		class2 := "test-get-class2"
+		// Create unique class names using UUID to ensure test isolation
+		suffix := uuid.Must(uuid.NewV4()).String()[:8]
+		class1 := fmt.Sprintf("test-get-class1-%s", suffix)
+		class2 := fmt.Sprintf("test-get-class2-%s", suffix)
 		student1 := testpkg.CreateTestStudent(t, db, "Get1", "Student1", class1)
 		student2 := testpkg.CreateTestStudent(t, db, "Get2", "Student2", class2)
 		defer testpkg.CleanupActivityFixtures(t, db, student1.ID, student2.ID)
 
 		students, err := repo.GetStudentsByClasses(ctx, []string{class1, class2})
 		require.NoError(t, err)
-		assert.GreaterOrEqual(t, len(students), 2)
+		assert.Equal(t, 2, len(students))
 	})
 }

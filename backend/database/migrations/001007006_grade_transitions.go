@@ -56,6 +56,7 @@ func createGradeTransitionsTables(ctx context.Context, db *bun.DB) error {
 			reverted_at TIMESTAMPTZ,
 			reverted_by BIGINT REFERENCES auth.accounts(id),
 			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 			created_by BIGINT NOT NULL REFERENCES auth.accounts(id),
 			notes TEXT,
 			metadata JSONB DEFAULT '{}',
@@ -88,6 +89,8 @@ func createGradeTransitionsTables(ctx context.Context, db *bun.DB) error {
 			transition_id BIGINT NOT NULL REFERENCES education.grade_transitions(id) ON DELETE CASCADE,
 			from_class VARCHAR(50) NOT NULL,
 			to_class VARCHAR(50),                                 -- NULL = graduates (delete)
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 			UNIQUE(transition_id, from_class)
 		)
 	`)
@@ -115,6 +118,7 @@ func createGradeTransitionsTables(ctx context.Context, db *bun.DB) error {
 			to_class VARCHAR(50),                                 -- NULL = graduated/deleted
 			action VARCHAR(20) NOT NULL,                          -- 'promoted', 'graduated', 'unchanged'
 			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
 			-- Ensure valid action values
 			CONSTRAINT chk_grade_transition_action CHECK (action IN ('promoted', 'graduated', 'unchanged'))
@@ -139,10 +143,28 @@ func createGradeTransitionsTables(ctx context.Context, db *bun.DB) error {
 
 	// Create trigger for updated_at on grade_transitions
 	_, err = tx.ExecContext(ctx, `
+		CREATE OR REPLACE FUNCTION education.update_grade_transitions_updated_at()
+		RETURNS TRIGGER AS $$
+		BEGIN
+			NEW.updated_at = NOW();
+			RETURN NEW;
+		END;
+		$$ LANGUAGE plpgsql;
+
 		DROP TRIGGER IF EXISTS update_grade_transitions_updated_at ON education.grade_transitions;
+		CREATE TRIGGER update_grade_transitions_updated_at
+			BEFORE UPDATE ON education.grade_transitions
+			FOR EACH ROW
+			EXECUTE FUNCTION education.update_grade_transitions_updated_at();
+
+		DROP TRIGGER IF EXISTS update_grade_transition_mappings_updated_at ON education.grade_transition_mappings;
+		CREATE TRIGGER update_grade_transition_mappings_updated_at
+			BEFORE UPDATE ON education.grade_transition_mappings
+			FOR EACH ROW
+			EXECUTE FUNCTION education.update_grade_transitions_updated_at();
 	`)
 	if err != nil {
-		return fmt.Errorf("error dropping existing trigger: %w", err)
+		return fmt.Errorf("error creating updated_at triggers: %w", err)
 	}
 
 	return tx.Commit()

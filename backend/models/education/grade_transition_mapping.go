@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
 
 // GradeTransitionMapping represents a class-to-class mapping for a grade transition
@@ -15,20 +14,6 @@ type GradeTransitionMapping struct {
 	TransitionID int64   `bun:"transition_id,notnull" json:"transition_id"`
 	FromClass    string  `bun:"from_class,notnull" json:"from_class"`
 	ToClass      *string `bun:"to_class" json:"to_class,omitempty"` // NULL = graduate/delete
-}
-
-// BeforeAppendModel sets the correct table expression
-func (m *GradeTransitionMapping) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.SelectQuery); ok {
-		q.ModelTableExpr(`education.grade_transition_mappings AS "mapping"`)
-	}
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(`education.grade_transition_mappings AS "mapping"`)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(`education.grade_transition_mappings AS "mapping"`)
-	}
-	return nil
 }
 
 // TableName returns the database table name

@@ -140,8 +140,8 @@ func (r *GradeTransitionRepository) List(ctx context.Context, options *modelBase
 	var transitions []*education.GradeTransition
 
 	query := r.db.NewSelect().
-		Model(&transitions).
-		ModelTableExpr(`education.grade_transitions AS "grade_transition"`)
+		TableExpr("education.grade_transitions").
+		ColumnExpr("*")
 
 	// Apply query options
 	if options != nil {
@@ -150,8 +150,7 @@ func (r *GradeTransitionRepository) List(ctx context.Context, options *modelBase
 
 	// Get total count
 	count, err := r.db.NewSelect().
-		Model((*education.GradeTransition)(nil)).
-		ModelTableExpr(`education.grade_transitions AS "grade_transition"`).
+		TableExpr("education.grade_transitions").
 		Count(ctx)
 	if err != nil {
 		return nil, 0, &modelBase.DatabaseError{
@@ -161,7 +160,7 @@ func (r *GradeTransitionRepository) List(ctx context.Context, options *modelBase
 	}
 
 	// Execute query
-	err = query.Order(`"grade_transition".created_at DESC`).Scan(ctx)
+	err = query.Order("created_at DESC").Scan(ctx, &transitions)
 	if err != nil {
 		return nil, 0, &modelBase.DatabaseError{
 			Op:  "list grade transitions",
@@ -176,11 +175,11 @@ func (r *GradeTransitionRepository) List(ctx context.Context, options *modelBase
 func (r *GradeTransitionRepository) FindByAcademicYear(ctx context.Context, year string) ([]*education.GradeTransition, error) {
 	var transitions []*education.GradeTransition
 	err := r.db.NewSelect().
-		Model(&transitions).
-		ModelTableExpr(`education.grade_transitions AS "grade_transition"`).
-		Where(`"grade_transition".academic_year = ?`, year).
-		Order(`"grade_transition".created_at DESC`).
-		Scan(ctx)
+		TableExpr("education.grade_transitions").
+		ColumnExpr("*").
+		Where("academic_year = ?", year).
+		Order("created_at DESC").
+		Scan(ctx, &transitions)
 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
@@ -196,11 +195,11 @@ func (r *GradeTransitionRepository) FindByAcademicYear(ctx context.Context, year
 func (r *GradeTransitionRepository) FindByStatus(ctx context.Context, status string) ([]*education.GradeTransition, error) {
 	var transitions []*education.GradeTransition
 	err := r.db.NewSelect().
-		Model(&transitions).
-		ModelTableExpr(`education.grade_transitions AS "grade_transition"`).
-		Where(`"grade_transition".status = ?`, status).
-		Order(`"grade_transition".created_at DESC`).
-		Scan(ctx)
+		TableExpr("education.grade_transitions").
+		ColumnExpr("*").
+		Where("status = ?", status).
+		Order("created_at DESC").
+		Scan(ctx, &transitions)
 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
@@ -266,9 +265,8 @@ func (r *GradeTransitionRepository) CreateMappings(ctx context.Context, mappings
 // DeleteMappings deletes all mappings for a transition
 func (r *GradeTransitionRepository) DeleteMappings(ctx context.Context, transitionID int64) error {
 	_, err := r.db.NewDelete().
-		Model((*education.GradeTransitionMapping)(nil)).
-		ModelTableExpr(`education.grade_transition_mappings AS "mapping"`).
-		Where(`"mapping".transition_id = ?`, transitionID).
+		TableExpr("education.grade_transition_mappings").
+		Where("transition_id = ?", transitionID).
 		Exec(ctx)
 	if err != nil {
 		return &modelBase.DatabaseError{
@@ -284,11 +282,11 @@ func (r *GradeTransitionRepository) DeleteMappings(ctx context.Context, transiti
 func (r *GradeTransitionRepository) GetMappings(ctx context.Context, transitionID int64) ([]*education.GradeTransitionMapping, error) {
 	var mappings []*education.GradeTransitionMapping
 	err := r.db.NewSelect().
-		Model(&mappings).
-		ModelTableExpr(`education.grade_transition_mappings AS "mapping"`).
-		Where(`"mapping".transition_id = ?`, transitionID).
-		Order(`"mapping".from_class ASC`).
-		Scan(ctx)
+		TableExpr("education.grade_transition_mappings").
+		ColumnExpr("*").
+		Where("transition_id = ?", transitionID).
+		Order("from_class ASC").
+		Scan(ctx, &mappings)
 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
@@ -355,11 +353,11 @@ func (r *GradeTransitionRepository) CreateHistoryBatch(ctx context.Context, hist
 func (r *GradeTransitionRepository) GetHistory(ctx context.Context, transitionID int64) ([]*education.GradeTransitionHistory, error) {
 	var history []*education.GradeTransitionHistory
 	err := r.db.NewSelect().
-		Model(&history).
-		ModelTableExpr(`education.grade_transition_history AS "history"`).
-		Where(`"history".transition_id = ?`, transitionID).
-		Order(`"history".created_at ASC`).
-		Scan(ctx)
+		TableExpr("education.grade_transition_history").
+		ColumnExpr("*").
+		Where("transition_id = ?", transitionID).
+		Order("created_at ASC").
+		Scan(ctx, &history)
 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
@@ -375,10 +373,9 @@ func (r *GradeTransitionRepository) GetHistory(ctx context.Context, transitionID
 func (r *GradeTransitionRepository) GetDistinctClasses(ctx context.Context) ([]string, error) {
 	var classes []string
 	err := r.db.NewSelect().
-		Model((*struct{ SchoolClass string })(nil)).
-		ModelTableExpr(`users.students AS "student"`).
-		Column("school_class").
-		Distinct().
+		TableExpr(`users.students`).
+		ColumnExpr(`DISTINCT school_class`).
+		Where(`school_class IS NOT NULL AND school_class != ''`).
 		Order("school_class ASC").
 		Scan(ctx, &classes)
 
@@ -395,9 +392,8 @@ func (r *GradeTransitionRepository) GetDistinctClasses(ctx context.Context) ([]s
 // GetStudentCountByClass returns the number of students in a class
 func (r *GradeTransitionRepository) GetStudentCountByClass(ctx context.Context, className string) (int, error) {
 	count, err := r.db.NewSelect().
-		Model((*struct{})(nil)).
-		ModelTableExpr(`users.students AS "student"`).
-		Where(`"student".school_class = ?`, className).
+		TableExpr(`users.students`).
+		Where(`school_class = ?`, className).
 		Count(ctx)
 
 	if err != nil {

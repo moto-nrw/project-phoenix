@@ -2,9 +2,11 @@ package education_test
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
+	"github.com/gofrs/uuid"
 	educationRepo "github.com/moto-nrw/project-phoenix/database/repositories/education"
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	"github.com/moto-nrw/project-phoenix/models/base"
@@ -359,16 +361,22 @@ func TestGradeTransitionService_Preview(t *testing.T) {
 	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 	t.Run("preview with students", func(t *testing.T) {
+		// Create unique class names to ensure test isolation
+		suffix := uuid.Must(uuid.NewV4()).String()[:8]
+		class1 := fmt.Sprintf("1a-%s", suffix)
+		class2 := fmt.Sprintf("2a-%s", suffix)
+		class4 := fmt.Sprintf("4a-%s", suffix)
+
 		// Create students in specific classes
-		student1 := testpkg.CreateTestStudent(t, db, "Preview", "Student1", "1a")
-		student2 := testpkg.CreateTestStudent(t, db, "Preview", "Student2", "1a")
-		student3 := testpkg.CreateTestStudent(t, db, "Preview", "Student3", "4a")
+		student1 := testpkg.CreateTestStudent(t, db, "Preview", "Student1", class1)
+		student2 := testpkg.CreateTestStudent(t, db, "Preview", "Student2", class1)
+		student3 := testpkg.CreateTestStudent(t, db, "Preview", "Student3", class4)
 		defer testpkg.CleanupActivityFixtures(t, db, student1.ID, student2.ID, student3.ID)
 
 		// Create transition with mappings
 		transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
-		testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, "1a", strPtr("2a"))
-		testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, "4a", nil) // graduate
+		testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, class1, strPtr(class2))
+		testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, class4, nil) // graduate
 		defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
 
 		preview, err := service.Preview(ctx, transition.ID)
@@ -381,13 +389,19 @@ func TestGradeTransitionService_Preview(t *testing.T) {
 	})
 
 	t.Run("preview shows unmapped classes", func(t *testing.T) {
+		// Create unique class names to ensure test isolation
+		suffix := uuid.Must(uuid.NewV4()).String()[:8]
+		unmappedClass := fmt.Sprintf("3b-%s", suffix)
+		mappedClass := fmt.Sprintf("1a-%s", suffix)
+		targetClass := fmt.Sprintf("2a-%s", suffix)
+
 		// Create student in unmapped class
-		student := testpkg.CreateTestStudent(t, db, "Unmapped", "Student", "3b")
+		student := testpkg.CreateTestStudent(t, db, "Unmapped", "Student", unmappedClass)
 		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
-		// Create transition without mapping for 3b
+		// Create transition without mapping for unmappedClass
 		transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
-		testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, "1a", strPtr("2a"))
+		testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, mappedClass, strPtr(targetClass))
 		defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
 
 		preview, err := service.Preview(ctx, transition.ID)
@@ -396,12 +410,12 @@ func TestGradeTransitionService_Preview(t *testing.T) {
 		// Should have unmapped class warning
 		found := false
 		for _, uc := range preview.UnmappedClasses {
-			if uc.ClassName == "3b" {
+			if uc.ClassName == unmappedClass {
 				found = true
 				break
 			}
 		}
-		assert.True(t, found, "Expected 3b in unmapped classes")
+		assert.True(t, found, "Expected %s in unmapped classes", unmappedClass)
 		assert.NotEmpty(t, preview.Warnings)
 	})
 
@@ -423,14 +437,19 @@ func TestGradeTransitionService_Apply(t *testing.T) {
 	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 	t.Run("apply transition promotes students", func(t *testing.T) {
-		// Create students in class 1a
-		student1 := testpkg.CreateTestStudent(t, db, "Apply", "Student1", "1a")
-		student2 := testpkg.CreateTestStudent(t, db, "Apply", "Student2", "1a")
+		// Create unique class names to ensure test isolation
+		suffix := uuid.Must(uuid.NewV4()).String()[:8]
+		fromClass := fmt.Sprintf("1a-%s", suffix)
+		toClass := fmt.Sprintf("2a-%s", suffix)
+
+		// Create students in fromClass
+		student1 := testpkg.CreateTestStudent(t, db, "Apply", "Student1", fromClass)
+		student2 := testpkg.CreateTestStudent(t, db, "Apply", "Student2", fromClass)
 		defer testpkg.CleanupActivityFixtures(t, db, student1.ID, student2.ID)
 
 		// Create transition
 		transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
-		testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, "1a", strPtr("2a"))
+		testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, fromClass, strPtr(toClass))
 		defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
 
 		result, err := service.Apply(ctx, transition.ID, account.ID)
@@ -449,15 +468,20 @@ func TestGradeTransitionService_Apply(t *testing.T) {
 			Where("id = ?", student1.ID).
 			Scan(ctx, &updatedStudent1)
 		require.NoError(t, err)
-		assert.Equal(t, "2a", updatedStudent1.SchoolClass)
+		assert.Equal(t, toClass, updatedStudent1.SchoolClass)
 	})
 
 	t.Run("apply transition creates history", func(t *testing.T) {
-		student := testpkg.CreateTestStudent(t, db, "History", "Student", "2b")
+		// Create unique class names to ensure test isolation
+		suffix := uuid.Must(uuid.NewV4()).String()[:8]
+		fromClass := fmt.Sprintf("2b-%s", suffix)
+		toClass := fmt.Sprintf("3b-%s", suffix)
+
+		student := testpkg.CreateTestStudent(t, db, "History", "Student", fromClass)
 		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
-		testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, "2b", strPtr("3b"))
+		testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, fromClass, strPtr(toClass))
 		defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
 
 		_, err := service.Apply(ctx, transition.ID, account.ID)
@@ -471,9 +495,9 @@ func TestGradeTransitionService_Apply(t *testing.T) {
 		found := false
 		for _, h := range history {
 			if h.StudentID == student.ID {
-				assert.Equal(t, "2b", h.FromClass)
+				assert.Equal(t, fromClass, h.FromClass)
 				assert.NotNil(t, h.ToClass)
-				assert.Equal(t, "3b", *h.ToClass)
+				assert.Equal(t, toClass, *h.ToClass)
 				assert.Equal(t, education.ActionPromoted, h.Action)
 				found = true
 				break
@@ -518,19 +542,24 @@ func TestGradeTransitionService_Revert(t *testing.T) {
 	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 	t.Run("revert applied transition", func(t *testing.T) {
+		// Create unique class names to ensure test isolation
+		suffix := uuid.Must(uuid.NewV4()).String()[:8]
+		fromClass := fmt.Sprintf("1c-%s", suffix)
+		toClass := fmt.Sprintf("2c-%s", suffix)
+
 		// Create students
-		student := testpkg.CreateTestStudent(t, db, "Revert", "Student", "1c")
+		student := testpkg.CreateTestStudent(t, db, "Revert", "Student", fromClass)
 		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		// Create and apply transition
 		transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
-		testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, "1c", strPtr("2c"))
+		testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, fromClass, strPtr(toClass))
 		defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
 
 		_, err := service.Apply(ctx, transition.ID, account.ID)
 		require.NoError(t, err)
 
-		// Verify student is in 2c
+		// Verify student is in toClass
 		var classAfterApply string
 		err = db.NewSelect().
 			TableExpr(`users.students`).
@@ -538,7 +567,7 @@ func TestGradeTransitionService_Revert(t *testing.T) {
 			Where("id = ?", student.ID).
 			Scan(ctx, &classAfterApply)
 		require.NoError(t, err)
-		assert.Equal(t, "2c", classAfterApply)
+		assert.Equal(t, toClass, classAfterApply)
 
 		// Revert
 		result, err := service.Revert(ctx, transition.ID, account.ID)
@@ -546,7 +575,7 @@ func TestGradeTransitionService_Revert(t *testing.T) {
 		assert.Equal(t, education.TransitionStatusReverted, result.Status)
 		assert.False(t, result.CanRevert)
 
-		// Verify student is back in 1c
+		// Verify student is back in fromClass
 		var classAfterRevert string
 		err = db.NewSelect().
 			TableExpr(`users.students`).
@@ -554,7 +583,7 @@ func TestGradeTransitionService_Revert(t *testing.T) {
 			Where("id = ?", student.ID).
 			Scan(ctx, &classAfterRevert)
 		require.NoError(t, err)
-		assert.Equal(t, "1c", classAfterRevert)
+		assert.Equal(t, fromClass, classAfterRevert)
 	})
 
 	t.Run("cannot revert draft transition", func(t *testing.T) {

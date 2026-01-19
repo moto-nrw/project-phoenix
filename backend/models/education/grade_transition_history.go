@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
 
 // Transition action constants
@@ -25,20 +24,6 @@ type GradeTransitionHistory struct {
 	FromClass    string  `bun:"from_class,notnull" json:"from_class"`
 	ToClass      *string `bun:"to_class" json:"to_class,omitempty"` // NULL = graduated/deleted
 	Action       string  `bun:"action,notnull" json:"action"` // 'promoted', 'graduated', 'unchanged'
-}
-
-// BeforeAppendModel sets the correct table expression
-func (h *GradeTransitionHistory) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.SelectQuery); ok {
-		q.ModelTableExpr(`education.grade_transition_history AS "history"`)
-	}
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(`education.grade_transition_history AS "history"`)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(`education.grade_transition_history AS "history"`)
-	}
-	return nil
 }
 
 // TableName returns the database table name
