@@ -317,7 +317,7 @@ describe("formatRoomLocation", () => {
 
     const result = formatRoomLocation(room);
 
-    expect(result).toBe("Etage 0");
+    expect(result).toBe("Erdgeschoss");
   });
 });
 

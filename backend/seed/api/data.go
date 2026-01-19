@@ -105,10 +105,11 @@ var DemoStaff = []DemoStaffMember{
 	{FirstName: "Uwe", LastName: "Lange", Position: "Pädagogische Fachkraft", IsTeacher: true},
 }
 
-// DemoStudents defines the 45 students across 3 groups (15 each)
+// DemoStudents defines the 100 students across 10 groups (10 each)
 // OGS groups contain students from multiple school classes (realistic scenario)
+// Each group has a dedicated Betreuer (Pädagogische Fachkraft) assigned
 var DemoStudents = []DemoStudent{
-	// Sternengruppe (15 students) - Mix of Klasse 1a, 1b, 2a
+	// Sternengruppe (10 students) - Betreuer: Julia Klein - Mix of Klasse 1a, 1b
 	{FirstName: "Felix", LastName: "Schneider", Class: "Klasse 1a", GroupKey: "sternengruppe"},
 	{FirstName: "Emma", LastName: "Meyer", Class: "Klasse 1a", GroupKey: "sternengruppe"},
 	{FirstName: "Leon", LastName: "Koch", Class: "Klasse 1a", GroupKey: "sternengruppe"},
@@ -116,48 +117,117 @@ var DemoStudents = []DemoStudent{
 	{FirstName: "Noah", LastName: "Richter", Class: "Klasse 1b", GroupKey: "sternengruppe"},
 	{FirstName: "Hannah", LastName: "Klein", Class: "Klasse 1b", GroupKey: "sternengruppe"},
 	{FirstName: "Paul", LastName: "Wolf", Class: "Klasse 1a", GroupKey: "sternengruppe"},
-	{FirstName: "Lina", LastName: "Schröder", Class: "Klasse 2a", GroupKey: "sternengruppe"},
-	{FirstName: "Lukas", LastName: "Neumann", Class: "Klasse 2a", GroupKey: "sternengruppe"},
+	{FirstName: "Lina", LastName: "Schröder", Class: "Klasse 1b", GroupKey: "sternengruppe"},
+	{FirstName: "Lukas", LastName: "Neumann", Class: "Klasse 1a", GroupKey: "sternengruppe"},
 	{FirstName: "Sophie", LastName: "Schwarz", Class: "Klasse 1b", GroupKey: "sternengruppe"},
-	{FirstName: "Jonas", LastName: "Zimmermann", Class: "Klasse 2a", GroupKey: "sternengruppe"},
-	{FirstName: "Emilia", LastName: "Braun", Class: "Klasse 1a", GroupKey: "sternengruppe"},
-	{FirstName: "Ben", LastName: "Krüger", Class: "Klasse 2a", GroupKey: "sternengruppe"},
-	{FirstName: "Lena", LastName: "Hofmann", Class: "Klasse 1b", GroupKey: "sternengruppe"},
-	{FirstName: "Tim", LastName: "Hartmann", Class: "Klasse 2a", GroupKey: "sternengruppe"},
 
-	// Bärengruppe (15 students) - Mix of Klasse 2b, 3a, 3b
-	{FirstName: "Maximilian", LastName: "Schmitt", Class: "Klasse 2b", GroupKey: "bärengruppe"},
-	{FirstName: "Laura", LastName: "Werner", Class: "Klasse 2b", GroupKey: "bärengruppe"},
-	{FirstName: "David", LastName: "Krause", Class: "Klasse 3a", GroupKey: "bärengruppe"},
-	{FirstName: "Anna", LastName: "Meier", Class: "Klasse 3a", GroupKey: "bärengruppe"},
-	{FirstName: "Simon", LastName: "Lange", Class: "Klasse 3a", GroupKey: "bärengruppe"},
-	{FirstName: "Julia", LastName: "Schulz", Class: "Klasse 2b", GroupKey: "bärengruppe"},
-	{FirstName: "Moritz", LastName: "König", Class: "Klasse 3b", GroupKey: "bärengruppe"},
-	{FirstName: "Marie", LastName: "Walter", Class: "Klasse 3b", GroupKey: "bärengruppe"},
-	{FirstName: "Niklas", LastName: "Huber", Class: "Klasse 2b", GroupKey: "bärengruppe"},
-	{FirstName: "Clara", LastName: "Herrmann", Class: "Klasse 3a", GroupKey: "bärengruppe"},
-	{FirstName: "Jan", LastName: "Peters", Class: "Klasse 3b", GroupKey: "bärengruppe"},
-	{FirstName: "Sophia", LastName: "Lang", Class: "Klasse 2b", GroupKey: "bärengruppe"},
-	{FirstName: "Erik", LastName: "Möller", Class: "Klasse 3a", GroupKey: "bärengruppe"},
-	{FirstName: "Lea", LastName: "Beck", Class: "Klasse 3b", GroupKey: "bärengruppe"},
-	{FirstName: "Finn", LastName: "Jung", Class: "Klasse 3b", GroupKey: "bärengruppe"},
+	// Bärengruppe (10 students) - Betreuer: Markus Wolf - Mix of Klasse 1b, 2a
+	{FirstName: "Jonas", LastName: "Zimmermann", Class: "Klasse 1b", GroupKey: "bärengruppe"},
+	{FirstName: "Emilia", LastName: "Braun", Class: "Klasse 2a", GroupKey: "bärengruppe"},
+	{FirstName: "Ben", LastName: "Krüger", Class: "Klasse 2a", GroupKey: "bärengruppe"},
+	{FirstName: "Lena", LastName: "Hofmann", Class: "Klasse 1b", GroupKey: "bärengruppe"},
+	{FirstName: "Tim", LastName: "Hartmann", Class: "Klasse 2a", GroupKey: "bärengruppe"},
+	{FirstName: "Maximilian", LastName: "Schmitt", Class: "Klasse 2a", GroupKey: "bärengruppe"},
+	{FirstName: "Laura", LastName: "Werner", Class: "Klasse 1b", GroupKey: "bärengruppe"},
+	{FirstName: "David", LastName: "Krause", Class: "Klasse 2a", GroupKey: "bärengruppe"},
+	{FirstName: "Anna", LastName: "Meier", Class: "Klasse 2a", GroupKey: "bärengruppe"},
+	{FirstName: "Simon", LastName: "Lange", Class: "Klasse 1b", GroupKey: "bärengruppe"},
 
-	// Sonnengruppe (15 students) - Mix of Klasse 3a, 4a, 4b
-	{FirstName: "Anton", LastName: "Keller", Class: "Klasse 3a", GroupKey: "sonnengruppe"},
-	{FirstName: "Charlotte", LastName: "Berger", Class: "Klasse 4a", GroupKey: "sonnengruppe"},
-	{FirstName: "Henri", LastName: "Fuchs", Class: "Klasse 4a", GroupKey: "sonnengruppe"},
-	{FirstName: "Amelie", LastName: "Vogel", Class: "Klasse 4a", GroupKey: "sonnengruppe"},
-	{FirstName: "Leonard", LastName: "Roth", Class: "Klasse 3a", GroupKey: "sonnengruppe"},
-	{FirstName: "Johanna", LastName: "Frank", Class: "Klasse 4b", GroupKey: "sonnengruppe"},
-	{FirstName: "Elias", LastName: "Baumann", Class: "Klasse 4b", GroupKey: "sonnengruppe"},
-	{FirstName: "Isabella", LastName: "Graf", Class: "Klasse 4a", GroupKey: "sonnengruppe"},
-	{FirstName: "Matteo", LastName: "Kaiser", Class: "Klasse 3a", GroupKey: "sonnengruppe"},
-	{FirstName: "Nele", LastName: "Pfeiffer", Class: "Klasse 4b", GroupKey: "sonnengruppe"},
-	{FirstName: "Theo", LastName: "Sommer", Class: "Klasse 4a", GroupKey: "sonnengruppe"},
-	{FirstName: "Frieda", LastName: "Brandt", Class: "Klasse 4b", GroupKey: "sonnengruppe"},
-	{FirstName: "Oscar", LastName: "Vogt", Class: "Klasse 3a", GroupKey: "sonnengruppe"},
-	{FirstName: "Greta", LastName: "Engel", Class: "Klasse 4a", GroupKey: "sonnengruppe"},
-	{FirstName: "Jakob", LastName: "Stein", Class: "Klasse 4b", GroupKey: "sonnengruppe"},
+	// Sonnengruppe (10 students) - Betreuer: Sandra Schröder - Mix of Klasse 2a, 2b
+	{FirstName: "Julia", LastName: "Schulz", Class: "Klasse 2a", GroupKey: "sonnengruppe"},
+	{FirstName: "Moritz", LastName: "König", Class: "Klasse 2b", GroupKey: "sonnengruppe"},
+	{FirstName: "Marie", LastName: "Walter", Class: "Klasse 2b", GroupKey: "sonnengruppe"},
+	{FirstName: "Niklas", LastName: "Huber", Class: "Klasse 2a", GroupKey: "sonnengruppe"},
+	{FirstName: "Clara", LastName: "Herrmann", Class: "Klasse 2b", GroupKey: "sonnengruppe"},
+	{FirstName: "Jan", LastName: "Peters", Class: "Klasse 2a", GroupKey: "sonnengruppe"},
+	{FirstName: "Sophia", LastName: "Lang", Class: "Klasse 2b", GroupKey: "sonnengruppe"},
+	{FirstName: "Erik", LastName: "Möller", Class: "Klasse 2a", GroupKey: "sonnengruppe"},
+	{FirstName: "Lea", LastName: "Beck", Class: "Klasse 2b", GroupKey: "sonnengruppe"},
+	{FirstName: "Finn", LastName: "Jung", Class: "Klasse 2a", GroupKey: "sonnengruppe"},
+
+	// Mondgruppe (10 students) - Betreuer: Christian Neumann - Mix of Klasse 2b, 3a
+	{FirstName: "Anton", LastName: "Keller", Class: "Klasse 2b", GroupKey: "mondgruppe"},
+	{FirstName: "Charlotte", LastName: "Berger", Class: "Klasse 3a", GroupKey: "mondgruppe"},
+	{FirstName: "Henri", LastName: "Fuchs", Class: "Klasse 3a", GroupKey: "mondgruppe"},
+	{FirstName: "Amelie", LastName: "Vogel", Class: "Klasse 2b", GroupKey: "mondgruppe"},
+	{FirstName: "Leonard", LastName: "Roth", Class: "Klasse 3a", GroupKey: "mondgruppe"},
+	{FirstName: "Johanna", LastName: "Frank", Class: "Klasse 2b", GroupKey: "mondgruppe"},
+	{FirstName: "Elias", LastName: "Baumann", Class: "Klasse 3a", GroupKey: "mondgruppe"},
+	{FirstName: "Isabella", LastName: "Graf", Class: "Klasse 3a", GroupKey: "mondgruppe"},
+	{FirstName: "Matteo", LastName: "Kaiser", Class: "Klasse 2b", GroupKey: "mondgruppe"},
+	{FirstName: "Nele", LastName: "Pfeiffer", Class: "Klasse 3a", GroupKey: "mondgruppe"},
+
+	// Regenbogengruppe (10 students) - Betreuer: Nicole Schwarz - Mix of Klasse 3a, 3b
+	{FirstName: "Theo", LastName: "Sommer", Class: "Klasse 3a", GroupKey: "regenbogengruppe"},
+	{FirstName: "Frieda", LastName: "Brandt", Class: "Klasse 3b", GroupKey: "regenbogengruppe"},
+	{FirstName: "Oscar", LastName: "Vogt", Class: "Klasse 3a", GroupKey: "regenbogengruppe"},
+	{FirstName: "Greta", LastName: "Engel", Class: "Klasse 3b", GroupKey: "regenbogengruppe"},
+	{FirstName: "Jakob", LastName: "Stein", Class: "Klasse 3a", GroupKey: "regenbogengruppe"},
+	{FirstName: "Mila", LastName: "Albrecht", Class: "Klasse 3b", GroupKey: "regenbogengruppe"},
+	{FirstName: "Luis", LastName: "Arnold", Class: "Klasse 3a", GroupKey: "regenbogengruppe"},
+	{FirstName: "Ella", LastName: "Bender", Class: "Klasse 3b", GroupKey: "regenbogengruppe"},
+	{FirstName: "Nico", LastName: "Böhm", Class: "Klasse 3a", GroupKey: "regenbogengruppe"},
+	{FirstName: "Ida", LastName: "Busch", Class: "Klasse 3b", GroupKey: "regenbogengruppe"},
+
+	// Blumengruppe (10 students) - Betreuer: Frank Zimmermann - Mix of Klasse 3b, 4a
+	{FirstName: "Philipp", LastName: "Dietrich", Class: "Klasse 3b", GroupKey: "blumengruppe"},
+	{FirstName: "Leni", LastName: "Ernst", Class: "Klasse 4a", GroupKey: "blumengruppe"},
+	{FirstName: "Fabian", LastName: "Franke", Class: "Klasse 3b", GroupKey: "blumengruppe"},
+	{FirstName: "Maja", LastName: "Friedrich", Class: "Klasse 4a", GroupKey: "blumengruppe"},
+	{FirstName: "Luca", LastName: "Günther", Class: "Klasse 3b", GroupKey: "blumengruppe"},
+	{FirstName: "Alina", LastName: "Haas", Class: "Klasse 4a", GroupKey: "blumengruppe"},
+	{FirstName: "Julian", LastName: "Heinrich", Class: "Klasse 4a", GroupKey: "blumengruppe"},
+	{FirstName: "Carla", LastName: "Henkel", Class: "Klasse 3b", GroupKey: "blumengruppe"},
+	{FirstName: "Hannes", LastName: "Hesse", Class: "Klasse 4a", GroupKey: "blumengruppe"},
+	{FirstName: "Mathilda", LastName: "Horn", Class: "Klasse 4a", GroupKey: "blumengruppe"},
+
+	// Schmetterlingsgruppe (10 students) - Betreuer: Birgit Braun - Mix of Klasse 4a, 4b
+	{FirstName: "Alexander", LastName: "Jäger", Class: "Klasse 4a", GroupKey: "schmetterlingsgruppe"},
+	{FirstName: "Victoria", LastName: "Kerner", Class: "Klasse 4b", GroupKey: "schmetterlingsgruppe"},
+	{FirstName: "Florian", LastName: "Kraft", Class: "Klasse 4a", GroupKey: "schmetterlingsgruppe"},
+	{FirstName: "Helena", LastName: "Kramer", Class: "Klasse 4b", GroupKey: "schmetterlingsgruppe"},
+	{FirstName: "Vincent", LastName: "Kuhn", Class: "Klasse 4a", GroupKey: "schmetterlingsgruppe"},
+	{FirstName: "Stella", LastName: "Lehmann", Class: "Klasse 4b", GroupKey: "schmetterlingsgruppe"},
+	{FirstName: "Maximilian", LastName: "Lorenz", Class: "Klasse 4a", GroupKey: "schmetterlingsgruppe"},
+	{FirstName: "Antonia", LastName: "Ludwig", Class: "Klasse 4b", GroupKey: "schmetterlingsgruppe"},
+	{FirstName: "Tom", LastName: "Mayer", Class: "Klasse 4a", GroupKey: "schmetterlingsgruppe"},
+	{FirstName: "Pauline", LastName: "Menzel", Class: "Klasse 4b", GroupKey: "schmetterlingsgruppe"},
+
+	// Waldgruppe (10 students) - Betreuer: Jörg Krüger - Mix of Klasse 1a, 2a
+	{FirstName: "Samuel", LastName: "Naumann", Class: "Klasse 1a", GroupKey: "waldgruppe"},
+	{FirstName: "Luisa", LastName: "Otto", Class: "Klasse 2a", GroupKey: "waldgruppe"},
+	{FirstName: "Jonathan", LastName: "Paul", Class: "Klasse 1a", GroupKey: "waldgruppe"},
+	{FirstName: "Emily", LastName: "Pohl", Class: "Klasse 2a", GroupKey: "waldgruppe"},
+	{FirstName: "Rafael", LastName: "Ritter", Class: "Klasse 1a", GroupKey: "waldgruppe"},
+	{FirstName: "Marlene", LastName: "Sauer", Class: "Klasse 2a", GroupKey: "waldgruppe"},
+	{FirstName: "Aaron", LastName: "Schäfer", Class: "Klasse 1a", GroupKey: "waldgruppe"},
+	{FirstName: "Zoe", LastName: "Schenk", Class: "Klasse 2a", GroupKey: "waldgruppe"},
+	{FirstName: "Till", LastName: "Schubert", Class: "Klasse 1a", GroupKey: "waldgruppe"},
+	{FirstName: "Romy", LastName: "Seifert", Class: "Klasse 2a", GroupKey: "waldgruppe"},
+
+	// Meeresgruppe (10 students) - Betreuer: Heike Hartmann - Mix of Klasse 2b, 3b
+	{FirstName: "Dominik", LastName: "Simon", Class: "Klasse 2b", GroupKey: "meeresgruppe"},
+	{FirstName: "Chiara", LastName: "Stark", Class: "Klasse 3b", GroupKey: "meeresgruppe"},
+	{FirstName: "Benedikt", LastName: "Steiner", Class: "Klasse 2b", GroupKey: "meeresgruppe"},
+	{FirstName: "Katharina", LastName: "Stock", Class: "Klasse 3b", GroupKey: "meeresgruppe"},
+	{FirstName: "Valentin", LastName: "Thiel", Class: "Klasse 2b", GroupKey: "meeresgruppe"},
+	{FirstName: "Miriam", LastName: "Ulrich", Class: "Klasse 3b", GroupKey: "meeresgruppe"},
+	{FirstName: "Constantin", LastName: "Vetter", Class: "Klasse 2b", GroupKey: "meeresgruppe"},
+	{FirstName: "Franziska", LastName: "Voigt", Class: "Klasse 3b", GroupKey: "meeresgruppe"},
+	{FirstName: "Robin", LastName: "Walther", Class: "Klasse 2b", GroupKey: "meeresgruppe"},
+	{FirstName: "Nina", LastName: "Weiß", Class: "Klasse 3b", GroupKey: "meeresgruppe"},
+
+	// Wiesengruppe (10 students) - Betreuer: Uwe Lange - Mix of Klasse 3a, 4b
+	{FirstName: "Sebastian", LastName: "Wendt", Class: "Klasse 3a", GroupKey: "wiesengruppe"},
+	{FirstName: "Annika", LastName: "Winkler", Class: "Klasse 4b", GroupKey: "wiesengruppe"},
+	{FirstName: "Tobias", LastName: "Winter", Class: "Klasse 3a", GroupKey: "wiesengruppe"},
+	{FirstName: "Melina", LastName: "Wolff", Class: "Klasse 4b", GroupKey: "wiesengruppe"},
+	{FirstName: "Marvin", LastName: "Zander", Class: "Klasse 3a", GroupKey: "wiesengruppe"},
+	{FirstName: "Selina", LastName: "Ziegler", Class: "Klasse 4b", GroupKey: "wiesengruppe"},
+	{FirstName: "Kevin", LastName: "Anders", Class: "Klasse 3a", GroupKey: "wiesengruppe"},
+	{FirstName: "Jessica", LastName: "Bader", Class: "Klasse 4b", GroupKey: "wiesengruppe"},
+	{FirstName: "Dennis", LastName: "Bartsch", Class: "Klasse 3a", GroupKey: "wiesengruppe"},
+	{FirstName: "Sabrina", LastName: "Bergmann", Class: "Klasse 4b", GroupKey: "wiesengruppe"},
 }
 
 // DemoActivities defines the 10 activities with room assignments
@@ -175,18 +245,30 @@ var DemoActivities = []DemoActivity{
 }
 
 // DemoDevices defines IoT devices for check-in/check-out
+// Need enough devices to support 8+ concurrent activity sessions
 var DemoDevices = []DemoDevice{
-	{DeviceID: "demo-device-001", Name: "Main Entrance Scanner"},
-	{DeviceID: "demo-device-002", Name: "OGS Room 1 Scanner"},
-	{DeviceID: "demo-device-003", Name: "OGS Room 2 Scanner"},
-	{DeviceID: "demo-device-004", Name: "Gymnasium Scanner"},
+	{DeviceID: "demo-device-001", Name: "Haupteingang Scanner"},
+	{DeviceID: "demo-device-002", Name: "OGS-Raum 1 Scanner"},
+	{DeviceID: "demo-device-003", Name: "OGS-Raum 2 Scanner"},
+	{DeviceID: "demo-device-004", Name: "OGS-Raum 3 Scanner"},
+	{DeviceID: "demo-device-005", Name: "Sporthalle Scanner"},
+	{DeviceID: "demo-device-006", Name: "Kreativraum Scanner"},
+	{DeviceID: "demo-device-007", Name: "Mensa Scanner"},
+	{DeviceID: "demo-device-008", Name: "Schulhof Scanner"},
+	{DeviceID: "demo-device-009", Name: "Musikraum Scanner"},
+	{DeviceID: "demo-device-010", Name: "Bewegungsraum Scanner"},
 }
 
 // DefaultRuntimeConfig provides default values for runtime snapshot creation
+// Configured for 100 students across 10 groups, with realistic attendance
+// - 85 checked in and in rooms
+// - 5 "unterwegs" (moving between rooms)
+// - 10 not checked in (sick at home, not yet arrived, etc.)
 var DefaultRuntimeConfig = RuntimeConfig{
-	ActiveSessions:    4,  // Start 4 activity sessions
-	CheckedInStudents: 32, // Check in 32 of 45 students
-	StudentsUnterwegs: 2,  // Leave 2 students "on the way"
+	ActiveSessions:    10, // Start 10 activity sessions (one per Betreuer)
+	CheckedInStudents: 85, // 85 students in rooms
+	StudentsUnterwegs: 5,  // 5 students "on the way" between rooms
+	// Remaining 10 students: not checked in (sick/absent)
 }
 
 // DemoGuardian represents a guardian to be created via API
