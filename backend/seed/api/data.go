@@ -78,16 +78,21 @@ var DemoRooms = []DemoRoom{
 
 // DemoStaff defines staff members for the demo environment
 // Position must match frontend dropdown values in teacher-form.tsx and invitation-form.tsx
-// Demo accounts: 5 OGS-Büro (admin) + 10 Pädagogische Fachkraft (betreuer) + 5 Extern (extern)
+// Demo accounts: 10 OGS-Büro (admin) + 10 Pädagogische Fachkraft (betreuer)
 // All use email: demo{n}@mail.de and password: sdlXK26%
 var DemoStaff = []DemoStaffMember{
-	// 5 OGS-Büro accounts (admin role) - Office/management staff
+	// 10 OGS-Büro accounts (admin role)
 	{FirstName: "Anna", LastName: "Müller", Position: "OGS-Büro", IsTeacher: true},
 	{FirstName: "Thomas", LastName: "Schmidt", Position: "OGS-Büro", IsTeacher: true},
 	{FirstName: "Sabine", LastName: "Weber", Position: "OGS-Büro", IsTeacher: true},
 	{FirstName: "Michael", LastName: "Fischer", Position: "OGS-Büro", IsTeacher: true},
 	{FirstName: "Claudia", LastName: "Wagner", Position: "OGS-Büro", IsTeacher: true},
-	// 10 Pädagogische Fachkraft accounts (betreuer role) - Childcare professionals
+	{FirstName: "Stefan", LastName: "Becker", Position: "OGS-Büro", IsTeacher: true},
+	{FirstName: "Monika", LastName: "Hoffmann", Position: "OGS-Büro", IsTeacher: true},
+	{FirstName: "Andreas", LastName: "Schulz", Position: "OGS-Büro", IsTeacher: true},
+	{FirstName: "Petra", LastName: "Koch", Position: "OGS-Büro", IsTeacher: true},
+	{FirstName: "Martin", LastName: "Richter", Position: "OGS-Büro", IsTeacher: true},
+	// 10 Pädagogische Fachkraft accounts (teacher/betreuer role)
 	{FirstName: "Julia", LastName: "Klein", Position: "Pädagogische Fachkraft", IsTeacher: true},
 	{FirstName: "Markus", LastName: "Wolf", Position: "Pädagogische Fachkraft", IsTeacher: true},
 	{FirstName: "Sandra", LastName: "Schröder", Position: "Pädagogische Fachkraft", IsTeacher: true},
@@ -98,12 +103,6 @@ var DemoStaff = []DemoStaffMember{
 	{FirstName: "Jörg", LastName: "Krüger", Position: "Pädagogische Fachkraft", IsTeacher: true},
 	{FirstName: "Heike", LastName: "Hartmann", Position: "Pädagogische Fachkraft", IsTeacher: true},
 	{FirstName: "Uwe", LastName: "Lange", Position: "Pädagogische Fachkraft", IsTeacher: true},
-	// 5 Extern accounts (extern role) - External instructors/contractors
-	{FirstName: "Stefan", LastName: "Becker", Position: "Extern", IsTeacher: true},
-	{FirstName: "Monika", LastName: "Hoffmann", Position: "Extern", IsTeacher: true},
-	{FirstName: "Andreas", LastName: "Schulz", Position: "Extern", IsTeacher: true},
-	{FirstName: "Petra", LastName: "Koch", Position: "Extern", IsTeacher: true},
-	{FirstName: "Martin", LastName: "Richter", Position: "Extern", IsTeacher: true},
 }
 
 // DemoStudents defines the 100 students across 10 groups (10 each)
