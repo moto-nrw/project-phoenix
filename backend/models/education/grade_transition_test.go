@@ -2,6 +2,7 @@ package education
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -402,6 +403,220 @@ func TestGradeTransitionHistory_Validate(t *testing.T) {
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "invalid action")
 	})
+}
+
+// ============================================================================
+// Interface Method Tests - GradeTransition
+// ============================================================================
+
+func TestGradeTransition_GetID(t *testing.T) {
+	transition := &GradeTransition{}
+	transition.ID = 123
+
+	id := transition.GetID()
+	assert.Equal(t, int64(123), id)
+}
+
+func TestGradeTransition_GetCreatedAt(t *testing.T) {
+	now := time.Now()
+	transition := &GradeTransition{}
+	transition.CreatedAt = now
+
+	createdAt := transition.GetCreatedAt()
+	assert.Equal(t, now, createdAt)
+}
+
+func TestGradeTransition_GetUpdatedAt(t *testing.T) {
+	now := time.Now()
+	transition := &GradeTransition{}
+	transition.UpdatedAt = now
+
+	updatedAt := transition.GetUpdatedAt()
+	assert.Equal(t, now, updatedAt)
+}
+
+func TestGradeTransition_TableName(t *testing.T) {
+	transition := &GradeTransition{}
+	assert.Equal(t, "education.grade_transitions", transition.TableName())
+}
+
+// ============================================================================
+// Interface Method Tests - GradeTransitionMapping
+// ============================================================================
+
+func TestGradeTransitionMapping_GetID(t *testing.T) {
+	mapping := &GradeTransitionMapping{}
+	mapping.ID = 456
+
+	id := mapping.GetID()
+	assert.Equal(t, int64(456), id)
+}
+
+func TestGradeTransitionMapping_GetCreatedAt(t *testing.T) {
+	now := time.Now()
+	mapping := &GradeTransitionMapping{}
+	mapping.CreatedAt = now
+
+	createdAt := mapping.GetCreatedAt()
+	assert.Equal(t, now, createdAt)
+}
+
+func TestGradeTransitionMapping_GetUpdatedAt(t *testing.T) {
+	now := time.Now()
+	mapping := &GradeTransitionMapping{}
+	mapping.UpdatedAt = now
+
+	updatedAt := mapping.GetUpdatedAt()
+	assert.Equal(t, now, updatedAt)
+}
+
+func TestGradeTransitionMapping_TableName(t *testing.T) {
+	mapping := &GradeTransitionMapping{}
+	assert.Equal(t, "education.grade_transition_mappings", mapping.TableName())
+}
+
+// ============================================================================
+// Interface Method Tests - GradeTransitionHistory
+// ============================================================================
+
+func TestGradeTransitionHistory_GetID(t *testing.T) {
+	history := &GradeTransitionHistory{}
+	history.ID = 789
+
+	id := history.GetID()
+	assert.Equal(t, int64(789), id)
+}
+
+func TestGradeTransitionHistory_GetCreatedAt(t *testing.T) {
+	now := time.Now()
+	history := &GradeTransitionHistory{}
+	history.CreatedAt = now
+
+	createdAt := history.GetCreatedAt()
+	assert.Equal(t, now, createdAt)
+}
+
+func TestGradeTransitionHistory_GetUpdatedAt(t *testing.T) {
+	now := time.Now()
+	history := &GradeTransitionHistory{}
+	history.UpdatedAt = now
+
+	updatedAt := history.GetUpdatedAt()
+	assert.Equal(t, now, updatedAt)
+}
+
+func TestGradeTransitionHistory_TableName(t *testing.T) {
+	history := &GradeTransitionHistory{}
+	assert.Equal(t, "education.grade_transition_history", history.TableName())
+}
+
+func TestGradeTransitionHistory_WasGraduated(t *testing.T) {
+	t.Run("returns true for graduated action", func(t *testing.T) {
+		history := &GradeTransitionHistory{Action: ActionGraduated}
+		assert.True(t, history.WasGraduated())
+	})
+
+	t.Run("returns false for promoted action", func(t *testing.T) {
+		history := &GradeTransitionHistory{Action: ActionPromoted}
+		assert.False(t, history.WasGraduated())
+	})
+
+	t.Run("returns false for unchanged action", func(t *testing.T) {
+		history := &GradeTransitionHistory{Action: ActionUnchanged}
+		assert.False(t, history.WasGraduated())
+	})
+}
+
+func TestGradeTransitionHistory_WasPromoted(t *testing.T) {
+	t.Run("returns true for promoted action", func(t *testing.T) {
+		history := &GradeTransitionHistory{Action: ActionPromoted}
+		assert.True(t, history.WasPromoted())
+	})
+
+	t.Run("returns false for graduated action", func(t *testing.T) {
+		history := &GradeTransitionHistory{Action: ActionGraduated}
+		assert.False(t, history.WasPromoted())
+	})
+
+	t.Run("returns false for unchanged action", func(t *testing.T) {
+		history := &GradeTransitionHistory{Action: ActionUnchanged}
+		assert.False(t, history.WasPromoted())
+	})
+}
+
+// ============================================================================
+// Additional Edge Case Tests
+// ============================================================================
+
+func TestGradeTransitionMapping_Validate_TrimsWhitespace(t *testing.T) {
+	t.Run("trims whitespace from to_class", func(t *testing.T) {
+		toClass := "  2a  "
+		mapping := &GradeTransitionMapping{
+			TransitionID: 1,
+			FromClass:    "1a",
+			ToClass:      &toClass,
+		}
+		err := mapping.Validate()
+		require.NoError(t, err)
+		assert.Equal(t, "2a", *mapping.ToClass)
+	})
+
+	t.Run("empty string to_class becomes nil", func(t *testing.T) {
+		toClass := "   "
+		mapping := &GradeTransitionMapping{
+			TransitionID: 1,
+			FromClass:    "1a",
+			ToClass:      &toClass,
+		}
+		err := mapping.Validate()
+		require.NoError(t, err)
+		assert.Nil(t, mapping.ToClass)
+	})
+}
+
+func TestGradeTransitionHistory_Validate_TrimsWhitespace(t *testing.T) {
+	t.Run("trims whitespace from to_class", func(t *testing.T) {
+		toClass := "  2a  "
+		history := &GradeTransitionHistory{
+			TransitionID: 1,
+			StudentID:    1,
+			PersonName:   "Test Student",
+			FromClass:    "1a",
+			ToClass:      &toClass,
+			Action:       ActionPromoted,
+		}
+		err := history.Validate()
+		require.NoError(t, err)
+		assert.Equal(t, "2a", *history.ToClass)
+	})
+
+	t.Run("empty string to_class becomes nil", func(t *testing.T) {
+		toClass := "   "
+		history := &GradeTransitionHistory{
+			TransitionID: 1,
+			StudentID:    1,
+			PersonName:   "Test Student",
+			FromClass:    "1a",
+			ToClass:      &toClass,
+			Action:       ActionPromoted,
+		}
+		err := history.Validate()
+		require.NoError(t, err)
+		assert.Nil(t, history.ToClass)
+	})
+}
+
+func TestGradeTransitionHistory_Validate_ValidUnchangedAction(t *testing.T) {
+	history := &GradeTransitionHistory{
+		TransitionID: 1,
+		StudentID:    1,
+		PersonName:   "Test Student",
+		FromClass:    "1a",
+		ToClass:      strPtr("1a"),
+		Action:       ActionUnchanged,
+	}
+	err := history.Validate()
+	require.NoError(t, err)
 }
 
 // Helper function

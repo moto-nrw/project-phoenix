@@ -12,6 +12,7 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 )
 
 func TestGradeTransitionRepository_Create(t *testing.T) {
@@ -471,5 +472,405 @@ func TestGradeTransitionRepository_GetStudentsByClasses(t *testing.T) {
 		students, err := repo.GetStudentsByClasses(ctx, []string{class1, class2})
 		require.NoError(t, err)
 		assert.Equal(t, 2, len(students))
+	})
+
+	t.Run("returns empty for empty class list", func(t *testing.T) {
+		students, err := repo.GetStudentsByClasses(ctx, []string{})
+		require.NoError(t, err)
+		assert.Empty(t, students)
+	})
+
+	t.Run("returns empty for non-existent classes", func(t *testing.T) {
+		students, err := repo.GetStudentsByClasses(ctx, []string{"non-existent-class-xyz"})
+		require.NoError(t, err)
+		assert.Empty(t, students)
+	})
+}
+
+func TestGradeTransitionRepository_UpdateStudentClasses(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := education.NewGradeTransitionRepository(db)
+	ctx := context.Background()
+
+	account := testpkg.CreateTestAccount(t, db, "transition-update-classes")
+	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+	t.Run("updates student classes based on mappings", func(t *testing.T) {
+		// Create unique class names for test isolation
+		suffix := uuid.Must(uuid.NewV4()).String()[:8]
+		fromClass := fmt.Sprintf("1x-%s", suffix)
+		toClass := fmt.Sprintf("2x-%s", suffix)
+
+		// Create students in fromClass
+		student1 := testpkg.CreateTestStudent(t, db, "Update1", "Test1", fromClass)
+		student2 := testpkg.CreateTestStudent(t, db, "Update2", "Test2", fromClass)
+		defer testpkg.CleanupActivityFixtures(t, db, student1.ID, student2.ID)
+
+		// Create transition with mapping
+		transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
+		testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, fromClass, &toClass)
+		defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
+
+		// Execute update
+		affected, err := repo.UpdateStudentClasses(ctx, transition.ID)
+		require.NoError(t, err)
+		assert.Equal(t, int64(2), affected)
+
+		// Verify students were updated
+		var updatedClass string
+		err = db.NewSelect().
+			TableExpr(`users.students`).
+			Column("school_class").
+			Where("id = ?", student1.ID).
+			Scan(ctx, &updatedClass)
+		require.NoError(t, err)
+		assert.Equal(t, toClass, updatedClass)
+	})
+
+	t.Run("does not update students with graduate mapping (to_class = null)", func(t *testing.T) {
+		// Create unique class names
+		suffix := uuid.Must(uuid.NewV4()).String()[:8]
+		graduateClass := fmt.Sprintf("4x-%s", suffix)
+
+		// Create student in graduate class
+		student := testpkg.CreateTestStudent(t, db, "Graduate", "Test", graduateClass)
+		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
+
+		// Create transition with graduate mapping (to_class = null)
+		transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
+		testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, graduateClass, nil)
+		defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
+
+		// Execute update - should not affect graduate students
+		affected, err := repo.UpdateStudentClasses(ctx, transition.ID)
+		require.NoError(t, err)
+		assert.Equal(t, int64(0), affected)
+
+		// Verify student still has original class
+		var currentClass string
+		err = db.NewSelect().
+			TableExpr(`users.students`).
+			Column("school_class").
+			Where("id = ?", student.ID).
+			Scan(ctx, &currentClass)
+		require.NoError(t, err)
+		assert.Equal(t, graduateClass, currentClass)
+	})
+
+	t.Run("handles non-existent transition ID", func(t *testing.T) {
+		affected, err := repo.UpdateStudentClasses(ctx, 999999)
+		require.NoError(t, err)
+		assert.Equal(t, int64(0), affected)
+	})
+
+	t.Run("handles transition with no matching students", func(t *testing.T) {
+		// Create transition with mapping for non-existent class
+		transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
+		nonExistent := "non-existent-class-xyz"
+		toClass := "target-class-xyz"
+		testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, nonExistent, &toClass)
+		defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
+
+		affected, err := repo.UpdateStudentClasses(ctx, transition.ID)
+		require.NoError(t, err)
+		assert.Equal(t, int64(0), affected)
+	})
+}
+
+func TestGradeTransitionRepository_DeleteStudentsByClasses(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := education.NewGradeTransitionRepository(db)
+	ctx := context.Background()
+
+	t.Run("deletes students in specified classes", func(t *testing.T) {
+		// Create unique class names for test isolation
+		suffix := uuid.Must(uuid.NewV4()).String()[:8]
+		graduateClass := fmt.Sprintf("grad-%s", suffix)
+
+		// Create students in graduate class
+		student1 := testpkg.CreateTestStudent(t, db, "Grad1", "Test1", graduateClass)
+		student2 := testpkg.CreateTestStudent(t, db, "Grad2", "Test2", graduateClass)
+		// No defer cleanup needed - we're testing delete
+
+		// Execute delete
+		affected, err := repo.DeleteStudentsByClasses(ctx, []string{graduateClass})
+		require.NoError(t, err)
+		assert.Equal(t, int64(2), affected)
+
+		// Verify students were deleted
+		var count int
+		count, err = db.NewSelect().
+			TableExpr(`users.students`).
+			Where("id IN (?)", bun.In([]int64{student1.ID, student2.ID})).
+			Count(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, 0, count)
+	})
+
+	t.Run("returns zero for empty class list", func(t *testing.T) {
+		affected, err := repo.DeleteStudentsByClasses(ctx, []string{})
+		require.NoError(t, err)
+		assert.Equal(t, int64(0), affected)
+	})
+
+	t.Run("returns zero for non-existent classes", func(t *testing.T) {
+		affected, err := repo.DeleteStudentsByClasses(ctx, []string{"non-existent-class-xyz"})
+		require.NoError(t, err)
+		assert.Equal(t, int64(0), affected)
+	})
+
+	t.Run("deletes only from specified classes", func(t *testing.T) {
+		// Create unique class names
+		suffix := uuid.Must(uuid.NewV4()).String()[:8]
+		deleteClass := fmt.Sprintf("del-%s", suffix)
+		keepClass := fmt.Sprintf("keep-%s", suffix)
+
+		// Create students
+		studentToDelete := testpkg.CreateTestStudent(t, db, "Delete", "Test", deleteClass)
+		studentToKeep := testpkg.CreateTestStudent(t, db, "Keep", "Test", keepClass)
+		defer testpkg.CleanupActivityFixtures(t, db, studentToKeep.ID)
+
+		// Delete only from deleteClass
+		affected, err := repo.DeleteStudentsByClasses(ctx, []string{deleteClass})
+		require.NoError(t, err)
+		assert.Equal(t, int64(1), affected)
+
+		// Verify correct student was deleted
+		var countDeleted int
+		countDeleted, err = db.NewSelect().
+			TableExpr(`users.students`).
+			Where("id = ?", studentToDelete.ID).
+			Count(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, 0, countDeleted)
+
+		// Verify other student was kept
+		var countKept int
+		countKept, err = db.NewSelect().
+			TableExpr(`users.students`).
+			Where("id = ?", studentToKeep.ID).
+			Count(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, 1, countKept)
+	})
+}
+
+// ============================================================================
+// Edge Case Tests for Create/Update with Nil
+// ============================================================================
+
+func TestGradeTransitionRepository_CreateWithNil(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := education.NewGradeTransitionRepository(db)
+	ctx := context.Background()
+
+	t.Run("create with nil transition returns error", func(t *testing.T) {
+		err := repo.Create(ctx, nil)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "cannot be nil")
+	})
+}
+
+func TestGradeTransitionRepository_UpdateWithNil(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := education.NewGradeTransitionRepository(db)
+	ctx := context.Background()
+
+	t.Run("update with nil transition returns error", func(t *testing.T) {
+		err := repo.Update(ctx, nil)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "cannot be nil")
+	})
+}
+
+func TestGradeTransitionRepository_CreateMappingWithNil(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := education.NewGradeTransitionRepository(db)
+	ctx := context.Background()
+
+	t.Run("create mapping with nil returns error", func(t *testing.T) {
+		err := repo.CreateMapping(ctx, nil)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "cannot be nil")
+	})
+}
+
+func TestGradeTransitionRepository_CreateMappingsWithEmpty(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := education.NewGradeTransitionRepository(db)
+	ctx := context.Background()
+
+	t.Run("create mappings with empty slice succeeds", func(t *testing.T) {
+		err := repo.CreateMappings(ctx, []*educationModels.GradeTransitionMapping{})
+		require.NoError(t, err)
+	})
+}
+
+func TestGradeTransitionRepository_CreateHistoryWithNil(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := education.NewGradeTransitionRepository(db)
+	ctx := context.Background()
+
+	t.Run("create history with nil returns error", func(t *testing.T) {
+		err := repo.CreateHistory(ctx, nil)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "cannot be nil")
+	})
+}
+
+func TestGradeTransitionRepository_CreateHistoryBatchWithEmpty(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := education.NewGradeTransitionRepository(db)
+	ctx := context.Background()
+
+	t.Run("create history batch with empty slice succeeds", func(t *testing.T) {
+		err := repo.CreateHistoryBatch(ctx, []*educationModels.GradeTransitionHistory{})
+		require.NoError(t, err)
+	})
+}
+
+// ============================================================================
+// Validation Error Tests
+// ============================================================================
+
+func TestGradeTransitionRepository_CreateWithInvalidData(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := education.NewGradeTransitionRepository(db)
+	ctx := context.Background()
+
+	t.Run("create with invalid academic year format fails", func(t *testing.T) {
+		transition := &educationModels.GradeTransition{
+			AcademicYear: "invalid-format",
+			Status:       educationModels.TransitionStatusDraft,
+			CreatedBy:    1,
+		}
+
+		err := repo.Create(ctx, transition)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "format")
+	})
+
+	t.Run("create with invalid status fails", func(t *testing.T) {
+		transition := &educationModels.GradeTransition{
+			AcademicYear: "2025-2026",
+			Status:       "invalid-status",
+			CreatedBy:    1,
+		}
+
+		err := repo.Create(ctx, transition)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid status")
+	})
+
+	t.Run("create with missing created_by fails", func(t *testing.T) {
+		transition := &educationModels.GradeTransition{
+			AcademicYear: "2025-2026",
+			Status:       educationModels.TransitionStatusDraft,
+			CreatedBy:    0,
+		}
+
+		err := repo.Create(ctx, transition)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "created_by")
+	})
+}
+
+func TestGradeTransitionRepository_CreateMappingWithInvalidData(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := education.NewGradeTransitionRepository(db)
+	ctx := context.Background()
+
+	account := testpkg.CreateTestAccount(t, db, "mapping-invalid")
+	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+	transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
+	defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
+
+	t.Run("create mapping with empty from_class fails", func(t *testing.T) {
+		toClass := "2a"
+		mapping := &educationModels.GradeTransitionMapping{
+			TransitionID: transition.ID,
+			FromClass:    "",
+			ToClass:      &toClass,
+		}
+
+		err := repo.CreateMapping(ctx, mapping)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "from_class")
+	})
+
+	t.Run("create mapping with same from and to class fails", func(t *testing.T) {
+		sameClass := "1a"
+		mapping := &educationModels.GradeTransitionMapping{
+			TransitionID: transition.ID,
+			FromClass:    sameClass,
+			ToClass:      &sameClass,
+		}
+
+		err := repo.CreateMapping(ctx, mapping)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "cannot be the same")
+	})
+}
+
+func TestGradeTransitionRepository_CreateHistoryWithInvalidData(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := education.NewGradeTransitionRepository(db)
+	ctx := context.Background()
+
+	account := testpkg.CreateTestAccount(t, db, "history-invalid")
+	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+	transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
+	defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
+
+	t.Run("create history with invalid action fails", func(t *testing.T) {
+		history := &educationModels.GradeTransitionHistory{
+			TransitionID: transition.ID,
+			StudentID:    1,
+			PersonName:   "Test Student",
+			FromClass:    "1a",
+			Action:       "invalid-action",
+		}
+
+		err := repo.CreateHistory(ctx, history)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid action")
+	})
+
+	t.Run("create history with missing student_id fails", func(t *testing.T) {
+		history := &educationModels.GradeTransitionHistory{
+			TransitionID: transition.ID,
+			StudentID:    0,
+			PersonName:   "Test Student",
+			FromClass:    "1a",
+			Action:       educationModels.ActionPromoted,
+		}
+
+		err := repo.CreateHistory(ctx, history)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "student_id")
 	})
 }
