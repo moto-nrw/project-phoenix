@@ -592,16 +592,18 @@ func TestRouter_StatusEndpointExists(t *testing.T) {
 // SUCCESSFUL CHECKIN TESTS (with active groups)
 // =============================================================================
 
-func TestDeviceCheckin_SuccessfulCheckinReturnsErrorWithoutSession(t *testing.T) {
-	// Note: Full checkin requires a staff session context for attendance tracking.
-	// Without a session, the attendance foreign key constraint fails.
-	// This test verifies the error handling path.
+func TestDeviceCheckin_SuccessfulCheckin(t *testing.T) {
+	// Full checkin requires staff context for attendance tracking (checked_in_by FK constraint).
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
 	// Create test device
 	device := testpkg.CreateTestDevice(t, ctx.db, "success-checkin")
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
+
+	// Create staff for attendance tracking
+	staff := testpkg.CreateTestStaff(t, ctx.db, "Checkin", "Staff")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, staff.ID)
 
 	// Create student with RFID
 	student := testpkg.CreateTestStudent(t, ctx.db, "Success", "Checkin", "1a")
@@ -633,26 +635,33 @@ func TestDeviceCheckin_SuccessfulCheckinReturnsErrorWithoutSession(t *testing.T)
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/checkin", body,
 		testutil.WithDeviceContext(createTestDeviceContext(device)),
+		testutil.WithStaffContext(staff),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
 
-	// Without session context, this will fail with internal server error
-	// due to attendance foreign key constraint
-	assert.Contains(t, []int{http.StatusOK, http.StatusInternalServerError}, rr.Code,
-		"Expected OK (with session) or 500 (without session)")
+	// With proper staff context, checkin should succeed
+	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+
+	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+	data, ok := response["data"].(map[string]interface{})
+	assert.True(t, ok, "Response should have data field")
+	assert.Equal(t, "checked_in", data["action"])
 }
 
-func TestDeviceCheckin_RoomTransferCheckoutSucceeds(t *testing.T) {
-	// Note: Room transfer involves checkout from room 1 and checkin to room 2.
-	// The checkout succeeds, but checkin fails without session context (FK constraint).
-	// This test verifies the checkout portion works and the error handling path.
+func TestDeviceCheckin_RoomTransferSucceeds(t *testing.T) {
+	// Room transfer: checkout from room 1, checkin to room 2.
+	// Requires staff context for attendance tracking (checked_in_by FK constraint).
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
 	// Create test device
 	device := testpkg.CreateTestDevice(t, ctx.db, "transfer-test")
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
+
+	// Create staff for attendance tracking
+	staff := testpkg.CreateTestStaff(t, ctx.db, "Transfer", "Staff")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, staff.ID)
 
 	// Create student with RFID
 	student := testpkg.CreateTestStudent(t, ctx.db, "Transfer", "Test", "2b")
@@ -699,14 +708,18 @@ func TestDeviceCheckin_RoomTransferCheckoutSucceeds(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/checkin", body,
 		testutil.WithDeviceContext(createTestDeviceContext(device)),
+		testutil.WithStaffContext(staff),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
 
-	// Without session context, checkin fails after checkout succeeds
-	// Response could be OK (full transfer), or 500 (checkout OK, checkin FK error)
-	assert.Contains(t, []int{http.StatusOK, http.StatusInternalServerError}, rr.Code,
-		"Expected OK (with session) or 500 (without session for checkin)")
+	// With proper staff context, room transfer should succeed
+	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+
+	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+	data, ok := response["data"].(map[string]interface{})
+	assert.True(t, ok, "Response should have data field")
+	assert.Equal(t, "transferred", data["action"])
 }
 
 // =============================================================================

@@ -299,18 +299,41 @@ func TestScheduleRepository_FindByTimeframeID(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("returns empty for timeframe with no schedules", func(t *testing.T) {
+		// Use a non-existent timeframe ID (high value unlikely to exist)
 		schedules, err := repo.FindByTimeframeID(ctx, int64(999999))
 		require.NoError(t, err)
 		assert.NotNil(t, schedules)
-		// May be empty or have some schedules from other tests
+		assert.Empty(t, schedules)
 	})
 
-	t.Run("executes query without error", func(t *testing.T) {
-		// Test that the query works even if we can't create test data with timeframes
-		// since we don't have a CreateTestTimeframe helper
-		schedules, err := repo.FindByTimeframeID(ctx, int64(1))
+	t.Run("finds schedules for a specific timeframe", func(t *testing.T) {
+		// Create a timeframe using the fixture helper
+		timeframe := testpkg.CreateTestTimeframe(t, db, "TestTimeframe")
+		defer testpkg.CleanupScheduleFixtures(t, db, timeframe.ID)
+
+		// Create an activity group and schedule linked to the timeframe
+		group := testpkg.CreateTestActivityGroup(t, db, "TimeframeScheduleGroup")
+		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, group.CategoryID, 0)
+		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
+
+		schedule := createSchedule(t, db, group.ID, 1, &timeframe.ID)
+		defer testpkg.CleanupTableRecords(t, db, "activities.schedules", schedule.ID)
+
+		// Query by timeframe ID
+		schedules, err := repo.FindByTimeframeID(ctx, timeframe.ID)
 		require.NoError(t, err)
 		assert.NotNil(t, schedules)
+
+		// Verify our schedule is in the results
+		var found bool
+		for _, s := range schedules {
+			if s.ID == schedule.ID {
+				found = true
+				assert.Equal(t, &timeframe.ID, s.TimeframeID)
+				break
+			}
+		}
+		assert.True(t, found, "Schedule with timeframe should be found")
 	})
 }
 

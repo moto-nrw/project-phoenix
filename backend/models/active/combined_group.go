@@ -70,7 +70,10 @@ func (cg *CombinedGroup) Validate() error {
 
 // IsActive returns whether this combined group is currently active
 func (cg *CombinedGroup) IsActive() bool {
-	return cg.EndTime == nil
+	if cg.EndTime == nil {
+		return true
+	}
+	return time.Now().Before(*cg.EndTime)
 }
 
 // EndCombination sets the end time to the current time

@@ -1280,8 +1280,9 @@ func TestScheduleService_CheckConflict(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("detects conflict with existing timeframe", func(t *testing.T) {
-		// ARRANGE
-		startTime := time.Now().Add(1 * time.Hour)
+		// ARRANGE - Use a far-future date to avoid conflicts with existing test data
+		baseTime := time.Date(3000, 5, 15, 10, 0, 0, 0, time.UTC)
+		startTime := baseTime
 		endTime := startTime.Add(2 * time.Hour)
 		tf := createTestTimeframe(t, db, startTime, &endTime, true)
 		defer cleanupScheduleFixtures(t, db, nil, []int64{tf.ID}, nil)
@@ -1293,26 +1294,27 @@ func TestScheduleService_CheckConflict(t *testing.T) {
 
 		// ASSERT
 		require.NoError(t, err)
-		assert.True(t, hasConflict)
-		assert.NotEmpty(t, conflicts)
+		assert.True(t, hasConflict, "Should detect conflict for overlapping time range")
+		assert.NotEmpty(t, conflicts, "Should return conflicts for overlapping time range")
 	})
 
 	t.Run("no conflict with non-overlapping time", func(t *testing.T) {
-		// ARRANGE
-		startTime := time.Now().Add(1 * time.Hour)
+		// ARRANGE - Use a far-future date to avoid conflicts with existing test data
+		baseTime := time.Date(3000, 6, 15, 10, 0, 0, 0, time.UTC)
+		startTime := baseTime
 		endTime := startTime.Add(2 * time.Hour)
 		tf := createTestTimeframe(t, db, startTime, &endTime, true)
 		defer cleanupScheduleFixtures(t, db, nil, []int64{tf.ID}, nil)
 
-		// ACT - Check for conflict outside the timeframe
+		// ACT - Check for conflict outside the timeframe (1 hour after it ends)
 		checkStart := endTime.Add(1 * time.Hour)
 		checkEnd := checkStart.Add(1 * time.Hour)
 		hasConflict, conflicts, err := service.CheckConflict(ctx, checkStart, checkEnd)
 
 		// ASSERT
 		require.NoError(t, err)
-		assert.False(t, hasConflict)
-		assert.Empty(t, conflicts)
+		assert.False(t, hasConflict, "Should not detect conflict for non-overlapping time range")
+		assert.Empty(t, conflicts, "Should return empty conflicts for non-overlapping time range")
 	})
 
 	t.Run("rejects invalid time range", func(t *testing.T) {

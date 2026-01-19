@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo, Suspense } from "react";
+import { useState, useEffect, useMemo, Suspense } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { ResponsiveLayout } from "@/components/dashboard";
@@ -20,6 +20,7 @@ import {
   getTeacherStatus,
   getSubstitutionCounts,
 } from "~/lib/substitution-helpers";
+import { useSWRAuth, useImmutableSWR } from "~/lib/swr";
 
 import { Loading } from "~/components/ui/loading";
 import { useToast } from "~/contexts/ToastContext";
@@ -115,16 +116,35 @@ function SubstitutionPageContent() {
 
   const { success: showSuccessToast } = useToast();
 
-  // States
-  const [teachers, setTeachers] = useState<TeacherAvailability[]>([]);
-  const [groups, setGroups] = useState<Group[]>([]);
-  const [activeSubstitutions, setActiveSubstitutions] = useState<
-    Substitution[]
-  >([]);
+  // Data fetching with SWR - automatic caching and revalidation
+  const {
+    data: teachers = [],
+    isLoading: teachersLoading,
+    error: teachersError,
+    mutate: mutateTeachers,
+  } = useSWRAuth<TeacherAvailability[]>(
+    "substitution-teachers",
+    () => substitutionService.fetchAvailableTeachers(new Date()),
+    { keepPreviousData: true },
+  );
+
+  const { data: groups = [] } = useImmutableSWR<Group[]>(
+    "substitution-groups",
+    () => groupService.getGroups(),
+  );
+
+  const { data: activeSubstitutions = [], mutate: mutateActiveSubstitutions } =
+    useSWRAuth<Substitution[]>(
+      "active-substitutions",
+      () => substitutionService.fetchActiveSubstitutions(new Date()),
+      { keepPreviousData: true },
+    );
+
+  // UI State
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [isMutating, setIsMutating] = useState(false);
+  const [mutationError, setMutationError] = useState<string | null>(null);
   const [isMobile, setIsMobile] = useState(false);
 
   // Popup states
@@ -152,58 +172,9 @@ function SubstitutionPageContent() {
     return () => window.removeEventListener("resize", checkMobile);
   }, []);
 
-  // Fetch teachers data
-  const fetchTeachers = useCallback(async (filters?: { search?: string }) => {
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      const availableTeachers =
-        await substitutionService.fetchAvailableTeachers(
-          new Date(), // Current date
-          filters?.search,
-        );
-      setTeachers(availableTeachers);
-    } catch (err) {
-      console.error("Error fetching teachers:", err);
-      setError("Fehler beim Laden der Lehrerdaten.");
-      setTeachers([]);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
-  // Fetch groups data
-  const fetchGroups = useCallback(async () => {
-    try {
-      const allGroups = await groupService.getGroups();
-      setGroups(allGroups);
-    } catch (err) {
-      console.error("Error fetching groups:", err);
-      setError("Fehler beim Laden der Gruppendaten.");
-      setGroups([]);
-    }
-  }, []);
-
-  // Fetch active substitutions
-  const fetchActiveSubstitutions = useCallback(async () => {
-    try {
-      const substitutions = await substitutionService.fetchActiveSubstitutions(
-        new Date(),
-      );
-      setActiveSubstitutions(substitutions);
-    } catch (err) {
-      console.error("Error fetching active substitutions:", err);
-      // Don't set error for substitutions, just log it
-    }
-  }, []);
-
-  // Load initial data
-  useEffect(() => {
-    fetchTeachers().catch(console.error);
-    fetchGroups().catch(console.error);
-    fetchActiveSubstitutions().catch(console.error);
-  }, [fetchTeachers, fetchGroups, fetchActiveSubstitutions]);
+  // Derive loading and error states from SWR
+  const isLoading = teachersLoading;
+  const error = teachersError ? "Fehler beim Laden der Daten." : mutationError;
 
   // Apply filters to teachers
   const filteredTeachers = useMemo(() => {
@@ -250,18 +221,18 @@ function SubstitutionPageContent() {
   // Handle substitution assignment
   const handleAssignSubstitution = async () => {
     if (!selectedTeacher || !selectedGroup) {
-      setError("Bitte wählen Sie eine Gruppe aus.");
+      setMutationError("Bitte wählen Sie eine Gruppe aus.");
       return;
     }
 
     try {
-      setIsLoading(true);
-      setError(null);
+      setIsMutating(true);
+      setMutationError(null);
 
       // Find the selected group to get its ID
       const group = groups.find((g) => g.name === selectedGroup);
       if (!group) {
-        setError("Gruppe nicht gefunden.");
+        setMutationError("Gruppe nicht gefunden.");
         return;
       }
 
@@ -284,8 +255,8 @@ function SubstitutionPageContent() {
         `Vertretung für ${substitutionDays} Tag(e)`, // notes
       );
 
-      // Refresh data
-      await Promise.all([fetchTeachers(), fetchActiveSubstitutions()]);
+      // Invalidate SWR cache to trigger refetch
+      await Promise.all([mutateTeachers(), mutateActiveSubstitutions()]);
 
       // Show success message (use group.name from the found group)
       const teacherName = formatTeacherName(selectedTeacher);
@@ -297,9 +268,9 @@ function SubstitutionPageContent() {
       closePopup();
     } catch (err) {
       console.error("Error creating substitution:", err);
-      setError("Fehler beim Zuweisen der Vertretung.");
+      setMutationError("Fehler beim Zuweisen der Vertretung.");
     } finally {
-      setIsLoading(false);
+      setIsMutating(false);
     }
   };
 
@@ -318,9 +289,12 @@ function SubstitutionPageContent() {
     if (!substitutionToEnd) return;
 
     try {
-      setIsLoading(true);
+      setIsMutating(true);
+      setMutationError(null);
       await substitutionService.deleteSubstitution(substitutionToEnd.id);
-      await Promise.all([fetchTeachers(), fetchActiveSubstitutions()]);
+
+      // Invalidate SWR cache to trigger refetch
+      await Promise.all([mutateTeachers(), mutateActiveSubstitutions()]);
 
       // Show success message
       showSuccessToast(
@@ -331,9 +305,9 @@ function SubstitutionPageContent() {
       setSubstitutionToEnd(null);
     } catch (err) {
       console.error("Error ending substitution:", err);
-      setError("Fehler beim Beenden der Vertretung.");
+      setMutationError("Fehler beim Beenden der Vertretung.");
     } finally {
-      setIsLoading(false);
+      setIsMutating(false);
     }
   };
 
@@ -399,9 +373,11 @@ function SubstitutionPageContent() {
       return (
         <div className="space-y-3">
           {filteredTeachers.map((teacher) => (
-            <div
+            <button
+              type="button"
               key={teacher.id}
-              className="group relative cursor-pointer overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-500 active:scale-[0.99] md:hover:-translate-y-1 md:hover:scale-[1.01] md:hover:border-blue-200/50 md:hover:bg-white md:hover:shadow-[0_20px_50px_rgb(0,0,0,0.15)]"
+              onClick={() => openSubstitutionPopup(teacher)}
+              className="group relative w-full cursor-pointer overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 text-left shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-500 active:scale-[0.99] md:hover:-translate-y-1 md:hover:scale-[1.01] md:hover:border-blue-200/50 md:hover:bg-white md:hover:shadow-[0_20px_50px_rgb(0,0,0,0.15)]"
             >
               {/* Modern gradient overlay */}
               <div className="pointer-events-none absolute inset-0 rounded-3xl bg-gradient-to-br from-blue-50/80 to-cyan-100/80 opacity-[0.03]"></div>
@@ -410,134 +386,74 @@ function SubstitutionPageContent() {
               {/* Modern border highlight */}
               <div className="pointer-events-none absolute inset-0 rounded-3xl ring-1 ring-white/20 transition-all duration-300 md:group-hover:ring-blue-200/60"></div>
 
-              <div className="relative p-4 md:p-5">
-                {/* Mobile layout - vertical */}
-                <div className="md:hidden">
-                  <div className="mb-3 flex items-start gap-3">
-                    {/* Teacher initial circle with count badge */}
-                    <div className="relative">
-                      <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-gray-600 text-base font-semibold text-white shadow-md">
-                        {(teacher.firstName?.charAt(0) || "L").toUpperCase()}
-                      </div>
-                      {/* Dual badges: Orange for Tagesübergaben, Purple for Vertretungen - overlapping at top */}
-                      <SubstitutionBadges teacher={teacher} />
+              <div className="relative flex items-center justify-between p-4 md:p-5">
+                {/* Left content - Avatar + Info */}
+                <div className="flex min-w-0 flex-1 items-center gap-3 md:gap-4">
+                  {/* Teacher initial circle with count badge */}
+                  <div className="relative">
+                    <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-gray-600 text-base font-semibold text-white shadow-md md:h-12 md:w-12 md:text-lg">
+                      {(teacher.firstName?.charAt(0) || "L").toUpperCase()}
                     </div>
+                    {/* Dual badges: Orange for Tagesübergaben, Purple for Vertretungen */}
+                    <SubstitutionBadges teacher={teacher} />
+                  </div>
 
-                    {/* Teacher info */}
-                    <div className="min-w-0 flex-1">
-                      <h3 className="truncate text-base font-semibold text-gray-900">
-                        {formatTeacherName(teacher)}
-                      </h3>
+                  {/* Teacher info */}
+                  <div className="min-w-0 flex-1">
+                    <h3 className="truncate text-base font-semibold text-gray-900 transition-colors duration-300 md:text-lg md:group-hover:text-blue-600">
+                      {formatTeacherName(teacher)}
+                    </h3>
+                    {/* Meta info row: Group + Status */}
+                    <div className="mt-0.5 flex items-center gap-1.5 text-sm text-gray-500 md:mt-1">
                       {teacher.regularGroup && (
-                        <div className="mt-0.5 flex items-center text-sm text-gray-500">
-                          <svg
-                            className="mr-1.5 h-4 w-4 text-gray-400"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
-                            />
-                          </svg>
+                        <>
                           <span className="truncate">
                             {teacher.regularGroup}
                           </span>
-                        </div>
+                          <span className="text-gray-300">·</span>
+                        </>
                       )}
-                      {/* Mobile status indicator - shows both colors if both types */}
-                      <div className="mt-1.5 flex items-center gap-1.5">
-                        <StatusIndicator teacher={teacher} />
-                        <span className="text-xs text-gray-600">
-                          {getTeacherStatus(teacher)}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Mobile action button - always enabled for multiple assignments */}
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      openSubstitutionPopup(teacher);
-                    }}
-                    className="w-full rounded-xl border-2 border-gray-400 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 shadow-sm transition-all duration-200 hover:border-gray-500 hover:bg-gray-50 hover:shadow-md active:scale-95"
-                  >
-                    Zuweisen
-                  </button>
-                </div>
-
-                {/* Desktop layout - horizontal */}
-                <div className="hidden items-center justify-between md:flex">
-                  {/* Left content */}
-                  <div className="flex min-w-0 flex-1 items-center gap-4">
-                    {/* Teacher initial circle with count badge */}
-                    <div className="relative">
-                      <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-gray-600 text-lg font-semibold text-white shadow-md">
-                        {(teacher.firstName?.charAt(0) || "L").toUpperCase()}
-                      </div>
-                      {/* Dual badges: Orange for Tagesübergaben, Purple for Vertretungen - overlapping at top */}
-                      <SubstitutionBadges teacher={teacher} />
-                    </div>
-
-                    {/* Teacher info */}
-                    <div className="min-w-0 flex-1">
-                      <h3 className="truncate text-lg font-semibold text-gray-900 transition-colors duration-300 md:group-hover:text-blue-600">
-                        {formatTeacherName(teacher)}
-                      </h3>
-                      {teacher.regularGroup && (
-                        <div className="mt-1 flex items-center text-sm text-gray-500">
-                          <svg
-                            className="mr-1.5 h-4 w-4 text-gray-400"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
-                            />
-                          </svg>
-                          <span className="truncate">
-                            {teacher.regularGroup}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Right content - Status and button */}
-                  <div className="ml-4 flex items-center gap-4">
-                    {/* Status indicator - shows both colors if both types */}
-                    <div className="flex items-center gap-2">
-                      <StatusIndicator teacher={teacher} size="large" />
-                      <span className="text-sm whitespace-nowrap text-gray-600">
+                      <StatusIndicator teacher={teacher} />
+                      <span className="truncate text-gray-600">
                         {getTeacherStatus(teacher)}
                       </span>
                     </div>
-
-                    {/* Action button - always enabled for multiple assignments */}
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        openSubstitutionPopup(teacher);
-                      }}
-                      className="rounded-xl border-2 border-gray-400 bg-white px-4 py-2 text-sm font-medium whitespace-nowrap text-gray-700 shadow-sm transition-all duration-200 hover:border-gray-500 hover:bg-gray-50 hover:shadow-md active:scale-95"
-                    >
-                      Zuweisen
-                    </button>
                   </div>
+                </div>
+
+                {/* Right content - "Zuweisen" + Plus icon */}
+                <div className="ml-3 flex items-center gap-2 md:ml-4 md:gap-3">
+                  {/* Desktop hint */}
+                  <span className="hidden text-xs text-gray-400 transition-colors group-hover:text-gray-600 lg:block">
+                    Zuweisen
+                  </span>
+
+                  {/* Plus icon button (visual only - parent button handles click) */}
+                  <span className="relative" aria-hidden="true">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gray-100 transition-all duration-200 md:h-10 md:w-10 md:group-hover:scale-110 md:group-hover:bg-blue-100">
+                      <svg
+                        className="h-5 w-5 text-gray-600 transition-colors md:group-hover:text-blue-600"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        strokeWidth={2.5}
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M12 4.5v15m7.5-7.5h-15"
+                        />
+                      </svg>
+                    </div>
+                    {/* Ripple effect on hover */}
+                    <div className="absolute inset-0 scale-0 rounded-full bg-blue-200/20 transition-transform duration-300 md:group-hover:scale-100"></div>
+                  </span>
                 </div>
               </div>
 
               {/* Glowing border effect */}
               <div className="pointer-events-none absolute inset-0 rounded-3xl bg-gradient-to-r from-transparent via-blue-100/30 to-transparent opacity-0 transition-opacity duration-300 md:group-hover:opacity-100"></div>
-            </div>
+            </button>
           ))}
         </div>
       );
@@ -706,7 +622,7 @@ function SubstitutionPageContent() {
                                     substituteName,
                                   )
                                 }
-                                disabled={isLoading}
+                                disabled={isMutating}
                                 className="w-full rounded-xl border border-[#FF3130]/20 bg-[#FF3130]/10 px-4 py-2.5 text-sm font-medium text-[#FF3130] transition-all duration-200 hover:border-[#FF3130]/30 hover:bg-[#FF3130]/20 active:scale-95"
                               >
                                 Beenden
@@ -741,7 +657,7 @@ function SubstitutionPageContent() {
                                     substituteName,
                                   )
                                 }
-                                disabled={isLoading}
+                                disabled={isMutating}
                                 className="ml-4 rounded-xl border border-[#FF3130]/20 bg-[#FF3130]/10 px-4 py-2 text-sm font-medium whitespace-nowrap text-[#FF3130] transition-all duration-200 hover:border-[#FF3130]/30 hover:bg-[#FF3130]/20 active:scale-95"
                               >
                                 Beenden
@@ -850,7 +766,7 @@ function SubstitutionPageContent() {
                                     substituteName,
                                   )
                                 }
-                                disabled={isLoading}
+                                disabled={isMutating}
                                 className="w-full rounded-xl border border-[#FF3130]/20 bg-[#FF3130]/10 px-4 py-2.5 text-sm font-medium text-[#FF3130] transition-all duration-200 hover:border-[#FF3130]/30 hover:bg-[#FF3130]/20 active:scale-95"
                               >
                                 Beenden
@@ -890,7 +806,7 @@ function SubstitutionPageContent() {
                                     substituteName,
                                   )
                                 }
-                                disabled={isLoading}
+                                disabled={isMutating}
                                 className="ml-4 rounded-xl border border-[#FF3130]/20 bg-[#FF3130]/10 px-4 py-2 text-sm font-medium whitespace-nowrap text-[#FF3130] transition-all duration-200 hover:border-[#FF3130]/30 hover:bg-[#FF3130]/20 active:scale-95"
                               >
                                 Beenden
@@ -1076,10 +992,10 @@ function SubstitutionPageContent() {
             <button
               type="button"
               onClick={handleAssignSubstitution}
-              disabled={isLoading}
+              disabled={isMutating}
               className="flex-1 rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:scale-105 hover:bg-gray-700 hover:shadow-lg active:scale-100 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100"
             >
-              {isLoading ? (
+              {isMutating ? (
                 <span className="flex items-center justify-center gap-2">
                   <svg
                     className="h-4 w-4 animate-spin text-white"
@@ -1121,7 +1037,7 @@ function SubstitutionPageContent() {
         title="Vertretung beenden?"
         confirmText="Beenden"
         cancelText="Abbrechen"
-        isConfirmLoading={isLoading}
+        isConfirmLoading={isMutating}
         confirmButtonClass="bg-[#FF3130] hover:bg-[#FF3130]/90"
       >
         {substitutionToEnd && (

@@ -821,7 +821,7 @@ func TestDeleteAvatar_WithAvatar(t *testing.T) {
 	// Set avatar in users.profiles via raw SQL
 	_, err := tc.db.NewRaw(
 		`UPDATE users.profiles SET avatar = ?
-		 WHERE person_id = (SELECT id FROM auth.accounts WHERE id = ?)`,
+		 WHERE account_id = ?`,
 		"/uploads/avatars/test_avatar.jpg",
 		account.ID,
 	).Exec(context.Background())

@@ -9,7 +9,7 @@ import {
   InfoSection,
   DetailIcons,
 } from "~/components/ui/detail-modal-components";
-import type { Room } from "@/lib/room-helpers";
+import { formatFloor, type Room } from "@/lib/room-helpers";
 
 interface RoomDetailModalProps {
   readonly isOpen: boolean;
@@ -59,8 +59,8 @@ export function RoomDetailModal({
             {(room.building !== undefined || room.floor !== undefined) && (
               <p className="truncate text-sm text-gray-500">
                 {room.building && room.floor !== undefined
-                  ? `${room.building}, Etage ${room.floor}`
-                  : (room.building ?? `Etage ${room.floor}`)}
+                  ? `${room.building}, ${formatFloor(room.floor)}`
+                  : (room.building ?? formatFloor(room.floor))}
               </p>
             )}
           </div>
@@ -83,7 +83,7 @@ export function RoomDetailModal({
               <DataField label="Etage">
                 {room.floor === undefined
                   ? "Nicht angegeben"
-                  : `Etage ${room.floor}`}
+                  : formatFloor(room.floor)}
               </DataField>
               <DataField label="Status">
                 {room.isOccupied ? "Belegt" : "Frei"}

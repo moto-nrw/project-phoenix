@@ -1412,10 +1412,12 @@ func (rs *Resource) listSupervisors(w http.ResponseWriter, r *http.Request) {
 	queryOptions := base.NewQueryOptions()
 
 	// Get active status filter
+	// Note: active.group_supervisors doesn't have is_active column, use "active_only" filter
+	// which the service/repository interprets as end_date IS NULL OR end_date > NOW()
 	activeStr := r.URL.Query().Get("active")
 	if activeStr != "" {
 		isActive := activeStr == "true" || activeStr == "1"
-		queryOptions.Filter.Equal("is_active", isActive)
+		queryOptions.Filter.Equal("active_only", isActive)
 	}
 
 	// Get supervisors
@@ -1671,10 +1673,12 @@ func (rs *Resource) listCombinedGroups(w http.ResponseWriter, r *http.Request) {
 	queryOptions := base.NewQueryOptions()
 
 	// Get active status filter
+	// Note: active.combined_groups doesn't have is_active column, use "active_only" filter
+	// which the service/repository interprets as end_time IS NULL OR end_time > NOW()
 	activeStr := r.URL.Query().Get("active")
 	if activeStr != "" {
 		isActive := activeStr == "true" || activeStr == "1"
-		queryOptions.Filter.Equal("is_active", isActive)
+		queryOptions.Filter.Equal("active_only", isActive)
 	}
 
 	// Get combined groups

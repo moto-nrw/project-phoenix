@@ -17,7 +17,6 @@ import (
 const (
 	tableFeedbackEntries      = "feedback.entries"
 	tableFeedbackEntriesAlias = `feedback.entries AS "entry"`
-	orderByDayTimeDesc        = "day DESC, time DESC"
 	whereIsMensaFeedback      = "is_mensa_feedback = ?"
 )
 
@@ -66,7 +65,8 @@ func (r *EntryRepository) FindByStudentID(ctx context.Context, studentID int64) 
 		Model(&entries).
 		ModelTableExpr(tableFeedbackEntriesAlias).
 		Where("student_id = ?", studentID).
-		Order(orderByDayTimeDesc).
+		Order("day DESC").
+		Order("time DESC").
 		Scan(ctx)
 
 	if err != nil {
@@ -106,7 +106,8 @@ func (r *EntryRepository) FindByDateRange(ctx context.Context, startDate, endDat
 		Model(&entries).
 		ModelTableExpr(tableFeedbackEntriesAlias).
 		Where("day >= ? AND day <= ?", startDate, endDate).
-		Order(orderByDayTimeDesc).
+		Order("day DESC").
+		Order("time DESC").
 		Scan(ctx)
 
 	if err != nil {
@@ -126,7 +127,8 @@ func (r *EntryRepository) FindMensaFeedback(ctx context.Context, isMensaFeedback
 		Model(&entries).
 		ModelTableExpr(tableFeedbackEntriesAlias).
 		Where(whereIsMensaFeedback, isMensaFeedback).
-		Order(orderByDayTimeDesc).
+		Order("day DESC").
+		Order("time DESC").
 		Scan(ctx)
 
 	if err != nil {
@@ -146,7 +148,8 @@ func (r *EntryRepository) FindByStudentAndDateRange(ctx context.Context, student
 		Model(&entries).
 		ModelTableExpr(tableFeedbackEntriesAlias).
 		Where("student_id = ? AND day >= ? AND day <= ?", studentID, startDate, endDate).
-		Order(orderByDayTimeDesc).
+		Order("day DESC").
+		Order("time DESC").
 		Scan(ctx)
 
 	if err != nil {
@@ -249,7 +252,7 @@ func (r *EntryRepository) List(ctx context.Context, filters map[string]interface
 	query := r.db.NewSelect().Model(&entries).ModelTableExpr(tableFeedbackEntriesAlias)
 
 	query = applyFeedbackFilters(query, filters)
-	query = query.Order("day DESC, time DESC")
+	query = query.Order("day DESC").Order("time DESC")
 
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{Op: "list", Err: err}
@@ -276,11 +279,14 @@ func applyFeedbackFilter(query *bun.SelectQuery, field string, value interface{}
 		return query.Where("is_mensa_feedback = ?", value)
 	case "day_from":
 		if dateValue, ok := value.(time.Time); ok {
-			return query.Where("day >= ?", dateValue)
+			// Format as date string to avoid timezone conversion issues
+			// PostgreSQL DATE comparisons need plain date strings, not timestamps
+			return query.Where("day >= ?", dateValue.Format("2006-01-02"))
 		}
 	case "day_to":
 		if dateValue, ok := value.(time.Time); ok {
-			return query.Where("day <= ?", dateValue)
+			// Format as date string to avoid timezone conversion issues
+			return query.Where("day <= ?", dateValue.Format("2006-01-02"))
 		}
 	case "value_like":
 		if strValue, ok := value.(string); ok {

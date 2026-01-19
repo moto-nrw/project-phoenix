@@ -364,10 +364,7 @@ func TestGetDateRangeFeedback_InvalidStudentID(t *testing.T) {
 // CREATE FEEDBACK TESTS
 // =============================================================================
 
-func TestCreateFeedback_DatabaseIssue(t *testing.T) {
-	// Note: The feedback service has a known issue where time.Parse("15:04:05", time)
-	// creates a datetime with year 0000, which PostgreSQL rejects.
-	// This test documents the current behavior (500 error).
+func TestCreateFeedback_Success(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
@@ -380,10 +377,10 @@ func TestCreateFeedback_DatabaseIssue(t *testing.T) {
 
 	// Value must be 'positive', 'neutral', or 'negative'
 	body := map[string]interface{}{
-		"value":            "positive",
-		"day":              time.Now().Format("2006-01-02"),
-		"time":             "12:30:00",
-		"student_id":       student.ID,
+		"value":             "positive",
+		"day":               time.Now().Format("2006-01-02"),
+		"time":              "12:30:00",
+		"student_id":        student.ID,
 		"is_mensa_feedback": false,
 	}
 
@@ -394,9 +391,7 @@ func TestCreateFeedback_DatabaseIssue(t *testing.T) {
 
 	rr := testutil.ExecuteRequest(router, req)
 
-	// Currently returns 500 due to time field being stored with year 0000
-	// This is a known issue in the feedback service
-	testutil.AssertErrorResponse(t, rr, http.StatusInternalServerError)
+	testutil.AssertSuccessResponse(t, rr, http.StatusCreated)
 }
 
 func TestCreateFeedback_MissingValue(t *testing.T) {
@@ -513,8 +508,7 @@ func TestCreateFeedback_InvalidTimeFormat(t *testing.T) {
 // CREATE BATCH FEEDBACK TESTS
 // =============================================================================
 
-func TestCreateBatchFeedback_DatabaseIssue(t *testing.T) {
-	// Note: Same issue as single create - time field stored with year 0000
+func TestCreateBatchFeedback_Success(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
@@ -532,17 +526,17 @@ func TestCreateBatchFeedback_DatabaseIssue(t *testing.T) {
 	body := map[string]interface{}{
 		"entries": []map[string]interface{}{
 			{
-				"value":            "positive",
-				"day":              time.Now().Format("2006-01-02"),
-				"time":             "10:00:00",
-				"student_id":       student1.ID,
+				"value":             "positive",
+				"day":               time.Now().Format("2006-01-02"),
+				"time":              "10:00:00",
+				"student_id":        student1.ID,
 				"is_mensa_feedback": false,
 			},
 			{
-				"value":            "neutral",
-				"day":              time.Now().Format("2006-01-02"),
-				"time":             "12:30:00",
-				"student_id":       student2.ID,
+				"value":             "neutral",
+				"day":               time.Now().Format("2006-01-02"),
+				"time":              "12:30:00",
+				"student_id":        student2.ID,
 				"is_mensa_feedback": true,
 			},
 		},
@@ -555,8 +549,7 @@ func TestCreateBatchFeedback_DatabaseIssue(t *testing.T) {
 
 	rr := testutil.ExecuteRequest(router, req)
 
-	// Returns 206 Partial Content because of database errors on individual entries
-	testutil.AssertErrorResponse(t, rr, http.StatusPartialContent)
+	testutil.AssertSuccessResponse(t, rr, http.StatusCreated)
 }
 
 func TestCreateBatchFeedback_EmptyEntries(t *testing.T) {
