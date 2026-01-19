@@ -239,11 +239,20 @@ func (s *FixedSeeder) seedStaff(_ context.Context, result *FixedResult) error {
 			return fmt.Errorf("person not found for staff %s", personKey)
 		}
 
+		// Map position to display role (matches auth role names for clarity)
+		displayRole := "Betreuer" // Default for Pädagogische Fachkraft
+		switch staff.Position {
+		case "OGS-Büro":
+			displayRole = "Admin"
+		case "Extern":
+			displayRole = "Extern"
+		}
+
 		body := map[string]any{
 			"person_id":   personID,
 			"is_teacher":  staff.IsTeacher,
 			"staff_notes": fmt.Sprintf("Position: %s", staff.Position),
-			"role":        staff.Position, // Role field for teacher record
+			"role":        displayRole, // Display role for badge (Admin/Betreuer/Extern)
 		}
 
 		respBody, err := s.client.Post("/api/staff", body)
