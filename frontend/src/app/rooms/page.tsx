@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { ResponsiveLayout } from "~/components/dashboard";
 import { PageHeaderWithSearch } from "~/components/ui/page-header";
 import type { FilterConfig, ActiveFilter } from "~/components/ui/page-header";
-import { mapRoomsResponse } from "~/lib/room-helpers";
+import { formatFloor, mapRoomsResponse } from "~/lib/room-helpers";
 import type { BackendRoom } from "~/lib/room-helpers";
 import { useSWRAuth } from "~/lib/swr";
 
@@ -337,13 +337,13 @@ function RoomsPageContent() {
                           <p className="mt-0.5 text-sm text-gray-500">
                             {room.building &&
                               room.floor !== undefined &&
-                              `${room.building} · Etage ${room.floor}`}
+                              `${room.building} · ${formatFloor(room.floor)}`}
                             {room.building &&
                               room.floor === undefined &&
                               room.building}
                             {!room.building &&
                               room.floor !== undefined &&
-                              `Etage ${room.floor}`}
+                              formatFloor(room.floor)}
                           </p>
                         )}
                       </div>
