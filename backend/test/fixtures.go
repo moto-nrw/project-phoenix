@@ -1743,3 +1743,107 @@ func CreateTestJWT(tb testing.TB, accountID int64, permissions []string) string 
 
 	return token
 }
+
+// ============================================================================
+// Grade Transition Domain Fixtures
+// ============================================================================
+
+// CreateTestGradeTransition creates a grade transition in the database.
+func CreateTestGradeTransition(tb testing.TB, db *bun.DB, academicYear string, createdBy int64) *education.GradeTransition {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	transition := &education.GradeTransition{
+		AcademicYear: academicYear,
+		Status:       education.TransitionStatusDraft,
+		CreatedBy:    createdBy,
+	}
+
+	err := db.NewInsert().
+		Model(transition).
+		ModelTableExpr(`education.grade_transitions`).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to create test grade transition")
+
+	return transition
+}
+
+// CreateTestGradeTransitionMapping creates a mapping for a grade transition.
+func CreateTestGradeTransitionMapping(tb testing.TB, db *bun.DB, transitionID int64, fromClass string, toClass *string) *education.GradeTransitionMapping {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	mapping := &education.GradeTransitionMapping{
+		TransitionID: transitionID,
+		FromClass:    fromClass,
+		ToClass:      toClass,
+	}
+
+	err := db.NewInsert().
+		Model(mapping).
+		ModelTableExpr(`education.grade_transition_mappings`).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to create test grade transition mapping")
+
+	return mapping
+}
+
+// CreateTestGradeTransitionHistory creates a history record for a grade transition.
+func CreateTestGradeTransitionHistory(tb testing.TB, db *bun.DB, transitionID, studentID int64, personName, fromClass string, toClass *string, action string) *education.GradeTransitionHistory {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	history := &education.GradeTransitionHistory{
+		TransitionID: transitionID,
+		StudentID:    studentID,
+		PersonName:   personName,
+		FromClass:    fromClass,
+		ToClass:      toClass,
+		Action:       action,
+	}
+
+	err := db.NewInsert().
+		Model(history).
+		ModelTableExpr(`education.grade_transition_history`).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to create test grade transition history")
+
+	return history
+}
+
+// CleanupGradeTransitionFixtures removes grade transition fixtures from the database.
+// Pass transition IDs and it will clean up the transition, mappings, and history.
+func CleanupGradeTransitionFixtures(tb testing.TB, db *bun.DB, transitionIDs ...int64) {
+	tb.Helper()
+
+	if len(transitionIDs) == 0 {
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Delete history first (depends on transition)
+	_, _ = db.NewDelete().
+		TableExpr("education.grade_transition_history").
+		Where("transition_id IN (?)", bun.In(transitionIDs)).
+		Exec(ctx)
+
+	// Delete mappings (depends on transition)
+	_, _ = db.NewDelete().
+		TableExpr("education.grade_transition_mappings").
+		Where("transition_id IN (?)", bun.In(transitionIDs)).
+		Exec(ctx)
+
+	// Delete transitions
+	_, _ = db.NewDelete().
+		TableExpr("education.grade_transitions").
+		Where("id IN (?)", bun.In(transitionIDs)).
+		Exec(ctx)
+}

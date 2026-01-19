@@ -58,6 +58,11 @@ func (m *GradeTransitionMapping) Validate() error {
 		}
 	}
 
+	// from_class and to_class cannot be the same
+	if m.ToClass != nil && m.FromClass == *m.ToClass {
+		return errors.New("from_class and to_class cannot be the same")
+	}
+
 	return nil
 }
 
