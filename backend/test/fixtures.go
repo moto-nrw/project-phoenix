@@ -1792,31 +1792,6 @@ func CreateTestGradeTransitionMapping(tb testing.TB, db *bun.DB, transitionID in
 	return mapping
 }
 
-// CreateTestGradeTransitionHistory creates a history record for a grade transition.
-func CreateTestGradeTransitionHistory(tb testing.TB, db *bun.DB, transitionID, studentID int64, personName, fromClass string, toClass *string, action string) *education.GradeTransitionHistory {
-	tb.Helper()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	history := &education.GradeTransitionHistory{
-		TransitionID: transitionID,
-		StudentID:    studentID,
-		PersonName:   personName,
-		FromClass:    fromClass,
-		ToClass:      toClass,
-		Action:       action,
-	}
-
-	err := db.NewInsert().
-		Model(history).
-		ModelTableExpr(`education.grade_transition_history`).
-		Scan(ctx)
-	require.NoError(tb, err, "Failed to create test grade transition history")
-
-	return history
-}
-
 // CleanupGradeTransitionFixtures removes grade transition fixtures from the database.
 // Pass transition IDs and it will clean up the transition, mappings, and history.
 func CleanupGradeTransitionFixtures(tb testing.TB, db *bun.DB, transitionIDs ...int64) {
