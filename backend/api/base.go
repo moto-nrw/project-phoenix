@@ -29,8 +29,11 @@ import (
 	substitutionsAPI "github.com/moto-nrw/project-phoenix/api/substitutions"
 	usercontextAPI "github.com/moto-nrw/project-phoenix/api/usercontext"
 	usersAPI "github.com/moto-nrw/project-phoenix/api/users"
+	"github.com/moto-nrw/project-phoenix/auth/betterauth"
+	"github.com/moto-nrw/project-phoenix/auth/tenant"
 	"github.com/moto-nrw/project-phoenix/database"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/logging"
 	customMiddleware "github.com/moto-nrw/project-phoenix/middleware"
 	"github.com/moto-nrw/project-phoenix/services"
 )
@@ -39,6 +42,10 @@ import (
 type API struct {
 	Services *services.Factory
 	Router   chi.Router
+
+	// Infrastructure for multi-tenancy (WP5)
+	db               *bun.DB
+	betterAuthClient *betterauth.Client
 
 	// API Resources
 	Auth          *authAPI.Resource
@@ -78,10 +85,16 @@ func New(enableCORS bool) (*API, error) {
 		return nil, err
 	}
 
+	// Create BetterAuth client for multi-tenancy (WP5)
+	// This client is used by tenant middleware to validate sessions
+	betterAuthClient := betterauth.NewClient()
+
 	// Create API instance
 	api := &API{
-		Services: serviceFactory,
-		Router:   chi.NewRouter(),
+		Services:         serviceFactory,
+		Router:           chi.NewRouter(),
+		db:               db,
+		betterAuthClient: betterAuthClient,
 	}
 
 	// Setup router middleware
@@ -265,59 +278,88 @@ func (a *API) registerRoutesWithRateLimiting() {
 		a.Router.Mount("/auth", a.Auth.Router())
 	}
 
+	// Check if tenant auth (BetterAuth) is enabled
+	// When enabled, routes use BetterAuth sessions instead of JWT
+	// Set TENANT_AUTH_ENABLED=true to enable multi-tenancy auth
+	tenantAuthEnabled := os.Getenv("TENANT_AUTH_ENABLED") == "true"
+
+	if tenantAuthEnabled && logging.Logger != nil {
+		logging.Logger.Info("Tenant authentication enabled (BetterAuth)")
+	}
+
 	// Other API routes under /api prefix for organization
 	a.Router.Route("/api", func(r chi.Router) {
-		// Mount room resources
-		r.Mount("/rooms", a.Rooms.Router())
-
-		// Mount student resources
-		r.Mount("/students", a.Students.Router())
-
-		// Mount guardian resources
-		r.Mount("/guardians", a.Guardians.Router())
-
-		// Mount group resources
-		r.Mount("/groups", a.Groups.Router())
-
-		// Mount activities resources
-		r.Mount("/activities", a.Activities.Router())
-
-		// Mount staff resources
-		r.Mount("/staff", a.Staff.Router())
-
-		// Mount feedback resources
-		r.Mount("/feedback", a.Feedback.Router())
-
-		// Mount schedule resources
-		r.Mount("/schedules", a.Schedules.Router())
-
-		// Mount config resources
-		r.Mount("/config", a.Config.Router())
-
-		// Mount active resources
-		r.Mount("/active", a.Active.Router())
-
-		// Mount IoT resources
+		// IoT routes use their own authentication (API key + PIN)
+		// They MUST be mounted BEFORE tenant middleware is applied
+		// This ensures device authentication path remains unchanged
 		r.Mount("/iot", a.IoT.Router())
 
-		// Mount users resources
-		r.Mount("/users", a.Users.Router())
+		// All other routes go through tenant middleware when enabled
+		// This validates BetterAuth sessions and sets RLS context
+		if tenantAuthEnabled {
+			r.Group(func(r chi.Router) {
+				// Apply tenant middleware to validate BetterAuth sessions
+				r.Use(tenant.Middleware(a.betterAuthClient, a.db))
 
-		// Mount user context resources
-		r.Mount("/me", a.UserContext.Router())
-
-		// Mount substitutions resources
-		r.Mount("/substitutions", a.Substitutions.Router())
-
-		// Mount database resources
-		r.Mount("/database", a.Database.Router())
-
-		// Mount import resources (CSV/Excel import endpoints)
-		r.Mount("/import", a.Import.Router())
-
-		// Mount SSE resources (Server-Sent Events for real-time updates)
-		r.Mount("/sse", a.SSE.Router())
-
-		// Add other resource routes here as they are implemented
+				// Mount resources that require tenant context
+				a.mountAuthenticatedRoutes(r)
+			})
+		} else {
+			// Without tenant auth, mount routes directly
+			// They still use JWT auth configured in each resource's router
+			a.mountAuthenticatedRoutes(r)
+		}
 	})
+}
+
+// mountAuthenticatedRoutes mounts all API routes that require authentication.
+// This is called either with or without tenant middleware based on TENANT_AUTH_ENABLED.
+func (a *API) mountAuthenticatedRoutes(r chi.Router) {
+	// Mount room resources
+	r.Mount("/rooms", a.Rooms.Router())
+
+	// Mount student resources
+	r.Mount("/students", a.Students.Router())
+
+	// Mount guardian resources
+	r.Mount("/guardians", a.Guardians.Router())
+
+	// Mount group resources
+	r.Mount("/groups", a.Groups.Router())
+
+	// Mount activities resources
+	r.Mount("/activities", a.Activities.Router())
+
+	// Mount staff resources
+	r.Mount("/staff", a.Staff.Router())
+
+	// Mount feedback resources
+	r.Mount("/feedback", a.Feedback.Router())
+
+	// Mount schedule resources
+	r.Mount("/schedules", a.Schedules.Router())
+
+	// Mount config resources
+	r.Mount("/config", a.Config.Router())
+
+	// Mount active resources
+	r.Mount("/active", a.Active.Router())
+
+	// Mount users resources
+	r.Mount("/users", a.Users.Router())
+
+	// Mount user context resources
+	r.Mount("/me", a.UserContext.Router())
+
+	// Mount substitutions resources
+	r.Mount("/substitutions", a.Substitutions.Router())
+
+	// Mount database resources
+	r.Mount("/database", a.Database.Router())
+
+	// Mount import resources (CSV/Excel import endpoints)
+	r.Mount("/import", a.Import.Router())
+
+	// Mount SSE resources (Server-Sent Events for real-time updates)
+	r.Mount("/sse", a.SSE.Router())
 }
