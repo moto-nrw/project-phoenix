@@ -97,6 +97,35 @@ services:
       retries: 3
       start_period: 10s
 
+  # BetterAuth authentication service for multi-tenancy
+  # Handles user authentication, sessions, and organization management
+  betterauth:
+    build:
+      context: ./betterauth
+      dockerfile: Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "3001:3001"
+    environment:
+      TZ: ${TZ:-Europe/Berlin}
+      DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD}@postgres:5432/postgres?sslmode=require
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-change-me-in-production-min-32-chars}
+      BETTER_AUTH_URL: http://localhost:3001
+      TRUSTED_ORIGINS: http://localhost:3000,http://localhost:8080
+      PORT: 3001
+      # Allow self-signed SSL certificates in development
+      # In production, use proper SSL certificates
+      NODE_TLS_REJECT_UNAUTHORIZED: "0"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
   postgres:
     image: postgres:17
     restart: unless-stopped
