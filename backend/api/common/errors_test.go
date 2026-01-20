@@ -1,6 +1,7 @@
 package common_test
 
 import (
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -223,4 +224,149 @@ func TestMessageConstants(t *testing.T) {
 
 	// Verify date format constant
 	assert.Equal(t, "2006-01-02", common.DateFormatISO)
+}
+
+func TestLogRenderErrorConstant(t *testing.T) {
+	assert.Equal(t, "Error rendering error response: %v", common.LogRenderError)
+}
+
+// =============================================================================
+// Error Helper Response Body Tests
+// =============================================================================
+
+func TestErrorInvalidRequest_ResponseBody(t *testing.T) {
+	testErr := errors.New("field validation failed")
+	renderer := common.ErrorInvalidRequest(testErr)
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest("GET", "/test", nil)
+
+	err := render.Render(w, r, renderer)
+	require.NoError(t, err)
+
+	// Verify response body structure
+	var resp map[string]interface{}
+	err = json.Unmarshal(w.Body.Bytes(), &resp)
+	require.NoError(t, err)
+	assert.Equal(t, "error", resp["status"])
+	assert.Equal(t, "field validation failed", resp["error"])
+}
+
+func TestErrorUnauthorized_ResponseBody(t *testing.T) {
+	testErr := errors.New("token expired")
+	renderer := common.ErrorUnauthorized(testErr)
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest("GET", "/test", nil)
+
+	err := render.Render(w, r, renderer)
+	require.NoError(t, err)
+
+	var resp map[string]interface{}
+	err = json.Unmarshal(w.Body.Bytes(), &resp)
+	require.NoError(t, err)
+	assert.Equal(t, "error", resp["status"])
+	assert.Equal(t, "token expired", resp["error"])
+}
+
+func TestErrorForbidden_ResponseBody(t *testing.T) {
+	testErr := errors.New("insufficient permissions")
+	renderer := common.ErrorForbidden(testErr)
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest("GET", "/test", nil)
+
+	err := render.Render(w, r, renderer)
+	require.NoError(t, err)
+
+	var resp map[string]interface{}
+	err = json.Unmarshal(w.Body.Bytes(), &resp)
+	require.NoError(t, err)
+	assert.Equal(t, "error", resp["status"])
+	assert.Equal(t, "insufficient permissions", resp["error"])
+}
+
+func TestErrorNotFound_ResponseBody(t *testing.T) {
+	testErr := errors.New("student not found")
+	renderer := common.ErrorNotFound(testErr)
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest("GET", "/test", nil)
+
+	err := render.Render(w, r, renderer)
+	require.NoError(t, err)
+
+	var resp map[string]interface{}
+	err = json.Unmarshal(w.Body.Bytes(), &resp)
+	require.NoError(t, err)
+	assert.Equal(t, "error", resp["status"])
+	assert.Equal(t, "student not found", resp["error"])
+}
+
+func TestErrorInternalServer_ResponseBody(t *testing.T) {
+	testErr := errors.New("database connection failed")
+	renderer := common.ErrorInternalServer(testErr)
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest("GET", "/test", nil)
+
+	err := render.Render(w, r, renderer)
+	require.NoError(t, err)
+
+	var resp map[string]interface{}
+	err = json.Unmarshal(w.Body.Bytes(), &resp)
+	require.NoError(t, err)
+	assert.Equal(t, "error", resp["status"])
+	assert.Equal(t, "database connection failed", resp["error"])
+}
+
+func TestErrorConflict_ResponseBody(t *testing.T) {
+	testErr := errors.New("resource already exists")
+	renderer := common.ErrorConflict(testErr)
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest("GET", "/test", nil)
+
+	err := render.Render(w, r, renderer)
+	require.NoError(t, err)
+
+	var resp map[string]interface{}
+	err = json.Unmarshal(w.Body.Bytes(), &resp)
+	require.NoError(t, err)
+	assert.Equal(t, "error", resp["status"])
+	assert.Equal(t, "resource already exists", resp["error"])
+}
+
+func TestErrorTooManyRequests_ResponseBody(t *testing.T) {
+	testErr := errors.New("rate limit exceeded")
+	renderer := common.ErrorTooManyRequests(testErr)
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest("GET", "/test", nil)
+
+	err := render.Render(w, r, renderer)
+	require.NoError(t, err)
+
+	var resp map[string]interface{}
+	err = json.Unmarshal(w.Body.Bytes(), &resp)
+	require.NoError(t, err)
+	assert.Equal(t, "error", resp["status"])
+	assert.Equal(t, "rate limit exceeded", resp["error"])
+}
+
+func TestErrorGone_ResponseBody(t *testing.T) {
+	testErr := errors.New("invitation expired")
+	renderer := common.ErrorGone(testErr)
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest("GET", "/test", nil)
+
+	err := render.Render(w, r, renderer)
+	require.NoError(t, err)
+
+	var resp map[string]interface{}
+	err = json.Unmarshal(w.Body.Bytes(), &resp)
+	require.NoError(t, err)
+	assert.Equal(t, "error", resp["status"])
+	assert.Equal(t, "invitation expired", resp["error"])
 }
