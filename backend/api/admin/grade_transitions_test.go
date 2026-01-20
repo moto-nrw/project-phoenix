@@ -932,8 +932,8 @@ func TestToTransitionResponse(t *testing.T) {
 				actions[action] = true
 			}
 		}
-		assert.True(t, actions["promote"], "Expected 'promote' action for mapping with to_class")
-		assert.True(t, actions["graduate"], "Expected 'graduate' action for mapping without to_class")
+		assert.True(t, actions["promoted"], "Expected 'promoted' action for mapping with to_class")
+		assert.True(t, actions["graduated"], "Expected 'graduated' action for mapping without to_class")
 	})
 
 	t.Run("response includes can_modify, can_apply, can_revert", func(t *testing.T) {
