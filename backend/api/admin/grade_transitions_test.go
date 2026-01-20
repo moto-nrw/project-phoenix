@@ -779,8 +779,12 @@ func TestGradeTransitionResource_GetHistory(t *testing.T) {
 		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 
 		response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
-		data := response["data"].([]interface{})
-		assert.Empty(t, data)
+		// API returns null when there's no history, so check for nil or empty array
+		if data, ok := response["data"].([]interface{}); ok {
+			assert.Empty(t, data)
+		} else {
+			assert.Nil(t, response["data"], "Expected nil or empty array for history with no records")
+		}
 	})
 }
 
