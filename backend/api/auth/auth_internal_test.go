@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	authModel "github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -282,4 +283,108 @@ func TestNewResource_ReturnsResource(t *testing.T) {
 	resource := NewResource(nil, nil)
 
 	assert.NotNil(t, resource)
+}
+
+// =============================================================================
+// isValidAuthHeader Tests
+// =============================================================================
+
+func TestIsValidAuthHeader_ValidBearerToken(t *testing.T) {
+	result := isValidAuthHeader("Bearer abc123")
+	assert.True(t, result)
+}
+
+func TestIsValidAuthHeader_ValidBearerToken_LongToken(t *testing.T) {
+	result := isValidAuthHeader("Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c")
+	assert.True(t, result)
+}
+
+func TestIsValidAuthHeader_EmptyString(t *testing.T) {
+	result := isValidAuthHeader("")
+	assert.False(t, result)
+}
+
+func TestIsValidAuthHeader_NoBearer(t *testing.T) {
+	result := isValidAuthHeader("abc123")
+	assert.False(t, result)
+}
+
+func TestIsValidAuthHeader_WrongPrefix(t *testing.T) {
+	result := isValidAuthHeader("Basic abc123")
+	assert.False(t, result)
+}
+
+func TestIsValidAuthHeader_LowercaseBearer(t *testing.T) {
+	result := isValidAuthHeader("bearer abc123")
+	assert.False(t, result)
+}
+
+func TestIsValidAuthHeader_BearerOnly(t *testing.T) {
+	// "Bearer " is 7 characters, which fails the >= 8 length check
+	result := isValidAuthHeader("Bearer ")
+	assert.False(t, result) // fails length check (need at least 8 chars)
+}
+
+func TestIsValidAuthHeader_BearerWithOneChar(t *testing.T) {
+	// "Bearer x" is 8 characters, which passes the >= 8 length check
+	result := isValidAuthHeader("Bearer x")
+	assert.True(t, result) // passes length check
+}
+
+func TestIsValidAuthHeader_ShortString(t *testing.T) {
+	result := isValidAuthHeader("Bear")
+	assert.False(t, result)
+}
+
+// =============================================================================
+// hasAdminRole Tests
+// =============================================================================
+
+func TestHasAdminRole_WithAdminRole(t *testing.T) {
+	roles := []*authModel.Role{
+		{Name: "user"},
+		{Name: "admin"},
+		{Name: "moderator"},
+	}
+	result := hasAdminRole(roles)
+	assert.True(t, result)
+}
+
+func TestHasAdminRole_WithoutAdminRole(t *testing.T) {
+	roles := []*authModel.Role{
+		{Name: "user"},
+		{Name: "moderator"},
+	}
+	result := hasAdminRole(roles)
+	assert.False(t, result)
+}
+
+func TestHasAdminRole_EmptyRoles(t *testing.T) {
+	roles := []*authModel.Role{}
+	result := hasAdminRole(roles)
+	assert.False(t, result)
+}
+
+func TestHasAdminRole_NilRoles(t *testing.T) {
+	var roles []*authModel.Role = nil
+	result := hasAdminRole(roles)
+	assert.False(t, result)
+}
+
+func TestHasAdminRole_OnlyAdminRole(t *testing.T) {
+	roles := []*authModel.Role{
+		{Name: "admin"},
+	}
+	result := hasAdminRole(roles)
+	assert.True(t, result)
+}
+
+func TestHasAdminRole_AdminLikeButNotAdmin(t *testing.T) {
+	roles := []*authModel.Role{
+		{Name: "administrator"},
+		{Name: "Admin"},
+		{Name: "ADMIN"},
+	}
+	result := hasAdminRole(roles)
+	assert.False(t, result) // exact match "admin" required
 }
