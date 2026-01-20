@@ -77,7 +77,7 @@ func (c *Client) GetSession(ctx context.Context, r *http.Request) (*SessionRespo
 	if err != nil {
 		return nil, fmt.Errorf("session request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	// Check status - 401 means no valid session
 	if resp.StatusCode == http.StatusUnauthorized {
@@ -137,7 +137,7 @@ func (c *Client) GetActiveMember(ctx context.Context, r *http.Request) (*MemberI
 	if err != nil {
 		return nil, fmt.Errorf("member request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	// Check status
 	if resp.StatusCode == http.StatusUnauthorized {
