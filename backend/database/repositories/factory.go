@@ -11,6 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories/feedback"
 	"github.com/moto-nrw/project-phoenix/database/repositories/iot"
 	"github.com/moto-nrw/project-phoenix/database/repositories/schedule"
+	tenantRepo "github.com/moto-nrw/project-phoenix/database/repositories/tenant"
 	"github.com/moto-nrw/project-phoenix/database/repositories/users"
 
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
@@ -23,6 +24,7 @@ import (
 	feedbackModels "github.com/moto-nrw/project-phoenix/models/feedback"
 	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	tenantModels "github.com/moto-nrw/project-phoenix/models/tenant"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 
 	"github.com/uptrace/bun"
@@ -98,6 +100,10 @@ type Factory struct {
 	DataDeletion auditModels.DataDeletionRepository
 	AuthEvent    auditModels.AuthEventRepository
 	DataImport   auditModels.DataImportRepository
+
+	// Tenant domain
+	Traeger tenantModels.TraegerRepository
+	Buero   tenantModels.BueroRepository
 }
 
 // NewFactory creates a new repository factory with all repositories
@@ -171,5 +177,9 @@ func NewFactory(db *bun.DB) *Factory {
 		DataDeletion: audit.NewDataDeletionRepository(db),
 		AuthEvent:    audit.NewAuthEventRepository(db),
 		DataImport:   audit.NewDataImportRepository(db),
+
+		// Tenant repositories
+		Traeger: tenantRepo.NewTraegerRepository(db),
+		Buero:   tenantRepo.NewBueroRepository(db),
 	}
 }
