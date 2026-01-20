@@ -11,6 +11,10 @@ import { createAccessControl } from "better-auth/plugins/access";
  * - location: GDPR SENSITIVE - real-time location data (which room, check-in times)
  * - staff: Staff members (CRUD + invite)
  * - ogs: OGS settings and configuration
+ * - config: System configuration settings (admin only)
+ * - schedule: Timeframes, dateframes, recurrence rules
+ * - feedback: Student emotional check-ins
+ * - substitution: Group supervisor substitutions
  *
  * GDPR CRITICAL: The `location` resource contains sensitive real-time data about
  * where students are physically located. Only roles with direct operational need
@@ -25,6 +29,10 @@ export const statement = {
   location: ["read"], // GDPR sensitive - only operational roles!
   staff: ["read", "create", "update", "delete", "invite"],
   ogs: ["read", "update"],
+  config: ["read", "update"], // System configuration - admin only
+  schedule: ["read", "create", "update", "delete"], // Timeframes and schedules
+  feedback: ["read", "create", "delete"], // Student emotional check-ins
+  substitution: ["read", "create", "update", "delete"], // Group substitutions
 } as const;
 
 /**
@@ -43,6 +51,7 @@ export const ac = createAccessControl(statement);
  * - Can view groups (assignment handled separately)
  * - Can perform check-in/checkout operations
  * - CAN see location data (operational need)
+ * - Can read schedules, create/read feedback, read substitutions
  * - Cannot: create/delete students, manage groups/rooms/staff, update OGS settings
  */
 export const supervisor = ac.newRole({
@@ -50,6 +59,9 @@ export const supervisor = ac.newRole({
   group: ["read"],
   attendance: ["read", "checkin", "checkout"],
   location: ["read"], // Operational staff needs to see where students are
+  schedule: ["read"], // Can view schedules
+  feedback: ["read", "create"], // Can record student feedback
+  substitution: ["read"], // Can view substitutions
 });
 
 /**
@@ -65,6 +77,7 @@ export const supervisor = ac.newRole({
  * - CAN see location data (runs the OGS operationally)
  * - Staff management (cannot delete - only higher roles)
  * - OGS settings management
+ * - Full config, schedule, feedback, substitution management
  */
 export const ogsAdmin = ac.newRole({
   student: ["read", "create", "update", "delete"],
@@ -74,6 +87,10 @@ export const ogsAdmin = ac.newRole({
   location: ["read"], // OGS admin runs operations, needs location visibility
   staff: ["read", "create", "update", "invite"],
   ogs: ["read", "update"],
+  config: ["read", "update"], // Full config management
+  schedule: ["read", "create", "update", "delete"], // Full schedule management
+  feedback: ["read", "create", "delete"], // Full feedback management
+  substitution: ["read", "create", "update", "delete"], // Full substitution management
 });
 
 /**
@@ -93,6 +110,7 @@ export const ogsAdmin = ac.newRole({
  * - NO location data - GDPR restriction
  * - Full staff management including delete
  * - OGS settings management
+ * - Full config, schedule, feedback, substitution management
  */
 export const bueroAdmin = ac.newRole({
   student: ["read", "create", "update", "delete"],
@@ -101,6 +119,10 @@ export const bueroAdmin = ac.newRole({
   // location: INTENTIONALLY OMITTED - GDPR compliance!
   staff: ["read", "create", "update", "delete", "invite"],
   ogs: ["read", "update"],
+  config: ["read", "update"], // Full config management
+  schedule: ["read", "create", "update", "delete"], // Full schedule management
+  feedback: ["read", "create", "delete"], // Full feedback management
+  substitution: ["read", "create", "update", "delete"], // Full substitution management
 });
 
 /**
@@ -120,6 +142,7 @@ export const bueroAdmin = ac.newRole({
  * - NO location data - GDPR restriction
  * - Full staff management including delete
  * - OGS settings management
+ * - Full config, schedule, feedback, substitution management
  */
 export const traegerAdmin = ac.newRole({
   student: ["read", "create", "update", "delete"],
@@ -128,4 +151,8 @@ export const traegerAdmin = ac.newRole({
   // location: INTENTIONALLY OMITTED - GDPR compliance!
   staff: ["read", "create", "update", "delete", "invite"],
   ogs: ["read", "update"],
+  config: ["read", "update"], // Full config management
+  schedule: ["read", "create", "update", "delete"], // Full schedule management
+  feedback: ["read", "create", "delete"], // Full feedback management
+  substitution: ["read", "create", "update", "delete"], // Full substitution management
 });

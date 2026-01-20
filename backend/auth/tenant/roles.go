@@ -6,7 +6,7 @@ package tenant
 // If you modify role permissions in BetterAuth, update this map immediately.
 //
 // Permission format: "resource:action"
-// Resources: student, group, room, attendance, location, staff, ogs
+// Resources: student, group, room, attendance, location, staff, ogs, config, schedule, feedback, substitution
 // Actions vary by resource (read, create, update, delete, etc.)
 //
 // GDPR NOTE: The "location:read" permission is GDPR-sensitive.
@@ -21,7 +21,10 @@ var RolePermissions = map[string][]string{
 		"student:read", "student:update",
 		"group:read",
 		"attendance:read", "attendance:checkin", "attendance:checkout",
-		"location:read", // Operational staff needs to see where students are
+		"location:read",                    // Operational staff needs to see where students are
+		"schedule:read",                    // Can view schedules
+		"feedback:read", "feedback:create", // Can record student feedback
+		"substitution:read", // Can view substitutions
 	},
 
 	// ogsAdmin - Full administrator for a single OGS (after-school center).
@@ -35,6 +38,10 @@ var RolePermissions = map[string][]string{
 		"location:read", // OGS admin runs operations, needs location visibility
 		"staff:read", "staff:create", "staff:update", "staff:invite",
 		"ogs:read", "ogs:update",
+		"config:read", "config:update", // Full config management
+		"schedule:read", "schedule:create", "schedule:update", "schedule:delete", // Full schedule management
+		"feedback:read", "feedback:create", "feedback:delete", // Full feedback management
+		"substitution:read", "substitution:create", "substitution:update", "substitution:delete", // Full substitution management
 	},
 
 	// bueroAdmin - Office administrator managing multiple OGS remotely.
@@ -47,6 +54,10 @@ var RolePermissions = map[string][]string{
 		// location: INTENTIONALLY OMITTED - GDPR compliance!
 		"staff:read", "staff:create", "staff:update", "staff:delete", "staff:invite",
 		"ogs:read", "ogs:update",
+		"config:read", "config:update", // Full config management
+		"schedule:read", "schedule:create", "schedule:update", "schedule:delete", // Full schedule management
+		"feedback:read", "feedback:create", "feedback:delete", // Full feedback management
+		"substitution:read", "substitution:create", "substitution:update", "substitution:delete", // Full substitution management
 	},
 
 	// traegerAdmin - Carrier administrator (highest level), manages all OGS.
@@ -59,6 +70,10 @@ var RolePermissions = map[string][]string{
 		// location: INTENTIONALLY OMITTED - GDPR compliance!
 		"staff:read", "staff:create", "staff:update", "staff:delete", "staff:invite",
 		"ogs:read", "ogs:update",
+		"config:read", "config:update", // Full config management
+		"schedule:read", "schedule:create", "schedule:update", "schedule:delete", // Full schedule management
+		"feedback:read", "feedback:create", "feedback:delete", // Full feedback management
+		"substitution:read", "substitution:create", "substitution:update", "substitution:delete", // Full substitution management
 	},
 }
 
