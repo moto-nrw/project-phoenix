@@ -8,15 +8,14 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/jwtauth/v5"
 	"github.com/go-chi/render"
 	"github.com/xuri/excelize/v2"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/auth/tenant"
 	"github.com/moto-nrw/project-phoenix/models/audit"
 	importModels "github.com/moto-nrw/project-phoenix/models/import"
+	authSvc "github.com/moto-nrw/project-phoenix/services/auth"
 	importService "github.com/moto-nrw/project-phoenix/services/import"
 )
 
@@ -34,48 +33,42 @@ const (
 type Resource struct {
 	studentImportService *importService.ImportService[importModels.StudentImportRow]
 	auditRepo            audit.DataImportRepository
+	authService          authSvc.AuthService
 }
 
 // NewResource creates a new import resource
-func NewResource(studentImportService *importService.ImportService[importModels.StudentImportRow], auditRepo audit.DataImportRepository) *Resource {
+func NewResource(studentImportService *importService.ImportService[importModels.StudentImportRow], auditRepo audit.DataImportRepository, authService authSvc.AuthService) *Resource {
 	return &Resource{
 		studentImportService: studentImportService,
 		auditRepo:            auditRepo,
+		authService:          authService,
 	}
 }
 
 // Router returns a configured router for import endpoints
+// Note: Authentication is handled by tenant middleware in base.go when TENANT_AUTH_ENABLED=true
 func (rs *Resource) Router() chi.Router {
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 
-	// Create JWT auth instance for middleware
-	tokenAuth, _ := jwt.NewTokenAuth()
+	// Student import endpoints
+	r.Route("/students", func(r chi.Router) {
+		// Template download - requires import:read
+		r.With(tenant.RequiresPermission("import:read")).Get("/template", rs.downloadStudentTemplate)
 
-	// Protected routes - require UsersCreate permission
-	r.Group(func(r chi.Router) {
-		r.Use(jwtauth.Verifier(tokenAuth.JwtAuth))
-		r.Use(jwt.Authenticator)
+		// Preview - requires import:create
+		r.With(tenant.RequiresPermission("import:create")).Post("/preview", rs.previewStudentImport)
 
-		// Student import endpoints
-		r.Route("/students", func(r chi.Router) {
-			// Template download - requires UsersRead
-			r.With(authorize.RequiresPermission("users:read")).Get("/template", rs.downloadStudentTemplate)
-
-			// Preview - requires UsersCreate
-			r.With(authorize.RequiresPermission("users:create")).Post("/preview", rs.previewStudentImport)
-
-			// Actual import - requires UsersCreate
-			r.With(authorize.RequiresPermission("users:create")).Post("/import", rs.importStudents)
-		})
-
-		// Future: Teacher import endpoints
-		// r.Route("/teachers", func(r chi.Router) {
-		//     r.Get("/template", rs.downloadTeacherTemplate)
-		//     r.Post("/preview", rs.previewTeacherImport)
-		//     r.Post("/import", rs.importTeachers)
-		// })
+		// Actual import - requires import:create
+		r.With(tenant.RequiresPermission("import:create")).Post("/import", rs.importStudents)
 	})
+
+	// Future: Teacher import endpoints
+	// r.Route("/teachers", func(r chi.Router) {
+	//     r.Get("/template", rs.downloadTeacherTemplate)
+	//     r.Post("/preview", rs.previewTeacherImport)
+	//     r.Post("/import", rs.importTeachers)
+	// })
 
 	return r
 }
@@ -255,7 +248,7 @@ func (rs *Resource) previewStudentImport(w http.ResponseWriter, r *http.Request)
 	}
 
 	// Get user ID from context
-	userID, err := getUserIDFromContext(r.Context())
+	userID, err := rs.getUserIDFromContext(r.Context())
 	if err != nil {
 		common.RenderError(w, r, common.ErrorUnauthorized(err))
 		return
@@ -293,7 +286,7 @@ func (rs *Resource) importStudents(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get user ID from context
-	userID, err := getUserIDFromContext(r.Context())
+	userID, err := rs.getUserIDFromContext(r.Context())
 	if err != nil {
 		common.RenderError(w, r, common.ErrorUnauthorized(err))
 		return
@@ -330,14 +323,20 @@ func (rs *Resource) importStudents(w http.ResponseWriter, r *http.Request) {
 	common.Respond(w, r, http.StatusOK, result, message)
 }
 
-// getUserIDFromContext extracts the user ID from the JWT context
-func getUserIDFromContext(ctx context.Context) (int64, error) {
-	claims, ok := ctx.Value(jwt.CtxClaims).(jwt.AppClaims)
-	if !ok {
-		return 0, fmt.Errorf("no claims in context")
+// getUserIDFromContext extracts the user ID from the tenant context
+// Uses the BetterAuth email to look up the Phoenix account ID
+func (rs *Resource) getUserIDFromContext(ctx context.Context) (int64, error) {
+	tc := tenant.TenantFromCtx(ctx)
+	if tc == nil || tc.UserEmail == "" {
+		return 0, fmt.Errorf("no tenant context")
 	}
 
-	return int64(claims.ID), nil
+	account, err := rs.authService.GetAccountByEmail(ctx, tc.UserEmail)
+	if err != nil {
+		return 0, fmt.Errorf("account not found: %w", err)
+	}
+
+	return account.ID, nil
 }
 
 // logImportAudit creates an audit record for import operations (GDPR compliance)

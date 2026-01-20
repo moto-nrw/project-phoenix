@@ -11,9 +11,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/auth/tenant"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/users"
@@ -50,36 +48,29 @@ func NewResource(
 }
 
 // Router returns a configured router for staff endpoints
+// Note: Authentication is handled by tenant middleware in base.go when TENANT_AUTH_ENABLED=true
 func (rs *Resource) Router() chi.Router {
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 
-	// Create JWT auth instance for middleware
-	tokenAuth, _ := jwt.NewTokenAuth()
+	// Read operations only require staff:read permission
+	r.With(tenant.RequiresPermission("staff:read")).Get("/", rs.listStaff)
+	r.With(tenant.RequiresPermission("staff:read")).Get("/{id}", rs.getStaff)
+	r.With(tenant.RequiresPermission("staff:read")).Get("/{id}/groups", rs.getStaffGroups)
+	r.With(tenant.RequiresPermission("staff:read")).Get("/{id}/substitutions", rs.getStaffSubstitutions)
+	r.With(tenant.RequiresPermission("staff:read")).Get("/available", rs.getAvailableStaff)
+	r.With(tenant.RequiresPermission("staff:read")).Get("/available-for-substitution", rs.getAvailableForSubstitution)
+	r.With(tenant.RequiresPermission("staff:read")).Get("/by-role", rs.getStaffByRole)
 
-	// Protected routes that require authentication and permissions
-	r.Group(func(r chi.Router) {
-		r.Use(tokenAuth.Verifier())
-		r.Use(jwt.Authenticator)
+	// Write operations require staff:create, staff:update, or staff:delete permission
+	r.With(tenant.RequiresPermission("staff:create")).Post("/", rs.createStaff)
+	r.With(tenant.RequiresPermission("staff:update")).Put("/{id}", rs.updateStaff)
+	r.With(tenant.RequiresPermission("staff:delete")).Delete("/{id}", rs.deleteStaff)
 
-		// Read operations only require users:read permission
-		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/", rs.listStaff)
-		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/{id}", rs.getStaff)
-		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/{id}/groups", rs.getStaffGroups)
-		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/{id}/substitutions", rs.getStaffSubstitutions)
-		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/available", rs.getAvailableStaff)
-		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/available-for-substitution", rs.getAvailableForSubstitution)
-		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/by-role", rs.getStaffByRole)
-
-		// Write operations require users:create, users:update, or users:delete permission
-		r.With(authorize.RequiresPermission(permissions.UsersCreate)).Post("/", rs.createStaff)
-		r.With(authorize.RequiresPermission(permissions.UsersUpdate)).Put("/{id}", rs.updateStaff)
-		r.With(authorize.RequiresPermission(permissions.UsersDelete)).Delete("/{id}", rs.deleteStaff)
-
-		// PIN management endpoints - staff can manage their own PIN
-		r.Get("/pin", rs.getPINStatus)
-		r.Put("/pin", rs.updatePIN)
-	})
+	// PIN management endpoints - authenticated staff can manage their own PIN
+	// No additional permission required - ownership checked in handler
+	r.Get("/pin", rs.getPINStatus)
+	r.Put("/pin", rs.updatePIN)
 
 	return r
 }
@@ -366,7 +357,7 @@ func (rs *Resource) grantDefaultPermissions(ctx context.Context, accountID int64
 	}
 
 	// Get the groups:read permission
-	perm, err := rs.AuthService.GetPermissionByName(ctx, permissions.GroupsRead)
+	perm, err := rs.AuthService.GetPermissionByName(ctx, "group:read")
 	if err == nil && perm != nil {
 		// Grant the permission to the account
 		if err := rs.AuthService.GrantPermissionToAccount(ctx, int(accountID), int(perm.ID)); err != nil {
@@ -843,15 +834,15 @@ func containsIgnoreCase(s, substr string) bool {
 
 // getPINStatus handles getting the current user's PIN status
 func (rs *Resource) getPINStatus(w http.ResponseWriter, r *http.Request) {
-	// Get user from JWT context
-	userClaims := jwt.ClaimsFromCtx(r.Context())
-	if userClaims.ID == 0 {
-		common.RenderError(w, r, ErrorUnauthorized(errors.New("invalid token")))
+	// Get user from tenant context
+	tc := tenant.TenantFromCtx(r.Context())
+	if tc == nil || tc.UserEmail == "" {
+		common.RenderError(w, r, ErrorUnauthorized(errors.New("invalid session")))
 		return
 	}
 
-	// Get account directly
-	account, err := rs.AuthService.GetAccountByID(r.Context(), userClaims.ID)
+	// Get account by email
+	account, err := rs.AuthService.GetAccountByEmail(r.Context(), tc.UserEmail)
 	if err != nil {
 		common.RenderError(w, r, ErrorNotFound(errors.New("account not found")))
 		return
@@ -887,13 +878,13 @@ func (rs *Resource) updatePIN(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userClaims := jwt.ClaimsFromCtx(r.Context())
-	if userClaims.ID == 0 {
-		common.RenderError(w, r, ErrorUnauthorized(errors.New("invalid token")))
+	tc := tenant.TenantFromCtx(r.Context())
+	if tc == nil || tc.UserEmail == "" {
+		common.RenderError(w, r, ErrorUnauthorized(errors.New("invalid session")))
 		return
 	}
 
-	account, err := rs.AuthService.GetAccountByID(r.Context(), userClaims.ID)
+	account, err := rs.AuthService.GetAccountByEmail(r.Context(), tc.UserEmail)
 	if err != nil {
 		common.RenderError(w, r, ErrorNotFound(errors.New("account not found")))
 		return

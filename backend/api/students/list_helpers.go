@@ -5,7 +5,7 @@ import (
 	"strconv"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/auth/tenant"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
 )
@@ -99,9 +99,10 @@ func (p *studentListParams) buildCountOptions() *base.QueryOptions {
 }
 
 // determineStudentAccess determines access level and group IDs for the current user
+// Uses tenant context for GDPR location permission check
 func (rs *Resource) determineStudentAccess(r *http.Request) *studentAccessContext {
 	ctx := &studentAccessContext{
-		isAdmin: hasAdminPermissions(jwt.PermissionsFromCtx(r.Context())),
+		isAdmin: tenant.HasLocationPermission(r.Context()), // GDPR: location:read permission determines full access
 	}
 
 	if !ctx.isAdmin {

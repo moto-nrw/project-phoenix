@@ -10,9 +10,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/auth/tenant"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	modelEducation "github.com/moto-nrw/project-phoenix/models/education"
@@ -129,28 +127,21 @@ type createSubstitutionRequest struct {
 	Reason            string `json:"reason,omitempty"`
 }
 
+// Router returns a configured router for substitution endpoints
+// Note: Authentication is handled by tenant middleware in base.go when TENANT_AUTH_ENABLED=true
 func (rs *Resource) Router() chi.Router {
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 
-	// Create JWT auth instance for middleware
-	tokenAuth, _ := jwt.NewTokenAuth()
+	// Read operations require substitution:read permission
+	r.With(tenant.RequiresPermission("substitution:read")).Get("/", rs.list)
+	r.With(tenant.RequiresPermission("substitution:read")).Get("/active", rs.listActive)
+	r.With(tenant.RequiresPermission("substitution:read")).Get("/{id}", rs.get)
 
-	// Protected routes that require authentication and permissions
-	r.Group(func(r chi.Router) {
-		r.Use(tokenAuth.Verifier())
-		r.Use(jwt.Authenticator)
-
-		// Read operations require substitutions:read permission
-		r.With(authorize.RequiresPermission(permissions.SubstitutionsRead)).Get("/", rs.list)
-		r.With(authorize.RequiresPermission(permissions.SubstitutionsRead)).Get("/active", rs.listActive)
-		r.With(authorize.RequiresPermission(permissions.SubstitutionsRead)).Get("/{id}", rs.get)
-
-		// Write operations require substitutions:create/update/delete permissions
-		r.With(authorize.RequiresPermission(permissions.SubstitutionsCreate)).Post("/", rs.create)
-		r.With(authorize.RequiresPermission(permissions.SubstitutionsUpdate)).Put("/{id}", rs.update)
-		r.With(authorize.RequiresPermission(permissions.SubstitutionsDelete)).Delete("/{id}", rs.delete)
-	})
+	// Write operations require substitution:create/update/delete permissions
+	r.With(tenant.RequiresPermission("substitution:create")).Post("/", rs.create)
+	r.With(tenant.RequiresPermission("substitution:update")).Put("/{id}", rs.update)
+	r.With(tenant.RequiresPermission("substitution:delete")).Delete("/{id}", rs.delete)
 
 	return r
 }

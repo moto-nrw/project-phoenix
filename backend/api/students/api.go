@@ -12,10 +12,8 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/device"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/auth/tenant"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
@@ -61,41 +59,34 @@ func NewResource(personService userService.PersonService, studentRepo users.Stud
 }
 
 // Router returns a configured router for student endpoints
+// Note: Authentication is handled by tenant middleware in base.go when TENANT_AUTH_ENABLED=true
 func (rs *Resource) Router() chi.Router {
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 
-	// Create JWT auth instance for middleware
-	tokenAuth, _ := jwt.NewTokenAuth()
+	// Routes requiring student:read permission
+	r.With(tenant.RequiresPermission("student:read")).Get("/", rs.listStudents)
+	r.With(tenant.RequiresPermission("student:read")).Get("/{id}", rs.getStudent)
+	r.With(tenant.RequiresPermission("student:read")).Get("/{id}/in-group-room", rs.getStudentInGroupRoom)
+	r.With(tenant.RequiresPermission("student:read")).Get("/{id}/current-location", rs.getStudentCurrentLocation)
+	r.With(tenant.RequiresPermission("student:read")).Get("/{id}/current-visit", rs.getStudentCurrentVisit)
+	r.With(tenant.RequiresPermission("student:read")).Get("/{id}/visit-history", rs.getStudentVisitHistory)
 
-	// Protected routes that require authentication and permissions
-	r.Group(func(r chi.Router) {
-		r.Use(tokenAuth.Verifier())
-		r.Use(jwt.Authenticator)
+	// Routes requiring student:create permission
+	r.With(tenant.RequiresPermission("student:create")).Post("/", rs.createStudent)
 
-		// Routes requiring users:read permission
-		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/", rs.listStudents)
-		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/{id}", rs.getStudent)
-		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/{id}/in-group-room", rs.getStudentInGroupRoom)
-		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/{id}/current-location", rs.getStudentCurrentLocation)
-		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/{id}/current-visit", rs.getStudentCurrentVisit)
-		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/{id}/visit-history", rs.getStudentVisitHistory)
+	// Routes requiring student:update permission
+	r.With(tenant.RequiresPermission("student:update")).Put("/{id}", rs.updateStudent)
 
-		// Routes requiring users:create permission
-		r.With(authorize.RequiresPermission(permissions.UsersCreate)).Post("/", rs.createStudent)
+	// Routes requiring student:delete permission
+	r.With(tenant.RequiresPermission("student:delete")).Delete("/{id}", rs.deleteStudent)
 
-		// Routes requiring users:update permission
-		r.With(authorize.RequiresPermission(permissions.UsersUpdate)).Put("/{id}", rs.updateStudent)
-
-		// Routes requiring users:delete permission
-		r.With(authorize.RequiresPermission(permissions.UsersDelete)).Delete("/{id}", rs.deleteStudent)
-
-		// Privacy consent routes
-		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/{id}/privacy-consent", rs.getStudentPrivacyConsent)
-		r.With(authorize.RequiresPermission(permissions.UsersUpdate)).Put("/{id}/privacy-consent", rs.updateStudentPrivacyConsent)
-	})
+	// Privacy consent routes
+	r.With(tenant.RequiresPermission("student:read")).Get("/{id}/privacy-consent", rs.getStudentPrivacyConsent)
+	r.With(tenant.RequiresPermission("student:update")).Put("/{id}/privacy-consent", rs.updateStudentPrivacyConsent)
 
 	// Device-authenticated routes for RFID devices
+	// Note: These use device auth, not tenant auth
 	r.Group(func(r chi.Router) {
 		r.Use(device.DeviceAuthenticator(rs.IoTService, rs.PersonService))
 
@@ -155,10 +146,10 @@ func (rs *Resource) getStudentGroup(ctx context.Context, student *users.Student)
 }
 
 // checkStudentFullAccess determines if the current user has full access to a student's data
-// Returns true if user is admin or supervises the student's group
+// Returns true if user has location:read permission (GDPR filtering) or supervises the student's group
 func (rs *Resource) checkStudentFullAccess(r *http.Request, student *users.Student) bool {
-	userPermissions := jwt.PermissionsFromCtx(r.Context())
-	if hasAdminPermissions(userPermissions) {
+	// Use tenant context for location permission check (GDPR filtering)
+	if tenant.HasLocationPermission(r.Context()) {
 		return true
 	}
 
@@ -461,9 +452,8 @@ func (rs *Resource) createStudent(w http.ResponseWriter, r *http.Request) {
 	// Get group data if student has a group
 	group := rs.fetchStudentGroup(r.Context(), student.GroupID)
 
-	// Admin users creating students can see full data including detailed location
-	userPermissions := jwt.PermissionsFromCtx(r.Context())
-	hasFullAccess := hasAdminPermissions(userPermissions)
+	// Users with location:read permission can see full data including detailed location
+	hasFullAccess := tenant.HasLocationPermission(r.Context())
 
 	// Return the created student with person data
 	common.Respond(w, r, http.StatusCreated, newStudentResponseWithOpts(r.Context(), StudentResponseOpts{
@@ -636,16 +626,16 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Centralized permission check for updating student data
-	userPermissions := jwt.PermissionsFromCtx(r.Context())
+	userPermissions := tenant.PermissionsFromCtx(r.Context())
 	authorized, authErr := canUpdateStudent(r.Context(), userPermissions, student, rs.UserContextService)
 	if !authorized {
 		renderError(w, r, ErrorForbidden(authErr))
 		return
 	}
 
-	// Track whether the user is admin or group supervisor
-	isAdmin := hasAdminPermissions(userPermissions)
-	isGroupSupervisor := !isAdmin // If not admin but authorized, must be group supervisor
+	// Track whether the user has location permission (GDPR) or is group supervisor
+	hasLocationPermission := tenant.HasLocationPermission(r.Context())
+	isGroupSupervisor := !hasLocationPermission // If authorized without location perm, must be group supervisor
 
 	// Update person fields using helper function
 	personResult := applyPersonUpdates(req, person)
@@ -681,9 +671,9 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 	// Get group data if student has a group
 	group := rs.getStudentGroup(r.Context(), updatedStudent)
 
-	// Admin users and group supervisors can see full data including detailed location
+	// Users with location permission and group supervisors can see full data including detailed location
 	// Explicitly verify access level based on the checks performed above
-	hasFullAccess := isAdmin || isGroupSupervisor // Explicitly check for admin or group supervisor
+	hasFullAccess := hasLocationPermission || isGroupSupervisor // Check for location:read permission or group supervisor
 
 	// Return the updated student with person data
 	common.Respond(w, r, http.StatusOK, newStudentResponseWithOpts(r.Context(), StudentResponseOpts{
@@ -706,7 +696,7 @@ func (rs *Resource) deleteStudent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Check if user has permission to delete this student
-	userPermissions := jwt.PermissionsFromCtx(r.Context())
+	userPermissions := tenant.PermissionsFromCtx(r.Context())
 	authorized, authErr := canDeleteStudent(r.Context(), userPermissions, student, rs.UserContextService)
 	if !authorized {
 		renderError(w, r, ErrorForbidden(authErr))

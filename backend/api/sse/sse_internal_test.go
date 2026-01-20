@@ -304,14 +304,14 @@ func TestNewResource(t *testing.T) {
 	hub := realtime.NewHub()
 
 	// Test with nil services (should not panic)
-	resource := NewResource(hub, nil, nil, nil)
+	resource := NewResource(hub, nil, nil, nil, nil)
 	assert.NotNil(t, resource)
 	assert.Equal(t, hub, resource.hub)
 }
 
 func TestResource_Router(t *testing.T) {
 	hub := realtime.NewHub()
-	resource := NewResource(hub, nil, nil, nil)
+	resource := NewResource(hub, nil, nil, nil, nil)
 
 	router := resource.Router()
 	assert.NotNil(t, router)
@@ -319,7 +319,7 @@ func TestResource_Router(t *testing.T) {
 
 func TestResource_EventsHandler(t *testing.T) {
 	hub := realtime.NewHub()
-	resource := NewResource(hub, nil, nil, nil)
+	resource := NewResource(hub, nil, nil, nil, nil)
 
 	handler := resource.EventsHandler()
 	assert.NotNil(t, handler)

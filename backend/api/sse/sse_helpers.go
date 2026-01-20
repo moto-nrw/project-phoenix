@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/auth/tenant"
 	"github.com/moto-nrw/project-phoenix/logging"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
@@ -61,13 +61,22 @@ func (rs *Resource) setupSSEConnection(w http.ResponseWriter) (*sseConnection, i
 	}, 0
 }
 
-// resolveStaff extracts JWT claims and resolves the staff member
+// resolveStaff extracts tenant context and resolves the staff member
 // Returns error message and HTTP status code on failure
 func (rs *Resource) resolveStaff(ctx context.Context) (*users.Staff, string, int) {
-	claims := jwt.ClaimsFromCtx(ctx)
+	tc := tenant.TenantFromCtx(ctx)
+	if tc == nil || tc.UserEmail == "" {
+		return nil, "Invalid session", http.StatusUnauthorized
+	}
+
+	// Get Phoenix account from BetterAuth email
+	account, err := rs.authService.GetAccountByEmail(ctx, tc.UserEmail)
+	if err != nil {
+		return nil, "Account not found", http.StatusUnauthorized
+	}
 
 	// Get person from account ID
-	person, err := rs.personSvc.FindByAccountID(ctx, int64(claims.ID))
+	person, err := rs.personSvc.FindByAccountID(ctx, account.ID)
 	if err != nil || person == nil {
 		return nil, "Account not found", http.StatusUnauthorized
 	}

@@ -10,9 +10,7 @@ import (
 	"github.com/go-chi/render"
 	validation "github.com/go-ozzo/ozzo-validation"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/auth/tenant"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
 	facilityService "github.com/moto-nrw/project-phoenix/services/facilities"
@@ -31,34 +29,26 @@ func NewResource(facilityService facilityService.Service) *Resource {
 }
 
 // Router returns a configured router for room endpoints
+// Note: Authentication is handled by tenant middleware in base.go when TENANT_AUTH_ENABLED=true
 func (rs *Resource) Router() chi.Router {
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 
-	// Create JWT auth instance for middleware
-	tokenAuth, _ := jwt.NewTokenAuth()
+	// Read operations require room:read permission
+	r.With(tenant.RequiresPermission("room:read")).Get("/", rs.listRooms)
+	r.With(tenant.RequiresPermission("room:read")).Get("/{id}", rs.getRoom)
+	r.With(tenant.RequiresPermission("room:read")).Get("/by-category", rs.getRoomsByCategory)
+	r.With(tenant.RequiresPermission("room:read")).Get("/{id}/history", rs.getRoomHistory)
 
-	// Protected routes that require authentication and permissions
-	r.Group(func(r chi.Router) {
-		r.Use(tokenAuth.Verifier())
-		r.Use(jwt.Authenticator)
+	// Write operations require specific permissions
+	r.With(tenant.RequiresPermission("room:create")).Post("/", rs.createRoom)
+	r.With(tenant.RequiresPermission("room:update")).Put("/{id}", rs.updateRoom)
+	r.With(tenant.RequiresPermission("room:delete")).Delete("/{id}", rs.deleteRoom)
 
-		// Read operations require rooms:read permission
-		r.With(authorize.RequiresPermission(permissions.RoomsRead)).Get("/", rs.listRooms)
-		r.With(authorize.RequiresPermission(permissions.RoomsRead)).Get("/{id}", rs.getRoom)
-		r.With(authorize.RequiresPermission(permissions.RoomsRead)).Get("/by-category", rs.getRoomsByCategory)
-		r.With(authorize.RequiresPermission(permissions.RoomsRead)).Get("/{id}/history", rs.getRoomHistory)
-
-		// Write operations require specific permissions
-		r.With(authorize.RequiresPermission(permissions.RoomsCreate)).Post("/", rs.createRoom)
-		r.With(authorize.RequiresPermission(permissions.RoomsUpdate)).Put("/{id}", rs.updateRoom)
-		r.With(authorize.RequiresPermission(permissions.RoomsDelete)).Delete("/{id}", rs.deleteRoom)
-
-		// Advanced operations
-		r.With(authorize.RequiresPermission(permissions.RoomsRead)).Get("/buildings", rs.getBuildingList)
-		r.With(authorize.RequiresPermission(permissions.RoomsRead)).Get("/categories", rs.getCategoryList)
-		r.With(authorize.RequiresPermission(permissions.RoomsRead)).Get("/available", rs.getAvailableRooms)
-	})
+	// Advanced operations
+	r.With(tenant.RequiresPermission("room:read")).Get("/buildings", rs.getBuildingList)
+	r.With(tenant.RequiresPermission("room:read")).Get("/categories", rs.getCategoryList)
+	r.With(tenant.RequiresPermission("room:read")).Get("/available", rs.getAvailableRooms)
 
 	return r
 }

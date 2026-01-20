@@ -53,6 +53,7 @@ func setupTestContext(t *testing.T) *testContext {
 		svc.Active,
 		svc.Users,
 		svc.UserContext,
+		svc.Auth,
 	)
 
 	return &testContext{

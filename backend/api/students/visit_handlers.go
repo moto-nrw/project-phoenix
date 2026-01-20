@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/auth/tenant"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 )
@@ -66,8 +67,9 @@ func (rs *Resource) getStudentCurrentLocation(w http.ResponseWriter, r *http.Req
 
 // checkGroupRoomAccessAuthorization verifies if the user can view student room status
 // Returns an error if unauthorized, nil if authorized
+// Uses tenant context for GDPR location permission check
 func (rs *Resource) checkGroupRoomAccessAuthorization(r *http.Request, studentGroupID int64) error {
-	if hasAdminPermissions(getPermissionsFromRequest(r)) {
+	if tenant.HasLocationPermission(r.Context()) {
 		return nil
 	}
 

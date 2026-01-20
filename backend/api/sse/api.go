@@ -4,25 +4,15 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/jwtauth/v5"
-
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
 )
 
 // Router returns a configured router for SSE endpoints
+// Note: Authentication is handled by tenant middleware in base.go when TENANT_AUTH_ENABLED=true
 func (rs *Resource) Router() chi.Router {
 	r := chi.NewRouter()
 
-	// Create JWT auth instance for middleware
-	tokenAuth, _ := jwt.NewTokenAuth()
-
-	// SSE endpoint requires authentication
-	r.Group(func(r chi.Router) {
-		r.Use(jwtauth.Verifier(tokenAuth.JwtAuth))
-		r.Use(jwt.Authenticator)
-
-		r.Get("/events", rs.eventsHandler)
-	})
+	// SSE endpoint - authentication provided by tenant middleware
+	r.Get("/events", rs.eventsHandler)
 
 	return r
 }

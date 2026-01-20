@@ -11,9 +11,7 @@ import (
 	"github.com/go-chi/render"
 	validation "github.com/go-ozzo/ozzo-validation"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/auth/tenant"
 	"github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/services/active"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
@@ -34,42 +32,34 @@ func NewResource(configService configSvc.Service, cleanupService active.CleanupS
 }
 
 // Router returns a configured router for config endpoints
+// Note: Authentication is handled by tenant middleware in base.go when TENANT_AUTH_ENABLED=true
 func (rs *Resource) Router() chi.Router {
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 
-	// Create JWT auth instance for middleware
-	tokenAuth, _ := jwt.NewTokenAuth()
+	// Read operations require config:read permission
+	r.With(tenant.RequiresPermission("config:read")).Get("/", rs.listSettings)
+	r.With(tenant.RequiresPermission("config:read")).Get("/{id}", rs.getSetting)
+	r.With(tenant.RequiresPermission("config:read")).Get("/key/{key}", rs.getSettingByKey)
+	r.With(tenant.RequiresPermission("config:read")).Get("/category/{category}", rs.getSettingsByCategory)
+	r.With(tenant.RequiresPermission("config:read")).Get("/system-status", rs.getSystemStatus)
+	r.With(tenant.RequiresPermission("config:read")).Get("/defaults", rs.getDefaultSettings)
 
-	// Protected routes that require authentication and permissions
-	r.Group(func(r chi.Router) {
-		r.Use(tokenAuth.Verifier())
-		r.Use(jwt.Authenticator)
+	// Write operations require config:update or config:manage permission
+	r.With(tenant.RequiresPermission("config:create")).Post("/", rs.createSetting)
+	r.With(tenant.RequiresPermission("config:update")).Put("/{id}", rs.updateSetting)
+	r.With(tenant.RequiresPermission("config:update")).Patch("/key/{key}", rs.updateSettingValue)
+	r.With(tenant.RequiresPermission("config:manage")).Delete("/{id}", rs.deleteSetting)
 
-		// Read operations require config:read permission
-		r.With(authorize.RequiresPermission(permissions.ConfigRead)).Get("/", rs.listSettings)
-		r.With(authorize.RequiresPermission(permissions.ConfigRead)).Get("/{id}", rs.getSetting)
-		r.With(authorize.RequiresPermission(permissions.ConfigRead)).Get("/key/{key}", rs.getSettingByKey)
-		r.With(authorize.RequiresPermission(permissions.ConfigRead)).Get("/category/{category}", rs.getSettingsByCategory)
-		r.With(authorize.RequiresPermission(permissions.ConfigRead)).Get("/system-status", rs.getSystemStatus)
-		r.With(authorize.RequiresPermission(permissions.ConfigRead)).Get("/defaults", rs.getDefaultSettings)
+	// Bulk and system operations require config:manage permission
+	r.With(tenant.RequiresPermission("config:manage")).Post("/import", rs.importSettings)
+	r.With(tenant.RequiresPermission("config:manage")).Post("/initialize-defaults", rs.initializeDefaults)
 
-		// Write operations require config:update or config:manage permission
-		r.With(authorize.RequiresPermission(permissions.ConfigUpdate)).Post("/", rs.createSetting)
-		r.With(authorize.RequiresPermission(permissions.ConfigUpdate)).Put("/{id}", rs.updateSetting)
-		r.With(authorize.RequiresPermission(permissions.ConfigUpdate)).Patch("/key/{key}", rs.updateSettingValue)
-		r.With(authorize.RequiresPermission(permissions.ConfigManage)).Delete("/{id}", rs.deleteSetting)
-
-		// Bulk and system operations require config:manage permission
-		r.With(authorize.RequiresPermission(permissions.ConfigManage)).Post("/import", rs.importSettings)
-		r.With(authorize.RequiresPermission(permissions.ConfigManage)).Post("/initialize-defaults", rs.initializeDefaults)
-
-		// Data retention settings
-		r.With(authorize.RequiresPermission(permissions.ConfigRead)).Get("/retention", rs.getRetentionSettings)
-		r.With(authorize.RequiresPermission(permissions.ConfigUpdate)).Put("/retention", rs.updateRetentionSettings)
-		r.With(authorize.RequiresPermission(permissions.ConfigManage)).Post("/retention/cleanup", rs.triggerRetentionCleanup)
-		r.With(authorize.RequiresPermission(permissions.ConfigRead)).Get("/retention/stats", rs.getRetentionStats)
-	})
+	// Data retention settings
+	r.With(tenant.RequiresPermission("config:read")).Get("/retention", rs.getRetentionSettings)
+	r.With(tenant.RequiresPermission("config:update")).Put("/retention", rs.updateRetentionSettings)
+	r.With(tenant.RequiresPermission("config:manage")).Post("/retention/cleanup", rs.triggerRetentionCleanup)
+	r.With(tenant.RequiresPermission("config:read")).Get("/retention/stats", rs.getRetentionStats)
 
 	return r
 }

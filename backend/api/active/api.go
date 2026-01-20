@@ -10,15 +10,13 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/auth/authorize/policy"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/auth/tenant"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
+	authSvc "github.com/moto-nrw/project-phoenix/services/auth"
 	userSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/uptrace/bun"
 )
@@ -27,14 +25,16 @@ import (
 type Resource struct {
 	ActiveService activeSvc.Service
 	PersonService userSvc.PersonService
+	AuthService   authSvc.AuthService
 	db            *bun.DB
 }
 
 // NewResource creates a new active resource
-func NewResource(activeService activeSvc.Service, personService userSvc.PersonService, db *bun.DB) *Resource {
+func NewResource(activeService activeSvc.Service, personService userSvc.PersonService, authService authSvc.AuthService, db *bun.DB) *Resource {
 	return &Resource{
 		ActiveService: activeService,
 		PersonService: personService,
+		AuthService:   authService,
 		db:            db,
 	}
 }
@@ -68,131 +68,104 @@ const (
 )
 
 // Router returns a configured router for active endpoints
+// Note: Authentication is handled by tenant middleware in base.go when TENANT_AUTH_ENABLED=true
 func (rs *Resource) Router() chi.Router {
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 
-	// Create JWT auth instance for middleware
-	tokenAuth, _ := jwt.NewTokenAuth()
+	// Active Groups
+	r.Route("/groups", func(r chi.Router) {
+		// Read operations
+		r.With(tenant.RequiresPermission("group:read")).Get("/", rs.listActiveGroups)
+		r.With(tenant.RequiresPermission("group:read")).Get("/unclaimed", rs.listUnclaimedGroups)
+		r.With(tenant.RequiresPermission("group:read")).Get("/{id}", rs.getActiveGroup)
+		r.With(tenant.RequiresPermission("group:read")).Get("/room/{roomId}", rs.getActiveGroupsByRoom)
+		r.With(tenant.RequiresPermission("group:read")).Get(routeGroupByGroupID, rs.getActiveGroupsByGroup)
+		r.With(tenant.RequiresPermission("group:read")).Get("/{id}/visits", rs.getActiveGroupVisits)
+		r.With(tenant.RequiresPermission("group:read")).Get("/{id}/visits/display", rs.getActiveGroupVisitsWithDisplay)
+		r.With(tenant.RequiresPermission("group:read")).Get("/{id}/supervisors", rs.getActiveGroupSupervisors)
 
-	// Protected routes that require authentication and permissions
-	r.Group(func(r chi.Router) {
-		r.Use(tokenAuth.Verifier())
-		r.Use(jwt.Authenticator)
+		// Write operations
+		r.With(tenant.RequiresPermission("group:create")).Post("/", rs.createActiveGroup)
+		r.With(tenant.RequiresPermission("group:update")).Put("/{id}", rs.updateActiveGroup)
+		r.With(tenant.RequiresPermission("group:delete")).Delete("/{id}", rs.deleteActiveGroup)
+		r.With(tenant.RequiresPermission("group:update")).Post(routeEndByID, rs.endActiveGroup)
+		r.With(tenant.RequiresPermission("group:update")).Post("/{id}/claim", rs.claimGroup)
+	})
 
-		// Active Groups
-		r.Route("/groups", func(r chi.Router) {
-			// Read operations
-			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/", rs.listActiveGroups)
-			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/unclaimed", rs.listUnclaimedGroups)
-			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/{id}", rs.getActiveGroup)
-			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/room/{roomId}", rs.getActiveGroupsByRoom)
-			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get(routeGroupByGroupID, rs.getActiveGroupsByGroup)
-			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/{id}/visits", rs.getActiveGroupVisits)
-			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/{id}/visits/display", rs.getActiveGroupVisitsWithDisplay)
-			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/{id}/supervisors", rs.getActiveGroupSupervisors)
+	// Visits
+	r.Route("/visits", func(r chi.Router) {
+		// Read operations
+		r.With(tenant.RequiresPermission("attendance:read")).Get("/", rs.listVisits)
+		r.With(tenant.RequiresPermission("attendance:read")).Get("/{id}", rs.getVisit)
+		r.With(tenant.RequiresPermission("attendance:read")).Get("/student/{studentId}", rs.getStudentVisits)
+		r.With(tenant.RequiresPermission("attendance:read")).Get("/student/{studentId}/current", rs.getStudentCurrentVisit)
+		r.With(tenant.RequiresPermission("attendance:read")).Get(routeGroupByGroupID, rs.getVisitsByGroup)
 
-			// Write operations
-			r.With(authorize.RequiresPermission(permissions.GroupsCreate)).Post("/", rs.createActiveGroup)
-			r.With(authorize.RequiresPermission(permissions.GroupsUpdate)).Put("/{id}", rs.updateActiveGroup)
-			r.With(authorize.RequiresPermission(permissions.GroupsDelete)).Delete("/{id}", rs.deleteActiveGroup)
-			r.With(authorize.RequiresPermission(permissions.GroupsUpdate)).Post(routeEndByID, rs.endActiveGroup)
-			r.With(authorize.RequiresPermission(permissions.GroupsUpdate)).Post("/{id}/claim", rs.claimGroup)
-		})
+		// Write operations
+		r.With(tenant.RequiresPermission("attendance:checkin")).Post("/", rs.createVisit)
+		r.With(tenant.RequiresPermission("attendance:update")).Put("/{id}", rs.updateVisit)
+		r.With(tenant.RequiresPermission("attendance:delete")).Delete("/{id}", rs.deleteVisit)
+		r.With(tenant.RequiresPermission("attendance:checkout")).Post(routeEndByID, rs.endVisit)
 
-		// Visits
-		r.Route("/visits", func(r chi.Router) {
-			// Read operations
-			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/", rs.listVisits)
-			r.With(authorize.GetResourceAuthorizer().RequiresResourceAccess("visit", policy.ActionView, VisitIDExtractor())).Get("/{id}", rs.getVisit)
-			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/student/{studentId}", rs.getStudentVisits)
-			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/student/{studentId}/current", rs.getStudentCurrentVisit)
-			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get(routeGroupByGroupID, rs.getVisitsByGroup)
+		// Immediate checkout for students
+		r.With(tenant.RequiresPermission("attendance:checkout")).Post("/student/{studentId}/checkout", rs.checkoutStudent)
 
-			// Write operations
-			r.With(authorize.RequiresPermission(permissions.GroupsCreate)).Post("/", rs.createVisit)
-			r.With(authorize.RequiresPermission(permissions.GroupsUpdate)).Put("/{id}", rs.updateVisit)
-			r.With(authorize.RequiresPermission(permissions.GroupsDelete)).Delete("/{id}", rs.deleteVisit)
-			r.With(authorize.RequiresPermission(permissions.GroupsUpdate)).Post(routeEndByID, rs.endVisit)
+		// Immediate check-in for students (from home)
+		r.With(tenant.RequiresPermission("attendance:checkin")).Post("/student/{studentId}/checkin", rs.checkinStudent)
+	})
 
-			// Immediate checkout for students
-			r.With(authorize.RequiresPermission(permissions.VisitsUpdate)).Post("/student/{studentId}/checkout", rs.checkoutStudent)
+	// Supervisors
+	r.Route("/supervisors", func(r chi.Router) {
+		// Read operations
+		r.With(tenant.RequiresPermission("group:read")).Get("/", rs.listSupervisors)
+		r.With(tenant.RequiresPermission("group:read")).Get("/{id}", rs.getSupervisor)
+		r.With(tenant.RequiresPermission("group:read")).Get("/staff/{staffId}", rs.getStaffSupervisions)
+		r.With(tenant.RequiresPermission("group:read")).Get("/staff/{staffId}/active", rs.getStaffActiveSupervisions)
+		r.With(tenant.RequiresPermission("group:read")).Get(routeGroupByGroupID, rs.getSupervisorsByGroup)
 
-			// Immediate check-in for students (from home)
-			r.With(authorize.RequiresPermission(permissions.VisitsUpdate)).Post("/student/{studentId}/checkin", rs.checkinStudent)
-		})
+		// Write operations
+		r.With(tenant.RequiresPermission("group:assign")).Post("/", rs.createSupervisor)
+		r.With(tenant.RequiresPermission("group:assign")).Put("/{id}", rs.updateSupervisor)
+		r.With(tenant.RequiresPermission("group:assign")).Delete("/{id}", rs.deleteSupervisor)
+		r.With(tenant.RequiresPermission("group:assign")).Post(routeEndByID, rs.endSupervision)
+	})
 
-		// Supervisors
-		r.Route("/supervisors", func(r chi.Router) {
-			// Read operations
-			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/", rs.listSupervisors)
-			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/{id}", rs.getSupervisor)
-			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/staff/{staffId}", rs.getStaffSupervisions)
-			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/staff/{staffId}/active", rs.getStaffActiveSupervisions)
-			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get(routeGroupByGroupID, rs.getSupervisorsByGroup)
+	// Combined Groups
+	r.Route("/combined", func(r chi.Router) {
+		// Read operations
+		r.With(tenant.RequiresPermission("group:read")).Get("/", rs.listCombinedGroups)
+		r.With(tenant.RequiresPermission("group:read")).Get("/active", rs.getActiveCombinedGroups)
+		r.With(tenant.RequiresPermission("group:read")).Get("/{id}", rs.getCombinedGroup)
+		r.With(tenant.RequiresPermission("group:read")).Get("/{id}/groups", rs.getCombinedGroupGroups)
 
-			// Write operations
-			r.With(authorize.RequiresPermission(permissions.GroupsAssign)).Post("/", rs.createSupervisor)
-			r.With(authorize.RequiresPermission(permissions.GroupsAssign)).Put("/{id}", rs.updateSupervisor)
-			r.With(authorize.RequiresPermission(permissions.GroupsAssign)).Delete("/{id}", rs.deleteSupervisor)
-			r.With(authorize.RequiresPermission(permissions.GroupsAssign)).Post(routeEndByID, rs.endSupervision)
-		})
+		// Write operations
+		r.With(tenant.RequiresPermission("group:create")).Post("/", rs.createCombinedGroup)
+		r.With(tenant.RequiresPermission("group:update")).Put("/{id}", rs.updateCombinedGroup)
+		r.With(tenant.RequiresPermission("group:delete")).Delete("/{id}", rs.deleteCombinedGroup)
+		r.With(tenant.RequiresPermission("group:update")).Post(routeEndByID, rs.endCombinedGroup)
+	})
 
-		// Combined Groups
-		r.Route("/combined", func(r chi.Router) {
-			// Read operations
-			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/", rs.listCombinedGroups)
-			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/active", rs.getActiveCombinedGroups)
-			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/{id}", rs.getCombinedGroup)
-			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/{id}/groups", rs.getCombinedGroupGroups)
+	// Group Mappings
+	r.Route("/mappings", func(r chi.Router) {
+		// Read operations
+		r.With(tenant.RequiresPermission("group:read")).Get(routeGroupByGroupID, rs.getGroupMappings)
+		r.With(tenant.RequiresPermission("group:read")).Get("/combined/{combinedId}", rs.getCombinedGroupMappings)
 
-			// Write operations
-			r.With(authorize.RequiresPermission(permissions.GroupsCreate)).Post("/", rs.createCombinedGroup)
-			r.With(authorize.RequiresPermission(permissions.GroupsUpdate)).Put("/{id}", rs.updateCombinedGroup)
-			r.With(authorize.RequiresPermission(permissions.GroupsDelete)).Delete("/{id}", rs.deleteCombinedGroup)
-			r.With(authorize.RequiresPermission(permissions.GroupsUpdate)).Post(routeEndByID, rs.endCombinedGroup)
-		})
+		// Write operations
+		r.With(tenant.RequiresPermission("group:update")).Post("/add", rs.addGroupToCombination)
+		r.With(tenant.RequiresPermission("group:update")).Post("/remove", rs.removeGroupFromCombination)
+	})
 
-		// Group Mappings
-		r.Route("/mappings", func(r chi.Router) {
-			// Read operations
-			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get(routeGroupByGroupID, rs.getGroupMappings)
-			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/combined/{combinedId}", rs.getCombinedGroupMappings)
-
-			// Write operations
-			r.With(authorize.RequiresPermission(permissions.GroupsUpdate)).Post("/add", rs.addGroupToCombination)
-			r.With(authorize.RequiresPermission(permissions.GroupsUpdate)).Post("/remove", rs.removeGroupFromCombination)
-		})
-
-		// Analytics
-		r.Route("/analytics", func(r chi.Router) {
-			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/counts", rs.getCounts)
-			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/room/{roomId}/utilization", rs.getRoomUtilization)
-			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/student/{studentId}/attendance", rs.getStudentAttendance)
-			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/dashboard", rs.getDashboardAnalytics)
-		})
-
+	// Analytics
+	r.Route("/analytics", func(r chi.Router) {
+		r.With(tenant.RequiresPermission("group:read")).Get("/counts", rs.getCounts)
+		r.With(tenant.RequiresPermission("group:read")).Get("/room/{roomId}/utilization", rs.getRoomUtilization)
+		r.With(tenant.RequiresPermission("attendance:read")).Get("/student/{studentId}/attendance", rs.getStudentAttendance)
+		r.With(tenant.RequiresPermission("group:read")).Get("/dashboard", rs.getDashboardAnalytics)
 	})
 
 	return r
-}
-
-// VisitIDExtractor extracts visit information for authorization
-func VisitIDExtractor() authorize.ResourceExtractor {
-	return func(r *http.Request) (interface{}, map[string]interface{}) {
-		idStr := chi.URLParam(r, "id")
-		if idStr == "" {
-			return nil, nil
-		}
-
-		id, err := strconv.ParseInt(idStr, 10, 64)
-		if err != nil {
-			return nil, nil
-		}
-
-		// Return the visit ID as the resource ID
-		return id, nil
-	}
 }
 
 // ===== Response Types =====
@@ -865,14 +838,24 @@ func (rs *Resource) getActiveGroupVisitsWithDisplay(w http.ResponseWriter, r *ht
 	common.Respond(w, r, http.StatusOK, responses, "Active group visits with display data retrieved successfully")
 }
 
-// extractStaffFromRequest extracts staff information from JWT claims
+// extractStaffFromRequest extracts staff information from tenant context
 func (rs *Resource) extractStaffFromRequest(w http.ResponseWriter, r *http.Request) (*users.Staff, error) {
-	claims := jwt.ClaimsFromCtx(r.Context())
+	tc := tenant.TenantFromCtx(r.Context())
+	if tc == nil || tc.UserEmail == "" {
+		common.RenderError(w, r, ErrorUnauthorized(errors.New("invalid session")))
+		return nil, errors.New("invalid session")
+	}
 
-	person, err := rs.PersonService.FindByAccountID(r.Context(), int64(claims.ID))
-	if err != nil || person == nil {
+	account, err := rs.AuthService.GetAccountByEmail(r.Context(), tc.UserEmail)
+	if err != nil || account == nil {
 		common.RenderError(w, r, ErrorUnauthorized(errors.New("account not found")))
 		return nil, errors.New("account not found")
+	}
+
+	person, err := rs.PersonService.FindByAccountID(r.Context(), int64(account.ID))
+	if err != nil || person == nil {
+		common.RenderError(w, r, ErrorUnauthorized(errors.New("person not found")))
+		return nil, errors.New("person not found")
 	}
 
 	staff, err := rs.PersonService.StaffRepository().FindByPersonID(r.Context(), person.ID)
@@ -2185,17 +2168,24 @@ func (rs *Resource) claimGroup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get authenticated user from JWT token
-	claims := jwt.ClaimsFromCtx(ctx)
-	if claims.ID == 0 {
-		common.RespondWithError(w, r, http.StatusUnauthorized, "Invalid token")
+	// Get authenticated user from tenant context
+	tc := tenant.TenantFromCtx(ctx)
+	if tc == nil || tc.UserEmail == "" {
+		common.RespondWithError(w, r, http.StatusUnauthorized, "Invalid session")
+		return
+	}
+
+	// Get account by email
+	account, err := rs.AuthService.GetAccountByEmail(ctx, tc.UserEmail)
+	if err != nil || account == nil {
+		common.RespondWithError(w, r, http.StatusUnauthorized, "Account not found")
 		return
 	}
 
 	// Get person from account ID
-	person, err := rs.PersonService.FindByAccountID(ctx, int64(claims.ID))
+	person, err := rs.PersonService.FindByAccountID(ctx, int64(account.ID))
 	if err != nil || person == nil {
-		common.RespondWithError(w, r, http.StatusUnauthorized, "Account not found")
+		common.RespondWithError(w, r, http.StatusUnauthorized, "Person not found")
 		return
 	}
 

@@ -9,9 +9,7 @@ import (
 	"github.com/go-chi/render"
 	validation "github.com/go-ozzo/ozzo-validation"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/auth/tenant"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
@@ -44,65 +42,57 @@ func NewResource(scheduleService scheduleSvc.Service) *Resource {
 }
 
 // Router returns a configured router for schedule endpoints
+// Note: Authentication is handled by tenant middleware in base.go when TENANT_AUTH_ENABLED=true
 func (rs *Resource) Router() chi.Router {
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 
-	// Create JWT auth instance for middleware
-	tokenAuth, _ := jwt.NewTokenAuth()
+	// Current dateframe endpoint - requires schedule:read permission
+	r.With(tenant.RequiresPermission("schedule:read")).Get("/current-dateframe", rs.getCurrentDateframe)
 
-	// Protected routes that require authentication and permissions
-	r.Group(func(r chi.Router) {
-		r.Use(tokenAuth.Verifier())
-		r.Use(jwt.Authenticator)
+	// Dateframe endpoints
+	r.Route("/dateframes", func(r chi.Router) {
+		r.With(tenant.RequiresPermission("schedule:read")).Get("/", rs.listDateframes)
+		r.With(tenant.RequiresPermission("schedule:read")).Get("/{id}", rs.getDateframe)
+		r.With(tenant.RequiresPermission("schedule:create")).Post("/", rs.createDateframe)
+		r.With(tenant.RequiresPermission("schedule:update")).Put("/{id}", rs.updateDateframe)
+		r.With(tenant.RequiresPermission("schedule:delete")).Delete("/{id}", rs.deleteDateframe)
 
-		// Current dateframe endpoint - requires schedules:read permission
-		r.With(authorize.RequiresPermission(permissions.SchedulesRead)).Get("/current-dateframe", rs.getCurrentDateframe)
-
-		// Dateframe endpoints
-		r.Route("/dateframes", func(r chi.Router) {
-			r.With(authorize.RequiresPermission(permissions.ActivitiesRead)).Get("/", rs.listDateframes)
-			r.With(authorize.RequiresPermission(permissions.ActivitiesRead)).Get("/{id}", rs.getDateframe)
-			r.With(authorize.RequiresPermission(permissions.ActivitiesCreate)).Post("/", rs.createDateframe)
-			r.With(authorize.RequiresPermission(permissions.ActivitiesUpdate)).Put("/{id}", rs.updateDateframe)
-			r.With(authorize.RequiresPermission(permissions.ActivitiesDelete)).Delete("/{id}", rs.deleteDateframe)
-
-			// Special dateframe queries
-			r.With(authorize.RequiresPermission(permissions.ActivitiesRead)).Get("/by-date", rs.getDateframesByDate)
-			r.With(authorize.RequiresPermission(permissions.ActivitiesRead)).Get("/overlapping", rs.getOverlappingDateframes)
-		})
-
-		// Timeframe endpoints
-		r.Route("/timeframes", func(r chi.Router) {
-			r.With(authorize.RequiresPermission(permissions.ActivitiesRead)).Get("/", rs.listTimeframes)
-			r.With(authorize.RequiresPermission(permissions.ActivitiesRead)).Get("/{id}", rs.getTimeframe)
-			r.With(authorize.RequiresPermission(permissions.ActivitiesCreate)).Post("/", rs.createTimeframe)
-			r.With(authorize.RequiresPermission(permissions.ActivitiesUpdate)).Put("/{id}", rs.updateTimeframe)
-			r.With(authorize.RequiresPermission(permissions.ActivitiesDelete)).Delete("/{id}", rs.deleteTimeframe)
-
-			// Special timeframe queries
-			r.With(authorize.RequiresPermission(permissions.ActivitiesRead)).Get("/active", rs.getActiveTimeframes)
-			r.With(authorize.RequiresPermission(permissions.ActivitiesRead)).Get("/by-range", rs.getTimeframesByRange)
-		})
-
-		// Recurrence rule endpoints
-		r.Route("/recurrence-rules", func(r chi.Router) {
-			r.With(authorize.RequiresPermission(permissions.ActivitiesRead)).Get("/", rs.listRecurrenceRules)
-			r.With(authorize.RequiresPermission(permissions.ActivitiesRead)).Get("/{id}", rs.getRecurrenceRule)
-			r.With(authorize.RequiresPermission(permissions.ActivitiesCreate)).Post("/", rs.createRecurrenceRule)
-			r.With(authorize.RequiresPermission(permissions.ActivitiesUpdate)).Put("/{id}", rs.updateRecurrenceRule)
-			r.With(authorize.RequiresPermission(permissions.ActivitiesDelete)).Delete("/{id}", rs.deleteRecurrenceRule)
-
-			// Special recurrence rule queries and operations
-			r.With(authorize.RequiresPermission(permissions.ActivitiesRead)).Get("/by-frequency", rs.getRecurrenceRulesByFrequency)
-			r.With(authorize.RequiresPermission(permissions.ActivitiesRead)).Get("/by-weekday", rs.getRecurrenceRulesByWeekday)
-			r.With(authorize.RequiresPermission(permissions.ActivitiesRead)).Post("/{id}/generate-events", rs.generateEvents)
-		})
-
-		// Advanced scheduling operations
-		r.With(authorize.RequiresPermission(permissions.ActivitiesRead)).Post("/check-conflict", rs.checkConflict)
-		r.With(authorize.RequiresPermission(permissions.ActivitiesRead)).Post("/find-available-slots", rs.findAvailableSlots)
+		// Special dateframe queries
+		r.With(tenant.RequiresPermission("schedule:read")).Get("/by-date", rs.getDateframesByDate)
+		r.With(tenant.RequiresPermission("schedule:read")).Get("/overlapping", rs.getOverlappingDateframes)
 	})
+
+	// Timeframe endpoints
+	r.Route("/timeframes", func(r chi.Router) {
+		r.With(tenant.RequiresPermission("schedule:read")).Get("/", rs.listTimeframes)
+		r.With(tenant.RequiresPermission("schedule:read")).Get("/{id}", rs.getTimeframe)
+		r.With(tenant.RequiresPermission("schedule:create")).Post("/", rs.createTimeframe)
+		r.With(tenant.RequiresPermission("schedule:update")).Put("/{id}", rs.updateTimeframe)
+		r.With(tenant.RequiresPermission("schedule:delete")).Delete("/{id}", rs.deleteTimeframe)
+
+		// Special timeframe queries
+		r.With(tenant.RequiresPermission("schedule:read")).Get("/active", rs.getActiveTimeframes)
+		r.With(tenant.RequiresPermission("schedule:read")).Get("/by-range", rs.getTimeframesByRange)
+	})
+
+	// Recurrence rule endpoints
+	r.Route("/recurrence-rules", func(r chi.Router) {
+		r.With(tenant.RequiresPermission("schedule:read")).Get("/", rs.listRecurrenceRules)
+		r.With(tenant.RequiresPermission("schedule:read")).Get("/{id}", rs.getRecurrenceRule)
+		r.With(tenant.RequiresPermission("schedule:create")).Post("/", rs.createRecurrenceRule)
+		r.With(tenant.RequiresPermission("schedule:update")).Put("/{id}", rs.updateRecurrenceRule)
+		r.With(tenant.RequiresPermission("schedule:delete")).Delete("/{id}", rs.deleteRecurrenceRule)
+
+		// Special recurrence rule queries and operations
+		r.With(tenant.RequiresPermission("schedule:read")).Get("/by-frequency", rs.getRecurrenceRulesByFrequency)
+		r.With(tenant.RequiresPermission("schedule:read")).Get("/by-weekday", rs.getRecurrenceRulesByWeekday)
+		r.With(tenant.RequiresPermission("schedule:read")).Post("/{id}/generate-events", rs.generateEvents)
+	})
+
+	// Advanced scheduling operations
+	r.With(tenant.RequiresPermission("schedule:read")).Post("/check-conflict", rs.checkConflict)
+	r.With(tenant.RequiresPermission("schedule:read")).Post("/find-available-slots", rs.findAvailableSlots)
 
 	return r
 }

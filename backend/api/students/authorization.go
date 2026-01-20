@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/auth/tenant"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	userContextService "github.com/moto-nrw/project-phoenix/services/usercontext"
 )
@@ -22,7 +22,7 @@ func hasAdminPermissions(permissions []string) bool {
 
 // getPermissionsFromRequest extracts permissions from request context
 func getPermissionsFromRequest(r *http.Request) []string {
-	return jwt.PermissionsFromCtx(r.Context())
+	return tenant.PermissionsFromCtx(r.Context())
 }
 
 // canModifyStudent centralizes the authorization logic for modifying student data (update/delete)

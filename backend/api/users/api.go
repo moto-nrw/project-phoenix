@@ -5,9 +5,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/auth/tenant"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 )
 
@@ -24,38 +22,30 @@ func NewResource(personService usersSvc.PersonService) *Resource {
 }
 
 // Router returns a configured router for user endpoints
+// Note: Authentication is handled by tenant middleware in base.go when TENANT_AUTH_ENABLED=true
 func (rs *Resource) Router() chi.Router {
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 
-	// Create JWT auth instance for middleware
-	tokenAuth, _ := jwt.NewTokenAuth()
+	// Read operations only require person:read permission
+	r.With(tenant.RequiresPermission("person:read")).Get("/", rs.listPersons)
+	r.With(tenant.RequiresPermission("person:read")).Get("/{id}", rs.getPerson)
+	r.With(tenant.RequiresPermission("person:read")).Get("/by-tag/{tagId}", rs.getPersonByTag)
+	r.With(tenant.RequiresPermission("person:read")).Get("/search", rs.searchPersons)
+	r.With(tenant.RequiresPermission("person:read")).Get("/by-account/{accountId}", rs.getPersonByAccount)
+	r.With(tenant.RequiresPermission("person:read")).Get("/rfid-cards/available", rs.listAvailableRFIDCards)
 
-	// Protected routes that require authentication and permissions
-	r.Group(func(r chi.Router) {
-		r.Use(tokenAuth.Verifier())
-		r.Use(jwt.Authenticator)
+	// Write operations require specific permissions
+	r.With(tenant.RequiresPermission("person:create")).Post("/", rs.createPerson)
+	r.With(tenant.RequiresPermission("person:update")).Put("/{id}", rs.updatePerson)
+	r.With(tenant.RequiresPermission("person:delete")).Delete("/{id}", rs.deletePerson)
 
-		// Read operations only require users:read permission
-		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/", rs.listPersons)
-		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/{id}", rs.getPerson)
-		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/by-tag/{tagId}", rs.getPersonByTag)
-		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/search", rs.searchPersons)
-		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/by-account/{accountId}", rs.getPersonByAccount)
-		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/rfid-cards/available", rs.listAvailableRFIDCards)
-
-		// Write operations require specific permissions
-		r.With(authorize.RequiresPermission(permissions.UsersCreate)).Post("/", rs.createPerson)
-		r.With(authorize.RequiresPermission(permissions.UsersUpdate)).Put("/{id}", rs.updatePerson)
-		r.With(authorize.RequiresPermission(permissions.UsersDelete)).Delete("/{id}", rs.deletePerson)
-
-		// Special operations
-		r.With(authorize.RequiresPermission(permissions.UsersUpdate)).Put("/{id}/rfid", rs.linkRFID)
-		r.With(authorize.RequiresPermission(permissions.UsersUpdate)).Delete("/{id}/rfid", rs.unlinkRFID)
-		r.With(authorize.RequiresPermission(permissions.UsersUpdate)).Put("/{id}/account", rs.linkAccount)
-		r.With(authorize.RequiresPermission(permissions.UsersUpdate)).Delete("/{id}/account", rs.unlinkAccount)
-		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/{id}/profile", rs.getFullProfile)
-	})
+	// Special operations
+	r.With(tenant.RequiresPermission("person:update")).Put("/{id}/rfid", rs.linkRFID)
+	r.With(tenant.RequiresPermission("person:update")).Delete("/{id}/rfid", rs.unlinkRFID)
+	r.With(tenant.RequiresPermission("person:update")).Put("/{id}/account", rs.linkAccount)
+	r.With(tenant.RequiresPermission("person:update")).Delete("/{id}/account", rs.unlinkAccount)
+	r.With(tenant.RequiresPermission("person:read")).Get("/{id}/profile", rs.getFullProfile)
 
 	return r
 }

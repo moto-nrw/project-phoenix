@@ -12,9 +12,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/auth/tenant"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/education"
@@ -67,50 +65,42 @@ func NewResource(educationService educationSvc.Service, activeService activeServ
 }
 
 // Router returns a configured router for group endpoints
+// Note: Authentication is handled by tenant middleware in base.go when TENANT_AUTH_ENABLED=true
 func (rs *Resource) Router() chi.Router {
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 
-	// Create JWT auth instance for middleware
-	tokenAuth, _ := jwt.NewTokenAuth()
+	// Read operations only require group:read permission
+	r.With(tenant.RequiresPermission("group:read")).Get("/", rs.listGroups)
+	r.With(tenant.RequiresPermission("group:read")).Get("/{id}", rs.getGroup)
+	r.With(tenant.RequiresPermission("group:read")).Get("/{id}/students", rs.getGroupStudents)
+	r.With(tenant.RequiresPermission("group:read")).Get("/{id}/supervisors", rs.getGroupSupervisors)
+	r.With(tenant.RequiresPermission("group:read")).Get("/{id}/students/room-status", rs.getGroupStudentsRoomStatus)
+	r.With(tenant.RequiresPermission("group:read")).Get("/{id}/substitutions", rs.getGroupSubstitutions)
 
-	// Protected routes that require authentication and permissions
-	r.Group(func(r chi.Router) {
-		r.Use(tokenAuth.Verifier())
-		r.Use(jwt.Authenticator)
+	// Write operations require group:create, group:update, or group:delete permission
+	r.With(tenant.RequiresPermission("group:create")).Post("/", rs.createGroup)
+	r.With(tenant.RequiresPermission("group:update")).Put("/{id}", rs.updateGroup)
+	r.With(tenant.RequiresPermission("group:delete")).Delete("/{id}", rs.deleteGroup)
 
-		// Read operations only require groups:read permission
-		r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/", rs.listGroups)
-		r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/{id}", rs.getGroup)
-		r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/{id}/students", rs.getGroupStudents)
-		r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/{id}/supervisors", rs.getGroupSupervisors)
-		r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/{id}/students/room-status", rs.getGroupStudentsRoomStatus)
-		r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/{id}/substitutions", rs.getGroupSubstitutions)
-
-		// Write operations require groups:create, groups:update, or groups:delete permission
-		r.With(authorize.RequiresPermission(permissions.GroupsCreate)).Post("/", rs.createGroup)
-		r.With(authorize.RequiresPermission(permissions.GroupsUpdate)).Put("/{id}", rs.updateGroup)
-		r.With(authorize.RequiresPermission(permissions.GroupsDelete)).Delete("/{id}", rs.deleteGroup)
-
-		// Group transfer operations - Self-service feature for group leaders
-		//
-		// DESIGN NOTE: No permission checks required (intentional design decision)
-		// Authorization is based on group ownership, not permissions:
-		// - User must be authenticated (JWT middleware from parent router)
-		// - User must be a Teacher (checked in handler via GetCurrentTeacher)
-		// - User must be assigned to this group (verified via education.group_teacher table)
-		//
-		// This differs from /api/substitutions (admin-only, multi-day coverage):
-		// - Transfers: Any group leader, same-day only (expires 23:59 UTC), additional access
-		// - Substitutions: Admin-only, configurable duration, managed via admin UI
-		//
-		// Both use the same database table (education.group_substitution), distinguished by:
-		// - Transfers: regular_staff_id IS NULL (additional access)
-		// - Substitutions: regular_staff_id IS NOT NULL (person replacement)
-		r.Route("/{id}/transfer", func(r chi.Router) {
-			r.Post("/", rs.transferGroup)
-			r.Delete("/{substitutionId}", rs.cancelSpecificTransfer)
-		})
+	// Group transfer operations - Self-service feature for group leaders
+	//
+	// DESIGN NOTE: No permission checks required (intentional design decision)
+	// Authorization is based on group ownership, not permissions:
+	// - User must be authenticated (tenant middleware from parent router)
+	// - User must be a Teacher (checked in handler via GetCurrentTeacher)
+	// - User must be assigned to this group (verified via education.group_teacher table)
+	//
+	// This differs from /api/substitutions (admin-only, multi-day coverage):
+	// - Transfers: Any group leader, same-day only (expires 23:59 UTC), additional access
+	// - Substitutions: Admin-only, configurable duration, managed via admin UI
+	//
+	// Both use the same database table (education.group_substitution), distinguished by:
+	// - Transfers: regular_staff_id IS NULL (additional access)
+	// - Substitutions: regular_staff_id IS NOT NULL (person replacement)
+	r.Route("/{id}/transfer", func(r chi.Router) {
+		r.Post("/", rs.transferGroup)
+		r.Delete("/{substitutionId}", rs.cancelSpecificTransfer)
 	})
 
 	return r
@@ -277,10 +267,10 @@ func (rs *Resource) isUserGroupLeader(ctx context.Context, teacherID int64, grou
 }
 
 // userHasGroupAccess checks if the current user has access to the specified group.
-// Returns true if user is admin or supervises the group.
+// Returns true if user has location:read permission (GDPR) or supervises the group.
 func (rs *Resource) userHasGroupAccess(r *http.Request, groupID int64) bool {
-	userPermissions := jwt.PermissionsFromCtx(r.Context())
-	if hasAdminPermissions(userPermissions) {
+	// GDPR: location:read permission grants full access
+	if tenant.HasLocationPermission(r.Context()) {
 		return true
 	}
 

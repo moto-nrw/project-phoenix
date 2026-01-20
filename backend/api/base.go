@@ -200,13 +200,13 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.Students = studentsAPI.NewResource(api.Services.Users, repoFactory.Student, api.Services.Education, api.Services.UserContext, api.Services.Active, api.Services.IoT, repoFactory.PrivacyConsent)
 	api.Groups = groupsAPI.NewResource(api.Services.Education, api.Services.Active, api.Services.Users, api.Services.UserContext, repoFactory.Student, repoFactory.GroupSubstitution)
 	api.Guardians = guardiansAPI.NewResource(api.Services.Guardian, api.Services.Users, api.Services.Education, api.Services.UserContext, repoFactory.Student)
-	api.Import = importAPI.NewResource(api.Services.Import, repoFactory.DataImport)
+	api.Import = importAPI.NewResource(api.Services.Import, repoFactory.DataImport, api.Services.Auth)
 	api.Activities = activitiesAPI.NewResource(api.Services.Activities, api.Services.Schedule, api.Services.Users, api.Services.UserContext)
 	api.Staff = staffAPI.NewResource(api.Services.Users, api.Services.Education, api.Services.Auth, repoFactory.GroupSupervisor)
 	api.Feedback = feedbackAPI.NewResource(api.Services.Feedback)
 	api.Schedules = schedulesAPI.NewResource(api.Services.Schedule)
 	api.Config = configAPI.NewResource(api.Services.Config, api.Services.ActiveCleanup)
-	api.Active = activeAPI.NewResource(api.Services.Active, api.Services.Users, db)
+	api.Active = activeAPI.NewResource(api.Services.Active, api.Services.Users, api.Services.Auth, db)
 	api.IoT = iotAPI.NewResource(iotAPI.ServiceDependencies{
 		IoTService:        api.Services.IoT,
 		UsersService:      api.Services.Users,
@@ -217,7 +217,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		EducationService:  api.Services.Education,
 		FeedbackService:   api.Services.Feedback,
 	})
-	api.SSE = sseAPI.NewResource(api.Services.RealtimeHub, api.Services.Active, api.Services.Users, api.Services.UserContext)
+	api.SSE = sseAPI.NewResource(api.Services.RealtimeHub, api.Services.Active, api.Services.Users, api.Services.UserContext, api.Services.Auth)
 	api.Users = usersAPI.NewResource(api.Services.Users)
 	api.UserContext = usercontextAPI.NewResource(api.Services.UserContext, repoFactory.GroupSubstitution)
 	api.Substitutions = substitutionsAPI.NewResource(api.Services.Education)

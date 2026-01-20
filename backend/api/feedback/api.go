@@ -9,9 +9,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/auth/tenant"
 	"github.com/moto-nrw/project-phoenix/models/feedback"
 	feedbackSvc "github.com/moto-nrw/project-phoenix/services/feedback"
 )
@@ -34,31 +32,23 @@ func NewResource(feedbackService feedbackSvc.Service) *Resource {
 }
 
 // Router returns a configured router for feedback endpoints
+// Note: Authentication is handled by tenant middleware in base.go when TENANT_AUTH_ENABLED=true
 func (rs *Resource) Router() chi.Router {
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 
-	// Create JWT auth instance for middleware
-	tokenAuth, _ := jwt.NewTokenAuth()
+	// Read operations require feedback:read permission
+	r.With(tenant.RequiresPermission("feedback:read")).Get("/", rs.listFeedback)
+	r.With(tenant.RequiresPermission("feedback:read")).Get("/{id}", rs.getFeedback)
+	r.With(tenant.RequiresPermission("feedback:read")).Get("/student/{id}", rs.getStudentFeedback)
+	r.With(tenant.RequiresPermission("feedback:read")).Get("/date/{date}", rs.getDateFeedback)
+	r.With(tenant.RequiresPermission("feedback:read")).Get("/mensa", rs.getMensaFeedback)
+	r.With(tenant.RequiresPermission("feedback:read")).Get("/date-range", rs.getDateRangeFeedback)
 
-	// Protected routes that require authentication and permissions
-	r.Group(func(r chi.Router) {
-		r.Use(tokenAuth.Verifier())
-		r.Use(jwt.Authenticator)
-
-		// Read operations require feedback:read permission
-		r.With(authorize.RequiresPermission(permissions.FeedbackRead)).Get("/", rs.listFeedback)
-		r.With(authorize.RequiresPermission(permissions.FeedbackRead)).Get("/{id}", rs.getFeedback)
-		r.With(authorize.RequiresPermission(permissions.FeedbackRead)).Get("/student/{id}", rs.getStudentFeedback)
-		r.With(authorize.RequiresPermission(permissions.FeedbackRead)).Get("/date/{date}", rs.getDateFeedback)
-		r.With(authorize.RequiresPermission(permissions.FeedbackRead)).Get("/mensa", rs.getMensaFeedback)
-		r.With(authorize.RequiresPermission(permissions.FeedbackRead)).Get("/date-range", rs.getDateRangeFeedback)
-
-		// Write operations require specific permissions
-		r.With(authorize.RequiresPermission(permissions.FeedbackCreate)).Post("/", rs.createFeedback)
-		r.With(authorize.RequiresPermission(permissions.FeedbackCreate)).Post("/batch", rs.createBatchFeedback)
-		r.With(authorize.RequiresPermission(permissions.FeedbackDelete)).Delete("/{id}", rs.deleteFeedback)
-	})
+	// Write operations require specific permissions
+	r.With(tenant.RequiresPermission("feedback:create")).Post("/", rs.createFeedback)
+	r.With(tenant.RequiresPermission("feedback:create")).Post("/batch", rs.createBatchFeedback)
+	r.With(tenant.RequiresPermission("feedback:delete")).Delete("/{id}", rs.deleteFeedback)
 
 	return r
 }

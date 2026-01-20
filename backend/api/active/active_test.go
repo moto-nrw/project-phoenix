@@ -39,7 +39,7 @@ func setupTestContext(t *testing.T) *testContext {
 	t.Helper()
 
 	db, svc := testutil.SetupAPITest(t)
-	resource := activeAPI.NewResource(svc.Active, svc.Users, db)
+	resource := activeAPI.NewResource(svc.Active, svc.Users, svc.Auth, db)
 
 	t.Cleanup(func() {
 		if err := db.Close(); err != nil {
@@ -2019,24 +2019,6 @@ func TestCreateVisitAdditional(t *testing.T) {
 		assert.NotEqual(t, http.StatusOK, rr.Code, "Should not succeed with non-existent student")
 		assert.NotEqual(t, http.StatusCreated, rr.Code, "Should not succeed with non-existent student")
 		t.Logf("Response: %d - %s", rr.Code, rr.Body.String())
-	})
-}
-
-// =============================================================================
-// VISIT ID EXTRACTOR TESTS (12.5% coverage)
-// =============================================================================
-
-func TestVisitIDExtractor(t *testing.T) {
-	// VisitIDExtractor is a package-level function
-	t.Run("extractor is not nil", func(t *testing.T) {
-		extractor := activeAPI.VisitIDExtractor()
-		assert.NotNil(t, extractor, "VisitIDExtractor should return a valid function")
-	})
-
-	t.Run("extractor returns resource extractor", func(t *testing.T) {
-		extractor := activeAPI.VisitIDExtractor()
-		// Extractor is a function type
-		require.NotNil(t, extractor)
 	})
 }
 

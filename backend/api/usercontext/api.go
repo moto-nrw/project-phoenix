@@ -18,7 +18,6 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/services/usercontext"
@@ -46,6 +45,7 @@ type Resource struct {
 }
 
 // NewResource creates a new user context resource
+// Note: Authentication is handled by tenant middleware in base.go when TENANT_AUTH_ENABLED=true
 func NewResource(service usercontext.UserContextService, substitutionRepo education.GroupSubstitutionRepository) *Resource {
 	r := &Resource{
 		service:          service,
@@ -53,14 +53,8 @@ func NewResource(service usercontext.UserContextService, substitutionRepo educat
 		router:           chi.NewRouter(),
 	}
 
-	// Create JWT auth instance for middleware
-	tokenAuth, _ := jwt.NewTokenAuth()
-
-	// Setup routes with proper authentication chain
-	r.router.Use(tokenAuth.Verifier())
-	r.router.Use(jwt.Authenticator)
-
 	// User profile endpoints
+	// All endpoints are protected by tenant middleware applied in base.go
 	r.router.Get("/", r.getCurrentUser)
 	r.router.Get("/profile", r.getCurrentProfile)
 	r.router.Put("/profile", r.updateCurrentProfile)
