@@ -48,6 +48,8 @@ func ErrorRenderer(err error) render.Renderer {
 			return ErrorForbidden(actErr)
 		case activities.ErrInvalidAttendanceStatus:
 			return ErrorInvalidRequest(actErr)
+		case activities.ErrStaffNotFound:
+			return ErrorNotFound(actErr)
 		default:
 			return ErrorInternalServer(actErr)
 		}

@@ -14,6 +14,7 @@ const createSampleStaff = (overrides: Partial<Staff> = {}): Staff => ({
   name: "Max Mustermann",
   firstName: "Max",
   lastName: "Mustermann",
+  role: undefined,
   specialization: "Mathematics",
   qualifications: "M.Ed",
   staffNotes: "Senior staff member",
@@ -93,8 +94,41 @@ describe("getStaffLocationStatus", () => {
 });
 
 describe("getStaffDisplayType", () => {
-  it("returns specialization for teachers with specialization", () => {
+  it("returns role when set (Admin)", () => {
     const staff = createSampleStaff({
+      role: "Admin",
+      isTeacher: true,
+      specialization: "Mathematics",
+    });
+    const result = getStaffDisplayType(staff);
+
+    expect(result).toBe("Admin");
+  });
+
+  it("returns role when set (Betreuer)", () => {
+    const staff = createSampleStaff({
+      role: "Betreuer",
+      isTeacher: true,
+      specialization: "Mathematics",
+    });
+    const result = getStaffDisplayType(staff);
+
+    expect(result).toBe("Betreuer");
+  });
+
+  it("returns role when set (Extern)", () => {
+    const staff = createSampleStaff({
+      role: "Extern",
+      isTeacher: false,
+    });
+    const result = getStaffDisplayType(staff);
+
+    expect(result).toBe("Extern");
+  });
+
+  it("returns specialization for teachers without role", () => {
+    const staff = createSampleStaff({
+      role: undefined,
       isTeacher: true,
       specialization: "Mathematics",
     });
@@ -103,8 +137,9 @@ describe("getStaffDisplayType", () => {
     expect(result).toBe("Mathematics");
   });
 
-  it("returns Betreuer for teachers without specialization", () => {
+  it("returns Betreuer for teachers without role or specialization", () => {
     const staff = createSampleStaff({
+      role: undefined,
       isTeacher: true,
       specialization: undefined,
     });
@@ -113,8 +148,9 @@ describe("getStaffDisplayType", () => {
     expect(result).toBe("Betreuer");
   });
 
-  it("returns Betreuer for non-teachers", () => {
+  it("returns Betreuer for non-teachers without role", () => {
     const staff = createSampleStaff({
+      role: undefined,
       isTeacher: false,
       specialization: "Some Specialization",
     });

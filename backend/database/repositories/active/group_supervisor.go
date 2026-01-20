@@ -32,7 +32,7 @@ func (r *GroupSupervisorRepository) FindActiveByStaffID(ctx context.Context, sta
 	err := r.db.NewSelect().
 		Model(&supervisions).
 		ModelTableExpr(`active.group_supervisors AS "group_supervisor"`).
-		Where("staff_id = ? AND (end_date IS NULL OR end_date >= CURRENT_DATE)", staffID).
+		Where("staff_id = ? AND (end_date IS NULL OR end_date > NOW())", staffID).
 		Scan(ctx)
 
 	if err != nil {
@@ -179,6 +179,29 @@ func (r *GroupSupervisorRepository) Update(ctx context.Context, supervision *act
 	return nil
 }
 
+// applyActiveOnlyFilter handles the special active_only filter for group supervisors.
+// Returns the modified query with the appropriate WHERE clause applied.
+func (r *GroupSupervisorRepository) applyActiveOnlyFilter(query *bun.SelectQuery, filter *modelBase.Filter) *bun.SelectQuery {
+	activeOnly, ok := filter.Get("active_only")
+	if !ok {
+		return query
+	}
+
+	// Remove from filter so ApplyToQuery doesn't try to use it as a column
+	filter.Remove("active_only")
+
+	isActive, isBool := activeOnly.(bool)
+	if !isBool {
+		return query
+	}
+
+	if isActive {
+		return query.Where(`"group_supervisor".end_date IS NULL OR "group_supervisor".end_date > NOW()`)
+	}
+	// active=false returns only inactive (ended) supervisors
+	return query.Where(`"group_supervisor".end_date IS NOT NULL AND "group_supervisor".end_date <= NOW()`)
+}
+
 // List overrides the base List method to accept the new QueryOptions type
 func (r *GroupSupervisorRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*active.GroupSupervisor, error) {
 	var supervisions []*active.GroupSupervisor
@@ -186,9 +209,9 @@ func (r *GroupSupervisorRepository) List(ctx context.Context, options *modelBase
 		Model(&supervisions).
 		ModelTableExpr(`active.group_supervisors AS "group_supervisor"`)
 
-	// Apply query options with table alias
 	if options != nil {
 		if options.Filter != nil {
+			query = r.applyActiveOnlyFilter(query, options.Filter)
 			options.Filter.WithTableAlias("group_supervisor")
 		}
 		query = options.ApplyToQuery(query)

@@ -46,6 +46,7 @@ export interface Staff {
   firstName: string;
   lastName: string;
   email?: string;
+  role?: string; // Display role (Admin/Betreuer/Extern)
   specialization?: string;
   qualifications?: string;
   staffNotes?: string;
@@ -222,6 +223,7 @@ function mapStaffMember(
     firstName: staff.firstName,
     lastName: staff.lastName,
     email: undefined,
+    role: staff.role ?? undefined,
     specialization: staff.specialization?.trim() ?? undefined,
     qualifications: staff.qualifications ?? undefined,
     staffNotes: staff.staff_notes ?? undefined,

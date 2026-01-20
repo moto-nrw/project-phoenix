@@ -183,10 +183,15 @@ func requestToModel(req *FeedbackRequest) (*feedback.Entry, error) {
 		return nil, errors.New("invalid time format, expected HH:MM:SS")
 	}
 
+	// Normalize time to use a valid base date (1970-01-01) for PostgreSQL compatibility
+	// time.Parse with "15:04:05" creates year=0 which PostgreSQL rejects
+	hour, min, sec := timeValue.Clock()
+	normalizedTime := time.Date(1970, 1, 1, hour, min, sec, 0, time.UTC)
+
 	return &feedback.Entry{
 		Value:           req.Value,
 		Day:             day,
-		Time:            timeValue,
+		Time:            normalizedTime,
 		StudentID:       req.StudentID,
 		IsMensaFeedback: req.IsMensaFeedback,
 	}, nil

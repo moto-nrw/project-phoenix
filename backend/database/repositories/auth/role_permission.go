@@ -200,10 +200,10 @@ func (r *RolePermissionRepository) List(ctx context.Context, filters map[string]
 		Model(&rolePermissions).
 		ModelTableExpr(rolePermissionTableAlias)
 
-	// Apply filters
+	// Apply filters with proper table alias prefix
 	for field, value := range filters {
 		if value != nil {
-			query = query.Where(`"role_permission".`+field+` = ?`, value)
+			query = query.Where(`"role_permission".? = ?`, bun.Ident(field), value)
 		}
 	}
 

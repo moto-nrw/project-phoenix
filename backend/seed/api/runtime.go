@@ -131,17 +131,24 @@ func (s *RuntimeSeeder) startSessions(ctx context.Context, config RuntimeConfig,
 		sessionsToStart = len(s.deviceAPIKeys)
 	}
 
-	// Collect staff IDs for rotation (different supervisor per session)
-	staffIDs := make([]int64, 0, len(s.fixedSeeder.staffIDs))
-	for _, id := range s.fixedSeeder.staffIDs {
-		staffIDs = append(staffIDs, id)
+	// Collect ONLY Pädagogische Fachkraft staff IDs for rotation (not admins)
+	// These are the staff who should supervise activity sessions
+	// Admin staff (OGS-Büro) should not be assigned as session supervisors
+	betreuerStaffIDs := make([]int64, 0)
+	for _, staff := range DemoStaff {
+		if staff.Position == "Pädagogische Fachkraft" {
+			staffKey := fmt.Sprintf("%s %s", staff.FirstName, staff.LastName)
+			if staffID, ok := s.fixedSeeder.staffIDs[staffKey]; ok {
+				betreuerStaffIDs = append(betreuerStaffIDs, staffID)
+			}
+		}
 	}
 
-	// Start sessions (each session uses a different device and supervisor)
+	// Start sessions (each session uses a different device and Betreuer)
 	for i := 0; i < sessionsToStart; i++ {
 		activityID := activityIDs[i]
 		deviceKey := s.deviceAPIKeys[i]
-		supervisorID := staffIDs[i%len(staffIDs)] // Rotate through supervisors
+		supervisorID := betreuerStaffIDs[i%len(betreuerStaffIDs)] // Rotate through Betreuer only
 
 		body := map[string]any{
 			"activity_id":    activityID,

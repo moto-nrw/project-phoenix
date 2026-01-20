@@ -820,6 +820,10 @@ func (noopPersonRepository) List(context.Context, map[string]interface{}) ([]*us
 	panic("List not implemented")
 }
 
+func (noopPersonRepository) ListWithOptions(context.Context, *base.QueryOptions) ([]*userModel.Person, error) {
+	panic("ListWithOptions not implemented")
+}
+
 func (noopPersonRepository) LinkToAccount(context.Context, int64, int64) error {
 	panic("LinkToAccount not implemented")
 }

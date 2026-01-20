@@ -455,6 +455,177 @@ func TestQueryOptions_WithSorting(t *testing.T) {
 	}
 }
 
+func TestFilter_Get(t *testing.T) {
+	tests := []struct {
+		name          string
+		setup         func() *Filter
+		field         string
+		expectedValue interface{}
+		expectedFound bool
+	}{
+		{
+			name: "get existing field",
+			setup: func() *Filter {
+				return NewFilter().Equal("status", "active")
+			},
+			field:         "status",
+			expectedValue: "active",
+			expectedFound: true,
+		},
+		{
+			name: "get non-existing field",
+			setup: func() *Filter {
+				return NewFilter().Equal("status", "active")
+			},
+			field:         "role",
+			expectedValue: nil,
+			expectedFound: false,
+		},
+		{
+			name: "get from empty filter",
+			setup: func() *Filter {
+				return NewFilter()
+			},
+			field:         "anything",
+			expectedValue: nil,
+			expectedFound: false,
+		},
+		{
+			name: "get first match when multiple conditions exist",
+			setup: func() *Filter {
+				return NewFilter().Equal("status", "first").Equal("status", "second")
+			},
+			field:         "status",
+			expectedValue: "first",
+			expectedFound: true,
+		},
+		{
+			name: "get only works for Equal operator",
+			setup: func() *Filter {
+				return NewFilter().Like("name", "%test%")
+			},
+			field:         "name",
+			expectedValue: nil,
+			expectedFound: false,
+		},
+		{
+			name: "get boolean value",
+			setup: func() *Filter {
+				return NewFilter().Equal("active_only", true)
+			},
+			field:         "active_only",
+			expectedValue: true,
+			expectedFound: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := tt.setup()
+			value, found := f.Get(tt.field)
+
+			if found != tt.expectedFound {
+				t.Errorf("Get() found = %v, want %v", found, tt.expectedFound)
+			}
+
+			if value != tt.expectedValue {
+				t.Errorf("Get() value = %v, want %v", value, tt.expectedValue)
+			}
+		})
+	}
+}
+
+func TestFilter_Remove(t *testing.T) {
+	tests := []struct {
+		name                string
+		setup               func() *Filter
+		fieldToRemove       string
+		expectedConditions  int
+		remainingFieldCheck string
+	}{
+		{
+			name: "remove existing field",
+			setup: func() *Filter {
+				return NewFilter().Equal("status", "active").Equal("role", "admin")
+			},
+			fieldToRemove:       "status",
+			expectedConditions:  1,
+			remainingFieldCheck: "role",
+		},
+		{
+			name: "remove non-existing field",
+			setup: func() *Filter {
+				return NewFilter().Equal("status", "active")
+			},
+			fieldToRemove:       "role",
+			expectedConditions:  1,
+			remainingFieldCheck: "status",
+		},
+		{
+			name: "remove from empty filter",
+			setup: func() *Filter {
+				return NewFilter()
+			},
+			fieldToRemove:      "anything",
+			expectedConditions: 0,
+		},
+		{
+			name: "remove all occurrences of field",
+			setup: func() *Filter {
+				return NewFilter().Equal("status", "first").Equal("role", "admin").Equal("status", "second")
+			},
+			fieldToRemove:       "status",
+			expectedConditions:  1,
+			remainingFieldCheck: "role",
+		},
+		{
+			name: "remove returns filter for chaining",
+			setup: func() *Filter {
+				return NewFilter().Equal("a", 1).Equal("b", 2).Equal("c", 3)
+			},
+			fieldToRemove:      "b",
+			expectedConditions: 2,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := tt.setup()
+			result := f.Remove(tt.fieldToRemove)
+
+			// Verify chaining works
+			if result != f {
+				t.Error("Remove() should return the same filter for chaining")
+			}
+
+			if len(f.conditions) != tt.expectedConditions {
+				t.Errorf("Remove() conditions count = %d, want %d", len(f.conditions), tt.expectedConditions)
+			}
+
+			// Verify the field was removed
+			for _, cond := range f.conditions {
+				if cond.Field == tt.fieldToRemove {
+					t.Errorf("Remove() did not remove field %q", tt.fieldToRemove)
+				}
+			}
+
+			// Verify remaining field exists if specified
+			if tt.remainingFieldCheck != "" {
+				found := false
+				for _, cond := range f.conditions {
+					if cond.Field == tt.remainingFieldCheck {
+						found = true
+						break
+					}
+				}
+				if !found {
+					t.Errorf("Remove() accidentally removed field %q", tt.remainingFieldCheck)
+				}
+			}
+		})
+	}
+}
+
 func TestOperatorConstants(t *testing.T) {
 	tests := []struct {
 		op       Operator

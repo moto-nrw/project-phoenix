@@ -265,6 +265,9 @@ func (r *SettingRepository) List(ctx context.Context, filters map[string]interfa
 // applySettingFilter applies a single filter to the query based on field name
 func applySettingFilter(query *bun.SelectQuery, field string, value interface{}) *bun.SelectQuery {
 	switch field {
+	case "search":
+		// Search across key, value, and description fields
+		return applySearchFilter(query, value)
 	case "key_like":
 		return applyLikeFilter(query, "key", value)
 	case "category_like":
@@ -273,9 +276,22 @@ func applySettingFilter(query *bun.SelectQuery, field string, value interface{})
 		return applyLikeFilter(query, "value", value)
 	case "requires_restart", "requires_db_reset":
 		return applyBooleanFilter(query, field, value)
-	default:
+	case "category", "key":
+		// Handle exact match for valid column names
 		return applyDefaultFilter(query, field, value)
+	default:
+		// Ignore unknown filter fields to prevent SQL errors
+		return query
 	}
+}
+
+// applySearchFilter searches across key, value, and description columns
+func applySearchFilter(query *bun.SelectQuery, value interface{}) *bun.SelectQuery {
+	if strValue, ok := value.(string); ok && strValue != "" {
+		pattern := "%" + strValue + "%"
+		return query.Where("(key ILIKE ? OR value ILIKE ? OR description ILIKE ?)", pattern, pattern, pattern)
+	}
+	return query
 }
 
 // applyLikeFilter applies a LIKE filter if value is a string
