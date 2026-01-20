@@ -276,12 +276,12 @@ func TestNewSupervisorResponse_WithActiveGroup(t *testing.T) {
 
 func TestNewCombinedGroupResponse_BasicFields(t *testing.T) {
 	now := time.Now()
-	endTime := now.Add(time.Hour)
+	endTime := now.Add(-time.Hour) // Past end time = inactive
 
 	group := &active.CombinedGroup{
 		Model:     base.Model{ID: 1, CreatedAt: now, UpdatedAt: now},
-		StartTime: now,
-		EndTime:   &endTime,
+		StartTime: now.Add(-2 * time.Hour), // Started 2 hours ago
+		EndTime:   &endTime,                // Ended 1 hour ago
 	}
 
 	response := newCombinedGroupResponse(group)
@@ -290,9 +290,9 @@ func TestNewCombinedGroupResponse_BasicFields(t *testing.T) {
 	assert.Equal(t, "Combined Group #1", response.Name)
 	assert.Empty(t, response.Description)
 	assert.Equal(t, int64(0), response.RoomID)
-	assert.Equal(t, now, response.StartTime)
+	assert.Equal(t, group.StartTime, response.StartTime)
 	assert.Equal(t, &endTime, response.EndTime)
-	assert.False(t, response.IsActive) // Has end time
+	assert.False(t, response.IsActive) // End time is in the past
 	assert.Equal(t, 0, response.GroupCount)
 }
 
