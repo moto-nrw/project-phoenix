@@ -11,6 +11,14 @@ type Model struct {
 	UpdatedAt time.Time `bun:"updated_at,nullzero,notnull,default:current_timestamp" json:"updated_at"`
 }
 
+// TenantModel extends Model with ogs_id for multi-tenant domain tables.
+// Use this for models in: users, education, facilities, iot, active, activities schemas.
+// The ogs_id is auto-populated by database trigger from app.ogs_id session variable.
+type TenantModel struct {
+	Model
+	OgsID string `bun:"ogs_id,nullzero" json:"ogs_id,omitempty"` // Tenant ID for RLS - nullzero sends NULL so trigger can populate
+}
+
 // StringIDModel represents models that use string as primary key (like RFID cards)
 type StringIDModel struct {
 	ID        string    `bun:"id,pk" json:"id"`

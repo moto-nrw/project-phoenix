@@ -11,12 +11,12 @@ import (
 
 // Group represents an activity group
 type Group struct {
-	base.Model      `bun:"schema:activities,table:groups"`
-	Name            string `bun:"name,notnull" json:"name"`
-	MaxParticipants int    `bun:"max_participants,notnull" json:"max_participants"`
-	IsOpen          bool   `bun:"is_open,notnull,default:false" json:"is_open"`
-	CategoryID      int64  `bun:"category_id,notnull" json:"category_id"`
-	PlannedRoomID   *int64 `bun:"planned_room_id" json:"planned_room_id,omitempty"`
+	base.TenantModel `bun:"schema:activities,table:groups"`
+	Name             string `bun:"name,notnull" json:"name"`
+	MaxParticipants  int    `bun:"max_participants,notnull" json:"max_participants"`
+	IsOpen           bool   `bun:"is_open,notnull,default:false" json:"is_open"`
+	CategoryID       int64  `bun:"category_id,notnull" json:"category_id"`
+	PlannedRoomID    *int64 `bun:"planned_room_id" json:"planned_room_id,omitempty"`
 
 	// Relations - populated when using the ORM's relations
 	Category    *Category            `bun:"rel:belongs-to,join:category_id=id" json:"category,omitempty"`

@@ -301,10 +301,12 @@ func (r *GroupRepository) FindActiveByDeviceID(ctx context.Context, deviceID int
 
 	// Convert to active.Group without relations
 	group := &active.Group{
-		Model: modelBase.Model{
-			ID:        result.ID,
-			CreatedAt: result.CreatedAt,
-			UpdatedAt: result.UpdatedAt,
+		TenantModel: modelBase.TenantModel{
+			Model: modelBase.Model{
+				ID:        result.ID,
+				CreatedAt: result.CreatedAt,
+				UpdatedAt: result.UpdatedAt,
+			},
 		},
 		StartTime:      result.StartTime,
 		EndTime:        result.EndTime,
@@ -369,10 +371,12 @@ func (r *GroupRepository) FindActiveByDeviceIDWithNames(ctx context.Context, dev
 
 	// Create active.Group from result
 	session := &active.Group{
-		Model: modelBase.Model{
-			ID:        result.ID,
-			CreatedAt: result.CreatedAt,
-			UpdatedAt: result.UpdatedAt,
+		TenantModel: modelBase.TenantModel{
+			Model: modelBase.Model{
+				ID:        result.ID,
+				CreatedAt: result.CreatedAt,
+				UpdatedAt: result.UpdatedAt,
+			},
 		},
 		StartTime:      result.StartTime,
 		EndTime:        result.EndTime,
@@ -386,16 +390,16 @@ func (r *GroupRepository) FindActiveByDeviceIDWithNames(ctx context.Context, dev
 	// Add activity info if available
 	if result.ActivityName != nil && *result.ActivityName != "" {
 		session.ActualGroup = &activities.Group{
-			Model: modelBase.Model{ID: result.GroupID},
-			Name:  *result.ActivityName,
+			TenantModel: modelBase.TenantModel{Model: modelBase.Model{ID: result.GroupID}},
+			Name:        *result.ActivityName,
 		}
 	}
 
 	// Add room info if available
 	if result.RoomName != nil && *result.RoomName != "" {
 		session.Room = &facilities.Room{
-			Model: modelBase.Model{ID: result.RoomID},
-			Name:  *result.RoomName,
+			TenantModel: modelBase.TenantModel{Model: modelBase.Model{ID: result.RoomID}},
+			Name:        *result.RoomName,
 		}
 	}
 
@@ -521,10 +525,12 @@ func (r *GroupRepository) FindActiveSessionsOlderThan(ctx context.Context, cutof
 	groups := make([]*active.Group, len(results))
 	for i, r := range results {
 		group := &active.Group{
-			Model: modelBase.Model{
-				ID:        r.ID,
-				CreatedAt: r.CreatedAt,
-				UpdatedAt: r.UpdatedAt,
+			TenantModel: modelBase.TenantModel{
+				Model: modelBase.Model{
+					ID:        r.ID,
+					CreatedAt: r.CreatedAt,
+					UpdatedAt: r.UpdatedAt,
+				},
 			},
 			StartTime:      r.StartTime,
 			EndTime:        r.EndTime,
@@ -538,10 +544,12 @@ func (r *GroupRepository) FindActiveSessionsOlderThan(ctx context.Context, cutof
 		// Populate Device if present
 		if r.DeviceDbID != nil {
 			group.Device = &iot.Device{
-				Model: modelBase.Model{
-					ID:        *r.DeviceDbID,
-					CreatedAt: *r.DeviceCreatedAt,
-					UpdatedAt: *r.DeviceUpdatedAt,
+				TenantModel: modelBase.TenantModel{
+					Model: modelBase.Model{
+						ID:        *r.DeviceDbID,
+						CreatedAt: *r.DeviceCreatedAt,
+						UpdatedAt: *r.DeviceUpdatedAt,
+					},
 				},
 				DeviceID:   *r.DeviceDeviceID,
 				DeviceType: *r.DeviceDeviceType,

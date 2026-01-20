@@ -13,11 +13,11 @@ const teacherTableName = "users.teachers"
 
 // Teacher represents a pedagogical specialist in the system
 type Teacher struct {
-	base.Model     `bun:"schema:users,table:teachers"`
-	StaffID        int64  `bun:"staff_id,notnull,unique" json:"staff_id"`
-	Specialization string `bun:"specialization,nullzero" json:"specialization,omitempty"`
-	Role           string `bun:"role" json:"role,omitempty"`
-	Qualifications string `bun:"qualifications" json:"qualifications,omitempty"`
+	base.TenantModel `bun:"schema:users,table:teachers"`
+	StaffID          int64  `bun:"staff_id,notnull,unique" json:"staff_id"`
+	Specialization   string `bun:"specialization,nullzero" json:"specialization,omitempty"`
+	Role             string `bun:"role" json:"role,omitempty"`
+	Qualifications   string `bun:"qualifications" json:"qualifications,omitempty"`
 
 	// Relations not stored in the database
 	Staff *Staff `bun:"-" json:"staff,omitempty"`

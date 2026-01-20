@@ -133,10 +133,12 @@ func (s *service) GetRoomWithOccupancy(ctx context.Context, id int64) (RoomWithO
 	// Convert result to RoomWithOccupancy
 	return RoomWithOccupancy{
 		Room: &facilities.Room{
-			Model: base.Model{
-				ID:        result.ID,
-				CreatedAt: result.CreatedAt,
-				UpdatedAt: result.UpdatedAt,
+			TenantModel: base.TenantModel{
+				Model: base.Model{
+					ID:        result.ID,
+					CreatedAt: result.CreatedAt,
+					UpdatedAt: result.UpdatedAt,
+				},
 			},
 			Name:     result.Name,
 			Building: result.Building,
@@ -292,10 +294,12 @@ func (s *service) ListRooms(ctx context.Context, options *base.QueryOptions) ([]
 	for i, r := range results {
 		roomsWithOccupancy[i] = RoomWithOccupancy{
 			Room: &facilities.Room{
-				Model: base.Model{
-					ID:        r.ID,
-					CreatedAt: r.CreatedAt,
-					UpdatedAt: r.UpdatedAt,
+				TenantModel: base.TenantModel{
+					Model: base.Model{
+						ID:        r.ID,
+						CreatedAt: r.CreatedAt,
+						UpdatedAt: r.UpdatedAt,
+					},
 				},
 				Name:     r.Name,
 				Building: r.Building,

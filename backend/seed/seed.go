@@ -53,6 +53,15 @@ func NewSeeder(db *bun.DB, config *Config) *Seeder {
 func (s *Seeder) Seed(ctx context.Context) (*Result, error) {
 	result := &Result{}
 
+	// Get the first organization ID for tenant context (required for RLS)
+	ogsID, err := s.getFirstOrganizationID(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get organization for tenant context: %w", err)
+	}
+	if s.config.Verbose {
+		log.Printf("Using organization ID for tenant context: %s", ogsID)
+	}
+
 	// Reset if requested
 	if s.config.Reset {
 		if err := s.resetData(ctx); err != nil {
@@ -69,7 +78,12 @@ func (s *Seeder) Seed(ctx context.Context) (*Result, error) {
 			log.Println("Starting fixed data seeding...")
 		}
 
-		err := s.db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
+		err = s.db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
+			// Set tenant context for RLS - MUST be done at start of transaction
+			if err := s.setTenantContext(ctx, tx, ogsID); err != nil {
+				return fmt.Errorf("failed to set tenant context: %w", err)
+			}
+
 			fixedSeeder := fixed.NewSeeder(tx, s.config.Verbose)
 			fixedResult, err := fixedSeeder.SeedAll(ctx)
 			if err != nil {
@@ -93,7 +107,12 @@ func (s *Seeder) Seed(ctx context.Context) (*Result, error) {
 			log.Println("Starting runtime state creation...")
 		}
 
-		err := s.db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
+		err = s.db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
+			// Set tenant context for RLS - MUST be done at start of transaction
+			if err := s.setTenantContext(ctx, tx, ogsID); err != nil {
+				return fmt.Errorf("failed to set tenant context: %w", err)
+			}
+
 			// Get fixed data if we're in runtime-only mode
 			if s.config.RuntimeOnly {
 				fixedData, err := fixed.LoadExistingData(ctx, tx)
@@ -121,14 +140,8 @@ func (s *Seeder) Seed(ctx context.Context) (*Result, error) {
 	}
 
 	// Validate relationships using the main db connection
-	if err := s.validateRelationships(ctx, s.db, result); err != nil {
+	if err = s.validateRelationships(ctx, s.db, result); err != nil {
 		return nil, fmt.Errorf("relationship validation failed: %w", err)
-	}
-
-	var err error
-
-	if err != nil {
-		return nil, err
 	}
 
 	// Print summary
@@ -315,4 +328,36 @@ func (s *Seeder) printSummary(result *Result) {
 			fmt.Printf("  %s: PIN %s\n", email, pin)
 		}
 	}
+}
+
+// getFirstOrganizationID retrieves the first organization ID from the database.
+// This is used to set the tenant context for RLS policies during seeding.
+func (s *Seeder) getFirstOrganizationID(ctx context.Context) (string, error) {
+	var orgID string
+	err := s.db.NewSelect().
+		TableExpr("public.organization").
+		Column("id").
+		OrderExpr("\"createdAt\" ASC").
+		Limit(1).
+		Scan(ctx, &orgID)
+	if err != nil {
+		return "", fmt.Errorf("no organization found - ensure BetterAuth has created at least one organization: %w", err)
+	}
+	return orgID, nil
+}
+
+// setTenantContext sets the app.ogs_id session variable for RLS policies.
+// This must be called at the start of each transaction that modifies RLS-protected tables.
+// Note: SET doesn't support parameterized queries, so we format the value directly.
+// The ogsID is a UUID from the database, so SQL injection is not a concern.
+func (s *Seeder) setTenantContext(ctx context.Context, tx bun.Tx, ogsID string) error {
+	query := fmt.Sprintf("SET LOCAL app.ogs_id = '%s'", ogsID)
+	_, err := tx.ExecContext(ctx, query)
+	if err != nil {
+		return fmt.Errorf("failed to set app.ogs_id: %w", err)
+	}
+	if s.config.Verbose {
+		log.Printf("Set tenant context to: %s", ogsID)
+	}
+	return nil
 }

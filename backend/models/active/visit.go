@@ -15,11 +15,11 @@ const tableActiveVisits = "active.visits"
 
 // Visit represents a student visit to an active group
 type Visit struct {
-	base.Model    `bun:"schema:active,table:visits"`
-	StudentID     int64      `bun:"student_id,notnull" json:"student_id"`
-	ActiveGroupID int64      `bun:"active_group_id,notnull" json:"active_group_id"`
-	EntryTime     time.Time  `bun:"entry_time,notnull" json:"entry_time"`
-	ExitTime      *time.Time `bun:"exit_time" json:"exit_time,omitempty"`
+	base.TenantModel `bun:"schema:active,table:visits"`
+	StudentID        int64      `bun:"student_id,notnull" json:"student_id"`
+	ActiveGroupID    int64      `bun:"active_group_id,notnull" json:"active_group_id"`
+	EntryTime        time.Time  `bun:"entry_time,notnull" json:"entry_time"`
+	ExitTime         *time.Time `bun:"exit_time" json:"exit_time,omitempty"`
 
 	// Relations - these would be populated when using the ORM's relations
 	Student     *users.Student `bun:"rel:belongs-to,join:student_id=id" json:"student,omitempty"`

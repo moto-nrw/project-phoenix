@@ -25,14 +25,14 @@ const tableIoTDevices = "iot.devices"
 
 // Device represents an IoT device in the system
 type Device struct {
-	base.Model     `bun:"schema:iot,table:devices"`
-	DeviceID       string       `bun:"device_id,notnull,unique" json:"device_id"`
-	DeviceType     string       `bun:"device_type,notnull" json:"device_type"`
-	Name           *string      `bun:"name" json:"name,omitempty"`
-	Status         DeviceStatus `bun:"status,notnull,default:'active'" json:"status"`
-	APIKey         *string      `bun:"api_key,unique" json:"-"`              // Never expose API key in JSON
-	LastSeen       *time.Time   `bun:"last_seen" json:"last_seen,omitempty"` // Used as last_activity for health monitoring
-	RegisteredByID *int64       `bun:"registered_by_id" json:"registered_by_id,omitempty"`
+	base.TenantModel `bun:"schema:iot,table:devices"`
+	DeviceID         string       `bun:"device_id,notnull,unique" json:"device_id"`
+	DeviceType       string       `bun:"device_type,notnull" json:"device_type"`
+	Name             *string      `bun:"name" json:"name,omitempty"`
+	Status           DeviceStatus `bun:"status,notnull,default:'active'" json:"status"`
+	APIKey           *string      `bun:"api_key,unique" json:"-"`              // Never expose API key in JSON
+	LastSeen         *time.Time   `bun:"last_seen" json:"last_seen,omitempty"` // Used as last_activity for health monitoring
+	RegisteredByID   *int64       `bun:"registered_by_id" json:"registered_by_id,omitempty"`
 
 	// Relations
 	RegisteredBy *users.Person `bun:"-" json:"registered_by,omitempty"`

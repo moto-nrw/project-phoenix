@@ -10,9 +10,9 @@ import (
 
 // Staff represents a staff member in the system
 type Staff struct {
-	base.Model `bun:"schema:users,table:staff"`
-	PersonID   int64  `bun:"person_id,notnull,unique" json:"person_id"`
-	StaffNotes string `bun:"staff_notes" json:"staff_notes,omitempty"`
+	base.TenantModel `bun:"schema:users,table:staff"`
+	PersonID         int64  `bun:"person_id,notnull,unique" json:"person_id"`
+	StaffNotes       string `bun:"staff_notes" json:"staff_notes,omitempty"`
 
 	// Relations
 	Person *Person `bun:"rel:belongs-to,join:person_id=id" json:"person,omitempty"`
