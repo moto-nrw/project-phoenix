@@ -46,6 +46,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/auth/tenant"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/models/iot"
 	"github.com/moto-nrw/project-phoenix/models/users"
@@ -326,4 +327,110 @@ func AdminTestClaims(accountID int) jwt.AppClaims {
 		Permissions: []string{"admin:*"},
 		IsAdmin:     true,
 	}
+}
+
+// =============================================================================
+// TENANT CONTEXT HELPERS (for BetterAuth-based authentication)
+// =============================================================================
+
+// WithTenantContext adds a TenantContext to the request context.
+// This replaces WithClaims for tests using the new tenant middleware.
+func WithTenantContext(tc *tenant.TenantContext) RequestOption {
+	return func(req *http.Request) {
+		ctx := tenant.SetTenantContext(req.Context(), tc)
+		*req = *req.WithContext(ctx)
+	}
+}
+
+// DefaultTenantContext returns a default tenant context for testing.
+// Uses admin role with all permissions.
+func DefaultTenantContext() *tenant.TenantContext {
+	return &tenant.TenantContext{
+		UserID:      "test-user-id",
+		UserEmail:   "test@example.com",
+		UserName:    "Test User",
+		OrgID:       "test-org-id",
+		OrgName:     "Test OGS",
+		OrgSlug:     "test-ogs",
+		Role:        "ogsAdmin",
+		Permissions: []string{"student:read", "student:create", "student:update", "student:delete", "group:read", "group:create", "group:update", "group:delete", "staff:read", "staff:create", "staff:update", "staff:delete", "room:read", "room:create", "room:update", "room:delete", "visit:read", "visit:create", "visit:update", "visit:delete", "activity:read", "activity:create", "activity:update", "activity:delete", "schedule:read", "schedule:create", "schedule:update", "schedule:delete", "feedback:read", "feedback:create", "feedback:update", "feedback:delete", "config:read", "config:update", "import:read", "import:create", "guardian:read", "guardian:create", "guardian:update", "guardian:delete", "location:read", "attendance:read", "attendance:checkin", "attendance:checkout", "attendance:update", "attendance:delete"},
+		TraegerID:   "test-traeger-id",
+		TraegerName: "Test Träger",
+	}
+}
+
+// SupervisorTenantContext returns a tenant context for a supervisor (front-line staff).
+// Supervisors can see location data but have limited admin capabilities.
+func SupervisorTenantContext(email string) *tenant.TenantContext {
+	return &tenant.TenantContext{
+		UserID:      "supervisor-user-id",
+		UserEmail:   email,
+		UserName:    "Test Supervisor",
+		OrgID:       "test-org-id",
+		OrgName:     "Test OGS",
+		OrgSlug:     "test-ogs",
+		Role:        "supervisor",
+		Permissions: []string{"student:read", "group:read", "room:read", "visit:read", "visit:create", "visit:update", "activity:read", "location:read", "attendance:read", "attendance:checkin", "attendance:checkout", "attendance:update"},
+		TraegerID:   "test-traeger-id",
+		TraegerName: "Test Träger",
+	}
+}
+
+// OGSAdminTenantContext returns a tenant context for an OGS admin.
+// OGS admins can manage their facility but not other organizations.
+func OGSAdminTenantContext(email string) *tenant.TenantContext {
+	return &tenant.TenantContext{
+		UserID:      "ogsadmin-user-id",
+		UserEmail:   email,
+		UserName:    "Test OGS Admin",
+		OrgID:       "test-org-id",
+		OrgName:     "Test OGS",
+		OrgSlug:     "test-ogs",
+		Role:        "ogsAdmin",
+		Permissions: []string{"student:read", "student:create", "student:update", "student:delete", "group:read", "group:create", "group:update", "group:delete", "staff:read", "staff:create", "staff:update", "staff:delete", "staff:invite", "room:read", "room:create", "room:update", "room:delete", "visit:read", "visit:create", "visit:update", "visit:delete", "activity:read", "activity:create", "activity:update", "activity:delete", "schedule:read", "schedule:create", "schedule:update", "schedule:delete", "feedback:read", "feedback:create", "feedback:update", "feedback:delete", "config:read", "config:update", "import:read", "import:create", "guardian:read", "guardian:create", "guardian:update", "guardian:delete", "location:read", "ogs:update", "attendance:read", "attendance:checkin", "attendance:checkout", "attendance:update", "attendance:delete"},
+		TraegerID:   "test-traeger-id",
+		TraegerName: "Test Träger",
+	}
+}
+
+// BueroAdminTenantContext returns a tenant context for a Büro admin.
+// Büro admins can manage multiple OGS but cannot see location data.
+func BueroAdminTenantContext(email string) *tenant.TenantContext {
+	bueroID := "test-buero-id"
+	return &tenant.TenantContext{
+		UserID:      "bueroadmin-user-id",
+		UserEmail:   email,
+		UserName:    "Test Büro Admin",
+		OrgID:       "test-org-id",
+		OrgName:     "Test OGS",
+		OrgSlug:     "test-ogs",
+		Role:        "bueroAdmin",
+		Permissions: []string{"student:read", "group:read", "staff:read", "room:read", "feedback:read", "config:read"},
+		TraegerID:   "test-traeger-id",
+		TraegerName: "Test Träger",
+		BueroID:     &bueroID,
+		BueroName:   strPtr("Test Büro"),
+	}
+}
+
+// TraegerAdminTenantContext returns a tenant context for a Träger admin.
+// Träger admins have the highest level of access for their organization hierarchy.
+func TraegerAdminTenantContext(email string) *tenant.TenantContext {
+	return &tenant.TenantContext{
+		UserID:      "traegeradmin-user-id",
+		UserEmail:   email,
+		UserName:    "Test Träger Admin",
+		OrgID:       "test-org-id",
+		OrgName:     "Test OGS",
+		OrgSlug:     "test-ogs",
+		Role:        "traegerAdmin",
+		Permissions: []string{"student:read", "group:read", "staff:read", "room:read", "feedback:read", "config:read"},
+		TraegerID:   "test-traeger-id",
+		TraegerName: "Test Träger",
+	}
+}
+
+// strPtr is a helper to create string pointers for optional fields.
+func strPtr(s string) *string {
+	return &s
 }

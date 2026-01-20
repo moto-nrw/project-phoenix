@@ -42,7 +42,7 @@ func (rs *Resource) getStats(w http.ResponseWriter, r *http.Request) {
 	// Admin-only check: system:manage doesn't exist in BetterAuth permissions
 	// Per WP6 spec: use tenant.IsAdmin(ctx) instead
 	if !tenant.IsAdmin(r.Context()) {
-		common.RenderError(w, r, common.ErrorForbidden(nil))
+		common.RenderError(w, r, common.ErrorForbidden(common.ErrForbidden))
 		return
 	}
 

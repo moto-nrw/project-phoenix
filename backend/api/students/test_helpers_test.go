@@ -14,6 +14,7 @@ import (
 
 	studentsAPI "github.com/moto-nrw/project-phoenix/api/students"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/auth/tenant"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -75,12 +76,40 @@ func setupRouter(handler http.HandlerFunc, urlParam string) chi.Router {
 	return router
 }
 
-// executeWithAuth executes a request with JWT claims and permissions.
+// executeWithAuth executes a request with JWT claims, permissions, and tenant context.
+// The student handlers use tenant context for authorization.
 func executeWithAuth(router chi.Router, req *http.Request, claims jwt.AppClaims, permissions []string) *httptest.ResponseRecorder {
-	ctx := context.WithValue(req.Context(), jwt.CtxClaims, claims)
-	ctx = context.WithValue(ctx, jwt.CtxPermissions, permissions)
+	// Create tenant context with permissions
+	tc := &tenant.TenantContext{
+		UserID:      fmt.Sprintf("user-%d", claims.ID),
+		UserEmail:   claims.Username + "@example.com",
+		UserName:    claims.Username,
+		OrgID:       "test-org",
+		OrgName:     "Test Organization",
+		OrgSlug:     "test-org",
+		Role:        "supervisor",
+		Permissions: permissions,
+		TraegerID:   "test-traeger",
+		TraegerName: "Test Träger",
+	}
+
+	// Set both JWT claims (for userContextService) and tenant context (for permission middleware)
+	ctx := tenant.SetTenantContext(req.Context(), tc)
+	ctx = setJWTClaims(ctx, claims)
+	ctx = setJWTPermissions(ctx, permissions)
+
 	req = req.WithContext(ctx)
 	rr := httptest.NewRecorder()
 	router.ServeHTTP(rr, req)
 	return rr
+}
+
+// setJWTClaims adds JWT claims to context (for userContextService compatibility).
+func setJWTClaims(ctx context.Context, claims jwt.AppClaims) context.Context {
+	return context.WithValue(ctx, jwt.CtxClaims, claims)
+}
+
+// setJWTPermissions adds JWT permissions to context (for userContextService compatibility).
+func setJWTPermissions(ctx context.Context, permissions []string) context.Context {
+	return context.WithValue(ctx, jwt.CtxPermissions, permissions)
 }

@@ -8,12 +8,10 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
 	staffAPI "github.com/moto-nrw/project-phoenix/api/staff"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -643,22 +641,16 @@ func TestGetPINStatus_Success(t *testing.T) {
 	defer func() { _ = ctx.db.Close() }()
 
 	// Create a staff with account
-	teacher, _ := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "PINTest", "Staff")
+	teacher, account := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "PINTest", "Staff")
 	defer testpkg.CleanupTeacherFixtures(t, ctx.db, teacher.ID)
-
-	// Get the person to access the account ID
-	person := teacher.Staff.Person
-	require.NotNil(t, person)
-	require.NotNil(t, person.AccountID)
+	defer testpkg.CleanupAuthFixtures(t, ctx.db, account.ID)
 
 	router := chi.NewRouter()
 	router.Get("/staff/pin", ctx.resource.GetPINStatusHandler())
 
+	// Use tenant context with account email (handler uses tenant.TenantFromCtx)
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/staff/pin", nil,
-		testutil.WithClaims(jwt.AppClaims{
-			ID:       int(*person.AccountID),
-			Username: "pintest",
-		}),
+		testutil.WithTenantContext(testutil.SupervisorTenantContext(account.Email)),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -673,12 +665,8 @@ func TestGetPINStatus_InvalidToken(t *testing.T) {
 	router := chi.NewRouter()
 	router.Get("/staff/pin", ctx.resource.GetPINStatusHandler())
 
-	// Request with invalid (zero) user ID
-	req := testutil.NewAuthenticatedRequest(t, "GET", "/staff/pin", nil,
-		testutil.WithClaims(jwt.AppClaims{
-			ID: 0,
-		}),
-	)
+	// Request without tenant context should fail
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/staff/pin", nil)
 
 	rr := testutil.ExecuteRequest(router, req)
 
@@ -694,26 +682,20 @@ func TestUpdatePIN_InvalidPINFormat(t *testing.T) {
 	defer func() { _ = ctx.db.Close() }()
 
 	// Create a staff with account
-	teacher, _ := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "UpdatePIN", "Staff")
+	teacher, account := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "UpdatePIN", "Staff")
 	defer testpkg.CleanupTeacherFixtures(t, ctx.db, teacher.ID)
-
-	person := teacher.Staff.Person
-	require.NotNil(t, person)
-	require.NotNil(t, person.AccountID)
+	defer testpkg.CleanupAuthFixtures(t, ctx.db, account.ID)
 
 	router := chi.NewRouter()
 	router.Put("/staff/pin", ctx.resource.UpdatePINHandler())
 
 	// PIN must be exactly 4 digits
-	body := map[string]interface{}{
+	body := map[string]any{
 		"new_pin": "123", // Invalid - only 3 digits
 	}
 
 	req := testutil.NewAuthenticatedRequest(t, "PUT", "/staff/pin", body,
-		testutil.WithClaims(jwt.AppClaims{
-			ID:       int(*person.AccountID),
-			Username: "updatepin",
-		}),
+		testutil.WithTenantContext(testutil.SupervisorTenantContext(account.Email)),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -726,26 +708,20 @@ func TestUpdatePIN_NonDigitPIN(t *testing.T) {
 	defer func() { _ = ctx.db.Close() }()
 
 	// Create a staff with account
-	teacher, _ := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "NonDigit", "PIN")
+	teacher, account := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "NonDigit", "PIN")
 	defer testpkg.CleanupTeacherFixtures(t, ctx.db, teacher.ID)
-
-	person := teacher.Staff.Person
-	require.NotNil(t, person)
-	require.NotNil(t, person.AccountID)
+	defer testpkg.CleanupAuthFixtures(t, ctx.db, account.ID)
 
 	router := chi.NewRouter()
 	router.Put("/staff/pin", ctx.resource.UpdatePINHandler())
 
 	// PIN must contain only digits
-	body := map[string]interface{}{
+	body := map[string]any{
 		"new_pin": "12ab", // Invalid - contains letters
 	}
 
 	req := testutil.NewAuthenticatedRequest(t, "PUT", "/staff/pin", body,
-		testutil.WithClaims(jwt.AppClaims{
-			ID:       int(*person.AccountID),
-			Username: "nondigitpin",
-		}),
+		testutil.WithTenantContext(testutil.SupervisorTenantContext(account.Email)),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -758,23 +734,17 @@ func TestUpdatePIN_MissingNewPIN(t *testing.T) {
 	defer func() { _ = ctx.db.Close() }()
 
 	// Create a staff with account
-	teacher, _ := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "MissingPIN", "Test")
+	teacher, account := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "MissingPIN", "Test")
 	defer testpkg.CleanupTeacherFixtures(t, ctx.db, teacher.ID)
-
-	person := teacher.Staff.Person
-	require.NotNil(t, person)
-	require.NotNil(t, person.AccountID)
+	defer testpkg.CleanupAuthFixtures(t, ctx.db, account.ID)
 
 	router := chi.NewRouter()
 	router.Put("/staff/pin", ctx.resource.UpdatePINHandler())
 
-	body := map[string]interface{}{}
+	body := map[string]any{}
 
 	req := testutil.NewAuthenticatedRequest(t, "PUT", "/staff/pin", body,
-		testutil.WithClaims(jwt.AppClaims{
-			ID:       int(*person.AccountID),
-			Username: "missingpin",
-		}),
+		testutil.WithTenantContext(testutil.SupervisorTenantContext(account.Email)),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -789,16 +759,12 @@ func TestUpdatePIN_InvalidToken(t *testing.T) {
 	router := chi.NewRouter()
 	router.Put("/staff/pin", ctx.resource.UpdatePINHandler())
 
-	body := map[string]interface{}{
+	body := map[string]any{
 		"new_pin": "1234",
 	}
 
-	// Request with invalid (zero) user ID
-	req := testutil.NewAuthenticatedRequest(t, "PUT", "/staff/pin", body,
-		testutil.WithClaims(jwt.AppClaims{
-			ID: 0,
-		}),
-	)
+	// Request without tenant context should fail
+	req := testutil.NewAuthenticatedRequest(t, "PUT", "/staff/pin", body)
 
 	rr := testutil.ExecuteRequest(router, req)
 
@@ -810,25 +776,19 @@ func TestUpdatePIN_Success_FirstTime(t *testing.T) {
 	defer func() { _ = ctx.db.Close() }()
 
 	// Create a staff with account (no existing PIN)
-	teacher, _ := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "FirstPIN", "Setup")
+	teacher, account := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "FirstPIN", "Setup")
 	defer testpkg.CleanupTeacherFixtures(t, ctx.db, teacher.ID)
-
-	person := teacher.Staff.Person
-	require.NotNil(t, person)
-	require.NotNil(t, person.AccountID)
+	defer testpkg.CleanupAuthFixtures(t, ctx.db, account.ID)
 
 	router := chi.NewRouter()
 	router.Put("/staff/pin", ctx.resource.UpdatePINHandler())
 
-	body := map[string]interface{}{
+	body := map[string]any{
 		"new_pin": "1234",
 	}
 
 	req := testutil.NewAuthenticatedRequest(t, "PUT", "/staff/pin", body,
-		testutil.WithClaims(jwt.AppClaims{
-			ID:       int(*person.AccountID),
-			Username: "firstpinsetup",
-		}),
+		testutil.WithTenantContext(testutil.SupervisorTenantContext(account.Email)),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)

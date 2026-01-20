@@ -17,7 +17,7 @@ import (
 
 	sseAPI "github.com/moto-nrw/project-phoenix/api/sse"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/auth/tenant"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services"
@@ -69,20 +69,19 @@ func setupTestContext(t *testing.T) *testContext {
 // AUTHENTICATION TESTS
 // =============================================================================
 
-func TestSSEEvents_NoAuth(t *testing.T) {
+func TestSSEEvents_NoTenantContext(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	// Use the full router which has JWT middleware
-	router := ctx.resource.Router()
+	router := chi.NewRouter()
+	router.Get("/events", ctx.resource.EventsHandler())
 
-	// Request without JWT token should return 401
+	// Request without tenant context should return 401
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/events", nil)
-	req.Header.Del("Authorization")
 
 	rr := testutil.ExecuteRequest(router, req)
 
-	assert.Equal(t, http.StatusUnauthorized, rr.Code, "Expected 401 for missing authentication")
+	assert.Equal(t, http.StatusUnauthorized, rr.Code, "Expected 401 for missing tenant context")
 }
 
 // =============================================================================
@@ -91,20 +90,32 @@ func TestSSEEvents_NoAuth(t *testing.T) {
 // We test staff resolution failure which returns before streaming.
 // =============================================================================
 
-func TestSSEEvents_InvalidStaffClaims(t *testing.T) {
+func TestSSEEvents_InvalidStaffEmail(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
 	// Create a person without staff record (just a basic account)
 	_, account := testpkg.CreateTestPersonWithAccount(t, ctx.db, "NonStaff", "User")
 
-	// Mount handler directly to bypass JWT middleware
 	router := chi.NewRouter()
 	router.Get("/events", ctx.resource.EventsHandler())
 
-	// Use teacher claims but with an account ID that doesn't have a staff record
+	// Use tenant context with the account's email - but this person has no staff record
+	tc := &tenant.TenantContext{
+		UserID:      "test-user",
+		UserEmail:   account.Email, // Matches account but person has no staff record
+		UserName:    "Non Staff User",
+		OrgID:       "test-org",
+		OrgName:     "Test Org",
+		OrgSlug:     "test-org",
+		Role:        "supervisor",
+		Permissions: []string{"student:read", "location:read"},
+		TraegerID:   "test-traeger",
+		TraegerName: "Test Träger",
+	}
+
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/events", nil,
-		testutil.WithClaims(testutil.TeacherTestClaims(int(account.ID))),
+		testutil.WithTenantContext(tc),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -113,6 +124,38 @@ func TestSSEEvents_InvalidStaffClaims(t *testing.T) {
 	// Handler returns 403 Forbidden when user is not a staff member
 	assert.Equal(t, http.StatusForbidden, rr.Code,
 		"Expected 403 for non-staff user")
+}
+
+func TestSSEEvents_UnknownEmail(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	router := chi.NewRouter()
+	router.Get("/events", ctx.resource.EventsHandler())
+
+	// Use tenant context with unknown email
+	tc := &tenant.TenantContext{
+		UserID:      "unknown-user",
+		UserEmail:   "unknown@example.com", // No matching account in DB
+		UserName:    "Unknown User",
+		OrgID:       "test-org",
+		OrgName:     "Test Org",
+		OrgSlug:     "test-org",
+		Role:        "supervisor",
+		Permissions: []string{"student:read"},
+		TraegerID:   "test-traeger",
+		TraegerName: "Test Träger",
+	}
+
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/events", nil,
+		testutil.WithTenantContext(tc),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	// Account lookup should fail
+	assert.Equal(t, http.StatusUnauthorized, rr.Code,
+		"Expected 401 for unknown email")
 }
 
 // =============================================================================
@@ -126,9 +169,8 @@ func TestSSERouter_EndpointExists(t *testing.T) {
 	router := ctx.resource.Router()
 
 	// Verify the /events endpoint is registered
-	// Without auth, should get 401 (endpoint exists but requires auth)
+	// Without tenant context, should get 401
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/events", nil)
-	req.Header.Del("Authorization")
 
 	rr := testutil.ExecuteRequest(router, req)
 
@@ -146,7 +188,6 @@ func TestSSERouter_WrongMethod(t *testing.T) {
 
 	// POST to /events should return 405 Method Not Allowed
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/events", nil)
-	req.Header.Del("Authorization")
 
 	rr := testutil.ExecuteRequest(router, req)
 
@@ -186,66 +227,31 @@ func TestSSEEvents_StaffWithAccount(t *testing.T) {
 	defer func() { _ = ctx.db.Close() }()
 
 	// Create a teacher with account (has staff record)
-	teacher, account := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "SSE", "Teacher")
-	_ = teacher // Avoid unused variable
+	_, account := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "SSE", "Teacher")
 
-	// Mount handler directly to bypass JWT middleware
 	router := chi.NewRouter()
 	router.Get("/events", ctx.resource.EventsHandler())
 
-	// Use teacher claims with a valid account ID that HAS a staff record
-	// Note: This test will actually enter the SSE streaming loop
-	// We use a context with a timeout to prevent hanging
-	req := testutil.NewAuthenticatedRequest(t, "GET", "/events", nil,
-		testutil.WithClaims(testutil.TeacherTestClaims(int(account.ID))),
-	)
+	// Use tenant context with the staff member's email
+	tc := &tenant.TenantContext{
+		UserID:      "staff-user",
+		UserEmail:   account.Email, // Matches a real account with staff record
+		UserName:    "SSE Teacher",
+		OrgID:       "test-org",
+		OrgName:     "Test Org",
+		OrgSlug:     "test-org",
+		Role:        "supervisor",
+		Permissions: []string{"student:read", "location:read"},
+		TraegerID:   "test-traeger",
+		TraegerName: "Test Träger",
+	}
 
-	// Note: This request will hang because SSE enters streaming loop
-	// We can't easily test the full streaming path without goroutines/timeouts
+	// Note: This request will enter the streaming loop
 	// Just verify the request is well-formed
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/events", nil,
+		testutil.WithTenantContext(tc),
+	)
 	assert.NotNil(t, req, "Request should be created")
-}
-
-func TestSSEEvents_AdminClaims(t *testing.T) {
-	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
-
-	// Create admin - admins may or may not be staff
-	_, account := testpkg.CreateTestPersonWithAccount(t, ctx.db, "Admin", "NoStaff")
-
-	router := chi.NewRouter()
-	router.Get("/events", ctx.resource.EventsHandler())
-
-	// Admin without staff record should fail
-	req := testutil.NewAuthenticatedRequest(t, "GET", "/events", nil,
-		testutil.WithClaims(testutil.AdminTestClaims(int(account.ID))),
-	)
-
-	rr := testutil.ExecuteRequest(router, req)
-
-	// Admin without staff record gets 403
-	assert.Equal(t, http.StatusForbidden, rr.Code,
-		"Expected 403 for admin without staff record")
-}
-
-func TestSSEEvents_EmptyAuthClaims(t *testing.T) {
-	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
-
-	router := chi.NewRouter()
-	router.Get("/events", ctx.resource.EventsHandler())
-
-	// Request with default claims
-	req := testutil.NewAuthenticatedRequest(t, "GET", "/events", nil,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
-	)
-
-	rr := testutil.ExecuteRequest(router, req)
-
-	// Default test claims (ID=1) likely doesn't have a staff record
-	// Could return 401 (auth issue), 403 (not staff), or 500 (lookup error)
-	assert.Contains(t, []int{http.StatusUnauthorized, http.StatusForbidden, http.StatusInternalServerError}, rr.Code,
-		"Expected auth or staff error, got %d", rr.Code)
 }
 
 // =============================================================================
@@ -257,29 +263,37 @@ func TestSSEEvents_StaffReachesStreamingPath(t *testing.T) {
 	defer func() { _ = tctx.db.Close() }()
 
 	// Create a teacher with account (has staff record)
-	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tctx.db, "Stream", "Test")
-	_ = teacher
+	_, account := testpkg.CreateTestTeacherWithAccount(t, tctx.db, "Stream", "Test")
 
-	// Mount handler directly
 	router := chi.NewRouter()
 	router.Get("/events", tctx.resource.EventsHandler())
 
-	// Create request with timeout context FIRST, then add claims on top
-	// This ensures the claims are in the context that will timeout
+	// Create request with timeout context FIRST, then add tenant context on top
 	baseCtx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
 
-	// Add claims to the timeout context
-	claims := testutil.TeacherTestClaims(int(account.ID))
-	claimsCtx := context.WithValue(baseCtx, jwt.CtxClaims, claims)
+	// Add tenant context to the timeout context
+	tc := &tenant.TenantContext{
+		UserID:      "stream-user",
+		UserEmail:   account.Email,
+		UserName:    "Stream Test",
+		OrgID:       "test-org",
+		OrgName:     "Test Org",
+		OrgSlug:     "test-org",
+		Role:        "supervisor",
+		Permissions: []string{"student:read", "location:read"},
+		TraegerID:   "test-traeger",
+		TraegerName: "Test Träger",
+	}
+	tenantCtx := tenant.SetTenantContext(baseCtx, tc)
 
 	req := testutil.NewRequest("GET", "/events", nil)
-	req = req.WithContext(claimsCtx)
+	req = req.WithContext(tenantCtx)
 
 	rr := testutil.ExecuteRequest(router, req)
 
 	// Valid staff member should reach the streaming path
-	// The response might be partial due to context cancellation, but shouldn't be an error
+	// The response might be partial due to context cancellation, but shouldn't be an auth error
 	// Status 200 means we started streaming, or the context was cancelled during streaming
 	assert.Contains(t, []int{http.StatusOK, http.StatusInternalServerError}, rr.Code,
 		"Expected streaming to start (200) or context timeout (500), got %d", rr.Code)
@@ -290,21 +304,31 @@ func TestSSEEvents_ResponseHeaders(t *testing.T) {
 	defer func() { _ = tctx.db.Close() }()
 
 	// Create a teacher with account
-	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tctx.db, "Header", "Test")
-	_ = teacher
+	_, account := testpkg.CreateTestTeacherWithAccount(t, tctx.db, "Header", "Test")
 
 	router := chi.NewRouter()
 	router.Get("/events", tctx.resource.EventsHandler())
 
-	// Use context with timeout, then add claims
+	// Use context with timeout, then add tenant context
 	baseCtx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 	defer cancel()
 
-	claims := testutil.TeacherTestClaims(int(account.ID))
-	claimsCtx := context.WithValue(baseCtx, jwt.CtxClaims, claims)
+	tc := &tenant.TenantContext{
+		UserID:      "header-user",
+		UserEmail:   account.Email,
+		UserName:    "Header Test",
+		OrgID:       "test-org",
+		OrgName:     "Test Org",
+		OrgSlug:     "test-org",
+		Role:        "supervisor",
+		Permissions: []string{"student:read", "location:read"},
+		TraegerID:   "test-traeger",
+		TraegerName: "Test Träger",
+	}
+	tenantCtx := tenant.SetTenantContext(baseCtx, tc)
 
 	req := testutil.NewRequest("GET", "/events", nil)
-	req = req.WithContext(claimsCtx)
+	req = req.WithContext(tenantCtx)
 
 	rr := testutil.ExecuteRequest(router, req)
 

@@ -58,29 +58,26 @@ func TestDownloadTemplate_NoAuth(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	// Use the full router which has JWT middleware
+	// Use the full router which has permission middleware
 	router := ctx.resource.Router()
 
-	// Request without JWT token should return 401
+	// Request without tenant context should return 403 (no permission)
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/students/template", nil)
-	req.Header.Del("Authorization")
 
 	rr := testutil.ExecuteRequest(router, req)
 
-	assert.Equal(t, http.StatusUnauthorized, rr.Code, "Expected 401 for missing authentication")
+	assert.Equal(t, http.StatusForbidden, rr.Code, "Expected 403 for missing tenant context")
 }
 
 func TestDownloadTemplate_CSV(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	admin, _ := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Import", "Admin")
-
 	router := chi.NewRouter()
 	router.Get("/template", ctx.resource.DownloadTemplateHandler())
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/template?format=csv", nil,
-		testutil.WithClaims(testutil.AdminTestClaims(int(admin.ID))),
+		testutil.WithTenantContext(testutil.OGSAdminTenantContext("admin@example.com")),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -95,13 +92,11 @@ func TestDownloadTemplate_XLSX(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	admin, _ := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Import", "Admin2")
-
 	router := chi.NewRouter()
 	router.Get("/template", ctx.resource.DownloadTemplateHandler())
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/template?format=xlsx", nil,
-		testutil.WithClaims(testutil.AdminTestClaims(int(admin.ID))),
+		testutil.WithTenantContext(testutil.OGSAdminTenantContext("admin@example.com")),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -116,14 +111,12 @@ func TestDownloadTemplate_DefaultFormat(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	admin, _ := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Import", "Admin3")
-
 	router := chi.NewRouter()
 	router.Get("/template", ctx.resource.DownloadTemplateHandler())
 
 	// No format parameter - should default to CSV
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/template", nil,
-		testutil.WithClaims(testutil.AdminTestClaims(int(admin.ID))),
+		testutil.WithTenantContext(testutil.OGSAdminTenantContext("admin@example.com")),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -142,27 +135,24 @@ func TestPreviewImport_NoAuth(t *testing.T) {
 
 	router := ctx.resource.Router()
 
-	// Request without JWT token should return 401
+	// Request without tenant context should return 403 (no permission)
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/students/preview", nil)
-	req.Header.Del("Authorization")
 
 	rr := testutil.ExecuteRequest(router, req)
 
-	assert.Equal(t, http.StatusUnauthorized, rr.Code, "Expected 401 for missing authentication")
+	assert.Equal(t, http.StatusForbidden, rr.Code, "Expected 403 for missing tenant context")
 }
 
 func TestPreviewImport_NoFile(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	admin, _ := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Import", "Admin4")
-
 	router := chi.NewRouter()
 	router.Post("/preview", ctx.resource.PreviewImportHandler())
 
 	// Request without file upload
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/preview", nil,
-		testutil.WithClaims(testutil.AdminTestClaims(int(admin.ID))),
+		testutil.WithTenantContext(testutil.OGSAdminTenantContext("admin@example.com")),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -181,27 +171,24 @@ func TestImportStudents_NoAuth(t *testing.T) {
 
 	router := ctx.resource.Router()
 
-	// Request without JWT token should return 401
+	// Request without tenant context should return 403 (no permission)
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/students/import", nil)
-	req.Header.Del("Authorization")
 
 	rr := testutil.ExecuteRequest(router, req)
 
-	assert.Equal(t, http.StatusUnauthorized, rr.Code, "Expected 401 for missing authentication")
+	assert.Equal(t, http.StatusForbidden, rr.Code, "Expected 403 for missing tenant context")
 }
 
 func TestImportStudents_NoFile(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	admin, _ := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Import", "Admin5")
-
 	router := chi.NewRouter()
 	router.Post("/import", ctx.resource.ImportStudentsHandler())
 
 	// Request without file upload
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/import", nil,
-		testutil.WithClaims(testutil.AdminTestClaims(int(admin.ID))),
+		testutil.WithTenantContext(testutil.OGSAdminTenantContext("admin@example.com")),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -218,13 +205,11 @@ func TestDownloadTemplate_HasRequiredHeaders(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	admin, _ := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Import", "Admin6")
-
 	router := chi.NewRouter()
 	router.Get("/template", ctx.resource.DownloadTemplateHandler())
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/template?format=csv", nil,
-		testutil.WithClaims(testutil.AdminTestClaims(int(admin.ID))),
+		testutil.WithTenantContext(testutil.OGSAdminTenantContext("admin@example.com")),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -246,7 +231,8 @@ func TestPreviewImport_WithValidCSV(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	admin, _ := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Preview", "CSVTest")
+	// Create a teacher with account for the import user lookup
+	_, account := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Preview", "CSVTest")
 
 	router := chi.NewRouter()
 	router.Post("/preview", ctx.resource.PreviewImportHandler())
@@ -254,9 +240,12 @@ func TestPreviewImport_WithValidCSV(t *testing.T) {
 	// Create CSV content with required headers
 	csvContent := "Vorname,Nachname,Klasse\nMax,Mustermann,1a\nErika,Musterfrau,2b"
 
+	// Use tenant context with the account's email so getUserIDFromContext works
+	tc := testutil.OGSAdminTenantContext(account.Email)
+
 	// Create multipart form with file
 	req := testutil.NewMultipartRequest(t, "POST", "/preview", "file", "students.csv", csvContent,
-		testutil.WithClaims(testutil.AdminTestClaims(int(admin.ID))),
+		testutil.WithTenantContext(tc),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -270,8 +259,6 @@ func TestPreviewImport_WithEmptyCSV(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	admin, _ := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Preview", "EmptyCSV")
-
 	router := chi.NewRouter()
 	router.Post("/preview", ctx.resource.PreviewImportHandler())
 
@@ -279,7 +266,7 @@ func TestPreviewImport_WithEmptyCSV(t *testing.T) {
 	csvContent := "Vorname,Nachname,Klasse"
 
 	req := testutil.NewMultipartRequest(t, "POST", "/preview", "file", "empty.csv", csvContent,
-		testutil.WithClaims(testutil.AdminTestClaims(int(admin.ID))),
+		testutil.WithTenantContext(testutil.OGSAdminTenantContext("admin@example.com")),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -293,8 +280,6 @@ func TestPreviewImport_WithMissingHeaders(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	admin, _ := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Preview", "MissingHeaders")
-
 	router := chi.NewRouter()
 	router.Post("/preview", ctx.resource.PreviewImportHandler())
 
@@ -302,7 +287,7 @@ func TestPreviewImport_WithMissingHeaders(t *testing.T) {
 	csvContent := "Name,Class\nMax,1a"
 
 	req := testutil.NewMultipartRequest(t, "POST", "/preview", "file", "invalid.csv", csvContent,
-		testutil.WithClaims(testutil.AdminTestClaims(int(admin.ID))),
+		testutil.WithTenantContext(testutil.OGSAdminTenantContext("admin@example.com")),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -320,7 +305,8 @@ func TestImportStudents_WithValidCSV(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	admin, _ := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Import", "CSVTest")
+	// Create a teacher with account for the import user lookup
+	_, account := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Import", "CSVTest")
 
 	router := chi.NewRouter()
 	router.Post("/import", ctx.resource.ImportStudentsHandler())
@@ -328,8 +314,11 @@ func TestImportStudents_WithValidCSV(t *testing.T) {
 	// Create CSV content with required headers
 	csvContent := "Vorname,Nachname,Klasse\nImport,Student1,1a"
 
+	// Use tenant context with the account's email so getUserIDFromContext works
+	tc := testutil.OGSAdminTenantContext(account.Email)
+
 	req := testutil.NewMultipartRequest(t, "POST", "/import", "file", "students.csv", csvContent,
-		testutil.WithClaims(testutil.AdminTestClaims(int(admin.ID))),
+		testutil.WithTenantContext(tc),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -342,7 +331,8 @@ func TestImportStudents_WithDuplicateData(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	admin, _ := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Import", "DupeTest")
+	// Create a teacher with account for the import user lookup
+	_, account := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Import", "DupeTest")
 
 	router := chi.NewRouter()
 	router.Post("/import", ctx.resource.ImportStudentsHandler())
@@ -350,8 +340,11 @@ func TestImportStudents_WithDuplicateData(t *testing.T) {
 	// CSV with duplicate entries
 	csvContent := "Vorname,Nachname,Klasse\nDupe,Student,1a\nDupe,Student,1a"
 
+	// Use tenant context with the account's email so getUserIDFromContext works
+	tc := testutil.OGSAdminTenantContext(account.Email)
+
 	req := testutil.NewMultipartRequest(t, "POST", "/import", "file", "dupes.csv", csvContent,
-		testutil.WithClaims(testutil.AdminTestClaims(int(admin.ID))),
+		testutil.WithTenantContext(tc),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)

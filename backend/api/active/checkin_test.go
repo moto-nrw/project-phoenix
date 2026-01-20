@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/active"
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
+	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
@@ -23,9 +23,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
-
-// Test JWT secret - must match the secret used in test fixtures
-const testJWTSecret = "test-jwt-secret-32-chars-minimum"
 
 // =============================================================================
 // Active Group Model Tests
@@ -271,7 +268,7 @@ func TestCombinedGroup_IsActive(t *testing.T) {
 
 // setupViperForTest configures viper with the test JWT secret
 func setupViperForTest() {
-	viper.Set("auth_jwt_secret", testJWTSecret)
+	viper.Set("auth_jwt_secret", "test-jwt-secret-32-chars-minimum")
 	viper.Set("auth_jwt_expiry", 15*time.Minute)
 	viper.Set("auth_jwt_refresh_expiry", 24*time.Hour)
 }
@@ -287,23 +284,6 @@ func setupCheckinTestHandler(t *testing.T, db *bun.DB) *active.Resource {
 	return active.NewResource(serviceFactory.Active, serviceFactory.Users, serviceFactory.Auth, db)
 }
 
-// makeCheckinRequest creates an HTTP request with JWT auth for the checkin endpoint
-func makeCheckinRequest(t *testing.T, studentID int64, body interface{}, token string) *http.Request {
-	t.Helper()
-
-	bodyBytes, err := json.Marshal(body)
-	require.NoError(t, err)
-
-	path := "/visits/student/" + strconv.FormatInt(studentID, 10) + "/checkin"
-	req := httptest.NewRequest(http.MethodPost, path, bytes.NewReader(bodyBytes))
-	req.Header.Set("Content-Type", "application/json")
-	if token != "" {
-		req.Header.Set("Authorization", "Bearer "+token)
-	}
-
-	return req
-}
-
 func TestCheckinStudent_Integration(t *testing.T) {
 	// Configure viper with test JWT secret before any router is created
 	setupViperForTest()
@@ -311,10 +291,7 @@ func TestCheckinStudent_Integration(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	// Permissions needed for checkin endpoint
-	checkinPermissions := []string{permissions.VisitsUpdate}
-
-	t.Run("returns 401 when no JWT token", func(t *testing.T) {
+	t.Run("returns 403 when no tenant context", func(t *testing.T) {
 		handler := setupCheckinTestHandler(t, db)
 
 		// Create minimal fixtures
@@ -325,32 +302,19 @@ func TestCheckinStudent_Integration(t *testing.T) {
 
 		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, student.ID)
 
-		// Make request without JWT token
+		// Make request without tenant context
 		body := active.CheckinRequest{ActiveGroupID: activeGroup.ID}
-		req := makeCheckinRequest(t, student.ID, body, "")
+		bodyBytes, _ := json.Marshal(body)
+		path := "/visits/student/" + strconv.FormatInt(student.ID, 10) + "/checkin"
+		req := httptest.NewRequest(http.MethodPost, path, bytes.NewReader(bodyBytes))
+		req.Header.Set("Content-Type", "application/json")
 
 		router := handler.Router()
 		rr := httptest.NewRecorder()
 		router.ServeHTTP(rr, req)
 
-		// Should return 401 because no JWT token
-		assert.Equal(t, http.StatusUnauthorized, rr.Code)
-	})
-
-	t.Run("returns 401 for invalid JWT token", func(t *testing.T) {
-		handler := setupCheckinTestHandler(t, db)
-
-		student := testpkg.CreateTestStudent(t, db, "InvalidToken", "Student", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
-
-		body := active.CheckinRequest{ActiveGroupID: 1}
-		req := makeCheckinRequest(t, student.ID, body, "invalid-token")
-
-		router := handler.Router()
-		rr := httptest.NewRecorder()
-		router.ServeHTTP(rr, req)
-
-		assert.Equal(t, http.StatusUnauthorized, rr.Code)
+		// Should return 403 because no tenant context
+		assert.Equal(t, http.StatusForbidden, rr.Code)
 	})
 
 	t.Run("returns 400 for invalid student ID in URL", func(t *testing.T) {
@@ -361,15 +325,11 @@ func TestCheckinStudent_Integration(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, db, staff.ID, staff.PersonID)
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
-		// Create JWT token
-		token := testpkg.CreateTestJWT(t, account.ID, checkinPermissions)
-
 		body := active.CheckinRequest{ActiveGroupID: 1}
-		bodyBytes, _ := json.Marshal(body)
-
-		req := httptest.NewRequest(http.MethodPost, "/visits/student/invalid/checkin", bytes.NewReader(bodyBytes))
-		req.Header.Set("Content-Type", "application/json")
-		req.Header.Set("Authorization", "Bearer "+token)
+		req := testutil.NewAuthenticatedRequest(t, http.MethodPost, "/visits/student/invalid/checkin", body,
+			testutil.WithTenantContext(testutil.SupervisorTenantContext(account.Email)),
+			testutil.WithClaims(testutil.TeacherTestClaims(int(account.ID))),
+		)
 
 		router := handler.Router()
 		rr := httptest.NewRecorder()
@@ -388,12 +348,13 @@ func TestCheckinStudent_Integration(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, db, staff.ID, staff.PersonID, student.ID)
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
-		// Create JWT token
-		token := testpkg.CreateTestJWT(t, account.ID, checkinPermissions)
-
 		// Request body missing active_group_id
 		body := map[string]interface{}{}
-		req := makeCheckinRequest(t, student.ID, body, token)
+		path := "/visits/student/" + strconv.FormatInt(student.ID, 10) + "/checkin"
+		req := testutil.NewAuthenticatedRequest(t, http.MethodPost, path, body,
+			testutil.WithTenantContext(testutil.SupervisorTenantContext(account.Email)),
+			testutil.WithClaims(testutil.TeacherTestClaims(int(account.ID))),
+		)
 
 		router := handler.Router()
 		rr := httptest.NewRecorder()
@@ -412,12 +373,13 @@ func TestCheckinStudent_Integration(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, db, staff.ID, staff.PersonID, student.ID)
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
-		// Create JWT token
-		token := testpkg.CreateTestJWT(t, account.ID, checkinPermissions)
-
 		// Use non-existent active group ID
 		body := active.CheckinRequest{ActiveGroupID: 999999}
-		req := makeCheckinRequest(t, student.ID, body, token)
+		path := "/visits/student/" + strconv.FormatInt(student.ID, 10) + "/checkin"
+		req := testutil.NewAuthenticatedRequest(t, http.MethodPost, path, body,
+			testutil.WithTenantContext(testutil.SupervisorTenantContext(account.Email)),
+			testutil.WithClaims(testutil.TeacherTestClaims(int(account.ID))),
+		)
 
 		router := handler.Router()
 		rr := httptest.NewRecorder()
@@ -439,11 +401,12 @@ func TestCheckinStudent_Integration(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, db, person.ID, student.ID, activity.ID, room.ID, activeGroup.ID)
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
-		// Create JWT token
-		token := testpkg.CreateTestJWT(t, account.ID, checkinPermissions)
-
 		body := active.CheckinRequest{ActiveGroupID: activeGroup.ID}
-		req := makeCheckinRequest(t, student.ID, body, token)
+		path := "/visits/student/" + strconv.FormatInt(student.ID, 10) + "/checkin"
+		req := testutil.NewAuthenticatedRequest(t, http.MethodPost, path, body,
+			testutil.WithTenantContext(testutil.SupervisorTenantContext(account.Email)),
+			testutil.WithClaims(testutil.TeacherTestClaims(int(account.ID))),
+		)
 
 		router := handler.Router()
 		rr := httptest.NewRecorder()
@@ -467,11 +430,12 @@ func TestCheckinStudent_Integration(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, db, staff.ID, staff.PersonID, student.ID, activity.ID, room.ID, activeGroup.ID)
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
-		// Create JWT token
-		token := testpkg.CreateTestJWT(t, account.ID, checkinPermissions)
-
 		body := active.CheckinRequest{ActiveGroupID: activeGroup.ID}
-		req := makeCheckinRequest(t, student.ID, body, token)
+		path := "/visits/student/" + strconv.FormatInt(student.ID, 10) + "/checkin"
+		req := testutil.NewAuthenticatedRequest(t, http.MethodPost, path, body,
+			testutil.WithTenantContext(testutil.SupervisorTenantContext(account.Email)),
+			testutil.WithClaims(testutil.TeacherTestClaims(int(account.ID))),
+		)
 
 		router := handler.Router()
 		rr := httptest.NewRecorder()
@@ -509,11 +473,12 @@ func TestCheckinStudent_Integration(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, db, teacher.Staff.ID, teacher.Staff.PersonID, educationGroup.ID, student.ID, activity.ID, room.ID, activeGroup.ID)
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
-		// Create JWT token
-		token := testpkg.CreateTestJWT(t, account.ID, checkinPermissions)
-
 		body := active.CheckinRequest{ActiveGroupID: activeGroup.ID}
-		req := makeCheckinRequest(t, student.ID, body, token)
+		path := "/visits/student/" + strconv.FormatInt(student.ID, 10) + "/checkin"
+		req := testutil.NewAuthenticatedRequest(t, http.MethodPost, path, body,
+			testutil.WithTenantContext(testutil.SupervisorTenantContext(account.Email)),
+			testutil.WithClaims(testutil.TeacherTestClaims(int(account.ID))),
+		)
 
 		router := handler.Router()
 		rr := httptest.NewRecorder()
@@ -541,11 +506,12 @@ func TestCheckinStudent_Integration(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, db, teacher.Staff.ID, teacher.Staff.PersonID, educationGroup.ID, student.ID, activity.ID, room.ID, activeGroup.ID)
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
-		// Create JWT token
-		token := testpkg.CreateTestJWT(t, account.ID, checkinPermissions)
-
 		body := active.CheckinRequest{ActiveGroupID: activeGroup.ID}
-		req := makeCheckinRequest(t, student.ID, body, token)
+		path := "/visits/student/" + strconv.FormatInt(student.ID, 10) + "/checkin"
+		req := testutil.NewAuthenticatedRequest(t, http.MethodPost, path, body,
+			testutil.WithTenantContext(testutil.SupervisorTenantContext(account.Email)),
+			testutil.WithClaims(testutil.TeacherTestClaims(int(account.ID))),
+		)
 
 		router := handler.Router()
 		rr := httptest.NewRecorder()

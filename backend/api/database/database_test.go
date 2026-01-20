@@ -15,7 +15,6 @@ import (
 	databaseAPI "github.com/moto-nrw/project-phoenix/api/database"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/services"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 // testContext holds shared test dependencies.
@@ -43,7 +42,7 @@ func setupTestContext(t *testing.T) *testContext {
 
 // =============================================================================
 // GET STATS TESTS
-// Note: In production, this endpoint requires JWT auth + system:manage permission.
+// Note: In production, this endpoint requires tenant auth + admin role.
 // These tests mount the handler directly to test basic functionality.
 // =============================================================================
 
@@ -51,36 +50,48 @@ func TestGetStats_NoAuth(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	// Use the full router which has JWT middleware
-	router := ctx.resource.Router()
+	router := chi.NewRouter()
+	router.Get("/stats", ctx.resource.GetStatsHandler())
 
-	// Request without JWT token should return 401
+	// Request without tenant context should return 403 (not admin)
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/stats", nil)
-	// Remove the default admin token to test unauthenticated access
-	req.Header.Del("Authorization")
 
 	rr := testutil.ExecuteRequest(router, req)
 
-	assert.Equal(t, http.StatusUnauthorized, rr.Code, "Expected 401 for missing authentication")
+	assert.Equal(t, http.StatusForbidden, rr.Code, "Expected 403 for missing tenant context (not admin)")
+}
+
+func TestGetStats_NonAdmin(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	router := chi.NewRouter()
+	router.Get("/stats", ctx.resource.GetStatsHandler())
+
+	// Supervisor (non-admin) should get 403
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/stats", nil,
+		testutil.WithTenantContext(testutil.SupervisorTenantContext("supervisor@example.com")),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	assert.Equal(t, http.StatusForbidden, rr.Code, "Expected 403 for non-admin user")
 }
 
 func TestGetStats_Success(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	// Create admin with system:manage permission
-	admin, _ := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Admin", "Stats")
-
 	router := chi.NewRouter()
-	// Mount handler directly to bypass JWT middleware (we're using test claims)
 	router.Get("/stats", ctx.resource.GetStatsHandler())
 
+	// OGS Admin should get 200
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/stats", nil,
-		testutil.WithClaims(testutil.AdminTestClaims(int(admin.ID))),
+		testutil.WithTenantContext(testutil.OGSAdminTenantContext("admin@example.com")),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
 
 	// Handler should return stats (status 200)
-	assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 for successful stats retrieval")
+	assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 for admin user. Body: %s", rr.Body.String())
 }
