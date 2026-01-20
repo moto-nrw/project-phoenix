@@ -5,12 +5,9 @@
 package admin_test
 
 import (
-	"context"
 	"fmt"
 	"net/http"
-	"net/http/httptest"
 	"testing"
-	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
@@ -21,7 +18,6 @@ import (
 
 	adminAPI "github.com/moto-nrw/project-phoenix/api/admin"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/models/education"
@@ -54,75 +50,6 @@ func setupTestContext(t *testing.T) *testContext {
 		services: svc,
 		resource: resource,
 	}
-}
-
-// setupProtectedRouter creates a router for testing protected endpoints
-func setupProtectedRouter(t *testing.T) (*testContext, chi.Router) {
-	t.Helper()
-
-	tc := setupTestContext(t)
-
-	router := chi.NewRouter()
-	router.Use(render.SetContentType(render.ContentTypeJSON))
-
-	// Mount routes without JWT middleware for testing
-	router.Route("/admin/grade-transitions", func(r chi.Router) {
-		r.With(authorize.RequiresPermission(permissions.GradeTransitionsRead)).
-			Get("/", handlerWrapper(tc.resource, "list"))
-		r.With(authorize.RequiresPermission(permissions.GradeTransitionsRead)).
-			Get("/classes", handlerWrapper(tc.resource, "getDistinctClasses"))
-		r.With(authorize.RequiresPermission(permissions.GradeTransitionsRead)).
-			Get("/suggest", handlerWrapper(tc.resource, "suggestMappings"))
-
-		r.With(authorize.RequiresPermission(permissions.GradeTransitionsCreate)).
-			Post("/", handlerWrapper(tc.resource, "create"))
-
-		r.Route("/{id}", func(r chi.Router) {
-			r.With(authorize.RequiresPermission(permissions.GradeTransitionsRead)).
-				Get("/", handlerWrapper(tc.resource, "getByID"))
-			r.With(authorize.RequiresPermission(permissions.GradeTransitionsRead)).
-				Get("/preview", handlerWrapper(tc.resource, "preview"))
-			r.With(authorize.RequiresPermission(permissions.GradeTransitionsRead)).
-				Get("/history", handlerWrapper(tc.resource, "getHistory"))
-
-			r.With(authorize.RequiresPermission(permissions.GradeTransitionsUpdate)).
-				Put("/", handlerWrapper(tc.resource, "update"))
-
-			r.With(authorize.RequiresPermission(permissions.GradeTransitionsDelete)).
-				Delete("/", handlerWrapper(tc.resource, "delete"))
-
-			r.With(authorize.RequiresPermission(permissions.GradeTransitionsApply)).
-				Post("/apply", handlerWrapper(tc.resource, "apply"))
-
-			r.With(authorize.RequiresPermission(permissions.GradeTransitionsApply)).
-				Post("/revert", handlerWrapper(tc.resource, "revert"))
-		})
-	})
-
-	return tc, router
-}
-
-// handlerWrapper returns the appropriate handler function based on method name
-// This is a workaround since the resource methods are not exported
-func handlerWrapper(resource *adminAPI.GradeTransitionResource, method string) http.HandlerFunc {
-	// The Router() method already sets up the routes, so we'll use the router directly
-	// For test purposes, we create a simple router that delegates to the resource router
-	resourceRouter := resource.Router()
-
-	return func(w http.ResponseWriter, r *http.Request) {
-		resourceRouter.ServeHTTP(w, r)
-	}
-}
-
-// executeWithAuth executes a request with JWT context values set
-func executeWithAuth(router chi.Router, req *http.Request, claims jwt.AppClaims, perms []string) *httptest.ResponseRecorder {
-	ctx := context.WithValue(req.Context(), jwt.CtxClaims, claims)
-	ctx = context.WithValue(ctx, jwt.CtxPermissions, perms)
-	req = req.WithContext(ctx)
-
-	rr := httptest.NewRecorder()
-	router.ServeHTTP(rr, req)
-	return rr
 }
 
 // createAdminClaims creates admin JWT claims for testing
@@ -1022,6 +949,3 @@ func TestToTransitionResponse(t *testing.T) {
 func strPtr(s string) *string {
 	return &s
 }
-
-// Unused imports prevention
-var _ = time.Now
