@@ -1,6 +1,13 @@
 import { betterAuth } from "better-auth";
 import { organization } from "better-auth/plugins/organization";
 import { Pool } from "pg";
+import {
+  ac,
+  supervisor,
+  ogsAdmin,
+  bueroAdmin,
+  traegerAdmin,
+} from "./permissions.js";
 
 /**
  * BetterAuth configuration for Project Phoenix multi-tenancy.
@@ -51,9 +58,15 @@ export const auth = betterAuth({
       // Allow users to create organizations (OGS registration)
       allowUserToCreateOrganization: true,
 
-      // Define roles within organizations
-      // Default roles: owner, admin, member
-      // We'll customize these in a later work package
+      // Access control configuration for role-based permissions
+      // See permissions.ts for role definitions and GDPR compliance notes
+      ac,
+      roles: {
+        supervisor,
+        ogsAdmin,
+        bueroAdmin,
+        traegerAdmin,
+      },
 
       // Custom schema configuration
       schema: {
