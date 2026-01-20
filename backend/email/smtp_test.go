@@ -245,8 +245,8 @@ func TestParseTemplates_MultipleTemplates(t *testing.T) {
 
 	// Create multiple template files
 	templateFiles := map[string]string{
-		"email1.html": `<html><body>Email 1</body></html>`,
-		"email2.html": `<html><body>Email 2</body></html>`,
+		"email1.html":        `<html><body>Email 1</body></html>`,
+		"email2.html":        `<html><body>Email 2</body></html>`,
 		"nested/email3.html": `<html><body>Email 3</body></html>`,
 	}
 

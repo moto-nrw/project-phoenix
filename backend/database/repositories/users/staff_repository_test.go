@@ -16,7 +16,6 @@ import (
 // Setup Helpers
 // ============================================================================
 
-
 // cleanupStaffRecords removes staff members and their persons in proper FK order
 func cleanupStaffRecords(t *testing.T, db *bun.DB, staffIDs ...int64) {
 	t.Helper()

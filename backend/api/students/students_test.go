@@ -848,12 +848,12 @@ func TestUpdateStudent_AllPersonFields(t *testing.T) {
 
 		router := setupRouter(tc.resource.UpdateStudentHandler(), "id")
 		body := map[string]interface{}{
-			"school_class":         "2b",
-			"bus":                  true,
-			"extra_info":           "Some extra info",
-			"data_retention_days":  15,
-			"responsible_person":   "Ms. Smith",
-			"responsible_phone":    "+49987654321",
+			"school_class":        "2b",
+			"bus":                 true,
+			"extra_info":          "Some extra info",
+			"data_retention_days": 15,
+			"responsible_person":  "Ms. Smith",
+			"responsible_phone":   "+49987654321",
 		}
 		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), body)
 
@@ -910,23 +910,23 @@ func TestCreateStudent_ExtendedValidation(t *testing.T) {
 	t.Run("create_with_all_optional_fields", func(t *testing.T) {
 		router := setupRouter(tc.resource.CreateStudentHandler(), "")
 		body := map[string]interface{}{
-			"first_name":           "Complete",
-			"last_name":            "Student",
-			"school_class":         "3a",
-			"birthday":             "2015-03-20",
-			"gender":               "f",
-			"street":               "Main Street 42",
-			"city":                 "Berlin",
-			"postal_code":          "10115",
-			"bus":                  true,
-			"extra_info":           "Test student with all fields",
-			"guardian_first_name":  "Parent",
-			"guardian_last_name":   "Name",
-			"guardian_email":       "parent@example.com",
-			"guardian_phone":       "+49111222333",
-			"responsible_person":   "Teacher",
-			"responsible_phone":    "+49444555666",
-			"data_retention_days":  20,
+			"first_name":          "Complete",
+			"last_name":           "Student",
+			"school_class":        "3a",
+			"birthday":            "2015-03-20",
+			"gender":              "f",
+			"street":              "Main Street 42",
+			"city":                "Berlin",
+			"postal_code":         "10115",
+			"bus":                 true,
+			"extra_info":          "Test student with all fields",
+			"guardian_first_name": "Parent",
+			"guardian_last_name":  "Name",
+			"guardian_email":      "parent@example.com",
+			"guardian_phone":      "+49111222333",
+			"responsible_person":  "Teacher",
+			"responsible_phone":   "+49444555666",
+			"data_retention_days": 20,
 		}
 		req := testutil.NewAuthenticatedRequest(t, "POST", "/", body)
 

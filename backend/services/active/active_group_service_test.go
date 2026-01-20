@@ -1448,4 +1448,3 @@ func TestActiveService_EndDailySessions_WithActiveData(t *testing.T) {
 		assert.NotNil(t, ended2.EndTime)
 	})
 }
-

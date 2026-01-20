@@ -20,12 +20,12 @@ import (
 
 // groupMappingTestData holds test entities for group mapping tests
 type groupMappingTestData struct {
-	ActivityGroup   int64
-	CategoryID      int64
-	Room            int64
-	ActiveGroup1    *active.Group
-	ActiveGroup2    *active.Group
-	CombinedGroup   *active.CombinedGroup
+	ActivityGroup int64
+	CategoryID    int64
+	Room          int64
+	ActiveGroup1  *active.Group
+	ActiveGroup2  *active.Group
+	CombinedGroup *active.CombinedGroup
 }
 
 // createGroupMappingTestData creates test fixtures for group mapping tests
@@ -69,12 +69,12 @@ func createGroupMappingTestData(t *testing.T, db *bun.DB) *groupMappingTestData 
 	require.NoError(t, err)
 
 	return &groupMappingTestData{
-		ActivityGroup:   activityGroup.ID,
-		CategoryID:      activityGroup.CategoryID,
-		Room:            room.ID,
-		ActiveGroup1:    activeGroup1,
-		ActiveGroup2:    activeGroup2,
-		CombinedGroup:   combinedGroup,
+		ActivityGroup: activityGroup.ID,
+		CategoryID:    activityGroup.CategoryID,
+		Room:          room.ID,
+		ActiveGroup1:  activeGroup1,
+		ActiveGroup2:  activeGroup2,
+		CombinedGroup: combinedGroup,
 	}
 }
 
@@ -476,4 +476,3 @@ func TestGroupMappingRepository_List(t *testing.T) {
 		testpkg.CleanupTableRecords(t, db, "active.group_mappings", mapping1.ID, mapping2.ID)
 	})
 }
-

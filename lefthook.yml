@@ -1,8 +1,9 @@
 # Lefthook - Git hooks manager
 # https://github.com/evilmartians/lefthook
 
-# Pre-commit: Frontend linting (runs on staged files only)
+# Pre-commit: Quick checks on staged files
 pre-commit:
+  parallel: true
   commands:
     # Git secrets check (if installed)
     git-secrets:
@@ -14,7 +15,21 @@ pre-commit:
       run: cd frontend && npx lint-staged
       stage_fixed: true
 
-# Pre-push: Backend quality checks (runs before pushing to remote)
+    # Go imports check (formatting and organization)
+    go-imports:
+      glob: "backend/**/*.go"
+      run: |
+        cd backend
+        # Use goimports from PATH or fallback to ~/go/bin
+        GOIMPORTS=$(which goimports 2>/dev/null || echo "$HOME/go/bin/goimports")
+        DIFF=$($GOIMPORTS -d . 2>&1)
+        if [ -n "$DIFF" ]; then
+          echo "❌ Go imports not organized. Run: cd backend && goimports -w ."
+          echo "$DIFF"
+          exit 1
+        fi
+
+# Pre-push: Full quality checks (runs before pushing to remote)
 pre-push:
   parallel: true
   commands:
@@ -29,9 +44,31 @@ pre-push:
       glob: "backend/**/*.go"
       run: cd backend && golangci-lint run --timeout 5m
 
-    frontend-typecheck:
+    # Dead code detection (matches CI)
+    go-deadcode:
+      glob: "backend/**/*.go"
+      run: |
+        cd backend
+        # Use deadcode from PATH or fallback to ~/go/bin (install if missing)
+        DEADCODE=$(which deadcode 2>/dev/null || echo "$HOME/go/bin/deadcode")
+        [ -x "$DEADCODE" ] || go install golang.org/x/tools/cmd/deadcode@latest
+        # Run with exclusions matching CI
+        OUTPUT=$($DEADCODE -test ./... 2>&1 | grep -vE "cmd/root.go:.*Execute" || true)
+        if [ -n "$OUTPUT" ]; then
+          echo "❌ Dead code detected:"
+          echo "$OUTPUT"
+          exit 1
+        fi
+
+    # Frontend lint + typecheck (pnpm check = eslint + tsc --noEmit)
+    frontend-check:
       glob: "frontend/**/*.{ts,tsx}"
-      run: cd frontend && pnpm run typecheck
+      run: cd frontend && pnpm run check
+
+    # Frontend unused code detection (matches CI)
+    frontend-knip:
+      glob: "frontend/**/*.{ts,tsx,js,jsx}"
+      run: cd frontend && pnpm knip
 
 # Post-merge: Check env sync after git pull
 post-merge:

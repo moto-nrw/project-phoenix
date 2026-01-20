@@ -62,7 +62,7 @@ func (m *mockIoTService) GetDeviceByID(_ context.Context, _ int64) (*iot.Device,
 func (m *mockIoTService) GetDeviceByDeviceID(_ context.Context, _ string) (*iot.Device, error) {
 	return nil, nil
 }
-func (m *mockIoTService) DeleteDevice(_ context.Context, _ int64) error       { return nil }
+func (m *mockIoTService) DeleteDevice(_ context.Context, _ int64) error { return nil }
 func (m *mockIoTService) ListDevices(_ context.Context, _ map[string]interface{}) ([]*iot.Device, error) {
 	return nil, nil
 }

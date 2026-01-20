@@ -1629,7 +1629,6 @@ func TestGetSupervisorSuccess(t *testing.T) {
 	})
 }
 
-
 func TestGetStudentCurrentVisitSuccess(t *testing.T) {
 	tc, router := setupExtendedProtectedRouter(t)
 
@@ -1843,7 +1842,6 @@ func TestUpdateCombinedGroupValidation(t *testing.T) {
 			"Expected 404, 500, or 400, got %d: %s", rr.Code, rr.Body.String())
 	})
 }
-
 
 // =============================================================================
 // ROOM UTILIZATION TESTS - Additional

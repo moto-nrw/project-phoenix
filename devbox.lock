@@ -865,12 +865,6 @@
         }
       }
     },
-    "goimports@latest": {
-      "last_modified": "2022-02-15T04:21:50Z",
-      "resolved": "github:NixOS/nixpkgs/3a641defd170a4ef25ce8c7c64cb13f91f867fca#goimports",
-      "source": "devbox-search",
-      "version": "2021-01-13"
-    },
     "golangci-lint@latest": {
       "last_modified": "2026-01-09T13:41:53Z",
       "resolved": "github:NixOS/nixpkgs/5f02c91314c8ba4afe83b256b023756412218535#golangci-lint",

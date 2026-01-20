@@ -14,7 +14,6 @@ import (
 	"github.com/uptrace/bun"
 )
 
-
 // cleanupPersonRecords removes specific person records
 func cleanupPersonRecords(t *testing.T, db *bun.DB, ids ...int64) {
 	ctx := context.Background()

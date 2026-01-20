@@ -406,9 +406,9 @@ func TestCreateFeedback_MissingValue(t *testing.T) {
 	router.Post("/feedback", ctx.resource.CreateFeedbackHandler())
 
 	body := map[string]interface{}{
-		"day":              time.Now().Format("2006-01-02"),
-		"time":             "12:30:00",
-		"student_id":       student.ID,
+		"day":               time.Now().Format("2006-01-02"),
+		"time":              "12:30:00",
+		"student_id":        student.ID,
 		"is_mensa_feedback": false,
 	}
 
@@ -430,9 +430,9 @@ func TestCreateFeedback_MissingStudentID(t *testing.T) {
 	router.Post("/feedback", ctx.resource.CreateFeedbackHandler())
 
 	body := map[string]interface{}{
-		"value":            "Great day!",
-		"day":              time.Now().Format("2006-01-02"),
-		"time":             "12:30:00",
+		"value":             "Great day!",
+		"day":               time.Now().Format("2006-01-02"),
+		"time":              "12:30:00",
 		"is_mensa_feedback": false,
 	}
 
@@ -458,10 +458,10 @@ func TestCreateFeedback_InvalidDateFormat(t *testing.T) {
 	router.Post("/feedback", ctx.resource.CreateFeedbackHandler())
 
 	body := map[string]interface{}{
-		"value":            "Great day!",
-		"day":              "01-14-2026", // Wrong format
-		"time":             "12:30:00",
-		"student_id":       student.ID,
+		"value":             "Great day!",
+		"day":               "01-14-2026", // Wrong format
+		"time":              "12:30:00",
+		"student_id":        student.ID,
 		"is_mensa_feedback": false,
 	}
 
@@ -487,10 +487,10 @@ func TestCreateFeedback_InvalidTimeFormat(t *testing.T) {
 	router.Post("/feedback", ctx.resource.CreateFeedbackHandler())
 
 	body := map[string]interface{}{
-		"value":            "Great day!",
-		"day":              time.Now().Format("2006-01-02"),
-		"time":             "12:30", // Wrong format - missing seconds
-		"student_id":       student.ID,
+		"value":             "Great day!",
+		"day":               time.Now().Format("2006-01-02"),
+		"time":              "12:30", // Wrong format - missing seconds
+		"student_id":        student.ID,
 		"is_mensa_feedback": false,
 	}
 
@@ -588,10 +588,10 @@ func TestCreateBatchFeedback_InvalidEntry(t *testing.T) {
 	body := map[string]interface{}{
 		"entries": []map[string]interface{}{
 			{
-				"value":            "positive",
-				"day":              time.Now().Format("2006-01-02"),
-				"time":             "10:00:00",
-				"student_id":       student.ID,
+				"value":             "positive",
+				"day":               time.Now().Format("2006-01-02"),
+				"time":              "10:00:00",
+				"student_id":        student.ID,
 				"is_mensa_feedback": false,
 			},
 			{
