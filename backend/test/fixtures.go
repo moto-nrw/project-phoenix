@@ -27,6 +27,7 @@ import (
 // SQL constants to avoid duplication
 const (
 	whereIDEquals       = "id = ?"
+	whereIDIn           = "id IN (?)"
 	whereIDOrAccountID  = "id = ? OR account_id = ?"
 	whereAccountIDIn    = "account_id IN (?)"
 	tableUsersTeachers  = "users.teachers"
@@ -558,7 +559,7 @@ func CleanupAuthFixtures(tb testing.TB, db *bun.DB, accountIDs ...int64) {
 	cleanupDelete(tb, db.NewDelete().
 		Model((*any)(nil)).
 		Table("auth.accounts").
-		Where("id IN (?)", bun.In(accountIDs)),
+		Where(whereIDIn, bun.In(accountIDs)),
 		"auth.accounts")
 }
 
@@ -573,7 +574,7 @@ func CleanupParentAccountFixtures(tb testing.TB, db *bun.DB, accountIDs ...int64
 	cleanupDelete(tb, db.NewDelete().
 		Model((*any)(nil)).
 		Table("auth.accounts_parents").
-		Where("id IN (?)", bun.In(accountIDs)),
+		Where(whereIDIn, bun.In(accountIDs)),
 		"auth.accounts_parents")
 }
 
@@ -1819,6 +1820,6 @@ func CleanupGradeTransitionFixtures(tb testing.TB, db *bun.DB, transitionIDs ...
 	// Delete transitions
 	_, _ = db.NewDelete().
 		TableExpr("education.grade_transitions").
-		Where("id IN (?)", bun.In(transitionIDs)).
+		Where(whereIDIn, bun.In(transitionIDs)).
 		Exec(ctx)
 }

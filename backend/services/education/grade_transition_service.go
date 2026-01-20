@@ -624,14 +624,10 @@ func (s *gradeTransitionService) Revert(ctx context.Context, id int64, accountID
 		return nil, fmt.Errorf(errFmtTransitionNotFound, err)
 	}
 
-	if !transition.CanRevert() {
-		if transition.IsDraft() {
-			return nil, errors.New("transition has not been applied yet")
-		}
-		return nil, errors.New("transition has already been reverted")
+	if err := validateCanRevert(transition); err != nil {
+		return nil, err
 	}
 
-	// Get history to know what to revert
 	history, err := s.transitionRepo.GetHistory(ctx, id)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get transition history: %w", err)
@@ -642,48 +638,8 @@ func (s *gradeTransitionService) Revert(ctx context.Context, id int64, accountID
 		Warnings:     make([]string, 0),
 	}
 
-	// Execute in transaction
 	err = s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
-		graduatedCount := 0
-
-		// Revert promoted students
-		for _, h := range history {
-			if h.WasPromoted() {
-				// Update student back to original class
-				_, err := s.db.NewUpdate().
-					Model((*users.Student)(nil)).
-					ModelTableExpr(`users.students AS "student"`).
-					Set("school_class = ?", h.FromClass).
-					Set("updated_at = NOW()").
-					Where(`"student".id = ?`, h.StudentID).
-					Exec(ctx)
-				if err != nil {
-					// Student might have been deleted - skip
-					continue
-				}
-				result.StudentsPromoted++
-			} else if h.WasGraduated() {
-				graduatedCount++
-			}
-		}
-
-		if graduatedCount > 0 {
-			result.Warnings = append(result.Warnings,
-				fmt.Sprintf("%d graduated students cannot be restored (were permanently deleted)",
-					graduatedCount))
-		}
-
-		// Update transition status
-		now := time.Now()
-		transition.Status = education.TransitionStatusReverted
-		transition.RevertedAt = &now
-		transition.RevertedBy = &accountID
-
-		if err := s.transitionRepo.Update(ctx, transition); err != nil {
-			return fmt.Errorf("failed to update transition status: %w", err)
-		}
-
-		return nil
+		return s.executeRevert(ctx, transition, accountID, history, result)
 	})
 
 	if err != nil {
@@ -694,6 +650,93 @@ func (s *gradeTransitionService) Revert(ctx context.Context, id int64, accountID
 	result.CanRevert = false
 
 	return result, nil
+}
+
+// validateCanRevert checks if a transition can be reverted.
+func validateCanRevert(transition *education.GradeTransition) error {
+	if transition.CanRevert() {
+		return nil
+	}
+	if transition.IsDraft() {
+		return errors.New("transition has not been applied yet")
+	}
+	return errors.New("transition has already been reverted")
+}
+
+// executeRevert performs the actual revert within a transaction.
+func (s *gradeTransitionService) executeRevert(
+	ctx context.Context,
+	transition *education.GradeTransition,
+	accountID int64,
+	history []*education.GradeTransitionHistory,
+	result *TransitionResult,
+) error {
+	graduatedCount := s.revertPromotedStudents(ctx, history, result)
+
+	if graduatedCount > 0 {
+		result.Warnings = append(result.Warnings,
+			fmt.Sprintf("%d graduated students cannot be restored (were permanently deleted)",
+				graduatedCount))
+	}
+
+	return s.markTransitionReverted(ctx, transition, accountID)
+}
+
+// revertPromotedStudents reverts promoted students to their original classes.
+// Returns the count of graduated students that cannot be restored.
+func (s *gradeTransitionService) revertPromotedStudents(
+	ctx context.Context,
+	history []*education.GradeTransitionHistory,
+	result *TransitionResult,
+) int {
+	graduatedCount := 0
+
+	for _, h := range history {
+		switch {
+		case h.WasPromoted():
+			if s.revertStudentClass(ctx, h) {
+				result.StudentsPromoted++
+			}
+		case h.WasGraduated():
+			graduatedCount++
+		}
+	}
+
+	return graduatedCount
+}
+
+// revertStudentClass updates a student back to their original class.
+// Returns true if the update was successful.
+func (s *gradeTransitionService) revertStudentClass(
+	ctx context.Context,
+	h *education.GradeTransitionHistory,
+) bool {
+	_, err := s.db.NewUpdate().
+		Model((*users.Student)(nil)).
+		ModelTableExpr(`users.students AS "student"`).
+		Set("school_class = ?", h.FromClass).
+		Set("updated_at = NOW()").
+		Where(`"student".id = ?`, h.StudentID).
+		Exec(ctx)
+	// Student might have been deleted - return false to skip
+	return err == nil
+}
+
+// markTransitionReverted updates the transition status to reverted.
+func (s *gradeTransitionService) markTransitionReverted(
+	ctx context.Context,
+	transition *education.GradeTransition,
+	accountID int64,
+) error {
+	now := time.Now()
+	transition.Status = education.TransitionStatusReverted
+	transition.RevertedAt = &now
+	transition.RevertedBy = &accountID
+
+	if err := s.transitionRepo.Update(ctx, transition); err != nil {
+		return fmt.Errorf("failed to update transition status: %w", err)
+	}
+	return nil
 }
 
 // GetDistinctClasses returns all distinct school classes
