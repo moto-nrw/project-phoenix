@@ -361,7 +361,7 @@ func TestLogin(t *testing.T) {
 	// Cleanup test account
 	t.Cleanup(func() {
 		ctx := context.Background()
-		_, _ = tc.db.NewDelete().TableExpr("auth.refresh_tokens").Where("account_id = ?", account.ID).Exec(ctx)
+		_, _ = tc.db.NewDelete().TableExpr("auth.tokens").Where("account_id = ?", account.ID).Exec(ctx)
 		_, _ = tc.db.NewDelete().TableExpr("auth.accounts").Where("id = ?", account.ID).Exec(ctx)
 	})
 
@@ -1470,7 +1470,7 @@ func TestParentAccountManagement(t *testing.T) {
 		response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
 		data := response["data"].(map[string]interface{})
 		parentID := int64(data["id"].(float64))
-		_, _ = tc.db.NewDelete().TableExpr("auth.parent_accounts").Where("id = ?", parentID).Exec(context.Background())
+		_, _ = tc.db.NewDelete().TableExpr("auth.accounts_parents").Where("id = ?", parentID).Exec(context.Background())
 	})
 
 	t.Run("create parent account bad request with weak password", func(t *testing.T) {
@@ -1534,7 +1534,7 @@ func TestParentAccountManagement(t *testing.T) {
 
 		// Cleanup when done
 		defer func() {
-			_, _ = tc.db.NewDelete().TableExpr("auth.parent_accounts").Where("id = ?", parentID).Exec(context.Background())
+			_, _ = tc.db.NewDelete().TableExpr("auth.accounts_parents").Where("id = ?", parentID).Exec(context.Background())
 		}()
 
 		// Deactivate

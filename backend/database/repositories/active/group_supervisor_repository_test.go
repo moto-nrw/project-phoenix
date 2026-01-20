@@ -8,6 +8,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -242,6 +243,54 @@ func TestGroupSupervisorRepository_List(t *testing.T) {
 		supervisors, err := repo.List(ctx, nil)
 		require.NoError(t, err)
 		assert.NotEmpty(t, supervisors)
+	})
+
+	t.Run("filters active_only supervisors", func(t *testing.T) {
+		today := time.Now().Truncate(24 * time.Hour)
+		yesterday := today.AddDate(0, 0, -1)
+
+		// Create an active supervisor (no end_date)
+		activeSupervisor := &active.GroupSupervisor{
+			GroupID:   data.ActiveGroup.ID,
+			StaffID:   data.Staff1.ID,
+			StartDate: today,
+			Role:      "supervisor",
+		}
+		err := repo.Create(ctx, activeSupervisor)
+		require.NoError(t, err)
+		defer testpkg.CleanupTableRecords(t, db, "active.group_supervisors", activeSupervisor.ID)
+
+		// Create an ended supervisor (end_date in past)
+		endedSupervisor := &active.GroupSupervisor{
+			GroupID:   data.ActiveGroup.ID,
+			StaffID:   data.Staff2.ID,
+			StartDate: yesterday.AddDate(0, 0, -7),
+			EndDate:   &yesterday,
+			Role:      "supervisor",
+		}
+		err = repo.Create(ctx, endedSupervisor)
+		require.NoError(t, err)
+		defer testpkg.CleanupTableRecords(t, db, "active.group_supervisors", endedSupervisor.ID)
+
+		// Test active_only=true filter
+		options := modelBase.NewQueryOptions()
+		options.Filter.Equal("active_only", true)
+
+		supervisors, err := repo.List(ctx, options)
+		require.NoError(t, err)
+
+		// Should contain active supervisor
+		var foundActive, foundEnded bool
+		for _, s := range supervisors {
+			if s.ID == activeSupervisor.ID {
+				foundActive = true
+			}
+			if s.ID == endedSupervisor.ID {
+				foundEnded = true
+			}
+		}
+		assert.True(t, foundActive, "active supervisor should be in results")
+		assert.False(t, foundEnded, "ended supervisor should not be in results")
 	})
 }
 

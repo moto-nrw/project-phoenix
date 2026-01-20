@@ -13,6 +13,7 @@ import {
   calculateDuration,
   formatDuration,
 } from "~/lib/date-helpers";
+import { formatFloor } from "~/lib/room-helpers";
 
 // Room interface
 interface Room {
@@ -384,13 +385,13 @@ export default function RoomDetailPage() {
                     <span>
                       {room.building &&
                         room.floor !== undefined &&
-                        `${room.building} · Etage ${room.floor}`}
+                        `${room.building} · ${formatFloor(room.floor)}`}
                       {room.building &&
                         room.floor === undefined &&
                         room.building}
                       {!room.building &&
                         room.floor !== undefined &&
-                        `Etage ${room.floor}`}
+                        formatFloor(room.floor)}
                     </span>
                     {room.category && (
                       <span className="hidden sm:inline">•</span>
@@ -435,7 +436,7 @@ export default function RoomDetailPage() {
               <InfoItem label="Gebäude" value={room.building} />
             )}
             {room.floor !== undefined && (
-              <InfoItem label="Etage" value={`Etage ${room.floor}`} />
+              <InfoItem label="Etage" value={formatFloor(room.floor)} />
             )}
             {room.category && (
               <InfoItem label="Kategorie" value={room.category} />

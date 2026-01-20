@@ -145,6 +145,12 @@ export interface UpdateRoomRequest {
 }
 
 // Helper functions
+export function formatFloor(floor: number | undefined): string {
+  if (floor === undefined) return "Etage nicht angegeben";
+  if (floor === 0) return "Erdgeschoss";
+  return `Etage ${floor}`;
+}
+
 export function formatRoomName(room: Room): string {
   let name = room.name;
 
@@ -156,8 +162,7 @@ export function formatRoomName(room: Room): string {
 }
 
 export function formatRoomLocation(room: Room): string {
-  if (room.floor === undefined) return "Etage nicht angegeben";
-  return `Etage ${room.floor}`;
+  return formatFloor(room.floor);
 }
 
 export function formatRoomCategory(room: Room): string {

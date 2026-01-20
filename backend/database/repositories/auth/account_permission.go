@@ -310,14 +310,14 @@ func (r *AccountPermissionRepository) List(ctx context.Context, filters map[stri
 		Model(&accountPermissions).
 		ModelTableExpr(accountPermissionTableAlias)
 
-	// Apply filters
+	// Apply filters with proper table alias prefix
 	for field, value := range filters {
 		if value != nil {
 			switch field {
 			case "granted":
 				query = query.Where(`"account_permission".granted = ?`, value)
 			default:
-				query = query.Where(`"account_permission".`+field+` = ?`, value)
+				query = query.Where(`"account_permission".? = ?`, bun.Ident(field), value)
 			}
 		}
 	}
@@ -345,10 +345,10 @@ func (r *AccountPermissionRepository) FindAccountPermissionsWithDetails(ctx cont
 		Join(`LEFT JOIN auth.accounts AS "account" ON "account".id = "account_permission".account_id`).
 		Join(`LEFT JOIN auth.permissions AS "permission" ON "permission".id = "account_permission".permission_id`)
 
-	// Apply filters
+	// Apply filters with proper table alias prefix
 	for field, value := range filters {
 		if value != nil {
-			query = query.Where(`"account_permission".`+field+` = ?`, value)
+			query = query.Where(`"account_permission".? = ?`, bun.Ident(field), value)
 		}
 	}
 

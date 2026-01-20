@@ -305,15 +305,9 @@ func (s *personService) Delete(ctx context.Context, id interface{}) error {
 	return nil
 }
 
-// List retrieves persons matching the provided query options (see #557 for refactoring)
+// List retrieves persons matching the provided query options
 func (s *personService) List(ctx context.Context, options *base.QueryOptions) ([]*userModels.Person, error) {
-	// Convert QueryOptions to map[string]interface{} for repository
-	filters := make(map[string]interface{})
-	if options != nil && options.Filter != nil {
-		_ = options.Filter // Filter conversion not yet implemented
-	}
-
-	persons, err := s.personRepo.List(ctx, filters)
+	persons, err := s.personRepo.ListWithOptions(ctx, options)
 	if err != nil {
 		return nil, &UsersError{Op: "list persons", Err: err}
 	}

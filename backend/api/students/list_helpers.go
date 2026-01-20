@@ -91,6 +91,13 @@ func (p *studentListParams) buildCountFilter() *base.Filter {
 	return filter
 }
 
+// buildCountOptions creates query options for counting records
+func (p *studentListParams) buildCountOptions() *base.QueryOptions {
+	countOptions := base.NewQueryOptions()
+	countOptions.Filter = p.buildCountFilter()
+	return countOptions
+}
+
 // determineStudentAccess determines access level and group IDs for the current user
 func (rs *Resource) determineStudentAccess(r *http.Request) *studentAccessContext {
 	ctx := &studentAccessContext{

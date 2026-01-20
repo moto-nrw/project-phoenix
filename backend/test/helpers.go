@@ -158,6 +158,31 @@ func CleanupTableRecordsByStringID(tb testing.TB, db *bun.DB, table string, ids 
 	}
 }
 
+// CleanupRateLimitsByEmail removes password reset rate limit records by email.
+// Use this for cleaning up after password reset rate limit tests.
+// The rate limit table uses email as the primary key, not an integer ID.
+//
+// Usage:
+//
+//	defer testpkg.CleanupRateLimitsByEmail(t, db, email1, email2)
+func CleanupRateLimitsByEmail(tb testing.TB, db *bun.DB, emails ...string) {
+	tb.Helper()
+	if len(emails) == 0 {
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	_, err := db.NewDelete().
+		TableExpr("auth.password_reset_rate_limits").
+		Where("email IN (?)", bun.In(emails)).
+		Exec(ctx)
+	if err != nil {
+		tb.Logf("Warning: failed to cleanup auth.password_reset_rate_limits: %v", err)
+	}
+}
+
 // ============================================================================
 // Pointer Helpers
 // ============================================================================

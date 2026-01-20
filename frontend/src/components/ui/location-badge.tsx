@@ -181,17 +181,20 @@ export function LocationBadge({
       parsed.status === LOCATION_STATUSES.HOME ||
       sickMode === "replace");
 
-  // Small sick indicator badge for "additional" mode (sick but present)
+  // Sick indicator badge for "additional" mode (sick but present)
+  // Uses same size configuration as the main badge for consistency
   const SickIndicator = () => (
     <span
-      className="mt-1 inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold text-white"
+      className={`mt-1 ${MODERN_BASE_CLASS} ${sizeConfig.modern}`}
       style={{
         backgroundColor: LOCATION_COLORS.SICK,
         boxShadow: sickGlowEffect,
       }}
       data-sick-indicator="true"
     >
-      <span className="mr-1 h-1 w-1 animate-pulse rounded-full bg-white/80" />
+      <span
+        className={`${sizeConfig.dot} animate-pulse rounded-full bg-white/80`}
+      />
       {LOCATION_STATUSES.SICK}
     </span>
   );
