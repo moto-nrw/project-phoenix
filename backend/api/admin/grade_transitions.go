@@ -431,3 +431,38 @@ func (rs *GradeTransitionResource) getHistory(w http.ResponseWriter, r *http.Req
 
 	common.Respond(w, r, http.StatusOK, history, "Transition history retrieved successfully")
 }
+
+// Handler accessors for testing (bypass JWT middleware)
+
+// ListHandler returns the list handler for testing
+func (rs *GradeTransitionResource) ListHandler() http.HandlerFunc { return rs.list }
+
+// CreateHandler returns the create handler for testing
+func (rs *GradeTransitionResource) CreateHandler() http.HandlerFunc { return rs.create }
+
+// GetByIDHandler returns the getByID handler for testing
+func (rs *GradeTransitionResource) GetByIDHandler() http.HandlerFunc { return rs.getByID }
+
+// UpdateHandler returns the update handler for testing
+func (rs *GradeTransitionResource) UpdateHandler() http.HandlerFunc { return rs.update }
+
+// DeleteHandler returns the delete handler for testing
+func (rs *GradeTransitionResource) DeleteHandler() http.HandlerFunc { return rs.delete }
+
+// PreviewHandler returns the preview handler for testing
+func (rs *GradeTransitionResource) PreviewHandler() http.HandlerFunc { return rs.preview }
+
+// ApplyHandler returns the apply handler for testing
+func (rs *GradeTransitionResource) ApplyHandler() http.HandlerFunc { return rs.apply }
+
+// RevertHandler returns the revert handler for testing
+func (rs *GradeTransitionResource) RevertHandler() http.HandlerFunc { return rs.revert }
+
+// GetDistinctClassesHandler returns the getDistinctClasses handler for testing
+func (rs *GradeTransitionResource) GetDistinctClassesHandler() http.HandlerFunc { return rs.getDistinctClasses }
+
+// SuggestMappingsHandler returns the suggestMappings handler for testing
+func (rs *GradeTransitionResource) SuggestMappingsHandler() http.HandlerFunc { return rs.suggestMappings }
+
+// GetHistoryHandler returns the getHistory handler for testing
+func (rs *GradeTransitionResource) GetHistoryHandler() http.HandlerFunc { return rs.getHistory }
