@@ -150,7 +150,7 @@ When you `cd` into the project, direnv automatically activates Devbox and you'll
 phoenix dev ready - go 1.25.5, node 20.20.0
 ```
 
-All tools (Go, Node, npm, golangci-lint, bruno-cli, etc.) are now available.
+All tools (Go, Node, pnpm, golangci-lint, bruno-cli, etc.) are now available.
 
 The application will be available at:
 - **Frontend:** http://localhost:3000
@@ -250,8 +250,8 @@ The database uses PostgreSQL schemas to organize tables by domain:
 | `go run main.go serve` | Start backend server |
 | `go run main.go migrate` | Run database migrations |
 | `go run main.go gendoc` | Generate API documentation |
-| `npm run dev` | Start frontend dev server |
-| `npm run check` | Run lint + typecheck |
+| `pnpm run dev` | Start frontend dev server |
+| `pnpm run check` | Run lint + typecheck |
 
 ### API Documentation
 
@@ -281,7 +281,7 @@ This creates:
 cd backend && go test ./...
 
 # Frontend checks
-cd frontend && npm run check
+cd frontend && pnpm run check
 
 # API integration tests (Bruno)
 cd bruno && bru run --env Local 0*.bru

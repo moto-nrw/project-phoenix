@@ -31,7 +31,7 @@ pre-push:
 
     frontend-typecheck:
       glob: "frontend/**/*.{ts,tsx}"
-      run: cd frontend && npm run typecheck
+      run: cd frontend && pnpm run typecheck
 
 # Post-merge: Check env sync after git pull
 post-merge:

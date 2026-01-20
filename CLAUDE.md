@@ -122,7 +122,7 @@ docker compose build server && docker compose up -d server  # REQUIRED after Go 
 
 ### 3. Frontend: Zero Warnings Policy
 ```bash
-npm run check  # MUST PASS before committing
+pnpm run check  # MUST PASS before committing
 ```
 
 ### 4. Type Mapping: int64 → string
@@ -192,10 +192,10 @@ devbox add <tool>@latest    # Add to devbox.json
 | Task | Command |
 |------|---------|
 | Start backend | `cd backend && go run main.go serve` |
-| Start frontend | `cd frontend && npm run dev` |
+| Start frontend | `cd frontend && pnpm run dev` |
 | Run backend tests | `go test ./...` |
 | Run API tests | `cd bruno && bru run --env Local 0*.bru` |
-| Quality check (frontend) | `npm run check` |
+| Quality check (frontend) | `pnpm run check` |
 | Generate API docs | `go run main.go gendoc --routes` |
 | Reset database | `go run main.go migrate reset && go run main.go seed` |
 
@@ -245,19 +245,19 @@ go test -race ./...             # Race detection
 cd frontend
 
 # Development
-npm run dev                     # Dev server with Turbo
+pnpm run dev                     # Dev server with Turbo
 
 # Quality (ALWAYS run before committing!)
-npm run check                   # Lint + typecheck (0 warnings policy)
-npm run lint:fix                # Auto-fix lint issues
-npm run typecheck               # TypeScript only
+pnpm run check                   # Lint + typecheck (0 warnings policy)
+pnpm run lint:fix                # Auto-fix lint issues
+pnpm run typecheck               # TypeScript only
 
 # Formatting
-npm run format:write            # Auto-format with Prettier
+pnpm run format:write            # Auto-format with Prettier
 
 # Build
-npm run build                   # Production build
-npm run preview                 # Build + start production
+pnpm run build                   # Production build
+pnpm run preview                 # Build + start production
 ```
 
 ### API Testing (Bruno)
@@ -513,7 +513,7 @@ type DataDeletion struct {
 ### Frontend
 | Issue | Fix |
 |-------|-----|
-| Type errors | Run `npm run typecheck` |
+| Type errors | Run `pnpm run typecheck` |
 | Suspense errors | Wrap `useSearchParams()` in `<Suspense>` |
 | API connection | Verify `NEXT_PUBLIC_API_URL` |
 
@@ -581,7 +581,7 @@ const { id } = await params;
 4. Create Next.js route in `app/api/{domain}/route.ts`
 5. Create UI component in `components/{domain}/`
 6. Add to page in `app/(auth)/{page}/`
-7. Run quality check: `npm run check`
+7. Run quality check: `pnpm run check`
 
 ### Database Migration
 ```go
@@ -686,7 +686,7 @@ export async function fetchGroups(): Promise<Group[]> {
 ## PR Guidelines
 
 - **Target**: `development` (NEVER `main` unless explicitly asked)
-- **Quality**: `npm run check` must pass (zero warnings)
+- **Quality**: `pnpm run check` must pass (zero warnings)
 - **Never credit Claude in commit messages**
 
 ---
