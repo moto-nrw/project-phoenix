@@ -60,6 +60,11 @@ pre-push:
           exit 1
         fi
 
+    # Security vulnerability detection
+    go-vulncheck:
+      glob: "backend/**/*.go"
+      run: cd backend && govulncheck ./...
+
     # Frontend lint + typecheck (pnpm check = eslint + tsc --noEmit)
     frontend-check:
       glob: "frontend/**/*.{ts,tsx}"
