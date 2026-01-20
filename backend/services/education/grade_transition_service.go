@@ -101,6 +101,9 @@ type SuggestedMapping struct {
 	IsGraduating bool    `json:"is_graduating"`
 }
 
+// Error message format constants
+const errFmtTransitionNotFound = "transition not found: %w"
+
 // gradeTransitionService implements GradeTransitionService
 type gradeTransitionService struct {
 	transitionRepo education.GradeTransitionRepository
@@ -148,32 +151,10 @@ func (s *gradeTransitionService) Create(ctx context.Context, req CreateTransitio
 
 	// Execute in transaction
 	err := s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
-		// Create the transition
 		if err := s.transitionRepo.Create(ctx, transition); err != nil {
 			return fmt.Errorf("failed to create transition: %w", err)
 		}
-
-		// Create mappings if provided
-		if len(req.Mappings) > 0 {
-			mappings := make([]*education.GradeTransitionMapping, 0, len(req.Mappings))
-			for _, m := range req.Mappings {
-				mapping := &education.GradeTransitionMapping{
-					TransitionID: transition.ID,
-					FromClass:    m.FromClass,
-					ToClass:      m.ToClass,
-				}
-				if err := mapping.Validate(); err != nil {
-					return fmt.Errorf("invalid mapping for class %s: %w", m.FromClass, err)
-				}
-				mappings = append(mappings, mapping)
-			}
-			if err := s.transitionRepo.CreateMappings(ctx, mappings); err != nil {
-				return fmt.Errorf("failed to create mappings: %w", err)
-			}
-			transition.Mappings = mappings
-		}
-
-		return nil
+		return s.createMappingsIfProvided(ctx, transition, req.Mappings)
 	})
 
 	if err != nil {
@@ -183,80 +164,122 @@ func (s *gradeTransitionService) Create(ctx context.Context, req CreateTransitio
 	return transition, nil
 }
 
+// createMappingsIfProvided creates mappings for a transition if any are provided.
+func (s *gradeTransitionService) createMappingsIfProvided(
+	ctx context.Context,
+	transition *education.GradeTransition,
+	reqMappings []MappingRequest,
+) error {
+	if len(reqMappings) == 0 {
+		return nil
+	}
+
+	mappings, err := s.buildMappings(transition.ID, reqMappings)
+	if err != nil {
+		return err
+	}
+
+	if err := s.transitionRepo.CreateMappings(ctx, mappings); err != nil {
+		return fmt.Errorf("failed to create mappings: %w", err)
+	}
+	transition.Mappings = mappings
+	return nil
+}
+
+// buildMappings validates and builds mapping entities from input.
+func (s *gradeTransitionService) buildMappings(transitionID int64, inputs []MappingRequest) ([]*education.GradeTransitionMapping, error) {
+	mappings := make([]*education.GradeTransitionMapping, 0, len(inputs))
+	for _, m := range inputs {
+		mapping := &education.GradeTransitionMapping{
+			TransitionID: transitionID,
+			FromClass:    m.FromClass,
+			ToClass:      m.ToClass,
+		}
+		if err := mapping.Validate(); err != nil {
+			return nil, fmt.Errorf("invalid mapping for class %s: %w", m.FromClass, err)
+		}
+		mappings = append(mappings, mapping)
+	}
+	return mappings, nil
+}
+
 // Update updates a grade transition
 func (s *gradeTransitionService) Update(ctx context.Context, id int64, req UpdateTransitionRequest) (*education.GradeTransition, error) {
 	transition, err := s.transitionRepo.FindByID(ctx, id)
 	if err != nil {
-		return nil, fmt.Errorf("transition not found: %w", err)
+		return nil, fmt.Errorf(errFmtTransitionNotFound, err)
 	}
 
 	if !transition.CanModify() {
 		return nil, errors.New("cannot modify transition: must be in draft status")
 	}
 
-	// Update fields
-	if req.AcademicYear != nil {
-		transition.AcademicYear = *req.AcademicYear
-	}
-	if req.Notes != nil {
-		transition.Notes = req.Notes
-	}
+	applyTransitionUpdates(transition, req)
 
 	if err := transition.Validate(); err != nil {
 		return nil, err
 	}
 
-	// Execute in transaction
 	err = s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
-		// Update the transition
 		if err := s.transitionRepo.Update(ctx, transition); err != nil {
 			return fmt.Errorf("failed to update transition: %w", err)
 		}
-
-		// Update mappings if provided
-		if req.Mappings != nil {
-			// Delete existing mappings
-			if err := s.transitionRepo.DeleteMappings(ctx, id); err != nil {
-				return fmt.Errorf("failed to delete existing mappings: %w", err)
-			}
-
-			// Create new mappings
-			if len(req.Mappings) > 0 {
-				mappings := make([]*education.GradeTransitionMapping, 0, len(req.Mappings))
-				for _, m := range req.Mappings {
-					mapping := &education.GradeTransitionMapping{
-						TransitionID: id,
-						FromClass:    m.FromClass,
-						ToClass:      m.ToClass,
-					}
-					if err := mapping.Validate(); err != nil {
-						return fmt.Errorf("invalid mapping for class %s: %w", m.FromClass, err)
-					}
-					mappings = append(mappings, mapping)
-				}
-				if err := s.transitionRepo.CreateMappings(ctx, mappings); err != nil {
-					return fmt.Errorf("failed to create mappings: %w", err)
-				}
-				transition.Mappings = mappings
-			}
-		}
-
-		return nil
+		return s.replaceMappingsIfProvided(ctx, transition, req.Mappings)
 	})
 
 	if err != nil {
 		return nil, err
 	}
 
-	// Reload with mappings
 	return s.transitionRepo.FindByIDWithMappings(ctx, id)
+}
+
+// applyTransitionUpdates applies request fields to the transition.
+func applyTransitionUpdates(transition *education.GradeTransition, req UpdateTransitionRequest) {
+	if req.AcademicYear != nil {
+		transition.AcademicYear = *req.AcademicYear
+	}
+	if req.Notes != nil {
+		transition.Notes = req.Notes
+	}
+}
+
+// replaceMappingsIfProvided deletes existing mappings and creates new ones if provided.
+func (s *gradeTransitionService) replaceMappingsIfProvided(
+	ctx context.Context,
+	transition *education.GradeTransition,
+	reqMappings []MappingRequest,
+) error {
+	if reqMappings == nil {
+		return nil
+	}
+
+	if err := s.transitionRepo.DeleteMappings(ctx, transition.ID); err != nil {
+		return fmt.Errorf("failed to delete existing mappings: %w", err)
+	}
+
+	if len(reqMappings) == 0 {
+		transition.Mappings = nil
+		return nil
+	}
+
+	mappings, err := s.buildMappings(transition.ID, reqMappings)
+	if err != nil {
+		return err
+	}
+
+	if err := s.transitionRepo.CreateMappings(ctx, mappings); err != nil {
+		return fmt.Errorf("failed to create mappings: %w", err)
+	}
+	transition.Mappings = mappings
+	return nil
 }
 
 // Delete deletes a draft grade transition
 func (s *gradeTransitionService) Delete(ctx context.Context, id int64) error {
 	transition, err := s.transitionRepo.FindByID(ctx, id)
 	if err != nil {
-		return fmt.Errorf("transition not found: %w", err)
+		return fmt.Errorf(errFmtTransitionNotFound, err)
 	}
 
 	if !transition.CanModify() {
@@ -280,97 +303,123 @@ func (s *gradeTransitionService) List(ctx context.Context, options *base.QueryOp
 func (s *gradeTransitionService) Preview(ctx context.Context, id int64) (*TransitionPreview, error) {
 	transition, err := s.transitionRepo.FindByIDWithMappings(ctx, id)
 	if err != nil {
-		return nil, fmt.Errorf("transition not found: %w", err)
+		return nil, fmt.Errorf(errFmtTransitionNotFound, err)
 	}
 
 	preview := &TransitionPreview{
-		TransitionID:  id,
-		AcademicYear:  transition.AcademicYear,
-		ByMapping:     make([]MappingPreview, 0),
-		Warnings:      make([]string, 0),
+		TransitionID: id,
+		AcademicYear: transition.AcademicYear,
+		ByMapping:    make([]MappingPreview, 0),
+		Warnings:     make([]string, 0),
 	}
 
-	// Track which classes are covered by mappings
+	mappedClasses, err := s.buildMappingPreviews(ctx, preview, transition.Mappings)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := s.findUnmappedClasses(ctx, preview, mappedClasses); err != nil {
+		return nil, err
+	}
+
+	s.addPreviewWarnings(preview)
+
+	return preview, nil
+}
+
+// buildMappingPreviews populates preview with mapping details and returns mapped class names.
+func (s *gradeTransitionService) buildMappingPreviews(
+	ctx context.Context,
+	preview *TransitionPreview,
+	mappings []*education.GradeTransitionMapping,
+) (map[string]bool, error) {
 	mappedClasses := make(map[string]bool)
 
-	// Get preview for each mapping
-	for _, mapping := range transition.Mappings {
+	for _, mapping := range mappings {
 		count, err := s.transitionRepo.GetStudentCountByClass(ctx, mapping.FromClass)
 		if err != nil {
 			return nil, fmt.Errorf("failed to count students in class %s: %w", mapping.FromClass, err)
 		}
 
-		action := "promote"
+		mp := s.createMappingPreview(mapping, count)
 		if mapping.IsGraduating() {
-			action = "graduate"
 			preview.ToGraduate += count
 		} else {
 			preview.ToPromote += count
 		}
 
-		preview.ByMapping = append(preview.ByMapping, MappingPreview{
-			FromClass:    mapping.FromClass,
-			ToClass:      mapping.ToClass,
-			StudentCount: count,
-			Action:       action,
-		})
-
+		preview.ByMapping = append(preview.ByMapping, mp)
 		preview.TotalStudents += count
 		mappedClasses[mapping.FromClass] = true
 	}
 
-	// Find unmapped classes
+	return mappedClasses, nil
+}
+
+// createMappingPreview creates a MappingPreview from a mapping and student count.
+func (s *gradeTransitionService) createMappingPreview(mapping *education.GradeTransitionMapping, count int) MappingPreview {
+	action := "promote"
+	if mapping.IsGraduating() {
+		action = "graduate"
+	}
+	return MappingPreview{
+		FromClass:    mapping.FromClass,
+		ToClass:      mapping.ToClass,
+		StudentCount: count,
+		Action:       action,
+	}
+}
+
+// findUnmappedClasses finds classes with students that are not in the transition.
+func (s *gradeTransitionService) findUnmappedClasses(
+	ctx context.Context,
+	preview *TransitionPreview,
+	mappedClasses map[string]bool,
+) error {
 	allClasses, err := s.transitionRepo.GetDistinctClasses(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get distinct classes: %w", err)
+		return fmt.Errorf("failed to get distinct classes: %w", err)
 	}
 
 	for _, className := range allClasses {
-		if !mappedClasses[className] {
-			count, err := s.transitionRepo.GetStudentCountByClass(ctx, className)
-			if err != nil {
-				continue // Skip on error
-			}
-			if count > 0 {
-				preview.UnmappedClasses = append(preview.UnmappedClasses, UnmappedClassInfo{
-					ClassName:    className,
-					StudentCount: count,
-				})
-			}
+		if mappedClasses[className] {
+			continue
 		}
+		count, err := s.transitionRepo.GetStudentCountByClass(ctx, className)
+		if err != nil || count == 0 {
+			continue
+		}
+		preview.UnmappedClasses = append(preview.UnmappedClasses, UnmappedClassInfo{
+			ClassName:    className,
+			StudentCount: count,
+		})
 	}
+	return nil
+}
 
-	// Add warnings
+// addPreviewWarnings adds warning messages to the preview.
+func (s *gradeTransitionService) addPreviewWarnings(preview *TransitionPreview) {
 	if len(preview.UnmappedClasses) > 0 {
 		preview.Warnings = append(preview.Warnings,
 			fmt.Sprintf("%d classes with students are not included in this transition",
 				len(preview.UnmappedClasses)))
 	}
-
 	if preview.ToGraduate > 0 {
 		preview.Warnings = append(preview.Warnings,
 			fmt.Sprintf("%d students will be permanently deleted (graduates)",
 				preview.ToGraduate))
 	}
-
-	return preview, nil
 }
 
 // Apply executes the grade transition
 func (s *gradeTransitionService) Apply(ctx context.Context, id int64, accountID int64) (*TransitionResult, error) {
 	transition, err := s.transitionRepo.FindByIDWithMappings(ctx, id)
 	if err != nil {
-		return nil, fmt.Errorf("transition not found: %w", err)
+		return nil, fmt.Errorf(errFmtTransitionNotFound, err)
 	}
 
-	if !transition.CanApply() {
-		if transition.IsApplied() {
-			return nil, errors.New("transition has already been applied")
-		}
-		if transition.IsReverted() {
-			return nil, errors.New("transition has been reverted")
-		}
-		return nil, errors.New("cannot apply transition: must be in draft status with mappings")
+	if err := validateCanApply(transition); err != nil {
+		return nil, err
 	}
 
 	result := &TransitionResult{
@@ -378,99 +427,186 @@ func (s *gradeTransitionService) Apply(ctx context.Context, id int64, accountID 
 		Warnings:     make([]string, 0),
 	}
 
-	// Execute in transaction
 	err = s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
-		// Separate mappings into promote vs graduate
-		var promoteFromClasses []string
-		var graduateClasses []string
-
-		for _, mapping := range transition.Mappings {
-			if mapping.IsGraduating() {
-				graduateClasses = append(graduateClasses, mapping.FromClass)
-			} else {
-				promoteFromClasses = append(promoteFromClasses, mapping.FromClass)
-			}
-		}
-
-		// Get all affected students for history before any changes
-		allClasses := append(promoteFromClasses, graduateClasses...)
-		students, err := s.transitionRepo.GetStudentsByClasses(ctx, allClasses)
-		if err != nil {
-			return fmt.Errorf("failed to get students: %w", err)
-		}
-
-		// Create a map of from_class -> to_class for quick lookup
-		classMapping := make(map[string]*string)
-		for _, mapping := range transition.Mappings {
-			classMapping[mapping.FromClass] = mapping.ToClass
-		}
-
-		// Create history records
-		historyRecords := make([]*education.GradeTransitionHistory, 0, len(students))
-		for _, student := range students {
-			toClass := classMapping[student.SchoolClass]
-			action := education.ActionPromoted
-			if toClass == nil {
-				action = education.ActionGraduated
-			}
-
-			historyRecords = append(historyRecords, &education.GradeTransitionHistory{
-				TransitionID: id,
-				StudentID:    student.StudentID,
-				PersonName:   student.PersonName,
-				FromClass:    student.SchoolClass,
-				ToClass:      toClass,
-				Action:       action,
-			})
-		}
-
-		if len(historyRecords) > 0 {
-			if err := s.transitionRepo.CreateHistoryBatch(ctx, historyRecords); err != nil {
-				return fmt.Errorf("failed to create history: %w", err)
-			}
-		}
-
-		// Apply promotions (UPDATE students SET school_class = to_class)
-		if len(promoteFromClasses) > 0 {
-			promoted, err := s.transitionRepo.UpdateStudentClasses(ctx, id)
-			if err != nil {
-				return fmt.Errorf("failed to promote students: %w", err)
-			}
-			result.StudentsPromoted = int(promoted)
-		}
-
-		// Delete graduating students
-		if len(graduateClasses) > 0 {
-			// Count graduates first
-			for _, className := range graduateClasses {
-				count, _ := s.transitionRepo.GetStudentCountByClass(ctx, className)
-				result.StudentsGraduated += count
-			}
-
-			// Delete students (CASCADE handles related data)
-			_, err := s.transitionRepo.DeleteStudentsByClasses(ctx, graduateClasses)
-			if err != nil {
-				return fmt.Errorf("failed to delete graduating students: %w", err)
-			}
-		}
-
-		// Update transition status
-		now := time.Now()
-		transition.Status = education.TransitionStatusApplied
-		transition.AppliedAt = &now
-		transition.AppliedBy = &accountID
-
-		if err := s.transitionRepo.Update(ctx, transition); err != nil {
-			return fmt.Errorf("failed to update transition status: %w", err)
-		}
-
-		return nil
+		return s.executeApply(ctx, transition, accountID, result)
 	})
 
 	if err != nil {
 		return nil, err
 	}
 
+	finalizeApplyResult(result)
+	return result, nil
+}
+
+// validateCanApply checks if a transition can be applied.
+func validateCanApply(transition *education.GradeTransition) error {
+	if transition.CanApply() {
+		return nil
+	}
+	if transition.IsApplied() {
+		return errors.New("transition has already been applied")
+	}
+	if transition.IsReverted() {
+		return errors.New("transition has been reverted")
+	}
+	return errors.New("cannot apply transition: must be in draft status with mappings")
+}
+
+// executeApply performs the actual apply within a transaction.
+func (s *gradeTransitionService) executeApply(
+	ctx context.Context,
+	transition *education.GradeTransition,
+	accountID int64,
+	result *TransitionResult,
+) error {
+	promoteClasses, graduateClasses := categorizeMappings(transition.Mappings)
+	allClasses := append(promoteClasses, graduateClasses...)
+
+	if err := s.recordTransitionHistory(ctx, transition.ID, transition.Mappings, allClasses); err != nil {
+		return err
+	}
+
+	if err := s.applyPromotions(ctx, transition.ID, promoteClasses, result); err != nil {
+		return err
+	}
+
+	if err := s.applyGraduations(ctx, graduateClasses, result); err != nil {
+		return err
+	}
+
+	return s.markTransitionApplied(ctx, transition, accountID)
+}
+
+// categorizeMappings separates mappings into promote and graduate classes.
+func categorizeMappings(mappings []*education.GradeTransitionMapping) (promote, graduate []string) {
+	for _, mapping := range mappings {
+		if mapping.IsGraduating() {
+			graduate = append(graduate, mapping.FromClass)
+		} else {
+			promote = append(promote, mapping.FromClass)
+		}
+	}
+	return
+}
+
+// recordTransitionHistory creates history records for all affected students.
+func (s *gradeTransitionService) recordTransitionHistory(
+	ctx context.Context,
+	transitionID int64,
+	mappings []*education.GradeTransitionMapping,
+	allClasses []string,
+) error {
+	students, err := s.transitionRepo.GetStudentsByClasses(ctx, allClasses)
+	if err != nil {
+		return fmt.Errorf("failed to get students: %w", err)
+	}
+
+	if len(students) == 0 {
+		return nil
+	}
+
+	classMapping := buildClassMapping(mappings)
+	historyRecords := buildHistoryRecords(transitionID, students, classMapping)
+
+	if err := s.transitionRepo.CreateHistoryBatch(ctx, historyRecords); err != nil {
+		return fmt.Errorf("failed to create history: %w", err)
+	}
+	return nil
+}
+
+// buildClassMapping creates a map of from_class -> to_class.
+func buildClassMapping(mappings []*education.GradeTransitionMapping) map[string]*string {
+	classMapping := make(map[string]*string)
+	for _, mapping := range mappings {
+		classMapping[mapping.FromClass] = mapping.ToClass
+	}
+	return classMapping
+}
+
+// buildHistoryRecords creates history records from students and class mapping.
+func buildHistoryRecords(
+	transitionID int64,
+	students []*education.StudentClassInfo,
+	classMapping map[string]*string,
+) []*education.GradeTransitionHistory {
+	records := make([]*education.GradeTransitionHistory, 0, len(students))
+	for _, student := range students {
+		toClass := classMapping[student.SchoolClass]
+		action := education.ActionPromoted
+		if toClass == nil {
+			action = education.ActionGraduated
+		}
+		records = append(records, &education.GradeTransitionHistory{
+			TransitionID: transitionID,
+			StudentID:    student.StudentID,
+			PersonName:   student.PersonName,
+			FromClass:    student.SchoolClass,
+			ToClass:      toClass,
+			Action:       action,
+		})
+	}
+	return records
+}
+
+// applyPromotions updates student classes for promotions.
+func (s *gradeTransitionService) applyPromotions(
+	ctx context.Context,
+	transitionID int64,
+	promoteClasses []string,
+	result *TransitionResult,
+) error {
+	if len(promoteClasses) == 0 {
+		return nil
+	}
+	promoted, err := s.transitionRepo.UpdateStudentClasses(ctx, transitionID)
+	if err != nil {
+		return fmt.Errorf("failed to promote students: %w", err)
+	}
+	result.StudentsPromoted = int(promoted)
+	return nil
+}
+
+// applyGraduations deletes graduating students.
+func (s *gradeTransitionService) applyGraduations(
+	ctx context.Context,
+	graduateClasses []string,
+	result *TransitionResult,
+) error {
+	if len(graduateClasses) == 0 {
+		return nil
+	}
+
+	for _, className := range graduateClasses {
+		count, _ := s.transitionRepo.GetStudentCountByClass(ctx, className)
+		result.StudentsGraduated += count
+	}
+
+	if _, err := s.transitionRepo.DeleteStudentsByClasses(ctx, graduateClasses); err != nil {
+		return fmt.Errorf("failed to delete graduating students: %w", err)
+	}
+	return nil
+}
+
+// markTransitionApplied updates the transition status to applied.
+func (s *gradeTransitionService) markTransitionApplied(
+	ctx context.Context,
+	transition *education.GradeTransition,
+	accountID int64,
+) error {
+	now := time.Now()
+	transition.Status = education.TransitionStatusApplied
+	transition.AppliedAt = &now
+	transition.AppliedBy = &accountID
+
+	if err := s.transitionRepo.Update(ctx, transition); err != nil {
+		return fmt.Errorf("failed to update transition status: %w", err)
+	}
+	return nil
+}
+
+// finalizeApplyResult sets final result fields after successful apply.
+func finalizeApplyResult(result *TransitionResult) {
 	result.Status = education.TransitionStatusApplied
 	result.CanRevert = true
 
@@ -479,15 +615,13 @@ func (s *gradeTransitionService) Apply(ctx context.Context, id int64, accountID 
 			fmt.Sprintf("%d students were permanently deleted (graduates)",
 				result.StudentsGraduated))
 	}
-
-	return result, nil
 }
 
 // Revert undoes an applied grade transition
 func (s *gradeTransitionService) Revert(ctx context.Context, id int64, accountID int64) (*TransitionResult, error) {
 	transition, err := s.transitionRepo.FindByIDWithMappings(ctx, id)
 	if err != nil {
-		return nil, fmt.Errorf("transition not found: %w", err)
+		return nil, fmt.Errorf(errFmtTransitionNotFound, err)
 	}
 
 	if !transition.CanRevert() {

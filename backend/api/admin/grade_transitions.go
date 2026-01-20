@@ -16,6 +16,13 @@ import (
 	educationService "github.com/moto-nrw/project-phoenix/services/education"
 )
 
+// Constants for error messages and time formatting
+const (
+	timeFormatISO8601       = "2006-01-02T15:04:05Z"
+	errMsgNoAccountID       = "no account ID in context"
+	errMsgInvalidTransition = "invalid transition ID"
+)
+
 // GradeTransitionResource handles grade transition API endpoints
 type GradeTransitionResource struct {
 	service educationService.GradeTransitionService
@@ -134,7 +141,7 @@ func toTransitionResponse(t *education.GradeTransition) TransitionResponse {
 		ID:           t.ID,
 		AcademicYear: t.AcademicYear,
 		Status:       t.Status,
-		CreatedAt:    t.CreatedAt.Format("2006-01-02T15:04:05Z"),
+		CreatedAt:    t.CreatedAt.Format(timeFormatISO8601),
 		CreatedBy:    t.CreatedBy,
 		Notes:        t.Notes,
 		CanModify:    t.CanModify(),
@@ -143,14 +150,14 @@ func toTransitionResponse(t *education.GradeTransition) TransitionResponse {
 	}
 
 	if t.AppliedAt != nil {
-		formatted := t.AppliedAt.Format("2006-01-02T15:04:05Z")
+		formatted := t.AppliedAt.Format(timeFormatISO8601)
 		resp.AppliedAt = &formatted
 	}
 	if t.AppliedBy != nil {
 		resp.AppliedBy = t.AppliedBy
 	}
 	if t.RevertedAt != nil {
-		formatted := t.RevertedAt.Format("2006-01-02T15:04:05Z")
+		formatted := t.RevertedAt.Format(timeFormatISO8601)
 		resp.RevertedAt = &formatted
 	}
 	if t.RevertedBy != nil {
@@ -223,7 +230,7 @@ func (rs *GradeTransitionResource) create(w http.ResponseWriter, r *http.Request
 	// Get account ID from JWT
 	claims := jwt.ClaimsFromCtx(r.Context())
 	if claims.ID == 0 {
-		common.RenderError(w, r, common.ErrorUnauthorized(errors.New("no account ID in context")))
+		common.RenderError(w, r, common.ErrorUnauthorized(errors.New(errMsgNoAccountID)))
 		return
 	}
 	accountID := int64(claims.ID)
@@ -256,7 +263,7 @@ func (rs *GradeTransitionResource) create(w http.ResponseWriter, r *http.Request
 func (rs *GradeTransitionResource) getByID(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid transition ID")))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errMsgInvalidTransition)))
 		return
 	}
 
@@ -273,7 +280,7 @@ func (rs *GradeTransitionResource) getByID(w http.ResponseWriter, r *http.Reques
 func (rs *GradeTransitionResource) update(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid transition ID")))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errMsgInvalidTransition)))
 		return
 	}
 
@@ -314,7 +321,7 @@ func (rs *GradeTransitionResource) update(w http.ResponseWriter, r *http.Request
 func (rs *GradeTransitionResource) delete(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid transition ID")))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errMsgInvalidTransition)))
 		return
 	}
 
@@ -330,7 +337,7 @@ func (rs *GradeTransitionResource) delete(w http.ResponseWriter, r *http.Request
 func (rs *GradeTransitionResource) preview(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid transition ID")))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errMsgInvalidTransition)))
 		return
 	}
 
@@ -347,14 +354,14 @@ func (rs *GradeTransitionResource) preview(w http.ResponseWriter, r *http.Reques
 func (rs *GradeTransitionResource) apply(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid transition ID")))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errMsgInvalidTransition)))
 		return
 	}
 
 	// Get account ID from JWT
 	claims := jwt.ClaimsFromCtx(r.Context())
 	if claims.ID == 0 {
-		common.RenderError(w, r, common.ErrorUnauthorized(errors.New("no account ID in context")))
+		common.RenderError(w, r, common.ErrorUnauthorized(errors.New(errMsgNoAccountID)))
 		return
 	}
 	accountID := int64(claims.ID)
@@ -372,14 +379,14 @@ func (rs *GradeTransitionResource) apply(w http.ResponseWriter, r *http.Request)
 func (rs *GradeTransitionResource) revert(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid transition ID")))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errMsgInvalidTransition)))
 		return
 	}
 
 	// Get account ID from JWT
 	claims := jwt.ClaimsFromCtx(r.Context())
 	if claims.ID == 0 {
-		common.RenderError(w, r, common.ErrorUnauthorized(errors.New("no account ID in context")))
+		common.RenderError(w, r, common.ErrorUnauthorized(errors.New(errMsgNoAccountID)))
 		return
 	}
 	accountID := int64(claims.ID)
@@ -419,7 +426,7 @@ func (rs *GradeTransitionResource) suggestMappings(w http.ResponseWriter, r *htt
 func (rs *GradeTransitionResource) getHistory(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid transition ID")))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errMsgInvalidTransition)))
 		return
 	}
 
