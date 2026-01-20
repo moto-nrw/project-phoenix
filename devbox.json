@@ -3,6 +3,7 @@
   "packages": [
     "go@1.25.5",
     "nodejs_20@latest",
+    "pnpm@latest",
     "golangci-lint@latest",
     "goimports@latest",
     "openssl@latest",
@@ -42,7 +43,7 @@
     "init_hook": [
       "lefthook install --force > /dev/null 2>&1 || true",
       "[ ! -d frontend/node_modules ] && echo 'installing frontend deps...' && cd frontend && nci --silent || true",
-      "echo \"go $(go version | cut -d' ' -f3 | sed 's/go//') node $(node -v | sed 's/v//') | bat eza fzf rg fd tree jq yq glow xh btop curl | ni pgcli air gotestsum lazygit lazydocker gh swag govulncheck\""
+      "echo \"go $(go version | cut -d' ' -f3 | sed 's/go//') node $(node -v | sed 's/v//') pnpm $(pnpm -v) | bat eza fzf rg fd tree jq yq glow xh btop curl | ni pgcli air gotestsum lazygit lazydocker gh swag govulncheck\""
     ]
   }
 }
