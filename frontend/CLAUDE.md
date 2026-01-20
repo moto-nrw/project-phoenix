@@ -22,20 +22,20 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ```bash
 # Development
-npm run dev                     # Start dev server with turbo (http://localhost:3000)
-npm run build                   # Build for production
-npm run start                   # Start production server
-npm run preview                 # Build and preview production version
+pnpm run dev                     # Start dev server with turbo (http://localhost:3000)
+pnpm run build                   # Build for production
+pnpm run start                   # Start production server
+pnpm run preview                 # Build and preview production version
 
 # Code Quality (Run these before committing!)
-npm run lint                    # ESLint check with max-warnings=0
-npm run lint:fix                # Auto-fix linting issues  
-npm run typecheck               # TypeScript type checking
-npm run check                   # Run both lint and typecheck
+pnpm run lint                    # ESLint check with max-warnings=0
+pnpm run lint:fix                # Auto-fix linting issues  
+pnpm run typecheck               # TypeScript type checking
+pnpm run check                   # Run both lint and typecheck
 
 # Formatting
-npm run format:check            # Check Prettier formatting
-npm run format:write            # Fix formatting issues
+pnpm run format:check            # Check Prettier formatting
+pnpm run format:write            # Fix formatting issues
 ```
 
 ## Environment Configuration
@@ -449,7 +449,7 @@ type SSEEventType =
 - **Async components**: Only server components can be async
 
 ### Build Issues
-- Run `npm run check` before committing
+- Run `pnpm run check` before committing
 - Fix all ESLint errors (0 warnings policy)
 - Ensure all TypeScript errors resolved
 
@@ -494,7 +494,7 @@ The frontend proxies all API calls through Next.js route handlers to the Go back
 3. Implement API client functions
 4. Create/update route handlers
 5. Build UI components
-6. Always run `npm run check` before committing
+6. Always run `pnpm run check` before committing
 7. Handle errors gracefully with user feedback
 
 ## Testing

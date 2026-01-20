@@ -254,11 +254,11 @@ func TestCreateSetting_Success(t *testing.T) {
 	uniqueKey := fmt.Sprintf("test_setting_%d", time.Now().UnixNano())
 
 	body := map[string]interface{}{
-		"key":              uniqueKey,
-		"value":            "test_value",
-		"category":         "test",
-		"description":      "Test setting",
-		"requires_restart": false,
+		"key":               uniqueKey,
+		"value":             "test_value",
+		"category":          "test",
+		"description":       "Test setting",
+		"requires_restart":  false,
 		"requires_db_reset": false,
 	}
 

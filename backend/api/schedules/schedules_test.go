@@ -81,8 +81,8 @@ func TestGetCurrentDateframe_Success(t *testing.T) {
 
 	// Create a dateframe that spans today
 	today := time.Now()
-	startDate := today.AddDate(0, 0, -7)  // 7 days ago
-	endDate := today.AddDate(0, 0, 30)    // 30 days from now
+	startDate := today.AddDate(0, 0, -7) // 7 days ago
+	endDate := today.AddDate(0, 0, 30)   // 30 days from now
 
 	// Insert the dateframe directly
 	dateframe := &schedule.Dateframe{

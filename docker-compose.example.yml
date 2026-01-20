@@ -2,22 +2,17 @@ services:
   server:
     build:
       context: ./backend
-      dockerfile: Dockerfile
-      cache_from:
-        - project-phoenix-server:latest
+      dockerfile: Dockerfile.dev
     depends_on:
       postgres:
         condition: service_healthy
     ports:
       - 8080:8080
-    develop:
-      watch:
-        - action: rebuild
-          path: ./backend
-          ignore:
-            - backend/bin/
-            - backend/*.log
-            - backend/tmp/
+    volumes:
+      # Mount source code for hot reload
+      - ./backend:/app
+      # Preserve go modules cache
+      - go_mod_cache:/go/pkg/mod
     environment:
       TZ: ${TZ:-Europe/Berlin}
       LOG_LEVEL: ${LOG_LEVEL:-debug}
@@ -57,7 +52,7 @@ services:
       SESSION_CLEANUP_INTERVAL_MINUTES: ${SESSION_CLEANUP_INTERVAL_MINUTES:-15}
       SESSION_ABANDONED_THRESHOLD_MINUTES: ${SESSION_ABANDONED_THRESHOLD_MINUTES:-60}
       OGS_DEVICE_PIN: ${OGS_DEVICE_PIN}
-    command: ["./main", "serve", "--db_debug"]
+    # air handles the serve command via .air.toml
 
   frontend:
     build:
@@ -87,7 +82,7 @@ services:
       - ./frontend/public:/app/public
       # Mount config files that might change
       - ./frontend/package.json:/app/package.json
-      - ./frontend/package-lock.json:/app/package-lock.json
+      - ./frontend/pnpm-lock.yaml:/app/pnpm-lock.yaml
       - ./frontend/next.config.js:/app/next.config.js
       - ./frontend/tsconfig.json:/app/tsconfig.json
       - ./frontend/tailwind.config.js:/app/tailwind.config.js
@@ -155,3 +150,4 @@ volumes:
   postgres:
   postgres_test:
   frontend_node_modules:
+  go_mod_cache:

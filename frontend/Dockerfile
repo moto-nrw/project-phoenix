@@ -1,21 +1,21 @@
 # syntax=docker/dockerfile:1
 FROM node:20-alpine AS base
 
-# Install timezone data for proper timezone support
-RUN apk add --no-cache tzdata
+# Install timezone data and enable corepack for pnpm
+RUN apk add --no-cache tzdata && \
+    corepack enable && corepack prepare pnpm@10 --activate
 
 # Install dependencies needed for all stages
 FROM base AS deps
 WORKDIR /app
-COPY package.json package-lock.json ./
-# Note: Removed npm cache mount - it can become stale and skip installing new packages
-RUN npm ci --only=production
+COPY package.json pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile --prod
 
 # Development dependencies
 FROM base AS dev-deps
 WORKDIR /app
-COPY package.json package-lock.json ./
-RUN npm ci
+COPY package.json pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile
 
 # Development stage
 FROM base AS development
@@ -33,7 +33,7 @@ ENV NEXT_TELEMETRY_DISABLED=1
 
 EXPOSE 3000
 
-CMD ["npm", "run", "dev"]
+CMD ["pnpm", "run", "dev"]
 
 # Builder stage for production
 FROM base AS builder
@@ -48,7 +48,7 @@ COPY . .
 # Build the application
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
-RUN npm run build
+RUN pnpm run build
 
 # Production stage - minimal image
 FROM base AS production
@@ -65,7 +65,7 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/package.json ./package.json
-COPY --from=builder /app/package-lock.json ./package-lock.json
+COPY --from=builder /app/pnpm-lock.yaml ./pnpm-lock.yaml
 
 # Create non-root user for security
 RUN addgroup -g 1001 -S nodejs && \
@@ -74,4 +74,4 @@ USER nextjs
 
 EXPOSE 3000
 
-CMD ["npm", "start"]
+CMD ["pnpm", "start"]

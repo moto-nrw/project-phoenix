@@ -421,7 +421,7 @@ func TestAttendanceRepository_FindLatestByStudent(t *testing.T) {
 		now := time.Now()
 		date1 := timezone.Today().AddDate(0, 0, -2) // 2 days ago
 		date2 := timezone.Today().AddDate(0, 0, -1) // Yesterday
-		date3 := timezone.Today()                    // Today
+		date3 := timezone.Today()                   // Today
 
 		// Create attendance for date1 (oldest)
 		attendance1 := &active.Attendance{

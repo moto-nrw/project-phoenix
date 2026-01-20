@@ -1,6 +1,6 @@
 ---
 description: Run full quality checks (lint + typecheck) for frontend
-allowed-tools: Bash(cd:*), Bash(npm run:*)
+allowed-tools: Bash(cd:*), Bash(pnpm run:*)
 ---
 
 # Frontend Quality Check
@@ -23,7 +23,7 @@ Run comprehensive code quality checks for frontend. **MUST pass before committin
 ## Execution
 
 ```bash
-cd frontend && npm run check
+cd frontend && pnpm run check
 ```
 
 This runs both checks in sequence:
@@ -35,13 +35,13 @@ This runs both checks in sequence:
 Auto-fix linting issues:
 
 ```bash
-cd frontend && npm run lint:fix
+cd frontend && pnpm run lint:fix
 ```
 
 Auto-format code:
 
 ```bash
-cd frontend && npm run format:write
+cd frontend && pnpm run format:write
 ```
 
 ## Expected Output
@@ -64,8 +64,8 @@ Always run this command before creating a commit. Project enforces zero warnings
 
 ```bash
 cd frontend
-npm run check          # MUST pass
-npm run format:write   # Auto-format
+pnpm run check          # MUST pass
+pnpm run format:write   # Auto-format
 git add <files>
 git commit -m "..."
 ```

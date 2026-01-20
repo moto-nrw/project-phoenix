@@ -1099,7 +1099,9 @@ func (rs *Resource) DeleteDateframeHandler() http.HandlerFunc { return rs.delete
 func (rs *Resource) GetDateframesByDateHandler() http.HandlerFunc { return rs.getDateframesByDate }
 
 // GetOverlappingDateframesHandler returns the get overlapping dateframes handler
-func (rs *Resource) GetOverlappingDateframesHandler() http.HandlerFunc { return rs.getOverlappingDateframes }
+func (rs *Resource) GetOverlappingDateframesHandler() http.HandlerFunc {
+	return rs.getOverlappingDateframes
+}
 
 // GetCurrentDateframeHandler returns the get current dateframe handler
 func (rs *Resource) GetCurrentDateframeHandler() http.HandlerFunc { return rs.getCurrentDateframe }
@@ -1141,10 +1143,14 @@ func (rs *Resource) UpdateRecurrenceRuleHandler() http.HandlerFunc { return rs.u
 func (rs *Resource) DeleteRecurrenceRuleHandler() http.HandlerFunc { return rs.deleteRecurrenceRule }
 
 // GetRecurrenceRulesByFrequencyHandler returns the get recurrence rules by frequency handler
-func (rs *Resource) GetRecurrenceRulesByFrequencyHandler() http.HandlerFunc { return rs.getRecurrenceRulesByFrequency }
+func (rs *Resource) GetRecurrenceRulesByFrequencyHandler() http.HandlerFunc {
+	return rs.getRecurrenceRulesByFrequency
+}
 
 // GetRecurrenceRulesByWeekdayHandler returns the get recurrence rules by weekday handler
-func (rs *Resource) GetRecurrenceRulesByWeekdayHandler() http.HandlerFunc { return rs.getRecurrenceRulesByWeekday }
+func (rs *Resource) GetRecurrenceRulesByWeekdayHandler() http.HandlerFunc {
+	return rs.getRecurrenceRulesByWeekday
+}
 
 // GenerateEventsHandler returns the generate events handler
 func (rs *Resource) GenerateEventsHandler() http.HandlerFunc { return rs.generateEvents }

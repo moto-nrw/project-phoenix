@@ -1,13 +1,17 @@
 {
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
   "cleanupPeriodDays": 30,
-  "includeCoAuthoredBy": false,
   "env": {
-    "MAX_MCP_OUTPUT_TOKENS": "50000",
+    "MAX_MCP_OUTPUT_TOKENS": "100000",
+    "CLAUDE_CODE_MAX_READ_LINES": "50000",
+    "CLAUDE_CODE_MAX_OUTPUT_CHARS": "100000",
     "MAX_THINKING_TOKENS": "10000",
     "USE_BUILTIN_RIPGREP": "1",
     "BASH_DEFAULT_TIMEOUT_MS": "120000",
     "BASH_MAX_OUTPUT_LENGTH": "50000"
   },
+  "includeCoAuthoredBy": false,
+  "enableAllProjectMcpServers": true,
   "permissions": {
     "allow": [
       "Bash(cd:*)",
@@ -151,13 +155,11 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/format-go.sh",
-            "description": "Auto-format Go files with gofmt and goimports"
+            "command": "bash .claude/hooks/format-go.sh"
           },
           {
             "type": "command",
-            "command": "bash .claude/hooks/format-typescript.sh",
-            "description": "Auto-format TypeScript/JavaScript with Prettier"
+            "command": "bash .claude/hooks/format-typescript.sh"
           }
         ]
       }
@@ -168,8 +170,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/check-commit-message.sh",
-            "description": "Validate conventional commit format"
+            "command": "bash .claude/hooks/check-commit-message.sh"
           }
         ]
       }
@@ -180,11 +181,35 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/check-env-files.sh",
-            "description": "Verify environment files exist"
+            "command": "bash .claude/hooks/check-env-files.sh"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/skill-reminder.sh"
           }
         ]
       }
     ]
-  }
+  },
+  "enabledPlugins": {
+    "superpowers@superpowers-marketplace": true,
+    "codeguard-security@project-codeguard": true,
+    "pr-review-toolkit@claude-code-plugins": true,
+    "code-refactoring@claude-code-workflows": true,
+    "cicd-automation@claude-code-workflows": true,
+    "backend-api-security@claude-code-workflows": true,
+    "api-scaffolding@claude-code-workflows": true,
+    "codebase-cleanup@claude-code-workflows": true,
+    "playwright@claude-plugins-official": true,
+    "typescript-lsp@claude-plugins-official": true,
+    "gopls-lsp@claude-plugins-official": true
+  },
+  "alwaysThinkingEnabled": true,
+  "autoUpdatesChannel": "latest"
 }

@@ -12,12 +12,9 @@ var cfgFile string
 
 // RootCmd represents the base command when called without any subcommands
 var RootCmd = &cobra.Command{
-	Use:   "go-base",
-	Short: "A RESTful API boilerplate",
-	Long:  `A RESTful API boilerplate with username/password authentication.`,
-	// Uncomment the following line if your bare application
-	// has an action associated with it:
-	//	Run: func(cmd *cobra.Command, args []string) { },
+	Use:   "phoenix",
+	Short: "RFID-based student attendance and room management system",
+	Long:  `Project Phoenix - A GDPR-compliant RFID-based student attendance and room management system for educational institutions.`,
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.

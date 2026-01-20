@@ -14,8 +14,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/uptrace/bun"
 
-	usersAPI "github.com/moto-nrw/project-phoenix/api/users"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
+	usersAPI "github.com/moto-nrw/project-phoenix/api/users"
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/services"

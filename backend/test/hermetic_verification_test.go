@@ -133,11 +133,11 @@ func checkHardcodedIDs(t *testing.T, root string) []string {
 
 	// Files to skip (mock tests, model unit tests without DB)
 	skipPatterns := []string{
-		"_internal_test.go",                   // Internal tests often use mocks
-		"_mock_test.go",                       // Mock tests
-		"models/",                             // Model unit tests don't hit DB
-		"invitation_service_test.go",          // Uses mocks
-		"password_reset_integration_test.go",  // Uses mocks (sqlmock + stubs)
+		"_internal_test.go",                  // Internal tests often use mocks
+		"_mock_test.go",                      // Mock tests
+		"models/",                            // Model unit tests don't hit DB
+		"invitation_service_test.go",         // Uses mocks
+		"password_reset_integration_test.go", // Uses mocks (sqlmock + stubs)
 	}
 
 	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
