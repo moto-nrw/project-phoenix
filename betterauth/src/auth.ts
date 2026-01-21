@@ -8,6 +8,7 @@ import {
   bueroAdmin,
   traegerAdmin,
 } from "./permissions.js";
+import { sendOrgPendingEmail } from "./email.js";
 
 // Create a shared pool for database operations including hooks
 const pool = new Pool({
@@ -91,6 +92,27 @@ export const auth = betterAuth({
         ogsAdmin,
         bueroAdmin,
         traegerAdmin,
+      },
+
+      // Organization lifecycle hooks for email notifications
+      organizationHooks: {
+        // Send org-pending email after organization creation
+        afterCreateOrganization: async ({ organization, user }) => {
+          // Only send email for new pending organizations
+          if (organization.status === "pending") {
+            try {
+              await sendOrgPendingEmail({
+                to: user.email,
+                firstName: user.name?.split(" ")[0] ?? undefined,
+                orgName: organization.name,
+                subdomain: organization.slug ?? "",
+              });
+            } catch (error) {
+              // Log error but don't fail the organization creation
+              console.error("Failed to send org-pending email:", error);
+            }
+          }
+        },
       },
 
       // Custom schema configuration for self-service SaaS
