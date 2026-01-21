@@ -90,7 +90,8 @@
       "src/lib/database/configs/*.{ts,tsx}",
       "src/lib/swr/index.ts",
       "src/server/auth/token-refresh.ts",
-      "src/**/*.test.{ts,tsx}"
+      "src/**/*.test.{ts,tsx}",
+      "src/test/mocks/*.ts"
     ],
     "project": [
       "src/**/*.{ts,tsx,js}"
