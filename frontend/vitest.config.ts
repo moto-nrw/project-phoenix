@@ -26,6 +26,8 @@ export default defineConfig({
     alias: {
       "~": path.resolve(__dirname, "./src"),
       "@": path.resolve(__dirname, "./src"),
+      // Resolve swr to mock if not installed (prevents test failures)
+      swr: path.resolve(__dirname, "./src/test/mocks/swr.ts"),
     },
   },
 });

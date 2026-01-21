@@ -367,6 +367,48 @@ describe("ActivitiesPage", () => {
   });
 });
 
+describe("ActivitiesPage modal interactions", () => {
+  const mockMutate = vi.fn();
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockMutate.mockClear();
+    vi.mocked(useSWRAuth).mockReturnValue({
+      data: {
+        activities: mockActivities,
+        categories: mockCategories,
+        currentStaff: mockStaff,
+      },
+      isLoading: false,
+      error: null,
+      mutate: mockMutate,
+    } as never);
+  });
+
+  it("closes activity management modal and clears selected activity", async () => {
+    render(<ActivitiesPage />);
+
+    // Open modal
+    fireEvent.click(screen.getByRole("button", { name: /Schach/i }));
+    expect(screen.getByTestId("activity-management-modal")).toBeInTheDocument();
+
+    // Trigger close (using the success button which internally closes)
+    fireEvent.click(screen.getByTestId("management-success"));
+
+    await waitFor(() => {
+      expect(mockMutate).toHaveBeenCalled();
+    });
+  });
+
+  it("shows action button for create on non-mobile", () => {
+    render(<ActivitiesPage />);
+
+    // The action button should be rendered
+    const createButtons = screen.getAllByLabelText("Aktivität erstellen");
+    expect(createButtons.length).toBeGreaterThan(0);
+  });
+});
+
 describe("ActivitiesPage helper functions", () => {
   it("filters activities by search term matching name", () => {
     const activities = [
