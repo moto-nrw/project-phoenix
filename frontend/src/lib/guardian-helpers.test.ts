@@ -4,6 +4,7 @@ import {
   mapGuardianWithRelationshipResponse,
   mapGuardianFormDataToBackend,
   mapStudentGuardianLinkToBackend,
+  mapGuardianSearchResultResponse,
   getGuardianFullName,
   getGuardianPrimaryContact,
   getRelationshipTypeLabel,
@@ -12,6 +13,7 @@ import {
   LANGUAGE_PREFERENCES,
   type BackendGuardianProfile,
   type BackendGuardianWithRelationship,
+  type BackendGuardianSearchResult,
   type GuardianFormData,
   type StudentGuardianLinkRequest,
   type Guardian,
@@ -204,6 +206,113 @@ describe("guardian-helpers", () => {
       expect(result.canPickup).toBe(false);
       expect(result.pickupNotes).toBeUndefined();
       expect(result.emergencyPriority).toBe(3);
+    });
+  });
+
+  describe("mapGuardianSearchResultResponse", () => {
+    it("maps guardian search result with students", () => {
+      const backendData: BackendGuardianSearchResult = {
+        id: 123,
+        first_name: "Anna",
+        last_name: "Müller",
+        email: "anna.mueller@example.com",
+        phone: "030-12345678",
+        students: [
+          {
+            student_id: 1,
+            first_name: "Max",
+            last_name: "Müller",
+            school_class: "1a",
+          },
+          {
+            student_id: 2,
+            first_name: "Lisa",
+            last_name: "Müller",
+            school_class: "3b",
+          },
+        ],
+      };
+
+      const result = mapGuardianSearchResultResponse(backendData);
+
+      expect(result).toEqual({
+        id: "123",
+        firstName: "Anna",
+        lastName: "Müller",
+        email: "anna.mueller@example.com",
+        phone: "030-12345678",
+        students: [
+          {
+            studentId: "1",
+            firstName: "Max",
+            lastName: "Müller",
+            schoolClass: "1a",
+          },
+          {
+            studentId: "2",
+            firstName: "Lisa",
+            lastName: "Müller",
+            schoolClass: "3b",
+          },
+        ],
+      });
+    });
+
+    it("handles guardian with no students", () => {
+      const backendData: BackendGuardianSearchResult = {
+        id: 456,
+        first_name: "Peter",
+        last_name: "Schmidt",
+        students: [],
+      };
+
+      const result = mapGuardianSearchResultResponse(backendData);
+
+      expect(result.id).toBe("456");
+      expect(result.firstName).toBe("Peter");
+      expect(result.lastName).toBe("Schmidt");
+      expect(result.students).toEqual([]);
+      expect(result.email).toBeUndefined();
+      expect(result.phone).toBeUndefined();
+    });
+
+    it("converts numeric ids to strings", () => {
+      const backendData: BackendGuardianSearchResult = {
+        id: 999,
+        first_name: "Test",
+        last_name: "User",
+        students: [
+          {
+            student_id: 888,
+            first_name: "Child",
+            last_name: "User",
+            school_class: "2c",
+          },
+        ],
+      };
+
+      const result = mapGuardianSearchResultResponse(backendData);
+
+      expect(result.id).toBe("999");
+      expect(typeof result.id).toBe("string");
+      expect(result.students[0]?.studentId).toBe("888");
+      expect(typeof result.students[0]?.studentId).toBe("string");
+    });
+
+    it("handles optional email and phone fields", () => {
+      const backendData: BackendGuardianSearchResult = {
+        id: 1,
+        first_name: "Only",
+        last_name: "Name",
+        email: undefined,
+        phone: undefined,
+        students: [],
+      };
+
+      const result = mapGuardianSearchResultResponse(backendData);
+
+      expect(result.email).toBeUndefined();
+      expect(result.phone).toBeUndefined();
     });
   });
 

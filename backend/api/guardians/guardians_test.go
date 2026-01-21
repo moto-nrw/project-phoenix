@@ -977,3 +977,123 @@ func TestAcceptGuardianInvitation_BadRequest_MissingConfirmPassword(t *testing.T
 
 	testutil.AssertBadRequest(t, rr)
 }
+
+// =============================================================================
+// SEARCH GUARDIANS WITH STUDENTS TESTS
+// =============================================================================
+
+func TestSearchGuardiansWithStudents_Success(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	router := chi.NewRouter()
+	router.Get("/guardians/search-with-students", ctx.resource.SearchGuardiansWithStudentsHandler())
+
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/guardians/search-with-students?search=Test", nil,
+		testutil.WithClaims(testutil.DefaultTestClaims()),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+
+	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+	_, ok := response["data"].([]interface{})
+	require.True(t, ok, "Expected data to be an array")
+}
+
+func TestSearchGuardiansWithStudents_EmptyResult(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	router := chi.NewRouter()
+	router.Get("/guardians/search-with-students", ctx.resource.SearchGuardiansWithStudentsHandler())
+
+	// Use a search query that won't match anything
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/guardians/search-with-students?search=XYZNONEXISTENT12345", nil,
+		testutil.WithClaims(testutil.DefaultTestClaims()),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+
+	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+	data, ok := response["data"].([]interface{})
+	require.True(t, ok, "Expected data to be an array")
+	assert.Empty(t, data, "Expected empty array for non-matching search")
+}
+
+func TestSearchGuardiansWithStudents_BadRequest_MissingSearchParam(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	router := chi.NewRouter()
+	router.Get("/guardians/search-with-students", ctx.resource.SearchGuardiansWithStudentsHandler())
+
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/guardians/search-with-students", nil,
+		testutil.WithClaims(testutil.DefaultTestClaims()),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	testutil.AssertBadRequest(t, rr)
+}
+
+func TestSearchGuardiansWithStudents_BadRequest_SearchTooShort(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	router := chi.NewRouter()
+	router.Get("/guardians/search-with-students", ctx.resource.SearchGuardiansWithStudentsHandler())
+
+	// Search with only 1 character (minimum is 2)
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/guardians/search-with-students?search=A", nil,
+		testutil.WithClaims(testutil.DefaultTestClaims()),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	testutil.AssertBadRequest(t, rr)
+}
+
+func TestSearchGuardiansWithStudents_WithExcludeStudentID(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	// Create a student to exclude
+	student := testpkg.CreateTestStudent(t, ctx.db, "Exclude", "TestStudent", "1a")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
+
+	router := chi.NewRouter()
+	router.Get("/guardians/search-with-students", ctx.resource.SearchGuardiansWithStudentsHandler())
+
+	req := testutil.NewAuthenticatedRequest(t, "GET",
+		fmt.Sprintf("/guardians/search-with-students?search=Test&exclude_student_id=%d", student.ID), nil,
+		testutil.WithClaims(testutil.DefaultTestClaims()),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+
+	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+	_, ok := response["data"].([]interface{})
+	require.True(t, ok, "Expected data to be an array")
+}
+
+func TestSearchGuardiansWithStudents_BadRequest_InvalidExcludeStudentID(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	router := chi.NewRouter()
+	router.Get("/guardians/search-with-students", ctx.resource.SearchGuardiansWithStudentsHandler())
+
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/guardians/search-with-students?search=Test&exclude_student_id=invalid", nil,
+		testutil.WithClaims(testutil.DefaultTestClaims()),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	testutil.AssertBadRequest(t, rr)
+}
