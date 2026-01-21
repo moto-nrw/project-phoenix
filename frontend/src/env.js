@@ -16,6 +16,11 @@ export const env = createEnv({
       .default("development"),
     NEXTAUTH_URL: z.url().optional().default("http://localhost:3000"),
     NEXTAUTH_SECRET: z.string().optional(),
+    // BetterAuth internal URL for server-to-server calls (middleware)
+    BETTERAUTH_INTERNAL_URL: z
+      .url()
+      .optional()
+      .default("http://localhost:3001"),
   },
 
   /**
@@ -25,6 +30,8 @@ export const env = createEnv({
    */
   client: {
     NEXT_PUBLIC_API_URL: z.url().optional().default("http://localhost:8080"),
+    // Base domain for subdomain routing (e.g., "moto-app.de")
+    NEXT_PUBLIC_BASE_DOMAIN: z.string().optional().default("localhost:3000"),
   },
 
   /**
@@ -38,7 +45,9 @@ export const env = createEnv({
     NODE_ENV: process.env.NODE_ENV,
     NEXTAUTH_URL: process.env.NEXTAUTH_URL,
     NEXTAUTH_SECRET: process.env.NEXTAUTH_SECRET,
+    BETTERAUTH_INTERNAL_URL: process.env.BETTERAUTH_INTERNAL_URL,
     NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL,
+    NEXT_PUBLIC_BASE_DOMAIN: process.env.NEXT_PUBLIC_BASE_DOMAIN,
   },
   /**
    * Run `build` or `dev` with `SKIP_ENV_VALIDATION` to skip env validation. This is especially
