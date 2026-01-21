@@ -1548,3 +1548,115 @@ func TestParentAccountManagement(t *testing.T) {
 		assert.Equal(t, http.StatusNoContent, rr.Code, "Activate failed: %s", rr.Body.String())
 	})
 }
+
+// ============================================================================
+// ADDITIONAL COVERAGE TESTS - Previously 0% Coverage Handlers
+// ============================================================================
+
+// TestDeleteRole tests role deletion endpoint
+func TestDeleteRole(t *testing.T) {
+	tc, router := setupExtendedProtectedRouter(t)
+	adminClaims := testutil.AdminTestClaims(1)
+
+	t.Run("delete role with permission", func(t *testing.T) {
+		// Create a role to delete
+		role := testpkg.CreateTestRole(t, tc.db, fmt.Sprintf("DeleteTestRole%d", time.Now().UnixNano()))
+
+		req := testutil.NewJSONRequest(t, "DELETE", fmt.Sprintf("/auth/roles/%d", role.ID), nil)
+		rr := executeWithAuth(router, req, adminClaims, []string{"roles:delete"})
+
+		assert.Equal(t, http.StatusNoContent, rr.Code, "Delete failed: %s", rr.Body.String())
+	})
+
+	t.Run("delete role not found returns no content", func(t *testing.T) {
+		req := testutil.NewJSONRequest(t, "DELETE", "/auth/roles/99999", nil)
+		rr := executeWithAuth(router, req, adminClaims, []string{"roles:delete"})
+
+		// Delete operation is idempotent - returns 204 even for non-existent roles
+		assert.Equal(t, http.StatusNoContent, rr.Code, "Body: %s", rr.Body.String())
+	})
+
+	t.Run("delete role bad request with invalid id", func(t *testing.T) {
+		req := testutil.NewJSONRequest(t, "DELETE", "/auth/roles/invalid", nil)
+		rr := executeWithAuth(router, req, adminClaims, []string{"roles:delete"})
+
+		testutil.AssertBadRequest(t, rr)
+	})
+
+	t.Run("delete role forbidden without permission", func(t *testing.T) {
+		req := testutil.NewJSONRequest(t, "DELETE", "/auth/roles/1", nil)
+		rr := executeWithAuth(router, req, adminClaims, []string{})
+
+		testutil.AssertForbidden(t, rr)
+	})
+}
+
+// setupRefreshTokenRouter creates a router with refresh and logout endpoints
+// Note: This bypasses JWT middleware to allow testing with context-injected tokens
+func setupRefreshTokenRouter(t *testing.T) (*testContext, chi.Router) {
+	t.Helper()
+
+	tc := setupTestContext(t)
+
+	router := chi.NewRouter()
+	router.Use(render.SetContentType(render.ContentTypeJSON))
+
+	// Use the full public router for refresh/logout
+	// These routes require JWT middleware which we bypass via context
+	router.Mount("/auth", tc.resource.Router())
+
+	return tc, router
+}
+
+// TestRefreshToken tests token refresh endpoint using real login flow
+func TestRefreshToken(t *testing.T) {
+	_, router := setupRefreshTokenRouter(t)
+
+	t.Run("refresh with invalid token returns unauthorized", func(t *testing.T) {
+		// Without proper JWT middleware validation, this tests the auth flow
+		req := testutil.NewJSONRequest(t, "POST", "/auth/refresh", nil)
+		req.Header.Set("Authorization", "Bearer invalid-token")
+
+		rr := httptest.NewRecorder()
+		router.ServeHTTP(rr, req)
+
+		// Should return 401 Unauthorized (JWT validation fails)
+		assert.Equal(t, http.StatusUnauthorized, rr.Code, "Body: %s", rr.Body.String())
+	})
+
+	t.Run("refresh without token returns unauthorized", func(t *testing.T) {
+		req := testutil.NewJSONRequest(t, "POST", "/auth/refresh", nil)
+
+		rr := httptest.NewRecorder()
+		router.ServeHTTP(rr, req)
+
+		// Should return 401 Unauthorized
+		assert.Equal(t, http.StatusUnauthorized, rr.Code, "Body: %s", rr.Body.String())
+	})
+}
+
+// TestLogout tests logout endpoint
+func TestLogout(t *testing.T) {
+	_, router := setupRefreshTokenRouter(t)
+
+	t.Run("logout without token returns unauthorized", func(t *testing.T) {
+		req := testutil.NewJSONRequest(t, "POST", "/auth/logout", nil)
+
+		rr := httptest.NewRecorder()
+		router.ServeHTTP(rr, req)
+
+		// JWT middleware rejects requests without valid token
+		assert.Equal(t, http.StatusUnauthorized, rr.Code, "Body: %s", rr.Body.String())
+	})
+
+	t.Run("logout with invalid token returns unauthorized", func(t *testing.T) {
+		req := testutil.NewJSONRequest(t, "POST", "/auth/logout", nil)
+		req.Header.Set("Authorization", "Bearer invalid-token")
+
+		rr := httptest.NewRecorder()
+		router.ServeHTTP(rr, req)
+
+		// JWT middleware rejects invalid tokens
+		assert.Equal(t, http.StatusUnauthorized, rr.Code, "Body: %s", rr.Body.String())
+	})
+}

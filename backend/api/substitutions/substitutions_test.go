@@ -216,11 +216,11 @@ func TestCreateSubstitution_Success(t *testing.T) {
 	endDate := time.Now().AddDate(0, 0, 7).Format("2006-01-02")
 
 	body := map[string]interface{}{
-		"group_id":           groupID,
+		"group_id":            groupID,
 		"substitute_staff_id": staff.ID,
-		"start_date":         startDate,
-		"end_date":           endDate,
-		"reason":             "Test substitution",
+		"start_date":          startDate,
+		"end_date":            endDate,
+		"reason":              "Test substitution",
 	}
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/substitutions", body,

@@ -64,6 +64,11 @@ export function getStaffLocationStatus(staff: Staff): LocationStatus {
 
 // Get a display-friendly role/type for staff
 export function getStaffDisplayType(staff: Staff): string {
+  // Check role first (Admin/Betreuer/Extern)
+  if (staff.role) {
+    return staff.role;
+  }
+  // Fall back to specialization if available
   if (staff.isTeacher && staff.specialization) {
     return staff.specialization;
   }

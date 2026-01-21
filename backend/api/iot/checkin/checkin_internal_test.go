@@ -4,6 +4,9 @@ package checkin
 
 import (
 	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"testing"
 	"time"
@@ -443,4 +446,155 @@ func TestIsPendingDailyCheckoutScenario_NilActiveGroup(t *testing.T) {
 	visit := &active.Visit{}
 	result := rs.isPendingDailyCheckoutScenario(context.Background(), student, visit)
 	assert.False(t, result)
+}
+
+// =============================================================================
+// handlePendingDailyCheckoutResponse TESTS
+// =============================================================================
+
+func TestHandlePendingDailyCheckoutResponse_Basic(t *testing.T) {
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest("POST", "/checkin", nil)
+
+	student := &users.Student{Model: base.Model{ID: 123}}
+	person := &users.Person{FirstName: "Anna", LastName: "Schmidt"}
+	currentVisit := &active.Visit{
+		Model: base.Model{ID: 456},
+		ActiveGroup: &active.Group{
+			Room: &facilities.Room{Name: "Klassenraum 1a"},
+		},
+	}
+
+	handlePendingDailyCheckoutResponse(w, r, student, person, currentVisit)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	// Response is wrapped in common.Respond structure
+	var response map[string]interface{}
+	err := json.Unmarshal(w.Body.Bytes(), &response)
+	require.NoError(t, err)
+
+	assert.Equal(t, "success", response["status"])
+	// Data is nested under "data" field
+	data, ok := response["data"].(map[string]interface{})
+	require.True(t, ok, "data field should be a map")
+	assert.Equal(t, float64(123), data["student_id"])
+	assert.Equal(t, "Anna Schmidt", data["student_name"])
+	assert.Equal(t, "pending_daily_checkout", data["action"])
+}
+
+func TestHandlePendingDailyCheckoutResponse_NoRoom(t *testing.T) {
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest("POST", "/checkin", nil)
+
+	student := &users.Student{Model: base.Model{ID: 123}}
+	person := &users.Person{FirstName: "Max", LastName: "Muster"}
+	currentVisit := &active.Visit{
+		Model:       base.Model{ID: 789},
+		ActiveGroup: &active.Group{}, // No room
+	}
+
+	handlePendingDailyCheckoutResponse(w, r, student, person, currentVisit)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var response map[string]interface{}
+	err := json.Unmarshal(w.Body.Bytes(), &response)
+	require.NoError(t, err)
+
+	data, ok := response["data"].(map[string]interface{})
+	require.True(t, ok, "data field should be a map")
+	assert.Equal(t, "", data["room_name"])
+}
+
+// =============================================================================
+// roomNameByID TESTS (additional edge cases)
+// =============================================================================
+
+func TestRoomNameByID_WithRoomObject(t *testing.T) {
+	rs := &Resource{}
+	room := &facilities.Room{Name: "Test Room"}
+	name := rs.roomNameByID(context.Background(), room, 1)
+	assert.Equal(t, "Test Room", name)
+}
+
+// =============================================================================
+// sendCheckinResponse TESTS
+// =============================================================================
+
+func TestSendCheckinResponse(t *testing.T) {
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest("POST", "/checkin", nil)
+
+	response := map[string]interface{}{
+		"student_id":   int64(123),
+		"student_name": "Test Student",
+		"action":       "checked_in",
+		"status":       "success",
+	}
+
+	sendCheckinResponse(w, r, response, "checked_in")
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var resp map[string]interface{}
+	err := json.Unmarshal(w.Body.Bytes(), &resp)
+	require.NoError(t, err)
+	assert.Equal(t, "success", resp["status"])
+}
+
+// =============================================================================
+// roomNameForResponse TESTS
+// =============================================================================
+
+func TestRoomNameForResponse_WithActiveGroupRoom(t *testing.T) {
+	rs := &Resource{}
+	currentVisit := &active.Visit{
+		ActiveGroup: &active.Group{
+			Room: &facilities.Room{Name: "Library"},
+		},
+	}
+
+	name := rs.roomNameForResponse(context.Background(), currentVisit, nil)
+	assert.Equal(t, "Library", name)
+}
+
+func TestRoomNameForResponse_NilVisit_NilRoomID(t *testing.T) {
+	rs := &Resource{}
+
+	name := rs.roomNameForResponse(context.Background(), nil, nil)
+	assert.Equal(t, "", name)
+}
+
+
+// =============================================================================
+// processStudentCheckin result struct TESTS
+// =============================================================================
+
+func TestCheckinProcessingResult_Struct(t *testing.T) {
+	visitID := int64(123)
+	result := &checkinProcessingResult{
+		NewVisitID: &visitID,
+		RoomName:   "Test Room",
+		Error:      nil,
+	}
+
+	assert.Equal(t, &visitID, result.NewVisitID)
+	assert.Equal(t, "Test Room", result.RoomName)
+	assert.Nil(t, result.Error)
+}
+
+func TestCheckinProcessingInput_Struct(t *testing.T) {
+	roomID := int64(1)
+	input := &checkinProcessingInput{
+		RoomID:       &roomID,
+		SkipCheckin:  false,
+		CheckedOut:   true,
+		CurrentVisit: nil,
+	}
+
+	assert.Equal(t, &roomID, input.RoomID)
+	assert.False(t, input.SkipCheckin)
+	assert.True(t, input.CheckedOut)
+	assert.Nil(t, input.CurrentVisit)
 }

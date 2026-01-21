@@ -2,28 +2,23 @@ services:
   server:
     build:
       context: ./backend
-      dockerfile: Dockerfile
-      cache_from:
-        - project-phoenix-server:latest
+      dockerfile: Dockerfile.dev
     depends_on:
       postgres:
         condition: service_healthy
     ports:
       - 8080:8080
-    develop:
-      watch:
-        - action: rebuild
-          path: ./backend
-          ignore:
-            - backend/bin/
-            - backend/*.log
-            - backend/tmp/
+    volumes:
+      # Mount source code for hot reload
+      - ./backend:/app
+      # Preserve go modules cache
+      - go_mod_cache:/go/pkg/mod
     environment:
       TZ: ${TZ:-Europe/Berlin}
       LOG_LEVEL: ${LOG_LEVEL:-debug}
       LOG_TEXTLOGGING: ${LOG_TEXTLOGGING:-"true"}
       PORT: ${PORT:-8080}
-      DB_DSN: ${DB_DSN}
+      DB_DSN: ${DB_DSN:-postgres://postgres:${POSTGRES_PASSWORD}@postgres:5432/postgres?sslmode=require}
       DB_DEBUG: ${DB_DEBUG:-"true"}
       AUTH_JWT_SECRET: ${AUTH_JWT_SECRET}
       AUTH_JWT_EXPIRY: ${AUTH_JWT_EXPIRY:-15m}
@@ -56,8 +51,8 @@ services:
       SESSION_CLEANUP_ENABLED: ${SESSION_CLEANUP_ENABLED:-"true"}
       SESSION_CLEANUP_INTERVAL_MINUTES: ${SESSION_CLEANUP_INTERVAL_MINUTES:-15}
       SESSION_ABANDONED_THRESHOLD_MINUTES: ${SESSION_ABANDONED_THRESHOLD_MINUTES:-60}
-      OGS_DEVICE_PIN: ${OGS_DEVICE_PIN}
-    command: ["./main", "serve", "--db_debug"]
+      OGS_DEVICE_PIN: ${OGS_DEVICE_PIN:-1234}
+    # air handles the serve command via .air.toml
 
   frontend:
     build:
@@ -87,7 +82,7 @@ services:
       - ./frontend/public:/app/public
       # Mount config files that might change
       - ./frontend/package.json:/app/package.json
-      - ./frontend/package-lock.json:/app/package-lock.json
+      - ./frontend/pnpm-lock.yaml:/app/pnpm-lock.yaml
       - ./frontend/next.config.js:/app/next.config.js
       - ./frontend/tsconfig.json:/app/tsconfig.json
       - ./frontend/tailwind.config.js:/app/tailwind.config.js
@@ -103,7 +98,7 @@ services:
       start_period: 10s
 
   postgres:
-    image: postgres:17-alpine
+    image: postgres:17
     restart: unless-stopped
     ports:
       - 5432:5432
@@ -134,7 +129,7 @@ services:
   # Start with: docker compose --profile test up -d postgres-test
   # Or run all tests: docker compose --profile test up -d
   postgres-test:
-    image: postgres:17-alpine
+    image: postgres:17
     profiles: ["test"]
     restart: unless-stopped
     ports:
@@ -155,3 +150,4 @@ volumes:
   postgres:
   postgres_test:
   frontend_node_modules:
+  go_mod_cache:

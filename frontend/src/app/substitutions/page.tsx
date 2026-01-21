@@ -407,7 +407,9 @@ function SubstitutionPageContent() {
                     <div className="mt-0.5 flex items-center gap-1.5 text-sm text-gray-500 md:mt-1">
                       {teacher.regularGroup && (
                         <>
-                          <span className="truncate">{teacher.regularGroup}</span>
+                          <span className="truncate">
+                            {teacher.regularGroup}
+                          </span>
                           <span className="text-gray-300">·</span>
                         </>
                       )}

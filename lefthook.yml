@@ -1,0 +1,93 @@
+# Lefthook - Git hooks manager
+# https://github.com/evilmartians/lefthook
+
+# Pre-commit: Quick checks on staged files
+pre-commit:
+  parallel: true
+  commands:
+    # Git secrets check (if installed)
+    git-secrets:
+      run: git secrets --pre_commit_hook 2>/dev/null || true
+
+    # Frontend lint-staged (prettier + eslint with auto-fix)
+    frontend-lint:
+      glob: "frontend/**/*.{ts,tsx,js,jsx,mdx}"
+      run: cd frontend && npx lint-staged
+      stage_fixed: true
+
+    # Go imports check (formatting and organization)
+    go-imports:
+      glob: "backend/**/*.go"
+      run: |
+        cd backend
+        # Use goimports from PATH or fallback to ~/go/bin
+        GOIMPORTS=$(which goimports 2>/dev/null || echo "$HOME/go/bin/goimports")
+        DIFF=$($GOIMPORTS -d . 2>&1)
+        if [ -n "$DIFF" ]; then
+          echo "❌ Go imports not organized. Run: cd backend && goimports -w ."
+          echo "$DIFF"
+          exit 1
+        fi
+
+# Pre-push: Full quality checks (runs before pushing to remote)
+pre-push:
+  parallel: true
+  commands:
+    git-secrets:
+      run: git secrets --pre_commit_hook 2>/dev/null || true
+
+    go-vet:
+      glob: "backend/**/*.go"
+      run: cd backend && go vet ./...
+
+    golangci-lint:
+      glob: "backend/**/*.go"
+      run: cd backend && golangci-lint run --timeout 5m
+
+    # Dead code detection (matches CI)
+    go-deadcode:
+      glob: "backend/**/*.go"
+      run: |
+        cd backend
+        # Use deadcode from PATH or fallback to ~/go/bin (install if missing)
+        DEADCODE=$(which deadcode 2>/dev/null || echo "$HOME/go/bin/deadcode")
+        [ -x "$DEADCODE" ] || go install golang.org/x/tools/cmd/deadcode@latest
+        # Run with exclusions matching CI
+        OUTPUT=$($DEADCODE -test ./... 2>&1 | grep -vE "cmd/root.go:.*Execute" || true)
+        if [ -n "$OUTPUT" ]; then
+          echo "❌ Dead code detected:"
+          echo "$OUTPUT"
+          exit 1
+        fi
+
+    # Security vulnerability detection
+    go-vulncheck:
+      glob: "backend/**/*.go"
+      run: cd backend && govulncheck ./...
+
+    # Frontend lint + typecheck (pnpm check = eslint + tsc --noEmit)
+    frontend-check:
+      glob: "frontend/**/*.{ts,tsx}"
+      run: cd frontend && pnpm run check
+
+    # Frontend unused code detection (matches CI)
+    frontend-knip:
+      glob: "frontend/**/*.{ts,tsx,js,jsx}"
+      run: cd frontend && pnpm knip
+
+# Post-merge: Check env sync after git pull
+post-merge:
+  commands:
+    env-sync-check:
+      run: |
+        dotenv-linter diff .env .env.example 2>/dev/null | grep "missing" || true
+        dotenv-linter diff backend/dev.env backend/dev.env.example 2>/dev/null | grep "missing" || true
+        dotenv-linter diff frontend/.env.local frontend/.env.example 2>/dev/null | grep "missing" || true
+
+    docker-compose-sync:
+      run: |
+        if [ -f docker-compose.yml ] && [ -f docker-compose.example.yml ]; then
+          dyff between --omit-header docker-compose.example.yml docker-compose.yml 2>/dev/null || true
+        elif [ ! -f docker-compose.yml ] && [ -f docker-compose.example.yml ]; then
+          echo "docker-compose.yml missing - copy from docker-compose.example.yml"
+        fi

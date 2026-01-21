@@ -1,13 +1,14 @@
 FROM node:20-alpine
 
-RUN apk add --no-cache tzdata
+RUN apk add --no-cache tzdata && \
+    corepack enable && corepack prepare pnpm@10 --activate
 ENV TZ=Europe/Berlin
 
 WORKDIR /app
 
 # Install dependencies
-COPY package.json package-lock.json ./
-RUN npm ci
+COPY package.json pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile
 
 # Copy source files
 COPY . .
@@ -17,7 +18,7 @@ ARG NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
 
 # Build the app
-RUN npm run build
+RUN pnpm run build
 
 # Set production environment
 ENV NODE_ENV=production
@@ -32,4 +33,4 @@ USER nextjs
 EXPOSE 3000
 
 # Run production server
-CMD ["npm", "start"]
+CMD ["pnpm", "start"]

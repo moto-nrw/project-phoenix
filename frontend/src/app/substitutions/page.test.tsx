@@ -351,9 +351,15 @@ describe("SubstitutionsPage", () => {
 
       // Teacher names may appear multiple times (in teacher list AND active substitutions)
       // so we use getAllByText
-      expect(screen.getAllByText("Anna Meyer").length).toBeGreaterThanOrEqual(1);
-      expect(screen.getAllByText("Ben Schulz").length).toBeGreaterThanOrEqual(1);
-      expect(screen.getAllByText("Clara Fischer").length).toBeGreaterThanOrEqual(1);
+      expect(screen.getAllByText("Anna Meyer").length).toBeGreaterThanOrEqual(
+        1,
+      );
+      expect(screen.getAllByText("Ben Schulz").length).toBeGreaterThanOrEqual(
+        1,
+      );
+      expect(
+        screen.getAllByText("Clara Fischer").length,
+      ).toBeGreaterThanOrEqual(1);
     });
 
     it("displays teacher group information", () => {
@@ -413,7 +419,9 @@ describe("SubstitutionsPage", () => {
       ).parentElement!;
 
       // Verify Anna is shown initially in teacher section
-      expect(within(teacherSection).getByText("Anna Meyer")).toBeInTheDocument();
+      expect(
+        within(teacherSection).getByText("Anna Meyer"),
+      ).toBeInTheDocument();
 
       // Apply search filter for Anna
       fireEvent.change(screen.getByTestId("search-input"), {
@@ -550,7 +558,9 @@ describe("SubstitutionsPage", () => {
       fireEvent.click(screen.getByTestId("modal-close"));
 
       await waitFor(() => {
-        expect(screen.queryByTestId("assignment-modal")).not.toBeInTheDocument();
+        expect(
+          screen.queryByTestId("assignment-modal"),
+        ).not.toBeInTheDocument();
       });
     });
 
@@ -687,7 +697,9 @@ describe("SubstitutionsPage", () => {
       fireEvent.click(cancelButton);
 
       await waitFor(() => {
-        expect(screen.queryByTestId("assignment-modal")).not.toBeInTheDocument();
+        expect(
+          screen.queryByTestId("assignment-modal"),
+        ).not.toBeInTheDocument();
       });
     });
   });
@@ -801,8 +813,9 @@ describe("SubstitutionsPage", () => {
 
       // Initially all teachers shown
       expect(
-        within(teacherSection).getAllByText(/Anna Meyer|Ben Schulz|Clara Fischer/i)
-          .length,
+        within(teacherSection).getAllByText(
+          /Anna Meyer|Ben Schulz|Clara Fischer/i,
+        ).length,
       ).toBeGreaterThan(0);
 
       // Click available filter

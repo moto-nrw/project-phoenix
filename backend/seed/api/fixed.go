@@ -239,11 +239,20 @@ func (s *FixedSeeder) seedStaff(_ context.Context, result *FixedResult) error {
 			return fmt.Errorf("person not found for staff %s", personKey)
 		}
 
+		// Map position to display role (matches auth role names for clarity)
+		displayRole := "Betreuer" // Default for Pädagogische Fachkraft
+		switch staff.Position {
+		case "OGS-Büro":
+			displayRole = "Admin"
+		case "Extern":
+			displayRole = "Extern"
+		}
+
 		body := map[string]any{
 			"person_id":   personID,
 			"is_teacher":  staff.IsTeacher,
 			"staff_notes": fmt.Sprintf("Position: %s", staff.Position),
-			"role":        staff.Position, // Role field for teacher record
+			"role":        displayRole, // Display role for badge (Admin/Betreuer/Extern)
 		}
 
 		respBody, err := s.client.Post("/api/staff", body)
@@ -277,20 +286,25 @@ func (s *FixedSeeder) seedStaff(_ context.Context, result *FixedResult) error {
 }
 
 func (s *FixedSeeder) seedGroups(_ context.Context, result *FixedResult) error {
-	// Create groups with themed names (typical for German OGS)
-	// Each teacher gets at least one group so they see "Meine Gruppe" in frontend
-	// Teacher distribution:
-	//   Sternengruppe: Anna Müller, Thomas Weber, Sarah Schmidt (3 teachers)
-	//   Bärengruppe: Michael Hoffmann, Lisa Wagner (2 teachers)
-	//   Sonnengruppe: Jan Becker, Maria Fischer (2 teachers)
+	// Create 10 groups with themed names (typical for German OGS)
+	// Each Pädagogische Fachkraft (demo11-demo20) gets exactly one group
+	// This ensures every Betreuer sees "Meine Gruppe" in the frontend
+	// Note: OGS-Büro staff (demo1-demo10) are admins and see ALL groups
 	classes := []struct {
 		key      string   // lowercase for internal lookup
 		name     string   // display name
-		teachers []string // teacher names (must match DemoStaff)
+		teachers []string // teacher names (must match DemoStaff Pädagogische Fachkräfte)
 	}{
-		{key: "sternengruppe", name: "Sternengruppe", teachers: []string{"Anna Müller", "Thomas Weber", "Sarah Schmidt"}},
-		{key: "bärengruppe", name: "Bärengruppe", teachers: []string{"Michael Hoffmann", "Lisa Wagner"}},
-		{key: "sonnengruppe", name: "Sonnengruppe", teachers: []string{"Jan Becker", "Maria Fischer"}},
+		{key: "sternengruppe", name: "Sternengruppe", teachers: []string{"Julia Klein"}},
+		{key: "bärengruppe", name: "Bärengruppe", teachers: []string{"Markus Wolf"}},
+		{key: "sonnengruppe", name: "Sonnengruppe", teachers: []string{"Sandra Schröder"}},
+		{key: "mondgruppe", name: "Mondgruppe", teachers: []string{"Christian Neumann"}},
+		{key: "regenbogengruppe", name: "Regenbogengruppe", teachers: []string{"Nicole Schwarz"}},
+		{key: "blumengruppe", name: "Blumengruppe", teachers: []string{"Frank Zimmermann"}},
+		{key: "schmetterlingsgruppe", name: "Schmetterlingsgruppe", teachers: []string{"Birgit Braun"}},
+		{key: "waldgruppe", name: "Waldgruppe", teachers: []string{"Jörg Krüger"}},
+		{key: "meeresgruppe", name: "Meeresgruppe", teachers: []string{"Heike Hartmann"}},
+		{key: "wiesengruppe", name: "Wiesengruppe", teachers: []string{"Uwe Lange"}},
 	}
 
 	for _, class := range classes {

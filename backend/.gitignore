@@ -46,3 +46,6 @@ coverage.html
 test-output.txt
 # Repository testing tracking (local only)
 REPO_TESTING_PROGRESS.md
+
+# Air hot-reload build artifacts
+tmp/

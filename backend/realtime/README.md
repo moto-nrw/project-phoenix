@@ -50,16 +50,16 @@ Comprehensive test coverage for the `useSSE` React hook:
 
 ```bash
 # Run all frontend tests
-cd frontend && npm test
+cd frontend && pnpm test
 
 # Run tests in watch mode
-npm test
+pnpm test
 
 # Run tests with UI
-npm run test:ui
+pnpm run test:ui
 
 # Run tests once (CI mode)
-npm run test:run
+pnpm run test:run
 ```
 
 **Test Coverage:**
@@ -86,7 +86,7 @@ docker compose up -d postgres
 docker compose up server
 
 # Terminal 2: Frontend
-cd frontend && npm run dev
+cd frontend && pnpm run dev
 ```
 
 #### Step 2: Open Browser DevTools

@@ -12,7 +12,7 @@ import type {
 import { getDbOperationMessage } from "@/lib/use-notification";
 import { createCrudService } from "@/lib/database/service-factory";
 import { roomsConfig } from "@/lib/database/configs/rooms.config";
-import type { Room } from "@/lib/room-helpers";
+import { formatFloor, type Room } from "@/lib/room-helpers";
 import {
   RoomCreateModal,
   RoomDetailModal,
@@ -403,7 +403,7 @@ export default function RoomsPage() {
                     <div className="mt-1 flex flex-wrap items-center gap-2">
                       {room.building && room.floor !== undefined && (
                         <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700">
-                          {room.building} • Etage {room.floor}
+                          {room.building} • {formatFloor(room.floor)}
                         </span>
                       )}
                       {room.building && room.floor === undefined && (
@@ -413,7 +413,7 @@ export default function RoomsPage() {
                       )}
                       {!room.building && room.floor !== undefined && (
                         <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700">
-                          Etage {room.floor}
+                          {formatFloor(room.floor)}
                         </span>
                       )}
                       {room.capacity ? (

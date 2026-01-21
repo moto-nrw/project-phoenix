@@ -270,7 +270,7 @@ celerybeat.pid
 .env.test
 .env.staging
 
-# Project-specific environment files 
+# Project-specific environment files
 **/dev.env
 **/prod.env
 **/.env.local
@@ -392,7 +392,7 @@ backend/test_build
 backend/test_compile
 # Do NOT exclude package.json files - they should be tracked
 !/frontend/package.json
-!/frontend/package-lock.json
+!/frontend/pnpm-lock.yaml
 .DS_Store
 **/.claude/settings.local.json
 
@@ -467,3 +467,11 @@ docs/openapi.yaml
 
 # OpenSpec local specification files
 openspec/
+.worktrees
+
+# Devbox + direnv
+.devbox/
+.direnv/
+.playwright/**/*
+.playwright-mcp
+.husky/

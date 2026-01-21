@@ -13,8 +13,8 @@ import (
 
 // SQL clause constants
 const (
-	orderByDeletedAtDesc     = "deleted_at DESC"
-	whereDeletionTypeEquals  = "deletion_type = ?"
+	orderByDeletedAtDesc    = "deleted_at DESC"
+	whereDeletionTypeEquals = "deletion_type = ?"
 )
 
 // DataDeletionRepository implements audit.DataDeletionRepository interface
