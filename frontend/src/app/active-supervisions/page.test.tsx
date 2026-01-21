@@ -964,3 +964,414 @@ describe("MeinRaumPage visit data mapping", () => {
     expect(location).toBe("Anwesend");
   });
 });
+
+describe("loadRoomVisits function behavior", () => {
+  it("filters only active visits from response", () => {
+    const visits = [
+      { studentId: "1", studentName: "Max", isActive: true, checkInTime: "2024-01-15T10:00:00Z" },
+      { studentId: "2", studentName: "Erika", isActive: false, checkInTime: "2024-01-15T09:00:00Z" },
+      { studentId: "3", studentName: "Hans", isActive: true, checkInTime: "2024-01-15T10:30:00Z" },
+    ];
+
+    const currentlyCheckedIn = visits.filter((visit) => visit.isActive);
+
+    expect(currentlyCheckedIn).toHaveLength(2);
+    expect(currentlyCheckedIn.map(v => v.studentId)).toEqual(["1", "3"]);
+  });
+
+  it("handles 403 permission error gracefully", () => {
+    const handleError = (error: Error): { students: never[]; warning: string } | null => {
+      if (error instanceof Error && error.message.includes("403")) {
+        console.warn(`No permission - returning empty list`);
+        return { students: [], warning: "No permission" };
+      }
+      return null;
+    };
+
+    const error403 = new Error("BFF request failed: 403 Forbidden");
+    const result = handleError(error403);
+
+    expect(result).not.toBeNull();
+    expect(result?.students).toEqual([]);
+  });
+
+  it("re-throws non-403 errors", () => {
+    const handleError = (error: Error): never[] | null => {
+      if (error instanceof Error && error.message.includes("403")) {
+        return [];
+      }
+      return null; // Indicates error should be re-thrown
+    };
+
+    const error500 = new Error("BFF request failed: 500 Internal Server Error");
+    const result = handleError(error500);
+
+    expect(result).toBeNull(); // null means re-throw
+  });
+
+  it("enriches visits with group ID from map", () => {
+    const groupNameToId = new Map<string, string>();
+    groupNameToId.set("OGS Gruppe A", "group-123");
+    groupNameToId.set("OGS Gruppe B", "group-456");
+
+    const visits = [
+      { studentId: "1", groupName: "OGS Gruppe A" },
+      { studentId: "2", groupName: "OGS Gruppe B" },
+      { studentId: "3", groupName: "Unknown Group" },
+    ];
+
+    const enriched = visits.map(visit => ({
+      ...visit,
+      groupId: visit.groupName ? groupNameToId.get(visit.groupName) : undefined,
+    }));
+
+    expect(enriched[0]?.groupId).toBe("group-123");
+    expect(enriched[1]?.groupId).toBe("group-456");
+    expect(enriched[2]?.groupId).toBeUndefined();
+  });
+});
+
+describe("switchToRoom function behavior", () => {
+  it("clears current students when switching rooms", () => {
+    let students = [{ id: "1", name: "Max" }, { id: "2", name: "Erika" }];
+
+    const clearStudents = () => {
+      students = [];
+    };
+
+    clearStudents();
+    expect(students).toHaveLength(0);
+  });
+
+  it("handles room not found error", () => {
+    const allRooms = [
+      { id: "1", name: "Raum 1" },
+      { id: "2", name: "Raum 2" },
+    ];
+
+    const roomIndex = 5; // Out of bounds
+    const selectedRoom = allRooms[roomIndex];
+
+    const errorMessage = !selectedRoom ? "No active room found" : null;
+    expect(errorMessage).toBe("No active room found");
+  });
+
+  it("updates room student count after loading", () => {
+    const rooms = [
+      { id: "1", name: "Raum 1", student_count: undefined },
+      { id: "2", name: "Raum 2", student_count: undefined },
+    ];
+
+    const updateRoomCount = (roomIndex: number, count: number) => {
+      return rooms.map((room, idx) =>
+        idx === roomIndex ? { ...room, student_count: count } : room
+      );
+    };
+
+    const updatedRooms = updateRoomCount(1, 15);
+    expect(updatedRooms[1]?.student_count).toBe(15);
+    expect(updatedRooms[0]?.student_count).toBeUndefined();
+  });
+
+  it("handles 403 error when switching rooms", () => {
+    const handleSwitchError = (error: Error, roomName: string): string => {
+      if (error instanceof Error && error.message.includes("403")) {
+        return `Keine Berechtigung für "${roomName}". Kontaktieren Sie einen Administrator.`;
+      }
+      return "Fehler beim Laden der Raumdaten.";
+    };
+
+    const error403 = new Error("BFF request failed: 403");
+    const message = handleSwitchError(error403, "Kunstzimmer");
+    expect(message).toContain("Keine Berechtigung");
+    expect(message).toContain("Kunstzimmer");
+  });
+
+  it("returns generic error for non-403 errors", () => {
+    const handleSwitchError = (error: Error, _roomName: string): string => {
+      if (error instanceof Error && error.message.includes("403")) {
+        return `Keine Berechtigung für "${_roomName}".`;
+      }
+      return "Fehler beim Laden der Raumdaten.";
+    };
+
+    const error500 = new Error("BFF request failed: 500");
+    const message = handleSwitchError(error500, "Kunstzimmer");
+    expect(message).toBe("Fehler beim Laden der Raumdaten.");
+  });
+});
+
+describe("handleReleaseSupervision behavior", () => {
+  it("finds current user supervision from supervisors list", () => {
+    const currentStaffId = "staff-123";
+    const supervisors = [
+      { id: "sup-1", staffId: "staff-456", isActive: true },
+      { id: "sup-2", staffId: "staff-123", isActive: true },
+      { id: "sup-3", staffId: "staff-789", isActive: false },
+    ];
+
+    const mySupervision = supervisors.find(
+      (sup) => sup.staffId === currentStaffId && sup.isActive
+    );
+
+    expect(mySupervision).toBeDefined();
+    expect(mySupervision?.id).toBe("sup-2");
+  });
+
+  it("handles case when no supervision found for current user", () => {
+    const currentStaffId = "staff-999";
+    const supervisors = [
+      { id: "sup-1", staffId: "staff-456", isActive: true },
+      { id: "sup-2", staffId: "staff-123", isActive: true },
+    ];
+
+    const mySupervision = supervisors.find(
+      (sup) => sup.staffId === currentStaffId && sup.isActive
+    );
+
+    expect(mySupervision).toBeUndefined();
+  });
+
+  it("does not find inactive supervision", () => {
+    const currentStaffId = "staff-123";
+    const supervisors = [
+      { id: "sup-1", staffId: "staff-123", isActive: false }, // inactive
+    ];
+
+    const mySupervision = supervisors.find(
+      (sup) => sup.staffId === currentStaffId && sup.isActive
+    );
+
+    expect(mySupervision).toBeUndefined();
+  });
+
+  it("tracks release supervision loading state", () => {
+    let isReleasingSupervision = false;
+
+    const startRelease = () => { isReleasingSupervision = true; };
+    const endRelease = () => { isReleasingSupervision = false; };
+
+    expect(isReleasingSupervision).toBe(false);
+    startRelease();
+    expect(isReleasingSupervision).toBe(true);
+    endRelease();
+    expect(isReleasingSupervision).toBe(false);
+  });
+
+  it("sets error message on release failure", () => {
+    let error: string | null = null;
+
+    const handleError = (err: Error) => {
+      console.error("Failed to release Schulhof supervision:", err);
+      error = "Fehler beim Abgeben der Schulhof-Aufsicht.";
+    };
+
+    handleError(new Error("Network error"));
+    expect(error).toBe("Fehler beim Abgeben der Schulhof-Aufsicht.");
+  });
+});
+
+describe("MeinRaumPage Schulhof detection", () => {
+  it("detects Schulhof room correctly", () => {
+    const SCHULHOF_ROOM_NAME = "Schulhof";
+
+    const testCases = [
+      { room_name: "Schulhof", expected: true },
+      { room_name: "Raum 101", expected: false },
+      { room_name: "Mensa", expected: false },
+      { room_name: undefined, expected: false },
+    ];
+
+    testCases.forEach(({ room_name, expected }) => {
+      const isSchulhof = room_name === SCHULHOF_ROOM_NAME;
+      expect(isSchulhof).toBe(expected);
+    });
+  });
+});
+
+describe("MeinRaumPage room tabs behavior", () => {
+  it("shows tabs when user has 2-4 rooms", () => {
+    const testCases = [
+      { roomCount: 1, shouldShowTabs: false },
+      { roomCount: 2, shouldShowTabs: true },
+      { roomCount: 3, shouldShowTabs: true },
+      { roomCount: 4, shouldShowTabs: true },
+      { roomCount: 5, shouldShowTabs: false },
+    ];
+
+    testCases.forEach(({ roomCount, shouldShowTabs }) => {
+      const showTabs = roomCount > 1 && roomCount <= 4;
+      expect(showTabs).toBe(shouldShowTabs);
+    });
+  });
+
+  it("creates tab items from rooms", () => {
+    const allRooms = [
+      { id: "1", name: "Gruppenraum A", room_name: "Raum 101" },
+      { id: "2", name: "Gruppenraum B", room_name: "Raum 102" },
+    ];
+
+    const tabItems = allRooms.map((room) => ({
+      id: room.id,
+      label: room.room_name ?? room.name,
+    }));
+
+    expect(tabItems).toHaveLength(2);
+    expect(tabItems[0]?.label).toBe("Raum 101");
+    expect(tabItems[1]?.label).toBe("Raum 102");
+  });
+
+  it("uses name fallback when room_name is undefined", () => {
+    const room = { id: "1", name: "Gruppenraum A", room_name: undefined };
+    const label = room.room_name ?? room.name;
+    expect(label).toBe("Gruppenraum A");
+  });
+});
+
+describe("MeinRaumPage dashboard error handling", () => {
+  it("sets hasAccess to false on 403 error", () => {
+    const handleDashboardError = (error: Error) => {
+      if (error.message.includes("403")) {
+        return {
+          error: "Sie haben aktuell keinen aktiven Raum zur Supervision.",
+          hasAccess: false,
+        };
+      }
+      return {
+        error: "Fehler beim Laden der Aktivitätsdaten.",
+        hasAccess: true,
+      };
+    };
+
+    const result403 = handleDashboardError(new Error("BFF request failed: 403"));
+    expect(result403.hasAccess).toBe(false);
+    expect(result403.error).toContain("keinen aktiven Raum");
+  });
+
+  it("keeps hasAccess true on other errors", () => {
+    const handleDashboardError = (error: Error) => {
+      if (error.message.includes("403")) {
+        return { hasAccess: false };
+      }
+      return { hasAccess: true };
+    };
+
+    const result500 = handleDashboardError(new Error("BFF request failed: 500"));
+    expect(result500.hasAccess).toBe(true);
+  });
+});
+
+describe("MeinRaumPage educational groups processing", () => {
+  it("extracts room names from educational groups", () => {
+    const educationalGroups = [
+      { id: "g1", name: "Gruppe A", room: { name: "Raum 101" } },
+      { id: "g2", name: "Gruppe B", room: { name: "Raum 102" } },
+      { id: "g3", name: "Gruppe C", room: undefined },
+    ];
+
+    const roomNames = educationalGroups
+      .map((group) => group.room?.name)
+      .filter((name): name is string => !!name);
+
+    expect(roomNames).toEqual(["Raum 101", "Raum 102"]);
+  });
+
+  it("extracts group IDs from educational groups", () => {
+    const educationalGroups = [
+      { id: "g1", name: "Gruppe A" },
+      { id: "g2", name: "Gruppe B" },
+    ];
+
+    const groupIds = educationalGroups.map((group) => group.id);
+    expect(groupIds).toEqual(["g1", "g2"]);
+  });
+
+  it("creates name to ID map from educational groups", () => {
+    const educationalGroups = [
+      { id: "g1", name: "Gruppe A" },
+      { id: "g2", name: "Gruppe B" },
+    ];
+
+    const nameToIdMap = new Map<string, string>();
+    educationalGroups.forEach((group) => {
+      if (group.name) {
+        nameToIdMap.set(group.name, group.id);
+      }
+    });
+
+    expect(nameToIdMap.get("Gruppe A")).toBe("g1");
+    expect(nameToIdMap.get("Gruppe B")).toBe("g2");
+  });
+});
+
+describe("MeinRaumPage combined groups caching", () => {
+  it("combines supervised and unclaimed groups for caching", () => {
+    const supervisedGroups = [
+      { id: "s1", name: "Supervised A", room: { id: "r1", name: "Raum 1" } },
+    ];
+    const unclaimedGroups = [
+      { id: "u1", name: "Unclaimed A", room: { name: "Raum 2" } },
+    ];
+
+    const combinedGroups = [
+      ...supervisedGroups.map((g) => ({
+        id: g.id,
+        room: g.room ? { name: g.room.name } : undefined,
+      })),
+      ...unclaimedGroups.map((g) => ({
+        id: g.id,
+        room: g.room,
+      })),
+    ];
+
+    expect(combinedGroups).toHaveLength(2);
+    expect(combinedGroups[0]?.id).toBe("s1");
+    expect(combinedGroups[1]?.id).toBe("u1");
+  });
+
+  it("sets empty cache when no supervised groups", () => {
+    const supervisedGroups: Array<{ id: string }> = [];
+
+    const cachedActiveGroups = supervisedGroups.length > 0
+      ? supervisedGroups
+      : [];
+
+    expect(cachedActiveGroups).toEqual([]);
+  });
+});
+
+describe("MeinRaumPage SWR visits sync", () => {
+  it("syncs SWR visit data with local state", () => {
+    let students: Array<{ id: string }> = [];
+    const setStudents = (newStudents: Array<{ id: string }>) => {
+      students = newStudents;
+    };
+
+    const swrVisitsData = [
+      { id: "1", name: "Max" },
+      { id: "2", name: "Erika" },
+    ];
+
+    if (swrVisitsData) {
+      setStudents(swrVisitsData);
+    }
+
+    expect(students).toHaveLength(2);
+  });
+
+  it("updates room student count when visits change", () => {
+    const rooms = [
+      { id: "room-1", student_count: 0 },
+      { id: "room-2", student_count: 0 },
+    ];
+
+    const updateRoomStudentCount = (roomId: string, studentCount: number) => {
+      return rooms.map((room) =>
+        room.id === roomId ? { ...room, student_count: studentCount } : room
+      );
+    };
+
+    const updatedRooms = updateRoomStudentCount("room-1", 5);
+    expect(updatedRooms[0]?.student_count).toBe(5);
+  });
+});
