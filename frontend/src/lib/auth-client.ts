@@ -13,19 +13,21 @@
 import { createAuthClient } from "better-auth/react";
 import { organizationClient } from "better-auth/client/plugins";
 
-// BetterAuth service URL (from env or default to localhost:3001)
-const BETTERAUTH_URL =
-  process.env.NEXT_PUBLIC_BETTERAUTH_URL ?? "http://localhost:3001";
-
 /**
  * BetterAuth client instance with organization plugin for multi-tenancy.
+ *
+ * The client uses same-origin requests (no baseURL) which are proxied through
+ * Next.js API routes to the BetterAuth service. This eliminates CORS issues
+ * and keeps the auth service URL internal.
+ *
+ * Flow: Browser → Next.js (/api/auth/*) → BetterAuth service
  *
  * Usage:
  * - Client-side: Use hooks like `useSession()`, `signIn.email()`, etc.
  * - Server-side: Use `getSession()` (async)
  */
 export const authClient = createAuthClient({
-  baseURL: BETTERAUTH_URL,
+  // No baseURL = same-origin requests, proxied through Next.js
   plugins: [
     organizationClient(), // Multi-tenant support (OGS = Organization)
   ],

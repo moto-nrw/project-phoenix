@@ -71,11 +71,14 @@ services:
       # NextAuth configuration
       NEXTAUTH_URL: ${NEXTAUTH_URL:-"http://localhost:3000"}
       NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
+      # BetterAuth service URL (internal Docker network)
+      BETTERAUTH_INTERNAL_URL: ${BETTERAUTH_INTERNAL_URL:-http://betterauth:3001}
       # Skip env validation in Docker
       SKIP_ENV_VALIDATION: ${SKIP_ENV_VALIDATION:-"true"}
       NEXT_TELEMETRY_DISABLED: ${NEXT_TELEMETRY_DISABLED:-"1"}
     depends_on:
       - server
+      - betterauth
     volumes:
       # Mount only source directories for hot reload
       - ./frontend/src:/app/src

@@ -10,6 +10,9 @@ const authHandler = toNodeHandler(auth);
 /**
  * Simple HTTP server that handles BetterAuth API requests.
  *
+ * All requests come through the Next.js proxy (server-to-server),
+ * so no CORS handling is needed.
+ *
  * BetterAuth provides a handler that processes all auth-related endpoints:
  * - POST /api/auth/sign-up/email
  * - POST /api/auth/sign-in/email
