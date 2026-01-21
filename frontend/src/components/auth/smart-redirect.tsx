@@ -1,10 +1,13 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "~/lib/auth-client";
 import { useSupervision } from "~/lib/supervision-context";
-import { useSmartRedirectPath } from "~/lib/redirect-utils";
+import {
+  useSmartRedirectPath,
+  checkSaasAdminStatus,
+} from "~/lib/redirect-utils";
 
 interface SmartRedirectProps {
   readonly onRedirect?: (path: string) => void;
@@ -12,7 +15,7 @@ interface SmartRedirectProps {
 
 /**
  * Component that automatically redirects authenticated users to the most appropriate page
- * based on their permissions and supervision state
+ * based on their permissions, supervision state, and SaaS admin status
  */
 export function SmartRedirect({ onRedirect }: SmartRedirectProps) {
   const router = useRouter();
@@ -21,15 +24,43 @@ export function SmartRedirect({ onRedirect }: SmartRedirectProps) {
   const { hasGroups, isLoadingGroups, isSupervising, isLoadingSupervision } =
     useSupervision();
 
-  const { redirectPath, isReady } = useSmartRedirectPath(session, {
-    hasGroups,
-    isLoadingGroups,
-    isSupervising,
-    isLoadingSupervision,
-  });
+  // Check SaaS admin status
+  const [isSaasAdmin, setIsSaasAdmin] = useState(false);
+  const [isSaasAdminLoading, setIsSaasAdminLoading] = useState(true);
 
   useEffect(() => {
-    // Only redirect if user is authenticated and supervision data is ready
+    // Only check SaaS admin status if user is authenticated
+    if (session?.user) {
+      checkSaasAdminStatus()
+        .then((isAdmin) => {
+          setIsSaasAdmin(isAdmin);
+          setIsSaasAdminLoading(false);
+        })
+        .catch(() => {
+          setIsSaasAdmin(false);
+          setIsSaasAdminLoading(false);
+        });
+    } else if (!isPending) {
+      setIsSaasAdminLoading(false);
+    }
+  }, [session?.user, isPending]);
+
+  const { redirectPath, isReady } = useSmartRedirectPath(
+    session,
+    {
+      hasGroups,
+      isLoadingGroups,
+      isSupervising,
+      isLoadingSupervision,
+    },
+    {
+      isSaasAdmin,
+      isLoading: isSaasAdminLoading,
+    },
+  );
+
+  useEffect(() => {
+    // Only redirect if user is authenticated and all data is ready
     if (!isPending && session?.user && isReady) {
       if (onRedirect) {
         onRedirect(redirectPath);
