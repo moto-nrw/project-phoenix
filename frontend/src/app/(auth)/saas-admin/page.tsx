@@ -21,6 +21,7 @@ import {
 } from "~/components/ui/card";
 import { Badge } from "~/components/ui/badge";
 import { Skeleton } from "~/components/ui/skeleton";
+import { LogoutModal } from "~/components/ui/logout-modal";
 
 const STATUS_LABELS: Record<Organization["status"], string> = {
   pending: "Ausstehend",
@@ -171,6 +172,24 @@ function BuildingIcon({ className }: { className?: string }) {
         strokeLinecap="round"
         strokeLinejoin="round"
         d="M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21M6.75 6.75h.75m-.75 3h.75m-.75 3h.75m3-6h.75m-.75 3h.75m-.75 3h.75M6.75 21v-3.375c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21M3 3h12m-.75 4.5H21m-3.75 3.75h.008v.008h-.008v-.008Zm0 3h.008v.008h-.008v-.008Zm0 3h.008v.008h-.008v-.008Z"
+      />
+    </svg>
+  );
+}
+
+function LogOutIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={cn("size-5", className)}
+      fill="none"
+      viewBox="0 0 24 24"
+      strokeWidth={1.5}
+      stroke="currentColor"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M8.25 9V5.25A2.25 2.25 0 0 1 10.5 3h6a2.25 2.25 0 0 1 2.25 2.25v13.5A2.25 2.25 0 0 1 16.5 21h-6a2.25 2.25 0 0 1-2.25-2.25V15m-3 0-3-3m0 0 3-3m-3 3H15"
       />
     </svg>
   );
@@ -492,6 +511,7 @@ export default function SaasAdminPage() {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("pending");
   const [showRejectModal, setShowRejectModal] = useState<string | null>(null);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   // Calculate stats from all organizations
   const stats = useMemo(() => {
@@ -613,13 +633,23 @@ export default function SaasAdminPage() {
     <div className="min-h-dvh bg-gray-50/50">
       <div className="container mx-auto max-w-7xl px-4 py-8">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold tracking-tight text-balance text-gray-900">
-            Organisation-Verwaltung
-          </h1>
-          <p className="mt-2 text-pretty text-gray-600">
-            Verwalte Organisation-Registrierungen und deren Status
-          </p>
+        <div className="mb-8 flex items-start justify-between">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight text-balance text-gray-900">
+              Organisation-Verwaltung
+            </h1>
+            <p className="mt-2 text-pretty text-gray-600">
+              Verwalte Organisation-Registrierungen und deren Status
+            </p>
+          </div>
+          <button
+            onClick={() => setShowLogoutModal(true)}
+            className="flex items-center gap-2 rounded-lg bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm ring-1 ring-gray-200 transition-colors hover:bg-gray-50"
+            aria-label="Abmelden"
+          >
+            <LogOutIcon className="size-4" />
+            <span className="hidden sm:inline">Abmelden</span>
+          </button>
         </div>
 
         {/* Stats Cards */}
@@ -744,6 +774,12 @@ export default function SaasAdminPage() {
             }
           }}
           isLoading={actionLoading === showRejectModal}
+        />
+
+        {/* Logout Modal */}
+        <LogoutModal
+          isOpen={showLogoutModal}
+          onClose={() => setShowLogoutModal(false)}
         />
       </div>
     </div>
