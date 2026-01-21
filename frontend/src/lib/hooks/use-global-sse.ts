@@ -23,10 +23,14 @@
 "use client";
 
 import { useCallback } from "react";
+import { usePathname } from "next/navigation";
 import { mutate } from "swr";
 import { useSession } from "~/lib/auth-client";
 import { useSSE } from "~/lib/hooks/use-sse";
 import type { SSEEvent, SSEHookState } from "~/lib/sse-types";
+
+// Paths where SSE should be disabled (no staff context required)
+const SSE_DISABLED_PATHS = ["/saas-admin"];
 
 /**
  * Pattern matcher for SWR cache keys.
@@ -67,16 +71,32 @@ const ACTIVITY_EVENT_PATTERNS = [
  * Features:
  * - Single SSE connection (shared across all pages)
  * - Automatic cache invalidation based on event type
- * - Only connects when authenticated (session has token)
+ * - Only connects when authenticated AND has an active organization
  * - Exposes connection status for debugging/UI
+ *
+ * Note: SSE is disabled for:
+ * - SaaS platform admin pages (/saas-admin/*) - no staff context
+ * - Users without an active organization
  *
  * @returns SSE connection state (status, isConnected, error, reconnectAttempts)
  */
 export function useGlobalSSE(): SSEHookState {
   const { data: session, isPending } = useSession();
+  const pathname = usePathname();
 
-  // Only enable SSE when authenticated (BetterAuth uses cookies, no token needed)
-  const isAuthenticated = !isPending && !!session?.user;
+  // Check if current path should have SSE disabled
+  // SaaS admin pages don't have staff context, so SSE would fail with 403
+  const isDisabledPath = SSE_DISABLED_PATHS.some(
+    (path) => pathname === path || pathname?.startsWith(`${path}/`),
+  );
+
+  // Only enable SSE when:
+  // 1. User is authenticated
+  // 2. User has an active organization
+  // 3. Not on a path where SSE is disabled (e.g., SaaS admin)
+  const hasActiveOrg = !!session?.session?.activeOrganizationId;
+  const isAuthenticated =
+    !isPending && !!session?.user && hasActiveOrg && !isDisabledPath;
 
   // Handle SSE events by invalidating relevant caches
   const handleSSEEvent = useCallback((event: SSEEvent) => {
