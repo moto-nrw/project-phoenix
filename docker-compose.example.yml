@@ -53,6 +53,9 @@ services:
       SESSION_ABANDONED_THRESHOLD_MINUTES: ${SESSION_ABANDONED_THRESHOLD_MINUTES:-60}
       OGS_DEVICE_PIN: ${OGS_DEVICE_PIN:-1234}
     # air handles the serve command via .air.toml
+    networks:
+      - default
+      - internal  # For internal API access from betterauth
 
   frontend:
     build:
@@ -118,9 +121,14 @@ services:
       BETTER_AUTH_URL: http://localhost:3001
       TRUSTED_ORIGINS: http://localhost:3000,http://localhost:8080
       PORT: 3001
+      # Internal API URL for org lifecycle emails (Docker internal network)
+      INTERNAL_API_URL: ${INTERNAL_API_URL:-http://server:8080}
       # Allow self-signed SSL certificates in development
       # In production, use proper SSL certificates
       NODE_TLS_REJECT_UNAUTHORIZED: "0"
+    networks:
+      - default
+      - internal  # For internal API access to Go backend
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:3001/health"]
@@ -177,6 +185,15 @@ services:
       interval: 1s
       timeout: 1s
       retries: 5
+
+networks:
+  # Default external network - accessible from host
+  default:
+    driver: bridge
+  # Internal network - for internal API communication only
+  internal:
+    driver: bridge
+    internal: true  # Not accessible from host
 
 volumes:
   postgres:

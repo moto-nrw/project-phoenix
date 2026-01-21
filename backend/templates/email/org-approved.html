@@ -1,0 +1,41 @@
+{{define "org-approved.html"}}
+{{template "header" .}}
+
+<div class="email-body">
+    <div class="brand">
+        <img src="{{.LogoURL}}" alt="moto Logo" style="max-width: 180px; height: auto; display: block; margin: 0 auto;" />
+    </div>
+    <h1>Willkommen bei moto!</h1>
+    {{if .FirstName}}
+    <p>Hallo {{.FirstName}},</p>
+    {{else}}
+    <p>Hallo,</p>
+    {{end}}
+    <p>tolle Neuigkeiten! Deine Organisation <strong>{{.OrgName}}</strong> wurde freigeschaltet und ist ab sofort einsatzbereit.</p>
+
+    <div class="button-wrapper" style="text-align: center;">
+        <a class="button" href="{{.OrgURL}}">Jetzt loslegen</a>
+    </div>
+
+    <div class="highlight-box">
+        <p>Deine Organisation ist erreichbar unter: <strong>{{.Subdomain}}.moto-app.de</strong></p>
+    </div>
+
+    <p style="margin-top: 24px; font-size: 14px; color: #6b7280;">Nächste Schritte:</p>
+    <ul style="color: #4b5563; font-size: 14px; padding-left: 20px;">
+        <li>Melde dich mit deinen Zugangsdaten an</li>
+        <li>Lade dein Team zu deiner Organisation ein</li>
+        <li>Richte Gruppen und Räume ein</li>
+        <li>Starte mit der digitalen Anwesenheitserfassung</li>
+    </ul>
+
+    <p style="margin-top: 24px; font-size: 14px; color: #6b7280;">Falls der Button nicht funktioniert, kopiere diesen Link:</p>
+    <div class="link-box">
+        <a href="{{.OrgURL}}">{{.OrgURL}}</a>
+    </div>
+
+    <p class="security-note">Wir freuen uns, dich an Bord zu haben!</p>
+</div>
+
+{{template "footer" .}}
+{{end}}

@@ -20,6 +20,7 @@ import (
 	groupsAPI "github.com/moto-nrw/project-phoenix/api/groups"
 	guardiansAPI "github.com/moto-nrw/project-phoenix/api/guardians"
 	importAPI "github.com/moto-nrw/project-phoenix/api/import"
+	internalAPI "github.com/moto-nrw/project-phoenix/api/internal"
 	iotAPI "github.com/moto-nrw/project-phoenix/api/iot"
 	roomsAPI "github.com/moto-nrw/project-phoenix/api/rooms"
 	schedulesAPI "github.com/moto-nrw/project-phoenix/api/schedules"
@@ -66,6 +67,7 @@ type API struct {
 	UserContext   *usercontextAPI.Resource
 	Substitutions *substitutionsAPI.Resource
 	Database      *databaseAPI.Resource
+	Internal      *internalAPI.Resource // Internal API (not exposed externally)
 }
 
 // New creates a new API instance
@@ -222,6 +224,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.UserContext = usercontextAPI.NewResource(api.Services.UserContext, repoFactory.GroupSubstitution)
 	api.Substitutions = substitutionsAPI.NewResource(api.Services.Education)
 	api.Database = databaseAPI.NewResource(api.Services.Database)
+	api.Internal = internalAPI.NewResource(api.Services.Mailer, api.Services.Dispatcher, api.Services.DefaultFrom)
 }
 
 // ServeHTTP implements the http.Handler interface for the API
@@ -286,6 +289,12 @@ func (a *API) registerRoutesWithRateLimiting() {
 	if tenantAuthEnabled && logging.Logger != nil {
 		logging.Logger.Info("Tenant authentication enabled (BetterAuth)")
 	}
+
+	// Internal API routes - NO AUTHENTICATION
+	// These routes are only accessible from within the Docker network.
+	// Security is enforced through Docker network isolation, not authentication.
+	// WARNING: Never expose these routes to the public internet!
+	a.Router.Mount("/api/internal", a.Internal.Router())
 
 	// Other API routes under /api prefix for organization
 	a.Router.Route("/api", func(r chi.Router) {

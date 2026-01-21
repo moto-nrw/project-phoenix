@@ -1,0 +1,37 @@
+{{define "org-pending.html"}}
+{{template "header" .}}
+
+<div class="email-body">
+    <div class="brand">
+        <img src="{{.LogoURL}}" alt="moto Logo" style="max-width: 180px; height: auto; display: block; margin: 0 auto;" />
+    </div>
+    <h1>Deine Organisation wird geprüft</h1>
+    {{if .FirstName}}
+    <p>Hallo {{.FirstName}},</p>
+    {{else}}
+    <p>Hallo,</p>
+    {{end}}
+    <p>vielen Dank für deine Registrierung bei moto! Deine Organisation <strong>{{.OrgName}}</strong> wurde erfolgreich erstellt und wird nun von unserem Team geprüft.</p>
+
+    <div class="highlight-box">
+        <p>Wir melden uns in der Regel innerhalb von 24 Stunden bei dir.</p>
+    </div>
+
+    <p>Sobald deine Organisation freigeschaltet wurde, kannst du unter folgender Adresse loslegen:</p>
+
+    <div class="link-box">
+        <a href="{{.OrgURL}}">{{.OrgURL}}</a>
+    </div>
+
+    <p style="margin-top: 24px; font-size: 14px; color: #6b7280;">Was passiert als nächstes?</p>
+    <ul style="color: #4b5563; font-size: 14px; padding-left: 20px;">
+        <li>Unser Team prüft deine Anfrage</li>
+        <li>Du erhältst eine E-Mail, sobald deine Organisation freigeschaltet wurde</li>
+        <li>Dann kannst du dich einloggen und dein Team einladen</li>
+    </ul>
+
+    <p class="security-note">Bei Fragen kannst du dich jederzeit an unser Support-Team wenden.</p>
+</div>
+
+{{template "footer" .}}
+{{end}}

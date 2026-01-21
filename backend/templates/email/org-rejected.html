@@ -1,0 +1,35 @@
+{{define "org-rejected.html"}}
+{{template "header" .}}
+
+<div class="email-body">
+    <div class="brand">
+        <img src="{{.LogoURL}}" alt="moto Logo" style="max-width: 180px; height: auto; display: block; margin: 0 auto;" />
+    </div>
+    <h1>Deine Organisationsanfrage</h1>
+    {{if .FirstName}}
+    <p>Hallo {{.FirstName}},</p>
+    {{else}}
+    <p>Hallo,</p>
+    {{end}}
+    <p>vielen Dank für dein Interesse an moto. Leider konnten wir deine Anfrage zur Erstellung der Organisation <strong>{{.OrgName}}</strong> nicht genehmigen.</p>
+
+    {{if .Reason}}
+    <div class="highlight-box">
+        <p><strong>Grund:</strong> {{.Reason}}</p>
+    </div>
+    {{end}}
+
+    <p style="margin-top: 24px;">Mögliche Gründe können sein:</p>
+    <ul style="color: #4b5563; font-size: 14px; padding-left: 20px;">
+        <li>Die angegebenen Informationen konnten nicht verifiziert werden</li>
+        <li>Es existiert bereits eine Organisation mit ähnlichen Daten</li>
+        <li>Die gewünschte Subdomain ist nicht verfügbar</li>
+    </ul>
+
+    <p style="margin-top: 24px;">Du kannst gerne eine neue Anfrage stellen oder dich bei unserem Support-Team melden, wenn du Fragen hast.</p>
+
+    <p class="security-note">Falls du diese E-Mail unerwartet erhalten hast, kannst du sie ignorieren.</p>
+</div>
+
+{{template "footer" .}}
+{{end}}

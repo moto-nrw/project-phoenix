@@ -51,6 +51,7 @@ type Factory struct {
 	Import                   *importService.ImportService[importModels.StudentImportRow] // Student import service
 	RealtimeHub              *realtime.Hub                                               // SSE event hub (shared by services and API)
 	Mailer                   email.Mailer
+	Dispatcher               *email.Dispatcher // Email dispatcher for async delivery
 	DefaultFrom              email.Email
 	FrontendURL              string
 	InvitationTokenExpiry    time.Duration
@@ -324,6 +325,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 		RealtimeHub:              realtimeHub,          // Expose SSE hub for API layer
 		Invitation:               invitationService,
 		Mailer:                   mailer,
+		Dispatcher:               dispatcher,
 		DefaultFrom:              defaultFrom,
 		FrontendURL:              frontendURL,
 		InvitationTokenExpiry:    invitationTokenExpiry,
