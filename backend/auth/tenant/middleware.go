@@ -3,6 +3,7 @@ package tenant
 import (
 	"context"
 	"database/sql"
+	"log"
 	"net/http"
 
 	"github.com/go-chi/render"
@@ -29,9 +30,18 @@ func Middleware(baClient *betterauth.Client, db *bun.DB) func(http.Handler) http
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
 
+			// DEBUG: Log incoming cookies (always prints)
+			cookieNames := make([]string, 0)
+			for _, c := range r.Cookies() {
+				cookieNames = append(cookieNames, c.Name)
+			}
+			log.Printf("DEBUG Middleware: path=%s cookies=%d names=%v", r.URL.Path, len(r.Cookies()), cookieNames)
+
 			// Step 1: Validate session with BetterAuth
 			session, err := baClient.GetSession(ctx, r)
 			if err != nil {
+				// DEBUG: Log the specific error (always prints)
+				log.Printf("DEBUG Middleware: BetterAuth failed - path=%s error=%s betterauth=%s", r.URL.Path, err.Error(), baClient.BaseURL())
 				handleAuthError(w, r, err, "session validation failed")
 				return
 			}
@@ -79,7 +89,22 @@ func Middleware(baClient *betterauth.Client, db *bun.DB) func(http.Handler) http
 				tc.BueroName = org.BueroName
 			}
 
-			// Step 6: Set RLS context for PostgreSQL
+			// Step 6: Look up linked staff record (optional, for domain data access)
+			// Also attempts auto-linking by email if not yet linked
+			staffID, err := lookupStaffByBetterAuthUserID(ctx, db, session.User.ID, session.User.Email)
+			if err != nil {
+				// Log but don't fail - staff linkage is optional
+				if logging.Logger != nil {
+					logging.Logger.WithFields(map[string]any{
+						"error":   err.Error(),
+						"user_id": session.User.ID,
+					}).Debug("Staff linkage lookup failed (non-fatal)")
+				}
+			} else if staffID != nil {
+				tc.StaffID = staffID
+			}
+
+			// Step 7: Set RLS context for PostgreSQL
 			// Using SET LOCAL ensures the context is scoped to the current transaction.
 			_, err = db.ExecContext(ctx, "SET LOCAL app.ogs_id = $1", tc.OrgID)
 			if err != nil {
@@ -186,4 +211,73 @@ func loadOrganization(ctx context.Context, db *bun.DB, orgID string) (*organizat
 	}
 
 	return &result, nil
+}
+
+// lookupStaffByBetterAuthUserID finds the staff record linked to a BetterAuth user.
+// If not found by user ID, attempts to find by email and auto-link.
+// Returns nil if no staff is linked (not an error - linkage is optional).
+func lookupStaffByBetterAuthUserID(ctx context.Context, db *bun.DB, betterAuthUserID, userEmail string) (*int64, error) {
+	var staffID int64
+	err := db.NewRaw(`
+		SELECT id FROM users.staff
+		WHERE betterauth_user_id = ?
+	`, betterAuthUserID).Scan(ctx, &staffID)
+
+	if err == nil {
+		return &staffID, nil // Found by user ID
+	}
+
+	if err != sql.ErrNoRows {
+		return nil, err // Database error
+	}
+
+	// Not found by user ID - try email matching
+	// This handles first login after BetterAuth signup
+	if userEmail == "" {
+		return nil, nil // No email to match
+	}
+
+	// Look up staff by email through person table
+	err = db.NewRaw(`
+		SELECT s.id FROM users.staff s
+		INNER JOIN users.persons p ON p.id = s.person_id
+		INNER JOIN auth.accounts a ON a.id = p.account_id
+		WHERE LOWER(a.email) = LOWER(?)
+		AND s.betterauth_user_id IS NULL
+		LIMIT 1
+	`, userEmail).Scan(ctx, &staffID)
+
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil // No staff found - not an error
+		}
+		return nil, err
+	}
+
+	// Found staff by email - auto-link the BetterAuth user ID
+	_, linkErr := db.NewRaw(`
+		UPDATE users.staff
+		SET betterauth_user_id = ?, updated_at = NOW()
+		WHERE id = ?
+	`, betterAuthUserID, staffID).Exec(ctx)
+
+	if linkErr != nil {
+		if logging.Logger != nil {
+			logging.Logger.WithFields(map[string]any{
+				"error":              linkErr.Error(),
+				"staff_id":           staffID,
+				"betterauth_user_id": betterAuthUserID,
+				"email":              userEmail,
+			}).Warn("Failed to auto-link BetterAuth user to staff (non-fatal)")
+		}
+		// Still return the staff ID even if linking failed
+	} else if logging.Logger != nil {
+		logging.Logger.WithFields(map[string]any{
+			"staff_id":           staffID,
+			"betterauth_user_id": betterAuthUserID,
+			"email":              userEmail,
+		}).Info("Auto-linked BetterAuth user to staff record")
+	}
+
+	return &staffID, nil
 }

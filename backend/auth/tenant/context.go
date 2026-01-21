@@ -46,6 +46,12 @@ type TenantContext struct {
 	// This is nullable - not all OGS have a Büro.
 	BueroID   *string
 	BueroName *string
+
+	// Staff linkage (optional, populated when staff record is found)
+	// StaffID links this BetterAuth user to their users.staff record.
+	// This enables access to person data and group assignments.
+	// Nullable because staff linkage happens after invitation acceptance.
+	StaffID *int64
 }
 
 // SetTenantContext stores TenantContext in the request context.
@@ -168,4 +174,21 @@ func CanManageStaff(ctx context.Context) bool {
 // CanManageOGS checks if the user can update OGS settings.
 func CanManageOGS(ctx context.Context) bool {
 	return HasPermission(ctx, "ogs:update")
+}
+
+// StaffIDFromCtx returns the linked staff ID from context, or nil if not linked.
+// The staff linkage is set when the middleware finds a staff record with
+// matching betterauth_user_id.
+func StaffIDFromCtx(ctx context.Context) *int64 {
+	tc := TenantFromCtx(ctx)
+	if tc == nil {
+		return nil
+	}
+	return tc.StaffID
+}
+
+// HasStaffLinkage checks if the current user has a linked staff record.
+// Returns false if user is not authenticated or staff linkage is not set.
+func HasStaffLinkage(ctx context.Context) bool {
+	return StaffIDFromCtx(ctx) != nil
 }

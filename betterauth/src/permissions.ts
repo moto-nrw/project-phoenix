@@ -15,6 +15,7 @@ import { createAccessControl } from "better-auth/plugins/access";
  * - schedule: Timeframes, dateframes, recurrence rules
  * - feedback: Student emotional check-ins
  * - substitution: Group supervisor substitutions
+ * - person: Base person records (internal, admin only)
  *
  * GDPR CRITICAL: The `location` resource contains sensitive real-time data about
  * where students are physically located. Only roles with direct operational need
@@ -29,10 +30,11 @@ export const statement = {
   location: ["read"], // GDPR sensitive - only operational roles!
   staff: ["read", "create", "update", "delete", "invite"],
   ogs: ["read", "update"],
-  config: ["read", "update"], // System configuration - admin only
+  config: ["read", "create", "update", "manage"], // System configuration - admin only
   schedule: ["read", "create", "update", "delete"], // Timeframes and schedules
   feedback: ["read", "create", "delete"], // Student emotional check-ins
   substitution: ["read", "create", "update", "delete"], // Group substitutions
+  person: ["read", "create", "update", "delete"], // Base person records - admin only
 } as const;
 
 /**
@@ -87,10 +89,11 @@ export const ogsAdmin = ac.newRole({
   location: ["read"], // OGS admin runs operations, needs location visibility
   staff: ["read", "create", "update", "invite"],
   ogs: ["read", "update"],
-  config: ["read", "update"], // Full config management
+  config: ["read", "create", "update", "manage"], // Full config management
   schedule: ["read", "create", "update", "delete"], // Full schedule management
   feedback: ["read", "create", "delete"], // Full feedback management
   substitution: ["read", "create", "update", "delete"], // Full substitution management
+  person: ["read", "create", "update", "delete"], // Base person records (admin only)
 });
 
 /**
@@ -119,10 +122,11 @@ export const bueroAdmin = ac.newRole({
   // location: INTENTIONALLY OMITTED - GDPR compliance!
   staff: ["read", "create", "update", "delete", "invite"],
   ogs: ["read", "update"],
-  config: ["read", "update"], // Full config management
+  config: ["read", "create", "update", "manage"], // Full config management
   schedule: ["read", "create", "update", "delete"], // Full schedule management
   feedback: ["read", "create", "delete"], // Full feedback management
   substitution: ["read", "create", "update", "delete"], // Full substitution management
+  person: ["read", "create", "update", "delete"], // Base person records (admin only)
 });
 
 /**
@@ -151,8 +155,9 @@ export const traegerAdmin = ac.newRole({
   // location: INTENTIONALLY OMITTED - GDPR compliance!
   staff: ["read", "create", "update", "delete", "invite"],
   ogs: ["read", "update"],
-  config: ["read", "update"], // Full config management
+  config: ["read", "create", "update", "manage"], // Full config management
   schedule: ["read", "create", "update", "delete"], // Full schedule management
   feedback: ["read", "create", "delete"], // Full feedback management
   substitution: ["read", "create", "update", "delete"], // Full substitution management
+  person: ["read", "create", "update", "delete"], // Base person records (admin only)
 });

@@ -250,3 +250,46 @@ func (r *StaffRepository) AddNotes(ctx context.Context, id int64, notes string) 
 
 	return nil
 }
+
+// FindByBetterAuthUserID retrieves a staff member by their BetterAuth user ID.
+// This is used during session validation to link BetterAuth users to staff records.
+func (r *StaffRepository) FindByBetterAuthUserID(ctx context.Context, betterAuthUserID string) (*users.Staff, error) {
+	staff := new(users.Staff)
+	err := r.db.NewSelect().
+		Model(staff).
+		ModelTableExpr(`users.staff AS "staff"`).
+		Where(`"staff".betterauth_user_id = ?`, betterAuthUserID).
+		Scan(ctx)
+
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil // Not found is not an error - return nil staff
+		}
+		return nil, &modelBase.DatabaseError{
+			Op:  "find by BetterAuth user ID",
+			Err: err,
+		}
+	}
+
+	return staff, nil
+}
+
+// UpdateBetterAuthUserID sets the BetterAuth user ID for a staff member.
+// Called when a staff member accepts their invitation and creates a BetterAuth account.
+func (r *StaffRepository) UpdateBetterAuthUserID(ctx context.Context, staffID int64, betterAuthUserID string) error {
+	_, err := r.db.NewUpdate().
+		Model((*users.Staff)(nil)).
+		ModelTableExpr(`users.staff AS "staff"`).
+		Set(`betterauth_user_id = ?`, betterAuthUserID).
+		Where(`"staff".id = ?`, staffID).
+		Exec(ctx)
+
+	if err != nil {
+		return &modelBase.DatabaseError{
+			Op:  "update BetterAuth user ID",
+			Err: err,
+		}
+	}
+
+	return nil
+}

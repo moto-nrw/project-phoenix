@@ -155,6 +155,14 @@ type StaffRepository interface {
 
 	// FindWithPerson retrieves a staff member with their associated person data
 	FindWithPerson(ctx context.Context, id int64) (*Staff, error)
+
+	// FindByBetterAuthUserID retrieves a staff member by their BetterAuth user ID
+	// Used during session validation to link BetterAuth users to staff records
+	FindByBetterAuthUserID(ctx context.Context, betterAuthUserID string) (*Staff, error)
+
+	// UpdateBetterAuthUserID sets the BetterAuth user ID for a staff member
+	// Called when a staff member accepts their invitation and creates an account
+	UpdateBetterAuthUserID(ctx context.Context, staffID int64, betterAuthUserID string) error
 }
 
 // TeacherRepository defines operations for managing teachers

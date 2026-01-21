@@ -1054,6 +1054,14 @@ func (r *stubStaffRepository) ListAllWithPerson(context.Context) ([]*userModel.S
 	panic("ListAllWithPerson not implemented")
 }
 
+func (r *stubStaffRepository) FindByBetterAuthUserID(context.Context, string) (*userModel.Staff, error) {
+	panic("FindByBetterAuthUserID not implemented")
+}
+
+func (r *stubStaffRepository) UpdateBetterAuthUserID(context.Context, int64, string) error {
+	panic("UpdateBetterAuthUserID not implemented")
+}
+
 // stubTeacherRepository provides a minimal test implementation.
 type stubTeacherRepository struct {
 	mu       sync.Mutex
