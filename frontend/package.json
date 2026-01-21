@@ -4,7 +4,7 @@
   "private": true,
   "license": "Apache-2.0",
   "type": "module",
-  "packageManager": "pnpm@10.28.1",
+  "packageManager": "pnpm@10.26.1",
   "scripts": {
     "build": "next build",
     "check": "eslint . && tsc --noEmit",
@@ -52,7 +52,7 @@
     "eslint": "^9.39.2",
     "eslint-config-next": "^15.2.3",
     "happy-dom": "^20.1.0",
-    "jsdom": "^27.4.0",
+        "jsdom": "^27.4.0",
     "knip": "^5.80.2",
     "lint-staged": "^16.2.7",
     "postcss": "^8.5.3",
@@ -67,6 +67,7 @@
   "ct3aMetadata": {
     "initVersion": "7.39.3"
   },
+  "packageManager": "pnpm@10.28.1",
   "pnpm": {
     "onlyBuiltDependencies": [
       "esbuild",
@@ -89,8 +90,7 @@
       "src/lib/database/configs/*.{ts,tsx}",
       "src/lib/swr/index.ts",
       "src/server/auth/token-refresh.ts",
-      "src/**/*.test.{ts,tsx}",
-      "src/test/mocks/*.ts"
+      "src/**/*.test.{ts,tsx}"
     ],
     "project": [
       "src/**/*.{ts,tsx,js}"
