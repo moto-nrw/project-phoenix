@@ -254,13 +254,19 @@ describe("auth-api", () => {
     it("returns true immediately if recently refreshed (within 5 seconds)", async () => {
       const restore = setupBrowserEnv();
       try {
-        // Mock sessionStorage
-        const mockSessionStorage: Record<string, string> = {
-          lastSuccessfulRefresh: (Date.now() - 2000).toString(), // 2 seconds ago
-        };
-        vi.spyOn(Storage.prototype, "getItem").mockImplementation(
-          (key) => mockSessionStorage[key] ?? null
-        );
+        // Mock sessionStorage using Object.defineProperty for reliable mocking
+        const lastRefreshTime = (Date.now() - 2000).toString(); // 2 seconds ago
+        const getItemMock = vi.fn().mockImplementation((key: string) => {
+          if (key === "lastSuccessfulRefresh") {
+            return lastRefreshTime;
+          }
+          return null;
+        });
+        Object.defineProperty(globalThis, "sessionStorage", {
+          value: { getItem: getItemMock, setItem: vi.fn(), clear: vi.fn() },
+          writable: true,
+          configurable: true,
+        });
 
         // eslint-disable-next-line @typescript-eslint/no-empty-function
         const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
