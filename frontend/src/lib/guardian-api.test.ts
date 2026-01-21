@@ -459,11 +459,13 @@ describe("guardian-api functions", () => {
           }),
       });
 
+      // When email is undefined, it should not be included in the request
       await updateGuardian("1", { firstName: "Johnny", email: undefined });
 
       const callArgs = vi.mocked(global.fetch).mock.calls[0] as [string, RequestInit];
       const body = JSON.parse(callArgs[1].body as string) as Record<string, unknown>;
-      expect(body).toEqual({ first_name: "Johnny", email: null });
+      // mapGuardianFormToBackend only includes email if !== undefined
+      expect(body).toEqual({ first_name: "Johnny" });
     });
 
     it("throws translated error on non-ok response", async () => {

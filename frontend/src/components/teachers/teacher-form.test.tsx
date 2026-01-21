@@ -306,7 +306,7 @@ describe("TeacherForm", () => {
           first_name: "John",
           last_name: "Doe",
           id: "1",
-          person_id: "10",
+          person_id: 10, // person_id is passed through as number
           is_teacher: true,
         }),
       );
