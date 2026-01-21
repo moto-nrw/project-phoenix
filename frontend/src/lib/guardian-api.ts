@@ -8,12 +8,15 @@ import type {
   StudentGuardianLinkRequest,
   BackendGuardianProfile,
   BackendGuardianWithRelationship,
+  GuardianSearchResult,
+  BackendGuardianSearchResult,
 } from "./guardian-helpers";
 import {
   mapGuardianResponse,
   mapGuardianWithRelationshipResponse,
   mapGuardianFormDataToBackend,
   mapStudentGuardianLinkToBackend,
+  mapGuardianSearchResultResponse,
 } from "./guardian-helpers";
 
 // API Response Types
@@ -467,4 +470,44 @@ export async function searchGuardians(query: string): Promise<Guardian[]> {
   }
 
   return (result.data ?? []).map(mapGuardianResponse);
+}
+
+/**
+ * Search for guardians with their linked students (for linking existing guardians)
+ * Returns guardians matching the search query along with their current students
+ * Optionally excludes guardians already linked to a specific student
+ */
+export async function searchGuardiansWithStudents(
+  query: string,
+  excludeStudentId?: string,
+): Promise<GuardianSearchResult[]> {
+  const params = new URLSearchParams();
+  params.set("search", query);
+  if (excludeStudentId) {
+    params.set("exclude_student_id", excludeStudentId);
+  }
+
+  const response = await fetch(
+    `/api/guardians/search-with-students?${params.toString()}`,
+  );
+
+  if (!response.ok) {
+    const error: unknown = await response
+      .json()
+      .catch(() => ({ error: "Failed to search guardians" }));
+    const errorMessage = isErrorResponse(error)
+      ? error.error
+      : `Failed to search guardians: ${response.statusText}`;
+    throw new Error(errorMessage);
+  }
+
+  const result = (await response.json()) as ApiResponse<
+    BackendGuardianSearchResult[]
+  >;
+
+  if (result.status === "error") {
+    throw new Error(result.error ?? "Failed to search guardians");
+  }
+
+  return (result.data ?? []).map(mapGuardianSearchResultResponse);
 }

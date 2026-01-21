@@ -58,6 +58,7 @@ func (rs *Resource) Router() chi.Router {
 		// Guardian profile CRUD operations
 		// Read operations require users:read permission
 		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/", rs.listGuardians)
+		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/search-with-students", rs.searchGuardiansWithStudents)
 		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/{id}", rs.getGuardian)
 		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/without-account", rs.listGuardiansWithoutAccount)
 		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/invitable", rs.listInvitableGuardians)

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
@@ -134,6 +135,24 @@ type GuardianWithRelationship struct {
 	CanPickup          bool              `json:"can_pickup"`
 	PickupNotes        *string           `json:"pickup_notes,omitempty"`
 	EmergencyPriority  int               `json:"emergency_priority"`
+}
+
+// GuardianSearchResultStudent represents a student linked to a guardian in search results
+type GuardianSearchResultStudent struct {
+	StudentID   int64  `json:"student_id"`
+	FirstName   string `json:"first_name"`
+	LastName    string `json:"last_name"`
+	SchoolClass string `json:"school_class"`
+}
+
+// GuardianSearchResult represents a guardian with their linked students for search
+type GuardianSearchResult struct {
+	ID        int64                         `json:"id"`
+	FirstName string                        `json:"first_name"`
+	LastName  string                        `json:"last_name"`
+	Email     *string                       `json:"email,omitempty"`
+	Phone     *string                       `json:"phone,omitempty"`
+	Students  []GuardianSearchResultStudent `json:"students"`
 }
 
 // Bind validates the guardian create request
@@ -561,6 +580,110 @@ func (rs *Resource) listGuardiansWithoutAccount(w http.ResponseWriter, r *http.R
 	}
 
 	common.Respond(w, r, http.StatusOK, responses, "Guardians without accounts retrieved successfully")
+}
+
+// searchGuardiansWithStudents handles searching guardians with their linked students
+// This endpoint is used for linking existing guardians to a student
+func (rs *Resource) searchGuardiansWithStudents(w http.ResponseWriter, r *http.Request) {
+	// Get search query parameter
+	search := r.URL.Query().Get("search")
+	if len(search) < 2 {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("search query must be at least 2 characters")))
+		return
+	}
+
+	// Get optional exclude_student_id parameter
+	excludeStudentIDStr := r.URL.Query().Get("exclude_student_id")
+	var excludeStudentID int64
+	if excludeStudentIDStr != "" {
+		var err error
+		excludeStudentID, err = strconv.ParseInt(excludeStudentIDStr, 10, 64)
+		if err != nil {
+			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid exclude_student_id")))
+			return
+		}
+	}
+
+	// Create query options with search filter
+	queryOptions := base.NewQueryOptions()
+	queryOptions.WithPagination(1, 50) // Limit results for performance
+
+	// Get all guardians (we'll filter in memory for OR search)
+	guardians, err := rs.GuardianService.ListGuardians(r.Context(), queryOptions)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+
+	// Filter guardians by search term (name or email)
+	searchLower := strings.ToLower(search)
+	var matchedGuardians []*users.GuardianProfile
+	for _, g := range guardians {
+		firstNameMatch := strings.Contains(strings.ToLower(g.FirstName), searchLower)
+		lastNameMatch := strings.Contains(strings.ToLower(g.LastName), searchLower)
+		fullNameMatch := strings.Contains(strings.ToLower(g.FirstName+" "+g.LastName), searchLower)
+		emailMatch := g.Email != nil && strings.Contains(strings.ToLower(*g.Email), searchLower)
+
+		if firstNameMatch || lastNameMatch || fullNameMatch || emailMatch {
+			matchedGuardians = append(matchedGuardians, g)
+		}
+	}
+
+	// Build response with student information
+	results := make([]GuardianSearchResult, 0, len(matchedGuardians))
+	for _, guardian := range matchedGuardians {
+		// Get students linked to this guardian
+		studentsWithRel, err := rs.GuardianService.GetGuardianStudents(r.Context(), guardian.ID)
+		if err != nil {
+			log.Printf("Failed to get students for guardian %d: %v", guardian.ID, err)
+			continue
+		}
+
+		// Check if guardian is already linked to the excluded student
+		alreadyLinked := false
+		if excludeStudentID > 0 {
+			for _, swr := range studentsWithRel {
+				if swr.Student.ID == excludeStudentID {
+					alreadyLinked = true
+					break
+				}
+			}
+		}
+
+		// Skip guardians already linked to the excluded student
+		if alreadyLinked {
+			continue
+		}
+
+		// Build student list
+		students := make([]GuardianSearchResultStudent, 0, len(studentsWithRel))
+		for _, swr := range studentsWithRel {
+			// Get person data for student
+			person, err := rs.PersonService.Get(r.Context(), swr.Student.PersonID)
+			if err != nil {
+				log.Printf("Failed to get person for student %d: %v", swr.Student.ID, err)
+				continue
+			}
+
+			students = append(students, GuardianSearchResultStudent{
+				StudentID:   swr.Student.ID,
+				FirstName:   person.FirstName,
+				LastName:    person.LastName,
+				SchoolClass: swr.Student.SchoolClass,
+			})
+		}
+
+		results = append(results, GuardianSearchResult{
+			ID:        guardian.ID,
+			FirstName: guardian.FirstName,
+			LastName:  guardian.LastName,
+			Email:     guardian.Email,
+			Phone:     guardian.Phone,
+			Students:  students,
+		})
+	}
+
+	common.Respond(w, r, http.StatusOK, results, "Guardians search completed successfully")
 }
 
 // listInvitableGuardians handles listing guardians who can be invited (has email, no account)
@@ -1003,4 +1126,9 @@ func (rs *Resource) ValidateGuardianInvitationHandler() http.HandlerFunc {
 // AcceptGuardianInvitationHandler returns the accept invitation handler
 func (rs *Resource) AcceptGuardianInvitationHandler() http.HandlerFunc {
 	return rs.acceptGuardianInvitation
+}
+
+// SearchGuardiansWithStudentsHandler returns the search guardians with students handler
+func (rs *Resource) SearchGuardiansWithStudentsHandler() http.HandlerFunc {
+	return rs.searchGuardiansWithStudents
 }

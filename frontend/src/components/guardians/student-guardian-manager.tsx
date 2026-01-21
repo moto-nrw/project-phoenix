@@ -1,10 +1,11 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { UserPlus, Loader2 } from "lucide-react";
+import { UserPlus, Link, Loader2 } from "lucide-react";
 import GuardianList from "./guardian-list";
 import GuardianFormModal from "./guardian-form-modal";
 import { GuardianDeleteModal } from "./guardian-delete-modal";
+import LinkGuardianModal from "./link-guardian-modal";
 import type {
   GuardianWithRelationship,
   GuardianFormData,
@@ -43,6 +44,7 @@ export default function StudentGuardianManager({
     GuardianWithRelationship | undefined
   >();
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isLinkModalOpen, setIsLinkModalOpen] = useState(false);
 
   // Load guardians
   const loadGuardians = useCallback(async () => {
@@ -187,6 +189,25 @@ export default function StudentGuardianManager({
     setEditingGuardian(undefined);
   };
 
+  // Handle linking existing guardian
+  const handleLinkGuardian = async (
+    guardianId: string,
+    config: {
+      relationshipType: string;
+      isPrimary: boolean;
+      isEmergencyContact: boolean;
+      canPickup: boolean;
+      emergencyPriority: number;
+    },
+  ) => {
+    await linkGuardianToStudent(studentId, {
+      guardianProfileId: guardianId,
+      ...config,
+    });
+    await loadGuardians();
+    onUpdate?.();
+  };
+
   // Only show full-page loader on initial load (no data yet)
   // During refreshes, keep UI mounted to preserve modal state
   if (isLoading && guardians.length === 0) {
@@ -256,16 +277,28 @@ export default function StudentGuardianManager({
             </span>
           )}
           {!readOnly && (
-            <button
-              onClick={handleOpenCreateModal}
-              className="inline-flex items-center gap-2 rounded-lg bg-gray-900 p-2 text-white transition-all duration-200 hover:bg-gray-700 hover:shadow-lg active:scale-[0.99] sm:gap-2 sm:px-4 sm:py-2 sm:hover:scale-[1.01]"
-              title="Erziehungsberechtigte/n hinzufügen"
-            >
-              <UserPlus className="h-4 w-4" />
-              <span className="hidden text-sm font-medium sm:inline">
-                Hinzufügen
-              </span>
-            </button>
+            <>
+              <button
+                onClick={() => setIsLinkModalOpen(true)}
+                className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white p-2 text-gray-700 transition-all duration-200 hover:bg-gray-50 hover:shadow-md active:scale-[0.99] sm:gap-2 sm:px-4 sm:py-2 sm:hover:scale-[1.01]"
+                title="Bestehenden Erziehungsberechtigten verknüpfen"
+              >
+                <Link className="h-4 w-4" />
+                <span className="hidden text-sm font-medium sm:inline">
+                  Verknüpfen
+                </span>
+              </button>
+              <button
+                onClick={handleOpenCreateModal}
+                className="inline-flex items-center gap-2 rounded-lg bg-gray-900 p-2 text-white transition-all duration-200 hover:bg-gray-700 hover:shadow-lg active:scale-[0.99] sm:gap-2 sm:px-4 sm:py-2 sm:hover:scale-[1.01]"
+                title="Erziehungsberechtigte/n hinzufügen"
+              >
+                <UserPlus className="h-4 w-4" />
+                <span className="hidden text-sm font-medium sm:inline">
+                  Hinzufügen
+                </span>
+              </button>
+            </>
           )}
         </div>
       </div>
@@ -299,6 +332,14 @@ export default function StudentGuardianManager({
           deletingGuardian ? getGuardianFullName(deletingGuardian) : ""
         }
         isLoading={isDeleting}
+      />
+
+      {/* Link Existing Guardian Modal */}
+      <LinkGuardianModal
+        isOpen={isLinkModalOpen}
+        onClose={() => setIsLinkModalOpen(false)}
+        onLink={handleLinkGuardian}
+        studentId={studentId}
       />
     </div>
   );

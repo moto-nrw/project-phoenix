@@ -215,6 +215,63 @@ export function mapStudentGuardianLinkToBackend(
   };
 }
 
+// Guardian Search Result Types (for linking existing guardians)
+
+// Backend Guardian Search Result Student
+export interface BackendGuardianSearchResultStudent {
+  student_id: number;
+  first_name: string;
+  last_name: string;
+  school_class: string;
+}
+
+// Backend Guardian Search Result
+export interface BackendGuardianSearchResult {
+  id: number;
+  first_name: string;
+  last_name: string;
+  email?: string;
+  phone?: string;
+  students: BackendGuardianSearchResultStudent[];
+}
+
+// Frontend Guardian Search Result Student
+export interface GuardianSearchResultStudent {
+  studentId: string;
+  firstName: string;
+  lastName: string;
+  schoolClass: string;
+}
+
+// Frontend Guardian Search Result
+export interface GuardianSearchResult {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email?: string;
+  phone?: string;
+  students: GuardianSearchResultStudent[];
+}
+
+// Map backend guardian search result to frontend
+export function mapGuardianSearchResultResponse(
+  data: BackendGuardianSearchResult,
+): GuardianSearchResult {
+  return {
+    id: data.id.toString(),
+    firstName: data.first_name,
+    lastName: data.last_name,
+    email: data.email,
+    phone: data.phone,
+    students: data.students.map((s) => ({
+      studentId: s.student_id.toString(),
+      firstName: s.first_name,
+      lastName: s.last_name,
+      schoolClass: s.school_class,
+    })),
+  };
+}
+
 // Relationship type options
 export const RELATIONSHIP_TYPES = [
   { value: "parent", label: "Elternteil" },
