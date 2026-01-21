@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/auth/betterauth"
@@ -95,16 +96,18 @@ func Middleware(baClient *betterauth.Client, db *bun.DB) func(http.Handler) http
 				tc.StaffID = staffID
 			}
 
-			// Step 6b: Look up linked legacy account (for usercontext service compatibility)
-			// The usercontext service still uses account IDs for user lookups
-			accountID, err := lookupAccountByEmail(ctx, db, session.User.Email)
+			// Step 6b: JIT provisioning - ensure account and person exist
+			// This implements Just-in-Time provisioning: if a BetterAuth user doesn't
+			// have a legacy account/person, we create them on first authenticated request.
+			// This is the industry-standard pattern for syncing auth systems.
+			accountID, err := ensureAccountAndPerson(ctx, db, session.User.Email, session.User.Name, org.ID)
 			if err != nil {
-				// Log but don't fail - account linkage is optional for new users
+				// Log but don't fail - JIT provisioning is best-effort
 				if logging.Logger != nil {
 					logging.Logger.WithFields(map[string]any{
 						"error": err.Error(),
 						"email": session.User.Email,
-					}).Debug("Account linkage lookup failed (non-fatal)")
+					}).Warn("JIT provisioning failed (non-fatal)")
 				}
 			} else if accountID != nil {
 				tc.AccountID = accountID
@@ -290,14 +293,19 @@ func lookupStaffByBetterAuthUserID(ctx context.Context, db *bun.DB, betterAuthUs
 	return &staffID, nil
 }
 
-// lookupAccountByEmail finds the legacy auth.accounts record by email.
-// This enables compatibility with the usercontext service which uses account IDs.
-// Returns nil if no account is found (not an error - new BetterAuth users may not have accounts).
-func lookupAccountByEmail(ctx context.Context, db *bun.DB, email string) (*int64, error) {
+// ensureAccountAndPerson implements JIT (Just-in-Time) provisioning.
+// It looks up an existing account by email, or creates a new account + person
+// if none exists. This enables BetterAuth users to seamlessly access the
+// legacy usercontext service which requires account IDs.
+//
+// JIT provisioning is the industry-standard pattern for syncing users between
+// auth systems and application databases without tight coupling.
+func ensureAccountAndPerson(ctx context.Context, db *bun.DB, email, name, ogsID string) (*int64, error) {
 	if email == "" {
 		return nil, nil
 	}
 
+	// Step 1: Try to find existing account by email
 	var accountID int64
 	err := db.NewRaw(`
 		SELECT id FROM auth.accounts
@@ -305,12 +313,116 @@ func lookupAccountByEmail(ctx context.Context, db *bun.DB, email string) (*int64
 		LIMIT 1
 	`, email).Scan(ctx, &accountID)
 
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return nil, nil // No account found - not an error
+	if err == nil {
+		// Account exists - check if person is linked, if not create one
+		var personExists bool
+		err = db.NewRaw(`
+			SELECT EXISTS(SELECT 1 FROM users.persons WHERE account_id = ?)
+		`, accountID).Scan(ctx, &personExists)
+		if err != nil {
+			return &accountID, nil // Return account ID even if person check fails
 		}
+
+		if !personExists {
+			// Create person for existing account (JIT provision person only)
+			firstName, lastName := parseFullName(name)
+			_, err = db.NewRaw(`
+				INSERT INTO users.persons (first_name, last_name, account_id, ogs_id, created_at, updated_at)
+				VALUES (?, ?, ?, ?, NOW(), NOW())
+			`, firstName, lastName, accountID, ogsID).Exec(ctx)
+			if err != nil {
+				if logging.Logger != nil {
+					logging.Logger.WithFields(map[string]any{
+						"error":      err.Error(),
+						"account_id": accountID,
+						"email":      email,
+					}).Warn("JIT: Failed to create person for existing account (non-fatal)")
+				}
+			} else if logging.Logger != nil {
+				logging.Logger.WithFields(map[string]any{
+					"account_id": accountID,
+					"email":      email,
+					"ogs_id":     ogsID,
+				}).Info("JIT: Created person for existing account")
+			}
+		}
+
+		return &accountID, nil
+	}
+
+	if err != sql.ErrNoRows {
+		return nil, err // Database error
+	}
+
+	// Step 2: No account found - JIT provision both account and person
+	firstName, lastName := parseFullName(name)
+
+	// Use a transaction to ensure atomicity
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
 		return nil, err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	// Create account
+	err = tx.NewRaw(`
+		INSERT INTO auth.accounts (email, active, created_at, updated_at)
+		VALUES (LOWER(?), true, NOW(), NOW())
+		RETURNING id
+	`, email).Scan(ctx, &accountID)
+	if err != nil {
+		return nil, fmt.Errorf("JIT: failed to create account: %w", err)
+	}
+
+	// Create person linked to account
+	_, err = tx.NewRaw(`
+		INSERT INTO users.persons (first_name, last_name, account_id, ogs_id, created_at, updated_at)
+		VALUES (?, ?, ?, ?, NOW(), NOW())
+	`, firstName, lastName, accountID, ogsID).Exec(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("JIT: failed to create person: %w", err)
+	}
+
+	// Commit transaction
+	if err = tx.Commit(); err != nil {
+		return nil, fmt.Errorf("JIT: failed to commit transaction: %w", err)
+	}
+
+	if logging.Logger != nil {
+		logging.Logger.WithFields(map[string]any{
+			"account_id": accountID,
+			"email":      email,
+			"name":       name,
+			"ogs_id":     ogsID,
+		}).Info("JIT: Provisioned new account and person for BetterAuth user")
 	}
 
 	return &accountID, nil
+}
+
+// parseFullName splits a full name into first and last name.
+// If only one word is provided, it's used as the first name with "User" as last name.
+// If empty, defaults to "New" "User".
+func parseFullName(fullName string) (firstName, lastName string) {
+	fullName = strings.TrimSpace(fullName)
+	if fullName == "" {
+		return "New", "User"
+	}
+
+	parts := strings.SplitN(fullName, " ", 2)
+	firstName = strings.TrimSpace(parts[0])
+	if len(parts) > 1 {
+		lastName = strings.TrimSpace(parts[1])
+	} else {
+		lastName = "User"
+	}
+
+	if firstName == "" {
+		firstName = "New"
+	}
+	if lastName == "" {
+		lastName = "User"
+	}
+
+	return firstName, lastName
 }
