@@ -4,6 +4,7 @@
 import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
+import Link from "next/link";
 import { Input, Alert, HelpButton } from "~/components/ui";
 import { useSession, signIn, organization } from "~/lib/auth-client";
 import { SmartRedirect } from "~/components/auth/smart-redirect";
@@ -428,6 +429,19 @@ function LoginForm() {
                 {isLoading ? "Anmeldung läuft..." : "Anmelden"}
               </span>
             </button>
+          </div>
+
+          {/* Sign Up Link */}
+          <div className="mt-4 text-center text-sm text-gray-600">
+            <p>
+              Noch kein Konto?{" "}
+              <Link
+                href="/signup"
+                className="font-medium text-gray-900 underline hover:text-gray-700"
+              >
+                Jetzt registrieren
+              </Link>
+            </p>
           </div>
         </form>
       </div>

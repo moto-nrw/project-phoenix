@@ -9,6 +9,11 @@ import {
   traegerAdmin,
 } from "./permissions.js";
 
+// Create a shared pool for database operations including hooks
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+});
+
 /**
  * BetterAuth configuration for Project Phoenix multi-tenancy.
  *
@@ -24,11 +29,8 @@ export const auth = betterAuth({
   // The BetterAuth service runs on localhost:3001 but cookies should be for the frontend
   baseURL: process.env.BETTER_AUTH_BASE_URL ?? "http://localhost:3000",
 
-  // Database connection - uses PostgreSQL with SSL
-  database: new Pool({
-    connectionString: process.env.DATABASE_URL,
-    // SSL configuration is handled via connection string (sslmode=require)
-  }),
+  // Database connection - uses PostgreSQL with SSL (reuse the shared pool)
+  database: pool,
 
   // Enable email/password authentication
   emailAndPassword: {
@@ -62,6 +64,46 @@ export const auth = betterAuth({
     defaultCookieAttributes: {
       path: "/",
       sameSite: "lax",
+    },
+  },
+
+  // Database hooks for auto-provisioning
+  databaseHooks: {
+    user: {
+      create: {
+        // After a new user is created, automatically add them to the default organization
+        after: async (user) => {
+          const DEFAULT_ORG_ID = "first-ogs-organization";
+          const DEFAULT_ROLE = "member";
+
+          try {
+            // Check if user is already a member (shouldn't happen, but be safe)
+            const existingResult = await pool.query(
+              `SELECT id FROM public.member WHERE "userId" = $1 AND "organizationId" = $2`,
+              [user.id, DEFAULT_ORG_ID]
+            );
+
+            if (existingResult.rows.length === 0) {
+              // Add user to default organization
+              const memberId = `member-${user.id}-${Date.now()}`;
+              await pool.query(
+                `INSERT INTO public.member (id, "userId", "organizationId", role, "createdAt")
+                 VALUES ($1, $2, $3, $4, NOW())`,
+                [memberId, user.id, DEFAULT_ORG_ID, DEFAULT_ROLE]
+              );
+              console.log(
+                `[BetterAuth] Auto-added user ${user.email} to default organization`
+              );
+            }
+          } catch (error) {
+            // Log but don't fail the signup - user can be added manually
+            console.error(
+              `[BetterAuth] Failed to auto-add user to org:`,
+              error
+            );
+          }
+        },
+      },
     },
   },
 
