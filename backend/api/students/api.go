@@ -758,10 +758,14 @@ func (rs *Resource) GetStudentCurrentLocationHandler() http.HandlerFunc {
 func (rs *Resource) GetStudentInGroupRoomHandler() http.HandlerFunc { return rs.getStudentInGroupRoom }
 
 // GetStudentCurrentVisitHandler returns the handler for getting a student's current visit.
-func (rs *Resource) GetStudentCurrentVisitHandler() http.HandlerFunc { return rs.getStudentCurrentVisit }
+func (rs *Resource) GetStudentCurrentVisitHandler() http.HandlerFunc {
+	return rs.getStudentCurrentVisit
+}
 
 // GetStudentVisitHistoryHandler returns the handler for getting a student's visit history.
-func (rs *Resource) GetStudentVisitHistoryHandler() http.HandlerFunc { return rs.getStudentVisitHistory }
+func (rs *Resource) GetStudentVisitHistoryHandler() http.HandlerFunc {
+	return rs.getStudentVisitHistory
+}
 
 // GetStudentPrivacyConsentHandler returns the handler for getting a student's privacy consent.
 func (rs *Resource) GetStudentPrivacyConsentHandler() http.HandlerFunc {

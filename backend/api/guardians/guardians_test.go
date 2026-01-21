@@ -665,12 +665,12 @@ func TestLinkGuardianToStudent_Forbidden_NonStaff(t *testing.T) {
 	router.Post("/students/{studentId}/guardians", ctx.resource.LinkGuardianToStudentHandler())
 
 	body := map[string]interface{}{
-		"guardian_profile_id": 1,
-		"relationship_type":   "parent",
-		"is_primary":          true,
+		"guardian_profile_id":  1,
+		"relationship_type":    "parent",
+		"is_primary":           true,
 		"is_emergency_contact": true,
-		"can_pickup":          true,
-		"emergency_priority":  1,
+		"can_pickup":           true,
+		"emergency_priority":   1,
 	}
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/students/1/guardians", body,

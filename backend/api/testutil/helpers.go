@@ -55,8 +55,8 @@ import (
 
 // HTTP header constants (S1192 - avoid duplicate string literals)
 const (
-	headerContentType   = "Content-Type"
-	contentTypeJSON     = "application/json"
+	headerContentType = "Content-Type"
+	contentTypeJSON   = "application/json"
 )
 
 // SetupAPITest initializes test database and service factory for API tests.

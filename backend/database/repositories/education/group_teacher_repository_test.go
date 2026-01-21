@@ -334,7 +334,6 @@ func TestGroupTeacherRepository_Update_Validation(t *testing.T) {
 	})
 }
 
-
 func TestGroupTeacherRepository_List_WithFilters(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()

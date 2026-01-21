@@ -1,0 +1,17 @@
+{
+  "// NOTE": "Copy this to settings.local.json and customize for your preferences",
+  "// NOTE2": "settings.local.json is gitignored - your changes stay local",
+
+  "permissions": {
+    "allow": [
+      "// Add your personal MCP permissions here, e.g.:",
+      "// mcp__brave-search__brave_web_search",
+      "// mcp__context7__resolve-library-id"
+    ],
+    "deny": [],
+    "ask": []
+  },
+
+  "// outputStyle options": "default | concise | markdown | Learning",
+  "outputStyle": "default"
+}

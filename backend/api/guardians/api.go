@@ -6,10 +6,10 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	guardianSvc "github.com/moto-nrw/project-phoenix/services/users"
+	"github.com/moto-nrw/project-phoenix/models/users"
 	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
 	userContextSvc "github.com/moto-nrw/project-phoenix/services/usercontext"
-	"github.com/moto-nrw/project-phoenix/models/users"
+	guardianSvc "github.com/moto-nrw/project-phoenix/services/users"
 )
 
 // Resource defines the guardians API resource

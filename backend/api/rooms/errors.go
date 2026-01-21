@@ -18,4 +18,3 @@ var (
 func ErrorInvalidRequest(err error) render.Renderer {
 	return common.ErrorInvalidRequest(err)
 }
-

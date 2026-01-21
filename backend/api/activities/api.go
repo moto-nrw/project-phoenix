@@ -24,9 +24,9 @@ import (
 )
 
 const (
-	routeScheduleByID           = "/{id}/schedules/{scheduleId}"
-	msgActivityCreatedSuccess   = "Activity created successfully"
-	msgActivityUpdatedSuccess   = "Activity updated successfully"
+	routeScheduleByID         = "/{id}/schedules/{scheduleId}"
+	msgActivityCreatedSuccess = "Activity created successfully"
+	msgActivityUpdatedSuccess = "Activity updated successfully"
 )
 
 // Resource defines the activities API resource
@@ -1776,19 +1776,29 @@ func (rs *Resource) GetActivityScheduleHandler() http.HandlerFunc { return rs.ge
 func (rs *Resource) GetAvailableTimeSlotsHandler() http.HandlerFunc { return rs.getAvailableTimeSlots }
 
 // CreateActivityScheduleHandler returns the create schedule handler
-func (rs *Resource) CreateActivityScheduleHandler() http.HandlerFunc { return rs.createActivitySchedule }
+func (rs *Resource) CreateActivityScheduleHandler() http.HandlerFunc {
+	return rs.createActivitySchedule
+}
 
 // UpdateActivityScheduleHandler returns the update schedule handler
-func (rs *Resource) UpdateActivityScheduleHandler() http.HandlerFunc { return rs.updateActivitySchedule }
+func (rs *Resource) UpdateActivityScheduleHandler() http.HandlerFunc {
+	return rs.updateActivitySchedule
+}
 
 // DeleteActivityScheduleHandler returns the delete schedule handler
-func (rs *Resource) DeleteActivityScheduleHandler() http.HandlerFunc { return rs.deleteActivitySchedule }
+func (rs *Resource) DeleteActivityScheduleHandler() http.HandlerFunc {
+	return rs.deleteActivitySchedule
+}
 
 // GetActivitySupervisorsHandler returns the get supervisors handler
-func (rs *Resource) GetActivitySupervisorsHandler() http.HandlerFunc { return rs.getActivitySupervisors }
+func (rs *Resource) GetActivitySupervisorsHandler() http.HandlerFunc {
+	return rs.getActivitySupervisors
+}
 
 // GetAvailableSupervisorsHandler returns the get available supervisors handler
-func (rs *Resource) GetAvailableSupervisorsHandler() http.HandlerFunc { return rs.getAvailableSupervisors }
+func (rs *Resource) GetAvailableSupervisorsHandler() http.HandlerFunc {
+	return rs.getAvailableSupervisors
+}
 
 // AssignSupervisorHandler returns the assign supervisor handler
 func (rs *Resource) AssignSupervisorHandler() http.HandlerFunc { return rs.assignSupervisor }
@@ -1806,7 +1816,9 @@ func (rs *Resource) GetActivityStudentsHandler() http.HandlerFunc { return rs.ge
 func (rs *Resource) GetStudentEnrollmentsHandler() http.HandlerFunc { return rs.getStudentEnrollments }
 
 // GetAvailableActivitiesHandler returns the get available activities handler
-func (rs *Resource) GetAvailableActivitiesHandler() http.HandlerFunc { return rs.getAvailableActivities }
+func (rs *Resource) GetAvailableActivitiesHandler() http.HandlerFunc {
+	return rs.getAvailableActivities
+}
 
 // EnrollStudentHandler returns the enroll student handler
 func (rs *Resource) EnrollStudentHandler() http.HandlerFunc { return rs.enrollStudent }
@@ -1815,4 +1827,6 @@ func (rs *Resource) EnrollStudentHandler() http.HandlerFunc { return rs.enrollSt
 func (rs *Resource) UnenrollStudentHandler() http.HandlerFunc { return rs.unenrollStudent }
 
 // UpdateGroupEnrollmentsHandler returns the batch enrollment handler
-func (rs *Resource) UpdateGroupEnrollmentsHandler() http.HandlerFunc { return rs.updateGroupEnrollments }
+func (rs *Resource) UpdateGroupEnrollmentsHandler() http.HandlerFunc {
+	return rs.updateGroupEnrollments
+}

@@ -14,4 +14,3 @@ type Migration struct {
 	Up          func(ctx context.Context, db *bun.DB) error
 	Down        func(ctx context.Context, db *bun.DB) error
 }
-

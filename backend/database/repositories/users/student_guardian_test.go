@@ -521,9 +521,9 @@ func TestStudentGuardianRepository_Create_ValidationError(t *testing.T) {
 
 	// ACT - Create with invalid data
 	sg := &users.StudentGuardian{
-		StudentID:        0, // Invalid
+		StudentID:         0, // Invalid
 		GuardianProfileID: 0, // Invalid
-		RelationshipType: "",
+		RelationshipType:  "",
 	}
 	err := repo.Create(ctx, sg)
 

@@ -17,7 +17,7 @@ Consolidated, deterministic API test suite for Project Phoenix using [Bruno](htt
 # Install Bruno CLI
 brew install bruno-cli
 # OR
-npm install -g @usebruno/cli
+pnpm add -g @usebruno/cli
 
 # Install jq (optional, for manual token inspection)
 brew install jq

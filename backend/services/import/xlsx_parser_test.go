@@ -177,7 +177,7 @@ func TestXLSXParser_ParseStudents(t *testing.T) {
 		headers := []string{"Vorname", "Nachname", "Klasse"}
 		rows := [][]string{
 			{"Max", "Mustermann", "1A"},
-			{"", "", ""},           // Empty row - should be skipped
+			{"", "", ""}, // Empty row - should be skipped
 			{"Anna", "Schmidt", "2B"},
 		}
 		buf := createTestXLSX(t, headers, rows)

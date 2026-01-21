@@ -13,8 +13,8 @@ import (
 
 // Table name constants for BUN ORM schema qualification
 const (
-	tableRecurrenceRules      = "schedule.recurrence_rules"
-	tableExprRecurrenceAsRR   = `schedule.recurrence_rules AS "recurrence_rule"`
+	tableRecurrenceRules    = "schedule.recurrence_rules"
+	tableExprRecurrenceAsRR = `schedule.recurrence_rules AS "recurrence_rule"`
 )
 
 // RecurrenceRuleRepository implements schedule.RecurrenceRuleRepository interface

@@ -13,8 +13,8 @@ import (
 
 // Table name constants for BUN ORM schema qualification
 const (
-	tableDateframes           = "schedule.dateframes"
-	tableExprDateframesAsDF   = `schedule.dateframes AS "dateframe"`
+	tableDateframes         = "schedule.dateframes"
+	tableExprDateframesAsDF = `schedule.dateframes AS "dateframe"`
 )
 
 // DateframeRepository implements schedule.DateframeRepository interface

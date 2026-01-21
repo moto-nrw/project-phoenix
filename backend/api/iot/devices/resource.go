@@ -90,13 +90,17 @@ func (rs *Resource) GetDevicesByTypeHandler() http.HandlerFunc { return rs.getDe
 func (rs *Resource) GetDevicesByStatusHandler() http.HandlerFunc { return rs.getDevicesByStatus }
 
 // GetDevicesByRegisteredByHandler returns the getDevicesByRegisteredBy handler for testing.
-func (rs *Resource) GetDevicesByRegisteredByHandler() http.HandlerFunc { return rs.getDevicesByRegisteredBy }
+func (rs *Resource) GetDevicesByRegisteredByHandler() http.HandlerFunc {
+	return rs.getDevicesByRegisteredBy
+}
 
 // GetActiveDevicesHandler returns the getActiveDevices handler for testing.
 func (rs *Resource) GetActiveDevicesHandler() http.HandlerFunc { return rs.getActiveDevices }
 
 // GetDevicesRequiringMaintenanceHandler returns the getDevicesRequiringMaintenance handler for testing.
-func (rs *Resource) GetDevicesRequiringMaintenanceHandler() http.HandlerFunc { return rs.getDevicesRequiringMaintenance }
+func (rs *Resource) GetDevicesRequiringMaintenanceHandler() http.HandlerFunc {
+	return rs.getDevicesRequiringMaintenance
+}
 
 // GetOfflineDevicesHandler returns the getOfflineDevices handler for testing.
 func (rs *Resource) GetOfflineDevicesHandler() http.HandlerFunc { return rs.getOfflineDevices }
