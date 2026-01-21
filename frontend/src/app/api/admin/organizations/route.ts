@@ -3,15 +3,29 @@
  *
  * Proxies requests to BetterAuth admin endpoints for organization management.
  * GET /api/admin/organizations - List all organizations (with optional ?status=pending filter)
+ *
+ * Access Control:
+ * - User must be logged in via BetterAuth
+ * - User's email must be in SAAS_ADMIN_EMAILS list
  */
 
 import { type NextRequest, NextResponse } from "next/server";
+import { verifyAdminAccess, INTERNAL_API_KEY } from "~/lib/admin-auth";
 
 const BETTERAUTH_INTERNAL_URL =
   process.env.BETTERAUTH_INTERNAL_URL ?? "http://localhost:3001";
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
   try {
+    // Verify admin access
+    const adminSession = await verifyAdminAccess(request);
+    if (!adminSession) {
+      return NextResponse.json(
+        { error: "Unauthorized - admin access required" },
+        { status: 401 },
+      );
+    }
+
     const { searchParams } = new URL(request.url);
     const status = searchParams.get("status");
 
@@ -22,14 +36,11 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       targetUrl.searchParams.set("status", status);
     }
 
-    // Forward cookies for session auth
-    const cookies = request.headers.get("Cookie");
-
     const response = await fetch(targetUrl.toString(), {
       method: "GET",
       headers: {
         "Content-Type": "application/json",
-        ...(cookies ? { Cookie: cookies } : {}),
+        "X-Internal-API-Key": INTERNAL_API_KEY,
       },
     });
 

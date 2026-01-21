@@ -4,6 +4,7 @@
  */
 
 import { type NextRequest, NextResponse } from "next/server";
+import { verifyAdminAccess, INTERNAL_API_KEY } from "~/lib/admin-auth";
 
 const BETTERAUTH_INTERNAL_URL =
   process.env.BETTERAUTH_INTERNAL_URL ?? "http://localhost:3001";
@@ -13,8 +14,16 @@ export async function POST(
   context: { params: Promise<{ orgId: string }> },
 ): Promise<NextResponse> {
   try {
+    // Verify admin access
+    const adminSession = await verifyAdminAccess(request);
+    if (!adminSession) {
+      return NextResponse.json(
+        { error: "Unauthorized - admin access required" },
+        { status: 401 },
+      );
+    }
+
     const { orgId } = await context.params;
-    const cookies = request.headers.get("Cookie");
 
     const response = await fetch(
       `${BETTERAUTH_INTERNAL_URL}/api/admin/organizations/${encodeURIComponent(orgId)}/approve`,
@@ -22,7 +31,7 @@ export async function POST(
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          ...(cookies ? { Cookie: cookies } : {}),
+          "X-Internal-API-Key": INTERNAL_API_KEY,
         },
         body: JSON.stringify({}),
       },

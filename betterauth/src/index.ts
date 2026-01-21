@@ -9,13 +9,6 @@ import {
 
 const PORT = parseInt(process.env.PORT ?? "3001", 10);
 
-// SaaS admin emails (comma-separated in env, or default for development)
-const SAAS_ADMIN_EMAILS = (
-  process.env.SAAS_ADMIN_EMAILS ?? "admin@example.com"
-)
-  .split(",")
-  .map((e) => e.trim().toLowerCase());
-
 // Database pool for custom queries (separate from BetterAuth's internal pool)
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
@@ -39,51 +32,16 @@ async function readJsonBody(req: IncomingMessage): Promise<unknown> {
   });
 }
 
-// Helper to verify session and check admin permissions
-async function verifyAdminSession(
-  req: IncomingMessage,
-): Promise<{ valid: false } | { valid: true; userId: string; email: string }> {
-  const cookies = req.headers.cookie ?? "";
-  const sessionToken = cookies
-    .split(";")
-    .find((c) => c.trim().startsWith("better-auth.session_token="))
-    ?.split("=")[1]
-    ?.trim();
+// Internal API key for server-to-server calls (set in environment)
+// When this header is present and matches, skip session verification
+const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY ?? "dev-internal-key";
 
-  if (!sessionToken) {
-    return { valid: false };
-  }
-
-  try {
-    // Look up session in database
-    const sessionResult = await pool.query(
-      `SELECT s.id, s."userId", u.email
-       FROM session s
-       JOIN "user" u ON u.id = s."userId"
-       WHERE s.token = $1 AND s."expiresAt" > NOW()`,
-      [sessionToken],
-    );
-
-    if (sessionResult.rows.length === 0) {
-      return { valid: false };
-    }
-
-    const session = sessionResult.rows[0] as {
-      id: string;
-      userId: string;
-      email: string;
-    };
-
-    // Check if user is a SaaS admin
-    if (!SAAS_ADMIN_EMAILS.includes(session.email.toLowerCase())) {
-      return { valid: false };
-    }
-
-    return { valid: true, userId: session.userId, email: session.email };
-  } catch (error) {
-    console.error("Failed to verify admin session:", error);
-    return { valid: false };
-  }
+// Helper to verify admin access
+// For internal calls (from Next.js), we trust the X-Internal-API-Key header
+// The actual admin email check happens in the Next.js API routes
+function verifyInternalAccess(req: IncomingMessage): boolean {
+  const apiKey = req.headers["x-internal-api-key"];
+  return apiKey === INTERNAL_API_KEY;
 }
 
 interface OrgWithOwner {
@@ -101,10 +59,10 @@ async function handleListOrganizations(
   req: IncomingMessage,
   res: ServerResponse,
 ): Promise<void> {
-  const adminCheck = await verifyAdminSession(req);
-  if (!adminCheck.valid) {
+  // Verify internal API access (auth check done in Next.js API routes)
+  if (!verifyInternalAccess(req)) {
     res.writeHead(401, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ error: "Unauthorized" }));
+    res.end(JSON.stringify({ error: "Unauthorized - internal access required" }));
     return;
   }
 
@@ -148,10 +106,10 @@ async function handleUpdateOrgStatus(
   orgId: string,
   newStatus: "active" | "rejected" | "suspended",
 ): Promise<void> {
-  const adminCheck = await verifyAdminSession(req);
-  if (!adminCheck.valid) {
+  // Verify internal API access (auth check done in Next.js API routes)
+  if (!verifyInternalAccess(req)) {
     res.writeHead(401, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ error: "Unauthorized" }));
+    res.end(JSON.stringify({ error: "Unauthorized - internal access required" }));
     return;
   }
 
