@@ -14,6 +14,7 @@ vi.mock("next/navigation", () => ({
 
 const mockSession = {
   user: {
+    id: "1",
     name: "Test Admin",
     email: "admin@test.com",
     token: "test-token",

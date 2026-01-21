@@ -652,9 +652,9 @@ describe("checkAuth", () => {
   it("returns null when session has valid token", async () => {
     const { auth } = await import("../server/auth");
     vi.mocked(auth).mockResolvedValueOnce({
-      user: { token: "valid-token" },
+      user: { id: "1", token: "valid-token" },
       expires: "",
-    });
+    } as never);
 
     const result = await checkAuth();
 
@@ -663,7 +663,7 @@ describe("checkAuth", () => {
 
   it("returns 401 response when session is null", async () => {
     const { auth } = await import("../server/auth");
-    vi.mocked(auth).mockResolvedValueOnce(null);
+    vi.mocked(auth).mockResolvedValueOnce(null as never);
 
     const result = await checkAuth();
 
@@ -676,9 +676,9 @@ describe("checkAuth", () => {
   it("returns 401 response when user has no token", async () => {
     const { auth } = await import("../server/auth");
     vi.mocked(auth).mockResolvedValueOnce({
-      user: { token: undefined },
+      user: { id: "1", token: undefined },
       expires: "",
-    });
+    } as never);
 
     const result = await checkAuth();
 

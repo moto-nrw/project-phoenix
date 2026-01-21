@@ -4,6 +4,7 @@ import DatabasePage from "./page";
 
 const mockSession = {
   user: {
+    id: "1",
     name: "Test User",
     email: "test@test.com",
     token: "test-token",

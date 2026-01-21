@@ -285,7 +285,7 @@ describe("TeacherForm", () => {
     render(
       <TeacherForm
         {...defaultProps}
-        initialData={{ id: "1", person_id: "10" }}
+        initialData={{ id: "1", person_id: 10 }}
         onSubmitAction={onSubmitAction}
       />,
     );

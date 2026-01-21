@@ -549,8 +549,8 @@ describe("RoomsPage active filters", () => {
 
   it("creates active filter for building", () => {
     const searchTerm = "" as string;
-    const buildingFilter = "Main";
-    const occupiedFilter = "all";
+    const buildingFilter = "Main" as string;
+    const occupiedFilter = "all" as string;
 
     const filters: Array<{ id: string; label: string }> = [];
 
@@ -570,8 +570,8 @@ describe("RoomsPage active filters", () => {
 
   it("creates active filter for free status", () => {
     const searchTerm = "" as string;
-    const buildingFilter = "all";
-    const occupiedFilter = "free";
+    const buildingFilter = "all" as string;
+    const occupiedFilter = "free" as string;
 
     const statusLabels = {
       occupied: "Belegt",

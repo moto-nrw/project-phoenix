@@ -36,15 +36,21 @@ const mockActivity = {
   is_open_ags: true,
   max_participant: 10,
   participant_count: 5,
+  supervisor_id: "sup-1",
+  ag_category_id: "cat-1",
+  created_at: new Date("2024-01-01"),
+  updated_at: new Date("2024-01-15"),
   supervisors: [
     {
       id: "sup-1",
+      staff_id: "staff-1",
       first_name: "Max",
       last_name: "Mustermann",
       is_primary: true,
     },
     {
       id: "sup-2",
+      staff_id: "staff-2",
       first_name: "Anna",
       last_name: "Schmidt",
       is_primary: false,
@@ -53,8 +59,11 @@ const mockActivity = {
   times: [
     {
       id: "time-1",
-      weekday: 1,
+      weekday: "1",
       timeframe_id: "tf-1",
+      activity_id: "1",
+      created_at: new Date("2024-01-01"),
+      updated_at: new Date("2024-01-15"),
     },
   ],
 };
@@ -65,12 +74,20 @@ const mockStudents = [
     student_id: "s-1",
     name: "Peter Müller",
     school_class: "3a",
+    activity_id: "1",
+    current_location: "Raum 101",
+    created_at: new Date("2024-01-01"),
+    updated_at: new Date("2024-01-15"),
   },
   {
     id: "student-2",
     student_id: "s-2",
     name: "Lisa Schmidt",
     school_class: "3b",
+    activity_id: "1",
+    current_location: "Raum 101",
+    created_at: new Date("2024-01-01"),
+    updated_at: new Date("2024-01-15"),
   },
 ];
 
@@ -247,7 +264,7 @@ describe("ActivityDetailPage", () => {
   });
 
   it("shows not found state when activity is null", async () => {
-    vi.mocked(fetchActivity).mockResolvedValue(null);
+    vi.mocked(fetchActivity).mockResolvedValue(null as never);
 
     render(<ActivityDetailPage />);
 
@@ -257,7 +274,7 @@ describe("ActivityDetailPage", () => {
   });
 
   it("handles back to overview button in not found state", async () => {
-    vi.mocked(fetchActivity).mockResolvedValue(null);
+    vi.mocked(fetchActivity).mockResolvedValue(null as never);
 
     render(<ActivityDetailPage />);
 

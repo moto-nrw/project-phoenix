@@ -929,8 +929,8 @@ describe("OGSGroupPage switchToGroup behavior", () => {
   });
 
   it("returns early when group index is invalid", () => {
-    const selectedGroupIndex = 0;
-    const newGroupIndex = 5; // Out of bounds
+    const selectedGroupIndex = 0 as number;
+    const newGroupIndex = 5 as number; // Out of bounds
     const allGroups = [{ id: "1", name: "Group A" }];
 
     const shouldSwitch =
@@ -939,8 +939,8 @@ describe("OGSGroupPage switchToGroup behavior", () => {
   });
 
   it("allows switching to different valid group", () => {
-    const selectedGroupIndex = 0;
-    const newGroupIndex = 1;
+    const selectedGroupIndex = 0 as number;
+    const newGroupIndex = 1 as number;
     const allGroups = [
       { id: "1", name: "Group A" },
       { id: "2", name: "Group B" },
@@ -1148,7 +1148,7 @@ describe("OGSGroupPage renderStudentContent logic", () => {
   });
 
   it("uses fallback message when no current group", () => {
-    const currentGroup = null;
+    const currentGroup = null as { name: string } | null;
     const message = `Keine Schüler in ${currentGroup?.name ?? "dieser Gruppe"}`;
 
     expect(message).toBe("Keine Schüler in dieser Gruppe");

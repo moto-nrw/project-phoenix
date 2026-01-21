@@ -459,7 +459,7 @@ describe("guardian-api functions", () => {
           }),
       });
 
-      await updateGuardian("1", { firstName: "Johnny", email: null });
+      await updateGuardian("1", { firstName: "Johnny", email: undefined });
 
       const callArgs = vi.mocked(global.fetch).mock.calls[0] as [string, RequestInit];
       const body = JSON.parse(callArgs[1].body as string) as Record<string, unknown>;

@@ -15,7 +15,7 @@ vi.mock("next/navigation", () => ({
 vi.mock("next-auth/react", () => ({
   useSession: vi.fn(() => ({
     data: {
-      user: { token: "valid-token" },
+      user: { id: "1", token: "valid-token" },
     },
     status: "authenticated",
   })),
@@ -27,6 +27,8 @@ vi.mock("~/lib/supervision-context", () => ({
     isLoadingGroups: false,
     isSupervising: false,
     isLoadingSupervision: false,
+    groups: [],
+    refresh: vi.fn(),
   })),
 }));
 
@@ -75,7 +77,7 @@ describe("SmartRedirect", () => {
 
   it("does not redirect when token is missing", () => {
     vi.mocked(useSession).mockReturnValue({
-      data: { user: { token: "" }, expires: "" },
+      data: { user: { id: "1", token: "" }, expires: "" },
       status: "authenticated",
       update: vi.fn(),
     });
@@ -99,7 +101,7 @@ describe("SmartRedirect", () => {
   it("calls onRedirect callback instead of router.push when provided", async () => {
     const onRedirect = vi.fn();
     vi.mocked(useSession).mockReturnValue({
-      data: { user: { token: "valid-token" }, expires: "" },
+      data: { user: { id: "1", token: "valid-token" }, expires: "" },
       status: "authenticated",
       update: vi.fn(),
     });
@@ -118,7 +120,7 @@ describe("SmartRedirect", () => {
 
   it("uses redirect path from useSmartRedirectPath", async () => {
     vi.mocked(useSession).mockReturnValue({
-      data: { user: { token: "valid-token" }, expires: "" },
+      data: { user: { id: "1", token: "valid-token" }, expires: "" },
       status: "authenticated",
       update: vi.fn(),
     });
@@ -141,8 +143,7 @@ describe("SmartRedirect", () => {
       isSupervising: true,
       isLoadingSupervision: false,
       groups: [],
-      refreshGroups: vi.fn(),
-      refreshSupervision: vi.fn(),
+      refresh: vi.fn(),
     });
 
     render(<SmartRedirect />);

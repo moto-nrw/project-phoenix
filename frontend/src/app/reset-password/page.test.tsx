@@ -31,7 +31,7 @@ describe("ResetPasswordPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockToken = "valid-reset-token";
-    vi.mocked(confirmPasswordReset).mockResolvedValue(undefined);
+    vi.mocked(confirmPasswordReset).mockResolvedValue({ message: "success" });
   });
 
   it("renders the reset password form", () => {

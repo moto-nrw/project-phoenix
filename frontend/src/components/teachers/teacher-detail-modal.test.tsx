@@ -109,7 +109,8 @@ vi.mock("~/components/ui/detail-modal-components", () => ({
 
 const mockTeacher = {
   id: "1",
-  person_id: "10",
+  name: "John Doe",
+  person_id: 10,
   staff_id: "100",
   first_name: "John",
   last_name: "Doe",
@@ -118,8 +119,8 @@ const mockTeacher = {
   tag_id: "RFID123",
   qualifications: "Bachelor in Education",
   staff_notes: "Some important notes",
-  created_at: new Date("2024-01-15T10:00:00"),
-  updated_at: new Date("2024-06-20T14:30:00"),
+  created_at: "2024-01-15T10:00:00",
+  updated_at: "2024-06-20T14:30:00",
   is_teacher: true,
 };
 

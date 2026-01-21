@@ -28,24 +28,34 @@ vi.mock("~/server/auth/token-refresh", () => ({
 // Helper to setup browser environment
 function setupBrowserEnv() {
   const originalWindow = globalThis.window;
-  // @ts-expect-error - setting window for test
-  globalThis.window = {
-    location: { href: "" },
-  };
+  Object.defineProperty(globalThis, "window", {
+    value: { location: { href: "" } },
+    writable: true,
+    configurable: true,
+  });
   return () => {
-    // @ts-expect-error - restoring window
-    globalThis.window = originalWindow;
+    Object.defineProperty(globalThis, "window", {
+      value: originalWindow,
+      writable: true,
+      configurable: true,
+    });
   };
 }
 
 // Helper to setup server environment
 function setupServerEnv() {
   const originalWindow = globalThis.window;
-  // @ts-expect-error - removing window for server test
-  delete globalThis.window;
+  Object.defineProperty(globalThis, "window", {
+    value: undefined,
+    writable: true,
+    configurable: true,
+  });
   return () => {
-    // @ts-expect-error - restoring window
-    globalThis.window = originalWindow;
+    Object.defineProperty(globalThis, "window", {
+      value: originalWindow,
+      writable: true,
+      configurable: true,
+    });
   };
 }
 
@@ -292,7 +302,7 @@ describe("auth-api", () => {
         });
 
         const { signIn } = await import("next-auth/react");
-        vi.mocked(signIn).mockResolvedValue({ ok: true, error: null, status: 200, url: null });
+        vi.mocked(signIn).mockResolvedValue({ ok: true, error: undefined, status: 200, url: "", code: undefined });
 
         const result = await handleAuthFailure();
 
@@ -398,7 +408,8 @@ describe("auth-api", () => {
           ok: false,
           error: "Session update failed",
           status: 500,
-          url: null
+          url: "",
+          code: undefined,
         });
 
         // eslint-disable-next-line @typescript-eslint/no-empty-function

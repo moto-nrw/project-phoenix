@@ -112,7 +112,7 @@ import HomePage from "./page";
 const mockAnimate = vi.fn(() => ({
   onfinish: null,
   cancel: vi.fn(),
-}));
+})) as unknown as typeof Element.prototype.animate;
 
 describe("HomePage (Login)", () => {
   beforeEach(() => {
@@ -308,6 +308,7 @@ describe("HomePage (Login)", () => {
     vi.mocked(useSession).mockReturnValue({
       data: {
         user: {
+          id: "1",
           token: "valid-token",
           refreshToken: "refresh-token",
         },
@@ -365,7 +366,7 @@ describe("Login URL error handling", () => {
 
   it("validates session error message format", () => {
     // Test the error message that would be displayed
-    const urlError = "SessionExpired";
+    const urlError = "SessionExpired" as string;
     const expectedMessage =
       urlError === "SessionRequired" || urlError === "SessionExpired"
         ? "Ihre Sitzung ist abgelaufen. Bitte melden Sie sich erneut an."
@@ -377,7 +378,7 @@ describe("Login URL error handling", () => {
   });
 
   it("validates SessionRequired error triggers message", () => {
-    const urlError = "SessionRequired";
+    const urlError = "SessionRequired" as string;
     const expectedMessage =
       urlError === "SessionRequired" || urlError === "SessionExpired"
         ? "Ihre Sitzung ist abgelaufen. Bitte melden Sie sich erneut an."
@@ -389,7 +390,7 @@ describe("Login URL error handling", () => {
   });
 
   it("validates unknown error does not trigger message", () => {
-    const urlError = "UnknownError";
+    const urlError = "UnknownError" as string;
     const expectedMessage =
       urlError === "SessionRequired" || urlError === "SessionExpired"
         ? "Ihre Sitzung ist abgelaufen. Bitte melden Sie sich erneut an."
@@ -420,7 +421,7 @@ describe("Confetti effect", () => {
 
   it("tests confetti quadrant calculation", () => {
     // Test the quadrant-based angle calculation
-    const quadrant = 2; // Bottom-left quadrant
+    const quadrant = 2 as number; // Bottom-left quadrant
     let angle = 0;
 
     switch (quadrant) {

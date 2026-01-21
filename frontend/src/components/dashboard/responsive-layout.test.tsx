@@ -15,6 +15,7 @@ vi.mock("next-auth/react", () => ({
   useSession: vi.fn(() => ({
     data: {
       user: {
+        id: "1",
         name: "Test User",
         email: "test@example.com",
         token: "valid-token",
@@ -151,6 +152,7 @@ describe("ResponsiveLayout", () => {
     vi.mocked(useSession).mockReturnValue({
       data: {
         user: {
+          id: "2",
           name: "Regular User",
           email: "user@example.com",
           token: "valid-token",
@@ -175,6 +177,7 @@ describe("ResponsiveLayout", () => {
     vi.mocked(useSession).mockReturnValue({
       data: {
         user: {
+          id: "3",
           name: "User",
           email: "user@example.com",
           token: "",
