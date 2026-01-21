@@ -7,7 +7,7 @@ import React, {
   useMemo,
   type ReactNode,
 } from "react";
-import { useSession } from "next-auth/react";
+import { useSession } from "~/lib/auth-client";
 import { usePathname } from "next/navigation";
 import { useSupervision } from "./supervision-context";
 import {
@@ -32,7 +32,7 @@ interface UserContextProviderProps {
 }
 
 export function UserContextProvider({ children }: UserContextProviderProps) {
-  const { data: session, status } = useSession();
+  const { data: session, isPending } = useSession();
   const pathname = usePathname();
   const {
     groups: supervisionGroups,
@@ -45,8 +45,8 @@ export function UserContextProvider({ children }: UserContextProviderProps) {
     return pathname === "/" || pathname === "/register";
   }, [pathname]);
 
-  const shouldProvideData =
-    status === "authenticated" && !!session?.user?.token && !isAuthPage;
+  // BetterAuth: session.user indicates authenticated (cookies handle auth)
+  const shouldProvideData = !isPending && !!session?.user && !isAuthPage;
 
   const mappedGroups = useMemo<EducationalGroup[]>(() => {
     if (!shouldProvideData) {
@@ -55,8 +55,7 @@ export function UserContextProvider({ children }: UserContextProviderProps) {
     return supervisionGroups.map(mapEducationalGroupResponse);
   }, [shouldProvideData, supervisionGroups]);
 
-  const isLoading =
-    status === "loading" || (shouldProvideData && isLoadingGroups);
+  const isLoading = isPending || (shouldProvideData && isLoadingGroups);
 
   const refetch = useCallback(async () => {
     try {

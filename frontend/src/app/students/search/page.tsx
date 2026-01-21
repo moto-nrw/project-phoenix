@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, Suspense, useMemo } from "react";
 // SSE is handled globally by AuthWrapper - real-time updates work automatically
-import { useSession } from "next-auth/react";
+import { useSession } from "~/lib/auth-client";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ResponsiveLayout } from "~/components/dashboard";
 import { Alert } from "~/components/ui/alert";
@@ -30,13 +30,13 @@ import { useSWRAuth, useImmutableSWR } from "~/lib/swr";
 
 function SearchPageContent() {
   const router = useRouter();
-  // Use required: true to auto-redirect unauthenticated users (same pattern as /active-supervisions)
-  const { data: session, status } = useSession({
-    required: true,
-    onUnauthenticated() {
-      router.push("/");
-    },
-  });
+  // BetterAuth: cookies handle auth, isPending replaces status
+  const { data: session, isPending } = useSession();
+
+  // Redirect if not authenticated
+  if (!isPending && !session?.user) {
+    router.push("/");
+  }
   const searchParams = useSearchParams();
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -155,12 +155,13 @@ function SearchPageContent() {
   }, [studentsError]);
 
   // Fix P1: Detect when auth prevents fetching (user can't fetch but no error from SWR)
-  const canFetch = status === "authenticated" && !!session?.user?.token;
-  const isAuthError = !canFetch && !studentsError && status !== "loading";
+  // BetterAuth: cookies handle auth, check session.user instead of token
+  const canFetch = !isPending && !!session?.user;
+  const isAuthError = !canFetch && !studentsError && !isPending;
 
   // Fix P2: Track initialization state to prevent empty state flash
   // Only wait for session - user context loads in parallel (for badge styling only)
-  const isInitializing = status === "loading";
+  const isInitializing = isPending;
   const hasFetchedOnce =
     studentsData !== undefined || studentsError !== undefined;
 

@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { auth } from "~/server/auth";
+import { auth, getCookieHeader } from "~/server/auth";
 import { apiPost } from "~/lib/api-helpers";
 import { isAxiosError } from "axios";
 
@@ -12,12 +12,14 @@ export async function POST(request: NextRequest) {
   try {
     const session = await auth();
 
-    if (!session?.user?.token) {
+    if (!session?.user) {
       return NextResponse.json(
         { error: "Nicht authentifiziert" },
         { status: 401 },
       );
     }
+
+    const cookieHeader = await getCookieHeader();
 
     const body = (await request.json()) as {
       currentPassword?: string;
@@ -41,7 +43,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Call backend API to change password
-    await apiPost("/auth/password", session.user.token, {
+    await apiPost("/auth/password", cookieHeader, {
       current_password: currentPassword,
       new_password: newPassword,
       confirm_password: confirmPassword,

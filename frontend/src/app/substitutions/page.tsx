@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo, Suspense } from "react";
-import { useSession } from "next-auth/react";
+import { useSession } from "~/lib/auth-client";
 import { useRouter } from "next/navigation";
 import { ResponsiveLayout } from "@/components/dashboard";
 import { PageHeaderWithSearch } from "~/components/ui/page-header";
@@ -107,12 +107,13 @@ function StatusIndicator({
 
 function SubstitutionPageContent() {
   const router = useRouter();
-  const { status } = useSession({
-    required: true,
-    onUnauthenticated() {
-      router.push("/");
-    },
-  });
+  // BetterAuth: cookies handle auth, isPending replaces status
+  const { data: session, isPending } = useSession();
+
+  // Redirect if not authenticated
+  if (!isPending && !session?.user) {
+    router.push("/");
+  }
 
   const { success: showSuccessToast } = useToast();
 
@@ -359,7 +360,7 @@ function SubstitutionPageContent() {
     return filters;
   }, [searchTerm, statusFilter]);
 
-  if (status === "loading") {
+  if (isPending) {
     return (
       <ResponsiveLayout>
         <Loading fullPage={false} />

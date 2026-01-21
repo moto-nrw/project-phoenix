@@ -2,8 +2,10 @@
  * Utility for determining smart redirect paths based on user permissions and supervision state
  */
 
-import type { Session } from "next-auth";
+import type { BetterAuthSession } from "~/lib/auth-utils";
 import { isAdmin } from "~/lib/auth-utils";
+
+type Session = BetterAuthSession;
 
 export interface SupervisionState {
   hasGroups: boolean;

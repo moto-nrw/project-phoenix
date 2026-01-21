@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { signOut } from "next-auth/react";
+import { signOut } from "~/lib/auth-client";
 import { useToast } from "~/contexts/ToastContext";
 import { useRouter } from "next/navigation";
 import { Input } from "~/components/ui";
@@ -118,7 +118,7 @@ export function InvitationAcceptForm({
       );
 
       // Logout any existing session before redirecting to login
-      await signOut({ redirect: false });
+      await signOut();
 
       setTimeout(() => {
         router.push("/");

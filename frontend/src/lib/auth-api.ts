@@ -1,170 +1,34 @@
-// lib/auth-api.ts
-import { signOut } from "next-auth/react";
+/**
+ * Auth API Module for Project Phoenix
+ *
+ * BetterAuth Migration Notes:
+ * - Session management is now handled via cookies automatically
+ * - No manual token refresh needed - BetterAuth handles this
+ * - On auth failure, we sign out and redirect to login
+ */
+
+import { authClient } from "./auth-client";
 // Import with alias for internal use
 import { authService as internalAuthService } from "./auth-service";
 
-// Singleton to manage token refresh and prevent concurrent refreshes
-class TokenRefreshManager {
-  private refreshPromise: Promise<{
-    access_token: string;
-    refresh_token: string;
-  } | null> | null = null;
-
-  async refreshToken(): Promise<{
-    access_token: string;
-    refresh_token: string;
-  } | null> {
-    // If a refresh is already in progress, return the existing promise
-    if (this.refreshPromise) {
-      console.log(
-        "Token refresh already in progress, waiting for existing refresh",
-      );
-      return this.refreshPromise;
-    }
-
-    // Create a new refresh promise
-    this.refreshPromise = this.doRefresh();
-
-    try {
-      const result = await this.refreshPromise;
-      return result;
-    } finally {
-      // Clear the promise after it completes (success or failure)
-      this.refreshPromise = null;
-    }
-  }
-
-  private async doRefresh(): Promise<{
-    access_token: string;
-    refresh_token: string;
-  } | null> {
-    try {
-      // Check if we're in a browser context
-      if (globalThis.window === undefined) {
-        console.error("Token refresh attempted from server context");
-        return null;
-      }
-
-      const response = await fetch("/api/auth/token", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        credentials: "include", // Important to include cookies
-      });
-
-      if (!response.ok) {
-        console.error("Token refresh failed:", response.status);
-        return null;
-      }
-
-      const data = (await response.json()) as {
-        access_token: string;
-        refresh_token: string;
-      };
-      return data;
-    } catch (error) {
-      console.error("Error refreshing token:", error);
-      return null;
-    }
-  }
-}
-
-// Create a singleton instance
-const tokenRefreshManager = new TokenRefreshManager();
-
 /**
- * Function to refresh the authentication token
- * @returns Promise with the new tokens or null if refresh failed
- */
-export async function refreshToken(): Promise<{
-  access_token: string;
-  refresh_token: string;
-} | null> {
-  return tokenRefreshManager.refreshToken();
-}
-
-/**
- * Handle a failed authentication by attempting to refresh the token
- * or signing out if that fails
+ * Handle a failed authentication by signing out and redirecting to login
+ * BetterAuth handles session refresh automatically via cookies,
+ * so if we get a 401, the session is truly expired.
  */
 export async function handleAuthFailure(): Promise<boolean> {
   // Check if we're in a server context
   if (globalThis.window === undefined) {
-    try {
-      const { refreshSessionTokensOnServer } = await import(
-        "~/server/auth/token-refresh"
-      );
-      const refreshed = await refreshSessionTokensOnServer();
-      return Boolean(refreshed?.accessToken);
-    } catch (serverError) {
-      console.error(
-        "Auth failure in server context - refresh attempt failed",
-        serverError,
-      );
-      return false;
-    }
+    // In server context, we can't sign out - just return false
+    console.error("Auth failure in server context");
+    return false;
   }
 
   try {
-    // The JWT callback in NextAuth handles automatic token refresh
-    // If we're here with a 401, it likely means:
-    // 1. The JWT callback's refresh already failed, OR
-    // 2. We're in a race condition where client and server both tried to refresh
-
-    // Let's check if we recently had a successful refresh
-    const lastRefresh = sessionStorage.getItem("lastSuccessfulRefresh");
-    if (lastRefresh) {
-      const lastRefreshTime = Number.parseInt(lastRefresh, 10);
-      const timeSinceRefresh = Date.now() - lastRefreshTime;
-
-      // If we refreshed less than 5 seconds ago, just retry the request
-      if (timeSinceRefresh < 5000) {
-        console.log("Recently refreshed tokens, retrying request...");
-        return true;
-      }
-    }
-
-    // Try to refresh the token one more time
-    const newTokens = await refreshToken();
-
-    if (newTokens) {
-      // Token refresh successful
-
-      // Mark the time of successful refresh
-      sessionStorage.setItem("lastSuccessfulRefresh", Date.now().toString());
-
-      // IMPORTANT: Update the NextAuth session with new tokens
-      try {
-        // Use signIn with internalRefresh to update the session
-        const { signIn } = await import("next-auth/react");
-
-        const result = await signIn("credentials", {
-          internalRefresh: "true",
-          token: newTokens.access_token,
-          refreshToken: newTokens.refresh_token,
-          redirect: false,
-        });
-
-        if (result?.ok) {
-          console.log("Session updated with new tokens");
-        } else {
-          console.error(
-            "Failed to update session with new tokens:",
-            result?.error,
-          );
-        }
-      } catch (sessionError) {
-        console.error("Error updating session:", sessionError);
-      }
-
-      // Return true to retry the original request regardless of session update
-      return true;
-    }
-
-    // If refresh failed, sign out
-    console.log("Token refresh failed, signing out");
-    await signOut({ redirect: false });
+    // With BetterAuth, if we receive a 401, the session is expired
+    // Sign out and redirect to login
+    console.log("Session expired, signing out");
+    await authClient.signOut();
 
     // Redirect to home page (login)
     globalThis.window.location.href = "/";
@@ -172,8 +36,9 @@ export async function handleAuthFailure(): Promise<boolean> {
     return false;
   } catch (error) {
     console.error("Auth failure handling error:", error);
+    // Still redirect on error
     if (globalThis.window !== undefined) {
-      await signOut({ redirect: false });
+      globalThis.window.location.href = "/";
     }
     return false;
   }

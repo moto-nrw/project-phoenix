@@ -1,7 +1,7 @@
 "use client";
 
 import { Suspense, useState, useEffect, useCallback } from "react";
-import { useSession } from "next-auth/react";
+import { useSession } from "~/lib/auth-client";
 import { redirect } from "next/navigation";
 import Image from "next/image";
 import { ResponsiveLayout } from "~/components/dashboard";
@@ -40,7 +40,8 @@ const tabs: Tab[] = [
 const adminTabs: Tab[] = [];
 
 function SettingsContent() {
-  const { data: session, status } = useSession({ required: true });
+  // BetterAuth: cookies handle auth, isPending replaces status
+  const { data: session, isPending } = useSession();
   const { success: toastSuccess } = useToast();
   const { profile, updateProfileData, refreshProfile } = useProfile();
   const [activeTab, setActiveTab] = useState<string | null>("profile");
@@ -106,7 +107,8 @@ function SettingsContent() {
   }, [profile]);
 
   const handleSaveProfile = async () => {
-    if (!session?.user?.token || !profile) return;
+    // BetterAuth: cookies handle auth, no token check needed
+    if (!session?.user || !profile) return;
 
     setIsSaving(true);
     try {
@@ -138,7 +140,8 @@ function SettingsContent() {
   };
 
   const handleAvatarChange = async (file: File) => {
-    if (!session?.user?.token) return;
+    // BetterAuth: cookies handle auth, no token check needed
+    if (!session?.user) return;
 
     try {
       setIsSaving(true);
@@ -162,7 +165,7 @@ function SettingsContent() {
     }
   };
 
-  if (status === "loading") {
+  if (isPending) {
     return (
       <ResponsiveLayout>
         <Loading fullPage={false} />
@@ -174,7 +177,13 @@ function SettingsContent() {
     redirect("/");
   }
 
-  const allTabs = session?.user?.isAdmin ? [...tabs, ...adminTabs] : tabs;
+  // BetterAuth: Admin status would need to be fetched via getActiveRole()
+  // For now, check if user object has isAdmin property (backward compatibility)
+  const isUserAdmin =
+    session?.user &&
+    "isAdmin" in session.user &&
+    (session.user as { isAdmin?: boolean }).isAdmin;
+  const allTabs = isUserAdmin ? [...tabs, ...adminTabs] : tabs;
 
   const renderTabContent = () => {
     switch (activeTab) {

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { signOut } from "next-auth/react";
+import { authClient } from "~/lib/auth-client";
 import { Modal } from "./modal";
 
 interface LogoutModalProps {
@@ -136,8 +136,10 @@ export function LogoutModal({ isOpen, onClose }: LogoutModalProps) {
     launchConfetti();
 
     try {
-      // Allow NextAuth to perform the CSRF handshake before navigating away.
-      await signOut({ callbackUrl: "/" });
+      // BetterAuth sign out using cookie-based session
+      await authClient.signOut();
+      // Redirect to login page after sign out
+      globalThis.window.location.href = "/";
     } catch (error) {
       console.error("Failed to sign out:", error);
       setIsLoggingOut(false);

@@ -1,6 +1,6 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
-import { auth } from "~/server/auth";
+import { auth, getCookieHeader } from "~/server/auth";
 import { apiPost } from "@/lib/api-client";
 import { handleApiError } from "@/lib/api-helpers";
 
@@ -11,9 +11,11 @@ export async function POST(
   try {
     const session = await auth();
 
-    if (!session?.user?.token) {
+    if (!session?.user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    const cookieHeader = await getCookieHeader();
 
     // Extract parameters from context
     const params = await context.params;
@@ -31,7 +33,7 @@ export async function POST(
     await apiPost(
       `/auth/accounts/${accountId}/permissions/${permissionId}/grant`,
       {},
-      session.user.token,
+      cookieHeader,
     );
 
     return NextResponse.json({ success: true });

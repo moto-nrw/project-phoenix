@@ -1,15 +1,19 @@
-// This file contains the Teacher API service and related types
+/**
+ * Teacher API Service
+ *
+ * BetterAuth Migration Notes:
+ * - Authentication is handled via cookies automatically
+ * - All fetch calls use credentials: "include"
+ * - No need for Authorization headers
+ */
 
-import { getSession } from "next-auth/react";
 import type { Activity } from "./activity-helpers";
 
 /**
- * Builds fetch headers with optional auth token
+ * Builds fetch headers for API requests
  */
-function buildHeaders(token: string | undefined): HeadersInit {
-  return token
-    ? { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }
-    : { "Content-Type": "application/json" };
+function buildHeaders(): HeadersInit {
+  return { "Content-Type": "application/json" };
 }
 
 /**
@@ -142,15 +146,9 @@ class TeacherService {
         }
       }
 
-      const session = await getSession();
       const response = await fetch(url, {
         credentials: "include",
-        headers: session?.user?.token
-          ? {
-              Authorization: `Bearer ${session.user.token}`,
-              "Content-Type": "application/json",
-            }
-          : undefined,
+        headers: buildHeaders(),
       });
       if (!response.ok) {
         throw new Error(`Failed to fetch teachers: ${response.statusText}`);
@@ -181,15 +179,9 @@ class TeacherService {
   // Get a single teacher by ID
   async getTeacher(id: string): Promise<Teacher> {
     try {
-      const session = await getSession();
       const response = await fetch(`/api/staff/${id}`, {
         credentials: "include",
-        headers: session?.user?.token
-          ? {
-              Authorization: `Bearer ${session.user.token}`,
-              "Content-Type": "application/json",
-            }
-          : undefined,
+        headers: buildHeaders(),
       });
       if (!response.ok) {
         throw new Error(`Failed to fetch teacher: ${response.statusText}`);
@@ -235,9 +227,7 @@ class TeacherService {
     const username = `${teacherData.first_name.toLowerCase()}_${teacherData.last_name.toLowerCase()}`;
     const fullName = `${teacherData.first_name} ${teacherData.last_name}`;
 
-    const session = await getSession();
-    const token = session?.user?.token;
-    const headers = buildHeaders(token);
+    const headers = buildHeaders();
 
     // Step 1: Create account
     const accountId = await this.createAccount(
@@ -398,9 +388,7 @@ class TeacherService {
     id: string,
     teacherData: Partial<Teacher>,
   ): Promise<Teacher> {
-    const session = await getSession();
-    const token = session?.user?.token;
-    const headers = buildHeaders(token);
+    const headers = buildHeaders();
 
     const currentTeacher = await this.getTeacher(id);
 
@@ -411,7 +399,7 @@ class TeacherService {
       teacherData.tag_id !== undefined;
 
     if (needsPersonUpdate) {
-      await this.updatePersonRecord(token, currentTeacher, teacherData);
+      await this.updatePersonRecord(currentTeacher, teacherData);
     }
 
     // Update staff record
@@ -421,7 +409,6 @@ class TeacherService {
 
   /** Updates person record for teacher */
   private async updatePersonRecord(
-    token: string | undefined,
     currentTeacher: Teacher,
     teacherData: Partial<Teacher>,
   ): Promise<void> {
@@ -429,19 +416,13 @@ class TeacherService {
       throw new Error("Cannot update person fields - person_id not found");
     }
 
-    const headers = buildHeaders(token);
     const personId = currentTeacher.person_id;
 
     // Fetch current person to get account_id
     const personResponse = await fetch(`/api/users/${personId}`, {
       method: "GET",
       credentials: "include",
-      headers: token
-        ? {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          }
-        : undefined,
+      headers: buildHeaders(),
     });
 
     if (!personResponse.ok) {
@@ -459,7 +440,7 @@ class TeacherService {
     const updateResponse = await fetch(`/api/users/${personId}`, {
       method: "PUT",
       credentials: "include",
-      headers,
+      headers: buildHeaders(),
       body: JSON.stringify(personData),
     });
 
@@ -573,16 +554,10 @@ class TeacherService {
   // Delete a teacher
   async deleteTeacher(id: string): Promise<void> {
     try {
-      const session = await getSession();
       const response = await fetch(`/api/staff/${id}`, {
         method: "DELETE",
         credentials: "include",
-        headers: session?.user?.token
-          ? {
-              Authorization: `Bearer ${session.user.token}`,
-              "Content-Type": "application/json",
-            }
-          : undefined,
+        headers: buildHeaders(),
       });
 
       if (!response.ok) {

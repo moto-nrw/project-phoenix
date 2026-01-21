@@ -1,5 +1,5 @@
 // lib/active-service.ts
-import { getSession } from "next-auth/react";
+// BetterAuth: Authentication handled via cookies, no manual token management needed
 import { env } from "~/env";
 import api from "./api";
 import {
@@ -71,7 +71,7 @@ type HttpMethod = "GET" | "POST" | "PUT" | "DELETE";
 
 /**
  * Execute proxy fetch request (browser context).
- * Handles session auth, headers, and error responses.
+ * BetterAuth: cookies handle authentication automatically.
  */
 async function executeProxyFetch(
   method: HttpMethod,
@@ -79,11 +79,10 @@ async function executeProxyFetch(
   operationName: string,
   body?: unknown,
 ): Promise<Response> {
-  const session = await getSession();
   const fetchOptions: RequestInit = {
     method,
+    credentials: "include",
     headers: {
-      Authorization: `Bearer ${session?.user?.token}`,
       "Content-Type": "application/json",
     },
   };
@@ -391,11 +390,11 @@ export const activeService = {
   },
 
   // Bulk fetch visits with student display data (optimized for SSE - single query)
+  // BetterAuth: cookies handle authentication
   getActiveGroupVisitsWithDisplay: async (id: string): Promise<Visit[]> => {
-    const session = await getSession();
     const response = await fetch(`/api/active/groups/${id}/visits/display`, {
+      credentials: "include",
       headers: {
-        Authorization: `Bearer ${session?.user?.token}`,
         "Content-Type": "application/json",
       },
     });
@@ -923,10 +922,10 @@ export const activeService = {
 
     try {
       if (useProxyApi) {
-        const session = await getSession();
+        // BetterAuth: cookies handle authentication
         const response = await fetch(url, {
+          credentials: "include",
           headers: {
-            Authorization: `Bearer ${session?.user?.token}`,
             "Content-Type": "application/json",
           },
         });

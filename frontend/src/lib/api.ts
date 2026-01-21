@@ -2,13 +2,20 @@ import axios from "axios";
 import type { AxiosError, AxiosRequestConfig, AxiosResponse } from "axios";
 
 /**
+ * API Client for BetterAuth
+ *
+ * BetterAuth uses cookies for session management, so no JWT tokens are needed.
+ * - Browser-side: cookies are sent automatically with credentials: "include"
+ * - Server-side: cookies are forwarded via Cookie header (handled by route handlers)
+ */
+
+/**
  * Extended request config with retry tracking properties
  */
 interface RetryableRequestConfig extends AxiosRequestConfig {
   _retry?: boolean;
   _retryCount?: number;
 }
-import { getSession } from "next-auth/react";
 import { env } from "~/env";
 import { convertToBackendRoom, fetchWithRetry } from "./api-helpers";
 import {
@@ -178,10 +185,12 @@ function buildStudentQueryParams(filters?: {
 
 /**
  * Get new token from session (helper for fetchWithRetry)
+ * Note: For BetterAuth, this returns undefined since cookies are used automatically
  */
 async function getNewTokenFromSession(): Promise<string | undefined> {
-  const session = await getSession();
-  return session?.user?.token;
+  // BetterAuth uses cookies, not JWT tokens
+  // This function is kept for backward compatibility with fetchWithRetry
+  return undefined;
 }
 
 /**
@@ -420,6 +429,7 @@ function parseSingleStudentResponse(
 }
 
 // Create an Axios instance
+// BetterAuth uses cookies for session management
 const api = axios.create({
   baseURL: env.NEXT_PUBLIC_API_URL, // Client-safe environment variable pointing to the backend server
   headers: {
@@ -429,41 +439,8 @@ const api = axios.create({
   withCredentials: true,
 });
 
-// Add a request interceptor to include the auth token
-// Note: This interceptor only runs in client-side code
-api.interceptors.request.use(
-  async (config) => {
-    // Only try to get session if we're in the browser
-    if (globalThis.window !== undefined) {
-      const session = await getSession();
-
-      // If there's a token, add it to the headers
-      if (session?.user?.token) {
-        config.headers.Authorization = `Bearer ${session.user.token}`;
-      }
-    }
-
-    return config;
-  },
-  (error: Error) => {
-    return Promise.reject(error);
-  },
-);
-
-// Track ongoing refresh attempts to prevent multiple simultaneous refreshes
-let isRefreshing = false;
-let refreshSubscribers: ((token: string) => void)[] = [];
-
-// Subscribe to token refresh completion
-const subscribeTokenRefresh = (callback: (token: string) => void) => {
-  refreshSubscribers.push(callback);
-};
-
-// Notify all subscribers when refresh is complete
-const onTokenRefreshed = (token: string) => {
-  refreshSubscribers.forEach((callback) => callback(token));
-  refreshSubscribers = [];
-};
+// Note: No request interceptor for Authorization header needed
+// BetterAuth uses cookies which are sent automatically with withCredentials: true
 
 // Helper: Redirect to login page (browser only)
 function redirectToLogin(): void {
@@ -472,129 +449,23 @@ function redirectToLogin(): void {
   }
 }
 
-// Helper: Set authorization header (handles both methods)
-function setAuthorizationHeader(
-  headers: AxiosRequestConfig["headers"],
-  token: string,
-): void {
-  if (!headers) return;
-
-  const headersObj = headers as Record<string, unknown> & {
-    set?: (key: string, value: string) => void;
-  };
-
-  if (typeof headersObj.set === "function") {
-    headersObj.set("Authorization", `Bearer ${token}`);
-  } else {
-    headersObj.Authorization = `Bearer ${token}`;
-  }
-}
-
-// Helper: Queue request for token refresh completion
-function queueRequestForRefresh(
-  originalRequest: AxiosRequestConfig,
-  _callerId: string,
-): Promise<AxiosResponse> {
-  return new Promise((resolve) => {
-    subscribeTokenRefresh((token: string) => {
-      // Ensure headers object exists to prevent promise from hanging
-      originalRequest.headers ??= {};
-      originalRequest.headers.Authorization = `Bearer ${token}`;
-      resolve(api(originalRequest));
-    });
-  });
-}
-
-// Helper: Attempt server-side token refresh
-async function attemptServerSideRefresh(
-  originalRequest: AxiosRequestConfig,
-): Promise<AxiosResponse | null> {
-  try {
-    const { refreshSessionTokensOnServer } =
-      await import("~/server/auth/token-refresh");
-    const refreshed = await refreshSessionTokensOnServer();
-
-    if (!refreshed?.accessToken) {
-      return null;
-    }
-
-    originalRequest.headers ??= {};
-    setAuthorizationHeader(originalRequest.headers, refreshed.accessToken);
-    onTokenRefreshed(refreshed.accessToken);
-    return api(originalRequest);
-  } catch {
-    return null;
-  }
-}
-
-// Helper: Attempt client-side token refresh
-async function attemptClientSideRefresh(
-  originalRequest: AxiosRequestConfig,
-): Promise<AxiosResponse | null> {
-  const refreshSuccessful = await handleAuthFailure();
-
-  if (!refreshSuccessful || !originalRequest.headers) {
-    return null;
-  }
-
-  const session = await getSession();
-
-  if (!session?.user?.token) {
-    return null;
-  }
-
-  onTokenRefreshed(session.user.token);
-  originalRequest.headers.Authorization = `Bearer ${session.user.token}`;
-  return api(originalRequest);
-}
-
-// Add a response interceptor to handle common errors
+// Add a response interceptor to handle 401 errors
+// BetterAuth handles session refresh via cookies, but we still need to redirect on auth failure
 api.interceptors.response.use(
   (response: AxiosResponse) => response,
   async (error: AxiosError) => {
     const originalRequest = error.config as RetryableRequestConfig | undefined;
 
-    // Only handle 401 errors that haven't been retried
-    if (
-      error.response?.status !== 401 ||
-      !originalRequest ||
-      originalRequest._retry
-    ) {
-      throw error;
-    }
-
-    const callerId = `axios-interceptor-${Date.now()}-${crypto.randomUUID().slice(0, 8)}`;
-    originalRequest._retry = true;
-    originalRequest._retryCount = (originalRequest._retryCount ?? 0) + 1;
-
-    // Limit retry attempts
-    if (originalRequest._retryCount > 3) {
-      redirectToLogin();
-      throw error;
-    }
-
-    // Queue request if refresh is already in progress
-    if (isRefreshing) {
-      return queueRequestForRefresh(originalRequest, callerId);
-    }
-
-    isRefreshing = true;
-
-    try {
-      // Server-side refresh
-      if (globalThis.window === undefined) {
-        const result = await attemptServerSideRefresh(originalRequest);
-        if (result) return result;
-        throw error;
+    // Handle 401 errors - redirect to login
+    if (error.response?.status === 401) {
+      // Only redirect if this request hasn't already been retried
+      if (!originalRequest?._retry) {
+        if (originalRequest) {
+          originalRequest._retry = true;
+        }
+        // BetterAuth session has expired, redirect to login
+        redirectToLogin();
       }
-
-      // Client-side refresh
-      const result = await attemptClientSideRefresh(originalRequest);
-      if (result) return result;
-
-      redirectToLogin();
-    } finally {
-      isRefreshing = false;
     }
 
     throw error;
@@ -628,14 +499,14 @@ export interface Room {
 // API services
 export const studentService = {
   // Get all students
-  // Pass token to skip redundant getSession() call (saves ~600ms per request)
+  // BetterAuth uses cookies - no token parameter needed
   getStudents: async (filters?: {
     search?: string;
     inHouse?: boolean;
     groupId?: string;
     page?: number;
     pageSize?: number;
-    token?: string; // Optional: pass token to skip getSession()
+    token?: string; // Deprecated: BetterAuth uses cookies automatically
   }): Promise<StudentsResult> => {
     const params = buildStudentQueryParams(filters);
     const useProxyApi = globalThis.window !== undefined;
@@ -647,14 +518,8 @@ export const studentService = {
 
     try {
       if (useProxyApi) {
-        // Use provided token or fall back to getSession()
-        let authToken = filters?.token;
-        if (!authToken) {
-          const session = await getSession();
-          authToken = session?.user?.token;
-        }
-
-        const { data } = await fetchWithRetry<unknown>(url, authToken, {
+        // BetterAuth uses cookies, sent automatically with credentials: "include"
+        const { data } = await fetchWithRetry<unknown>(url, undefined, {
           onAuthFailure: handleAuthFailure,
           getNewToken: getNewTokenFromSession,
         });
@@ -690,11 +555,10 @@ export const studentService = {
     try {
       if (useProxyApi) {
         // Browser environment: use fetchWithRetry for automatic 401 handling
-        // Route handler already maps response, so applyMapping=false
-        const session = await getSession();
+        // BetterAuth uses cookies, sent automatically with credentials: "include"
         const { data } = await fetchWithRetry<unknown>(
           url,
-          session?.user?.token,
+          undefined, // BetterAuth uses cookies
           {
             onAuthFailure: handleAuthFailure,
             getNewToken: getNewTokenFromSession,
@@ -728,16 +592,13 @@ export const studentService = {
     try {
       if (useProxyApi) {
         // Browser environment: use fetch with our Next.js API route
-        const session = await getSession();
+        // BetterAuth uses cookies, sent automatically with credentials: "include"
         const response = await fetch(url, {
           method: "POST",
           credentials: "include",
-          headers: session?.user?.token
-            ? {
-                Authorization: `Bearer ${session.user.token}`,
-                "Content-Type": "application/json",
-              }
-            : undefined,
+          headers: {
+            "Content-Type": "application/json",
+          },
           body: JSON.stringify(student),
         });
 
@@ -781,16 +642,13 @@ export const studentService = {
       if (useProxyApi) {
         // Browser environment: use fetch with our Next.js API route
         // Send frontend format data - the API route will handle transformation
-        const session = await getSession();
+        // BetterAuth uses cookies, sent automatically with credentials: "include"
         const response = await fetch(url, {
           method: "PUT",
           credentials: "include",
-          headers: session?.user?.token
-            ? {
-                Authorization: `Bearer ${session.user.token}`,
-                "Content-Type": "application/json",
-              }
-            : undefined,
+          headers: {
+            "Content-Type": "application/json",
+          },
           body: JSON.stringify(student),
         });
 
@@ -851,16 +709,13 @@ export const studentService = {
     try {
       if (useProxyApi) {
         // Browser environment: use fetch with our Next.js API route
-        const session = await getSession();
+        // BetterAuth uses cookies, sent automatically with credentials: "include"
         const response = await fetch(url, {
           method: "DELETE",
           credentials: "include",
-          headers: session?.user?.token
-            ? {
-                Authorization: `Bearer ${session.user.token}`,
-                "Content-Type": "application/json",
-              }
-            : undefined,
+          headers: {
+            "Content-Type": "application/json",
+          },
         });
 
         if (!response.ok) {
@@ -898,10 +753,10 @@ export const groupService = {
     try {
       if (useProxyApi) {
         // Browser environment: use fetchWithRetry for automatic 401 handling
-        const session = await getSession();
+        // BetterAuth uses cookies, sent automatically with credentials: "include"
         const { response, data } = await fetchWithRetry<unknown>(
           url,
-          session?.user?.token,
+          undefined, // BetterAuth uses cookies
           {
             onAuthFailure: handleAuthFailure,
             getNewToken: getNewTokenFromSession,
@@ -938,10 +793,10 @@ export const groupService = {
     try {
       if (useProxyApi) {
         // Browser environment: use fetchWithRetry for automatic 401 handling
-        const session = await getSession();
+        // BetterAuth uses cookies, sent automatically with credentials: "include"
         const { response, data } = await fetchWithRetry<unknown>(
           url,
-          session?.user?.token,
+          undefined, // BetterAuth uses cookies
           {
             onAuthFailure: handleAuthFailure,
             getNewToken: getNewTokenFromSession,
@@ -983,16 +838,13 @@ export const groupService = {
     try {
       if (useProxyApi) {
         // Browser environment: use fetch with our Next.js API route
-        const session = await getSession();
+        // BetterAuth uses cookies, sent automatically with credentials: "include"
         const response = await fetch(url, {
           method: "POST",
           credentials: "include",
-          headers: session?.user?.token
-            ? {
-                Authorization: `Bearer ${session.user.token}`,
-                "Content-Type": "application/json",
-              }
-            : undefined,
+          headers: {
+            "Content-Type": "application/json",
+          },
           body: JSON.stringify(backendGroup),
         });
 
@@ -1037,16 +889,13 @@ export const groupService = {
     try {
       if (useProxyApi) {
         // Browser environment: use fetch with our Next.js API route
-        const session = await getSession();
+        // BetterAuth uses cookies, sent automatically with credentials: "include"
         const response = await fetch(url, {
           method: "PUT",
           credentials: "include",
-          headers: session?.user?.token
-            ? {
-                Authorization: `Bearer ${session.user.token}`,
-                "Content-Type": "application/json",
-              }
-            : undefined,
+          headers: {
+            "Content-Type": "application/json",
+          },
           body: JSON.stringify(backendUpdates),
         });
 
@@ -1095,16 +944,13 @@ export const groupService = {
     try {
       if (useProxyApi) {
         // Browser environment: use fetch with our Next.js API route
-        const session = await getSession();
+        // BetterAuth uses cookies, sent automatically with credentials: "include"
         const response = await fetch(url, {
           method: "DELETE",
           credentials: "include",
-          headers: session?.user?.token
-            ? {
-                Authorization: `Bearer ${session.user.token}`,
-                "Content-Type": "application/json",
-              }
-            : undefined,
+          headers: {
+            "Content-Type": "application/json",
+          },
         });
 
         if (!response.ok) {
@@ -1142,15 +988,12 @@ export const groupService = {
     try {
       if (useProxyApi) {
         // Browser environment: use fetch with our Next.js API route
-        const session = await getSession();
+        // BetterAuth uses cookies, sent automatically with credentials: "include"
         const response = await fetch(url, {
           credentials: "include",
-          headers: session?.user?.token
-            ? {
-                Authorization: `Bearer ${session.user.token}`,
-                "Content-Type": "application/json",
-              }
-            : undefined,
+          headers: {
+            "Content-Type": "application/json",
+          },
         });
 
         if (!response.ok) {
@@ -1203,16 +1046,13 @@ export const groupService = {
     try {
       if (useProxyApi) {
         // Browser environment: use fetch with our Next.js API route
-        const session = await getSession();
+        // BetterAuth uses cookies, sent automatically with credentials: "include"
         const response = await fetch(url, {
           method: "POST",
           credentials: "include",
-          headers: session?.user?.token
-            ? {
-                Authorization: `Bearer ${session.user.token}`,
-                "Content-Type": "application/json",
-              }
-            : undefined,
+          headers: {
+            "Content-Type": "application/json",
+          },
           body: JSON.stringify({
             supervisor_id: Number.parseInt(supervisorId, 10),
           }),
@@ -1254,16 +1094,13 @@ export const groupService = {
     try {
       if (useProxyApi) {
         // Browser environment: use fetch with our Next.js API route
-        const session = await getSession();
+        // BetterAuth uses cookies, sent automatically with credentials: "include"
         const response = await fetch(url, {
           method: "DELETE",
           credentials: "include",
-          headers: session?.user?.token
-            ? {
-                Authorization: `Bearer ${session.user.token}`,
-                "Content-Type": "application/json",
-              }
-            : undefined,
+          headers: {
+            "Content-Type": "application/json",
+          },
         });
 
         if (!response.ok) {
@@ -1300,16 +1137,13 @@ export const groupService = {
     try {
       if (useProxyApi) {
         // Browser environment: use fetch with our Next.js API route
-        const session = await getSession();
+        // BetterAuth uses cookies, sent automatically with credentials: "include"
         const response = await fetch(url, {
           method: "PUT",
           credentials: "include",
-          headers: session?.user?.token
-            ? {
-                Authorization: `Bearer ${session.user.token}`,
-                "Content-Type": "application/json",
-              }
-            : undefined,
+          headers: {
+            "Content-Type": "application/json",
+          },
           body: JSON.stringify({
             representative_id: Number.parseInt(representativeId, 10),
           }),
@@ -1351,15 +1185,12 @@ export const combinedGroupService = {
     try {
       if (useProxyApi) {
         // Browser environment: use fetch with our Next.js API route
-        const session = await getSession();
+        // BetterAuth uses cookies, sent automatically with credentials: "include"
         const response = await fetch(url, {
           credentials: "include",
-          headers: session?.user?.token
-            ? {
-                Authorization: `Bearer ${session.user.token}`,
-                "Content-Type": "application/json",
-              }
-            : undefined,
+          headers: {
+            "Content-Type": "application/json",
+          },
         });
 
         if (!response.ok) {
@@ -1393,15 +1224,12 @@ export const combinedGroupService = {
     try {
       if (useProxyApi) {
         // Browser environment: use fetch with our Next.js API route
-        const session = await getSession();
+        // BetterAuth uses cookies, sent automatically with credentials: "include"
         const response = await fetch(url, {
           credentials: "include",
-          headers: session?.user?.token
-            ? {
-                Authorization: `Bearer ${session.user.token}`,
-                "Content-Type": "application/json",
-              }
-            : undefined,
+          headers: {
+            "Content-Type": "application/json",
+          },
         });
 
         if (!response.ok) {
@@ -1448,16 +1276,13 @@ export const combinedGroupService = {
     try {
       if (useProxyApi) {
         // Browser environment: use fetch with our Next.js API route
-        const session = await getSession();
+        // BetterAuth uses cookies, sent automatically with credentials: "include"
         const response = await fetch(url, {
           method: "POST",
           credentials: "include",
-          headers: session?.user?.token
-            ? {
-                Authorization: `Bearer ${session.user.token}`,
-                "Content-Type": "application/json",
-              }
-            : undefined,
+          headers: {
+            "Content-Type": "application/json",
+          },
           body: JSON.stringify(backendCombinedGroup),
         });
 
@@ -1498,16 +1323,13 @@ export const combinedGroupService = {
     try {
       if (useProxyApi) {
         // Browser environment: use fetch with our Next.js API route
-        const session = await getSession();
+        // BetterAuth uses cookies, sent automatically with credentials: "include"
         const response = await fetch(url, {
           method: "PUT",
           credentials: "include",
-          headers: session?.user?.token
-            ? {
-                Authorization: `Bearer ${session.user.token}`,
-                "Content-Type": "application/json",
-              }
-            : undefined,
+          headers: {
+            "Content-Type": "application/json",
+          },
           body: JSON.stringify(backendUpdates),
         });
 
@@ -1542,16 +1364,13 @@ export const combinedGroupService = {
     try {
       if (useProxyApi) {
         // Browser environment: use fetch with our Next.js API route
-        const session = await getSession();
+        // BetterAuth uses cookies, sent automatically with credentials: "include"
         const response = await fetch(url, {
           method: "DELETE",
           credentials: "include",
-          headers: session?.user?.token
-            ? {
-                Authorization: `Bearer ${session.user.token}`,
-                "Content-Type": "application/json",
-              }
-            : undefined,
+          headers: {
+            "Content-Type": "application/json",
+          },
         });
 
         if (!response.ok) {
@@ -1585,16 +1404,13 @@ export const combinedGroupService = {
     try {
       if (useProxyApi) {
         // Browser environment: use fetch with our Next.js API route
-        const session = await getSession();
+        // BetterAuth uses cookies, sent automatically with credentials: "include"
         const response = await fetch(url, {
           method: "POST",
           credentials: "include",
-          headers: session?.user?.token
-            ? {
-                Authorization: `Bearer ${session.user.token}`,
-                "Content-Type": "application/json",
-              }
-            : undefined,
+          headers: {
+            "Content-Type": "application/json",
+          },
           body: JSON.stringify({ group_id: Number.parseInt(groupId, 10) }),
         });
 
@@ -1632,16 +1448,13 @@ export const combinedGroupService = {
     try {
       if (useProxyApi) {
         // Browser environment: use fetch with our Next.js API route
-        const session = await getSession();
+        // BetterAuth uses cookies, sent automatically with credentials: "include"
         const response = await fetch(url, {
           method: "DELETE",
           credentials: "include",
-          headers: session?.user?.token
-            ? {
-                Authorization: `Bearer ${session.user.token}`,
-                "Content-Type": "application/json",
-              }
-            : undefined,
+          headers: {
+            "Content-Type": "application/json",
+          },
         });
 
         if (!response.ok) {
@@ -1688,10 +1501,10 @@ export const roomService = {
     try {
       if (useProxyApi) {
         // Browser environment: use fetchWithRetry for automatic 401 handling
-        const session = await getSession();
+        // BetterAuth uses cookies, sent automatically with credentials: "include"
         const { data } = await fetchWithRetry<unknown>(
           url,
-          session?.user?.token,
+          undefined, // BetterAuth uses cookies
           {
             onAuthFailure: handleAuthFailure,
             getNewToken: getNewTokenFromSession,
@@ -1722,10 +1535,10 @@ export const roomService = {
     try {
       if (useProxyApi) {
         // Browser environment: use fetchWithRetry for automatic 401 handling
-        const session = await getSession();
+        // BetterAuth uses cookies, sent automatically with credentials: "include"
         const { response, data } = await fetchWithRetry<unknown>(
           url,
-          session?.user?.token,
+          undefined, // BetterAuth uses cookies
           {
             onAuthFailure: handleAuthFailure,
             getNewToken: getNewTokenFromSession,
@@ -1765,16 +1578,13 @@ export const roomService = {
 
     try {
       if (useProxyApi) {
-        const session = await getSession();
+        // BetterAuth uses cookies, sent automatically with credentials: "include"
         const response = await fetch(url, {
           method: "POST",
           credentials: "include",
-          headers: session?.user?.token
-            ? {
-                Authorization: `Bearer ${session.user.token}`,
-                "Content-Type": "application/json",
-              }
-            : undefined,
+          headers: {
+            "Content-Type": "application/json",
+          },
           body: JSON.stringify(backendRoom),
         });
 
@@ -1815,16 +1625,13 @@ export const roomService = {
     try {
       if (useProxyApi) {
         // Browser environment: use fetch with our Next.js API route
-        const session = await getSession();
+        // BetterAuth uses cookies, sent automatically with credentials: "include"
         const response = await fetch(url, {
           method: "PUT",
           credentials: "include",
-          headers: session?.user?.token
-            ? {
-                Authorization: `Bearer ${session.user.token}`,
-                "Content-Type": "application/json",
-              }
-            : undefined,
+          headers: {
+            "Content-Type": "application/json",
+          },
           body: JSON.stringify(backendUpdates),
         });
 
@@ -1871,16 +1678,13 @@ export const roomService = {
     try {
       if (useProxyApi) {
         // Browser environment: use fetch with our Next.js API route
-        const session = await getSession();
+        // BetterAuth uses cookies, sent automatically with credentials: "include"
         const response = await fetch(url, {
           method: "DELETE",
           credentials: "include",
-          headers: session?.user?.token
-            ? {
-                Authorization: `Bearer ${session.user.token}`,
-                "Content-Type": "application/json",
-              }
-            : undefined,
+          headers: {
+            "Content-Type": "application/json",
+          },
         });
 
         if (!response.ok) {
@@ -1911,15 +1715,12 @@ export const roomService = {
     try {
       if (useProxyApi) {
         // Browser environment: use fetch with our Next.js API route
-        const session = await getSession();
+        // BetterAuth uses cookies, sent automatically with credentials: "include"
         const response = await fetch(url, {
           credentials: "include",
-          headers: session?.user?.token
-            ? {
-                Authorization: `Bearer ${session.user.token}`,
-                "Content-Type": "application/json",
-              }
-            : undefined,
+          headers: {
+            "Content-Type": "application/json",
+          },
         });
 
         if (!response.ok) {

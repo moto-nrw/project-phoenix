@@ -1,20 +1,21 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
-import { auth } from "~/server/auth";
+import { auth, getCookieHeader } from "~/server/auth";
 import { apiGet } from "~/lib/api-client";
 import { handleApiError } from "~/lib/api-helpers";
 
 export async function GET(
-  request: NextRequest,
+  _request: NextRequest,
   context: { params: Promise<Record<string, string | string[] | undefined>> },
 ): Promise<NextResponse> {
   try {
     const session = await auth();
 
-    if (!session?.user?.token) {
+    if (!session?.user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const cookieHeader = await getCookieHeader();
     const params = await context.params;
     const groupId = params?.id;
 
@@ -28,7 +29,7 @@ export async function GET(
     // Call backend endpoint to get students in the group
     const response = await apiGet(
       `/api/groups/${groupId}/students`,
-      session.user.token,
+      cookieHeader,
     );
 
     // The backend returns a wrapped response with status, data, and message

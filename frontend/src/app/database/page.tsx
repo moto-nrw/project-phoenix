@@ -1,6 +1,6 @@
 "use client";
 
-import { useSession } from "next-auth/react";
+import { useSession } from "~/lib/auth-client";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { ResponsiveLayout } from "~/components/dashboard";
@@ -118,7 +118,8 @@ const baseDataSections = [
 ];
 
 function DatabaseContent() {
-  const { data: session, status } = useSession({ required: true });
+  // BetterAuth: cookies handle auth, isPending replaces status
+  const { data: session, isPending } = useSession();
   const isMobile = useIsMobile();
   const [counts, setCounts] = useState<{
     students: number;
@@ -253,7 +254,7 @@ function DatabaseContent() {
     }
   }, [session]);
 
-  if (status === "loading") {
+  if (isPending) {
     return <Loading fullPage={false} />;
   }
 

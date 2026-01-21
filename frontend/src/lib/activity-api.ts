@@ -1,8 +1,7 @@
 // lib/activity-api.ts
-import { getSession } from "next-auth/react";
+// BetterAuth: Authentication handled via cookies, no manual token management needed
 import { env } from "~/env";
 import api from "./api";
-import { handleAuthFailure } from "./auth-api";
 import { handleDomainApiError } from "./api-helpers";
 
 // Error handler using shared utility
@@ -357,17 +356,13 @@ export async function fetchActivities(
   const url = buildActivitiesUrl(baseUrl, filters);
 
   if (useProxyApi) {
-    // Browser environment: use fetch with our Next.js API route
-    const session = await getSession();
+    // BetterAuth: cookies handle authentication
     const response = await fetch(url, {
       method: "GET",
       credentials: "include",
-      headers: session?.user?.token
-        ? {
-            Authorization: `Bearer ${session.user.token}`,
-            "Content-Type": "application/json",
-          }
-        : undefined,
+      headers: {
+        "Content-Type": "application/json",
+      },
     });
 
     if (!response.ok) {
@@ -399,16 +394,13 @@ export async function getActivity(id: string): Promise<Activity> {
     : `${env.NEXT_PUBLIC_API_URL}/api/activities/${id}`;
 
   if (useProxyApi) {
-    const session = await getSession();
+    // BetterAuth: cookies handle authentication
     const response = await fetch(url, {
       method: "GET",
       credentials: "include",
-      headers: session?.user?.token
-        ? {
-            Authorization: `Bearer ${session.user.token}`,
-            "Content-Type": "application/json",
-          }
-        : undefined,
+      headers: {
+        "Content-Type": "application/json",
+      },
     });
 
     if (!response.ok) {
@@ -445,16 +437,13 @@ export async function getEnrolledStudents(
 
   try {
     if (useProxyApi) {
-      const session = await getSession();
+      // BetterAuth: cookies handle authentication
       const response = await fetch(url, {
         method: "GET",
         credentials: "include",
-        headers: session?.user?.token
-          ? {
-              Authorization: `Bearer ${session.user.token}`,
-              "Content-Type": "application/json",
-            }
-          : undefined,
+        headers: {
+          "Content-Type": "application/json",
+        },
       });
 
       if (!response.ok) {
@@ -487,15 +476,12 @@ export async function enrollStudent(
   // No request body needed since backend extracts IDs from URL path
 
   if (useProxyApi) {
-    const session = await getSession();
+    // BetterAuth: cookies handle authentication
     const response = await fetch(url, {
       method: "POST",
       credentials: "include",
       headers: {
         "Content-Type": "application/json",
-        ...(session?.user?.token && {
-          Authorization: `Bearer ${session.user.token}`,
-        }),
       },
       // No body needed
     });
@@ -523,16 +509,13 @@ export async function unenrollStudent(
     : `${env.NEXT_PUBLIC_API_URL}/api/activities/${activityId}/students/${studentId}`;
 
   if (useProxyApi) {
-    const session = await getSession();
+    // BetterAuth: cookies handle authentication
     const response = await fetch(url, {
       method: "DELETE",
       credentials: "include",
-      headers: session?.user?.token
-        ? {
-            Authorization: `Bearer ${session.user.token}`,
-            "Content-Type": "application/json",
-          }
-        : undefined,
+      headers: {
+        "Content-Type": "application/json",
+      },
     });
 
     if (!response.ok) {
@@ -556,15 +539,12 @@ export async function createActivity(
   const safeActivity = createSafeActivity(data);
 
   if (useProxyApi) {
-    const session = await getSession();
+    // BetterAuth: cookies handle authentication
     const response = await fetch(url, {
       method: "POST",
       credentials: "include",
       headers: {
         "Content-Type": "application/json",
-        ...(session?.user?.token && {
-          Authorization: `Bearer ${session.user.token}`,
-        }),
       },
       body: JSON.stringify(data),
     });
@@ -611,15 +591,12 @@ export async function updateActivity(
   const backendData = prepareActivityForBackend(activityData);
 
   if (useProxyApi) {
-    const session = await getSession();
+    // BetterAuth: cookies handle authentication
     const response = await fetch(url, {
       method: "PUT",
       credentials: "include",
       headers: {
         "Content-Type": "application/json",
-        ...(session?.user?.token && {
-          Authorization: `Bearer ${session.user.token}`,
-        }),
       },
       body: JSON.stringify(data),
     });
@@ -658,16 +635,13 @@ export async function deleteActivity(id: string): Promise<void> {
     : `${env.NEXT_PUBLIC_API_URL}/api/activities/${id}`;
 
   if (useProxyApi) {
-    const session = await getSession();
+    // BetterAuth: cookies handle authentication
     const response = await fetch(url, {
       method: "DELETE",
       credentials: "include",
-      headers: session?.user?.token
-        ? {
-            Authorization: `Bearer ${session.user.token}`,
-            "Content-Type": "application/json",
-          }
-        : undefined,
+      headers: {
+        "Content-Type": "application/json",
+      },
     });
 
     if (!response.ok) {
@@ -687,16 +661,13 @@ export async function getCategories(): Promise<ActivityCategory[]> {
 
   try {
     if (useProxyApi) {
-      const session = await getSession();
+      // BetterAuth: cookies handle authentication
       const response = await fetch(url, {
         method: "GET",
         credentials: "include",
-        headers: session?.user?.token
-          ? {
-              Authorization: `Bearer ${session.user.token}`,
-              "Content-Type": "application/json",
-            }
-          : undefined,
+        headers: {
+          "Content-Type": "application/json",
+        },
       });
 
       if (!response.ok) {
@@ -739,16 +710,13 @@ export async function getSupervisors(): Promise<
 
   try {
     if (useProxyApi) {
-      const session = await getSession();
+      // BetterAuth: cookies handle authentication
       const response = await fetch(url, {
         method: "GET",
         credentials: "include",
-        headers: session?.user?.token
-          ? {
-              Authorization: `Bearer ${session.user.token}`,
-              "Content-Type": "application/json",
-            }
-          : undefined,
+        headers: {
+          "Content-Type": "application/json",
+        },
       });
 
       if (!response.ok) {
@@ -790,16 +758,13 @@ export async function getActivitySchedules(
 
   try {
     if (useProxyApi) {
-      const session = await getSession();
+      // BetterAuth: cookies handle authentication
       const response = await fetch(url, {
         method: "GET",
         credentials: "include",
-        headers: session?.user?.token
-          ? {
-              Authorization: `Bearer ${session.user.token}`,
-              "Content-Type": "application/json",
-            }
-          : undefined,
+        headers: {
+          "Content-Type": "application/json",
+        },
       });
 
       if (!response.ok) {
@@ -829,16 +794,13 @@ export async function getActivitySchedule(
 
   try {
     if (useProxyApi) {
-      const session = await getSession();
+      // BetterAuth: cookies handle authentication
       const response = await fetch(url, {
         method: "GET",
         credentials: "include",
-        headers: session?.user?.token
-          ? {
-              Authorization: `Bearer ${session.user.token}`,
-              "Content-Type": "application/json",
-            }
-          : undefined,
+        headers: {
+          "Content-Type": "application/json",
+        },
       });
 
       if (!response.ok) {
@@ -876,16 +838,13 @@ export async function getTimeframes(): Promise<Timeframe[]> {
 
   try {
     if (useProxyApi) {
-      const session = await getSession();
+      // BetterAuth: cookies handle authentication
       const response = await fetch(url, {
         method: "GET",
         credentials: "include",
-        headers: session?.user?.token
-          ? {
-              Authorization: `Bearer ${session.user.token}`,
-              "Content-Type": "application/json",
-            }
-          : undefined,
+        headers: {
+          "Content-Type": "application/json",
+        },
       });
 
       if (!response.ok) {
@@ -920,16 +879,13 @@ export async function getAvailableTimeSlots(
 
   try {
     if (useProxyApi) {
-      const session = await getSession();
+      // BetterAuth: cookies handle authentication
       const response = await fetch(url, {
         method: "GET",
         credentials: "include",
-        headers: session?.user?.token
-          ? {
-              Authorization: `Bearer ${session.user.token}`,
-              "Content-Type": "application/json",
-            }
-          : undefined,
+        headers: {
+          "Content-Type": "application/json",
+        },
       });
 
       if (!response.ok) {
@@ -973,15 +929,12 @@ export async function createActivitySchedule(
 
   try {
     if (useProxyApi) {
-      const session = await getSession();
+      // BetterAuth: cookies handle authentication
       const response = await fetch(url, {
         method: "POST",
         credentials: "include",
         headers: {
           "Content-Type": "application/json",
-          ...(session?.user?.token && {
-            Authorization: `Bearer ${session.user.token}`,
-          }),
         },
         body: JSON.stringify(backendData),
       });
@@ -1031,15 +984,12 @@ export async function updateActivitySchedule(
 
   try {
     if (useProxyApi) {
-      const session = await getSession();
+      // BetterAuth: cookies handle authentication
       const response = await fetch(url, {
         method: "PUT",
         credentials: "include",
         headers: {
           "Content-Type": "application/json",
-          ...(session?.user?.token && {
-            Authorization: `Bearer ${session.user.token}`,
-          }),
         },
         body: JSON.stringify(backendData),
       });
@@ -1085,16 +1035,13 @@ export async function deleteActivitySchedule(
 
   try {
     if (useProxyApi) {
-      const session = await getSession();
+      // BetterAuth: cookies handle authentication
       const response = await fetch(url, {
         method: "DELETE",
         credentials: "include",
-        headers: session?.user?.token
-          ? {
-              Authorization: `Bearer ${session.user.token}`,
-              "Content-Type": "application/json",
-            }
-          : undefined,
+        headers: {
+          "Content-Type": "application/json",
+        },
       });
 
       if (!response.ok) {
@@ -1165,16 +1112,13 @@ export async function getActivitySupervisors(
 
   try {
     if (useProxyApi) {
-      const session = await getSession();
+      // BetterAuth: cookies handle authentication
       const response = await fetch(url, {
         method: "GET",
         credentials: "include",
-        headers: session?.user?.token
-          ? {
-              Authorization: `Bearer ${session.user.token}`,
-              "Content-Type": "application/json",
-            }
-          : undefined,
+        headers: {
+          "Content-Type": "application/json",
+        },
       });
 
       if (!response.ok) {
@@ -1225,16 +1169,13 @@ export async function getAvailableSupervisors(
 
   try {
     if (useProxyApi) {
-      const session = await getSession();
+      // BetterAuth: cookies handle authentication
       const response = await fetch(url, {
         method: "GET",
         credentials: "include",
-        headers: session?.user?.token
-          ? {
-              Authorization: `Bearer ${session.user.token}`,
-              "Content-Type": "application/json",
-            }
-          : undefined,
+        headers: {
+          "Content-Type": "application/json",
+        },
       });
 
       if (!response.ok) {
@@ -1270,15 +1211,12 @@ export async function assignSupervisor(
 
   try {
     if (useProxyApi) {
-      const session = await getSession();
+      // BetterAuth: cookies handle authentication
       const response = await fetch(url, {
         method: "POST",
         credentials: "include",
         headers: {
           "Content-Type": "application/json",
-          ...(session?.user?.token && {
-            Authorization: `Bearer ${session.user.token}`,
-          }),
         },
         body: JSON.stringify(backendData),
       });
@@ -1310,15 +1248,12 @@ export async function updateSupervisorRole(
 
   try {
     if (useProxyApi) {
-      const session = await getSession();
+      // BetterAuth: cookies handle authentication
       const response = await fetch(url, {
         method: "PUT",
         credentials: "include",
         headers: {
           "Content-Type": "application/json",
-          ...(session?.user?.token && {
-            Authorization: `Bearer ${session.user.token}`,
-          }),
         },
         body: JSON.stringify(roleData),
       });
@@ -1349,16 +1284,13 @@ export async function removeSupervisor(
 
   try {
     if (useProxyApi) {
-      const session = await getSession();
+      // BetterAuth: cookies handle authentication
       const response = await fetch(url, {
         method: "DELETE",
         credentials: "include",
-        headers: session?.user?.token
-          ? {
-              Authorization: `Bearer ${session.user.token}`,
-              "Content-Type": "application/json",
-            }
-          : undefined,
+        headers: {
+          "Content-Type": "application/json",
+        },
       });
 
       if (!response.ok) {
@@ -1444,16 +1376,13 @@ export async function getAvailableStudents(
 
   try {
     if (useProxyApi) {
-      const session = await getSession();
+      // BetterAuth: cookies handle authentication
       const response = await fetch(url, {
         method: "GET",
         credentials: "include",
-        headers: session?.user?.token
-          ? {
-              Authorization: `Bearer ${session.user.token}`,
-              "Content-Type": "application/json",
-            }
-          : undefined,
+        headers: {
+          "Content-Type": "application/json",
+        },
       });
 
       if (!response.ok) {
@@ -1487,34 +1416,8 @@ function getEnrollmentApiError(status: number): Error {
   return new Error(`API error: ${status}`);
 }
 
-// Helper: Try to refresh token and retry PUT request
-async function retryPutWithRefreshedToken(
-  url: string,
-  requestData: unknown,
-): Promise<Response | null> {
-  const refreshSuccessful = await handleAuthFailure();
-
-  if (!refreshSuccessful) {
-    return null;
-  }
-
-  const session = await getSession();
-  if (!session?.user?.token) {
-    return null;
-  }
-
-  return fetch(url, {
-    method: "PUT",
-    credentials: "include",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${session.user.token}`,
-    },
-    body: JSON.stringify(requestData),
-  });
-}
-
 // Batch update student enrollments (add or remove multiple students at once)
+// BetterAuth: authentication handled via cookies, no manual token management needed
 export async function updateGroupEnrollments(
   activityId: string,
   data: { student_ids: string[] },
@@ -1533,35 +1436,15 @@ export async function updateGroupEnrollments(
 
   try {
     if (useProxyApi) {
-      const session = await getSession();
-
-      // Check if we have a valid session
-      if (!session?.user?.token) {
-        throw new Error(
-          "No authentication token available. Please log in again.",
-        );
-      }
-
-      let response = await fetch(url, {
+      // BetterAuth: cookies handle authentication automatically
+      const response = await fetch(url, {
         method: "PUT",
         credentials: "include",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${session.user.token}`,
         },
         body: JSON.stringify(requestData),
       });
-
-      // Handle 401 by trying to refresh token
-      if (response.status === 401) {
-        const retryResponse = await retryPutWithRefreshedToken(
-          url,
-          requestData,
-        );
-        if (retryResponse) {
-          response = retryResponse;
-        }
-      }
 
       if (!response.ok) {
         throw getEnrollmentApiError(response.status);

@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { useSession } from "next-auth/react";
+import { useSession } from "~/lib/auth-client";
 import { useSupervision } from "~/lib/supervision-context";
 import { useSmartRedirectPath } from "~/lib/redirect-utils";
 
@@ -16,7 +16,8 @@ interface SmartRedirectProps {
  */
 export function SmartRedirect({ onRedirect }: SmartRedirectProps) {
   const router = useRouter();
-  const { data: session, status } = useSession();
+  // BetterAuth: cookies handle auth, isPending replaces status
+  const { data: session, isPending } = useSession();
   const { hasGroups, isLoadingGroups, isSupervising, isLoadingSupervision } =
     useSupervision();
 
@@ -29,7 +30,7 @@ export function SmartRedirect({ onRedirect }: SmartRedirectProps) {
 
   useEffect(() => {
     // Only redirect if user is authenticated and supervision data is ready
-    if (status === "authenticated" && session?.user?.token && isReady) {
+    if (!isPending && session?.user && isReady) {
       if (onRedirect) {
         onRedirect(redirectPath);
       } else {
@@ -37,7 +38,7 @@ export function SmartRedirect({ onRedirect }: SmartRedirectProps) {
         router.refresh();
       }
     }
-  }, [status, session?.user?.token, isReady, redirectPath, router, onRedirect]);
+  }, [isPending, session?.user, isReady, redirectPath, router, onRedirect]);
 
   // This component doesn't render anything
   return null;

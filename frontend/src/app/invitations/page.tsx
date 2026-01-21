@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useSession } from "next-auth/react";
+import { useSession } from "~/lib/auth-client";
 import { redirect } from "next/navigation";
 import { ResponsiveLayout } from "~/components/dashboard";
 import { InvitationForm } from "~/components/admin/invitation-form";
@@ -10,21 +10,22 @@ import { isAdmin } from "~/lib/auth-utils";
 import { Loading } from "~/components/ui/loading";
 
 export default function InvitationsPage() {
-  const { data: session, status } = useSession({
-    required: true,
-    onUnauthenticated() {
-      redirect("/");
-    },
-  });
+  // BetterAuth: cookies handle auth, isPending replaces status
+  const { data: session, isPending } = useSession();
 
   const [refreshKey, setRefreshKey] = useState<number>(Date.now());
 
-  if (status === "loading") {
+  if (isPending) {
     return (
       <ResponsiveLayout>
         <Loading fullPage={false} />
       </ResponsiveLayout>
     );
+  }
+
+  // Redirect if not authenticated
+  if (!session?.user) {
+    redirect("/");
   }
 
   if (!session || !isAdmin(session)) {

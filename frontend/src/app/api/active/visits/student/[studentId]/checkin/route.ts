@@ -7,7 +7,7 @@ interface CheckinBody {
 }
 
 export const POST = createPostHandler<unknown, CheckinBody>(
-  async (_request, body, token, params) => {
+  async (_request, body, cookieHeader, params) => {
     const studentId = params.studentId as string;
 
     if (!studentId) {
@@ -27,13 +27,14 @@ export const POST = createPostHandler<unknown, CheckinBody>(
         ? "http://server:8080" // NOSONAR - Internal Docker network, not exposed
         : (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080"); // NOSONAR - Local dev only
 
+    // BetterAuth: Forward cookies instead of Bearer token
     const response = await fetch(
       `${apiUrl}/api/active/visits/student/${studentId}/checkin`,
       {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
+          Cookie: cookieHeader,
         },
         body: JSON.stringify({ active_group_id: body.active_group_id }),
       },

@@ -1,7 +1,7 @@
 // lib/substitution-api.ts
 // API client for substitution-related operations
+// BetterAuth: Authentication handled via cookies, no manual token management needed
 
-import { getSession } from "next-auth/react";
 import {
   type Substitution,
   type TeacherAvailability,
@@ -17,6 +17,7 @@ import {
 // Substitution service with API methods
 class SubstitutionService {
   // Get all substitutions with optional filters
+  // BetterAuth: authentication handled via cookies
   async fetchSubstitutions(filters?: {
     page?: number;
     pageSize?: number;
@@ -35,15 +36,11 @@ class SubstitutionService {
         }
       }
 
-      const session = await getSession();
       const response = await fetch(url, {
         credentials: "include",
-        headers: session?.user?.token
-          ? {
-              Authorization: `Bearer ${session.user.token}`,
-              "Content-Type": "application/json",
-            }
-          : undefined,
+        headers: {
+          "Content-Type": "application/json",
+        },
       });
 
       if (!response.ok) {
@@ -70,6 +67,7 @@ class SubstitutionService {
   }
 
   // Get active substitutions for a specific date
+  // BetterAuth: authentication handled via cookies
   async fetchActiveSubstitutions(date?: Date): Promise<Substitution[]> {
     try {
       let url = "/api/substitutions/active";
@@ -80,15 +78,11 @@ class SubstitutionService {
         url += `?${params.toString()}`;
       }
 
-      const session = await getSession();
       const response = await fetch(url, {
         credentials: "include",
-        headers: session?.user?.token
-          ? {
-              Authorization: `Bearer ${session.user.token}`,
-              "Content-Type": "application/json",
-            }
-          : undefined,
+        headers: {
+          "Content-Type": "application/json",
+        },
       });
 
       if (!response.ok) {
@@ -114,6 +108,7 @@ class SubstitutionService {
   }
 
   // Get available teachers with their substitution status
+  // BetterAuth: authentication handled via cookies
   async fetchAvailableTeachers(
     date?: Date,
     search?: string,
@@ -133,15 +128,11 @@ class SubstitutionService {
         url += `?${params.toString()}`;
       }
 
-      const session = await getSession();
       const response = await fetch(url, {
         credentials: "include",
-        headers: session?.user?.token
-          ? {
-              Authorization: `Bearer ${session.user.token}`,
-              "Content-Type": "application/json",
-            }
-          : undefined,
+        headers: {
+          "Content-Type": "application/json",
+        },
       });
 
       if (!response.ok) {
@@ -171,6 +162,7 @@ class SubstitutionService {
   }
 
   // Create a new substitution
+  // BetterAuth: authentication handled via cookies
   async createSubstitution(
     groupId: string,
     regularStaffId: string | null, // Now optional - null for general coverage
@@ -191,18 +183,12 @@ class SubstitutionService {
         notes,
       );
 
-      const session = await getSession();
       const response = await fetch("/api/substitutions", {
         method: "POST",
         credentials: "include",
-        headers: session?.user?.token
-          ? {
-              Authorization: `Bearer ${session.user.token}`,
-              "Content-Type": "application/json",
-            }
-          : {
-              "Content-Type": "application/json",
-            },
+        headers: {
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify(requestData),
       });
 
@@ -232,18 +218,15 @@ class SubstitutionService {
   }
 
   // Delete/end a substitution
+  // BetterAuth: authentication handled via cookies
   async deleteSubstitution(id: string): Promise<void> {
     try {
-      const session = await getSession();
       const response = await fetch(`/api/substitutions/${id}`, {
         method: "DELETE",
         credentials: "include",
-        headers: session?.user?.token
-          ? {
-              Authorization: `Bearer ${session.user.token}`,
-              "Content-Type": "application/json",
-            }
-          : undefined,
+        headers: {
+          "Content-Type": "application/json",
+        },
       });
 
       if (!response.ok) {
@@ -258,17 +241,14 @@ class SubstitutionService {
   }
 
   // Get a single substitution by ID
+  // BetterAuth: authentication handled via cookies
   async getSubstitution(id: string): Promise<Substitution> {
     try {
-      const session = await getSession();
       const response = await fetch(`/api/substitutions/${id}`, {
         credentials: "include",
-        headers: session?.user?.token
-          ? {
-              Authorization: `Bearer ${session.user.token}`,
-              "Content-Type": "application/json",
-            }
-          : undefined,
+        headers: {
+          "Content-Type": "application/json",
+        },
       });
 
       if (!response.ok) {

@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { auth } from "~/server/auth";
+import { auth, getCookieHeader } from "~/server/auth";
 import { env } from "~/env";
 
 // Error response interface
@@ -24,18 +24,19 @@ export async function POST(
     }
 
     const session = await auth();
-    if (!session?.user?.token) {
+    if (!session?.user) {
       return NextResponse.json({ error: "Unauthorized" } as ErrorResponse, {
         status: 401,
       });
     }
 
+    const cookieHeader = await getCookieHeader();
     const url = `${env.NEXT_PUBLIC_API_URL}/auth/roles/${roleId}/permissions/${permissionId}`;
 
     const response = await fetch(url, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${session.user.token}`,
+        Cookie: cookieHeader,
         "Content-Type": "application/json",
       },
     });
@@ -81,18 +82,19 @@ export async function DELETE(
     }
 
     const session = await auth();
-    if (!session?.user?.token) {
+    if (!session?.user) {
       return NextResponse.json({ error: "Unauthorized" } as ErrorResponse, {
         status: 401,
       });
     }
 
+    const cookieHeader = await getCookieHeader();
     const url = `${env.NEXT_PUBLIC_API_URL}/auth/roles/${roleId}/permissions/${permissionId}`;
 
     const response = await fetch(url, {
       method: "DELETE",
       headers: {
-        Authorization: `Bearer ${session.user.token}`,
+        Cookie: cookieHeader,
         "Content-Type": "application/json",
       },
     });

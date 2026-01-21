@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo, Suspense } from "react";
-import { useSession } from "next-auth/react";
+import { useSession } from "~/lib/auth-client";
 import { useRouter } from "next/navigation";
 import { ResponsiveLayout } from "~/components/dashboard";
 import { PageHeaderWithSearch } from "~/components/ui/page-header";
@@ -38,13 +38,14 @@ const categoryColors: Record<string, string> = {
 };
 
 function RoomsPageContent() {
-  const { status } = useSession({
-    required: true,
-    onUnauthenticated() {
-      router.push("/");
-    },
-  });
   const router = useRouter();
+  // BetterAuth: cookies handle auth, isPending replaces status
+  const { data: session, isPending } = useSession();
+
+  // Redirect if not authenticated
+  if (!isPending && !session?.user) {
+    router.push("/");
+  }
 
   const [searchTerm, setSearchTerm] = useState("");
   const [buildingFilter, setBuildingFilter] = useState("all");
@@ -226,7 +227,7 @@ function RoomsPageContent() {
     return filters;
   }, [searchTerm, buildingFilter, occupiedFilter]);
 
-  if (status === "loading" || loading) {
+  if (isPending || loading) {
     return (
       <ResponsiveLayout>
         <Loading fullPage={false} />

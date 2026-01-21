@@ -1,5 +1,14 @@
 // lib/auth-service.ts
-import { getSession } from "next-auth/react";
+/**
+ * Auth Service for BetterAuth
+ *
+ * BetterAuth uses cookies for session management, so no JWT tokens are needed.
+ * - Browser-side: cookies are sent automatically with credentials: "include"
+ * - Server-side: cookies are forwarded via Cookie header
+ *
+ * Note: Many functions in this file are for legacy NextAuth-based admin operations.
+ * The primary authentication flow now uses the auth-client module.
+ */
 import { isAxiosError } from "axios";
 import { env } from "~/env";
 import api from "./api";
@@ -251,29 +260,19 @@ interface AuthFetchOptions<TBackend, TFrontend> {
 
 /**
  * Build auth headers for browser-side fetch requests.
+ * BetterAuth uses cookies, so no Authorization header is needed.
+ * Cookies are sent automatically with credentials: "include".
  */
-async function buildAuthHeaders(
-  requiresAuth: boolean,
-): Promise<Record<string, string>> {
-  const headers: Record<string, string> = {
+function buildAuthHeaders(_requiresAuth: boolean): Record<string, string> {
+  return {
     "Content-Type": "application/json",
   };
-
-  if (!requiresAuth) {
-    return headers;
-  }
-
-  const session = await getSession();
-  if (session?.user?.token) {
-    headers.Authorization = `Bearer ${session.user.token}`;
-  }
-
-  return headers;
 }
 
 /**
  * Execute fetch request in browser context.
  * Returns null for 204/empty responses (void endpoints).
+ * BetterAuth uses cookies, sent automatically with credentials: "include".
  */
 async function executeBrowserFetch<TBackend>(
   url: string,
@@ -285,6 +284,7 @@ async function executeBrowserFetch<TBackend>(
   const response = await fetch(url, {
     method,
     headers,
+    credentials: "include", // Send cookies automatically
     ...(body !== undefined && { body: JSON.stringify(body) }),
   });
 
@@ -355,7 +355,7 @@ async function authFetch<TBackend, TFrontend = void>(
     let backendData: TBackend;
 
     if (useProxyApi) {
-      const headers = await buildAuthHeaders(requiresAuth);
+      const headers = buildAuthHeaders(requiresAuth);
       const responseData = await executeBrowserFetch<unknown>(
         url,
         method,
@@ -469,6 +469,8 @@ function extractNestedRoles(response: unknown): BackendRole[] {
 
 export const authService = {
   // Public endpoints
+  // Note: For BetterAuth, use signIn.email() from auth-client instead
+  // This is kept for backward compatibility with legacy admin flows
   login: async (credentials: LoginRequest): Promise<TokenResponse> => {
     const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
@@ -480,6 +482,7 @@ export const authService = {
         const response = await fetch(url, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
+          credentials: "include", // Send cookies automatically
           body: JSON.stringify(credentials),
         });
 
@@ -511,6 +514,7 @@ export const authService = {
         const response = await fetch(url, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
+          credentials: "include", // Send cookies automatically
           body: JSON.stringify({
             email: data.email,
             username: data.username,
@@ -545,6 +549,8 @@ export const authService = {
     }
   },
 
+  // Note: For BetterAuth, use signOut() from auth-client instead
+  // This is kept for backward compatibility with legacy admin flows
   logout: async (): Promise<void> => {
     const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
@@ -552,18 +558,14 @@ export const authService = {
       : `${env.NEXT_PUBLIC_API_URL}/auth/logout`;
 
     try {
-      const session = await getSession();
-      if (!session?.user?.token) {
-        return; // Already logged out
-      }
-
       if (useProxyApi) {
+        // BetterAuth uses cookies, sent automatically with credentials: "include"
         const response = await fetch(url, {
           method: "POST",
           headers: {
-            Authorization: `Bearer ${session.user.token}`,
             "Content-Type": "application/json",
           },
+          credentials: "include", // Send cookies automatically
         });
 
         if (!response.ok && response.status !== 204) {
@@ -578,7 +580,9 @@ export const authService = {
     }
   },
 
-  refreshToken: async (refreshToken: string): Promise<TokenResponse> => {
+  // Note: BetterAuth handles token refresh automatically via cookies
+  // This is kept for backward compatibility with legacy admin flows
+  refreshToken: async (_refreshToken: string): Promise<TokenResponse> => {
     const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
       ? "/api/auth/refresh"
@@ -586,12 +590,13 @@ export const authService = {
 
     try {
       if (useProxyApi) {
+        // BetterAuth uses cookies for session management
         const response = await fetch(url, {
           method: "POST",
           headers: {
-            Authorization: `Bearer ${refreshToken}`,
             "Content-Type": "application/json",
           },
+          credentials: "include", // Send cookies automatically
         });
 
         if (!response.ok) {
@@ -602,13 +607,7 @@ export const authService = {
 
         return (await response.json()) as TokenResponse;
       } else {
-        const response = await api.post<TokenResponse>(
-          url,
-          {},
-          {
-            headers: { Authorization: `Bearer ${refreshToken}` },
-          },
-        );
+        const response = await api.post<TokenResponse>(url, {});
         return response.data;
       }
     } catch (error) {
@@ -628,6 +627,7 @@ export const authService = {
         const response = await fetch(url, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
+          credentials: "include", // Send cookies if present
           body: JSON.stringify(data),
         });
 
@@ -664,6 +664,7 @@ export const authService = {
         const response = await fetch(url, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
+          credentials: "include", // Send cookies if present
           body: JSON.stringify(payload),
         });
 

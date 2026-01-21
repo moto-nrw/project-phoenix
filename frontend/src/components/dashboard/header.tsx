@@ -4,7 +4,6 @@
 
 import { useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
-import { useSession } from "next-auth/react";
 import { HelpButton } from "@/components/ui/help_button";
 import { getHelpContent } from "@/lib/help-content";
 import { LogoutModal } from "~/components/ui/logout-modal";
@@ -64,7 +63,6 @@ export function Header({
   const pathname = usePathname();
   const helpContent = getHelpContent(pathname);
   const pageTitle = customPageTitle ?? getPageTitle(pathname);
-  const { data: session } = useSession();
   const { profile } = useProfile();
 
   // Scroll effect for header shrinking
@@ -89,7 +87,9 @@ export function Header({
     : userName;
   const displayAvatar = profile?.avatar;
 
-  const isSessionExpired = session?.error === "RefreshTokenExpired";
+  // BetterAuth handles session expiration via cookies automatically
+  // The SessionWarning component is kept for backwards compatibility but disabled
+  const isSessionExpired = false;
 
   return (
     <header

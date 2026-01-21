@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback } from "react";
-import { useSession } from "next-auth/react";
+import { useSession } from "~/lib/auth-client";
 import { useSWRAuth } from "~/lib/swr";
 import { studentService } from "~/lib/api";
 import type { Student, SupervisorContact } from "~/lib/student-helpers";
@@ -111,7 +111,7 @@ interface StudentDetailResponse {
  * Uses SWR for caching and automatic revalidation via global SSE
  */
 export function useStudentData(studentId: string): UseStudentDataResult {
-  const { data: session, status: sessionStatus } = useSession();
+  const { data: session, isPending } = useSession();
 
   // SWR-based student data fetching with caching
   // Cache key "student-detail-{id}" will be invalidated by global SSE on student_checkin/checkout events
@@ -121,7 +121,8 @@ export function useStudentData(studentId: string): UseStudentDataResult {
     error: fetchError,
     mutate,
   } = useSWRAuth<StudentDetailResponse>(
-    studentId && session?.user?.token ? `student-detail-${studentId}` : null,
+    // BetterAuth: session.user indicates authenticated (cookies handle auth)
+    studentId && session?.user ? `student-detail-${studentId}` : null,
     async () => {
       // Fetch student data and user context in parallel
       const [studentResponse, groups, supervisedGroups] = await Promise.all([
@@ -175,7 +176,7 @@ export function useStudentData(studentId: string): UseStudentDataResult {
   // Include session loading state to prevent transient error display.
   // When session is loading, SWR key is null, so isLoading is false even though
   // we're not ready to display data. This prevents "Student not found" flash.
-  const loading = isLoading || sessionStatus === "loading";
+  const loading = isLoading || isPending;
 
   return {
     student: studentData?.student ?? null,

@@ -53,8 +53,9 @@ interface StaffResponse {
 }
 
 // Create a new teacher with account
+// BetterAuth: cookieHeader is passed by route-wrapper for session validation
 export const POST = createPostHandler(
-  async (req: NextRequest, body: TeacherCreationData, token: string) => {
+  async (req: NextRequest, body: TeacherCreationData, cookieHeader: string) => {
     try {
       // Step 1: Create an account via backend API
       const accountResponse = await fetch(
@@ -83,13 +84,14 @@ export const POST = createPostHandler(
       const account = accountResult.data;
 
       // Step 2: Create a person linked to this account via backend API
+      // BetterAuth: Forward cookies instead of Bearer token
       const personResponse = await fetch(
         `${env.NEXT_PUBLIC_API_URL}/api/users`,
         {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
+            Cookie: cookieHeader,
           },
           body: JSON.stringify({
             first_name: body.first_name,
@@ -114,13 +116,14 @@ export const POST = createPostHandler(
       const trimmedRole = body.role?.trim();
       const trimmedQualifications = body.qualifications?.trim();
 
+      // BetterAuth: Forward cookies instead of Bearer token
       const staffResponse = await fetch(
         `${env.NEXT_PUBLIC_API_URL}/api/staff`,
         {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
+            Cookie: cookieHeader,
           },
           body: JSON.stringify({
             person_id: person.id,

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, useCallback } from "react";
-import { useSession } from "next-auth/react";
+import { useSession } from "~/lib/auth-client";
 import { redirect } from "next/navigation";
 import { DatabasePageLayout } from "~/components/database/database-page-layout";
 import { PageHeaderWithSearch } from "~/components/ui/page-header";
@@ -49,12 +49,13 @@ export default function DevicesPage() {
 
   const { success: toastSuccess } = useToast();
 
-  const { status } = useSession({
-    required: true,
-    onUnauthenticated() {
-      redirect("/");
-    },
-  });
+  // BetterAuth: cookies handle auth, isPending replaces status
+  const { data: session, isPending } = useSession();
+
+  // Redirect if not authenticated
+  if (!isPending && !session?.user) {
+    redirect("/");
+  }
 
   const service = useMemo(() => createCrudService(devicesConfig), []);
 
@@ -203,7 +204,7 @@ export default function DevicesPage() {
   };
 
   return (
-    <DatabasePageLayout loading={loading} sessionLoading={status === "loading"}>
+    <DatabasePageLayout loading={loading} sessionLoading={isPending}>
       <div className="mb-4">
         <PageHeaderWithSearch
           title={isMobile ? "Geräte" : ""}

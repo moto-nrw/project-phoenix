@@ -1,5 +1,5 @@
 // lib/usercontext-api.ts
-import { getSession } from "next-auth/react";
+// BetterAuth: Authentication handled via cookies, no manual token management needed
 import { env } from "~/env";
 import api from "./api";
 import { fetchWithAuth } from "./fetch-with-auth";
@@ -33,16 +33,15 @@ interface ApiResponse<T> {
 
 export const userContextService = {
   // Get current user profile
+  // BetterAuth: authentication handled via cookies
   getCurrentUser: async (): Promise<UserProfile> => {
     const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi ? "/api/me" : `${env.NEXT_PUBLIC_API_URL}/me`;
 
     try {
       if (useProxyApi) {
-        const session = await getSession();
         const response = await fetchWithAuth(url, {
           headers: {
-            Authorization: `Bearer ${session?.user?.token}`,
             "Content-Type": "application/json",
           },
         });
@@ -70,6 +69,7 @@ export const userContextService = {
   },
 
   // Get current user's staff profile
+  // BetterAuth: authentication handled via cookies
   getCurrentStaff: async (): Promise<Staff> => {
     const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
@@ -78,10 +78,8 @@ export const userContextService = {
 
     try {
       if (useProxyApi) {
-        const session = await getSession();
         const response = await fetchWithAuth(url, {
           headers: {
-            Authorization: `Bearer ${session?.user?.token}`,
             "Content-Type": "application/json",
           },
         });
@@ -118,6 +116,7 @@ export const userContextService = {
   },
 
   // Get current user's teacher profile
+  // BetterAuth: authentication handled via cookies
   getCurrentTeacher: async (): Promise<Teacher> => {
     const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
@@ -126,10 +125,8 @@ export const userContextService = {
 
     try {
       if (useProxyApi) {
-        const session = await getSession();
         const response = await fetchWithAuth(url, {
           headers: {
-            Authorization: `Bearer ${session?.user?.token}`,
             "Content-Type": "application/json",
           },
         });
@@ -157,10 +154,8 @@ export const userContextService = {
   },
 
   // Get educational groups for current user
-  // Pass token to skip redundant getSession() call (saves ~600ms per request)
-  getMyEducationalGroups: async (
-    token?: string,
-  ): Promise<EducationalGroup[]> => {
+  // BetterAuth: authentication handled via cookies
+  getMyEducationalGroups: async (): Promise<EducationalGroup[]> => {
     const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
       ? "/api/me/groups"
@@ -168,16 +163,8 @@ export const userContextService = {
 
     try {
       if (useProxyApi) {
-        // Use provided token or fall back to getSession()
-        let authToken = token;
-        if (!authToken) {
-          const session = await getSession();
-          authToken = session?.user?.token;
-        }
-
         const response = await fetchWithAuth(url, {
           headers: {
-            Authorization: `Bearer ${authToken}`,
             "Content-Type": "application/json",
           },
         });
@@ -215,6 +202,7 @@ export const userContextService = {
   },
 
   // Get activity groups for current user
+  // BetterAuth: authentication handled via cookies
   getMyActivityGroups: async (): Promise<ActivityGroup[]> => {
     const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
@@ -223,10 +211,8 @@ export const userContextService = {
 
     try {
       if (useProxyApi) {
-        const session = await getSession();
         const response = await fetchWithAuth(url, {
           headers: {
-            Authorization: `Bearer ${session?.user?.token}`,
             "Content-Type": "application/json",
           },
         });
@@ -256,6 +242,7 @@ export const userContextService = {
   },
 
   // Get active groups for current user
+  // BetterAuth: authentication handled via cookies
   getMyActiveGroups: async (): Promise<ActiveGroup[]> => {
     const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
@@ -264,10 +251,8 @@ export const userContextService = {
 
     try {
       if (useProxyApi) {
-        const session = await getSession();
         const response = await fetchWithAuth(url, {
           headers: {
-            Authorization: `Bearer ${session?.user?.token}`,
             "Content-Type": "application/json",
           },
         });
@@ -303,6 +288,7 @@ export const userContextService = {
   },
 
   // Get supervised groups for current user
+  // BetterAuth: authentication handled via cookies
   getMySupervisedGroups: async (): Promise<ActiveGroup[]> => {
     const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
@@ -311,10 +297,8 @@ export const userContextService = {
 
     try {
       if (useProxyApi) {
-        const session = await getSession();
         const response = await fetchWithAuth(url, {
           headers: {
-            Authorization: `Bearer ${session?.user?.token}`,
             "Content-Type": "application/json",
           },
         });

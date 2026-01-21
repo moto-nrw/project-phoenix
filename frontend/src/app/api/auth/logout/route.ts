@@ -1,20 +1,22 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { auth } from "~/server/auth";
+import { auth, getCookieHeader } from "~/server/auth";
 import { env } from "~/env";
 
 export async function POST(_request: NextRequest) {
   try {
     const session = await auth();
 
-    if (!session?.user?.token) {
+    if (!session?.user) {
       return NextResponse.json({ error: "No active session" }, { status: 401 });
     }
 
-    // Forward to backend
+    const cookieHeader = await getCookieHeader();
+
+    // Forward to backend with cookies
     const response = await fetch(`${env.NEXT_PUBLIC_API_URL}/auth/logout`, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${session.user.token}`,
+        Cookie: cookieHeader,
         "Content-Type": "application/json",
       },
     });

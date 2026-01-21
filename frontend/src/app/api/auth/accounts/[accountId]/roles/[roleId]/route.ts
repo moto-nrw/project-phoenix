@@ -1,6 +1,6 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
-import { auth } from "@/server/auth";
+import { auth, getCookieHeader } from "@/server/auth";
 import { env } from "~/env";
 
 // Custom POST handler to handle 204 No Content responses
@@ -10,11 +10,12 @@ export const POST = async (
 ) => {
   const session = await auth();
 
-  if (!session?.user?.token) {
+  if (!session?.user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   try {
+    const cookieHeader = await getCookieHeader();
     const contextParams = await context.params;
     const accountId = contextParams.accountId as string;
     const roleId = contextParams.roleId as string;
@@ -28,7 +29,7 @@ export const POST = async (
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${session.user.token}`,
+          Cookie: cookieHeader,
         },
       },
     );
@@ -96,11 +97,12 @@ export const DELETE = async (
 ) => {
   const session = await auth();
 
-  if (!session?.user?.token) {
+  if (!session?.user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   try {
+    const cookieHeader = await getCookieHeader();
     const contextParams = await context.params;
     const accountId = contextParams.accountId as string;
     const roleId = contextParams.roleId as string;
@@ -114,7 +116,7 @@ export const DELETE = async (
         method: "DELETE",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${session.user.token}`,
+          Cookie: cookieHeader,
         },
       },
     );

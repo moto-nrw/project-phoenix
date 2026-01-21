@@ -2,8 +2,8 @@ import { NextResponse } from "next/server";
 import { auth } from "~/server/auth";
 
 /**
- * This endpoint is used to trigger a session update
- * It forces NextAuth to re-run the JWT callback which will refresh the token if needed
+ * This endpoint is used to check the current session status.
+ * BetterAuth uses cookies for session management, so no explicit refresh is needed.
  */
 export async function GET() {
   try {
@@ -13,17 +13,16 @@ export async function GET() {
       return NextResponse.json({ error: "No session found" }, { status: 401 });
     }
 
-    // The session should have been updated by the JWT callback
     // Return the current session state
+    // BetterAuth uses cookies, so we just check if user exists
     return NextResponse.json({
       success: true,
-      hasToken: !!session.user?.token,
-      tokenError: session.error,
+      hasSession: !!session.user,
     });
   } catch (error) {
-    console.error("Error updating session:", error);
+    console.error("Error checking session:", error);
     return NextResponse.json(
-      { error: "Failed to update session" },
+      { error: "Failed to check session" },
       { status: 500 },
     );
   }

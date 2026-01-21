@@ -1,6 +1,6 @@
 // Generic CRUD Service Factory
+// BetterAuth: Authentication handled via cookies, no manual token management needed
 
-import { getSession } from "next-auth/react";
 import type { EntityConfig, CrudService, PaginatedResponse } from "./types";
 
 // Helper functions extracted to reduce cognitive complexity (S3776)
@@ -32,9 +32,7 @@ function mapDataArray<T>(
 /**
  * Type guard to check if object is a paginated response
  */
-function isPaginatedResponse(
-  obj: unknown,
-): obj is {
+function isPaginatedResponse(obj: unknown): obj is {
   data: unknown[];
   pagination: PaginatedResponse<unknown>["pagination"];
 } {
@@ -49,9 +47,7 @@ function isPaginatedResponse(
 /**
  * Type guard to check if object has a data array
  */
-function hasDataArray(
-  obj: unknown,
-): obj is {
+function hasDataArray(obj: unknown): obj is {
   data: unknown[];
   pagination?: PaginatedResponse<unknown>["pagination"];
 } {
@@ -77,15 +73,9 @@ function isApiWrapper(
 export function createCrudService<T>(config: EntityConfig<T>): CrudService<T> {
   const { api: apiConfig, service } = config;
 
-  // Helper to get auth token
-  const getToken = async () => {
-    const session = await getSession();
-    return session?.user?.token;
-  };
-
   // Helper to make fetch requests with auth
+  // BetterAuth: authentication handled via cookies
   const fetchWithAuth = async (url: string, options: RequestInit = {}) => {
-    const token = await getToken();
     const headers = new Headers();
     headers.set("Content-Type", "application/json");
     if (options.headers) {
@@ -93,10 +83,6 @@ export function createCrudService<T>(config: EntityConfig<T>): CrudService<T> {
       optionHeaders.forEach((value, key) => {
         headers.set(key, value);
       });
-    }
-
-    if (token) {
-      headers.set("Authorization", `Bearer ${token}`);
     }
 
     const response = await fetch(url, {
@@ -229,9 +215,9 @@ export function createCrudService<T>(config: EntityConfig<T>): CrudService<T> {
     async create(data: Partial<T>): Promise<T> {
       try {
         // Check if there's a custom create method
+        // BetterAuth: cookies handle auth, no token needed
         if (service?.create) {
-          const token = await getToken();
-          const result = await service.create(data, token);
+          const result = await service.create(data, undefined);
 
           // Apply after hook
           if (config.hooks?.afterCreate) {
@@ -275,9 +261,9 @@ export function createCrudService<T>(config: EntityConfig<T>): CrudService<T> {
     async update(id: string, data: Partial<T>): Promise<T> {
       try {
         // Check if there's a custom update method
+        // BetterAuth: cookies handle auth, no token needed
         if (service?.update) {
-          const token = await getToken();
-          const result = await service.update(id, data, token);
+          const result = await service.update(id, data, undefined);
 
           // Apply after hook
           if (config.hooks?.afterUpdate) {

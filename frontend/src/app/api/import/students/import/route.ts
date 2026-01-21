@@ -1,13 +1,15 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { auth } from "~/server/auth";
+import { auth, getCookieHeader } from "~/server/auth";
 import { env } from "~/env";
 
 export async function POST(request: NextRequest) {
   try {
     const session = await auth();
-    if (!session?.user?.token) {
+    if (!session?.user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    const cookieHeader = await getCookieHeader();
 
     // Get the form data from the request
     const formData = await request.formData();
@@ -18,7 +20,7 @@ export async function POST(request: NextRequest) {
       {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${session.user.token}`,
+          Cookie: cookieHeader,
         },
         body: formData,
       },

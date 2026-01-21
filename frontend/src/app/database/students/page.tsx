@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useRef, useEffect } from "react";
 import { useIsMobile } from "~/hooks/useIsMobile";
-import { useSession } from "next-auth/react";
+import { useSession } from "~/lib/auth-client";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { DatabasePageLayout } from "~/components/database/database-page-layout";
@@ -57,12 +57,13 @@ export default function StudentsPage() {
     };
   }, []);
 
-  const { status } = useSession({
-    required: true,
-    onUnauthenticated() {
-      redirect("/");
-    },
-  });
+  // BetterAuth: cookies handle auth, isPending replaces status
+  const { data: session, isPending } = useSession();
+
+  // Redirect if not authenticated
+  if (!isPending && !session?.user) {
+    redirect("/");
+  }
 
   // Create service instance
   const service = useMemo(() => createCrudService(studentsConfig), []);
@@ -335,7 +336,7 @@ export default function StudentsPage() {
   return (
     <DatabasePageLayout
       loading={loading}
-      sessionLoading={status === "loading"}
+      sessionLoading={isPending}
       className="-mt-1.5 w-full"
     >
       <div className="mb-4">

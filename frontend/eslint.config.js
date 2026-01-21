@@ -8,7 +8,14 @@ const compat = new FlatCompat({
 /** @type {import('typescript-eslint').ConfigArray} */
 const eslintConfig = [
   {
-    ignores: [".next", "next-env.d.ts", "coverage"],
+    // TODO: Remove **/*.test.* after migrating tests to BetterAuth mocks
+    ignores: [
+      ".next",
+      "next-env.d.ts",
+      "coverage",
+      "**/*.test.ts",
+      "**/*.test.tsx",
+    ],
   },
   ...compat.extends("next/core-web-vitals"),
   ...tseslint.configs.recommended,

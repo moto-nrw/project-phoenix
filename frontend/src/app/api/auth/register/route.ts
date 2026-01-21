@@ -1,6 +1,6 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
-import { auth } from "~/server/auth";
+import { auth, getCookieHeader } from "~/server/auth";
 import { env } from "~/env";
 
 export async function POST(request: NextRequest) {
@@ -11,14 +11,15 @@ export async function POST(request: NextRequest) {
     // Get session to forward authentication if available
     const session = await auth();
 
-    // Prepare headers - include Authorization if authenticated
+    // Prepare headers - include cookies if authenticated
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
     };
 
-    // If authenticated, forward the access token for admin role validation
-    if (session?.user?.token) {
-      headers.Authorization = `Bearer ${session.user.token}`;
+    // If authenticated, forward cookies for admin role validation
+    if (session?.user) {
+      const cookieHeader = await getCookieHeader();
+      headers.Cookie = cookieHeader;
     }
 
     const response = await fetch(`${env.NEXT_PUBLIC_API_URL}/auth/register`, {

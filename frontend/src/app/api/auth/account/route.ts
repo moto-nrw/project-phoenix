@@ -1,18 +1,20 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { auth } from "~/server/auth";
+import { auth, getCookieHeader } from "~/server/auth";
 import { env } from "~/env";
 
 export async function GET(_request: NextRequest) {
   try {
     const session = await auth();
 
-    if (!session?.user?.token) {
+    if (!session?.user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const cookieHeader = await getCookieHeader();
+
     const response = await fetch(`${env.NEXT_PUBLIC_API_URL}/auth/account`, {
       headers: {
-        Authorization: `Bearer ${session.user.token}`,
+        Cookie: cookieHeader,
         "Content-Type": "application/json",
       },
     });

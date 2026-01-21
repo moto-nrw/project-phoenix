@@ -1,9 +1,9 @@
 // Activity Entity Configuration
+// BetterAuth: Authentication handled via cookies, no manual token management needed
 
 import { defineEntityConfig } from "../types";
 import { databaseThemes } from "@/components/ui/database/themes";
 import type { Activity, ActivitySupervisor } from "@/lib/activity-helpers";
-import { getSession } from "next-auth/react";
 
 // Emoji mapping rules: [emoji, ...keywords]
 // Rules are checked in order; first match wins
@@ -124,10 +124,9 @@ export const activitiesConfig = defineEntityConfig<Activity>({
             required: true,
             options: async () => {
               // Fetch categories from API
+              // BetterAuth: cookies handle authentication
               const response = await fetch("/api/activities/categories", {
-                headers: {
-                  Authorization: `Bearer ${(await getSession())?.user?.token}`,
-                },
+                credentials: "include",
               });
               const result = (await response.json()) as
                 | { data?: Array<{ id: number; name: string }> }
@@ -307,11 +306,9 @@ export const activitiesConfig = defineEntityConfig<Activity>({
         loadOptions: async () => {
           try {
             // Fetch supervisors from API
-            const session = await getSession();
+            // BetterAuth: cookies handle authentication
             const response = await fetch("/api/activities/supervisors", {
-              headers: {
-                Authorization: `Bearer ${session?.user?.token}`,
-              },
+              credentials: "include",
             });
 
             if (!response.ok) {

@@ -1,9 +1,9 @@
 import type { NextRequest } from "next/server";
 import { createGetHandler } from "@/lib/route-wrapper";
 import { apiGet, apiPut } from "@/lib/api-client";
-import { auth } from "@/server/auth";
+import { auth, getCookieHeader } from "@/server/auth";
 
-export const GET = createGetHandler(async (request, token, _params) => {
+export const GET = createGetHandler(async (request, cookieHeader, _params) => {
   // Extract query parameters
   const searchParams = request.nextUrl.searchParams;
   const email = searchParams.get("email");
@@ -18,18 +18,19 @@ export const GET = createGetHandler(async (request, token, _params) => {
     ? `/auth/accounts?${queryParams.toString()}`
     : "/auth/accounts";
 
-  const response = await apiGet<{ data: unknown }>(url, token);
+  const response = await apiGet<{ data: unknown }>(url, cookieHeader);
   return response.data;
 });
 
 // POST handler for updating accounts
 export async function POST(request: NextRequest) {
   const session = await auth();
-  if (!session?.user?.token) {
+  if (!session?.user) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   try {
+    const cookieHeader = await getCookieHeader();
     const body = (await request.json()) as {
       id: string;
       [key: string]: unknown;
@@ -38,7 +39,7 @@ export async function POST(request: NextRequest) {
     const response = await apiPut(
       `/auth/accounts/${id}`,
       updateData,
-      session.user.token,
+      cookieHeader,
     );
     return Response.json(response.data);
   } catch {

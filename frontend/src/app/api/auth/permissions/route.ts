@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { auth } from "~/server/auth";
+import { auth, getCookieHeader } from "~/server/auth";
 import { env } from "~/env";
 
 // Backend model type (lowercase fields)
@@ -26,12 +26,13 @@ interface ErrorResponse {
 export async function GET(request: NextRequest) {
   try {
     const session = await auth();
-    if (!session?.user?.token) {
+    if (!session?.user) {
       return NextResponse.json({ error: "Unauthorized" } as ErrorResponse, {
         status: 401,
       });
     }
 
+    const cookieHeader = await getCookieHeader();
     const searchParams = request.nextUrl.searchParams;
     const resource = searchParams.get("resource");
     const action = searchParams.get("action");
@@ -42,7 +43,7 @@ export async function GET(request: NextRequest) {
 
     const response = await fetch(url.toString(), {
       headers: {
-        Authorization: `Bearer ${session.user.token}`,
+        Cookie: cookieHeader,
         "Content-Type": "application/json",
       },
     });
@@ -69,19 +70,20 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const session = await auth();
-    if (!session?.user?.token) {
+    if (!session?.user) {
       return NextResponse.json({ error: "Unauthorized" } as ErrorResponse, {
         status: 401,
       });
     }
 
+    const cookieHeader = await getCookieHeader();
     const body = (await request.json()) as Partial<BackendPermission>;
     const response = await fetch(
       `${env.NEXT_PUBLIC_API_URL}/auth/permissions`,
       {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${session.user.token}`,
+          Cookie: cookieHeader,
           "Content-Type": "application/json",
         },
         body: JSON.stringify(body),

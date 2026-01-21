@@ -11,8 +11,9 @@ interface ProfileResponse {
 }
 
 // POST handler for avatar upload with security validation
+// BetterAuth: cookieHeader is passed for session validation
 export const POST = createFileUploadHandler<BackendProfile>(
-  async (request: NextRequest, formData: FormData, token: string) => {
+  async (request: NextRequest, formData: FormData, cookieHeader: string) => {
     // Get the avatar file from form data
     const avatarFile = formData.get("avatar");
     if (!avatarFile || !(avatarFile instanceof File)) {
@@ -89,11 +90,12 @@ export const POST = createFileUploadHandler<BackendProfile>(
     validatedFormData.append("avatar", validatedFile);
 
     // Forward the request to backend
+    // BetterAuth: Forward cookies instead of Bearer token
     const backendUrl = `${env.NEXT_PUBLIC_API_URL}/api/me/profile/avatar`;
     const response = await fetch(backendUrl, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${token}`,
+        Cookie: cookieHeader,
       },
       body: validatedFormData,
     });
@@ -124,14 +126,16 @@ export const POST = createFileUploadHandler<BackendProfile>(
 );
 
 // DELETE handler for removing avatar
+// BetterAuth: cookieHeader is passed for session validation
 export const DELETE = createDeleteHandler(
-  async (request: NextRequest, token: string) => {
+  async (_request: NextRequest, cookieHeader: string) => {
     // Forward the request to backend
+    // BetterAuth: Forward cookies instead of Bearer token
     const backendUrl = `${env.NEXT_PUBLIC_API_URL}/api/me/profile/avatar`;
     const response = await fetch(backendUrl, {
       method: "DELETE",
       headers: {
-        Authorization: `Bearer ${token}`,
+        Cookie: cookieHeader,
       },
     });
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { useSession } from "next-auth/react";
+import { useSession } from "~/lib/auth-client";
 import { redirect } from "next/navigation";
 import { ResponsiveLayout } from "~/components/dashboard";
 import { Loading } from "~/components/ui/loading";
@@ -85,12 +85,13 @@ export default function StudentCSVImportPage() {
   const [error, setError] = useState<string | null>(null);
   const [templateFormat, setTemplateFormat] = useState<"csv" | "xlsx">("csv");
 
-  const { data: session, status } = useSession({
-    required: true,
-    onUnauthenticated() {
-      redirect("/");
-    },
-  });
+  // BetterAuth: cookies handle auth, isPending replaces status
+  const { data: session, isPending } = useSession();
+
+  // Redirect if not authenticated
+  if (!isPending && !session?.user) {
+    redirect("/");
+  }
 
   const toast = useToast();
 
@@ -109,18 +110,11 @@ export default function StudentCSVImportPage() {
   // Handle template download from backend
   const handleDownloadTemplate = async () => {
     try {
-      const token = session?.user?.token;
-      if (!token) {
-        setError("Keine Authentifizierung");
-        return;
-      }
-
+      // BetterAuth: cookies handle auth automatically
       const response = await fetch(
         `/api/import/students/template?format=${templateFormat}`,
         {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
+          credentials: "include",
         },
       );
 
@@ -146,115 +140,100 @@ export default function StudentCSVImportPage() {
   };
 
   // Handle file upload and preview via backend API
-  const handleFileUpload = useCallback(
-    async (file: File) => {
-      setUploadedFile(file);
-      setError(null);
-      setIsLoading(true);
-      setImportComplete(false);
-      setImportResult(null);
+  const handleFileUpload = useCallback(async (file: File) => {
+    setUploadedFile(file);
+    setError(null);
+    setIsLoading(true);
+    setImportComplete(false);
+    setImportResult(null);
 
-      try {
-        const token = session?.user?.token;
-        if (!token) {
-          throw new Error("Keine Authentifizierung");
-        }
+    try {
+      // BetterAuth: cookies handle auth automatically
+      const formData = new FormData();
+      formData.append("file", file);
 
-        const formData = new FormData();
-        formData.append("file", file);
+      const response = await fetch("/api/import/students/preview", {
+        method: "POST",
+        credentials: "include",
+        body: formData,
+      });
 
-        const response = await fetch("/api/import/students/preview", {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-          body: formData,
-        });
+      const result = (await response.json()) as Record<string, unknown>;
 
-        const result = (await response.json()) as Record<string, unknown>;
+      if (!response.ok) {
+        throw new Error(
+          (result.message as string | undefined) ?? "Fehler bei der Vorschau",
+        );
+      }
 
-        if (!response.ok) {
-          throw new Error(
-            (result.message as string | undefined) ?? "Fehler bei der Vorschau",
+      // Transform backend response to display format
+      const importData = result.data as ImportResult;
+      const displayData: DisplayStudent[] = [];
+
+      // Process errors (rows with issues)
+      if (importData.Errors) {
+        for (const row of importData.Errors) {
+          const hasErrors = row.Errors.some((e) => e.severity === "error");
+          const hasWarnings = row.Errors.some((e) => e.severity === "warning");
+          const isExisting = row.Errors.some(
+            (e) => e.code === "already_exists",
           );
-        }
 
-        // Transform backend response to display format
-        const importData = result.data as ImportResult;
-        const displayData: DisplayStudent[] = [];
+          // Determine row status based on error conditions
+          // Check isExisting first because already_exists has severity "error"
+          const getRowStatus = (): "error" | "existing" | "warning" | "new" => {
+            if (isExisting) return "existing";
+            if (hasErrors) return "error";
+            if (hasWarnings) return "warning";
+            return "new";
+          };
 
-        // Process errors (rows with issues)
-        if (importData.Errors) {
-          for (const row of importData.Errors) {
-            const hasErrors = row.Errors.some((e) => e.severity === "error");
-            const hasWarnings = row.Errors.some(
-              (e) => e.severity === "warning",
-            );
-            const isExisting = row.Errors.some(
-              (e) => e.code === "already_exists",
-            );
-
-            // Determine row status based on error conditions
-            // Check isExisting first because already_exists has severity "error"
-            const getRowStatus = ():
-              | "error"
-              | "existing"
-              | "warning"
-              | "new" => {
-              if (isExisting) return "existing";
-              if (hasErrors) return "error";
-              if (hasWarnings) return "warning";
-              return "new";
-            };
-
-            displayData.push({
-              row: row.RowNumber,
-              status: getRowStatus(),
-              errors: row.Errors.map((e) => e.message),
-              first_name: row.Data.first_name,
-              last_name: row.Data.last_name,
-              school_class: row.Data.school_class,
-              group_name: row.Data.group_name ?? "",
-              guardian_info:
-                row.Data.guardians && row.Data.guardians.length > 0
-                  ? `${row.Data.guardians[0]?.first_name ?? ""} ${row.Data.guardians[0]?.last_name ?? ""} (${row.Data.guardians[0]?.relationship_type ?? ""})`
-                  : "",
-              health_info: row.Data.health_info ?? "",
-            });
-          }
-        }
-
-        // Calculate how many are new (total - errors)
-        const newCount = importData.TotalRows - displayData.length;
-
-        // Add placeholder entries for successful rows (they're not in Errors array)
-        // Note: In a real implementation, we'd want the backend to return all rows
-        if (newCount > 0 && displayData.length === 0) {
-          // If no errors, create a summary
           displayData.push({
-            row: 0,
-            status: "new",
-            errors: [],
-            first_name: `${importData.TotalRows} Schüler`,
-            last_name: "bereit zum Import",
-            school_class: "",
-            group_name: "",
-            guardian_info: "",
-            health_info: "",
+            row: row.RowNumber,
+            status: getRowStatus(),
+            errors: row.Errors.map((e) => e.message),
+            first_name: row.Data.first_name,
+            last_name: row.Data.last_name,
+            school_class: row.Data.school_class,
+            group_name: row.Data.group_name ?? "",
+            guardian_info:
+              row.Data.guardians && row.Data.guardians.length > 0
+                ? `${row.Data.guardians[0]?.first_name ?? ""} ${row.Data.guardians[0]?.last_name ?? ""} (${row.Data.guardians[0]?.relationship_type ?? ""})`
+                : "",
+            health_info: row.Data.health_info ?? "",
           });
         }
-
-        setPreviewData(displayData);
-        setImportResult(importData);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Unbekannter Fehler");
-        setPreviewData([]);
-      } finally {
-        setIsLoading(false);
       }
-    },
-    [session],
-  );
+
+      // Calculate how many are new (total - errors)
+      const newCount = importData.TotalRows - displayData.length;
+
+      // Add placeholder entries for successful rows (they're not in Errors array)
+      // Note: In a real implementation, we'd want the backend to return all rows
+      if (newCount > 0 && displayData.length === 0) {
+        // If no errors, create a summary
+        displayData.push({
+          row: 0,
+          status: "new",
+          errors: [],
+          first_name: `${importData.TotalRows} Schüler`,
+          last_name: "bereit zum Import",
+          school_class: "",
+          group_name: "",
+          guardian_info: "",
+          health_info: "",
+        });
+      }
+
+      setPreviewData(displayData);
+      setImportResult(importData);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unbekannter Fehler");
+      setPreviewData([]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
 
   // Handle actual import
   const handleImport = async () => {
@@ -264,19 +243,13 @@ export default function StudentCSVImportPage() {
     setError(null);
 
     try {
-      const token = session?.user?.token;
-      if (!token) {
-        throw new Error("Keine Authentifizierung");
-      }
-
+      // BetterAuth: cookies handle auth automatically
       const formData = new FormData();
       formData.append("file", uploadedFile);
 
       const response = await fetch("/api/import/students/import", {
         method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        credentials: "include",
         body: formData,
       });
 
@@ -380,7 +353,7 @@ export default function StudentCSVImportPage() {
     errors: importResult?.ErrorCount ?? 0,
   };
 
-  if (status === "loading") {
+  if (isPending) {
     return (
       <ResponsiveLayout>
         <Loading fullPage={false} />

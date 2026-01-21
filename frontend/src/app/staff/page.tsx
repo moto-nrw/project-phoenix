@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, Suspense, useMemo } from "react";
-import { useSession } from "next-auth/react";
+import { useSession } from "~/lib/auth-client";
 import { redirect } from "next/navigation";
 import { ResponsiveLayout } from "~/components/dashboard";
 import { PageHeaderWithSearch } from "~/components/ui/page-header";
@@ -19,12 +19,13 @@ import { useSWRAuth } from "~/lib/swr";
 
 import { Loading } from "~/components/ui/loading";
 function StaffPageContent() {
-  const { status } = useSession({
-    required: true,
-    onUnauthenticated() {
-      redirect("/");
-    },
-  });
+  // BetterAuth: cookies handle auth, isPending replaces status
+  const { data: session, isPending } = useSession();
+
+  // Redirect if not authenticated
+  if (!isPending && !session?.user) {
+    redirect("/");
+  }
 
   // State variables for filters
   const [searchTerm, setSearchTerm] = useState("");
@@ -171,7 +172,7 @@ function StaffPageContent() {
     return filters;
   }, [searchTerm, locationFilter]);
 
-  if (status === "loading" || isLoading) {
+  if (isPending || isLoading) {
     return (
       <ResponsiveLayout>
         <Loading fullPage={false} />

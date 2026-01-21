@@ -1,7 +1,6 @@
 // lib/group-transfer-api.ts
 // API client for group transfer operations
-
-import { getSession } from "next-auth/react";
+// BetterAuth: Authentication handled via cookies, no manual token management needed
 
 // Staff member with role info for dropdown
 export interface StaffWithRole {
@@ -49,17 +48,14 @@ function mapStaffWithRole(data: BackendStaffWithRole): StaffWithRole {
 
 export const groupTransferService = {
   // Get staff members with a specific role (for dropdown)
+  // BetterAuth: authentication handled via cookies
   async getStaffByRole(role: string): Promise<StaffWithRole[]> {
     try {
-      const session = await getSession();
       const response = await fetch(`/api/staff/by-role?role=${role}`, {
         credentials: "include",
-        headers: session?.user?.token
-          ? {
-              Authorization: `Bearer ${session.user.token}`,
-              "Content-Type": "application/json",
-            }
-          : undefined,
+        headers: {
+          "Content-Type": "application/json",
+        },
       });
 
       if (!response.ok) {
@@ -88,18 +84,15 @@ export const groupTransferService = {
   },
 
   // Transfer group to another user (until end of day)
+  // BetterAuth: authentication handled via cookies
   async transferGroup(groupId: string, targetPersonId: string): Promise<void> {
     try {
-      const session = await getSession();
       const response = await fetch(`/api/groups/${groupId}/transfer`, {
         method: "POST",
         credentials: "include",
-        headers: session?.user?.token
-          ? {
-              Authorization: `Bearer ${session.user.token}`,
-              "Content-Type": "application/json",
-            }
-          : undefined,
+        headers: {
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify({
           target_user_id: Number.parseInt(targetPersonId, 10),
         }),
@@ -127,27 +120,14 @@ export const groupTransferService = {
   },
 
   // Get all active transfers for a group (from substitutions)
-  // Pass token to skip redundant getSession() call (saves ~600ms)
-  async getActiveTransfersForGroup(
-    groupId: string,
-    token?: string,
-  ): Promise<GroupTransfer[]> {
+  // BetterAuth: authentication handled via cookies
+  async getActiveTransfersForGroup(groupId: string): Promise<GroupTransfer[]> {
     try {
-      // Use provided token or fall back to getSession()
-      let authToken = token;
-      if (!authToken) {
-        const session = await getSession();
-        authToken = session?.user?.token;
-      }
-
       const response = await fetch(`/api/groups/${groupId}/substitutions`, {
         credentials: "include",
-        headers: authToken
-          ? {
-              Authorization: `Bearer ${authToken}`,
-              "Content-Type": "application/json",
-            }
-          : undefined,
+        headers: {
+          "Content-Type": "application/json",
+        },
       });
 
       if (!response.ok) {
@@ -229,23 +209,20 @@ export const groupTransferService = {
   },
 
   // Delete a specific transfer by substitution ID (with ownership check)
+  // BetterAuth: authentication handled via cookies
   async cancelTransferBySubstitutionId(
     groupId: string,
     substitutionId: string,
   ): Promise<void> {
     try {
-      const session = await getSession();
       const response = await fetch(
         `/api/groups/${groupId}/transfer/${substitutionId}`,
         {
           method: "DELETE",
           credentials: "include",
-          headers: session?.user?.token
-            ? {
-                Authorization: `Bearer ${session.user.token}`,
-                "Content-Type": "application/json",
-              }
-            : undefined,
+          headers: {
+            "Content-Type": "application/json",
+          },
         },
       );
 

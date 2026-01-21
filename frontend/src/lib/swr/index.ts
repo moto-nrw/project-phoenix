@@ -1,7 +1,7 @@
 /**
  * SWR Utilities for Project Phoenix
  *
- * This module provides SWR hooks integrated with NextAuth authentication.
+ * This module provides SWR hooks integrated with BetterAuth authentication.
  * Based on Vercel Engineering's React Best Practices for automatic
  * request deduplication, caching, and revalidation.
  *

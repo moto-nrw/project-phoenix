@@ -1,13 +1,15 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { auth } from "~/server/auth";
+import { auth, getCookieHeader } from "~/server/auth";
 import { env } from "~/env";
 
 export async function GET(request: NextRequest) {
   try {
     const session = await auth();
-    if (!session?.user?.token) {
+    if (!session?.user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    const cookieHeader = await getCookieHeader();
 
     // Get format parameter from query string
     const searchParams = request.nextUrl.searchParams;
@@ -17,7 +19,7 @@ export async function GET(request: NextRequest) {
       `${env.NEXT_PUBLIC_API_URL}/api/import/students/template?format=${format}`,
       {
         headers: {
-          Authorization: `Bearer ${session.user.token}`,
+          Cookie: cookieHeader,
         },
       },
     );

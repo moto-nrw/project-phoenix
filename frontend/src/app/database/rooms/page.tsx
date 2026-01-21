@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { useSession } from "next-auth/react";
+import { useSession } from "~/lib/auth-client";
 import { redirect } from "next/navigation";
 import { DatabasePageLayout } from "~/components/database/database-page-layout";
 import { PageHeaderWithSearch } from "~/components/ui/page-header";
@@ -48,12 +48,13 @@ export default function RoomsPage() {
 
   const { success: toastSuccess } = useToast();
 
-  const { status } = useSession({
-    required: true,
-    onUnauthenticated() {
-      redirect("/");
-    },
-  });
+  // BetterAuth: cookies handle auth, isPending replaces status
+  const { data: session, isPending } = useSession();
+
+  // Redirect if not authenticated
+  if (!isPending && !session?.user) {
+    redirect("/");
+  }
 
   const service = useMemo(() => createCrudService(roomsConfig), []);
 
@@ -229,7 +230,7 @@ export default function RoomsPage() {
   };
 
   return (
-    <DatabasePageLayout loading={loading} sessionLoading={status === "loading"}>
+    <DatabasePageLayout loading={loading} sessionLoading={isPending}>
       <div className="mb-4">
         <PageHeaderWithSearch
           title={isMobile ? "Räume" : ""}

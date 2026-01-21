@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { ResponsiveLayout } from "~/components/dashboard";
 import { Loading } from "~/components/ui/loading";
-import { useSession } from "next-auth/react";
+import { useSession } from "~/lib/auth-client";
 import { InfoCard, InfoItem } from "~/components/ui/info-card";
 import { BackButton } from "~/components/ui/back-button";
 import {
@@ -174,7 +174,8 @@ export default function RoomDetailPage() {
   const searchParams = useSearchParams();
   const roomId = params.id as string;
   const referrer = searchParams.get("from") ?? "/rooms";
-  const { data: session } = useSession();
+  // BetterAuth: auth handled via cookies
+  useSession(); // Ensure session is checked
 
   const [room, setRoom] = useState<Room | null>(null);
   const [roomHistory, setRoomHistory] = useState<RoomHistoryEntry[]>([]);
@@ -188,16 +189,11 @@ export default function RoomDetailPage() {
       setError(null);
 
       try {
-        const authHeaders = session?.user?.token
-          ? { Authorization: `Bearer ${session.user.token}` }
-          : undefined;
-
         // Fetch room data
         const roomResponse = await fetch(`/api/rooms/${roomId}`, {
           credentials: "include",
           headers: {
             "Content-Type": "application/json",
-            ...authHeaders,
           },
         });
 
@@ -217,7 +213,6 @@ export default function RoomDetailPage() {
           credentials: "include",
           headers: {
             "Content-Type": "application/json",
-            ...authHeaders,
           },
         });
 
@@ -253,7 +248,7 @@ export default function RoomDetailPage() {
     };
 
     void fetchRoomData();
-  }, [roomId, session?.user?.token]);
+  }, [roomId]);
 
   // Group room history entries into activities
   const groupHistoryByActivity = (history: RoomHistoryEntry[]): Activity[] => {

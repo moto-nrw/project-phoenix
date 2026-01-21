@@ -9,11 +9,15 @@ export interface RoomsApiResponse {
   message?: string;
 }
 
-export async function fetchRooms(token?: string): Promise<Room[]> {
+// BetterAuth: Cookies are automatically included, no token needed
+export async function fetchRooms(cookieHeader?: string): Promise<Room[]> {
   try {
-    // Server-side: call backend directly
+    // Server-side: call backend directly with cookies
     if (globalThis.window === undefined) {
-      const response = await apiGet<RoomsApiResponse>("/api/rooms", token);
+      const response = await apiGet<RoomsApiResponse>(
+        "/api/rooms",
+        cookieHeader,
+      );
 
       // apiGet returns AxiosResponse<RoomsApiResponse>
       // response.data is RoomsApiResponse { status, data: BackendRoom[] }
@@ -27,10 +31,9 @@ export async function fetchRooms(token?: string): Promise<Room[]> {
     }
 
     // Client-side: use Next.js API route
+    // BetterAuth: Cookies are sent automatically on same-origin requests
     const response = await fetch("/api/rooms", {
-      headers: {
-        Authorization: token ? `Bearer ${token}` : "",
-      },
+      credentials: "include", // Ensure cookies are sent
     });
 
     if (!response.ok) {

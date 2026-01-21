@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, useCallback } from "react";
-import { useSession } from "next-auth/react";
+import { useSession } from "~/lib/auth-client";
 import { redirect } from "next/navigation";
 import { DatabasePageLayout } from "~/components/database/database-page-layout";
 import { PageHeaderWithSearch } from "~/components/ui/page-header";
@@ -54,12 +54,13 @@ export default function RolesPage() {
 
   const { success: toastSuccess } = useToast();
 
-  const { status } = useSession({
-    required: true,
-    onUnauthenticated() {
-      redirect("/");
-    },
-  });
+  // BetterAuth: cookies handle auth, isPending replaces status
+  const { data: session, isPending } = useSession();
+
+  // Redirect if not authenticated
+  if (!isPending && !session?.user) {
+    redirect("/");
+  }
 
   const service = useMemo(() => createCrudService(rolesConfig), []);
 
@@ -194,7 +195,7 @@ export default function RolesPage() {
   };
 
   return (
-    <DatabasePageLayout loading={loading} sessionLoading={status === "loading"}>
+    <DatabasePageLayout loading={loading} sessionLoading={isPending}>
       <div className="mb-4">
         <PageHeaderWithSearch
           title={isMobile ? "Rollen" : ""}
@@ -349,8 +350,9 @@ export default function RolesPage() {
                 <div className="relative flex items-center gap-4 p-5">
                   <div className="flex-shrink-0">
                     <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-purple-500 to-purple-600 font-semibold text-white shadow-md transition-transform duration-300 md:group-hover:scale-110">
-                      {getRoleDisplayName(role.name)?.charAt(0)?.toUpperCase() ??
-                        "R"}
+                      {getRoleDisplayName(role.name)
+                        ?.charAt(0)
+                        ?.toUpperCase() ?? "R"}
                     </div>
                   </div>
                   <div className="min-w-0 flex-1">

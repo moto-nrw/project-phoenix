@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { auth } from "~/server/auth";
+import { auth, getCookieHeader } from "~/server/auth";
 import { env } from "~/env";
 
 // Backend model type (lowercase fields)
@@ -36,16 +36,17 @@ export async function GET(
     }
 
     const session = await auth();
-    if (!session?.user?.token) {
+    if (!session?.user) {
       return NextResponse.json({ error: "Unauthorized" } as ErrorResponse, {
         status: 401,
       });
     }
 
+    const cookieHeader = await getCookieHeader();
     const url = `${env.NEXT_PUBLIC_API_URL}/auth/permissions/${permissionId}`;
     const response = await fetch(url, {
       headers: {
-        Authorization: `Bearer ${session.user.token}`,
+        Cookie: cookieHeader,
         "Content-Type": "application/json",
       },
     });
@@ -82,18 +83,19 @@ export async function PUT(
     }
 
     const session = await auth();
-    if (!session?.user?.token) {
+    if (!session?.user) {
       return NextResponse.json({ error: "Unauthorized" } as ErrorResponse, {
         status: 401,
       });
     }
 
+    const cookieHeader = await getCookieHeader();
     const body = (await request.json()) as unknown;
     const url = `${env.NEXT_PUBLIC_API_URL}/auth/permissions/${permissionId}`;
     const response = await fetch(url, {
       method: "PUT",
       headers: {
-        Authorization: `Bearer ${session.user.token}`,
+        Cookie: cookieHeader,
         "Content-Type": "application/json",
       },
       body: JSON.stringify(body),
@@ -134,17 +136,18 @@ export async function DELETE(
     }
 
     const session = await auth();
-    if (!session?.user?.token) {
+    if (!session?.user) {
       return NextResponse.json({ error: "Unauthorized" } as ErrorResponse, {
         status: 401,
       });
     }
 
+    const cookieHeader = await getCookieHeader();
     const url = `${env.NEXT_PUBLIC_API_URL}/auth/permissions/${permissionId}`;
     const response = await fetch(url, {
       method: "DELETE",
       headers: {
-        Authorization: `Bearer ${session.user.token}`,
+        Cookie: cookieHeader,
         "Content-Type": "application/json",
       },
     });

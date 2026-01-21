@@ -1,6 +1,6 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
-import { auth } from "../server/auth";
+import { auth, getCookieHeader } from "../server/auth";
 import type { ApiErrorResponse, ApiResponse } from "./api-helpers";
 import { handleApiError } from "./api-helpers";
 
@@ -69,12 +69,13 @@ function validateFile(file: File, options: FileUploadOptions): void {
 
 /**
  * Wrapper function for handling file upload API routes
+ * BetterAuth: Uses cookies instead of Bearer token for authentication
  */
 export function createFileUploadHandler<T>(
   handler: (
     request: NextRequest,
     formData: FormData,
-    token: string,
+    cookieHeader: string,
     params: Record<string, unknown>,
   ) => Promise<T>,
   options?: FileUploadOptions,
@@ -86,9 +87,11 @@ export function createFileUploadHandler<T>(
     try {
       const session = await auth();
 
-      if (!session?.user?.token) {
+      if (!session?.user) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
       }
+
+      const cookieHeader = await getCookieHeader();
 
       // Extract parameters
       const safeParams: Record<string, unknown> = {};
@@ -112,12 +115,7 @@ export function createFileUploadHandler<T>(
         }
       }
 
-      const data = await handler(
-        request,
-        formData,
-        session.user.token,
-        safeParams,
-      );
+      const data = await handler(request, formData, cookieHeader, safeParams);
 
       // Wrap the response in ApiResponse format if it's not already
       const response: ApiResponse<T> =

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { useSession } from "next-auth/react";
+import { useSession } from "~/lib/auth-client";
 import { useRouter } from "next/navigation";
 import { Header } from "./header";
 import { Sidebar } from "./sidebar";
@@ -28,23 +28,26 @@ export default function ResponsiveLayout({
   activeSupervisionName,
   ogsGroupName,
 }: ResponsiveLayoutProps) {
-  const { data: session, status } = useSession();
+  const { data: session, isPending } = useSession();
   const router = useRouter();
   // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing -- intentionally using || to treat empty strings as falsy
   const userName = session?.user?.name?.trim() || undefined;
   const userEmail = session?.user?.email ?? "";
-  const userRoles = session?.user?.roles ?? [];
+  // BetterAuth: roles are stored differently - check the session structure
+  const userRoles =
+    (session?.user as { roles?: string[] } | undefined)?.roles ?? [];
   const userRole = userRoles.includes("admin") ? "Admin" : "Betreuer";
 
   // Check for invalid session and redirect
   useEffect(() => {
-    if (status === "loading") return;
+    // BetterAuth: use isPending instead of status === "loading"
+    if (isPending) return;
 
-    // If session exists but token is empty, redirect to login
-    if (session && !session.user?.token) {
+    // BetterAuth: if not pending and no user, redirect to login
+    if (!session?.user) {
       router.push("/");
     }
-  }, [session, status, router]);
+  }, [session, isPending, router]);
 
   return (
     <div className="relative min-h-screen">

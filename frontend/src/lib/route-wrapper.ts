@@ -1,8 +1,24 @@
+/**
+ * Route Handler Wrapper for Next.js API Routes
+ *
+ * This module provides wrapper functions for API route handlers that:
+ * 1. Forward cookies to the Go backend (BetterAuth session validation)
+ * 2. Handle authentication and authorization
+ * 3. Provide consistent error handling
+ * 4. Support retry logic for transient failures
+ *
+ * BetterAuth Migration Notes:
+ * - No more JWT tokens - session is validated via cookies
+ * - Go backend validates session with BetterAuth service
+ * - Cookies are forwarded automatically from request headers
+ */
+
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
-import { auth } from "../server/auth";
+import { cookies } from "next/headers";
 import type { ApiErrorResponse, ApiResponse } from "./api-helpers";
-import { apiDelete, apiGet, apiPut, handleApiError } from "./api-helpers";
+import { handleApiError } from "./api-helpers";
+import { env } from "~/env";
 
 /**
  * Helper to build query string from request search params
@@ -73,85 +89,29 @@ function wrapInApiResponse<T>(data: T): ApiResponse<T> {
 }
 
 /**
- * Checks if error is a 401 authentication error
- */
-function is401Error(error: unknown): boolean {
-  return error instanceof Error && error.message.includes("API error (401)");
-}
-
-/**
- * Creates a standard token expired response
- */
-function createTokenExpiredResponse(): NextResponse<ApiErrorResponse> {
-  return NextResponse.json(
-    { error: "Token expired", code: "TOKEN_EXPIRED" },
-    { status: 401 },
-  );
-}
-
-/**
- * Attempts to retry a request with a refreshed token
- * Returns null if retry should not be attempted
- */
-async function tryRetryWithRefreshedToken<T>(
-  originalToken: string,
-  retryFn: (token: string) => Promise<T>,
-): Promise<T | null> {
-  const updatedSession = await auth();
-
-  // Only retry if token was actually refreshed
-  if (
-    !updatedSession?.user?.token ||
-    updatedSession.user.token === originalToken
-  ) {
-    return null;
-  }
-
-  return retryFn(updatedSession.user.token);
-}
-
-/**
- * Handles GET response formatting, including special case for rooms endpoint
- */
-function formatGetResponse<T>(
-  data: T,
-  pathname: string,
-): NextResponse<ApiResponse<T> | T> {
-  // For the rooms endpoint, pass raw data directly
-  if (pathname === "/api/rooms") {
-    return NextResponse.json(data);
-  }
-  return NextResponse.json(wrapInApiResponse(data));
-}
-
-/**
- * Parses JSON body from request, returns empty object on failure
- */
-async function parseRequestBody<B>(request: NextRequest): Promise<B> {
-  try {
-    const text = await request.text();
-    return text ? (JSON.parse(text) as B) : ({} as B);
-  } catch {
-    return {} as B;
-  }
-}
-
-/**
- * Formats DELETE response, returning 204 for null/undefined data
- */
-function formatDeleteResponse<T>(data: T): ApiNextResponse<T> {
-  if (data === null || data === undefined) {
-    // Return 204 No Content for successful deletions without body
-    return new NextResponse(null, { status: 204 });
-  }
-  return NextResponse.json(wrapInApiResponse(data));
-}
-
-/**
- * Creates an unauthorized response
+ * Creates a standard unauthorized response
  */
 function createUnauthorizedResponse(): NextResponse<ApiErrorResponse> {
   return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+}
+
+/**
+ * Get cookies as a header string for forwarding to backend
+ * BetterAuth uses cookies for session management
+ */
+async function getCookieHeader(): Promise<string> {
+  const cookieStore = await cookies();
+  return cookieStore.toString();
+}
+
+/**
+ * Check if the user has an active session by checking for BetterAuth session cookie
+ */
+async function hasActiveSession(): Promise<boolean> {
+  const cookieStore = await cookies();
+  // BetterAuth session cookie name
+  const sessionCookie = cookieStore.get("better-auth.session_token");
+  return !!sessionCookie?.value;
 }
 
 /**
@@ -173,20 +133,22 @@ type RouteHandlerResponse<T> = Promise<ApiNextResponse<T>>;
 
 /**
  * Handler type without body (GET, DELETE)
+ * Note: Now receives cookieHeader instead of token
  */
 type NoBodyHandler<T> = (
   request: NextRequest,
-  token: string,
+  cookieHeader: string,
   params: Record<string, unknown>,
 ) => Promise<T>;
 
 /**
  * Handler type with body (POST, PUT)
+ * Note: Now receives cookieHeader instead of token
  */
 type WithBodyHandler<T, B> = (
   request: NextRequest,
   body: B,
-  token: string,
+  cookieHeader: string,
   params: Record<string, unknown>,
 ) => Promise<T>;
 
@@ -199,36 +161,45 @@ type ResponseFormatter<T> = (
 ) => ApiNextResponse<T>;
 
 /**
- * Executes handler with retry logic on 401 errors
+ * Handles GET response formatting, including special case for rooms endpoint
  */
-async function executeWithRetry<T>(
-  token: string,
-  executeHandler: (token: string) => Promise<T>,
-  formatResponse: (data: T) => ApiNextResponse<T>,
-): Promise<ApiNextResponse<T>> {
+function formatGetResponse<T>(
+  data: T,
+  pathname: string,
+): NextResponse<ApiResponse<T> | T> {
+  // For the rooms endpoint, pass raw data directly
+  if (pathname === "/api/rooms") {
+    return NextResponse.json(data);
+  }
+  return NextResponse.json(wrapInApiResponse(data));
+}
+
+/**
+ * Formats DELETE response, returning 204 for null/undefined data
+ */
+function formatDeleteResponse<T>(data: T): ApiNextResponse<T> {
+  if (data === null || data === undefined) {
+    // Return 204 No Content for successful deletions without body
+    return new NextResponse(null, { status: 204 });
+  }
+  return NextResponse.json(wrapInApiResponse(data));
+}
+
+/**
+ * Parses JSON body from request, returns empty object on failure
+ */
+async function parseRequestBody<B>(request: NextRequest): Promise<B> {
   try {
-    const data = await executeHandler(token);
-    return formatResponse(data);
-  } catch (handlerError) {
-    if (!is401Error(handlerError)) {
-      throw handlerError;
-    }
-
-    try {
-      const retryData = await tryRetryWithRefreshedToken(token, executeHandler);
-      if (retryData !== null) {
-        return formatResponse(retryData);
-      }
-    } catch {
-      // Retry failed, fall through to token expired
-    }
-
-    return createTokenExpiredResponse();
+    const text = await request.text();
+    return text ? (JSON.parse(text) as B) : ({} as B);
+  } catch {
+    return {} as B;
   }
 }
 
 /**
  * Base route handler for requests without body (GET, DELETE)
+ * Forwards cookies to backend for BetterAuth session validation
  */
 function createNoBodyHandler<T>(
   handler: NoBodyHandler<T>,
@@ -239,21 +210,16 @@ function createNoBodyHandler<T>(
     context: RouteContext,
   ): RouteHandlerResponse<T> => {
     try {
-      const session = await auth();
-
-      if (!session?.user?.token) {
+      // Check if user has an active session
+      if (!(await hasActiveSession())) {
         return createUnauthorizedResponse();
       }
 
+      const cookieHeader = await getCookieHeader();
       const safeParams = await extractParams(request, context);
-      const executeHandler = (token: string) =>
-        handler(request, token, safeParams);
 
-      return await executeWithRetry(
-        session.user.token,
-        executeHandler,
-        (data) => formatResponse(data, request),
-      );
+      const data = await handler(request, cookieHeader, safeParams);
+      return formatResponse(data, request);
     } catch (error) {
       return handleApiError(error);
     }
@@ -262,6 +228,7 @@ function createNoBodyHandler<T>(
 
 /**
  * Base route handler for requests with body (POST, PUT)
+ * Forwards cookies to backend for BetterAuth session validation
  */
 function createWithBodyHandler<T, B>(
   handler: WithBodyHandler<T, B>,
@@ -272,26 +239,150 @@ function createWithBodyHandler<T, B>(
     context: RouteContext,
   ): RouteHandlerResponse<T> => {
     try {
-      const session = await auth();
-      if (!session?.user?.token) {
+      // Check if user has an active session
+      if (!(await hasActiveSession())) {
         return createUnauthorizedResponse();
       }
 
+      const cookieHeader = await getCookieHeader();
       const safeParams = await extractParams(request, context);
       const body = await parseRequestBody<B>(request);
-      const executeHandler = (token: string) =>
-        handler(request, body, token, safeParams);
 
-      return await executeWithRetry(
-        session.user.token,
-        executeHandler,
-        (data) => formatResponse(data, request),
-      );
+      const data = await handler(request, body, cookieHeader, safeParams);
+      return formatResponse(data, request);
     } catch (error) {
       return handleApiError(error);
     }
   };
 }
+
+// ============================================================================
+// API Request Helpers - Forward cookies to Go backend
+// ============================================================================
+
+/**
+ * Make a GET request to the Go backend, forwarding cookies for auth
+ */
+export async function apiGetWithCookies<T>(
+  endpoint: string,
+  cookieHeader: string,
+): Promise<T> {
+  const url = `${env.NEXT_PUBLIC_API_URL}${endpoint}`;
+
+  const response = await fetch(url, {
+    method: "GET",
+    headers: {
+      Cookie: cookieHeader,
+      "Content-Type": "application/json",
+    },
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`API error (${response.status}): ${errorText}`);
+  }
+
+  if (response.status === 204) {
+    return {} as T;
+  }
+
+  return (await response.json()) as T;
+}
+
+/**
+ * Make a POST request to the Go backend, forwarding cookies for auth
+ */
+export async function apiPostWithCookies<T, B = unknown>(
+  endpoint: string,
+  cookieHeader: string,
+  body?: B,
+): Promise<T> {
+  const url = `${env.NEXT_PUBLIC_API_URL}${endpoint}`;
+
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      Cookie: cookieHeader,
+      "Content-Type": "application/json",
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`API error (${response.status}): ${errorText}`);
+  }
+
+  if (response.status === 204) {
+    return {} as T;
+  }
+
+  return (await response.json()) as T;
+}
+
+/**
+ * Make a PUT request to the Go backend, forwarding cookies for auth
+ */
+export async function apiPutWithCookies<T, B = unknown>(
+  endpoint: string,
+  cookieHeader: string,
+  body?: B,
+): Promise<T> {
+  const url = `${env.NEXT_PUBLIC_API_URL}${endpoint}`;
+
+  const response = await fetch(url, {
+    method: "PUT",
+    headers: {
+      Cookie: cookieHeader,
+      "Content-Type": "application/json",
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`API error (${response.status}): ${errorText}`);
+  }
+
+  if (response.status === 204) {
+    return {} as T;
+  }
+
+  return (await response.json()) as T;
+}
+
+/**
+ * Make a DELETE request to the Go backend, forwarding cookies for auth
+ */
+export async function apiDeleteWithCookies<T>(
+  endpoint: string,
+  cookieHeader: string,
+): Promise<T | void> {
+  const url = `${env.NEXT_PUBLIC_API_URL}${endpoint}`;
+
+  const response = await fetch(url, {
+    method: "DELETE",
+    headers: {
+      Cookie: cookieHeader,
+      "Content-Type": "application/json",
+    },
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`API error (${response.status}): ${errorText}`);
+  }
+
+  if (response.status === 204) {
+    return undefined;
+  }
+
+  return (await response.json()) as T;
+}
+
+// ============================================================================
+// Proxy Handler Factories
+// ============================================================================
 
 /**
  * Creates a simple proxy GET handler that forwards query params to backend
@@ -299,10 +390,12 @@ function createWithBodyHandler<T, B>(
  * @param backendEndpoint The backend API endpoint (e.g., "/api/active/groups")
  */
 export function createProxyGetHandler<T>(backendEndpoint: string) {
-  return createGetHandler<T>(async (request: NextRequest, token: string) => {
-    const endpoint = `${backendEndpoint}${buildQueryString(request)}`;
-    return await apiGet(endpoint, token);
-  });
+  return createGetHandler<T>(
+    async (request: NextRequest, cookieHeader: string) => {
+      const endpoint = `${backendEndpoint}${buildQueryString(request)}`;
+      return await apiGetWithCookies(endpoint, cookieHeader);
+    },
+  );
 }
 
 /**
@@ -311,11 +404,14 @@ export function createProxyGetHandler<T>(backendEndpoint: string) {
  */
 export function createProxyGetByIdHandler<T>(backendEndpoint: string) {
   return createGetHandler<T>(
-    async (_request: NextRequest, token: string, params) => {
+    async (_request: NextRequest, cookieHeader: string, params) => {
       if (!isStringParam(params.id)) {
         throw new Error("Invalid id parameter");
       }
-      return await apiGet(`${backendEndpoint}/${params.id}`, token);
+      return await apiGetWithCookies(
+        `${backendEndpoint}/${params.id}`,
+        cookieHeader,
+      );
     },
   );
 }
@@ -326,11 +422,15 @@ export function createProxyGetByIdHandler<T>(backendEndpoint: string) {
  */
 export function createProxyPutHandler<T, B = unknown>(backendEndpoint: string) {
   return createPutHandler<T, B>(
-    async (_request: NextRequest, body: B, token: string, params) => {
+    async (_request: NextRequest, body: B, cookieHeader: string, params) => {
       if (!isStringParam(params.id)) {
         throw new Error("Invalid id parameter");
       }
-      return await apiPut(`${backendEndpoint}/${params.id}`, token, body);
+      return await apiPutWithCookies(
+        `${backendEndpoint}/${params.id}`,
+        cookieHeader,
+        body,
+      );
     },
   );
 }
@@ -341,15 +441,26 @@ export function createProxyPutHandler<T, B = unknown>(backendEndpoint: string) {
  */
 export function createProxyDeleteHandler(backendEndpoint: string) {
   return createDeleteHandler(
-    async (_request: NextRequest, token: string, params) => {
+    async (_request: NextRequest, cookieHeader: string, params) => {
       if (!isStringParam(params.id)) {
         throw new Error("Invalid id parameter");
       }
-      await apiDelete(`${backendEndpoint}/${params.id}`, token);
+      await apiDeleteWithCookies(
+        `${backendEndpoint}/${params.id}`,
+        cookieHeader,
+      );
       return null;
     },
   );
 }
+
+// ============================================================================
+// Handler Factories
+// ============================================================================
+
+// Shared formatter for POST/PUT handlers that return JSON with API response wrapper
+const formatBodyHandlerResponse = <T>(data: T) =>
+  NextResponse.json(wrapInApiResponse(data));
 
 /**
  * Wrapper function for handling GET API routes
@@ -361,10 +472,6 @@ export function createGetHandler<T>(handler: NoBodyHandler<T>) {
     formatGetResponse(data, request.nextUrl.pathname),
   );
 }
-
-// Shared formatter for POST/PUT handlers that return JSON with API response wrapper
-const formatBodyHandlerResponse = <T>(data: T) =>
-  NextResponse.json(wrapInApiResponse(data));
 
 /**
  * Wrapper function for handling POST API routes
@@ -397,3 +504,12 @@ export function createPutHandler<T, B = unknown>(
 export function createDeleteHandler<T>(handler: NoBodyHandler<T>) {
   return createNoBodyHandler(handler, (data) => formatDeleteResponse(data));
 }
+
+// ============================================================================
+// Legacy Token-based API helpers (for compatibility during migration)
+// These are wrappers that accept a "token" parameter but actually use cookies
+// ============================================================================
+
+import { apiGet, apiPost, apiPut, apiDelete } from "./api-helpers";
+
+export { apiGet, apiPost, apiPut, apiDelete };

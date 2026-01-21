@@ -5,26 +5,22 @@
  * 1. Pre-warm the user context cache on mount (instant navigation)
  * 2. Establish a single global SSE connection (shared across all pages)
  *
- * By placing these hooks here (inside SessionProvider), we ensure:
- * - Single SSE connection for the entire app
- * - User context is cached before any page loads
- * - React Strict Mode safe (SWR handles deduplication)
+ * BetterAuth uses cookies for session management, so no SessionProvider is needed.
+ * Session state is managed via the auth-client module.
  *
  * @example
  * ```tsx
  * // Used in providers.tsx
- * <SessionProvider>
- *   <AuthWrapper>
- *     {children}
- *   </AuthWrapper>
- * </SessionProvider>
+ * <AuthWrapper>
+ *   {children}
+ * </AuthWrapper>
  * ```
  */
 
 "use client";
 
 import { useEffect } from "react";
-import { useSession } from "next-auth/react";
+import { useSession } from "~/lib/auth-client";
 import { useUserContext } from "~/lib/hooks/use-user-context";
 import { useGlobalSSE } from "~/lib/hooks/use-global-sse";
 
@@ -33,7 +29,8 @@ interface AuthWrapperProps {
 }
 
 export function AuthWrapper({ children }: Readonly<AuthWrapperProps>) {
-  const { status } = useSession();
+  // BetterAuth useSession returns { data, isPending, error }
+  const { data: session, isPending } = useSession();
 
   // Pre-warm user context cache (only when authenticated)
   // This fetches once on mount and caches for instant access on all pages
@@ -45,14 +42,14 @@ export function AuthWrapper({ children }: Readonly<AuthWrapperProps>) {
 
   // Debug logging (only in development)
   useEffect(() => {
-    if (process.env.NODE_ENV === "development" && status === "authenticated") {
+    if (process.env.NODE_ENV === "development" && session?.user && !isPending) {
       console.log("🔌 [AuthWrapper] Global SSE status:", sseStatus);
       console.log(
         "📦 [AuthWrapper] User context ready:",
         contextReady ? "Yes" : "Loading...",
       );
     }
-  }, [sseStatus, contextReady, status]);
+  }, [sseStatus, contextReady, session, isPending]);
 
   return <>{children}</>;
 }

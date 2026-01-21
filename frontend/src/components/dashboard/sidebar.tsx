@@ -4,7 +4,7 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { useSession } from "next-auth/react";
+import { useSession } from "~/lib/auth-client";
 import { useSupervision } from "~/lib/supervision-context";
 import { isAdmin } from "~/lib/auth-utils";
 

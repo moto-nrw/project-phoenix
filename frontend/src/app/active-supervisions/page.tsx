@@ -8,7 +8,7 @@ import {
   useCallback,
   useRef,
 } from "react";
-import { useSession } from "next-auth/react";
+import { useSession } from "~/lib/auth-client";
 import { useRouter } from "next/navigation";
 import { ResponsiveLayout } from "~/components/dashboard";
 import { Alert } from "~/components/ui/alert";
@@ -223,12 +223,13 @@ function EmptyRoomsView({
 
 function MeinRaumPageContent() {
   const router = useRouter();
-  const { data: session, status } = useSession({
-    required: true,
-    onUnauthenticated() {
-      router.push("/");
-    },
-  });
+  // BetterAuth: cookies handle auth, isPending replaces status
+  const { data: session, isPending } = useSession();
+
+  // Redirect if not authenticated
+  if (!isPending && !session?.user) {
+    router.push("/");
+  }
 
   // Check if user has access to active rooms
   const [hasAccess, setHasAccess] = useState<boolean | null>(null);
@@ -369,14 +370,15 @@ function MeinRaumPageContent() {
     isLoading: isDashboardLoading,
     error: dashboardError,
   } = useSWRAuth<BFFDashboardResponse>(
-    session?.user?.token ? `active-supervision-dashboard-${refreshKey}` : null,
+    session?.user ? `active-supervision-dashboard-${refreshKey}` : null,
     async () => {
       console.log("⏱️ [Page] SWR fetching BFF data...");
       const start = performance.now();
 
+      // BetterAuth: auth handled via cookies
       const response = await fetch("/api/active-supervision-dashboard", {
+        credentials: "include",
         headers: {
-          Authorization: `Bearer ${session?.user?.token}`,
           "Content-Type": "application/json",
         },
       });
@@ -782,7 +784,7 @@ function MeinRaumPageContent() {
     return filters;
   }, [searchTerm, groupFilter]);
 
-  if (status === "loading" || isLoading || hasAccess === null) {
+  if (isPending || isLoading || hasAccess === null) {
     return <LoadingView />;
   }
 

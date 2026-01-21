@@ -1,14 +1,15 @@
 /**
  * Custom SWR Hooks with Authentication Integration
  *
- * These hooks wrap SWR with NextAuth session awareness,
+ * These hooks wrap SWR with BetterAuth session awareness,
  * ensuring requests only fire when the user is authenticated.
+ * BetterAuth: Authentication handled via cookies, no manual token management needed
  */
 
 "use client";
 
 import useSWR, { type SWRConfiguration, type SWRResponse } from "swr";
-import { useSession } from "next-auth/react";
+import { useSession } from "~/lib/auth-client";
 import { swrConfig, immutableConfig } from "./config";
 
 /**
@@ -34,14 +35,14 @@ export function useSWRAuth<T, E = Error>(
   fetcher: () => Promise<T>,
   options?: SWRConfiguration<T, E>,
 ): SWRResponse<T, E> {
-  const { data: session, status } = useSession();
+  const { data: session, isPending } = useSession();
 
   // Determine if we should fetch:
   // - key must be non-null
-  // - session must be loaded (not "loading")
-  // - user must have a token
-  const shouldFetch =
-    key !== null && status !== "loading" && !!session?.user?.token;
+  // - session must be loaded (not pending)
+  // - user must be authenticated
+  // BetterAuth: cookies handle auth, no token check needed
+  const shouldFetch = key !== null && !isPending && !!session?.user;
 
   return useSWR<T, E>(shouldFetch ? key : null, fetcher, {
     ...swrConfig,
@@ -99,10 +100,10 @@ export function useSWRWithId<T, E = Error>(
   fetcher: (id: string) => Promise<T>,
   options?: SWRConfiguration<T, E>,
 ): SWRResponse<T, E> {
-  const { data: session, status } = useSession();
+  const { data: session, isPending } = useSession();
 
-  const shouldFetch =
-    id != null && status !== "loading" && !!session?.user?.token;
+  // BetterAuth: cookies handle auth, no token check needed
+  const shouldFetch = id != null && !isPending && !!session?.user;
 
   return useSWR<T, E>(
     shouldFetch ? `${baseKey}-${id}` : null,

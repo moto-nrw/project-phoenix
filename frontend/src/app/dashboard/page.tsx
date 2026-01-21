@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
-import { useSession } from "next-auth/react";
+import { useSession } from "~/lib/auth-client";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ResponsiveLayout } from "~/components/dashboard";
@@ -240,12 +240,8 @@ const InfoCard: React.FC<InfoCardProps> = ({
 
 function DashboardContent() {
   const router = useRouter();
-  const { data: session, status } = useSession({
-    required: true,
-    onUnauthenticated() {
-      router.replace("/");
-    },
-  });
+  // BetterAuth: cookies handle auth, isPending replaces status
+  const { data: session, isPending } = useSession();
 
   const [dashboardData, setDashboardData] = useState<DashboardAnalytics | null>(
     null,
@@ -281,19 +277,9 @@ function DashboardContent() {
       }
     };
 
-    if (status === "authenticated" && session) {
-      if (session.error === "RefreshTokenExpired") {
-        console.log("Session refresh token expired, redirecting to login");
-        router.push("/");
-        return;
-      }
-
-      if (session.user?.token) {
-        void fetchDashboardData();
-      } else {
-        console.log("No valid token in session, redirecting to login");
-        router.push("/");
-      }
+    // BetterAuth: cookies handle auth, check session.user instead of token
+    if (!isPending && session?.user) {
+      void fetchDashboardData();
 
       // Refresh data every 5 minutes
       const interval = setInterval(
@@ -304,10 +290,13 @@ function DashboardContent() {
       );
 
       return () => clearInterval(interval);
+    } else if (!isPending && !session?.user) {
+      // No session, redirect to login
+      router.push("/");
     }
-  }, [status, session, router]);
+  }, [isPending, session, router]);
 
-  if (status === "loading") {
+  if (isPending) {
     return (
       <ResponsiveLayout>
         <Loading fullPage={false} />
@@ -655,17 +644,18 @@ function DashboardContent() {
 // Main Dashboard Page Component
 export default function DashboardPage() {
   const router = useRouter();
-  const { data: session, status } = useSession();
+  // BetterAuth: cookies handle auth, isPending replaces status
+  const { data: session, isPending } = useSession();
 
   // Redirect non-admins to OGS groups (must be in useEffect to avoid SSR issues)
   useEffect(() => {
-    if (status !== "loading" && !isAdmin(session)) {
+    if (!isPending && !isAdmin(session)) {
       router.replace("/ogs-groups");
     }
-  }, [status, session, router]);
+  }, [isPending, session, router]);
 
   // Gate access: only admins can view dashboard
-  if (status === "loading") {
+  if (isPending) {
     return (
       <ResponsiveLayout>
         <Loading fullPage={false} />

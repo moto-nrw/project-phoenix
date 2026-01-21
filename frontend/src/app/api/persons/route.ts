@@ -2,13 +2,15 @@ import { type NextRequest } from "next/server";
 import { createPostHandler } from "@/lib/route-wrapper";
 import { env } from "@/env";
 
+// BetterAuth: cookieHeader is passed for session validation
 export const POST = createPostHandler(
-  async (req: NextRequest, body: unknown, token: string) => {
+  async (_req: NextRequest, body: unknown, cookieHeader: string) => {
+    // BetterAuth: Forward cookies instead of Bearer token
     const response = await fetch(`${env.NEXT_PUBLIC_API_URL}/persons`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
+        Cookie: cookieHeader,
       },
       body: JSON.stringify(body),
     });

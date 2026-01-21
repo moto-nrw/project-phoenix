@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { useSession } from "next-auth/react";
+import { useSession } from "~/lib/auth-client";
 import { redirect, useRouter } from "next/navigation";
 import { DatabasePageLayout } from "~/components/database/database-page-layout";
 import { PageHeaderWithSearch } from "~/components/ui/page-header";
@@ -71,12 +71,13 @@ export default function TeachersPage() {
 
   const { success: toastSuccess } = useToast();
 
-  const { status } = useSession({
-    required: true,
-    onUnauthenticated() {
-      redirect("/");
-    },
-  });
+  // BetterAuth: cookies handle auth, isPending replaces status
+  const { data: session, isPending } = useSession();
+
+  // Redirect if not authenticated
+  if (!isPending && !session?.user) {
+    redirect("/");
+  }
 
   // Create service instance
   const service = useMemo(() => createCrudService(teachersConfig), []);
@@ -232,7 +233,7 @@ export default function TeachersPage() {
   return (
     <DatabasePageLayout
       loading={loading}
-      sessionLoading={status === "loading"}
+      sessionLoading={isPending}
       className="-mt-1.5 w-full"
     >
       <div className="mb-4">

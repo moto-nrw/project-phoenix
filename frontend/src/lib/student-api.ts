@@ -1,5 +1,12 @@
-// lib/student-api.ts
-import { getSession } from "next-auth/react";
+/**
+ * Student API Service
+ *
+ * BetterAuth Migration Notes:
+ * - Authentication is handled via cookies automatically
+ * - All fetch calls use credentials: "include"
+ * - No need for Authorization headers
+ */
+
 import { env } from "~/env";
 import api from "./api";
 import {
@@ -112,10 +119,9 @@ export async function fetchStudents(filters?: StudentFilters): Promise<{
 
   try {
     if (useProxy) {
-      const session = await getSession();
       const responseData = await authFetch<
         Student[] | PaginatedResponse<Student>
-      >(url, { token: session?.user?.token });
+      >(url);
 
       // Check if it's a paginated response
       if (
@@ -176,13 +182,8 @@ export async function fetchStudent(id: string): Promise<Student> {
 
   try {
     if (useProxy) {
-      const session = await getSession();
-      const responseData = await authFetch<ApiResponse<Student> | Student>(
-        url,
-        {
-          token: session?.user?.token,
-        },
-      );
+      // Authentication handled via cookies
+      const responseData = await authFetch<ApiResponse<Student> | Student>(url);
       return extractApiData(responseData);
     }
 
@@ -212,13 +213,12 @@ export async function createStudent(studentData: {
 
   try {
     if (useProxy) {
-      const session = await getSession();
+      // Authentication handled via cookies
       const responseData = await authFetch<
         ApiResponse<BackendStudent> | BackendStudent
       >(url, {
         method: "POST",
         body: studentData,
-        token: session?.user?.token,
       });
       const data = extractApiData<BackendStudent>(responseData);
       return mapStudentResponse(data);
@@ -246,10 +246,10 @@ export async function updateStudent(
 
   try {
     if (useProxy) {
-      const session = await getSession();
+      // Authentication handled via cookies
       const responseData = await authFetch<
         ApiResponse<BackendStudent> | BackendStudent
-      >(url, { method: "PUT", body: studentData, token: session?.user?.token });
+      >(url, { method: "PUT", body: studentData });
       const data = extractApiData<BackendStudent>(responseData);
       return mapStudentResponse(data);
     }
@@ -273,10 +273,9 @@ export async function deleteStudent(id: string): Promise<void> {
 
   try {
     if (useProxy) {
-      const session = await getSession();
+      // Authentication handled via cookies
       await authFetch<void>(url, {
         method: "DELETE",
-        token: session?.user?.token,
       });
     } else {
       await api.delete(url);
@@ -293,10 +292,8 @@ export async function fetchGroups(): Promise<Group[]> {
 
   try {
     if (useProxy) {
-      const session = await getSession();
-      const responseData = await authFetch<BackendGroup[]>(url, {
-        token: session?.user?.token,
-      });
+      // Authentication handled via cookies
+      const responseData = await authFetch<BackendGroup[]>(url);
       const groups = Array.isArray(responseData) ? responseData : [];
       return groups.map(mapGroupResponse);
     }
@@ -321,14 +318,11 @@ export async function fetchStudentPrivacyConsent(
 
   try {
     if (useProxy) {
-      const session = await getSession();
       // Cannot use authFetch here due to special 404 handling
       const response = await fetch(url, {
         method: "GET",
         credentials: "include",
-        headers: session?.user?.token
-          ? { Authorization: `Bearer ${session.user.token}` }
-          : undefined,
+        headers: { "Content-Type": "application/json" },
       });
 
       if (!response.ok) {
@@ -369,19 +363,17 @@ export async function updateStudentPrivacyConsent(
 
   try {
     if (useProxy) {
-      const session = await getSession();
       const responseData = await authFetch<ApiResponse<BackendPrivacyConsent>>(
         url,
-        { method: "PUT", body: consentData, token: session?.user?.token },
+        { method: "PUT", body: consentData },
       );
       return mapPrivacyConsentResponse(responseData.data);
     }
 
-    const session = await getSession();
+    // Server-side: cookies are handled by axios
     const response = await api.put<ApiResponse<BackendPrivacyConsent>>(
       url,
       consentData,
-      { headers: { Authorization: `Bearer ${session?.user?.token}` } },
     );
     return mapPrivacyConsentResponse(response.data.data);
   } catch (error) {

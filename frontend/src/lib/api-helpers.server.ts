@@ -6,13 +6,13 @@ import type { ApiErrorResponse } from "./api-helpers";
 
 /**
  * Check if the current session is authenticated
- * SERVER-ONLY: This function uses NextAuth's auth() which requires server context
+ * SERVER-ONLY: This function uses BetterAuth's auth() which requires server context
  * @returns NextResponse with error if not authenticated, null if authenticated
  */
 export async function checkAuth(): Promise<NextResponse<ApiErrorResponse> | null> {
   const session = await auth();
 
-  if (!session?.user?.token) {
+  if (!session?.user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

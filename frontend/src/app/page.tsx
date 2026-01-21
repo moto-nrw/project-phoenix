@@ -2,11 +2,10 @@
 "use client";
 
 import { useState, useEffect, Suspense } from "react";
-import { signIn, useSession } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import { Input, Alert, HelpButton } from "~/components/ui";
-import { refreshToken } from "~/lib/auth-api";
+import { useSession, signIn } from "~/lib/auth-client";
 import { SmartRedirect } from "~/components/auth/smart-redirect";
 import { PasswordResetModal } from "~/components/ui/password-reset-modal";
 
@@ -22,59 +21,29 @@ function LoginForm() {
   const [isResetModalOpen, setIsResetModalOpen] = useState(false);
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { data: session, status } = useSession();
+  // BetterAuth uses useSession() hook which returns { data, isPending, error }
+  const { data: session, isPending: isSessionLoading } = useSession();
 
   // Check for valid session
   useEffect(() => {
-    const checkAndRedirect = async () => {
-      // If we have a valid session with access token, set up for redirect
-      if (status === "authenticated" && session?.user?.token) {
+    const checkAndRedirect = () => {
+      // If we have a valid session, set up for redirect
+      // BetterAuth manages session via cookies, no token refresh needed client-side
+      if (session?.user) {
         console.log("Valid session found, preparing smart redirect");
         setAwaitingRedirect(true);
         setCheckingAuth(false);
         return;
       }
 
-      // If session is expired but we have a refresh token, try to refresh
-      if (
-        status === "authenticated" &&
-        session?.user?.refreshToken &&
-        !session?.user?.token
-      ) {
-        console.log(
-          "Session expired but refresh token available, attempting refresh",
-        );
-        try {
-          const newTokens = await refreshToken();
-          if (newTokens) {
-            // Update session with new tokens
-            const result = await signIn("credentials", {
-              redirect: false,
-              internalRefresh: true,
-              token: newTokens.access_token,
-              refreshToken: newTokens.refresh_token,
-            });
-
-            if (!result?.error) {
-              console.log("Token refreshed successfully");
-              setAwaitingRedirect(true);
-              setCheckingAuth(false);
-              return;
-            }
-          }
-        } catch (error) {
-          console.error("Failed to refresh token:", error);
-        }
-      }
-
-      // Only show login form if not authenticated
-      if (status !== "loading") {
+      // Only show login form if not loading
+      if (!isSessionLoading) {
         setCheckingAuth(false);
       }
     };
 
-    void checkAndRedirect();
-  }, [status, session]);
+    checkAndRedirect();
+  }, [isSessionLoading, session]);
 
   // Check for session errors in URL
   useEffect(() => {
@@ -85,25 +54,19 @@ function LoginForm() {
   }, [searchParams]);
 
   // Show loading while checking authentication or awaiting redirect
-  if (
-    checkingAuth ||
-    status === "loading" ||
-    (awaitingRedirect && status === "authenticated")
-  ) {
+  if (checkingAuth || isSessionLoading || (awaitingRedirect && session?.user)) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center p-4">
         <Loading />
         {/* Smart redirect component when awaiting redirect */}
-        {awaitingRedirect &&
-          status === "authenticated" &&
-          session?.user?.token && (
-            <SmartRedirect
-              onRedirect={(path) => {
-                console.log(`Redirecting to ${path} based on user permissions`);
-                router.push(path);
-              }}
-            />
-          )}
+        {awaitingRedirect && session?.user && (
+          <SmartRedirect
+            onRedirect={(path) => {
+              console.log(`Redirecting to ${path} based on user permissions`);
+              router.push(path);
+            }}
+          />
+        )}
       </div>
     );
   }
@@ -233,13 +196,13 @@ function LoginForm() {
       // This creates a perception of instant response
       launchConfetti();
 
-      const result = await signIn("credentials", {
+      // BetterAuth uses signIn.email() for email/password authentication
+      const result = await signIn.email({
         email,
         password,
-        redirect: false,
       });
 
-      if (result?.error) {
+      if (result.error) {
         // If there's an error, clear existing confetti
         const existingConfetti = document.querySelector(
           'div[style*="z-index: 9999"]',
@@ -247,7 +210,7 @@ function LoginForm() {
         if (existingConfetti) {
           existingConfetti.remove();
         }
-        setError("Ungültige E-Mail oder Passwort");
+        setError(result.error.message ?? "Ungültige E-Mail oder Passwort");
       } else {
         // Set flag to indicate we're awaiting redirect
         setAwaitingRedirect(true);

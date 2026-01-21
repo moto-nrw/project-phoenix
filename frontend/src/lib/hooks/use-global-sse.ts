@@ -24,7 +24,7 @@
 
 import { useCallback } from "react";
 import { mutate } from "swr";
-import { useSession } from "next-auth/react";
+import { useSession } from "~/lib/auth-client";
 import { useSSE } from "~/lib/hooks/use-sse";
 import type { SSEEvent, SSEHookState } from "~/lib/sse-types";
 
@@ -73,11 +73,10 @@ const ACTIVITY_EVENT_PATTERNS = [
  * @returns SSE connection state (status, isConnected, error, reconnectAttempts)
  */
 export function useGlobalSSE(): SSEHookState {
-  const { data: session, status: sessionStatus } = useSession();
+  const { data: session, isPending } = useSession();
 
-  // Only enable SSE when authenticated
-  const isAuthenticated =
-    sessionStatus === "authenticated" && !!session?.user?.token;
+  // Only enable SSE when authenticated (BetterAuth uses cookies, no token needed)
+  const isAuthenticated = !isPending && !!session?.user;
 
   // Handle SSE events by invalidating relevant caches
   const handleSSEEvent = useCallback((event: SSEEvent) => {

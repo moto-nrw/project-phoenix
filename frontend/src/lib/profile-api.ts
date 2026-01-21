@@ -1,4 +1,5 @@
-import { getSession } from "next-auth/react";
+// lib/profile-api.ts
+// BetterAuth: Authentication handled via cookies, no manual token management needed
 import {
   mapProfileResponse,
   mapProfileUpdateRequest,
@@ -9,22 +10,16 @@ import {
 
 /**
  * Fetch the current user's profile
+ * BetterAuth: authentication handled via cookies
  */
 export async function fetchProfile(): Promise<Profile> {
-  const session = await getSession();
-  const token = session?.user?.token;
-
-  if (!token) {
-    throw new Error("No authentication token available");
-  }
-
   const url = `/api/me/profile`;
 
   try {
     const response = await fetch(url, {
       method: "GET",
+      credentials: "include",
       headers: {
-        Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
       },
     });
@@ -52,25 +47,19 @@ export async function fetchProfile(): Promise<Profile> {
 
 /**
  * Update the current user's profile
+ * BetterAuth: authentication handled via cookies
  */
 export async function updateProfile(
   data: ProfileUpdateRequest,
 ): Promise<Profile> {
-  const session = await getSession();
-  const token = session?.user?.token;
-
-  if (!token) {
-    throw new Error("No authentication token available");
-  }
-
   const url = `/api/me/profile`;
 
   try {
     const payload = mapProfileUpdateRequest(data);
     const response = await fetch(url, {
       method: "PUT",
+      credentials: "include",
       headers: {
-        Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify(payload),
@@ -99,15 +88,9 @@ export async function updateProfile(
 
 /**
  * Upload a new avatar image
+ * BetterAuth: authentication handled via cookies
  */
 export async function uploadAvatar(file: File): Promise<Profile> {
-  const session = await getSession();
-  const token = session?.user?.token;
-
-  if (!token) {
-    throw new Error("No authentication token available");
-  }
-
   const url = `/api/me/profile/avatar`;
 
   try {
@@ -116,9 +99,8 @@ export async function uploadAvatar(file: File): Promise<Profile> {
 
     const response = await fetch(url, {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
+      credentials: "include",
+      // Note: Don't set Content-Type for FormData - browser will set it with boundary
       body: formData,
     });
 
@@ -152,22 +134,16 @@ export async function uploadAvatar(file: File): Promise<Profile> {
 
 /**
  * Delete the user's avatar
+ * BetterAuth: authentication handled via cookies
  */
 export async function deleteAvatar(): Promise<Profile> {
-  const session = await getSession();
-  const token = session?.user?.token;
-
-  if (!token) {
-    throw new Error("No authentication token available");
-  }
-
   const url = `/api/me/profile/avatar`;
 
   try {
     const response = await fetch(url, {
       method: "DELETE",
+      credentials: "include",
       headers: {
-        Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
       },
     });

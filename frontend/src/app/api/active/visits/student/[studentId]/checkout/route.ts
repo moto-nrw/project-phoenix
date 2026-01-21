@@ -3,7 +3,7 @@
 import { createPostHandler } from "~/lib/route-wrapper";
 
 export const POST = createPostHandler<unknown, Record<string, never>>(
-  async (_request, _body, token, params) => {
+  async (_request, _body, cookieHeader, params) => {
     const studentId = params.studentId as string;
 
     if (!studentId) {
@@ -19,13 +19,14 @@ export const POST = createPostHandler<unknown, Record<string, never>>(
         ? "http://server:8080" // NOSONAR - Internal Docker network, not exposed
         : (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080"); // NOSONAR - Local dev only
 
+    // BetterAuth: Forward cookies instead of Bearer token
     const response = await fetch(
       `${apiUrl}/api/active/visits/student/${studentId}/checkout`,
       {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
+          Cookie: cookieHeader,
         },
         body: JSON.stringify({}),
       },

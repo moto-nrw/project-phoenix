@@ -9,7 +9,8 @@ interface UserData {
 }
 
 // Handler to get account by ID
-export const GET = createGetHandler(async (request, token, params) => {
+// BetterAuth: cookieHeader is passed for session validation
+export const GET = createGetHandler(async (_request, cookieHeader, params) => {
   const accountId = params.accountId as string;
   console.log(`API Route - Fetching account for ID: ${accountId}`);
 
@@ -28,11 +29,12 @@ export const GET = createGetHandler(async (request, token, params) => {
     try {
       const userApiUrl = `${env.NEXT_PUBLIC_API_URL}/api/users/${accountId}`;
 
+      // BetterAuth: Forward cookies instead of Bearer token
       const userResponse = await fetch(userApiUrl, {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
+          Cookie: cookieHeader,
         },
       });
 

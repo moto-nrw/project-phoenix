@@ -2,7 +2,7 @@
 import type { NextRequest } from "next/server";
 import { apiGet } from "~/lib/api-helpers";
 import { NextResponse } from "next/server";
-import { auth } from "~/server/auth";
+import { auth, getCookieHeader } from "~/server/auth";
 // No need for the ApiResponse type import anymore since we're using NextResponse directly
 
 // Backend interface for room history entries
@@ -24,9 +24,11 @@ export interface BackendRoomHistoryEntry {
 export async function GET(request: NextRequest): Promise<NextResponse> {
   const session = await auth();
 
-  if (!session?.user?.token) {
+  if (!session?.user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  const cookieHeader = await getCookieHeader();
 
   // Extract roomId from URL path
   const pathParts = request.nextUrl.pathname.split("/");
@@ -55,7 +57,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   try {
     const data = await apiGet<BackendRoomHistoryEntry[]>(
       endpoint,
-      session.user.token,
+      cookieHeader,
     );
     return NextResponse.json({ status: "success", data });
   } catch (apiError) {

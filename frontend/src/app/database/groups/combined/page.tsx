@@ -1,6 +1,6 @@
 "use client";
 
-import { useSession } from "next-auth/react";
+import { useSession } from "~/lib/auth-client";
 import { redirect, useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import { DataListPage, ResponsiveLayout } from "@/components/dashboard";
@@ -24,12 +24,13 @@ export default function CombinedGroupsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const { status } = useSession({
-    required: true,
-    onUnauthenticated() {
-      redirect("/");
-    },
-  });
+  // BetterAuth: cookies handle auth, isPending replaces status
+  const { data: session, isPending } = useSession();
+
+  // Redirect if not authenticated
+  if (!isPending && !session?.user) {
+    redirect("/");
+  }
 
   // Function to fetch combined groups
   const fetchCombinedGroups = async () => {
@@ -71,7 +72,7 @@ export default function CombinedGroupsPage() {
     void fetchCombinedGroups();
   }, []);
 
-  if (status === "loading" || loading) {
+  if (isPending || loading) {
     return (
       <ResponsiveLayout>
         <Loading fullPage={false} />

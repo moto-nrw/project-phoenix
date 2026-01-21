@@ -1,5 +1,5 @@
 import { type NextRequest } from "next/server";
-import { auth } from "~/server/auth";
+import { auth, getCookieHeader } from "~/server/auth";
 import { env } from "~/env";
 
 // REQUIRED for streaming - must use Node.js runtime
@@ -10,29 +10,31 @@ export const runtime = "nodejs";
  * Streams real-time updates from backend to browser
  *
  * This endpoint bypasses route-wrapper.ts because SSE requires streaming responses,
- * not buffered JSON responses. EventSource API cannot set custom headers, so we inject
- * the JWT token server-side before proxying to the Go backend.
+ * not buffered JSON responses. EventSource API cannot set custom headers, so we forward
+ * session cookies server-side before proxying to the Go backend.
  *
  * Note: Node.js 18+ includes native fetch with undici, which handles long-lived
  * connections appropriately. No need for explicit timeout configuration.
  */
 export async function GET(request: NextRequest) {
-  // Validate session
+  // Validate session - BetterAuth uses cookies, not tokens
   const session = await auth();
 
-  if (!session?.user?.token) {
+  if (!session?.user) {
     return new Response("Unauthorized", { status: 401 });
   }
 
+  const cookieHeader = await getCookieHeader();
+
   try {
-    // Fetch SSE stream from Go backend with JWT token
+    // Fetch SSE stream from Go backend with forwarded cookies
     // Preserve query params (e.g., cache busters) though backend ignores them
     const qs = request.nextUrl.search ? request.nextUrl.search : "";
     const backendResponse = await fetch(
       `${env.NEXT_PUBLIC_API_URL}/api/sse/events${qs}`,
       {
         headers: {
-          Authorization: `Bearer ${session.user.token}`,
+          Cookie: cookieHeader,
           Accept: "text/event-stream",
         },
         cache: "no-store",

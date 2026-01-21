@@ -8,7 +8,7 @@ import React, {
   useCallback,
   useMemo,
 } from "react";
-import { useSession } from "next-auth/react";
+import { useSession } from "~/lib/auth-client";
 
 interface BackendEducationalGroup {
   id: number;
@@ -50,7 +50,7 @@ export function SupervisionProvider({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const { data: session } = useSession();
+  const { data: session, isPending } = useSession();
 
   const [state, setState] = useState<SupervisionState>({
     hasGroups: false,
@@ -66,9 +66,12 @@ export function SupervisionProvider({
   const isRefreshingRef = React.useRef(false);
   const lastRefreshRef = React.useRef<number>(0);
 
-  // Store token in ref to avoid dependency loops
-  const tokenRef = React.useRef<string | undefined>(session?.user?.token);
-  tokenRef.current = session?.user?.token;
+  // Store authentication status in ref to avoid dependency loops
+  // BetterAuth uses cookies for auth, so we just check if user exists
+  const isAuthenticatedRef = React.useRef<boolean>(
+    !isPending && !!session?.user,
+  );
+  isAuthenticatedRef.current = !isPending && !!session?.user;
 
   // Use a ref for the refresh function to break dependency cycles
   const refreshRef = React.useRef<((silent?: boolean) => Promise<void>) | null>(
@@ -77,8 +80,8 @@ export function SupervisionProvider({
 
   // Check if user has any groups (as teacher or representative)
   const checkGroups = useCallback(async () => {
-    const token = tokenRef.current;
-    if (!token) {
+    // BetterAuth: check if user is authenticated (cookies handle auth)
+    if (!isAuthenticatedRef.current) {
       setState((prev) => ({
         ...prev,
         hasGroups: false,
@@ -162,8 +165,8 @@ export function SupervisionProvider({
 
   // Check if user is supervising an active room
   const checkSupervision = useCallback(async () => {
-    const token = tokenRef.current;
-    if (!token) {
+    // BetterAuth: check if user is authenticated (cookies handle auth)
+    if (!isAuthenticatedRef.current) {
       setState((prev) => ({
         ...prev,
         isSupervising: false,
@@ -328,10 +331,11 @@ export function SupervisionProvider({
 
   // Initial load and refresh on session changes only
   useEffect(() => {
-    // Only refresh when session actually changes (not on every render)
-    if (session?.user?.token) {
+    // Only refresh when authentication status changes
+    // BetterAuth: session.user indicates authenticated (cookies handle auth)
+    if (!isPending && session?.user) {
       refreshRef.current?.().catch(console.error);
-    } else {
+    } else if (!isPending) {
       // Clear state when no session
       setState({
         hasGroups: false,
@@ -343,11 +347,12 @@ export function SupervisionProvider({
         isLoadingSupervision: false,
       });
     }
-  }, [session?.user?.token]); // Only depend on token
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- Intentionally depend on user ID only, not session object reference
+  }, [isPending, session?.user?.id]);
 
   // Periodic refresh every minute for timely supervision updates (silent mode)
   useEffect(() => {
-    if (!session?.user?.token) return;
+    if (isPending || !session?.user) return;
 
     const interval = setInterval(() => {
       // Use silent refresh to avoid UI flicker - errors handled internally
@@ -359,7 +364,8 @@ export function SupervisionProvider({
     }, 60000); // 1 minute - ensures supervision changes are reflected quickly
 
     return () => clearInterval(interval);
-  }, [session?.user?.token]); // Only depend on token
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- Intentionally depend on user ID only, not session object reference
+  }, [isPending, session?.user?.id]);
 
   const value = useMemo<SupervisionContextType>(
     () => ({ ...state, refresh }),

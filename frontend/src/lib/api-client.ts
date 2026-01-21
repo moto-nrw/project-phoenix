@@ -4,17 +4,18 @@ import type { AxiosResponse, AxiosRequestConfig } from "axios";
 
 /**
  * GET request wrapper
+ * BetterAuth: Uses Cookie header instead of Bearer token
  */
 export async function apiGet<T = unknown>(
   url: string,
-  token?: string,
+  cookieHeader?: string,
   config?: AxiosRequestConfig,
 ): Promise<AxiosResponse<T>> {
   const headers: Record<string, string> = {
     ...(config?.headers as Record<string, string>),
   };
-  if (token) {
-    headers.Authorization = `Bearer ${token}`;
+  if (cookieHeader) {
+    headers.Cookie = cookieHeader;
   }
 
   try {
@@ -31,18 +32,19 @@ export async function apiGet<T = unknown>(
 
 /**
  * POST request wrapper
+ * BetterAuth: Uses Cookie header instead of Bearer token
  */
 export async function apiPost<T = unknown>(
   url: string,
   data?: unknown,
-  token?: string,
+  cookieHeader?: string,
   config?: AxiosRequestConfig,
 ): Promise<AxiosResponse<T>> {
   const headers: Record<string, string> = {
     ...(config?.headers as Record<string, string>),
   };
-  if (token) {
-    headers.Authorization = `Bearer ${token}`;
+  if (cookieHeader) {
+    headers.Cookie = cookieHeader;
   }
 
   try {
@@ -59,18 +61,19 @@ export async function apiPost<T = unknown>(
 
 /**
  * PUT request wrapper
+ * BetterAuth: Uses Cookie header instead of Bearer token
  */
 export async function apiPut<T = unknown>(
   url: string,
   data?: unknown,
-  token?: string,
+  cookieHeader?: string,
   config?: AxiosRequestConfig,
 ): Promise<AxiosResponse<T>> {
   const headers: Record<string, string> = {
     ...(config?.headers as Record<string, string>),
   };
-  if (token) {
-    headers.Authorization = `Bearer ${token}`;
+  if (cookieHeader) {
+    headers.Cookie = cookieHeader;
   }
 
   try {
@@ -87,17 +90,18 @@ export async function apiPut<T = unknown>(
 
 /**
  * DELETE request wrapper
+ * BetterAuth: Uses Cookie header instead of Bearer token
  */
 export async function apiDelete<T = unknown>(
   url: string,
-  token?: string,
+  cookieHeader?: string,
   config?: AxiosRequestConfig,
 ): Promise<AxiosResponse<T>> {
   const headers: Record<string, string> = {
     ...(config?.headers as Record<string, string>),
   };
-  if (token) {
-    headers.Authorization = `Bearer ${token}`;
+  if (cookieHeader) {
+    headers.Cookie = cookieHeader;
   }
 
   try {

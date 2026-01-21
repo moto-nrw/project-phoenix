@@ -1,11 +1,19 @@
-// lib/api-helpers.ts
+/**
+ * API Helpers for Project Phoenix
+ *
+ * This module provides helper functions for making API requests to the Go backend.
+ *
+ * BetterAuth Migration Notes:
+ * - Server-side requests now forward cookies to the Go backend
+ * - The Go backend validates sessions with BetterAuth service
+ * - The "token" parameter is now the cookie header string (for compatibility)
+ * - Client-side requests use credentials: "include" to send cookies automatically
+ */
+
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { isAxiosError } from "axios";
 import api from "./api";
-
-// Note: Server-only imports (auth, refreshSessionTokensOnServer) are dynamically
-// imported inside functions to prevent client-side bundle from including them.
 
 /**
  * Type for API response to ensure consistent structure
@@ -39,14 +47,17 @@ interface ServerFetchOptions {
 }
 
 /**
- * Check if the current session is authenticated
+ * Check if the current request has a valid session cookie
  * @returns NextResponse with error if not authenticated, null if authenticated
  */
 export async function checkAuth(): Promise<NextResponse<ApiErrorResponse> | null> {
-  const { auth } = await import("../server/auth");
-  const session = await auth();
+  // For BetterAuth, we check for the session cookie
+  // This is a lightweight check - actual validation happens on the Go backend
+  const { cookies } = await import("next/headers");
+  const cookieStore = await cookies();
+  const sessionCookie = cookieStore.get("better-auth.session_token");
 
-  if (!session?.user?.token) {
+  if (!sessionCookie?.value) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -54,38 +65,25 @@ export async function checkAuth(): Promise<NextResponse<ApiErrorResponse> | null
 }
 
 /**
- * Server-side fetch with automatic 401 retry and token refresh
- * Centralized logic for all HTTP methods to eliminate duplication
+ * Server-side fetch with cookie forwarding
+ * The "token" parameter is actually the cookie header string (renamed for compatibility)
  */
-async function serverFetchWithRetry<T>(
+async function serverFetchWithCookies<T>(
   endpoint: string,
-  token: string,
+  cookieHeader: string,
   options: ServerFetchOptions,
 ): Promise<T> {
   const { env } = await import("~/env");
   const url = `${env.NEXT_PUBLIC_API_URL}${endpoint}`;
 
-  const executeRequest = async (bearer: string) =>
-    fetch(url, {
-      method: options.method,
-      headers: {
-        Authorization: `Bearer ${bearer}`,
-        "Content-Type": "application/json",
-      },
-      body: options.body ? JSON.stringify(options.body) : undefined,
-    });
-
-  let response = await executeRequest(token);
-
-  if (response.status === 401) {
-    const { refreshSessionTokensOnServer } = await import(
-      "~/server/auth/token-refresh"
-    );
-    const refreshed = await refreshSessionTokensOnServer();
-    if (refreshed?.accessToken) {
-      response = await executeRequest(refreshed.accessToken);
-    }
-  }
+  const response = await fetch(url, {
+    method: options.method,
+    headers: {
+      Cookie: cookieHeader,
+      "Content-Type": "application/json",
+    },
+    body: options.body ? JSON.stringify(options.body) : undefined,
+  });
 
   if (!response.ok) {
     const errorText = await response.text();
@@ -104,36 +102,32 @@ async function serverFetchWithRetry<T>(
 }
 
 /**
- * Client-side axios request with error handling
- * Centralized logic for all HTTP methods to eliminate duplication
+ * Client-side axios request with credentials
+ * BetterAuth uses cookies, so we include credentials automatically
  */
 async function clientAxiosRequest<T>(
   method: HttpMethod,
   endpoint: string,
-  token: string,
+  _token: string, // Unused - cookies are sent automatically
   body?: unknown,
   returnVoidOn204?: boolean,
 ): Promise<T> {
   try {
-    const config = {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    };
-
+    // axios should send cookies automatically with withCredentials: true
+    // This is configured in api.ts
     let response;
     switch (method) {
       case "GET":
-        response = await api.get<T>(endpoint, config);
+        response = await api.get<T>(endpoint);
         break;
       case "POST":
-        response = await api.post<T>(endpoint, body, config);
+        response = await api.post<T>(endpoint, body);
         break;
       case "PUT":
-        response = await api.put<T>(endpoint, body, config);
+        response = await api.put<T>(endpoint, body);
         break;
       case "DELETE":
-        response = await api.delete<T>(endpoint, config);
+        response = await api.delete<T>(endpoint);
         break;
     }
 
@@ -158,69 +152,84 @@ async function clientAxiosRequest<T>(
 /**
  * Make a GET request to the API
  * @param endpoint API endpoint to request
- * @param token Authentication token
+ * @param cookieHeader Cookie header string (server) or ignored (client)
  * @returns Promise with the response data
  */
-export async function apiGet<T>(endpoint: string, token: string): Promise<T> {
+export async function apiGet<T>(
+  endpoint: string,
+  cookieHeader: string,
+): Promise<T> {
   if (globalThis.window === undefined) {
-    return serverFetchWithRetry<T>(endpoint, token, { method: "GET" });
+    return serverFetchWithCookies<T>(endpoint, cookieHeader, { method: "GET" });
   }
-  return clientAxiosRequest<T>("GET", endpoint, token);
+  return clientAxiosRequest<T>("GET", endpoint, cookieHeader);
 }
 
 /**
  * Make a POST request to the API
  * @param endpoint API endpoint to request
- * @param token Authentication token
+ * @param cookieHeader Cookie header string (server) or ignored (client)
  * @param body Request body
  * @returns Promise with the response data
  */
 export async function apiPost<T, B = unknown>(
   endpoint: string,
-  token: string,
+  cookieHeader: string,
   body?: B,
 ): Promise<T> {
   if (globalThis.window === undefined) {
-    return serverFetchWithRetry<T>(endpoint, token, { method: "POST", body });
+    return serverFetchWithCookies<T>(endpoint, cookieHeader, {
+      method: "POST",
+      body,
+    });
   }
-  return clientAxiosRequest<T>("POST", endpoint, token, body);
+  return clientAxiosRequest<T>("POST", endpoint, cookieHeader, body);
 }
 
 /**
  * Make a PUT request to the API
  * @param endpoint API endpoint to request
- * @param token Authentication token
+ * @param cookieHeader Cookie header string (server) or ignored (client)
  * @param body Request body
  * @returns Promise with the response data
  */
 export async function apiPut<T, B = unknown>(
   endpoint: string,
-  token: string,
+  cookieHeader: string,
   body?: B,
 ): Promise<T> {
   if (globalThis.window === undefined) {
-    return serverFetchWithRetry<T>(endpoint, token, { method: "PUT", body });
+    return serverFetchWithCookies<T>(endpoint, cookieHeader, {
+      method: "PUT",
+      body,
+    });
   }
-  return clientAxiosRequest<T>("PUT", endpoint, token, body);
+  return clientAxiosRequest<T>("PUT", endpoint, cookieHeader, body);
 }
 
 /**
  * Make a DELETE request to the API
  * @param endpoint API endpoint to request
- * @param token Authentication token
+ * @param cookieHeader Cookie header string (server) or ignored (client)
  * @returns Promise with the response data, or void for 204 No Content responses
  */
 export async function apiDelete<T>(
   endpoint: string,
-  token: string,
+  cookieHeader: string,
 ): Promise<T | void> {
   if (globalThis.window === undefined) {
-    return serverFetchWithRetry<T>(endpoint, token, {
+    return serverFetchWithCookies<T>(endpoint, cookieHeader, {
       method: "DELETE",
       returnVoidOn204: true,
     });
   }
-  return clientAxiosRequest<T>("DELETE", endpoint, token, undefined, true);
+  return clientAxiosRequest<T>(
+    "DELETE",
+    endpoint,
+    cookieHeader,
+    undefined,
+    true,
+  );
 }
 
 /**
@@ -334,7 +343,7 @@ export function isBrowserContext(): boolean {
 export interface AuthFetchOptions {
   method?: "GET" | "POST" | "PUT" | "DELETE";
   body?: unknown;
-  token?: string;
+  token?: string; // Deprecated - cookies are used automatically
 }
 
 /**
@@ -347,39 +356,30 @@ export interface AuthFetchResult<T> {
 }
 
 /**
- * Build authorization headers for fetch requests
- * Matches original behavior: always includes Content-Type when token is present
- * @param token - JWT token
+ * Build headers for requests (now uses cookies, not Authorization header)
+ * @param _token - Deprecated, ignored
  */
-export function buildAuthHeaders(token?: string): HeadersInit | undefined {
-  if (!token) {
-    return undefined;
-  }
+export function buildAuthHeaders(_token?: string): HeadersInit {
   return {
-    Authorization: `Bearer ${token}`,
     "Content-Type": "application/json",
   };
 }
 
 /**
  * Build headers for requests that always need Content-Type (POST/PUT with body)
- * @param token - JWT token
+ * @param _token - Deprecated, ignored
  */
-export function buildAuthHeadersWithBody(token?: string): HeadersInit {
+export function buildAuthHeadersWithBody(_token?: string): HeadersInit {
   return {
     "Content-Type": "application/json",
-    ...(token && { Authorization: `Bearer ${token}` }),
   };
 }
 
 /**
  * Perform an authenticated fetch request in browser context
- * Matches original fetch pattern exactly:
- * - GET/DELETE with token: Authorization + Content-Type headers
- * - GET/DELETE without token: no headers
- * - POST/PUT: Always Content-Type, Authorization if token present
+ * Uses credentials: "include" to send cookies automatically
  * @param url - The URL to fetch
- * @param options - Fetch options including method, body, and token
+ * @param options - Fetch options including method, body
  * @returns Promise with response data
  * @throws Error if response is not ok
  */
@@ -387,20 +387,14 @@ export async function authFetch<T>(
   url: string,
   options: AuthFetchOptions = {},
 ): Promise<T> {
-  const { method = "GET", body, token } = options;
-
-  // Match original header behavior:
-  // - POST/PUT with body: always include Content-Type, add Auth if token
-  // - GET/DELETE: include both headers only if token present
-  const headers =
-    body === undefined
-      ? buildAuthHeaders(token)
-      : buildAuthHeadersWithBody(token);
+  const { method = "GET", body } = options;
 
   const response = await fetch(url, {
     method,
-    credentials: "include",
-    headers,
+    credentials: "include", // Send cookies automatically
+    headers: {
+      "Content-Type": "application/json",
+    },
     ...(body !== undefined && { body: JSON.stringify(body) }),
   });
 
@@ -427,65 +421,32 @@ export interface FetchWithRetryOptions {
 }
 
 /**
- * Make an authenticated fetch request with 401 retry logic
- * Handles token refresh and retries the request once on 401
+ * Make an authenticated fetch request with retry logic
+ * For BetterAuth, the session cookie is sent automatically
  * @param url - The URL to fetch
- * @param token - Current auth token
- * @param options - Fetch options including retry handlers
- * @returns Tuple of [response, data] where response is null if request failed after retry
+ * @param _token - Deprecated, ignored
+ * @param options - Fetch options
+ * @returns Tuple of [response, data] where response is null if request failed
  */
 export async function fetchWithRetry<T>(
   url: string,
-  token: string | undefined,
+  _token: string | undefined,
   options: FetchWithRetryOptions = {},
 ): Promise<{ response: Response | null; data: T | null }> {
-  const { method = "GET", body, onAuthFailure, getNewToken } = options;
+  const { method = "GET", body } = options;
 
-  const makeRequest = async (
-    authToken: string | undefined,
-  ): Promise<Response> => {
-    const headers = authToken
-      ? {
-          Authorization: `Bearer ${authToken}`,
-          "Content-Type": "application/json",
-        }
-      : undefined;
-
-    return fetch(url, {
-      method,
-      credentials: "include",
-      headers,
-      ...(body !== undefined && { body: JSON.stringify(body) }),
-    });
-  };
-
-  // Initial request
-  const response = await makeRequest(token);
-
-  // Handle 401 with retry
-  if (response.status === 401 && onAuthFailure && getNewToken) {
-    const errorText = await response.text();
-    console.error(`API error: ${response.status}`, errorText);
-
-    const refreshSuccessful = await onAuthFailure();
-
-    if (refreshSuccessful) {
-      const newToken = await getNewToken();
-      const retryResponse = await makeRequest(newToken);
-
-      if (retryResponse.ok) {
-        const data = (await retryResponse.json()) as T;
-        return { response: retryResponse, data };
-      }
-    }
-
-    return { response: null, data: null };
-  }
+  const response = await fetch(url, {
+    method,
+    credentials: "include", // Send cookies automatically
+    headers: {
+      "Content-Type": "application/json",
+    },
+    ...(body !== undefined && { body: JSON.stringify(body) }),
+  });
 
   if (!response.ok) {
     const errorText = await response.text();
-    // Only 401/403 are expected "access denied" scenarios - return null for graceful handling
-    // Other 4xx errors (400 Bad Request, 404 Not Found) indicate bugs and should throw
+    // 401/403 are expected "access denied" scenarios - return null for graceful handling
     const accessDeniedStatuses = [401, 403];
     if (accessDeniedStatuses.includes(response.status)) {
       console.warn(`API access denied: ${response.status}`, errorText);

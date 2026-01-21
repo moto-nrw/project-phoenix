@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { ResponsiveLayout } from "@/components/dashboard";
 import { Alert } from "~/components/ui/alert";
-import { useSession } from "next-auth/react";
+import { useSession } from "~/lib/auth-client";
 
 import { Loading } from "~/components/ui/loading";
 // Student type (reused from student page)

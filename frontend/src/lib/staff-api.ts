@@ -1,6 +1,5 @@
 // Staff API service for fetching all staff members and their supervision status
-
-import { getSession } from "next-auth/react";
+// BetterAuth: Authentication handled via cookies, no manual token management needed
 
 // Backend response types (already mapped by the API route handler)
 export interface BackendStaffResponse {
@@ -258,13 +257,12 @@ function applyStaffFilters(staff: Staff[], filters?: StaffFilters): Staff[] {
 }
 
 /**
- * Builds fetch options with authorization header
+ * Builds fetch options for BetterAuth cookie-based authentication
  */
-function buildFetchOptions(token: string): RequestInit {
+function buildFetchOptions(): RequestInit {
   return {
     credentials: "include",
     headers: {
-      Authorization: `Bearer ${token}`,
       "Content-Type": "application/json",
     },
   };
@@ -272,12 +270,13 @@ function buildFetchOptions(token: string): RequestInit {
 
 /**
  * Fetches active groups data, returning empty array on failure
+ * BetterAuth: cookies handle authentication automatically
  */
-async function fetchActiveGroups(token: string): Promise<ActiveGroupInfo[]> {
+async function fetchActiveGroups(): Promise<ActiveGroupInfo[]> {
   try {
     const response = await fetch(
       "/api/active/groups?active=true",
-      buildFetchOptions(token),
+      buildFetchOptions(),
     );
     if (!response.ok) return [];
     const data = (await response.json()) as unknown;
@@ -290,14 +289,8 @@ async function fetchActiveGroups(token: string): Promise<ActiveGroupInfo[]> {
 // Staff service
 class StaffService {
   // Get all staff members with their current supervision status
+  // BetterAuth: authentication handled via cookies
   async getAllStaff(filters?: StaffFilters): Promise<Staff[]> {
-    const session = await getSession();
-    const token = session?.user?.token;
-
-    if (!token) {
-      throw new Error("No authentication token available");
-    }
-
     // Build staff URL with search filter
     const staffUrl = filters?.search
       ? `/api/staff?search=${encodeURIComponent(filters.search)}`
@@ -305,8 +298,8 @@ class StaffService {
 
     // Fetch staff and active groups in parallel
     const [staffResponse, activeGroups] = await Promise.all([
-      fetch(staffUrl, buildFetchOptions(token)),
-      fetchActiveGroups(token),
+      fetch(staffUrl, buildFetchOptions()),
+      fetchActiveGroups(),
     ]);
 
     if (!staffResponse.ok) {
@@ -327,23 +320,16 @@ class StaffService {
   }
 
   // Get active supervisions for a specific staff member
+  // BetterAuth: authentication handled via cookies
   async getStaffSupervisions(
     staffId: string,
   ): Promise<ActiveSupervisionResponse[]> {
     try {
-      const session = await getSession();
-      const token = session?.user?.token;
-
-      if (!token) {
-        throw new Error("No authentication token available");
-      }
-
       const response = await fetch(
         `/api/active/supervisors/staff/${staffId}/active`,
         {
           credentials: "include",
           headers: {
-            Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
           },
         },

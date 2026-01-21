@@ -1,25 +1,26 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { auth } from "~/server/auth";
+import { auth, getCookieHeader } from "~/server/auth";
 import { handleApiError } from "~/lib/api-helpers";
 import { env } from "~/env";
 
 // GET handler for fetching avatar images
 // Note: This doesn't use createGetHandler because we need to return raw image data
 export const GET = async (
-  request: NextRequest,
+  _request: NextRequest,
   context: { params: Promise<Record<string, string | string[] | undefined>> },
 ): Promise<NextResponse> => {
   try {
     const session = await auth();
 
-    if (!session?.user?.token) {
+    if (!session?.user) {
       return NextResponse.json(
         { error: "Unauthorized", success: false, message: "Unauthorized" },
         { status: 401 },
       );
     }
 
+    const cookieHeader = await getCookieHeader();
     const params = await context.params;
     const filename = params.filename as string;
 
@@ -54,7 +55,7 @@ export const GET = async (
     const backendUrl = `${env.NEXT_PUBLIC_API_URL}/api/me/profile/avatar/${filename}`;
     const response = await fetch(backendUrl, {
       headers: {
-        Authorization: `Bearer ${session.user.token}`,
+        Cookie: cookieHeader,
       },
     });
 

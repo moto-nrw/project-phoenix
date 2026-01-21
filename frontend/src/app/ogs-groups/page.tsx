@@ -8,7 +8,7 @@ import {
   useCallback,
   useRef,
 } from "react";
-import { useSession } from "next-auth/react";
+import { useSession } from "~/lib/auth-client";
 import { useRouter } from "next/navigation";
 import { ResponsiveLayout } from "~/components/dashboard";
 import { Alert } from "~/components/ui/alert";
@@ -179,12 +179,13 @@ function matchesForeignRoomFilter(studentRoomStatus?: {
 
 function OGSGroupPageContent() {
   const router = useRouter();
-  const { data: session, status } = useSession({
-    required: true,
-    onUnauthenticated() {
-      router.push("/");
-    },
-  });
+  // BetterAuth: cookies handle auth, isPending replaces status
+  const { data: session, isPending } = useSession();
+
+  // Redirect if not authenticated
+  if (!isPending && !session?.user) {
+    router.push("/");
+  }
 
   const { success: showSuccessToast } = useToast();
 
@@ -223,12 +224,13 @@ function OGSGroupPageContent() {
 
   // SWR-based dashboard data fetching with caching
   // Cache key "ogs-dashboard" will be invalidated by global SSE on relevant events
+  // BetterAuth: cookies handle auth, no token needed
   const {
     data: dashboardData,
     isLoading: isDashboardLoading,
     error: dashboardError,
   } = useSWRAuth<OGSDashboardBFFResponse>(
-    session?.user?.token ? "ogs-dashboard" : null,
+    session?.user ? "ogs-dashboard" : null,
     async () => {
       console.log("⏱️ [OGS-GROUPS] SWR fetching dashboard via BFF...");
       const start = performance.now();
@@ -236,7 +238,6 @@ function OGSGroupPageContent() {
       const response = await fetch("/api/ogs-dashboard", {
         credentials: "include",
         headers: {
-          Authorization: `Bearer ${session?.user?.token}`,
           "Content-Type": "application/json",
         },
       });
@@ -359,6 +360,7 @@ function OGSGroupPageContent() {
   // When global SSE invalidates "student*" caches, this triggers a refetch.
   // Only fetches when hasAccess is confirmed and we have a group ID.
   // Includes room status to ensure filters (in_room, foreign_room) stay accurate.
+  // BetterAuth: cookies handle auth, no token needed
   const { data: swrStudentsData } = useSWRAuth<{
     students: Student[];
     roomStatus?: Record<
@@ -378,12 +380,11 @@ function OGSGroupPageContent() {
       const [studentsResponse, roomStatusResponse] = await Promise.all([
         studentService.getStudents({
           groupId: currentGroupId!,
-          token: session?.user?.token,
         }),
         // Fetch room status inline (don't use callback that sets state)
         fetch(`/api/groups/${currentGroupId}/students/room-status`, {
+          credentials: "include",
           headers: {
-            Authorization: `Bearer ${session?.user?.token}`,
             "Content-Type": "application/json",
           },
         })
@@ -436,11 +437,8 @@ function OGSGroupPageContent() {
     currentGroupRef.current = currentGroup;
   }, [currentGroup]);
 
-  // Ref to track current session token without triggering re-renders
-  const sessionTokenRef = useRef(session?.user?.token);
-  useEffect(() => {
-    sessionTokenRef.current = session?.user?.token;
-  }, [session?.user?.token]);
+  // BetterAuth: cookies handle auth, no token ref needed
+  // Session tracking ref removed - auth handled via cookies
 
   // Load available users for transfer dropdown
   // Query both "teacher" and "staff" roles, as existing deployments may have
@@ -467,22 +465,17 @@ function OGSGroupPageContent() {
   }, []);
 
   // Check if current group has active transfers
-  // Pass token to skip redundant getSession() call (saves ~600ms)
-  const checkActiveTransfers = useCallback(
-    async (groupId: string, token?: string) => {
-      try {
-        const transfers = await groupTransferService.getActiveTransfersForGroup(
-          groupId,
-          token,
-        );
-        setActiveTransfers(transfers);
-      } catch (error) {
-        console.error("Error checking active transfers:", error);
-        setActiveTransfers([]);
-      }
-    },
-    [],
-  );
+  // BetterAuth: cookies handle auth, no token needed
+  const checkActiveTransfers = useCallback(async (groupId: string) => {
+    try {
+      const transfers =
+        await groupTransferService.getActiveTransfersForGroup(groupId);
+      setActiveTransfers(transfers);
+    } catch (error) {
+      console.error("Error checking active transfers:", error);
+      setActiveTransfers([]);
+    }
+  }, []);
 
   // Load users when modal opens
   // IMPORTANT: Use currentGroupId as dependency, not currentGroup object
@@ -554,14 +547,15 @@ function OGSGroupPageContent() {
   };
 
   // Helper function to load room status for current group
+  // BetterAuth: cookies handle auth, no token needed
   const loadGroupRoomStatus = useCallback(
     async (groupId: string) => {
       try {
         const roomStatusResponse = await fetch(
           `/api/groups/${groupId}/students/room-status`,
           {
+            credentials: "include",
             headers: {
-              Authorization: `Bearer ${sessionTokenRef.current}`,
               "Content-Type": "application/json",
             },
           },
@@ -625,10 +619,9 @@ function OGSGroupPageContent() {
       const selectedGroup = allGroups[groupIndex];
 
       // Fetch students for the selected group
-      // Pass token to skip redundant getSession() call (~600ms savings)
+      // BetterAuth: cookies handle auth, no token needed
       const studentsResponse = await studentService.getStudents({
         groupId: selectedGroup.id,
-        token: session?.user?.token,
       });
       const studentsData = studentsResponse.students || [];
 
@@ -644,10 +637,10 @@ function OGSGroupPageContent() {
       );
 
       // Fetch room status and active transfers in parallel
-      // Pass token to skip redundant getSession() call
+      // BetterAuth: cookies handle auth, no token needed
       await Promise.all([
         loadGroupRoomStatus(selectedGroup.id),
-        checkActiveTransfers(selectedGroup.id, session?.user?.token),
+        checkActiveTransfers(selectedGroup.id),
       ]);
 
       setError(null);
@@ -785,7 +778,7 @@ function OGSGroupPageContent() {
     return filters;
   }, [searchTerm, selectedYear, attendanceFilter]);
 
-  if (status === "loading" || isLoading || hasAccess === null) {
+  if (isPending || isLoading || hasAccess === null) {
     return (
       <ResponsiveLayout>
         <Loading fullPage={false} />
