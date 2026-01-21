@@ -386,7 +386,10 @@ func (s *gradeTransitionService) findUnmappedClasses(
 			continue
 		}
 		count, err := s.transitionRepo.GetStudentCountByClass(ctx, className)
-		if err != nil || count == 0 {
+		if err != nil {
+			return fmt.Errorf("failed to count students in unmapped class %s: %w", className, err)
+		}
+		if count == 0 {
 			continue
 		}
 		preview.UnmappedClasses = append(preview.UnmappedClasses, UnmappedClassInfo{
@@ -578,7 +581,10 @@ func (s *gradeTransitionService) applyGraduations(
 	}
 
 	for _, className := range graduateClasses {
-		count, _ := s.transitionRepo.GetStudentCountByClass(ctx, className)
+		count, err := s.transitionRepo.GetStudentCountByClass(ctx, className)
+		if err != nil {
+			return fmt.Errorf("failed to count graduating students in class %s: %w", className, err)
+		}
 		result.StudentsGraduated += count
 	}
 

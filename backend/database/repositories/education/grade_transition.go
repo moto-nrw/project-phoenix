@@ -152,15 +152,21 @@ func (r *GradeTransitionRepository) List(ctx context.Context, options *modelBase
 		TableExpr(tableGradeTransitions).
 		ColumnExpr("*")
 
-	// Apply query options
+	// Build count query with same filters (but without pagination)
+	countQuery := r.db.NewSelect().
+		TableExpr(tableGradeTransitions)
+
+	// Apply query options (filters + pagination to data query, filters only to count query)
 	if options != nil {
 		query = options.ApplyToQuery(query)
+		// Apply only filters to count query (not pagination)
+		if options.Filter != nil {
+			countQuery = options.Filter.ApplyToQuery(countQuery)
+		}
 	}
 
-	// Get total count
-	count, err := r.db.NewSelect().
-		TableExpr(tableGradeTransitions).
-		Count(ctx)
+	// Get total count with filters applied
+	count, err := countQuery.Count(ctx)
 	if err != nil {
 		return nil, 0, &modelBase.DatabaseError{
 			Op:  "count grade transitions",
@@ -446,8 +452,14 @@ func (r *GradeTransitionRepository) GetStudentsByClasses(ctx context.Context, cl
 // UpdateStudentClasses updates student classes based on transition mappings
 // This is a join-based UPDATE for efficiency
 func (r *GradeTransitionRepository) UpdateStudentClasses(ctx context.Context, transitionID int64) (int64, error) {
+	// Use transaction from context if available
+	var db bun.IDB = r.db
+	if tx, ok := modelBase.TxFromContext(ctx); ok && tx != nil {
+		db = tx
+	}
+
 	// Execute bulk UPDATE using JOIN on mappings
-	result, err := r.db.ExecContext(ctx, `
+	result, err := db.ExecContext(ctx, `
 		UPDATE users.students s
 		SET school_class = m.to_class,
 		    updated_at = NOW()
@@ -481,7 +493,13 @@ func (r *GradeTransitionRepository) DeleteStudentsByClasses(ctx context.Context,
 		return 0, nil
 	}
 
-	result, err := r.db.NewDelete().
+	// Use transaction from context if available
+	var db bun.IDB = r.db
+	if tx, ok := modelBase.TxFromContext(ctx); ok && tx != nil {
+		db = tx
+	}
+
+	result, err := db.NewDelete().
 		Model((*struct{})(nil)).
 		ModelTableExpr(`users.students`).
 		Where(`school_class IN (?)`, bun.In(classes)).

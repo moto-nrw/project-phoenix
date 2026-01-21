@@ -95,11 +95,9 @@ type TransitionRequest struct {
 	Mappings     []MappingRequest `json:"mappings,omitempty"`
 }
 
-// Bind validates the transition request
+// Bind performs basic binding validation for the transition request.
+// Note: academic_year is validated in the specific handler (create requires it, update does not)
 func (req *TransitionRequest) Bind(_ *http.Request) error {
-	if req.AcademicYear == "" {
-		return errors.New("academic_year is required")
-	}
 	return nil
 }
 
@@ -227,6 +225,12 @@ func (rs *GradeTransitionResource) create(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	// Validate required field for create
+	if req.AcademicYear == "" {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("academic_year is required")))
+		return
+	}
+
 	// Get account ID from JWT
 	claims := jwt.ClaimsFromCtx(r.Context())
 	if claims.ID == 0 {
@@ -298,8 +302,9 @@ func (rs *GradeTransitionResource) update(w http.ResponseWriter, r *http.Request
 		updateReq.AcademicYear = &req.AcademicYear
 	}
 
-	// Convert mappings if provided
-	if len(req.Mappings) > 0 {
+	// Convert mappings if provided (nil = not provided, empty = clear all)
+	if req.Mappings != nil {
+		updateReq.Mappings = make([]educationService.MappingRequest, 0, len(req.Mappings))
 		for _, m := range req.Mappings {
 			updateReq.Mappings = append(updateReq.Mappings, educationService.MappingRequest{
 				FromClass: m.FromClass,
