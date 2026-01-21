@@ -37,18 +37,11 @@ const (
 	testEmailFormat     = "%s-%d@test.local"
 )
 
-// cleanupDelete executes a delete query and logs any unexpected errors.
+// cleanupDelete executes a delete query and logs any errors.
 // This provides visibility into cleanup failures without causing test failures.
-// Expected errors (like "Model(nil interface)" from BUN) are silently ignored.
 func cleanupDelete(tb testing.TB, query *bun.DeleteQuery, table string) {
 	_, err := query.Exec(context.Background())
 	if err != nil {
-		// Filter out expected BUN errors from using nil model
-		errStr := err.Error()
-		if errStr == "bun: Model(nil interface *interface {})" ||
-			errStr == "bun: Model(nil)" {
-			return
-		}
 		tb.Logf("cleanup %s: %v", table, err)
 	}
 }
@@ -535,28 +528,24 @@ func CleanupAuthFixtures(tb testing.TB, db *bun.DB, accountIDs ...int64) {
 	// Use IN clause for efficiency instead of loop
 	// Delete tokens first (depends on accounts)
 	cleanupDelete(tb, db.NewDelete().
-		Model((*any)(nil)).
 		Table("auth.tokens").
 		Where(whereAccountIDIn, bun.In(accountIDs)),
 		"auth.tokens")
 
 	// Delete account_roles (by account_id only - never by role_id!)
 	cleanupDelete(tb, db.NewDelete().
-		Model((*any)(nil)).
 		Table("auth.account_roles").
 		Where(whereAccountIDIn, bun.In(accountIDs)),
 		"auth.account_roles")
 
 	// Delete account_permissions (by account_id only - never by permission_id!)
 	cleanupDelete(tb, db.NewDelete().
-		Model((*any)(nil)).
 		Table("auth.account_permissions").
 		Where(whereAccountIDIn, bun.In(accountIDs)),
 		"auth.account_permissions")
 
 	// Finally delete the accounts themselves
 	cleanupDelete(tb, db.NewDelete().
-		Model((*any)(nil)).
 		Table("auth.accounts").
 		Where("id IN (?)", bun.In(accountIDs)),
 		"auth.accounts")
@@ -571,7 +560,6 @@ func CleanupParentAccountFixtures(tb testing.TB, db *bun.DB, accountIDs ...int64
 	}
 
 	cleanupDelete(tb, db.NewDelete().
-		Model((*any)(nil)).
 		Table("auth.accounts_parents").
 		Where("id IN (?)", bun.In(accountIDs)),
 		"auth.accounts_parents")
