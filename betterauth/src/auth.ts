@@ -20,8 +20,13 @@ const pool = new Pool({
  * Entity Mapping:
  * - OGS (after-school center) = Organization
  * - Supervisor/Admin = Member with role
- * - Träger (carrier) = Custom field: traegerId
- * - Büro (office) = Custom field: bueroId (nullable)
+ * - Träger (carrier) = Custom field: traegerId (optional, assigned by SaaS admin)
+ * - Büro (office) = Custom field: bueroId (optional)
+ *
+ * Self-Service SaaS Model:
+ * - Users create their own organization during signup
+ * - Organizations start with status: "pending" (requires SaaS admin approval)
+ * - Members can have status: "pending" (requires org admin approval if configured)
  */
 export const auth = betterAuth({
   // Base URL - this is the frontend URL that browsers interact with
@@ -67,45 +72,8 @@ export const auth = betterAuth({
     },
   },
 
-  // Database hooks for auto-provisioning
-  databaseHooks: {
-    user: {
-      create: {
-        // After a new user is created, automatically add them to the default organization
-        after: async (user) => {
-          const DEFAULT_ORG_ID = "first-ogs-organization";
-          const DEFAULT_ROLE = "member";
-
-          try {
-            // Check if user is already a member (shouldn't happen, but be safe)
-            const existingResult = await pool.query(
-              `SELECT id FROM public.member WHERE "userId" = $1 AND "organizationId" = $2`,
-              [user.id, DEFAULT_ORG_ID]
-            );
-
-            if (existingResult.rows.length === 0) {
-              // Add user to default organization
-              const memberId = `member-${user.id}-${Date.now()}`;
-              await pool.query(
-                `INSERT INTO public.member (id, "userId", "organizationId", role, "createdAt")
-                 VALUES ($1, $2, $3, $4, NOW())`,
-                [memberId, user.id, DEFAULT_ORG_ID, DEFAULT_ROLE]
-              );
-              console.log(
-                `[BetterAuth] Auto-added user ${user.email} to default organization`
-              );
-            }
-          } catch (error) {
-            // Log but don't fail the signup - user can be added manually
-            console.error(
-              `[BetterAuth] Failed to auto-add user to org:`,
-              error
-            );
-          }
-        },
-      },
-    },
-  },
+  // NOTE: Auto-add to default org removed for self-service SaaS model
+  // Users now create their own organization during signup
 
   // Plugins
   plugins: [
@@ -125,24 +93,67 @@ export const auth = betterAuth({
         traegerAdmin,
       },
 
-      // Custom schema configuration
+      // Custom schema configuration for self-service SaaS
       schema: {
         organization: {
-          // Add custom fields for Phoenix multi-tenancy
           additionalFields: {
-            // Träger (carrier) ID - required for each OGS
-            // Links organization to a carrier/provider
-            traegerId: {
+            // Organization status for approval workflow
+            // pending: awaiting SaaS admin approval
+            // active: approved and operational
+            // suspended: disabled by SaaS admin
+            status: {
               type: "string",
               required: true,
-              input: true, // Accept from API
+              defaultValue: "pending",
+              input: false, // Only changeable via admin API
+            },
+            // Unique subdomain slug for tenant routing
+            // e.g., "ogs-musterstadt" for ogs-musterstadt.moto-app.de
+            slug: {
+              type: "string",
+              required: true,
+              input: true,
+            },
+            // Träger (carrier) ID - optional, assigned by SaaS admin after approval
+            traegerId: {
+              type: "string",
+              required: false, // Changed: now optional for self-service signup
+              input: true,
             },
             // Büro (office) ID - optional
-            // Some OGS belong to administrative offices
             bueroId: {
               type: "string",
               required: false,
-              input: true, // Accept from API
+              input: true,
+            },
+            // Organization settings for member management
+            // Allow public signup on org subdomain
+            allowPublicSignup: {
+              type: "boolean",
+              required: false,
+              defaultValue: false,
+              input: true,
+            },
+            // Require org admin approval for new members
+            requireMemberApproval: {
+              type: "boolean",
+              required: false,
+              defaultValue: true,
+              input: true,
+            },
+          },
+        },
+        member: {
+          additionalFields: {
+            // Member status for approval workflow
+            // pending: awaiting org admin approval (if requireMemberApproval)
+            // active: approved member
+            // suspended: disabled by org admin
+            status: {
+              type: "string",
+              required: true,
+              defaultValue: "active", // Org creator is active, others depend on settings
+              input: false,
             },
           },
         },
