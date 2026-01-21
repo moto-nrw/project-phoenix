@@ -862,7 +862,6 @@ describe("OGSGroupPage active filters", () => {
 describe("OGSGroupPage handleTransferGroup behavior", () => {
   it("validates transfer group parameters", () => {
     const currentGroup = { id: "1", name: "OGS Gruppe A" };
-    const targetPersonId = "123";
     const targetName = "Anna Lehrer";
 
     // Simulate the validation logic from handleTransferGroup
@@ -876,7 +875,6 @@ describe("OGSGroupPage handleTransferGroup behavior", () => {
 
   it("returns early when no current group", () => {
     const currentGroup = null;
-    const targetPersonId = "123";
 
     // Simulate the early return logic
     const canTransfer = !!currentGroup;
@@ -1036,8 +1034,7 @@ describe("OGSGroupPage renderDesktopActionButton logic", () => {
     const isMobile = false;
     const currentGroup = { id: "1", name: "Group A", viaSubstitution: true };
 
-    const shouldShowSubstitutionBadge =
-      !isMobile && currentGroup && currentGroup.viaSubstitution;
+    const shouldShowSubstitutionBadge = !isMobile && currentGroup.viaSubstitution;
     expect(shouldShowSubstitutionBadge).toBe(true);
   });
 
@@ -1088,8 +1085,7 @@ describe("OGSGroupPage renderMobileActionButton logic", () => {
     const isMobile = true;
     const currentGroup = { id: "1", name: "Group A", viaSubstitution: true };
 
-    const shouldShowSubstitutionIcon =
-      isMobile && currentGroup && currentGroup.viaSubstitution;
+    const shouldShowSubstitutionIcon = isMobile && currentGroup.viaSubstitution;
     expect(shouldShowSubstitutionIcon).toBe(true);
   });
 
@@ -1111,7 +1107,6 @@ describe("OGSGroupPage renderMobileActionButton logic", () => {
 describe("OGSGroupPage renderStudentContent logic", () => {
   it("shows loading when isLoading is true", () => {
     const isLoading = true;
-    const students: Array<{ id: string }> = [];
 
     const showLoading = isLoading;
     expect(showLoading).toBe(true);
@@ -1120,7 +1115,6 @@ describe("OGSGroupPage renderStudentContent logic", () => {
   it("shows empty state when students array is empty", () => {
     const isLoading = false;
     const students: Array<{ id: string }> = [];
-    const filteredStudents: Array<{ id: string }> = [];
 
     const showEmptyNoStudents = !isLoading && students.length === 0;
     expect(showEmptyNoStudents).toBe(true);

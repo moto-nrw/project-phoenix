@@ -741,7 +741,6 @@ describe("apiGet (client-side)", () => {
 
   it("throws error on axios failure", async () => {
     const api = (await import("./api")).default;
-    const { isAxiosError } = await import("axios");
     const error = {
       response: { status: 404, data: { message: "Not Found" } },
       message: "Request failed",
