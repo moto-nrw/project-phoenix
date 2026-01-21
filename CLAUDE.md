@@ -179,6 +179,46 @@ devbox add <tool>@latest    # Add to devbox.json
 - All project CLI tools must be in `devbox.json`
 - After adding a tool, it's immediately available to all developers
 
+### 9. Two PostgreSQL Databases (KNOW THE DIFFERENCE)
+**We run TWO separate PostgreSQL instances** - using the wrong one causes confusion:
+
+| Database | Port | Purpose | When to Use |
+|----------|------|---------|-------------|
+| **Development** | `5432` | Manual testing, frontend/backend dev | Seeding, Bruno API tests, login checks, UI testing |
+| **Test** | `5433` | Automated `go test` only | Integration tests in CI and locally |
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│  DEVELOPMENT DATABASE (postgres:5432)                                   │
+│  ─────────────────────────────────────                                  │
+│  • Backend server connects here: go run main.go serve                   │
+│  • Frontend connects here via backend API                               │
+│  • Seed with test data: go run main.go seed                             │
+│  • Run Bruno API tests against this                                     │
+│  • Manual testing: login, check UI, verify features                     │
+│  • SSL enabled (sslmode=require)                                        │
+│                                                                         │
+│  Start: docker compose up -d postgres                                   │
+└─────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────┐
+│  TEST DATABASE (postgres-test:5433)                                     │
+│  ─────────────────────────────────────                                  │
+│  • ONLY used by: go test ./...                                          │
+│  • Hermetic tests create/destroy their own fixtures                     │
+│  • Never seed manually - tests manage their own data                    │
+│  • SSL disabled for speed                                               │
+│  • Reset before test runs: APP_ENV=test go run main.go migrate reset    │
+│                                                                         │
+│  Start: docker compose --profile test up -d postgres-test               │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+**Common mistakes:**
+- Running `go test` without starting `postgres-test` → tests skip silently
+- Seeding the test database → breaks hermetic test isolation
+- Running the backend against test DB → wrong data, SSL errors
+
 ---
 
 ## Quick Reference Commands
@@ -208,10 +248,11 @@ devbox add <tool>@latest    # Add to devbox.json
 | Run migrations | `docker compose run server ./main migrate` |
 
 ### Test Database (port 5433)
+See **Critical Pattern #9** for full explanation of when to use which database.
 ```bash
 docker compose --profile test up -d postgres-test  # Start test DB
 APP_ENV=test go run main.go migrate reset          # Setup test DB
-go test ./...                                       # Run tests
+go test ./...                                       # Run tests (uses test DB automatically)
 ```
 
 ---
