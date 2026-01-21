@@ -109,8 +109,10 @@ async function getCookieHeader(): Promise<string> {
  */
 async function hasActiveSession(): Promise<boolean> {
   const cookieStore = await cookies();
+
   // BetterAuth session cookie name
   const sessionCookie = cookieStore.get("better-auth.session_token");
+
   return !!sessionCookie?.value;
 }
 

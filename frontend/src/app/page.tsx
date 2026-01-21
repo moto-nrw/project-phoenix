@@ -5,7 +5,7 @@ import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import { Input, Alert, HelpButton } from "~/components/ui";
-import { useSession, signIn } from "~/lib/auth-client";
+import { useSession, signIn, organization } from "~/lib/auth-client";
 import { SmartRedirect } from "~/components/auth/smart-redirect";
 import { PasswordResetModal } from "~/components/ui/password-reset-modal";
 
@@ -212,6 +212,30 @@ function LoginForm() {
         }
         setError(result.error.message ?? "Ungültige E-Mail oder Passwort");
       } else {
+        // After successful login, we need to set the active organization
+        // BetterAuth doesn't auto-set this, so the backend will reject requests without it
+        try {
+          // Get list of organizations the user belongs to
+          const orgsResult = await organization.list({});
+
+          if (orgsResult.data && orgsResult.data.length > 0) {
+            // Set the first organization as active
+            // In the future, we could let the user choose if they have multiple
+            const firstOrg = orgsResult.data[0];
+            if (firstOrg?.id) {
+              await organization.setActive({ organizationId: firstOrg.id });
+              console.log("Set active organization:", firstOrg.id);
+            }
+          } else {
+            console.warn(
+              "User has no organizations - backend requests may fail",
+            );
+          }
+        } catch (orgError) {
+          // Log but don't fail the login - the user can still access some pages
+          console.error("Failed to set active organization:", orgError);
+        }
+
         // Set flag to indicate we're awaiting redirect
         setAwaitingRedirect(true);
         // Refresh the router to update session state

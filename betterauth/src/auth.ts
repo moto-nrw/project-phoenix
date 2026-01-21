@@ -19,6 +19,11 @@ import {
  * - Büro (office) = Custom field: bueroId (nullable)
  */
 export const auth = betterAuth({
+  // Base URL - this is the frontend URL that browsers interact with
+  // BetterAuth needs this to set cookies correctly since we proxy through Next.js
+  // The BetterAuth service runs on localhost:3001 but cookies should be for the frontend
+  baseURL: process.env.BETTER_AUTH_BASE_URL ?? "http://localhost:3000",
+
   // Database connection - uses PostgreSQL with SSL
   database: new Pool({
     connectionString: process.env.DATABASE_URL,
@@ -48,6 +53,16 @@ export const auth = betterAuth({
     updateAge: 60 * 60 * 24, // 1 day in seconds
     // Store session in database for multi-device support
     storeSessionInDatabase: true,
+  },
+
+  // Advanced configuration for cookie handling
+  advanced: {
+    // Set cookie path to "/" so cookies are available to all routes
+    // Without this, cookies might only be sent to /api/auth/* routes
+    defaultCookieAttributes: {
+      path: "/",
+      sameSite: "lax",
+    },
   },
 
   // Plugins

@@ -14,6 +14,53 @@ package tenant
 // have this permission. Administrative roles (bueroAdmin, traegerAdmin) who
 // manage remotely do NOT have location access - this is a legal requirement.
 var RolePermissions = map[string][]string{
+	// admin - BetterAuth's default owner role when creating an organization.
+	// Maps to ogsAdmin permissions for backwards compatibility.
+	// NOTE: This is a BetterAuth built-in role, not a custom Phoenix role.
+	"admin": {
+		"student:read", "student:create", "student:update", "student:delete",
+		"group:read", "group:create", "group:update", "group:delete", "group:assign",
+		"room:read", "room:create", "room:update", "room:delete",
+		"attendance:read", "attendance:checkin", "attendance:checkout",
+		"location:read",
+		"staff:read", "staff:create", "staff:update", "staff:invite",
+		"ogs:read", "ogs:update",
+		"config:read", "config:create", "config:update", "config:manage",
+		"schedule:read", "schedule:create", "schedule:update", "schedule:delete",
+		"feedback:read", "feedback:create", "feedback:delete",
+		"substitution:read", "substitution:create", "substitution:update", "substitution:delete",
+		"person:read", "person:create", "person:update", "person:delete",
+	},
+
+	// owner - BetterAuth's alternative owner role.
+	// Maps to ogsAdmin permissions.
+	"owner": {
+		"student:read", "student:create", "student:update", "student:delete",
+		"group:read", "group:create", "group:update", "group:delete", "group:assign",
+		"room:read", "room:create", "room:update", "room:delete",
+		"attendance:read", "attendance:checkin", "attendance:checkout",
+		"location:read",
+		"staff:read", "staff:create", "staff:update", "staff:invite",
+		"ogs:read", "ogs:update",
+		"config:read", "config:create", "config:update", "config:manage",
+		"schedule:read", "schedule:create", "schedule:update", "schedule:delete",
+		"feedback:read", "feedback:create", "feedback:delete",
+		"substitution:read", "substitution:create", "substitution:update", "substitution:delete",
+		"person:read", "person:create", "person:update", "person:delete",
+	},
+
+	// member - BetterAuth's default member role.
+	// Basic read-only access.
+	"member": {
+		"student:read",
+		"group:read",
+		"room:read",
+		"attendance:read",
+		"schedule:read",
+		"feedback:read",
+		"substitution:read",
+	},
+
 	// supervisor - Front-line staff working directly with students.
 	// Scope: Only their assigned groups (enforced at query level, not here).
 	// CAN see location data (operational need).

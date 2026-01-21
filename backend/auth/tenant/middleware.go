@@ -3,7 +3,7 @@ package tenant
 import (
 	"context"
 	"database/sql"
-	"log"
+	"fmt"
 	"net/http"
 
 	"github.com/go-chi/render"
@@ -30,18 +30,9 @@ func Middleware(baClient *betterauth.Client, db *bun.DB) func(http.Handler) http
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
 
-			// DEBUG: Log incoming cookies (always prints)
-			cookieNames := make([]string, 0)
-			for _, c := range r.Cookies() {
-				cookieNames = append(cookieNames, c.Name)
-			}
-			log.Printf("DEBUG Middleware: path=%s cookies=%d names=%v", r.URL.Path, len(r.Cookies()), cookieNames)
-
 			// Step 1: Validate session with BetterAuth
 			session, err := baClient.GetSession(ctx, r)
 			if err != nil {
-				// DEBUG: Log the specific error (always prints)
-				log.Printf("DEBUG Middleware: BetterAuth failed - path=%s error=%s betterauth=%s", r.URL.Path, err.Error(), baClient.BaseURL())
 				handleAuthError(w, r, err, "session validation failed")
 				return
 			}
@@ -104,9 +95,26 @@ func Middleware(baClient *betterauth.Client, db *bun.DB) func(http.Handler) http
 				tc.StaffID = staffID
 			}
 
+			// Step 6b: Look up linked legacy account (for usercontext service compatibility)
+			// The usercontext service still uses account IDs for user lookups
+			accountID, err := lookupAccountByEmail(ctx, db, session.User.Email)
+			if err != nil {
+				// Log but don't fail - account linkage is optional for new users
+				if logging.Logger != nil {
+					logging.Logger.WithFields(map[string]any{
+						"error": err.Error(),
+						"email": session.User.Email,
+					}).Debug("Account linkage lookup failed (non-fatal)")
+				}
+			} else if accountID != nil {
+				tc.AccountID = accountID
+			}
+
 			// Step 7: Set RLS context for PostgreSQL
 			// Using SET LOCAL ensures the context is scoped to the current transaction.
-			_, err = db.ExecContext(ctx, "SET LOCAL app.ogs_id = $1", tc.OrgID)
+			// Note: SET doesn't support parameter binding ($1), so we use fmt.Sprintf
+			// with single quotes. OrgID is validated from BetterAuth, not user input.
+			_, err = db.ExecContext(ctx, fmt.Sprintf("SET LOCAL app.ogs_id = '%s'", tc.OrgID))
 			if err != nil {
 				if logging.Logger != nil {
 					logging.Logger.WithFields(map[string]interface{}{
@@ -280,4 +288,29 @@ func lookupStaffByBetterAuthUserID(ctx context.Context, db *bun.DB, betterAuthUs
 	}
 
 	return &staffID, nil
+}
+
+// lookupAccountByEmail finds the legacy auth.accounts record by email.
+// This enables compatibility with the usercontext service which uses account IDs.
+// Returns nil if no account is found (not an error - new BetterAuth users may not have accounts).
+func lookupAccountByEmail(ctx context.Context, db *bun.DB, email string) (*int64, error) {
+	if email == "" {
+		return nil, nil
+	}
+
+	var accountID int64
+	err := db.NewRaw(`
+		SELECT id FROM auth.accounts
+		WHERE LOWER(email) = LOWER(?)
+		LIMIT 1
+	`, email).Scan(ctx, &accountID)
+
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil // No account found - not an error
+		}
+		return nil, err
+	}
+
+	return &accountID, nil
 }

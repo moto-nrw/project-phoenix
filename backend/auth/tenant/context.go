@@ -52,6 +52,13 @@ type TenantContext struct {
 	// This enables access to person data and group assignments.
 	// Nullable because staff linkage happens after invitation acceptance.
 	StaffID *int64
+
+	// Account linkage (optional, populated when legacy account is found)
+	// AccountID links this BetterAuth user to their auth.accounts record.
+	// This enables compatibility with the usercontext service which still
+	// uses account IDs for user lookups.
+	// Nullable because the account may not exist (new BetterAuth-only users).
+	AccountID *int64
 }
 
 // SetTenantContext stores TenantContext in the request context.
@@ -191,4 +198,21 @@ func StaffIDFromCtx(ctx context.Context) *int64 {
 // Returns false if user is not authenticated or staff linkage is not set.
 func HasStaffLinkage(ctx context.Context) bool {
 	return StaffIDFromCtx(ctx) != nil
+}
+
+// AccountIDFromCtx returns the linked legacy account ID from context, or nil if not linked.
+// The account linkage is set when the middleware finds an auth.accounts record with
+// matching email.
+func AccountIDFromCtx(ctx context.Context) *int64 {
+	tc := TenantFromCtx(ctx)
+	if tc == nil {
+		return nil
+	}
+	return tc.AccountID
+}
+
+// HasAccountLinkage checks if the current user has a linked legacy account.
+// Returns false if user is not authenticated or account linkage is not set.
+func HasAccountLinkage(ctx context.Context) bool {
+	return AccountIDFromCtx(ctx) != nil
 }

@@ -14,6 +14,7 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/auth/tenant"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/auth"
@@ -151,14 +152,23 @@ func (s *userContextService) WithTx(tx bun.Tx) interface{} {
 	}
 }
 
-// getUserIDFromContext extracts the user ID from the JWT context
+// getUserIDFromContext extracts the user ID from the context.
+// Supports both BetterAuth (TenantContext) and legacy JWT authentication.
+// BetterAuth is checked first since it's the primary auth method.
 func (s *userContextService) getUserIDFromContext(ctx context.Context) (int, error) {
-	// Try to get claims from context
-	claims, ok := ctx.Value(jwt.CtxClaims).(jwt.AppClaims)
-	if !ok {
-		return 0, &UserContextError{Op: "get user ID from context", Err: ErrUserNotAuthenticated}
+	// Try BetterAuth TenantContext first (primary auth method)
+	accountID := tenant.AccountIDFromCtx(ctx)
+	if accountID != nil {
+		return int(*accountID), nil
 	}
-	return claims.ID, nil
+
+	// Fall back to legacy JWT claims for backwards compatibility
+	claims, ok := ctx.Value(jwt.CtxClaims).(jwt.AppClaims)
+	if ok {
+		return claims.ID, nil
+	}
+
+	return 0, &UserContextError{Op: "get user ID from context", Err: ErrUserNotAuthenticated}
 }
 
 // GetCurrentUser retrieves the currently authenticated user account

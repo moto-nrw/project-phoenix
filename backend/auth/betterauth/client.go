@@ -72,6 +72,10 @@ func (c *Client) GetSession(ctx context.Context, r *http.Request) (*SessionRespo
 		req.AddCookie(cookie)
 	}
 
+	// Add Origin header - required by BetterAuth for CSRF protection
+	// Use the BetterAuth service URL as origin for server-to-server calls
+	req.Header.Set("Origin", c.baseURL)
+
 	// Make request
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -131,6 +135,9 @@ func (c *Client) GetActiveMember(ctx context.Context, r *http.Request) (*MemberI
 	for _, cookie := range r.Cookies() {
 		req.AddCookie(cookie)
 	}
+
+	// Add Origin header - required by BetterAuth for CSRF protection
+	req.Header.Set("Origin", c.baseURL)
 
 	// Make request
 	resp, err := c.httpClient.Do(req)
