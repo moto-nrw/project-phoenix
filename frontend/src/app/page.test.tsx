@@ -9,6 +9,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 const mockSignIn = vi.fn();
 vi.mock("next-auth/react", () => ({
   signIn: (provider: string, options?: Record<string, unknown>) =>
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-return
     mockSignIn(provider, options),
   useSession: vi.fn(() => ({
     data: null,
@@ -25,7 +26,7 @@ vi.mock("next/navigation", () => ({
     refresh: mockRefresh,
   }),
   useSearchParams: () => ({
-    get: vi.fn((key: string) => null),
+    get: vi.fn((_key: string) => null),
   }),
 }));
 
@@ -36,7 +37,7 @@ vi.mock("~/lib/auth-api", () => ({
 
 // Mock SmartRedirect
 vi.mock("~/components/auth/smart-redirect", () => ({
-  SmartRedirect: ({ onRedirect }: { onRedirect: (path: string) => void }) => (
+  SmartRedirect: ({ onRedirect: _onRedirect }: { onRedirect: (path: string) => void }) => (
     <div data-testid="smart-redirect" />
   ),
 }));
@@ -99,6 +100,7 @@ vi.mock("~/components/ui", () => ({
 // Mock next/image
 vi.mock("next/image", () => ({
   default: ({ src, alt }: { src: string; alt: string }) => (
+    // eslint-disable-next-line @next/next/no-img-element
     <img src={src} alt={alt} data-testid="next-image" />
   ),
 }));

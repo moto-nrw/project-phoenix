@@ -379,6 +379,7 @@ describe("guardian-api functions", () => {
         headers: {
           "Content-Type": "application/json",
         },
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
         body: expect.any(String),
       });
     });
@@ -443,6 +444,7 @@ describe("guardian-api functions", () => {
         headers: {
           "Content-Type": "application/json",
         },
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
         body: expect.any(String),
       });
     });
@@ -459,8 +461,8 @@ describe("guardian-api functions", () => {
 
       await updateGuardian("1", { firstName: "Johnny", email: null });
 
-      const callArgs = vi.mocked(global.fetch).mock.calls[0];
-      const body = JSON.parse(callArgs![1]!.body as string);
+      const callArgs = vi.mocked(global.fetch).mock.calls[0] as [string, RequestInit];
+      const body = JSON.parse(callArgs[1].body as string) as Record<string, unknown>;
       expect(body).toEqual({ first_name: "Johnny", email: null });
     });
 
@@ -566,12 +568,13 @@ describe("guardian-api functions", () => {
           headers: {
             "Content-Type": "application/json",
           },
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
           body: expect.any(String),
         }
       );
 
-      const callArgs = vi.mocked(global.fetch).mock.calls[0];
-      const body = JSON.parse(callArgs![1]!.body as string);
+      const callArgs = vi.mocked(global.fetch).mock.calls[0] as [string, RequestInit];
+      const body = JSON.parse(callArgs[1].body as string) as Record<string, unknown>;
       expect(body.guardian_profile_id).toBe(1);
       expect(body.relationship_type).toBe("parent");
       expect(body.is_primary).toBe(true);
@@ -631,12 +634,13 @@ describe("guardian-api functions", () => {
           headers: {
             "Content-Type": "application/json",
           },
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
           body: expect.any(String),
         }
       );
 
-      const callArgs = vi.mocked(global.fetch).mock.calls[0];
-      const body = JSON.parse(callArgs![1]!.body as string);
+      const callArgs = vi.mocked(global.fetch).mock.calls[0] as [string, RequestInit];
+      const body = JSON.parse(callArgs[1].body as string) as Record<string, unknown>;
       expect(body).toEqual({
         relationship_type: "guardian",
         is_primary: false,
@@ -660,8 +664,8 @@ describe("guardian-api functions", () => {
         isPrimary: true,
       });
 
-      const callArgs = vi.mocked(global.fetch).mock.calls[0];
-      const body = JSON.parse(callArgs![1]!.body as string);
+      const callArgs = vi.mocked(global.fetch).mock.calls[0] as [string, RequestInit];
+      const body = JSON.parse(callArgs[1].body as string) as Record<string, unknown>;
       expect(body).toEqual({ is_primary: true });
     });
 

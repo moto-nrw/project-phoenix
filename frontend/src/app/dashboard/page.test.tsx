@@ -31,6 +31,7 @@ vi.mock("next-auth/react", () => ({
 }));
 
 vi.mock("~/lib/auth-utils", () => ({
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-member-access
   isAdmin: vi.fn((session) => session?.user?.isAdmin ?? false),
 }));
 
@@ -661,6 +662,7 @@ describe("StatCard component behavior", () => {
   it("renders stat cards with loading state showing dots", async () => {
     // Keep the mock response pending
     vi.mocked(fetchWithAuth).mockImplementation(
+      // eslint-disable-next-line @typescript-eslint/no-empty-function
       () => new Promise(() => {}), // Never resolves
     );
 

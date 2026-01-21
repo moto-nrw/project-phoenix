@@ -239,6 +239,7 @@ describe("DatabasePage", () => {
   });
 
   it("handles fetch error gracefully", async () => {
+    // eslint-disable-next-line @typescript-eslint/no-empty-function
     const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     vi.mocked(global.fetch).mockRejectedValue(new Error("Network error"));
 

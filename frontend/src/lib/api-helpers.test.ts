@@ -723,6 +723,7 @@ describe("apiGet (client-side)", () => {
 
   it("makes GET request via axios in browser", async () => {
     const api = (await import("./api")).default;
+    // eslint-disable-next-line @typescript-eslint/unbound-method
     vi.mocked(api.get).mockResolvedValueOnce({
       data: { result: "test" },
       status: 200,
@@ -734,6 +735,7 @@ describe("apiGet (client-side)", () => {
     const result = await apiGet<{ result: string }>("/test", "token");
 
     expect(result).toEqual({ result: "test" });
+    // eslint-disable-next-line @typescript-eslint/unbound-method
     expect(api.get).toHaveBeenCalledWith("/test", {
       headers: { Authorization: "Bearer token" },
     });
@@ -746,6 +748,7 @@ describe("apiGet (client-side)", () => {
       message: "Request failed",
       isAxiosError: true,
     };
+    // eslint-disable-next-line @typescript-eslint/unbound-method
     vi.mocked(api.get).mockRejectedValueOnce(error);
 
     await expect(apiGet("/test", "token")).rejects.toThrow(
@@ -777,6 +780,7 @@ describe("apiPost (client-side)", () => {
 
   it("makes POST request via axios in browser", async () => {
     const api = (await import("./api")).default;
+    // eslint-disable-next-line @typescript-eslint/unbound-method
     vi.mocked(api.post).mockResolvedValueOnce({
       data: { id: 1 },
       status: 201,
@@ -789,6 +793,7 @@ describe("apiPost (client-side)", () => {
     const result = await apiPost<{ id: number }>("/test", "token", body);
 
     expect(result).toEqual({ id: 1 });
+    // eslint-disable-next-line @typescript-eslint/unbound-method
     expect(api.post).toHaveBeenCalledWith("/test", body, {
       headers: { Authorization: "Bearer token" },
     });
@@ -818,6 +823,7 @@ describe("apiPut (client-side)", () => {
 
   it("makes PUT request via axios in browser", async () => {
     const api = (await import("./api")).default;
+    // eslint-disable-next-line @typescript-eslint/unbound-method
     vi.mocked(api.put).mockResolvedValueOnce({
       data: { updated: true },
       status: 200,
@@ -830,6 +836,7 @@ describe("apiPut (client-side)", () => {
     const result = await apiPut<{ updated: boolean }>("/test", "token", body);
 
     expect(result).toEqual({ updated: true });
+    // eslint-disable-next-line @typescript-eslint/unbound-method
     expect(api.put).toHaveBeenCalledWith("/test", body, {
       headers: { Authorization: "Bearer token" },
     });
@@ -859,6 +866,7 @@ describe("apiDelete (client-side)", () => {
 
   it("makes DELETE request via axios in browser", async () => {
     const api = (await import("./api")).default;
+    // eslint-disable-next-line @typescript-eslint/unbound-method
     vi.mocked(api.delete).mockResolvedValueOnce({
       data: {},
       status: 200,
@@ -870,6 +878,7 @@ describe("apiDelete (client-side)", () => {
     const result = await apiDelete("/test/1", "token");
 
     expect(result).toEqual({});
+    // eslint-disable-next-line @typescript-eslint/unbound-method
     expect(api.delete).toHaveBeenCalledWith("/test/1", {
       headers: { Authorization: "Bearer token" },
     });
@@ -877,6 +886,7 @@ describe("apiDelete (client-side)", () => {
 
   it("returns undefined for 204 No Content", async () => {
     const api = (await import("./api")).default;
+    // eslint-disable-next-line @typescript-eslint/unbound-method
     vi.mocked(api.delete).mockResolvedValueOnce({
       data: {},
       status: 204,

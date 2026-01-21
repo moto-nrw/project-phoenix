@@ -548,7 +548,7 @@ describe("RoomsPage active filters", () => {
   });
 
   it("creates active filter for building", () => {
-    const searchTerm = "";
+    const searchTerm = "" as string;
     const buildingFilter = "Main";
     const occupiedFilter = "all";
 
@@ -569,7 +569,7 @@ describe("RoomsPage active filters", () => {
   });
 
   it("creates active filter for free status", () => {
-    const searchTerm = "";
+    const searchTerm = "" as string;
     const buildingFilter = "all";
     const occupiedFilter = "free";
 

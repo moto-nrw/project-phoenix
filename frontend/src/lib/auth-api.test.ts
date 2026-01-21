@@ -99,6 +99,7 @@ describe("auth-api", () => {
           status: 401,
         });
 
+        // eslint-disable-next-line @typescript-eslint/no-empty-function
         const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
         const result = await refreshToken();
 
@@ -115,6 +116,7 @@ describe("auth-api", () => {
         const networkError = new Error("Network error");
         global.fetch = vi.fn().mockRejectedValue(networkError);
 
+        // eslint-disable-next-line @typescript-eslint/no-empty-function
         const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
         const result = await refreshToken();
 
@@ -128,6 +130,7 @@ describe("auth-api", () => {
     it("returns null when called from server context", async () => {
       const restore = setupServerEnv();
       try {
+        // eslint-disable-next-line @typescript-eslint/no-empty-function
         const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
         const result = await refreshToken();
 
@@ -227,6 +230,7 @@ describe("auth-api", () => {
           new Error("Server error")
         );
 
+        // eslint-disable-next-line @typescript-eslint/no-empty-function
         const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
         const result = await handleAuthFailure();
 
@@ -248,6 +252,7 @@ describe("auth-api", () => {
           (key) => mockSessionStorage[key] ?? null
         );
 
+        // eslint-disable-next-line @typescript-eslint/no-empty-function
         const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
         const result = await handleAuthFailure();
 
@@ -321,7 +326,9 @@ describe("auth-api", () => {
         const { signOut } = await import("next-auth/react");
         vi.mocked(signOut).mockResolvedValue({ url: "/" });
 
+        // eslint-disable-next-line @typescript-eslint/no-empty-function
         const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+        // eslint-disable-next-line @typescript-eslint/no-empty-function
         vi.spyOn(console, "error").mockImplementation(() => {});
 
         const result = await handleAuthFailure();
@@ -355,6 +362,7 @@ describe("auth-api", () => {
         const { signOut } = await import("next-auth/react");
         vi.mocked(signOut).mockResolvedValue({ url: "/" });
 
+        // eslint-disable-next-line @typescript-eslint/no-empty-function
         const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
         const result = await handleAuthFailure();
 
@@ -393,6 +401,7 @@ describe("auth-api", () => {
           url: null
         });
 
+        // eslint-disable-next-line @typescript-eslint/no-empty-function
         const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
         const result = await handleAuthFailure();
 
@@ -440,6 +449,7 @@ describe("auth-api", () => {
         json: () => Promise.resolve({ error: "Rate limit exceeded" }),
       });
 
+      // eslint-disable-next-line @typescript-eslint/no-empty-function
       vi.spyOn(console, "error").mockImplementation(() => {});
 
       await expect(requestPasswordReset("test@example.com")).rejects.toThrow(
@@ -457,6 +467,7 @@ describe("auth-api", () => {
         text: () => Promise.resolve("Internal server error"),
       });
 
+      // eslint-disable-next-line @typescript-eslint/no-empty-function
       vi.spyOn(console, "error").mockImplementation(() => {});
 
       await expect(requestPasswordReset("test@example.com")).rejects.toThrow(
@@ -475,6 +486,7 @@ describe("auth-api", () => {
         json: () => Promise.resolve({ error: "Too many requests" }),
       });
 
+      // eslint-disable-next-line @typescript-eslint/no-empty-function
       vi.spyOn(console, "error").mockImplementation(() => {});
 
       try {
@@ -500,6 +512,7 @@ describe("auth-api", () => {
         json: () => Promise.resolve({ error: "Too many requests" }),
       });
 
+      // eslint-disable-next-line @typescript-eslint/no-empty-function
       vi.spyOn(console, "error").mockImplementation(() => {});
 
       try {
@@ -522,7 +535,9 @@ describe("auth-api", () => {
         text: () => Promise.reject(new Error("Text parse error")),
       });
 
+      // eslint-disable-next-line @typescript-eslint/no-empty-function
       vi.spyOn(console, "error").mockImplementation(() => {});
+      // eslint-disable-next-line @typescript-eslint/no-empty-function
       vi.spyOn(console, "warn").mockImplementation(() => {});
 
       await expect(requestPasswordReset("test@example.com")).rejects.toThrow(
@@ -558,6 +573,7 @@ describe("auth-api", () => {
         new Error("Invalid token")
       );
 
+      // eslint-disable-next-line @typescript-eslint/no-empty-function
       vi.spyOn(console, "error").mockImplementation(() => {});
 
       await expect(
@@ -577,6 +593,7 @@ describe("auth-api", () => {
         json: () => Promise.resolve({ error: "Too many requests" }),
       });
 
+      // eslint-disable-next-line @typescript-eslint/no-empty-function
       vi.spyOn(console, "error").mockImplementation(() => {});
 
       try {
@@ -599,6 +616,7 @@ describe("auth-api", () => {
         json: () => Promise.resolve({ error: "Too many requests" }),
       });
 
+      // eslint-disable-next-line @typescript-eslint/no-empty-function
       vi.spyOn(console, "error").mockImplementation(() => {});
 
       try {
@@ -623,6 +641,7 @@ describe("auth-api", () => {
         json: () => Promise.resolve({ error: "Too many requests" }),
       });
 
+      // eslint-disable-next-line @typescript-eslint/no-empty-function
       vi.spyOn(console, "error").mockImplementation(() => {});
 
       try {
@@ -645,6 +664,7 @@ describe("auth-api", () => {
         json: () => Promise.resolve({ error: "Too many requests" }),
       });
 
+      // eslint-disable-next-line @typescript-eslint/no-empty-function
       vi.spyOn(console, "error").mockImplementation(() => {});
 
       try {
@@ -668,6 +688,7 @@ describe("auth-api", () => {
         json: () => Promise.resolve({ error: "Validation failed" }),
       });
 
+      // eslint-disable-next-line @typescript-eslint/no-empty-function
       vi.spyOn(console, "error").mockImplementation(() => {});
 
       await expect(requestPasswordReset("test@example.com")).rejects.toThrow(
@@ -685,6 +706,7 @@ describe("auth-api", () => {
         json: () => Promise.resolve({ message: "Email not found" }),
       });
 
+      // eslint-disable-next-line @typescript-eslint/no-empty-function
       vi.spyOn(console, "error").mockImplementation(() => {});
 
       await expect(requestPasswordReset("test@example.com")).rejects.toThrow(
@@ -702,6 +724,7 @@ describe("auth-api", () => {
         json: () => Promise.resolve({}),
       });
 
+      // eslint-disable-next-line @typescript-eslint/no-empty-function
       vi.spyOn(console, "error").mockImplementation(() => {});
 
       await expect(requestPasswordReset("test@example.com")).rejects.toThrow(
@@ -719,6 +742,7 @@ describe("auth-api", () => {
         text: () => Promise.resolve("   "), // whitespace only
       });
 
+      // eslint-disable-next-line @typescript-eslint/no-empty-function
       vi.spyOn(console, "error").mockImplementation(() => {});
 
       await expect(requestPasswordReset("test@example.com")).rejects.toThrow(
