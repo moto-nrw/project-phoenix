@@ -1,24 +1,32 @@
 #!/usr/bin/env bash
 # UserPromptSubmit hook - reminds Claude to use skills actively
+# Scans project-local .claude/skills and .claude/commands directories
 
 set -euo pipefail
 
-# Find all SKILL.md files and extract skill names
-skills=""
-while IFS= read -r skill_path; do
-    # Extract plugin and skill name from path
-    # Pattern: .../cache/<marketplace>/<plugin>/<version>/skills/<skill-name>/SKILL.md
-    # Or: .../skills/<skill-name>/SKILL.md
-    skill_name=$(basename "$(dirname "$skill_path")")
+# Find project root
+project_root=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
 
-    # Get plugin name if in cache structure
-    if [[ "$skill_path" == *"/cache/"* ]]; then
-        plugin_name=$(echo "$skill_path" | sed -E 's|.*/cache/[^/]+/([^/]+)/.*|\1|')
-        skills="${skills}${plugin_name}:${skill_name}, "
-    else
+skills=""
+
+# Scan project-local skills (.claude/skills/*/SKILL.md)
+if [[ -d "$project_root/.claude/skills" ]]; then
+    while IFS= read -r skill_path; do
+        skill_name=$(basename "$(dirname "$skill_path")")
         skills="${skills}${skill_name}, "
-    fi
-done < <(find "$HOME/.claude/plugins/cache" -name "SKILL.md" -type f 2>/dev/null | sort)
+    done < <(find "$project_root/.claude/skills" -name "SKILL.md" -type f 2>/dev/null | sort)
+fi
+
+# Scan project-local commands (.claude/commands/*.md)
+if [[ -d "$project_root/.claude/commands" ]]; then
+    while IFS= read -r cmd_path; do
+        # Skip subdirectories, only process direct .md files
+        if [[ -f "$cmd_path" ]]; then
+            cmd_name=$(basename "$cmd_path" .md)
+            skills="${skills}${cmd_name}, "
+        fi
+    done < <(find "$project_root/.claude/commands" -maxdepth 1 -name "*.md" -type f 2>/dev/null | sort)
+fi
 
 # Remove trailing comma and space
 skills="${skills%, }"
