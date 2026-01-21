@@ -86,10 +86,11 @@ func createFirstOgs(ctx context.Context, db *bun.DB) error {
 	// Create the first OGS organization
 	// Note: traegerId is a placeholder - the tenant.traeger table is created in WP4.
 	// Once WP4 is complete, this can be updated to reference a real träger.
-	_, err = db.ExecContext(ctx, `
+	// Using fmt.Sprintf because firstOgsId is a constant (safe from injection)
+	_, err = db.ExecContext(ctx, fmt.Sprintf(`
 		INSERT INTO public.organization (id, name, slug, "createdAt", "traegerId", metadata)
 		VALUES (
-			$1,
+			'%s',
 			'Erste OGS (Migration)',
 			'erste-ogs',
 			NOW(),
@@ -97,7 +98,7 @@ func createFirstOgs(ctx context.Context, db *bun.DB) error {
 			'{"source": "migration-1.7.7", "note": "Default organization for pre-existing data"}'
 		)
 		ON CONFLICT (id) DO NOTHING
-	`, firstOgsId)
+	`, firstOgsId))
 	if err != nil {
 		return fmt.Errorf("error creating first OGS organization: %w", err)
 	}
@@ -114,11 +115,12 @@ func removeFirstOgs(ctx context.Context, db *bun.DB) error {
 	fmt.Println("Rolling back migration 1.7.7: Removing first OGS organization...")
 
 	// Only remove if it's the migration-created org with placeholder traeger
-	result, err := db.ExecContext(ctx, `
+	// Using fmt.Sprintf because firstOgsId is a constant (safe from injection)
+	result, err := db.ExecContext(ctx, fmt.Sprintf(`
 		DELETE FROM public.organization
-		WHERE id = $1
+		WHERE id = '%s'
 		AND "traegerId" = 'migration-placeholder-traeger'
-	`, firstOgsId)
+	`, firstOgsId))
 	if err != nil {
 		return fmt.Errorf("error removing first OGS organization: %w", err)
 	}
