@@ -93,9 +93,7 @@ func TestStudentGuardian_Validate(t *testing.T) {
 
 func TestStudentGuardian_SetStudent(t *testing.T) {
 	student := &Student{
-		Model: base.Model{
-			ID: 123,
-		},
+		TenantModel: base.TenantModel{Model: base.Model{ID: 123}},
 		PersonID:    1,
 		SchoolClass: "Class A",
 	}

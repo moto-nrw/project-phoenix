@@ -866,16 +866,6 @@ func (rs *Resource) resolveStudentLocation(ctx context.Context, studentID int64,
 	return "Anwesend"
 }
 
-// Helper function to check if user has admin permissions
-func hasAdminPermissions(permissions []string) bool {
-	for _, perm := range permissions {
-		if perm == "admin:*" || perm == "*:*" {
-			return true
-		}
-	}
-	return false
-}
-
 // validateGroupLeaderAccess ensures current user is a teacher who leads the specified group
 func (rs *Resource) validateGroupLeaderAccess(w http.ResponseWriter, r *http.Request, groupID int64) (*users.Staff, *users.Teacher, bool) {
 	currentStaff, err := rs.UserContextService.GetCurrentStaff(r.Context())

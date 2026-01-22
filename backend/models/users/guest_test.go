@@ -130,7 +130,7 @@ func TestGuest_SetStaff(t *testing.T) {
 		}
 
 		staff := &Staff{
-			Model: base.Model{ID: 42},
+			TenantModel: base.TenantModel{Model: base.Model{ID: 42}},
 		}
 
 		guest.SetStaff(staff)

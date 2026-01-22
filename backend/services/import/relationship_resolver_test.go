@@ -14,9 +14,9 @@ import (
 func TestRelationshipResolver_ResolveGroup_ExactMatch(t *testing.T) {
 	resolver := &RelationshipResolver{
 		groupCache: map[string]*education.Group{
-			"gruppe 1a": {Model: base.Model{ID: 1}, Name: "Gruppe 1A"},
-			"gruppe 2b": {Model: base.Model{ID: 2}, Name: "Gruppe 2B"},
-			"gruppe 3c": {Model: base.Model{ID: 3}, Name: "Gruppe 3C"},
+			"gruppe 1a": {TenantModel: base.TenantModel{Model: base.Model{ID: 1}}, Name: "Gruppe 1A"},
+			"gruppe 2b": {TenantModel: base.TenantModel{Model: base.Model{ID: 2}}, Name: "Gruppe 2B"},
+			"gruppe 3c": {TenantModel: base.TenantModel{Model: base.Model{ID: 3}}, Name: "Gruppe 3C"},
 		},
 	}
 
@@ -74,9 +74,9 @@ func TestRelationshipResolver_ResolveGroup_ExactMatch(t *testing.T) {
 func TestRelationshipResolver_ResolveGroup_FuzzyMatch(t *testing.T) {
 	resolver := &RelationshipResolver{
 		groupCache: map[string]*education.Group{
-			"gruppe 1a":  {Model: base.Model{ID: 1}, Name: "Gruppe 1A"},
-			"gruppe 2b":  {Model: base.Model{ID: 2}, Name: "Gruppe 2B"},
-			"gruppe 10a": {Model: base.Model{ID: 10}, Name: "Gruppe 10A"},
+			"gruppe 1a":  {TenantModel: base.TenantModel{Model: base.Model{ID: 1}}, Name: "Gruppe 1A"},
+			"gruppe 2b":  {TenantModel: base.TenantModel{Model: base.Model{ID: 2}}, Name: "Gruppe 2B"},
+			"gruppe 10a": {TenantModel: base.TenantModel{Model: base.Model{ID: 10}}, Name: "Gruppe 10A"},
 		},
 	}
 
@@ -142,8 +142,8 @@ func TestRelationshipResolver_ResolveGroup_FuzzyMatch(t *testing.T) {
 func TestRelationshipResolver_ResolveRoom_ExactMatch(t *testing.T) {
 	resolver := &RelationshipResolver{
 		roomCache: map[string]*facilities.Room{
-			"raum 101": {Model: base.Model{ID: 1}, Name: "Raum 101"},
-			"raum 202": {Model: base.Model{ID: 2}, Name: "Raum 202"},
+			"raum 101": {TenantModel: base.TenantModel{Model: base.Model{ID: 1}}, Name: "Raum 101"},
+			"raum 202": {TenantModel: base.TenantModel{Model: base.Model{ID: 2}}, Name: "Raum 202"},
 		},
 	}
 
@@ -193,9 +193,9 @@ func TestRelationshipResolver_ResolveRoom_ExactMatch(t *testing.T) {
 func TestRelationshipResolver_ResolveRoom_FuzzyMatch(t *testing.T) {
 	resolver := &RelationshipResolver{
 		roomCache: map[string]*facilities.Room{
-			"raum 101": {Model: base.Model{ID: 1}, Name: "Raum 101"},
-			"raum 102": {Model: base.Model{ID: 2}, Name: "Raum 102"},
-			"raum 201": {Model: base.Model{ID: 3}, Name: "Raum 201"},
+			"raum 101": {TenantModel: base.TenantModel{Model: base.Model{ID: 1}}, Name: "Raum 101"},
+			"raum 102": {TenantModel: base.TenantModel{Model: base.Model{ID: 2}}, Name: "Raum 102"},
+			"raum 201": {TenantModel: base.TenantModel{Model: base.Model{ID: 3}}, Name: "Raum 201"},
 		},
 	}
 
@@ -243,10 +243,10 @@ func TestRelationshipResolver_ResolveRoom_FuzzyMatch(t *testing.T) {
 func TestRelationshipResolver_FindSimilarGroups(t *testing.T) {
 	resolver := &RelationshipResolver{
 		groupCache: map[string]*education.Group{
-			"gruppe 1a":  {Model: base.Model{ID: 1}, Name: "Gruppe 1A"},
-			"gruppe 1b":  {Model: base.Model{ID: 2}, Name: "Gruppe 1B"},
-			"gruppe 2a":  {Model: base.Model{ID: 3}, Name: "Gruppe 2A"},
-			"gruppe 10a": {Model: base.Model{ID: 4}, Name: "Gruppe 10A"},
+			"gruppe 1a":  {TenantModel: base.TenantModel{Model: base.Model{ID: 1}}, Name: "Gruppe 1A"},
+			"gruppe 1b":  {TenantModel: base.TenantModel{Model: base.Model{ID: 2}}, Name: "Gruppe 1B"},
+			"gruppe 2a":  {TenantModel: base.TenantModel{Model: base.Model{ID: 3}}, Name: "Gruppe 2A"},
+			"gruppe 10a": {TenantModel: base.TenantModel{Model: base.Model{ID: 4}}, Name: "Gruppe 10A"},
 		},
 	}
 
@@ -362,8 +362,8 @@ func TestRelationshipResolver_PreloadGroups(t *testing.T) {
 		// ARRANGE
 		mockRepo := &mockGroupRepo{
 			groups: []*education.Group{
-				{Model: base.Model{ID: 1}, Name: "Gruppe 1A"},
-				{Model: base.Model{ID: 2}, Name: "Gruppe 2B"},
+				{TenantModel: base.TenantModel{Model: base.Model{ID: 1}}, Name: "Gruppe 1A"},
+				{TenantModel: base.TenantModel{Model: base.Model{ID: 2}}, Name: "Gruppe 2B"},
 			},
 		}
 		resolver := NewRelationshipResolver(mockRepo, nil)
@@ -432,8 +432,8 @@ func TestRelationshipResolver_PreloadRooms(t *testing.T) {
 		// ARRANGE
 		mockRepo := &mockRoomRepo{
 			rooms: []*facilities.Room{
-				{Model: base.Model{ID: 1}, Name: "Raum 101"},
-				{Model: base.Model{ID: 2}, Name: "Raum 202"},
+				{TenantModel: base.TenantModel{Model: base.Model{ID: 1}}, Name: "Raum 101"},
+				{TenantModel: base.TenantModel{Model: base.Model{ID: 2}}, Name: "Raum 202"},
 			},
 		}
 		resolver := NewRelationshipResolver(nil, mockRepo)
@@ -471,9 +471,9 @@ func TestRelationshipResolver_PreloadRooms(t *testing.T) {
 func TestRelationshipResolver_FindSimilarRooms(t *testing.T) {
 	resolver := &RelationshipResolver{
 		roomCache: map[string]*facilities.Room{
-			"raum 101": {Model: base.Model{ID: 1}, Name: "Raum 101"},
-			"raum 102": {Model: base.Model{ID: 2}, Name: "Raum 102"},
-			"raum 201": {Model: base.Model{ID: 3}, Name: "Raum 201"},
+			"raum 101": {TenantModel: base.TenantModel{Model: base.Model{ID: 1}}, Name: "Raum 101"},
+			"raum 102": {TenantModel: base.TenantModel{Model: base.Model{ID: 2}}, Name: "Raum 102"},
+			"raum 201": {TenantModel: base.TenantModel{Model: base.Model{ID: 3}}, Name: "Raum 201"},
 		},
 	}
 

@@ -342,23 +342,6 @@ func WithTenantContext(tc *tenant.TenantContext) RequestOption {
 	}
 }
 
-// DefaultTenantContext returns a default tenant context for testing.
-// Uses admin role with all permissions.
-func DefaultTenantContext() *tenant.TenantContext {
-	return &tenant.TenantContext{
-		UserID:      "test-user-id",
-		UserEmail:   "test@example.com",
-		UserName:    "Test User",
-		OrgID:       "test-org-id",
-		OrgName:     "Test OGS",
-		OrgSlug:     "test-ogs",
-		Role:        "ogsAdmin",
-		Permissions: []string{"student:read", "student:create", "student:update", "student:delete", "group:read", "group:create", "group:update", "group:delete", "staff:read", "staff:create", "staff:update", "staff:delete", "room:read", "room:create", "room:update", "room:delete", "visit:read", "visit:create", "visit:update", "visit:delete", "activity:read", "activity:create", "activity:update", "activity:delete", "schedule:read", "schedule:create", "schedule:update", "schedule:delete", "feedback:read", "feedback:create", "feedback:update", "feedback:delete", "config:read", "config:update", "import:read", "import:create", "guardian:read", "guardian:create", "guardian:update", "guardian:delete", "location:read", "attendance:read", "attendance:checkin", "attendance:checkout", "attendance:update", "attendance:delete"},
-		TraegerID:   "test-traeger-id",
-		TraegerName: "Test Träger",
-	}
-}
-
 // SupervisorTenantContext returns a tenant context for a supervisor (front-line staff).
 // Supervisors can see location data but have limited admin capabilities.
 func SupervisorTenantContext(email string) *tenant.TenantContext {
@@ -391,46 +374,4 @@ func OGSAdminTenantContext(email string) *tenant.TenantContext {
 		TraegerID:   "test-traeger-id",
 		TraegerName: "Test Träger",
 	}
-}
-
-// BueroAdminTenantContext returns a tenant context for a Büro admin.
-// Büro admins can manage multiple OGS but cannot see location data.
-func BueroAdminTenantContext(email string) *tenant.TenantContext {
-	bueroID := "test-buero-id"
-	return &tenant.TenantContext{
-		UserID:      "bueroadmin-user-id",
-		UserEmail:   email,
-		UserName:    "Test Büro Admin",
-		OrgID:       "test-org-id",
-		OrgName:     "Test OGS",
-		OrgSlug:     "test-ogs",
-		Role:        "bueroAdmin",
-		Permissions: []string{"student:read", "group:read", "staff:read", "room:read", "feedback:read", "config:read"},
-		TraegerID:   "test-traeger-id",
-		TraegerName: "Test Träger",
-		BueroID:     &bueroID,
-		BueroName:   strPtr("Test Büro"),
-	}
-}
-
-// TraegerAdminTenantContext returns a tenant context for a Träger admin.
-// Träger admins have the highest level of access for their organization hierarchy.
-func TraegerAdminTenantContext(email string) *tenant.TenantContext {
-	return &tenant.TenantContext{
-		UserID:      "traegeradmin-user-id",
-		UserEmail:   email,
-		UserName:    "Test Träger Admin",
-		OrgID:       "test-org-id",
-		OrgName:     "Test OGS",
-		OrgSlug:     "test-ogs",
-		Role:        "traegerAdmin",
-		Permissions: []string{"student:read", "group:read", "staff:read", "room:read", "feedback:read", "config:read"},
-		TraegerID:   "test-traeger-id",
-		TraegerName: "Test Träger",
-	}
-}
-
-// strPtr is a helper to create string pointers for optional fields.
-func strPtr(s string) *string {
-	return &s
 }

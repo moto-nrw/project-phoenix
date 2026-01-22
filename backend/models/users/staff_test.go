@@ -58,9 +58,9 @@ func TestStaff_SetPerson(t *testing.T) {
 		staff := &Staff{}
 
 		person := &Person{
-			Model:     base.Model{ID: 42},
-			FirstName: "John",
-			LastName:  "Doe",
+			TenantModel: base.TenantModel{Model: base.Model{ID: 42}},
+			FirstName:   "John",
+			LastName:    "Doe",
 		}
 
 		staff.SetPerson(person)

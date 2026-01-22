@@ -343,8 +343,8 @@ func TestAddCategoryToResponse_WithCategory(t *testing.T) {
 	response := &ActivityResponse{}
 	group := &activitiesModel.Group{
 		Category: &activitiesModel.Category{
-			Model: base.Model{ID: 1},
-			Name:  "Test Category",
+			TenantModel: base.TenantModel{Model: base.Model{ID: 1}},
+			Name:        "Test Category",
 		},
 	}
 	addCategoryToResponse(response, group)
@@ -361,7 +361,7 @@ func TestBuildBaseActivityResponse_BasicFields(t *testing.T) {
 	roomID := int64(10)
 	now := time.Now()
 	group := &activitiesModel.Group{
-		Model:           base.Model{ID: 1, CreatedAt: now, UpdatedAt: now},
+		TenantModel:     base.TenantModel{Model: base.Model{ID: 1, CreatedAt: now, UpdatedAt: now}},
 		Name:            "Test Activity",
 		MaxParticipants: 20,
 		IsOpen:          true,
@@ -383,7 +383,7 @@ func TestBuildBaseActivityResponse_BasicFields(t *testing.T) {
 
 func TestBuildBaseActivityResponse_NilRoomID(t *testing.T) {
 	group := &activitiesModel.Group{
-		Model:         base.Model{ID: 1},
+		TenantModel:   base.TenantModel{Model: base.Model{ID: 1}},
 		Name:          "Test Activity",
 		PlannedRoomID: nil,
 	}
@@ -437,7 +437,7 @@ func TestUpdateGroupFields_NilRoomID(t *testing.T) {
 
 func TestNewCategoryResponse_FullCategory(t *testing.T) {
 	category := &activitiesModel.Category{
-		Model:       base.Model{ID: 1},
+		TenantModel: base.TenantModel{Model: base.Model{ID: 1}},
 		Name:        "Sports",
 		Description: "Sports activities",
 		Color:       "#FF0000",
@@ -453,8 +453,8 @@ func TestNewCategoryResponse_FullCategory(t *testing.T) {
 
 func TestNewCategoryResponse_MinimalCategory(t *testing.T) {
 	category := &activitiesModel.Category{
-		Model: base.Model{ID: 1},
-		Name:  "Minimal",
+		TenantModel: base.TenantModel{Model: base.Model{ID: 1}},
+		Name:        "Minimal",
 	}
 
 	response := newCategoryResponse(category)
@@ -516,11 +516,11 @@ func TestNewSupervisorResponse_Complete(t *testing.T) {
 		StaffID:   10,
 		IsPrimary: true,
 		Staff: &users.Staff{
-			Model: base.Model{ID: 10},
+			TenantModel: base.TenantModel{Model: base.Model{ID: 10}},
 			Person: &users.Person{
-				Model:     base.Model{ID: 100},
-				FirstName: "John",
-				LastName:  "Doe",
+				TenantModel: base.TenantModel{Model: base.Model{ID: 100}},
+				FirstName:   "John",
+				LastName:    "Doe",
 			},
 		},
 	}
@@ -557,8 +557,8 @@ func TestNewSupervisorResponse_StaffWithNilPerson(t *testing.T) {
 		StaffID:   10,
 		IsPrimary: false,
 		Staff: &users.Staff{
-			Model:  base.Model{ID: 10},
-			Person: nil,
+			TenantModel: base.TenantModel{Model: base.Model{ID: 10}},
+			Person:      nil,
 		},
 	}
 

@@ -223,8 +223,8 @@ func TestRoom_BeforeAppendModel(t *testing.T) {
 
 func TestRoom_GetID(t *testing.T) {
 	room := &Room{
-		Model: base.Model{ID: 42},
-		Name:  "Test Room",
+		TenantModel: base.TenantModel{Model: base.Model{ID: 42}},
+		Name:        "Test Room",
 	}
 
 	// GetID returns interface{}, so we compare with int64
@@ -236,8 +236,8 @@ func TestRoom_GetID(t *testing.T) {
 func TestRoom_GetCreatedAt(t *testing.T) {
 	now := time.Now()
 	room := &Room{
-		Model: base.Model{CreatedAt: now},
-		Name:  "Test Room",
+		TenantModel: base.TenantModel{Model: base.Model{CreatedAt: now}},
+		Name:        "Test Room",
 	}
 
 	if got := room.GetCreatedAt(); !got.Equal(now) {
@@ -248,8 +248,8 @@ func TestRoom_GetCreatedAt(t *testing.T) {
 func TestRoom_GetUpdatedAt(t *testing.T) {
 	now := time.Now()
 	room := &Room{
-		Model: base.Model{UpdatedAt: now},
-		Name:  "Test Room",
+		TenantModel: base.TenantModel{Model: base.Model{UpdatedAt: now}},
+		Name:        "Test Room",
 	}
 
 	if got := room.GetUpdatedAt(); !got.Equal(now) {

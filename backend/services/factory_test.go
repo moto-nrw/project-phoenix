@@ -43,7 +43,6 @@ func TestNewFactory(t *testing.T) {
 		assert.NotNil(t, factory.UserContext)
 		assert.NotNil(t, factory.Database)
 		assert.NotNil(t, factory.Import)
-		assert.NotNil(t, factory.Invitation)
 	})
 
 	t.Run("realtime hub", func(t *testing.T) {

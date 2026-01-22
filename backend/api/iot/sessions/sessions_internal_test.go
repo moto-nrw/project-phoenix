@@ -85,9 +85,9 @@ func TestFilterActiveSupervisors_ZeroStaffID(t *testing.T) {
 
 func TestCountActiveStudents_AllActive(t *testing.T) {
 	visits := []*active.Visit{
-		{Model: base.Model{ID: 1}, StudentID: 1, ExitTime: nil},
-		{Model: base.Model{ID: 2}, StudentID: 2, ExitTime: nil},
-		{Model: base.Model{ID: 3}, StudentID: 3, ExitTime: nil},
+		{TenantModel: base.TenantModel{Model: base.Model{ID: 1}}, StudentID: 1, ExitTime: nil},
+		{TenantModel: base.TenantModel{Model: base.Model{ID: 2}}, StudentID: 2, ExitTime: nil},
+		{TenantModel: base.TenantModel{Model: base.Model{ID: 3}}, StudentID: 3, ExitTime: nil},
 	}
 
 	count := countActiveStudents(visits)
@@ -98,9 +98,9 @@ func TestCountActiveStudents_AllActive(t *testing.T) {
 func TestCountActiveStudents_SomeExited(t *testing.T) {
 	exitTime := time.Now()
 	visits := []*active.Visit{
-		{Model: base.Model{ID: 1}, StudentID: 1, ExitTime: nil},
-		{Model: base.Model{ID: 2}, StudentID: 2, ExitTime: &exitTime}, // Exited
-		{Model: base.Model{ID: 3}, StudentID: 3, ExitTime: nil},
+		{TenantModel: base.TenantModel{Model: base.Model{ID: 1}}, StudentID: 1, ExitTime: nil},
+		{TenantModel: base.TenantModel{Model: base.Model{ID: 2}}, StudentID: 2, ExitTime: &exitTime}, // Exited
+		{TenantModel: base.TenantModel{Model: base.Model{ID: 3}}, StudentID: 3, ExitTime: nil},
 	}
 
 	count := countActiveStudents(visits)
@@ -111,8 +111,8 @@ func TestCountActiveStudents_SomeExited(t *testing.T) {
 func TestCountActiveStudents_AllExited(t *testing.T) {
 	exitTime := time.Now()
 	visits := []*active.Visit{
-		{Model: base.Model{ID: 1}, StudentID: 1, ExitTime: &exitTime},
-		{Model: base.Model{ID: 2}, StudentID: 2, ExitTime: &exitTime},
+		{TenantModel: base.TenantModel{Model: base.Model{ID: 1}}, StudentID: 1, ExitTime: &exitTime},
+		{TenantModel: base.TenantModel{Model: base.Model{ID: 2}}, StudentID: 2, ExitTime: &exitTime},
 	}
 
 	count := countActiveStudents(visits)

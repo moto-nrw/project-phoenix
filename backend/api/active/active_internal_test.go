@@ -3,13 +3,11 @@
 package active
 
 import (
-	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -406,66 +404,6 @@ func TestCheckinError_Respond_InternalServerError(t *testing.T) {
 }
 
 // NOTE: Common error tests are in checkout_test.go
-
-// =============================================================================
-// VisitIDExtractor Tests
-// =============================================================================
-
-func TestVisitIDExtractor_ValidID(t *testing.T) {
-	extractor := VisitIDExtractor()
-
-	req := httptest.NewRequest("GET", "/visits/123", nil)
-	rctx := chi.NewRouteContext()
-	rctx.URLParams.Add("id", "123")
-	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
-
-	resource, metadata := extractor(req)
-
-	assert.Equal(t, int64(123), resource)
-	assert.Nil(t, metadata)
-}
-
-func TestVisitIDExtractor_EmptyID(t *testing.T) {
-	extractor := VisitIDExtractor()
-
-	req := httptest.NewRequest("GET", "/visits/", nil)
-	rctx := chi.NewRouteContext()
-	// Don't add id param
-	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
-
-	resource, metadata := extractor(req)
-
-	assert.Nil(t, resource)
-	assert.Nil(t, metadata)
-}
-
-func TestVisitIDExtractor_InvalidID(t *testing.T) {
-	extractor := VisitIDExtractor()
-
-	req := httptest.NewRequest("GET", "/visits/invalid", nil)
-	rctx := chi.NewRouteContext()
-	rctx.URLParams.Add("id", "invalid")
-	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
-
-	resource, metadata := extractor(req)
-
-	assert.Nil(t, resource)
-	assert.Nil(t, metadata)
-}
-
-func TestVisitIDExtractor_LargeID(t *testing.T) {
-	extractor := VisitIDExtractor()
-
-	req := httptest.NewRequest("GET", "/visits/9999999999", nil)
-	rctx := chi.NewRouteContext()
-	rctx.URLParams.Add("id", "9999999999")
-	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
-
-	resource, metadata := extractor(req)
-
-	assert.Equal(t, int64(9999999999), resource)
-	assert.Nil(t, metadata)
-}
 
 // =============================================================================
 // Response Types Tests

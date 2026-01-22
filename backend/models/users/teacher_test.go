@@ -129,14 +129,14 @@ func TestTeacher_SetStaff(t *testing.T) {
 		teacher := &Teacher{}
 
 		person := &Person{
-			Model:     base.Model{ID: 10},
-			FirstName: "John",
-			LastName:  "Doe",
+			TenantModel: base.TenantModel{Model: base.Model{ID: 10}},
+			FirstName:   "John",
+			LastName:    "Doe",
 		}
 		staff := &Staff{
-			Model:    base.Model{ID: 42},
-			PersonID: 10,
-			Person:   person,
+			TenantModel: base.TenantModel{Model: base.Model{ID: 42}},
+			PersonID:    10,
+			Person:      person,
 		}
 
 		teacher.SetStaff(staff)

@@ -172,7 +172,7 @@ func TestPersonGuardian_SetPerson(t *testing.T) {
 		}
 
 		person := &Person{
-			Model: base.Model{ID: 42},
+			TenantModel: base.TenantModel{Model: base.Model{ID: 42}},
 		}
 
 		pg.SetPerson(person)

@@ -65,7 +65,7 @@ func TestBuildNoRoomResponse_EmptyStudents(t *testing.T) {
 
 func TestBuildNoRoomResponse_SingleStudent(t *testing.T) {
 	students := []*users.Student{
-		{Model: base.Model{ID: 1}},
+		{TenantModel: base.TenantModel{Model: base.Model{ID: 1}}},
 	}
 
 	result := buildNoRoomResponse(students)
@@ -81,9 +81,9 @@ func TestBuildNoRoomResponse_SingleStudent(t *testing.T) {
 
 func TestBuildNoRoomResponse_MultipleStudents(t *testing.T) {
 	students := []*users.Student{
-		{Model: base.Model{ID: 10}},
-		{Model: base.Model{ID: 20}},
-		{Model: base.Model{ID: 30}},
+		{TenantModel: base.TenantModel{Model: base.Model{ID: 10}}},
+		{TenantModel: base.TenantModel{Model: base.Model{ID: 20}}},
+		{TenantModel: base.TenantModel{Model: base.Model{ID: 30}}},
 	}
 
 	result := buildNoRoomResponse(students)

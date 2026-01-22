@@ -276,8 +276,8 @@ func TestGroupSubstitution_SetGroup(t *testing.T) {
 	t.Run("set group", func(t *testing.T) {
 		gs := &GroupSubstitution{SubstituteStaffID: 1}
 		group := &Group{
-			Model: base.Model{ID: 42},
-			Name:  "Test Group",
+			TenantModel: base.TenantModel{Model: base.Model{ID: 42}},
+			Name:        "Test Group",
 		}
 
 		gs.SetGroup(group)
@@ -309,8 +309,8 @@ func TestGroupSubstitution_SetRegularStaff(t *testing.T) {
 	t.Run("set regular staff", func(t *testing.T) {
 		gs := &GroupSubstitution{GroupID: 1, SubstituteStaffID: 2}
 		staff := &users.Staff{
-			Model:    base.Model{ID: 42},
-			PersonID: 1,
+			TenantModel: base.TenantModel{Model: base.Model{ID: 42}},
+			PersonID:    1,
 		}
 
 		gs.SetRegularStaff(staff)
@@ -348,8 +348,8 @@ func TestGroupSubstitution_SetSubstituteStaff(t *testing.T) {
 	t.Run("set substitute staff", func(t *testing.T) {
 		gs := &GroupSubstitution{GroupID: 1}
 		staff := &users.Staff{
-			Model:    base.Model{ID: 42},
-			PersonID: 1,
+			TenantModel: base.TenantModel{Model: base.Model{ID: 42}},
+			PersonID:    1,
 		}
 
 		gs.SetSubstituteStaff(staff)

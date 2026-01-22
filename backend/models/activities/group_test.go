@@ -217,7 +217,7 @@ func TestGroup_BeforeAppendModel(t *testing.T) {
 
 func TestGroup_GetID(t *testing.T) {
 	group := &Group{
-		Model:           base.Model{ID: 42},
+		TenantModel:     base.TenantModel{Model: base.Model{ID: 42}},
 		Name:            "Test",
 		CategoryID:      1,
 		MaxParticipants: 10,
@@ -231,7 +231,7 @@ func TestGroup_GetID(t *testing.T) {
 func TestGroup_GetCreatedAt(t *testing.T) {
 	now := time.Now()
 	group := &Group{
-		Model:           base.Model{CreatedAt: now},
+		TenantModel:     base.TenantModel{Model: base.Model{CreatedAt: now}},
 		Name:            "Test",
 		CategoryID:      1,
 		MaxParticipants: 10,
@@ -245,7 +245,7 @@ func TestGroup_GetCreatedAt(t *testing.T) {
 func TestGroup_GetUpdatedAt(t *testing.T) {
 	now := time.Now()
 	group := &Group{
-		Model:           base.Model{UpdatedAt: now},
+		TenantModel:     base.TenantModel{Model: base.Model{UpdatedAt: now}},
 		Name:            "Test",
 		CategoryID:      1,
 		MaxParticipants: 10,

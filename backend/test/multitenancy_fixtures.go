@@ -185,30 +185,6 @@ func SetRLSContextWithRole(ctx context.Context, db bun.IDB, ogsID string) error 
 // Cleanup Helpers for Multi-Tenancy
 // ============================================================================
 
-// CleanupOrganization removes a test organization and related data.
-func CleanupOrganization(tb testing.TB, db *bun.DB, orgID string) {
-	tb.Helper()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	// Delete organization
-	_, _ = db.NewRaw(`DELETE FROM public.organization WHERE id = ?`, orgID).Exec(ctx)
-}
-
-// CleanupTraeger removes a test Träger and related data.
-func CleanupTraeger(tb testing.TB, db *bun.DB, traegerID string) {
-	tb.Helper()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	// Delete in order: organizations -> bueros -> traeger
-	_, _ = db.NewRaw(`DELETE FROM public.organization WHERE "traegerId" = ?`, traegerID).Exec(ctx)
-	_, _ = db.NewRaw(`DELETE FROM tenant.buero WHERE traeger_id = ?`, traegerID).Exec(ctx)
-	_, _ = db.NewRaw(`DELETE FROM tenant.traeger WHERE id = ?`, traegerID).Exec(ctx)
-}
-
 // CleanupDataByOGS removes all test data for a specific OGS.
 // This should be called after tests to clean up created data.
 func CleanupDataByOGS(tb testing.TB, db *bun.DB, ogsID string) {

@@ -365,9 +365,9 @@ func TestPerson_TableName(t *testing.T) {
 
 func TestPerson_GetID(t *testing.T) {
 	person := &Person{
-		Model:     base.Model{ID: 42},
-		FirstName: "John",
-		LastName:  "Doe",
+		TenantModel: base.TenantModel{Model: base.Model{ID: 42}},
+		FirstName:   "John",
+		LastName:    "Doe",
 	}
 
 	if got, ok := person.GetID().(int64); !ok || got != 42 {
@@ -378,9 +378,9 @@ func TestPerson_GetID(t *testing.T) {
 func TestPerson_GetCreatedAt(t *testing.T) {
 	now := time.Now()
 	person := &Person{
-		Model:     base.Model{CreatedAt: now},
-		FirstName: "John",
-		LastName:  "Doe",
+		TenantModel: base.TenantModel{Model: base.Model{CreatedAt: now}},
+		FirstName:   "John",
+		LastName:    "Doe",
 	}
 
 	if got := person.GetCreatedAt(); !got.Equal(now) {
@@ -391,9 +391,9 @@ func TestPerson_GetCreatedAt(t *testing.T) {
 func TestPerson_GetUpdatedAt(t *testing.T) {
 	now := time.Now()
 	person := &Person{
-		Model:     base.Model{UpdatedAt: now},
-		FirstName: "John",
-		LastName:  "Doe",
+		TenantModel: base.TenantModel{Model: base.Model{UpdatedAt: now}},
+		FirstName:   "John",
+		LastName:    "Doe",
 	}
 
 	if got := person.GetUpdatedAt(); !got.Equal(now) {

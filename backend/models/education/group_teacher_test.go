@@ -70,8 +70,8 @@ func TestGroupTeacher_SetGroup(t *testing.T) {
 	t.Run("set group", func(t *testing.T) {
 		gt := &GroupTeacher{TeacherID: 1}
 		group := &Group{
-			Model: base.Model{ID: 42},
-			Name:  "Test Group",
+			TenantModel: base.TenantModel{Model: base.Model{ID: 42}},
+			Name:        "Test Group",
 		}
 
 		gt.SetGroup(group)
@@ -105,8 +105,8 @@ func TestGroupTeacher_SetTeacher(t *testing.T) {
 	t.Run("set teacher", func(t *testing.T) {
 		gt := &GroupTeacher{GroupID: 1}
 		teacher := &users.Teacher{
-			Model:   base.Model{ID: 42},
-			StaffID: 1,
+			TenantModel: base.TenantModel{Model: base.Model{ID: 42}},
+			StaffID:     1,
 		}
 
 		gt.SetTeacher(teacher)

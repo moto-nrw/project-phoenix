@@ -183,23 +183,6 @@ func CanManageOGS(ctx context.Context) bool {
 	return HasPermission(ctx, "ogs:update")
 }
 
-// StaffIDFromCtx returns the linked staff ID from context, or nil if not linked.
-// The staff linkage is set when the middleware finds a staff record with
-// matching betterauth_user_id.
-func StaffIDFromCtx(ctx context.Context) *int64 {
-	tc := TenantFromCtx(ctx)
-	if tc == nil {
-		return nil
-	}
-	return tc.StaffID
-}
-
-// HasStaffLinkage checks if the current user has a linked staff record.
-// Returns false if user is not authenticated or staff linkage is not set.
-func HasStaffLinkage(ctx context.Context) bool {
-	return StaffIDFromCtx(ctx) != nil
-}
-
 // AccountIDFromCtx returns the linked legacy account ID from context, or nil if not linked.
 // The account linkage is set when the middleware finds an auth.accounts record with
 // matching email.
@@ -209,10 +192,4 @@ func AccountIDFromCtx(ctx context.Context) *int64 {
 		return nil
 	}
 	return tc.AccountID
-}
-
-// HasAccountLinkage checks if the current user has a linked legacy account.
-// Returns false if user is not authenticated or account linkage is not set.
-func HasAccountLinkage(ctx context.Context) bool {
-	return AccountIDFromCtx(ctx) != nil
 }

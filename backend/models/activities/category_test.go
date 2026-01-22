@@ -114,8 +114,8 @@ func TestCategory_BeforeAppendModel(t *testing.T) {
 
 func TestCategory_GetID(t *testing.T) {
 	cat := &Category{
-		Model: base.Model{ID: 42},
-		Name:  "Test",
+		TenantModel: base.TenantModel{Model: base.Model{ID: 42}},
+		Name:        "Test",
 	}
 
 	if got, ok := cat.GetID().(int64); !ok || got != 42 {
@@ -126,8 +126,8 @@ func TestCategory_GetID(t *testing.T) {
 func TestCategory_GetCreatedAt(t *testing.T) {
 	now := time.Now()
 	cat := &Category{
-		Model: base.Model{CreatedAt: now},
-		Name:  "Test",
+		TenantModel: base.TenantModel{Model: base.Model{CreatedAt: now}},
+		Name:        "Test",
 	}
 
 	if got := cat.GetCreatedAt(); !got.Equal(now) {
@@ -138,8 +138,8 @@ func TestCategory_GetCreatedAt(t *testing.T) {
 func TestCategory_GetUpdatedAt(t *testing.T) {
 	now := time.Now()
 	cat := &Category{
-		Model: base.Model{UpdatedAt: now},
-		Name:  "Test",
+		TenantModel: base.TenantModel{Model: base.Model{UpdatedAt: now}},
+		Name:        "Test",
 	}
 
 	if got := cat.GetUpdatedAt(); !got.Equal(now) {

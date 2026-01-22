@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"golang.org/x/crypto/argon2"
 
@@ -1560,85 +1559,4 @@ func CleanupScheduleFixtures(tb testing.TB, db *bun.DB, timeframeIDs ...int64) {
 			Where(whereIDEquals, id),
 			"schedule.timeframes")
 	}
-}
-
-// GetOrCreateTestRole gets an existing role by name or creates a test role.
-// This is useful for invitation tests that need a valid role.
-func GetOrCreateTestRole(tb testing.TB, db *bun.DB, name string) *auth.Role {
-	tb.Helper()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	// Try to find existing role first
-	var role auth.Role
-	err := db.NewSelect().
-		Model(&role).
-		ModelTableExpr(`auth.roles AS "role"`).
-		Where(`"role".name = ?`, name).
-		Scan(ctx)
-
-	if err == nil {
-		return &role
-	}
-
-	// Create a new role if not found
-	role = auth.Role{
-		Name:        fmt.Sprintf("%s-%d", name, time.Now().UnixNano()),
-		Description: "Test role for " + name,
-		IsSystem:    false,
-	}
-
-	err = db.NewInsert().
-		Model(&role).
-		ModelTableExpr(`auth.roles`).
-		Scan(ctx)
-	require.NoError(tb, err, "Failed to create test role")
-
-	return &role
-}
-
-// ============================================================================
-// JWT Test Helpers
-// ============================================================================
-
-// TestTokenAuth is a shared TokenAuth instance for tests using a known secret.
-// This allows tests to generate valid JWT tokens without needing the app config.
-var testTokenAuthInstance *jwt.TokenAuth
-
-// testJWTSecret is a fixed secret for testing (never use in production)
-const testJWTSecret = "test-jwt-secret-32-chars-minimum"
-
-// GetTestTokenAuth returns a TokenAuth instance for testing.
-// Uses a singleton pattern to ensure all tests use the same secret.
-func GetTestTokenAuth(tb testing.TB) *jwt.TokenAuth {
-	tb.Helper()
-
-	if testTokenAuthInstance == nil {
-		var err error
-		testTokenAuthInstance, err = jwt.NewTokenAuthWithSecret(testJWTSecret)
-		require.NoError(tb, err, "Failed to create test TokenAuth")
-	}
-
-	return testTokenAuthInstance
-}
-
-// CreateTestJWT creates a valid JWT access token for the given account ID.
-// This token can be used in the Authorization header for authenticated API requests.
-func CreateTestJWT(tb testing.TB, accountID int64, permissions []string) string {
-	tb.Helper()
-
-	tokenAuth := GetTestTokenAuth(tb)
-
-	claims := jwt.AppClaims{
-		ID:          int(accountID),
-		Sub:         fmt.Sprintf("%d", accountID), // Required claim - subject identifier
-		Roles:       []string{"user"},
-		Permissions: permissions,
-	}
-
-	token, err := tokenAuth.CreateJWT(claims)
-	require.NoError(tb, err, "Failed to create test JWT")
-
-	return token
 }

@@ -203,7 +203,7 @@ func TestBuildCheckinResult_CheckedOutAndCheckedIn_Transfer(t *testing.T) {
 	checkoutVisitID := int64(100)
 
 	input := &checkinResultInput{
-		Student:          &users.Student{Model: base.Model{ID: 1}},
+		Student:          &users.Student{TenantModel: base.TenantModel{Model: base.Model{ID: 1}}},
 		Person:           &users.Person{FirstName: "Max", LastName: "Test"},
 		CheckedOut:       true,
 		NewVisitID:       &newVisitID,
@@ -226,7 +226,7 @@ func TestBuildCheckinResult_CheckedOutAndCheckedIn_SameRoom(t *testing.T) {
 	checkoutVisitID := int64(100)
 
 	input := &checkinResultInput{
-		Student:          &users.Student{Model: base.Model{ID: 1}},
+		Student:          &users.Student{TenantModel: base.TenantModel{Model: base.Model{ID: 1}}},
 		Person:           &users.Person{FirstName: "Max", LastName: "Test"},
 		CheckedOut:       true,
 		NewVisitID:       &newVisitID,
@@ -245,7 +245,7 @@ func TestBuildCheckinResult_CheckedOutOnly(t *testing.T) {
 	checkoutVisitID := int64(100)
 
 	input := &checkinResultInput{
-		Student:         &users.Student{Model: base.Model{ID: 1}},
+		Student:         &users.Student{TenantModel: base.TenantModel{Model: base.Model{ID: 1}}},
 		Person:          &users.Person{FirstName: "Max", LastName: "Test"},
 		CheckedOut:      true,
 		NewVisitID:      nil, // No checkin
@@ -264,7 +264,7 @@ func TestBuildCheckinResult_CheckedInOnly(t *testing.T) {
 	newVisitID := int64(123)
 
 	input := &checkinResultInput{
-		Student:    &users.Student{Model: base.Model{ID: 1}},
+		Student:    &users.Student{TenantModel: base.TenantModel{Model: base.Model{ID: 1}}},
 		Person:     &users.Person{FirstName: "Max", LastName: "Test"},
 		CheckedOut: false,
 		NewVisitID: &newVisitID,
@@ -280,7 +280,7 @@ func TestBuildCheckinResult_CheckedInOnly(t *testing.T) {
 
 func TestBuildCheckinResult_NoAction(t *testing.T) {
 	input := &checkinResultInput{
-		Student:    &users.Student{Model: base.Model{ID: 1}},
+		Student:    &users.Student{TenantModel: base.TenantModel{Model: base.Model{ID: 1}}},
 		Person:     &users.Person{FirstName: "Max", LastName: "Test"},
 		CheckedOut: false,
 		NewVisitID: nil,
@@ -298,7 +298,7 @@ func TestBuildCheckinResult_TransferNoPreviousRoom(t *testing.T) {
 	checkoutVisitID := int64(100)
 
 	input := &checkinResultInput{
-		Student:          &users.Student{Model: base.Model{ID: 1}},
+		Student:          &users.Student{TenantModel: base.TenantModel{Model: base.Model{ID: 1}}},
 		Person:           &users.Person{FirstName: "Max", LastName: "Test"},
 		CheckedOut:       true,
 		NewVisitID:       &newVisitID,
@@ -322,8 +322,8 @@ func TestBuildCheckinResponse_BasicFields(t *testing.T) {
 	now := time.Now()
 	visitID := int64(123)
 	student := &users.Student{
-		Model:  base.Model{ID: 1},
-		Person: &users.Person{FirstName: "Max", LastName: "Test"},
+		TenantModel: base.TenantModel{Model: base.Model{ID: 1}},
+		Person:      &users.Person{FirstName: "Max", LastName: "Test"},
 	}
 	result := &checkinResult{
 		Action:      "checked_in",
@@ -348,8 +348,8 @@ func TestBuildCheckinResponse_Transfer(t *testing.T) {
 	now := time.Now()
 	visitID := int64(123)
 	student := &users.Student{
-		Model:  base.Model{ID: 1},
-		Person: &users.Person{FirstName: "Max", LastName: "Test"},
+		TenantModel: base.TenantModel{Model: base.Model{ID: 1}},
+		Person:      &users.Person{FirstName: "Max", LastName: "Test"},
 	}
 	result := &checkinResult{
 		Action:           "transferred",
@@ -368,8 +368,8 @@ func TestBuildCheckinResponse_Transfer(t *testing.T) {
 func TestBuildCheckinResponse_NoTransferNoPreviousRoom(t *testing.T) {
 	now := time.Now()
 	student := &users.Student{
-		Model:  base.Model{ID: 1},
-		Person: &users.Person{FirstName: "Max", LastName: "Test"},
+		TenantModel: base.TenantModel{Model: base.Model{ID: 1}},
+		Person:      &users.Person{FirstName: "Max", LastName: "Test"},
 	}
 	result := &checkinResult{
 		Action:   "checked_out",
@@ -390,14 +390,14 @@ func TestBuildCheckinResponse_NoTransferNoPreviousRoom(t *testing.T) {
 func TestShouldUpgradeToDailyCheckout_NotCheckedOutAction(t *testing.T) {
 	rs := &Resource{}
 	// Pass a valid student to avoid nil dereference on student.GroupID
-	student := &users.Student{Model: base.Model{ID: 1}}
+	student := &users.Student{TenantModel: base.TenantModel{Model: base.Model{ID: 1}}}
 	result := rs.shouldUpgradeToDailyCheckout(context.Background(), "checked_in", student, nil)
 	assert.False(t, result)
 }
 
 func TestShouldUpgradeToDailyCheckout_StudentNoGroupID(t *testing.T) {
 	rs := &Resource{}
-	student := &users.Student{Model: base.Model{ID: 1}}
+	student := &users.Student{TenantModel: base.TenantModel{Model: base.Model{ID: 1}}}
 	result := rs.shouldUpgradeToDailyCheckout(context.Background(), "checked_out", student, nil)
 	assert.False(t, result)
 }
@@ -405,7 +405,7 @@ func TestShouldUpgradeToDailyCheckout_StudentNoGroupID(t *testing.T) {
 func TestShouldUpgradeToDailyCheckout_NilCurrentVisit(t *testing.T) {
 	rs := &Resource{}
 	groupID := int64(1)
-	student := &users.Student{Model: base.Model{ID: 1}, GroupID: &groupID}
+	student := &users.Student{TenantModel: base.TenantModel{Model: base.Model{ID: 1}}, GroupID: &groupID}
 	result := rs.shouldUpgradeToDailyCheckout(context.Background(), "checked_out", student, nil)
 	assert.False(t, result)
 }
@@ -413,7 +413,7 @@ func TestShouldUpgradeToDailyCheckout_NilCurrentVisit(t *testing.T) {
 func TestShouldUpgradeToDailyCheckout_NilActiveGroup(t *testing.T) {
 	rs := &Resource{}
 	groupID := int64(1)
-	student := &users.Student{Model: base.Model{ID: 1}, GroupID: &groupID}
+	student := &users.Student{TenantModel: base.TenantModel{Model: base.Model{ID: 1}}, GroupID: &groupID}
 	visit := &active.Visit{}
 	result := rs.shouldUpgradeToDailyCheckout(context.Background(), "checked_out", student, visit)
 	assert.False(t, result)
@@ -425,7 +425,7 @@ func TestShouldUpgradeToDailyCheckout_NilActiveGroup(t *testing.T) {
 
 func TestIsPendingDailyCheckoutScenario_NilGroupID(t *testing.T) {
 	rs := &Resource{}
-	student := &users.Student{Model: base.Model{ID: 1}}
+	student := &users.Student{TenantModel: base.TenantModel{Model: base.Model{ID: 1}}}
 	visit := &active.Visit{ActiveGroup: &active.Group{RoomID: 1}}
 	result := rs.isPendingDailyCheckoutScenario(context.Background(), student, visit)
 	assert.False(t, result)
@@ -434,7 +434,7 @@ func TestIsPendingDailyCheckoutScenario_NilGroupID(t *testing.T) {
 func TestIsPendingDailyCheckoutScenario_NilVisit(t *testing.T) {
 	rs := &Resource{}
 	groupID := int64(1)
-	student := &users.Student{Model: base.Model{ID: 1}, GroupID: &groupID}
+	student := &users.Student{TenantModel: base.TenantModel{Model: base.Model{ID: 1}}, GroupID: &groupID}
 	result := rs.isPendingDailyCheckoutScenario(context.Background(), student, nil)
 	assert.False(t, result)
 }
@@ -442,7 +442,7 @@ func TestIsPendingDailyCheckoutScenario_NilVisit(t *testing.T) {
 func TestIsPendingDailyCheckoutScenario_NilActiveGroup(t *testing.T) {
 	rs := &Resource{}
 	groupID := int64(1)
-	student := &users.Student{Model: base.Model{ID: 1}, GroupID: &groupID}
+	student := &users.Student{TenantModel: base.TenantModel{Model: base.Model{ID: 1}}, GroupID: &groupID}
 	visit := &active.Visit{}
 	result := rs.isPendingDailyCheckoutScenario(context.Background(), student, visit)
 	assert.False(t, result)
@@ -456,10 +456,10 @@ func TestHandlePendingDailyCheckoutResponse_Basic(t *testing.T) {
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest("POST", "/checkin", nil)
 
-	student := &users.Student{Model: base.Model{ID: 123}}
+	student := &users.Student{TenantModel: base.TenantModel{Model: base.Model{ID: 123}}}
 	person := &users.Person{FirstName: "Anna", LastName: "Schmidt"}
 	currentVisit := &active.Visit{
-		Model: base.Model{ID: 456},
+		TenantModel: base.TenantModel{Model: base.Model{ID: 456}},
 		ActiveGroup: &active.Group{
 			Room: &facilities.Room{Name: "Klassenraum 1a"},
 		},
@@ -487,10 +487,10 @@ func TestHandlePendingDailyCheckoutResponse_NoRoom(t *testing.T) {
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest("POST", "/checkin", nil)
 
-	student := &users.Student{Model: base.Model{ID: 123}}
+	student := &users.Student{TenantModel: base.TenantModel{Model: base.Model{ID: 123}}}
 	person := &users.Person{FirstName: "Max", LastName: "Muster"}
 	currentVisit := &active.Visit{
-		Model:       base.Model{ID: 789},
+		TenantModel: base.TenantModel{Model: base.Model{ID: 789}},
 		ActiveGroup: &active.Group{}, // No room
 	}
 

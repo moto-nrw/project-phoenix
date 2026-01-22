@@ -218,9 +218,9 @@ func TestStudent_SetPerson(t *testing.T) {
 		}
 
 		person := &Person{
-			Model:     base.Model{ID: 42},
-			FirstName: "John",
-			LastName:  "Doe",
+			TenantModel: base.TenantModel{Model: base.Model{ID: 42}},
+			FirstName:   "John",
+			LastName:    "Doe",
 		}
 
 		student.SetPerson(person)

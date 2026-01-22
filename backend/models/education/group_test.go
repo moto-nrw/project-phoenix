@@ -64,8 +64,8 @@ func TestGroup_SetRoom(t *testing.T) {
 	t.Run("set room", func(t *testing.T) {
 		group := &Group{Name: "Test Group"}
 		room := &facilities.Room{
-			Model: base.Model{ID: 42},
-			Name:  "Room 101",
+			TenantModel: base.TenantModel{Model: base.Model{ID: 42}},
+			Name:        "Room 101",
 		}
 
 		group.SetRoom(room)
@@ -163,8 +163,8 @@ func TestGroup_TableName(t *testing.T) {
 
 func TestGroup_GetID(t *testing.T) {
 	group := &Group{
-		Model: base.Model{ID: 42},
-		Name:  "Test",
+		TenantModel: base.TenantModel{Model: base.Model{ID: 42}},
+		Name:        "Test",
 	}
 
 	if got, ok := group.GetID().(int64); !ok || got != 42 {
@@ -175,8 +175,8 @@ func TestGroup_GetID(t *testing.T) {
 func TestGroup_GetCreatedAt(t *testing.T) {
 	now := time.Now()
 	group := &Group{
-		Model: base.Model{CreatedAt: now},
-		Name:  "Test",
+		TenantModel: base.TenantModel{Model: base.Model{CreatedAt: now}},
+		Name:        "Test",
 	}
 
 	if got := group.GetCreatedAt(); !got.Equal(now) {
@@ -187,8 +187,8 @@ func TestGroup_GetCreatedAt(t *testing.T) {
 func TestGroup_GetUpdatedAt(t *testing.T) {
 	now := time.Now()
 	group := &Group{
-		Model: base.Model{UpdatedAt: now},
-		Name:  "Test",
+		TenantModel: base.TenantModel{Model: base.Model{UpdatedAt: now}},
+		Name:        "Test",
 	}
 
 	if got := group.GetUpdatedAt(); !got.Equal(now) {

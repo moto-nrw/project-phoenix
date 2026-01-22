@@ -1,16 +1,16 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
-  refreshToken,
   handleAuthFailure,
   requestPasswordReset,
   confirmPasswordReset,
   type ApiError,
 } from "./auth-api";
 
-// Mock next-auth/react
-vi.mock("next-auth/react", () => ({
-  signOut: vi.fn(),
-  signIn: vi.fn(),
+// Mock auth-client (BetterAuth)
+vi.mock("./auth-client", () => ({
+  authClient: {
+    signOut: vi.fn().mockResolvedValue({}),
+  },
 }));
 
 // Mock auth-service
@@ -18,11 +18,6 @@ vi.mock("./auth-service", () => ({
   authService: {
     resetPassword: vi.fn(),
   },
-}));
-
-// Mock server-side token refresh module
-vi.mock("~/server/auth/token-refresh", () => ({
-  refreshSessionTokensOnServer: vi.fn(),
 }));
 
 // Helper to setup browser environment
@@ -62,398 +57,65 @@ function setupServerEnv() {
 describe("auth-api", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    // Clear sessionStorage
-    if (typeof sessionStorage !== "undefined") {
-      sessionStorage.clear();
-    }
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
   });
 
-  describe("refreshToken", () => {
-    it("returns tokens on successful refresh in browser", async () => {
-      const restore = setupBrowserEnv();
-      try {
-        const mockTokens = {
-          access_token: "new-access-token",
-          refresh_token: "new-refresh-token",
-        };
-
-        global.fetch = vi.fn().mockResolvedValue({
-          ok: true,
-          json: () => Promise.resolve(mockTokens),
-        });
-
-        const result = await refreshToken();
-
-        expect(result).toEqual(mockTokens);
-        expect(global.fetch).toHaveBeenCalledWith("/api/auth/token", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          credentials: "include",
-        });
-      } finally {
-        restore();
-      }
-    });
-
-    it("returns null when refresh fails with non-ok response", async () => {
-      const restore = setupBrowserEnv();
-      try {
-        global.fetch = vi.fn().mockResolvedValue({
-          ok: false,
-          status: 401,
-        });
-
-        // eslint-disable-next-line @typescript-eslint/no-empty-function
-        const consoleSpy = vi
-          .spyOn(console, "error")
-          .mockImplementation(() => {});
-        const result = await refreshToken();
-
-        expect(result).toBeNull();
-        expect(consoleSpy).toHaveBeenCalledWith("Token refresh failed:", 401);
-      } finally {
-        restore();
-      }
-    });
-
-    it("returns null when fetch throws error", async () => {
-      const restore = setupBrowserEnv();
-      try {
-        const networkError = new Error("Network error");
-        global.fetch = vi.fn().mockRejectedValue(networkError);
-
-        // eslint-disable-next-line @typescript-eslint/no-empty-function
-        const consoleSpy = vi
-          .spyOn(console, "error")
-          .mockImplementation(() => {});
-        const result = await refreshToken();
-
-        expect(result).toBeNull();
-        expect(consoleSpy).toHaveBeenCalledWith(
-          "Error refreshing token:",
-          networkError,
-        );
-      } finally {
-        restore();
-      }
-    });
-
-    it("returns null when called from server context", async () => {
-      const restore = setupServerEnv();
-      try {
-        // eslint-disable-next-line @typescript-eslint/no-empty-function
-        const consoleSpy = vi
-          .spyOn(console, "error")
-          .mockImplementation(() => {});
-        const result = await refreshToken();
-
-        expect(result).toBeNull();
-        expect(consoleSpy).toHaveBeenCalledWith(
-          "Token refresh attempted from server context",
-        );
-      } finally {
-        restore();
-      }
-    });
-
-    it("deduplicates concurrent refresh requests", async () => {
-      const restore = setupBrowserEnv();
-      try {
-        const mockTokens = {
-          access_token: "new-access-token",
-          refresh_token: "new-refresh-token",
-        };
-
-        // Use a delayed response to ensure both calls happen while first is pending
-        let resolvePromise: (value: unknown) => void;
-        const fetchPromise = new Promise((resolve) => {
-          resolvePromise = resolve;
-        });
-
-        global.fetch = vi.fn().mockReturnValue(fetchPromise);
-
-        // Start two refresh requests concurrently
-        const promise1 = refreshToken();
-        const promise2 = refreshToken();
-
-        // Now resolve the fetch
-        resolvePromise!({
-          ok: true,
-          json: () => Promise.resolve(mockTokens),
-        });
-
-        const [result1, result2] = await Promise.all([promise1, promise2]);
-
-        // Both should get the same result
-        expect(result1).toEqual(mockTokens);
-        expect(result2).toEqual(mockTokens);
-
-        // But fetch should only be called once
-        expect(global.fetch).toHaveBeenCalledTimes(1);
-      } finally {
-        restore();
-      }
-    });
-  });
-
   describe("handleAuthFailure", () => {
-    it("handles server context by calling server-side refresh", async () => {
+    it("returns false in server context and logs error", async () => {
       const restore = setupServerEnv();
       try {
-        const { refreshSessionTokensOnServer } =
-          await import("~/server/auth/token-refresh");
-        vi.mocked(refreshSessionTokensOnServer).mockResolvedValue({
-          accessToken: "new-token",
-          refreshToken: "new-refresh",
-        });
-
-        const result = await handleAuthFailure();
-
-        expect(result).toBe(true);
-        expect(refreshSessionTokensOnServer).toHaveBeenCalled();
-      } finally {
-        restore();
-      }
-    });
-
-    it("returns false when server-side refresh fails", async () => {
-      const restore = setupServerEnv();
-      try {
-        const { refreshSessionTokensOnServer } =
-          await import("~/server/auth/token-refresh");
-        vi.mocked(refreshSessionTokensOnServer).mockResolvedValue(null);
-
-        const result = await handleAuthFailure();
-
-        expect(result).toBe(false);
-      } finally {
-        restore();
-      }
-    });
-
-    it("returns false when server-side refresh throws", async () => {
-      const restore = setupServerEnv();
-      try {
-        const { refreshSessionTokensOnServer } =
-          await import("~/server/auth/token-refresh");
-        vi.mocked(refreshSessionTokensOnServer).mockRejectedValue(
-          new Error("Server error"),
-        );
-
-        // eslint-disable-next-line @typescript-eslint/no-empty-function
         const consoleSpy = vi
           .spyOn(console, "error")
           .mockImplementation(() => {});
         const result = await handleAuthFailure();
 
         expect(result).toBe(false);
-        expect(consoleSpy).toHaveBeenCalled();
-      } finally {
-        restore();
-      }
-    });
-
-    it("returns true immediately if recently refreshed (within 5 seconds)", async () => {
-      const restore = setupBrowserEnv();
-      try {
-        // Mock sessionStorage using Object.defineProperty for reliable mocking
-        const lastRefreshTime = (Date.now() - 2000).toString(); // 2 seconds ago
-        const getItemMock = vi.fn().mockImplementation((key: string) => {
-          if (key === "lastSuccessfulRefresh") {
-            return lastRefreshTime;
-          }
-          return null;
-        });
-        Object.defineProperty(globalThis, "sessionStorage", {
-          value: { getItem: getItemMock, setItem: vi.fn(), clear: vi.fn() },
-          writable: true,
-          configurable: true,
-        });
-
-        // eslint-disable-next-line @typescript-eslint/no-empty-function
-        const consoleSpy = vi
-          .spyOn(console, "log")
-          .mockImplementation(() => {});
-        const result = await handleAuthFailure();
-
-        expect(result).toBe(true);
         expect(consoleSpy).toHaveBeenCalledWith(
-          "Recently refreshed tokens, retrying request...",
+          "Auth failure in server context",
         );
       } finally {
         restore();
       }
     });
 
-    it("attempts token refresh when not recently refreshed", async () => {
+    it("signs out and redirects in browser context", async () => {
       const restore = setupBrowserEnv();
       try {
-        const mockTokens = {
-          access_token: "new-access-token",
-          refresh_token: "new-refresh-token",
-        };
-
-        // No recent refresh - use a function mock that checks for the specific key
-        const getItemMock = vi.fn().mockImplementation((key: string) => {
-          if (key === "lastSuccessfulRefresh") {
-            return null;
-          }
-          return null;
-        });
-        const setItemMock = vi.fn();
-        Object.defineProperty(globalThis, "sessionStorage", {
-          value: { getItem: getItemMock, setItem: setItemMock, clear: vi.fn() },
-          writable: true,
-        });
-
-        global.fetch = vi.fn().mockResolvedValue({
-          ok: true,
-          json: () => Promise.resolve(mockTokens),
-        });
-
-        const { signIn } = await import("next-auth/react");
-        vi.mocked(signIn).mockResolvedValue({
-          ok: true,
-          error: undefined,
-          status: 200,
-          url: "",
-          code: undefined,
-        });
-
-        const result = await handleAuthFailure();
-
-        expect(result).toBe(true);
-        expect(signIn).toHaveBeenCalledWith("credentials", {
-          internalRefresh: "true",
-          token: "new-access-token",
-          refreshToken: "new-refresh-token",
-          redirect: false,
-        });
-      } finally {
-        restore();
-      }
-    });
-
-    it("signs out and redirects when token refresh fails", async () => {
-      const restore = setupBrowserEnv();
-      try {
-        // No recent refresh
-        const getItemMock = vi.fn().mockReturnValue(null);
-        Object.defineProperty(globalThis, "sessionStorage", {
-          value: { getItem: getItemMock, setItem: vi.fn(), clear: vi.fn() },
-          writable: true,
-        });
-
-        global.fetch = vi.fn().mockResolvedValue({
-          ok: false,
-          status: 401,
-        });
-
-        const { signOut } = await import("next-auth/react");
-        vi.mocked(signOut).mockResolvedValue({ url: "/" });
-
-        // eslint-disable-next-line @typescript-eslint/no-empty-function
         const consoleSpy = vi
           .spyOn(console, "log")
           .mockImplementation(() => {});
-        // eslint-disable-next-line @typescript-eslint/no-empty-function
-        vi.spyOn(console, "error").mockImplementation(() => {});
+        const { authClient } = await import("./auth-client");
 
         const result = await handleAuthFailure();
 
         expect(result).toBe(false);
-        expect(signOut).toHaveBeenCalledWith({ redirect: false });
-        expect(consoleSpy).toHaveBeenCalledWith(
-          "Token refresh failed, signing out",
-        );
+        expect(authClient.signOut).toHaveBeenCalled();
+        expect(consoleSpy).toHaveBeenCalledWith("Session expired, signing out");
         expect(globalThis.window.location.href).toBe("/");
       } finally {
         restore();
       }
     });
 
-    it("handles errors during auth failure handling", async () => {
+    it("handles errors during sign out and still redirects", async () => {
       const restore = setupBrowserEnv();
       try {
-        // Mock sessionStorage to throw error
-        Object.defineProperty(globalThis, "sessionStorage", {
-          value: {
-            getItem: vi.fn().mockImplementation(() => {
-              throw new Error("Storage error");
-            }),
-            setItem: vi.fn(),
-            clear: vi.fn(),
-          },
-          writable: true,
-        });
-
-        const { signOut } = await import("next-auth/react");
-        vi.mocked(signOut).mockResolvedValue({ url: "/" });
-
-        // eslint-disable-next-line @typescript-eslint/no-empty-function
         const consoleSpy = vi
           .spyOn(console, "error")
           .mockImplementation(() => {});
+        const { authClient } = await import("./auth-client");
+        vi.mocked(authClient.signOut).mockRejectedValue(
+          new Error("Sign out failed"),
+        );
+
         const result = await handleAuthFailure();
 
         expect(result).toBe(false);
         expect(consoleSpy).toHaveBeenCalled();
-        expect(signOut).toHaveBeenCalled();
-      } finally {
-        restore();
-      }
-    });
-
-    it("handles session update failure gracefully", async () => {
-      const restore = setupBrowserEnv();
-      try {
-        const mockTokens = {
-          access_token: "new-access-token",
-          refresh_token: "new-refresh-token",
-        };
-
-        // No recent refresh
-        Object.defineProperty(globalThis, "sessionStorage", {
-          value: {
-            getItem: vi.fn().mockReturnValue(null),
-            setItem: vi.fn(),
-            clear: vi.fn(),
-          },
-          writable: true,
-        });
-
-        global.fetch = vi.fn().mockResolvedValue({
-          ok: true,
-          json: () => Promise.resolve(mockTokens),
-        });
-
-        const { signIn } = await import("next-auth/react");
-        vi.mocked(signIn).mockResolvedValue({
-          ok: false,
-          error: "Session update failed",
-          status: 500,
-          url: "",
-          code: undefined,
-        });
-
-        // eslint-disable-next-line @typescript-eslint/no-empty-function
-        const consoleSpy = vi
-          .spyOn(console, "error")
-          .mockImplementation(() => {});
-        const result = await handleAuthFailure();
-
-        // Should still return true to retry, even if session update failed
-        expect(result).toBe(true);
-        expect(consoleSpy).toHaveBeenCalledWith(
-          "Failed to update session with new tokens:",
-          "Session update failed",
-        );
+        expect(globalThis.window.location.href).toBe("/");
       } finally {
         restore();
       }
@@ -492,7 +154,6 @@ describe("auth-api", () => {
         json: () => Promise.resolve({ error: "Rate limit exceeded" }),
       });
 
-      // eslint-disable-next-line @typescript-eslint/no-empty-function
       vi.spyOn(console, "error").mockImplementation(() => {});
 
       await expect(requestPasswordReset("test@example.com")).rejects.toThrow(
@@ -510,7 +171,6 @@ describe("auth-api", () => {
         text: () => Promise.resolve("Internal server error"),
       });
 
-      // eslint-disable-next-line @typescript-eslint/no-empty-function
       vi.spyOn(console, "error").mockImplementation(() => {});
 
       await expect(requestPasswordReset("test@example.com")).rejects.toThrow(
@@ -529,7 +189,6 @@ describe("auth-api", () => {
         json: () => Promise.resolve({ error: "Too many requests" }),
       });
 
-      // eslint-disable-next-line @typescript-eslint/no-empty-function
       vi.spyOn(console, "error").mockImplementation(() => {});
 
       try {
@@ -555,7 +214,6 @@ describe("auth-api", () => {
         json: () => Promise.resolve({ error: "Too many requests" }),
       });
 
-      // eslint-disable-next-line @typescript-eslint/no-empty-function
       vi.spyOn(console, "error").mockImplementation(() => {});
 
       try {
@@ -578,9 +236,7 @@ describe("auth-api", () => {
         text: () => Promise.reject(new Error("Text parse error")),
       });
 
-      // eslint-disable-next-line @typescript-eslint/no-empty-function
       vi.spyOn(console, "error").mockImplementation(() => {});
-      // eslint-disable-next-line @typescript-eslint/no-empty-function
       vi.spyOn(console, "warn").mockImplementation(() => {});
 
       await expect(requestPasswordReset("test@example.com")).rejects.toThrow(
@@ -616,7 +272,6 @@ describe("auth-api", () => {
         new Error("Invalid token"),
       );
 
-      // eslint-disable-next-line @typescript-eslint/no-empty-function
       vi.spyOn(console, "error").mockImplementation(() => {});
 
       await expect(
@@ -640,7 +295,6 @@ describe("auth-api", () => {
         json: () => Promise.resolve({ error: "Too many requests" }),
       });
 
-      // eslint-disable-next-line @typescript-eslint/no-empty-function
       vi.spyOn(console, "error").mockImplementation(() => {});
 
       try {
@@ -663,7 +317,6 @@ describe("auth-api", () => {
         json: () => Promise.resolve({ error: "Too many requests" }),
       });
 
-      // eslint-disable-next-line @typescript-eslint/no-empty-function
       vi.spyOn(console, "error").mockImplementation(() => {});
 
       try {
@@ -688,7 +341,6 @@ describe("auth-api", () => {
         json: () => Promise.resolve({ error: "Too many requests" }),
       });
 
-      // eslint-disable-next-line @typescript-eslint/no-empty-function
       vi.spyOn(console, "error").mockImplementation(() => {});
 
       try {
@@ -711,7 +363,6 @@ describe("auth-api", () => {
         json: () => Promise.resolve({ error: "Too many requests" }),
       });
 
-      // eslint-disable-next-line @typescript-eslint/no-empty-function
       vi.spyOn(console, "error").mockImplementation(() => {});
 
       try {
@@ -735,7 +386,6 @@ describe("auth-api", () => {
         json: () => Promise.resolve({ error: "Validation failed" }),
       });
 
-      // eslint-disable-next-line @typescript-eslint/no-empty-function
       vi.spyOn(console, "error").mockImplementation(() => {});
 
       await expect(requestPasswordReset("test@example.com")).rejects.toThrow(
@@ -753,7 +403,6 @@ describe("auth-api", () => {
         json: () => Promise.resolve({ message: "Email not found" }),
       });
 
-      // eslint-disable-next-line @typescript-eslint/no-empty-function
       vi.spyOn(console, "error").mockImplementation(() => {});
 
       await expect(requestPasswordReset("test@example.com")).rejects.toThrow(
@@ -771,7 +420,6 @@ describe("auth-api", () => {
         json: () => Promise.resolve({}),
       });
 
-      // eslint-disable-next-line @typescript-eslint/no-empty-function
       vi.spyOn(console, "error").mockImplementation(() => {});
 
       await expect(requestPasswordReset("test@example.com")).rejects.toThrow(
@@ -789,7 +437,6 @@ describe("auth-api", () => {
         text: () => Promise.resolve("   "), // whitespace only
       });
 
-      // eslint-disable-next-line @typescript-eslint/no-empty-function
       vi.spyOn(console, "error").mockImplementation(() => {});
 
       await expect(requestPasswordReset("test@example.com")).rejects.toThrow(

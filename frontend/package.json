@@ -86,9 +86,10 @@
       "src/env.js",
       "src/lib/utils.ts",
       "src/lib/image-utils.ts",
+      "src/lib/auth-client.ts",
       "src/lib/database/configs/*.{ts,tsx}",
       "src/lib/swr/index.ts",
-      "src/server/auth/token-refresh.ts",
+      "src/server/auth/index.ts",
       "src/**/*.test.{ts,tsx}",
       "src/test/mocks/*.ts"
     ],
@@ -99,7 +100,13 @@
       "eslint-config-next",
       "sharp",
       "lint-staged",
-      "@fontsource/geist-sans"
+      "@fontsource/geist-sans",
+      "next-auth"
+    ],
+    "ignoreExportsUsedInFile": true,
+    "ignore": [
+      "src/components/ui/card.tsx",
+      "src/components/ui/badge.tsx"
     ]
   }
 }

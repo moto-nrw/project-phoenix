@@ -165,7 +165,7 @@ func TestEntry_SetStudent(t *testing.T) {
 		}
 
 		student := &users.Student{
-			Model: base.Model{ID: 42},
+			TenantModel: base.TenantModel{Model: base.Model{ID: 42}},
 		}
 
 		entry.SetStudent(student)

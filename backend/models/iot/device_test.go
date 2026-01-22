@@ -347,10 +347,10 @@ func TestDevice_IsOffline(t *testing.T) {
 
 func TestDevice_GetID(t *testing.T) {
 	device := &Device{
-		Model:      base.Model{ID: 42},
-		DeviceID:   "dev-001",
-		DeviceType: "sensor",
-		Status:     DeviceStatusActive,
+		TenantModel: base.TenantModel{Model: base.Model{ID: 42}},
+		DeviceID:    "dev-001",
+		DeviceType:  "sensor",
+		Status:      DeviceStatusActive,
 	}
 
 	if got, ok := device.GetID().(int64); !ok || got != 42 {
@@ -361,10 +361,10 @@ func TestDevice_GetID(t *testing.T) {
 func TestDevice_GetCreatedAt(t *testing.T) {
 	now := time.Now()
 	device := &Device{
-		Model:      base.Model{CreatedAt: now},
-		DeviceID:   "dev-001",
-		DeviceType: "sensor",
-		Status:     DeviceStatusActive,
+		TenantModel: base.TenantModel{Model: base.Model{CreatedAt: now}},
+		DeviceID:    "dev-001",
+		DeviceType:  "sensor",
+		Status:      DeviceStatusActive,
 	}
 
 	if got := device.GetCreatedAt(); !got.Equal(now) {
@@ -375,10 +375,10 @@ func TestDevice_GetCreatedAt(t *testing.T) {
 func TestDevice_GetUpdatedAt(t *testing.T) {
 	now := time.Now()
 	device := &Device{
-		Model:      base.Model{UpdatedAt: now},
-		DeviceID:   "dev-001",
-		DeviceType: "sensor",
-		Status:     DeviceStatusActive,
+		TenantModel: base.TenantModel{Model: base.Model{UpdatedAt: now}},
+		DeviceID:    "dev-001",
+		DeviceType:  "sensor",
+		Status:      DeviceStatusActive,
 	}
 
 	if got := device.GetUpdatedAt(); !got.Equal(now) {
