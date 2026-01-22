@@ -1,12 +1,11 @@
 "use client";
 
-import { useState } from "react";
-import { useSession } from "~/lib/auth-client";
+import { useEffect, useState } from "react";
+import { useSession, isAdmin } from "~/lib/auth-client";
 import { redirect } from "next/navigation";
 import { ResponsiveLayout } from "~/components/dashboard";
-import { InvitationForm } from "~/components/admin/invitation-form";
-import { PendingInvitationsList } from "~/components/admin/pending-invitations-list";
-import { isAdmin } from "~/lib/auth-utils";
+import { BetterAuthInvitationCreateForm } from "~/components/admin/betterauth-invitation-create-form";
+import { BetterAuthPendingInvitationsList } from "~/components/admin/betterauth-pending-invitations-list";
 import { Loading } from "~/components/ui/loading";
 
 export default function InvitationsPage() {
@@ -14,8 +13,16 @@ export default function InvitationsPage() {
   const { data: session, isPending } = useSession();
 
   const [refreshKey, setRefreshKey] = useState<number>(Date.now());
+  const [isUserAdmin, setIsUserAdmin] = useState<boolean | null>(null);
 
-  if (isPending) {
+  // Check admin status asynchronously via BetterAuth organization role
+  useEffect(() => {
+    if (session?.user) {
+      void isAdmin().then(setIsUserAdmin);
+    }
+  }, [session]);
+
+  if (isPending || isUserAdmin === null) {
     return (
       <ResponsiveLayout>
         <Loading fullPage={false} />
@@ -28,7 +35,7 @@ export default function InvitationsPage() {
     redirect("/");
   }
 
-  if (!session || !isAdmin(session)) {
+  if (!isUserAdmin) {
     return (
       <ResponsiveLayout>
         <div className="mx-auto max-w-2xl">
@@ -66,12 +73,12 @@ export default function InvitationsPage() {
   return (
     <ResponsiveLayout>
       <div className="space-y-6">
-        <InvitationForm
+        <BetterAuthInvitationCreateForm
           onCreated={() => {
             setRefreshKey(Date.now());
           }}
         />
-        <PendingInvitationsList refreshKey={refreshKey} />
+        <BetterAuthPendingInvitationsList refreshKey={refreshKey} />
       </div>
     </ResponsiveLayout>
   );

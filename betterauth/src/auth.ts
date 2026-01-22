@@ -8,7 +8,11 @@ import {
   bueroAdmin,
   traegerAdmin,
 } from "./permissions.js";
-import { sendOrgPendingEmail, syncUserToGoBackend } from "./email.js";
+import {
+  sendOrgPendingEmail,
+  sendOrgInvitationEmail,
+  syncUserToGoBackend,
+} from "./email.js";
 
 // Create a shared pool for database operations including hooks
 const pool = new Pool({
@@ -92,6 +96,21 @@ export const auth = betterAuth({
         ogsAdmin,
         bueroAdmin,
         traegerAdmin,
+      },
+
+      // Send invitation emails when inviteMember is called
+      async sendInvitationEmail(data) {
+        // Get organization slug for subdomain
+        const orgSlug = (data.organization as { slug?: string }).slug ?? "";
+
+        await sendOrgInvitationEmail({
+          to: data.email,
+          orgName: data.organization.name,
+          subdomain: orgSlug,
+          invitationId: data.id,
+          role: data.role,
+          // Note: firstName/lastName passed via URL params from frontend
+        });
       },
 
       // Organization lifecycle hooks for email notifications and user sync

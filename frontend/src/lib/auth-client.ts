@@ -67,9 +67,13 @@ export interface BetterAuthSession {
 
 /**
  * Role type returned by getActiveMemberRole().
- * Phoenix roles: supervisor, ogsAdmin, bueroAdmin, traegerAdmin
+ * Includes BetterAuth standard roles (admin, member, owner) and
+ * Phoenix custom roles (supervisor, ogsAdmin, bueroAdmin, traegerAdmin).
  */
 export type PhoenixRole =
+  | "admin"
+  | "member"
+  | "owner"
   | "supervisor"
   | "ogsAdmin"
   | "bueroAdmin"
@@ -95,14 +99,20 @@ export async function getActiveRole(): Promise<PhoenixRole | null> {
 }
 
 /**
- * Check if the current user is an admin (ogsAdmin, bueroAdmin, or traegerAdmin).
+ * Check if the current user is an admin.
+ * Includes both Phoenix custom roles (ogsAdmin, bueroAdmin, traegerAdmin)
+ * and BetterAuth standard roles (admin, owner).
  *
  * @returns true if user has admin role
  */
 export async function isAdmin(): Promise<boolean> {
   const role = await getActiveRole();
   return (
-    role === "ogsAdmin" || role === "bueroAdmin" || role === "traegerAdmin"
+    role === "admin" ||
+    role === "owner" ||
+    role === "ogsAdmin" ||
+    role === "bueroAdmin" ||
+    role === "traegerAdmin"
   );
 }
 
