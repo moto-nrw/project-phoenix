@@ -77,7 +77,7 @@
   "lint-staged": {
     "*.{ts,tsx,js,jsx,mdx}": [
       "prettier --write",
-      "eslint --fix --max-warnings 0"
+      "eslint --fix --max-warnings 0 --no-warn-ignored"
     ]
   },
   "knip": {
@@ -89,7 +89,8 @@
       "src/lib/database/configs/*.{ts,tsx}",
       "src/lib/swr/index.ts",
       "src/server/auth/token-refresh.ts",
-      "src/**/*.test.{ts,tsx}"
+      "src/**/*.test.{ts,tsx}",
+      "src/test/mocks/*.ts"
     ],
     "project": [
       "src/**/*.{ts,tsx,js}"

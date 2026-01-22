@@ -327,5 +327,117 @@ describe("userContextService", () => {
 
       expect(result).toEqual([]);
     });
+
+    it("throws error on fetch failure", async () => {
+      fetchWithAuthMock.mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+        text: () => Promise.resolve("Server error"),
+      } as Response);
+
+      await expect(userContextService.getMyActiveGroups()).rejects.toThrow(
+        "Get active groups failed: 500",
+      );
+    });
+  });
+
+  describe("getCurrentTeacher", () => {
+    it("returns mapped teacher profile on success", async () => {
+      const backendData = {
+        id: 5,
+        staff_id: 10,
+        staff: {
+          id: 10,
+          person_id: 100,
+          email: "teacher@school.com",
+        },
+      };
+
+      fetchWithAuthMock.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({ success: true, message: "", data: backendData }),
+      } as Response);
+
+      const result = await userContextService.getCurrentTeacher();
+
+      expect(result.id).toBe("5");
+      expect(result.staff_id).toBe("10");
+      expect(result.staff?.id).toBe("10");
+    });
+
+    it("throws error on fetch failure", async () => {
+      fetchWithAuthMock.mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+        text: () => Promise.resolve("Unauthorized"),
+      } as Response);
+
+      await expect(userContextService.getCurrentTeacher()).rejects.toThrow(
+        "Get current teacher failed: 401",
+      );
+    });
+
+    it("handles teacher without staff data", async () => {
+      const backendData = {
+        id: 5,
+        staff_id: 10,
+      };
+
+      fetchWithAuthMock.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({ success: true, message: "", data: backendData }),
+      } as Response);
+
+      const result = await userContextService.getCurrentTeacher();
+
+      expect(result.id).toBe("5");
+      expect(result.staff).toBeUndefined();
+    });
+  });
+
+  describe("getMyActivityGroups", () => {
+    it("returns mapped activity groups on success", async () => {
+      const backendData = [
+        {
+          id: 10,
+          name: "Chess Club",
+          room_id: 50,
+          room: { id: 50, name: "Activity Room" },
+        },
+        {
+          id: 11,
+          name: "Music Group",
+        },
+      ];
+
+      fetchWithAuthMock.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({ success: true, message: "", data: backendData }),
+      } as Response);
+
+      const result = await userContextService.getMyActivityGroups();
+
+      expect(result).toHaveLength(2);
+      expect(result[0]?.id).toBe("10");
+      expect(result[0]?.name).toBe("Chess Club");
+      expect(result[0]?.room?.name).toBe("Activity Room");
+      expect(result[1]?.id).toBe("11");
+      expect(result[1]?.room).toBeUndefined();
+    });
+
+    it("throws error on fetch failure", async () => {
+      fetchWithAuthMock.mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+        text: () => Promise.resolve("Server error"),
+      } as Response);
+
+      await expect(userContextService.getMyActivityGroups()).rejects.toThrow(
+        "Get activity groups failed: 500",
+      );
+    });
   });
 });

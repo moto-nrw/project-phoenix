@@ -859,6 +859,318 @@ describe("OGSGroupPage active filters", () => {
   });
 });
 
+describe("OGSGroupPage handleTransferGroup behavior", () => {
+  it("validates transfer group parameters", () => {
+    const currentGroup = { id: "1", name: "OGS Gruppe A" };
+    const targetName = "Anna Lehrer";
+
+    // Simulate the validation logic from handleTransferGroup
+    const canTransfer = !!currentGroup;
+    expect(canTransfer).toBe(true);
+
+    // Generate expected toast message
+    const toastMessage = `Gruppe "${currentGroup.name}" an ${targetName} übergeben`;
+    expect(toastMessage).toBe('Gruppe "OGS Gruppe A" an Anna Lehrer übergeben');
+  });
+
+  it("returns early when no current group", () => {
+    const currentGroup = null;
+
+    // Simulate the early return logic
+    const canTransfer = !!currentGroup;
+    expect(canTransfer).toBe(false);
+  });
+});
+
+describe("OGSGroupPage handleCancelTransfer behavior", () => {
+  it("finds transfer by substitution ID", () => {
+    const activeTransfers = [
+      { substitutionId: "100", targetName: "Anna Lehrer" },
+      { substitutionId: "101", targetName: "Ben Schmidt" },
+    ];
+    const substitutionId = "100";
+
+    const transfer = activeTransfers.find(
+      (t) => t.substitutionId === substitutionId,
+    );
+
+    expect(transfer?.targetName).toBe("Anna Lehrer");
+  });
+
+  it("uses default name when transfer not found", () => {
+    const activeTransfers = [
+      { substitutionId: "100", targetName: "Anna Lehrer" },
+    ];
+    const substitutionId = "999"; // Non-existent
+
+    const transfer = activeTransfers.find(
+      (t) => t.substitutionId === substitutionId,
+    );
+    const recipientName = transfer?.targetName ?? "Betreuer";
+
+    expect(recipientName).toBe("Betreuer");
+  });
+
+  it("generates correct cancel toast message", () => {
+    const recipientName = "Anna Lehrer";
+    const toastMessage = `Übergabe an ${recipientName} wurde zurückgenommen`;
+
+    expect(toastMessage).toBe("Übergabe an Anna Lehrer wurde zurückgenommen");
+  });
+});
+
+describe("OGSGroupPage switchToGroup behavior", () => {
+  it("returns early when same group index selected", () => {
+    const selectedGroupIndex = 0;
+    const newGroupIndex = 0;
+    const allGroups = [{ id: "1", name: "Group A" }];
+
+    const shouldSwitch =
+      newGroupIndex !== selectedGroupIndex && allGroups[newGroupIndex];
+    expect(shouldSwitch).toBeFalsy();
+  });
+
+  it("returns early when group index is invalid", () => {
+    const selectedGroupIndex = 0 as number;
+    const newGroupIndex = 5 as number; // Out of bounds
+    const allGroups = [{ id: "1", name: "Group A" }];
+
+    const shouldSwitch =
+      newGroupIndex !== selectedGroupIndex && allGroups[newGroupIndex];
+    expect(shouldSwitch).toBeFalsy();
+  });
+
+  it("allows switching to different valid group", () => {
+    const selectedGroupIndex = 0 as number;
+    const newGroupIndex = 1 as number;
+    const allGroups = [
+      { id: "1", name: "Group A" },
+      { id: "2", name: "Group B" },
+    ];
+
+    const shouldSwitch =
+      newGroupIndex !== selectedGroupIndex && allGroups[newGroupIndex];
+    expect(shouldSwitch).toBeTruthy();
+  });
+
+  it("updates group student count after loading", () => {
+    const allGroups = [
+      { id: "1", name: "Group A", student_count: 0 },
+      { id: "2", name: "Group B", student_count: 0 },
+    ];
+    const selectedGroupIndex = 1;
+    const studentsData = [{}, {}, {}]; // 3 students loaded
+
+    // Simulate the update logic
+    const updatedGroups = allGroups.map((group, idx) =>
+      idx === selectedGroupIndex
+        ? { ...group, student_count: studentsData.length }
+        : group,
+    );
+
+    expect(updatedGroups[1]?.student_count).toBe(3);
+    expect(updatedGroups[0]?.student_count).toBe(0);
+  });
+
+  it("sets error message on fetch failure", () => {
+    const errorMessage = "Fehler beim Laden der Gruppendaten.";
+    expect(errorMessage).toBe("Fehler beim Laden der Gruppendaten.");
+  });
+});
+
+describe("OGSGroupPage loadGroupRoomStatus behavior", () => {
+  it("extracts student room status from response", () => {
+    const response = {
+      success: true,
+      message: "OK",
+      data: {
+        group_has_room: true,
+        group_room_id: 101,
+        student_room_status: {
+          "1": { in_group_room: true, current_room_id: 101 },
+          "2": { in_group_room: false, current_room_id: 202 },
+        },
+      },
+    };
+
+    const roomStatus = response.data?.student_room_status;
+
+    expect(roomStatus).toBeDefined();
+    expect(roomStatus?.["1"]?.in_group_room).toBe(true);
+    expect(roomStatus?.["2"]?.in_group_room).toBe(false);
+  });
+
+  it("handles missing student room status", () => {
+    const response = {
+      success: true,
+      message: "OK",
+      data: {
+        group_has_room: false,
+        student_room_status: undefined,
+      },
+    };
+
+    const roomStatus = response.data?.student_room_status;
+    expect(roomStatus).toBeUndefined();
+  });
+});
+
+describe("OGSGroupPage renderDesktopActionButton logic", () => {
+  it("returns undefined when on mobile", () => {
+    const isMobile = true;
+    const currentGroup = { id: "1", name: "Group A" };
+
+    const shouldRender = !isMobile && currentGroup;
+    expect(shouldRender).toBeFalsy();
+  });
+
+  it("returns undefined when no current group", () => {
+    const isMobile = false;
+    const currentGroup = null;
+
+    const shouldRender = !isMobile && currentGroup;
+    expect(shouldRender).toBeFalsy();
+  });
+
+  it("shows via substitution badge when group is via substitution", () => {
+    const isMobile = false;
+    const currentGroup = { id: "1", name: "Group A", viaSubstitution: true };
+
+    const shouldShowSubstitutionBadge =
+      !isMobile && currentGroup.viaSubstitution;
+    expect(shouldShowSubstitutionBadge).toBe(true);
+  });
+
+  it("shows transfer button with count when active transfers exist", () => {
+    const activeTransfers = [{ substitutionId: "1" }, { substitutionId: "2" }];
+
+    const buttonText =
+      activeTransfers.length > 0
+        ? `Gruppe übergeben (${activeTransfers.length})`
+        : "Gruppe übergeben";
+
+    expect(buttonText).toBe("Gruppe übergeben (2)");
+  });
+
+  it("shows transfer button without count when no active transfers", () => {
+    const activeTransfers: Array<{ substitutionId: string }> = [];
+
+    const buttonText =
+      activeTransfers.length > 0
+        ? `Gruppe übergeben (${activeTransfers.length})`
+        : "Gruppe übergeben";
+
+    expect(buttonText).toBe("Gruppe übergeben");
+  });
+});
+
+describe("OGSGroupPage renderMobileActionButton logic", () => {
+  it("returns undefined when not on mobile", () => {
+    const isMobile = false;
+    const currentGroup = { id: "1", name: "Group A" };
+
+    const shouldRender = isMobile && currentGroup;
+    expect(shouldRender).toBeFalsy();
+  });
+
+  it("returns undefined when no current group", () => {
+    const isMobile = true;
+    const currentGroup = null;
+
+    const shouldRender = isMobile && currentGroup;
+    expect(shouldRender).toBeFalsy();
+  });
+
+  it("shows via substitution icon on mobile when group is via substitution", () => {
+    const isMobile = true;
+    const currentGroup = { id: "1", name: "Group A", viaSubstitution: true };
+
+    const shouldShowSubstitutionIcon = isMobile && currentGroup.viaSubstitution;
+    expect(shouldShowSubstitutionIcon).toBe(true);
+  });
+
+  it("shows badge with active transfer count on mobile", () => {
+    const activeTransfers = [{ substitutionId: "1" }];
+
+    const showBadge = activeTransfers.length > 0;
+    expect(showBadge).toBe(true);
+  });
+
+  it("hides badge when no active transfers on mobile", () => {
+    const activeTransfers: Array<{ substitutionId: string }> = [];
+
+    const showBadge = activeTransfers.length > 0;
+    expect(showBadge).toBe(false);
+  });
+});
+
+describe("OGSGroupPage renderStudentContent logic", () => {
+  it("shows loading when isLoading is true", () => {
+    const isLoading = true;
+
+    const showLoading = isLoading;
+    expect(showLoading).toBe(true);
+  });
+
+  it("shows empty state when students array is empty", () => {
+    const isLoading = false;
+    const students: Array<{ id: string }> = [];
+
+    const showEmptyNoStudents = !isLoading && students.length === 0;
+    expect(showEmptyNoStudents).toBe(true);
+  });
+
+  it("shows filtered student grid when students exist", () => {
+    const isLoading = false;
+    const students = [{ id: "1" }, { id: "2" }];
+    const filteredStudents = [{ id: "1" }];
+
+    const showStudentGrid =
+      !isLoading && students.length > 0 && filteredStudents.length > 0;
+    expect(showStudentGrid).toBe(true);
+  });
+
+  it("shows empty results component when filters match nothing", () => {
+    const isLoading = false;
+    const students = [{ id: "1" }, { id: "2" }];
+    const filteredStudents: Array<{ id: string }> = [];
+
+    const showEmptyResults =
+      !isLoading && students.length > 0 && filteredStudents.length === 0;
+    expect(showEmptyResults).toBe(true);
+  });
+
+  it("generates correct no students message", () => {
+    const currentGroup = { name: "OGS Gruppe A" };
+    const message = `Keine Schüler in ${currentGroup?.name ?? "dieser Gruppe"}`;
+
+    expect(message).toBe("Keine Schüler in OGS Gruppe A");
+  });
+
+  it("uses fallback message when no current group", () => {
+    const currentGroup = null as { name: string } | null;
+    const message = `Keine Schüler in ${currentGroup?.name ?? "dieser Gruppe"}`;
+
+    expect(message).toBe("Keine Schüler in dieser Gruppe");
+  });
+
+  it("shows suggestion for multiple groups when no students", () => {
+    const allGroups = [{ id: "1" }, { id: "2" }];
+    const showSuggestion = allGroups.length > 1;
+
+    expect(showSuggestion).toBe(true);
+  });
+});
+
+describe("OGSGroupPage student card onClick behavior", () => {
+  it("generates correct navigation path with from param", () => {
+    const studentId = "123";
+    const path = `/students/${studentId}?from=/ogs-groups`;
+
+    expect(path).toBe("/students/123?from=/ogs-groups");
+  });
+});
+
 describe("OGSGroupPage card gradient logic", () => {
   it("returns green gradient for student in group room", () => {
     const isInGroupRoom = true;

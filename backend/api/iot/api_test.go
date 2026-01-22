@@ -115,3 +115,135 @@ func TestResource_Struct(t *testing.T) {
 	assert.Nil(t, resource.EducationService)
 	assert.Nil(t, resource.FeedbackService)
 }
+
+// =============================================================================
+// Router Tests
+// =============================================================================
+
+func TestResource_Router_ReturnsRouter(t *testing.T) {
+	// Create resource with nil services (just testing router structure)
+	resource := &Resource{}
+
+	router := resource.Router()
+
+	require.NotNil(t, router)
+}
+
+func TestResource_Router_HasRoutes(t *testing.T) {
+	// Create resource with nil services
+	resource := &Resource{}
+
+	router := resource.Router()
+
+	// Verify router has routes registered by checking it responds
+	// (routes will fail auth but router structure should be valid)
+	require.NotNil(t, router)
+
+	// Test that router can handle requests (even if they fail auth)
+	req := httptest.NewRequest("GET", "/status", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	// We expect 401 Unauthorized since we have no device auth
+	// This proves the route exists and middleware runs
+	assert.NotEqual(t, http.StatusNotFound, w.Code)
+}
+
+func TestResource_Router_CheckinRoute(t *testing.T) {
+	resource := &Resource{}
+	router := resource.Router()
+
+	req := httptest.NewRequest("POST", "/checkin", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	// Route exists (not 404)
+	assert.NotEqual(t, http.StatusNotFound, w.Code)
+}
+
+func TestResource_Router_PingRoute(t *testing.T) {
+	resource := &Resource{}
+	router := resource.Router()
+
+	req := httptest.NewRequest("POST", "/ping", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	// Route exists (not 404)
+	assert.NotEqual(t, http.StatusNotFound, w.Code)
+}
+
+func TestResource_Router_AttendanceRoute(t *testing.T) {
+	resource := &Resource{}
+	router := resource.Router()
+
+	req := httptest.NewRequest("GET", "/attendance/daily", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	// Route exists (not 404)
+	assert.NotEqual(t, http.StatusNotFound, w.Code)
+}
+
+func TestResource_Router_SessionRoute(t *testing.T) {
+	resource := &Resource{}
+	router := resource.Router()
+
+	req := httptest.NewRequest("POST", "/session/start", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	// Route exists (not 404)
+	assert.NotEqual(t, http.StatusNotFound, w.Code)
+}
+
+func TestResource_Router_FeedbackRoute(t *testing.T) {
+	resource := &Resource{}
+	router := resource.Router()
+
+	req := httptest.NewRequest("POST", "/feedback", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	// Route exists (not 404)
+	assert.NotEqual(t, http.StatusNotFound, w.Code)
+}
+
+func TestResource_Router_DataRoutes(t *testing.T) {
+	resource := &Resource{}
+	router := resource.Router()
+
+	tests := []struct {
+		method string
+		path   string
+	}{
+		{"GET", "/students"},
+		{"GET", "/activities"},
+		{"GET", "/rooms/available"},
+		{"GET", "/rfid/test-tag"},
+		{"GET", "/teachers"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.method+" "+tc.path, func(t *testing.T) {
+			req := httptest.NewRequest(tc.method, tc.path, nil)
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+
+			// Route exists (not 404)
+			assert.NotEqual(t, http.StatusNotFound, w.Code)
+		})
+	}
+}
+
+func TestResource_Router_StaffRFIDRoute(t *testing.T) {
+	resource := &Resource{}
+	router := resource.Router()
+
+	req := httptest.NewRequest("POST", "/staff/rfid/assign", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	// Route exists (not 404)
+	assert.NotEqual(t, http.StatusNotFound, w.Code)
+}
