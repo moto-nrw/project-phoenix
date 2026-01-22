@@ -14,7 +14,9 @@ import { fetchProfile as apiFetchProfile } from "~/lib/profile-api";
 import type { Profile } from "~/lib/profile-helpers";
 
 // Paths where profile fetching should be skipped (no org context)
-const PROFILE_DISABLED_PATHS = ["/console"];
+// - "/" = main domain org selection page (no org context)
+// - "/console" = SaaS admin console (different auth context)
+const PROFILE_DISABLED_PATHS = ["/", "/console"];
 
 interface ProfileState {
   profile: Profile | null;
@@ -41,8 +43,9 @@ export function ProfileProvider({
   const pathname = usePathname();
 
   // Check if we're on a path where profile should be skipped
+  // Use exact match for "/" and startsWith for other paths
   const isDisabledPath = PROFILE_DISABLED_PATHS.some((path) =>
-    pathname.startsWith(path),
+    path === "/" ? pathname === "/" : pathname.startsWith(path),
   );
 
   const [state, setState] = useState<ProfileState>({
