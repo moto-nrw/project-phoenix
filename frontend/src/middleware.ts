@@ -300,21 +300,62 @@ export async function middleware(request: NextRequest) {
     // Main domain: Check for pending org protection and SaaS admin access
     const session = await getUserSession(request);
 
+    // Redirect /login on main domain to / (org selection)
+    // Login should happen on subdomain after org is selected
+    if (pathname === "/login") {
+      return NextResponse.redirect(new URL("/", request.url));
+    }
+
+    // Handle /console paths - check auth first
+    if (pathname === "/console" || pathname.startsWith("/console/")) {
+      // Always allow /console/login for unauthenticated users
+      if (pathname === "/console/login") {
+        if (!session?.authenticated) {
+          // Allow access to login page
+          const response = NextResponse.next();
+          response.headers.delete("x-tenant-slug");
+          return response;
+        }
+        // Authenticated users handled below
+      } else {
+        // All other /console/* paths require authentication
+        if (!session?.authenticated) {
+          return NextResponse.redirect(new URL("/console/login", request.url));
+        }
+        // Authenticated users handled below
+      }
+    }
+
     if (session?.authenticated && session.userId) {
       const saasAdminEmails = getSaasAdminEmails();
       const isSaasAdmin =
         session.email && saasAdminEmails.includes(session.email.toLowerCase());
 
-      // SaaS admins can access /console
+      // Console access control
       if (pathname === "/console" || pathname.startsWith("/console/")) {
+        // Always allow access to /console/login (it's the login page)
+        if (pathname === "/console/login") {
+          if (isSaasAdmin) {
+            // Already logged in as admin - redirect to console
+            return NextResponse.redirect(new URL("/console", request.url));
+          }
+          // Allow access to login page
+          const response = NextResponse.next();
+          response.headers.delete("x-tenant-slug");
+          return response;
+        }
+
+        // For all other /console/* paths, require SaaS admin
         if (isSaasAdmin) {
           // Allow access
           const response = NextResponse.next();
           response.headers.delete("x-tenant-slug");
           return response;
         } else {
-          // Not a SaaS admin - redirect to home
-          return NextResponse.redirect(new URL("/", request.url));
+          // Not a SaaS admin - redirect to console login with error
+          return NextResponse.redirect(
+            new URL("/console/login?error=Unauthorized", request.url),
+          );
         }
       }
 

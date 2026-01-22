@@ -556,6 +556,14 @@ export default function SaasAdminPage() {
     }
   }, [isSessionLoading, session, loadOrganizations]);
 
+  // Redirect to console login if not authenticated
+  // (Middleware should handle this, but this is a fallback)
+  useEffect(() => {
+    if (!isSessionLoading && !session?.user) {
+      window.location.href = "/console/login";
+    }
+  }, [isSessionLoading, session]);
+
   const handleApprove = async (orgId: string) => {
     try {
       setActionLoading(orgId);
@@ -610,23 +618,7 @@ export default function SaasAdminPage() {
   }
 
   if (!session?.user) {
-    return (
-      <div className="flex min-h-dvh items-center justify-center p-4">
-        <Card className="max-w-md">
-          <CardContent className="flex flex-col items-center py-12 text-center">
-            <div className="flex size-16 items-center justify-center rounded-full bg-red-100">
-              <XCircleIcon className="size-8 text-red-600" />
-            </div>
-            <h1 className="mt-6 text-xl font-bold text-gray-900">
-              Nicht autorisiert
-            </h1>
-            <p className="mt-2 text-gray-600">
-              Du musst angemeldet sein, um diese Seite zu sehen.
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-    );
+    return <Loading fullPage={false} />;
   }
 
   return (
