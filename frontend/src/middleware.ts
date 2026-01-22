@@ -305,8 +305,8 @@ export async function middleware(request: NextRequest) {
       const isSaasAdmin =
         session.email && saasAdminEmails.includes(session.email.toLowerCase());
 
-      // SaaS admins can access /saas-admin
-      if (pathname === "/saas-admin" || pathname.startsWith("/saas-admin/")) {
+      // SaaS admins can access /console
+      if (pathname === "/console" || pathname.startsWith("/console/")) {
         if (isSaasAdmin) {
           // Allow access
           const response = NextResponse.next();
