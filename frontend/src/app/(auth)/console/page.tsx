@@ -23,6 +23,33 @@ import { Badge } from "~/components/ui/badge";
 import { Skeleton } from "~/components/ui/skeleton";
 import { LogoutModal } from "~/components/ui/logout-modal";
 
+// ============================================================================
+// Types
+// ============================================================================
+
+type ConsoleSection = "organizations" | "invite" | "demo";
+
+const SECTION_CONFIG: Record<
+  ConsoleSection,
+  { label: string; icon: string; description: string }
+> = {
+  organizations: {
+    label: "Organisationen",
+    icon: "M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21M6.75 6.75h.75m-.75 3h.75m-.75 3h.75m3-6h.75m-.75 3h.75m-.75 3h.75M6.75 21v-3.375c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21M3 3h12m-.75 4.5H21m-3.75 3.75h.008v.008h-.008v-.008Zm0 3h.008v.008h-.008v-.008Zm0 3h.008v.008h-.008v-.008Z",
+    description: "Alle registrierten Organisationen verwalten",
+  },
+  invite: {
+    label: "Einladung senden",
+    icon: "M21.75 6.75v10.5a2.25 2.25 0 0 1-2.25 2.25h-15a2.25 2.25 0 0 1-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25m19.5 0v.243a2.25 2.25 0 0 1-1.07 1.916l-7.5 4.615a2.25 2.25 0 0 1-2.36 0L3.32 8.91a2.25 2.25 0 0 1-1.07-1.916V6.75",
+    description: "Neue Organisation anlegen und Einladung versenden",
+  },
+  demo: {
+    label: "Demo-Umgebung",
+    icon: "M9.75 3.104v5.714a2.25 2.25 0 0 1-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 0 1 4.5 0m0 0v5.714c0 .597.237 1.17.659 1.591L19.8 15.3M14.25 3.104c.251.023.501.05.75.082M19.8 15.3l-1.57.393A9.065 9.065 0 0 1 12 15a9.065 9.065 0 0 0-6.23.693L5 14.5m14.8.8 1.402 1.402c1.232 1.232.65 3.318-1.067 3.611A48.309 48.309 0 0 1 12 21c-2.773 0-5.491-.235-8.135-.687-1.718-.293-2.3-2.379-1.067-3.61L5 14.5",
+    description: "Demo-Umgebungen für Interessenten erstellen",
+  },
+};
+
 const STATUS_LABELS: Record<Organization["status"], string> = {
   pending: "Ausstehend",
   active: "Aktiv",
@@ -42,7 +69,178 @@ const STATUS_BADGE_VARIANT: Record<
 
 type StatusFilter = Organization["status"] | "all";
 
-// Stats card component
+// ============================================================================
+// Icon Components
+// ============================================================================
+
+function IconFromPath({ d, className }: { d: string; className?: string }) {
+  return (
+    <svg
+      className={cn("size-5", className)}
+      fill="none"
+      viewBox="0 0 24 24"
+      strokeWidth={1.5}
+      stroke="currentColor"
+    >
+      <path strokeLinecap="round" strokeLinejoin="round" d={d} />
+    </svg>
+  );
+}
+
+function ClockIcon({ className }: { className?: string }) {
+  return (
+    <IconFromPath
+      className={className}
+      d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"
+    />
+  );
+}
+
+function CheckCircleIcon({ className }: { className?: string }) {
+  return (
+    <IconFromPath
+      className={className}
+      d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"
+    />
+  );
+}
+
+function XCircleIcon({ className }: { className?: string }) {
+  return (
+    <IconFromPath
+      className={className}
+      d="m9.75 9.75 4.5 4.5m0-4.5-4.5 4.5M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"
+    />
+  );
+}
+
+function PauseCircleIcon({ className }: { className?: string }) {
+  return (
+    <IconFromPath
+      className={className}
+      d="M14.25 9v6m-4.5 0V9M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"
+    />
+  );
+}
+
+function BuildingIcon({ className }: { className?: string }) {
+  return (
+    <IconFromPath
+      className={className}
+      d="M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21M6.75 6.75h.75m-.75 3h.75m-.75 3h.75m3-6h.75m-.75 3h.75m-.75 3h.75M6.75 21v-3.375c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21M3 3h12m-.75 4.5H21m-3.75 3.75h.008v.008h-.008v-.008Zm0 3h.008v.008h-.008v-.008Zm0 3h.008v.008h-.008v-.008Z"
+    />
+  );
+}
+
+function LogOutIcon({ className }: { className?: string }) {
+  return (
+    <IconFromPath
+      className={className}
+      d="M8.25 9V5.25A2.25 2.25 0 0 1 10.5 3h6a2.25 2.25 0 0 1 2.25 2.25v13.5A2.25 2.25 0 0 1 16.5 21h-6a2.25 2.25 0 0 1-2.25-2.25V15m-3 0-3-3m0 0 3-3m-3 3H15"
+    />
+  );
+}
+
+// ============================================================================
+// Console Sidebar
+// ============================================================================
+
+function ConsoleSidebar({
+  activeSection,
+  onSectionChange,
+}: {
+  activeSection: ConsoleSection;
+  onSectionChange: (section: ConsoleSection) => void;
+}) {
+  const sections: ConsoleSection[] = ["organizations", "invite", "demo"];
+
+  return (
+    <aside className="hidden w-64 shrink-0 border-r border-gray-200 bg-white lg:block">
+      <div className="sticky top-0 flex h-dvh flex-col">
+        {/* Logo/Header */}
+        <div className="border-b border-gray-200 p-4">
+          <h2 className="text-lg font-semibold text-gray-900">
+            Plattform-Konsole
+          </h2>
+          <p className="text-sm text-gray-500">Administration</p>
+        </div>
+
+        {/* Navigation */}
+        <nav className="flex-1 space-y-1 p-3">
+          {sections.map((section) => {
+            const config = SECTION_CONFIG[section];
+            const isActive = activeSection === section;
+
+            return (
+              <button
+                key={section}
+                onClick={() => onSectionChange(section)}
+                className={cn(
+                  "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-medium transition-colors",
+                  isActive
+                    ? "bg-gray-900 text-white"
+                    : "text-gray-700 hover:bg-gray-100",
+                )}
+              >
+                <IconFromPath
+                  d={config.icon}
+                  className={cn(
+                    "size-5 shrink-0",
+                    isActive ? "text-white" : "text-gray-500",
+                  )}
+                />
+                <span>{config.label}</span>
+              </button>
+            );
+          })}
+        </nav>
+      </div>
+    </aside>
+  );
+}
+
+// Mobile navigation tabs
+function MobileNavTabs({
+  activeSection,
+  onSectionChange,
+}: {
+  activeSection: ConsoleSection;
+  onSectionChange: (section: ConsoleSection) => void;
+}) {
+  const sections: ConsoleSection[] = ["organizations", "invite", "demo"];
+
+  return (
+    <div className="border-b border-gray-200 bg-white px-4 lg:hidden">
+      <nav className="-mb-px flex space-x-4 overflow-x-auto">
+        {sections.map((section) => {
+          const config = SECTION_CONFIG[section];
+          const isActive = activeSection === section;
+
+          return (
+            <button
+              key={section}
+              onClick={() => onSectionChange(section)}
+              className={cn(
+                "flex shrink-0 items-center gap-2 border-b-2 px-1 py-3 text-sm font-medium transition-colors",
+                isActive
+                  ? "border-gray-900 text-gray-900"
+                  : "border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700",
+              )}
+            >
+              <IconFromPath d={config.icon} className="size-4" />
+              <span>{config.label}</span>
+            </button>
+          );
+        })}
+      </nav>
+    </div>
+  );
+}
+
+// ============================================================================
+// Organization Section Components
+// ============================================================================
+
 function StatsCard({
   title,
   value,
@@ -86,116 +284,6 @@ function StatsCard({
   );
 }
 
-// Icon components
-function ClockIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      className={cn("size-5", className)}
-      fill="none"
-      viewBox="0 0 24 24"
-      strokeWidth={1.5}
-      stroke="currentColor"
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"
-      />
-    </svg>
-  );
-}
-
-function CheckCircleIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      className={cn("size-5", className)}
-      fill="none"
-      viewBox="0 0 24 24"
-      strokeWidth={1.5}
-      stroke="currentColor"
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"
-      />
-    </svg>
-  );
-}
-
-function XCircleIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      className={cn("size-5", className)}
-      fill="none"
-      viewBox="0 0 24 24"
-      strokeWidth={1.5}
-      stroke="currentColor"
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="m9.75 9.75 4.5 4.5m0-4.5-4.5 4.5M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"
-      />
-    </svg>
-  );
-}
-
-function PauseCircleIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      className={cn("size-5", className)}
-      fill="none"
-      viewBox="0 0 24 24"
-      strokeWidth={1.5}
-      stroke="currentColor"
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M14.25 9v6m-4.5 0V9M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"
-      />
-    </svg>
-  );
-}
-
-function BuildingIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      className={cn("size-5", className)}
-      fill="none"
-      viewBox="0 0 24 24"
-      strokeWidth={1.5}
-      stroke="currentColor"
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21M6.75 6.75h.75m-.75 3h.75m-.75 3h.75m3-6h.75m-.75 3h.75m-.75 3h.75M6.75 21v-3.375c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21M3 3h12m-.75 4.5H21m-3.75 3.75h.008v.008h-.008v-.008Zm0 3h.008v.008h-.008v-.008Zm0 3h.008v.008h-.008v-.008Z"
-      />
-    </svg>
-  );
-}
-
-function LogOutIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      className={cn("size-5", className)}
-      fill="none"
-      viewBox="0 0 24 24"
-      strokeWidth={1.5}
-      stroke="currentColor"
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M8.25 9V5.25A2.25 2.25 0 0 1 10.5 3h6a2.25 2.25 0 0 1 2.25 2.25v13.5A2.25 2.25 0 0 1 16.5 21h-6a2.25 2.25 0 0 1-2.25-2.25V15m-3 0-3-3m0 0 3-3m-3 3H15"
-      />
-    </svg>
-  );
-}
-
-// Loading skeleton for stats
 function StatsLoadingSkeleton() {
   return (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -215,7 +303,6 @@ function StatsLoadingSkeleton() {
   );
 }
 
-// Table loading skeleton
 function TableLoadingSkeleton() {
   return (
     <Card>
@@ -238,7 +325,6 @@ function TableLoadingSkeleton() {
   );
 }
 
-// Empty state component
 function EmptyState({
   filter,
   onResetFilter,
@@ -297,7 +383,6 @@ function EmptyState({
   );
 }
 
-// Filter tabs component
 function FilterTabs({
   activeFilter,
   onFilterChange,
@@ -347,7 +432,6 @@ function FilterTabs({
   );
 }
 
-// Organization row component
 function OrganizationRow({
   org,
   actionLoading,
@@ -369,7 +453,7 @@ function OrganizationRow({
     <tr className="group transition-colors hover:bg-gray-50">
       <td className="px-6 py-4">
         <div className="flex items-center gap-4">
-          <div className="flex size-10 flex-shrink-0 items-center justify-center rounded-full bg-gray-100 text-sm font-semibold text-gray-600">
+          <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-gray-100 text-sm font-semibold text-gray-600">
             {org.name.charAt(0).toUpperCase()}
           </div>
           <div>
@@ -442,7 +526,6 @@ function OrganizationRow({
   );
 }
 
-// Reject modal component
 function RejectModal({
   isOpen,
   onClose,
@@ -503,17 +586,18 @@ function RejectModal({
   );
 }
 
-export default function SaasAdminPage() {
-  const { data: session, isPending: isSessionLoading } = useSession();
+// ============================================================================
+// Section Content Components
+// ============================================================================
+
+function OrganizationsSection() {
   const [allOrganizations, setAllOrganizations] = useState<Organization[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("pending");
   const [showRejectModal, setShowRejectModal] = useState<string | null>(null);
-  const [showLogoutModal, setShowLogoutModal] = useState(false);
 
-  // Calculate stats from all organizations
   const stats = useMemo(() => {
     const counts: Record<StatusFilter, number> = {
       pending: 0,
@@ -530,7 +614,6 @@ export default function SaasAdminPage() {
     return counts;
   }, [allOrganizations]);
 
-  // Filter organizations based on status
   const filteredOrganizations = useMemo(() => {
     if (statusFilter === "all") return allOrganizations;
     return allOrganizations.filter((org) => org.status === statusFilter);
@@ -540,7 +623,6 @@ export default function SaasAdminPage() {
     try {
       setLoading(true);
       setError(null);
-      // Fetch all organizations to calculate stats
       const orgs = await fetchOrganizations();
       setAllOrganizations(orgs);
     } catch (err) {
@@ -551,18 +633,8 @@ export default function SaasAdminPage() {
   }, []);
 
   useEffect(() => {
-    if (!isSessionLoading && session?.user) {
-      void loadOrganizations();
-    }
-  }, [isSessionLoading, session, loadOrganizations]);
-
-  // Redirect to console login if not authenticated
-  // (Middleware should handle this, but this is a fallback)
-  useEffect(() => {
-    if (!isSessionLoading && !session?.user) {
-      window.location.href = "/console/login";
-    }
-  }, [isSessionLoading, session]);
+    void loadOrganizations();
+  }, [loadOrganizations]);
 
   const handleApprove = async (orgId: string) => {
     try {
@@ -613,6 +685,198 @@ export default function SaasAdminPage() {
     }
   };
 
+  return (
+    <>
+      {/* Stats Cards */}
+      {loading ? (
+        <StatsLoadingSkeleton />
+      ) : (
+        <div className="mb-8 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <StatsCard
+            title="Ausstehend"
+            value={stats.pending}
+            description="Warten auf Genehmigung"
+            icon={<ClockIcon />}
+            variant="warning"
+          />
+          <StatsCard
+            title="Aktiv"
+            value={stats.active}
+            description="Genehmigte Organisationen"
+            icon={<CheckCircleIcon />}
+            variant="success"
+          />
+          <StatsCard
+            title="Gesperrt"
+            value={stats.suspended}
+            description="Temporär deaktiviert"
+            icon={<PauseCircleIcon />}
+            variant="secondary"
+          />
+          <StatsCard
+            title="Abgelehnt"
+            value={stats.rejected}
+            description="Nicht genehmigt"
+            icon={<XCircleIcon />}
+            variant="danger"
+          />
+        </div>
+      )}
+
+      {/* Error Message */}
+      {error && (
+        <div className="mb-6 flex items-center justify-between rounded-lg border border-red-200 bg-red-50 p-4">
+          <div className="flex items-center gap-3">
+            <XCircleIcon className="size-5 text-red-600" />
+            <span className="text-sm font-medium text-red-800">{error}</span>
+          </div>
+          <button
+            onClick={() => setError(null)}
+            className="text-sm font-medium text-red-600 hover:text-red-800"
+          >
+            Schließen
+          </button>
+        </div>
+      )}
+
+      {/* Filter Tabs */}
+      <div className="mb-6 overflow-x-auto">
+        <FilterTabs
+          activeFilter={statusFilter}
+          onFilterChange={setStatusFilter}
+          counts={stats}
+        />
+      </div>
+
+      {/* Organizations Table */}
+      {loading ? (
+        <TableLoadingSkeleton />
+      ) : filteredOrganizations.length === 0 ? (
+        <EmptyState
+          filter={statusFilter}
+          onResetFilter={() => setStatusFilter("all")}
+        />
+      ) : (
+        <Card>
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-gray-100 bg-gray-50/50">
+                    <th className="px-6 py-3 text-left text-xs font-semibold tracking-wider text-gray-500 uppercase">
+                      Organisation
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-semibold tracking-wider text-gray-500 uppercase">
+                      Inhaber
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-semibold tracking-wider text-gray-500 uppercase">
+                      Status
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-semibold tracking-wider text-gray-500 uppercase">
+                      Erstellt
+                    </th>
+                    <th className="px-6 py-3 text-right text-xs font-semibold tracking-wider text-gray-500 uppercase">
+                      Aktionen
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {filteredOrganizations.map((org) => (
+                    <OrganizationRow
+                      key={org.id}
+                      org={org}
+                      actionLoading={actionLoading}
+                      onApprove={handleApprove}
+                      onReject={(id) => setShowRejectModal(id)}
+                      onSuspend={handleSuspend}
+                      onReactivate={handleReactivate}
+                    />
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Reject Modal */}
+      <RejectModal
+        isOpen={showRejectModal !== null}
+        onClose={() => setShowRejectModal(null)}
+        onConfirm={(reason) => {
+          if (showRejectModal) {
+            void handleReject(showRejectModal, reason);
+          }
+        }}
+        isLoading={actionLoading === showRejectModal}
+      />
+    </>
+  );
+}
+
+function InviteSection() {
+  return (
+    <div className="flex flex-col items-center justify-center py-16">
+      <div className="flex size-20 items-center justify-center rounded-full bg-gray-100">
+        <IconFromPath
+          d={SECTION_CONFIG.invite.icon}
+          className="size-10 text-gray-400"
+        />
+      </div>
+      <h3 className="mt-6 text-xl font-semibold text-gray-900">
+        Einladung senden
+      </h3>
+      <p className="mt-2 max-w-md text-center text-pretty text-gray-600">
+        Erstellen Sie eine neue Organisation und laden Sie Administratoren per
+        E-Mail ein. Diese Funktion wird bald verfügbar sein.
+      </p>
+      <div className="mt-8 rounded-lg border border-gray-200 bg-gray-50 px-4 py-2 text-sm text-gray-500">
+        In Entwicklung
+      </div>
+    </div>
+  );
+}
+
+function DemoSection() {
+  return (
+    <div className="flex flex-col items-center justify-center py-16">
+      <div className="flex size-20 items-center justify-center rounded-full bg-gray-100">
+        <IconFromPath
+          d={SECTION_CONFIG.demo.icon}
+          className="size-10 text-gray-400"
+        />
+      </div>
+      <h3 className="mt-6 text-xl font-semibold text-gray-900">
+        Demo-Umgebung
+      </h3>
+      <p className="mt-2 max-w-md text-center text-pretty text-gray-600">
+        Erstellen Sie Demo-Umgebungen für potenzielle Kunden. Diese Funktion
+        wird bald verfügbar sein.
+      </p>
+      <div className="mt-8 rounded-lg border border-gray-200 bg-gray-50 px-4 py-2 text-sm text-gray-500">
+        In Entwicklung
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// Main Page Component
+// ============================================================================
+
+export default function SaasAdminPage() {
+  const { data: session, isPending: isSessionLoading } = useSession();
+  const [activeSection, setActiveSection] =
+    useState<ConsoleSection>("organizations");
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
+
+  // Redirect to console login if not authenticated
+  useEffect(() => {
+    if (!isSessionLoading && !session?.user) {
+      window.location.href = "/console/login";
+    }
+  }, [isSessionLoading, session]);
+
   if (isSessionLoading) {
     return <Loading fullPage={false} />;
   }
@@ -621,159 +885,60 @@ export default function SaasAdminPage() {
     return <Loading fullPage={false} />;
   }
 
+  const currentConfig = SECTION_CONFIG[activeSection];
+
   return (
-    <div className="min-h-dvh bg-gray-50/50">
-      <div className="container mx-auto max-w-7xl px-4 py-8">
-        {/* Header */}
-        <div className="mb-8 flex items-start justify-between">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight text-balance text-gray-900">
-              Organisation-Verwaltung
-            </h1>
-            <p className="mt-2 text-pretty text-gray-600">
-              Verwalte Organisation-Registrierungen und deren Status
-            </p>
-          </div>
-          <button
-            onClick={() => setShowLogoutModal(true)}
-            className="flex items-center gap-2 rounded-lg bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm ring-1 ring-gray-200 transition-colors hover:bg-gray-50"
-            aria-label="Abmelden"
-          >
-            <LogOutIcon className="size-4" />
-            <span className="hidden sm:inline">Abmelden</span>
-          </button>
-        </div>
+    <div className="flex h-dvh bg-gray-50/50">
+      {/* Desktop Sidebar */}
+      <ConsoleSidebar
+        activeSection={activeSection}
+        onSectionChange={setActiveSection}
+      />
 
-        {/* Stats Cards */}
-        {loading ? (
-          <StatsLoadingSkeleton />
-        ) : (
-          <div className="mb-8 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            <StatsCard
-              title="Ausstehend"
-              value={stats.pending}
-              description="Warten auf Genehmigung"
-              icon={<ClockIcon />}
-              variant="warning"
-            />
-            <StatsCard
-              title="Aktiv"
-              value={stats.active}
-              description="Genehmigte Organisationen"
-              icon={<CheckCircleIcon />}
-              variant="success"
-            />
-            <StatsCard
-              title="Gesperrt"
-              value={stats.suspended}
-              description="Temporär deaktiviert"
-              icon={<PauseCircleIcon />}
-              variant="secondary"
-            />
-            <StatsCard
-              title="Abgelehnt"
-              value={stats.rejected}
-              description="Nicht genehmigt"
-              icon={<XCircleIcon />}
-              variant="danger"
-            />
-          </div>
-        )}
+      {/* Main Content */}
+      <div className="flex flex-1 flex-col overflow-hidden">
+        {/* Mobile Navigation */}
+        <MobileNavTabs
+          activeSection={activeSection}
+          onSectionChange={setActiveSection}
+        />
 
-        {/* Error Message */}
-        {error && (
-          <div className="mb-6 flex items-center justify-between rounded-lg border border-red-200 bg-red-50 p-4">
-            <div className="flex items-center gap-3">
-              <XCircleIcon className="size-5 text-red-600" />
-              <span className="text-sm font-medium text-red-800">{error}</span>
-            </div>
-            <button
-              onClick={() => setError(null)}
-              className="text-sm font-medium text-red-600 hover:text-red-800"
-            >
-              Schließen
-            </button>
-          </div>
-        )}
-
-        {/* Filter Tabs */}
-        <div className="mb-6">
-          <FilterTabs
-            activeFilter={statusFilter}
-            onFilterChange={setStatusFilter}
-            counts={stats}
-          />
-        </div>
-
-        {/* Organizations Table */}
-        {loading ? (
-          <TableLoadingSkeleton />
-        ) : filteredOrganizations.length === 0 ? (
-          <EmptyState
-            filter={statusFilter}
-            onResetFilter={() => setStatusFilter("all")}
-          />
-        ) : (
-          <Card>
-            <CardContent className="p-0">
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b border-gray-100 bg-gray-50/50">
-                      <th className="px-6 py-3 text-left text-xs font-semibold tracking-wider text-gray-500 uppercase">
-                        Organisation
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-semibold tracking-wider text-gray-500 uppercase">
-                        Inhaber
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-semibold tracking-wider text-gray-500 uppercase">
-                        Status
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-semibold tracking-wider text-gray-500 uppercase">
-                        Erstellt
-                      </th>
-                      <th className="px-6 py-3 text-right text-xs font-semibold tracking-wider text-gray-500 uppercase">
-                        Aktionen
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {filteredOrganizations.map((org) => (
-                      <OrganizationRow
-                        key={org.id}
-                        org={org}
-                        actionLoading={actionLoading}
-                        onApprove={handleApprove}
-                        onReject={(id) => setShowRejectModal(id)}
-                        onSuspend={handleSuspend}
-                        onReactivate={handleReactivate}
-                      />
-                    ))}
-                  </tbody>
-                </table>
+        {/* Content Area */}
+        <main className="flex-1 overflow-y-auto">
+          <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+            {/* Header */}
+            <div className="mb-8 flex items-start justify-between">
+              <div>
+                <h1 className="text-2xl font-bold tracking-tight text-balance text-gray-900 sm:text-3xl">
+                  {currentConfig.label}
+                </h1>
+                <p className="mt-2 text-pretty text-gray-600">
+                  {currentConfig.description}
+                </p>
               </div>
-            </CardContent>
-          </Card>
-        )}
+              <button
+                onClick={() => setShowLogoutModal(true)}
+                className="flex items-center gap-2 rounded-lg bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm ring-1 ring-gray-200 transition-colors hover:bg-gray-50"
+                aria-label="Abmelden"
+              >
+                <LogOutIcon className="size-4" />
+                <span className="hidden sm:inline">Abmelden</span>
+              </button>
+            </div>
 
-        {/* Reject Modal */}
-        <RejectModal
-          isOpen={showRejectModal !== null}
-          onClose={() => setShowRejectModal(null)}
-          onConfirm={(reason) => {
-            if (showRejectModal) {
-              void handleReject(showRejectModal, reason);
-            }
-          }}
-          isLoading={actionLoading === showRejectModal}
-        />
-
-        {/* Logout Modal */}
-        <LogoutModal
-          isOpen={showLogoutModal}
-          onClose={() => setShowLogoutModal(false)}
-        />
+            {/* Section Content */}
+            {activeSection === "organizations" && <OrganizationsSection />}
+            {activeSection === "invite" && <InviteSection />}
+            {activeSection === "demo" && <DemoSection />}
+          </div>
+        </main>
       </div>
+
+      {/* Logout Modal */}
+      <LogoutModal
+        isOpen={showLogoutModal}
+        onClose={() => setShowLogoutModal(false)}
+      />
     </div>
   );
 }
