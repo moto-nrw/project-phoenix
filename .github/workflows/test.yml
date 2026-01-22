@@ -71,6 +71,7 @@ jobs:
         working-directory: betterauth
         env:
           DATABASE_URL: postgres://postgres:postgres@localhost:5432/phoenix_test?sslmode=disable
+          BASE_DOMAIN: test.local
         run: |
           echo "=== Running BetterAuth migrations ==="
           echo "Config file exists:"
