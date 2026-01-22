@@ -5,7 +5,12 @@
 
 const INTERNAL_API_URL =
   process.env.INTERNAL_API_URL ?? "http://server:8080";
-const BASE_DOMAIN = process.env.BASE_DOMAIN ?? "moto-app.de";
+
+// BASE_DOMAIN is required - no fallback to prevent hardcoded domains in emails
+const BASE_DOMAIN = process.env.BASE_DOMAIN;
+if (!BASE_DOMAIN) {
+  throw new Error("BASE_DOMAIN environment variable is required");
+}
 
 interface SendEmailParams {
   to: string;
@@ -73,6 +78,7 @@ export async function sendOrgPendingEmail(
       FirstName: params.firstName,
       OrgName: params.orgName,
       Subdomain: params.subdomain,
+      BaseDomain: BASE_DOMAIN,
       OrgURL: orgURL,
     },
   });
@@ -101,6 +107,7 @@ export async function sendOrgApprovedEmail(
       FirstName: params.firstName,
       OrgName: params.orgName,
       Subdomain: params.subdomain,
+      BaseDomain: BASE_DOMAIN,
       OrgURL: orgURL,
     },
   });
@@ -165,6 +172,7 @@ export async function sendOrgInvitationEmail(
       LastName: params.lastName,
       OrgName: params.orgName,
       Subdomain: params.subdomain,
+      BaseDomain: BASE_DOMAIN,
       InviteURL: inviteURL,
       Role: params.role,
     },
