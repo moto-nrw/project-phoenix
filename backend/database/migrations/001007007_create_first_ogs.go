@@ -88,11 +88,12 @@ func createFirstOgs(ctx context.Context, db *bun.DB) error {
 	// Once WP4 is complete, this can be updated to reference a real träger.
 	// Using fmt.Sprintf because firstOgsId is a constant (safe from injection)
 	_, err = db.ExecContext(ctx, fmt.Sprintf(`
-		INSERT INTO public.organization (id, name, slug, "createdAt", "traegerId", metadata)
+		INSERT INTO public.organization (id, name, slug, status, "createdAt", "traegerId", metadata)
 		VALUES (
 			'%s',
 			'Erste OGS (Migration)',
 			'erste-ogs',
+			'active',
 			NOW(),
 			'migration-placeholder-traeger',
 			'{"source": "migration-1.7.7", "note": "Default organization for pre-existing data"}'
