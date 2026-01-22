@@ -7,7 +7,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/policy"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/auth/tenant"
 )
 
 // ResourceAuthorizer provides resource-specific authorization middleware
@@ -50,14 +50,27 @@ func (ra *ResourceAuthorizer) RequiresResourceAccess(resourceType string, action
 	}
 }
 
-// createSubjectFromContext creates a policy subject from JWT context
+// createSubjectFromContext creates a policy subject from tenant context (BetterAuth).
 func createSubjectFromContext(r *http.Request) policy.Subject {
-	claims := jwt.ClaimsFromCtx(r.Context())
-	permissions := jwt.PermissionsFromCtx(r.Context())
+	tc := tenant.TenantFromCtx(r.Context())
+	permissions := tenant.PermissionsFromCtx(r.Context())
+
+	var accountID int64
+	var roles []string
+
+	if tc != nil {
+		if tc.AccountID != nil {
+			accountID = *tc.AccountID
+		}
+		// BetterAuth uses single role per org membership
+		if tc.Role != "" {
+			roles = []string{tc.Role}
+		}
+	}
 
 	return policy.Subject{
-		AccountID:   int64(claims.ID),
-		Roles:       claims.Roles,
+		AccountID:   accountID,
+		Roles:       roles,
 		Permissions: permissions,
 	}
 }
