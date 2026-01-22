@@ -17,7 +17,7 @@ claude
 
 ## What You Get (Out of the Box)
 
-### Plugins (12 active)
+### Plugins (11 active)
 
 | Plugin | Purpose |
 |--------|---------|
@@ -30,7 +30,7 @@ claude
 | **backend-api-security** | API security best practices |
 | **api-scaffolding** | API endpoint scaffolding |
 | **codebase-cleanup** | Dead code detection and cleanup |
-| **playwright** | Browser automation testing |
+| **agent-browser** | Browser automation CLI for AI agents |
 | **typescript-lsp** | TypeScript language server |
 | **gopls-lsp** | Go language server |
 
@@ -45,7 +45,7 @@ claude
 | **deep-dive-investigator** | Complex debugging, tracing code execution paths |
 | **research-thinker** | Research topics, compare alternatives, gather info |
 
-### Skills (7 available)
+### Skills (8 available)
 
 | Skill | Purpose |
 |-------|---------|
@@ -56,6 +56,7 @@ claude
 | **ui-skills** | UI/UX design constraints |
 | **web-design-guidelines** | Web interface guidelines |
 | **ralph-setup** | Set up iterative AI development loops |
+| **agent-browser** | Browser automation for web testing |
 
 ### Slash Commands
 
@@ -117,7 +118,8 @@ Comprehensive security guidelines covering:
 │   ├── sonarqube-mcp/
 │   ├── ui-skills/
 │   ├── web-design-guidelines/
-│   └── ralph-setup/
+│   ├── ralph-setup/
+│   └── agent-browser/
 └── rules/                 # 23 security guidelines
     ├── openspec.md
     └── security/
@@ -144,7 +146,7 @@ All project MCP servers are auto-enabled. Current MCPs include:
 - Context7 (documentation lookup)
 - Brave Search (web search)
 - SonarQube (code quality)
-- Playwright (browser automation)
+- agent-browser (browser automation CLI)
 - Sequential Thinking (complex reasoning)
 
 ## Personal Customization
