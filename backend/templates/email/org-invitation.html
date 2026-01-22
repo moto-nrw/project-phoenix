@@ -1,0 +1,40 @@
+{{define "org-invitation.html"}}
+{{template "header" .}}
+
+<div class="email-body">
+    <div class="brand">
+        <img src="{{.LogoURL}}" alt="moto Logo" style="max-width: 180px; height: auto; display: block; margin: 0 auto;" />
+    </div>
+    <h1>Einladung zu {{.OrgName}}</h1>
+    {{if .FirstName}}
+    <p>Hallo {{.FirstName}},</p>
+    {{else}}
+    <p>Hallo,</p>
+    {{end}}
+    <p>du wurdest als <strong>{{.Role}}</strong> zur Organisation <strong>{{.OrgName}}</strong> auf der moto-Plattform eingeladen.</p>
+
+    <div class="button-wrapper" style="text-align: center;">
+        <a class="button" href="{{.InviteURL}}">Einladung annehmen</a>
+    </div>
+
+    <div class="highlight-box">
+        <p>Diese Einladung ist 48 Stunden gültig.</p>
+    </div>
+
+    <p style="margin-top: 24px; font-size: 14px; color: #6b7280;">Falls der Button nicht funktioniert, kopiere diesen Link:</p>
+    <div class="link-box">
+        <a href="{{.InviteURL}}">{{.InviteURL}}</a>
+    </div>
+
+    <p style="margin-top: 24px; font-size: 14px; color: #6b7280;">Was passiert als nächstes?</p>
+    <ul style="color: #4b5563; font-size: 14px; padding-left: 20px;">
+        <li>Klicke auf den Button oben, um ein Konto zu erstellen</li>
+        <li>Nach der Registrierung hast du sofort Zugriff auf {{.OrgName}}</li>
+        <li>Du kannst dich dann unter <strong>{{.Subdomain}}.moto-app.de</strong> anmelden</li>
+    </ul>
+
+    <p class="security-note">Falls du diese Einladung nicht erwartet hast, kannst du diese E-Mail ignorieren.</p>
+</div>
+
+{{template "footer" .}}
+{{end}}

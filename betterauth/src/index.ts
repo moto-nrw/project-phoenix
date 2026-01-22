@@ -5,6 +5,7 @@ import { auth } from "./auth.js";
 import {
   sendOrgApprovedEmail,
   sendOrgRejectedEmail,
+  sendOrgInvitationEmail,
 } from "./email.js";
 
 const PORT = parseInt(process.env.PORT ?? "3001", 10);
@@ -173,6 +174,271 @@ async function handleCreateOrganization(
     console.error("Failed to create organization:", error);
     res.writeHead(500, { "Content-Type": "application/json" });
     res.end(JSON.stringify({ error: "Internal server error" }));
+  }
+}
+
+// Go backend URL for internal API calls
+const GO_BACKEND_URL = process.env.INTERNAL_API_URL ?? "http://server:8080";
+
+// System user ID for SaaS admin operations (invitations without a real user)
+const SAAS_ADMIN_EMAIL = "system@moto-app.de";
+const SAAS_ADMIN_NAME = "SaaS System";
+
+/**
+ * Get or create the system user for SaaS admin operations.
+ * This user serves as the inviter for invitations created via the admin console.
+ */
+async function getOrCreateSystemUser(): Promise<string> {
+  // Check if system user already exists
+  const existing = await pool.query(
+    `SELECT id FROM "user" WHERE email = $1`,
+    [SAAS_ADMIN_EMAIL],
+  );
+
+  if (existing.rows.length > 0) {
+    return (existing.rows[0] as { id: string }).id;
+  }
+
+  // Create system user
+  const result = await pool.query(
+    `INSERT INTO "user" (id, email, name, "emailVerified", "createdAt", "updatedAt")
+     VALUES (gen_random_uuid(), $1, $2, true, NOW(), NOW())
+     RETURNING id`,
+    [SAAS_ADMIN_EMAIL, SAAS_ADMIN_NAME],
+  );
+
+  return (result.rows[0] as { id: string }).id;
+}
+
+interface ProvisionInvitation {
+  email: string;
+  role: "admin" | "member" | "owner";
+  firstName?: string;
+  lastName?: string;
+}
+
+interface ProvisionRequest {
+  orgName: string;
+  orgSlug: string;
+  invitations: ProvisionInvitation[];
+}
+
+interface ValidateEmailsResponse {
+  available: string[];
+  unavailable: string[];
+}
+
+/**
+ * Handler: Atomic organization provisioning (for SaaS admin console)
+ * This endpoint creates an organization AND its invitations atomically.
+ * If any validation fails (slug taken, emails registered), nothing is created.
+ *
+ * POST /api/admin/organizations/provision
+ */
+async function handleProvisionOrganization(
+  req: IncomingMessage,
+  res: ServerResponse,
+): Promise<void> {
+  // Verify internal API access
+  if (!verifyInternalAccess(req)) {
+    res.writeHead(401, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ error: "Unauthorized - internal access required" }));
+    return;
+  }
+
+  const client = await pool.connect();
+
+  try {
+    const body = (await readJsonBody(req)) as ProvisionRequest;
+
+    // Validate request body
+    if (!body.orgName?.trim()) {
+      res.writeHead(400, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Organization name is required", field: "orgName" }));
+      return;
+    }
+
+    if (!body.orgSlug?.trim()) {
+      res.writeHead(400, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Organization slug is required", field: "orgSlug" }));
+      return;
+    }
+
+    if (!body.invitations || body.invitations.length === 0) {
+      res.writeHead(400, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "At least one invitation is required", field: "invitations" }));
+      return;
+    }
+
+    const orgName = body.orgName.trim();
+    const orgSlug = body.orgSlug.trim().toLowerCase();
+
+    // ============================================
+    // PHASE 1: VALIDATE ALL (no writes yet)
+    // ============================================
+
+    // 1a. Validate slug not taken
+    const slugExists = await client.query(
+      `SELECT 1 FROM organization WHERE slug = $1`,
+      [orgSlug],
+    );
+
+    if (slugExists.rows.length > 0) {
+      res.writeHead(409, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({
+        error: "Diese Subdomain ist bereits vergeben",
+        field: "slug",
+      }));
+      return;
+    }
+
+    // 1b. Validate emails via Go backend
+    const emails = body.invitations.map((inv) => inv.email.toLowerCase().trim());
+
+    const emailValidation = await fetch(`${GO_BACKEND_URL}/api/internal/validate-emails`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ emails }),
+    });
+
+    if (!emailValidation.ok) {
+      console.error("Failed to validate emails:", await emailValidation.text());
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Email validation service unavailable" }));
+      return;
+    }
+
+    const emailResult = (await emailValidation.json()) as ValidateEmailsResponse;
+
+    if (emailResult.unavailable.length > 0) {
+      res.writeHead(409, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({
+        error: `E-Mail-Adressen bereits registriert: ${emailResult.unavailable.join(", ")}`,
+        field: "email",
+        unavailableEmails: emailResult.unavailable,
+      }));
+      return;
+    }
+
+    // 1c. Check emails don't already have pending invitations for any org
+    const existingInvitations = await client.query(
+      `SELECT email FROM invitation WHERE email = ANY($1) AND status = 'pending'`,
+      [emails],
+    );
+
+    if (existingInvitations.rows.length > 0) {
+      const existingEmails = (existingInvitations.rows as { email: string }[]).map((r) => r.email);
+      res.writeHead(409, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({
+        error: `E-Mail-Adressen haben bereits ausstehende Einladungen: ${existingEmails.join(", ")}`,
+        field: "email",
+        unavailableEmails: existingEmails,
+      }));
+      return;
+    }
+
+    // ============================================
+    // PHASE 2: CREATE (atomic within transaction)
+    // ============================================
+
+    // Get system user for inviter
+    const systemUserId = await getOrCreateSystemUser();
+
+    // Start transaction
+    await client.query("BEGIN");
+
+    try {
+      // 2a. Create organization with active status
+      const orgResult = await client.query(
+        `INSERT INTO organization (id, name, slug, status, "createdAt", "allowPublicSignup", "requireMemberApproval")
+         VALUES (gen_random_uuid(), $1, $2, 'active', NOW(), false, true)
+         RETURNING id, name, slug, status, "createdAt"`,
+        [orgName, orgSlug],
+      );
+
+      const org = orgResult.rows[0] as {
+        id: string;
+        name: string;
+        slug: string;
+        status: string;
+        createdAt: Date;
+      };
+
+      // 2b. Create invitations
+      const createdInvitations: Array<{
+        id: string;
+        email: string;
+        role: string;
+        firstName?: string;
+        lastName?: string;
+      }> = [];
+
+      for (const inv of body.invitations) {
+        const invResult = await client.query(
+          `INSERT INTO invitation (id, "organizationId", email, role, status, "expiresAt", "createdAt", "inviterId")
+           VALUES (gen_random_uuid(), $1, $2, $3, 'pending', NOW() + INTERVAL '48 hours', NOW(), $4)
+           RETURNING id, email, role`,
+          [org.id, inv.email.toLowerCase().trim(), inv.role, systemUserId],
+        );
+
+        createdInvitations.push({
+          id: (invResult.rows[0] as { id: string }).id,
+          email: inv.email.toLowerCase().trim(),
+          role: inv.role,
+          firstName: inv.firstName,
+          lastName: inv.lastName,
+        });
+      }
+
+      // Commit transaction
+      await client.query("COMMIT");
+
+      // 2c. Send invitation emails (async, fire-and-forget after commit)
+      for (const invitation of createdInvitations) {
+        sendOrgInvitationEmail({
+          to: invitation.email,
+          firstName: invitation.firstName,
+          lastName: invitation.lastName,
+          orgName: org.name,
+          subdomain: org.slug,
+          invitationId: invitation.id,
+          role: invitation.role,
+        }).catch((err: unknown) => {
+          console.error(`Failed to send invitation email to ${invitation.email}:`, err);
+        });
+      }
+
+      console.log(
+        `Successfully provisioned org "${org.name}" (${org.slug}) with ${createdInvitations.length} invitations`,
+      );
+
+      res.writeHead(201, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({
+        success: true,
+        organization: {
+          id: org.id,
+          name: org.name,
+          slug: org.slug,
+          status: org.status,
+          createdAt: org.createdAt,
+        },
+        invitations: createdInvitations.map((inv) => ({
+          id: inv.id,
+          email: inv.email,
+          role: inv.role,
+        })),
+      }));
+    } catch (txError) {
+      // Rollback on any error during creation
+      await client.query("ROLLBACK");
+      throw txError;
+    }
+  } catch (error) {
+    console.error("Failed to provision organization:", error);
+    res.writeHead(500, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ error: "Internal server error" }));
+  } finally {
+    client.release();
   }
 }
 
@@ -415,6 +681,13 @@ const server = createServer(
     // Admin: Create organization with active status (no owner)
     if (url === "/api/admin/organizations" && req.method === "POST") {
       await handleCreateOrganization(req, res);
+      return;
+    }
+
+    // Admin: Atomic organization provisioning (org + invitations)
+    // This is the atomic endpoint that creates org AND invitations together
+    if (url === "/api/admin/organizations/provision" && req.method === "POST") {
+      await handleProvisionOrganization(req, res);
       return;
     }
 

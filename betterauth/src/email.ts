@@ -130,3 +130,36 @@ export async function sendOrgRejectedEmail(
     },
   });
 }
+
+interface OrgInvitationEmailParams {
+  to: string;
+  firstName?: string;
+  lastName?: string;
+  orgName: string;
+  subdomain: string;
+  invitationId: string;
+  role: string;
+}
+
+/**
+ * Send organization invitation email.
+ * Sent to invited users when they are invited to join an organization.
+ */
+export async function sendOrgInvitationEmail(
+  params: OrgInvitationEmailParams,
+): Promise<void> {
+  const inviteURL = `https://${params.subdomain}.${BASE_DOMAIN}/accept-invitation/${params.invitationId}`;
+
+  await sendEmail({
+    to: params.to,
+    template: "org-invitation",
+    data: {
+      FirstName: params.firstName,
+      LastName: params.lastName,
+      OrgName: params.orgName,
+      Subdomain: params.subdomain,
+      InviteURL: inviteURL,
+      Role: params.role,
+    },
+  });
+}

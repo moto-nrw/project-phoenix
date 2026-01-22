@@ -1,8 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Input } from "~/components/ui";
-import { createOrganization } from "~/lib/admin-api";
 
 // Role response from console API
 interface ConsoleRole {
@@ -17,20 +16,40 @@ interface ConsoleRolesResponse {
   data: ConsoleRole[];
 }
 
-// Invitation response from console API
-interface ConsoleInvitationResponse {
-  status: string;
-  data?: {
-    id: number;
-    email: string;
-    role_id: number;
-    token: string;
-    expires_at: string;
-    first_name?: string;
-    last_name?: string;
-    position?: string;
+// Atomic provision API types
+interface ProvisionInvitation {
+  email: string;
+  role: "admin" | "member" | "owner";
+  firstName?: string;
+  lastName?: string;
+}
+
+interface ProvisionRequest {
+  orgName: string;
+  orgSlug: string;
+  invitations: ProvisionInvitation[];
+}
+
+interface ProvisionErrorResponse {
+  error: string;
+  field?: string;
+  unavailableEmails?: string[];
+}
+
+interface ProvisionSuccessResponse {
+  success: boolean;
+  organization: {
+    id: string;
+    name: string;
+    slug: string;
+    status: string;
+    createdAt: string;
   };
-  error?: string;
+  invitations: Array<{
+    id: string;
+    email: string;
+    role: string;
+  }>;
 }
 
 // Fetch roles from console API (uses BetterAuth auth, not Go backend JWT)
@@ -47,26 +66,30 @@ async function fetchConsoleRoles(): Promise<ConsoleRole[]> {
   return result.data;
 }
 
-// Create invitation via console API (uses BetterAuth auth, not Go backend JWT)
-// This calls the Go backend's internal API via the console endpoint
-interface CreateConsoleInvitationRequest {
-  email: string;
-  role_id: number;
-  first_name?: string;
-  last_name?: string;
-  position?: string;
+// Map Go role IDs to BetterAuth role names
+function mapRoleIdToName(roleId: number): "admin" | "member" | "owner" {
+  // Role IDs from Go backend: 1=Admin, 2=Lehrer, 3=Betreuer, etc.
+  // For org provisioning, we use BetterAuth roles: admin, member, owner
+  // First invitation should typically be admin (org admin)
+  switch (roleId) {
+    case 1: // Admin
+      return "admin";
+    case 2: // Lehrer
+    case 3: // Betreuer
+    default:
+      return "member";
+  }
 }
 
-interface CreateConsoleInvitationResult {
-  token: string;
-  id: number;
-  email: string;
-}
-
-async function createConsoleInvitation(
-  data: CreateConsoleInvitationRequest,
-): Promise<CreateConsoleInvitationResult> {
-  const response = await fetch("/api/console/invitations", {
+/**
+ * Atomic organization provisioning via BetterAuth.
+ * Creates organization AND invitations in a single atomic operation.
+ * If any validation fails (slug taken, emails registered), nothing is created.
+ */
+async function provisionOrganization(
+  data: ProvisionRequest,
+): Promise<ProvisionSuccessResponse> {
+  const response = await fetch("/api/admin/organizations/provision", {
     method: "POST",
     credentials: "include",
     headers: {
@@ -75,21 +98,16 @@ async function createConsoleInvitation(
     body: JSON.stringify(data),
   });
 
+  const result = (await response.json()) as
+    | ProvisionSuccessResponse
+    | ProvisionErrorResponse;
+
   if (!response.ok) {
-    const result = (await response.json()) as ConsoleInvitationResponse;
-    throw new Error(result.error ?? "Failed to create invitation");
+    const errorResult = result as ProvisionErrorResponse;
+    throw new Error(errorResult.error ?? "Failed to provision organization");
   }
 
-  const result = (await response.json()) as ConsoleInvitationResponse;
-  if (!result.data) {
-    throw new Error("Invalid response: no data");
-  }
-
-  return {
-    token: result.data.token,
-    id: result.data.id,
-    email: result.data.email,
-  };
+  return result as ProvisionSuccessResponse;
 }
 
 // ============================================================================
@@ -252,7 +270,7 @@ export function OrganizationInviteForm({
     orgName: string;
     orgSlug: string;
     inviteCount: number;
-    inviteLinks: string[];
+    inviteEmails: string[];
   } | null>(null);
 
   // Load roles from console API (uses BetterAuth auth)
@@ -290,14 +308,6 @@ export function OrganizationInviteForm({
     return () => {
       cancelled = true;
     };
-  }, []);
-
-  // Get base URL for invite links
-  const inviteBaseUrl = useMemo(() => {
-    if (typeof globalThis !== "undefined" && "location" in globalThis) {
-      return globalThis.location.origin;
-    }
-    return "";
   }, []);
 
   // Update invitation entry
@@ -356,7 +366,7 @@ export function OrganizationInviteForm({
     return null;
   }, [orgName, orgSlug, invitations]);
 
-  // Submit form
+  // Submit form - uses atomic provisioning endpoint
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     setError(null);
@@ -371,61 +381,31 @@ export function OrganizationInviteForm({
     try {
       setIsSubmitting(true);
 
-      // Step 1: Create organization with active status and slug
-      const org = await createOrganization({
-        name: orgName.trim(),
-        slug: orgSlug.trim() || undefined,
-      });
-
-      // Step 2: Send invitations via Go backend's internal API (console endpoint)
+      // Filter valid invitations
       const validInvitations = invitations.filter((inv) => inv.email.trim());
-      const inviteLinks: string[] = [];
-      const failedInvites: string[] = [];
 
-      for (const inv of validInvitations) {
-        try {
-          const inviteData: CreateConsoleInvitationRequest = {
-            email: inv.email.trim(),
-            role_id: inv.roleId ?? 0,
-            first_name: inv.firstName.trim() || undefined,
-            last_name: inv.lastName.trim() || undefined,
-          };
+      // Build provision request
+      const provisionData: ProvisionRequest = {
+        orgName: orgName.trim(),
+        orgSlug: orgSlug.trim(),
+        invitations: validInvitations.map((inv) => ({
+          email: inv.email.trim(),
+          role: mapRoleIdToName(inv.roleId ?? 1),
+          firstName: inv.firstName.trim() || undefined,
+          lastName: inv.lastName.trim() || undefined,
+        })),
+      };
 
-          const invitation = await createConsoleInvitation(inviteData);
-          const link = inviteBaseUrl
-            ? `${inviteBaseUrl}/invite?token=${encodeURIComponent(invitation.token ?? "")}`
-            : (invitation.token ?? "");
-          inviteLinks.push(link);
-        } catch (invErr) {
-          console.error(`Failed to send invitation to ${inv.email}:`, invErr);
-          failedInvites.push(inv.email);
-        }
-      }
+      // Single atomic API call - creates org AND invitations together
+      // If anything fails (slug taken, email registered), nothing is created
+      const result = await provisionOrganization(provisionData);
 
-      if (
-        failedInvites.length > 0 &&
-        failedInvites.length === validInvitations.length
-      ) {
-        // All invitations failed
-        setError(
-          `Organisation "${org.name}" wurde erstellt, aber alle Einladungen sind fehlgeschlagen. Bitte versuche es erneut.`,
-        );
-        return;
-      }
-
-      if (failedInvites.length > 0) {
-        // Some invitations failed
-        setError(
-          `Einige Einladungen konnten nicht gesendet werden: ${failedInvites.join(", ")}`,
-        );
-      }
-
-      // Success!
+      // Success! Invitations are sent via email by the backend
       setSuccess({
-        orgName: org.name,
-        orgSlug: org.slug ?? orgSlug.trim(),
-        inviteCount: inviteLinks.length,
-        inviteLinks,
+        orgName: result.organization.name,
+        orgSlug: result.organization.slug,
+        inviteCount: result.invitations.length,
+        inviteEmails: result.invitations.map((inv) => inv.email),
       });
 
       // Reset form
@@ -435,7 +415,7 @@ export function OrganizationInviteForm({
       setInvitations([createEmptyInvitation()]);
 
       if (onSuccess) {
-        onSuccess(org.name, inviteLinks.length);
+        onSuccess(result.organization.name, result.invitations.length);
       }
     } catch (err) {
       const message =
@@ -480,23 +460,25 @@ export function OrganizationInviteForm({
               </p>
             )}
 
-            {success.inviteLinks.length > 0 && (
+            {success.inviteEmails.length > 0 && (
               <div className="mt-4">
                 <p className="mb-2 text-sm font-medium text-green-800">
-                  Einladungslinks:
+                  Einladungen gesendet an:
                 </p>
                 <div className="space-y-2">
-                  {success.inviteLinks.map((link, idx) => (
+                  {success.inviteEmails.map((email, idx) => (
                     <div
                       key={idx}
                       className="rounded-lg border border-green-200 bg-white px-3 py-2"
                     >
-                      <p className="font-mono text-xs break-all text-gray-600">
-                        {link}
-                      </p>
+                      <p className="text-sm text-gray-700">{email}</p>
                     </div>
                   ))}
                 </div>
+                <p className="mt-3 text-xs text-green-600">
+                  Die Eingeladenen erhalten eine E-Mail mit einem Link zur
+                  Registrierung.
+                </p>
               </div>
             )}
 

@@ -49,5 +49,9 @@ func (rs *Resource) Router() chi.Router {
 	// POST /api/internal/invitations - Create invitation (for SaaS admin console)
 	r.Post("/invitations", rs.createInvitation)
 
+	// POST /api/internal/validate-emails - Check if emails are already registered
+	// Used by BetterAuth to validate emails before creating invitations
+	r.Post("/validate-emails", rs.validateEmails)
+
 	return r
 }
