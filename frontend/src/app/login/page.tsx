@@ -335,6 +335,8 @@ function LoginForm() {
                 type="email"
                 autoComplete="username"
                 required
+                autoFocus
+                spellCheck={false}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="w-full"
@@ -364,6 +366,7 @@ function LoginForm() {
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
+                  tabIndex={-1}
                   className="absolute top-1/2 right-3 -translate-y-1/2 text-gray-500 transition-colors hover:text-gray-700"
                   aria-label={
                     showPassword ? "Passwort verbergen" : "Passwort anzeigen"
@@ -407,24 +410,14 @@ function LoginForm() {
                 </button>
               </div>
             </div>
-
-            {/* Forgot Password Link */}
-            <div className="text-center">
-              <button
-                type="button"
-                onClick={() => setIsResetModalOpen(true)}
-                className="text-sm text-gray-600 transition-colors hover:text-gray-800 hover:underline focus:underline focus:outline-none"
-              >
-                Passwort vergessen?
-              </button>
-            </div>
           </div>
 
+          {/* Submit Button - directly after password for keyboard flow */}
           <div className="mt-2 flex justify-center">
             <button
               type="submit"
               disabled={isLoading}
-              className="group relative overflow-hidden rounded-xl bg-gray-900 px-8 py-2.5 text-sm font-semibold text-white transition-all duration-200 hover:bg-gray-800 focus:ring-2 focus:ring-gray-900 focus:ring-offset-2 focus:outline-none active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+              className="group relative overflow-hidden rounded-xl bg-gray-900 px-8 py-2.5 text-sm font-semibold text-white transition-all duration-200 hover:bg-gray-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-900 focus-visible:ring-offset-2 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
             >
               <span className="relative z-10">
                 {isLoading ? "Anmeldung läuft..." : "Anmelden"}
@@ -432,13 +425,23 @@ function LoginForm() {
             </button>
           </div>
 
-          {/* Sign Up Link */}
-          <div className="mt-4 text-center text-sm text-gray-600">
-            <p>
+          {/* Secondary Links - after primary action */}
+          <div className="mt-4 space-y-2 text-center">
+            {/* Forgot Password Link */}
+            <button
+              type="button"
+              onClick={() => setIsResetModalOpen(true)}
+              className="text-sm text-gray-600 transition-colors hover:text-gray-800 hover:underline focus:outline-none focus-visible:underline"
+            >
+              Passwort vergessen?
+            </button>
+
+            {/* Sign Up Link */}
+            <p className="text-sm text-gray-600">
               Noch kein Konto?{" "}
               <Link
                 href="/signup"
-                className="font-medium text-gray-900 underline hover:text-gray-700"
+                className="font-medium text-gray-900 underline hover:text-gray-700 focus-visible:rounded focus-visible:ring-2 focus-visible:ring-gray-900"
               >
                 Jetzt registrieren
               </Link>
