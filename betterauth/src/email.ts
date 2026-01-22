@@ -148,7 +148,14 @@ interface OrgInvitationEmailParams {
 export async function sendOrgInvitationEmail(
   params: OrgInvitationEmailParams,
 ): Promise<void> {
-  const inviteURL = `https://${params.subdomain}.${BASE_DOMAIN}/accept-invitation/${params.invitationId}`;
+  // Include email and org info in URL so the page can pre-fill the form
+  // without requiring authentication to fetch invitation details
+  const queryParams = new URLSearchParams({
+    email: params.to,
+    org: params.orgName,
+    role: params.role,
+  });
+  const inviteURL = `https://${params.subdomain}.${BASE_DOMAIN}/accept-invitation/${params.invitationId}?${queryParams.toString()}`;
 
   await sendEmail({
     to: params.to,
