@@ -19,6 +19,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/auth/tenant"
 	authModel "github.com/moto-nrw/project-phoenix/models/auth"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 )
@@ -50,7 +51,8 @@ func NewResource(authService authService.AuthService, invitationService authServ
 	}
 }
 
-// Router returns a configured router for auth endpoints
+// Router returns a configured router for auth endpoints using JWT authentication.
+// This is the legacy router used when TENANT_AUTH_ENABLED=false.
 func (rs *Resource) Router() chi.Router {
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
@@ -80,107 +82,146 @@ func (rs *Resource) Router() chi.Router {
 		r.Use(jwt.Authenticator)
 
 		// Current user routes
-		r.Get("/account", rs.getAccount)
+		r.Get("/account", rs.getAccountJWT)
 
 		// Password change - users can change their own password without special permissions
-		r.Post("/password", rs.changePassword)
+		r.Post("/password", rs.changePasswordJWT)
 
 		// Admin routes - require admin role or specific permissions
-		r.Group(func(r chi.Router) {
-			// Role management routes
+		rs.mountAdminRoutes(r)
+	})
+
+	return r
+}
+
+// TenantRouter returns a configured router for auth endpoints using BetterAuth sessions.
+// This router is used when TENANT_AUTH_ENABLED=true.
+// The tenant middleware is applied at the mounting level (in base.go), so routes here
+// assume the TenantContext is already set in the request context.
+func (rs *Resource) TenantRouter() chi.Router {
+	r := chi.NewRouter()
+	r.Use(render.SetContentType(render.ContentTypeJSON))
+
+	// Public routes (still available, though typically user is already authenticated)
+	r.Post("/login", rs.login)
+	r.Post("/register", rs.register)
+	r.Post("/password-reset", rs.initiatePasswordReset)
+	r.Post("/password-reset/confirm", rs.resetPassword)
+	r.Get("/invitations/{token}", rs.validateInvitation)
+	r.Post("/invitations/{token}/accept", rs.acceptInvitation)
+
+	// These routes are no longer needed with BetterAuth - authentication is cookie-based
+	// Keep them as no-ops or return appropriate error
+	r.Post("/refresh", rs.tenantRefreshNotSupported)
+	r.Post("/logout", rs.tenantLogoutNotSupported)
+
+	// Protected routes - tenant middleware already validated the session
+	// Current user routes
+	r.Get("/account", rs.getAccountTenant)
+
+	// Password change - users can change their own password without special permissions
+	r.Post("/password", rs.changePasswordTenant)
+
+	// Admin routes - require admin role or specific permissions
+	rs.mountAdminRoutes(r)
+
+	return r
+}
+
+// mountAdminRoutes mounts all admin-protected routes to the given router.
+// This is shared between Router() and TenantRouter() since permission checks
+// are handled by authorize.RequiresPermission middleware which now reads from TenantContext.
+func (rs *Resource) mountAdminRoutes(r chi.Router) {
+	// Role management routes
+	r.Route("/roles", func(r chi.Router) {
+		r.With(authorize.RequiresPermission("roles:create")).Post("/", rs.createRole)
+		r.With(authorize.RequiresPermission(permRolesRead)).Get("/", rs.listRoles)
+		r.Route("/{id}", func(r chi.Router) {
+			r.With(authorize.RequiresPermission(permRolesRead)).Get("/", rs.getRoleByID)
+			r.With(authorize.RequiresPermission("roles:update")).Put("/", rs.updateRole)
+			r.With(authorize.RequiresPermission("roles:delete")).Delete("/", rs.deleteRole)
+			r.With(authorize.RequiresPermission(permRolesRead)).Get(pathPermissions, rs.getRolePermissions)
+		})
+	})
+
+	// Permission management routes
+	r.Route(pathPermissions, func(r chi.Router) {
+		r.With(authorize.RequiresPermission("permissions:create")).Post("/", rs.createPermission)
+		r.With(authorize.RequiresPermission("permissions:read")).Get("/", rs.listPermissions)
+		r.Route("/{id}", func(r chi.Router) {
+			r.With(authorize.RequiresPermission("permissions:read")).Get("/", rs.getPermissionByID)
+			r.With(authorize.RequiresPermission("permissions:update")).Put("/", rs.updatePermission)
+			r.With(authorize.RequiresPermission("permissions:delete")).Delete("/", rs.deletePermission)
+		})
+	})
+
+	// Account management routes
+	r.Route("/accounts", func(r chi.Router) {
+		r.With(authorize.RequiresPermission(permUsersList)).Get("/", rs.listAccounts)
+		r.With(authorize.RequiresPermission("users:read")).Get("/by-role/{roleName}", rs.getAccountsByRole)
+
+		r.Route("/{accountId}", func(r chi.Router) {
+			// Account update operations
+			r.With(authorize.RequiresPermission(permUsersUpdate)).Put("/", rs.updateAccount)
+			r.With(authorize.RequiresPermission(permUsersUpdate)).Put("/activate", rs.activateAccount)
+			r.With(authorize.RequiresPermission(permUsersUpdate)).Put("/deactivate", rs.deactivateAccount)
+
+			// Role assignments
 			r.Route("/roles", func(r chi.Router) {
-				r.With(authorize.RequiresPermission("roles:create")).Post("/", rs.createRole)
-				r.With(authorize.RequiresPermission(permRolesRead)).Get("/", rs.listRoles)
-				r.Route("/{id}", func(r chi.Router) {
-					r.With(authorize.RequiresPermission(permRolesRead)).Get("/", rs.getRoleByID)
-					r.With(authorize.RequiresPermission("roles:update")).Put("/", rs.updateRole)
-					r.With(authorize.RequiresPermission("roles:delete")).Delete("/", rs.deleteRole)
-					r.With(authorize.RequiresPermission(permRolesRead)).Get(pathPermissions, rs.getRolePermissions)
-				})
+				r.With(authorize.RequiresPermission(permUsersManage)).Get("/", rs.getAccountRoles)
+				r.With(authorize.RequiresPermission(permUsersManage)).Post("/{roleId}", rs.assignRoleToAccount)
+				r.With(authorize.RequiresPermission(permUsersManage)).Delete("/{roleId}", rs.removeRoleFromAccount)
 			})
 
-			// Permission management routes
+			// Permission assignments
 			r.Route(pathPermissions, func(r chi.Router) {
-				r.With(authorize.RequiresPermission("permissions:create")).Post("/", rs.createPermission)
-				r.With(authorize.RequiresPermission("permissions:read")).Get("/", rs.listPermissions)
-				r.Route("/{id}", func(r chi.Router) {
-					r.With(authorize.RequiresPermission("permissions:read")).Get("/", rs.getPermissionByID)
-					r.With(authorize.RequiresPermission("permissions:update")).Put("/", rs.updatePermission)
-					r.With(authorize.RequiresPermission("permissions:delete")).Delete("/", rs.deletePermission)
-				})
+				r.With(authorize.RequiresPermission(permUsersManage)).Get("/", rs.getAccountPermissions)
+				r.With(authorize.RequiresPermission(permUsersManage)).Get("/direct", rs.getAccountDirectPermissions)
+				r.With(authorize.RequiresPermission(permUsersManage)).Post(pathPermissionID+"/grant", rs.grantPermissionToAccount)
+				r.With(authorize.RequiresPermission(permUsersManage)).Post(pathPermissionID+"/deny", rs.denyPermissionToAccount)
+				r.With(authorize.RequiresPermission(permUsersManage)).Delete(pathPermissionID, rs.removePermissionFromAccount)
 			})
 
-			// Account management routes
-			r.Route("/accounts", func(r chi.Router) {
-				r.With(authorize.RequiresPermission(permUsersList)).Get("/", rs.listAccounts)
-				r.With(authorize.RequiresPermission("users:read")).Get("/by-role/{roleName}", rs.getAccountsByRole)
-
-				r.Route("/{accountId}", func(r chi.Router) {
-					// Account update operations
-					r.With(authorize.RequiresPermission(permUsersUpdate)).Put("/", rs.updateAccount)
-					r.With(authorize.RequiresPermission(permUsersUpdate)).Put("/activate", rs.activateAccount)
-					r.With(authorize.RequiresPermission(permUsersUpdate)).Put("/deactivate", rs.deactivateAccount)
-
-					// Role assignments
-					r.Route("/roles", func(r chi.Router) {
-						r.With(authorize.RequiresPermission(permUsersManage)).Get("/", rs.getAccountRoles)
-						r.With(authorize.RequiresPermission(permUsersManage)).Post("/{roleId}", rs.assignRoleToAccount)
-						r.With(authorize.RequiresPermission(permUsersManage)).Delete("/{roleId}", rs.removeRoleFromAccount)
-					})
-
-					// Permission assignments
-					r.Route(pathPermissions, func(r chi.Router) {
-						r.With(authorize.RequiresPermission(permUsersManage)).Get("/", rs.getAccountPermissions)
-						r.With(authorize.RequiresPermission(permUsersManage)).Get("/direct", rs.getAccountDirectPermissions)
-						r.With(authorize.RequiresPermission(permUsersManage)).Post(pathPermissionID+"/grant", rs.grantPermissionToAccount)
-						r.With(authorize.RequiresPermission(permUsersManage)).Post(pathPermissionID+"/deny", rs.denyPermissionToAccount)
-						r.With(authorize.RequiresPermission(permUsersManage)).Delete(pathPermissionID, rs.removePermissionFromAccount)
-					})
-
-					// Token management
-					r.Route("/tokens", func(r chi.Router) {
-						r.With(authorize.RequiresPermission(permUsersManage)).Get("/", rs.getActiveTokens)
-						r.With(authorize.RequiresPermission(permUsersManage)).Delete("/", rs.revokeAllTokens)
-					})
-				})
-			})
-
-			// Role permission assignments
-			r.Route("/roles/{roleId}/permissions", func(r chi.Router) {
-				r.With(authorize.RequiresPermission(permRolesManage)).Get("/", rs.getRolePermissions)
-				r.With(authorize.RequiresPermission(permRolesManage)).Post(pathPermissionID, rs.assignPermissionToRole)
-				r.With(authorize.RequiresPermission(permRolesManage)).Delete(pathPermissionID, rs.removePermissionFromRole)
-			})
-
-			// Token cleanup
+			// Token management
 			r.Route("/tokens", func(r chi.Router) {
-				r.With(authorize.RequiresPermission("admin:*")).Delete("/expired", rs.cleanupExpiredTokens)
-			})
-
-			r.Route("/invitations", func(r chi.Router) {
-				r.With(authorize.RequiresPermission("users:create")).Post("/", rs.createInvitation)
-				r.With(authorize.RequiresPermission(permUsersList)).Get("/", rs.listPendingInvitations)
-				r.Route("/{id}", func(r chi.Router) {
-					r.With(authorize.RequiresPermission(permUsersManage)).Post("/resend", rs.resendInvitation)
-					r.With(authorize.RequiresPermission(permUsersManage)).Delete("/", rs.revokeInvitation)
-				})
-			})
-
-			// Parent account management
-			r.Route("/parent-accounts", func(r chi.Router) {
-				r.With(authorize.RequiresPermission("users:create")).Post("/", rs.createParentAccount)
-				r.With(authorize.RequiresPermission(permUsersList)).Get("/", rs.listParentAccounts)
-				r.Route("/{id}", func(r chi.Router) {
-					r.With(authorize.RequiresPermission("users:read")).Get("/", rs.getParentAccountByID)
-					r.With(authorize.RequiresPermission(permUsersUpdate)).Put("/", rs.updateParentAccount)
-					r.With(authorize.RequiresPermission(permUsersUpdate)).Put("/activate", rs.activateParentAccount)
-					r.With(authorize.RequiresPermission(permUsersUpdate)).Put("/deactivate", rs.deactivateParentAccount)
-				})
+				r.With(authorize.RequiresPermission(permUsersManage)).Get("/", rs.getActiveTokens)
+				r.With(authorize.RequiresPermission(permUsersManage)).Delete("/", rs.revokeAllTokens)
 			})
 		})
 	})
 
-	return r
+	// Role permission assignments
+	r.Route("/roles/{roleId}/permissions", func(r chi.Router) {
+		r.With(authorize.RequiresPermission(permRolesManage)).Get("/", rs.getRolePermissions)
+		r.With(authorize.RequiresPermission(permRolesManage)).Post(pathPermissionID, rs.assignPermissionToRole)
+		r.With(authorize.RequiresPermission(permRolesManage)).Delete(pathPermissionID, rs.removePermissionFromRole)
+	})
+
+	// Token cleanup
+	r.Route("/tokens", func(r chi.Router) {
+		r.With(authorize.RequiresPermission("admin:*")).Delete("/expired", rs.cleanupExpiredTokens)
+	})
+
+	r.Route("/invitations", func(r chi.Router) {
+		r.With(authorize.RequiresPermission("users:create")).Post("/", rs.createInvitation)
+		r.With(authorize.RequiresPermission(permUsersList)).Get("/", rs.listPendingInvitations)
+		r.Route("/{id}", func(r chi.Router) {
+			r.With(authorize.RequiresPermission(permUsersManage)).Post("/resend", rs.resendInvitation)
+			r.With(authorize.RequiresPermission(permUsersManage)).Delete("/", rs.revokeInvitation)
+		})
+	})
+
+	// Parent account management
+	r.Route("/parent-accounts", func(r chi.Router) {
+		r.With(authorize.RequiresPermission("users:create")).Post("/", rs.createParentAccount)
+		r.With(authorize.RequiresPermission(permUsersList)).Get("/", rs.listParentAccounts)
+		r.Route("/{id}", func(r chi.Router) {
+			r.With(authorize.RequiresPermission("users:read")).Get("/", rs.getParentAccountByID)
+			r.With(authorize.RequiresPermission(permUsersUpdate)).Put("/", rs.updateParentAccount)
+			r.With(authorize.RequiresPermission(permUsersUpdate)).Put("/activate", rs.activateParentAccount)
+			r.With(authorize.RequiresPermission(permUsersUpdate)).Put("/deactivate", rs.deactivateParentAccount)
+		})
+	})
 }
 
 // LoginRequest represents the login request payload
@@ -470,8 +511,8 @@ func (req *ChangePasswordRequest) Bind(_ *http.Request) error {
 	)
 }
 
-// changePassword handles password change
-func (rs *Resource) changePassword(w http.ResponseWriter, r *http.Request) {
+// changePasswordJWT handles password change using JWT claims (legacy).
+func (rs *Resource) changePasswordJWT(w http.ResponseWriter, r *http.Request) {
 	req := &ChangePasswordRequest{}
 	if err := render.Bind(r, req); err != nil {
 		common.RenderError(w, r, ErrorInvalidRequest(err))
@@ -483,29 +524,59 @@ func (rs *Resource) changePassword(w http.ResponseWriter, r *http.Request) {
 
 	err := rs.AuthService.ChangePassword(r.Context(), claims.ID, req.CurrentPassword, req.NewPassword)
 	if err != nil {
-		var authErr *authService.AuthError
-		if errors.As(err, &authErr) {
-			switch {
-			case errors.Is(authErr.Err, authService.ErrInvalidCredentials):
-				common.RenderError(w, r, ErrorUnauthorized(authService.ErrInvalidCredentials))
-			case errors.Is(authErr.Err, authService.ErrAccountNotFound):
-				common.RenderError(w, r, ErrorUnauthorized(authService.ErrAccountNotFound))
-			case errors.Is(authErr.Err, authService.ErrPasswordTooWeak):
-				common.RenderError(w, r, ErrorInvalidRequest(authService.ErrPasswordTooWeak))
-			default:
-				common.RenderError(w, r, ErrorInternalServer(err))
-			}
-			return
-		}
-		common.RenderError(w, r, ErrorInternalServer(err))
+		rs.handleChangePasswordError(w, r, err)
 		return
 	}
 
 	common.RespondNoContent(w, r)
 }
 
-// getAccount returns the current user's account details
-func (rs *Resource) getAccount(w http.ResponseWriter, r *http.Request) {
+// changePasswordTenant handles password change using BetterAuth session (TenantContext).
+func (rs *Resource) changePasswordTenant(w http.ResponseWriter, r *http.Request) {
+	req := &ChangePasswordRequest{}
+	if err := render.Bind(r, req); err != nil {
+		common.RenderError(w, r, ErrorInvalidRequest(err))
+		return
+	}
+
+	// Get account ID from tenant context (BetterAuth)
+	accountID := tenant.AccountIDFromCtx(r.Context())
+	if accountID == nil {
+		common.RenderError(w, r, ErrorUnauthorized(errors.New("account not linked")))
+		return
+	}
+
+	// Convert int64 to int for service call
+	err := rs.AuthService.ChangePassword(r.Context(), int(*accountID), req.CurrentPassword, req.NewPassword)
+	if err != nil {
+		rs.handleChangePasswordError(w, r, err)
+		return
+	}
+
+	common.RespondNoContent(w, r)
+}
+
+// handleChangePasswordError handles errors from password change operations.
+func (rs *Resource) handleChangePasswordError(w http.ResponseWriter, r *http.Request, err error) {
+	var authErr *authService.AuthError
+	if errors.As(err, &authErr) {
+		switch {
+		case errors.Is(authErr.Err, authService.ErrInvalidCredentials):
+			common.RenderError(w, r, ErrorUnauthorized(authService.ErrInvalidCredentials))
+		case errors.Is(authErr.Err, authService.ErrAccountNotFound):
+			common.RenderError(w, r, ErrorUnauthorized(authService.ErrAccountNotFound))
+		case errors.Is(authErr.Err, authService.ErrPasswordTooWeak):
+			common.RenderError(w, r, ErrorInvalidRequest(authService.ErrPasswordTooWeak))
+		default:
+			common.RenderError(w, r, ErrorInternalServer(err))
+		}
+		return
+	}
+	common.RenderError(w, r, ErrorInternalServer(err))
+}
+
+// getAccountJWT returns the current user's account details using JWT claims (legacy).
+func (rs *Resource) getAccountJWT(w http.ResponseWriter, r *http.Request) {
 	// Get user ID and permissions from JWT claims
 	claims := jwt.ClaimsFromCtx(r.Context())
 
@@ -543,6 +614,70 @@ func (rs *Resource) getAccount(w http.ResponseWriter, r *http.Request) {
 	resp.Permissions = claims.Permissions
 
 	common.Respond(w, r, http.StatusOK, resp, "Account information retrieved successfully")
+}
+
+// getAccountTenant returns the current user's account details using BetterAuth session (TenantContext).
+func (rs *Resource) getAccountTenant(w http.ResponseWriter, r *http.Request) {
+	// Get account ID and permissions from tenant context (BetterAuth)
+	tc := tenant.TenantFromCtx(r.Context())
+	if tc == nil {
+		common.RenderError(w, r, ErrorUnauthorized(errors.New("not authenticated")))
+		return
+	}
+
+	accountID := tc.AccountID
+	if accountID == nil {
+		common.RenderError(w, r, ErrorUnauthorized(errors.New("account not linked")))
+		return
+	}
+
+	// Convert int64 to int for service call
+	account, err := rs.AuthService.GetAccountByID(r.Context(), int(*accountID))
+	if err != nil {
+		var authErr *authService.AuthError
+		if errors.As(err, &authErr) {
+			if errors.Is(authErr.Err, authService.ErrAccountNotFound) {
+				common.RenderError(w, r, ErrorNotFound(authService.ErrAccountNotFound))
+				return
+			}
+		}
+		common.RenderError(w, r, ErrorInternalServer(err))
+		return
+	}
+
+	// Convert account to response
+	resp := &AccountResponse{
+		ID:     account.ID,
+		Email:  account.Email,
+		Active: account.Active,
+	}
+
+	if account.Username != nil {
+		resp.Username = *account.Username
+	}
+
+	roleNames := make([]string, 0, len(account.Roles))
+	for _, role := range account.Roles {
+		roleNames = append(roleNames, role.Name)
+	}
+	resp.Roles = roleNames
+
+	// Include permissions from tenant context (BetterAuth)
+	resp.Permissions = tc.Permissions
+
+	common.Respond(w, r, http.StatusOK, resp, "Account information retrieved successfully")
+}
+
+// tenantRefreshNotSupported returns an error explaining that token refresh
+// is not supported with BetterAuth - authentication is handled via cookies.
+func (rs *Resource) tenantRefreshNotSupported(w http.ResponseWriter, r *http.Request) {
+	common.RenderError(w, r, ErrorInvalidRequest(errors.New("token refresh not supported with BetterAuth - use session cookies")))
+}
+
+// tenantLogoutNotSupported returns an error explaining that logout
+// should be handled via BetterAuth, not through this endpoint.
+func (rs *Resource) tenantLogoutNotSupported(w http.ResponseWriter, r *http.Request) {
+	common.RenderError(w, r, ErrorInvalidRequest(errors.New("logout should be handled via BetterAuth service")))
 }
 
 // Role Management Request/Response Types
@@ -1755,14 +1890,14 @@ func getClientIP(r *http.Request) string {
 // EXPORTED HANDLER METHODS (for testing)
 // ============================================================================
 
-// GetAccountHandler returns the getAccount handler for testing
+// GetAccountHandler returns the getAccount handler for testing (JWT variant).
 func (rs *Resource) GetAccountHandler() http.HandlerFunc {
-	return rs.getAccount
+	return rs.getAccountJWT
 }
 
-// ChangePasswordHandler returns the changePassword handler for testing
+// ChangePasswordHandler returns the changePassword handler for testing (JWT variant).
 func (rs *Resource) ChangePasswordHandler() http.HandlerFunc {
-	return rs.changePassword
+	return rs.changePasswordJWT
 }
 
 // ListRolesHandler returns the listRoles handler for testing

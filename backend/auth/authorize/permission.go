@@ -5,15 +5,16 @@ import (
 	"strings"
 
 	"github.com/go-chi/render"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/auth/tenant"
 )
 
 // RequiresPermission middleware restricts access to accounts having the specific permission.
+// Uses tenant context (BetterAuth) for permission checks.
 func RequiresPermission(permission string) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		hfn := func(w http.ResponseWriter, r *http.Request) {
-			// Get permissions from context
-			permissions := jwt.PermissionsFromCtx(r.Context())
+			// Get permissions from tenant context (BetterAuth)
+			permissions := tenant.PermissionsFromCtx(r.Context())
 
 			// Check for required permission
 			if !hasPermission(permission, permissions) {
@@ -28,11 +29,12 @@ func RequiresPermission(permission string) func(next http.Handler) http.Handler 
 }
 
 // RequiresAnyPermission middleware restricts access to accounts having any of the specified permissions.
+// Uses tenant context (BetterAuth) for permission checks.
 func RequiresAnyPermission(permissions ...string) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		hfn := func(w http.ResponseWriter, r *http.Request) {
-			// Get permissions from context
-			userPermissions := jwt.PermissionsFromCtx(r.Context())
+			// Get permissions from tenant context (BetterAuth)
+			userPermissions := tenant.PermissionsFromCtx(r.Context())
 
 			// Check for any required permission
 			hasAny := false
@@ -55,11 +57,12 @@ func RequiresAnyPermission(permissions ...string) func(next http.Handler) http.H
 }
 
 // RequiresAllPermissions middleware restricts access to accounts having all of the specified permissions.
+// Uses tenant context (BetterAuth) for permission checks.
 func RequiresAllPermissions(permissions ...string) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		hfn := func(w http.ResponseWriter, r *http.Request) {
-			// Get permissions from context
-			userPermissions := jwt.PermissionsFromCtx(r.Context())
+			// Get permissions from tenant context (BetterAuth)
+			userPermissions := tenant.PermissionsFromCtx(r.Context())
 
 			// Check for all required permissions
 			for _, perm := range permissions {

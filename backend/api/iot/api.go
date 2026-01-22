@@ -13,7 +13,6 @@ import (
 	rfidAPI "github.com/moto-nrw/project-phoenix/api/iot/rfid"
 	sessionsAPI "github.com/moto-nrw/project-phoenix/api/iot/sessions"
 	"github.com/moto-nrw/project-phoenix/auth/device"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	activitiesSvc "github.com/moto-nrw/project-phoenix/services/activities"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
@@ -70,30 +69,32 @@ func NewResource(deps ServiceDependencies) *Resource {
 	}
 }
 
-// Router returns a configured router for IoT endpoints
+// Router returns a configured router for IoT endpoints (DEPRECATED - use DeviceRouter and AdminRouter)
 func (rs *Resource) Router() chi.Router {
+	return rs.DeviceRouter()
+}
+
+// AdminRouter returns a router for IoT admin endpoints (device management).
+// These routes require BetterAuth authentication via tenant middleware.
+// Mounted at /api/iot/devices by base.go.
+func (rs *Resource) AdminRouter() chi.Router {
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 
-	// Create JWT auth instance for middleware
-	tokenAuth, _ := jwt.NewTokenAuth()
+	// Device CRUD operations - requires BetterAuth + iot:* permissions
+	// Tenant middleware is applied by base.go before these routes
+	devicesResource := devices.NewResource(rs.IoTService)
+	r.Mount("/", devicesResource.Router())
 
-	// Public routes (if any device endpoints should be public)
-	r.Group(func(r chi.Router) {
-		// Some basic device info might be public
-		// Currently no public routes for IoT devices
-	})
+	return r
+}
 
-	// Protected routes that require authentication and permissions
-	r.Group(func(r chi.Router) {
-		r.Use(tokenAuth.Verifier())
-		r.Use(jwt.Authenticator)
-
-		// Mount devices sub-router (handles device CRUD and admin operations)
-		// All device routes require JWT authentication with IOT permissions
-		devicesResource := devices.NewResource(rs.IoTService)
-		r.Mount("/", devicesResource.Router())
-	})
+// DeviceRouter returns a router for IoT device endpoints.
+// These routes use device authentication (API key + optional PIN).
+// Mounted at /api/iot by base.go.
+func (rs *Resource) DeviceRouter() chi.Router {
+	r := chi.NewRouter()
+	r.Use(render.SetContentType(render.ContentTypeJSON))
 
 	// Device-only authenticated routes (API key only, no PIN required)
 	r.Group(func(r chi.Router) {
@@ -104,7 +105,7 @@ func (rs *Resource) Router() chi.Router {
 		r.Mount("/teachers", dataResource.TeachersRouter())
 	})
 
-	// Device-authenticated routes for RFID devices
+	// Device-authenticated routes for RFID devices (API key + PIN)
 	r.Group(func(r chi.Router) {
 		r.Use(device.DeviceAuthenticator(rs.IoTService, rs.UsersService))
 

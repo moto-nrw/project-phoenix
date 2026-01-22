@@ -276,26 +276,20 @@ func (a *API) registerRoutesWithRateLimiting() {
 	// Note: Avatar files are served through authenticated endpoints, not as static files
 	// This prevents unauthorized access to user avatars
 
+	if logging.Logger != nil {
+		logging.Logger.Info("BetterAuth authentication enabled (tenant middleware)")
+	}
+
 	// Mount API resources
 	// Auth routes mounted at root level to match frontend expectations
-	// Apply stricter rate limiting to auth endpoints if enabled
-	if rateLimitEnabled && authRateLimiter != nil {
-		a.Router.Route("/auth", func(r chi.Router) {
+	// All routes use BetterAuth sessions via tenant middleware
+	a.Router.Route("/auth", func(r chi.Router) {
+		if rateLimitEnabled && authRateLimiter != nil {
 			r.Use(authRateLimiter.Middleware())
-			r.Mount("/", a.Auth.Router())
-		})
-	} else {
-		a.Router.Mount("/auth", a.Auth.Router())
-	}
-
-	// Check if tenant auth (BetterAuth) is enabled
-	// When enabled, routes use BetterAuth sessions instead of JWT
-	// Set TENANT_AUTH_ENABLED=true to enable multi-tenancy auth
-	tenantAuthEnabled := os.Getenv("TENANT_AUTH_ENABLED") == "true"
-
-	if tenantAuthEnabled && logging.Logger != nil {
-		logging.Logger.Info("Tenant authentication enabled (BetterAuth)")
-	}
+		}
+		r.Use(tenant.Middleware(a.betterAuthClient, a.db))
+		r.Mount("/", a.Auth.TenantRouter())
+	})
 
 	// Internal API routes - NO AUTHENTICATION
 	// These routes are only accessible from within the Docker network.
@@ -305,31 +299,26 @@ func (a *API) registerRoutesWithRateLimiting() {
 
 	// Other API routes under /api prefix for organization
 	a.Router.Route("/api", func(r chi.Router) {
-		// IoT routes use their own authentication (API key + PIN)
-		// They MUST be mounted BEFORE tenant middleware is applied
-		// This ensures device authentication path remains unchanged
-		r.Mount("/iot", a.IoT.Router())
+		// IoT device routes use their own authentication (API key + PIN)
+		// These are mounted BEFORE tenant middleware is applied.
+		// Device routes don't need BetterAuth - they use hardware-based auth.
+		r.Mount("/iot", a.IoT.DeviceRouter())
 
-		// All other routes go through tenant middleware when enabled
+		// All other routes go through tenant middleware
 		// This validates BetterAuth sessions and sets RLS context
-		if tenantAuthEnabled {
-			r.Group(func(r chi.Router) {
-				// Apply tenant middleware to validate BetterAuth sessions
-				r.Use(tenant.Middleware(a.betterAuthClient, a.db))
+		r.Group(func(r chi.Router) {
+			r.Use(tenant.Middleware(a.betterAuthClient, a.db))
 
-				// Mount resources that require tenant context
-				a.mountAuthenticatedRoutes(r)
-			})
-		} else {
-			// Without tenant auth, mount routes directly
-			// They still use JWT auth configured in each resource's router
+			// IoT admin routes (device management) require BetterAuth
+			r.Mount("/iot/devices", a.IoT.AdminRouter())
+
 			a.mountAuthenticatedRoutes(r)
-		}
+		})
 	})
 }
 
 // mountAuthenticatedRoutes mounts all API routes that require authentication.
-// This is called either with or without tenant middleware based on TENANT_AUTH_ENABLED.
+// All routes use BetterAuth sessions via tenant middleware.
 func (a *API) mountAuthenticatedRoutes(r chi.Router) {
 	// Mount room resources
 	r.Mount("/rooms", a.Rooms.Router())
