@@ -195,6 +195,14 @@
             "command": "bash -c 'root=$(git rev-parse --show-toplevel 2>/dev/null) && bash \"$root/.claude/hooks/skill-reminder.sh\"'"
           }
         ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c 'root=$(git rev-parse --show-toplevel 2>/dev/null) && bash \"$root/.claude/hooks/subagent-reminder.sh\"'"
+          }
+        ]
       }
     ]
   },
