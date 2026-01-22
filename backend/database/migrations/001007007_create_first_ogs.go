@@ -68,7 +68,7 @@ func createFirstOgs(ctx context.Context, db *bun.DB) error {
 	if err != nil {
 		fmt.Printf("  Warning: Could not query columns: %v\n", err)
 	} else {
-		defer rows.Close()
+		defer func() { _ = rows.Close() }()
 		fmt.Println("  Organization table columns:")
 		for rows.Next() {
 			var colName, dataType, isNullable string
