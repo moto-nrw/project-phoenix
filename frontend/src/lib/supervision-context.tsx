@@ -8,7 +8,11 @@ import React, {
   useCallback,
   useMemo,
 } from "react";
+import { usePathname } from "next/navigation";
 import { useSession } from "~/lib/auth-client";
+
+// Paths where supervision fetching should be skipped (no org context)
+const SUPERVISION_DISABLED_PATHS = ["/console"];
 
 interface BackendEducationalGroup {
   id: number;
@@ -51,16 +55,26 @@ export function SupervisionProvider({
   children: React.ReactNode;
 }>) {
   const { data: session, isPending } = useSession();
+  const pathname = usePathname();
+
+  // Check if we're on a path where supervision should be skipped
+  const isDisabledPath = SUPERVISION_DISABLED_PATHS.some((path) =>
+    pathname.startsWith(path),
+  );
 
   const [state, setState] = useState<SupervisionState>({
     hasGroups: false,
-    isLoadingGroups: true,
+    isLoadingGroups: !isDisabledPath, // Don't show loading on disabled paths
     groups: [],
     isSupervising: false,
     supervisedRoomId: undefined,
     supervisedRoomName: undefined,
-    isLoadingSupervision: true,
+    isLoadingSupervision: !isDisabledPath, // Don't show loading on disabled paths
   });
+
+  // Store disabled path status in ref
+  const isDisabledPathRef = React.useRef<boolean>(isDisabledPath);
+  isDisabledPathRef.current = isDisabledPath;
 
   // Debounce mechanism to prevent rapid successive calls
   const isRefreshingRef = React.useRef(false);
@@ -80,6 +94,17 @@ export function SupervisionProvider({
 
   // Check if user has any groups (as teacher or representative)
   const checkGroups = useCallback(async () => {
+    // Skip fetching on disabled paths (e.g., /console for SaaS admins)
+    if (isDisabledPathRef.current) {
+      setState((prev) => ({
+        ...prev,
+        hasGroups: false,
+        groups: [],
+        isLoadingGroups: false,
+      }));
+      return;
+    }
+
     // BetterAuth: check if user is authenticated (cookies handle auth)
     if (!isAuthenticatedRef.current) {
       setState((prev) => ({
@@ -165,6 +190,18 @@ export function SupervisionProvider({
 
   // Check if user is supervising an active room
   const checkSupervision = useCallback(async () => {
+    // Skip fetching on disabled paths (e.g., /console for SaaS admins)
+    if (isDisabledPathRef.current) {
+      setState((prev) => ({
+        ...prev,
+        isSupervising: false,
+        supervisedRoomId: undefined,
+        supervisedRoomName: undefined,
+        isLoadingSupervision: false,
+      }));
+      return;
+    }
+
     // BetterAuth: check if user is authenticated (cookies handle auth)
     if (!isAuthenticatedRef.current) {
       setState((prev) => ({
@@ -331,6 +368,20 @@ export function SupervisionProvider({
 
   // Initial load and refresh on session changes only
   useEffect(() => {
+    // Skip on disabled paths (e.g., /console for SaaS admins)
+    if (isDisabledPathRef.current) {
+      setState({
+        hasGroups: false,
+        isLoadingGroups: false,
+        groups: [],
+        isSupervising: false,
+        supervisedRoomId: undefined,
+        supervisedRoomName: undefined,
+        isLoadingSupervision: false,
+      });
+      return;
+    }
+
     // Only refresh when authentication status changes
     // BetterAuth: session.user indicates authenticated (cookies handle auth)
     if (!isPending && session?.user) {
@@ -352,6 +403,8 @@ export function SupervisionProvider({
 
   // Periodic refresh every minute for timely supervision updates (silent mode)
   useEffect(() => {
+    // Skip on disabled paths (e.g., /console for SaaS admins)
+    if (isDisabledPathRef.current) return;
     if (isPending || !session?.user) return;
 
     const interval = setInterval(() => {
