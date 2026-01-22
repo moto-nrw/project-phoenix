@@ -9,6 +9,7 @@ import {
   rejectOrganization,
   suspendOrganization,
 } from "~/lib/admin-api";
+import { OrganizationInviteForm } from "~/components/console/organization-invite-form";
 import { useSession } from "~/lib/auth-client";
 import { Loading } from "~/components/ui/loading";
 import { cn } from "~/lib/utils";
@@ -816,23 +817,8 @@ function OrganizationsSection() {
 
 function InviteSection() {
   return (
-    <div className="flex flex-col items-center justify-center py-16">
-      <div className="flex size-20 items-center justify-center rounded-full bg-gray-100">
-        <IconFromPath
-          d={SECTION_CONFIG.invite.icon}
-          className="size-10 text-gray-400"
-        />
-      </div>
-      <h3 className="mt-6 text-xl font-semibold text-gray-900">
-        Einladung senden
-      </h3>
-      <p className="mt-2 max-w-md text-center text-pretty text-gray-600">
-        Erstellen Sie eine neue Organisation und laden Sie Administratoren per
-        E-Mail ein. Diese Funktion wird bald verfügbar sein.
-      </p>
-      <div className="mt-8 rounded-lg border border-gray-200 bg-gray-50 px-4 py-2 text-sm text-gray-500">
-        In Entwicklung
-      </div>
+    <div className="mx-auto max-w-2xl">
+      <OrganizationInviteForm />
     </div>
   );
 }

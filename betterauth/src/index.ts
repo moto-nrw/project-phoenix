@@ -99,6 +99,83 @@ async function handleListOrganizations(
   }
 }
 
+/**
+ * Handler: Create organization directly with active status (for SaaS admin console)
+ * This creates an organization without an owner - the first invited admin will become the owner
+ */
+async function handleCreateOrganization(
+  req: IncomingMessage,
+  res: ServerResponse,
+): Promise<void> {
+  // Verify internal API access (auth check done in Next.js API routes)
+  if (!verifyInternalAccess(req)) {
+    res.writeHead(401, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ error: "Unauthorized - internal access required" }));
+    return;
+  }
+
+  try {
+    const body = (await readJsonBody(req)) as {
+      name?: string;
+      slug?: string;
+    };
+
+    if (!body.name?.trim()) {
+      res.writeHead(400, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Organization name is required" }));
+      return;
+    }
+
+    // Generate slug from name if not provided
+    const slug = body.slug?.trim() || body.name.trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "");
+
+    // Check if slug already exists
+    const existingOrg = await pool.query(
+      `SELECT id FROM organization WHERE slug = $1`,
+      [slug],
+    );
+
+    if (existingOrg.rows.length > 0) {
+      res.writeHead(409, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Organization with this slug already exists" }));
+      return;
+    }
+
+    // Create organization with active status
+    const result = await pool.query(
+      `INSERT INTO organization (id, name, slug, status, "createdAt", "allowPublicSignup", "requireMemberApproval")
+       VALUES (gen_random_uuid(), $1, $2, 'active', NOW(), false, true)
+       RETURNING id, name, slug, status, "createdAt"`,
+      [body.name.trim(), slug],
+    );
+
+    const org = result.rows[0] as {
+      id: string;
+      name: string;
+      slug: string;
+      status: string;
+      createdAt: Date;
+    };
+
+    res.writeHead(201, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({
+      success: true,
+      organization: {
+        ...org,
+        ownerEmail: null,
+        ownerName: null,
+      },
+    }));
+  } catch (error) {
+    console.error("Failed to create organization:", error);
+    res.writeHead(500, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ error: "Internal server error" }));
+  }
+}
+
 // Handler: Update organization status (approve, reject, suspend, reactivate)
 async function handleUpdateOrgStatus(
   req: IncomingMessage,
@@ -333,6 +410,12 @@ const server = createServer(
         await handleListOrganizations(req, res);
         return;
       }
+    }
+
+    // Admin: Create organization with active status (no owner)
+    if (url === "/api/admin/organizations" && req.method === "POST") {
+      await handleCreateOrganization(req, res);
+      return;
     }
 
     // Admin: Approve organization

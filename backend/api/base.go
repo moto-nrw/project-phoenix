@@ -224,7 +224,13 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.UserContext = usercontextAPI.NewResource(api.Services.UserContext, repoFactory.GroupSubstitution)
 	api.Substitutions = substitutionsAPI.NewResource(api.Services.Education)
 	api.Database = databaseAPI.NewResource(api.Services.Database)
-	api.Internal = internalAPI.NewResource(api.Services.Mailer, api.Services.Dispatcher, api.Services.DefaultFrom)
+	api.Internal = internalAPI.NewResource(
+		api.Services.Mailer,
+		api.Services.Dispatcher,
+		api.Services.DefaultFrom,
+		api.Services.Invitation,
+		repoFactory.Account,
+	)
 }
 
 // ServeHTTP implements the http.Handler interface for the API

@@ -37,6 +37,38 @@ function getErrorMessage(error: unknown): string {
   return "Unknown error";
 }
 
+export interface CreateOrganizationRequest {
+  name: string;
+  slug?: string;
+}
+
+/**
+ * Create a new organization with active status (for SaaS admin console).
+ * The organization is created without an owner - invited admins will manage it.
+ */
+export async function createOrganization(
+  data: CreateOrganizationRequest,
+): Promise<Organization> {
+  const response = await fetch("/api/admin/organizations", {
+    method: "POST",
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(data),
+  });
+
+  if (!response.ok) {
+    const errorData: unknown = await response
+      .json()
+      .catch(() => ({ error: "Unknown error" }));
+    throw new Error(getErrorMessage(errorData));
+  }
+
+  const result = (await response.json()) as OrgActionResponse;
+  return result.organization;
+}
+
 /**
  * Fetch all organizations with optional status filter.
  */
