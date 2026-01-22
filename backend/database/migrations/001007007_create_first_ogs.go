@@ -58,6 +58,31 @@ func createFirstOgs(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("public.organization table does not exist - BetterAuth service must be initialized first (WP1)")
 	}
 
+	// Debug: Print actual columns in the organization table
+	rows, err := db.QueryContext(ctx, `
+		SELECT column_name, data_type, is_nullable, column_default
+		FROM information_schema.columns
+		WHERE table_schema = 'public' AND table_name = 'organization'
+		ORDER BY ordinal_position
+	`)
+	if err != nil {
+		fmt.Printf("  Warning: Could not query columns: %v\n", err)
+	} else {
+		defer rows.Close()
+		fmt.Println("  Organization table columns:")
+		for rows.Next() {
+			var colName, dataType, isNullable string
+			var colDefault *string
+			if err := rows.Scan(&colName, &dataType, &isNullable, &colDefault); err == nil {
+				defaultStr := "NULL"
+				if colDefault != nil {
+					defaultStr = *colDefault
+				}
+				fmt.Printf("    - %s (%s, nullable=%s, default=%s)\n", colName, dataType, isNullable, defaultStr)
+			}
+		}
+	}
+
 	// Check if any organization already exists
 	var count int
 	err = db.QueryRowContext(ctx, `SELECT COUNT(*) FROM public.organization`).Scan(&count)
