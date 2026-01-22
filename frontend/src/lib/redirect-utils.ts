@@ -44,7 +44,7 @@ export async function checkSaasAdminStatus(): Promise<boolean> {
 /**
  * Determines the best redirect path for a user based on their permissions and supervision state
  * Priority order:
- * 1. SaaS Admins → /saas-admin (if on main domain with no tenant)
+ * 1. SaaS Admins → /console (if on main domain with no tenant)
  * 2. Org Admins → /dashboard
  * 3. Users with groups → /ogs-groups
  * 4. Users actively supervising → /active-supervisions
@@ -65,7 +65,7 @@ export function getSmartRedirectPath(
 
   // SaaS admins go to admin dashboard (only on main domain)
   if (saasAdminState?.isSaasAdmin && !saasAdminState.isLoading) {
-    return "/saas-admin";
+    return "/console";
   }
 
   // Org admins always go to dashboard

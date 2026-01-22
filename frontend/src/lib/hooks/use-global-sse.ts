@@ -30,9 +30,9 @@ import { useSSE } from "~/lib/hooks/use-sse";
 import type { SSEEvent, SSEHookState } from "~/lib/sse-types";
 
 // Paths where SSE should be disabled (no staff context required)
-// - /saas-admin: SaaS admins don't have staff context
+// - /console: SaaS admins don't have staff context
 // - /login: Login page doesn't need real-time updates
-const SSE_DISABLED_PATHS = ["/saas-admin", "/login"];
+const SSE_DISABLED_PATHS = ["/console", "/login"];
 
 // Exact paths where SSE should be disabled (not prefix-based)
 // - / (root): On main domain shows org selection, on subdomain redirects immediately

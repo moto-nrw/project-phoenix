@@ -8,9 +8,13 @@ import React, {
   useCallback,
   useMemo,
 } from "react";
+import { usePathname } from "next/navigation";
 import { useSession } from "~/lib/auth-client";
 import { fetchProfile as apiFetchProfile } from "~/lib/profile-api";
 import type { Profile } from "~/lib/profile-helpers";
+
+// Paths where profile fetching should be skipped (no org context)
+const PROFILE_DISABLED_PATHS = ["/console"];
 
 interface ProfileState {
   profile: Profile | null;
@@ -34,10 +38,16 @@ export function ProfileProvider({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   const { data: session, isPending } = useSession();
+  const pathname = usePathname();
+
+  // Check if we're on a path where profile should be skipped
+  const isDisabledPath = PROFILE_DISABLED_PATHS.some((path) =>
+    pathname.startsWith(path),
+  );
 
   const [state, setState] = useState<ProfileState>({
     profile: null,
-    isLoading: true,
+    isLoading: !isDisabledPath, // Don't show loading on disabled paths
   });
 
   // Debounce mechanism to prevent rapid successive calls
@@ -51,6 +61,10 @@ export function ProfileProvider({
   );
   isAuthenticatedRef.current = !isPending && !!session?.user;
 
+  // Store disabled path status in ref
+  const isDisabledPathRef = React.useRef<boolean>(isDisabledPath);
+  isDisabledPathRef.current = isDisabledPath;
+
   // Use a ref for the refresh function to break dependency cycles
   const refreshRef = React.useRef<((silent?: boolean) => Promise<void>) | null>(
     null,
@@ -58,6 +72,16 @@ export function ProfileProvider({
 
   // Fetch profile data from API
   const fetchProfileData = useCallback(async () => {
+    // Skip fetching on disabled paths (e.g., /console for SaaS admins)
+    if (isDisabledPathRef.current) {
+      setState((prev) => ({
+        ...prev,
+        profile: null,
+        isLoading: false,
+      }));
+      return;
+    }
+
     // BetterAuth: check if user is authenticated (cookies handle auth)
     if (!isAuthenticatedRef.current) {
       setState((prev) => ({

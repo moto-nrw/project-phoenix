@@ -19,8 +19,12 @@
 
 "use client";
 
+import { usePathname } from "next/navigation";
 import { useImmutableSWR } from "~/lib/swr";
 import type { UserContextResponse } from "~/app/api/user-context/route";
+
+// Paths where user context should be skipped (no org context)
+const CONTEXT_DISABLED_PATHS = ["/console"];
 
 interface ApiResponse<T> {
   data: T;
@@ -47,10 +51,19 @@ interface UseUserContextReturn {
  * - 5-minute cache for navigation performance
  * - React Strict Mode safe (no double-fetch)
  * - Pre-computed derived data (group IDs, room names)
+ * - Skips fetching on /console paths (SaaS admins have no org context)
  */
 export function useUserContext(): UseUserContextReturn {
+  const pathname = usePathname();
+
+  // Check if we're on a path where context should be skipped
+  const isDisabledPath = CONTEXT_DISABLED_PATHS.some((path) =>
+    pathname.startsWith(path),
+  );
+
   const { data, isLoading, error } = useImmutableSWR<UserContextResponse>(
-    "user-context",
+    // Use null key to skip fetching on disabled paths
+    isDisabledPath ? null : "user-context",
     async () => {
       const response = await fetch("/api/user-context", {
         credentials: "include",
@@ -67,9 +80,9 @@ export function useUserContext(): UseUserContextReturn {
 
   return {
     userContext: data,
-    isLoading,
+    isLoading: isDisabledPath ? false : isLoading,
     error,
-    isReady: data !== undefined || error !== undefined,
+    isReady: isDisabledPath || data !== undefined || error !== undefined,
   };
 }
 
