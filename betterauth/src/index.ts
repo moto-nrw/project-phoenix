@@ -1,11 +1,15 @@
 import { createServer, IncomingMessage, ServerResponse } from "node:http";
+import { randomBytes } from "node:crypto";
 import { toNodeHandler } from "better-auth/node";
 import { Pool } from "pg";
+import { scrypt } from "@noble/hashes/scrypt";
+import { bytesToHex, hexToBytes } from "@noble/hashes/utils";
 import { auth } from "./auth.js";
 import {
   sendOrgApprovedEmail,
   sendOrgRejectedEmail,
   sendOrgInvitationEmail,
+  sendOrgPendingEmail,
 } from "./email.js";
 
 const PORT = parseInt(process.env.PORT ?? "3001", 10);
@@ -36,6 +40,41 @@ async function readJsonBody(req: IncomingMessage): Promise<unknown> {
 // Internal API key for server-to-server calls (set in environment)
 // When this header is present and matches, skip session verification
 const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY ?? "dev-internal-key";
+
+/**
+ * Hash a password using scrypt (same algorithm as BetterAuth).
+ * Format: scrypt:N:r:p:salt:hash
+ */
+function hashPassword(password: string): string {
+  const salt = randomBytes(16);
+  const N = 16384; // CPU/memory cost parameter
+  const r = 8;     // Block size
+  const p = 1;     // Parallelization parameter
+  const dkLen = 64; // Derived key length
+
+  const hash = scrypt(password, salt, { N, r, p, dkLen });
+
+  return `scrypt:${N}:${r}:${p}:${bytesToHex(salt)}:${bytesToHex(hash)}`;
+}
+
+/**
+ * Verify a password against a scrypt hash.
+ */
+function verifyPassword(password: string, storedHash: string): boolean {
+  const parts = storedHash.split(":");
+  if (parts.length !== 6 || parts[0] !== "scrypt") {
+    return false;
+  }
+
+  const N = parseInt(parts[1] ?? "0", 10);
+  const r = parseInt(parts[2] ?? "0", 10);
+  const p = parseInt(parts[3] ?? "0", 10);
+  const salt = hexToBytes(parts[4] ?? "");
+  const expectedHash = parts[5] ?? "";
+
+  const hash = scrypt(password, salt, { N, r, p, dkLen: 64 });
+  return bytesToHex(hash) === expectedHash;
+}
 
 // Helper to verify admin access
 // For internal calls (from Next.js), we trust the X-Internal-API-Key header
@@ -442,6 +481,245 @@ async function handleProvisionOrganization(
   }
 }
 
+interface SignupWithOrgRequest {
+  name: string;
+  email: string;
+  password: string;
+  orgName: string;
+  orgSlug: string;
+}
+
+/**
+ * Handler: Atomic self-service signup with organization creation.
+ * This endpoint creates a user AND their organization atomically.
+ * If any step fails (slug taken, email registered), nothing is created.
+ *
+ * POST /api/auth/signup-with-org
+ *
+ * Flow:
+ * 1. Validate slug is available
+ * 2. Validate email is not registered
+ * 3. BEGIN transaction
+ * 4. Create user with hashed password
+ * 5. Create organization with status: "pending"
+ * 6. Create membership with role: "owner"
+ * 7. Create session
+ * 8. COMMIT
+ * 9. Send org-pending email (async, after commit)
+ */
+async function handleSignupWithOrganization(
+  req: IncomingMessage,
+  res: ServerResponse,
+): Promise<void> {
+  const client = await pool.connect();
+
+  try {
+    const body = (await readJsonBody(req)) as SignupWithOrgRequest;
+
+    // Validate request body
+    if (!body.name?.trim()) {
+      res.writeHead(400, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Name is required", field: "name" }));
+      return;
+    }
+
+    if (!body.email?.trim()) {
+      res.writeHead(400, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Email is required", field: "email" }));
+      return;
+    }
+
+    if (!body.password || body.password.length < 8) {
+      res.writeHead(400, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({
+        error: "Password must be at least 8 characters",
+        field: "password",
+      }));
+      return;
+    }
+
+    if (!body.orgName?.trim()) {
+      res.writeHead(400, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({
+        error: "Organization name is required",
+        field: "orgName",
+      }));
+      return;
+    }
+
+    if (!body.orgSlug?.trim()) {
+      res.writeHead(400, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({
+        error: "Organization slug is required",
+        field: "orgSlug",
+      }));
+      return;
+    }
+
+    const userName = body.name.trim();
+    const userEmail = body.email.trim().toLowerCase();
+    const orgName = body.orgName.trim();
+    const orgSlug = body.orgSlug.trim().toLowerCase();
+
+    // ============================================
+    // PHASE 1: VALIDATE ALL (no writes yet)
+    // ============================================
+
+    // 1a. Validate slug not taken
+    const slugExists = await client.query(
+      `SELECT 1 FROM organization WHERE slug = $1`,
+      [orgSlug],
+    );
+
+    if (slugExists.rows.length > 0) {
+      res.writeHead(409, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({
+        error: "Diese Subdomain ist bereits vergeben",
+        code: "SLUG_ALREADY_EXISTS",
+        field: "orgSlug",
+      }));
+      return;
+    }
+
+    // 1b. Validate email not registered
+    const emailExists = await client.query(
+      `SELECT 1 FROM "user" WHERE email = $1`,
+      [userEmail],
+    );
+
+    if (emailExists.rows.length > 0) {
+      res.writeHead(409, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({
+        error: "Diese E-Mail-Adresse ist bereits registriert",
+        code: "USER_ALREADY_EXISTS",
+        field: "email",
+      }));
+      return;
+    }
+
+    // ============================================
+    // PHASE 2: CREATE (atomic within transaction)
+    // ============================================
+
+    // Hash password using scrypt (same as BetterAuth)
+    const hashedPassword = hashPassword(body.password);
+
+    // Start transaction
+    await client.query("BEGIN");
+
+    try {
+      // 2a. Create user
+      const userResult = await client.query(
+        `INSERT INTO "user" (id, email, name, "emailVerified", "createdAt", "updatedAt")
+         VALUES (gen_random_uuid(), $1, $2, false, NOW(), NOW())
+         RETURNING id, email, name, "emailVerified", "createdAt", "updatedAt"`,
+        [userEmail, userName],
+      );
+
+      const user = userResult.rows[0] as {
+        id: string;
+        email: string;
+        name: string;
+        emailVerified: boolean;
+        createdAt: Date;
+        updatedAt: Date;
+      };
+
+      // 2b. Create account (stores password)
+      await client.query(
+        `INSERT INTO account (id, "userId", "accountId", "providerId", password, "createdAt", "updatedAt")
+         VALUES (gen_random_uuid(), $1, $1, 'credential', $2, NOW(), NOW())`,
+        [user.id, hashedPassword],
+      );
+
+      // 2c. Create organization with pending status
+      const orgResult = await client.query(
+        `INSERT INTO organization (id, name, slug, status, "createdAt", "allowPublicSignup", "requireMemberApproval")
+         VALUES (gen_random_uuid(), $1, $2, 'pending', NOW(), false, true)
+         RETURNING id, name, slug, status, "createdAt"`,
+        [orgName, orgSlug],
+      );
+
+      const org = orgResult.rows[0] as {
+        id: string;
+        name: string;
+        slug: string;
+        status: string;
+        createdAt: Date;
+      };
+
+      // 2d. Create membership with owner role
+      await client.query(
+        `INSERT INTO member (id, "organizationId", "userId", role, status, "createdAt")
+         VALUES (gen_random_uuid(), $1, $2, 'owner', 'active', NOW())`,
+        [org.id, user.id],
+      );
+
+      // 2e. Create session
+      const sessionToken = randomBytes(32).toString("hex");
+      const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+
+      await client.query(
+        `INSERT INTO session (id, "userId", token, "expiresAt", "createdAt", "updatedAt", "activeOrganizationId")
+         VALUES (gen_random_uuid(), $1, $2, $3, NOW(), NOW(), $4)
+         RETURNING id`,
+        [user.id, sessionToken, expiresAt, org.id],
+      );
+
+      // Commit transaction
+      await client.query("COMMIT");
+
+      // 2f. Send org-pending email (async, fire-and-forget after commit)
+      sendOrgPendingEmail({
+        to: user.email,
+        firstName: user.name.split(" ")[0],
+        orgName: org.name,
+        subdomain: org.slug,
+      }).catch((err: unknown) => {
+        console.error(`Failed to send org-pending email to ${user.email}:`, err);
+      });
+
+      console.log(
+        `Successfully created user "${user.email}" with org "${org.name}" (${org.slug})`,
+      );
+
+      // Return success with user and organization info
+      // Note: The frontend will need to set the session cookie
+      res.writeHead(201, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({
+        success: true,
+        user: {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          emailVerified: user.emailVerified,
+          createdAt: user.createdAt,
+        },
+        organization: {
+          id: org.id,
+          name: org.name,
+          slug: org.slug,
+          status: org.status,
+        },
+        session: {
+          token: sessionToken,
+          expiresAt: expiresAt.toISOString(),
+        },
+      }));
+    } catch (txError) {
+      // Rollback on any error during creation
+      await client.query("ROLLBACK");
+      throw txError;
+    }
+  } catch (error) {
+    console.error("Failed to create user with organization:", error);
+    res.writeHead(500, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ error: "Internal server error" }));
+  } finally {
+    client.release();
+  }
+}
+
 // Handler: Update organization status (approve, reject, suspend, reactivate)
 async function handleUpdateOrgStatus(
   req: IncomingMessage,
@@ -688,6 +966,13 @@ const server = createServer(
     // This is the atomic endpoint that creates org AND invitations together
     if (url === "/api/admin/organizations/provision" && req.method === "POST") {
       await handleProvisionOrganization(req, res);
+      return;
+    }
+
+    // Public: Atomic self-service signup with organization creation
+    // This endpoint creates user + org atomically (for self-service signups)
+    if (url === "/api/auth/signup-with-org" && req.method === "POST") {
+      await handleSignupWithOrganization(req, res);
       return;
     }
 

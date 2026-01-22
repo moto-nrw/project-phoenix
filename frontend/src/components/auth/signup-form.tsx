@@ -3,7 +3,10 @@
 import { useCallback, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { signUp, organization } from "~/lib/auth-client";
+import {
+  signupWithOrganization,
+  SignupWithOrgException,
+} from "~/lib/auth-client";
 import { useToast } from "~/contexts/ToastContext";
 import { Input } from "~/components/ui";
 import {
@@ -128,57 +131,15 @@ export function SignupForm() {
     try {
       setIsSubmitting(true);
 
-      // Step 1: Create user account via BetterAuth
-      const signUpResult = await signUp.email({
+      // Atomic signup: Creates user + organization in a single transaction
+      // If slug is taken or email registered, nothing is created (avoids orphaned users)
+      await signupWithOrganization({
+        name: name.trim(),
         email: email.trim(),
         password,
-        name: name.trim(),
+        orgName: orgName.trim(),
+        orgSlug: normalizeSlug(slug),
       });
-
-      if (signUpResult.error) {
-        // Handle specific BetterAuth errors
-        if (signUpResult.error.code === "USER_ALREADY_EXISTS") {
-          setError(
-            "Diese E-Mail-Adresse ist bereits registriert. Bitte melde dich an oder verwende eine andere E-Mail.",
-          );
-        } else {
-          setError(
-            signUpResult.error.message ??
-              "Bei der Registrierung ist ein Fehler aufgetreten.",
-          );
-        }
-        return;
-      }
-
-      // Step 2: Create organization with the user as owner
-      // The organization will have status: "pending" by default (server-side)
-      const orgResult = await organization.create({
-        name: orgName.trim(),
-        slug: normalizeSlug(slug),
-      });
-
-      if (orgResult.error) {
-        // Handle organization creation errors
-        if (
-          orgResult.error.message?.includes("slug") ||
-          orgResult.error.code === "SLUG_ALREADY_EXISTS"
-        ) {
-          setError(
-            "Diese Subdomain ist bereits vergeben. Bitte wähle eine andere.",
-          );
-        } else {
-          setError(
-            orgResult.error.message ??
-              "Bei der Erstellung der Organisation ist ein Fehler aufgetreten.",
-          );
-        }
-        return;
-      }
-
-      // Step 3: Set the new organization as active
-      if (orgResult.data?.id) {
-        await organization.setActive({ organizationId: orgResult.data.id });
-      }
 
       toastSuccess(
         "Registrierung erfolgreich! Deine Organisation wird geprüft.",
@@ -195,6 +156,22 @@ export function SignupForm() {
         setError(
           "Keine Netzwerkverbindung. Bitte überprüfe deine Internetverbindung und versuche es erneut.",
         );
+        return;
+      }
+
+      // Handle specific signup errors
+      if (err instanceof SignupWithOrgException) {
+        if (err.code === "USER_ALREADY_EXISTS") {
+          setError(
+            "Diese E-Mail-Adresse ist bereits registriert. Bitte melde dich an oder verwende eine andere E-Mail.",
+          );
+        } else if (err.code === "SLUG_ALREADY_EXISTS") {
+          setError(
+            "Diese Subdomain ist bereits vergeben. Bitte wähle eine andere.",
+          );
+        } else {
+          setError(err.message);
+        }
         return;
       }
 

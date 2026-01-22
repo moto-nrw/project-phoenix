@@ -164,3 +164,99 @@ export async function switchOrganization(
 ): Promise<void> {
   await authClient.organization.setActive({ organizationId });
 }
+
+/**
+ * Request payload for atomic signup with organization.
+ */
+export interface SignupWithOrgRequest {
+  name: string;
+  email: string;
+  password: string;
+  orgName: string;
+  orgSlug: string;
+}
+
+/**
+ * Response from atomic signup with organization.
+ */
+export interface SignupWithOrgResponse {
+  success: boolean;
+  user: {
+    id: string;
+    email: string;
+    name: string;
+    emailVerified: boolean;
+    createdAt: string;
+  };
+  organization: {
+    id: string;
+    name: string;
+    slug: string;
+    status: string;
+  };
+  session: {
+    token: string;
+    expiresAt: string;
+  };
+}
+
+/**
+ * Error response from atomic signup.
+ */
+export interface SignupWithOrgError {
+  error: string;
+  code?: string;
+  field?: string;
+}
+
+/**
+ * Atomic signup with organization creation.
+ * Creates user + organization in a single atomic transaction.
+ * If slug is taken or email is registered, nothing is created.
+ *
+ * @returns The created user and organization, or throws an error
+ */
+export async function signupWithOrganization(
+  data: SignupWithOrgRequest,
+): Promise<SignupWithOrgResponse> {
+  const response = await fetch("/api/auth/signup-with-org", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(data),
+  });
+
+  const result = (await response.json()) as
+    | SignupWithOrgResponse
+    | SignupWithOrgError;
+
+  if (!response.ok) {
+    const errorResult = result as SignupWithOrgError;
+    throw new SignupWithOrgException(
+      errorResult.error,
+      errorResult.code,
+      errorResult.field,
+      response.status,
+    );
+  }
+
+  return result as SignupWithOrgResponse;
+}
+
+/**
+ * Custom error class for signup failures with structured error info.
+ */
+export class SignupWithOrgException extends Error {
+  code?: string;
+  field?: string;
+  status: number;
+
+  constructor(message: string, code?: string, field?: string, status = 500) {
+    super(message);
+    this.name = "SignupWithOrgException";
+    this.code = code;
+    this.field = field;
+    this.status = status;
+  }
+}

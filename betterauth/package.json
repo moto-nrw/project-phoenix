@@ -10,6 +10,7 @@
     "migrate": "npx @better-auth/cli migrate"
   },
   "dependencies": {
+    "@noble/hashes": "^1.7.0",
     "better-auth": "^1.2.0",
     "pg": "^8.13.0"
   },
