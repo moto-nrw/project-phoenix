@@ -237,19 +237,6 @@ export function OrgSelection() {
             )}
         </div>
 
-        {/* Direct Link Hint */}
-        <div className="mt-8 rounded-lg bg-gray-50 p-4">
-          <p className="text-sm text-gray-600">
-            <span className="font-medium">Haben Sie einen Direktlink?</span>
-            <br />
-            Nutzen Sie die URL von Ihrer Einrichtung:
-            <br />
-            <code className="mt-1 inline-block rounded bg-gray-200 px-2 py-1 text-xs">
-              ihre-einrichtung.{getBaseDomain()}
-            </code>
-          </p>
-        </div>
-
         {/* Sign Up Link */}
         <div className="mt-6 text-sm text-gray-600">
           <p>
