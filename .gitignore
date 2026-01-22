@@ -475,3 +475,7 @@ openspec/
 .playwright/**/*
 .playwright-mcp
 .husky/
+# grepai semantic search (config committed, index ignored)
+.grepai/*.gob
+.grepai/*.db
+.grepai/callgraph/
