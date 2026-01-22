@@ -212,14 +212,36 @@ function createEmptyInvitation(): InvitationEntry {
 // Component
 // ============================================================================
 
+// Helper to generate slug from name
+function generateSlugFromName(name: string): string {
+  return name
+    .toLowerCase()
+    .trim()
+    .replace(/[äÄ]/g, "ae")
+    .replace(/[öÖ]/g, "oe")
+    .replace(/[üÜ]/g, "ue")
+    .replace(/[ß]/g, "ss")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
 export function OrganizationInviteForm({
   onSuccess,
 }: OrganizationInviteFormProps) {
   // Form state
   const [orgName, setOrgName] = useState("");
+  const [orgSlug, setOrgSlug] = useState("");
+  const [autoGenerateSlug, setAutoGenerateSlug] = useState(true);
   const [invitations, setInvitations] = useState<InvitationEntry[]>([
     createEmptyInvitation(),
   ]);
+
+  // Auto-generate slug when name changes (if auto-generate is enabled)
+  useEffect(() => {
+    if (autoGenerateSlug && orgName) {
+      setOrgSlug(generateSlugFromName(orgName));
+    }
+  }, [orgName, autoGenerateSlug]);
 
   // UI state
   const [roles, setRoles] = useState<RoleOption[]>([]);
@@ -228,6 +250,7 @@ export function OrganizationInviteForm({
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<{
     orgName: string;
+    orgSlug: string;
     inviteCount: number;
     inviteLinks: string[];
   } | null>(null);
@@ -310,6 +333,15 @@ export function OrganizationInviteForm({
       return "Bitte gib einen Organisationsnamen ein.";
     }
 
+    // Validate slug format (only lowercase letters, numbers, and hyphens)
+    const trimmedSlug = orgSlug.trim();
+    if (
+      trimmedSlug &&
+      !/^[a-z0-9][a-z0-9-]*[a-z0-9]$|^[a-z0-9]$/.test(trimmedSlug)
+    ) {
+      return "Die Subdomain darf nur Kleinbuchstaben, Zahlen und Bindestriche enthalten und muss mit einem Buchstaben oder einer Zahl beginnen/enden.";
+    }
+
     const validInvitations = invitations.filter((inv) => inv.email.trim());
     if (validInvitations.length === 0) {
       return "Bitte füge mindestens eine E-Mail-Adresse hinzu.";
@@ -322,7 +354,7 @@ export function OrganizationInviteForm({
     }
 
     return null;
-  }, [orgName, invitations]);
+  }, [orgName, orgSlug, invitations]);
 
   // Submit form
   const handleSubmit = async (event: React.FormEvent) => {
@@ -339,8 +371,11 @@ export function OrganizationInviteForm({
     try {
       setIsSubmitting(true);
 
-      // Step 1: Create organization with active status
-      const org = await createOrganization({ name: orgName.trim() });
+      // Step 1: Create organization with active status and slug
+      const org = await createOrganization({
+        name: orgName.trim(),
+        slug: orgSlug.trim() || undefined,
+      });
 
       // Step 2: Send invitations via Go backend's internal API (console endpoint)
       const validInvitations = invitations.filter((inv) => inv.email.trim());
@@ -388,12 +423,15 @@ export function OrganizationInviteForm({
       // Success!
       setSuccess({
         orgName: org.name,
+        orgSlug: org.slug ?? orgSlug.trim(),
         inviteCount: inviteLinks.length,
         inviteLinks,
       });
 
       // Reset form
       setOrgName("");
+      setOrgSlug("");
+      setAutoGenerateSlug(true);
       setInvitations([createEmptyInvitation()]);
 
       if (onSuccess) {
@@ -433,6 +471,14 @@ export function OrganizationInviteForm({
                 : `${success.inviteCount} Einladungen wurden`}{" "}
               versendet.
             </p>
+            {success.orgSlug && (
+              <p className="mt-2 text-sm text-green-600">
+                Subdomain:{" "}
+                <span className="font-mono font-medium">
+                  {success.orgSlug}.moto.nrw
+                </span>
+              </p>
+            )}
 
             {success.inviteLinks.length > 0 && (
               <div className="mt-4">
@@ -499,6 +545,53 @@ export function OrganizationInviteForm({
             disabled={isSubmitting}
             required
           />
+        </div>
+
+        {/* Organization slug (subdomain) */}
+        <div>
+          <div className="mb-1 flex items-center justify-between">
+            <label
+              htmlFor="org-slug"
+              className="block text-sm font-medium text-gray-700"
+            >
+              Subdomain (URL-Slug)
+            </label>
+            <label className="flex items-center gap-2 text-sm text-gray-500">
+              <input
+                type="checkbox"
+                checked={autoGenerateSlug}
+                onChange={(e) => {
+                  setAutoGenerateSlug(e.target.checked);
+                  if (e.target.checked && orgName) {
+                    setOrgSlug(generateSlugFromName(orgName));
+                  }
+                }}
+                className="rounded border-gray-300 text-gray-900 focus:ring-gray-500"
+              />
+              Automatisch generieren
+            </label>
+          </div>
+          <div className="flex items-center">
+            <input
+              type="text"
+              id="org-slug"
+              value={orgSlug}
+              onChange={(e) => {
+                setAutoGenerateSlug(false);
+                setOrgSlug(
+                  e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""),
+                );
+              }}
+              disabled={isSubmitting}
+              placeholder="z.B. ogs-musterstadt"
+              className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm transition-colors focus:border-gray-400 focus:ring-2 focus:ring-gray-200 focus:outline-none disabled:bg-gray-100"
+            />
+          </div>
+          <p className="mt-1 text-xs text-gray-500">
+            Die Subdomain wird für die URL der Organisation verwendet (z.B.{" "}
+            <span className="font-mono">{orgSlug || "subdomain"}.moto.nrw</span>
+            )
+          </p>
         </div>
 
         {/* Invitations section */}
