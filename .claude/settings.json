@@ -201,7 +201,6 @@
   "enabledPlugins": {
     "superpowers@superpowers-marketplace": true,
     "codeguard-security@project-codeguard": true,
-    "pr-review-toolkit@claude-code-plugins": true,
     "code-refactoring@claude-code-workflows": true,
     "cicd-automation@claude-code-workflows": true,
     "backend-api-security@claude-code-workflows": true,
