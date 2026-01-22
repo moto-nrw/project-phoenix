@@ -230,6 +230,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		api.Services.DefaultFrom,
 		api.Services.Invitation,
 		repoFactory.Account,
+		api.Services.UserSync,
 	)
 }
 

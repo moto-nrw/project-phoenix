@@ -170,3 +170,70 @@ export async function sendOrgInvitationEmail(
     },
   });
 }
+
+interface SyncUserParams {
+  betterauthUserId: string;
+  email: string;
+  name: string;
+  organizationId: string;
+  role: string;
+}
+
+interface SyncUserResponse {
+  status: string;
+  message?: string;
+  person_id?: number;
+  staff_id?: number;
+  teacher_id?: number;
+}
+
+/**
+ * Sync a BetterAuth user to the Go backend.
+ * Creates Person, Staff, and Teacher records in the Go backend.
+ * This is called after a user accepts an invitation.
+ * Fire-and-forget - errors are logged but don't throw.
+ */
+export async function syncUserToGoBackend(
+  params: SyncUserParams,
+): Promise<SyncUserResponse | null> {
+  const url = `${INTERNAL_API_URL}/api/internal/sync-user`;
+
+  try {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        betterauth_user_id: params.betterauthUserId,
+        email: params.email,
+        name: params.name,
+        organization_id: params.organizationId,
+        role: params.role,
+      }),
+    });
+
+    const data = (await response.json()) as SyncUserResponse;
+
+    if (!response.ok) {
+      console.error(
+        `Failed to sync user to Go backend:`,
+        response.status,
+        data,
+      );
+      return null;
+    }
+
+    console.log(`User synced to Go backend successfully:`, {
+      betterauth_user_id: params.betterauthUserId,
+      person_id: data.person_id,
+      staff_id: data.staff_id,
+      teacher_id: data.teacher_id,
+    });
+
+    return data;
+  } catch (error) {
+    console.error(`Failed to sync user to Go backend:`, error);
+    return null;
+  }
+}

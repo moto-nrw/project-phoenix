@@ -8,7 +8,7 @@ import {
   bueroAdmin,
   traegerAdmin,
 } from "./permissions.js";
-import { sendOrgPendingEmail } from "./email.js";
+import { sendOrgPendingEmail, syncUserToGoBackend } from "./email.js";
 
 // Create a shared pool for database operations including hooks
 const pool = new Pool({
@@ -94,7 +94,7 @@ export const auth = betterAuth({
         traegerAdmin,
       },
 
-      // Organization lifecycle hooks for email notifications
+      // Organization lifecycle hooks for email notifications and user sync
       organizationHooks: {
         // Send org-pending email after organization creation
         afterCreateOrganization: async ({ organization, user }) => {
@@ -111,6 +111,24 @@ export const auth = betterAuth({
               // Log error but don't fail the organization creation
               console.error("Failed to send org-pending email:", error);
             }
+          }
+        },
+
+        // Sync user to Go backend after accepting invitation
+        // Creates Person, Staff, and Teacher records
+        afterAcceptInvitation: async ({ member, user, organization }) => {
+          try {
+            await syncUserToGoBackend({
+              betterauthUserId: user.id,
+              email: user.email,
+              name: user.name ?? user.email.split("@")[0],
+              organizationId: organization.id,
+              role: member.role,
+            });
+          } catch (error) {
+            // Log error but don't fail the invitation acceptance
+            // User is already added to the org in BetterAuth - Go sync can be retried later
+            console.error("Failed to sync user to Go backend:", error);
           }
         },
       },

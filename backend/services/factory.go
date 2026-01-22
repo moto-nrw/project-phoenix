@@ -40,6 +40,7 @@ type Factory struct {
 	Education                education.Service
 	Facilities               facilities.Service
 	Invitation               auth.InvitationService
+	UserSync                 auth.UserSyncService
 	Feedback                 feedback.Service
 	IoT                      iot.Service
 	Config                   config.Service
@@ -246,6 +247,14 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 		DB:               db,
 	})
 
+	// Initialize user sync service for BetterAuth integration
+	userSyncService := auth.NewUserSyncService(
+		db,
+		repos.Person,
+		repos.Staff,
+		repos.Teacher,
+	)
+
 	// Initialize authorization
 	authorizationService := authorize.NewAuthorizationService()
 
@@ -324,6 +333,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 		Import:                   studentImportService, // Student import service
 		RealtimeHub:              realtimeHub,          // Expose SSE hub for API layer
 		Invitation:               invitationService,
+		UserSync:                 userSyncService,
 		Mailer:                   mailer,
 		Dispatcher:               dispatcher,
 		DefaultFrom:              defaultFrom,

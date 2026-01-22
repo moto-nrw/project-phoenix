@@ -17,6 +17,8 @@ type Resource struct {
 	fromEmail         email.Email
 	invitationService authService.InvitationService
 	accountRepo       authModels.AccountRepository
+	// User sync service for BetterAuth integration
+	userSyncService authService.UserSyncService
 }
 
 // NewResource creates a new internal API resource.
@@ -26,6 +28,7 @@ func NewResource(
 	fromEmail email.Email,
 	invitationService authService.InvitationService,
 	accountRepo authModels.AccountRepository,
+	userSyncService authService.UserSyncService,
 ) *Resource {
 	return &Resource{
 		mailer:            mailer,
@@ -33,6 +36,7 @@ func NewResource(
 		fromEmail:         fromEmail,
 		invitationService: invitationService,
 		accountRepo:       accountRepo,
+		userSyncService:   userSyncService,
 	}
 }
 
@@ -52,6 +56,11 @@ func (rs *Resource) Router() chi.Router {
 	// POST /api/internal/validate-emails - Check if emails are already registered
 	// Used by BetterAuth to validate emails before creating invitations
 	r.Post("/validate-emails", rs.validateEmails)
+
+	// POST /api/internal/sync-user - Sync BetterAuth user to Go backend
+	// Creates Person, Staff, and Teacher records for invited users
+	// Called by BetterAuth's afterAcceptInvitation hook
+	r.Post("/sync-user", rs.syncUser)
 
 	return r
 }
