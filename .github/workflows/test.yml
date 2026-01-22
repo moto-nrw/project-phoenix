@@ -48,7 +48,32 @@ jobs:
       - name: Install Go dependencies
         run: cd backend && go mod tidy
 
-      - name: Run database migrations
+      # Node.js setup (shared by BetterAuth and frontend)
+      - name: Enable corepack
+        run: corepack enable
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "20"
+          cache: "pnpm"
+          cache-dependency-path: |
+            betterauth/pnpm-lock.yaml
+            frontend/pnpm-lock.yaml
+
+      # BetterAuth migrations MUST run first - Go migrations depend on BetterAuth tables
+      # Migration 1.7.7 requires public.organization table created by BetterAuth
+      - name: Install BetterAuth dependencies
+        working-directory: betterauth
+        run: pnpm install --frozen-lockfile || pnpm install
+
+      - name: Run BetterAuth migrations
+        working-directory: betterauth
+        env:
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/phoenix_test?sslmode=disable
+        run: npx @better-auth/cli migrate --yes
+
+      - name: Run Go database migrations
         working-directory: backend
         env:
           DB_DSN: postgres://postgres:postgres@localhost:5432/phoenix_test?sslmode=disable
@@ -66,16 +91,7 @@ jobs:
           # From: github.com/moto-nrw/project-phoenix/... → backend/...
           sed -i 's|github.com/moto-nrw/project-phoenix/|backend/|g' backend/coverage.out
 
-      # Node Setup & Tests
-      - name: Enable corepack
-        run: corepack enable
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: "20"
-          cache: "pnpm"
-          cache-dependency-path: frontend/pnpm-lock.yaml
+      # Frontend Tests (Node.js already set up above)
 
       - name: Install frontend dependencies
         working-directory: frontend
