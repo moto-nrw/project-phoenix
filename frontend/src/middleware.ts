@@ -380,6 +380,32 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(mainDomainUrl);
   }
 
+  // Valid organization - check session for protected routes
+  // Public paths on subdomain: /login, /signup, /invite, /reset-password
+  const publicSubdomainPaths = [
+    "/login",
+    "/signup",
+    "/invite",
+    "/reset-password",
+  ];
+  const isPublicSubdomainPath = publicSubdomainPaths.some(
+    (path) => pathname === path || pathname.startsWith(path + "/"),
+  );
+
+  // If not on a public path, check for session
+  if (!isPublicSubdomainPath) {
+    const session = await getUserSession(request);
+
+    // No session on subdomain - redirect to login
+    if (!session?.authenticated) {
+      const loginUrl = new URL("/login", request.url);
+      return NextResponse.redirect(loginUrl);
+    }
+
+    // Root path with session - allow (SmartRedirect handles in frontend)
+    // Other protected paths - continue with tenant headers
+  }
+
   // Valid organization - set tenant context headers
   const response = NextResponse.next();
   response.headers.set("x-tenant-slug", subdomain);

@@ -180,6 +180,64 @@ async function handleUpdateOrgStatus(
 }
 
 /**
+ * Public endpoint to search organizations by name or slug.
+ * Used by the main domain org-selection page.
+ * Only returns active organizations with minimal public fields.
+ *
+ * Query params:
+ * - search: Optional search term (matches name or slug)
+ * - limit: Max results (default 10, max 50)
+ *
+ * Returns: Array of { id, name, slug }
+ */
+async function handleSearchOrganizations(
+  req: IncomingMessage,
+  res: ServerResponse,
+): Promise<void> {
+  try {
+    const urlObj = new URL(req.url ?? "", `http://${req.headers.host}`);
+    const searchTerm = urlObj.searchParams.get("search") ?? "";
+    const limitParam = urlObj.searchParams.get("limit");
+    const limit = Math.min(Math.max(parseInt(limitParam ?? "10", 10) || 10, 1), 50);
+
+    let query: string;
+    let params: (string | number)[];
+
+    if (searchTerm.trim()) {
+      // Search by name or slug (case-insensitive)
+      query = `
+        SELECT id, name, slug
+        FROM organization
+        WHERE status = 'active'
+          AND (LOWER(name) LIKE LOWER($1) OR LOWER(slug) LIKE LOWER($1))
+        ORDER BY name ASC
+        LIMIT $2
+      `;
+      params = [`%${searchTerm}%`, limit];
+    } else {
+      // No search term - return first N active organizations
+      query = `
+        SELECT id, name, slug
+        FROM organization
+        WHERE status = 'active'
+        ORDER BY name ASC
+        LIMIT $1
+      `;
+      params = [limit];
+    }
+
+    const result = await pool.query(query, params);
+
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify(result.rows));
+  } catch (error) {
+    console.error("Failed to search organizations:", error);
+    res.writeHead(500, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ error: "Internal server error" }));
+  }
+}
+
+/**
  * Public endpoint to look up an organization by slug.
  * Used by the subdomain middleware to validate tenant context.
  *
@@ -245,6 +303,13 @@ const server = createServer(
     if (url === "/health" && req.method === "GET") {
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ status: "ok", service: "betterauth" }));
+      return;
+    }
+
+    // Public: Search organizations (for org-selection page on main domain)
+    // GET /api/auth/public/organizations?search=...&limit=10
+    if (url.startsWith("/api/auth/public/organizations") && req.method === "GET") {
+      await handleSearchOrganizations(req, res);
       return;
     }
 
