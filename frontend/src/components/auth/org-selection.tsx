@@ -197,35 +197,17 @@ export function OrgSelection() {
                       type="button"
                       onClick={() => handleSelectOrg(org)}
                       onMouseEnter={() => setSelectedIndex(index)}
-                      className={`flex w-full items-center gap-3 px-4 py-3 text-left transition-colors ${
+                      className={`flex w-full items-center justify-between px-4 py-3 text-left transition-colors ${
                         index === selectedIndex
-                          ? "bg-gray-100"
+                          ? "bg-blue-50"
                           : "hover:bg-gray-50"
                       }`}
                     >
-                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-[#5080d8] to-[#83cd2d] text-white">
-                        <svg
-                          className="h-5 w-5"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
-                          />
-                        </svg>
-                      </div>
-                      <div className="flex-1">
-                        <div className="font-medium text-gray-900">
-                          {org.name}
-                        </div>
-                        <div className="text-sm text-gray-500">{org.slug}</div>
-                      </div>
+                      <span className="font-medium text-gray-900">
+                        {org.name}
+                      </span>
                       <svg
-                        className="h-5 w-5 text-gray-400"
+                        className="h-4 w-4 text-gray-400"
                         fill="none"
                         viewBox="0 0 24 24"
                         stroke="currentColor"
