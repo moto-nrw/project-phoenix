@@ -203,7 +203,9 @@ export function OrgSelection() {
                           : "hover:bg-gray-50"
                       }`}
                     >
-                      <span className="text-gray-600 italic">{org.name}</span>
+                      <span className="font-medium text-gray-900">
+                        {org.name}
+                      </span>
                       <svg
                         className="h-4 w-4 text-gray-400"
                         fill="none"
