@@ -39,7 +39,6 @@ type Factory struct {
 	Activities               activities.ActivityService
 	Education                education.Service
 	Facilities               facilities.Service
-	Invitation               auth.InvitationService
 	UserSync                 auth.UserSyncService
 	Feedback                 feedback.Service
 	IoT                      iot.Service
@@ -55,7 +54,6 @@ type Factory struct {
 	Dispatcher               *email.Dispatcher // Email dispatcher for async delivery
 	DefaultFrom              email.Email
 	FrontendURL              string
-	InvitationTokenExpiry    time.Duration
 	PasswordResetTokenExpiry time.Duration
 }
 
@@ -231,22 +229,6 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 		return nil, err
 	}
 
-	invitationService := auth.NewInvitationService(auth.InvitationServiceConfig{
-		InvitationRepo:   repos.InvitationToken,
-		AccountRepo:      repos.Account,
-		RoleRepo:         repos.Role,
-		AccountRoleRepo:  repos.AccountRole,
-		PersonRepo:       repos.Person,
-		StaffRepo:        repos.Staff,
-		TeacherRepo:      repos.Teacher,
-		Mailer:           mailer,
-		Dispatcher:       dispatcher,
-		FrontendURL:      frontendURL,
-		DefaultFrom:      defaultFrom,
-		InvitationExpiry: invitationTokenExpiry,
-		DB:               db,
-	})
-
 	// Initialize user sync service for BetterAuth integration
 	userSyncService := auth.NewUserSyncService(
 		db,
@@ -332,13 +314,11 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 		Database:                 databaseService,
 		Import:                   studentImportService, // Student import service
 		RealtimeHub:              realtimeHub,          // Expose SSE hub for API layer
-		Invitation:               invitationService,
 		UserSync:                 userSyncService,
 		Mailer:                   mailer,
 		Dispatcher:               dispatcher,
 		DefaultFrom:              defaultFrom,
 		FrontendURL:              frontendURL,
-		InvitationTokenExpiry:    invitationTokenExpiry,
 		PasswordResetTokenExpiry: passwordResetTokenExpiry,
 	}, nil
 }

@@ -42,7 +42,7 @@ func setupTestContext(t *testing.T) *testContext {
 	t.Helper()
 
 	db, svc := testutil.SetupAPITest(t)
-	resource := authAPI.NewResource(svc.Auth, svc.Invitation)
+	resource := authAPI.NewResource(svc.Auth)
 
 	t.Cleanup(func() {
 		if err := db.Close(); err != nil {
@@ -208,16 +208,6 @@ func setupExtendedProtectedRouter(t *testing.T) (*testContext, chi.Router) {
 		// Token cleanup
 		r.Route("/tokens", func(r chi.Router) {
 			r.With(authorize.RequiresPermission("admin:*")).Delete("/expired", tc.resource.CleanupExpiredTokensHandler())
-		})
-
-		// Invitation management
-		r.Route("/invitations", func(r chi.Router) {
-			r.With(authorize.RequiresPermission("users:create")).Post("/", tc.resource.CreateInvitationHandler())
-			r.With(authorize.RequiresPermission("users:list")).Get("/", tc.resource.ListPendingInvitationsHandler())
-			r.Route("/{id}", func(r chi.Router) {
-				r.With(authorize.RequiresPermission("users:manage")).Post("/resend", tc.resource.ResendInvitationHandler())
-				r.With(authorize.RequiresPermission("users:manage")).Delete("/", tc.resource.RevokeInvitationHandler())
-			})
 		})
 
 		// Parent account management
@@ -590,50 +580,6 @@ func TestPasswordReset(t *testing.T) {
 		rr := testutil.ExecuteRequest(router, req)
 
 		testutil.AssertBadRequest(t, rr)
-	})
-}
-
-// TestInvitationValidation tests invitation validation endpoint (public)
-func TestInvitationValidation(t *testing.T) {
-	router := setupPublicRouter(t)
-
-	t.Run("not found with invalid token", func(t *testing.T) {
-		req := testutil.NewJSONRequest(t, "GET", "/auth/invitations/invalid-token", nil)
-		rr := testutil.ExecuteRequest(router, req)
-
-		testutil.AssertNotFound(t, rr)
-	})
-}
-
-// TestInvitationAcceptance tests invitation acceptance endpoint (public)
-func TestInvitationAcceptance(t *testing.T) {
-	router := setupPublicRouter(t)
-
-	t.Run("not found with invalid token", func(t *testing.T) {
-		body := map[string]string{
-			"password":         "SecurePass123!",
-			"confirm_password": "SecurePass123!",
-		}
-
-		req := testutil.NewJSONRequest(t, "POST", "/auth/invitations/invalid-token/accept", body)
-		rr := testutil.ExecuteRequest(router, req)
-
-		testutil.AssertNotFound(t, rr)
-	})
-
-	// Note: Password validation tests require a valid invitation token.
-	// The API validates token existence before password validation.
-	// To test password validation, we would need to create a real invitation first.
-	// These scenarios are covered by service-layer tests instead.
-
-	t.Run("bad request with empty body", func(t *testing.T) {
-		req := testutil.NewJSONRequest(t, "POST", "/auth/invitations/some-token/accept", nil)
-		rr := testutil.ExecuteRequest(router, req)
-
-		// Either 400 (bad request for empty body) or 404 (token not found)
-		// depends on order of validation - both are acceptable
-		assert.True(t, rr.Code == http.StatusBadRequest || rr.Code == http.StatusNotFound,
-			"Expected 400 or 404, got %d. Body: %s", rr.Code, rr.Body.String())
 	})
 }
 
@@ -1370,61 +1316,6 @@ func TestTokenManagement(t *testing.T) {
 		req := testutil.NewJSONRequest(t, "GET", "/auth/accounts/1/tokens", nil)
 		rr := executeWithAuth(router, req, adminClaims, []string{})
 		testutil.AssertForbidden(t, rr)
-	})
-}
-
-// ============================================================================
-// INVITATION MANAGEMENT TESTS
-// ============================================================================
-
-// TestInvitationManagement tests invitation management endpoints
-func TestInvitationManagement(t *testing.T) {
-	_, router := setupExtendedProtectedRouter(t)
-	adminClaims := testutil.AdminTestClaims(1)
-
-	t.Run("list pending invitations", func(t *testing.T) {
-		req := testutil.NewJSONRequest(t, "GET", "/auth/invitations", nil)
-		rr := executeWithAuth(router, req, adminClaims, []string{"users:list"})
-
-		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
-	})
-
-	t.Run("list invitations forbidden without permission", func(t *testing.T) {
-		req := testutil.NewJSONRequest(t, "GET", "/auth/invitations", nil)
-		rr := executeWithAuth(router, req, adminClaims, []string{})
-
-		testutil.AssertForbidden(t, rr)
-	})
-
-	t.Run("create invitation bad request with invalid email", func(t *testing.T) {
-		body := map[string]interface{}{
-			"email":      "invalid-email",
-			"first_name": "Test",
-			"last_name":  "User",
-			"role_id":    1,
-		}
-
-		req := testutil.NewJSONRequest(t, "POST", "/auth/invitations", body)
-		rr := executeWithAuth(router, req, adminClaims, []string{"users:create"})
-
-		testutil.AssertBadRequest(t, rr)
-	})
-
-	t.Run("revoke invitation not found", func(t *testing.T) {
-		req := testutil.NewJSONRequest(t, "DELETE", "/auth/invitations/99999", nil)
-		rr := executeWithAuth(router, req, adminClaims, []string{"users:manage"})
-
-		// Either 404 or 500 (depending on error handling)
-		assert.True(t, rr.Code == http.StatusNotFound || rr.Code == http.StatusInternalServerError,
-			"Expected 404 or 500, got %d. Body: %s", rr.Code, rr.Body.String())
-	})
-
-	t.Run("resend invitation not found", func(t *testing.T) {
-		req := testutil.NewJSONRequest(t, "POST", "/auth/invitations/99999/resend", nil)
-		rr := executeWithAuth(router, req, adminClaims, []string{"users:manage"})
-
-		assert.True(t, rr.Code == http.StatusNotFound || rr.Code == http.StatusInternalServerError,
-			"Expected 404 or 500, got %d. Body: %s", rr.Code, rr.Body.String())
 	})
 }
 

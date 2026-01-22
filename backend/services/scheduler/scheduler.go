@@ -24,11 +24,6 @@ type AuthCleanup interface {
 	CleanupExpiredRateLimits(ctx context.Context) (int, error)
 }
 
-// InvitationCleaner exposes the cleanup routine required from the invitation service.
-type InvitationCleaner interface {
-	CleanupExpiredInvitations(ctx context.Context) (int, error)
-}
-
 // CleanupJob represents a single cleanup task that can be executed.
 type CleanupJob struct {
 	Description string
@@ -37,13 +32,12 @@ type CleanupJob struct {
 
 // Scheduler manages scheduled tasks
 type Scheduler struct {
-	activeService     active.Service
-	cleanupService    active.CleanupService
-	authCleanup       AuthCleanup
-	invitationCleanup InvitationCleaner
-	cleanupJobs       []CleanupJob
-	tasks             map[string]*ScheduledTask
-	mu                sync.RWMutex
+	activeService  active.Service
+	cleanupService active.CleanupService
+	authCleanup    AuthCleanup
+	cleanupJobs    []CleanupJob
+	tasks          map[string]*ScheduledTask
+	mu             sync.RWMutex
 	// done signals goroutines to stop when closed (replaces stored context)
 	done chan struct{}
 	wg   sync.WaitGroup
@@ -64,15 +58,14 @@ type ScheduledTask struct {
 }
 
 // NewScheduler creates a new scheduler
-func NewScheduler(activeService active.Service, cleanupService active.CleanupService, authService AuthCleanup, invitationService InvitationCleaner) *Scheduler {
+func NewScheduler(activeService active.Service, cleanupService active.CleanupService, authService AuthCleanup) *Scheduler {
 	return &Scheduler{
-		activeService:     activeService,
-		cleanupService:    cleanupService,
-		authCleanup:       authService,
-		invitationCleanup: invitationService,
-		cleanupJobs:       buildCleanupJobs(authService, invitationService),
-		tasks:             make(map[string]*ScheduledTask),
-		done:              make(chan struct{}),
+		activeService:  activeService,
+		cleanupService: cleanupService,
+		authCleanup:    authService,
+		cleanupJobs:    buildCleanupJobs(authService),
+		tasks:          make(map[string]*ScheduledTask),
+		done:           make(chan struct{}),
 	}
 }
 
@@ -345,7 +338,7 @@ func (s *Scheduler) RunCleanupJobs() error {
 }
 
 // buildCleanupJobs constructs the set of cleanup jobs so other runners can reuse the same registry.
-func buildCleanupJobs(authService AuthCleanup, invitationService InvitationCleaner) []CleanupJob {
+func buildCleanupJobs(authService AuthCleanup) []CleanupJob {
 	var jobs []CleanupJob
 
 	if authService != nil {
@@ -369,15 +362,6 @@ func buildCleanupJobs(authService AuthCleanup, invitationService InvitationClean
 				},
 			},
 		)
-	}
-
-	if invitationService != nil {
-		jobs = append(jobs, CleanupJob{
-			Description: "Invitation cleanup",
-			Run: func(ctx context.Context) (int, error) {
-				return invitationService.CleanupExpiredInvitations(ctx)
-			},
-		})
 	}
 
 	return jobs

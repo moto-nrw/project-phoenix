@@ -31,7 +31,7 @@ var cleanupCmd = &cobra.Command{
 	Long: `Clean up expired data based on retention policies configured in privacy consents.
 This command will delete visit records that are older than the configured retention period for each student.
 
-Available subcommands: visits, preview, stats, tokens, invitations, rate-limits, attendance, sessions.`,
+Available subcommands: visits, preview, stats, tokens, rate-limits, attendance, sessions.`,
 }
 
 // cleanupVisitsCmd represents the visits subcommand
@@ -69,15 +69,6 @@ This helps maintain database performance and security by removing tokens that ca
 	RunE: runCleanupTokens,
 }
 
-// cleanupInvitationsCmd represents the invitations subcommand
-var cleanupInvitationsCmd = &cobra.Command{
-	Use:   "invitations",
-	Short: "Clean up expired or used invitation tokens",
-	Long: `Clean up invitation tokens that are expired or already used.
-This keeps the invitation table compact and ensures stale invitations are removed.`,
-	RunE: runCleanupInvitations,
-}
-
 // cleanupRateLimitsCmd represents the rate-limits subcommand
 var cleanupRateLimitsCmd = &cobra.Command{
 	Use:   "rate-limits",
@@ -113,7 +104,6 @@ func init() {
 	cleanupCmd.AddCommand(cleanupPreviewCmd)
 	cleanupCmd.AddCommand(cleanupStatsCmd)
 	cleanupCmd.AddCommand(cleanupTokensCmd)
-	cleanupCmd.AddCommand(cleanupInvitationsCmd)
 	cleanupCmd.AddCommand(cleanupRateLimitsCmd)
 	cleanupCmd.AddCommand(cleanupAttendanceCmd)
 	cleanupCmd.AddCommand(cleanupSessionsCmd)
@@ -352,27 +342,6 @@ func countExpiredTokens(ctx *cleanupContext) (int, error) {
 		TableExpr("auth.tokens").
 		Where("expiry < ?", time.Now()).
 		Count(context.Background())
-}
-
-func runCleanupInvitations(_ *cobra.Command, _ []string) error {
-	ctx, err := newCleanupContextWithServices()
-	if err != nil {
-		return err
-	}
-	defer ctx.Close()
-
-	if ctx.ServiceFactory.Invitation == nil {
-		fmt.Println("Invitation service is not available; nothing to clean.")
-		return nil
-	}
-
-	count, err := ctx.ServiceFactory.Invitation.CleanupExpiredInvitations(context.Background())
-	if err != nil {
-		return fmt.Errorf("failed to clean up invitations: %w", err)
-	}
-
-	fmt.Printf("Invitation cleanup removed %d records\n", count)
-	return nil
 }
 
 func runCleanupRateLimits(_ *cobra.Command, _ []string) error {

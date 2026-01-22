@@ -43,7 +43,6 @@ type Factory struct {
 	Token                  authModels.TokenRepository
 	PasswordResetToken     authModels.PasswordResetTokenRepository
 	PasswordResetRateLimit authModels.PasswordResetRateLimitRepository
-	InvitationToken        authModels.InvitationTokenRepository
 	GuardianInvitation     authModels.GuardianInvitationRepository
 
 	// Users domain
@@ -120,7 +119,6 @@ func NewFactory(db *bun.DB) *Factory {
 		Token:                  auth.NewTokenRepository(db),
 		PasswordResetToken:     auth.NewPasswordResetTokenRepository(db),
 		PasswordResetRateLimit: auth.NewPasswordResetRateLimitRepository(db),
-		InvitationToken:        auth.NewInvitationTokenRepository(db),
 		GuardianInvitation:     auth.NewGuardianInvitationRepository(db),
 
 		// Users repositories

@@ -163,21 +163,6 @@ type PasswordResetRateLimitRepository interface {
 	CleanupExpired(ctx context.Context) (int, error)
 }
 
-// InvitationTokenRepository defines operations for managing invitation tokens.
-type InvitationTokenRepository interface {
-	Create(ctx context.Context, token *InvitationToken) error
-	Update(ctx context.Context, token *InvitationToken) error
-	FindByID(ctx context.Context, id interface{}) (*InvitationToken, error)
-	FindByToken(ctx context.Context, token string) (*InvitationToken, error)
-	UpdateDeliveryResult(ctx context.Context, id int64, sentAt *time.Time, emailError *string, retryCount int) error
-	FindValidByToken(ctx context.Context, token string, now time.Time) (*InvitationToken, error)
-	FindByEmail(ctx context.Context, email string) ([]*InvitationToken, error)
-	MarkAsUsed(ctx context.Context, id int64) error
-	InvalidateByEmail(ctx context.Context, email string) (int, error)
-	DeleteExpired(ctx context.Context, now time.Time) (int, error)
-	List(ctx context.Context, filters map[string]interface{}) ([]*InvitationToken, error)
-}
-
 // GuardianInvitationRepository defines operations for managing guardian invitations.
 type GuardianInvitationRepository interface {
 	// Create inserts a new guardian invitation

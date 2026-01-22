@@ -12,11 +12,10 @@ import (
 
 // Resource handles internal API endpoints.
 type Resource struct {
-	mailer            email.Mailer
-	dispatcher        *email.Dispatcher
-	fromEmail         email.Email
-	invitationService authService.InvitationService
-	accountRepo       authModels.AccountRepository
+	mailer      email.Mailer
+	dispatcher  *email.Dispatcher
+	fromEmail   email.Email
+	accountRepo authModels.AccountRepository
 	// User sync service for BetterAuth integration
 	userSyncService authService.UserSyncService
 }
@@ -26,17 +25,15 @@ func NewResource(
 	mailer email.Mailer,
 	dispatcher *email.Dispatcher,
 	fromEmail email.Email,
-	invitationService authService.InvitationService,
 	accountRepo authModels.AccountRepository,
 	userSyncService authService.UserSyncService,
 ) *Resource {
 	return &Resource{
-		mailer:            mailer,
-		dispatcher:        dispatcher,
-		fromEmail:         fromEmail,
-		invitationService: invitationService,
-		accountRepo:       accountRepo,
-		userSyncService:   userSyncService,
+		mailer:          mailer,
+		dispatcher:      dispatcher,
+		fromEmail:       fromEmail,
+		accountRepo:     accountRepo,
+		userSyncService: userSyncService,
 	}
 }
 
@@ -49,9 +46,6 @@ func (rs *Resource) Router() chi.Router {
 	// No authentication middleware - internal network provides security
 	// POST /api/internal/email - Send an email using a template
 	r.Post("/email", rs.sendEmail)
-
-	// POST /api/internal/invitations - Create invitation (for SaaS admin console)
-	r.Post("/invitations", rs.createInvitation)
 
 	// POST /api/internal/validate-emails - Check if emails are already registered
 	// Used by BetterAuth to validate emails before creating invitations

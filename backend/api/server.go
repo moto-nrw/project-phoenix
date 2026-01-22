@@ -54,7 +54,7 @@ func NewServer() (*Server, error) {
 	// Initialize scheduler if cleanup is enabled
 	// Note: Session cleanup is now handled by the scheduler's scheduleSessionCleanupTask()
 	if api.Services != nil && api.Services.ActiveCleanup != nil && api.Services.Active != nil {
-		srv.scheduler = scheduler.NewScheduler(api.Services.Active, api.Services.ActiveCleanup, api.Services.Auth, api.Services.Invitation)
+		srv.scheduler = scheduler.NewScheduler(api.Services.Active, api.Services.ActiveCleanup, api.Services.Auth)
 	}
 
 	return srv, nil

@@ -28,7 +28,6 @@ func TestNewFactory(t *testing.T) {
 		assert.NotNil(t, factory.Token)
 		assert.NotNil(t, factory.PasswordResetToken)
 		assert.NotNil(t, factory.PasswordResetRateLimit)
-		assert.NotNil(t, factory.InvitationToken)
 		assert.NotNil(t, factory.GuardianInvitation)
 	})
 

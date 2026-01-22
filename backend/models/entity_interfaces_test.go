@@ -48,7 +48,6 @@ var (
 	_ base.Entity = (*auth.AccountPermission)(nil)
 	_ base.Entity = (*auth.AccountRole)(nil)
 	_ base.Entity = (*auth.GuardianInvitation)(nil)
-	_ base.Entity = (*auth.InvitationToken)(nil)
 	_ base.Entity = (*auth.PasswordResetToken)(nil)
 	_ base.Entity = (*auth.Permission)(nil)
 	_ base.Entity = (*auth.Role)(nil)

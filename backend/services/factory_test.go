@@ -60,60 +60,8 @@ func TestNewFactory(t *testing.T) {
 		assert.Equal(t, "http://localhost:3000", factory.FrontendURL)
 
 		// Default expiry values (when not configured)
-		assert.Equal(t, 48*time.Hour, factory.InvitationTokenExpiry)
 		assert.Equal(t, 30*time.Minute, factory.PasswordResetTokenExpiry)
 	})
-}
-
-func TestNewFactory_InvitationTokenExpiry_ZeroDefaults(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	repos := repositories.NewFactory(db)
-
-	// Set invitation expiry to zero (should default to 48h)
-	viper.Reset()
-	viper.Set("invitation_token_expiry_hours", 0)
-
-	factory, err := services.NewFactory(repos, db)
-	require.NoError(t, err)
-	require.NotNil(t, factory)
-
-	assert.Equal(t, 48*time.Hour, factory.InvitationTokenExpiry)
-}
-
-func TestNewFactory_InvitationTokenExpiry_ClampedToMax(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	repos := repositories.NewFactory(db)
-
-	// Set invitation expiry to > 168 hours (should clamp to 168h)
-	viper.Reset()
-	viper.Set("invitation_token_expiry_hours", 500)
-
-	factory, err := services.NewFactory(repos, db)
-	require.NoError(t, err)
-	require.NotNil(t, factory)
-
-	assert.Equal(t, 168*time.Hour, factory.InvitationTokenExpiry)
-}
-
-func TestNewFactory_InvitationTokenExpiry_ValidValue(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	repos := repositories.NewFactory(db)
-
-	// Set invitation expiry to valid value (72 hours)
-	viper.Reset()
-	viper.Set("invitation_token_expiry_hours", 72)
-
-	factory, err := services.NewFactory(repos, db)
-	require.NoError(t, err)
-	require.NotNil(t, factory)
-
-	assert.Equal(t, 72*time.Hour, factory.InvitationTokenExpiry)
 }
 
 func TestNewFactory_PasswordResetExpiry_ZeroDefaults(t *testing.T) {
@@ -236,23 +184,6 @@ func TestNewFactory_EmailFrom_WhenConfigured(t *testing.T) {
 
 	assert.Equal(t, "Test App", factory.DefaultFrom.Name)
 	assert.Equal(t, "test@example.com", factory.DefaultFrom.Address)
-}
-
-func TestNewFactory_NegativeInvitationExpiry(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	repos := repositories.NewFactory(db)
-
-	// Set negative value (should default to 48h)
-	viper.Reset()
-	viper.Set("invitation_token_expiry_hours", -10)
-
-	factory, err := services.NewFactory(repos, db)
-	require.NoError(t, err)
-	require.NotNil(t, factory)
-
-	assert.Equal(t, 48*time.Hour, factory.InvitationTokenExpiry)
 }
 
 func TestNewFactory_NegativePasswordResetExpiry(t *testing.T) {

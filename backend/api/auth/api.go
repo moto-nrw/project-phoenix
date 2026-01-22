@@ -39,15 +39,13 @@ const (
 
 // Resource defines the auth resource
 type Resource struct {
-	AuthService       authService.AuthService
-	InvitationService authService.InvitationService
+	AuthService authService.AuthService
 }
 
 // NewResource creates a new auth resource
-func NewResource(authService authService.AuthService, invitationService authService.InvitationService) *Resource {
+func NewResource(authService authService.AuthService) *Resource {
 	return &Resource{
-		AuthService:       authService,
-		InvitationService: invitationService,
+		AuthService: authService,
 	}
 }
 
@@ -65,8 +63,6 @@ func (rs *Resource) Router() chi.Router {
 	r.Post("/register", rs.register)
 	r.Post("/password-reset", rs.initiatePasswordReset)
 	r.Post("/password-reset/confirm", rs.resetPassword)
-	r.Get("/invitations/{token}", rs.validateInvitation)
-	r.Post("/invitations/{token}/accept", rs.acceptInvitation)
 
 	// Protected routes that require refresh token
 	r.Group(func(r chi.Router) {
@@ -107,8 +103,6 @@ func (rs *Resource) TenantRouter() chi.Router {
 	r.Post("/register", rs.register)
 	r.Post("/password-reset", rs.initiatePasswordReset)
 	r.Post("/password-reset/confirm", rs.resetPassword)
-	r.Get("/invitations/{token}", rs.validateInvitation)
-	r.Post("/invitations/{token}/accept", rs.acceptInvitation)
 
 	// These routes are no longer needed with BetterAuth - authentication is cookie-based
 	// Keep them as no-ops or return appropriate error
@@ -200,15 +194,6 @@ func (rs *Resource) mountAdminRoutes(r chi.Router) {
 	// Token cleanup
 	r.Route("/tokens", func(r chi.Router) {
 		r.With(authorize.RequiresPermission("admin:*")).Delete("/expired", rs.cleanupExpiredTokens)
-	})
-
-	r.Route("/invitations", func(r chi.Router) {
-		r.With(authorize.RequiresPermission("users:create")).Post("/", rs.createInvitation)
-		r.With(authorize.RequiresPermission(permUsersList)).Get("/", rs.listPendingInvitations)
-		r.Route("/{id}", func(r chi.Router) {
-			r.With(authorize.RequiresPermission(permUsersManage)).Post("/resend", rs.resendInvitation)
-			r.With(authorize.RequiresPermission(permUsersManage)).Delete("/", rs.revokeInvitation)
-		})
 	})
 
 	// Parent account management
@@ -2043,26 +2028,6 @@ func (rs *Resource) RevokeAllTokensHandler() http.HandlerFunc {
 // CleanupExpiredTokensHandler returns the cleanupExpiredTokens handler for testing
 func (rs *Resource) CleanupExpiredTokensHandler() http.HandlerFunc {
 	return rs.cleanupExpiredTokens
-}
-
-// CreateInvitationHandler returns the createInvitation handler for testing
-func (rs *Resource) CreateInvitationHandler() http.HandlerFunc {
-	return rs.createInvitation
-}
-
-// ListPendingInvitationsHandler returns the listPendingInvitations handler for testing
-func (rs *Resource) ListPendingInvitationsHandler() http.HandlerFunc {
-	return rs.listPendingInvitations
-}
-
-// ResendInvitationHandler returns the resendInvitation handler for testing
-func (rs *Resource) ResendInvitationHandler() http.HandlerFunc {
-	return rs.resendInvitation
-}
-
-// RevokeInvitationHandler returns the revokeInvitation handler for testing
-func (rs *Resource) RevokeInvitationHandler() http.HandlerFunc {
-	return rs.revokeInvitation
 }
 
 // CreateParentAccountHandler returns the createParentAccount handler for testing

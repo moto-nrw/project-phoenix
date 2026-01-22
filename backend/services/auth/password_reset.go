@@ -243,4 +243,10 @@ func (s *Service) persistPasswordResetDelivery(ctx context.Context, meta email.D
 	}
 }
 
-// Note: sanitizeEmailError is defined in invitation_service.go and shared across the package
+// sanitizeEmailError converts an error to a clean string representation for storage.
+func sanitizeEmailError(err error) string {
+	if err == nil {
+		return ""
+	}
+	return strings.TrimSpace(err.Error())
+}

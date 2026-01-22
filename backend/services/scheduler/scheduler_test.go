@@ -55,38 +55,23 @@ func (f *fakeAuthCleanup) CleanupExpiredRateLimits(_ context.Context) (int, erro
 	return f.rateLimitResult, f.rateLimitErr
 }
 
-type fakeInvitationCleaner struct {
-	mu      sync.Mutex
-	calls   int
-	result  int
-	callErr error
-}
-
-func (f *fakeInvitationCleaner) CleanupExpiredInvitations(_ context.Context) (int, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.calls++
-	return f.result, f.callErr
-}
-
 // =============================================================================
 // NewScheduler Tests
 // =============================================================================
 
 func TestNewScheduler(t *testing.T) {
 	auth := &fakeAuthCleanup{}
-	invitations := &fakeInvitationCleaner{}
 
-	s := NewScheduler(nil, nil, auth, invitations)
+	s := NewScheduler(nil, nil, auth)
 
 	require.NotNil(t, s)
 	assert.NotNil(t, s.tasks)
 	assert.NotNil(t, s.done)
-	assert.Len(t, s.cleanupJobs, 4) // 3 auth + 1 invitation
+	assert.Len(t, s.cleanupJobs, 3) // 3 auth jobs
 }
 
 func TestNewScheduler_NilServices(t *testing.T) {
-	s := NewScheduler(nil, nil, nil, nil)
+	s := NewScheduler(nil, nil, nil)
 
 	require.NotNil(t, s)
 	assert.Empty(t, s.cleanupJobs)
@@ -95,19 +80,10 @@ func TestNewScheduler_NilServices(t *testing.T) {
 func TestNewScheduler_OnlyAuthService(t *testing.T) {
 	auth := &fakeAuthCleanup{}
 
-	s := NewScheduler(nil, nil, auth, nil)
+	s := NewScheduler(nil, nil, auth)
 
 	require.NotNil(t, s)
 	assert.Len(t, s.cleanupJobs, 3) // 3 auth jobs only
-}
-
-func TestNewScheduler_OnlyInvitationService(t *testing.T) {
-	invitations := &fakeInvitationCleaner{}
-
-	s := NewScheduler(nil, nil, nil, invitations)
-
-	require.NotNil(t, s)
-	assert.Len(t, s.cleanupJobs, 1) // 1 invitation job only
 }
 
 // =============================================================================
@@ -125,7 +101,7 @@ func TestScheduler_StartStop(t *testing.T) {
 		_ = os.Unsetenv("SESSION_CLEANUP_ENABLED")
 	}()
 
-	s := NewScheduler(nil, nil, nil, nil)
+	s := NewScheduler(nil, nil, nil)
 
 	// Start should not panic
 	assert.NotPanics(t, func() {
@@ -148,7 +124,7 @@ func TestScheduler_StartStop(t *testing.T) {
 }
 
 func TestScheduler_StopWithoutStart(t *testing.T) {
-	s := NewScheduler(nil, nil, nil, nil)
+	s := NewScheduler(nil, nil, nil)
 
 	// Stop without start should not panic
 	assert.NotPanics(t, func() {
@@ -174,7 +150,7 @@ func TestScheduler_StartWithTokenCleanupOnly(t *testing.T) {
 			rateLimitResult: 3,
 		}
 
-		s := NewScheduler(nil, nil, auth, nil)
+		s := NewScheduler(nil, nil, auth)
 		s.Start()
 
 		// Wait for goroutines to be durably blocked (fake time makes sleeps instant)
@@ -201,9 +177,8 @@ func TestRunCleanupJobsExecutesAllJobs(t *testing.T) {
 		passwordResult:  2,
 		rateLimitResult: 3,
 	}
-	invitations := &fakeInvitationCleaner{result: 4}
 
-	s := NewScheduler(nil, nil, auth, invitations)
+	s := NewScheduler(nil, nil, auth)
 
 	if err := s.RunCleanupJobs(); err != nil {
 		t.Fatalf("RunCleanupJobs() returned error: %v", err)
@@ -213,10 +188,6 @@ func TestRunCleanupJobsExecutesAllJobs(t *testing.T) {
 		t.Fatalf("expected auth cleanup jobs to be called once each, got tokens=%d passwords=%d rate=%d",
 			auth.tokenCalls, auth.passwordCalls, auth.rateLimitCalls)
 	}
-
-	if invitations.calls != 1 {
-		t.Fatalf("expected invitation cleanup to be called once, got %d", invitations.calls)
-	}
 }
 
 func TestRunCleanupJobsReturnsFirstErrorAndContinues(t *testing.T) {
@@ -225,9 +196,8 @@ func TestRunCleanupJobsReturnsFirstErrorAndContinues(t *testing.T) {
 	auth := &fakeAuthCleanup{
 		rateLimitErr: expectedErr,
 	}
-	invitations := &fakeInvitationCleaner{}
 
-	s := NewScheduler(nil, nil, auth, invitations)
+	s := NewScheduler(nil, nil, auth)
 
 	err := s.RunCleanupJobs()
 	if !errors.Is(err, expectedErr) {
@@ -238,14 +208,10 @@ func TestRunCleanupJobsReturnsFirstErrorAndContinues(t *testing.T) {
 		t.Fatalf("expected auth cleanup jobs to be called once each despite error, got tokens=%d passwords=%d rate=%d",
 			auth.tokenCalls, auth.passwordCalls, auth.rateLimitCalls)
 	}
-
-	if invitations.calls != 1 {
-		t.Fatalf("expected invitation cleanup to run after auth error, got %d", invitations.calls)
-	}
 }
 
 func TestRunCleanupJobs_NoJobs(t *testing.T) {
-	s := NewScheduler(nil, nil, nil, nil)
+	s := NewScheduler(nil, nil, nil)
 
 	// Should not error when no jobs
 	err := s.RunCleanupJobs()
@@ -272,7 +238,7 @@ func TestRunCleanupJobs_MultipleErrors(t *testing.T) {
 		rateLimitErr: errors.New("rate limit error"),
 	}
 
-	s := NewScheduler(nil, nil, auth, nil)
+	s := NewScheduler(nil, nil, auth)
 
 	err := s.RunCleanupJobs()
 
@@ -293,7 +259,7 @@ func TestRunCleanupJobs_Concurrent(t *testing.T) {
 		rateLimitResult: 3,
 	}
 
-	s := NewScheduler(nil, nil, auth, nil)
+	s := NewScheduler(nil, nil, auth)
 
 	// Run cleanup jobs concurrently
 	var wg sync.WaitGroup
@@ -321,44 +287,32 @@ func TestRunCleanupJobs_Concurrent(t *testing.T) {
 
 func TestBuildCleanupJobs_AllServices(t *testing.T) {
 	auth := &fakeAuthCleanup{}
-	invitations := &fakeInvitationCleaner{}
 
-	jobs := buildCleanupJobs(auth, invitations)
+	jobs := buildCleanupJobs(auth)
 
-	assert.Len(t, jobs, 4)
+	assert.Len(t, jobs, 3)
 	assert.Equal(t, "Auth token cleanup", jobs[0].Description)
 	assert.Equal(t, "Password reset token cleanup", jobs[1].Description)
 	assert.Equal(t, "Password reset rate limit cleanup", jobs[2].Description)
-	assert.Equal(t, "Invitation cleanup", jobs[3].Description)
 }
 
 func TestBuildCleanupJobs_NoServices(t *testing.T) {
-	jobs := buildCleanupJobs(nil, nil)
+	jobs := buildCleanupJobs(nil)
 	assert.Empty(t, jobs)
 }
 
 func TestBuildCleanupJobs_OnlyAuth(t *testing.T) {
 	auth := &fakeAuthCleanup{}
 
-	jobs := buildCleanupJobs(auth, nil)
+	jobs := buildCleanupJobs(auth)
 
 	assert.Len(t, jobs, 3)
 }
 
-func TestBuildCleanupJobs_OnlyInvitations(t *testing.T) {
-	invitations := &fakeInvitationCleaner{}
-
-	jobs := buildCleanupJobs(nil, invitations)
-
-	assert.Len(t, jobs, 1)
-	assert.Equal(t, "Invitation cleanup", jobs[0].Description)
-}
-
 func TestBuildCleanupJobs_JobsAreCallable(t *testing.T) {
 	auth := &fakeAuthCleanup{tokenResult: 5}
-	invitations := &fakeInvitationCleaner{result: 3}
 
-	jobs := buildCleanupJobs(auth, invitations)
+	jobs := buildCleanupJobs(auth)
 	ctx := context.Background()
 
 	// All jobs should be callable
@@ -464,7 +418,7 @@ func TestScheduler_DisabledByEnvVars(t *testing.T) {
 	}()
 
 	synctest.Test(t, func(t *testing.T) {
-		s := NewScheduler(nil, nil, nil, nil)
+		s := NewScheduler(nil, nil, nil)
 		s.Start()
 
 		// Wait for goroutines to be durably blocked (fake time makes sleeps instant)
@@ -497,7 +451,7 @@ func TestScheduler_DefaultEnvValues(t *testing.T) {
 	_ = os.Unsetenv("SESSION_CLEANUP_INTERVAL_MINUTES")
 	_ = os.Unsetenv("SESSION_ABANDONED_THRESHOLD_MINUTES")
 
-	s := NewScheduler(nil, nil, nil, nil)
+	s := NewScheduler(nil, nil, nil)
 
 	// Default values should be set
 	assert.Equal(t, 0, s.sessionCleanupIntervalMinutes) // Not set until Start()
@@ -511,11 +465,6 @@ func TestScheduler_DefaultEnvValues(t *testing.T) {
 func TestAuthCleanup_InterfaceCompliance(_ *testing.T) {
 	// Verify fakeAuthCleanup implements AuthCleanup
 	var _ AuthCleanup = &fakeAuthCleanup{}
-}
-
-func TestInvitationCleaner_InterfaceCompliance(_ *testing.T) {
-	// Verify fakeInvitationCleaner implements InvitationCleaner
-	var _ InvitationCleaner = &fakeInvitationCleaner{}
 }
 
 // =============================================================================
@@ -1318,7 +1267,7 @@ func TestExecuteTokenCleanup_Success(t *testing.T) {
 		rateLimitResult: 2,
 	}
 
-	s := NewScheduler(nil, nil, auth, nil)
+	s := NewScheduler(nil, nil, auth)
 
 	task := &ScheduledTask{Name: "token-cleanup"}
 
@@ -1341,7 +1290,7 @@ func TestExecuteTokenCleanup_Success(t *testing.T) {
 func TestExecuteTokenCleanup_AlreadyRunning(t *testing.T) {
 	auth := &fakeAuthCleanup{}
 
-	s := NewScheduler(nil, nil, auth, nil)
+	s := NewScheduler(nil, nil, auth)
 
 	task := &ScheduledTask{Name: "token-cleanup", Running: true}
 
@@ -1359,7 +1308,7 @@ func TestExecuteTokenCleanup_Error(t *testing.T) {
 		tokenErr: errors.New("token cleanup failed"),
 	}
 
-	s := NewScheduler(nil, nil, auth, nil)
+	s := NewScheduler(nil, nil, auth)
 
 	task := &ScheduledTask{Name: "token-cleanup"}
 
