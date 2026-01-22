@@ -7,13 +7,13 @@ set -euo pipefail
 # Find project root
 project_root=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
 
-skills=""
+skills=()
 
 # Scan project-local skills (.claude/skills/*/SKILL.md)
 if [[ -d "$project_root/.claude/skills" ]]; then
     while IFS= read -r skill_path; do
         skill_name=$(basename "$(dirname "$skill_path")")
-        skills="${skills}${skill_name}, "
+        skills+=("$skill_name")
     done < <(find "$project_root/.claude/skills" -name "SKILL.md" -type f 2>/dev/null | sort)
 fi
 
@@ -23,20 +23,26 @@ if [[ -d "$project_root/.claude/commands" ]]; then
         # Skip subdirectories, only process direct .md files
         if [[ -f "$cmd_path" ]]; then
             cmd_name=$(basename "$cmd_path" .md)
-            skills="${skills}${cmd_name}, "
+            skills+=("$cmd_name")
         fi
     done < <(find "$project_root/.claude/commands" -maxdepth 1 -name "*.md" -type f 2>/dev/null | sort)
 fi
 
-# Remove trailing comma and space
-skills="${skills%, }"
+# Build vertical list
+skill_list=""
+for skill in "${skills[@]}"; do
+    skill_list="${skill_list}
+- ${skill}"
+done
 
 # Output compact JSON reminder
 cat <<EOF
 {
   "hookSpecificOutput": {
     "hookEventName": "UserPromptSubmit",
-    "additionalContext": "<skill-reminder>USE SKILLS ACTIVELY! Available: ${skills}. Invoke via Skill tool before acting.</skill-reminder>"
+    "additionalContext": "<skill-reminder>USE SKILLS ACTIVELY! Available:${skill_list}
+
+Invoke via Skill tool before acting.</skill-reminder>"
   }
 }
 EOF
