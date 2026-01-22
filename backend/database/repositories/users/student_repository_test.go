@@ -148,13 +148,14 @@ func cleanupEducationData(t *testing.T, db *bun.DB, groupIDs []int64, teacherIDs
 func TestStudentRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).Student
 	ctx := context.Background()
 
 	t.Run("creates student with valid data", func(t *testing.T) {
 		// Create person first
-		person := testpkg.CreateTestPerson(t, db, "Create", "Student")
+		person := testpkg.CreateTestPerson(t, db, "Create", "Student", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, person.ID)
 
 		student := &users.Student{
@@ -178,7 +179,7 @@ func TestStudentRepository_Create(t *testing.T) {
 	})
 
 	t.Run("creates student with optional guardian fields", func(t *testing.T) {
-		person := testpkg.CreateTestPerson(t, db, "Guardian", "Test")
+		person := testpkg.CreateTestPerson(t, db, "Guardian", "Test", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, person.ID)
 
 		guardianEmail := "guardian@example.com"
@@ -210,7 +211,7 @@ func TestStudentRepository_Create(t *testing.T) {
 	})
 
 	t.Run("fails with invalid data - missing school class", func(t *testing.T) {
-		person := testpkg.CreateTestPerson(t, db, "Invalid", "Student")
+		person := testpkg.CreateTestPerson(t, db, "Invalid", "Student", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, person.ID)
 
 		student := &users.Student{
@@ -224,7 +225,7 @@ func TestStudentRepository_Create(t *testing.T) {
 	})
 
 	t.Run("fails with invalid email format", func(t *testing.T) {
-		person := testpkg.CreateTestPerson(t, db, "Invalid", "Email")
+		person := testpkg.CreateTestPerson(t, db, "Invalid", "Email", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, person.ID)
 
 		badEmail := "not-an-email"
@@ -243,12 +244,13 @@ func TestStudentRepository_Create(t *testing.T) {
 func TestStudentRepository_FindByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).Student
 	ctx := context.Background()
 
 	t.Run("finds existing student", func(t *testing.T) {
-		student := testpkg.CreateTestStudent(t, db, "FindByID", "Test", "3c")
+		student := testpkg.CreateTestStudent(t, db, "FindByID", "Test", "3c", ogsID)
 		defer cleanupStudentRecords(t, db, student.ID)
 
 		found, err := repo.FindByID(ctx, student.ID)
@@ -267,12 +269,13 @@ func TestStudentRepository_FindByID(t *testing.T) {
 func TestStudentRepository_FindByPersonID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).Student
 	ctx := context.Background()
 
 	t.Run("finds student by person ID", func(t *testing.T) {
-		student := testpkg.CreateTestStudent(t, db, "FindByPerson", "Test", "4a")
+		student := testpkg.CreateTestStudent(t, db, "FindByPerson", "Test", "4a", ogsID)
 		defer cleanupStudentRecords(t, db, student.ID)
 
 		found, err := repo.FindByPersonID(ctx, student.PersonID)
@@ -290,12 +293,13 @@ func TestStudentRepository_FindByPersonID(t *testing.T) {
 func TestStudentRepository_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).Student
 	ctx := context.Background()
 
 	t.Run("updates student fields", func(t *testing.T) {
-		student := testpkg.CreateTestStudent(t, db, "Update", "Test", "1a")
+		student := testpkg.CreateTestStudent(t, db, "Update", "Test", "1a", ogsID)
 		defer cleanupStudentRecords(t, db, student.ID)
 
 		student.SchoolClass = "2b"
@@ -319,7 +323,7 @@ func TestStudentRepository_Update(t *testing.T) {
 	})
 
 	t.Run("fails with invalid guardian email on update", func(t *testing.T) {
-		student := testpkg.CreateTestStudent(t, db, "InvalidUpdate", "Test", "1a")
+		student := testpkg.CreateTestStudent(t, db, "InvalidUpdate", "Test", "1a", ogsID)
 		defer cleanupStudentRecords(t, db, student.ID)
 
 		badEmail := "invalid"
@@ -334,12 +338,13 @@ func TestStudentRepository_Update(t *testing.T) {
 func TestStudentRepository_Delete(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).Student
 	ctx := context.Background()
 
 	t.Run("deletes existing student", func(t *testing.T) {
-		student := testpkg.CreateTestStudent(t, db, "Delete", "Test", "1a")
+		student := testpkg.CreateTestStudent(t, db, "Delete", "Test", "1a", ogsID)
 		personID := student.PersonID
 
 		err := repo.Delete(ctx, student.ID)
@@ -378,18 +383,19 @@ func assignStudentToGroupDirect(t *testing.T, db *bun.DB, studentID, groupID int
 func TestStudentRepository_FindByGroupID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).Student
 	ctx := context.Background()
 
 	t.Run("finds students by group ID", func(t *testing.T) {
 		// Create education group
-		group := testpkg.CreateTestEducationGroup(t, db, "TestClass")
+		group := testpkg.CreateTestEducationGroup(t, db, "TestClass", ogsID)
 		defer cleanupEducationData(t, db, []int64{group.ID}, nil)
 
 		// Create students and assign to group directly
-		student1 := testpkg.CreateTestStudent(t, db, "Group1", "Student", "1a")
-		student2 := testpkg.CreateTestStudent(t, db, "Group2", "Student", "1a")
+		student1 := testpkg.CreateTestStudent(t, db, "Group1", "Student", "1a", ogsID)
+		student2 := testpkg.CreateTestStudent(t, db, "Group2", "Student", "1a", ogsID)
 		defer cleanupStudentRecords(t, db, student1.ID, student2.ID)
 
 		assignStudentToGroupDirect(t, db, student1.ID, group.ID)
@@ -401,7 +407,7 @@ func TestStudentRepository_FindByGroupID(t *testing.T) {
 	})
 
 	t.Run("returns empty slice for group with no students", func(t *testing.T) {
-		group := testpkg.CreateTestEducationGroup(t, db, "EmptyClass")
+		group := testpkg.CreateTestEducationGroup(t, db, "EmptyClass", ogsID)
 		defer cleanupEducationData(t, db, []int64{group.ID}, nil)
 
 		students, err := repo.FindByGroupID(ctx, group.ID)
@@ -413,17 +419,18 @@ func TestStudentRepository_FindByGroupID(t *testing.T) {
 func TestStudentRepository_FindByGroupIDs(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).Student
 	ctx := context.Background()
 
 	t.Run("finds students by multiple group IDs", func(t *testing.T) {
-		group1 := testpkg.CreateTestEducationGroup(t, db, "Class1")
-		group2 := testpkg.CreateTestEducationGroup(t, db, "Class2")
+		group1 := testpkg.CreateTestEducationGroup(t, db, "Class1", ogsID)
+		group2 := testpkg.CreateTestEducationGroup(t, db, "Class2", ogsID)
 		defer cleanupEducationData(t, db, []int64{group1.ID, group2.ID}, nil)
 
-		student1 := testpkg.CreateTestStudent(t, db, "MultiGroup1", "Student", "1a")
-		student2 := testpkg.CreateTestStudent(t, db, "MultiGroup2", "Student", "2b")
+		student1 := testpkg.CreateTestStudent(t, db, "MultiGroup1", "Student", "1a", ogsID)
+		student2 := testpkg.CreateTestStudent(t, db, "MultiGroup2", "Student", "2b", ogsID)
 		defer cleanupStudentRecords(t, db, student1.ID, student2.ID)
 
 		assignStudentToGroupDirect(t, db, student1.ID, group1.ID)
@@ -449,15 +456,16 @@ func TestStudentRepository_FindByGroupIDs(t *testing.T) {
 func TestStudentRepository_AssignToGroup(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).Student
 	ctx := context.Background()
 
 	t.Run("assigns student to education group - verify method exists", func(t *testing.T) {
-		group := testpkg.CreateTestEducationGroup(t, db, "AssignClass")
+		group := testpkg.CreateTestEducationGroup(t, db, "AssignClass", ogsID)
 		defer cleanupEducationData(t, db, []int64{group.ID}, nil)
 
-		student := testpkg.CreateTestStudent(t, db, "Assign", "Test", "1a")
+		student := testpkg.CreateTestStudent(t, db, "Assign", "Test", "1a", ogsID)
 		defer cleanupStudentRecords(t, db, student.ID)
 
 		// Use direct assignment as workaround for the nil model issue
@@ -473,15 +481,16 @@ func TestStudentRepository_AssignToGroup(t *testing.T) {
 func TestStudentRepository_RemoveFromGroup(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).Student
 	ctx := context.Background()
 
 	t.Run("removes student from group - verify method exists", func(t *testing.T) {
-		group := testpkg.CreateTestEducationGroup(t, db, "RemoveClass")
+		group := testpkg.CreateTestEducationGroup(t, db, "RemoveClass", ogsID)
 		defer cleanupEducationData(t, db, []int64{group.ID}, nil)
 
-		student := testpkg.CreateTestStudent(t, db, "Remove", "Test", "1a")
+		student := testpkg.CreateTestStudent(t, db, "Remove", "Test", "1a", ogsID)
 		defer cleanupStudentRecords(t, db, student.ID)
 
 		// Assign using direct method
@@ -508,6 +517,7 @@ func TestStudentRepository_RemoveFromGroup(t *testing.T) {
 func TestStudentRepository_FindBySchoolClass(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).Student
 	ctx := context.Background()
@@ -515,9 +525,9 @@ func TestStudentRepository_FindBySchoolClass(t *testing.T) {
 	t.Run("finds students by school class (case-insensitive)", func(t *testing.T) {
 		// Use unique class names to avoid conflicts with existing data
 		uniqueClass := fmt.Sprintf("UniqueClass%d", time.Now().UnixNano())
-		student1 := testpkg.CreateTestStudent(t, db, "Class1", "Test", uniqueClass)
-		student2 := testpkg.CreateTestStudent(t, db, "Class2", "Test", uniqueClass)  // Same class
-		student3 := testpkg.CreateTestStudent(t, db, "Class3", "Test", "OtherClass") // Different class
+		student1 := testpkg.CreateTestStudent(t, db, "Class1", "Test", uniqueClass, ogsID)
+		student2 := testpkg.CreateTestStudent(t, db, "Class2", "Test", uniqueClass, ogsID)  // Same class
+		student3 := testpkg.CreateTestStudent(t, db, "Class3", "Test", "OtherClass", ogsID) // Different class
 		defer cleanupStudentRecords(t, db, student1.ID, student2.ID, student3.ID)
 
 		students, err := repo.FindBySchoolClass(ctx, uniqueClass)
@@ -535,12 +545,13 @@ func TestStudentRepository_FindBySchoolClass(t *testing.T) {
 func TestStudentRepository_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).Student
 	ctx := context.Background()
 
 	t.Run("lists students with filters", func(t *testing.T) {
-		student := testpkg.CreateTestStudent(t, db, "ListFilter", "Test", "FilterClass")
+		student := testpkg.CreateTestStudent(t, db, "ListFilter", "Test", "FilterClass", ogsID)
 		defer cleanupStudentRecords(t, db, student.ID)
 
 		// Filter by school_class_like
@@ -552,7 +563,7 @@ func TestStudentRepository_List(t *testing.T) {
 	})
 
 	t.Run("lists all students with no filters", func(t *testing.T) {
-		student := testpkg.CreateTestStudent(t, db, "ListAll", "Test", "1a")
+		student := testpkg.CreateTestStudent(t, db, "ListAll", "Test", "1a", ogsID)
 		defer cleanupStudentRecords(t, db, student.ID)
 
 		students, err := repo.List(ctx, nil)
@@ -564,15 +575,16 @@ func TestStudentRepository_List(t *testing.T) {
 func TestStudentRepository_ListWithOptions(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).Student
 	ctx := context.Background()
 
 	t.Run("lists with pagination", func(t *testing.T) {
 		// Create several students
-		student1 := testpkg.CreateTestStudent(t, db, "Page1", "Test", "1a")
-		student2 := testpkg.CreateTestStudent(t, db, "Page2", "Test", "1b")
-		student3 := testpkg.CreateTestStudent(t, db, "Page3", "Test", "1c")
+		student1 := testpkg.CreateTestStudent(t, db, "Page1", "Test", "1a", ogsID)
+		student2 := testpkg.CreateTestStudent(t, db, "Page2", "Test", "1b", ogsID)
+		student3 := testpkg.CreateTestStudent(t, db, "Page3", "Test", "1c", ogsID)
 		defer cleanupStudentRecords(t, db, student1.ID, student2.ID, student3.ID)
 
 		options := base.NewQueryOptions()
@@ -585,7 +597,7 @@ func TestStudentRepository_ListWithOptions(t *testing.T) {
 
 	t.Run("lists with filter", func(t *testing.T) {
 		uniqueClass := fmt.Sprintf("FilterClass%d", time.Now().UnixNano())
-		student := testpkg.CreateTestStudent(t, db, "FilterOpt", "Test", uniqueClass)
+		student := testpkg.CreateTestStudent(t, db, "FilterOpt", "Test", uniqueClass, ogsID)
 		defer cleanupStudentRecords(t, db, student.ID)
 
 		options := base.NewQueryOptions()
@@ -602,13 +614,14 @@ func TestStudentRepository_ListWithOptions(t *testing.T) {
 func TestStudentRepository_CountWithOptions(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).Student
 	ctx := context.Background()
 
 	t.Run("counts students with filter", func(t *testing.T) {
-		student1 := testpkg.CreateTestStudent(t, db, "Count1", "Test", "CountClass")
-		student2 := testpkg.CreateTestStudent(t, db, "Count2", "Test", "CountClass")
+		student1 := testpkg.CreateTestStudent(t, db, "Count1", "Test", "CountClass", ogsID)
+		student2 := testpkg.CreateTestStudent(t, db, "Count2", "Test", "CountClass", ogsID)
 		defer cleanupStudentRecords(t, db, student1.ID, student2.ID)
 
 		options := base.NewQueryOptions()
@@ -632,22 +645,23 @@ func TestStudentRepository_CountWithOptions(t *testing.T) {
 func TestStudentRepository_FindByTeacherID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).Student
 	ctx := context.Background()
 
 	t.Run("finds students supervised by teacher through group", func(t *testing.T) {
 		// Create education group
-		group := testpkg.CreateTestEducationGroup(t, db, "TeacherClass")
+		group := testpkg.CreateTestEducationGroup(t, db, "TeacherClass", ogsID)
 
 		// Create teacher
-		teacher := testpkg.CreateTestTeacher(t, db, "Teacher", "Test")
+		teacher := testpkg.CreateTestTeacher(t, db, "Teacher", "Test", ogsID)
 
 		// Create group-teacher assignment
 		gt := testpkg.CreateTestGroupTeacher(t, db, group.ID, teacher.ID)
 
 		// Create student and assign to group directly
-		student := testpkg.CreateTestStudent(t, db, "TeacherStudent", "Test", "1a")
+		student := testpkg.CreateTestStudent(t, db, "TeacherStudent", "Test", "1a", ogsID)
 		assignStudentToGroupDirect(t, db, student.ID, group.ID)
 
 		// Cleanup in reverse order of dependencies
@@ -672,7 +686,7 @@ func TestStudentRepository_FindByTeacherID(t *testing.T) {
 	})
 
 	t.Run("returns empty for teacher with no students", func(t *testing.T) {
-		teacher := testpkg.CreateTestTeacher(t, db, "NoStudents", "Teacher")
+		teacher := testpkg.CreateTestTeacher(t, db, "NoStudents", "Teacher", ogsID)
 		defer cleanupEducationData(t, db, nil, []int64{teacher.ID})
 
 		students, err := repo.FindByTeacherID(ctx, teacher.ID)
@@ -684,20 +698,21 @@ func TestStudentRepository_FindByTeacherID(t *testing.T) {
 func TestStudentRepository_FindByTeacherIDWithGroups(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).Student
 	ctx := context.Background()
 
 	t.Run("finds students with group names", func(t *testing.T) {
 		// Create education group with known name
-		group := testpkg.CreateTestEducationGroup(t, db, "ClassWithName")
+		group := testpkg.CreateTestEducationGroup(t, db, "ClassWithName", ogsID)
 
 		// Create teacher and assignment
-		teacher := testpkg.CreateTestTeacher(t, db, "GroupInfo", "Teacher")
+		teacher := testpkg.CreateTestTeacher(t, db, "GroupInfo", "Teacher", ogsID)
 		gt := testpkg.CreateTestGroupTeacher(t, db, group.ID, teacher.ID)
 
 		// Create student and assign to group directly
-		student := testpkg.CreateTestStudent(t, db, "WithGroupInfo", "Student", "2a")
+		student := testpkg.CreateTestStudent(t, db, "WithGroupInfo", "Student", "2a", ogsID)
 		assignStudentToGroupDirect(t, db, student.ID, group.ID)
 
 		defer func() {
@@ -721,12 +736,13 @@ func TestStudentRepository_FindByTeacherIDWithGroups(t *testing.T) {
 func TestStudentRepository_FindByNameAndClass(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).Student
 	ctx := context.Background()
 
 	t.Run("finds by name and class (case-insensitive)", func(t *testing.T) {
-		student := testpkg.CreateTestStudent(t, db, "John", "Doe", "3A")
+		student := testpkg.CreateTestStudent(t, db, "John", "Doe", "3A", ogsID)
 		defer cleanupStudentRecords(t, db, student.ID)
 
 		// Search with different case
@@ -743,7 +759,7 @@ func TestStudentRepository_FindByNameAndClass(t *testing.T) {
 	})
 
 	t.Run("does not match partial name", func(t *testing.T) {
-		student := testpkg.CreateTestStudent(t, db, "Jennifer", "Smith", "4b")
+		student := testpkg.CreateTestStudent(t, db, "Jennifer", "Smith", "4b", ogsID)
 		defer cleanupStudentRecords(t, db, student.ID)
 
 		// Search with partial first name should not match

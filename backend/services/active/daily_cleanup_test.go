@@ -13,8 +13,8 @@
 // Each test follows:
 //
 //	ARRANGE: Create test fixtures (real database records)
-//	  activityGroup := testpkg.CreateTestActivityGroup(t, db, "Test Activity")
-//	  student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
+//	  activityGroup := testpkg.CreateTestActivityGroup(t, db, "Test Activity", ogsID)
+//	  student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a", ogsID)
 //	  defer testpkg.CleanupActivityFixtures(t, db, activityGroup.ID, student.ID)
 //
 //	ACT: Perform the operation under test
@@ -26,11 +26,11 @@
 //
 // AVAILABLE FIXTURES (from backend/test/fixtures.go)
 //
-//	testpkg.CreateTestActivityGroup(t, db, "name") *activities.Group
+//	testpkg.CreateTestActivityGroup(t, db, "name", ogsID) *activities.Group
 //	testpkg.CreateTestDevice(t, db, "device-id") *iot.Device
-//	testpkg.CreateTestRoom(t, db, "room-name") *facilities.Room
+//	testpkg.CreateTestRoom(t, db, "room-name", ogsID) *facilities.Room
 //	testpkg.CreateTestStaff(t, db, "first", "last") *users.Staff
-//	testpkg.CreateTestStudent(t, db, "first", "last", "class") *users.Student
+//	testpkg.CreateTestStudent(t, db, "first", "last", "class", ogsID) *users.Student
 //	testpkg.CleanupActivityFixtures(t, db, ids...) - cleans up any combination
 package active_test
 
@@ -57,15 +57,16 @@ func TestEndDailySessionsVisitLookupFailure(t *testing.T) {
 			t.Logf("Failed to close database: %v", err)
 		}
 	}()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupActiveService(t, db)
 	ctx := context.Background()
 
 	// ARRANGE: Create real test fixtures
-	activityGroup := testpkg.CreateTestActivityGroup(t, db, "Cleanup Test Activity 1")
-	device := testpkg.CreateTestDevice(t, db, "cleanup-test-device-1")
-	staff := testpkg.CreateTestStaff(t, db, "Cleanup", "Supervisor1")
-	student := testpkg.CreateTestStudent(t, db, "Test", "Student1", "1a")
+	activityGroup := testpkg.CreateTestActivityGroup(t, db, "Cleanup Test Activity 1", ogsID)
+	device := testpkg.CreateTestDevice(t, db, "cleanup-test-device-1", ogsID)
+	staff := testpkg.CreateTestStaff(t, db, "Cleanup", "Supervisor1", ogsID)
+	student := testpkg.CreateTestStudent(t, db, "Test", "Student1", "1a", ogsID)
 
 	// Cleanup fixtures after test completes (or fails)
 	defer testpkg.CleanupActivityFixtures(t, db,
@@ -134,19 +135,20 @@ func TestEndDailySessionsConsistency(t *testing.T) {
 			t.Logf("Failed to close database: %v", err)
 		}
 	}()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupActiveService(t, db)
 	ctx := context.Background()
 
 	// ARRANGE: Create real test fixtures for multiple sessions
 	// Use SEPARATE devices to avoid ForceStart ending session1 prematurely
-	activity1 := testpkg.CreateTestActivityGroup(t, db, "Cleanup Test Activity 2")
-	activity2 := testpkg.CreateTestActivityGroup(t, db, "Cleanup Test Activity 3")
-	device1 := testpkg.CreateTestDevice(t, db, "cleanup-test-device-2a")
-	device2 := testpkg.CreateTestDevice(t, db, "cleanup-test-device-2b")
-	staff := testpkg.CreateTestStaff(t, db, "Cleanup", "Supervisor2")
-	student1 := testpkg.CreateTestStudent(t, db, "Test", "Student2", "2a")
-	student2 := testpkg.CreateTestStudent(t, db, "Test", "Student3", "2b")
+	activity1 := testpkg.CreateTestActivityGroup(t, db, "Cleanup Test Activity 2", ogsID)
+	activity2 := testpkg.CreateTestActivityGroup(t, db, "Cleanup Test Activity 3", ogsID)
+	device1 := testpkg.CreateTestDevice(t, db, "cleanup-test-device-2a", ogsID)
+	device2 := testpkg.CreateTestDevice(t, db, "cleanup-test-device-2b", ogsID)
+	staff := testpkg.CreateTestStaff(t, db, "Cleanup", "Supervisor2", ogsID)
+	student1 := testpkg.CreateTestStudent(t, db, "Test", "Student2", "2a", ogsID)
+	student2 := testpkg.CreateTestStudent(t, db, "Test", "Student3", "2b", ogsID)
 
 	// Cleanup all fixtures after test
 	defer testpkg.CleanupActivityFixtures(t, db,

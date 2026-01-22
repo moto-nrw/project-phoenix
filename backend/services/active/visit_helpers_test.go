@@ -25,18 +25,19 @@ import (
 func TestCreateVisit_WithDevice(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupVisitHelperService(t, db)
 	ctx := context.Background()
 
 	t.Run("creates attendance with physical device when device in context", func(t *testing.T) {
 		// ARRANGE: Create fixtures using testpkg (proven to work)
-		activity := testpkg.CreateTestActivityGroup(t, db, "rfid-checkin-test")
-		room := testpkg.CreateTestRoom(t, db, "RFID Checkin Room")
-		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
-		student := testpkg.CreateTestStudent(t, db, "RFID", "Checkin", "2a")
-		staff := testpkg.CreateTestStaff(t, db, "RFID", "Staff")
-		rfidDevice := testpkg.CreateTestDevice(t, db, "RFID-TEST-001")
+		activity := testpkg.CreateTestActivityGroup(t, db, "rfid-checkin-test", ogsID)
+		room := testpkg.CreateTestRoom(t, db, "RFID Checkin Room", ogsID)
+		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID, ogsID)
+		student := testpkg.CreateTestStudent(t, db, "RFID", "Checkin", "2a", ogsID)
+		staff := testpkg.CreateTestStaff(t, db, "RFID", "Staff", ogsID)
+		rfidDevice := testpkg.CreateTestDevice(t, db, "RFID-TEST-001", ogsID)
 
 		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, student.ID, staff.ID, rfidDevice.ID)
 
@@ -72,18 +73,19 @@ func TestCreateVisit_WithDevice(t *testing.T) {
 func TestCreateVisit_ReEntry(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupVisitHelperService(t, db)
 	ctx := context.Background()
 
 	t.Run("clears checkout time on re-entry", func(t *testing.T) {
 		// ARRANGE: Create fixtures
-		activity := testpkg.CreateTestActivityGroup(t, db, "reentry-test")
-		room := testpkg.CreateTestRoom(t, db, "Reentry Room")
-		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
-		student := testpkg.CreateTestStudent(t, db, "Reentry", "Student", "3a")
-		staff := testpkg.CreateTestStaff(t, db, "Reentry", "Staff")
-		rfidDevice := testpkg.CreateTestDevice(t, db, "RFID-REENTRY-001")
+		activity := testpkg.CreateTestActivityGroup(t, db, "reentry-test", ogsID)
+		room := testpkg.CreateTestRoom(t, db, "Reentry Room", ogsID)
+		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID, ogsID)
+		student := testpkg.CreateTestStudent(t, db, "Reentry", "Student", "3a", ogsID)
+		staff := testpkg.CreateTestStaff(t, db, "Reentry", "Staff", ogsID)
+		rfidDevice := testpkg.CreateTestDevice(t, db, "RFID-REENTRY-001", ogsID)
 
 		// Create existing attendance with checkout time (student left earlier)
 		checkoutTime := time.Now().Add(-2 * time.Hour)

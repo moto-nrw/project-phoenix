@@ -40,6 +40,7 @@ func setupGuardianService(t *testing.T, db *bun.DB) users.GuardianService {
 func TestGuardianService_CreateGuardian(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupGuardianService(t, db)
 	ctx := context.Background()
@@ -126,6 +127,7 @@ func TestGuardianService_CreateGuardian(t *testing.T) {
 func TestGuardianService_GetGuardianByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupGuardianService(t, db)
 	ctx := context.Background()
@@ -164,6 +166,7 @@ func TestGuardianService_GetGuardianByID(t *testing.T) {
 func TestGuardianService_GetGuardianByEmail(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupGuardianService(t, db)
 	ctx := context.Background()
@@ -202,6 +205,7 @@ func TestGuardianService_GetGuardianByEmail(t *testing.T) {
 func TestGuardianService_UpdateGuardian(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupGuardianService(t, db)
 	ctx := context.Background()
@@ -256,6 +260,7 @@ func TestGuardianService_UpdateGuardian(t *testing.T) {
 func TestGuardianService_DeleteGuardian(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupGuardianService(t, db)
 	ctx := context.Background()
@@ -284,6 +289,7 @@ func TestGuardianService_DeleteGuardian(t *testing.T) {
 func TestGuardianService_LinkGuardianToStudent(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupGuardianService(t, db)
 	ctx := context.Background()
@@ -291,7 +297,7 @@ func TestGuardianService_LinkGuardianToStudent(t *testing.T) {
 	t.Run("links guardian to student successfully", func(t *testing.T) {
 		// ARRANGE
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "link-to-student")
-		student := testpkg.CreateTestStudent(t, db, "Linked", "Student", "1a")
+		student := testpkg.CreateTestStudent(t, db, "Linked", "Student", "1a", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, guardian.ID, student.ID)
 
 		req := users.StudentGuardianCreateRequest{
@@ -318,7 +324,7 @@ func TestGuardianService_LinkGuardianToStudent(t *testing.T) {
 
 	t.Run("returns error when guardian not found", func(t *testing.T) {
 		// ARRANGE
-		student := testpkg.CreateTestStudent(t, db, "NoGuardian", "Student", "1b")
+		student := testpkg.CreateTestStudent(t, db, "NoGuardian", "Student", "1b", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		req := users.StudentGuardianCreateRequest{
@@ -364,6 +370,7 @@ func TestGuardianService_LinkGuardianToStudent(t *testing.T) {
 func TestGuardianService_GetStudentGuardians(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupGuardianService(t, db)
 	ctx := context.Background()
@@ -371,7 +378,7 @@ func TestGuardianService_GetStudentGuardians(t *testing.T) {
 	t.Run("returns guardians for student", func(t *testing.T) {
 		// ARRANGE
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "student-guardian")
-		student := testpkg.CreateTestStudent(t, db, "HasGuardian", "Student", "2a")
+		student := testpkg.CreateTestStudent(t, db, "HasGuardian", "Student", "2a", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, guardian.ID, student.ID)
 
 		// Link guardian to student
@@ -395,7 +402,7 @@ func TestGuardianService_GetStudentGuardians(t *testing.T) {
 
 	t.Run("returns empty list when no guardians", func(t *testing.T) {
 		// ARRANGE
-		student := testpkg.CreateTestStudent(t, db, "NoGuardians", "Student", "2b")
+		student := testpkg.CreateTestStudent(t, db, "NoGuardians", "Student", "2b", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		// ACT
@@ -414,6 +421,7 @@ func TestGuardianService_GetStudentGuardians(t *testing.T) {
 func TestGuardianService_GetGuardianStudents(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupGuardianService(t, db)
 	ctx := context.Background()
@@ -421,7 +429,7 @@ func TestGuardianService_GetGuardianStudents(t *testing.T) {
 	t.Run("returns students for guardian", func(t *testing.T) {
 		// ARRANGE
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "has-students")
-		student := testpkg.CreateTestStudent(t, db, "GuardianChild", "Student", "3a")
+		student := testpkg.CreateTestStudent(t, db, "GuardianChild", "Student", "3a", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, guardian.ID, student.ID)
 
 		// Link guardian to student
@@ -463,6 +471,7 @@ func TestGuardianService_GetGuardianStudents(t *testing.T) {
 func TestGuardianService_GetStudentGuardianRelationship(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupGuardianService(t, db)
 	ctx := context.Background()
@@ -470,7 +479,7 @@ func TestGuardianService_GetStudentGuardianRelationship(t *testing.T) {
 	t.Run("returns relationship by ID", func(t *testing.T) {
 		// ARRANGE
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "rel-get")
-		student := testpkg.CreateTestStudent(t, db, "RelGet", "Student", "4a")
+		student := testpkg.CreateTestStudent(t, db, "RelGet", "Student", "4a", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, guardian.ID, student.ID)
 
 		// Create relationship
@@ -508,6 +517,7 @@ func TestGuardianService_GetStudentGuardianRelationship(t *testing.T) {
 func TestGuardianService_UpdateStudentGuardianRelationship(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupGuardianService(t, db)
 	ctx := context.Background()
@@ -515,7 +525,7 @@ func TestGuardianService_UpdateStudentGuardianRelationship(t *testing.T) {
 	t.Run("updates relationship successfully", func(t *testing.T) {
 		// ARRANGE
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "rel-update")
-		student := testpkg.CreateTestStudent(t, db, "RelUpdate", "Student", "5a")
+		student := testpkg.CreateTestStudent(t, db, "RelUpdate", "Student", "5a", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, guardian.ID, student.ID)
 
 		// Create relationship
@@ -557,6 +567,7 @@ func TestGuardianService_UpdateStudentGuardianRelationship(t *testing.T) {
 func TestGuardianService_RemoveGuardianFromStudent(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupGuardianService(t, db)
 	ctx := context.Background()
@@ -564,7 +575,7 @@ func TestGuardianService_RemoveGuardianFromStudent(t *testing.T) {
 	t.Run("removes guardian from student", func(t *testing.T) {
 		// ARRANGE
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "to-remove")
-		student := testpkg.CreateTestStudent(t, db, "RemoveGuardian", "Student", "6a")
+		student := testpkg.CreateTestStudent(t, db, "RemoveGuardian", "Student", "6a", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, guardian.ID, student.ID)
 
 		// Create relationship
@@ -590,7 +601,7 @@ func TestGuardianService_RemoveGuardianFromStudent(t *testing.T) {
 
 	t.Run("returns error when relationship not found", func(t *testing.T) {
 		// ARRANGE
-		student := testpkg.CreateTestStudent(t, db, "NoRel", "Student", "6b")
+		student := testpkg.CreateTestStudent(t, db, "NoRel", "Student", "6b", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		// ACT
@@ -608,6 +619,7 @@ func TestGuardianService_RemoveGuardianFromStudent(t *testing.T) {
 func TestGuardianService_ListGuardians(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupGuardianService(t, db)
 	ctx := context.Background()
@@ -634,6 +646,7 @@ func TestGuardianService_ListGuardians(t *testing.T) {
 func TestGuardianService_GetGuardiansWithoutAccount(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupGuardianService(t, db)
 	ctx := context.Background()
@@ -668,6 +681,7 @@ func TestGuardianService_GetGuardiansWithoutAccount(t *testing.T) {
 func TestGuardianService_GetInvitableGuardians(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupGuardianService(t, db)
 	ctx := context.Background()
@@ -694,6 +708,7 @@ func TestGuardianService_GetInvitableGuardians(t *testing.T) {
 func TestGuardianService_GetPendingInvitations(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	mailer := testpkg.NewCapturingMailer()
 	service := setupGuardianServiceWithMailer(db, mailer)
@@ -709,7 +724,7 @@ func TestGuardianService_GetPendingInvitations(t *testing.T) {
 			PreferredContactMethod: "email",
 		}
 
-		teacher, _ := testpkg.CreateTestTeacherWithAccount(t, db, "Pending", "Teacher")
+		teacher, _ := testpkg.CreateTestTeacherWithAccount(t, db, "Pending", "Teacher", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, teacher.Staff.PersonID)
 
 		profile, _, err := service.CreateGuardianWithInvitation(ctx, req, *teacher.Staff.Person.AccountID)
@@ -745,6 +760,7 @@ func TestGuardianService_GetPendingInvitations(t *testing.T) {
 func TestGuardianService_CleanupExpiredInvitations(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupGuardianService(t, db)
 	ctx := context.Background()
@@ -793,6 +809,7 @@ func setupGuardianServiceWithMailer(db *bun.DB, mailer *testpkg.CapturingMailer)
 func TestGuardianService_SendInvitation_SendsEmail(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	mailer := testpkg.NewCapturingMailer()
 	service := setupGuardianServiceWithMailer(db, mailer)
@@ -813,7 +830,7 @@ func TestGuardianService_SendInvitation_SendsEmail(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, db, guardian.ID)
 
 		// Create a teacher to be the inviter
-		teacher, _ := testpkg.CreateTestTeacherWithAccount(t, db, "Inviter", "Teacher")
+		teacher, _ := testpkg.CreateTestTeacherWithAccount(t, db, "Inviter", "Teacher", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, teacher.Staff.PersonID)
 
 		// ACT - send invitation
@@ -842,6 +859,7 @@ func TestGuardianService_SendInvitation_SendsEmail(t *testing.T) {
 func TestGuardianService_SendInvitation_GuardianNotFound(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupGuardianService(t, db)
 	ctx := context.Background()
@@ -863,6 +881,7 @@ func TestGuardianService_SendInvitation_GuardianNotFound(t *testing.T) {
 func TestGuardianService_SendInvitation_NoEmail(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupGuardianService(t, db)
 	ctx := context.Background()
@@ -896,6 +915,7 @@ func TestGuardianService_SendInvitation_NoEmail(t *testing.T) {
 func TestGuardianService_SendInvitation_DuplicatePending(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	mailer := testpkg.NewCapturingMailer()
 	service := setupGuardianServiceWithMailer(db, mailer)
@@ -915,7 +935,7 @@ func TestGuardianService_SendInvitation_DuplicatePending(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, db, guardian.ID)
 
 		// Create first invitation
-		teacher, _ := testpkg.CreateTestTeacherWithAccount(t, db, "First", "Inviter")
+		teacher, _ := testpkg.CreateTestTeacherWithAccount(t, db, "First", "Inviter", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, teacher.Staff.PersonID)
 
 		_, err = service.SendInvitation(ctx, users.GuardianInvitationRequest{
@@ -944,6 +964,7 @@ func TestGuardianService_SendInvitation_DuplicatePending(t *testing.T) {
 func TestGuardianService_CreateGuardianWithInvitation_Success(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	mailer := testpkg.NewCapturingMailer()
 	service := setupGuardianServiceWithMailer(db, mailer)
@@ -960,7 +981,7 @@ func TestGuardianService_CreateGuardianWithInvitation_Success(t *testing.T) {
 			LanguagePreference:     "de",
 		}
 
-		teacher, _ := testpkg.CreateTestTeacherWithAccount(t, db, "Creator", "Teacher")
+		teacher, _ := testpkg.CreateTestTeacherWithAccount(t, db, "Creator", "Teacher", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, teacher.Staff.PersonID)
 
 		// ACT
@@ -989,6 +1010,7 @@ func TestGuardianService_CreateGuardianWithInvitation_Success(t *testing.T) {
 func TestGuardianService_CreateGuardianWithInvitation_NoEmail(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupGuardianService(t, db)
 	ctx := context.Background()
@@ -1014,6 +1036,7 @@ func TestGuardianService_CreateGuardianWithInvitation_NoEmail(t *testing.T) {
 func TestGuardianService_CreateGuardianWithInvitation_ExistingAccount(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	mailer := testpkg.NewCapturingMailer()
 	service := setupGuardianServiceWithMailer(db, mailer)
@@ -1029,7 +1052,7 @@ func TestGuardianService_CreateGuardianWithInvitation_ExistingAccount(t *testing
 			PreferredContactMethod: "email",
 		}
 
-		teacher, _ := testpkg.CreateTestTeacherWithAccount(t, db, "Teacher", "One")
+		teacher, _ := testpkg.CreateTestTeacherWithAccount(t, db, "Teacher", "One", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, teacher.Staff.PersonID)
 
 		// Create first guardian with invitation
@@ -1061,6 +1084,7 @@ func TestGuardianService_CreateGuardianWithInvitation_ExistingAccount(t *testing
 func TestGuardianService_ValidateInvitation_Success(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	mailer := testpkg.NewCapturingMailer()
 	service := setupGuardianServiceWithMailer(db, mailer)
@@ -1076,7 +1100,7 @@ func TestGuardianService_ValidateInvitation_Success(t *testing.T) {
 			PreferredContactMethod: "email",
 		}
 
-		teacher, _ := testpkg.CreateTestTeacherWithAccount(t, db, "Validator", "Teacher")
+		teacher, _ := testpkg.CreateTestTeacherWithAccount(t, db, "Validator", "Teacher", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, teacher.Staff.PersonID)
 
 		profile, invitation, err := service.CreateGuardianWithInvitation(ctx, req, *teacher.Staff.Person.AccountID)
@@ -1099,6 +1123,7 @@ func TestGuardianService_ValidateInvitation_Success(t *testing.T) {
 func TestGuardianService_ValidateInvitation_NotFound(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupGuardianService(t, db)
 	ctx := context.Background()
@@ -1117,6 +1142,7 @@ func TestGuardianService_ValidateInvitation_NotFound(t *testing.T) {
 func TestGuardianService_ValidateInvitation_AlreadyAccepted(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	mailer := testpkg.NewCapturingMailer()
 	service := setupGuardianServiceWithMailer(db, mailer)
@@ -1132,7 +1158,7 @@ func TestGuardianService_ValidateInvitation_AlreadyAccepted(t *testing.T) {
 			PreferredContactMethod: "email",
 		}
 
-		teacher, _ := testpkg.CreateTestTeacherWithAccount(t, db, "Accept", "Teacher")
+		teacher, _ := testpkg.CreateTestTeacherWithAccount(t, db, "Accept", "Teacher", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, teacher.Staff.PersonID)
 
 		profile, invitation, err := service.CreateGuardianWithInvitation(ctx, req, *teacher.Staff.Person.AccountID)
@@ -1164,6 +1190,7 @@ func TestGuardianService_ValidateInvitation_AlreadyAccepted(t *testing.T) {
 func TestGuardianService_AcceptInvitation_Success(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	mailer := testpkg.NewCapturingMailer()
 	service := setupGuardianServiceWithMailer(db, mailer)
@@ -1179,7 +1206,7 @@ func TestGuardianService_AcceptInvitation_Success(t *testing.T) {
 			PreferredContactMethod: "email",
 		}
 
-		teacher, _ := testpkg.CreateTestTeacherWithAccount(t, db, "Invite", "Teacher")
+		teacher, _ := testpkg.CreateTestTeacherWithAccount(t, db, "Invite", "Teacher", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, teacher.Staff.PersonID)
 
 		profile, invitation, err := service.CreateGuardianWithInvitation(ctx, req, *teacher.Staff.Person.AccountID)
@@ -1209,6 +1236,7 @@ func TestGuardianService_AcceptInvitation_Success(t *testing.T) {
 func TestGuardianService_AcceptInvitation_PasswordMismatch(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	mailer := testpkg.NewCapturingMailer()
 	service := setupGuardianServiceWithMailer(db, mailer)
@@ -1224,7 +1252,7 @@ func TestGuardianService_AcceptInvitation_PasswordMismatch(t *testing.T) {
 			PreferredContactMethod: "email",
 		}
 
-		teacher, _ := testpkg.CreateTestTeacherWithAccount(t, db, "Mismatch", "Teacher")
+		teacher, _ := testpkg.CreateTestTeacherWithAccount(t, db, "Mismatch", "Teacher", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, teacher.Staff.PersonID)
 
 		profile, invitation, err := service.CreateGuardianWithInvitation(ctx, req, *teacher.Staff.Person.AccountID)
@@ -1248,6 +1276,7 @@ func TestGuardianService_AcceptInvitation_PasswordMismatch(t *testing.T) {
 func TestGuardianService_AcceptInvitation_WeakPassword(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	mailer := testpkg.NewCapturingMailer()
 	service := setupGuardianServiceWithMailer(db, mailer)
@@ -1263,7 +1292,7 @@ func TestGuardianService_AcceptInvitation_WeakPassword(t *testing.T) {
 			PreferredContactMethod: "email",
 		}
 
-		teacher, _ := testpkg.CreateTestTeacherWithAccount(t, db, "Weak", "Teacher")
+		teacher, _ := testpkg.CreateTestTeacherWithAccount(t, db, "Weak", "Teacher", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, teacher.Staff.PersonID)
 
 		profile, invitation, err := service.CreateGuardianWithInvitation(ctx, req, *teacher.Staff.Person.AccountID)
@@ -1287,6 +1316,7 @@ func TestGuardianService_AcceptInvitation_WeakPassword(t *testing.T) {
 func TestGuardianService_AcceptInvitation_InvalidToken(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupGuardianService(t, db)
 	ctx := context.Background()
@@ -1309,6 +1339,7 @@ func TestGuardianService_AcceptInvitation_InvalidToken(t *testing.T) {
 func TestGuardianService_AcceptInvitation_AlreadyAccepted(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	mailer := testpkg.NewCapturingMailer()
 	service := setupGuardianServiceWithMailer(db, mailer)
@@ -1324,7 +1355,7 @@ func TestGuardianService_AcceptInvitation_AlreadyAccepted(t *testing.T) {
 			PreferredContactMethod: "email",
 		}
 
-		teacher, _ := testpkg.CreateTestTeacherWithAccount(t, db, "Double", "Teacher")
+		teacher, _ := testpkg.CreateTestTeacherWithAccount(t, db, "Double", "Teacher", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, teacher.Staff.PersonID)
 
 		profile, invitation, err := service.CreateGuardianWithInvitation(ctx, req, *teacher.Staff.Person.AccountID)

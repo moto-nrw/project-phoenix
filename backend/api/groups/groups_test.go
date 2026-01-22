@@ -50,6 +50,7 @@ type testContext struct {
 	services *services.Factory
 	repos    *repositories.Factory
 	resource *groupsAPI.Resource
+	ogsID    string
 }
 
 // setupTestContext creates test resources for groups handler tests
@@ -57,6 +58,7 @@ func setupTestContext(t *testing.T) *testContext {
 	t.Helper()
 
 	db := testpkg.SetupTestDB(t)
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repoFactory := repositories.NewFactory(db)
 	svc, err := services.NewFactory(repoFactory, db)
@@ -83,6 +85,7 @@ func setupTestContext(t *testing.T) *testContext {
 		services: svc,
 		repos:    repoFactory,
 		resource: resource,
+		ogsID:    ogsID,
 	}
 }
 
@@ -120,9 +123,10 @@ func setupProtectedRouter(t *testing.T) (*testContext, chi.Router) {
 
 func TestListGroups_Success(t *testing.T) {
 	tc, router := setupProtectedRouter(t)
+	ogsID := testpkg.SetupTestOGS(t, tc.db)
 
 	// Create test education group fixture
-	group := testpkg.CreateTestEducationGroup(t, tc.db, "ListTest")
+	group := testpkg.CreateTestEducationGroup(t, tc.db, "ListTest", ogsID)
 	defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID)
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/groups", nil,
@@ -137,7 +141,7 @@ func TestListGroups_WithNameFilter(t *testing.T) {
 	tc, router := setupProtectedRouter(t)
 
 	// Create test group fixture
-	group := testpkg.CreateTestEducationGroup(t, tc.db, "UniqueFilterName")
+	group := testpkg.CreateTestEducationGroup(t, tc.db, "UniqueFilterName", tc.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID)
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/groups?name=UniqueFilterName", nil,
@@ -192,7 +196,7 @@ func TestGetGroup_Success(t *testing.T) {
 	tc, router := setupProtectedRouter(t)
 
 	// Create test group fixture
-	group := testpkg.CreateTestEducationGroup(t, tc.db, "GetGroupTest")
+	group := testpkg.CreateTestEducationGroup(t, tc.db, "GetGroupTest", tc.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID)
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/groups/%d", group.ID), nil,
@@ -233,7 +237,7 @@ func TestGetGroup_InvalidID(t *testing.T) {
 func TestGetGroup_WithoutPermission(t *testing.T) {
 	tc, router := setupProtectedRouter(t)
 
-	group := testpkg.CreateTestEducationGroup(t, tc.db, "PermTest")
+	group := testpkg.CreateTestEducationGroup(t, tc.db, "PermTest", tc.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID)
 
 	// Empty permissions should return 403
@@ -289,7 +293,7 @@ func TestCreateGroup_WithRoom(t *testing.T) {
 	tc, router := setupProtectedRouter(t)
 
 	// Create a room first
-	room := testpkg.CreateTestRoom(t, tc.db, "TestRoom")
+	room := testpkg.CreateTestRoom(t, tc.db, "TestRoom", tc.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID)
 
 	// Use unique name to avoid conflicts
@@ -363,7 +367,7 @@ func TestUpdateGroup_Success(t *testing.T) {
 	tc, router := setupProtectedRouter(t)
 
 	// Create test group with unique name
-	group := testpkg.CreateTestEducationGroup(t, tc.db, "OriginalUpdateTest")
+	group := testpkg.CreateTestEducationGroup(t, tc.db, "OriginalUpdateTest", tc.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID)
 
 	// Use unique name for update
@@ -418,7 +422,7 @@ func TestUpdateGroup_InvalidID(t *testing.T) {
 func TestUpdateGroup_WithoutPermission(t *testing.T) {
 	tc, router := setupProtectedRouter(t)
 
-	group := testpkg.CreateTestEducationGroup(t, tc.db, "NoPermUpdate")
+	group := testpkg.CreateTestEducationGroup(t, tc.db, "NoPermUpdate", tc.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID)
 
 	body := map[string]any{
@@ -455,7 +459,7 @@ func TestDeleteGroup_Success(t *testing.T) {
 	tc, router := setupProtectedRouter(t)
 
 	// Create test group to delete
-	group := testpkg.CreateTestEducationGroup(t, tc.db, "ToDelete")
+	group := testpkg.CreateTestEducationGroup(t, tc.db, "ToDelete", tc.ogsID)
 	// No defer cleanup needed since we're deleting it
 
 	req := testutil.NewAuthenticatedRequest(t, "DELETE", fmt.Sprintf("/groups/%d", group.ID), nil,
@@ -491,7 +495,7 @@ func TestDeleteGroup_InvalidID(t *testing.T) {
 func TestDeleteGroup_WithoutPermission(t *testing.T) {
 	tc, router := setupProtectedRouter(t)
 
-	group := testpkg.CreateTestEducationGroup(t, tc.db, "NoPermDelete")
+	group := testpkg.CreateTestEducationGroup(t, tc.db, "NoPermDelete", tc.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID)
 
 	// Empty permissions should return 403
@@ -524,7 +528,7 @@ func TestGetGroupStudents_Success(t *testing.T) {
 	tc, router := setupProtectedRouter(t)
 
 	// Create test group
-	group := testpkg.CreateTestEducationGroup(t, tc.db, "StudentsTest")
+	group := testpkg.CreateTestEducationGroup(t, tc.db, "StudentsTest", tc.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID)
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/groups/%d/students", group.ID), nil,
@@ -565,7 +569,7 @@ func TestGetGroupSupervisors_Success(t *testing.T) {
 	tc, router := setupProtectedRouter(t)
 
 	// Create test group
-	group := testpkg.CreateTestEducationGroup(t, tc.db, "SupervisorsTest")
+	group := testpkg.CreateTestEducationGroup(t, tc.db, "SupervisorsTest", tc.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID)
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/groups/%d/supervisors", group.ID), nil,
@@ -595,7 +599,7 @@ func TestGetGroupSubstitutions_Success(t *testing.T) {
 	tc, router := setupProtectedRouter(t)
 
 	// Create test group
-	group := testpkg.CreateTestEducationGroup(t, tc.db, "SubstitutionsTest")
+	group := testpkg.CreateTestEducationGroup(t, tc.db, "SubstitutionsTest", tc.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID)
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/groups/%d/substitutions", group.ID), nil,
@@ -610,7 +614,7 @@ func TestGetGroupSubstitutions_WithDate(t *testing.T) {
 	tc, router := setupProtectedRouter(t)
 
 	// Create test group
-	group := testpkg.CreateTestEducationGroup(t, tc.db, "SubstitutionsDateTest")
+	group := testpkg.CreateTestEducationGroup(t, tc.db, "SubstitutionsDateTest", tc.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID)
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/groups/%d/substitutions?date=2024-01-15", group.ID), nil,
@@ -640,7 +644,7 @@ func TestGetGroupStudentsRoomStatus_RequiresSupervisor(t *testing.T) {
 	tc, router := setupProtectedRouter(t)
 
 	// Create test group
-	group := testpkg.CreateTestEducationGroup(t, tc.db, "RoomStatusTest")
+	group := testpkg.CreateTestEducationGroup(t, tc.db, "RoomStatusTest", tc.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID)
 
 	// Without being a supervisor of the group, should get forbidden
@@ -707,11 +711,11 @@ func TestGetGroupStudents_WithStudent(t *testing.T) {
 	tc, router := setupProtectedRouter(t)
 
 	// Create test group
-	group := testpkg.CreateTestEducationGroup(t, tc.db, "WithStudentTest")
+	group := testpkg.CreateTestEducationGroup(t, tc.db, "WithStudentTest", tc.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID)
 
 	// Create a student and assign to the group
-	student := testpkg.CreateTestStudent(t, tc.db, "GroupStudent", "Test", "1a")
+	student := testpkg.CreateTestStudent(t, tc.db, "GroupStudent", "Test", "1a", tc.ogsID)
 
 	// Assign student to group
 	_, err := tc.db.NewUpdate().
@@ -781,10 +785,10 @@ func TestUpdateGroup_WithRoom(t *testing.T) {
 	tc, router := setupProtectedRouter(t)
 
 	// Create test group and room
-	group := testpkg.CreateTestEducationGroup(t, tc.db, "UpdateRoomTest")
+	group := testpkg.CreateTestEducationGroup(t, tc.db, "UpdateRoomTest", tc.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID)
 
-	room := testpkg.CreateTestRoom(t, tc.db, "UpdateTestRoom")
+	room := testpkg.CreateTestRoom(t, tc.db, "UpdateTestRoom", tc.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID)
 
 	body := map[string]any{
@@ -803,7 +807,7 @@ func TestUpdateGroup_WithRoom(t *testing.T) {
 func TestUpdateGroup_EmptyName(t *testing.T) {
 	tc, router := setupProtectedRouter(t)
 
-	group := testpkg.CreateTestEducationGroup(t, tc.db, "EmptyNameUpdateTest")
+	group := testpkg.CreateTestEducationGroup(t, tc.db, "EmptyNameUpdateTest", tc.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID)
 
 	body := map[string]any{
@@ -880,7 +884,7 @@ func TestGetGroupSubstitutions_InvalidID(t *testing.T) {
 func TestGetGroupSubstitutions_InvalidDate(t *testing.T) {
 	tc, router := setupProtectedRouter(t)
 
-	group := testpkg.CreateTestEducationGroup(t, tc.db, "InvalidDateTest")
+	group := testpkg.CreateTestEducationGroup(t, tc.db, "InvalidDateTest", tc.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID)
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/groups/%d/substitutions?date=invalid-date", group.ID), nil,
@@ -917,7 +921,7 @@ func setupTransferRouter(t *testing.T) (*testContext, chi.Router) {
 func TestTransferGroup_RequiresTeacher(t *testing.T) {
 	tc, router := setupTransferRouter(t)
 
-	group := testpkg.CreateTestEducationGroup(t, tc.db, "TransferTest")
+	group := testpkg.CreateTestEducationGroup(t, tc.db, "TransferTest", tc.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID)
 
 	body := map[string]any{
@@ -951,11 +955,11 @@ func TestTransferGroup_InvalidGroupID(t *testing.T) {
 func TestTransferGroup_MissingTargetUserID(t *testing.T) {
 	tc, router := setupTransferRouter(t)
 
-	group := testpkg.CreateTestEducationGroup(t, tc.db, "TransferMissingTarget")
+	group := testpkg.CreateTestEducationGroup(t, tc.db, "TransferMissingTarget", tc.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID)
 
 	// Create teacher with account for context
-	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Transfer", "Teacher")
+	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Transfer", "Teacher", tc.ogsID)
 	defer testpkg.CleanupTeacherFixtures(t, tc.db, teacher.ID)
 	defer testpkg.CleanupAuthFixtures(t, tc.db, account.ID)
 
@@ -978,7 +982,7 @@ func TestTransferGroup_MissingTargetUserID(t *testing.T) {
 func TestCancelSpecificTransfer_RequiresTeacher(t *testing.T) {
 	tc, router := setupTransferRouter(t)
 
-	group := testpkg.CreateTestEducationGroup(t, tc.db, "CancelTransferTest")
+	group := testpkg.CreateTestEducationGroup(t, tc.db, "CancelTransferTest", tc.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID)
 
 	// User without teacher/supervisor role should get forbidden
@@ -1004,7 +1008,7 @@ func TestCancelSpecificTransfer_InvalidGroupID(t *testing.T) {
 func TestCancelSpecificTransfer_InvalidSubstitutionID(t *testing.T) {
 	tc, router := setupTransferRouter(t)
 
-	group := testpkg.CreateTestEducationGroup(t, tc.db, "CancelInvalidSubst")
+	group := testpkg.CreateTestEducationGroup(t, tc.db, "CancelInvalidSubst", tc.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID)
 
 	req := testutil.NewAuthenticatedRequest(t, "DELETE", fmt.Sprintf("/groups/%d/transfer/invalid", group.ID), nil,
@@ -1023,10 +1027,10 @@ func TestGetGroupStudentsRoomStatus_WithAdmin(t *testing.T) {
 	tc, router := setupProtectedRouter(t)
 
 	// Create test group with a room
-	room := testpkg.CreateTestRoom(t, tc.db, "AdminRoomStatus")
+	room := testpkg.CreateTestRoom(t, tc.db, "AdminRoomStatus", tc.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID)
 
-	group := testpkg.CreateTestEducationGroup(t, tc.db, "AdminStatusTest")
+	group := testpkg.CreateTestEducationGroup(t, tc.db, "AdminStatusTest", tc.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID)
 
 	// Update group with room
@@ -1057,7 +1061,7 @@ func TestGetGroupStudentsRoomStatus_NoRoomAssigned(t *testing.T) {
 	tc, router := setupProtectedRouter(t)
 
 	// Create test group without room
-	group := testpkg.CreateTestEducationGroup(t, tc.db, "NoRoomStatusTest")
+	group := testpkg.CreateTestEducationGroup(t, tc.db, "NoRoomStatusTest", tc.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID)
 
 	// Admin should have access
@@ -1082,11 +1086,11 @@ func TestGetGroupStudents_WithFullAccessAdmin(t *testing.T) {
 	tc, router := setupProtectedRouter(t)
 
 	// Create test group
-	group := testpkg.CreateTestEducationGroup(t, tc.db, "AdminStudentsTest")
+	group := testpkg.CreateTestEducationGroup(t, tc.db, "AdminStudentsTest", tc.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID)
 
 	// Create a student with guardian info
-	student := testpkg.CreateTestStudent(t, tc.db, "GuardianTest", "Student", "2a")
+	student := testpkg.CreateTestStudent(t, tc.db, "GuardianTest", "Student", "2a", tc.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 	// Update student with guardian info
@@ -1119,11 +1123,11 @@ func TestListGroups_WithRoomIDFilter(t *testing.T) {
 	tc, router := setupProtectedRouter(t)
 
 	// Create room
-	room := testpkg.CreateTestRoom(t, tc.db, "FilterRoom")
+	room := testpkg.CreateTestRoom(t, tc.db, "FilterRoom", tc.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID)
 
 	// Create group with room
-	group := testpkg.CreateTestEducationGroup(t, tc.db, "RoomFilterTest")
+	group := testpkg.CreateTestEducationGroup(t, tc.db, "RoomFilterTest", tc.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID)
 
 	_, err := tc.db.NewUpdate().
@@ -1150,7 +1154,7 @@ func TestCreateGroup_WithTeacherIDs(t *testing.T) {
 	tc, router := setupProtectedRouter(t)
 
 	// Create a teacher
-	teacher := testpkg.CreateTestTeacher(t, tc.db, "Assign", "Teacher")
+	teacher := testpkg.CreateTestTeacher(t, tc.db, "Assign", "Teacher", tc.ogsID)
 	defer testpkg.CleanupTeacherFixtures(t, tc.db, teacher.ID)
 
 	uniqueName := fmt.Sprintf("GroupWithTeachers-%d", time.Now().UnixNano())
@@ -1180,10 +1184,10 @@ func TestCreateGroup_WithTeacherIDs(t *testing.T) {
 func TestUpdateGroup_WithTeacherIDs(t *testing.T) {
 	tc, router := setupProtectedRouter(t)
 
-	group := testpkg.CreateTestEducationGroup(t, tc.db, "UpdateTeachersTest")
+	group := testpkg.CreateTestEducationGroup(t, tc.db, "UpdateTeachersTest", tc.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID)
 
-	teacher := testpkg.CreateTestTeacher(t, tc.db, "Update", "Teacher")
+	teacher := testpkg.CreateTestTeacher(t, tc.db, "Update", "Teacher", tc.ogsID)
 	defer testpkg.CleanupTeacherFixtures(t, tc.db, teacher.ID)
 
 	body := map[string]any{
@@ -1207,11 +1211,11 @@ func TestTransferGroup_AsGroupLeader_Success(t *testing.T) {
 	tc, router := setupTransferRouter(t)
 
 	// Create group
-	group := testpkg.CreateTestEducationGroup(t, tc.db, "LeaderTransferTest")
+	group := testpkg.CreateTestEducationGroup(t, tc.db, "LeaderTransferTest", tc.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID)
 
 	// Create teacher (group leader) with account for context
-	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Leader", "Teacher")
+	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Leader", "Teacher", tc.ogsID)
 	defer testpkg.CleanupTeacherFixtures(t, tc.db, teacher.ID)
 	defer testpkg.CleanupAuthFixtures(t, tc.db, account.ID)
 
@@ -1219,7 +1223,7 @@ func TestTransferGroup_AsGroupLeader_Success(t *testing.T) {
 	testpkg.CreateTestGroupTeacher(t, tc.db, group.ID, teacher.ID)
 
 	// Create target staff to transfer to
-	targetStaff := testpkg.CreateTestStaff(t, tc.db, "Target", "Staff")
+	targetStaff := testpkg.CreateTestStaff(t, tc.db, "Target", "Staff", tc.ogsID)
 	defer testpkg.CleanupStaffFixtures(t, tc.db, targetStaff.ID)
 
 	body := map[string]any{
@@ -1240,16 +1244,16 @@ func TestTransferGroup_NotGroupLeader(t *testing.T) {
 	tc, router := setupTransferRouter(t)
 
 	// Create group
-	group := testpkg.CreateTestEducationGroup(t, tc.db, "NotLeaderTest")
+	group := testpkg.CreateTestEducationGroup(t, tc.db, "NotLeaderTest", tc.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID)
 
 	// Create teacher WITHOUT assigning to group (not a group leader)
-	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "NotLeader", "Teacher")
+	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "NotLeader", "Teacher", tc.ogsID)
 	defer testpkg.CleanupTeacherFixtures(t, tc.db, teacher.ID)
 	defer testpkg.CleanupAuthFixtures(t, tc.db, account.ID)
 
 	// Create target staff
-	targetStaff := testpkg.CreateTestStaff(t, tc.db, "Target", "Staff")
+	targetStaff := testpkg.CreateTestStaff(t, tc.db, "Target", "Staff", tc.ogsID)
 	defer testpkg.CleanupStaffFixtures(t, tc.db, targetStaff.ID)
 
 	body := map[string]any{
@@ -1270,11 +1274,11 @@ func TestTransferGroup_CannotTransferToSelf(t *testing.T) {
 	tc, router := setupTransferRouter(t)
 
 	// Create group
-	group := testpkg.CreateTestEducationGroup(t, tc.db, "SelfTransferTest")
+	group := testpkg.CreateTestEducationGroup(t, tc.db, "SelfTransferTest", tc.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID)
 
 	// Create teacher with account
-	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Self", "Transfer")
+	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Self", "Transfer", tc.ogsID)
 	defer testpkg.CleanupTeacherFixtures(t, tc.db, teacher.ID)
 	defer testpkg.CleanupAuthFixtures(t, tc.db, account.ID)
 
@@ -1304,10 +1308,10 @@ func TestGetGroupStudentsRoomStatus_WithSubstitution(t *testing.T) {
 	tc, router := setupProtectedRouter(t)
 
 	// Create group with room
-	room := testpkg.CreateTestRoom(t, tc.db, "SubstitutionRoom")
+	room := testpkg.CreateTestRoom(t, tc.db, "SubstitutionRoom", tc.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID)
 
-	group := testpkg.CreateTestEducationGroup(t, tc.db, "SubstitutionAccessTest")
+	group := testpkg.CreateTestEducationGroup(t, tc.db, "SubstitutionAccessTest", tc.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID)
 
 	// Update group with room
@@ -1320,7 +1324,7 @@ func TestGetGroupStudentsRoomStatus_WithSubstitution(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create staff with account for context
-	staff, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "Substitute", "Supervisor")
+	staff, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "Substitute", "Supervisor", tc.ogsID)
 	defer testpkg.CleanupStaffFixtures(t, tc.db, staff.ID)
 	defer testpkg.CleanupAuthFixtures(t, tc.db, account.ID)
 
@@ -1350,11 +1354,11 @@ func TestCancelSpecificTransfer_AsGroupLeader(t *testing.T) {
 	tc, router := setupTransferRouter(t)
 
 	// Create group
-	group := testpkg.CreateTestEducationGroup(t, tc.db, "CancelTransferLeader")
+	group := testpkg.CreateTestEducationGroup(t, tc.db, "CancelTransferLeader", tc.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID)
 
 	// Create teacher (group leader) with account
-	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Cancel", "Leader")
+	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Cancel", "Leader", tc.ogsID)
 	defer testpkg.CleanupTeacherFixtures(t, tc.db, teacher.ID)
 	defer testpkg.CleanupAuthFixtures(t, tc.db, account.ID)
 
@@ -1362,7 +1366,7 @@ func TestCancelSpecificTransfer_AsGroupLeader(t *testing.T) {
 	testpkg.CreateTestGroupTeacher(t, tc.db, group.ID, teacher.ID)
 
 	// Create target staff
-	targetStaff := testpkg.CreateTestStaff(t, tc.db, "Cancel", "Target")
+	targetStaff := testpkg.CreateTestStaff(t, tc.db, "Cancel", "Target", tc.ogsID)
 	defer testpkg.CleanupStaffFixtures(t, tc.db, targetStaff.ID)
 
 	// Create a transfer (substitution with nil regularStaffID = transfer)
@@ -1384,11 +1388,11 @@ func TestCancelSpecificTransfer_NotFound(t *testing.T) {
 	tc, router := setupTransferRouter(t)
 
 	// Create group
-	group := testpkg.CreateTestEducationGroup(t, tc.db, "CancelNotFound")
+	group := testpkg.CreateTestEducationGroup(t, tc.db, "CancelNotFound", tc.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID)
 
 	// Create teacher (group leader) with account
-	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Cancel", "NotFound")
+	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Cancel", "NotFound", tc.ogsID)
 	defer testpkg.CleanupTeacherFixtures(t, tc.db, teacher.ID)
 	defer testpkg.CleanupAuthFixtures(t, tc.db, account.ID)
 
@@ -1413,11 +1417,11 @@ func TestTransferGroup_TargetNotStaff(t *testing.T) {
 	tc, router := setupTransferRouter(t)
 
 	// Create group
-	group := testpkg.CreateTestEducationGroup(t, tc.db, "TargetNotStaff")
+	group := testpkg.CreateTestEducationGroup(t, tc.db, "TargetNotStaff", tc.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID)
 
 	// Create teacher with account
-	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Transfer", "ToNonStaff")
+	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Transfer", "ToNonStaff", tc.ogsID)
 	defer testpkg.CleanupTeacherFixtures(t, tc.db, teacher.ID)
 	defer testpkg.CleanupAuthFixtures(t, tc.db, account.ID)
 
@@ -1425,7 +1429,7 @@ func TestTransferGroup_TargetNotStaff(t *testing.T) {
 	testpkg.CreateTestGroupTeacher(t, tc.db, group.ID, teacher.ID)
 
 	// Create a student (not staff)
-	student := testpkg.CreateTestStudent(t, tc.db, "Not", "Staff", "1a")
+	student := testpkg.CreateTestStudent(t, tc.db, "Not", "Staff", "1a", tc.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 	// Get person ID for student
@@ -1457,11 +1461,11 @@ func TestTransferGroup_TargetNotFound(t *testing.T) {
 	tc, router := setupTransferRouter(t)
 
 	// Create group
-	group := testpkg.CreateTestEducationGroup(t, tc.db, "TargetNotFound")
+	group := testpkg.CreateTestEducationGroup(t, tc.db, "TargetNotFound", tc.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID)
 
 	// Create teacher with account
-	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Transfer", "ToNotFound")
+	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Transfer", "ToNotFound", tc.ogsID)
 	defer testpkg.CleanupTeacherFixtures(t, tc.db, teacher.ID)
 	defer testpkg.CleanupAuthFixtures(t, tc.db, account.ID)
 
@@ -1486,11 +1490,11 @@ func TestTransferGroup_DuplicateTransfer(t *testing.T) {
 	tc, router := setupTransferRouter(t)
 
 	// Create group
-	group := testpkg.CreateTestEducationGroup(t, tc.db, "DuplicateTransfer")
+	group := testpkg.CreateTestEducationGroup(t, tc.db, "DuplicateTransfer", tc.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID)
 
 	// Create teacher with account
-	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Dup", "Transfer")
+	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Dup", "Transfer", tc.ogsID)
 	defer testpkg.CleanupTeacherFixtures(t, tc.db, teacher.ID)
 	defer testpkg.CleanupAuthFixtures(t, tc.db, account.ID)
 
@@ -1498,7 +1502,7 @@ func TestTransferGroup_DuplicateTransfer(t *testing.T) {
 	testpkg.CreateTestGroupTeacher(t, tc.db, group.ID, teacher.ID)
 
 	// Create target staff
-	targetStaff := testpkg.CreateTestStaff(t, tc.db, "Dup", "Target")
+	targetStaff := testpkg.CreateTestStaff(t, tc.db, "Dup", "Target", tc.ogsID)
 	defer testpkg.CleanupStaffFixtures(t, tc.db, targetStaff.ID)
 
 	// Create existing transfer to target

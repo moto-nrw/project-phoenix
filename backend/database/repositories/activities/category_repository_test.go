@@ -42,12 +42,13 @@ func TestCategoryRepository_Create(t *testing.T) {
 func TestCategoryRepository_FindByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).ActivityCategory
 	ctx := context.Background()
 
 	t.Run("finds existing category", func(t *testing.T) {
-		category := testpkg.CreateTestActivityCategory(t, db, "FindByID")
+		category := testpkg.CreateTestActivityCategory(t, db, "FindByID", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, category.ID, 0)
 
 		found, err := repo.FindByID(ctx, category.ID)
@@ -65,12 +66,13 @@ func TestCategoryRepository_FindByID(t *testing.T) {
 func TestCategoryRepository_FindByName(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).ActivityCategory
 	ctx := context.Background()
 
 	t.Run("finds category by exact name", func(t *testing.T) {
-		category := testpkg.CreateTestActivityCategory(t, db, "FindByName")
+		category := testpkg.CreateTestActivityCategory(t, db, "FindByName", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, category.ID, 0)
 
 		found, err := repo.FindByName(ctx, category.Name)
@@ -87,12 +89,13 @@ func TestCategoryRepository_FindByName(t *testing.T) {
 func TestCategoryRepository_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).ActivityCategory
 	ctx := context.Background()
 
 	t.Run("updates category description", func(t *testing.T) {
-		category := testpkg.CreateTestActivityCategory(t, db, "Update")
+		category := testpkg.CreateTestActivityCategory(t, db, "Update", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, category.ID, 0)
 
 		category.Description = "Updated description"
@@ -108,12 +111,13 @@ func TestCategoryRepository_Update(t *testing.T) {
 func TestCategoryRepository_Delete(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).ActivityCategory
 	ctx := context.Background()
 
 	t.Run("deletes existing category", func(t *testing.T) {
-		category := testpkg.CreateTestActivityCategory(t, db, "Delete")
+		category := testpkg.CreateTestActivityCategory(t, db, "Delete", ogsID)
 
 		err := repo.Delete(ctx, category.ID)
 		require.NoError(t, err)
@@ -130,12 +134,13 @@ func TestCategoryRepository_Delete(t *testing.T) {
 func TestCategoryRepository_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).ActivityCategory
 	ctx := context.Background()
 
 	t.Run("lists all categories", func(t *testing.T) {
-		category := testpkg.CreateTestActivityCategory(t, db, "List")
+		category := testpkg.CreateTestActivityCategory(t, db, "List", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, category.ID, 0)
 
 		categories, err := repo.List(ctx, nil)
@@ -147,12 +152,13 @@ func TestCategoryRepository_List(t *testing.T) {
 func TestCategoryRepository_ListAll(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).ActivityCategory
 	ctx := context.Background()
 
 	t.Run("lists all categories without filters", func(t *testing.T) {
-		category := testpkg.CreateTestActivityCategory(t, db, "ListAll")
+		category := testpkg.CreateTestActivityCategory(t, db, "ListAll", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, category.ID, 0)
 
 		categories, err := repo.ListAll(ctx)

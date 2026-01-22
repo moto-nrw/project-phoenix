@@ -22,6 +22,7 @@ type testContext struct {
 	db       *bun.DB
 	services *services.Factory
 	resource *staffAPI.Resource
+	ogsID    string
 }
 
 // setupTestContext initializes test database, services, and resource.
@@ -29,6 +30,7 @@ func setupTestContext(t *testing.T) *testContext {
 	t.Helper()
 
 	db, svc := testutil.SetupAPITest(t)
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	// Create repo factory to get GroupSupervisor repository
 	repoFactory := repositories.NewFactory(db)
@@ -38,6 +40,7 @@ func setupTestContext(t *testing.T) *testContext {
 		db:       db,
 		services: svc,
 		resource: resource,
+		ogsID:    ogsID,
 	}
 }
 
@@ -107,9 +110,10 @@ func TestListStaff_WithNameFilter(t *testing.T) {
 func TestGetStaff_Success(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, ctx.db)
 
 	// Create test staff
-	staff := testpkg.CreateTestStaff(t, ctx.db, "GetStaff", "Test")
+	staff := testpkg.CreateTestStaff(t, ctx.db, "GetStaff", "Test", ogsID)
 	defer testpkg.CleanupStaffFixtures(t, ctx.db, staff.ID)
 
 	router := chi.NewRouter()
@@ -169,7 +173,7 @@ func TestCreateStaff_Success(t *testing.T) {
 
 	// Create a person without staff record
 	uniqueSuffix := fmt.Sprintf("%d", time.Now().UnixNano())
-	person := testpkg.CreateTestPerson(t, ctx.db, "NewStaff"+uniqueSuffix, "Person")
+	person := testpkg.CreateTestPerson(t, ctx.db, "NewStaff"+uniqueSuffix, "Person", ctx.ogsID)
 	defer testpkg.CleanupPerson(t, ctx.db, person.ID)
 
 	router := chi.NewRouter()
@@ -204,7 +208,7 @@ func TestCreateStaff_AsTeacher(t *testing.T) {
 
 	// Create a person without staff record
 	uniqueSuffix := fmt.Sprintf("%d", time.Now().UnixNano())
-	person := testpkg.CreateTestPerson(t, ctx.db, "NewTeacher"+uniqueSuffix, "Person")
+	person := testpkg.CreateTestPerson(t, ctx.db, "NewTeacher"+uniqueSuffix, "Person", ctx.ogsID)
 	defer testpkg.CleanupPerson(t, ctx.db, person.ID)
 
 	router := chi.NewRouter()
@@ -287,7 +291,7 @@ func TestUpdateStaff_Success(t *testing.T) {
 	defer func() { _ = ctx.db.Close() }()
 
 	// Create test staff
-	staff := testpkg.CreateTestStaff(t, ctx.db, "UpdateStaff", "Test")
+	staff := testpkg.CreateTestStaff(t, ctx.db, "UpdateStaff", "Test", ctx.ogsID)
 	defer testpkg.CleanupStaffFixtures(t, ctx.db, staff.ID)
 
 	router := chi.NewRouter()
@@ -360,7 +364,7 @@ func TestDeleteStaff_Success(t *testing.T) {
 	defer func() { _ = ctx.db.Close() }()
 
 	// Create test staff
-	staff := testpkg.CreateTestStaff(t, ctx.db, "DeleteStaff", "Test")
+	staff := testpkg.CreateTestStaff(t, ctx.db, "DeleteStaff", "Test", ctx.ogsID)
 	// Note: No defer cleanup needed since we're deleting it
 
 	router := chi.NewRouter()
@@ -421,7 +425,7 @@ func TestGetStaffGroups_Success(t *testing.T) {
 	defer func() { _ = ctx.db.Close() }()
 
 	// Create a teacher with the full chain (person -> staff -> teacher)
-	teacher, _ := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "GroupsTest", "Teacher")
+	teacher, _ := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "GroupsTest", "Teacher", ctx.ogsID)
 	defer testpkg.CleanupTeacherFixtures(t, ctx.db, teacher.ID)
 
 	router := chi.NewRouter()
@@ -442,7 +446,7 @@ func TestGetStaffGroups_NonTeacher(t *testing.T) {
 	defer func() { _ = ctx.db.Close() }()
 
 	// Create regular staff (not a teacher)
-	staff := testpkg.CreateTestStaff(t, ctx.db, "NonTeacher", "Staff")
+	staff := testpkg.CreateTestStaff(t, ctx.db, "NonTeacher", "Staff", ctx.ogsID)
 	defer testpkg.CleanupStaffFixtures(t, ctx.db, staff.ID)
 
 	router := chi.NewRouter()
@@ -485,7 +489,7 @@ func TestGetStaffSubstitutions_Success(t *testing.T) {
 	defer func() { _ = ctx.db.Close() }()
 
 	// Create test staff
-	staff := testpkg.CreateTestStaff(t, ctx.db, "SubstitutionsTest", "Staff")
+	staff := testpkg.CreateTestStaff(t, ctx.db, "SubstitutionsTest", "Staff", ctx.ogsID)
 	defer testpkg.CleanupStaffFixtures(t, ctx.db, staff.ID)
 
 	router := chi.NewRouter()
@@ -641,7 +645,7 @@ func TestGetPINStatus_Success(t *testing.T) {
 	defer func() { _ = ctx.db.Close() }()
 
 	// Create a staff with account
-	teacher, account := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "PINTest", "Staff")
+	teacher, account := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "PINTest", "Staff", ctx.ogsID)
 	defer testpkg.CleanupTeacherFixtures(t, ctx.db, teacher.ID)
 	defer testpkg.CleanupAuthFixtures(t, ctx.db, account.ID)
 
@@ -682,7 +686,7 @@ func TestUpdatePIN_InvalidPINFormat(t *testing.T) {
 	defer func() { _ = ctx.db.Close() }()
 
 	// Create a staff with account
-	teacher, account := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "UpdatePIN", "Staff")
+	teacher, account := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "UpdatePIN", "Staff", ctx.ogsID)
 	defer testpkg.CleanupTeacherFixtures(t, ctx.db, teacher.ID)
 	defer testpkg.CleanupAuthFixtures(t, ctx.db, account.ID)
 
@@ -708,7 +712,7 @@ func TestUpdatePIN_NonDigitPIN(t *testing.T) {
 	defer func() { _ = ctx.db.Close() }()
 
 	// Create a staff with account
-	teacher, account := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "NonDigit", "PIN")
+	teacher, account := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "NonDigit", "PIN", ctx.ogsID)
 	defer testpkg.CleanupTeacherFixtures(t, ctx.db, teacher.ID)
 	defer testpkg.CleanupAuthFixtures(t, ctx.db, account.ID)
 
@@ -734,7 +738,7 @@ func TestUpdatePIN_MissingNewPIN(t *testing.T) {
 	defer func() { _ = ctx.db.Close() }()
 
 	// Create a staff with account
-	teacher, account := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "MissingPIN", "Test")
+	teacher, account := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "MissingPIN", "Test", ctx.ogsID)
 	defer testpkg.CleanupTeacherFixtures(t, ctx.db, teacher.ID)
 	defer testpkg.CleanupAuthFixtures(t, ctx.db, account.ID)
 
@@ -776,7 +780,7 @@ func TestUpdatePIN_Success_FirstTime(t *testing.T) {
 	defer func() { _ = ctx.db.Close() }()
 
 	// Create a staff with account (no existing PIN)
-	teacher, account := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "FirstPIN", "Setup")
+	teacher, account := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "FirstPIN", "Setup", ctx.ogsID)
 	defer testpkg.CleanupTeacherFixtures(t, ctx.db, teacher.ID)
 	defer testpkg.CleanupAuthFixtures(t, ctx.db, account.ID)
 
@@ -881,7 +885,7 @@ func TestUpdateStaff_ConvertToTeacher(t *testing.T) {
 	defer func() { _ = ctx.db.Close() }()
 
 	// Create regular staff (not a teacher)
-	staff := testpkg.CreateTestStaff(t, ctx.db, "ConvertTo", "Teacher")
+	staff := testpkg.CreateTestStaff(t, ctx.db, "ConvertTo", "Teacher", ctx.ogsID)
 	defer testpkg.CleanupStaffFixtures(t, ctx.db, staff.ID)
 
 	router := chi.NewRouter()
@@ -919,7 +923,7 @@ func TestUpdateStaff_UpdateExistingTeacher(t *testing.T) {
 	defer func() { _ = ctx.db.Close() }()
 
 	// Create a teacher with the full chain
-	teacher, _ := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "UpdateTeacher", "Test")
+	teacher, _ := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "UpdateTeacher", "Test", ctx.ogsID)
 	defer testpkg.CleanupTeacherFixtures(t, ctx.db, teacher.ID)
 
 	router := chi.NewRouter()
@@ -950,7 +954,7 @@ func TestUpdateStaff_KeepExistingTeacherWithoutIsTeacher(t *testing.T) {
 	defer func() { _ = ctx.db.Close() }()
 
 	// Create a teacher
-	teacher, _ := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "KeepTeacher", "Test")
+	teacher, _ := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "KeepTeacher", "Test", ctx.ogsID)
 	defer testpkg.CleanupTeacherFixtures(t, ctx.db, teacher.ID)
 
 	router := chi.NewRouter()
@@ -976,7 +980,7 @@ func TestUpdateStaff_InvalidRequest(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	staff := testpkg.CreateTestStaff(t, ctx.db, "InvalidReq", "Staff")
+	staff := testpkg.CreateTestStaff(t, ctx.db, "InvalidReq", "Staff", ctx.ogsID)
 	defer testpkg.CleanupStaffFixtures(t, ctx.db, staff.ID)
 
 	router := chi.NewRouter()
@@ -1003,13 +1007,13 @@ func TestUpdateStaff_ChangePersonID(t *testing.T) {
 
 	// Create two persons
 	uniqueSuffix := fmt.Sprintf("%d", time.Now().UnixNano())
-	person1 := testpkg.CreateTestPerson(t, ctx.db, "Original"+uniqueSuffix, "Person")
-	person2 := testpkg.CreateTestPerson(t, ctx.db, "New"+uniqueSuffix, "Person")
+	person1 := testpkg.CreateTestPerson(t, ctx.db, "Original"+uniqueSuffix, "Person", ctx.ogsID)
+	person2 := testpkg.CreateTestPerson(t, ctx.db, "New"+uniqueSuffix, "Person", ctx.ogsID)
 	defer testpkg.CleanupPerson(t, ctx.db, person1.ID)
 	defer testpkg.CleanupPerson(t, ctx.db, person2.ID)
 
 	// Create staff with person1
-	staff := testpkg.CreateTestStaffForPerson(t, ctx.db, person1.ID)
+	staff := testpkg.CreateTestStaffForPerson(t, ctx.db, person1.ID, ctx.ogsID)
 	defer testpkg.CleanupStaffFixtures(t, ctx.db, staff.ID)
 
 	router := chi.NewRouter()
@@ -1035,7 +1039,7 @@ func TestUpdateStaff_ChangeToNonExistentPerson(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	staff := testpkg.CreateTestStaff(t, ctx.db, "InvalidPerson", "Staff")
+	staff := testpkg.CreateTestStaff(t, ctx.db, "InvalidPerson", "Staff", ctx.ogsID)
 	defer testpkg.CleanupStaffFixtures(t, ctx.db, staff.ID)
 
 	router := chi.NewRouter()
@@ -1066,7 +1070,7 @@ func TestDeleteStaff_WhoIsTeacher(t *testing.T) {
 	defer func() { _ = ctx.db.Close() }()
 
 	// Create a teacher (this creates person -> staff -> teacher chain)
-	teacher, _ := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "DeleteTeacher", "Test")
+	teacher, _ := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "DeleteTeacher", "Test", ctx.ogsID)
 	// Note: No defer cleanup as we're deleting
 
 	router := chi.NewRouter()

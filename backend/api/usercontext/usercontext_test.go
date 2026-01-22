@@ -28,6 +28,7 @@ type testContext struct {
 	services *services.Factory
 	repos    *repositories.Factory
 	resource *usercontextAPI.Resource
+	ogsID    string
 }
 
 // setupTestContext initializes test database, services, and resource.
@@ -35,6 +36,7 @@ func setupTestContext(t *testing.T) *testContext {
 	t.Helper()
 
 	db := testpkg.SetupTestDB(t)
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repoFactory := repositories.NewFactory(db)
 	serviceFactory, err := services.NewFactory(repoFactory, db)
@@ -51,6 +53,7 @@ func setupTestContext(t *testing.T) *testContext {
 		services: serviceFactory,
 		repos:    repoFactory,
 		resource: resource,
+		ogsID:    ogsID,
 	}
 }
 
@@ -103,7 +106,7 @@ func TestGetCurrentProfile_Success(t *testing.T) {
 	defer func() { _ = ctx.db.Close() }()
 
 	// Create a test account with person
-	_, account := testpkg.CreateTestPersonWithAccount(t, ctx.db, "Profile", "Test")
+	_, account := testpkg.CreateTestPersonWithAccount(t, ctx.db, "Profile", "Test", ctx.ogsID)
 
 	router := chi.NewRouter()
 	router.Get("/profile", ctx.resource.GetCurrentProfileHandler())
@@ -140,7 +143,7 @@ func TestUpdateCurrentProfile_Success(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	_, account := testpkg.CreateTestPersonWithAccount(t, ctx.db, "Update", "ProfileTest")
+	_, account := testpkg.CreateTestPersonWithAccount(t, ctx.db, "Update", "ProfileTest", ctx.ogsID)
 
 	router := chi.NewRouter()
 	router.Put("/profile", ctx.resource.UpdateCurrentProfileHandler())
@@ -182,7 +185,7 @@ func TestUpdateCurrentProfile_EmptyBody(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	_, account := testpkg.CreateTestPersonWithAccount(t, ctx.db, "Empty", "Update")
+	_, account := testpkg.CreateTestPersonWithAccount(t, ctx.db, "Empty", "Update", ctx.ogsID)
 
 	router := chi.NewRouter()
 	router.Put("/profile", ctx.resource.UpdateCurrentProfileHandler())
@@ -209,7 +212,7 @@ func TestGetCurrentStaff_Success(t *testing.T) {
 	defer func() { _ = ctx.db.Close() }()
 
 	// Create a test staff with account
-	_, account := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Staff", "Test")
+	_, account := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Staff", "Test", ctx.ogsID)
 
 	router := chi.NewRouter()
 	router.Get("/staff", ctx.resource.GetCurrentStaffHandler())
@@ -267,7 +270,7 @@ func TestGetCurrentTeacher_Success(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	_, account := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Teacher", "Test")
+	_, account := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Teacher", "Test", ctx.ogsID)
 
 	router := chi.NewRouter()
 	router.Get("/teacher", ctx.resource.GetCurrentTeacherHandler())
@@ -324,7 +327,7 @@ func TestGetMyGroups_Success(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	_, account := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Groups", "Test")
+	_, account := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Groups", "Test", ctx.ogsID)
 
 	router := chi.NewRouter()
 	router.Get("/groups", ctx.resource.GetMyGroupsHandler())
@@ -361,7 +364,7 @@ func TestGetMyActivityGroups_Success(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	_, account := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Activity", "Groups")
+	_, account := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Activity", "Groups", ctx.ogsID)
 
 	router := chi.NewRouter()
 	router.Get("/groups/activity", ctx.resource.GetMyActivityGroupsHandler())
@@ -398,7 +401,7 @@ func TestGetMyActiveGroups_Success(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	_, account := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Active", "Groups")
+	_, account := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Active", "Groups", ctx.ogsID)
 
 	router := chi.NewRouter()
 	router.Get("/groups/active", ctx.resource.GetMyActiveGroupsHandler())
@@ -435,7 +438,7 @@ func TestGetMySupervisedGroups_Success(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	_, account := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Supervised", "Groups")
+	_, account := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Supervised", "Groups", ctx.ogsID)
 
 	router := chi.NewRouter()
 	router.Get("/groups/supervised", ctx.resource.GetMySupervisedGroupsHandler())
@@ -490,9 +493,9 @@ func TestGetGroupStudents_Unauthenticated(t *testing.T) {
 	defer func() { _ = ctx.db.Close() }()
 
 	// Create fixture for active group instead of using hardcoded ID
-	activityGroup := testpkg.CreateTestActivityGroup(t, ctx.db, "GroupStudentsUnauth")
-	room := testpkg.CreateTestRoom(t, ctx.db, "GroupStudentsUnauthRoom")
-	activeGroup := testpkg.CreateTestActiveGroup(t, ctx.db, activityGroup.ID, room.ID)
+	activityGroup := testpkg.CreateTestActivityGroup(t, ctx.db, "GroupStudentsUnauth", ctx.ogsID)
+	room := testpkg.CreateTestRoom(t, ctx.db, "GroupStudentsUnauthRoom", ctx.ogsID)
+	activeGroup := testpkg.CreateTestActiveGroup(t, ctx.db, activityGroup.ID, room.ID, ctx.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, activeGroup.ID, activityGroup.CategoryID, room.ID)
 
 	router := chi.NewRouter()
@@ -531,9 +534,9 @@ func TestGetGroupVisits_Unauthenticated(t *testing.T) {
 	defer func() { _ = ctx.db.Close() }()
 
 	// Create fixture for active group instead of using hardcoded ID
-	activityGroup := testpkg.CreateTestActivityGroup(t, ctx.db, "GroupVisitsUnauth")
-	room := testpkg.CreateTestRoom(t, ctx.db, "GroupVisitsUnauthRoom")
-	activeGroup := testpkg.CreateTestActiveGroup(t, ctx.db, activityGroup.ID, room.ID)
+	activityGroup := testpkg.CreateTestActivityGroup(t, ctx.db, "GroupVisitsUnauth", ctx.ogsID)
+	room := testpkg.CreateTestRoom(t, ctx.db, "GroupVisitsUnauthRoom", ctx.ogsID)
+	activeGroup := testpkg.CreateTestActiveGroup(t, ctx.db, activityGroup.ID, room.ID, ctx.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, activeGroup.ID, activityGroup.CategoryID, room.ID)
 
 	router := chi.NewRouter()
@@ -568,7 +571,7 @@ func TestDeleteAvatar_NoAvatar(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	_, account := testpkg.CreateTestPersonWithAccount(t, ctx.db, "NoAvatar", "Test")
+	_, account := testpkg.CreateTestPersonWithAccount(t, ctx.db, "NoAvatar", "Test", ctx.ogsID)
 
 	router := chi.NewRouter()
 	router.Delete("/profile/avatar", ctx.resource.DeleteAvatarHandler())
@@ -588,7 +591,7 @@ func TestServeAvatar_MissingFilename(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	_, account := testpkg.CreateTestPersonWithAccount(t, ctx.db, "Avatar", "Serve")
+	_, account := testpkg.CreateTestPersonWithAccount(t, ctx.db, "Avatar", "Serve", ctx.ogsID)
 
 	router := chi.NewRouter()
 	router.Get("/profile/avatar/{filename}", ctx.resource.ServeAvatarHandler())
@@ -638,7 +641,7 @@ func TestUpdateCurrentProfile_WithUsernameAndBio(t *testing.T) {
 	tc := setupTestContext(t)
 	defer func() { _ = tc.db.Close() }()
 
-	_, account := testpkg.CreateTestPersonWithAccount(t, tc.db, "FullUpdate", "ProfileTest")
+	_, account := testpkg.CreateTestPersonWithAccount(t, tc.db, "FullUpdate", "ProfileTest", tc.ogsID)
 
 	router := chi.NewRouter()
 	router.Put("/profile", tc.resource.UpdateCurrentProfileHandler())
@@ -670,12 +673,12 @@ func TestGetGroupStudents_WithTeacherAccess(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	teacher, account := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "GroupStudents", "Teacher")
+	teacher, account := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "GroupStudents", "Teacher", ctx.ogsID)
 
 	// Create an active group
-	activityGroup := testpkg.CreateTestActivityGroup(t, ctx.db, "StudentAccessGroup")
-	room := testpkg.CreateTestRoom(t, ctx.db, "StudentAccessRoom")
-	activeGroup := testpkg.CreateTestActiveGroup(t, ctx.db, activityGroup.ID, room.ID)
+	activityGroup := testpkg.CreateTestActivityGroup(t, ctx.db, "StudentAccessGroup", ctx.ogsID)
+	room := testpkg.CreateTestRoom(t, ctx.db, "StudentAccessRoom", ctx.ogsID)
+	activeGroup := testpkg.CreateTestActiveGroup(t, ctx.db, activityGroup.ID, room.ID, ctx.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, activeGroup.ID, activityGroup.CategoryID, room.ID, teacher.ID)
 
 	router := chi.NewRouter()
@@ -700,12 +703,12 @@ func TestGetGroupVisits_WithTeacherAccess(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	teacher, account := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "GroupVisits", "Teacher")
+	teacher, account := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "GroupVisits", "Teacher", ctx.ogsID)
 
 	// Create an active group
-	activityGroup := testpkg.CreateTestActivityGroup(t, ctx.db, "VisitsAccessGroup")
-	room := testpkg.CreateTestRoom(t, ctx.db, "VisitsAccessRoom")
-	activeGroup := testpkg.CreateTestActiveGroup(t, ctx.db, activityGroup.ID, room.ID)
+	activityGroup := testpkg.CreateTestActivityGroup(t, ctx.db, "VisitsAccessGroup", ctx.ogsID)
+	room := testpkg.CreateTestRoom(t, ctx.db, "VisitsAccessRoom", ctx.ogsID)
+	activeGroup := testpkg.CreateTestActiveGroup(t, ctx.db, activityGroup.ID, room.ID, ctx.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, activeGroup.ID, activityGroup.CategoryID, room.ID, teacher.ID)
 
 	router := chi.NewRouter()
@@ -730,7 +733,7 @@ func TestServeAvatar_InvalidFilename(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	_, account := testpkg.CreateTestPersonWithAccount(t, ctx.db, "InvalidPath", "Avatar")
+	_, account := testpkg.CreateTestPersonWithAccount(t, ctx.db, "InvalidPath", "Avatar", ctx.ogsID)
 
 	router := chi.NewRouter()
 	router.Get("/profile/avatar/{filename}", ctx.resource.ServeAvatarHandler())
@@ -752,7 +755,7 @@ func TestServeAvatar_NonExistentFile(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	_, account := testpkg.CreateTestPersonWithAccount(t, ctx.db, "NonExistent", "Avatar")
+	_, account := testpkg.CreateTestPersonWithAccount(t, ctx.db, "NonExistent", "Avatar", ctx.ogsID)
 
 	router := chi.NewRouter()
 	router.Get("/profile/avatar/{filename}", ctx.resource.ServeAvatarHandler())
@@ -792,7 +795,7 @@ func TestUploadAvatar_NoFile(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	_, account := testpkg.CreateTestPersonWithAccount(t, ctx.db, "NoFile", "Upload")
+	_, account := testpkg.CreateTestPersonWithAccount(t, ctx.db, "NoFile", "Upload", ctx.ogsID)
 
 	router := chi.NewRouter()
 	router.Post("/profile/avatar", ctx.resource.UploadAvatarHandler())
@@ -816,7 +819,7 @@ func TestDeleteAvatar_WithAvatar(t *testing.T) {
 	tc := setupTestContext(t)
 	defer func() { _ = tc.db.Close() }()
 
-	_, account := testpkg.CreateTestPersonWithAccount(t, tc.db, "HasAvatar", "Delete")
+	_, account := testpkg.CreateTestPersonWithAccount(t, tc.db, "HasAvatar", "Delete", tc.ogsID)
 
 	// Set avatar in users.profiles via raw SQL
 	_, err := tc.db.NewRaw(
@@ -850,7 +853,7 @@ func TestGetMyGroups_WithSubstitution(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	_, account := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "SubstGroups", "Teacher")
+	_, account := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "SubstGroups", "Teacher", ctx.ogsID)
 
 	router := chi.NewRouter()
 	router.Get("/groups", ctx.resource.GetMyGroupsHandler())

@@ -101,12 +101,13 @@ func cleanupParentAccounts(t *testing.T, db *bun.DB, accountIDs ...int64) {
 func TestPersonGuardianRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).PersonGuardian
 	ctx := context.Background()
 
 	t.Run("creates person guardian with valid data", func(t *testing.T) {
-		person := testpkg.CreateTestPerson(t, db, "Guardian", "Create")
+		person := testpkg.CreateTestPerson(t, db, "Guardian", "Create", ogsID)
 		accountID := createTestParentAccount(t, db, "guardian-create")
 		defer testpkg.CleanupActivityFixtures(t, db, person.ID)
 		defer cleanupParentAccounts(t, db, accountID)
@@ -161,12 +162,13 @@ func TestPersonGuardianRepository_Create(t *testing.T) {
 func TestPersonGuardianRepository_FindByPersonID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).PersonGuardian
 	ctx := context.Background()
 
 	t.Run("finds guardians by person ID", func(t *testing.T) {
-		person := testpkg.CreateTestPerson(t, db, "FindByPerson", "Test")
+		person := testpkg.CreateTestPerson(t, db, "FindByPerson", "Test", ogsID)
 		accountID := createTestParentAccount(t, db, "guardian-findperson")
 		defer testpkg.CleanupActivityFixtures(t, db, person.ID)
 		defer cleanupParentAccounts(t, db, accountID)
@@ -194,12 +196,13 @@ func TestPersonGuardianRepository_FindByPersonID(t *testing.T) {
 func TestPersonGuardianRepository_FindByGuardianID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).PersonGuardian
 	ctx := context.Background()
 
 	t.Run("finds relationships by guardian account ID", func(t *testing.T) {
-		person := testpkg.CreateTestPerson(t, db, "FindByGuardian", "Test")
+		person := testpkg.CreateTestPerson(t, db, "FindByGuardian", "Test", ogsID)
 		accountID := createTestParentAccount(t, db, "guardian-findguardian")
 		defer testpkg.CleanupActivityFixtures(t, db, person.ID)
 		defer cleanupParentAccounts(t, db, accountID)
@@ -227,12 +230,13 @@ func TestPersonGuardianRepository_FindByGuardianID(t *testing.T) {
 func TestPersonGuardianRepository_FindPrimaryByPersonID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).PersonGuardian
 	ctx := context.Background()
 
 	t.Run("finds primary guardian for person", func(t *testing.T) {
-		person := testpkg.CreateTestPerson(t, db, "FindPrimary", "Test")
+		person := testpkg.CreateTestPerson(t, db, "FindPrimary", "Test", ogsID)
 		accountID := createTestParentAccount(t, db, "guardian-primary")
 		defer testpkg.CleanupActivityFixtures(t, db, person.ID)
 		defer cleanupParentAccounts(t, db, accountID)
@@ -259,12 +263,13 @@ func TestPersonGuardianRepository_FindPrimaryByPersonID(t *testing.T) {
 func TestPersonGuardianRepository_FindByRelationshipType(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).PersonGuardian
 	ctx := context.Background()
 
 	t.Run("finds guardians by relationship type", func(t *testing.T) {
-		person := testpkg.CreateTestPerson(t, db, "FindRelType", "Test")
+		person := testpkg.CreateTestPerson(t, db, "FindRelType", "Test", ogsID)
 		accountID1 := createTestParentAccount(t, db, "guardian-reltype1")
 		accountID2 := createTestParentAccount(t, db, "guardian-reltype2")
 		defer testpkg.CleanupActivityFixtures(t, db, person.ID)
@@ -297,12 +302,13 @@ func TestPersonGuardianRepository_FindByRelationshipType(t *testing.T) {
 func TestPersonGuardianRepository_SetPrimary(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).PersonGuardian
 	ctx := context.Background()
 
 	t.Run("sets primary status", func(t *testing.T) {
-		person := testpkg.CreateTestPerson(t, db, "SetPrimary", "Test")
+		person := testpkg.CreateTestPerson(t, db, "SetPrimary", "Test", ogsID)
 		accountID := createTestParentAccount(t, db, "guardian-setprimary")
 		defer testpkg.CleanupActivityFixtures(t, db, person.ID)
 		defer cleanupParentAccounts(t, db, accountID)
@@ -328,12 +334,13 @@ func TestPersonGuardianRepository_SetPrimary(t *testing.T) {
 func TestPersonGuardianRepository_UpdatePermissions(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).PersonGuardian
 	ctx := context.Background()
 
 	t.Run("updates permissions", func(t *testing.T) {
-		person := testpkg.CreateTestPerson(t, db, "UpdatePerms", "Test")
+		person := testpkg.CreateTestPerson(t, db, "UpdatePerms", "Test", ogsID)
 		accountID := createTestParentAccount(t, db, "guardian-updateperms")
 		defer testpkg.CleanupActivityFixtures(t, db, person.ID)
 		defer cleanupParentAccounts(t, db, accountID)
@@ -364,12 +371,13 @@ func TestPersonGuardianRepository_UpdatePermissions(t *testing.T) {
 func TestPersonGuardianRepository_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).PersonGuardian
 	ctx := context.Background()
 
 	t.Run("lists with filter options", func(t *testing.T) {
-		person := testpkg.CreateTestPerson(t, db, "ListOpts", "Test")
+		person := testpkg.CreateTestPerson(t, db, "ListOpts", "Test", ogsID)
 		accountID := createTestParentAccount(t, db, "guardian-listopts")
 		defer testpkg.CleanupActivityFixtures(t, db, person.ID)
 		defer cleanupParentAccounts(t, db, accountID)
@@ -393,7 +401,7 @@ func TestPersonGuardianRepository_List(t *testing.T) {
 	})
 
 	t.Run("lists with is_primary filter", func(t *testing.T) {
-		person := testpkg.CreateTestPerson(t, db, "ListPrimary", "Test")
+		person := testpkg.CreateTestPerson(t, db, "ListPrimary", "Test", ogsID)
 		accountID := createTestParentAccount(t, db, "guardian-listprimary")
 		defer testpkg.CleanupActivityFixtures(t, db, person.ID)
 		defer cleanupParentAccounts(t, db, accountID)
@@ -414,7 +422,7 @@ func TestPersonGuardianRepository_List(t *testing.T) {
 	})
 
 	t.Run("lists with relationship_type filter", func(t *testing.T) {
-		person := testpkg.CreateTestPerson(t, db, "ListRelType", "Test")
+		person := testpkg.CreateTestPerson(t, db, "ListRelType", "Test", ogsID)
 		accountID := createTestParentAccount(t, db, "guardian-listreltype")
 		defer testpkg.CleanupActivityFixtures(t, db, person.ID)
 		defer cleanupParentAccounts(t, db, accountID)
@@ -442,12 +450,13 @@ func TestPersonGuardianRepository_List(t *testing.T) {
 func TestPersonGuardianRepository_FindWithPerson(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).PersonGuardian
 	ctx := context.Background()
 
 	t.Run("finds relationship with person loaded", func(t *testing.T) {
-		person := testpkg.CreateTestPerson(t, db, "FindWith", "Person")
+		person := testpkg.CreateTestPerson(t, db, "FindWith", "Person", ogsID)
 		accountID := createTestParentAccount(t, db, "guardian-findwith")
 		defer testpkg.CleanupActivityFixtures(t, db, person.ID)
 		defer cleanupParentAccounts(t, db, accountID)
@@ -476,12 +485,13 @@ func TestPersonGuardianRepository_FindWithPerson(t *testing.T) {
 func TestPersonGuardianRepository_GrantPermissionToGuardian(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).PersonGuardian
 	ctx := context.Background()
 
 	t.Run("grants permission to guardian", func(t *testing.T) {
-		person := testpkg.CreateTestPerson(t, db, "GrantPerm", "Test")
+		person := testpkg.CreateTestPerson(t, db, "GrantPerm", "Test", ogsID)
 		accountID := createTestParentAccount(t, db, "guardian-grantperm")
 		defer testpkg.CleanupActivityFixtures(t, db, person.ID)
 		defer cleanupParentAccounts(t, db, accountID)
@@ -512,12 +522,13 @@ func TestPersonGuardianRepository_GrantPermissionToGuardian(t *testing.T) {
 func TestPersonGuardianRepository_RevokePermissionFromGuardian(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).PersonGuardian
 	ctx := context.Background()
 
 	t.Run("revokes permission from guardian", func(t *testing.T) {
-		person := testpkg.CreateTestPerson(t, db, "RevokePerm", "Test")
+		person := testpkg.CreateTestPerson(t, db, "RevokePerm", "Test", ogsID)
 		accountID := createTestParentAccount(t, db, "guardian-revokeperm")
 		defer testpkg.CleanupActivityFixtures(t, db, person.ID)
 		defer cleanupParentAccounts(t, db, accountID)

@@ -21,12 +21,13 @@ import (
 func TestActivityGroupRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).ActivityGroup
 	ctx := context.Background()
 
 	t.Run("creates activity group with valid data", func(t *testing.T) {
-		category := testpkg.CreateTestActivityCategory(t, db, "GroupCreate")
+		category := testpkg.CreateTestActivityCategory(t, db, "GroupCreate", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, category.ID, 0)
 
 		uniqueName := fmt.Sprintf("TestGroup-%d", time.Now().UnixNano())
@@ -45,7 +46,7 @@ func TestActivityGroupRepository_Create(t *testing.T) {
 	})
 
 	t.Run("creates closed activity group", func(t *testing.T) {
-		category := testpkg.CreateTestActivityCategory(t, db, "ClosedGroup")
+		category := testpkg.CreateTestActivityCategory(t, db, "ClosedGroup", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, category.ID, 0)
 
 		uniqueName := fmt.Sprintf("ClosedGroup-%d", time.Now().UnixNano())
@@ -67,12 +68,13 @@ func TestActivityGroupRepository_Create(t *testing.T) {
 func TestActivityGroupRepository_FindByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).ActivityGroup
 	ctx := context.Background()
 
 	t.Run("finds existing activity group", func(t *testing.T) {
-		group := testpkg.CreateTestActivityGroup(t, db, "FindByID")
+		group := testpkg.CreateTestActivityGroup(t, db, "FindByID", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, group.CategoryID, 0)
 		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
 
@@ -91,12 +93,13 @@ func TestActivityGroupRepository_FindByID(t *testing.T) {
 func TestActivityGroupRepository_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).ActivityGroup
 	ctx := context.Background()
 
 	t.Run("updates activity group name", func(t *testing.T) {
-		group := testpkg.CreateTestActivityGroup(t, db, "Update")
+		group := testpkg.CreateTestActivityGroup(t, db, "Update", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, group.CategoryID, 0)
 		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
 
@@ -111,7 +114,7 @@ func TestActivityGroupRepository_Update(t *testing.T) {
 	})
 
 	t.Run("updates activity group open status", func(t *testing.T) {
-		group := testpkg.CreateTestActivityGroup(t, db, "UpdateIsOpen")
+		group := testpkg.CreateTestActivityGroup(t, db, "UpdateIsOpen", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, group.CategoryID, 0)
 		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
 
@@ -128,12 +131,13 @@ func TestActivityGroupRepository_Update(t *testing.T) {
 func TestActivityGroupRepository_Delete(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).ActivityGroup
 	ctx := context.Background()
 
 	t.Run("deletes existing activity group", func(t *testing.T) {
-		group := testpkg.CreateTestActivityGroup(t, db, "Delete")
+		group := testpkg.CreateTestActivityGroup(t, db, "Delete", ogsID)
 		categoryID := group.CategoryID
 		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, categoryID, 0)
 
@@ -152,12 +156,13 @@ func TestActivityGroupRepository_Delete(t *testing.T) {
 func TestActivityGroupRepository_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).ActivityGroup
 	ctx := context.Background()
 
 	t.Run("lists all activity groups", func(t *testing.T) {
-		group := testpkg.CreateTestActivityGroup(t, db, "List")
+		group := testpkg.CreateTestActivityGroup(t, db, "List", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, group.CategoryID, 0)
 		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
 
@@ -167,7 +172,7 @@ func TestActivityGroupRepository_List(t *testing.T) {
 	})
 
 	t.Run("lists with filter using id field", func(t *testing.T) {
-		group := testpkg.CreateTestActivityGroup(t, db, "ListFilter")
+		group := testpkg.CreateTestActivityGroup(t, db, "ListFilter", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, group.CategoryID, 0)
 		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
 
@@ -186,12 +191,13 @@ func TestActivityGroupRepository_List(t *testing.T) {
 func TestActivityGroupRepository_FindByCategory(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).ActivityGroup
 	ctx := context.Background()
 
 	t.Run("finds groups by category ID", func(t *testing.T) {
-		group := testpkg.CreateTestActivityGroup(t, db, "ByCategory")
+		group := testpkg.CreateTestActivityGroup(t, db, "ByCategory", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, group.CategoryID, 0)
 		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
 
@@ -210,7 +216,7 @@ func TestActivityGroupRepository_FindByCategory(t *testing.T) {
 	})
 
 	t.Run("returns empty for category with no groups", func(t *testing.T) {
-		category := testpkg.CreateTestActivityCategory(t, db, "EmptyCategory")
+		category := testpkg.CreateTestActivityCategory(t, db, "EmptyCategory", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, category.ID, 0)
 
 		groups, err := repo.FindByCategory(ctx, category.ID)
@@ -222,13 +228,14 @@ func TestActivityGroupRepository_FindByCategory(t *testing.T) {
 func TestActivityGroupRepository_FindOpenGroups(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).ActivityGroup
 	ctx := context.Background()
 
 	t.Run("finds only open groups", func(t *testing.T) {
 		// Create an open group
-		openGroup := testpkg.CreateTestActivityGroup(t, db, "IsOpenGroup")
+		openGroup := testpkg.CreateTestActivityGroup(t, db, "IsOpenGroup", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, openGroup.CategoryID, 0)
 		defer testpkg.CleanupTableRecords(t, db, "activities.groups", openGroup.ID)
 
@@ -255,18 +262,19 @@ func TestActivityGroupRepository_FindOpenGroups(t *testing.T) {
 func TestActivityGroupRepository_FindWithEnrollmentCounts(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).ActivityGroup
 	ctx := context.Background()
 
 	t.Run("returns groups with enrollment counts", func(t *testing.T) {
-		group := testpkg.CreateTestActivityGroup(t, db, "WithEnrollments")
+		group := testpkg.CreateTestActivityGroup(t, db, "WithEnrollments", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, group.CategoryID, 0)
 		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
 
 		// Create some enrollments
-		student1 := testpkg.CreateTestStudent(t, db, "Student", "One", "1a")
-		student2 := testpkg.CreateTestStudent(t, db, "Student", "Two", "1b")
+		student1 := testpkg.CreateTestStudent(t, db, "Student", "One", "1a", ogsID)
+		student2 := testpkg.CreateTestStudent(t, db, "Student", "Two", "1b", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, student1.ID, 0, 0, 0, 0)
 		defer testpkg.CleanupActivityFixtures(t, db, student2.ID, 0, 0, 0, 0)
 
@@ -313,16 +321,17 @@ func TestActivityGroupRepository_FindWithEnrollmentCounts(t *testing.T) {
 func TestActivityGroupRepository_FindWithSupervisors(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).ActivityGroup
 	ctx := context.Background()
 
 	t.Run("returns group with supervisors", func(t *testing.T) {
-		group := testpkg.CreateTestActivityGroup(t, db, "WithSupervisors")
+		group := testpkg.CreateTestActivityGroup(t, db, "WithSupervisors", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, group.CategoryID, 0)
 		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
 
-		staff := testpkg.CreateTestStaff(t, db, "Supervisor", "Test")
+		staff := testpkg.CreateTestStaff(t, db, "Supervisor", "Test", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID, 0, 0, 0)
 
 		// Add a supervisor
@@ -352,12 +361,13 @@ func TestActivityGroupRepository_FindWithSupervisors(t *testing.T) {
 func TestActivityGroupRepository_FindWithSchedules(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).ActivityGroup
 	ctx := context.Background()
 
 	t.Run("returns group with schedules", func(t *testing.T) {
-		group := testpkg.CreateTestActivityGroup(t, db, "WithSchedules")
+		group := testpkg.CreateTestActivityGroup(t, db, "WithSchedules", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, group.CategoryID, 0)
 		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
 
@@ -378,16 +388,17 @@ func TestActivityGroupRepository_FindWithSchedules(t *testing.T) {
 func TestActivityGroupRepository_FindByStaffSupervisor(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).ActivityGroup
 	ctx := context.Background()
 
 	t.Run("finds groups supervised by staff member", func(t *testing.T) {
-		group := testpkg.CreateTestActivityGroup(t, db, "BySupervisor")
+		group := testpkg.CreateTestActivityGroup(t, db, "BySupervisor", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, group.CategoryID, 0)
 		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
 
-		staff := testpkg.CreateTestStaff(t, db, "Finding", "Supervisor")
+		staff := testpkg.CreateTestStaff(t, db, "Finding", "Supervisor", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID, 0, 0, 0)
 
 		// Add supervisor assignment
@@ -415,7 +426,7 @@ func TestActivityGroupRepository_FindByStaffSupervisor(t *testing.T) {
 	})
 
 	t.Run("returns empty for staff with no supervised groups", func(t *testing.T) {
-		staff := testpkg.CreateTestStaff(t, db, "NoGroups", "Staff")
+		staff := testpkg.CreateTestStaff(t, db, "NoGroups", "Staff", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID, 0, 0, 0)
 
 		groups, err := repo.FindByStaffSupervisor(ctx, staff.ID)
@@ -427,16 +438,17 @@ func TestActivityGroupRepository_FindByStaffSupervisor(t *testing.T) {
 func TestActivityGroupRepository_FindByStaffSupervisorToday(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).ActivityGroup
 	ctx := context.Background()
 
 	t.Run("finds only open groups supervised by staff member", func(t *testing.T) {
-		group := testpkg.CreateTestActivityGroup(t, db, "SupervisorToday")
+		group := testpkg.CreateTestActivityGroup(t, db, "SupervisorToday", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, group.CategoryID, 0)
 		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
 
-		staff := testpkg.CreateTestStaff(t, db, "Today", "Supervisor")
+		staff := testpkg.CreateTestStaff(t, db, "Today", "Supervisor", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID, 0, 0, 0)
 
 		// Add supervisor assignment

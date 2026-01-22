@@ -23,8 +23,8 @@ func TestAssignRFIDTag_WithDeviceAuth(t *testing.T) {
 	tc := setupTestContext(t)
 
 	// Create test device and student
-	device := testpkg.CreateTestDevice(t, tc.db, "rfid-reader")
-	student := testpkg.CreateTestStudent(t, tc.db, "RFID", "TagTest", "RT1")
+	device := testpkg.CreateTestDevice(t, tc.db, "rfid-reader", tc.ogsID)
+	student := testpkg.CreateTestStudent(t, tc.db, "RFID", "TagTest", "RT1", tc.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, tc.db, device.ID, student.ID)
 
 	t.Run("success_assigns_rfid_tag", func(t *testing.T) {
@@ -117,8 +117,8 @@ func TestUnassignRFIDTag_WithDeviceAuth(t *testing.T) {
 	tc := setupTestContext(t)
 
 	// Create test device and student with RFID tag
-	device := testpkg.CreateTestDevice(t, tc.db, "rfid-unassign")
-	student := testpkg.CreateTestStudent(t, tc.db, "RFID", "UnassignTest", "RU1")
+	device := testpkg.CreateTestDevice(t, tc.db, "rfid-unassign", tc.ogsID)
+	student := testpkg.CreateTestStudent(t, tc.db, "RFID", "UnassignTest", "RU1", tc.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, tc.db, device.ID, student.ID)
 
 	t.Run("error_no_tag_assigned", func(t *testing.T) {
@@ -169,7 +169,7 @@ func TestUnassignRFIDTag_WithDeviceAuth(t *testing.T) {
 func TestAssignRFIDTag_RequiresDeviceAuth(t *testing.T) {
 	tc := setupTestContext(t)
 
-	student := testpkg.CreateTestStudent(t, tc.db, "RFID", "NoDevice", "RND1")
+	student := testpkg.CreateTestStudent(t, tc.db, "RFID", "NoDevice", "RND1", tc.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 	router := chi.NewRouter()
@@ -190,7 +190,7 @@ func TestAssignRFIDTag_RequiresDeviceAuth(t *testing.T) {
 func TestUnassignRFIDTag_RequiresDeviceAuth(t *testing.T) {
 	tc := setupTestContext(t)
 
-	student := testpkg.CreateTestStudent(t, tc.db, "RFID", "NoDeviceUnassign", "RNDU1")
+	student := testpkg.CreateTestStudent(t, tc.db, "RFID", "NoDeviceUnassign", "RNDU1", tc.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 	router := chi.NewRouter()
@@ -209,8 +209,8 @@ func TestUnassignRFIDTag_WithAssignedTag(t *testing.T) {
 	tc := setupTestContext(t)
 
 	// Create device and student
-	device := testpkg.CreateTestDevice(t, tc.db, "rfid-unassign-success")
-	student := testpkg.CreateTestStudent(t, tc.db, "RFID", "Unassign", "RUS1")
+	device := testpkg.CreateTestDevice(t, tc.db, "rfid-unassign-success", tc.ogsID)
+	student := testpkg.CreateTestStudent(t, tc.db, "RFID", "Unassign", "RUS1", tc.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, tc.db, device.ID, student.ID)
 
 	// First assign an RFID tag
@@ -249,8 +249,8 @@ func TestUnassignRFIDTag_WithAssignedTag(t *testing.T) {
 func TestRFIDTagValidation(t *testing.T) {
 	tc := setupTestContext(t)
 
-	device := testpkg.CreateTestDevice(t, tc.db, "rfid-validation")
-	student := testpkg.CreateTestStudent(t, tc.db, "RFID", "Validation", "RV1")
+	device := testpkg.CreateTestDevice(t, tc.db, "rfid-validation", tc.ogsID)
+	student := testpkg.CreateTestStudent(t, tc.db, "RFID", "Validation", "RV1", tc.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, tc.db, device.ID, student.ID)
 
 	t.Run("too_short_tag", func(t *testing.T) {

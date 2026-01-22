@@ -23,7 +23,7 @@ import (
 func TestGetStudentCurrentLocation(t *testing.T) {
 	tc := setupTestContext(t)
 
-	student := testpkg.CreateTestStudent(t, tc.db, "Location", "Test", "LT1")
+	student := testpkg.CreateTestStudent(t, tc.db, "Location", "Test", "LT1", tc.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 	router := setupRouter(tc.resource.GetStudentCurrentLocationHandler(), "id")
@@ -48,7 +48,7 @@ func TestGetStudentCurrentLocation_Extended(t *testing.T) {
 	tc := setupTestContext(t)
 
 	t.Run("returns_absent_for_student_without_visit", func(t *testing.T) {
-		student := testpkg.CreateTestStudent(t, tc.db, "Absent", "Student", "AB1")
+		student := testpkg.CreateTestStudent(t, tc.db, "Absent", "Student", "AB1", tc.ogsID)
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		router := setupRouter(tc.resource.GetStudentCurrentLocationHandler(), "id")
@@ -69,7 +69,7 @@ func TestGetStudentCurrentLocation_Extended(t *testing.T) {
 func TestGetStudentCurrentVisit(t *testing.T) {
 	tc := setupTestContext(t)
 
-	student := testpkg.CreateTestStudent(t, tc.db, "Visit", "Test", "VT1")
+	student := testpkg.CreateTestStudent(t, tc.db, "Visit", "Test", "VT1", tc.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 	router := setupRouter(tc.resource.GetStudentCurrentVisitHandler(), "id")
@@ -94,7 +94,7 @@ func TestGetStudentCurrentVisit_Extended(t *testing.T) {
 	tc := setupTestContext(t)
 
 	t.Run("returns_null_when_no_visit", func(t *testing.T) {
-		student := testpkg.CreateTestStudent(t, tc.db, "NoVisit", "Student", "NV2")
+		student := testpkg.CreateTestStudent(t, tc.db, "NoVisit", "Student", "NV2", tc.ogsID)
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		router := setupRouter(tc.resource.GetStudentCurrentVisitHandler(), "id")
@@ -114,7 +114,7 @@ func TestGetStudentCurrentVisit_Extended(t *testing.T) {
 func TestGetStudentVisitHistory(t *testing.T) {
 	tc := setupTestContext(t)
 
-	student := testpkg.CreateTestStudent(t, tc.db, "History", "Test", "HT1")
+	student := testpkg.CreateTestStudent(t, tc.db, "History", "Test", "HT1", tc.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 	router := setupRouter(tc.resource.GetStudentVisitHistoryHandler(), "id")
@@ -137,7 +137,7 @@ func TestGetStudentVisitHistory(t *testing.T) {
 func TestGetStudentVisitHistory_WithDateRange(t *testing.T) {
 	tc := setupTestContext(t)
 
-	student := testpkg.CreateTestStudent(t, tc.db, "DateRange", "Test", "DR1")
+	student := testpkg.CreateTestStudent(t, tc.db, "DateRange", "Test", "DR1", tc.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 	router := setupRouter(tc.resource.GetStudentVisitHistoryHandler(), "id")
@@ -161,9 +161,9 @@ func TestGetStudentVisitHistory_WithVisits(t *testing.T) {
 	tc := setupTestContext(t)
 
 	// Create a student with an active visit to test visit history
-	student := testpkg.CreateTestStudent(t, tc.db, "Visit", "History", "VH1")
-	room := testpkg.CreateTestRoom(t, tc.db, "HistoryRoom")
-	activityGroup := testpkg.CreateTestActivityGroup(t, tc.db, "HistoryActivity")
+	student := testpkg.CreateTestStudent(t, tc.db, "Visit", "History", "VH1", tc.ogsID)
+	room := testpkg.CreateTestRoom(t, tc.db, "HistoryRoom", tc.ogsID)
+	activityGroup := testpkg.CreateTestActivityGroup(t, tc.db, "HistoryActivity", tc.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID, room.ID, activityGroup.ID)
 
 	router := setupRouter(tc.resource.GetStudentVisitHistoryHandler(), "id")
@@ -207,7 +207,7 @@ func TestGetStudentInGroupRoom_NonexistentStudent(t *testing.T) {
 func TestGetStudentInGroupRoom_WithValidStudent(t *testing.T) {
 	tc := setupTestContext(t)
 
-	student := testpkg.CreateTestStudent(t, tc.db, "GroupRoom", "Test", "GR1")
+	student := testpkg.CreateTestStudent(t, tc.db, "GroupRoom", "Test", "GR1", tc.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 	router := chi.NewRouter()
@@ -227,7 +227,7 @@ func TestGetStudentInGroupRoom_Extended(t *testing.T) {
 
 	t.Run("student_no_educational_group", func(t *testing.T) {
 		// Student without group assigned
-		student := testpkg.CreateTestStudent(t, tc.db, "NoEdGroup", "Student", "NEG1")
+		student := testpkg.CreateTestStudent(t, tc.db, "NoEdGroup", "Student", "NEG1", tc.ogsID)
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		router := chi.NewRouter()
@@ -243,8 +243,8 @@ func TestGetStudentInGroupRoom_Extended(t *testing.T) {
 
 	t.Run("student_group_has_no_room", func(t *testing.T) {
 		// Create group without room, then assign student
-		group := testpkg.CreateTestEducationGroup(t, tc.db, "NoRoomGroup")
-		student := testpkg.CreateTestStudent(t, tc.db, "NoRoom", "Student", "NR1")
+		group := testpkg.CreateTestEducationGroup(t, tc.db, "NoRoomGroup", tc.ogsID)
+		student := testpkg.CreateTestStudent(t, tc.db, "NoRoom", "Student", "NR1", tc.ogsID)
 		testpkg.AssignStudentToGroup(t, tc.db, student.ID, group.ID)
 		defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID, student.ID)
 
@@ -261,9 +261,9 @@ func TestGetStudentInGroupRoom_Extended(t *testing.T) {
 
 	t.Run("student_with_no_active_visit", func(t *testing.T) {
 		// Create student with group and room, but no active visit
-		room := testpkg.CreateTestRoom(t, tc.db, "GroupRoomTest")
-		group := testpkg.CreateTestEducationGroup(t, tc.db, "WithRoomGroup")
-		student := testpkg.CreateTestStudent(t, tc.db, "NoVisit", "Student", "NV1")
+		room := testpkg.CreateTestRoom(t, tc.db, "GroupRoomTest", tc.ogsID)
+		group := testpkg.CreateTestEducationGroup(t, tc.db, "WithRoomGroup", tc.ogsID)
+		student := testpkg.CreateTestStudent(t, tc.db, "NoVisit", "Student", "NV1", tc.ogsID)
 
 		// Assign room to group using raw SQL to avoid BUN ORM syntax issues
 		ctx := context.Background()
@@ -289,9 +289,9 @@ func TestGetStudentInGroupRoom_Authorization(t *testing.T) {
 	tc := setupTestContext(t)
 
 	// Create teacher and group
-	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Room", "Auth")
-	group := testpkg.CreateTestEducationGroup(t, tc.db, "RoomAuthGroup")
-	student := testpkg.CreateTestStudent(t, tc.db, "Room", "AuthStudent", "RA1")
+	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Room", "Auth", tc.ogsID)
+	group := testpkg.CreateTestEducationGroup(t, tc.db, "RoomAuthGroup", tc.ogsID)
+	student := testpkg.CreateTestStudent(t, tc.db, "Room", "AuthStudent", "RA1", tc.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID, group.ID, student.ID)
 
 	// Assign teacher to group and student to group
@@ -313,7 +313,7 @@ func TestGetStudentInGroupRoom_Authorization(t *testing.T) {
 
 	t.Run("non_supervisor_forbidden", func(t *testing.T) {
 		// Create another teacher not supervising this group
-		otherTeacher, otherAccount := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Other", "Teacher")
+		otherTeacher, otherAccount := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Other", "Teacher", tc.ogsID)
 		defer testpkg.CleanupActivityFixtures(t, tc.db, otherTeacher.ID)
 
 		router := chi.NewRouter()
@@ -338,12 +338,12 @@ func TestGetStudentInGroupRoom_WithActiveVisit(t *testing.T) {
 
 	t.Run("student_in_group_room", func(t *testing.T) {
 		// Create room, group, student
-		room := testpkg.CreateTestRoom(t, tc.db, "GroupRoomActive")
-		group := testpkg.CreateTestEducationGroup(t, tc.db, "ActiveVisitGroup")
-		student := testpkg.CreateTestStudent(t, tc.db, "Active", "Visitor", "AV1")
-		activityGroup := testpkg.CreateTestActivityGroup(t, tc.db, "ActiveSession")
-		staff := testpkg.CreateTestStaff(t, tc.db, "Check", "InStaff")
-		device := testpkg.CreateTestDevice(t, tc.db, "checkin-device")
+		room := testpkg.CreateTestRoom(t, tc.db, "GroupRoomActive", tc.ogsID)
+		group := testpkg.CreateTestEducationGroup(t, tc.db, "ActiveVisitGroup", tc.ogsID)
+		student := testpkg.CreateTestStudent(t, tc.db, "Active", "Visitor", "AV1", tc.ogsID)
+		activityGroup := testpkg.CreateTestActivityGroup(t, tc.db, "ActiveSession", tc.ogsID)
+		staff := testpkg.CreateTestStaff(t, tc.db, "Check", "InStaff", tc.ogsID)
+		device := testpkg.CreateTestDevice(t, tc.db, "checkin-device", tc.ogsID)
 
 		// Assign room to group
 		ctx := context.Background()
@@ -358,10 +358,10 @@ func TestGetStudentInGroupRoom_WithActiveVisit(t *testing.T) {
 		testpkg.CreateTestAttendance(t, tc.db, student.ID, staff.ID, device.ID, now, nil)
 
 		// Create active group in the same room
-		activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, activityGroup.ID, room.ID)
+		activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, activityGroup.ID, room.ID, tc.ogsID)
 
 		// Create visit to the active group
-		testpkg.CreateTestVisit(t, tc.db, student.ID, activeGroup.ID, now, nil)
+		testpkg.CreateTestVisit(t, tc.db, student.ID, activeGroup.ID, now, nil, tc.ogsID)
 
 		defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID, group.ID, student.ID, activityGroup.ID, staff.ID, device.ID, activeGroup.ID)
 
@@ -379,13 +379,13 @@ func TestGetStudentInGroupRoom_WithActiveVisit(t *testing.T) {
 
 	t.Run("student_in_different_room", func(t *testing.T) {
 		// Create two rooms - one for group, one for visit
-		groupRoom := testpkg.CreateTestRoom(t, tc.db, "GroupRoomDiff")
-		visitRoom := testpkg.CreateTestRoom(t, tc.db, "VisitRoomDiff")
-		group := testpkg.CreateTestEducationGroup(t, tc.db, "DiffRoomGroup")
-		student := testpkg.CreateTestStudent(t, tc.db, "Diff", "Room", "DR2")
-		activityGroup := testpkg.CreateTestActivityGroup(t, tc.db, "DiffRoomActivity")
-		staff := testpkg.CreateTestStaff(t, tc.db, "Diff", "Staff")
-		device := testpkg.CreateTestDevice(t, tc.db, "diff-device")
+		groupRoom := testpkg.CreateTestRoom(t, tc.db, "GroupRoomDiff", tc.ogsID)
+		visitRoom := testpkg.CreateTestRoom(t, tc.db, "VisitRoomDiff", tc.ogsID)
+		group := testpkg.CreateTestEducationGroup(t, tc.db, "DiffRoomGroup", tc.ogsID)
+		student := testpkg.CreateTestStudent(t, tc.db, "Diff", "Room", "DR2", tc.ogsID)
+		activityGroup := testpkg.CreateTestActivityGroup(t, tc.db, "DiffRoomActivity", tc.ogsID)
+		staff := testpkg.CreateTestStaff(t, tc.db, "Diff", "Staff", tc.ogsID)
+		device := testpkg.CreateTestDevice(t, tc.db, "diff-device", tc.ogsID)
 
 		// Assign group room to group
 		ctx := context.Background()
@@ -400,10 +400,10 @@ func TestGetStudentInGroupRoom_WithActiveVisit(t *testing.T) {
 		testpkg.CreateTestAttendance(t, tc.db, student.ID, staff.ID, device.ID, now, nil)
 
 		// Create active group in DIFFERENT room
-		activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, activityGroup.ID, visitRoom.ID)
+		activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, activityGroup.ID, visitRoom.ID, tc.ogsID)
 
 		// Create visit to that different room
-		testpkg.CreateTestVisit(t, tc.db, student.ID, activeGroup.ID, now, nil)
+		testpkg.CreateTestVisit(t, tc.db, student.ID, activeGroup.ID, now, nil, tc.ogsID)
 
 		defer testpkg.CleanupActivityFixtures(t, tc.db, groupRoom.ID, visitRoom.ID, group.ID, student.ID, activityGroup.ID, staff.ID, device.ID, activeGroup.ID)
 
@@ -425,21 +425,21 @@ func TestGetStudentCurrentLocation_WithActiveVisit(t *testing.T) {
 
 	t.Run("student_checked_in_with_room", func(t *testing.T) {
 		// Create fixtures for a fully checked-in student with room assignment
-		room := testpkg.CreateTestRoom(t, tc.db, "LocationRoom")
-		student := testpkg.CreateTestStudent(t, tc.db, "Location", "CheckedIn", "LC1")
-		activityGroup := testpkg.CreateTestActivityGroup(t, tc.db, "LocationActivity")
-		staff := testpkg.CreateTestStaff(t, tc.db, "Location", "Staff")
-		device := testpkg.CreateTestDevice(t, tc.db, "location-device")
+		room := testpkg.CreateTestRoom(t, tc.db, "LocationRoom", tc.ogsID)
+		student := testpkg.CreateTestStudent(t, tc.db, "Location", "CheckedIn", "LC1", tc.ogsID)
+		activityGroup := testpkg.CreateTestActivityGroup(t, tc.db, "LocationActivity", tc.ogsID)
+		staff := testpkg.CreateTestStaff(t, tc.db, "Location", "Staff", tc.ogsID)
+		device := testpkg.CreateTestDevice(t, tc.db, "location-device", tc.ogsID)
 
 		// Create attendance (check-in)
 		now := time.Now()
 		testpkg.CreateTestAttendance(t, tc.db, student.ID, staff.ID, device.ID, now, nil)
 
 		// Create active group with room
-		activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, activityGroup.ID, room.ID)
+		activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, activityGroup.ID, room.ID, tc.ogsID)
 
 		// Create visit
-		testpkg.CreateTestVisit(t, tc.db, student.ID, activeGroup.ID, now, nil)
+		testpkg.CreateTestVisit(t, tc.db, student.ID, activeGroup.ID, now, nil, tc.ogsID)
 
 		defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID, student.ID, activityGroup.ID, staff.ID, device.ID, activeGroup.ID)
 
@@ -456,9 +456,9 @@ func TestGetStudentCurrentLocation_WithActiveVisit(t *testing.T) {
 
 	t.Run("student_checked_in_no_visit", func(t *testing.T) {
 		// Student checked in but no active visit (transit state)
-		student := testpkg.CreateTestStudent(t, tc.db, "Transit", "Student", "TS1")
-		staff := testpkg.CreateTestStaff(t, tc.db, "Transit", "Staff")
-		device := testpkg.CreateTestDevice(t, tc.db, "transit-device")
+		student := testpkg.CreateTestStudent(t, tc.db, "Transit", "Student", "TS1", tc.ogsID)
+		staff := testpkg.CreateTestStaff(t, tc.db, "Transit", "Staff", tc.ogsID)
+		device := testpkg.CreateTestDevice(t, tc.db, "transit-device", tc.ogsID)
 
 		// Create attendance (check-in) but NO visit
 		now := time.Now()
@@ -477,9 +477,9 @@ func TestGetStudentCurrentLocation_WithActiveVisit(t *testing.T) {
 
 	t.Run("student_checked_out", func(t *testing.T) {
 		// Student with completed attendance (checked out)
-		student := testpkg.CreateTestStudent(t, tc.db, "CheckedOut", "Student", "CO1")
-		staff := testpkg.CreateTestStaff(t, tc.db, "CheckedOut", "Staff")
-		device := testpkg.CreateTestDevice(t, tc.db, "checkout-device")
+		student := testpkg.CreateTestStudent(t, tc.db, "CheckedOut", "Student", "CO1", tc.ogsID)
+		staff := testpkg.CreateTestStaff(t, tc.db, "CheckedOut", "Staff", tc.ogsID)
+		device := testpkg.CreateTestDevice(t, tc.db, "checkout-device", tc.ogsID)
 
 		// Create attendance with check-out time
 		now := time.Now()
@@ -503,19 +503,19 @@ func TestGetStudentCurrentVisit_WithActiveVisit(t *testing.T) {
 
 	t.Run("returns_current_visit", func(t *testing.T) {
 		// Create a student with an active visit
-		room := testpkg.CreateTestRoom(t, tc.db, "VisitTestRoom")
-		student := testpkg.CreateTestStudent(t, tc.db, "Current", "Visit", "CV1")
-		activityGroup := testpkg.CreateTestActivityGroup(t, tc.db, "VisitTestActivity")
-		staff := testpkg.CreateTestStaff(t, tc.db, "Visit", "Staff")
-		device := testpkg.CreateTestDevice(t, tc.db, "visit-test-device")
+		room := testpkg.CreateTestRoom(t, tc.db, "VisitTestRoom", tc.ogsID)
+		student := testpkg.CreateTestStudent(t, tc.db, "Current", "Visit", "CV1", tc.ogsID)
+		activityGroup := testpkg.CreateTestActivityGroup(t, tc.db, "VisitTestActivity", tc.ogsID)
+		staff := testpkg.CreateTestStaff(t, tc.db, "Visit", "Staff", tc.ogsID)
+		device := testpkg.CreateTestDevice(t, tc.db, "visit-test-device", tc.ogsID)
 
 		// Create attendance
 		now := time.Now()
 		testpkg.CreateTestAttendance(t, tc.db, student.ID, staff.ID, device.ID, now, nil)
 
 		// Create active group and visit
-		activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, activityGroup.ID, room.ID)
-		testpkg.CreateTestVisit(t, tc.db, student.ID, activeGroup.ID, now, nil)
+		activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, activityGroup.ID, room.ID, tc.ogsID)
+		testpkg.CreateTestVisit(t, tc.db, student.ID, activeGroup.ID, now, nil, tc.ogsID)
 
 		defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID, student.ID, activityGroup.ID, staff.ID, device.ID, activeGroup.ID)
 

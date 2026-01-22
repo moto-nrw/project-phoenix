@@ -106,6 +106,7 @@ func createTestSettingWithExactKey(t *testing.T, db *bun.DB, key, value, categor
 func TestConfigService_CreateSetting(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupConfigService(t, db)
 	ctx := context.Background()
@@ -154,6 +155,7 @@ func TestConfigService_CreateSetting(t *testing.T) {
 func TestConfigService_GetSettingByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupConfigService(t, db)
 	ctx := context.Background()
@@ -195,6 +197,7 @@ func TestConfigService_GetSettingByID(t *testing.T) {
 func TestConfigService_UpdateSetting(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupConfigService(t, db)
 	ctx := context.Background()
@@ -245,6 +248,7 @@ func TestConfigService_UpdateSetting(t *testing.T) {
 func TestConfigService_DeleteSetting(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db) // Cleanup registration only
 
 	service := setupConfigService(t, db)
 	ctx := context.Background()
@@ -277,6 +281,7 @@ func TestConfigService_DeleteSetting(t *testing.T) {
 func TestConfigService_ListSettings(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupConfigService(t, db)
 	ctx := context.Background()
@@ -327,6 +332,7 @@ func TestConfigService_ListSettings(t *testing.T) {
 func TestConfigService_GetSettingByKey(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupConfigService(t, db)
 	ctx := context.Background()
@@ -367,6 +373,7 @@ func TestConfigService_GetSettingByKey(t *testing.T) {
 func TestConfigService_UpdateSettingValue(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupConfigService(t, db)
 	ctx := context.Background()
@@ -400,6 +407,7 @@ func TestConfigService_UpdateSettingValue(t *testing.T) {
 func TestConfigService_GetStringValue(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupConfigService(t, db)
 	ctx := context.Background()
@@ -430,6 +438,7 @@ func TestConfigService_GetStringValue(t *testing.T) {
 func TestConfigService_GetBoolValue(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupConfigService(t, db)
 	ctx := context.Background()
@@ -487,6 +496,7 @@ func TestConfigService_GetBoolValue(t *testing.T) {
 func TestConfigService_GetIntValue(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupConfigService(t, db)
 	ctx := context.Background()
@@ -531,6 +541,7 @@ func TestConfigService_GetIntValue(t *testing.T) {
 func TestConfigService_GetFloatValue(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupConfigService(t, db)
 	ctx := context.Background()
@@ -579,6 +590,7 @@ func TestConfigService_GetFloatValue(t *testing.T) {
 func TestConfigService_GetSettingsByCategory(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupConfigService(t, db)
 	ctx := context.Background()
@@ -625,6 +637,7 @@ func TestConfigService_GetSettingsByCategory(t *testing.T) {
 func TestConfigService_GetSettingByKeyAndCategory(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupConfigService(t, db)
 	ctx := context.Background()
@@ -664,6 +677,7 @@ func TestConfigService_GetSettingByKeyAndCategory(t *testing.T) {
 func TestConfigService_ImportSettings(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupConfigService(t, db)
 	ctx := context.Background()
@@ -754,6 +768,7 @@ func TestConfigService_ImportSettings(t *testing.T) {
 func TestConfigService_InitializeDefaultSettings(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupConfigService(t, db)
 	ctx := context.Background()
@@ -777,6 +792,7 @@ func TestConfigService_InitializeDefaultSettings(t *testing.T) {
 func TestConfigService_RequiresRestart(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupConfigService(t, db)
 	ctx := context.Background()
@@ -795,6 +811,7 @@ func TestConfigService_RequiresRestart(t *testing.T) {
 func TestConfigService_RequiresDatabaseReset(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupConfigService(t, db)
 	ctx := context.Background()
@@ -816,6 +833,7 @@ func TestConfigService_RequiresDatabaseReset(t *testing.T) {
 func TestConfigService_GetTimeoutSettings(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupConfigService(t, db)
 	ctx := context.Background()
@@ -835,6 +853,7 @@ func TestConfigService_GetTimeoutSettings(t *testing.T) {
 func TestConfigService_UpdateTimeoutSettings(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupConfigService(t, db)
 	ctx := context.Background()
@@ -901,6 +920,7 @@ func TestConfigService_UpdateTimeoutSettings(t *testing.T) {
 func TestConfigService_GetDeviceTimeoutSettings(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupConfigService(t, db)
 	ctx := context.Background()
@@ -1092,6 +1112,7 @@ func TestBatchOperationError(t *testing.T) {
 func TestConfigService_WithTx(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupConfigService(t, db)
 	ctx := context.Background()

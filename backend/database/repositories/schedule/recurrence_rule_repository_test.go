@@ -442,7 +442,6 @@ func TestRecurrenceRuleRepository_FindByDateRange(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
-
 	repo := repositories.NewFactory(db).RecurrenceRule
 	ctx := context.Background()
 

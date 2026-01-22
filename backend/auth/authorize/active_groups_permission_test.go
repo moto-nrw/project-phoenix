@@ -8,7 +8,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/auth/tenant"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -159,8 +159,8 @@ func TestActiveGroupsPermissions(t *testing.T) {
 			req := httptest.NewRequest("GET", "/test", nil)
 			rr := httptest.NewRecorder()
 
-			// Set permissions using the JWT context key
-			ctx := context.WithValue(req.Context(), jwt.CtxPermissions, tt.userPermissions)
+			// Set permissions using the tenant context key (used by authorize middleware)
+			ctx := context.WithValue(req.Context(), tenant.CtxPermissions, tt.userPermissions)
 			req = req.WithContext(ctx)
 
 			// Execute request

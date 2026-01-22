@@ -46,13 +46,14 @@ func createEnrollment(t *testing.T, db *bun.DB, studentID, groupID int64, enroll
 func TestStudentEnrollmentRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).StudentEnrollment
 	ctx := context.Background()
 
 	t.Run("creates enrollment with valid data", func(t *testing.T) {
-		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
-		group := testpkg.CreateTestActivityGroup(t, db, "TestGroup")
+		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a", ogsID)
+		group := testpkg.CreateTestActivityGroup(t, db, "TestGroup", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, student.ID, 0, 0, group.CategoryID, 0)
 		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
 
@@ -70,8 +71,8 @@ func TestStudentEnrollmentRepository_Create(t *testing.T) {
 	})
 
 	t.Run("creates enrollment with attendance status", func(t *testing.T) {
-		student := testpkg.CreateTestStudent(t, db, "Status", "Student", "1a")
-		group := testpkg.CreateTestActivityGroup(t, db, "StatusGroup")
+		student := testpkg.CreateTestStudent(t, db, "Status", "Student", "1a", ogsID)
+		group := testpkg.CreateTestActivityGroup(t, db, "StatusGroup", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, student.ID, 0, 0, group.CategoryID, 0)
 		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
 
@@ -108,13 +109,14 @@ func TestStudentEnrollmentRepository_Create_WithNil(t *testing.T) {
 func TestStudentEnrollmentRepository_FindByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).StudentEnrollment
 	ctx := context.Background()
 
 	t.Run("finds existing enrollment", func(t *testing.T) {
-		student := testpkg.CreateTestStudent(t, db, "Find", "Student", "1a")
-		group := testpkg.CreateTestActivityGroup(t, db, "FindGroup")
+		student := testpkg.CreateTestStudent(t, db, "Find", "Student", "1a", ogsID)
+		group := testpkg.CreateTestActivityGroup(t, db, "FindGroup", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, student.ID, 0, 0, group.CategoryID, 0)
 		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
 
@@ -136,13 +138,14 @@ func TestStudentEnrollmentRepository_FindByID(t *testing.T) {
 func TestStudentEnrollmentRepository_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).StudentEnrollment
 	ctx := context.Background()
 
 	t.Run("updates enrollment attendance status", func(t *testing.T) {
-		student := testpkg.CreateTestStudent(t, db, "Update", "Student", "1a")
-		group := testpkg.CreateTestActivityGroup(t, db, "UpdateGroup")
+		student := testpkg.CreateTestStudent(t, db, "Update", "Student", "1a", ogsID)
+		group := testpkg.CreateTestActivityGroup(t, db, "UpdateGroup", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, student.ID, 0, 0, group.CategoryID, 0)
 		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
 
@@ -178,13 +181,14 @@ func TestStudentEnrollmentRepository_Update_WithNil(t *testing.T) {
 func TestStudentEnrollmentRepository_Delete(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).StudentEnrollment
 	ctx := context.Background()
 
 	t.Run("deletes existing enrollment", func(t *testing.T) {
-		student := testpkg.CreateTestStudent(t, db, "Delete", "Student", "1a")
-		group := testpkg.CreateTestActivityGroup(t, db, "DeleteGroup")
+		student := testpkg.CreateTestStudent(t, db, "Delete", "Student", "1a", ogsID)
+		group := testpkg.CreateTestActivityGroup(t, db, "DeleteGroup", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, student.ID, 0, 0, group.CategoryID, 0)
 		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
 
@@ -206,13 +210,14 @@ func TestStudentEnrollmentRepository_List(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).StudentEnrollment
 	ctx := context.Background()
 
 	t.Run("lists all enrollments", func(t *testing.T) {
-		student := testpkg.CreateTestStudent(t, db, "List", "Student", "1a")
-		group := testpkg.CreateTestActivityGroup(t, db, "ListGroup")
+		student := testpkg.CreateTestStudent(t, db, "List", "Student", "1a", ogsID)
+		group := testpkg.CreateTestActivityGroup(t, db, "ListGroup", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, student.ID, 0, 0, group.CategoryID, 0)
 		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
 
@@ -225,8 +230,8 @@ func TestStudentEnrollmentRepository_List(t *testing.T) {
 	})
 
 	t.Run("lists enrollments with pagination", func(t *testing.T) {
-		student := testpkg.CreateTestStudent(t, db, "Page", "Student", "1a")
-		group := testpkg.CreateTestActivityGroup(t, db, "PageGroup")
+		student := testpkg.CreateTestStudent(t, db, "Page", "Student", "1a", ogsID)
+		group := testpkg.CreateTestActivityGroup(t, db, "PageGroup", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, student.ID, 0, 0, group.CategoryID, 0)
 		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
 
@@ -246,14 +251,15 @@ func TestStudentEnrollmentRepository_FindByStudentID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).StudentEnrollment
 	ctx := context.Background()
 
 	t.Run("finds enrollments for a student", func(t *testing.T) {
-		student := testpkg.CreateTestStudent(t, db, "Student", "Enrollments", "1a")
-		group1 := testpkg.CreateTestActivityGroup(t, db, "Group1")
-		group2 := testpkg.CreateTestActivityGroup(t, db, "Group2")
+		student := testpkg.CreateTestStudent(t, db, "Student", "Enrollments", "1a", ogsID)
+		group1 := testpkg.CreateTestActivityGroup(t, db, "Group1", ogsID)
+		group2 := testpkg.CreateTestActivityGroup(t, db, "Group2", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, student.ID, 0, 0, group1.CategoryID, 0)
 		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, group2.CategoryID, 0)
 		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group1.ID, group2.ID)
@@ -277,7 +283,7 @@ func TestStudentEnrollmentRepository_FindByStudentID(t *testing.T) {
 	})
 
 	t.Run("returns empty for student with no enrollments", func(t *testing.T) {
-		student := testpkg.CreateTestStudent(t, db, "NoEnrollments", "Student", "1a")
+		student := testpkg.CreateTestStudent(t, db, "NoEnrollments", "Student", "1a", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, student.ID, 0, 0, 0, 0)
 
 		enrollments, err := repo.FindByStudentID(ctx, student.ID)
@@ -289,14 +295,15 @@ func TestStudentEnrollmentRepository_FindByStudentID(t *testing.T) {
 func TestStudentEnrollmentRepository_FindByGroupID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).StudentEnrollment
 	ctx := context.Background()
 
 	t.Run("finds enrollments for a group", func(t *testing.T) {
-		student1 := testpkg.CreateTestStudent(t, db, "Student", "One", "1a")
-		student2 := testpkg.CreateTestStudent(t, db, "Student", "Two", "1b")
-		group := testpkg.CreateTestActivityGroup(t, db, "GroupEnrollments")
+		student1 := testpkg.CreateTestStudent(t, db, "Student", "One", "1a", ogsID)
+		student2 := testpkg.CreateTestStudent(t, db, "Student", "Two", "1b", ogsID)
+		group := testpkg.CreateTestActivityGroup(t, db, "GroupEnrollments", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, student1.ID, 0, 0, group.CategoryID, 0)
 		defer testpkg.CleanupActivityFixtures(t, db, student2.ID, 0, 0, 0, 0)
 		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
@@ -325,7 +332,7 @@ func TestStudentEnrollmentRepository_FindByGroupID(t *testing.T) {
 	})
 
 	t.Run("returns empty for group with no enrollments", func(t *testing.T) {
-		group := testpkg.CreateTestActivityGroup(t, db, "EmptyGroup")
+		group := testpkg.CreateTestActivityGroup(t, db, "EmptyGroup", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, group.CategoryID, 0)
 		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
 
@@ -338,15 +345,16 @@ func TestStudentEnrollmentRepository_FindByGroupID(t *testing.T) {
 func TestStudentEnrollmentRepository_CountByGroupID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).StudentEnrollment
 	ctx := context.Background()
 
 	t.Run("counts enrollments in a group", func(t *testing.T) {
-		student1 := testpkg.CreateTestStudent(t, db, "Count", "One", "1a")
-		student2 := testpkg.CreateTestStudent(t, db, "Count", "Two", "1b")
-		student3 := testpkg.CreateTestStudent(t, db, "Count", "Three", "1c")
-		group := testpkg.CreateTestActivityGroup(t, db, "CountGroup")
+		student1 := testpkg.CreateTestStudent(t, db, "Count", "One", "1a", ogsID)
+		student2 := testpkg.CreateTestStudent(t, db, "Count", "Two", "1b", ogsID)
+		student3 := testpkg.CreateTestStudent(t, db, "Count", "Three", "1c", ogsID)
+		group := testpkg.CreateTestActivityGroup(t, db, "CountGroup", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, student1.ID, 0, 0, group.CategoryID, 0)
 		defer testpkg.CleanupActivityFixtures(t, db, student2.ID, 0, 0, 0, 0)
 		defer testpkg.CleanupActivityFixtures(t, db, student3.ID, 0, 0, 0, 0)
@@ -363,7 +371,7 @@ func TestStudentEnrollmentRepository_CountByGroupID(t *testing.T) {
 	})
 
 	t.Run("returns zero for group with no enrollments", func(t *testing.T) {
-		group := testpkg.CreateTestActivityGroup(t, db, "ZeroCount")
+		group := testpkg.CreateTestActivityGroup(t, db, "ZeroCount", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, group.CategoryID, 0)
 		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
 
@@ -377,16 +385,17 @@ func TestStudentEnrollmentRepository_FindByEnrollmentDateRange(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).StudentEnrollment
 	ctx := context.Background()
 
 	t.Run("finds enrollments within date range", func(t *testing.T) {
 		// Create multiple students for multiple enrollments (unique constraint: student_id + group_id)
-		student1 := testpkg.CreateTestStudent(t, db, "DateRange1", "Student", "1a")
-		student2 := testpkg.CreateTestStudent(t, db, "DateRange2", "Student", "1a")
-		student3 := testpkg.CreateTestStudent(t, db, "DateRange3", "Student", "1a")
-		group := testpkg.CreateTestActivityGroup(t, db, "DateGroup")
+		student1 := testpkg.CreateTestStudent(t, db, "DateRange1", "Student", "1a", ogsID)
+		student2 := testpkg.CreateTestStudent(t, db, "DateRange2", "Student", "1a", ogsID)
+		student3 := testpkg.CreateTestStudent(t, db, "DateRange3", "Student", "1a", ogsID)
+		group := testpkg.CreateTestActivityGroup(t, db, "DateGroup", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, student1.ID, 0, 0, group.CategoryID, 0)
 		defer testpkg.CleanupActivityFixtures(t, db, student2.ID, 0, 0, 0, 0)
 		defer testpkg.CleanupActivityFixtures(t, db, student3.ID, 0, 0, 0, 0)
@@ -436,13 +445,14 @@ func TestStudentEnrollmentRepository_FindByEnrollmentDateRange(t *testing.T) {
 func TestStudentEnrollmentRepository_UpdateAttendanceStatus(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).StudentEnrollment
 	ctx := context.Background()
 
 	t.Run("updates attendance status to present", func(t *testing.T) {
-		student := testpkg.CreateTestStudent(t, db, "Status", "Update", "1a")
-		group := testpkg.CreateTestActivityGroup(t, db, "StatusGroup")
+		student := testpkg.CreateTestStudent(t, db, "Status", "Update", "1a", ogsID)
+		group := testpkg.CreateTestActivityGroup(t, db, "StatusGroup", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, student.ID, 0, 0, group.CategoryID, 0)
 		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
 
@@ -461,8 +471,8 @@ func TestStudentEnrollmentRepository_UpdateAttendanceStatus(t *testing.T) {
 	})
 
 	t.Run("updates attendance status to absent", func(t *testing.T) {
-		student := testpkg.CreateTestStudent(t, db, "Absent", "Update", "1a")
-		group := testpkg.CreateTestActivityGroup(t, db, "AbsentGroup")
+		student := testpkg.CreateTestStudent(t, db, "Absent", "Update", "1a", ogsID)
+		group := testpkg.CreateTestActivityGroup(t, db, "AbsentGroup", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, student.ID, 0, 0, group.CategoryID, 0)
 		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
 
@@ -480,8 +490,8 @@ func TestStudentEnrollmentRepository_UpdateAttendanceStatus(t *testing.T) {
 	})
 
 	t.Run("sets attendance status to nil", func(t *testing.T) {
-		student := testpkg.CreateTestStudent(t, db, "Nil", "Status", "1a")
-		group := testpkg.CreateTestActivityGroup(t, db, "NilGroup")
+		student := testpkg.CreateTestStudent(t, db, "Nil", "Status", "1a", ogsID)
+		group := testpkg.CreateTestActivityGroup(t, db, "NilGroup", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, student.ID, 0, 0, group.CategoryID, 0)
 		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
 
@@ -499,8 +509,8 @@ func TestStudentEnrollmentRepository_UpdateAttendanceStatus(t *testing.T) {
 	})
 
 	t.Run("returns error for invalid status", func(t *testing.T) {
-		student := testpkg.CreateTestStudent(t, db, "Invalid", "Status", "1a")
-		group := testpkg.CreateTestActivityGroup(t, db, "InvalidGroup")
+		student := testpkg.CreateTestStudent(t, db, "Invalid", "Status", "1a", ogsID)
+		group := testpkg.CreateTestActivityGroup(t, db, "InvalidGroup", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, student.ID, 0, 0, group.CategoryID, 0)
 		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
 

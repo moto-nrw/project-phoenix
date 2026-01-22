@@ -58,6 +58,7 @@ func uniqueTestCredentials(prefix string) (email, username string) {
 func TestAuthService_Register(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupAuthService(t, db)
 	ctx := context.Background()
@@ -132,6 +133,7 @@ func TestAuthService_Register(t *testing.T) {
 func TestAuthService_Login(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupAuthService(t, db)
 	ctx := context.Background()
@@ -219,6 +221,7 @@ func TestAuthService_Login(t *testing.T) {
 func TestAuthService_ValidateToken(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupAuthService(t, db)
 	ctx := context.Background()
@@ -268,6 +271,7 @@ func TestAuthService_ValidateToken(t *testing.T) {
 func TestAuthService_RefreshToken(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupAuthService(t, db)
 	ctx := context.Background()
@@ -319,6 +323,7 @@ func TestAuthService_RefreshToken(t *testing.T) {
 func TestAuthService_Logout(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupAuthService(t, db)
 	ctx := context.Background()
@@ -360,6 +365,7 @@ func TestAuthService_Logout(t *testing.T) {
 func TestAuthService_ChangePassword(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupAuthService(t, db)
 	ctx := context.Background()
@@ -420,6 +426,7 @@ func TestAuthService_ChangePassword(t *testing.T) {
 func TestAuthService_GetAccountByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupAuthService(t, db)
 	ctx := context.Background()
@@ -458,6 +465,7 @@ func TestAuthService_GetAccountByID(t *testing.T) {
 func TestAuthService_GetAccountByEmail(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupAuthService(t, db)
 	ctx := context.Background()
@@ -495,6 +503,7 @@ func TestAuthService_GetAccountByEmail(t *testing.T) {
 func TestAuthService_ActivateAccount(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupAuthService(t, db)
 	ctx := context.Background()
@@ -534,6 +543,7 @@ func TestAuthService_ActivateAccount(t *testing.T) {
 func TestAuthService_DeactivateAccount(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupAuthService(t, db)
 	ctx := context.Background()
@@ -582,6 +592,7 @@ func TestAuthService_DeactivateAccount(t *testing.T) {
 func TestAuthService_ListAccounts(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupAuthService(t, db)
 	ctx := context.Background()
@@ -624,6 +635,7 @@ func TestAuthService_ListAccounts(t *testing.T) {
 func TestAuthService_CleanupExpiredTokens(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupAuthService(t, db)
 	ctx := context.Background()
@@ -641,6 +653,7 @@ func TestAuthService_CleanupExpiredTokens(t *testing.T) {
 func TestAuthService_RevokeAllTokens(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupAuthService(t, db)
 	ctx := context.Background()
@@ -671,6 +684,7 @@ func TestAuthService_RevokeAllTokens(t *testing.T) {
 func TestAuthService_GetActiveTokens(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupAuthService(t, db)
 	ctx := context.Background()
@@ -721,6 +735,7 @@ func TestAuthService_GetActiveTokens(t *testing.T) {
 func TestAuthService_CreateRole(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupAuthService(t, db)
 	ctx := context.Background()
@@ -752,6 +767,7 @@ func TestAuthService_CreateRole(t *testing.T) {
 func TestAuthService_GetRoleByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupAuthService(t, db)
 	ctx := context.Background()
@@ -784,6 +800,7 @@ func TestAuthService_GetRoleByID(t *testing.T) {
 func TestAuthService_GetRoleByName(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupAuthService(t, db)
 	ctx := context.Background()
@@ -816,6 +833,7 @@ func TestAuthService_GetRoleByName(t *testing.T) {
 func TestAuthService_UpdateRole(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupAuthService(t, db)
 	ctx := context.Background()
@@ -844,6 +862,7 @@ func TestAuthService_UpdateRole(t *testing.T) {
 func TestAuthService_DeleteRole(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupAuthService(t, db)
 	ctx := context.Background()
@@ -869,6 +888,7 @@ func TestAuthService_DeleteRole(t *testing.T) {
 func TestAuthService_ListRoles(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupAuthService(t, db)
 	ctx := context.Background()
@@ -891,6 +911,7 @@ func TestAuthService_ListRoles(t *testing.T) {
 func TestAuthService_AssignRoleToAccount(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupAuthService(t, db)
 	ctx := context.Background()
@@ -929,6 +950,7 @@ func TestAuthService_AssignRoleToAccount(t *testing.T) {
 func TestAuthService_RemoveRoleFromAccount(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupAuthService(t, db)
 	ctx := context.Background()
@@ -969,6 +991,7 @@ func TestAuthService_RemoveRoleFromAccount(t *testing.T) {
 func TestAuthService_CreatePermission(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupAuthService(t, db)
 	ctx := context.Background()
@@ -993,6 +1016,7 @@ func TestAuthService_CreatePermission(t *testing.T) {
 func TestAuthService_GetPermissionByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupAuthService(t, db)
 	ctx := context.Background()
@@ -1018,6 +1042,7 @@ func TestAuthService_GetPermissionByID(t *testing.T) {
 func TestAuthService_ListPermissions(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupAuthService(t, db)
 	ctx := context.Background()
@@ -1035,6 +1060,7 @@ func TestAuthService_ListPermissions(t *testing.T) {
 func TestAuthService_GrantPermissionToAccount(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupAuthService(t, db)
 	ctx := context.Background()
@@ -1067,6 +1093,7 @@ func TestAuthService_GrantPermissionToAccount(t *testing.T) {
 func TestAuthService_CreateParentAccount(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupAuthService(t, db)
 	ctx := context.Background()
@@ -1108,6 +1135,7 @@ func TestAuthService_CreateParentAccount(t *testing.T) {
 func TestAuthService_GetParentAccountByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupAuthService(t, db)
 	ctx := context.Background()
@@ -1142,6 +1170,7 @@ func TestAuthService_GetParentAccountByID(t *testing.T) {
 func TestAuthService_ListParentAccounts(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupAuthService(t, db)
 	ctx := context.Background()
@@ -1170,6 +1199,7 @@ func TestAuthService_ListParentAccounts(t *testing.T) {
 func TestAuthService_GetPermissionByName(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupAuthService(t, db)
 	ctx := context.Background()
@@ -1204,6 +1234,7 @@ func TestAuthService_GetPermissionByName(t *testing.T) {
 func TestAuthService_UpdatePermission(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupAuthService(t, db)
 	ctx := context.Background()
@@ -1234,6 +1265,7 @@ func TestAuthService_UpdatePermission(t *testing.T) {
 func TestAuthService_DeletePermission(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupAuthService(t, db)
 	ctx := context.Background()
@@ -1261,6 +1293,7 @@ func TestAuthService_DeletePermission(t *testing.T) {
 func TestAuthService_GetAccountPermissions(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupAuthService(t, db)
 	ctx := context.Background()
@@ -1293,6 +1326,7 @@ func TestAuthService_GetAccountPermissions(t *testing.T) {
 func TestAuthService_GetAccountDirectPermissions(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupAuthService(t, db)
 	ctx := context.Background()
@@ -1325,6 +1359,7 @@ func TestAuthService_GetAccountDirectPermissions(t *testing.T) {
 func TestAuthService_RemovePermissionFromAccount(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupAuthService(t, db)
 	ctx := context.Background()
@@ -1360,6 +1395,7 @@ func TestAuthService_RemovePermissionFromAccount(t *testing.T) {
 func TestAuthService_AssignPermissionToRole(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupAuthService(t, db)
 	ctx := context.Background()
@@ -1387,6 +1423,7 @@ func TestAuthService_AssignPermissionToRole(t *testing.T) {
 func TestAuthService_RemovePermissionFromRole(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupAuthService(t, db)
 	ctx := context.Background()
@@ -1417,6 +1454,7 @@ func TestAuthService_RemovePermissionFromRole(t *testing.T) {
 func TestAuthService_GetRolePermissions(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupAuthService(t, db)
 	ctx := context.Background()
@@ -1452,6 +1490,7 @@ func TestAuthService_GetRolePermissions(t *testing.T) {
 func TestAuthService_UpdateAccount(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupAuthService(t, db)
 	ctx := context.Background()
@@ -1481,6 +1520,7 @@ func TestAuthService_UpdateAccount(t *testing.T) {
 func TestAuthService_GetAccountsByRole(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupAuthService(t, db)
 	ctx := context.Background()
@@ -1506,6 +1546,7 @@ func TestAuthService_GetAccountsByRole(t *testing.T) {
 func TestAuthService_CleanupExpiredPasswordResetTokens(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupAuthService(t, db)
 	ctx := context.Background()
@@ -1523,6 +1564,7 @@ func TestAuthService_CleanupExpiredPasswordResetTokens(t *testing.T) {
 func TestAuthService_CleanupExpiredRateLimits(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupAuthService(t, db)
 	ctx := context.Background()
@@ -1552,6 +1594,7 @@ func TestAuthService_CleanupExpiredRateLimits(t *testing.T) {
 func TestAuthService_DenyPermissionToAccount(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupAuthService(t, db)
 	ctx := context.Background()
@@ -1602,6 +1645,7 @@ func TestAuthService_DenyPermissionToAccount(t *testing.T) {
 func TestAuthService_InitiatePasswordReset(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupAuthService(t, db)
 	ctx := context.Background()
@@ -1643,6 +1687,7 @@ func TestAuthService_InitiatePasswordReset(t *testing.T) {
 func TestAuthService_ResetPassword(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupAuthService(t, db)
 	ctx := context.Background()
@@ -1728,6 +1773,7 @@ func TestAuthService_ResetPassword(t *testing.T) {
 func TestAuthService_PasswordResetRateLimit(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	// Enable rate limiting for these tests
 	prevRateLimitEnabled := viper.GetBool("rate_limit_enabled")
@@ -1804,6 +1850,7 @@ func TestAuthService_PasswordResetRateLimit(t *testing.T) {
 func TestAuthService_GetParentAccountByEmail(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupAuthService(t, db)
 	ctx := context.Background()
@@ -1825,6 +1872,7 @@ func TestAuthService_GetParentAccountByEmail(t *testing.T) {
 func TestAuthService_UpdateParentAccount(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupAuthService(t, db)
 	ctx := context.Background()
@@ -1866,6 +1914,7 @@ func TestAuthService_UpdateParentAccount(t *testing.T) {
 func TestAuthService_ActivateParentAccount(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupAuthService(t, db)
 	ctx := context.Background()
@@ -1904,6 +1953,7 @@ func TestAuthService_ActivateParentAccount(t *testing.T) {
 func TestAuthService_DeactivateParentAccount(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupAuthService(t, db)
 	ctx := context.Background()
@@ -1937,6 +1987,7 @@ func TestAuthService_DeactivateParentAccount(t *testing.T) {
 func TestAuthService_GetAccountsWithRolesAndPermissions(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupAuthService(t, db)
 	ctx := context.Background()

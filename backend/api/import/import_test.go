@@ -26,6 +26,7 @@ type testContext struct {
 	services *services.Factory
 	repos    *repositories.Factory
 	resource *importAPI.Resource
+	ogsID    string
 }
 
 // setupTestContext initializes test database, services, and resource.
@@ -33,6 +34,7 @@ func setupTestContext(t *testing.T) *testContext {
 	t.Helper()
 
 	db := testpkg.SetupTestDB(t)
+	ogsID := testpkg.SetupTestOGS(t, db)
 	repos := repositories.NewFactory(db)
 	svc, err := services.NewFactory(repos, db)
 	if err != nil {
@@ -47,6 +49,7 @@ func setupTestContext(t *testing.T) *testContext {
 		services: svc,
 		repos:    repos,
 		resource: resource,
+		ogsID:    ogsID,
 	}
 }
 
@@ -230,9 +233,10 @@ func TestDownloadTemplate_HasRequiredHeaders(t *testing.T) {
 func TestPreviewImport_WithValidCSV(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, ctx.db)
 
 	// Create a teacher with account for the import user lookup
-	_, account := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Preview", "CSVTest")
+	_, account := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Preview", "CSVTest", ogsID)
 
 	router := chi.NewRouter()
 	router.Post("/preview", ctx.resource.PreviewImportHandler())
@@ -306,7 +310,7 @@ func TestImportStudents_WithValidCSV(t *testing.T) {
 	defer func() { _ = ctx.db.Close() }()
 
 	// Create a teacher with account for the import user lookup
-	_, account := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Import", "CSVTest")
+	_, account := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Import", "CSVTest", ctx.ogsID)
 
 	router := chi.NewRouter()
 	router.Post("/import", ctx.resource.ImportStudentsHandler())
@@ -332,7 +336,7 @@ func TestImportStudents_WithDuplicateData(t *testing.T) {
 	defer func() { _ = ctx.db.Close() }()
 
 	// Create a teacher with account for the import user lookup
-	_, account := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Import", "DupeTest")
+	_, account := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Import", "DupeTest", ctx.ogsID)
 
 	router := chi.NewRouter()
 	router.Post("/import", ctx.resource.ImportStudentsHandler())

@@ -290,15 +290,16 @@ func TestCheckinStudent_Integration(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	t.Run("returns 403 when no tenant context", func(t *testing.T) {
 		handler := setupCheckinTestHandler(t, db)
 
 		// Create minimal fixtures
-		activity := testpkg.CreateTestActivityGroup(t, db, "no-auth-test")
-		room := testpkg.CreateTestRoom(t, db, "No Auth Room")
-		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
-		student := testpkg.CreateTestStudent(t, db, "NoAuth", "Student", "1a")
+		activity := testpkg.CreateTestActivityGroup(t, db, "no-auth-test", ogsID)
+		room := testpkg.CreateTestRoom(t, db, "No Auth Room", ogsID)
+		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID, ogsID)
+		student := testpkg.CreateTestStudent(t, db, "NoAuth", "Student", "1a", ogsID)
 
 		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, student.ID)
 
@@ -321,7 +322,7 @@ func TestCheckinStudent_Integration(t *testing.T) {
 		handler := setupCheckinTestHandler(t, db)
 
 		// Create staff with account
-		staff, account := testpkg.CreateTestStaffWithAccount(t, db, "Invalid", "IDTest")
+		staff, account := testpkg.CreateTestStaffWithAccount(t, db, "Invalid", "IDTest", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, staff.ID, staff.PersonID)
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
@@ -342,8 +343,8 @@ func TestCheckinStudent_Integration(t *testing.T) {
 		handler := setupCheckinTestHandler(t, db)
 
 		// Create staff with account
-		staff, account := testpkg.CreateTestStaffWithAccount(t, db, "Missing", "GroupID")
-		student := testpkg.CreateTestStudent(t, db, "Missing", "GroupStudent", "2a")
+		staff, account := testpkg.CreateTestStaffWithAccount(t, db, "Missing", "GroupID", ogsID)
+		student := testpkg.CreateTestStudent(t, db, "Missing", "GroupStudent", "2a", ogsID)
 
 		defer testpkg.CleanupActivityFixtures(t, db, staff.ID, staff.PersonID, student.ID)
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
@@ -367,8 +368,8 @@ func TestCheckinStudent_Integration(t *testing.T) {
 		handler := setupCheckinTestHandler(t, db)
 
 		// Create staff with account
-		staff, account := testpkg.CreateTestStaffWithAccount(t, db, "NotFound", "GroupTest")
-		student := testpkg.CreateTestStudent(t, db, "NotFound", "Student", "2b")
+		staff, account := testpkg.CreateTestStaffWithAccount(t, db, "NotFound", "GroupTest", ogsID)
+		student := testpkg.CreateTestStudent(t, db, "NotFound", "Student", "2b", ogsID)
 
 		defer testpkg.CleanupActivityFixtures(t, db, staff.ID, staff.PersonID, student.ID)
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
@@ -392,11 +393,11 @@ func TestCheckinStudent_Integration(t *testing.T) {
 		handler := setupCheckinTestHandler(t, db)
 
 		// Create person with account but NO staff record
-		person, account := testpkg.CreateTestPersonWithAccount(t, db, "NotStaff", "User")
-		student := testpkg.CreateTestStudent(t, db, "NotStaff", "Student", "2c")
-		activity := testpkg.CreateTestActivityGroup(t, db, "not-staff-test")
-		room := testpkg.CreateTestRoom(t, db, "Not Staff Room")
-		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
+		person, account := testpkg.CreateTestPersonWithAccount(t, db, "NotStaff", "User", ogsID)
+		student := testpkg.CreateTestStudent(t, db, "NotStaff", "Student", "2c", ogsID)
+		activity := testpkg.CreateTestActivityGroup(t, db, "not-staff-test", ogsID)
+		room := testpkg.CreateTestRoom(t, db, "Not Staff Room", ogsID)
+		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID, ogsID)
 
 		defer testpkg.CleanupActivityFixtures(t, db, person.ID, student.ID, activity.ID, room.ID, activeGroup.ID)
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
@@ -421,11 +422,11 @@ func TestCheckinStudent_Integration(t *testing.T) {
 		handler := setupCheckinTestHandler(t, db)
 
 		// Create staff with account (but NOT a teacher for the student's group)
-		staff, account := testpkg.CreateTestStaffWithAccount(t, db, "NoAccess", "Staff")
-		student := testpkg.CreateTestStudent(t, db, "NoAccess", "Student", "3a")
-		activity := testpkg.CreateTestActivityGroup(t, db, "no-access-test")
-		room := testpkg.CreateTestRoom(t, db, "No Access Room")
-		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
+		staff, account := testpkg.CreateTestStaffWithAccount(t, db, "NoAccess", "Staff", ogsID)
+		student := testpkg.CreateTestStudent(t, db, "NoAccess", "Student", "3a", ogsID)
+		activity := testpkg.CreateTestActivityGroup(t, db, "no-access-test", ogsID)
+		room := testpkg.CreateTestRoom(t, db, "No Access Room", ogsID)
+		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID, ogsID)
 
 		defer testpkg.CleanupActivityFixtures(t, db, staff.ID, staff.PersonID, student.ID, activity.ID, room.ID, activeGroup.ID)
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
@@ -448,17 +449,17 @@ func TestCheckinStudent_Integration(t *testing.T) {
 		handler := setupCheckinTestHandler(t, db)
 
 		// Create teacher with account and education group
-		teacher, account := testpkg.CreateTestTeacherWithAccount(t, db, "EndedSession", "Teacher")
-		educationGroup := testpkg.CreateTestEducationGroup(t, db, "Ended Session Group")
+		teacher, account := testpkg.CreateTestTeacherWithAccount(t, db, "EndedSession", "Teacher", ogsID)
+		educationGroup := testpkg.CreateTestEducationGroup(t, db, "Ended Session Group", ogsID)
 		testpkg.CreateTestGroupTeacher(t, db, educationGroup.ID, teacher.ID)
 
 		// Create student assigned to the education group
-		student := testpkg.CreateTestStudent(t, db, "EndedSession", "Student", "4a")
+		student := testpkg.CreateTestStudent(t, db, "EndedSession", "Student", "4a", ogsID)
 		testpkg.AssignStudentToGroup(t, db, student.ID, educationGroup.ID)
 
-		activity := testpkg.CreateTestActivityGroup(t, db, "ended-session-test")
-		room := testpkg.CreateTestRoom(t, db, "Ended Room")
-		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
+		activity := testpkg.CreateTestActivityGroup(t, db, "ended-session-test", ogsID)
+		room := testpkg.CreateTestRoom(t, db, "Ended Room", ogsID)
+		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID, ogsID)
 
 		// End the active group session
 		endTime := time.Now().Add(-1 * time.Hour)
@@ -491,17 +492,17 @@ func TestCheckinStudent_Integration(t *testing.T) {
 		handler := setupCheckinTestHandler(t, db)
 
 		// Create teacher with account and education group
-		teacher, account := testpkg.CreateTestTeacherWithAccount(t, db, "Success", "Teacher")
-		educationGroup := testpkg.CreateTestEducationGroup(t, db, "Success Group")
+		teacher, account := testpkg.CreateTestTeacherWithAccount(t, db, "Success", "Teacher", ogsID)
+		educationGroup := testpkg.CreateTestEducationGroup(t, db, "Success Group", ogsID)
 		testpkg.CreateTestGroupTeacher(t, db, educationGroup.ID, teacher.ID)
 
 		// Create student assigned to the education group
-		student := testpkg.CreateTestStudent(t, db, "Success", "Student", "5a")
+		student := testpkg.CreateTestStudent(t, db, "Success", "Student", "5a", ogsID)
 		testpkg.AssignStudentToGroup(t, db, student.ID, educationGroup.ID)
 
-		activity := testpkg.CreateTestActivityGroup(t, db, "success-checkin-test")
-		room := testpkg.CreateTestRoom(t, db, "Success Room")
-		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
+		activity := testpkg.CreateTestActivityGroup(t, db, "success-checkin-test", ogsID)
+		room := testpkg.CreateTestRoom(t, db, "Success Room", ogsID)
+		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID, ogsID)
 
 		defer testpkg.CleanupActivityFixtures(t, db, teacher.Staff.ID, teacher.Staff.PersonID, educationGroup.ID, student.ID, activity.ID, room.ID, activeGroup.ID)
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)

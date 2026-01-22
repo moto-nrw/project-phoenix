@@ -28,6 +28,7 @@ type testContext struct {
 	db       *bun.DB
 	services *services.Factory
 	resource *guardiansAPI.Resource
+	ogsID    string
 }
 
 // setupTestContext initializes test database, services, and resource.
@@ -35,6 +36,7 @@ func setupTestContext(t *testing.T) *testContext {
 	t.Helper()
 
 	db, svc := testutil.SetupAPITest(t)
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	// Create repository factory for student repository
 	repoFactory := repositories.NewFactory(db)
@@ -51,6 +53,7 @@ func setupTestContext(t *testing.T) *testContext {
 		db:       db,
 		services: svc,
 		resource: resource,
+		ogsID:    ogsID,
 	}
 }
 
@@ -493,8 +496,9 @@ func TestListPendingInvitations_Success(t *testing.T) {
 func TestGetStudentGuardians_Success(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, ctx.db)
 
-	student := testpkg.CreateTestStudent(t, ctx.db, "Guardian", "TestStudent", "1a")
+	student := testpkg.CreateTestStudent(t, ctx.db, "Guardian", "TestStudent", "1a", ogsID)
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
 
 	router := chi.NewRouter()
@@ -709,7 +713,7 @@ func TestLinkGuardianToStudent_BadRequest_MissingGuardianID(t *testing.T) {
 	defer func() { _ = ctx.db.Close() }()
 
 	// Create a student with a group for the test
-	student := testpkg.CreateTestStudent(t, ctx.db, "Link", "TestStudent", "1a")
+	student := testpkg.CreateTestStudent(t, ctx.db, "Link", "TestStudent", "1a", ctx.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
 
 	router := chi.NewRouter()
@@ -736,7 +740,7 @@ func TestLinkGuardianToStudent_BadRequest_MissingRelationshipType(t *testing.T) 
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	student := testpkg.CreateTestStudent(t, ctx.db, "Link2", "TestStudent", "1a")
+	student := testpkg.CreateTestStudent(t, ctx.db, "Link2", "TestStudent", "1a", ctx.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
 
 	router := chi.NewRouter()
@@ -762,7 +766,7 @@ func TestLinkGuardianToStudent_BadRequest_InvalidEmergencyPriority(t *testing.T)
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	student := testpkg.CreateTestStudent(t, ctx.db, "Link3", "TestStudent", "1a")
+	student := testpkg.CreateTestStudent(t, ctx.db, "Link3", "TestStudent", "1a", ctx.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
 
 	router := chi.NewRouter()

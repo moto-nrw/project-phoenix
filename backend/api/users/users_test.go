@@ -27,6 +27,7 @@ type testContext struct {
 	db       *bun.DB
 	services *services.Factory
 	resource *usersAPI.Resource
+	ogsID    string
 }
 
 // setupTestContext creates test resources for users handler tests
@@ -34,6 +35,7 @@ func setupTestContext(t *testing.T) *testContext {
 	t.Helper()
 
 	db, svc := testutil.SetupAPITest(t)
+	ogsID := testpkg.SetupTestOGS(t, db)
 	resource := usersAPI.NewResource(svc.Users)
 
 	t.Cleanup(func() {
@@ -46,6 +48,7 @@ func setupTestContext(t *testing.T) *testContext {
 		db:       db,
 		services: svc,
 		resource: resource,
+		ogsID:    ogsID,
 	}
 }
 
@@ -92,7 +95,7 @@ func TestListPersons_Success(t *testing.T) {
 	tc, router := setupProtectedRouter(t)
 
 	// Create test person fixture
-	person := testpkg.CreateTestPerson(t, tc.db, "ListTest", "Person")
+	person := testpkg.CreateTestPerson(t, tc.db, "ListTest", "Person", tc.ogsID)
 	defer testpkg.CleanupPerson(t, tc.db, person.ID)
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/users", nil,
@@ -108,7 +111,7 @@ func TestListPersons_WithFilters(t *testing.T) {
 	tc, router := setupProtectedRouter(t)
 
 	// Create test person fixture
-	person := testpkg.CreateTestPerson(t, tc.db, "FilterTest", "PersonFilter")
+	person := testpkg.CreateTestPerson(t, tc.db, "FilterTest", "PersonFilter", tc.ogsID)
 	defer testpkg.CleanupPerson(t, tc.db, person.ID)
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/users?first_name=FilterTest", nil,
@@ -140,7 +143,7 @@ func TestGetPerson_Success(t *testing.T) {
 	tc, router := setupProtectedRouter(t)
 
 	// Create test person fixture
-	person := testpkg.CreateTestPerson(t, tc.db, "GetTest", "PersonGet")
+	person := testpkg.CreateTestPerson(t, tc.db, "GetTest", "PersonGet", tc.ogsID)
 	defer testpkg.CleanupPerson(t, tc.db, person.ID)
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/users/%d", person.ID), nil,
@@ -186,7 +189,7 @@ func TestGetPerson_InvalidID(t *testing.T) {
 func TestGetPerson_WithoutPermission(t *testing.T) {
 	tc, router := setupProtectedRouter(t)
 
-	person := testpkg.CreateTestPerson(t, tc.db, "PermTest", "PersonPerm")
+	person := testpkg.CreateTestPerson(t, tc.db, "PermTest", "PersonPerm", tc.ogsID)
 	defer testpkg.CleanupPerson(t, tc.db, person.ID)
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/users/%d", person.ID), nil,
@@ -206,7 +209,7 @@ func TestSearchPersons_Success(t *testing.T) {
 	tc, router := setupProtectedRouter(t)
 
 	// Create test person fixture
-	person := testpkg.CreateTestPerson(t, tc.db, "SearchTest", "PersonSearch")
+	person := testpkg.CreateTestPerson(t, tc.db, "SearchTest", "PersonSearch", tc.ogsID)
 	defer testpkg.CleanupPerson(t, tc.db, person.ID)
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/users/search?first_name=SearchTest", nil,
@@ -221,7 +224,7 @@ func TestSearchPersons_Success(t *testing.T) {
 func TestSearchPersons_ByLastName(t *testing.T) {
 	tc, router := setupProtectedRouter(t)
 
-	person := testpkg.CreateTestPerson(t, tc.db, "First", "UniqueSearchLast")
+	person := testpkg.CreateTestPerson(t, tc.db, "First", "UniqueSearchLast", tc.ogsID)
 	defer testpkg.CleanupPerson(t, tc.db, person.ID)
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/users/search?last_name=UniqueSearchLast", nil,
@@ -369,7 +372,7 @@ func TestUpdatePerson_Success(t *testing.T) {
 	account := testpkg.CreateTestAccount(t, tc.db, "update-person-test@example.com")
 	defer testpkg.CleanupAccount(t, tc.db, account.ID)
 
-	person := testpkg.CreateTestPersonWithAccountID(t, tc.db, "Original", "Name", account.ID)
+	person := testpkg.CreateTestPersonWithAccountID(t, tc.db, "Original", "Name", account.ID, tc.ogsID)
 	defer testpkg.CleanupPerson(t, tc.db, person.ID)
 
 	body := map[string]interface{}{
@@ -433,7 +436,7 @@ func TestUpdatePerson_InvalidID(t *testing.T) {
 func TestUpdatePerson_WithoutPermission(t *testing.T) {
 	tc, router := setupProtectedRouter(t)
 
-	person := testpkg.CreateTestPerson(t, tc.db, "NoPerm", "Update")
+	person := testpkg.CreateTestPerson(t, tc.db, "NoPerm", "Update", tc.ogsID)
 	defer testpkg.CleanupPerson(t, tc.db, person.ID)
 
 	body := map[string]interface{}{
@@ -459,7 +462,7 @@ func TestDeletePerson_Success(t *testing.T) {
 	tc, router := setupProtectedRouter(t)
 
 	// Create test person to delete
-	person := testpkg.CreateTestPerson(t, tc.db, "ToDelete", "Person")
+	person := testpkg.CreateTestPerson(t, tc.db, "ToDelete", "Person", tc.ogsID)
 	// No defer cleanup needed since we're deleting it
 
 	req := testutil.NewAuthenticatedRequest(t, "DELETE", fmt.Sprintf("/users/%d", person.ID), nil,
@@ -499,7 +502,7 @@ func TestDeletePerson_InvalidID(t *testing.T) {
 func TestDeletePerson_WithoutPermission(t *testing.T) {
 	tc, router := setupProtectedRouter(t)
 
-	person := testpkg.CreateTestPerson(t, tc.db, "NoPermDelete", "Person")
+	person := testpkg.CreateTestPerson(t, tc.db, "NoPermDelete", "Person", tc.ogsID)
 	defer testpkg.CleanupPerson(t, tc.db, person.ID)
 
 	req := testutil.NewAuthenticatedRequest(t, "DELETE", fmt.Sprintf("/users/%d", person.ID), nil,
@@ -518,7 +521,7 @@ func TestDeletePerson_WithoutPermission(t *testing.T) {
 func TestGetFullProfile_Success(t *testing.T) {
 	tc, router := setupProtectedRouter(t)
 
-	person := testpkg.CreateTestPerson(t, tc.db, "Profile", "Test")
+	person := testpkg.CreateTestPerson(t, tc.db, "Profile", "Test", tc.ogsID)
 	defer testpkg.CleanupPerson(t, tc.db, person.ID)
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/users/%d/profile", person.ID), nil,
@@ -600,7 +603,7 @@ func TestLinkRFID_InvalidID(t *testing.T) {
 func TestLinkRFID_MissingTagID(t *testing.T) {
 	tc, router := setupProtectedRouter(t)
 
-	person := testpkg.CreateTestPerson(t, tc.db, "RFID", "LinkTest")
+	person := testpkg.CreateTestPerson(t, tc.db, "RFID", "LinkTest", tc.ogsID)
 	defer testpkg.CleanupPerson(t, tc.db, person.ID)
 
 	body := map[string]interface{}{} // Missing tag_id
@@ -662,7 +665,7 @@ func TestLinkAccount_InvalidID(t *testing.T) {
 func TestLinkAccount_MissingAccountID(t *testing.T) {
 	tc, router := setupProtectedRouter(t)
 
-	person := testpkg.CreateTestPerson(t, tc.db, "Account", "LinkTest")
+	person := testpkg.CreateTestPerson(t, tc.db, "Account", "LinkTest", tc.ogsID)
 	defer testpkg.CleanupPerson(t, tc.db, person.ID)
 
 	body := map[string]interface{}{} // Missing account_id
@@ -728,7 +731,7 @@ func TestGetPersonByAccount_Success(t *testing.T) {
 	account := testpkg.CreateTestAccount(t, tc.db, "person-by-account-test@example.com")
 	defer testpkg.CleanupAccount(t, tc.db, account.ID)
 
-	person := testpkg.CreateTestPersonWithAccountID(t, tc.db, "ByAccount", "Test", account.ID)
+	person := testpkg.CreateTestPersonWithAccountID(t, tc.db, "ByAccount", "Test", account.ID, tc.ogsID)
 	defer testpkg.CleanupPerson(t, tc.db, person.ID)
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/users/by-account/%d", account.ID), nil,

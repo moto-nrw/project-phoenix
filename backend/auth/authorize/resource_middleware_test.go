@@ -11,6 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/policy"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/auth/tenant"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -134,7 +135,7 @@ func TestResourceAuthorizer_RequiresResourceAccess(t *testing.T) {
 
 			// Setup context with claims and permissions
 			ctx := context.WithValue(req.Context(), jwt.CtxClaims, tt.claims)
-			ctx = context.WithValue(ctx, jwt.CtxPermissions, tt.permissions)
+			ctx = context.WithValue(ctx, tenant.CtxPermissions, tt.permissions)
 			req = req.WithContext(ctx)
 
 			protectedHandler.ServeHTTP(rr, req)
@@ -286,7 +287,7 @@ func TestCombinePermissionAndResource(t *testing.T) {
 	permissions := []string{"students:read"}
 
 	ctx := context.WithValue(req.Context(), jwt.CtxClaims, claims)
-	ctx = context.WithValue(ctx, jwt.CtxPermissions, permissions)
+	ctx = context.WithValue(ctx, tenant.CtxPermissions, permissions)
 	req = req.WithContext(ctx)
 
 	// Execute request

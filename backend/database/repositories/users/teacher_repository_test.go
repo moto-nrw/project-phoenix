@@ -149,12 +149,13 @@ func cleanupTeacherRecords(t *testing.T, db *bun.DB, teacherIDs ...int64) {
 func TestTeacherRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).Teacher
 	ctx := context.Background()
 
 	t.Run("creates teacher with valid data", func(t *testing.T) {
-		staff := testpkg.CreateTestStaff(t, db, "Teacher", "Create")
+		staff := testpkg.CreateTestStaff(t, db, "Teacher", "Create", ogsID)
 		defer cleanupTeacherStaffRecords(t, db, staff.ID)
 
 		teacher := &users.Teacher{
@@ -178,7 +179,7 @@ func TestTeacherRepository_Create(t *testing.T) {
 	})
 
 	t.Run("creates teacher with specialization", func(t *testing.T) {
-		staff := testpkg.CreateTestStaff(t, db, "Math", "Teacher")
+		staff := testpkg.CreateTestStaff(t, db, "Math", "Teacher", ogsID)
 		defer cleanupTeacherStaffRecords(t, db, staff.ID)
 
 		teacher := &users.Teacher{
@@ -219,12 +220,13 @@ func TestTeacherRepository_Create(t *testing.T) {
 func TestTeacherRepository_FindByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).Teacher
 	ctx := context.Background()
 
 	t.Run("finds existing teacher", func(t *testing.T) {
-		teacher := testpkg.CreateTestTeacher(t, db, "FindByID", "Teacher")
+		teacher := testpkg.CreateTestTeacher(t, db, "FindByID", "Teacher", ogsID)
 		defer cleanupTeacherRecords(t, db, teacher.ID)
 
 		found, err := repo.FindByID(ctx, teacher.ID)
@@ -242,12 +244,13 @@ func TestTeacherRepository_FindByID(t *testing.T) {
 func TestTeacherRepository_FindByStaffID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).Teacher
 	ctx := context.Background()
 
 	t.Run("finds teacher by staff ID", func(t *testing.T) {
-		teacher := testpkg.CreateTestTeacher(t, db, "FindByStaff", "Teacher")
+		teacher := testpkg.CreateTestTeacher(t, db, "FindByStaff", "Teacher", ogsID)
 		defer cleanupTeacherRecords(t, db, teacher.ID)
 
 		found, err := repo.FindByStaffID(ctx, teacher.StaffID)
@@ -266,13 +269,14 @@ func TestTeacherRepository_FindByStaffID(t *testing.T) {
 func TestTeacherRepository_FindByStaffIDs(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).Teacher
 	ctx := context.Background()
 
 	t.Run("finds multiple teachers by staff IDs", func(t *testing.T) {
-		teacher1 := testpkg.CreateTestTeacher(t, db, "FindByIDs1", "Teacher")
-		teacher2 := testpkg.CreateTestTeacher(t, db, "FindByIDs2", "Teacher")
+		teacher1 := testpkg.CreateTestTeacher(t, db, "FindByIDs1", "Teacher", ogsID)
+		teacher2 := testpkg.CreateTestTeacher(t, db, "FindByIDs2", "Teacher", ogsID)
 		defer cleanupTeacherRecords(t, db, teacher1.ID, teacher2.ID)
 
 		staffIDs := []int64{teacher1.StaffID, teacher2.StaffID}
@@ -292,7 +296,7 @@ func TestTeacherRepository_FindByStaffIDs(t *testing.T) {
 	})
 
 	t.Run("returns partial results for mixed existing/non-existing IDs", func(t *testing.T) {
-		teacher := testpkg.CreateTestTeacher(t, db, "FindByIDsPartial", "Teacher")
+		teacher := testpkg.CreateTestTeacher(t, db, "FindByIDsPartial", "Teacher", ogsID)
 		defer cleanupTeacherRecords(t, db, teacher.ID)
 
 		staffIDs := []int64{teacher.StaffID, 999999} // one exists, one doesn't
@@ -309,12 +313,13 @@ func TestTeacherRepository_FindByStaffIDs(t *testing.T) {
 func TestTeacherRepository_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).Teacher
 	ctx := context.Background()
 
 	t.Run("updates teacher specialization", func(t *testing.T) {
-		teacher := testpkg.CreateTestTeacher(t, db, "Update", "Teacher")
+		teacher := testpkg.CreateTestTeacher(t, db, "Update", "Teacher", ogsID)
 		defer cleanupTeacherRecords(t, db, teacher.ID)
 
 		teacher.Specialization = "Physics"
@@ -337,12 +342,13 @@ func TestTeacherRepository_Update(t *testing.T) {
 func TestTeacherRepository_Delete(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).Teacher
 	ctx := context.Background()
 
 	t.Run("deletes existing teacher", func(t *testing.T) {
-		teacher := testpkg.CreateTestTeacher(t, db, "Delete", "Teacher")
+		teacher := testpkg.CreateTestTeacher(t, db, "Delete", "Teacher", ogsID)
 		staffID := teacher.StaffID
 
 		err := repo.Delete(ctx, teacher.ID)
@@ -364,13 +370,14 @@ func TestTeacherRepository_Delete(t *testing.T) {
 func TestTeacherRepository_FindBySpecialization(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).Teacher
 	ctx := context.Background()
 
 	t.Run("finds teachers by specialization (case-insensitive)", func(t *testing.T) {
 		// Create teacher with unique specialization
-		teacher := testpkg.CreateTestTeacher(t, db, "Spec", "Teacher")
+		teacher := testpkg.CreateTestTeacher(t, db, "Spec", "Teacher", ogsID)
 		defer cleanupTeacherRecords(t, db, teacher.ID)
 
 		uniqueSpec := fmt.Sprintf("UniqueSpec%d", time.Now().UnixNano())
@@ -394,12 +401,13 @@ func TestTeacherRepository_FindBySpecialization(t *testing.T) {
 func TestTeacherRepository_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).Teacher
 	ctx := context.Background()
 
 	t.Run("lists all teachers with no filters", func(t *testing.T) {
-		teacher := testpkg.CreateTestTeacher(t, db, "List", "Teacher")
+		teacher := testpkg.CreateTestTeacher(t, db, "List", "Teacher", ogsID)
 		defer cleanupTeacherRecords(t, db, teacher.ID)
 
 		teachers, err := repo.List(ctx, nil)
@@ -408,7 +416,7 @@ func TestTeacherRepository_List(t *testing.T) {
 	})
 
 	t.Run("lists teachers with staff_id filter", func(t *testing.T) {
-		teacher := testpkg.CreateTestTeacher(t, db, "Filter", "Teacher")
+		teacher := testpkg.CreateTestTeacher(t, db, "Filter", "Teacher", ogsID)
 		defer cleanupTeacherRecords(t, db, teacher.ID)
 
 		teachers, err := repo.List(ctx, map[string]any{
@@ -423,16 +431,17 @@ func TestTeacherRepository_List(t *testing.T) {
 func TestTeacherRepository_FindByGroupID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).Teacher
 	ctx := context.Background()
 
 	t.Run("finds teachers assigned to education group", func(t *testing.T) {
 		// Create education group
-		group := testpkg.CreateTestEducationGroup(t, db, "TeacherGroup")
+		group := testpkg.CreateTestEducationGroup(t, db, "TeacherGroup", ogsID)
 
 		// Create teacher
-		teacher := testpkg.CreateTestTeacher(t, db, "GroupTeacher", "Test")
+		teacher := testpkg.CreateTestTeacher(t, db, "GroupTeacher", "Test", ogsID)
 
 		// Create group-teacher assignment
 		gt := testpkg.CreateTestGroupTeacher(t, db, group.ID, teacher.ID)
@@ -455,7 +464,7 @@ func TestTeacherRepository_FindByGroupID(t *testing.T) {
 	})
 
 	t.Run("returns empty for group with no teachers", func(t *testing.T) {
-		group := testpkg.CreateTestEducationGroup(t, db, "EmptyTeacherGroup")
+		group := testpkg.CreateTestEducationGroup(t, db, "EmptyTeacherGroup", ogsID)
 		defer cleanupTeacherEducationData(t, db, []int64{group.ID})
 
 		teachers, err := repo.FindByGroupID(ctx, group.ID)
@@ -471,12 +480,13 @@ func TestTeacherRepository_FindByGroupID(t *testing.T) {
 func TestTeacherRepository_FindWithStaffAndPerson(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).Teacher
 	ctx := context.Background()
 
 	t.Run("finds teacher with staff and person loaded", func(t *testing.T) {
-		teacher := testpkg.CreateTestTeacher(t, db, "WithStaff", "Person")
+		teacher := testpkg.CreateTestTeacher(t, db, "WithStaff", "Person", ogsID)
 		defer cleanupTeacherRecords(t, db, teacher.ID)
 
 		found, err := repo.FindWithStaffAndPerson(ctx, teacher.ID)
@@ -496,14 +506,15 @@ func TestTeacherRepository_FindWithStaffAndPerson(t *testing.T) {
 func TestTeacherRepository_ListAllWithStaffAndPerson(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).Teacher
 	ctx := context.Background()
 
 	t.Run("returns all teachers with staff and person data", func(t *testing.T) {
 		// Create multiple teachers
-		teacher1 := testpkg.CreateTestTeacher(t, db, "AllWithStaff1", "Person1")
-		teacher2 := testpkg.CreateTestTeacher(t, db, "AllWithStaff2", "Person2")
+		teacher1 := testpkg.CreateTestTeacher(t, db, "AllWithStaff1", "Person1", ogsID)
+		teacher2 := testpkg.CreateTestTeacher(t, db, "AllWithStaff2", "Person2", ogsID)
 		defer cleanupTeacherRecords(t, db, teacher1.ID, teacher2.ID)
 
 		results, err := repo.ListAllWithStaffAndPerson(ctx)
@@ -534,7 +545,7 @@ func TestTeacherRepository_ListAllWithStaffAndPerson(t *testing.T) {
 	})
 
 	t.Run("loads all staff and person fields correctly", func(t *testing.T) {
-		teacher := testpkg.CreateTestTeacher(t, db, "StaffPersonFields", "Check")
+		teacher := testpkg.CreateTestTeacher(t, db, "StaffPersonFields", "Check", ogsID)
 		defer cleanupTeacherRecords(t, db, teacher.ID)
 
 		results, err := repo.ListAllWithStaffAndPerson(ctx)
@@ -573,13 +584,14 @@ func TestTeacherRepository_ListAllWithStaffAndPerson(t *testing.T) {
 func TestTeacherRepository_ListWithStringFilters(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).Teacher
 	ctx := context.Background()
 
 	t.Run("filters teachers by specialization_like", func(t *testing.T) {
 		// Create teacher with unique specialization
-		teacher := testpkg.CreateTestTeacher(t, db, "FilterTest", "Teacher")
+		teacher := testpkg.CreateTestTeacher(t, db, "FilterTest", "Teacher", ogsID)
 		defer cleanupTeacherRecords(t, db, teacher.ID)
 
 		uniqueSpec := fmt.Sprintf("FilterSpec%d", time.Now().UnixNano())
@@ -605,7 +617,7 @@ func TestTeacherRepository_ListWithStringFilters(t *testing.T) {
 	})
 
 	t.Run("filters teachers by role_like", func(t *testing.T) {
-		teacher := testpkg.CreateTestTeacher(t, db, "RoleTest", "Teacher")
+		teacher := testpkg.CreateTestTeacher(t, db, "RoleTest", "Teacher", ogsID)
 		defer cleanupTeacherRecords(t, db, teacher.ID)
 
 		// Set a unique role
@@ -639,12 +651,13 @@ func TestTeacherRepository_ListWithStringFilters(t *testing.T) {
 func TestTeacherRepository_UpdateQualifications(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).Teacher
 	ctx := context.Background()
 
 	t.Run("updates teacher qualifications", func(t *testing.T) {
-		teacher := testpkg.CreateTestTeacher(t, db, "Update", "Qualifications")
+		teacher := testpkg.CreateTestTeacher(t, db, "Update", "Qualifications", ogsID)
 		defer cleanupTeacherRecords(t, db, teacher.ID)
 
 		newQualifications := "Master of Education, Certified Mathematics Teacher"
@@ -657,7 +670,7 @@ func TestTeacherRepository_UpdateQualifications(t *testing.T) {
 	})
 
 	t.Run("clears qualifications with empty string", func(t *testing.T) {
-		teacher := testpkg.CreateTestTeacher(t, db, "Clear", "Qualifications")
+		teacher := testpkg.CreateTestTeacher(t, db, "Clear", "Qualifications", ogsID)
 		defer cleanupTeacherRecords(t, db, teacher.ID)
 
 		// Set initial qualifications

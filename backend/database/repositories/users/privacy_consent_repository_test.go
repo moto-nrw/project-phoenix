@@ -23,12 +23,13 @@ import (
 func TestPrivacyConsentRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).PrivacyConsent
 	ctx := context.Background()
 
 	t.Run("creates consent with valid data", func(t *testing.T) {
-		student := testpkg.CreateTestStudent(t, db, "Consent", "Create", "1a")
+		student := testpkg.CreateTestStudent(t, db, "Consent", "Create", "1a", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, student.ID, student.PersonID)
 
 		now := time.Now()
@@ -48,7 +49,7 @@ func TestPrivacyConsentRepository_Create(t *testing.T) {
 	})
 
 	t.Run("creates consent with expiry date", func(t *testing.T) {
-		student := testpkg.CreateTestStudent(t, db, "Consent", "Expiry", "1b")
+		student := testpkg.CreateTestStudent(t, db, "Consent", "Expiry", "1b", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, student.ID, student.PersonID)
 
 		now := time.Now()
@@ -89,7 +90,7 @@ func TestPrivacyConsentRepository_Create(t *testing.T) {
 	})
 
 	t.Run("fails without policy version", func(t *testing.T) {
-		student := testpkg.CreateTestStudent(t, db, "Consent", "NoPol", "1c")
+		student := testpkg.CreateTestStudent(t, db, "Consent", "NoPol", "1c", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, student.ID, student.PersonID)
 
 		consent := &users.PrivacyConsent{
@@ -103,7 +104,7 @@ func TestPrivacyConsentRepository_Create(t *testing.T) {
 	})
 
 	t.Run("fails with invalid data retention days", func(t *testing.T) {
-		student := testpkg.CreateTestStudent(t, db, "Consent", "BadDays", "1d")
+		student := testpkg.CreateTestStudent(t, db, "Consent", "BadDays", "1d", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, student.ID, student.PersonID)
 
 		consent := &users.PrivacyConsent{
@@ -121,12 +122,13 @@ func TestPrivacyConsentRepository_Create(t *testing.T) {
 func TestPrivacyConsentRepository_FindByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).PrivacyConsent
 	ctx := context.Background()
 
 	t.Run("finds existing consent", func(t *testing.T) {
-		consent := testpkg.CreateTestPrivacyConsent(t, db, "FindByID")
+		consent := testpkg.CreateTestPrivacyConsent(t, db, "FindByID", ogsID)
 		defer testpkg.CleanupTableRecords(t, db, "users.privacy_consents", consent.ID)
 		defer testpkg.CleanupActivityFixtures(t, db, consent.StudentID, consent.Student.PersonID)
 
@@ -145,12 +147,13 @@ func TestPrivacyConsentRepository_FindByID(t *testing.T) {
 func TestPrivacyConsentRepository_FindByStudentID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).PrivacyConsent
 	ctx := context.Background()
 
 	t.Run("finds consents by student ID", func(t *testing.T) {
-		consent := testpkg.CreateTestPrivacyConsent(t, db, "ByStudent")
+		consent := testpkg.CreateTestPrivacyConsent(t, db, "ByStudent", ogsID)
 		defer testpkg.CleanupTableRecords(t, db, "users.privacy_consents", consent.ID)
 		defer testpkg.CleanupActivityFixtures(t, db, consent.StudentID, consent.Student.PersonID)
 
@@ -178,12 +181,13 @@ func TestPrivacyConsentRepository_FindByStudentID(t *testing.T) {
 func TestPrivacyConsentRepository_FindByStudentIDAndPolicyVersion(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).PrivacyConsent
 	ctx := context.Background()
 
 	t.Run("finds consent by student ID and policy version", func(t *testing.T) {
-		consent := testpkg.CreateTestPrivacyConsent(t, db, "ByVersion")
+		consent := testpkg.CreateTestPrivacyConsent(t, db, "ByVersion", ogsID)
 		defer testpkg.CleanupTableRecords(t, db, "users.privacy_consents", consent.ID)
 		defer testpkg.CleanupActivityFixtures(t, db, consent.StudentID, consent.Student.PersonID)
 
@@ -201,12 +205,13 @@ func TestPrivacyConsentRepository_FindByStudentIDAndPolicyVersion(t *testing.T) 
 func TestPrivacyConsentRepository_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).PrivacyConsent
 	ctx := context.Background()
 
 	t.Run("updates consent", func(t *testing.T) {
-		consent := testpkg.CreateTestPrivacyConsent(t, db, "Update")
+		consent := testpkg.CreateTestPrivacyConsent(t, db, "Update", ogsID)
 		defer testpkg.CleanupTableRecords(t, db, "users.privacy_consents", consent.ID)
 		defer testpkg.CleanupActivityFixtures(t, db, consent.StudentID, consent.Student.PersonID)
 
@@ -236,12 +241,13 @@ func TestPrivacyConsentRepository_Update(t *testing.T) {
 func TestPrivacyConsentRepository_Accept(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).PrivacyConsent
 	ctx := context.Background()
 
 	t.Run("accepts consent", func(t *testing.T) {
-		student := testpkg.CreateTestStudent(t, db, "Accept", "Consent", "2a")
+		student := testpkg.CreateTestStudent(t, db, "Accept", "Consent", "2a", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, student.ID, student.PersonID)
 
 		consent := &users.PrivacyConsent{
@@ -268,12 +274,13 @@ func TestPrivacyConsentRepository_Accept(t *testing.T) {
 func TestPrivacyConsentRepository_Revoke(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).PrivacyConsent
 	ctx := context.Background()
 
 	t.Run("revokes consent", func(t *testing.T) {
-		consent := testpkg.CreateTestPrivacyConsent(t, db, "Revoke")
+		consent := testpkg.CreateTestPrivacyConsent(t, db, "Revoke", ogsID)
 		defer testpkg.CleanupTableRecords(t, db, "users.privacy_consents", consent.ID)
 		defer testpkg.CleanupActivityFixtures(t, db, consent.StudentID, consent.Student.PersonID)
 
@@ -289,12 +296,13 @@ func TestPrivacyConsentRepository_Revoke(t *testing.T) {
 func TestPrivacyConsentRepository_SetExpiryDate(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).PrivacyConsent
 	ctx := context.Background()
 
 	t.Run("sets expiry date", func(t *testing.T) {
-		consent := testpkg.CreateTestPrivacyConsent(t, db, "Expiry")
+		consent := testpkg.CreateTestPrivacyConsent(t, db, "Expiry", ogsID)
 		defer testpkg.CleanupTableRecords(t, db, "users.privacy_consents", consent.ID)
 		defer testpkg.CleanupActivityFixtures(t, db, consent.StudentID, consent.Student.PersonID)
 
@@ -311,12 +319,13 @@ func TestPrivacyConsentRepository_SetExpiryDate(t *testing.T) {
 func TestPrivacyConsentRepository_SetRenewalRequired(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).PrivacyConsent
 	ctx := context.Background()
 
 	t.Run("sets renewal required to true", func(t *testing.T) {
-		consent := testpkg.CreateTestPrivacyConsent(t, db, "Renewal")
+		consent := testpkg.CreateTestPrivacyConsent(t, db, "Renewal", ogsID)
 		defer testpkg.CleanupTableRecords(t, db, "users.privacy_consents", consent.ID)
 		defer testpkg.CleanupActivityFixtures(t, db, consent.StudentID, consent.Student.PersonID)
 
@@ -329,7 +338,7 @@ func TestPrivacyConsentRepository_SetRenewalRequired(t *testing.T) {
 	})
 
 	t.Run("sets renewal required to false", func(t *testing.T) {
-		consent := testpkg.CreateTestPrivacyConsent(t, db, "NoRenewal")
+		consent := testpkg.CreateTestPrivacyConsent(t, db, "NoRenewal", ogsID)
 		defer testpkg.CleanupTableRecords(t, db, "users.privacy_consents", consent.ID)
 		defer testpkg.CleanupActivityFixtures(t, db, consent.StudentID, consent.Student.PersonID)
 
@@ -350,12 +359,13 @@ func TestPrivacyConsentRepository_SetRenewalRequired(t *testing.T) {
 func TestPrivacyConsentRepository_UpdateDetails(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).PrivacyConsent
 	ctx := context.Background()
 
 	t.Run("updates details with valid JSON", func(t *testing.T) {
-		consent := testpkg.CreateTestPrivacyConsent(t, db, "Details")
+		consent := testpkg.CreateTestPrivacyConsent(t, db, "Details", ogsID)
 		defer testpkg.CleanupTableRecords(t, db, "users.privacy_consents", consent.ID)
 		defer testpkg.CleanupActivityFixtures(t, db, consent.StudentID, consent.Student.PersonID)
 
@@ -369,7 +379,7 @@ func TestPrivacyConsentRepository_UpdateDetails(t *testing.T) {
 	})
 
 	t.Run("fails with invalid JSON", func(t *testing.T) {
-		consent := testpkg.CreateTestPrivacyConsent(t, db, "BadDetails")
+		consent := testpkg.CreateTestPrivacyConsent(t, db, "BadDetails", ogsID)
 		defer testpkg.CleanupTableRecords(t, db, "users.privacy_consents", consent.ID)
 		defer testpkg.CleanupActivityFixtures(t, db, consent.StudentID, consent.Student.PersonID)
 
@@ -386,12 +396,13 @@ func TestPrivacyConsentRepository_UpdateDetails(t *testing.T) {
 func TestPrivacyConsentRepository_FindActiveByStudentID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).PrivacyConsent
 	ctx := context.Background()
 
 	t.Run("finds active consents for student", func(t *testing.T) {
-		consent := testpkg.CreateTestPrivacyConsent(t, db, "Active")
+		consent := testpkg.CreateTestPrivacyConsent(t, db, "Active", ogsID)
 		defer testpkg.CleanupTableRecords(t, db, "users.privacy_consents", consent.ID)
 		defer testpkg.CleanupActivityFixtures(t, db, consent.StudentID, consent.Student.PersonID)
 
@@ -432,12 +443,13 @@ func TestPrivacyConsentRepository_FindExpired(t *testing.T) {
 func TestPrivacyConsentRepository_FindNeedingRenewal(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).PrivacyConsent
 	ctx := context.Background()
 
 	t.Run("finds consents needing renewal", func(t *testing.T) {
-		consent := testpkg.CreateTestPrivacyConsent(t, db, "NeedRenewal")
+		consent := testpkg.CreateTestPrivacyConsent(t, db, "NeedRenewal", ogsID)
 		defer testpkg.CleanupTableRecords(t, db, "users.privacy_consents", consent.ID)
 		defer testpkg.CleanupActivityFixtures(t, db, consent.StudentID, consent.Student.PersonID)
 
@@ -466,12 +478,13 @@ func TestPrivacyConsentRepository_FindNeedingRenewal(t *testing.T) {
 func TestPrivacyConsentRepository_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).PrivacyConsent
 	ctx := context.Background()
 
 	t.Run("lists with accepted filter", func(t *testing.T) {
-		consent := testpkg.CreateTestPrivacyConsent(t, db, "FilterAccepted")
+		consent := testpkg.CreateTestPrivacyConsent(t, db, "FilterAccepted", ogsID)
 		defer testpkg.CleanupTableRecords(t, db, "users.privacy_consents", consent.ID)
 		defer testpkg.CleanupActivityFixtures(t, db, consent.StudentID, consent.Student.PersonID)
 
@@ -489,7 +502,7 @@ func TestPrivacyConsentRepository_List(t *testing.T) {
 	})
 
 	t.Run("lists with policy_version filter", func(t *testing.T) {
-		consent := testpkg.CreateTestPrivacyConsent(t, db, "FilterVersion")
+		consent := testpkg.CreateTestPrivacyConsent(t, db, "FilterVersion", ogsID)
 		defer testpkg.CleanupTableRecords(t, db, "users.privacy_consents", consent.ID)
 		defer testpkg.CleanupActivityFixtures(t, db, consent.StudentID, consent.Student.PersonID)
 

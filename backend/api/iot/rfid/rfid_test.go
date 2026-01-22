@@ -28,6 +28,7 @@ type testContext struct {
 	db       *bun.DB
 	services *services.Factory
 	resource *rfidAPI.Resource
+	ogsID    string
 }
 
 // setupTestContext initializes test database, services, and resource.
@@ -35,6 +36,7 @@ func setupTestContext(t *testing.T) *testContext {
 	t.Helper()
 
 	db, svc := testutil.SetupAPITest(t)
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	// Create RFID resource
 	resource := rfidAPI.NewResource(svc.Users)
@@ -43,6 +45,7 @@ func setupTestContext(t *testing.T) *testContext {
 		db:       db,
 		services: svc,
 		resource: resource,
+		ogsID:    ogsID,
 	}
 }
 
@@ -72,8 +75,9 @@ func TestAssignRFIDTag_NoDevice(t *testing.T) {
 func TestAssignRFIDTag_InvalidStaffID(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, ctx.db)
 
-	testDevice := testpkg.CreateTestDevice(t, ctx.db, "rfid-test-device-1")
+	testDevice := testpkg.CreateTestDevice(t, ctx.db, "rfid-test-device-1", ogsID)
 
 	router := chi.NewRouter()
 	router.Post("/{staffId}/rfid", ctx.resource.AssignRFIDTagHandler())
@@ -95,7 +99,7 @@ func TestAssignRFIDTag_InvalidJSON(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	testDevice := testpkg.CreateTestDevice(t, ctx.db, "rfid-test-device-2")
+	testDevice := testpkg.CreateTestDevice(t, ctx.db, "rfid-test-device-2", ctx.ogsID)
 
 	router := chi.NewRouter()
 	router.Post("/{staffId}/rfid", ctx.resource.AssignRFIDTagHandler())
@@ -116,7 +120,7 @@ func TestAssignRFIDTag_MissingRFIDTag(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	testDevice := testpkg.CreateTestDevice(t, ctx.db, "rfid-test-device-3")
+	testDevice := testpkg.CreateTestDevice(t, ctx.db, "rfid-test-device-3", ctx.ogsID)
 
 	router := chi.NewRouter()
 	router.Post("/{staffId}/rfid", ctx.resource.AssignRFIDTagHandler())
@@ -136,7 +140,7 @@ func TestAssignRFIDTag_RFIDTagTooShort(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	testDevice := testpkg.CreateTestDevice(t, ctx.db, "rfid-test-device-4")
+	testDevice := testpkg.CreateTestDevice(t, ctx.db, "rfid-test-device-4", ctx.ogsID)
 
 	router := chi.NewRouter()
 	router.Post("/{staffId}/rfid", ctx.resource.AssignRFIDTagHandler())
@@ -158,7 +162,7 @@ func TestAssignRFIDTag_StaffNotFound(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	testDevice := testpkg.CreateTestDevice(t, ctx.db, "rfid-test-device-5")
+	testDevice := testpkg.CreateTestDevice(t, ctx.db, "rfid-test-device-5", ctx.ogsID)
 
 	router := chi.NewRouter()
 	router.Post("/{staffId}/rfid", ctx.resource.AssignRFIDTagHandler())
@@ -180,8 +184,8 @@ func TestAssignRFIDTag_Success(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	testDevice := testpkg.CreateTestDevice(t, ctx.db, "rfid-test-device-6")
-	staff := testpkg.CreateTestStaff(t, ctx.db, "RFID", "Staff1")
+	testDevice := testpkg.CreateTestDevice(t, ctx.db, "rfid-test-device-6", ctx.ogsID)
+	staff := testpkg.CreateTestStaff(t, ctx.db, "RFID", "Staff1", ctx.ogsID)
 	// Create RFID card first (card ID must be hexadecimal)
 	rfidCard := testpkg.CreateTestRFIDCard(t, ctx.db, "A1B2C3D4E5F60001")
 
@@ -224,7 +228,7 @@ func TestUnassignRFIDTag_InvalidStaffID(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	testDevice := testpkg.CreateTestDevice(t, ctx.db, "rfid-test-device-7")
+	testDevice := testpkg.CreateTestDevice(t, ctx.db, "rfid-test-device-7", ctx.ogsID)
 
 	router := chi.NewRouter()
 	router.Delete("/{staffId}/rfid", ctx.resource.UnassignRFIDTagHandler())
@@ -242,7 +246,7 @@ func TestUnassignRFIDTag_StaffNotFound(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	testDevice := testpkg.CreateTestDevice(t, ctx.db, "rfid-test-device-8")
+	testDevice := testpkg.CreateTestDevice(t, ctx.db, "rfid-test-device-8", ctx.ogsID)
 
 	router := chi.NewRouter()
 	router.Delete("/{staffId}/rfid", ctx.resource.UnassignRFIDTagHandler())
@@ -260,8 +264,8 @@ func TestUnassignRFIDTag_NoTagAssigned(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	testDevice := testpkg.CreateTestDevice(t, ctx.db, "rfid-test-device-9")
-	staff := testpkg.CreateTestStaff(t, ctx.db, "NoTag", "Staff")
+	testDevice := testpkg.CreateTestDevice(t, ctx.db, "rfid-test-device-9", ctx.ogsID)
+	staff := testpkg.CreateTestStaff(t, ctx.db, "NoTag", "Staff", ctx.ogsID)
 
 	router := chi.NewRouter()
 	router.Delete("/{staffId}/rfid", ctx.resource.UnassignRFIDTagHandler())
@@ -279,8 +283,8 @@ func TestUnassignRFIDTag_Success(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	testDevice := testpkg.CreateTestDevice(t, ctx.db, "rfid-test-device-10")
-	staff := testpkg.CreateTestStaff(t, ctx.db, "HasTag", "Staff")
+	testDevice := testpkg.CreateTestDevice(t, ctx.db, "rfid-test-device-10", ctx.ogsID)
+	staff := testpkg.CreateTestStaff(t, ctx.db, "HasTag", "Staff", ctx.ogsID)
 	rfidCard := testpkg.CreateTestRFIDCard(t, ctx.db, "TESTRFID200")
 	// Link RFID to staff's person
 	testpkg.LinkRFIDToStudent(t, ctx.db, staff.PersonID, rfidCard.ID)

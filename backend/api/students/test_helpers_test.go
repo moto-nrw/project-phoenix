@@ -25,6 +25,7 @@ type testContext struct {
 	db       *bun.DB
 	services *services.Factory
 	resource *studentsAPI.Resource
+	ogsID    string
 }
 
 // setupTestContext initializes the test environment.
@@ -32,6 +33,7 @@ func setupTestContext(t *testing.T) *testContext {
 	t.Helper()
 
 	db := testpkg.SetupTestDB(t)
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repoFactory := repositories.NewFactory(db)
 	svc, err := services.NewFactory(repoFactory, db)
@@ -57,6 +59,7 @@ func setupTestContext(t *testing.T) *testContext {
 		db:       db,
 		services: svc,
 		resource: resource,
+		ogsID:    ogsID,
 	}
 }
 

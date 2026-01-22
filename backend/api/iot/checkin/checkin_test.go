@@ -22,6 +22,7 @@ type testContext struct {
 	db       *bun.DB
 	services *services.Factory
 	resource *checkinAPI.Resource
+	ogsID    string
 }
 
 // setupTestContext initializes test database, services, and resource.
@@ -29,6 +30,7 @@ func setupTestContext(t *testing.T) *testContext {
 	t.Helper()
 
 	db, svc := testutil.SetupAPITest(t)
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	resource := checkinAPI.NewResource(
 		svc.IoT,
@@ -43,6 +45,7 @@ func setupTestContext(t *testing.T) *testContext {
 		db:       db,
 		services: svc,
 		resource: resource,
+		ogsID:    ogsID,
 	}
 }
 
@@ -61,9 +64,10 @@ func createTestDeviceContext(device *iot.Device) *iot.Device {
 func TestDevicePing_Success(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, ctx.db)
 
 	// Create test device
-	device := testpkg.CreateTestDevice(t, ctx.db, "ping-test")
+	device := testpkg.CreateTestDevice(t, ctx.db, "ping-test", ogsID)
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
 
 	router := chi.NewRouter()
@@ -111,7 +115,7 @@ func TestDeviceStatus_Success(t *testing.T) {
 	defer func() { _ = ctx.db.Close() }()
 
 	// Create test device
-	device := testpkg.CreateTestDevice(t, ctx.db, "status-test")
+	device := testpkg.CreateTestDevice(t, ctx.db, "status-test", ctx.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
 
 	router := chi.NewRouter()
@@ -176,7 +180,7 @@ func TestDeviceCheckin_MissingRFID(t *testing.T) {
 	defer func() { _ = ctx.db.Close() }()
 
 	// Create test device
-	device := testpkg.CreateTestDevice(t, ctx.db, "checkin-missing-rfid")
+	device := testpkg.CreateTestDevice(t, ctx.db, "checkin-missing-rfid", ctx.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
 
 	router := chi.NewRouter()
@@ -201,7 +205,7 @@ func TestDeviceCheckin_StudentNotFound(t *testing.T) {
 	defer func() { _ = ctx.db.Close() }()
 
 	// Create test device
-	device := testpkg.CreateTestDevice(t, ctx.db, "checkin-not-found")
+	device := testpkg.CreateTestDevice(t, ctx.db, "checkin-not-found", ctx.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
 
 	router := chi.NewRouter()
@@ -227,11 +231,11 @@ func TestDeviceCheckin_NoActiveGroups(t *testing.T) {
 	defer func() { _ = ctx.db.Close() }()
 
 	// Create test device
-	device := testpkg.CreateTestDevice(t, ctx.db, "checkin-no-groups")
+	device := testpkg.CreateTestDevice(t, ctx.db, "checkin-no-groups", ctx.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
 
 	// Create a test student with RFID tag
-	student := testpkg.CreateTestStudent(t, ctx.db, "CheckIn", "Student", "1a")
+	student := testpkg.CreateTestStudent(t, ctx.db, "CheckIn", "Student", "1a", ctx.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
 
 	// Create RFID card and link it to the student's person
@@ -243,7 +247,7 @@ func TestDeviceCheckin_NoActiveGroups(t *testing.T) {
 	testpkg.LinkRFIDToStudent(t, ctx.db, student.PersonID, card.ID)
 
 	// Create test room for checkin (but no active groups)
-	room := testpkg.CreateTestRoom(t, ctx.db, "Checkin Room")
+	room := testpkg.CreateTestRoom(t, ctx.db, "Checkin Room", ctx.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, room.ID)
 
 	router := chi.NewRouter()
@@ -275,11 +279,11 @@ func TestDeviceCheckin_CheckoutWithActiveVisit(t *testing.T) {
 	defer func() { _ = ctx.db.Close() }()
 
 	// Create test device
-	device := testpkg.CreateTestDevice(t, ctx.db, "checkout-test")
+	device := testpkg.CreateTestDevice(t, ctx.db, "checkout-test", ctx.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
 
 	// Create a test student with RFID tag
-	student := testpkg.CreateTestStudent(t, ctx.db, "Checkout", "Student", "1a")
+	student := testpkg.CreateTestStudent(t, ctx.db, "Checkout", "Student", "1a", ctx.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
 
 	// Create RFID card and link it to the student's person
@@ -289,18 +293,18 @@ func TestDeviceCheckin_CheckoutWithActiveVisit(t *testing.T) {
 	testpkg.LinkRFIDToStudent(t, ctx.db, student.PersonID, card.ID)
 
 	// Create room and activity
-	room := testpkg.CreateTestRoom(t, ctx.db, "Checkout Test Room")
+	room := testpkg.CreateTestRoom(t, ctx.db, "Checkout Test Room", ctx.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, room.ID)
 
-	activityGroup := testpkg.CreateTestActivityGroup(t, ctx.db, "Checkout Activity")
+	activityGroup := testpkg.CreateTestActivityGroup(t, ctx.db, "Checkout Activity", ctx.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, activityGroup.ID)
 
 	// Create active group in the room
-	activeGroup := testpkg.CreateTestActiveGroup(t, ctx.db, activityGroup.ID, room.ID)
+	activeGroup := testpkg.CreateTestActiveGroup(t, ctx.db, activityGroup.ID, room.ID, ctx.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, activeGroup.ID)
 
 	// Create an active visit for the student (with entry time and nil exit time for active visit)
-	visit := testpkg.CreateTestVisit(t, ctx.db, student.ID, activeGroup.ID, time.Now(), nil)
+	visit := testpkg.CreateTestVisit(t, ctx.db, student.ID, activeGroup.ID, time.Now(), nil, ctx.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, visit.ID)
 
 	router := chi.NewRouter()
@@ -337,11 +341,11 @@ func TestDeviceCheckin_CheckinWithNewVisitNoActiveGroup(t *testing.T) {
 	defer func() { _ = ctx.db.Close() }()
 
 	// Create test device
-	device := testpkg.CreateTestDevice(t, ctx.db, "checkin-new")
+	device := testpkg.CreateTestDevice(t, ctx.db, "checkin-new", ctx.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
 
 	// Create a test student with RFID tag
-	student := testpkg.CreateTestStudent(t, ctx.db, "New", "Visit", "2b")
+	student := testpkg.CreateTestStudent(t, ctx.db, "New", "Visit", "2b", ctx.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
 
 	// Create RFID card and link it
@@ -351,7 +355,7 @@ func TestDeviceCheckin_CheckinWithNewVisitNoActiveGroup(t *testing.T) {
 	testpkg.LinkRFIDToStudent(t, ctx.db, student.PersonID, card.ID)
 
 	// Create room WITHOUT an active group - checkin should fail
-	room := testpkg.CreateTestRoom(t, ctx.db, "New Visit Room")
+	room := testpkg.CreateTestRoom(t, ctx.db, "New Visit Room", ctx.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, room.ID)
 
 	router := chi.NewRouter()
@@ -382,11 +386,11 @@ func TestDeviceCheckin_StaffRFIDNotSupported(t *testing.T) {
 	defer func() { _ = ctx.db.Close() }()
 
 	// Create test device
-	device := testpkg.CreateTestDevice(t, ctx.db, "staff-rfid")
+	device := testpkg.CreateTestDevice(t, ctx.db, "staff-rfid", ctx.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
 
 	// Create a test staff member with RFID tag
-	staff := testpkg.CreateTestStaff(t, ctx.db, "Staff", "Member")
+	staff := testpkg.CreateTestStaff(t, ctx.db, "Staff", "Member", ctx.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, staff.ID)
 
 	// Create RFID card and link it to the staff's person
@@ -424,11 +428,11 @@ func TestDeviceCheckin_RoomTransferInvalidRoom(t *testing.T) {
 	defer func() { _ = ctx.db.Close() }()
 
 	// Create test device
-	device := testpkg.CreateTestDevice(t, ctx.db, "transfer-test")
+	device := testpkg.CreateTestDevice(t, ctx.db, "transfer-test", ctx.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
 
 	// Create a test student with RFID tag
-	student := testpkg.CreateTestStudent(t, ctx.db, "Transfer", "Student", "3c")
+	student := testpkg.CreateTestStudent(t, ctx.db, "Transfer", "Student", "3c", ctx.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
 
 	// Create RFID card
@@ -438,22 +442,22 @@ func TestDeviceCheckin_RoomTransferInvalidRoom(t *testing.T) {
 	testpkg.LinkRFIDToStudent(t, ctx.db, student.PersonID, card.ID)
 
 	// Create room for activity
-	room1 := testpkg.CreateTestRoom(t, ctx.db, "Transfer Room 1")
+	room1 := testpkg.CreateTestRoom(t, ctx.db, "Transfer Room 1", ctx.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, room1.ID)
 
 	// Create room 2 WITHOUT an active group
-	room2 := testpkg.CreateTestRoom(t, ctx.db, "Transfer Room 2")
+	room2 := testpkg.CreateTestRoom(t, ctx.db, "Transfer Room 2", ctx.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, room2.ID)
 
 	// Create activity and active group only for room 1
-	activity1 := testpkg.CreateTestActivityGroup(t, ctx.db, "Transfer Activity 1")
+	activity1 := testpkg.CreateTestActivityGroup(t, ctx.db, "Transfer Activity 1", ctx.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, activity1.ID)
 
-	activeGroup1 := testpkg.CreateTestActiveGroup(t, ctx.db, activity1.ID, room1.ID)
+	activeGroup1 := testpkg.CreateTestActiveGroup(t, ctx.db, activity1.ID, room1.ID, ctx.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, activeGroup1.ID)
 
 	// Create initial visit in room 1 (active visit = nil exit time)
-	visit := testpkg.CreateTestVisit(t, ctx.db, student.ID, activeGroup1.ID, time.Now(), nil)
+	visit := testpkg.CreateTestVisit(t, ctx.db, student.ID, activeGroup1.ID, time.Now(), nil, ctx.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, visit.ID)
 
 	router := chi.NewRouter()
@@ -485,7 +489,7 @@ func TestDeviceCheckin_InvalidJSON(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	device := testpkg.CreateTestDevice(t, ctx.db, "invalid-json")
+	device := testpkg.CreateTestDevice(t, ctx.db, "invalid-json", ctx.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
 
 	router := chi.NewRouter()
@@ -514,7 +518,7 @@ func TestDeviceCheckin_EmptyRFID(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	device := testpkg.CreateTestDevice(t, ctx.db, "empty-rfid")
+	device := testpkg.CreateTestDevice(t, ctx.db, "empty-rfid", ctx.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
 
 	router := chi.NewRouter()
@@ -598,15 +602,15 @@ func TestDeviceCheckin_SuccessfulCheckin(t *testing.T) {
 	defer func() { _ = ctx.db.Close() }()
 
 	// Create test device
-	device := testpkg.CreateTestDevice(t, ctx.db, "success-checkin")
+	device := testpkg.CreateTestDevice(t, ctx.db, "success-checkin", ctx.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
 
 	// Create staff for attendance tracking
-	staff := testpkg.CreateTestStaff(t, ctx.db, "Checkin", "Staff")
+	staff := testpkg.CreateTestStaff(t, ctx.db, "Checkin", "Staff", ctx.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, staff.ID)
 
 	// Create student with RFID
-	student := testpkg.CreateTestStudent(t, ctx.db, "Success", "Checkin", "1a")
+	student := testpkg.CreateTestStudent(t, ctx.db, "Success", "Checkin", "1a", ctx.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
 
 	tagID := fmt.Sprintf("SUCCESS%d", time.Now().UnixNano())
@@ -615,13 +619,13 @@ func TestDeviceCheckin_SuccessfulCheckin(t *testing.T) {
 	testpkg.LinkRFIDToStudent(t, ctx.db, student.PersonID, card.ID)
 
 	// Create room with active group
-	room := testpkg.CreateTestRoom(t, ctx.db, "Success Room")
+	room := testpkg.CreateTestRoom(t, ctx.db, "Success Room", ctx.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, room.ID)
 
-	activity := testpkg.CreateTestActivityGroup(t, ctx.db, "Success Activity")
+	activity := testpkg.CreateTestActivityGroup(t, ctx.db, "Success Activity", ctx.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, activity.ID)
 
-	activeGroup := testpkg.CreateTestActiveGroup(t, ctx.db, activity.ID, room.ID)
+	activeGroup := testpkg.CreateTestActiveGroup(t, ctx.db, activity.ID, room.ID, ctx.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, activeGroup.ID)
 
 	router := chi.NewRouter()
@@ -656,15 +660,15 @@ func TestDeviceCheckin_RoomTransferSucceeds(t *testing.T) {
 	defer func() { _ = ctx.db.Close() }()
 
 	// Create test device
-	device := testpkg.CreateTestDevice(t, ctx.db, "transfer-test")
+	device := testpkg.CreateTestDevice(t, ctx.db, "transfer-test", ctx.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
 
 	// Create staff for attendance tracking
-	staff := testpkg.CreateTestStaff(t, ctx.db, "Transfer", "Staff")
+	staff := testpkg.CreateTestStaff(t, ctx.db, "Transfer", "Staff", ctx.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, staff.ID)
 
 	// Create student with RFID
-	student := testpkg.CreateTestStudent(t, ctx.db, "Transfer", "Test", "2b")
+	student := testpkg.CreateTestStudent(t, ctx.db, "Transfer", "Test", "2b", ctx.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
 
 	tagID := fmt.Sprintf("TRANS%d", time.Now().UnixNano())
@@ -673,27 +677,27 @@ func TestDeviceCheckin_RoomTransferSucceeds(t *testing.T) {
 	testpkg.LinkRFIDToStudent(t, ctx.db, student.PersonID, card.ID)
 
 	// Create room 1 with activity
-	room1 := testpkg.CreateTestRoom(t, ctx.db, "Room A")
+	room1 := testpkg.CreateTestRoom(t, ctx.db, "Room A", ctx.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, room1.ID)
 
-	activity1 := testpkg.CreateTestActivityGroup(t, ctx.db, "Activity A")
+	activity1 := testpkg.CreateTestActivityGroup(t, ctx.db, "Activity A", ctx.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, activity1.ID)
 
-	activeGroup1 := testpkg.CreateTestActiveGroup(t, ctx.db, activity1.ID, room1.ID)
+	activeGroup1 := testpkg.CreateTestActiveGroup(t, ctx.db, activity1.ID, room1.ID, ctx.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, activeGroup1.ID)
 
 	// Create room 2 with activity
-	room2 := testpkg.CreateTestRoom(t, ctx.db, "Room B")
+	room2 := testpkg.CreateTestRoom(t, ctx.db, "Room B", ctx.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, room2.ID)
 
-	activity2 := testpkg.CreateTestActivityGroup(t, ctx.db, "Activity B")
+	activity2 := testpkg.CreateTestActivityGroup(t, ctx.db, "Activity B", ctx.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, activity2.ID)
 
-	activeGroup2 := testpkg.CreateTestActiveGroup(t, ctx.db, activity2.ID, room2.ID)
+	activeGroup2 := testpkg.CreateTestActiveGroup(t, ctx.db, activity2.ID, room2.ID, ctx.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, activeGroup2.ID)
 
 	// Create initial visit in room 1
-	visit := testpkg.CreateTestVisit(t, ctx.db, student.ID, activeGroup1.ID, time.Now().Add(-10*time.Minute), nil)
+	visit := testpkg.CreateTestVisit(t, ctx.db, student.ID, activeGroup1.ID, time.Now().Add(-10*time.Minute), nil, ctx.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, visit.ID)
 
 	router := chi.NewRouter()
@@ -731,7 +735,7 @@ func TestDevicePing_SessionActiveStatus(t *testing.T) {
 	defer func() { _ = ctx.db.Close() }()
 
 	// Create device
-	device := testpkg.CreateTestDevice(t, ctx.db, "session-ping")
+	device := testpkg.CreateTestDevice(t, ctx.db, "session-ping", ctx.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
 
 	router := chi.NewRouter()
@@ -761,7 +765,7 @@ func TestDeviceCheckin_InvalidAction(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	device := testpkg.CreateTestDevice(t, ctx.db, "invalid-action")
+	device := testpkg.CreateTestDevice(t, ctx.db, "invalid-action", ctx.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
 
 	router := chi.NewRouter()
@@ -791,11 +795,11 @@ func TestDeviceCheckin_CheckoutWithoutActiveVisit(t *testing.T) {
 	defer func() { _ = ctx.db.Close() }()
 
 	// Create device
-	device := testpkg.CreateTestDevice(t, ctx.db, "checkout-no-visit")
+	device := testpkg.CreateTestDevice(t, ctx.db, "checkout-no-visit", ctx.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
 
 	// Create student with RFID (no active visit)
-	student := testpkg.CreateTestStudent(t, ctx.db, "NoVisit", "Test", "1a")
+	student := testpkg.CreateTestStudent(t, ctx.db, "NoVisit", "Test", "1a", ctx.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
 
 	tagID := fmt.Sprintf("NOVISIT%d", time.Now().UnixNano())

@@ -20,6 +20,7 @@ type testContext struct {
 	db       *bun.DB
 	services *services.Factory
 	resource *feedbackAPI.Resource
+	ogsID    string
 }
 
 // setupTestContext initializes test database, services, and resource.
@@ -27,6 +28,7 @@ func setupTestContext(t *testing.T) *testContext {
 	t.Helper()
 
 	db, svc := testutil.SetupAPITest(t)
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	resource := feedbackAPI.NewResource(svc.Feedback)
 
@@ -34,6 +36,7 @@ func setupTestContext(t *testing.T) *testContext {
 		db:       db,
 		services: svc,
 		resource: resource,
+		ogsID:    ogsID,
 	}
 }
 
@@ -154,9 +157,10 @@ func TestGetFeedback_InvalidID(t *testing.T) {
 func TestGetStudentFeedback_Success(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, ctx.db)
 
 	// Create test student
-	student := testpkg.CreateTestStudent(t, ctx.db, "Feedback", "Student", "1a")
+	student := testpkg.CreateTestStudent(t, ctx.db, "Feedback", "Student", "1a", ogsID)
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
 
 	router := chi.NewRouter()
@@ -291,7 +295,7 @@ func TestGetDateRangeFeedback_WithStudentID(t *testing.T) {
 	defer func() { _ = ctx.db.Close() }()
 
 	// Create test student
-	student := testpkg.CreateTestStudent(t, ctx.db, "Range", "Student", "2b")
+	student := testpkg.CreateTestStudent(t, ctx.db, "Range", "Student", "2b", ctx.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
 
 	router := chi.NewRouter()
@@ -369,7 +373,7 @@ func TestCreateFeedback_Success(t *testing.T) {
 	defer func() { _ = ctx.db.Close() }()
 
 	// Create test student
-	student := testpkg.CreateTestStudent(t, ctx.db, "Create", "Feedback", "3c")
+	student := testpkg.CreateTestStudent(t, ctx.db, "Create", "Feedback", "3c", ctx.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
 
 	router := chi.NewRouter()
@@ -399,7 +403,7 @@ func TestCreateFeedback_MissingValue(t *testing.T) {
 	defer func() { _ = ctx.db.Close() }()
 
 	// Create test student
-	student := testpkg.CreateTestStudent(t, ctx.db, "Missing", "Value", "3c")
+	student := testpkg.CreateTestStudent(t, ctx.db, "Missing", "Value", "3c", ctx.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
 
 	router := chi.NewRouter()
@@ -451,7 +455,7 @@ func TestCreateFeedback_InvalidDateFormat(t *testing.T) {
 	defer func() { _ = ctx.db.Close() }()
 
 	// Create test student
-	student := testpkg.CreateTestStudent(t, ctx.db, "Invalid", "Date", "3c")
+	student := testpkg.CreateTestStudent(t, ctx.db, "Invalid", "Date", "3c", ctx.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
 
 	router := chi.NewRouter()
@@ -480,7 +484,7 @@ func TestCreateFeedback_InvalidTimeFormat(t *testing.T) {
 	defer func() { _ = ctx.db.Close() }()
 
 	// Create test student
-	student := testpkg.CreateTestStudent(t, ctx.db, "Invalid", "Time", "3c")
+	student := testpkg.CreateTestStudent(t, ctx.db, "Invalid", "Time", "3c", ctx.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
 
 	router := chi.NewRouter()
@@ -513,10 +517,10 @@ func TestCreateBatchFeedback_Success(t *testing.T) {
 	defer func() { _ = ctx.db.Close() }()
 
 	// Create test students
-	student1 := testpkg.CreateTestStudent(t, ctx.db, "Batch", "One", "4a")
+	student1 := testpkg.CreateTestStudent(t, ctx.db, "Batch", "One", "4a", ctx.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, student1.ID)
 
-	student2 := testpkg.CreateTestStudent(t, ctx.db, "Batch", "Two", "4a")
+	student2 := testpkg.CreateTestStudent(t, ctx.db, "Batch", "Two", "4a", ctx.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, student2.ID)
 
 	router := chi.NewRouter()
@@ -578,7 +582,7 @@ func TestCreateBatchFeedback_InvalidEntry(t *testing.T) {
 	defer func() { _ = ctx.db.Close() }()
 
 	// Create test student
-	student := testpkg.CreateTestStudent(t, ctx.db, "Batch", "Invalid", "4a")
+	student := testpkg.CreateTestStudent(t, ctx.db, "Batch", "Invalid", "4a", ctx.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
 
 	router := chi.NewRouter()

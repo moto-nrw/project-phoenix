@@ -37,14 +37,16 @@ func setupPersonService(t *testing.T, db *bun.DB) users.PersonService {
 
 func TestPersonService_Get(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
+	ogsID := testpkg.SetupTestOGS(t, db)
 	defer func() { _ = db.Close() }()
+	_ = ogsID
 
 	service := setupPersonService(t, db)
 	ctx := context.Background()
 
 	t.Run("returns person when found", func(t *testing.T) {
 		// ARRANGE
-		person := testpkg.CreateTestPerson(t, db, "Get", "Test")
+		person := testpkg.CreateTestPerson(t, db, "Get", "Test", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, person.ID)
 
 		// ACT
@@ -80,7 +82,7 @@ func TestPersonService_Get(t *testing.T) {
 
 	t.Run("handles int type ID correctly", func(t *testing.T) {
 		// ARRANGE
-		person := testpkg.CreateTestPerson(t, db, "GetInt", "TypeTest")
+		person := testpkg.CreateTestPerson(t, db, "GetInt", "TypeTest", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, person.ID)
 
 		// ACT - Pass int (not int64) to test the type switch case
@@ -99,15 +101,17 @@ func TestPersonService_Get(t *testing.T) {
 
 func TestPersonService_GetByIDs(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
+	ogsID := testpkg.SetupTestOGS(t, db)
 	defer func() { _ = db.Close() }()
+	_ = ogsID
 
 	service := setupPersonService(t, db)
 	ctx := context.Background()
 
 	t.Run("returns multiple persons when found", func(t *testing.T) {
 		// ARRANGE
-		person1 := testpkg.CreateTestPerson(t, db, "Multi1", "Test")
-		person2 := testpkg.CreateTestPerson(t, db, "Multi2", "Test")
+		person1 := testpkg.CreateTestPerson(t, db, "Multi1", "Test", ogsID)
+		person2 := testpkg.CreateTestPerson(t, db, "Multi2", "Test", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, person1.ID, person2.ID)
 
 		// ACT
@@ -122,7 +126,7 @@ func TestPersonService_GetByIDs(t *testing.T) {
 
 	t.Run("returns partial results when some not found", func(t *testing.T) {
 		// ARRANGE
-		person := testpkg.CreateTestPerson(t, db, "Partial", "Test")
+		person := testpkg.CreateTestPerson(t, db, "Partial", "Test", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, person.ID)
 
 		// ACT
@@ -150,14 +154,16 @@ func TestPersonService_GetByIDs(t *testing.T) {
 
 func TestPersonService_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
+	ogsID := testpkg.SetupTestOGS(t, db)
 	defer func() { _ = db.Close() }()
+	_ = ogsID
 
 	service := setupPersonService(t, db)
 	ctx := context.Background()
 
 	t.Run("creates person successfully", func(t *testing.T) {
 		// ARRANGE
-		person := testpkg.CreateTestPerson(t, db, "ToDelete", "ForCleanup")
+		person := testpkg.CreateTestPerson(t, db, "ToDelete", "ForCleanup", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, person.ID)
 
 		// Verify person was created
@@ -228,14 +234,16 @@ func TestPersonService_Create(t *testing.T) {
 
 func TestPersonService_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
+	ogsID := testpkg.SetupTestOGS(t, db)
 	defer func() { _ = db.Close() }()
+	_ = ogsID
 
 	service := setupPersonService(t, db)
 	ctx := context.Background()
 
 	t.Run("updates person successfully", func(t *testing.T) {
 		// ARRANGE
-		person := testpkg.CreateTestPerson(t, db, "Original", "Name")
+		person := testpkg.CreateTestPerson(t, db, "Original", "Name", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, person.ID)
 
 		person.FirstName = "Updated"
@@ -277,14 +285,16 @@ func TestPersonService_Update(t *testing.T) {
 
 func TestPersonService_Delete(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
+	ogsID := testpkg.SetupTestOGS(t, db)
 	defer func() { _ = db.Close() }()
+	_ = ogsID
 
 	service := setupPersonService(t, db)
 	ctx := context.Background()
 
 	t.Run("deletes person successfully", func(t *testing.T) {
 		// ARRANGE
-		person := testpkg.CreateTestPerson(t, db, "ToDelete", "Person")
+		person := testpkg.CreateTestPerson(t, db, "ToDelete", "Person", ogsID)
 		// No defer cleanup - we're testing deletion
 
 		// ACT
@@ -315,15 +325,17 @@ func TestPersonService_Delete(t *testing.T) {
 
 func TestPersonService_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
+	ogsID := testpkg.SetupTestOGS(t, db)
 	defer func() { _ = db.Close() }()
+	_ = ogsID
 
 	service := setupPersonService(t, db)
 	ctx := context.Background()
 
 	t.Run("returns persons list", func(t *testing.T) {
 		// ARRANGE
-		person1 := testpkg.CreateTestPerson(t, db, "List1", "Test")
-		person2 := testpkg.CreateTestPerson(t, db, "List2", "Test")
+		person1 := testpkg.CreateTestPerson(t, db, "List1", "Test", ogsID)
+		person2 := testpkg.CreateTestPerson(t, db, "List2", "Test", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, person1.ID, person2.ID)
 
 		// ACT
@@ -351,14 +363,16 @@ func TestPersonService_List(t *testing.T) {
 
 func TestPersonService_FindByTagID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
+	ogsID := testpkg.SetupTestOGS(t, db)
 	defer func() { _ = db.Close() }()
+	_ = ogsID
 
 	service := setupPersonService(t, db)
 	ctx := context.Background()
 
 	t.Run("finds person by tag ID", func(t *testing.T) {
 		// ARRANGE
-		person := testpkg.CreateTestPerson(t, db, "Tagged", "Person")
+		person := testpkg.CreateTestPerson(t, db, "Tagged", "Person", ogsID)
 		rfidCard := testpkg.CreateTestRFIDCard(t, db, "FINDTAG")
 		defer testpkg.CleanupActivityFixtures(t, db, person.ID)
 		defer testpkg.CleanupRFIDCards(t, db, rfidCard.ID)
@@ -393,14 +407,16 @@ func TestPersonService_FindByTagID(t *testing.T) {
 
 func TestPersonService_FindByAccountID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
+	ogsID := testpkg.SetupTestOGS(t, db)
 	defer func() { _ = db.Close() }()
+	_ = ogsID
 
 	service := setupPersonService(t, db)
 	ctx := context.Background()
 
 	t.Run("finds person by account ID", func(t *testing.T) {
 		// ARRANGE
-		person, account := testpkg.CreateTestPersonWithAccount(t, db, "Account", "Linked")
+		person, account := testpkg.CreateTestPersonWithAccount(t, db, "Account", "Linked", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, person.ID)
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
@@ -434,7 +450,9 @@ func TestPersonService_FindByAccountID(t *testing.T) {
 
 func TestPersonService_FindByName(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
+	ogsID := testpkg.SetupTestOGS(t, db)
 	defer func() { _ = db.Close() }()
+	_ = ogsID
 
 	service := setupPersonService(t, db)
 	ctx := context.Background()
@@ -442,7 +460,7 @@ func TestPersonService_FindByName(t *testing.T) {
 	t.Run("finds persons by first name", func(t *testing.T) {
 		// ARRANGE
 		uniqueFirst := "UniqueFirstName123"
-		person := testpkg.CreateTestPerson(t, db, uniqueFirst, "TestLast")
+		person := testpkg.CreateTestPerson(t, db, uniqueFirst, "TestLast", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, person.ID)
 
 		// ACT
@@ -457,7 +475,7 @@ func TestPersonService_FindByName(t *testing.T) {
 	t.Run("finds persons by last name", func(t *testing.T) {
 		// ARRANGE
 		uniqueLast := "UniqueLastName456"
-		person := testpkg.CreateTestPerson(t, db, "TestFirst", uniqueLast)
+		person := testpkg.CreateTestPerson(t, db, "TestFirst", uniqueLast, ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, person.ID)
 
 		// ACT
@@ -472,7 +490,7 @@ func TestPersonService_FindByName(t *testing.T) {
 		// ARRANGE
 		uniqueFirst := "BothFirst789"
 		uniqueLast := "BothLast789"
-		person := testpkg.CreateTestPerson(t, db, uniqueFirst, uniqueLast)
+		person := testpkg.CreateTestPerson(t, db, uniqueFirst, uniqueLast, ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, person.ID)
 
 		// ACT
@@ -499,14 +517,16 @@ func TestPersonService_FindByName(t *testing.T) {
 
 func TestPersonService_LinkToAccount(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
+	ogsID := testpkg.SetupTestOGS(t, db)
 	defer func() { _ = db.Close() }()
+	_ = ogsID
 
 	service := setupPersonService(t, db)
 	ctx := context.Background()
 
 	t.Run("links person to account successfully", func(t *testing.T) {
 		// ARRANGE
-		person := testpkg.CreateTestPerson(t, db, "ToLink", "Account")
+		person := testpkg.CreateTestPerson(t, db, "ToLink", "Account", ogsID)
 		account := testpkg.CreateTestAccount(t, db, "link-target")
 		defer testpkg.CleanupActivityFixtures(t, db, person.ID)
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
@@ -525,7 +545,7 @@ func TestPersonService_LinkToAccount(t *testing.T) {
 
 	t.Run("returns error when account not found", func(t *testing.T) {
 		// ARRANGE
-		person := testpkg.CreateTestPerson(t, db, "LinkInvalid", "Account")
+		person := testpkg.CreateTestPerson(t, db, "LinkInvalid", "Account", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, person.ID)
 
 		// ACT
@@ -538,8 +558,8 @@ func TestPersonService_LinkToAccount(t *testing.T) {
 
 	t.Run("returns error when account already linked to another person", func(t *testing.T) {
 		// ARRANGE
-		person1, account := testpkg.CreateTestPersonWithAccount(t, db, "Linked1", "Account")
-		person2 := testpkg.CreateTestPerson(t, db, "Linked2", "Account")
+		person1, account := testpkg.CreateTestPersonWithAccount(t, db, "Linked1", "Account", ogsID)
+		person2 := testpkg.CreateTestPerson(t, db, "Linked2", "Account", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, person1.ID, person2.ID)
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
@@ -558,14 +578,16 @@ func TestPersonService_LinkToAccount(t *testing.T) {
 
 func TestPersonService_UnlinkFromAccount(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
+	ogsID := testpkg.SetupTestOGS(t, db)
 	defer func() { _ = db.Close() }()
+	_ = ogsID
 
 	service := setupPersonService(t, db)
 	ctx := context.Background()
 
 	t.Run("unlinks person from account successfully", func(t *testing.T) {
 		// ARRANGE
-		person, account := testpkg.CreateTestPersonWithAccount(t, db, "ToUnlink", "Account")
+		person, account := testpkg.CreateTestPersonWithAccount(t, db, "ToUnlink", "Account", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, person.ID)
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
@@ -582,7 +604,7 @@ func TestPersonService_UnlinkFromAccount(t *testing.T) {
 
 	t.Run("succeeds when person has no account", func(t *testing.T) {
 		// ARRANGE
-		person := testpkg.CreateTestPerson(t, db, "NoAccount", "ToUnlink")
+		person := testpkg.CreateTestPerson(t, db, "NoAccount", "ToUnlink", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, person.ID)
 
 		// ACT
@@ -609,14 +631,16 @@ func TestPersonService_UnlinkFromAccount(t *testing.T) {
 
 func TestPersonService_LinkToRFIDCard(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
+	ogsID := testpkg.SetupTestOGS(t, db)
 	defer func() { _ = db.Close() }()
+	_ = ogsID
 
 	service := setupPersonService(t, db)
 	ctx := context.Background()
 
 	t.Run("links person to RFID card successfully", func(t *testing.T) {
 		// ARRANGE
-		person := testpkg.CreateTestPerson(t, db, "ToLink", "RFID")
+		person := testpkg.CreateTestPerson(t, db, "ToLink", "RFID", ogsID)
 		rfidCard := testpkg.CreateTestRFIDCard(t, db, "LINKCARD")
 		defer testpkg.CleanupActivityFixtures(t, db, person.ID)
 		defer testpkg.CleanupRFIDCards(t, db, rfidCard.ID)
@@ -635,7 +659,7 @@ func TestPersonService_LinkToRFIDCard(t *testing.T) {
 
 	t.Run("auto-creates RFID card if not exists", func(t *testing.T) {
 		// ARRANGE
-		person := testpkg.CreateTestPerson(t, db, "AutoCreate", "RFID")
+		person := testpkg.CreateTestPerson(t, db, "AutoCreate", "RFID", ogsID)
 		// Use valid hexadecimal format for RFID card ID
 		newTagID := "ABCDEF1234567890"
 		defer testpkg.CleanupActivityFixtures(t, db, person.ID)
@@ -655,8 +679,8 @@ func TestPersonService_LinkToRFIDCard(t *testing.T) {
 
 	t.Run("transfers card from another person", func(t *testing.T) {
 		// ARRANGE
-		person1 := testpkg.CreateTestPerson(t, db, "Original", "CardHolder")
-		person2 := testpkg.CreateTestPerson(t, db, "New", "CardHolder")
+		person1 := testpkg.CreateTestPerson(t, db, "Original", "CardHolder", ogsID)
+		person2 := testpkg.CreateTestPerson(t, db, "New", "CardHolder", ogsID)
 		rfidCard := testpkg.CreateTestRFIDCard(t, db, "TRANSFER")
 		defer testpkg.CleanupActivityFixtures(t, db, person1.ID, person2.ID)
 		defer testpkg.CleanupRFIDCards(t, db, rfidCard.ID)
@@ -684,14 +708,16 @@ func TestPersonService_LinkToRFIDCard(t *testing.T) {
 
 func TestPersonService_UnlinkFromRFIDCard(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
+	ogsID := testpkg.SetupTestOGS(t, db)
 	defer func() { _ = db.Close() }()
+	_ = ogsID
 
 	service := setupPersonService(t, db)
 	ctx := context.Background()
 
 	t.Run("unlinks person from RFID card successfully", func(t *testing.T) {
 		// ARRANGE
-		person := testpkg.CreateTestPerson(t, db, "ToUnlink", "RFID")
+		person := testpkg.CreateTestPerson(t, db, "ToUnlink", "RFID", ogsID)
 		rfidCard := testpkg.CreateTestRFIDCard(t, db, "UNLINKCARD")
 		defer testpkg.CleanupActivityFixtures(t, db, person.ID)
 		defer testpkg.CleanupRFIDCards(t, db, rfidCard.ID)
@@ -712,7 +738,7 @@ func TestPersonService_UnlinkFromRFIDCard(t *testing.T) {
 
 	t.Run("succeeds when person has no RFID card", func(t *testing.T) {
 		// ARRANGE
-		person := testpkg.CreateTestPerson(t, db, "NoCard", "ToUnlink")
+		person := testpkg.CreateTestPerson(t, db, "NoCard", "ToUnlink", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, person.ID)
 
 		// ACT
@@ -738,14 +764,16 @@ func TestPersonService_UnlinkFromRFIDCard(t *testing.T) {
 
 func TestPersonService_GetFullProfile(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
+	ogsID := testpkg.SetupTestOGS(t, db)
 	defer func() { _ = db.Close() }()
+	_ = ogsID
 
 	service := setupPersonService(t, db)
 	ctx := context.Background()
 
 	t.Run("returns full profile with account", func(t *testing.T) {
 		// ARRANGE
-		person, account := testpkg.CreateTestPersonWithAccount(t, db, "Full", "Profile")
+		person, account := testpkg.CreateTestPersonWithAccount(t, db, "Full", "Profile", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, person.ID)
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
@@ -762,7 +790,7 @@ func TestPersonService_GetFullProfile(t *testing.T) {
 
 	t.Run("returns full profile with RFID card", func(t *testing.T) {
 		// ARRANGE
-		person := testpkg.CreateTestPerson(t, db, "RFID", "Profile")
+		person := testpkg.CreateTestPerson(t, db, "RFID", "Profile", ogsID)
 		rfidCard := testpkg.CreateTestRFIDCard(t, db, "PROFILE")
 		defer testpkg.CleanupActivityFixtures(t, db, person.ID)
 		defer testpkg.CleanupRFIDCards(t, db, rfidCard.ID)
@@ -782,7 +810,7 @@ func TestPersonService_GetFullProfile(t *testing.T) {
 
 	t.Run("returns profile without relations", func(t *testing.T) {
 		// ARRANGE
-		person := testpkg.CreateTestPerson(t, db, "Minimal", "Profile")
+		person := testpkg.CreateTestPerson(t, db, "Minimal", "Profile", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, person.ID)
 
 		// ACT
@@ -803,7 +831,9 @@ func TestPersonService_GetFullProfile(t *testing.T) {
 
 func TestPersonService_ListAvailableRFIDCards(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
+	ogsID := testpkg.SetupTestOGS(t, db)
 	defer func() { _ = db.Close() }()
+	_ = ogsID
 
 	service := setupPersonService(t, db)
 	ctx := context.Background()
@@ -812,7 +842,7 @@ func TestPersonService_ListAvailableRFIDCards(t *testing.T) {
 		// ARRANGE
 		availableCard := testpkg.CreateTestRFIDCard(t, db, "AVAILABLE")
 		assignedCard := testpkg.CreateTestRFIDCard(t, db, "ASSIGNED")
-		person := testpkg.CreateTestPerson(t, db, "Card", "Holder")
+		person := testpkg.CreateTestPerson(t, db, "Card", "Holder", ogsID)
 		defer testpkg.CleanupRFIDCards(t, db, availableCard.ID, assignedCard.ID)
 		defer testpkg.CleanupActivityFixtures(t, db, person.ID)
 
@@ -848,16 +878,18 @@ func TestPersonService_ListAvailableRFIDCards(t *testing.T) {
 
 func TestPersonService_GetStudentsByTeacher(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
+	ogsID := testpkg.SetupTestOGS(t, db)
 	defer func() { _ = db.Close() }()
+	_ = ogsID
 
 	service := setupPersonService(t, db)
 	ctx := context.Background()
 
 	t.Run("returns students for valid teacher", func(t *testing.T) {
 		// ARRANGE
-		teacher := testpkg.CreateTestTeacher(t, db, "Teacher", "Test")
-		educationGroup := testpkg.CreateTestEducationGroup(t, db, "TestClass")
-		student := testpkg.CreateTestStudent(t, db, "Student", "Test", "1a")
+		teacher := testpkg.CreateTestTeacher(t, db, "Teacher", "Test", ogsID)
+		educationGroup := testpkg.CreateTestEducationGroup(t, db, "TestClass", ogsID)
+		student := testpkg.CreateTestStudent(t, db, "Student", "Test", "1a", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, teacher.Staff.ID, student.ID, educationGroup.ID)
 
 		// Assign teacher to group
@@ -885,7 +917,7 @@ func TestPersonService_GetStudentsByTeacher(t *testing.T) {
 
 	t.Run("returns empty list when teacher has no students", func(t *testing.T) {
 		// ARRANGE
-		teacher := testpkg.CreateTestTeacher(t, db, "Lonely", "Teacher")
+		teacher := testpkg.CreateTestTeacher(t, db, "Lonely", "Teacher", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, teacher.Staff.ID)
 
 		// ACT
@@ -903,16 +935,18 @@ func TestPersonService_GetStudentsByTeacher(t *testing.T) {
 
 func TestPersonService_GetStudentsWithGroupsByTeacher(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
+	ogsID := testpkg.SetupTestOGS(t, db)
 	defer func() { _ = db.Close() }()
+	_ = ogsID
 
 	service := setupPersonService(t, db)
 	ctx := context.Background()
 
 	t.Run("returns students with group info for valid teacher", func(t *testing.T) {
 		// ARRANGE
-		teacher := testpkg.CreateTestTeacher(t, db, "TeacherGroups", "Test")
-		educationGroup := testpkg.CreateTestEducationGroup(t, db, "TestClass2")
-		student := testpkg.CreateTestStudent(t, db, "StudentGroups", "Test", "2a")
+		teacher := testpkg.CreateTestTeacher(t, db, "TeacherGroups", "Test", ogsID)
+		educationGroup := testpkg.CreateTestEducationGroup(t, db, "TestClass2", ogsID)
+		student := testpkg.CreateTestStudent(t, db, "StudentGroups", "Test", "2a", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, teacher.Staff.ID, student.ID, educationGroup.ID)
 
 		// Assign teacher to group
@@ -945,6 +979,8 @@ func TestPersonService_GetStudentsWithGroupsByTeacher(t *testing.T) {
 
 func TestPersonService_RepositoryAccessors(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
+	ogsID := testpkg.SetupTestOGS(t, db)
+	_ = ogsID
 	defer func() { _ = db.Close() }()
 
 	service := setupPersonService(t, db)
@@ -993,6 +1029,8 @@ func TestUsersErrorTypes(t *testing.T) {
 
 func TestPersonService_ValidateStaffPIN_EmptyPIN(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
+	ogsID := testpkg.SetupTestOGS(t, db)
+	_ = ogsID
 	defer func() { _ = db.Close() }()
 
 	service := setupPersonService(t, db)
@@ -1011,6 +1049,8 @@ func TestPersonService_ValidateStaffPIN_EmptyPIN(t *testing.T) {
 
 func TestPersonService_ValidateStaffPINForSpecificStaff_EmptyPIN(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
+	ogsID := testpkg.SetupTestOGS(t, db)
+	_ = ogsID
 	defer func() { _ = db.Close() }()
 
 	service := setupPersonService(t, db)
@@ -1029,6 +1069,8 @@ func TestPersonService_ValidateStaffPINForSpecificStaff_EmptyPIN(t *testing.T) {
 
 func TestPersonService_ValidateStaffPINForSpecificStaff_StaffNotFound(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
+	ogsID := testpkg.SetupTestOGS(t, db)
+	_ = ogsID
 	defer func() { _ = db.Close() }()
 
 	service := setupPersonService(t, db)
@@ -1046,7 +1088,9 @@ func TestPersonService_ValidateStaffPINForSpecificStaff_StaffNotFound(t *testing
 
 func TestPersonService_FindByGuardianID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
+	ogsID := testpkg.SetupTestOGS(t, db)
 	defer func() { _ = db.Close() }()
+	_ = ogsID
 
 	service := setupPersonService(t, db)
 	ctx := context.Background()
@@ -1065,7 +1109,7 @@ func TestPersonService_FindByGuardianID(t *testing.T) {
 	t.Run("returns persons linked to guardian", func(t *testing.T) {
 		// ARRANGE
 		parentAccount := testpkg.CreateTestParentAccount(t, db, "guardian-test")
-		person := testpkg.CreateTestPerson(t, db, "GuardChild", "PersonTest")
+		person := testpkg.CreateTestPerson(t, db, "GuardChild", "PersonTest", ogsID)
 		testpkg.CreateTestPersonGuardian(t, db, person.ID, parentAccount.ID, "parent")
 		defer testpkg.CleanupActivityFixtures(t, db, person.ID, parentAccount.ID)
 		defer testpkg.CleanupParentAccountFixtures(t, db, parentAccount.ID)
@@ -1093,6 +1137,8 @@ func TestPersonService_FindByGuardianID(t *testing.T) {
 func TestPersonService_LinkToRFIDCard_PersonNotFound(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
+	_ = ogsID
 
 	service := setupPersonService(t, db)
 	ctx := context.Background()
@@ -1108,14 +1154,16 @@ func TestPersonService_LinkToRFIDCard_PersonNotFound(t *testing.T) {
 
 func TestPersonService_LinkToRFIDCard_RFIDNotFound(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
+	ogsID := testpkg.SetupTestOGS(t, db)
 	defer func() { _ = db.Close() }()
+	_ = ogsID
 
 	service := setupPersonService(t, db)
 	ctx := context.Background()
 
 	t.Run("returns error for nonexistent RFID card", func(t *testing.T) {
 		// ARRANGE
-		student := testpkg.CreateTestStudent(t, db, "RFID", "Test", "1a")
+		student := testpkg.CreateTestStudent(t, db, "RFID", "Test", "1a", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		// Get the person ID for the student
@@ -1133,6 +1181,8 @@ func TestPersonService_LinkToRFIDCard_RFIDNotFound(t *testing.T) {
 func TestPersonService_Get_NotFound(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
+	_ = ogsID
 
 	service := setupPersonService(t, db)
 	ctx := context.Background()
@@ -1149,6 +1199,8 @@ func TestPersonService_Get_NotFound(t *testing.T) {
 
 func TestPersonService_Update_NotFound(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
+	ogsID := testpkg.SetupTestOGS(t, db)
+	_ = ogsID
 	defer func() { _ = db.Close() }()
 
 	service := setupPersonService(t, db)
@@ -1172,7 +1224,9 @@ func TestPersonService_Update_NotFound(t *testing.T) {
 
 func TestPersonService_Create_ValidationError(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
+	ogsID := testpkg.SetupTestOGS(t, db)
 	defer func() { _ = db.Close() }()
+	_ = ogsID
 
 	service := setupPersonService(t, db)
 	ctx := context.Background()
@@ -1196,7 +1250,9 @@ func TestPersonService_Create_ValidationError(t *testing.T) {
 
 func TestPersonService_ValidateStaffPIN_Success(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
+	ogsID := testpkg.SetupTestOGS(t, db)
 	defer func() { _ = db.Close() }()
+	_ = ogsID
 
 	service := setupPersonService(t, db)
 	ctx := context.Background()
@@ -1204,7 +1260,7 @@ func TestPersonService_ValidateStaffPIN_Success(t *testing.T) {
 	t.Run("validates correct PIN and returns staff", func(t *testing.T) {
 		// ARRANGE - create staff with UNIQUE PIN (avoid collision with seed data)
 		testPIN := "9876"
-		staff, _ := testpkg.CreateTestStaffWithPIN(t, db, "PIN", "Test", testPIN)
+		staff, _ := testpkg.CreateTestStaffWithPIN(t, db, "PIN", "Test", testPIN, ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, staff.PersonID)
 
 		// ACT
@@ -1220,7 +1276,9 @@ func TestPersonService_ValidateStaffPIN_Success(t *testing.T) {
 
 func TestPersonService_ValidateStaffPIN_WrongPIN(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
+	ogsID := testpkg.SetupTestOGS(t, db)
 	defer func() { _ = db.Close() }()
+	_ = ogsID
 
 	service := setupPersonService(t, db)
 	ctx := context.Background()
@@ -1228,7 +1286,7 @@ func TestPersonService_ValidateStaffPIN_WrongPIN(t *testing.T) {
 	t.Run("returns error for incorrect PIN", func(t *testing.T) {
 		// ARRANGE - create staff with known PIN
 		testPIN := "1234"
-		staff, _ := testpkg.CreateTestStaffWithPIN(t, db, "WrongPIN", "Test", testPIN)
+		staff, _ := testpkg.CreateTestStaffWithPIN(t, db, "WrongPIN", "Test", testPIN, ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, staff.PersonID)
 
 		// ACT - try with wrong PIN
@@ -1242,14 +1300,16 @@ func TestPersonService_ValidateStaffPIN_WrongPIN(t *testing.T) {
 
 func TestPersonService_ValidateStaffPIN_NoPINSet(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
+	ogsID := testpkg.SetupTestOGS(t, db)
 	defer func() { _ = db.Close() }()
+	_ = ogsID
 
 	service := setupPersonService(t, db)
 	ctx := context.Background()
 
 	t.Run("returns error when trying unique PIN that doesn't exist", func(t *testing.T) {
 		// ARRANGE - create staff without PIN (default from CreateTestStaffWithAccount)
-		staff, _ := testpkg.CreateTestStaffWithAccount(t, db, "NoPIN", "Staff")
+		staff, _ := testpkg.CreateTestStaffWithAccount(t, db, "NoPIN", "Staff", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, staff.PersonID)
 
 		// ACT - try a unique PIN that no account should have
@@ -1263,7 +1323,9 @@ func TestPersonService_ValidateStaffPIN_NoPINSet(t *testing.T) {
 
 func TestPersonService_ValidateStaffPINForSpecificStaff_Success(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
+	ogsID := testpkg.SetupTestOGS(t, db)
 	defer func() { _ = db.Close() }()
+	_ = ogsID
 
 	service := setupPersonService(t, db)
 	ctx := context.Background()
@@ -1271,7 +1333,7 @@ func TestPersonService_ValidateStaffPINForSpecificStaff_Success(t *testing.T) {
 	t.Run("validates correct PIN for specific staff", func(t *testing.T) {
 		// ARRANGE
 		testPIN := "5678"
-		staff, _ := testpkg.CreateTestStaffWithPIN(t, db, "Specific", "PIN", testPIN)
+		staff, _ := testpkg.CreateTestStaffWithPIN(t, db, "Specific", "PIN", testPIN, ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, staff.PersonID)
 
 		// ACT
@@ -1286,7 +1348,9 @@ func TestPersonService_ValidateStaffPINForSpecificStaff_Success(t *testing.T) {
 
 func TestPersonService_ValidateStaffPINForSpecificStaff_WrongPIN(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
+	ogsID := testpkg.SetupTestOGS(t, db)
 	defer func() { _ = db.Close() }()
+	_ = ogsID
 
 	service := setupPersonService(t, db)
 	ctx := context.Background()
@@ -1294,7 +1358,7 @@ func TestPersonService_ValidateStaffPINForSpecificStaff_WrongPIN(t *testing.T) {
 	t.Run("returns error for incorrect PIN on specific staff", func(t *testing.T) {
 		// ARRANGE
 		testPIN := "5678"
-		staff, _ := testpkg.CreateTestStaffWithPIN(t, db, "SpecificWrong", "PIN", testPIN)
+		staff, _ := testpkg.CreateTestStaffWithPIN(t, db, "SpecificWrong", "PIN", testPIN, ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, staff.PersonID)
 
 		// ACT - wrong PIN
@@ -1308,14 +1372,16 @@ func TestPersonService_ValidateStaffPINForSpecificStaff_WrongPIN(t *testing.T) {
 
 func TestPersonService_ValidateStaffPINForSpecificStaff_NoPINSet(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
+	ogsID := testpkg.SetupTestOGS(t, db)
 	defer func() { _ = db.Close() }()
+	_ = ogsID
 
 	service := setupPersonService(t, db)
 	ctx := context.Background()
 
 	t.Run("returns error when specific staff has no PIN", func(t *testing.T) {
 		// ARRANGE - staff without PIN
-		staff, _ := testpkg.CreateTestStaffWithAccount(t, db, "NoSpecific", "PIN")
+		staff, _ := testpkg.CreateTestStaffWithAccount(t, db, "NoSpecific", "PIN", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, staff.PersonID)
 
 		// ACT
@@ -1333,7 +1399,9 @@ func TestPersonService_ValidateStaffPINForSpecificStaff_NoPINSet(t *testing.T) {
 
 func TestPersonService_Create_WithRFIDCard(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
+	ogsID := testpkg.SetupTestOGS(t, db)
 	defer func() { _ = db.Close() }()
+	_ = ogsID
 
 	service := setupPersonService(t, db)
 	ctx := context.Background()
@@ -1387,14 +1455,16 @@ func TestPersonService_Create_WithRFIDCard(t *testing.T) {
 
 func TestPersonService_Update_WithChangedAccount(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
+	ogsID := testpkg.SetupTestOGS(t, db)
 	defer func() { _ = db.Close() }()
+	_ = ogsID
 
 	service := setupPersonService(t, db)
 	ctx := context.Background()
 
 	t.Run("updates person with new valid account", func(t *testing.T) {
 		// ARRANGE - create person without account, then link to new account
-		person := testpkg.CreateTestPerson(t, db, "UpdateAccount", "Test")
+		person := testpkg.CreateTestPerson(t, db, "UpdateAccount", "Test", ogsID)
 		newAccount := testpkg.CreateTestAccount(t, db, "new-account-update")
 		defer testpkg.CleanupActivityFixtures(t, db, person.ID)
 		defer testpkg.CleanupAuthFixtures(t, db, newAccount.ID)
@@ -1416,7 +1486,7 @@ func TestPersonService_Update_WithChangedAccount(t *testing.T) {
 
 	t.Run("returns error when new account does not exist", func(t *testing.T) {
 		// ARRANGE
-		person := testpkg.CreateTestPerson(t, db, "UpdateInvalidAccount", "Test")
+		person := testpkg.CreateTestPerson(t, db, "UpdateInvalidAccount", "Test", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, person.ID)
 
 		nonExistentAccountID := int64(99999999)
@@ -1431,7 +1501,7 @@ func TestPersonService_Update_WithChangedAccount(t *testing.T) {
 
 	t.Run("allows update with same account ID", func(t *testing.T) {
 		// ARRANGE - person with existing account
-		person, account := testpkg.CreateTestPersonWithAccount(t, db, "SameAccount", "Update")
+		person, account := testpkg.CreateTestPersonWithAccount(t, db, "SameAccount", "Update", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, person.ID)
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
@@ -1453,14 +1523,16 @@ func TestPersonService_Update_WithChangedAccount(t *testing.T) {
 
 func TestPersonService_Update_WithChangedRFID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
+	ogsID := testpkg.SetupTestOGS(t, db)
 	defer func() { _ = db.Close() }()
+	_ = ogsID
 
 	service := setupPersonService(t, db)
 	ctx := context.Background()
 
 	t.Run("updates person with new valid RFID card", func(t *testing.T) {
 		// ARRANGE
-		person := testpkg.CreateTestPerson(t, db, "UpdateRFID", "Test")
+		person := testpkg.CreateTestPerson(t, db, "UpdateRFID", "Test", ogsID)
 		newCard := testpkg.CreateTestRFIDCard(t, db, "NEWUPDATECARD")
 		defer testpkg.CleanupActivityFixtures(t, db, person.ID)
 		defer testpkg.CleanupRFIDCards(t, db, newCard.ID)
@@ -1481,7 +1553,7 @@ func TestPersonService_Update_WithChangedRFID(t *testing.T) {
 
 	t.Run("returns error when new RFID card does not exist", func(t *testing.T) {
 		// ARRANGE
-		person := testpkg.CreateTestPerson(t, db, "UpdateInvalidRFID", "Test")
+		person := testpkg.CreateTestPerson(t, db, "UpdateInvalidRFID", "Test", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, person.ID)
 
 		nonExistentTagID := "NONEXISTENT888"
@@ -1496,7 +1568,7 @@ func TestPersonService_Update_WithChangedRFID(t *testing.T) {
 
 	t.Run("allows update with same RFID card", func(t *testing.T) {
 		// ARRANGE
-		person := testpkg.CreateTestPerson(t, db, "SameRFID", "Update")
+		person := testpkg.CreateTestPerson(t, db, "SameRFID", "Update", ogsID)
 		card := testpkg.CreateTestRFIDCard(t, db, "SAMERFIDCARD")
 		defer testpkg.CleanupActivityFixtures(t, db, person.ID)
 		defer testpkg.CleanupRFIDCards(t, db, card.ID)
@@ -1527,7 +1599,9 @@ func TestPersonService_Update_WithChangedRFID(t *testing.T) {
 
 func TestPersonService_WithTx_TransactionBinding(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
+	ogsID := testpkg.SetupTestOGS(t, db)
 	defer func() { _ = db.Close() }()
+	_ = ogsID
 
 	service := setupPersonService(t, db)
 	ctx := context.Background()
@@ -1557,14 +1631,16 @@ func TestPersonService_WithTx_TransactionBinding(t *testing.T) {
 
 func TestPersonService_LinkToAccount_SamePersonRelink(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
+	ogsID := testpkg.SetupTestOGS(t, db)
 	defer func() { _ = db.Close() }()
+	_ = ogsID
 
 	service := setupPersonService(t, db)
 	ctx := context.Background()
 
 	t.Run("allows re-linking same person to same account", func(t *testing.T) {
 		// ARRANGE - person already linked to account
-		person, account := testpkg.CreateTestPersonWithAccount(t, db, "Relink", "Same")
+		person, account := testpkg.CreateTestPersonWithAccount(t, db, "Relink", "Same", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, person.ID)
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
@@ -1583,14 +1659,16 @@ func TestPersonService_LinkToAccount_SamePersonRelink(t *testing.T) {
 
 func TestPersonService_GetFullProfile_WithBothRelations(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
+	ogsID := testpkg.SetupTestOGS(t, db)
 	defer func() { _ = db.Close() }()
+	_ = ogsID
 
 	service := setupPersonService(t, db)
 	ctx := context.Background()
 
 	t.Run("returns profile with both account and RFID", func(t *testing.T) {
 		// ARRANGE - person with both account and RFID
-		person, account := testpkg.CreateTestPersonWithAccount(t, db, "Both", "Relations")
+		person, account := testpkg.CreateTestPersonWithAccount(t, db, "Both", "Relations", ogsID)
 		rfidCard := testpkg.CreateTestRFIDCard(t, db, "BOTHPROFILE")
 		defer testpkg.CleanupActivityFixtures(t, db, person.ID)
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
@@ -1625,7 +1703,9 @@ func TestPersonService_GetFullProfile_WithBothRelations(t *testing.T) {
 
 func TestPersonService_ListAvailableRFIDCards_Extended(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
+	ogsID := testpkg.SetupTestOGS(t, db)
 	defer func() { _ = db.Close() }()
+	_ = ogsID
 
 	service := setupPersonService(t, db)
 	ctx := context.Background()
@@ -1633,7 +1713,7 @@ func TestPersonService_ListAvailableRFIDCards_Extended(t *testing.T) {
 	t.Run("returns empty list when all cards assigned", func(t *testing.T) {
 		// ARRANGE - create card and assign it
 		card := testpkg.CreateTestRFIDCard(t, db, "ALLASSIGNED")
-		person := testpkg.CreateTestPerson(t, db, "All", "Assigned")
+		person := testpkg.CreateTestPerson(t, db, "All", "Assigned", ogsID)
 		defer testpkg.CleanupRFIDCards(t, db, card.ID)
 		defer testpkg.CleanupActivityFixtures(t, db, person.ID)
 
@@ -1663,15 +1743,17 @@ func TestPersonService_ListAvailableRFIDCards_Extended(t *testing.T) {
 
 func TestPersonService_List_WithPagination(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
+	ogsID := testpkg.SetupTestOGS(t, db)
 	defer func() { _ = db.Close() }()
+	_ = ogsID
 
 	service := setupPersonService(t, db)
 	ctx := context.Background()
 
 	t.Run("returns persons with query options", func(t *testing.T) {
 		// ARRANGE - create some persons
-		p1 := testpkg.CreateTestPerson(t, db, "ListPag1", "Test")
-		p2 := testpkg.CreateTestPerson(t, db, "ListPag2", "Test")
+		p1 := testpkg.CreateTestPerson(t, db, "ListPag1", "Test", ogsID)
+		p2 := testpkg.CreateTestPerson(t, db, "ListPag2", "Test", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, p1.ID, p2.ID)
 
 		// ACT - list with options (even though filter conversion not fully implemented)
@@ -1686,14 +1768,16 @@ func TestPersonService_List_WithPagination(t *testing.T) {
 
 func TestPersonService_Delete_WithRelations(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
+	ogsID := testpkg.SetupTestOGS(t, db)
 	defer func() { _ = db.Close() }()
+	_ = ogsID
 
 	service := setupPersonService(t, db)
 	ctx := context.Background()
 
 	t.Run("deletes person with RFID card", func(t *testing.T) {
 		// ARRANGE
-		person := testpkg.CreateTestPerson(t, db, "DeleteWith", "RFID")
+		person := testpkg.CreateTestPerson(t, db, "DeleteWith", "RFID", ogsID)
 		card := testpkg.CreateTestRFIDCard(t, db, "DELETEWITHCARD")
 		defer testpkg.CleanupRFIDCards(t, db, card.ID)
 
@@ -1718,14 +1802,16 @@ func TestPersonService_Delete_WithRelations(t *testing.T) {
 
 func TestPersonService_Get_WithIntID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
+	ogsID := testpkg.SetupTestOGS(t, db)
 	defer func() { _ = db.Close() }()
+	_ = ogsID
 
 	service := setupPersonService(t, db)
 	ctx := context.Background()
 
 	t.Run("accepts int ID and converts to int64", func(t *testing.T) {
 		// ARRANGE
-		person := testpkg.CreateTestPerson(t, db, "IntID", "Test")
+		person := testpkg.CreateTestPerson(t, db, "IntID", "Test", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, person.ID)
 
 		// ACT - pass int instead of int64

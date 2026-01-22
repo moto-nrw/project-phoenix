@@ -105,12 +105,13 @@ func TestPersonRepository_Create(t *testing.T) {
 func TestPersonRepository_FindByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).Person
 	ctx := context.Background()
 
 	// Create test person
-	person := testpkg.CreateTestPerson(t, db, "FindByID", "Test")
+	person := testpkg.CreateTestPerson(t, db, "FindByID", "Test", ogsID)
 	defer testpkg.CleanupActivityFixtures(t, db, person.ID)
 
 	t.Run("find existing person", func(t *testing.T) {
@@ -137,12 +138,13 @@ func TestPersonRepository_FindByID(t *testing.T) {
 func TestPersonRepository_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).Person
 	ctx := context.Background()
 
 	// Create test person
-	person := testpkg.CreateTestPerson(t, db, "Update", "Original")
+	person := testpkg.CreateTestPerson(t, db, "Update", "Original", ogsID)
 	defer testpkg.CleanupActivityFixtures(t, db, person.ID)
 
 	t.Run("update person name", func(t *testing.T) {
@@ -169,12 +171,13 @@ func TestPersonRepository_Update(t *testing.T) {
 func TestPersonRepository_Delete(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).Person
 	ctx := context.Background()
 
 	// Create test person
-	person := testpkg.CreateTestPerson(t, db, "Delete", "Test")
+	person := testpkg.CreateTestPerson(t, db, "Delete", "Test", ogsID)
 	// No defer cleanup - we're testing deletion
 
 	t.Run("delete existing person", func(t *testing.T) {
@@ -196,14 +199,15 @@ func TestPersonRepository_Delete(t *testing.T) {
 func TestPersonRepository_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).Person
 	ctx := context.Background()
 
 	// Create test persons with unique names for filtering
 	uniquePrefix := fmt.Sprintf("%d", time.Now().UnixNano())
-	person1 := testpkg.CreateTestPerson(t, db, "ListAlpha"+uniquePrefix, "Test")
-	person2 := testpkg.CreateTestPerson(t, db, "ListBeta"+uniquePrefix, "Test")
+	person1 := testpkg.CreateTestPerson(t, db, "ListAlpha"+uniquePrefix, "Test", ogsID)
+	person2 := testpkg.CreateTestPerson(t, db, "ListBeta"+uniquePrefix, "Test", ogsID)
 	defer testpkg.CleanupActivityFixtures(t, db, person1.ID, person2.ID)
 
 	t.Run("list with no filters", func(t *testing.T) {
@@ -237,14 +241,15 @@ func TestPersonRepository_List(t *testing.T) {
 func TestPersonRepository_FindByIDs(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).Person
 	ctx := context.Background()
 
 	// Create test persons
-	person1 := testpkg.CreateTestPerson(t, db, "FindByIDs1", "Test")
-	person2 := testpkg.CreateTestPerson(t, db, "FindByIDs2", "Test")
-	person3 := testpkg.CreateTestPerson(t, db, "FindByIDs3", "Test")
+	person1 := testpkg.CreateTestPerson(t, db, "FindByIDs1", "Test", ogsID)
+	person2 := testpkg.CreateTestPerson(t, db, "FindByIDs2", "Test", ogsID)
+	person3 := testpkg.CreateTestPerson(t, db, "FindByIDs3", "Test", ogsID)
 	defer testpkg.CleanupActivityFixtures(t, db, person1.ID, person2.ID, person3.ID)
 
 	t.Run("find multiple persons by IDs", func(t *testing.T) {
@@ -281,12 +286,13 @@ func TestPersonRepository_FindByIDs(t *testing.T) {
 func TestPersonRepository_LinkToAccount(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).Person
 	ctx := context.Background()
 
 	// Create test person and account
-	person := testpkg.CreateTestPerson(t, db, "LinkAccount", "Test")
+	person := testpkg.CreateTestPerson(t, db, "LinkAccount", "Test", ogsID)
 	account := testpkg.CreateTestAccount(t, db, "linkaccount")
 	defer testpkg.CleanupActivityFixtures(t, db, person.ID, account.ID)
 
@@ -310,12 +316,13 @@ func TestPersonRepository_LinkToAccount(t *testing.T) {
 func TestPersonRepository_UnlinkFromAccount(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).Person
 	ctx := context.Background()
 
 	// Create person with account
-	person, account := testpkg.CreateTestPersonWithAccount(t, db, "Unlink", "Account")
+	person, account := testpkg.CreateTestPersonWithAccount(t, db, "Unlink", "Account", ogsID)
 	defer testpkg.CleanupActivityFixtures(t, db, person.ID, account.ID)
 
 	t.Run("unlink person from account", func(t *testing.T) {
@@ -337,12 +344,13 @@ func TestPersonRepository_UnlinkFromAccount(t *testing.T) {
 func TestPersonRepository_FindByAccountID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).Person
 	ctx := context.Background()
 
 	// Create person with account
-	person, account := testpkg.CreateTestPersonWithAccount(t, db, "FindByAccount", "Test")
+	person, account := testpkg.CreateTestPersonWithAccount(t, db, "FindByAccount", "Test", ogsID)
 	defer testpkg.CleanupActivityFixtures(t, db, person.ID, account.ID)
 
 	t.Run("find person by account ID", func(t *testing.T) {
@@ -366,12 +374,13 @@ func TestPersonRepository_FindByAccountID(t *testing.T) {
 func TestPersonRepository_LinkToRFIDCard(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).Person
 	ctx := context.Background()
 
 	// Create test person and RFID card
-	person := testpkg.CreateTestPerson(t, db, "LinkRFID", "Test")
+	person := testpkg.CreateTestPerson(t, db, "LinkRFID", "Test", ogsID)
 	rfidCard := testpkg.CreateTestRFIDCard(t, db, "LINK12345678")
 	defer testpkg.CleanupActivityFixtures(t, db, person.ID)
 	defer testpkg.CleanupRFIDCards(t, db, rfidCard.ID)
@@ -396,12 +405,13 @@ func TestPersonRepository_LinkToRFIDCard(t *testing.T) {
 func TestPersonRepository_UnlinkFromRFIDCard(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).Person
 	ctx := context.Background()
 
 	// Create test person with RFID card linked
-	person := testpkg.CreateTestPerson(t, db, "UnlinkRFID", "Test")
+	person := testpkg.CreateTestPerson(t, db, "UnlinkRFID", "Test", ogsID)
 	rfidCard := testpkg.CreateTestRFIDCard(t, db, "UNLINK1234567")
 	defer testpkg.CleanupActivityFixtures(t, db, person.ID)
 	defer testpkg.CleanupRFIDCards(t, db, rfidCard.ID)
@@ -429,12 +439,13 @@ func TestPersonRepository_UnlinkFromRFIDCard(t *testing.T) {
 func TestPersonRepository_FindByTagID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).Person
 	ctx := context.Background()
 
 	// Create test person with RFID card linked
-	person := testpkg.CreateTestPerson(t, db, "FindByTag", "Test")
+	person := testpkg.CreateTestPerson(t, db, "FindByTag", "Test", ogsID)
 	rfidCard := testpkg.CreateTestRFIDCard(t, db, "FINDTAG12345")
 	defer testpkg.CleanupActivityFixtures(t, db, person.ID)
 	defer testpkg.CleanupRFIDCards(t, db, rfidCard.ID)
@@ -472,13 +483,14 @@ func TestPersonRepository_FindByTagID(t *testing.T) {
 func TestPersonRepository_FindWithAccount(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).Person
 	ctx := context.Background()
 
 	t.Run("find person with account", func(t *testing.T) {
 		// Create person with account
-		person, account := testpkg.CreateTestPersonWithAccount(t, db, "WithAccount", "Test")
+		person, account := testpkg.CreateTestPersonWithAccount(t, db, "WithAccount", "Test", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, person.ID, account.ID)
 
 		found, err := repo.FindWithAccount(ctx, person.ID)
@@ -493,7 +505,7 @@ func TestPersonRepository_FindWithAccount(t *testing.T) {
 
 	t.Run("find person without account", func(t *testing.T) {
 		// Create person without account
-		person := testpkg.CreateTestPerson(t, db, "NoAccount", "Test")
+		person := testpkg.CreateTestPerson(t, db, "NoAccount", "Test", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, person.ID)
 
 		found, err := repo.FindWithAccount(ctx, person.ID)
@@ -515,13 +527,14 @@ func TestPersonRepository_FindWithAccount(t *testing.T) {
 func TestPersonRepository_ListWithNullableFilters(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).Person
 	ctx := context.Background()
 
 	// Create test persons - one with account, one without
-	personWithAccount, account := testpkg.CreateTestPersonWithAccount(t, db, "HasAccount", "Test")
-	personWithoutAccount := testpkg.CreateTestPerson(t, db, "NoAccount", "Test")
+	personWithAccount, account := testpkg.CreateTestPersonWithAccount(t, db, "HasAccount", "Test", ogsID)
+	personWithoutAccount := testpkg.CreateTestPerson(t, db, "NoAccount", "Test", ogsID)
 	defer testpkg.CleanupActivityFixtures(t, db, personWithAccount.ID, account.ID, personWithoutAccount.ID)
 
 	t.Run("filter persons with account", func(t *testing.T) {
@@ -562,7 +575,7 @@ func TestPersonRepository_ListWithNullableFilters(t *testing.T) {
 
 	t.Run("filter persons with RFID card", func(t *testing.T) {
 		// Create person with RFID card
-		personWithCard := testpkg.CreateTestPerson(t, db, "WithTag", "Test")
+		personWithCard := testpkg.CreateTestPerson(t, db, "WithTag", "Test", ogsID)
 		rfidCard := testpkg.CreateTestRFIDCard(t, db, "WITHTAG12345")
 		defer testpkg.CleanupActivityFixtures(t, db, personWithCard.ID)
 		defer testpkg.CleanupRFIDCards(t, db, rfidCard.ID)
@@ -595,7 +608,6 @@ func TestPersonRepository_ListWithNullableFilters(t *testing.T) {
 func TestPersonRepository_EdgeCases(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
-
 	repo := repositories.NewFactory(db).Person
 	ctx := context.Background()
 

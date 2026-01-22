@@ -15,6 +15,7 @@ import (
 func TestNewFactory(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	repos := repositories.NewFactory(db)
 	require.NotNil(t, repos)
@@ -66,6 +67,7 @@ func TestNewFactory(t *testing.T) {
 func TestNewFactory_PasswordResetExpiry_ZeroDefaults(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	repos := repositories.NewFactory(db)
 
@@ -83,6 +85,7 @@ func TestNewFactory_PasswordResetExpiry_ZeroDefaults(t *testing.T) {
 func TestNewFactory_PasswordResetExpiry_ClampedToMax(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	repos := repositories.NewFactory(db)
 
@@ -100,6 +103,7 @@ func TestNewFactory_PasswordResetExpiry_ClampedToMax(t *testing.T) {
 func TestNewFactory_PasswordResetExpiry_ValidValue(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	repos := repositories.NewFactory(db)
 
@@ -117,6 +121,7 @@ func TestNewFactory_PasswordResetExpiry_ValidValue(t *testing.T) {
 func TestNewFactory_FrontendURL_TrailingSlashRemoved(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	repos := repositories.NewFactory(db)
 
@@ -134,6 +139,7 @@ func TestNewFactory_FrontendURL_TrailingSlashRemoved(t *testing.T) {
 func TestNewFactory_FrontendURL_DefaultWhenEmpty(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	repos := repositories.NewFactory(db)
 
@@ -151,6 +157,7 @@ func TestNewFactory_FrontendURL_DefaultWhenEmpty(t *testing.T) {
 func TestNewFactory_DefaultEmailFrom_WhenNotConfigured(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	repos := repositories.NewFactory(db)
 
@@ -169,6 +176,7 @@ func TestNewFactory_DefaultEmailFrom_WhenNotConfigured(t *testing.T) {
 func TestNewFactory_EmailFrom_WhenConfigured(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	repos := repositories.NewFactory(db)
 
@@ -188,6 +196,7 @@ func TestNewFactory_EmailFrom_WhenConfigured(t *testing.T) {
 func TestNewFactory_NegativePasswordResetExpiry(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	repos := repositories.NewFactory(db)
 

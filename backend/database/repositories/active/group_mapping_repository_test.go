@@ -29,9 +29,9 @@ type groupMappingTestData struct {
 }
 
 // createGroupMappingTestData creates test fixtures for group mapping tests
-func createGroupMappingTestData(t *testing.T, db *bun.DB) *groupMappingTestData {
-	activityGroup := testpkg.CreateTestActivityGroup(t, db, "MappingActivity")
-	room := testpkg.CreateTestRoom(t, db, "MappingRoom")
+func createGroupMappingTestData(t *testing.T, db *bun.DB, ogsID string) *groupMappingTestData {
+	activityGroup := testpkg.CreateTestActivityGroup(t, db, "MappingActivity", ogsID)
+	room := testpkg.CreateTestRoom(t, db, "MappingRoom", ogsID)
 
 	factory := repositories.NewFactory(db)
 	groupRepo := factory.ActiveGroup
@@ -106,10 +106,11 @@ func cleanupGroupMappingTestData(t *testing.T, db *bun.DB, data *groupMappingTes
 func TestGroupMappingRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).GroupMapping
 	ctx := context.Background()
-	data := createGroupMappingTestData(t, db)
+	data := createGroupMappingTestData(t, db, ogsID)
 	defer cleanupGroupMappingTestData(t, db, data)
 
 	t.Run("creates group mapping with valid data", func(t *testing.T) {
@@ -149,10 +150,11 @@ func TestGroupMappingRepository_Create(t *testing.T) {
 func TestGroupMappingRepository_FindByActiveCombinedGroupID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).GroupMapping
 	ctx := context.Background()
-	data := createGroupMappingTestData(t, db)
+	data := createGroupMappingTestData(t, db, ogsID)
 	defer cleanupGroupMappingTestData(t, db, data)
 
 	t.Run("returns empty slice when no mappings exist", func(t *testing.T) {
@@ -194,10 +196,11 @@ func TestGroupMappingRepository_FindByActiveCombinedGroupID(t *testing.T) {
 func TestGroupMappingRepository_FindByActiveGroupID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).GroupMapping
 	ctx := context.Background()
-	data := createGroupMappingTestData(t, db)
+	data := createGroupMappingTestData(t, db, ogsID)
 	defer cleanupGroupMappingTestData(t, db, data)
 
 	t.Run("returns empty slice when no mappings exist", func(t *testing.T) {
@@ -233,10 +236,11 @@ func TestGroupMappingRepository_FindByActiveGroupID(t *testing.T) {
 func TestGroupMappingRepository_AddGroupToCombination(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).GroupMapping
 	ctx := context.Background()
-	data := createGroupMappingTestData(t, db)
+	data := createGroupMappingTestData(t, db, ogsID)
 	defer cleanupGroupMappingTestData(t, db, data)
 
 	t.Run("adds group to combination successfully", func(t *testing.T) {
@@ -273,10 +277,11 @@ func TestGroupMappingRepository_AddGroupToCombination(t *testing.T) {
 func TestGroupMappingRepository_RemoveGroupFromCombination(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).GroupMapping
 	ctx := context.Background()
-	data := createGroupMappingTestData(t, db)
+	data := createGroupMappingTestData(t, db, ogsID)
 	defer cleanupGroupMappingTestData(t, db, data)
 
 	t.Run("removes group from combination", func(t *testing.T) {
@@ -316,10 +321,11 @@ func TestGroupMappingRepository_RemoveGroupFromCombination(t *testing.T) {
 func TestGroupMappingRepository_FindWithRelations(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).GroupMapping
 	ctx := context.Background()
-	data := createGroupMappingTestData(t, db)
+	data := createGroupMappingTestData(t, db, ogsID)
 	defer cleanupGroupMappingTestData(t, db, data)
 
 	t.Run("finds mapping with combined group and active group relations", func(t *testing.T) {
@@ -398,10 +404,11 @@ func TestGroupMappingRepository_FindWithRelations(t *testing.T) {
 func TestGroupMappingRepository_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).GroupMapping
 	ctx := context.Background()
-	data := createGroupMappingTestData(t, db)
+	data := createGroupMappingTestData(t, db, ogsID)
 	defer cleanupGroupMappingTestData(t, db, data)
 
 	t.Run("lists with no results returns empty slice", func(t *testing.T) {

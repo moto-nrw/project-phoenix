@@ -327,7 +327,6 @@ func TestDataImportRepository_FindRecent(t *testing.T) {
 func TestDataImportRepository_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
-
 	repo := repositories.NewFactory(db).DataImport
 	ctx := context.Background()
 

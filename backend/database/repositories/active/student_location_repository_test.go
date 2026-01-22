@@ -24,16 +24,17 @@ import (
 func TestAttendanceRepository_GetTodayByStudentIDs(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	ctx := context.Background()
 	repo := activeRepo.NewAttendanceRepository(db)
 
 	t.Run("returns latest attendance per student with deduplication", func(t *testing.T) {
 		// ARRANGE: Create fixtures
-		student1 := testpkg.CreateTestStudent(t, db, "Alice", "Test", "1a")
-		student2 := testpkg.CreateTestStudent(t, db, "Bob", "Test", "1a")
-		staff := testpkg.CreateTestStaff(t, db, "Supervisor", "Test")
-		device := testpkg.CreateTestDevice(t, db, "attendance-device-001")
+		student1 := testpkg.CreateTestStudent(t, db, "Alice", "Test", "1a", ogsID)
+		student2 := testpkg.CreateTestStudent(t, db, "Bob", "Test", "1a", ogsID)
+		staff := testpkg.CreateTestStaff(t, db, "Supervisor", "Test", ogsID)
+		device := testpkg.CreateTestDevice(t, db, "attendance-device-001", ogsID)
 
 		defer testpkg.CleanupActivityFixtures(t, db, student1.ID, student2.ID, staff.ID, device.ID)
 
@@ -84,7 +85,7 @@ func TestAttendanceRepository_GetTodayByStudentIDs(t *testing.T) {
 
 	t.Run("returns empty map when no attendance records exist", func(t *testing.T) {
 		// ARRANGE: Create student with no attendance
-		student := testpkg.CreateTestStudent(t, db, "NoAttendance", "Student", "2a")
+		student := testpkg.CreateTestStudent(t, db, "NoAttendance", "Student", "2a", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		// ACT
@@ -101,21 +102,22 @@ func TestAttendanceRepository_GetTodayByStudentIDs(t *testing.T) {
 func TestVisitRepository_GetCurrentByStudentIDs(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	ctx := context.Background()
 	repo := activeRepo.NewVisitRepository(db)
 
 	t.Run("returns current visits for students", func(t *testing.T) {
 		// ARRANGE: Create activity infrastructure
-		activityGroup := testpkg.CreateTestActivityGroup(t, db, "Chess Club")
-		room := testpkg.CreateTestRoom(t, db, "Activity Room 1")
+		activityGroup := testpkg.CreateTestActivityGroup(t, db, "Chess Club", ogsID)
+		room := testpkg.CreateTestRoom(t, db, "Activity Room 1", ogsID)
 
 		// Create active session
-		activeGroup := testpkg.CreateTestActiveGroup(t, db, activityGroup.ID, room.ID)
+		activeGroup := testpkg.CreateTestActiveGroup(t, db, activityGroup.ID, room.ID, ogsID)
 
 		// Create students
-		student1 := testpkg.CreateTestStudent(t, db, "Carol", "Visitor", "2a")
-		student2 := testpkg.CreateTestStudent(t, db, "Dave", "Visitor", "2b")
+		student1 := testpkg.CreateTestStudent(t, db, "Carol", "Visitor", "2a", ogsID)
+		student2 := testpkg.CreateTestStudent(t, db, "Dave", "Visitor", "2b", ogsID)
 
 		defer testpkg.CleanupActivityFixtures(t, db,
 			activityGroup.ID, room.ID, activeGroup.ID, student1.ID, student2.ID)
@@ -124,11 +126,11 @@ func TestVisitRepository_GetCurrentByStudentIDs(t *testing.T) {
 
 		// Create active visit for student1 (no exit time)
 		visit1 := testpkg.CreateTestVisit(t, db, student1.ID, activeGroup.ID,
-			now.Add(-15*time.Minute), nil)
+			now.Add(-15*time.Minute), nil, ogsID)
 
 		// Create active visit for student2 (no exit time)
 		visit2 := testpkg.CreateTestVisit(t, db, student2.ID, activeGroup.ID,
-			now.Add(-10*time.Minute), nil)
+			now.Add(-10*time.Minute), nil, ogsID)
 
 		// Also clean up visits
 		defer testpkg.CleanupActivityFixtures(t, db, visit1.ID, visit2.ID)
@@ -147,10 +149,10 @@ func TestVisitRepository_GetCurrentByStudentIDs(t *testing.T) {
 
 	t.Run("excludes visits with exit time", func(t *testing.T) {
 		// ARRANGE
-		activityGroup := testpkg.CreateTestActivityGroup(t, db, "Art Class")
-		room := testpkg.CreateTestRoom(t, db, "Art Room")
-		activeGroup := testpkg.CreateTestActiveGroup(t, db, activityGroup.ID, room.ID)
-		student := testpkg.CreateTestStudent(t, db, "Eve", "Former", "3a")
+		activityGroup := testpkg.CreateTestActivityGroup(t, db, "Art Class", ogsID)
+		room := testpkg.CreateTestRoom(t, db, "Art Room", ogsID)
+		activeGroup := testpkg.CreateTestActiveGroup(t, db, activityGroup.ID, room.ID, ogsID)
+		student := testpkg.CreateTestStudent(t, db, "Eve", "Former", "3a", ogsID)
 
 		defer testpkg.CleanupActivityFixtures(t, db,
 			activityGroup.ID, room.ID, activeGroup.ID, student.ID)
@@ -158,7 +160,7 @@ func TestVisitRepository_GetCurrentByStudentIDs(t *testing.T) {
 		// Create visit that has ended
 		exitTime := time.Now().Add(-5 * time.Minute)
 		visit := testpkg.CreateTestVisit(t, db, student.ID, activeGroup.ID,
-			time.Now().Add(-30*time.Minute), &exitTime)
+			time.Now().Add(-30*time.Minute), &exitTime, ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, visit.ID)
 
 		// ACT
@@ -182,19 +184,20 @@ func TestVisitRepository_GetCurrentByStudentIDs(t *testing.T) {
 func TestGroupRepository_FindByIDs(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	ctx := context.Background()
 	repo := activeRepo.NewGroupRepository(db)
 
 	t.Run("returns groups with room relations", func(t *testing.T) {
 		// ARRANGE: Create two complete group setups
-		activity1 := testpkg.CreateTestActivityGroup(t, db, "Science Club")
-		room1 := testpkg.CreateTestRoom(t, db, "Lab Room")
-		activeGroup1 := testpkg.CreateTestActiveGroup(t, db, activity1.ID, room1.ID)
+		activity1 := testpkg.CreateTestActivityGroup(t, db, "Science Club", ogsID)
+		room1 := testpkg.CreateTestRoom(t, db, "Lab Room", ogsID)
+		activeGroup1 := testpkg.CreateTestActiveGroup(t, db, activity1.ID, room1.ID, ogsID)
 
-		activity2 := testpkg.CreateTestActivityGroup(t, db, "Music Club")
-		room2 := testpkg.CreateTestRoom(t, db, "Music Room")
-		activeGroup2 := testpkg.CreateTestActiveGroup(t, db, activity2.ID, room2.ID)
+		activity2 := testpkg.CreateTestActivityGroup(t, db, "Music Club", ogsID)
+		room2 := testpkg.CreateTestRoom(t, db, "Music Room", ogsID)
+		activeGroup2 := testpkg.CreateTestActiveGroup(t, db, activity2.ID, room2.ID, ogsID)
 
 		defer testpkg.CleanupActivityFixtures(t, db,
 			activity1.ID, room1.ID, activeGroup1.ID,

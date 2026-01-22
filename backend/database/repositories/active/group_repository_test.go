@@ -55,14 +55,15 @@ func cleanupActiveGroupRecords(t *testing.T, db *bun.DB, groupIDs ...int64) {
 func TestActiveGroupRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).ActiveGroup
 	ctx := context.Background()
 
 	t.Run("creates active group with valid data", func(t *testing.T) {
-		activityGroup := testpkg.CreateTestActivityGroup(t, db, "CreateTest")
-		room := testpkg.CreateTestRoom(t, db, "CreateTestRoom")
-		device := testpkg.CreateTestDevice(t, db, "create-test-device")
+		activityGroup := testpkg.CreateTestActivityGroup(t, db, "CreateTest", ogsID)
+		room := testpkg.CreateTestRoom(t, db, "CreateTestRoom", ogsID)
+		device := testpkg.CreateTestDevice(t, db, "create-test-device", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, device.ID, activityGroup.CategoryID, room.ID)
 
 		now := time.Now()
@@ -82,8 +83,8 @@ func TestActiveGroupRepository_Create(t *testing.T) {
 	})
 
 	t.Run("creates active group without device", func(t *testing.T) {
-		activityGroup := testpkg.CreateTestActivityGroup(t, db, "NoDevice")
-		room := testpkg.CreateTestRoom(t, db, "NoDeviceRoom")
+		activityGroup := testpkg.CreateTestActivityGroup(t, db, "NoDevice", ogsID)
+		room := testpkg.CreateTestRoom(t, db, "NoDeviceRoom", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, activityGroup.CategoryID, room.ID)
 
 		now := time.Now()
@@ -112,13 +113,14 @@ func TestActiveGroupRepository_Create(t *testing.T) {
 func TestActiveGroupRepository_FindByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).ActiveGroup
 	ctx := context.Background()
 
 	t.Run("finds existing active group", func(t *testing.T) {
-		activityGroup := testpkg.CreateTestActivityGroup(t, db, "FindByID")
-		room := testpkg.CreateTestRoom(t, db, "FindByIDRoom")
+		activityGroup := testpkg.CreateTestActivityGroup(t, db, "FindByID", ogsID)
+		room := testpkg.CreateTestRoom(t, db, "FindByIDRoom", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, activityGroup.CategoryID, room.ID)
 
 		now := time.Now()
@@ -148,13 +150,14 @@ func TestActiveGroupRepository_FindByID(t *testing.T) {
 func TestActiveGroupRepository_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).ActiveGroup
 	ctx := context.Background()
 
 	t.Run("updates active group", func(t *testing.T) {
-		activityGroup := testpkg.CreateTestActivityGroup(t, db, "Update")
-		room := testpkg.CreateTestRoom(t, db, "UpdateRoom")
+		activityGroup := testpkg.CreateTestActivityGroup(t, db, "Update", ogsID)
+		room := testpkg.CreateTestRoom(t, db, "UpdateRoom", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, activityGroup.CategoryID, room.ID)
 
 		now := time.Now()
@@ -182,13 +185,14 @@ func TestActiveGroupRepository_Update(t *testing.T) {
 func TestActiveGroupRepository_Delete(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).ActiveGroup
 	ctx := context.Background()
 
 	t.Run("deletes existing active group", func(t *testing.T) {
-		activityGroup := testpkg.CreateTestActivityGroup(t, db, "Delete")
-		room := testpkg.CreateTestRoom(t, db, "DeleteRoom")
+		activityGroup := testpkg.CreateTestActivityGroup(t, db, "Delete", ogsID)
+		room := testpkg.CreateTestRoom(t, db, "DeleteRoom", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, activityGroup.CategoryID, room.ID)
 
 		now := time.Now()
@@ -217,13 +221,14 @@ func TestActiveGroupRepository_Delete(t *testing.T) {
 func TestActiveGroupRepository_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).ActiveGroup
 	ctx := context.Background()
 
 	t.Run("lists all active groups", func(t *testing.T) {
-		activityGroup := testpkg.CreateTestActivityGroup(t, db, "List")
-		room := testpkg.CreateTestRoom(t, db, "ListRoom")
+		activityGroup := testpkg.CreateTestActivityGroup(t, db, "List", ogsID)
+		room := testpkg.CreateTestRoom(t, db, "ListRoom", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, activityGroup.CategoryID, room.ID)
 
 		now := time.Now()
@@ -247,13 +252,14 @@ func TestActiveGroupRepository_List(t *testing.T) {
 func TestActiveGroupRepository_FindActiveGroups(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).ActiveGroup
 	ctx := context.Background()
 
 	t.Run("finds only active groups (no end_time)", func(t *testing.T) {
-		activityGroup := testpkg.CreateTestActivityGroup(t, db, "ActiveGroups")
-		room := testpkg.CreateTestRoom(t, db, "ActiveRoom")
+		activityGroup := testpkg.CreateTestActivityGroup(t, db, "ActiveGroups", ogsID)
+		room := testpkg.CreateTestRoom(t, db, "ActiveRoom", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, activityGroup.CategoryID, room.ID)
 
 		now := time.Now()
@@ -291,13 +297,14 @@ func TestActiveGroupRepository_FindActiveGroups(t *testing.T) {
 func TestActiveGroupRepository_FindActiveByRoomID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).ActiveGroup
 	ctx := context.Background()
 
 	t.Run("finds active groups by room ID", func(t *testing.T) {
-		activityGroup := testpkg.CreateTestActivityGroup(t, db, "ByRoom")
-		room := testpkg.CreateTestRoom(t, db, "ByRoomRoom")
+		activityGroup := testpkg.CreateTestActivityGroup(t, db, "ByRoom", ogsID)
+		room := testpkg.CreateTestRoom(t, db, "ByRoomRoom", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, activityGroup.CategoryID, room.ID)
 
 		now := time.Now()
@@ -328,7 +335,7 @@ func TestActiveGroupRepository_FindActiveByRoomID(t *testing.T) {
 	})
 
 	t.Run("returns empty for room with no active groups", func(t *testing.T) {
-		room := testpkg.CreateTestRoom(t, db, "EmptyRoom")
+		room := testpkg.CreateTestRoom(t, db, "EmptyRoom", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, 0, room.ID)
 
 		groups, err := repo.FindActiveByRoomID(ctx, room.ID)
@@ -340,13 +347,14 @@ func TestActiveGroupRepository_FindActiveByRoomID(t *testing.T) {
 func TestActiveGroupRepository_FindActiveByGroupID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).ActiveGroup
 	ctx := context.Background()
 
 	t.Run("finds active instances of activity group", func(t *testing.T) {
-		activityGroup := testpkg.CreateTestActivityGroup(t, db, "ByGroupID")
-		room := testpkg.CreateTestRoom(t, db, "ByGroupIDRoom")
+		activityGroup := testpkg.CreateTestActivityGroup(t, db, "ByGroupID", ogsID)
+		room := testpkg.CreateTestRoom(t, db, "ByGroupIDRoom", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, activityGroup.CategoryID, room.ID)
 
 		now := time.Now()
@@ -379,13 +387,14 @@ func TestActiveGroupRepository_FindActiveByGroupID(t *testing.T) {
 func TestActiveGroupRepository_FindByTimeRange(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).ActiveGroup
 	ctx := context.Background()
 
 	t.Run("finds groups active during time range", func(t *testing.T) {
-		activityGroup := testpkg.CreateTestActivityGroup(t, db, "TimeRange")
-		room := testpkg.CreateTestRoom(t, db, "TimeRangeRoom")
+		activityGroup := testpkg.CreateTestActivityGroup(t, db, "TimeRange", ogsID)
+		room := testpkg.CreateTestRoom(t, db, "TimeRangeRoom", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, activityGroup.CategoryID, room.ID)
 
 		now := time.Now()
@@ -426,13 +435,14 @@ func TestActiveGroupRepository_FindByTimeRange(t *testing.T) {
 func TestActiveGroupRepository_EndSession(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).ActiveGroup
 	ctx := context.Background()
 
 	t.Run("ends active session", func(t *testing.T) {
-		activityGroup := testpkg.CreateTestActivityGroup(t, db, "EndSession")
-		room := testpkg.CreateTestRoom(t, db, "EndSessionRoom")
+		activityGroup := testpkg.CreateTestActivityGroup(t, db, "EndSession", ogsID)
+		room := testpkg.CreateTestRoom(t, db, "EndSessionRoom", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, activityGroup.CategoryID, room.ID)
 
 		now := time.Now()
@@ -459,13 +469,14 @@ func TestActiveGroupRepository_EndSession(t *testing.T) {
 func TestActiveGroupRepository_UpdateLastActivity(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).ActiveGroup
 	ctx := context.Background()
 
 	t.Run("updates last activity timestamp", func(t *testing.T) {
-		activityGroup := testpkg.CreateTestActivityGroup(t, db, "LastActivity")
-		room := testpkg.CreateTestRoom(t, db, "LastActivityRoom")
+		activityGroup := testpkg.CreateTestActivityGroup(t, db, "LastActivity", ogsID)
+		room := testpkg.CreateTestRoom(t, db, "LastActivityRoom", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, activityGroup.CategoryID, room.ID)
 
 		startTime := time.Now().Add(-1 * time.Hour)
@@ -491,8 +502,8 @@ func TestActiveGroupRepository_UpdateLastActivity(t *testing.T) {
 	})
 
 	t.Run("returns error for ended session", func(t *testing.T) {
-		activityGroup := testpkg.CreateTestActivityGroup(t, db, "EndedSession")
-		room := testpkg.CreateTestRoom(t, db, "EndedSessionRoom")
+		activityGroup := testpkg.CreateTestActivityGroup(t, db, "EndedSession", ogsID)
+		room := testpkg.CreateTestRoom(t, db, "EndedSessionRoom", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, activityGroup.CategoryID, room.ID)
 
 		startTime := time.Now().Add(-1 * time.Hour)
@@ -524,14 +535,15 @@ func TestActiveGroupRepository_UpdateLastActivity(t *testing.T) {
 func TestActiveGroupRepository_FindActiveByDeviceID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).ActiveGroup
 	ctx := context.Background()
 
 	t.Run("finds active session by device ID", func(t *testing.T) {
-		activityGroup := testpkg.CreateTestActivityGroup(t, db, "ByDeviceID")
-		room := testpkg.CreateTestRoom(t, db, "ByDeviceIDRoom")
-		device := testpkg.CreateTestDevice(t, db, "by-device-test")
+		activityGroup := testpkg.CreateTestActivityGroup(t, db, "ByDeviceID", ogsID)
+		room := testpkg.CreateTestRoom(t, db, "ByDeviceIDRoom", ogsID)
+		device := testpkg.CreateTestDevice(t, db, "by-device-test", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, device.ID, activityGroup.CategoryID, room.ID)
 
 		now := time.Now()
@@ -554,7 +566,7 @@ func TestActiveGroupRepository_FindActiveByDeviceID(t *testing.T) {
 	})
 
 	t.Run("returns nil for device with no active session", func(t *testing.T) {
-		device := testpkg.CreateTestDevice(t, db, "no-session-device")
+		device := testpkg.CreateTestDevice(t, db, "no-session-device", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, device.ID, 0, 0)
 
 		found, err := repo.FindActiveByDeviceID(ctx, device.ID)
@@ -570,14 +582,15 @@ func TestActiveGroupRepository_FindActiveByDeviceID(t *testing.T) {
 func TestActiveGroupRepository_FindActiveByDeviceIDWithNames(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).ActiveGroup
 	ctx := context.Background()
 
 	t.Run("finds active session with activity and room names", func(t *testing.T) {
-		activityGroup := testpkg.CreateTestActivityGroup(t, db, "WithNames")
-		room := testpkg.CreateTestRoom(t, db, "WithNamesRoom")
-		device := testpkg.CreateTestDevice(t, db, "with-names-device")
+		activityGroup := testpkg.CreateTestActivityGroup(t, db, "WithNames", ogsID)
+		room := testpkg.CreateTestRoom(t, db, "WithNamesRoom", ogsID)
+		device := testpkg.CreateTestDevice(t, db, "with-names-device", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, device.ID, activityGroup.CategoryID, room.ID)
 
 		now := time.Now()
@@ -607,7 +620,7 @@ func TestActiveGroupRepository_FindActiveByDeviceIDWithNames(t *testing.T) {
 	})
 
 	t.Run("returns nil for device with no active session", func(t *testing.T) {
-		device := testpkg.CreateTestDevice(t, db, "no-session-names-device")
+		device := testpkg.CreateTestDevice(t, db, "no-session-names-device", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, device.ID, 0, 0)
 
 		found, err := repo.FindActiveByDeviceIDWithNames(ctx, device.ID)
@@ -619,15 +632,16 @@ func TestActiveGroupRepository_FindActiveByDeviceIDWithNames(t *testing.T) {
 func TestActiveGroupRepository_GetOccupiedRoomIDs(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).ActiveGroup
 	ctx := context.Background()
 
 	t.Run("returns occupied room IDs", func(t *testing.T) {
-		activityGroup := testpkg.CreateTestActivityGroup(t, db, "OccupiedRooms")
-		room1 := testpkg.CreateTestRoom(t, db, "OccupiedRoom1")
-		room2 := testpkg.CreateTestRoom(t, db, "OccupiedRoom2")
-		room3 := testpkg.CreateTestRoom(t, db, "EmptyRoom3")
+		activityGroup := testpkg.CreateTestActivityGroup(t, db, "OccupiedRooms", ogsID)
+		room1 := testpkg.CreateTestRoom(t, db, "OccupiedRoom1", ogsID)
+		room2 := testpkg.CreateTestRoom(t, db, "OccupiedRoom2", ogsID)
+		room3 := testpkg.CreateTestRoom(t, db, "EmptyRoom3", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, activityGroup.CategoryID, room1.ID)
 		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, 0, room2.ID)
 		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, 0, room3.ID)
@@ -680,14 +694,15 @@ func TestActiveGroupRepository_GetOccupiedRoomIDs(t *testing.T) {
 func TestActiveGroupRepository_FindInactiveSessions(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).ActiveGroup
 	ctx := context.Background()
 
 	t.Run("finds inactive sessions exceeding timeout", func(t *testing.T) {
-		activityGroup := testpkg.CreateTestActivityGroup(t, db, "InactiveSessions")
-		room := testpkg.CreateTestRoom(t, db, "InactiveRoom")
-		device := testpkg.CreateTestDevice(t, db, "inactive-device")
+		activityGroup := testpkg.CreateTestActivityGroup(t, db, "InactiveSessions", ogsID)
+		room := testpkg.CreateTestRoom(t, db, "InactiveRoom", ogsID)
+		device := testpkg.CreateTestDevice(t, db, "inactive-device", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, device.ID, activityGroup.CategoryID, room.ID)
 
 		// Create a session that's been inactive for longer than its timeout
@@ -723,13 +738,14 @@ func TestActiveGroupRepository_FindInactiveSessions(t *testing.T) {
 func TestActiveGroupRepository_CheckRoomConflict(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).ActiveGroup
 	ctx := context.Background()
 
 	t.Run("detects room conflict", func(t *testing.T) {
-		activityGroup := testpkg.CreateTestActivityGroup(t, db, "RoomConflict")
-		room := testpkg.CreateTestRoom(t, db, "ConflictRoom")
+		activityGroup := testpkg.CreateTestActivityGroup(t, db, "RoomConflict", ogsID)
+		room := testpkg.CreateTestRoom(t, db, "ConflictRoom", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, activityGroup.CategoryID, room.ID)
 
 		// Create first active group in room
@@ -754,7 +770,7 @@ func TestActiveGroupRepository_CheckRoomConflict(t *testing.T) {
 	})
 
 	t.Run("no conflict when room is empty", func(t *testing.T) {
-		room := testpkg.CreateTestRoom(t, db, "EmptyConflictRoom")
+		room := testpkg.CreateTestRoom(t, db, "EmptyConflictRoom", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, 0, room.ID)
 
 		hasConflict, conflictingGroup, err := repo.CheckRoomConflict(ctx, room.ID, 0)
@@ -764,8 +780,8 @@ func TestActiveGroupRepository_CheckRoomConflict(t *testing.T) {
 	})
 
 	t.Run("excludes specified group from conflict check", func(t *testing.T) {
-		activityGroup := testpkg.CreateTestActivityGroup(t, db, "ExcludeConflict")
-		room := testpkg.CreateTestRoom(t, db, "ExcludeRoom")
+		activityGroup := testpkg.CreateTestActivityGroup(t, db, "ExcludeConflict", ogsID)
+		room := testpkg.CreateTestRoom(t, db, "ExcludeRoom", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, activityGroup.CategoryID, room.ID)
 
 		now := time.Now()
@@ -794,14 +810,15 @@ func TestActiveGroupRepository_CheckRoomConflict(t *testing.T) {
 func TestActiveGroupRepository_FindByIDs(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).ActiveGroup
 	ctx := context.Background()
 
 	t.Run("finds multiple groups by IDs", func(t *testing.T) {
-		activityGroup := testpkg.CreateTestActivityGroup(t, db, "FindByIDs")
-		room1 := testpkg.CreateTestRoom(t, db, "FindByIDsRoom1")
-		room2 := testpkg.CreateTestRoom(t, db, "FindByIDsRoom2")
+		activityGroup := testpkg.CreateTestActivityGroup(t, db, "FindByIDs", ogsID)
+		room1 := testpkg.CreateTestRoom(t, db, "FindByIDsRoom1", ogsID)
+		room2 := testpkg.CreateTestRoom(t, db, "FindByIDsRoom2", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, activityGroup.CategoryID, room1.ID)
 		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, 0, room2.ID)
 
@@ -848,13 +865,14 @@ func TestActiveGroupRepository_FindByIDs(t *testing.T) {
 func TestActiveGroupRepository_FindWithRelations(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).ActiveGroup
 	ctx := context.Background()
 
 	t.Run("finds group with relations", func(t *testing.T) {
-		activityGroup := testpkg.CreateTestActivityGroup(t, db, "WithRelations")
-		room := testpkg.CreateTestRoom(t, db, "WithRelationsRoom")
+		activityGroup := testpkg.CreateTestActivityGroup(t, db, "WithRelations", ogsID)
+		room := testpkg.CreateTestRoom(t, db, "WithRelationsRoom", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, activityGroup.CategoryID, room.ID)
 
 		now := time.Now()
@@ -884,14 +902,15 @@ func TestActiveGroupRepository_FindWithRelations(t *testing.T) {
 func TestActiveGroupRepository_FindWithVisits(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).ActiveGroup
 	ctx := context.Background()
 
 	t.Run("finds group with visits", func(t *testing.T) {
-		activityGroup := testpkg.CreateTestActivityGroup(t, db, "WithVisits")
-		room := testpkg.CreateTestRoom(t, db, "WithVisitsRoom")
-		student := testpkg.CreateTestStudent(t, db, "Visit", "Student", "5a")
+		activityGroup := testpkg.CreateTestActivityGroup(t, db, "WithVisits", ogsID)
+		room := testpkg.CreateTestRoom(t, db, "WithVisitsRoom", ogsID)
+		student := testpkg.CreateTestStudent(t, db, "Visit", "Student", "5a", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, student.ID, 0, 0, activityGroup.CategoryID, room.ID)
 
 		now := time.Now()
@@ -935,14 +954,15 @@ func TestActiveGroupRepository_FindWithVisits(t *testing.T) {
 func TestActiveGroupRepository_FindWithSupervisors(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).ActiveGroup
 	ctx := context.Background()
 
 	t.Run("finds group with supervisors", func(t *testing.T) {
-		activityGroup := testpkg.CreateTestActivityGroup(t, db, "WithSupervisors")
-		room := testpkg.CreateTestRoom(t, db, "WithSupervisorsRoom")
-		staff := testpkg.CreateTestStaff(t, db, "Supervisor", "Staff")
+		activityGroup := testpkg.CreateTestActivityGroup(t, db, "WithSupervisors", ogsID)
+		room := testpkg.CreateTestRoom(t, db, "WithSupervisorsRoom", ogsID)
+		staff := testpkg.CreateTestStaff(t, db, "Supervisor", "Staff", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID, 0, activityGroup.CategoryID, room.ID)
 
 		now := time.Now()
@@ -979,8 +999,8 @@ func TestActiveGroupRepository_FindWithSupervisors(t *testing.T) {
 	})
 
 	t.Run("finds group with no supervisors", func(t *testing.T) {
-		activityGroup := testpkg.CreateTestActivityGroup(t, db, "NoSupervisors")
-		room := testpkg.CreateTestRoom(t, db, "NoSupervisorsRoom")
+		activityGroup := testpkg.CreateTestActivityGroup(t, db, "NoSupervisors", ogsID)
+		room := testpkg.CreateTestRoom(t, db, "NoSupervisorsRoom", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, activityGroup.CategoryID, room.ID)
 
 		now := time.Now()

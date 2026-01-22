@@ -36,6 +36,121 @@ const (
 	testEmailFormat     = "%s-%d@test.local"
 )
 
+// ============================================================================
+// Multi-Tenancy Test Setup
+// ============================================================================
+
+// SetupTestOGS creates a unique OGS ID for testing and registers cleanup.
+// This is the recommended way to start any test that creates tenant-scoped data.
+// The cleanup runs automatically when the test completes.
+//
+// Example:
+//
+//	func TestSomething(t *testing.T) {
+//	    db := testpkg.SetupTestDB(t)
+//	    ogsID := testpkg.SetupTestOGS(t, db)
+//	    // Create fixtures with ogsID - cleanup is automatic
+//	    student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a", ogsID)
+//	}
+func SetupTestOGS(t testing.TB, db *bun.DB) string {
+	t.Helper()
+	ogsID := fmt.Sprintf("test-ogs-%s-%d", t.Name(), time.Now().UnixNano())
+	t.Cleanup(func() {
+		CleanupDataByOGS(t, db, ogsID)
+	})
+	return ogsID
+}
+
+// GenerateTestOGSID creates a unique OGS ID for testing without automatic cleanup.
+// Use SetupTestOGS instead for most cases.
+func GenerateTestOGSID(prefix string) string {
+	return fmt.Sprintf("%s-%d", prefix, time.Now().UnixNano())
+}
+
+// ============================================================================
+// Multi-Tenancy Cleanup
+// ============================================================================
+
+// CleanupDataByOGS removes all test data for a specific OGS.
+// This is called automatically by SetupTestOGS cleanup.
+func CleanupDataByOGS(tb testing.TB, db *bun.DB, ogsID string) {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// Delete in dependency order (children before parents)
+
+	// Schedule domain
+	_, _ = db.NewRaw(`DELETE FROM schedule.timeframes WHERE ogs_id = ?`, ogsID).Exec(ctx)
+
+	// Active domain
+	_, _ = db.NewRaw(`DELETE FROM active.visits WHERE ogs_id = ?`, ogsID).Exec(ctx)
+	_, _ = db.NewRaw(`DELETE FROM active.attendance WHERE ogs_id = ?`, ogsID).Exec(ctx)
+	_, _ = db.NewRaw(`DELETE FROM active.group_supervisors WHERE ogs_id = ?`, ogsID).Exec(ctx)
+	_, _ = db.NewRaw(`DELETE FROM active.groups WHERE ogs_id = ?`, ogsID).Exec(ctx)
+
+	// Activities domain
+	_, _ = db.NewRaw(`DELETE FROM activities.student_enrollments WHERE ogs_id = ?`, ogsID).Exec(ctx)
+	_, _ = db.NewRaw(`DELETE FROM activities.groups WHERE ogs_id = ?`, ogsID).Exec(ctx)
+	_, _ = db.NewRaw(`DELETE FROM activities.categories WHERE ogs_id = ?`, ogsID).Exec(ctx)
+
+	// Education domain
+	_, _ = db.NewRaw(`DELETE FROM education.group_substitution WHERE ogs_id = ?`, ogsID).Exec(ctx)
+	_, _ = db.NewRaw(`DELETE FROM education.group_teacher WHERE ogs_id = ?`, ogsID).Exec(ctx)
+	_, _ = db.NewRaw(`DELETE FROM education.groups WHERE ogs_id = ?`, ogsID).Exec(ctx)
+
+	// Users domain (cascade-aware order)
+	_, _ = db.NewRaw(`DELETE FROM users.privacy_consents WHERE ogs_id = ?`, ogsID).Exec(ctx)
+	_, _ = db.NewRaw(`DELETE FROM users.persons_guardians WHERE ogs_id = ?`, ogsID).Exec(ctx)
+	_, _ = db.NewRaw(`DELETE FROM users.guardian_profiles WHERE ogs_id = ?`, ogsID).Exec(ctx)
+	_, _ = db.NewRaw(`DELETE FROM users.profiles WHERE ogs_id = ?`, ogsID).Exec(ctx)
+	_, _ = db.NewRaw(`DELETE FROM users.guests WHERE ogs_id = ?`, ogsID).Exec(ctx)
+	_, _ = db.NewRaw(`DELETE FROM users.teachers WHERE ogs_id = ?`, ogsID).Exec(ctx)
+	_, _ = db.NewRaw(`DELETE FROM users.students WHERE ogs_id = ?`, ogsID).Exec(ctx)
+	_, _ = db.NewRaw(`DELETE FROM users.staff WHERE ogs_id = ?`, ogsID).Exec(ctx)
+	_, _ = db.NewRaw(`DELETE FROM users.rfid_cards WHERE ogs_id = ?`, ogsID).Exec(ctx)
+	_, _ = db.NewRaw(`DELETE FROM users.persons WHERE ogs_id = ?`, ogsID).Exec(ctx)
+
+	// IoT domain
+	_, _ = db.NewRaw(`DELETE FROM iot.devices WHERE ogs_id = ?`, ogsID).Exec(ctx)
+
+	// Facilities domain
+	_, _ = db.NewRaw(`DELETE FROM facilities.rooms WHERE ogs_id = ?`, ogsID).Exec(ctx)
+}
+
+// ============================================================================
+// RLS Context Helpers
+// ============================================================================
+
+// SetRLSContext sets the RLS context for a database connection.
+// This simulates what the tenant middleware does for authenticated requests.
+// IMPORTANT: Use within a transaction for SET LOCAL to take effect.
+func SetRLSContext(ctx context.Context, db bun.IDB, ogsID string) error {
+	query := fmt.Sprintf("SET LOCAL app.ogs_id = '%s'", ogsID)
+	_, err := db.ExecContext(ctx, query)
+	return err
+}
+
+// SetRLSContextWithRole sets both the RLS context AND assumes the test_user role.
+// This is necessary because the postgres superuser bypasses RLS even with FORCE ROW LEVEL SECURITY.
+func SetRLSContextWithRole(ctx context.Context, db bun.IDB, ogsID string) error {
+	_, err := db.ExecContext(ctx, "SET LOCAL ROLE test_user")
+	if err != nil {
+		return fmt.Errorf("failed to set role: %w", err)
+	}
+	query := fmt.Sprintf("SET LOCAL app.ogs_id = '%s'", ogsID)
+	_, err = db.ExecContext(ctx, query)
+	if err != nil {
+		return fmt.Errorf("failed to set ogs_id: %w", err)
+	}
+	return nil
+}
+
+// ============================================================================
+// Legacy Cleanup (ID-based)
+// ============================================================================
+
 // cleanupDelete executes a delete query and logs any errors.
 // This provides visibility into cleanup failures without causing test failures.
 func cleanupDelete(tb testing.TB, query *bun.DeleteQuery, table string) {
@@ -45,254 +160,11 @@ func cleanupDelete(tb testing.TB, query *bun.DeleteQuery, table string) {
 	}
 }
 
-// Fixture helpers for hermetic testing. Each helper creates a real database record
-// with proper relationships and returns the created entity with its real ID.
-// Tests should call these to create test data, then defer cleanup.
-
-// CreateTestActivityCategory creates a real activity category in the database
-func CreateTestActivityCategory(tb testing.TB, db *bun.DB, name string) *activities.Category {
-	tb.Helper()
-
-	// Make name unique to avoid conflicts with seeded data
-	uniqueName := fmt.Sprintf("%s-%d", name, time.Now().UnixNano())
-	category := &activities.Category{
-		Name:  uniqueName,
-		Color: "#CCCCCC",
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	err := db.NewInsert().
-		Model(category).
-		ModelTableExpr(`activities.categories`).
-		Scan(ctx)
-	require.NoError(tb, err, "Failed to create test activity category")
-
-	return category
-}
-
-// CreateTestActivityGroup creates a real activity group in the database
-// Activity groups require a category, so this helper creates one automatically
-func CreateTestActivityGroup(tb testing.TB, db *bun.DB, name string) *activities.Group {
-	tb.Helper()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	// First create a category (activities.groups.category_id is required)
-	category := CreateTestActivityCategory(tb, db, fmt.Sprintf("Category-%s-%d", name, time.Now().UnixNano()))
-
-	// Create the activity group
-	group := &activities.Group{
-		Name:            name,
-		MaxParticipants: 20,
-		IsOpen:          true,
-		CategoryID:      category.ID,
-	}
-
-	err := db.NewInsert().
-		Model(group).
-		ModelTableExpr(`activities.groups AS "group"`).
-		Scan(ctx)
-	require.NoError(tb, err, "Failed to create test activity group")
-
-	return group
-}
-
-// CreateTestRoom creates a real room in the database
-func CreateTestRoom(tb testing.TB, db *bun.DB, name string) *facilities.Room {
-	tb.Helper()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	// Make room name unique by appending timestamp
-	uniqueName := fmt.Sprintf("%s-%d", name, time.Now().UnixNano())
-
-	room := &facilities.Room{
-		Name:     uniqueName,
-		Building: "Test Building",
-		Capacity: intPtr(30),
-	}
-
-	err := db.NewInsert().
-		Model(room).
-		ModelTableExpr(`facilities.rooms`).
-		Scan(ctx)
-	require.NoError(tb, err, "Failed to create test room")
-
-	return room
-}
-
-// CreateTestDevice creates a real IoT device in the database
-func CreateTestDevice(tb testing.TB, db *bun.DB, deviceID string) *iot.Device {
-	tb.Helper()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	// Make device ID unique by appending timestamp if needed
-	uniqueDeviceID := fmt.Sprintf("%s-%d", deviceID, time.Now().UnixNano())
-
-	device := &iot.Device{
-		DeviceID:   uniqueDeviceID,
-		DeviceType: "rfid_reader",
-		Name:       stringPtr("Test Device"),
-		Status:     iot.DeviceStatusActive,
-		APIKey:     stringPtr("test-api-key-" + uniqueDeviceID),
-	}
-
-	err := db.NewInsert().
-		Model(device).
-		ModelTableExpr(`iot.devices`).
-		Scan(ctx)
-	require.NoError(tb, err, "Failed to create test device")
-
-	return device
-}
-
-// CreateTestPerson creates a real person in the database (required for staff creation)
-func CreateTestPerson(tb testing.TB, db *bun.DB, firstName, lastName string) *users.Person {
-	tb.Helper()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	person := &users.Person{
-		FirstName: firstName,
-		LastName:  lastName,
-	}
-
-	err := db.NewInsert().
-		Model(person).
-		ModelTableExpr(`users.persons`).
-		Scan(ctx)
-	require.NoError(tb, err, "Failed to create test person")
-
-	return person
-}
-
-// CreateTestStaff creates a real staff member in the database
-// This requires a person, so it creates one automatically
-func CreateTestStaff(tb testing.TB, db *bun.DB, firstName, lastName string) *users.Staff {
-	tb.Helper()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	// Create person first
-	person := CreateTestPerson(tb, db, firstName, lastName)
-
-	// Create staff record
-	staff := &users.Staff{
-		PersonID: person.ID,
-	}
-
-	err := db.NewInsert().
-		Model(staff).
-		ModelTableExpr(`users.staff`).
-		Scan(ctx)
-	require.NoError(tb, err, "Failed to create test staff")
-
-	// Store person reference for convenience
-	staff.Person = person
-
-	return staff
-}
-
-// CreateTestStaffForPerson creates a staff record for an existing person
-// Use this when you need to control the person record separately
-func CreateTestStaffForPerson(tb testing.TB, db *bun.DB, personID int64) *users.Staff {
-	tb.Helper()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	staff := &users.Staff{
-		PersonID: personID,
-	}
-
-	err := db.NewInsert().
-		Model(staff).
-		ModelTableExpr(`users.staff`).
-		Scan(ctx)
-	require.NoError(tb, err, "Failed to create test staff for person")
-
-	return staff
-}
-
-// CreateTestStudent creates a real student in the database
-// This requires a person, so it creates one automatically
-func CreateTestStudent(tb testing.TB, db *bun.DB, firstName, lastName, schoolClass string) *users.Student {
-	tb.Helper()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	// Create person first (Student has FK to Person)
-	person := CreateTestPerson(tb, db, firstName, lastName)
-
-	// Create student record
-	student := &users.Student{
-		PersonID:    person.ID,
-		SchoolClass: schoolClass,
-	}
-
-	err := db.NewInsert().
-		Model(student).
-		ModelTableExpr(`users.students`).
-		Scan(ctx)
-	require.NoError(tb, err, "Failed to create test student")
-
-	return student
-}
-
-// CreateTestAttendance creates a real attendance record in the database
-// This requires a student, staff, and device to already exist
-//
-// Note: The Date field is set to today's local date (not derived from checkInTime)
-// to match the repository's GetStudentCurrentStatus query which always queries
-// for today's date using local timezone. This ensures tests work correctly
-// regardless of when they run (e.g., 00:40 CET is still the same calendar day locally).
-func CreateTestAttendance(tb testing.TB, db *bun.DB, studentID, staffID, deviceID int64, checkInTime time.Time, checkOutTime *time.Time) *active.Attendance {
-	tb.Helper()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	// Use timezone.Today() for consistent Europe/Berlin timezone handling.
-	// This matches the repository queries which also use timezone.Today().
-	today := timezone.Today()
-
-	attendance := &active.Attendance{
-		StudentID:    studentID,
-		Date:         today,
-		CheckInTime:  checkInTime,
-		CheckOutTime: checkOutTime,
-		CheckedInBy:  staffID,
-		DeviceID:     deviceID,
-	}
-
-	err := db.NewInsert().
-		Model(attendance).
-		ModelTableExpr(`active.attendance`).
-		Scan(ctx)
-	require.NoError(tb, err, "Failed to create test attendance record")
-
-	return attendance
-}
-
 // CleanupActivityFixtures removes activity-related and education-related test fixtures from the database.
 // Pass activity group IDs, device IDs, room IDs, education group IDs, teacher IDs, or any combination.
 // This is typically called in a defer statement to ensure cleanup happens.
 //
-// Example:
-//
-//	activity := CreateTestActivityGroup(t, db, "Test")
-//	device := CreateTestDevice(t, db, "dev-001")
-//	room := CreateTestRoom(t, db, "Room 1")
-//	defer CleanupActivityFixtures(t, db, activity.ID, device.ID, room.ID)
+// NOTE: Prefer using SetupTestOGS + CleanupDataByOGS for new tests.
 func CleanupActivityFixtures(tb testing.TB, db *bun.DB, ids ...int64) {
 	tb.Helper()
 
@@ -300,206 +172,147 @@ func CleanupActivityFixtures(tb testing.TB, db *bun.DB, ids ...int64) {
 		return
 	}
 
-	// Batch delete all fixtures matching the IDs
-	// This is a simple approach that deletes from any table with these IDs
-	// More sophisticated cleanup could track which table each ID belongs to
-
 	for _, id := range ids {
-		// Try to delete from each table type
-		// Errors are logged but don't fail tests since we don't know which table each ID belongs to
-
-		// ========================================
 		// Education domain cleanup (FK-dependent order)
-		// ========================================
-
-		// Delete from education.group_substitution (depends on group and staff)
 		cleanupDelete(tb, db.NewDelete().
 			Model((*interface{})(nil)).
 			Table("education.group_substitution").
 			Where("group_id = ? OR regular_staff_id = ? OR substitute_staff_id = ?", id, id, id),
 			"education.group_substitution")
 
-		// Delete from education.group_teacher (depends on group and teacher)
 		cleanupDelete(tb, db.NewDelete().
 			Model((*interface{})(nil)).
 			Table("education.group_teacher").
 			Where("group_id = ? OR teacher_id = ?", id, id),
 			"education.group_teacher")
 
-		// Delete from users.teachers (depends on staff)
 		cleanupDelete(tb, db.NewDelete().
 			Model((*interface{})(nil)).
 			Table(tableUsersTeachers).
 			Where("id = ? OR staff_id = ?", id, id),
 			tableUsersTeachers)
 
-		// Delete from education.groups
 		cleanupDelete(tb, db.NewDelete().
 			Model((*interface{})(nil)).
 			Table("education.groups").
 			Where(whereIDEquals, id),
 			"education.groups")
 
-		// ========================================
 		// Active domain cleanup
-		// ========================================
-
-		// Delete from active.visits by direct ID, by student_id, or by active_group_id
 		cleanupDelete(tb, db.NewDelete().
 			Model((*interface{})(nil)).
 			Table(tableActiveVisits).
 			Where("id = ? OR student_id = ? OR active_group_id = ?", id, id, id),
 			tableActiveVisits)
 
-		// Delete from active.visits (cascade cleanup via activities.groups reference)
 		cleanupDelete(tb, db.NewDelete().
 			Model((*interface{})(nil)).
 			Table(tableActiveVisits).
 			Where("active_group_id IN (SELECT id FROM active.groups WHERE group_id = ?)", id),
 			"active.visits (cascade)")
 
-		// Delete from active.groups by direct ID or by reference
 		cleanupDelete(tb, db.NewDelete().
 			Model((*interface{})(nil)).
 			Table("active.groups").
 			Where("id = ? OR group_id = ? OR device_id = ?", id, id, id),
 			"active.groups")
 
-		// ========================================
 		// Activities domain cleanup
-		// ========================================
-
-		// Delete from activities.student_enrollments (depends on activities.groups)
 		cleanupDelete(tb, db.NewDelete().
 			Model((*interface{})(nil)).
 			Table("activities.student_enrollments").
 			Where("activity_group_id = ?", id),
 			"activities.student_enrollments")
 
-		// Delete from activities.groups by ID or by category_id (to handle FK constraint)
 		cleanupDelete(tb, db.NewDelete().
 			Model((*interface{})(nil)).
 			Table("activities.groups").
 			Where("id = ? OR category_id = ?", id, id),
 			"activities.groups")
 
-		// Delete from activities.categories (now safe after groups referencing them are deleted)
 		cleanupDelete(tb, db.NewDelete().
 			Model((*interface{})(nil)).
 			Table("activities.categories").
 			Where(whereIDEquals, id),
 			"activities.categories")
 
-		// ========================================
 		// IoT domain cleanup
-		// ========================================
-
-		// Delete from iot.devices
 		cleanupDelete(tb, db.NewDelete().
 			Model((*interface{})(nil)).
 			Table("iot.devices").
 			Where(whereIDEquals, id),
 			"iot.devices")
 
-		// ========================================
 		// Facilities domain cleanup
-		// ========================================
-
-		// Delete from facilities.rooms
 		cleanupDelete(tb, db.NewDelete().
 			Model((*interface{})(nil)).
 			Table("facilities.rooms").
 			Where(whereIDEquals, id),
 			"facilities.rooms")
 
-		// ========================================
 		// Users domain cleanup (FK-dependent order)
-		// ========================================
-
-		// Delete from users.guests (depends on staff)
 		cleanupDelete(tb, db.NewDelete().
 			Model((*interface{})(nil)).
 			Table("users.guests").
 			Where("id = ? OR staff_id = ?", id, id),
 			"users.guests")
 
-		// Delete from users.profiles (depends on account)
 		cleanupDelete(tb, db.NewDelete().
 			Model((*interface{})(nil)).
 			Table("users.profiles").
 			Where(whereIDOrAccountID, id, id),
 			"users.profiles")
 
-		// Delete from active.attendance (by student_id before deleting student)
 		cleanupDelete(tb, db.NewDelete().
 			Model((*interface{})(nil)).
 			Table("active.attendance").
 			Where("student_id = ?", id),
 			"active.attendance")
 
-		// Delete from users.students
 		cleanupDelete(tb, db.NewDelete().
 			Model((*interface{})(nil)).
 			Table("users.students").
 			Where(whereIDEquals, id),
 			"users.students")
 
-		// Delete from users.staff
 		cleanupDelete(tb, db.NewDelete().
 			Model((*interface{})(nil)).
 			Table(tableUsersStaff).
 			Where(whereIDEquals, id),
 			tableUsersStaff)
 
-		// Delete from users.persons (last, as it's referenced by students and staff)
 		cleanupDelete(tb, db.NewDelete().
 			Model((*interface{})(nil)).
 			Table(tableUsersPersons).
 			Where(whereIDEquals, id),
 			tableUsersPersons)
 
-		// ========================================
 		// Active domain cleanup (continued)
-		// ========================================
-
-		// Delete from active.group_supervisors
 		cleanupDelete(tb, db.NewDelete().
 			Model((*interface{})(nil)).
 			Table("active.group_supervisors").
 			Where("id = ? OR staff_id = ? OR group_id = ?", id, id, id),
 			"active.group_supervisors")
 
-		// NOTE: Auth domain cleanup intentionally omitted here.
-		// Use CleanupAuthFixtures(accountIDs...) for auth cleanup.
-		// Reason: Using generic IDs against auth tables causes cross-domain
-		// collisions (e.g., student ID 5 would delete role ID 5).
-
-		// ========================================
 		// Users domain extended cleanup
-		// ========================================
-
-		// Delete from users.privacy_consents (by student_id)
 		cleanupDelete(tb, db.NewDelete().
 			Model((*interface{})(nil)).
 			Table("users.privacy_consents").
 			Where("id = ? OR student_id = ?", id, id),
 			"users.privacy_consents")
 
-		// Delete from users.persons_guardians (by person_id or guardian_account_id)
 		cleanupDelete(tb, db.NewDelete().
 			Model((*interface{})(nil)).
 			Table("users.persons_guardians").
 			Where("id = ? OR person_id = ? OR guardian_account_id = ?", id, id, id),
 			"users.persons_guardians")
 
-		// Delete from users.guardian_profiles
 		cleanupDelete(tb, db.NewDelete().
 			Model((*interface{})(nil)).
 			Table("users.guardian_profiles").
 			Where(whereIDEquals, id),
 			"users.guardian_profiles")
 
-		// Delete from users.rfid_cards (note: string ID, but try as int64)
 		cleanupDelete(tb, db.NewDelete().
 			Model((*interface{})(nil)).
 			Table(tableUsersRFIDCards).
@@ -509,14 +322,7 @@ func CleanupActivityFixtures(tb testing.TB, db *bun.DB, ids ...int64) {
 }
 
 // CleanupAuthFixtures removes auth account fixtures and their related records.
-// Pass account IDs only - this will cascade delete:
-//   - auth.tokens (by account_id)
-//   - auth.account_roles (by account_id)
-//   - auth.account_permissions (by account_id)
-//   - auth.accounts (by id)
-//
-// NOTE: This does NOT touch auth.roles, auth.permissions, or auth.role_permissions
-// since those are not account-specific. Use CleanupTableRecords for those if needed.
+// Pass account IDs only - this will cascade delete tokens, roles, and permissions.
 func CleanupAuthFixtures(tb testing.TB, db *bun.DB, accountIDs ...int64) {
 	tb.Helper()
 
@@ -524,26 +330,21 @@ func CleanupAuthFixtures(tb testing.TB, db *bun.DB, accountIDs ...int64) {
 		return
 	}
 
-	// Use IN clause for efficiency instead of loop
-	// Delete tokens first (depends on accounts)
 	cleanupDelete(tb, db.NewDelete().
 		Table("auth.tokens").
 		Where(whereAccountIDIn, bun.In(accountIDs)),
 		"auth.tokens")
 
-	// Delete account_roles (by account_id only - never by role_id!)
 	cleanupDelete(tb, db.NewDelete().
 		Table("auth.account_roles").
 		Where(whereAccountIDIn, bun.In(accountIDs)),
 		"auth.account_roles")
 
-	// Delete account_permissions (by account_id only - never by permission_id!)
 	cleanupDelete(tb, db.NewDelete().
 		Table("auth.account_permissions").
 		Where(whereAccountIDIn, bun.In(accountIDs)),
 		"auth.account_permissions")
 
-	// Finally delete the accounts themselves
 	cleanupDelete(tb, db.NewDelete().
 		Table("auth.accounts").
 		Where("id IN (?)", bun.In(accountIDs)),
@@ -582,90 +383,261 @@ func CleanupRFIDCards(tb testing.TB, db *bun.DB, tagIDs ...string) {
 }
 
 // ============================================================================
-// Education Domain Fixtures
+// Activities Domain Fixtures
 // ============================================================================
 
-// CreateTestEducationGroup creates a real education group (Schulklasse) in the database.
-// Note: This is different from CreateTestActivityGroup (activities.groups).
-func CreateTestEducationGroup(tb testing.TB, db *bun.DB, name string) *education.Group {
+// CreateTestActivityCategory creates a real activity category in the database
+func CreateTestActivityCategory(tb testing.TB, db *bun.DB, name string, ogsID string) *activities.Category {
+	tb.Helper()
+
+	uniqueName := fmt.Sprintf("%s-%d", name, time.Now().UnixNano())
+	category := &activities.Category{
+		Name:  uniqueName,
+		Color: "#CCCCCC",
+	}
+	category.OgsID = ogsID
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	err := db.NewInsert().
+		Model(category).
+		ModelTableExpr(`activities.categories`).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to create test activity category")
+
+	return category
+}
+
+// CreateTestActivityGroup creates a real activity group in the database
+// Activity groups require a category, so this helper creates one automatically
+func CreateTestActivityGroup(tb testing.TB, db *bun.DB, name string, ogsID string) *activities.Group {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// Make name unique by appending timestamp
-	uniqueName := fmt.Sprintf("%s-%d", name, time.Now().UnixNano())
+	// First create a category (activities.groups.category_id is required)
+	category := CreateTestActivityCategory(tb, db, fmt.Sprintf("Category-%s-%d", name, time.Now().UnixNano()), ogsID)
 
-	group := &education.Group{
-		Name: uniqueName,
+	// Create the activity group
+	group := &activities.Group{
+		Name:            name,
+		MaxParticipants: 20,
+		IsOpen:          true,
+		CategoryID:      category.ID,
 	}
+	group.OgsID = ogsID
 
 	err := db.NewInsert().
 		Model(group).
-		ModelTableExpr(`education.groups`).
+		ModelTableExpr(`activities.groups AS "group"`).
 		Scan(ctx)
-	require.NoError(tb, err, "Failed to create test education group")
+	require.NoError(tb, err, "Failed to create test activity group")
 
 	return group
 }
 
-// CreateTestTeacher creates a real teacher in the database.
-// Teachers require a Staff record, which requires a Person record.
-// Returns the teacher with Staff reference populated for cleanup.
-func CreateTestTeacher(tb testing.TB, db *bun.DB, firstName, lastName string) *users.Teacher {
+// ============================================================================
+// Facilities Domain Fixtures
+// ============================================================================
+
+// CreateTestRoom creates a real room in the database
+func CreateTestRoom(tb testing.TB, db *bun.DB, name string, ogsID string) *facilities.Room {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// Create staff first (which creates person)
-	staff := CreateTestStaff(tb, db, firstName, lastName)
+	uniqueName := fmt.Sprintf("%s-%d", name, time.Now().UnixNano())
 
-	teacher := &users.Teacher{
-		StaffID: staff.ID,
+	room := &facilities.Room{
+		Name:     uniqueName,
+		Building: "Test Building",
+		Capacity: intPtr(30),
 	}
+	room.OgsID = ogsID
 
 	err := db.NewInsert().
-		Model(teacher).
-		ModelTableExpr(`users.teachers`).
+		Model(room).
+		ModelTableExpr(`facilities.rooms`).
 		Scan(ctx)
-	require.NoError(tb, err, "Failed to create test teacher")
+	require.NoError(tb, err, "Failed to create test room")
 
-	// Store staff reference for cleanup
-	teacher.Staff = staff
-
-	return teacher
+	return room
 }
 
-// CreateTestGroupTeacher creates a group-teacher assignment in the database.
-func CreateTestGroupTeacher(tb testing.TB, db *bun.DB, groupID, teacherID int64) *education.GroupTeacher {
+// ============================================================================
+// IoT Domain Fixtures
+// ============================================================================
+
+// CreateTestDevice creates a real IoT device in the database
+func CreateTestDevice(tb testing.TB, db *bun.DB, deviceID string, ogsID string) *iot.Device {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	gt := &education.GroupTeacher{
-		GroupID:   groupID,
-		TeacherID: teacherID,
+	uniqueDeviceID := fmt.Sprintf("%s-%d", deviceID, time.Now().UnixNano())
+
+	device := &iot.Device{
+		DeviceID:   uniqueDeviceID,
+		DeviceType: "rfid_reader",
+		Name:       stringPtr("Test Device"),
+		Status:     iot.DeviceStatusActive,
+		APIKey:     stringPtr("test-api-key-" + uniqueDeviceID),
 	}
+	device.OgsID = ogsID
 
 	err := db.NewInsert().
-		Model(gt).
-		ModelTableExpr(`education.group_teacher`).
+		Model(device).
+		ModelTableExpr(`iot.devices`).
 		Scan(ctx)
-	require.NoError(tb, err, "Failed to create test group teacher assignment")
+	require.NoError(tb, err, "Failed to create test device")
 
-	return gt
+	return device
 }
 
 // ============================================================================
-// Active Domain Fixtures (Sessions and Visits)
+// Users Domain Fixtures
 // ============================================================================
+
+// CreateTestPerson creates a real person in the database (required for staff creation)
+func CreateTestPerson(tb testing.TB, db *bun.DB, firstName, lastName string, ogsID string) *users.Person {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	person := &users.Person{
+		FirstName: firstName,
+		LastName:  lastName,
+	}
+	person.OgsID = ogsID
+
+	err := db.NewInsert().
+		Model(person).
+		ModelTableExpr(`users.persons`).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to create test person")
+
+	return person
+}
+
+// CreateTestStaff creates a real staff member in the database
+// This requires a person, so it creates one automatically
+func CreateTestStaff(tb testing.TB, db *bun.DB, firstName, lastName string, ogsID string) *users.Staff {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Create person first
+	person := CreateTestPerson(tb, db, firstName, lastName, ogsID)
+
+	// Create staff record
+	staff := &users.Staff{
+		PersonID: person.ID,
+	}
+	staff.OgsID = ogsID
+
+	err := db.NewInsert().
+		Model(staff).
+		ModelTableExpr(`users.staff`).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to create test staff")
+
+	// Store person reference for convenience
+	staff.Person = person
+
+	return staff
+}
+
+// CreateTestStaffForPerson creates a staff record for an existing person
+// Use this when you need to control the person record separately
+func CreateTestStaffForPerson(tb testing.TB, db *bun.DB, personID int64, ogsID string) *users.Staff {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	staff := &users.Staff{
+		PersonID: personID,
+	}
+	staff.OgsID = ogsID
+
+	err := db.NewInsert().
+		Model(staff).
+		ModelTableExpr(`users.staff`).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to create test staff for person")
+
+	return staff
+}
+
+// CreateTestStudent creates a real student in the database
+// This requires a person, so it creates one automatically
+func CreateTestStudent(tb testing.TB, db *bun.DB, firstName, lastName, schoolClass string, ogsID string) *users.Student {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Create person first (Student has FK to Person)
+	person := CreateTestPerson(tb, db, firstName, lastName, ogsID)
+
+	// Create student record
+	student := &users.Student{
+		PersonID:    person.ID,
+		SchoolClass: schoolClass,
+	}
+	student.OgsID = ogsID
+
+	err := db.NewInsert().
+		Model(student).
+		ModelTableExpr(`users.students`).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to create test student")
+
+	return student
+}
+
+// ============================================================================
+// Active Domain Fixtures
+// ============================================================================
+
+// CreateTestAttendance creates a real attendance record in the database
+// This requires a student, staff, and device to already exist
+// NOTE: active.attendance table does NOT have ogs_id column
+func CreateTestAttendance(tb testing.TB, db *bun.DB, studentID, staffID, deviceID int64, checkInTime time.Time, checkOutTime *time.Time) *active.Attendance {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	today := timezone.Today()
+
+	attendance := &active.Attendance{
+		StudentID:    studentID,
+		Date:         today,
+		CheckInTime:  checkInTime,
+		CheckOutTime: checkOutTime,
+		CheckedInBy:  staffID,
+		DeviceID:     deviceID,
+	}
+
+	err := db.NewInsert().
+		Model(attendance).
+		ModelTableExpr(`active.attendance`).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to create test attendance record")
+
+	return attendance
+}
 
 // CreateTestActiveGroup creates a real active group (session) in the database.
 // This requires an ActivityGroup (activities.groups) and Room to exist.
-// Use this for testing session management and visit tracking.
-func CreateTestActiveGroup(tb testing.TB, db *bun.DB, activityGroupID, roomID int64) *active.Group {
+func CreateTestActiveGroup(tb testing.TB, db *bun.DB, activityGroupID, roomID int64, ogsID string) *active.Group {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -679,6 +651,7 @@ func CreateTestActiveGroup(tb testing.TB, db *bun.DB, activityGroupID, roomID in
 		LastActivity:   now,
 		TimeoutMinutes: 30,
 	}
+	activeGroup.OgsID = ogsID
 
 	err := db.NewInsert().
 		Model(activeGroup).
@@ -691,7 +664,7 @@ func CreateTestActiveGroup(tb testing.TB, db *bun.DB, activityGroupID, roomID in
 
 // CreateTestVisit creates a real visit record in the database.
 // This requires a Student and ActiveGroup to already exist.
-func CreateTestVisit(tb testing.TB, db *bun.DB, studentID, activeGroupID int64, entryTime time.Time, exitTime *time.Time) *active.Visit {
+func CreateTestVisit(tb testing.TB, db *bun.DB, studentID, activeGroupID int64, entryTime time.Time, exitTime *time.Time, ogsID string) *active.Visit {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -703,6 +676,7 @@ func CreateTestVisit(tb testing.TB, db *bun.DB, studentID, activeGroupID int64, 
 		EntryTime:     entryTime,
 		ExitTime:      exitTime,
 	}
+	visit.OgsID = ogsID
 
 	err := db.NewInsert().
 		Model(visit).
@@ -715,6 +689,7 @@ func CreateTestVisit(tb testing.TB, db *bun.DB, studentID, activeGroupID int64, 
 
 // CreateTestGroupSupervisor creates a real group supervisor record in the database.
 // This requires a Staff and ActiveGroup to already exist.
+// NOTE: active.group_supervisors table does NOT have ogs_id column
 func CreateTestGroupSupervisor(tb testing.TB, db *bun.DB, staffID, activeGroupID int64, role string) *active.GroupSupervisor {
 	tb.Helper()
 
@@ -737,200 +712,123 @@ func CreateTestGroupSupervisor(tb testing.TB, db *bun.DB, staffID, activeGroupID
 	return supervisor
 }
 
-// Helper functions for pointer creation
-func stringPtr(s string) *string {
-	return &s
-}
+// ============================================================================
+// Education Domain Fixtures
+// ============================================================================
 
-func intPtr(i int) *int {
-	return &i
-}
-
-// CleanupPerson removes a person from the database by ID.
-func CleanupPerson(tb testing.TB, db *bun.DB, personID int64) {
-	tb.Helper()
-
-	cleanupDelete(tb, db.NewDelete().
-		Model((*interface{})(nil)).
-		Table(tableUsersPersons).
-		Where(whereIDEquals, personID),
-		tableUsersPersons)
-}
-
-// CleanupAccount removes an account and related auth records from the database.
-func CleanupAccount(tb testing.TB, db *bun.DB, accountID int64) {
-	tb.Helper()
-
-	CleanupAuthFixtures(tb, db, accountID)
-}
-
-// CleanupStaffFixtures removes staff fixtures from the database.
-// Pass a staff ID and it will clean up the staff, person, and any related records.
-// If the staff has an account, call CleanupAuthFixtures separately with the account ID.
-func CleanupStaffFixtures(tb testing.TB, db *bun.DB, staffIDs ...int64) {
-	tb.Helper()
-
-	if len(staffIDs) == 0 {
-		return
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	for _, staffID := range staffIDs {
-		// First get the staff to find the person ID
-		// Use TableExpr and ColumnExpr to generate valid SQL
-		var staff struct {
-			PersonID int64 `bun:"person_id"`
-		}
-		_ = db.NewSelect().
-			Model(&staff).
-			TableExpr(tableUsersStaff).
-			ColumnExpr("person_id").
-			Where(whereIDEquals, staffID).
-			Scan(ctx)
-
-		// Delete teacher if exists (depends on staff)
-		cleanupDelete(tb, db.NewDelete().
-			Model((*interface{})(nil)).
-			Table(tableUsersTeachers).
-			Where("staff_id = ?", staffID),
-			tableUsersTeachers)
-
-		// Delete staff
-		cleanupDelete(tb, db.NewDelete().
-			Model((*interface{})(nil)).
-			Table(tableUsersStaff).
-			Where(whereIDEquals, staffID),
-			tableUsersStaff)
-
-		// Delete person if we found one
-		if staff.PersonID > 0 {
-			cleanupDelete(tb, db.NewDelete().
-				Model((*interface{})(nil)).
-				Table(tableUsersPersons).
-				Where(whereIDEquals, staff.PersonID),
-				tableUsersPersons)
-		}
-	}
-}
-
-// CleanupTeacherFixtures removes teacher fixtures from the database.
-// Pass a teacher ID and it will clean up the full chain: teacher -> staff -> person.
-// Also cleans up the associated account via CleanupAuthFixtures.
-func CleanupTeacherFixtures(tb testing.TB, db *bun.DB, teacherIDs ...int64) {
-	tb.Helper()
-
-	if len(teacherIDs) == 0 {
-		return
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	for _, teacherID := range teacherIDs {
-		// Get the teacher to find the staff ID
-		// Use TableExpr and ColumnExpr to generate valid SQL
-		var teacher struct {
-			StaffID int64 `bun:"staff_id"`
-		}
-		_ = db.NewSelect().
-			Model(&teacher).
-			TableExpr(tableUsersTeachers).
-			ColumnExpr("staff_id").
-			Where(whereIDEquals, teacherID).
-			Scan(ctx)
-
-		// Get the staff to find the person ID and account ID
-		var staff struct {
-			PersonID int64 `bun:"person_id"`
-		}
-		_ = db.NewSelect().
-			Model(&staff).
-			TableExpr(tableUsersStaff).
-			ColumnExpr("person_id").
-			Where(whereIDEquals, teacher.StaffID).
-			Scan(ctx)
-
-		// Get the person to find the account ID
-		var person struct {
-			AccountID *int64 `bun:"account_id"`
-		}
-		_ = db.NewSelect().
-			Model(&person).
-			TableExpr(tableUsersPersons).
-			ColumnExpr("account_id").
-			Where(whereIDEquals, staff.PersonID).
-			Scan(ctx)
-
-		// Delete teacher
-		cleanupDelete(tb, db.NewDelete().
-			Model((*interface{})(nil)).
-			Table(tableUsersTeachers).
-			Where(whereIDEquals, teacherID),
-			tableUsersTeachers)
-
-		// Delete staff
-		if teacher.StaffID > 0 {
-			cleanupDelete(tb, db.NewDelete().
-				Model((*interface{})(nil)).
-				Table(tableUsersStaff).
-				Where(whereIDEquals, teacher.StaffID),
-				tableUsersStaff)
-		}
-
-		// Delete person
-		if staff.PersonID > 0 {
-			cleanupDelete(tb, db.NewDelete().
-				Model((*interface{})(nil)).
-				Table(tableUsersPersons).
-				Where(whereIDEquals, staff.PersonID),
-				tableUsersPersons)
-		}
-
-		// Delete account if exists
-		if person.AccountID != nil && *person.AccountID > 0 {
-			CleanupAuthFixtures(tb, db, *person.AccountID)
-		}
-	}
-}
-
-// CreateTestPersonWithAccountID creates a person linked to an existing account ID.
-// Use this when you already have an account and want to link a person to it.
-func CreateTestPersonWithAccountID(tb testing.TB, db *bun.DB, firstName, lastName string, accountID int64) *users.Person {
+// CreateTestEducationGroup creates a real education group (Schulklasse) in the database.
+// Note: This is different from CreateTestActivityGroup (activities.groups).
+func CreateTestEducationGroup(tb testing.TB, db *bun.DB, name string, ogsID string) *education.Group {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	person := &users.Person{
-		FirstName: firstName,
-		LastName:  lastName,
-		AccountID: &accountID,
+	uniqueName := fmt.Sprintf("%s-%d", name, time.Now().UnixNano())
+
+	group := &education.Group{
+		Name: uniqueName,
+	}
+	group.OgsID = ogsID
+
+	err := db.NewInsert().
+		Model(group).
+		ModelTableExpr(`education.groups`).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to create test education group")
+
+	return group
+}
+
+// CreateTestTeacher creates a real teacher in the database.
+// Teachers require a Staff record, which requires a Person record.
+func CreateTestTeacher(tb testing.TB, db *bun.DB, firstName, lastName string, ogsID string) *users.Teacher {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Create staff first (which creates person)
+	staff := CreateTestStaff(tb, db, firstName, lastName, ogsID)
+
+	teacher := &users.Teacher{
+		StaffID: staff.ID,
+	}
+	teacher.OgsID = ogsID
+
+	err := db.NewInsert().
+		Model(teacher).
+		ModelTableExpr(`users.teachers`).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to create test teacher")
+
+	// Store staff reference for cleanup
+	teacher.Staff = staff
+
+	return teacher
+}
+
+// CreateTestGroupTeacher creates a group-teacher assignment in the database.
+// NOTE: education.group_teacher table does NOT have ogs_id column
+func CreateTestGroupTeacher(tb testing.TB, db *bun.DB, groupID, teacherID int64) *education.GroupTeacher {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	gt := &education.GroupTeacher{
+		GroupID:   groupID,
+		TeacherID: teacherID,
 	}
 
 	err := db.NewInsert().
-		Model(person).
-		ModelTableExpr(`users.persons`).
+		Model(gt).
+		ModelTableExpr(`education.group_teacher`).
 		Scan(ctx)
-	require.NoError(tb, err, "Failed to create test person with account ID")
+	require.NoError(tb, err, "Failed to create test group teacher assignment")
 
-	return person
+	return gt
+}
+
+// CreateTestGroupSubstitution creates a teacher substitution record.
+// NOTE: education.group_substitution table does NOT have ogs_id column
+func CreateTestGroupSubstitution(tb testing.TB, db *bun.DB, groupID int64, regularStaffID *int64, substituteStaffID int64, startDate, endDate time.Time) *education.GroupSubstitution {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	substitution := &education.GroupSubstitution{
+		GroupID:           groupID,
+		RegularStaffID:    regularStaffID,
+		SubstituteStaffID: substituteStaffID,
+		StartDate:         startDate,
+		EndDate:           endDate,
+		Reason:            "Test substitution",
+	}
+
+	err := db.NewInsert().
+		Model(substitution).
+		ModelTableExpr(`education.group_substitution`).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to create test group substitution")
+
+	return substitution
 }
 
 // ============================================================================
-// Auth Domain Fixtures (Accounts)
+// Auth Domain Fixtures (No OgsID - auth is global)
 // ============================================================================
 
 // CreateTestAccount creates a real account in the database for authentication testing.
 // The email is made unique by appending a timestamp.
+// NOTE: Auth accounts don't have OgsID - they are global.
 func CreateTestAccount(tb testing.TB, db *bun.DB, email string) *auth.Account {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// Make email unique
 	uniqueEmail := fmt.Sprintf(testEmailFormat, email, time.Now().UnixNano())
 
 	account := &auth.Account{
@@ -955,7 +853,6 @@ func CreateTestAccountWithPassword(tb testing.TB, db *bun.DB, email, password st
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// Hash the password using Argon2id (same as production)
 	hashedPassword, err := hashPassword(password)
 	require.NoError(tb, err, "Failed to hash password")
 
@@ -976,8 +873,6 @@ func CreateTestAccountWithPassword(tb testing.TB, db *bun.DB, email, password st
 
 // hashPassword hashes a password using Argon2id (matches auth/userpass)
 func hashPassword(password string) (string, error) {
-	// Import the userpass package inline to hash the password
-	// This uses the same algorithm as the auth service
 	params := &argon2Params{
 		memory:      64 * 1024,
 		iterations:  1,
@@ -993,7 +888,6 @@ func hashPassword(password string) (string, error) {
 
 	hash := argon2.IDKey([]byte(password), salt, params.iterations, params.memory, params.parallelism, params.keyLength)
 
-	// Encode as $argon2id$v=19$m=65536,t=1,p=2$<salt>$<hash>
 	b64Salt := base64.RawStdEncoding.EncodeToString(salt)
 	b64Hash := base64.RawStdEncoding.EncodeToString(hash)
 
@@ -1010,162 +904,6 @@ type argon2Params struct {
 	keyLength   uint32
 }
 
-// CreateTestPersonWithAccount creates a person linked to an account.
-// This is needed for policy tests that look up users by account ID.
-func CreateTestPersonWithAccount(tb testing.TB, db *bun.DB, firstName, lastName string) (*users.Person, *auth.Account) {
-	tb.Helper()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	// Create account first
-	account := CreateTestAccount(tb, db, fmt.Sprintf("%s.%s", firstName, lastName))
-
-	// Create person with account reference
-	person := &users.Person{
-		FirstName: firstName,
-		LastName:  lastName,
-		AccountID: &account.ID,
-	}
-
-	err := db.NewInsert().
-		Model(person).
-		ModelTableExpr(`users.persons`).
-		Scan(ctx)
-	require.NoError(tb, err, "Failed to create test person with account")
-
-	return person, account
-}
-
-// CreateTestStudentWithAccount creates a student with linked person and account.
-// Returns the student with PersonID set, and the associated account for auth context.
-func CreateTestStudentWithAccount(tb testing.TB, db *bun.DB, firstName, lastName, schoolClass string) (*users.Student, *auth.Account) {
-	tb.Helper()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	// Create person with account
-	person, account := CreateTestPersonWithAccount(tb, db, firstName, lastName)
-
-	// Create student
-	student := &users.Student{
-		PersonID:    person.ID,
-		SchoolClass: schoolClass,
-	}
-
-	err := db.NewInsert().
-		Model(student).
-		ModelTableExpr(`users.students`).
-		Scan(ctx)
-	require.NoError(tb, err, "Failed to create test student with account")
-
-	return student, account
-}
-
-// CreateTestStaffWithAccount creates a staff member with linked person and account.
-func CreateTestStaffWithAccount(tb testing.TB, db *bun.DB, firstName, lastName string) (*users.Staff, *auth.Account) {
-	tb.Helper()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	// Create person with account
-	person, account := CreateTestPersonWithAccount(tb, db, firstName, lastName)
-
-	// Create staff
-	staff := &users.Staff{
-		PersonID: person.ID,
-	}
-
-	err := db.NewInsert().
-		Model(staff).
-		ModelTableExpr(`users.staff`).
-		Scan(ctx)
-	require.NoError(tb, err, "Failed to create test staff with account")
-
-	// Store person reference for convenience
-	staff.Person = person
-
-	return staff, account
-}
-
-// CreateTestTeacherWithAccount creates a teacher with full chain: Account → Person → Staff → Teacher.
-// Returns the teacher and account for auth context testing.
-func CreateTestTeacherWithAccount(tb testing.TB, db *bun.DB, firstName, lastName string) (*users.Teacher, *auth.Account) {
-	tb.Helper()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	// Create staff with account
-	staff, account := CreateTestStaffWithAccount(tb, db, firstName, lastName)
-
-	// Create teacher
-	teacher := &users.Teacher{
-		StaffID: staff.ID,
-	}
-
-	err := db.NewInsert().
-		Model(teacher).
-		ModelTableExpr(`users.teachers`).
-		Scan(ctx)
-	require.NoError(tb, err, "Failed to create test teacher with account")
-
-	// Store staff reference for convenience
-	teacher.Staff = staff
-
-	return teacher, account
-}
-
-// CreateTestStaffWithPIN creates a staff member with account and a hashed PIN.
-// This is required for testing PIN validation flows.
-func CreateTestStaffWithPIN(tb testing.TB, db *bun.DB, firstName, lastName, pin string) (*users.Staff, *auth.Account) {
-	tb.Helper()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	// Create staff with account
-	staff, account := CreateTestStaffWithAccount(tb, db, firstName, lastName)
-
-	// Hash and set the PIN
-	err := account.HashPIN(pin)
-	require.NoError(tb, err, "Failed to hash PIN")
-
-	// Update account with PIN hash
-	_, err = db.NewUpdate().
-		Model(account).
-		ModelTableExpr(`auth.accounts`).
-		Column("pin_hash").
-		Where(whereIDEquals, account.ID).
-		Exec(ctx)
-	require.NoError(tb, err, "Failed to update account with PIN")
-
-	return staff, account
-}
-
-// AssignStudentToGroup updates a student's group assignment.
-// This is used to set up the teacher-student-group relationship for policy testing.
-func AssignStudentToGroup(tb testing.TB, db *bun.DB, studentID, groupID int64) {
-	tb.Helper()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	_, err := db.NewUpdate().
-		Model((*users.Student)(nil)).
-		ModelTableExpr(`users.students`).
-		Set("group_id = ?", groupID).
-		Where(whereIDEquals, studentID).
-		Exec(ctx)
-	require.NoError(tb, err, "Failed to assign student to group")
-}
-
-// ============================================================================
-// Auth Domain Extended Fixtures
-// ============================================================================
-
 // CreateTestRole creates a role in the database for permission testing.
 func CreateTestRole(tb testing.TB, db *bun.DB, name string) *auth.Role {
 	tb.Helper()
@@ -1173,7 +911,6 @@ func CreateTestRole(tb testing.TB, db *bun.DB, name string) *auth.Role {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// Make name unique
 	uniqueName := fmt.Sprintf("%s-%d", name, time.Now().UnixNano())
 
 	role := &auth.Role{
@@ -1192,16 +929,12 @@ func CreateTestRole(tb testing.TB, db *bun.DB, name string) *auth.Role {
 }
 
 // CreateTestPermission creates a permission in the database.
-// Note: The database has a unique constraint on (resource, action), so each call
-// creates a unique resource to avoid constraint violations.
 func CreateTestPermission(tb testing.TB, db *bun.DB, name, resource, action string) *auth.Permission {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// Make name and resource unique to avoid constraint violations
-	// The database has idx_permissions_resource_action unique constraint
 	uniqueSuffix := fmt.Sprintf("%d", time.Now().UnixNano())
 	uniqueName := fmt.Sprintf("%s-%s", name, uniqueSuffix)
 	uniqueResource := fmt.Sprintf("%s-%s", resource, uniqueSuffix)
@@ -1223,17 +956,14 @@ func CreateTestPermission(tb testing.TB, db *bun.DB, name, resource, action stri
 }
 
 // CreateTestToken creates an auth token for testing.
-// tokenType can be "access" or "refresh" to set appropriate expiry.
 func CreateTestToken(tb testing.TB, db *bun.DB, accountID int64, tokenType string) *auth.Token {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// Generate unique token value
 	tokenValue := fmt.Sprintf("test-token-%s-%d", tokenType, time.Now().UnixNano())
 
-	// Set expiry based on token type
 	var expiry time.Time
 	if tokenType == "refresh" {
 		expiry = time.Now().Add(24 * time.Hour)
@@ -1259,19 +989,222 @@ func CreateTestToken(tb testing.TB, db *bun.DB, accountID int64, tokenType strin
 	return token
 }
 
+// CreateTestParentAccount creates a parent account in the database.
+func CreateTestParentAccount(tb testing.TB, db *bun.DB, email string) *auth.AccountParent {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	uniqueEmail := fmt.Sprintf(testEmailFormat, email, time.Now().UnixNano())
+	username := fmt.Sprintf("parent-%d", time.Now().UnixNano())
+
+	account := &auth.AccountParent{
+		Email:    uniqueEmail,
+		Username: &username,
+		Active:   true,
+	}
+
+	err := db.NewInsert().
+		Model(account).
+		ModelTableExpr(`auth.accounts_parents`).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to create test parent account")
+
+	return account
+}
+
+// ============================================================================
+// Combined Auth + Tenant Fixtures
+// ============================================================================
+
+// CreateTestPersonWithAccountID creates a person linked to an existing account ID.
+func CreateTestPersonWithAccountID(tb testing.TB, db *bun.DB, firstName, lastName string, accountID int64, ogsID string) *users.Person {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	person := &users.Person{
+		FirstName: firstName,
+		LastName:  lastName,
+		AccountID: &accountID,
+	}
+	person.OgsID = ogsID
+
+	err := db.NewInsert().
+		Model(person).
+		ModelTableExpr(`users.persons`).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to create test person with account ID")
+
+	return person
+}
+
+// CreateTestPersonWithAccount creates a person linked to an account.
+// This is needed for policy tests that look up users by account ID.
+func CreateTestPersonWithAccount(tb testing.TB, db *bun.DB, firstName, lastName string, ogsID string) (*users.Person, *auth.Account) {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Create account first
+	account := CreateTestAccount(tb, db, fmt.Sprintf("%s.%s", firstName, lastName))
+
+	// Create person with account reference
+	person := &users.Person{
+		FirstName: firstName,
+		LastName:  lastName,
+		AccountID: &account.ID,
+	}
+	person.OgsID = ogsID
+
+	err := db.NewInsert().
+		Model(person).
+		ModelTableExpr(`users.persons`).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to create test person with account")
+
+	return person, account
+}
+
+// CreateTestStudentWithAccount creates a student with linked person and account.
+func CreateTestStudentWithAccount(tb testing.TB, db *bun.DB, firstName, lastName, schoolClass string, ogsID string) (*users.Student, *auth.Account) {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Create person with account
+	person, account := CreateTestPersonWithAccount(tb, db, firstName, lastName, ogsID)
+
+	// Create student
+	student := &users.Student{
+		PersonID:    person.ID,
+		SchoolClass: schoolClass,
+	}
+	student.OgsID = ogsID
+
+	err := db.NewInsert().
+		Model(student).
+		ModelTableExpr(`users.students`).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to create test student with account")
+
+	return student, account
+}
+
+// CreateTestStaffWithAccount creates a staff member with linked person and account.
+func CreateTestStaffWithAccount(tb testing.TB, db *bun.DB, firstName, lastName string, ogsID string) (*users.Staff, *auth.Account) {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Create person with account
+	person, account := CreateTestPersonWithAccount(tb, db, firstName, lastName, ogsID)
+
+	// Create staff
+	staff := &users.Staff{
+		PersonID: person.ID,
+	}
+	staff.OgsID = ogsID
+
+	err := db.NewInsert().
+		Model(staff).
+		ModelTableExpr(`users.staff`).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to create test staff with account")
+
+	// Store person reference for convenience
+	staff.Person = person
+
+	return staff, account
+}
+
+// CreateTestTeacherWithAccount creates a teacher with full chain: Account -> Person -> Staff -> Teacher.
+func CreateTestTeacherWithAccount(tb testing.TB, db *bun.DB, firstName, lastName string, ogsID string) (*users.Teacher, *auth.Account) {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Create staff with account
+	staff, account := CreateTestStaffWithAccount(tb, db, firstName, lastName, ogsID)
+
+	// Create teacher
+	teacher := &users.Teacher{
+		StaffID: staff.ID,
+	}
+	teacher.OgsID = ogsID
+
+	err := db.NewInsert().
+		Model(teacher).
+		ModelTableExpr(`users.teachers`).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to create test teacher with account")
+
+	// Store staff reference for convenience
+	teacher.Staff = staff
+
+	return teacher, account
+}
+
+// CreateTestStaffWithPIN creates a staff member with account and a hashed PIN.
+func CreateTestStaffWithPIN(tb testing.TB, db *bun.DB, firstName, lastName, pin string, ogsID string) (*users.Staff, *auth.Account) {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Create staff with account
+	staff, account := CreateTestStaffWithAccount(tb, db, firstName, lastName, ogsID)
+
+	// Hash and set the PIN
+	err := account.HashPIN(pin)
+	require.NoError(tb, err, "Failed to hash PIN")
+
+	// Update account with PIN hash
+	_, err = db.NewUpdate().
+		Model(account).
+		ModelTableExpr(`auth.accounts`).
+		Column("pin_hash").
+		Where(whereIDEquals, account.ID).
+		Exec(ctx)
+	require.NoError(tb, err, "Failed to update account with PIN")
+
+	return staff, account
+}
+
+// AssignStudentToGroup updates a student's group assignment.
+func AssignStudentToGroup(tb testing.TB, db *bun.DB, studentID, groupID int64) {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	_, err := db.NewUpdate().
+		Model((*users.Student)(nil)).
+		ModelTableExpr(`users.students`).
+		Set("group_id = ?", groupID).
+		Where(whereIDEquals, studentID).
+		Exec(ctx)
+	require.NoError(tb, err, "Failed to assign student to group")
+}
+
 // ============================================================================
 // Users Domain Extended Fixtures
 // ============================================================================
 
 // CreateTestRFIDCard creates an RFID card in the database.
-// The ID is uppercase alphanumeric only (no hyphens) to match normalization in PersonRepository.
+// NOTE: users.rfid_cards table does NOT have ogs_id column
 func CreateTestRFIDCard(tb testing.TB, db *bun.DB, tagID string) *users.RFIDCard {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// Make tag ID unique - use only alphanumeric chars (no hyphens) to match normalization
 	uniqueTagID := fmt.Sprintf("%s%d", tagID, time.Now().UnixNano())
 
 	card := &users.RFIDCard{
@@ -1289,7 +1222,6 @@ func CreateTestRFIDCard(tb testing.TB, db *bun.DB, tagID string) *users.RFIDCard
 }
 
 // LinkRFIDToStudent links an RFID card to a person by updating their tag_id field.
-// This is needed for the checkin workflow which looks up persons by tag_id.
 func LinkRFIDToStudent(tb testing.TB, db *bun.DB, personID int64, tagID string) {
 	tb.Helper()
 
@@ -1305,13 +1237,13 @@ func LinkRFIDToStudent(tb testing.TB, db *bun.DB, personID int64, tagID string) 
 }
 
 // CreateTestGuardianProfile creates a guardian profile in the database.
+// NOTE: users.guardian_profiles table does NOT have ogs_id column
 func CreateTestGuardianProfile(tb testing.TB, db *bun.DB, email string) *users.GuardianProfile {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// Make email unique
 	uniqueEmail := fmt.Sprintf(testEmailFormat, email, time.Now().UnixNano())
 
 	profile := &users.GuardianProfile{
@@ -1331,52 +1263,23 @@ func CreateTestGuardianProfile(tb testing.TB, db *bun.DB, email string) *users.G
 	return profile
 }
 
-// ============================================================================
-// Education Domain Extended Fixtures
-// ============================================================================
-
-// CreateTestGroupSubstitution creates a teacher substitution record.
-// regularStaffID can be nil if no regular staff is being substituted.
-func CreateTestGroupSubstitution(tb testing.TB, db *bun.DB, groupID int64, regularStaffID *int64, substituteStaffID int64, startDate, endDate time.Time) *education.GroupSubstitution {
-	tb.Helper()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	substitution := &education.GroupSubstitution{
-		GroupID:           groupID,
-		RegularStaffID:    regularStaffID,
-		SubstituteStaffID: substituteStaffID,
-		StartDate:         startDate,
-		EndDate:           endDate,
-		Reason:            "Test substitution",
-	}
-
-	err := db.NewInsert().
-		Model(substitution).
-		ModelTableExpr(`education.group_substitution`).
-		Scan(ctx)
-	require.NoError(tb, err, "Failed to create test group substitution")
-
-	return substitution
-}
-
 // CreateTestGuest creates a guest instructor in the database.
-// This requires a Staff record, which is created automatically.
-func CreateTestGuest(tb testing.TB, db *bun.DB, expertise string) *users.Guest {
+// Note: Guest model uses base.Model (no OgsID), but we need ogsID for the underlying Staff
+func CreateTestGuest(tb testing.TB, db *bun.DB, expertise string, ogsID string) *users.Guest {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// Create staff first (which creates person)
-	staff := CreateTestStaff(tb, db, "Guest", "Instructor")
+	// Create staff first (which creates person) - staff has OgsID
+	staff := CreateTestStaff(tb, db, "Guest", "Instructor", ogsID)
 
 	guest := &users.Guest{
 		StaffID:           staff.ID,
 		ActivityExpertise: expertise,
 		Organization:      "Test Organization",
 	}
+	// Note: Guest uses base.Model, not TenantModel - no OgsID field
 
 	err := db.NewInsert().
 		Model(guest).
@@ -1391,7 +1294,7 @@ func CreateTestGuest(tb testing.TB, db *bun.DB, expertise string) *users.Guest {
 }
 
 // CreateTestProfile creates a user profile in the database.
-// This requires an Account, which is created automatically.
+// Note: Profile model uses base.Model (no OgsID)
 func CreateTestProfile(tb testing.TB, db *bun.DB, prefix string) *users.Profile {
 	tb.Helper()
 
@@ -1407,6 +1310,7 @@ func CreateTestProfile(tb testing.TB, db *bun.DB, prefix string) *users.Profile 
 		Bio:       "Test bio for " + prefix,
 		Settings:  `{"theme": "dark"}`,
 	}
+	// Note: Profile uses base.Model, not TenantModel - no OgsID field
 
 	err := db.NewInsert().
 		Model(profile).
@@ -1421,18 +1325,18 @@ func CreateTestProfile(tb testing.TB, db *bun.DB, prefix string) *users.Profile 
 }
 
 // CreateTestPrivacyConsent creates a privacy consent record in the database.
-// This requires a Student, which is created automatically.
-func CreateTestPrivacyConsent(tb testing.TB, db *bun.DB, prefix string) *users.PrivacyConsent {
+// Note: PrivacyConsent model uses base.Model (no OgsID), but we need ogsID for the underlying Student
+func CreateTestPrivacyConsent(tb testing.TB, db *bun.DB, prefix string, ogsID string) *users.PrivacyConsent {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// Create student first
-	student := CreateTestStudent(tb, db, "Consent", prefix, "1a")
+	// Create student first - student has OgsID
+	student := CreateTestStudent(tb, db, "Consent", prefix, "1a", ogsID)
 
 	now := time.Now()
-	expiresAt := now.AddDate(1, 0, 0) // 1 year from now
+	expiresAt := now.AddDate(1, 0, 0)
 	durationDays := 365
 
 	consent := &users.PrivacyConsent{
@@ -1445,6 +1349,7 @@ func CreateTestPrivacyConsent(tb testing.TB, db *bun.DB, prefix string) *users.P
 		RenewalRequired:   false,
 		DataRetentionDays: 30,
 	}
+	// Note: PrivacyConsent uses base.Model, not TenantModel - no OgsID field
 
 	err := db.NewInsert().
 		Model(consent).
@@ -1458,34 +1363,8 @@ func CreateTestPrivacyConsent(tb testing.TB, db *bun.DB, prefix string) *users.P
 	return consent
 }
 
-// CreateTestParentAccount creates a parent account in the database.
-func CreateTestParentAccount(tb testing.TB, db *bun.DB, email string) *auth.AccountParent {
-	tb.Helper()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	// Make email unique
-	uniqueEmail := fmt.Sprintf(testEmailFormat, email, time.Now().UnixNano())
-	username := fmt.Sprintf("parent-%d", time.Now().UnixNano())
-
-	account := &auth.AccountParent{
-		Email:    uniqueEmail,
-		Username: &username,
-		Active:   true,
-	}
-
-	err := db.NewInsert().
-		Model(account).
-		ModelTableExpr(`auth.accounts_parents`).
-		Scan(ctx)
-	require.NoError(tb, err, "Failed to create test parent account")
-
-	return account
-}
-
 // CreateTestPersonGuardian creates a person-guardian relationship in the database.
-// The guardianAccountID should be a parent account ID (from CreateTestParentAccount).
+// Note: PersonGuardian model uses base.Model (no OgsID)
 func CreateTestPersonGuardian(tb testing.TB, db *bun.DB, personID, guardianAccountID int64, relType string) *users.PersonGuardian {
 	tb.Helper()
 
@@ -1497,8 +1376,9 @@ func CreateTestPersonGuardian(tb testing.TB, db *bun.DB, personID, guardianAccou
 		GuardianAccountID: guardianAccountID,
 		RelationshipType:  users.RelationshipType(relType),
 		IsPrimary:         true,
-		Permissions:       "{}", // Valid empty JSON object
+		Permissions:       "{}",
 	}
+	// Note: PersonGuardian uses base.Model, not TenantModel - no OgsID field
 
 	err := db.NewInsert().
 		Model(pg).
@@ -1514,14 +1394,13 @@ func CreateTestPersonGuardian(tb testing.TB, db *bun.DB, personID, guardianAccou
 // ============================================================================
 
 // CreateTestTimeframe creates a timeframe in the database.
-// This is used for schedule-related tests that need a timeframe reference.
+// Note: Timeframe model uses base.Model (no OgsID)
 func CreateTestTimeframe(tb testing.TB, db *bun.DB, description string) *schedule.Timeframe {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// Make description unique
 	uniqueDesc := fmt.Sprintf("%s-%d", description, time.Now().UnixNano())
 
 	now := time.Now()
@@ -1534,6 +1413,7 @@ func CreateTestTimeframe(tb testing.TB, db *bun.DB, description string) *schedul
 		IsActive:    true,
 		Description: uniqueDesc,
 	}
+	// Note: Timeframe uses base.Model, not TenantModel - no OgsID field
 
 	err := db.NewInsert().
 		Model(timeframe).
@@ -1559,4 +1439,152 @@ func CleanupScheduleFixtures(tb testing.TB, db *bun.DB, timeframeIDs ...int64) {
 			Where(whereIDEquals, id),
 			"schedule.timeframes")
 	}
+}
+
+// ============================================================================
+// Legacy Cleanup Functions
+// ============================================================================
+
+// CleanupPerson removes a person from the database by ID.
+func CleanupPerson(tb testing.TB, db *bun.DB, personID int64) {
+	tb.Helper()
+
+	cleanupDelete(tb, db.NewDelete().
+		Model((*interface{})(nil)).
+		Table(tableUsersPersons).
+		Where(whereIDEquals, personID),
+		tableUsersPersons)
+}
+
+// CleanupAccount removes an account and related auth records from the database.
+func CleanupAccount(tb testing.TB, db *bun.DB, accountID int64) {
+	tb.Helper()
+
+	CleanupAuthFixtures(tb, db, accountID)
+}
+
+// CleanupStaffFixtures removes staff fixtures from the database.
+func CleanupStaffFixtures(tb testing.TB, db *bun.DB, staffIDs ...int64) {
+	tb.Helper()
+
+	if len(staffIDs) == 0 {
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	for _, staffID := range staffIDs {
+		var staff struct {
+			PersonID int64 `bun:"person_id"`
+		}
+		_ = db.NewSelect().
+			Model(&staff).
+			TableExpr(tableUsersStaff).
+			ColumnExpr("person_id").
+			Where(whereIDEquals, staffID).
+			Scan(ctx)
+
+		cleanupDelete(tb, db.NewDelete().
+			Model((*interface{})(nil)).
+			Table(tableUsersTeachers).
+			Where("staff_id = ?", staffID),
+			tableUsersTeachers)
+
+		cleanupDelete(tb, db.NewDelete().
+			Model((*interface{})(nil)).
+			Table(tableUsersStaff).
+			Where(whereIDEquals, staffID),
+			tableUsersStaff)
+
+		if staff.PersonID > 0 {
+			cleanupDelete(tb, db.NewDelete().
+				Model((*interface{})(nil)).
+				Table(tableUsersPersons).
+				Where(whereIDEquals, staff.PersonID),
+				tableUsersPersons)
+		}
+	}
+}
+
+// CleanupTeacherFixtures removes teacher fixtures from the database.
+func CleanupTeacherFixtures(tb testing.TB, db *bun.DB, teacherIDs ...int64) {
+	tb.Helper()
+
+	if len(teacherIDs) == 0 {
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	for _, teacherID := range teacherIDs {
+		var teacher struct {
+			StaffID int64 `bun:"staff_id"`
+		}
+		_ = db.NewSelect().
+			Model(&teacher).
+			TableExpr(tableUsersTeachers).
+			ColumnExpr("staff_id").
+			Where(whereIDEquals, teacherID).
+			Scan(ctx)
+
+		var staff struct {
+			PersonID int64 `bun:"person_id"`
+		}
+		_ = db.NewSelect().
+			Model(&staff).
+			TableExpr(tableUsersStaff).
+			ColumnExpr("person_id").
+			Where(whereIDEquals, teacher.StaffID).
+			Scan(ctx)
+
+		var person struct {
+			AccountID *int64 `bun:"account_id"`
+		}
+		_ = db.NewSelect().
+			Model(&person).
+			TableExpr(tableUsersPersons).
+			ColumnExpr("account_id").
+			Where(whereIDEquals, staff.PersonID).
+			Scan(ctx)
+
+		cleanupDelete(tb, db.NewDelete().
+			Model((*interface{})(nil)).
+			Table(tableUsersTeachers).
+			Where(whereIDEquals, teacherID),
+			tableUsersTeachers)
+
+		if teacher.StaffID > 0 {
+			cleanupDelete(tb, db.NewDelete().
+				Model((*interface{})(nil)).
+				Table(tableUsersStaff).
+				Where(whereIDEquals, teacher.StaffID),
+				tableUsersStaff)
+		}
+
+		if staff.PersonID > 0 {
+			cleanupDelete(tb, db.NewDelete().
+				Model((*interface{})(nil)).
+				Table(tableUsersPersons).
+				Where(whereIDEquals, staff.PersonID),
+				tableUsersPersons)
+		}
+
+		if person.AccountID != nil && *person.AccountID > 0 {
+			CleanupAuthFixtures(tb, db, *person.AccountID)
+		}
+	}
+}
+
+// ============================================================================
+// Helper Functions
+// ============================================================================
+
+func stringPtr(s string) *string {
+	return &s
+}
+
+func intPtr(i int) *int {
+	return &i
 }

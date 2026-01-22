@@ -139,6 +139,7 @@ func cleanupScheduleFixtures(t *testing.T, db *bun.DB, dateframeIDs, timeframeID
 func TestScheduleService_GetDateframe(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupScheduleService(t, db)
 	ctx := context.Background()
@@ -173,6 +174,7 @@ func TestScheduleService_GetDateframe(t *testing.T) {
 func TestScheduleService_CreateDateframe(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupScheduleService(t, db)
 	ctx := context.Background()
@@ -238,6 +240,7 @@ func TestScheduleService_CreateDateframe(t *testing.T) {
 func TestScheduleService_UpdateDateframe(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupScheduleService(t, db)
 	ctx := context.Background()
@@ -268,6 +271,7 @@ func TestScheduleService_UpdateDateframe(t *testing.T) {
 func TestScheduleService_DeleteDateframe(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupScheduleService(t, db)
 	ctx := context.Background()
@@ -294,6 +298,7 @@ func TestScheduleService_DeleteDateframe(t *testing.T) {
 func TestScheduleService_ListDateframes(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupScheduleService(t, db)
 	ctx := context.Background()
@@ -330,6 +335,7 @@ func TestScheduleService_ListDateframes(t *testing.T) {
 func TestScheduleService_FindDateframesByDate(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupScheduleService(t, db)
 	ctx := context.Background()
@@ -364,6 +370,7 @@ func TestScheduleService_FindDateframesByDate(t *testing.T) {
 func TestScheduleService_FindOverlappingDateframes(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupScheduleService(t, db)
 	ctx := context.Background()
@@ -403,6 +410,7 @@ func TestScheduleService_FindOverlappingDateframes(t *testing.T) {
 func TestScheduleService_GetTimeframe(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupScheduleService(t, db)
 	ctx := context.Background()
@@ -436,6 +444,7 @@ func TestScheduleService_GetTimeframe(t *testing.T) {
 func TestScheduleService_CreateTimeframe(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupScheduleService(t, db)
 	ctx := context.Background()
@@ -498,6 +507,7 @@ func TestScheduleService_CreateTimeframe(t *testing.T) {
 func TestScheduleService_UpdateTimeframe(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupScheduleService(t, db)
 	ctx := context.Background()
@@ -530,6 +540,7 @@ func TestScheduleService_UpdateTimeframe(t *testing.T) {
 func TestScheduleService_DeleteTimeframe(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupScheduleService(t, db)
 	ctx := context.Background()
@@ -556,6 +567,7 @@ func TestScheduleService_DeleteTimeframe(t *testing.T) {
 func TestScheduleService_ListTimeframes(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupScheduleService(t, db)
 	ctx := context.Background()
@@ -581,6 +593,7 @@ func TestScheduleService_ListTimeframes(t *testing.T) {
 func TestScheduleService_FindActiveTimeframes(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupScheduleService(t, db)
 	ctx := context.Background()
@@ -616,6 +629,7 @@ func TestScheduleService_FindActiveTimeframes(t *testing.T) {
 func TestScheduleService_FindTimeframesByTimeRange(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupScheduleService(t, db)
 	ctx := context.Background()
@@ -664,6 +678,7 @@ func TestScheduleService_FindTimeframesByTimeRange(t *testing.T) {
 func TestScheduleService_GetRecurrenceRule(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupScheduleService(t, db)
 	ctx := context.Background()
@@ -696,6 +711,7 @@ func TestScheduleService_GetRecurrenceRule(t *testing.T) {
 func TestScheduleService_CreateRecurrenceRule(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupScheduleService(t, db)
 	ctx := context.Background()
@@ -866,6 +882,7 @@ func TestScheduleService_CreateRecurrenceRule(t *testing.T) {
 func TestScheduleService_UpdateRecurrenceRule(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupScheduleService(t, db)
 	ctx := context.Background()
@@ -894,6 +911,7 @@ func TestScheduleService_UpdateRecurrenceRule(t *testing.T) {
 func TestScheduleService_DeleteRecurrenceRule(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupScheduleService(t, db)
 	ctx := context.Background()
@@ -918,6 +936,7 @@ func TestScheduleService_DeleteRecurrenceRule(t *testing.T) {
 func TestScheduleService_ListRecurrenceRules(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupScheduleService(t, db)
 	ctx := context.Background()
@@ -940,6 +959,7 @@ func TestScheduleService_ListRecurrenceRules(t *testing.T) {
 func TestScheduleService_FindRecurrenceRulesByFrequency(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupScheduleService(t, db)
 	ctx := context.Background()
@@ -971,6 +991,7 @@ func TestScheduleService_FindRecurrenceRulesByFrequency(t *testing.T) {
 func TestScheduleService_FindRecurrenceRulesByWeekday(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupScheduleService(t, db)
 	ctx := context.Background()
@@ -1011,6 +1032,7 @@ func TestScheduleService_FindRecurrenceRulesByWeekday(t *testing.T) {
 func TestScheduleService_GenerateEvents(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupScheduleService(t, db)
 	ctx := context.Background()
@@ -1275,6 +1297,7 @@ func TestScheduleService_GenerateEvents(t *testing.T) {
 func TestScheduleService_CheckConflict(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupScheduleService(t, db)
 	ctx := context.Background()
@@ -1331,6 +1354,7 @@ func TestScheduleService_CheckConflict(t *testing.T) {
 func TestScheduleService_FindAvailableSlots(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupScheduleService(t, db)
 	ctx := context.Background()
@@ -1399,6 +1423,7 @@ func TestScheduleService_FindAvailableSlots(t *testing.T) {
 func TestScheduleService_GetCurrentDateframe(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupScheduleService(t, db)
 	ctx := context.Background()
@@ -1427,6 +1452,7 @@ func TestScheduleService_GetCurrentDateframe(t *testing.T) {
 func TestScheduleService_WithTx(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupScheduleService(t, db)
 	ctx := context.Background()

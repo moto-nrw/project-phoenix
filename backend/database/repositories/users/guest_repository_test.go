@@ -23,12 +23,13 @@ import (
 func TestGuestRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).Guest
 	ctx := context.Background()
 
 	t.Run("creates guest with valid data", func(t *testing.T) {
-		staff := testpkg.CreateTestStaff(t, db, "Guest", "Create")
+		staff := testpkg.CreateTestStaff(t, db, "Guest", "Create", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, staff.ID, staff.PersonID)
 
 		guest := &users.Guest{
@@ -45,7 +46,7 @@ func TestGuestRepository_Create(t *testing.T) {
 	})
 
 	t.Run("creates guest with contact info", func(t *testing.T) {
-		staff := testpkg.CreateTestStaff(t, db, "Guest", "Contact")
+		staff := testpkg.CreateTestStaff(t, db, "Guest", "Contact", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, staff.ID, staff.PersonID)
 
 		guest := &users.Guest{
@@ -63,7 +64,7 @@ func TestGuestRepository_Create(t *testing.T) {
 	})
 
 	t.Run("creates guest with date range", func(t *testing.T) {
-		staff := testpkg.CreateTestStaff(t, db, "Guest", "Dates")
+		staff := testpkg.CreateTestStaff(t, db, "Guest", "Dates", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, staff.ID, staff.PersonID)
 
 		startDate := time.Now()
@@ -102,7 +103,7 @@ func TestGuestRepository_Create(t *testing.T) {
 	})
 
 	t.Run("fails without activity expertise", func(t *testing.T) {
-		staff := testpkg.CreateTestStaff(t, db, "Guest", "NoExp")
+		staff := testpkg.CreateTestStaff(t, db, "Guest", "NoExp", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, staff.ID, staff.PersonID)
 
 		guest := &users.Guest{
@@ -115,7 +116,7 @@ func TestGuestRepository_Create(t *testing.T) {
 	})
 
 	t.Run("fails with invalid email", func(t *testing.T) {
-		staff := testpkg.CreateTestStaff(t, db, "Guest", "BadEmail")
+		staff := testpkg.CreateTestStaff(t, db, "Guest", "BadEmail", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, staff.ID, staff.PersonID)
 
 		guest := &users.Guest{
@@ -133,12 +134,13 @@ func TestGuestRepository_Create(t *testing.T) {
 func TestGuestRepository_FindByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).Guest
 	ctx := context.Background()
 
 	t.Run("finds existing guest", func(t *testing.T) {
-		guest := testpkg.CreateTestGuest(t, db, "FindByID")
+		guest := testpkg.CreateTestGuest(t, db, "FindByID", ogsID)
 		defer testpkg.CleanupTableRecords(t, db, "users.guests", guest.ID)
 		defer testpkg.CleanupActivityFixtures(t, db, guest.Staff.ID, guest.Staff.PersonID)
 
@@ -157,12 +159,13 @@ func TestGuestRepository_FindByID(t *testing.T) {
 func TestGuestRepository_FindByStaffID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).Guest
 	ctx := context.Background()
 
 	t.Run("finds guest by staff ID", func(t *testing.T) {
-		guest := testpkg.CreateTestGuest(t, db, "FindByStaff")
+		guest := testpkg.CreateTestGuest(t, db, "FindByStaff", ogsID)
 		defer testpkg.CleanupTableRecords(t, db, "users.guests", guest.ID)
 		defer testpkg.CleanupActivityFixtures(t, db, guest.Staff.ID, guest.Staff.PersonID)
 
@@ -181,12 +184,13 @@ func TestGuestRepository_FindByStaffID(t *testing.T) {
 func TestGuestRepository_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).Guest
 	ctx := context.Background()
 
 	t.Run("updates guest", func(t *testing.T) {
-		guest := testpkg.CreateTestGuest(t, db, "Update")
+		guest := testpkg.CreateTestGuest(t, db, "Update", ogsID)
 		defer testpkg.CleanupTableRecords(t, db, "users.guests", guest.ID)
 		defer testpkg.CleanupActivityFixtures(t, db, guest.Staff.ID, guest.Staff.PersonID)
 
@@ -212,12 +216,13 @@ func TestGuestRepository_Update(t *testing.T) {
 func TestGuestRepository_Delete(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).Guest
 	ctx := context.Background()
 
 	t.Run("deletes existing guest", func(t *testing.T) {
-		guest := testpkg.CreateTestGuest(t, db, "Delete")
+		guest := testpkg.CreateTestGuest(t, db, "Delete", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, guest.Staff.ID, guest.Staff.PersonID)
 
 		err := repo.Delete(ctx, guest.ID)
@@ -237,12 +242,13 @@ func TestGuestRepository_Delete(t *testing.T) {
 func TestGuestRepository_FindByOrganization(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).Guest
 	ctx := context.Background()
 
 	t.Run("finds guests by organization", func(t *testing.T) {
-		guest := testpkg.CreateTestGuest(t, db, "OrgSearch")
+		guest := testpkg.CreateTestGuest(t, db, "OrgSearch", ogsID)
 		defer testpkg.CleanupTableRecords(t, db, "users.guests", guest.ID)
 		defer testpkg.CleanupActivityFixtures(t, db, guest.Staff.ID, guest.Staff.PersonID)
 
@@ -258,7 +264,7 @@ func TestGuestRepository_FindByOrganization(t *testing.T) {
 	})
 
 	t.Run("finds guests case-insensitively", func(t *testing.T) {
-		guest := testpkg.CreateTestGuest(t, db, "OrgCase")
+		guest := testpkg.CreateTestGuest(t, db, "OrgCase", ogsID)
 		defer testpkg.CleanupTableRecords(t, db, "users.guests", guest.ID)
 		defer testpkg.CleanupActivityFixtures(t, db, guest.Staff.ID, guest.Staff.PersonID)
 
@@ -281,12 +287,13 @@ func TestGuestRepository_FindByOrganization(t *testing.T) {
 func TestGuestRepository_FindByExpertise(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).Guest
 	ctx := context.Background()
 
 	t.Run("finds guests by expertise", func(t *testing.T) {
-		guest := testpkg.CreateTestGuest(t, db, "ExpSearch")
+		guest := testpkg.CreateTestGuest(t, db, "ExpSearch", ogsID)
 		defer testpkg.CleanupTableRecords(t, db, "users.guests", guest.ID)
 		defer testpkg.CleanupActivityFixtures(t, db, guest.Staff.ID, guest.Staff.PersonID)
 
@@ -296,7 +303,7 @@ func TestGuestRepository_FindByExpertise(t *testing.T) {
 	})
 
 	t.Run("finds guests with partial expertise match", func(t *testing.T) {
-		guest := testpkg.CreateTestGuest(t, db, "ExpPartial")
+		guest := testpkg.CreateTestGuest(t, db, "ExpPartial", ogsID)
 		defer testpkg.CleanupTableRecords(t, db, "users.guests", guest.ID)
 		defer testpkg.CleanupActivityFixtures(t, db, guest.Staff.ID, guest.Staff.PersonID)
 
@@ -319,12 +326,13 @@ func TestGuestRepository_FindByExpertise(t *testing.T) {
 func TestGuestRepository_FindActive(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).Guest
 	ctx := context.Background()
 
 	t.Run("finds active guests with no date range", func(t *testing.T) {
-		guest := testpkg.CreateTestGuest(t, db, "ActiveNoDate")
+		guest := testpkg.CreateTestGuest(t, db, "ActiveNoDate", ogsID)
 		defer testpkg.CleanupTableRecords(t, db, "users.guests", guest.ID)
 		defer testpkg.CleanupActivityFixtures(t, db, guest.Staff.ID, guest.Staff.PersonID)
 
@@ -342,7 +350,7 @@ func TestGuestRepository_FindActive(t *testing.T) {
 	})
 
 	t.Run("finds guests within active date range", func(t *testing.T) {
-		guest := testpkg.CreateTestGuest(t, db, "ActiveRange")
+		guest := testpkg.CreateTestGuest(t, db, "ActiveRange", ogsID)
 		defer testpkg.CleanupTableRecords(t, db, "users.guests", guest.ID)
 		defer testpkg.CleanupActivityFixtures(t, db, guest.Staff.ID, guest.Staff.PersonID)
 
@@ -367,12 +375,13 @@ func TestGuestRepository_FindActive(t *testing.T) {
 func TestGuestRepository_SetDateRange(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).Guest
 	ctx := context.Background()
 
 	t.Run("sets date range for guest", func(t *testing.T) {
-		guest := testpkg.CreateTestGuest(t, db, "SetDates")
+		guest := testpkg.CreateTestGuest(t, db, "SetDates", ogsID)
 		defer testpkg.CleanupTableRecords(t, db, "users.guests", guest.ID)
 		defer testpkg.CleanupActivityFixtures(t, db, guest.Staff.ID, guest.Staff.PersonID)
 
@@ -396,12 +405,13 @@ func TestGuestRepository_SetDateRange(t *testing.T) {
 func TestGuestRepository_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).Guest
 	ctx := context.Background()
 
 	t.Run("lists guests with organization filter", func(t *testing.T) {
-		guest := testpkg.CreateTestGuest(t, db, "ListOrg")
+		guest := testpkg.CreateTestGuest(t, db, "ListOrg", ogsID)
 		defer testpkg.CleanupTableRecords(t, db, "users.guests", guest.ID)
 		defer testpkg.CleanupActivityFixtures(t, db, guest.Staff.ID, guest.Staff.PersonID)
 
@@ -417,7 +427,7 @@ func TestGuestRepository_List(t *testing.T) {
 	})
 
 	t.Run("lists guests with expertise filter", func(t *testing.T) {
-		guest := testpkg.CreateTestGuest(t, db, "ListExp")
+		guest := testpkg.CreateTestGuest(t, db, "ListExp", ogsID)
 		defer testpkg.CleanupTableRecords(t, db, "users.guests", guest.ID)
 		defer testpkg.CleanupActivityFixtures(t, db, guest.Staff.ID, guest.Staff.PersonID)
 

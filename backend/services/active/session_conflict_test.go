@@ -14,9 +14,9 @@
 // Each test follows this structure:
 //
 //	ARRANGE: Create test fixtures (real database records)
-//	  activity := testpkg.CreateTestActivityGroup(t, db, "Test Activity")
-//	  device := testpkg.CreateTestDevice(t, db, "device-id")
-//	  room := testpkg.CreateTestRoom(t, db, "Room Name")
+//	  activity := testpkg.CreateTestActivityGroup(t, db, "Test Activity", ogsID)
+//	  device := testpkg.CreateTestDevice(t, db, "device-id", ogsID)
+//	  room := testpkg.CreateTestRoom(t, db, "Room Name", ogsID)
 //	  defer testpkg.CleanupActivityFixtures(t, db, activity.ID, device.ID, room.ID)
 //
 //	ACT: Perform the operation under test
@@ -55,9 +55,9 @@
 //
 //	t.Run("my test scenario", func(t *testing.T) {
 //	    // ARRANGE: Create fixtures
-//	    activity := testpkg.CreateTestActivityGroup(t, db, "Test Activity")
-//	    device := testpkg.CreateTestDevice(t, db, "test-device-001")
-//	    room := testpkg.CreateTestRoom(t, db, "Test Room")
+//	    activity := testpkg.CreateTestActivityGroup(t, db, "Test Activity", ogsID)
+//	    device := testpkg.CreateTestDevice(t, db, "test-device-001", ogsID)
+//	    room := testpkg.CreateTestRoom(t, db, "Test Room", ogsID)
 //	    defer testpkg.CleanupActivityFixtures(t, db, activity.ID, device.ID, room.ID)
 //
 //	    // ACT: Call the code under test
@@ -73,9 +73,9 @@
 //
 // All fixtures are in backend/test/fixtures.go and use the test package alias "testpkg"
 //
-//	testpkg.CreateTestActivityGroup(t, db, "name") *activities.Group
-//	testpkg.CreateTestDevice(t, db, "device-id") *iot.Device
-//	testpkg.CreateTestRoom(t, db, "room-name") *facilities.Room
+//	testpkg.CreateTestActivityGroup(t, db, "name", ogsID) *activities.Group
+//	testpkg.CreateTestDevice(t, db, "device-id", ogsID) *iot.Device
+//	testpkg.CreateTestRoom(t, db, "room-name", ogsID) *facilities.Room
 //	testpkg.CleanupActivityFixtures(t, db, ids...) - cleans up any combination of fixtures
 //
 // # EXTENDING FIXTURES
@@ -123,15 +123,16 @@ func TestActivitySessionConflictDetection(t *testing.T) {
 			t.Logf("Failed to close database: %v", err)
 		}
 	}()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupActiveService(t, db)
 	ctx := context.Background()
 
 	t.Run("no conflict when activity not active", func(t *testing.T) {
 		// ARRANGE: Create test fixtures with real database records
-		activityGroup := testpkg.CreateTestActivityGroup(t, db, "Test Activity 1")
-		device := testpkg.CreateTestDevice(t, db, "test-device-001")
-		room := testpkg.CreateTestRoom(t, db, "Test Room 1")
+		activityGroup := testpkg.CreateTestActivityGroup(t, db, "Test Activity 1", ogsID)
+		device := testpkg.CreateTestDevice(t, db, "test-device-001", ogsID)
+		room := testpkg.CreateTestRoom(t, db, "Test Room 1", ogsID)
 
 		defer testpkg.CleanupActivityFixtures(t, db, activityGroup.ID, device.ID, room.ID)
 
@@ -152,10 +153,10 @@ func TestActivitySessionConflictDetection(t *testing.T) {
 
 	t.Run("conflict when activity already active on different device", func(t *testing.T) {
 		// ARRANGE: Create test fixtures
-		activityGroup := testpkg.CreateTestActivityGroup(t, db, "Test Activity 2")
-		device1 := testpkg.CreateTestDevice(t, db, "test-device-002")
-		device2 := testpkg.CreateTestDevice(t, db, "test-device-003")
-		room := testpkg.CreateTestRoom(t, db, "Test Room 2")
+		activityGroup := testpkg.CreateTestActivityGroup(t, db, "Test Activity 2", ogsID)
+		device1 := testpkg.CreateTestDevice(t, db, "test-device-002", ogsID)
+		device2 := testpkg.CreateTestDevice(t, db, "test-device-003", ogsID)
+		room := testpkg.CreateTestRoom(t, db, "Test Room 2", ogsID)
 
 		defer testpkg.CleanupActivityFixtures(t, db, activityGroup.ID, device1.ID, device2.ID, room.ID)
 
@@ -180,10 +181,10 @@ func TestActivitySessionConflictDetection(t *testing.T) {
 
 	t.Run("conflict when device already running another activity", func(t *testing.T) {
 		// ARRANGE: Create test fixtures
-		activity1 := testpkg.CreateTestActivityGroup(t, db, "Test Activity 3")
-		activity2 := testpkg.CreateTestActivityGroup(t, db, "Test Activity 4")
-		device := testpkg.CreateTestDevice(t, db, "test-device-004")
-		room := testpkg.CreateTestRoom(t, db, "Test Room 3")
+		activity1 := testpkg.CreateTestActivityGroup(t, db, "Test Activity 3", ogsID)
+		activity2 := testpkg.CreateTestActivityGroup(t, db, "Test Activity 4", ogsID)
+		device := testpkg.CreateTestDevice(t, db, "test-device-004", ogsID)
+		room := testpkg.CreateTestRoom(t, db, "Test Room 3", ogsID)
 
 		defer testpkg.CleanupActivityFixtures(t, db, activity1.ID, activity2.ID, device.ID, room.ID)
 
@@ -201,10 +202,10 @@ func TestActivitySessionConflictDetection(t *testing.T) {
 
 	t.Run("force override ends existing sessions", func(t *testing.T) {
 		// ARRANGE: Create test fixtures
-		activityGroup := testpkg.CreateTestActivityGroup(t, db, "Test Activity 5")
-		device := testpkg.CreateTestDevice(t, db, "test-device-005")
-		room := testpkg.CreateTestRoom(t, db, "Test Room 4")
-		staff := testpkg.CreateTestStaff(t, db, "Test", "Supervisor")
+		activityGroup := testpkg.CreateTestActivityGroup(t, db, "Test Activity 5", ogsID)
+		device := testpkg.CreateTestDevice(t, db, "test-device-005", ogsID)
+		room := testpkg.CreateTestRoom(t, db, "Test Room 4", ogsID)
+		staff := testpkg.CreateTestStaff(t, db, "Test", "Supervisor", ogsID)
 
 		defer testpkg.CleanupActivityFixtures(t, db, activityGroup.ID, device.ID, room.ID, staff.ID)
 
@@ -230,9 +231,9 @@ func TestActivitySessionConflictDetection(t *testing.T) {
 
 	t.Run("get current session for device", func(t *testing.T) {
 		// ARRANGE: Create test fixtures
-		activityGroup := testpkg.CreateTestActivityGroup(t, db, "Test Activity 6")
-		device := testpkg.CreateTestDevice(t, db, "test-device-007")
-		room := testpkg.CreateTestRoom(t, db, "Test Room 5")
+		activityGroup := testpkg.CreateTestActivityGroup(t, db, "Test Activity 6", ogsID)
+		device := testpkg.CreateTestDevice(t, db, "test-device-007", ogsID)
+		room := testpkg.CreateTestRoom(t, db, "Test Room 5", ogsID)
 
 		defer testpkg.CleanupActivityFixtures(t, db, activityGroup.ID, device.ID, room.ID)
 
@@ -269,15 +270,16 @@ func TestSessionLifecycle(t *testing.T) {
 			t.Logf("Failed to close database: %v", err)
 		}
 	}()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupActiveService(t, db)
 	ctx := context.Background()
 
 	t.Run("complete session lifecycle", func(t *testing.T) {
 		// ARRANGE: Create test fixtures
-		activityGroup := testpkg.CreateTestActivityGroup(t, db, "Test Activity 7")
-		device := testpkg.CreateTestDevice(t, db, "test-device-008")
-		room := testpkg.CreateTestRoom(t, db, "Test Room 6")
+		activityGroup := testpkg.CreateTestActivityGroup(t, db, "Test Activity 7", ogsID)
+		device := testpkg.CreateTestDevice(t, db, "test-device-008", ogsID)
+		room := testpkg.CreateTestRoom(t, db, "Test Room 6", ogsID)
 
 		defer testpkg.CleanupActivityFixtures(t, db, activityGroup.ID, device.ID, room.ID)
 
@@ -358,16 +360,17 @@ func TestConcurrentSessionAttempts(t *testing.T) {
 			t.Logf("Failed to close database: %v", err)
 		}
 	}()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupActiveService(t, db)
 	ctx := context.Background()
 
 	t.Run("concurrent start attempts on same activity", func(t *testing.T) {
 		// ARRANGE: Create test fixtures
-		activityGroup := testpkg.CreateTestActivityGroup(t, db, "Test Activity 8")
-		device1 := testpkg.CreateTestDevice(t, db, "test-device-009")
-		device2 := testpkg.CreateTestDevice(t, db, "test-device-010")
-		room := testpkg.CreateTestRoom(t, db, "Test Room 7")
+		activityGroup := testpkg.CreateTestActivityGroup(t, db, "Test Activity 8", ogsID)
+		device1 := testpkg.CreateTestDevice(t, db, "test-device-009", ogsID)
+		device2 := testpkg.CreateTestDevice(t, db, "test-device-010", ogsID)
+		room := testpkg.CreateTestRoom(t, db, "Test Room 7", ogsID)
 
 		defer testpkg.CleanupActivityFixtures(t, db, activityGroup.ID, device1.ID, device2.ID, room.ID)
 
@@ -441,17 +444,18 @@ func TestForceStartActivitySessionWithSupervisors(t *testing.T) {
 			t.Logf("Failed to close database: %v", err)
 		}
 	}()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupActiveService(t, db)
 	ctx := context.Background()
 
 	t.Run("force start with multiple supervisors", func(t *testing.T) {
 		// ARRANGE: Create test fixtures
-		activityGroup := testpkg.CreateTestActivityGroup(t, db, "Multi Supervisor Activity")
-		device := testpkg.CreateTestDevice(t, db, "multi-super-device-001")
-		room := testpkg.CreateTestRoom(t, db, "Multi Supervisor Room")
-		staff1 := testpkg.CreateTestStaff(t, db, "Supervisor", "One")
-		staff2 := testpkg.CreateTestStaff(t, db, "Supervisor", "Two")
+		activityGroup := testpkg.CreateTestActivityGroup(t, db, "Multi Supervisor Activity", ogsID)
+		device := testpkg.CreateTestDevice(t, db, "multi-super-device-001", ogsID)
+		room := testpkg.CreateTestRoom(t, db, "Multi Supervisor Room", ogsID)
+		staff1 := testpkg.CreateTestStaff(t, db, "Supervisor", "One", ogsID)
+		staff2 := testpkg.CreateTestStaff(t, db, "Supervisor", "Two", ogsID)
 
 		defer testpkg.CleanupActivityFixtures(t, db, activityGroup.ID, device.ID, room.ID, staff1.ID, staff2.ID)
 
@@ -472,10 +476,10 @@ func TestForceStartActivitySessionWithSupervisors(t *testing.T) {
 
 	t.Run("force start with supervisors ends existing session", func(t *testing.T) {
 		// ARRANGE: Create test fixtures and start initial session
-		activityGroup := testpkg.CreateTestActivityGroup(t, db, "Force End Activity")
-		device := testpkg.CreateTestDevice(t, db, "force-end-device-002")
-		room := testpkg.CreateTestRoom(t, db, "Force End Room")
-		staff := testpkg.CreateTestStaff(t, db, "Force", "Supervisor")
+		activityGroup := testpkg.CreateTestActivityGroup(t, db, "Force End Activity", ogsID)
+		device := testpkg.CreateTestDevice(t, db, "force-end-device-002", ogsID)
+		room := testpkg.CreateTestRoom(t, db, "Force End Room", ogsID)
+		staff := testpkg.CreateTestStaff(t, db, "Force", "Supervisor", ogsID)
 
 		defer testpkg.CleanupActivityFixtures(t, db, activityGroup.ID, device.ID, room.ID, staff.ID)
 
@@ -500,9 +504,9 @@ func TestForceStartActivitySessionWithSupervisors(t *testing.T) {
 
 	t.Run("force start fails with empty supervisor list", func(t *testing.T) {
 		// ARRANGE: Create test fixtures
-		activityGroup := testpkg.CreateTestActivityGroup(t, db, "No Supervisor Activity")
-		device := testpkg.CreateTestDevice(t, db, "no-super-device-003")
-		room := testpkg.CreateTestRoom(t, db, "No Supervisor Room")
+		activityGroup := testpkg.CreateTestActivityGroup(t, db, "No Supervisor Activity", ogsID)
+		device := testpkg.CreateTestDevice(t, db, "no-super-device-003", ogsID)
+		room := testpkg.CreateTestRoom(t, db, "No Supervisor Room", ogsID)
 
 		defer testpkg.CleanupActivityFixtures(t, db, activityGroup.ID, device.ID, room.ID)
 
@@ -515,9 +519,9 @@ func TestForceStartActivitySessionWithSupervisors(t *testing.T) {
 
 	t.Run("force start fails with invalid supervisor ID", func(t *testing.T) {
 		// ARRANGE: Create test fixtures
-		activityGroup := testpkg.CreateTestActivityGroup(t, db, "Invalid Supervisor Activity")
-		device := testpkg.CreateTestDevice(t, db, "invalid-super-device-004")
-		room := testpkg.CreateTestRoom(t, db, "Invalid Supervisor Room")
+		activityGroup := testpkg.CreateTestActivityGroup(t, db, "Invalid Supervisor Activity", ogsID)
+		device := testpkg.CreateTestDevice(t, db, "invalid-super-device-004", ogsID)
+		room := testpkg.CreateTestRoom(t, db, "Invalid Supervisor Room", ogsID)
 
 		defer testpkg.CleanupActivityFixtures(t, db, activityGroup.ID, device.ID, room.ID)
 
@@ -537,17 +541,18 @@ func TestStartActivitySessionWithSupervisors(t *testing.T) {
 			t.Logf("Failed to close database: %v", err)
 		}
 	}()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupActiveService(t, db)
 	ctx := context.Background()
 
 	t.Run("start with multiple supervisors", func(t *testing.T) {
 		// ARRANGE
-		activityGroup := testpkg.CreateTestActivityGroup(t, db, "Two Supervisor Activity")
-		device := testpkg.CreateTestDevice(t, db, "two-super-device-001")
-		room := testpkg.CreateTestRoom(t, db, "Two Supervisor Room")
-		staff1 := testpkg.CreateTestStaff(t, db, "First", "Supervisor")
-		staff2 := testpkg.CreateTestStaff(t, db, "Second", "Supervisor")
+		activityGroup := testpkg.CreateTestActivityGroup(t, db, "Two Supervisor Activity", ogsID)
+		device := testpkg.CreateTestDevice(t, db, "two-super-device-001", ogsID)
+		room := testpkg.CreateTestRoom(t, db, "Two Supervisor Room", ogsID)
+		staff1 := testpkg.CreateTestStaff(t, db, "First", "Supervisor", ogsID)
+		staff2 := testpkg.CreateTestStaff(t, db, "Second", "Supervisor", ogsID)
 
 		defer testpkg.CleanupActivityFixtures(t, db, activityGroup.ID, device.ID, room.ID, staff1.ID, staff2.ID)
 

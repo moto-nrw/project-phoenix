@@ -43,13 +43,14 @@ func createSupervisor(t *testing.T, db *bun.DB, staffID, groupID int64, isPrimar
 func TestSupervisorPlannedRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).ActivitySupervisor
 	ctx := context.Background()
 
 	t.Run("creates supervisor with valid data", func(t *testing.T) {
-		staff := testpkg.CreateTestStaff(t, db, "Supervisor", "Test")
-		group := testpkg.CreateTestActivityGroup(t, db, "SupervisorGroup")
+		staff := testpkg.CreateTestStaff(t, db, "Supervisor", "Test", ogsID)
+		group := testpkg.CreateTestActivityGroup(t, db, "SupervisorGroup", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID, 0, group.CategoryID, 0)
 		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
 
@@ -67,8 +68,8 @@ func TestSupervisorPlannedRepository_Create(t *testing.T) {
 	})
 
 	t.Run("creates primary supervisor", func(t *testing.T) {
-		staff := testpkg.CreateTestStaff(t, db, "Primary", "Supervisor")
-		group := testpkg.CreateTestActivityGroup(t, db, "PrimaryGroup")
+		staff := testpkg.CreateTestStaff(t, db, "Primary", "Supervisor", ogsID)
+		group := testpkg.CreateTestActivityGroup(t, db, "PrimaryGroup", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID, 0, group.CategoryID, 0)
 		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
 
@@ -103,13 +104,14 @@ func TestSupervisorPlannedRepository_Create_WithNil(t *testing.T) {
 func TestSupervisorPlannedRepository_FindByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).ActivitySupervisor
 	ctx := context.Background()
 
 	t.Run("finds existing supervisor", func(t *testing.T) {
-		staff := testpkg.CreateTestStaff(t, db, "Find", "Test")
-		group := testpkg.CreateTestActivityGroup(t, db, "FindGroup")
+		staff := testpkg.CreateTestStaff(t, db, "Find", "Test", ogsID)
+		group := testpkg.CreateTestActivityGroup(t, db, "FindGroup", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID, 0, group.CategoryID, 0)
 		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
 
@@ -131,13 +133,14 @@ func TestSupervisorPlannedRepository_FindByID(t *testing.T) {
 func TestSupervisorPlannedRepository_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).ActivitySupervisor
 	ctx := context.Background()
 
 	t.Run("updates supervisor primary status", func(t *testing.T) {
-		staff := testpkg.CreateTestStaff(t, db, "Update", "Test")
-		group := testpkg.CreateTestActivityGroup(t, db, "UpdateGroup")
+		staff := testpkg.CreateTestStaff(t, db, "Update", "Test", ogsID)
+		group := testpkg.CreateTestActivityGroup(t, db, "UpdateGroup", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID, 0, group.CategoryID, 0)
 		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
 
@@ -171,13 +174,14 @@ func TestSupervisorPlannedRepository_Update_WithNil(t *testing.T) {
 func TestSupervisorPlannedRepository_Delete(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).ActivitySupervisor
 	ctx := context.Background()
 
 	t.Run("deletes existing supervisor", func(t *testing.T) {
-		staff := testpkg.CreateTestStaff(t, db, "Delete", "Test")
-		group := testpkg.CreateTestActivityGroup(t, db, "DeleteGroup")
+		staff := testpkg.CreateTestStaff(t, db, "Delete", "Test", ogsID)
+		group := testpkg.CreateTestActivityGroup(t, db, "DeleteGroup", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID, 0, group.CategoryID, 0)
 		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
 
@@ -199,13 +203,14 @@ func TestSupervisorPlannedRepository_List(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).ActivitySupervisor
 	ctx := context.Background()
 
 	t.Run("lists all supervisors", func(t *testing.T) {
-		staff := testpkg.CreateTestStaff(t, db, "List", "Test")
-		group := testpkg.CreateTestActivityGroup(t, db, "ListGroup")
+		staff := testpkg.CreateTestStaff(t, db, "List", "Test", ogsID)
+		group := testpkg.CreateTestActivityGroup(t, db, "ListGroup", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID, 0, group.CategoryID, 0)
 		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
 
@@ -223,14 +228,15 @@ func TestSupervisorPlannedRepository_FindByStaffID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).ActivitySupervisor
 	ctx := context.Background()
 
 	t.Run("finds supervisors by staff ID", func(t *testing.T) {
-		staff := testpkg.CreateTestStaff(t, db, "Staff", "MultiGroup")
-		group1 := testpkg.CreateTestActivityGroup(t, db, "Group1")
-		group2 := testpkg.CreateTestActivityGroup(t, db, "Group2")
+		staff := testpkg.CreateTestStaff(t, db, "Staff", "MultiGroup", ogsID)
+		group1 := testpkg.CreateTestActivityGroup(t, db, "Group1", ogsID)
+		group2 := testpkg.CreateTestActivityGroup(t, db, "Group2", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID, 0, group1.CategoryID, 0)
 		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, group2.CategoryID, 0)
 		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group1.ID, group2.ID)
@@ -254,7 +260,7 @@ func TestSupervisorPlannedRepository_FindByStaffID(t *testing.T) {
 	})
 
 	t.Run("returns empty for staff with no groups", func(t *testing.T) {
-		staff := testpkg.CreateTestStaff(t, db, "NoGroups", "Staff")
+		staff := testpkg.CreateTestStaff(t, db, "NoGroups", "Staff", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID, 0, 0, 0)
 
 		supervisors, err := repo.FindByStaffID(ctx, staff.ID)
@@ -266,14 +272,15 @@ func TestSupervisorPlannedRepository_FindByStaffID(t *testing.T) {
 func TestSupervisorPlannedRepository_FindByGroupID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).ActivitySupervisor
 	ctx := context.Background()
 
 	t.Run("finds supervisors by group ID with loaded relations", func(t *testing.T) {
-		staff1 := testpkg.CreateTestStaff(t, db, "Staff", "One")
-		staff2 := testpkg.CreateTestStaff(t, db, "Staff", "Two")
-		group := testpkg.CreateTestActivityGroup(t, db, "MultiSupervisor")
+		staff1 := testpkg.CreateTestStaff(t, db, "Staff", "One", ogsID)
+		staff2 := testpkg.CreateTestStaff(t, db, "Staff", "Two", ogsID)
+		group := testpkg.CreateTestActivityGroup(t, db, "MultiSupervisor", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, 0, staff1.ID, 0, group.CategoryID, 0)
 		defer testpkg.CleanupActivityFixtures(t, db, 0, staff2.ID, 0, 0, 0)
 		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
@@ -308,7 +315,7 @@ func TestSupervisorPlannedRepository_FindByGroupID(t *testing.T) {
 	})
 
 	t.Run("returns empty for group with no supervisors", func(t *testing.T) {
-		group := testpkg.CreateTestActivityGroup(t, db, "NoSupervisors")
+		group := testpkg.CreateTestActivityGroup(t, db, "NoSupervisors", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, group.CategoryID, 0)
 		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
 
@@ -321,15 +328,16 @@ func TestSupervisorPlannedRepository_FindByGroupID(t *testing.T) {
 func TestSupervisorPlannedRepository_FindByGroupIDs(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).ActivitySupervisor
 	ctx := context.Background()
 
 	t.Run("finds supervisors for multiple groups", func(t *testing.T) {
-		staff1 := testpkg.CreateTestStaff(t, db, "Multi1", "Staff")
-		staff2 := testpkg.CreateTestStaff(t, db, "Multi2", "Staff")
-		group1 := testpkg.CreateTestActivityGroup(t, db, "MultiGroup1")
-		group2 := testpkg.CreateTestActivityGroup(t, db, "MultiGroup2")
+		staff1 := testpkg.CreateTestStaff(t, db, "Multi1", "Staff", ogsID)
+		staff2 := testpkg.CreateTestStaff(t, db, "Multi2", "Staff", ogsID)
+		group1 := testpkg.CreateTestActivityGroup(t, db, "MultiGroup1", ogsID)
+		group2 := testpkg.CreateTestActivityGroup(t, db, "MultiGroup2", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, 0, staff1.ID, 0, group1.CategoryID, 0)
 		defer testpkg.CleanupActivityFixtures(t, db, 0, staff2.ID, 0, group2.CategoryID, 0)
 		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group1.ID, group2.ID)
@@ -373,14 +381,15 @@ func TestSupervisorPlannedRepository_FindByGroupIDs(t *testing.T) {
 func TestSupervisorPlannedRepository_FindPrimaryByGroupID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).ActivitySupervisor
 	ctx := context.Background()
 
 	t.Run("finds primary supervisor for a group", func(t *testing.T) {
-		staff1 := testpkg.CreateTestStaff(t, db, "Primary", "Supervisor")
-		staff2 := testpkg.CreateTestStaff(t, db, "Secondary", "Supervisor")
-		group := testpkg.CreateTestActivityGroup(t, db, "PrimarySupervisor")
+		staff1 := testpkg.CreateTestStaff(t, db, "Primary", "Supervisor", ogsID)
+		staff2 := testpkg.CreateTestStaff(t, db, "Secondary", "Supervisor", ogsID)
+		group := testpkg.CreateTestActivityGroup(t, db, "PrimarySupervisor", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, 0, staff1.ID, 0, group.CategoryID, 0)
 		defer testpkg.CleanupActivityFixtures(t, db, 0, staff2.ID, 0, 0, 0)
 		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
@@ -401,8 +410,8 @@ func TestSupervisorPlannedRepository_FindPrimaryByGroupID(t *testing.T) {
 	})
 
 	t.Run("returns error when no primary supervisor exists", func(t *testing.T) {
-		staff := testpkg.CreateTestStaff(t, db, "NoPrimary", "Staff")
-		group := testpkg.CreateTestActivityGroup(t, db, "NoPrimaryGroup")
+		staff := testpkg.CreateTestStaff(t, db, "NoPrimary", "Staff", ogsID)
+		group := testpkg.CreateTestActivityGroup(t, db, "NoPrimaryGroup", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID, 0, group.CategoryID, 0)
 		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
 
@@ -417,13 +426,14 @@ func TestSupervisorPlannedRepository_FindPrimaryByGroupID(t *testing.T) {
 func TestSupervisorPlannedRepository_SetPrimary(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).ActivitySupervisor
 	ctx := context.Background()
 
 	t.Run("sets supervisor as primary", func(t *testing.T) {
-		staff := testpkg.CreateTestStaff(t, db, "SetPrimary", "Test")
-		group := testpkg.CreateTestActivityGroup(t, db, "SetPrimaryGroup")
+		staff := testpkg.CreateTestStaff(t, db, "SetPrimary", "Test", ogsID)
+		group := testpkg.CreateTestActivityGroup(t, db, "SetPrimaryGroup", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID, 0, group.CategoryID, 0)
 		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
 

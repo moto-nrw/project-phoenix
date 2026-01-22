@@ -20,12 +20,13 @@ import (
 func TestEntryRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).FeedbackEntry
 	ctx := context.Background()
 
 	// Create a test student for FK
-	student := testpkg.CreateTestStudent(t, db, "Feedback", "Student", "1a")
+	student := testpkg.CreateTestStudent(t, db, "Feedback", "Student", "1a", ogsID)
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 	t.Run("creates entry with valid data", func(t *testing.T) {
@@ -85,11 +86,12 @@ func TestEntryRepository_Create(t *testing.T) {
 func TestEntryRepository_FindByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).FeedbackEntry
 	ctx := context.Background()
 
-	student := testpkg.CreateTestStudent(t, db, "Find", "Student", "2a")
+	student := testpkg.CreateTestStudent(t, db, "Find", "Student", "2a", ogsID)
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 	t.Run("finds existing entry", func(t *testing.T) {
@@ -120,11 +122,12 @@ func TestEntryRepository_FindByID(t *testing.T) {
 func TestEntryRepository_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).FeedbackEntry
 	ctx := context.Background()
 
-	student := testpkg.CreateTestStudent(t, db, "Update", "Student", "3a")
+	student := testpkg.CreateTestStudent(t, db, "Update", "Student", "3a", ogsID)
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 	t.Run("updates entry", func(t *testing.T) {
@@ -152,11 +155,12 @@ func TestEntryRepository_Update(t *testing.T) {
 func TestEntryRepository_Delete(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).FeedbackEntry
 	ctx := context.Background()
 
-	student := testpkg.CreateTestStudent(t, db, "Delete", "Student", "4a")
+	student := testpkg.CreateTestStudent(t, db, "Delete", "Student", "4a", ogsID)
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 	t.Run("deletes existing entry", func(t *testing.T) {
@@ -187,12 +191,13 @@ func TestEntryRepository_Delete(t *testing.T) {
 func TestEntryRepository_FindByStudentID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).FeedbackEntry
 	ctx := context.Background()
 
-	student1 := testpkg.CreateTestStudent(t, db, "Student", "One", "5a")
-	student2 := testpkg.CreateTestStudent(t, db, "Student", "Two", "5b")
+	student1 := testpkg.CreateTestStudent(t, db, "Student", "One", "5a", ogsID)
+	student2 := testpkg.CreateTestStudent(t, db, "Student", "Two", "5b", ogsID)
 	defer testpkg.CleanupActivityFixtures(t, db, student1.ID, student2.ID)
 
 	t.Run("finds entries by student ID", func(t *testing.T) {
@@ -237,11 +242,12 @@ func TestEntryRepository_FindByStudentID(t *testing.T) {
 func TestEntryRepository_FindByDay(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).FeedbackEntry
 	ctx := context.Background()
 
-	student := testpkg.CreateTestStudent(t, db, "Day", "Student", "6a")
+	student := testpkg.CreateTestStudent(t, db, "Day", "Student", "6a", ogsID)
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 	t.Run("finds entries by day", func(t *testing.T) {
@@ -284,11 +290,12 @@ func TestEntryRepository_FindByDay(t *testing.T) {
 func TestEntryRepository_FindByDateRange(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).FeedbackEntry
 	ctx := context.Background()
 
-	student := testpkg.CreateTestStudent(t, db, "Range", "Student", "7a")
+	student := testpkg.CreateTestStudent(t, db, "Range", "Student", "7a", ogsID)
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 	t.Run("finds entries in date range", func(t *testing.T) {
@@ -324,11 +331,12 @@ func TestEntryRepository_FindByDateRange(t *testing.T) {
 func TestEntryRepository_FindMensaFeedback(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).FeedbackEntry
 	ctx := context.Background()
 
-	student := testpkg.CreateTestStudent(t, db, "Mensa", "Student", "8a")
+	student := testpkg.CreateTestStudent(t, db, "Mensa", "Student", "8a", ogsID)
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 	t.Run("finds mensa feedback entries", func(t *testing.T) {
@@ -375,11 +383,12 @@ func TestEntryRepository_FindMensaFeedback(t *testing.T) {
 func TestEntryRepository_FindByStudentAndDateRange(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).FeedbackEntry
 	ctx := context.Background()
 
-	student := testpkg.CreateTestStudent(t, db, "StudentRange", "Test", "9a")
+	student := testpkg.CreateTestStudent(t, db, "StudentRange", "Test", "9a", ogsID)
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 	t.Run("finds student entries in date range", func(t *testing.T) {
@@ -420,11 +429,12 @@ func TestEntryRepository_FindByStudentAndDateRange(t *testing.T) {
 func TestEntryRepository_CountByDay(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).FeedbackEntry
 	ctx := context.Background()
 
-	student := testpkg.CreateTestStudent(t, db, "Count", "Day", "10a")
+	student := testpkg.CreateTestStudent(t, db, "Count", "Day", "10a", ogsID)
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 	t.Run("counts entries by day", func(t *testing.T) {
@@ -458,11 +468,12 @@ func TestEntryRepository_CountByDay(t *testing.T) {
 func TestEntryRepository_CountByStudentID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).FeedbackEntry
 	ctx := context.Background()
 
-	student := testpkg.CreateTestStudent(t, db, "Count", "Student", "11a")
+	student := testpkg.CreateTestStudent(t, db, "Count", "Student", "11a", ogsID)
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 	t.Run("counts entries by student", func(t *testing.T) {
@@ -496,11 +507,12 @@ func TestEntryRepository_CountByStudentID(t *testing.T) {
 func TestEntryRepository_CountMensaFeedback(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).FeedbackEntry
 	ctx := context.Background()
 
-	student := testpkg.CreateTestStudent(t, db, "Count", "Mensa", "12a")
+	student := testpkg.CreateTestStudent(t, db, "Count", "Mensa", "12a", ogsID)
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 	t.Run("counts mensa feedback entries", func(t *testing.T) {
@@ -527,11 +539,12 @@ func TestEntryRepository_CountMensaFeedback(t *testing.T) {
 func TestEntryRepository_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).FeedbackEntry
 	ctx := context.Background()
 
-	student := testpkg.CreateTestStudent(t, db, "List", "Student", "13a")
+	student := testpkg.CreateTestStudent(t, db, "List", "Student", "13a", ogsID)
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 	t.Run("lists all entries", func(t *testing.T) {
@@ -696,11 +709,12 @@ func TestEntryRepository_List(t *testing.T) {
 func TestEntryRepository_Update_EdgeCases(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).FeedbackEntry
 	ctx := context.Background()
 
-	student := testpkg.CreateTestStudent(t, db, "UpdateEdge", "Student", "14a")
+	student := testpkg.CreateTestStudent(t, db, "UpdateEdge", "Student", "14a", ogsID)
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 	t.Run("update with nil entry should fail", func(t *testing.T) {
@@ -734,11 +748,12 @@ func TestEntryRepository_Update_EdgeCases(t *testing.T) {
 func TestEntryRepository_List_InvalidFilterTypes(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).FeedbackEntry
 	ctx := context.Background()
 
-	student := testpkg.CreateTestStudent(t, db, "FilterType", "Student", "15a")
+	student := testpkg.CreateTestStudent(t, db, "FilterType", "Student", "15a", ogsID)
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 	// Create entry for testing

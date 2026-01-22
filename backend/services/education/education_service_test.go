@@ -41,15 +41,16 @@ func setupEducationService(t *testing.T, db *bun.DB) educationSvc.Service {
 func TestListGroups(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupEducationService(t, db)
 	ctx := context.Background()
 
 	t.Run("successful list with name filter", func(t *testing.T) {
 		// ARRANGE: Create groups with specific names
-		group1 := testpkg.CreateTestEducationGroup(t, db, "Math")
-		group2 := testpkg.CreateTestEducationGroup(t, db, "Science")
-		group3 := testpkg.CreateTestEducationGroup(t, db, "Math") // Another Math group
+		group1 := testpkg.CreateTestEducationGroup(t, db, "Math", ogsID)
+		group2 := testpkg.CreateTestEducationGroup(t, db, "Science", ogsID)
+		group3 := testpkg.CreateTestEducationGroup(t, db, "Math", ogsID) // Another Math group
 
 		defer testpkg.CleanupActivityFixtures(t, db, group1.ID, group2.ID, group3.ID)
 
@@ -80,8 +81,8 @@ func TestListGroups(t *testing.T) {
 
 	t.Run("list with pagination", func(t *testing.T) {
 		// ARRANGE: Create a few groups
-		group1 := testpkg.CreateTestEducationGroup(t, db, "PaginationTest")
-		group2 := testpkg.CreateTestEducationGroup(t, db, "PaginationTest")
+		group1 := testpkg.CreateTestEducationGroup(t, db, "PaginationTest", ogsID)
+		group2 := testpkg.CreateTestEducationGroup(t, db, "PaginationTest", ogsID)
 
 		defer testpkg.CleanupActivityFixtures(t, db, group1.ID, group2.ID)
 
@@ -96,7 +97,7 @@ func TestListGroups(t *testing.T) {
 
 	t.Run("list with nil options returns all groups", func(t *testing.T) {
 		// ARRANGE
-		group := testpkg.CreateTestEducationGroup(t, db, "NilOptionsTest")
+		group := testpkg.CreateTestEducationGroup(t, db, "NilOptionsTest", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, group.ID)
 
 		// ACT
@@ -125,15 +126,16 @@ func TestListGroups(t *testing.T) {
 func TestListSubstitutions(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupEducationService(t, db)
 	ctx := context.Background()
 
 	t.Run("successful list substitutions", func(t *testing.T) {
 		// ARRANGE: Create required entities
-		group := testpkg.CreateTestEducationGroup(t, db, "SubstitutionListGroup")
-		regularStaff := testpkg.CreateTestStaff(t, db, "Regular", "ListStaff")
-		substituteStaff := testpkg.CreateTestStaff(t, db, "Substitute", "ListStaff")
+		group := testpkg.CreateTestEducationGroup(t, db, "SubstitutionListGroup", ogsID)
+		regularStaff := testpkg.CreateTestStaff(t, db, "Regular", "ListStaff", ogsID)
+		substituteStaff := testpkg.CreateTestStaff(t, db, "Substitute", "ListStaff", ogsID)
 
 		defer testpkg.CleanupActivityFixtures(t, db,
 			group.ID, regularStaff.ID, substituteStaff.ID)
@@ -180,16 +182,17 @@ func TestListSubstitutions(t *testing.T) {
 func TestGetGroupTeachers(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupEducationService(t, db)
 	ctx := context.Background()
 
 	t.Run("successful get teachers for group", func(t *testing.T) {
 		// ARRANGE: Create group and teachers
-		group := testpkg.CreateTestEducationGroup(t, db, "TeacherTestGroup")
-		teacher1 := testpkg.CreateTestTeacher(t, db, "Teacher", "One")
-		teacher2 := testpkg.CreateTestTeacher(t, db, "Teacher", "Two")
-		teacher3 := testpkg.CreateTestTeacher(t, db, "Teacher", "Three")
+		group := testpkg.CreateTestEducationGroup(t, db, "TeacherTestGroup", ogsID)
+		teacher1 := testpkg.CreateTestTeacher(t, db, "Teacher", "One", ogsID)
+		teacher2 := testpkg.CreateTestTeacher(t, db, "Teacher", "Two", ogsID)
+		teacher3 := testpkg.CreateTestTeacher(t, db, "Teacher", "Three", ogsID)
 
 		// Assign teachers to group
 		gt1 := testpkg.CreateTestGroupTeacher(t, db, group.ID, teacher1.ID)
@@ -225,7 +228,7 @@ func TestGetGroupTeachers(t *testing.T) {
 
 	t.Run("returns empty for group with no teachers", func(t *testing.T) {
 		// ARRANGE
-		group := testpkg.CreateTestEducationGroup(t, db, "EmptyTeacherGroup")
+		group := testpkg.CreateTestEducationGroup(t, db, "EmptyTeacherGroup", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, group.ID)
 
 		// ACT
@@ -253,15 +256,16 @@ func TestGetGroupTeachers(t *testing.T) {
 func TestCreateSubstitution_DateValidation(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupEducationService(t, db)
 	ctx := context.Background()
 
 	t.Run("accepts future date", func(t *testing.T) {
 		// ARRANGE
-		group := testpkg.CreateTestEducationGroup(t, db, "FutureSubGroup")
-		regularStaff := testpkg.CreateTestStaff(t, db, "FutureReg", "Staff")
-		substituteStaff := testpkg.CreateTestStaff(t, db, "FutureSub", "Staff")
+		group := testpkg.CreateTestEducationGroup(t, db, "FutureSubGroup", ogsID)
+		regularStaff := testpkg.CreateTestStaff(t, db, "FutureReg", "Staff", ogsID)
+		substituteStaff := testpkg.CreateTestStaff(t, db, "FutureSub", "Staff", ogsID)
 
 		defer testpkg.CleanupActivityFixtures(t, db,
 			group.ID, regularStaff.ID, substituteStaff.ID)
@@ -288,9 +292,9 @@ func TestCreateSubstitution_DateValidation(t *testing.T) {
 
 	t.Run("rejects past date", func(t *testing.T) {
 		// ARRANGE
-		group := testpkg.CreateTestEducationGroup(t, db, "PastSubGroup")
-		regularStaff := testpkg.CreateTestStaff(t, db, "PastReg", "Staff")
-		substituteStaff := testpkg.CreateTestStaff(t, db, "PastSub", "Staff")
+		group := testpkg.CreateTestEducationGroup(t, db, "PastSubGroup", ogsID)
+		regularStaff := testpkg.CreateTestStaff(t, db, "PastReg", "Staff", ogsID)
+		substituteStaff := testpkg.CreateTestStaff(t, db, "PastSub", "Staff", ogsID)
 
 		defer testpkg.CleanupActivityFixtures(t, db,
 			group.ID, regularStaff.ID, substituteStaff.ID)
@@ -317,9 +321,9 @@ func TestCreateSubstitution_DateValidation(t *testing.T) {
 
 	t.Run("accepts today's date", func(t *testing.T) {
 		// ARRANGE
-		group := testpkg.CreateTestEducationGroup(t, db, "TodaySubGroup")
-		regularStaff := testpkg.CreateTestStaff(t, db, "TodayReg", "Staff")
-		substituteStaff := testpkg.CreateTestStaff(t, db, "TodaySub", "Staff")
+		group := testpkg.CreateTestEducationGroup(t, db, "TodaySubGroup", ogsID)
+		regularStaff := testpkg.CreateTestStaff(t, db, "TodayReg", "Staff", ogsID)
+		substituteStaff := testpkg.CreateTestStaff(t, db, "TodaySub", "Staff", ogsID)
 
 		defer testpkg.CleanupActivityFixtures(t, db,
 			group.ID, regularStaff.ID, substituteStaff.ID)
@@ -346,8 +350,8 @@ func TestCreateSubstitution_DateValidation(t *testing.T) {
 
 	t.Run("allows substitution without regular staff", func(t *testing.T) {
 		// ARRANGE
-		group := testpkg.CreateTestEducationGroup(t, db, "NoRegularStaffGroup")
-		substituteStaff := testpkg.CreateTestStaff(t, db, "OnlySub", "Staff")
+		group := testpkg.CreateTestEducationGroup(t, db, "NoRegularStaffGroup", ogsID)
+		substituteStaff := testpkg.CreateTestStaff(t, db, "OnlySub", "Staff", ogsID)
 
 		defer testpkg.CleanupActivityFixtures(t, db,
 			group.ID, substituteStaff.ID)
@@ -380,15 +384,16 @@ func TestCreateSubstitution_DateValidation(t *testing.T) {
 func TestUpdateSubstitution_DateValidation(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupEducationService(t, db)
 	ctx := context.Background()
 
 	t.Run("accepts future date update", func(t *testing.T) {
 		// ARRANGE
-		group := testpkg.CreateTestEducationGroup(t, db, "UpdateFutureGroup")
-		regularStaff := testpkg.CreateTestStaff(t, db, "UpdateFutureReg", "Staff")
-		substituteStaff := testpkg.CreateTestStaff(t, db, "UpdateFutureSub", "Staff")
+		group := testpkg.CreateTestEducationGroup(t, db, "UpdateFutureGroup", ogsID)
+		regularStaff := testpkg.CreateTestStaff(t, db, "UpdateFutureReg", "Staff", ogsID)
+		substituteStaff := testpkg.CreateTestStaff(t, db, "UpdateFutureSub", "Staff", ogsID)
 
 		defer testpkg.CleanupActivityFixtures(t, db,
 			group.ID, regularStaff.ID, substituteStaff.ID)
@@ -424,9 +429,9 @@ func TestUpdateSubstitution_DateValidation(t *testing.T) {
 
 	t.Run("rejects backdated update", func(t *testing.T) {
 		// ARRANGE
-		group := testpkg.CreateTestEducationGroup(t, db, "BackdateUpdateGroup")
-		regularStaff := testpkg.CreateTestStaff(t, db, "BackdateReg", "Staff")
-		substituteStaff := testpkg.CreateTestStaff(t, db, "BackdateSub", "Staff")
+		group := testpkg.CreateTestEducationGroup(t, db, "BackdateUpdateGroup", ogsID)
+		regularStaff := testpkg.CreateTestStaff(t, db, "BackdateReg", "Staff", ogsID)
+		substituteStaff := testpkg.CreateTestStaff(t, db, "BackdateSub", "Staff", ogsID)
 
 		defer testpkg.CleanupActivityFixtures(t, db,
 			group.ID, regularStaff.ID, substituteStaff.ID)
@@ -458,9 +463,9 @@ func TestUpdateSubstitution_DateValidation(t *testing.T) {
 
 	t.Run("accepts today's date for update", func(t *testing.T) {
 		// ARRANGE
-		group := testpkg.CreateTestEducationGroup(t, db, "TodayUpdateGroup")
-		regularStaff := testpkg.CreateTestStaff(t, db, "TodayUpdateReg", "Staff")
-		substituteStaff := testpkg.CreateTestStaff(t, db, "TodayUpdateSub", "Staff")
+		group := testpkg.CreateTestEducationGroup(t, db, "TodayUpdateGroup", ogsID)
+		regularStaff := testpkg.CreateTestStaff(t, db, "TodayUpdateReg", "Staff", ogsID)
+		substituteStaff := testpkg.CreateTestStaff(t, db, "TodayUpdateSub", "Staff", ogsID)
 
 		defer testpkg.CleanupActivityFixtures(t, db,
 			group.ID, regularStaff.ID, substituteStaff.ID)
@@ -501,6 +506,7 @@ func TestUpdateSubstitution_DateValidation(t *testing.T) {
 func TestGroupOperations(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupEducationService(t, db)
 	ctx := context.Background()
@@ -529,8 +535,8 @@ func TestGroupOperations(t *testing.T) {
 
 	t.Run("assign room to group", func(t *testing.T) {
 		// ARRANGE
-		group := testpkg.CreateTestEducationGroup(t, db, "RoomAssignGroup")
-		room := testpkg.CreateTestRoom(t, db, "TestRoom")
+		group := testpkg.CreateTestEducationGroup(t, db, "RoomAssignGroup", ogsID)
+		room := testpkg.CreateTestRoom(t, db, "TestRoom", ogsID)
 
 		defer testpkg.CleanupActivityFixtures(t, db, group.ID, room.ID)
 
@@ -549,8 +555,8 @@ func TestGroupOperations(t *testing.T) {
 
 	t.Run("remove room from group", func(t *testing.T) {
 		// ARRANGE
-		group := testpkg.CreateTestEducationGroup(t, db, "RoomRemoveGroup")
-		room := testpkg.CreateTestRoom(t, db, "RoomToRemove")
+		group := testpkg.CreateTestEducationGroup(t, db, "RoomRemoveGroup", ogsID)
+		room := testpkg.CreateTestRoom(t, db, "RoomToRemove", ogsID)
 
 		defer testpkg.CleanupActivityFixtures(t, db, group.ID, room.ID)
 
@@ -578,14 +584,15 @@ func TestGroupOperations(t *testing.T) {
 func TestTeacherGroupOperations(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupEducationService(t, db)
 	ctx := context.Background()
 
 	t.Run("add teacher to group via service", func(t *testing.T) {
 		// ARRANGE
-		group := testpkg.CreateTestEducationGroup(t, db, "AddTeacherGroup")
-		teacher := testpkg.CreateTestTeacher(t, db, "ServiceAdd", "Teacher")
+		group := testpkg.CreateTestEducationGroup(t, db, "AddTeacherGroup", ogsID)
+		teacher := testpkg.CreateTestTeacher(t, db, "ServiceAdd", "Teacher", ogsID)
 
 		defer testpkg.CleanupActivityFixtures(t, db,
 			group.ID, teacher.ID, teacher.Staff.ID)
@@ -605,8 +612,8 @@ func TestTeacherGroupOperations(t *testing.T) {
 
 	t.Run("remove teacher from group", func(t *testing.T) {
 		// ARRANGE
-		group := testpkg.CreateTestEducationGroup(t, db, "RemoveTeacherGroup")
-		teacher := testpkg.CreateTestTeacher(t, db, "RemoveThis", "Teacher")
+		group := testpkg.CreateTestEducationGroup(t, db, "RemoveTeacherGroup", ogsID)
+		teacher := testpkg.CreateTestTeacher(t, db, "RemoveThis", "Teacher", ogsID)
 
 		defer testpkg.CleanupActivityFixtures(t, db,
 			group.ID, teacher.ID, teacher.Staff.ID)
@@ -629,8 +636,8 @@ func TestTeacherGroupOperations(t *testing.T) {
 
 	t.Run("prevents duplicate teacher assignment", func(t *testing.T) {
 		// ARRANGE
-		group := testpkg.CreateTestEducationGroup(t, db, "DuplicateTeacherGroup")
-		teacher := testpkg.CreateTestTeacher(t, db, "Duplicate", "Teacher")
+		group := testpkg.CreateTestEducationGroup(t, db, "DuplicateTeacherGroup", ogsID)
+		teacher := testpkg.CreateTestTeacher(t, db, "Duplicate", "Teacher", ogsID)
 
 		defer testpkg.CleanupActivityFixtures(t, db,
 			group.ID, teacher.ID, teacher.Staff.ID)
@@ -649,9 +656,9 @@ func TestTeacherGroupOperations(t *testing.T) {
 
 	t.Run("get teacher groups", func(t *testing.T) {
 		// ARRANGE
-		group1 := testpkg.CreateTestEducationGroup(t, db, "TeacherGroup1")
-		group2 := testpkg.CreateTestEducationGroup(t, db, "TeacherGroup2")
-		teacher := testpkg.CreateTestTeacher(t, db, "MultiGroup", "Teacher")
+		group1 := testpkg.CreateTestEducationGroup(t, db, "TeacherGroup1", ogsID)
+		group2 := testpkg.CreateTestEducationGroup(t, db, "TeacherGroup2", ogsID)
+		teacher := testpkg.CreateTestTeacher(t, db, "MultiGroup", "Teacher", ogsID)
 
 		defer testpkg.CleanupActivityFixtures(t, db,
 			group1.ID, group2.ID, teacher.ID, teacher.Staff.ID)
@@ -685,13 +692,14 @@ func TestTeacherGroupOperations(t *testing.T) {
 func TestEducationService_UpdateGroup(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupEducationService(t, db)
 	ctx := context.Background()
 
 	t.Run("updates group successfully", func(t *testing.T) {
 		// ARRANGE
-		group := testpkg.CreateTestEducationGroup(t, db, "OriginalName")
+		group := testpkg.CreateTestEducationGroup(t, db, "OriginalName", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, group.ID)
 
 		// Use a unique name to avoid conflicts with other test data
@@ -712,8 +720,8 @@ func TestEducationService_UpdateGroup(t *testing.T) {
 
 	t.Run("rejects update with duplicate name", func(t *testing.T) {
 		// ARRANGE
-		group1 := testpkg.CreateTestEducationGroup(t, db, "ExistingName")
-		group2 := testpkg.CreateTestEducationGroup(t, db, "ToBeRenamed")
+		group1 := testpkg.CreateTestEducationGroup(t, db, "ExistingName", ogsID)
+		group2 := testpkg.CreateTestEducationGroup(t, db, "ToBeRenamed", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, group1.ID, group2.ID)
 
 		// Use the actual unique name from group1 (fixtures add timestamps)
@@ -729,8 +737,8 @@ func TestEducationService_UpdateGroup(t *testing.T) {
 
 	t.Run("updates group with room change", func(t *testing.T) {
 		// ARRANGE
-		group := testpkg.CreateTestEducationGroup(t, db, "RoomChangeGroup")
-		room := testpkg.CreateTestRoom(t, db, "NewRoom")
+		group := testpkg.CreateTestEducationGroup(t, db, "RoomChangeGroup", ogsID)
+		room := testpkg.CreateTestRoom(t, db, "NewRoom", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, group.ID, room.ID)
 
 		group.RoomID = &room.ID
@@ -758,13 +766,14 @@ func TestEducationService_UpdateGroup(t *testing.T) {
 func TestEducationService_DeleteGroup(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupEducationService(t, db)
 	ctx := context.Background()
 
 	t.Run("deletes group successfully", func(t *testing.T) {
 		// ARRANGE
-		group := testpkg.CreateTestEducationGroup(t, db, "ToDelete")
+		group := testpkg.CreateTestEducationGroup(t, db, "ToDelete", ogsID)
 
 		// ACT
 		err := service.DeleteGroup(ctx, group.ID)
@@ -779,8 +788,8 @@ func TestEducationService_DeleteGroup(t *testing.T) {
 
 	t.Run("deletes group with teacher relations", func(t *testing.T) {
 		// ARRANGE
-		group := testpkg.CreateTestEducationGroup(t, db, "GroupWithTeacher")
-		teacher := testpkg.CreateTestTeacher(t, db, "GroupDelete", "Teacher")
+		group := testpkg.CreateTestEducationGroup(t, db, "GroupWithTeacher", ogsID)
+		teacher := testpkg.CreateTestTeacher(t, db, "GroupDelete", "Teacher", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, teacher.ID, teacher.Staff.ID)
 
 		_ = service.AddTeacherToGroup(ctx, group.ID, teacher.ID)
@@ -804,14 +813,15 @@ func TestEducationService_DeleteGroup(t *testing.T) {
 func TestEducationService_GetGroupsByIDs(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupEducationService(t, db)
 	ctx := context.Background()
 
 	t.Run("retrieves multiple groups by IDs", func(t *testing.T) {
 		// ARRANGE
-		group1 := testpkg.CreateTestEducationGroup(t, db, "GroupByID1")
-		group2 := testpkg.CreateTestEducationGroup(t, db, "GroupByID2")
+		group1 := testpkg.CreateTestEducationGroup(t, db, "GroupByID1", ogsID)
+		group2 := testpkg.CreateTestEducationGroup(t, db, "GroupByID2", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, group1.ID, group2.ID)
 
 		// ACT
@@ -837,13 +847,14 @@ func TestEducationService_GetGroupsByIDs(t *testing.T) {
 func TestEducationService_FindGroupByName(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupEducationService(t, db)
 	ctx := context.Background()
 
 	t.Run("finds group by name", func(t *testing.T) {
 		// ARRANGE
-		group := testpkg.CreateTestEducationGroup(t, db, "FindByNameTest")
+		group := testpkg.CreateTestEducationGroup(t, db, "FindByNameTest", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, group.ID)
 
 		// ACT - use actual unique name from fixture (fixtures add timestamps)
@@ -867,14 +878,15 @@ func TestEducationService_FindGroupByName(t *testing.T) {
 func TestEducationService_FindGroupsByRoom(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupEducationService(t, db)
 	ctx := context.Background()
 
 	t.Run("finds groups by room", func(t *testing.T) {
 		// ARRANGE
-		room := testpkg.CreateTestRoom(t, db, "RoomForGroups")
-		group := testpkg.CreateTestEducationGroup(t, db, "GroupInRoom")
+		room := testpkg.CreateTestRoom(t, db, "RoomForGroups", ogsID)
+		group := testpkg.CreateTestEducationGroup(t, db, "GroupInRoom", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, group.ID, room.ID)
 
 		// Assign room to group
@@ -900,15 +912,16 @@ func TestEducationService_FindGroupsByRoom(t *testing.T) {
 func TestEducationService_UpdateGroupTeachers(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupEducationService(t, db)
 	ctx := context.Background()
 
 	t.Run("updates group teachers", func(t *testing.T) {
 		// ARRANGE
-		group := testpkg.CreateTestEducationGroup(t, db, "UpdateTeachersGroup")
-		teacher1 := testpkg.CreateTestTeacher(t, db, "Update", "Teacher1")
-		teacher2 := testpkg.CreateTestTeacher(t, db, "Update", "Teacher2")
+		group := testpkg.CreateTestEducationGroup(t, db, "UpdateTeachersGroup", ogsID)
+		teacher1 := testpkg.CreateTestTeacher(t, db, "Update", "Teacher1", ogsID)
+		teacher2 := testpkg.CreateTestTeacher(t, db, "Update", "Teacher2", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, group.ID, teacher1.ID, teacher2.ID,
 			teacher1.Staff.ID, teacher2.Staff.ID)
 
@@ -926,9 +939,9 @@ func TestEducationService_UpdateGroupTeachers(t *testing.T) {
 
 	t.Run("removes teachers not in new list", func(t *testing.T) {
 		// ARRANGE
-		group := testpkg.CreateTestEducationGroup(t, db, "RemoveTeachersGroup")
-		teacher1 := testpkg.CreateTestTeacher(t, db, "Keep", "Teacher")
-		teacher2 := testpkg.CreateTestTeacher(t, db, "Remove", "Teacher")
+		group := testpkg.CreateTestEducationGroup(t, db, "RemoveTeachersGroup", ogsID)
+		teacher1 := testpkg.CreateTestTeacher(t, db, "Keep", "Teacher", ogsID)
+		teacher2 := testpkg.CreateTestTeacher(t, db, "Remove", "Teacher", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, group.ID, teacher1.ID, teacher2.ID,
 			teacher1.Staff.ID, teacher2.Staff.ID)
 
@@ -960,14 +973,15 @@ func TestEducationService_UpdateGroupTeachers(t *testing.T) {
 func TestEducationService_DeleteSubstitution(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupEducationService(t, db)
 	ctx := context.Background()
 
 	t.Run("deletes substitution successfully", func(t *testing.T) {
 		// ARRANGE
-		group := testpkg.CreateTestEducationGroup(t, db, "SubDeleteGroup")
-		staff := testpkg.CreateTestStaff(t, db, "SubDelete", "Staff")
+		group := testpkg.CreateTestEducationGroup(t, db, "SubDeleteGroup", ogsID)
+		staff := testpkg.CreateTestStaff(t, db, "SubDelete", "Staff", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, group.ID, staff.ID)
 
 		today := timezone.Today()
@@ -999,7 +1013,9 @@ func TestEducationService_DeleteSubstitution(t *testing.T) {
 func TestEducationService_WithTx(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
+	_ = ogsID
 	service := setupEducationService(t, db)
 	ctx := context.Background()
 
@@ -1022,14 +1038,15 @@ func TestEducationService_WithTx(t *testing.T) {
 func TestEducationService_GetActiveSubstitutions(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupEducationService(t, db)
 	ctx := context.Background()
 
 	t.Run("retrieves active substitutions for date", func(t *testing.T) {
 		// ARRANGE
-		group := testpkg.CreateTestEducationGroup(t, db, "ActiveSubGroup")
-		staff := testpkg.CreateTestStaff(t, db, "ActiveSub", "Staff")
+		group := testpkg.CreateTestEducationGroup(t, db, "ActiveSubGroup", ogsID)
+		staff := testpkg.CreateTestStaff(t, db, "ActiveSub", "Staff", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, group.ID, staff.ID)
 
 		today := timezone.Today()
@@ -1055,14 +1072,15 @@ func TestEducationService_GetActiveSubstitutions(t *testing.T) {
 func TestEducationService_GetStaffSubstitutions(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupEducationService(t, db)
 	ctx := context.Background()
 
 	t.Run("retrieves substitutions as substitute", func(t *testing.T) {
 		// ARRANGE
-		group := testpkg.CreateTestEducationGroup(t, db, "StaffSubGroup")
-		staff := testpkg.CreateTestStaff(t, db, "StaffSub", "Staff")
+		group := testpkg.CreateTestEducationGroup(t, db, "StaffSubGroup", ogsID)
+		staff := testpkg.CreateTestStaff(t, db, "StaffSub", "Staff", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, group.ID, staff.ID)
 
 		today := timezone.Today()
@@ -1086,9 +1104,9 @@ func TestEducationService_GetStaffSubstitutions(t *testing.T) {
 
 	t.Run("retrieves substitutions as regular staff", func(t *testing.T) {
 		// ARRANGE
-		group := testpkg.CreateTestEducationGroup(t, db, "RegularStaffSubGroup")
-		regularStaff := testpkg.CreateTestStaff(t, db, "Regular", "Staff")
-		substituteStaff := testpkg.CreateTestStaff(t, db, "Substitute", "Staff2")
+		group := testpkg.CreateTestEducationGroup(t, db, "RegularStaffSubGroup", ogsID)
+		regularStaff := testpkg.CreateTestStaff(t, db, "Regular", "Staff", ogsID)
+		substituteStaff := testpkg.CreateTestStaff(t, db, "Substitute", "Staff2", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, group.ID, regularStaff.ID, substituteStaff.ID)
 
 		today := timezone.Today()
@@ -1123,13 +1141,14 @@ func TestEducationService_GetStaffSubstitutions(t *testing.T) {
 func TestEducationService_CheckSubstitutionConflicts(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupEducationService(t, db)
 	ctx := context.Background()
 
 	t.Run("detects no conflicts for available period", func(t *testing.T) {
 		// ARRANGE
-		staff := testpkg.CreateTestStaff(t, db, "ConflictCheck", "Staff")
+		staff := testpkg.CreateTestStaff(t, db, "ConflictCheck", "Staff", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
 
 		future := timezone.Today().AddDate(1, 0, 0)
@@ -1155,7 +1174,7 @@ func TestEducationService_CheckSubstitutionConflicts(t *testing.T) {
 
 	t.Run("returns error for invalid date range", func(t *testing.T) {
 		// ARRANGE
-		staff := testpkg.CreateTestStaff(t, db, "InvalidRange", "Staff")
+		staff := testpkg.CreateTestStaff(t, db, "InvalidRange", "Staff", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
 
 		future := timezone.Today().AddDate(1, 0, 0)
@@ -1171,6 +1190,7 @@ func TestEducationService_CheckSubstitutionConflicts(t *testing.T) {
 func TestEducationService_CreateGroup_EdgeCases(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupEducationService(t, db)
 	ctx := context.Background()
@@ -1205,7 +1225,7 @@ func TestEducationService_CreateGroup_EdgeCases(t *testing.T) {
 
 	t.Run("creates group with existing room", func(t *testing.T) {
 		// ARRANGE
-		room := testpkg.CreateTestRoom(t, db, "GroupCreateRoom")
+		room := testpkg.CreateTestRoom(t, db, "GroupCreateRoom", ogsID)
 		uniqueName := fmt.Sprintf("GroupWithRoom-%d", time.Now().UnixNano())
 		group := &educationModels.Group{
 			Name:   uniqueName,
@@ -1224,7 +1244,7 @@ func TestEducationService_CreateGroup_EdgeCases(t *testing.T) {
 
 	t.Run("rejects duplicate group name", func(t *testing.T) {
 		// ARRANGE
-		existingGroup := testpkg.CreateTestEducationGroup(t, db, "DuplicateTest")
+		existingGroup := testpkg.CreateTestEducationGroup(t, db, "DuplicateTest", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, existingGroup.ID)
 
 		duplicateGroup := &educationModels.Group{Name: existingGroup.Name}
@@ -1241,13 +1261,14 @@ func TestEducationService_CreateGroup_EdgeCases(t *testing.T) {
 func TestEducationService_ListGroups(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupEducationService(t, db)
 	ctx := context.Background()
 
 	t.Run("lists groups with options", func(t *testing.T) {
 		// ARRANGE
-		group := testpkg.CreateTestEducationGroup(t, db, "ListTestGroup")
+		group := testpkg.CreateTestEducationGroup(t, db, "ListTestGroup", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, group.ID)
 
 		options := base.NewQueryOptions()
@@ -1265,14 +1286,15 @@ func TestEducationService_ListGroups(t *testing.T) {
 func TestEducationService_FindGroupWithRoom(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupEducationService(t, db)
 	ctx := context.Background()
 
 	t.Run("finds group with room", func(t *testing.T) {
 		// ARRANGE
-		room := testpkg.CreateTestRoom(t, db, "FindGroupRoom")
-		group := testpkg.CreateTestEducationGroup(t, db, "FindGroupWithRoom")
+		room := testpkg.CreateTestRoom(t, db, "FindGroupRoom", ogsID)
+		group := testpkg.CreateTestEducationGroup(t, db, "FindGroupWithRoom", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, group.ID, room.ID)
 
 		_ = service.AssignRoomToGroup(ctx, group.ID, room.ID)
@@ -1298,13 +1320,14 @@ func TestEducationService_FindGroupWithRoom(t *testing.T) {
 func TestEducationService_AssignRoomToGroup(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupEducationService(t, db)
 	ctx := context.Background()
 
 	t.Run("returns error for non-existent group", func(t *testing.T) {
 		// ARRANGE
-		room := testpkg.CreateTestRoom(t, db, "AssignRoomTest")
+		room := testpkg.CreateTestRoom(t, db, "AssignRoomTest", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, room.ID)
 
 		// ACT
@@ -1316,7 +1339,7 @@ func TestEducationService_AssignRoomToGroup(t *testing.T) {
 
 	t.Run("returns error for non-existent room", func(t *testing.T) {
 		// ARRANGE
-		group := testpkg.CreateTestEducationGroup(t, db, "AssignRoomGroup")
+		group := testpkg.CreateTestEducationGroup(t, db, "AssignRoomGroup", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, group.ID)
 
 		// ACT
@@ -1330,6 +1353,8 @@ func TestEducationService_AssignRoomToGroup(t *testing.T) {
 func TestEducationService_RemoveRoomFromGroup(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
+	_ = ogsID
 
 	service := setupEducationService(t, db)
 	ctx := context.Background()
@@ -1346,6 +1371,8 @@ func TestEducationService_RemoveRoomFromGroup(t *testing.T) {
 func TestEducationService_GetTeacherGroups(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
+	_ = ogsID
 
 	service := setupEducationService(t, db)
 	ctx := context.Background()
@@ -1362,14 +1389,15 @@ func TestEducationService_GetTeacherGroups(t *testing.T) {
 func TestEducationService_GetSubstitution(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupEducationService(t, db)
 	ctx := context.Background()
 
 	t.Run("retrieves substitution by ID", func(t *testing.T) {
 		// ARRANGE
-		group := testpkg.CreateTestEducationGroup(t, db, "GetSubGroup")
-		staff := testpkg.CreateTestStaff(t, db, "GetSub", "Staff")
+		group := testpkg.CreateTestEducationGroup(t, db, "GetSubGroup", ogsID)
+		staff := testpkg.CreateTestStaff(t, db, "GetSub", "Staff", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, group.ID, staff.ID)
 
 		today := timezone.Today()
@@ -1404,6 +1432,7 @@ func TestEducationService_GetSubstitution(t *testing.T) {
 func TestEducationService_ListSubstitutions(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupEducationService(t, db)
 	ctx := context.Background()

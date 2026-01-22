@@ -84,9 +84,14 @@ func SetupAPITest(t *testing.T) (*bun.DB, *services.Factory) {
 type RequestOption func(*http.Request)
 
 // WithPermissions adds permissions to the request context.
+// Uses tenant context key (tenant.CtxPermissions) for compatibility with
+// the authorize middleware which reads permissions from tenant context.
 func WithPermissions(permissions ...string) RequestOption {
 	return func(req *http.Request) {
-		ctx := context.WithValue(req.Context(), jwt.CtxPermissions, permissions)
+		// Set permissions in tenant context (used by authorize middleware)
+		ctx := context.WithValue(req.Context(), tenant.CtxPermissions, permissions)
+		// Also set in JWT context for backwards compatibility
+		ctx = context.WithValue(ctx, jwt.CtxPermissions, permissions)
 		*req = *req.WithContext(ctx)
 	}
 }

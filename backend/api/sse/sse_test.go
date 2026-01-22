@@ -31,6 +31,7 @@ type testContext struct {
 	repos    *repositories.Factory
 	hub      *realtime.Hub
 	resource *sseAPI.Resource
+	ogsID    string
 }
 
 // setupTestContext initializes test database, services, and resource.
@@ -38,6 +39,7 @@ func setupTestContext(t *testing.T) *testContext {
 	t.Helper()
 
 	db := testpkg.SetupTestDB(t)
+	ogsID := testpkg.SetupTestOGS(t, db)
 	repos := repositories.NewFactory(db)
 	svc, err := services.NewFactory(repos, db)
 	if err != nil {
@@ -62,6 +64,7 @@ func setupTestContext(t *testing.T) *testContext {
 		repos:    repos,
 		hub:      hub,
 		resource: resource,
+		ogsID:    ogsID,
 	}
 }
 
@@ -95,7 +98,7 @@ func TestSSEEvents_InvalidStaffEmail(t *testing.T) {
 	defer func() { _ = ctx.db.Close() }()
 
 	// Create a person without staff record (just a basic account)
-	_, account := testpkg.CreateTestPersonWithAccount(t, ctx.db, "NonStaff", "User")
+	_, account := testpkg.CreateTestPersonWithAccount(t, ctx.db, "NonStaff", "User", ctx.ogsID)
 
 	router := chi.NewRouter()
 	router.Get("/events", ctx.resource.EventsHandler())
@@ -227,7 +230,7 @@ func TestSSEEvents_StaffWithAccount(t *testing.T) {
 	defer func() { _ = ctx.db.Close() }()
 
 	// Create a teacher with account (has staff record)
-	_, account := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "SSE", "Teacher")
+	_, account := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "SSE", "Teacher", ctx.ogsID)
 
 	router := chi.NewRouter()
 	router.Get("/events", ctx.resource.EventsHandler())
@@ -263,7 +266,7 @@ func TestSSEEvents_StaffReachesStreamingPath(t *testing.T) {
 	defer func() { _ = tctx.db.Close() }()
 
 	// Create a teacher with account (has staff record)
-	_, account := testpkg.CreateTestTeacherWithAccount(t, tctx.db, "Stream", "Test")
+	_, account := testpkg.CreateTestTeacherWithAccount(t, tctx.db, "Stream", "Test", tctx.ogsID)
 
 	router := chi.NewRouter()
 	router.Get("/events", tctx.resource.EventsHandler())
@@ -304,7 +307,7 @@ func TestSSEEvents_ResponseHeaders(t *testing.T) {
 	defer func() { _ = tctx.db.Close() }()
 
 	// Create a teacher with account
-	_, account := testpkg.CreateTestTeacherWithAccount(t, tctx.db, "Header", "Test")
+	_, account := testpkg.CreateTestTeacherWithAccount(t, tctx.db, "Header", "Test", tctx.ogsID)
 
 	router := chi.NewRouter()
 	router.Get("/events", tctx.resource.EventsHandler())

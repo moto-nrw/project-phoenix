@@ -29,6 +29,7 @@ type testContext struct {
 	db       *bun.DB
 	services *services.Factory
 	resource *attendanceAPI.Resource
+	ogsID    string
 }
 
 // setupTestContext initializes test database, services, and resource.
@@ -36,6 +37,7 @@ func setupTestContext(t *testing.T) *testContext {
 	t.Helper()
 
 	db, svc := testutil.SetupAPITest(t)
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	// Create attendance resource
 	resource := attendanceAPI.NewResource(
@@ -48,6 +50,7 @@ func setupTestContext(t *testing.T) *testContext {
 		db:       db,
 		services: svc,
 		resource: resource,
+		ogsID:    ogsID,
 	}
 }
 
@@ -73,9 +76,10 @@ func TestGetAttendanceStatus_NoDevice(t *testing.T) {
 func TestGetAttendanceStatus_MissingRFID(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, ctx.db)
 
 	// Create test device
-	device := testpkg.CreateTestDevice(t, ctx.db, "attendance-test-device")
+	device := testpkg.CreateTestDevice(t, ctx.db, "attendance-test-device", ogsID)
 
 	router := chi.NewRouter()
 	router.Get("/status/{rfid}", ctx.resource.GetAttendanceStatusHandler())
@@ -95,7 +99,7 @@ func TestGetAttendanceStatus_RFIDNotFound(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	device := testpkg.CreateTestDevice(t, ctx.db, "attendance-test-device-2")
+	device := testpkg.CreateTestDevice(t, ctx.db, "attendance-test-device-2", ctx.ogsID)
 
 	router := chi.NewRouter()
 	router.Get("/status/{rfid}", ctx.resource.GetAttendanceStatusHandler())
@@ -115,8 +119,8 @@ func TestGetAttendanceStatus_Success(t *testing.T) {
 	defer func() { _ = ctx.db.Close() }()
 
 	// Create test device and student with RFID
-	testDevice := testpkg.CreateTestDevice(t, ctx.db, "attendance-test-device-3")
-	student := testpkg.CreateTestStudent(t, ctx.db, "Attendance", "Status", "1a")
+	testDevice := testpkg.CreateTestDevice(t, ctx.db, "attendance-test-device-3", ctx.ogsID)
+	student := testpkg.CreateTestStudent(t, ctx.db, "Attendance", "Status", "1a", ctx.ogsID)
 	// Create RFID card first, then link to student
 	rfidCard := testpkg.CreateTestRFIDCard(t, ctx.db, "TESTRFID001")
 	testpkg.LinkRFIDToStudent(t, ctx.db, student.PersonID, rfidCard.ID)
@@ -161,7 +165,7 @@ func TestToggleAttendance_InvalidJSON(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	testDevice := testpkg.CreateTestDevice(t, ctx.db, "toggle-test-device-1")
+	testDevice := testpkg.CreateTestDevice(t, ctx.db, "toggle-test-device-1", ctx.ogsID)
 
 	router := chi.NewRouter()
 	router.Post("/toggle", ctx.resource.ToggleAttendanceHandler())
@@ -182,7 +186,7 @@ func TestToggleAttendance_MissingRFID(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	device := testpkg.CreateTestDevice(t, ctx.db, "toggle-test-device-2")
+	device := testpkg.CreateTestDevice(t, ctx.db, "toggle-test-device-2", ctx.ogsID)
 
 	router := chi.NewRouter()
 	router.Post("/toggle", ctx.resource.ToggleAttendanceHandler())
@@ -204,7 +208,7 @@ func TestToggleAttendance_Cancel(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	testDevice := testpkg.CreateTestDevice(t, ctx.db, "toggle-test-device-3")
+	testDevice := testpkg.CreateTestDevice(t, ctx.db, "toggle-test-device-3", ctx.ogsID)
 
 	router := chi.NewRouter()
 	router.Post("/toggle", ctx.resource.ToggleAttendanceHandler())
@@ -228,7 +232,7 @@ func TestToggleAttendance_RFIDNotFound(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	device := testpkg.CreateTestDevice(t, ctx.db, "toggle-test-device-4")
+	device := testpkg.CreateTestDevice(t, ctx.db, "toggle-test-device-4", ctx.ogsID)
 
 	router := chi.NewRouter()
 	router.Post("/toggle", ctx.resource.ToggleAttendanceHandler())
@@ -251,7 +255,7 @@ func TestToggleAttendance_ConfirmDailyCheckoutMissingDestination(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	testDevice := testpkg.CreateTestDevice(t, ctx.db, "toggle-test-device-5")
+	testDevice := testpkg.CreateTestDevice(t, ctx.db, "toggle-test-device-5", ctx.ogsID)
 
 	router := chi.NewRouter()
 	router.Post("/toggle", ctx.resource.ToggleAttendanceHandler())
@@ -276,7 +280,7 @@ func TestToggleAttendance_ConfirmDailyCheckoutInvalidDestination(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	testDevice := testpkg.CreateTestDevice(t, ctx.db, "toggle-test-device-6")
+	testDevice := testpkg.CreateTestDevice(t, ctx.db, "toggle-test-device-6", ctx.ogsID)
 
 	router := chi.NewRouter()
 	router.Post("/toggle", ctx.resource.ToggleAttendanceHandler())
@@ -302,7 +306,7 @@ func TestToggleAttendance_ConfirmDailyCheckoutEmptyDestination(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	testDevice := testpkg.CreateTestDevice(t, ctx.db, "toggle-test-device-7")
+	testDevice := testpkg.CreateTestDevice(t, ctx.db, "toggle-test-device-7", ctx.ogsID)
 
 	router := chi.NewRouter()
 	router.Post("/toggle", ctx.resource.ToggleAttendanceHandler())
@@ -328,7 +332,7 @@ func TestToggleAttendance_DailyCheckoutRFIDNotFound(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	testDevice := testpkg.CreateTestDevice(t, ctx.db, "toggle-test-device-8")
+	testDevice := testpkg.CreateTestDevice(t, ctx.db, "toggle-test-device-8", ctx.ogsID)
 
 	router := chi.NewRouter()
 	router.Post("/toggle", ctx.resource.ToggleAttendanceHandler())
@@ -354,7 +358,7 @@ func TestToggleAttendance_NormalToggleRFIDNotAssigned(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	testDevice := testpkg.CreateTestDevice(t, ctx.db, "toggle-test-device-9")
+	testDevice := testpkg.CreateTestDevice(t, ctx.db, "toggle-test-device-9", ctx.ogsID)
 
 	router := chi.NewRouter()
 	router.Post("/toggle", ctx.resource.ToggleAttendanceHandler())
@@ -379,13 +383,13 @@ func TestGetAttendanceStatus_StudentWithGroup(t *testing.T) {
 	defer func() { _ = ctx.db.Close() }()
 
 	// Create test device and student with RFID and group
-	testDevice := testpkg.CreateTestDevice(t, ctx.db, "attendance-test-device-4")
+	testDevice := testpkg.CreateTestDevice(t, ctx.db, "attendance-test-device-4", ctx.ogsID)
 
 	// Create an education group first
-	group := testpkg.CreateTestEducationGroup(t, ctx.db, "Test Class 1a")
+	group := testpkg.CreateTestEducationGroup(t, ctx.db, "Test Class 1a", ctx.ogsID)
 
 	// Create student first
-	student := testpkg.CreateTestStudent(t, ctx.db, "GroupTest", "Student", "1a")
+	student := testpkg.CreateTestStudent(t, ctx.db, "GroupTest", "Student", "1a", ctx.ogsID)
 
 	// Assign the group to the student
 	_, err := ctx.db.NewUpdate().
@@ -432,7 +436,7 @@ func TestToggleAttendance_InvalidAction(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	testDevice := testpkg.CreateTestDevice(t, ctx.db, "toggle-test-device-10")
+	testDevice := testpkg.CreateTestDevice(t, ctx.db, "toggle-test-device-10", ctx.ogsID)
 
 	router := chi.NewRouter()
 	router.Post("/toggle", ctx.resource.ToggleAttendanceHandler())
@@ -457,8 +461,8 @@ func TestToggleAttendance_DailyCheckoutNoActiveVisit(t *testing.T) {
 	defer func() { _ = ctx.db.Close() }()
 
 	// Create test fixtures
-	testDevice := testpkg.CreateTestDevice(t, ctx.db, "toggle-test-device-11")
-	student := testpkg.CreateTestStudent(t, ctx.db, "NoVisit", "Student", "2a")
+	testDevice := testpkg.CreateTestDevice(t, ctx.db, "toggle-test-device-11", ctx.ogsID)
+	student := testpkg.CreateTestStudent(t, ctx.db, "NoVisit", "Student", "2a", ctx.ogsID)
 	rfidCard := testpkg.CreateTestRFIDCard(t, ctx.db, "TESTRFID_NOVISIT001")
 	testpkg.LinkRFIDToStudent(t, ctx.db, student.PersonID, rfidCard.ID)
 
@@ -490,8 +494,8 @@ func TestToggleAttendance_NormalToggleValidStudent(t *testing.T) {
 	defer func() { _ = ctx.db.Close() }()
 
 	// Create test fixtures - valid student with RFID
-	testDevice := testpkg.CreateTestDevice(t, ctx.db, "toggle-test-device-12")
-	student := testpkg.CreateTestStudent(t, ctx.db, "Toggle", "Test", "3a")
+	testDevice := testpkg.CreateTestDevice(t, ctx.db, "toggle-test-device-12", ctx.ogsID)
+	student := testpkg.CreateTestStudent(t, ctx.db, "Toggle", "Test", "3a", ctx.ogsID)
 	rfidCard := testpkg.CreateTestRFIDCard(t, ctx.db, "TESTRFID_TOGGLE001")
 	testpkg.LinkRFIDToStudent(t, ctx.db, student.PersonID, rfidCard.ID)
 
@@ -521,11 +525,11 @@ func TestToggleAttendance_NormalToggleWithStaffContext(t *testing.T) {
 	defer func() { _ = ctx.db.Close() }()
 
 	// Create test fixtures
-	testDevice := testpkg.CreateTestDevice(t, ctx.db, "toggle-test-device-13")
-	student := testpkg.CreateTestStudent(t, ctx.db, "StaffToggle", "Test", "3b")
+	testDevice := testpkg.CreateTestDevice(t, ctx.db, "toggle-test-device-13", ctx.ogsID)
+	student := testpkg.CreateTestStudent(t, ctx.db, "StaffToggle", "Test", "3b", ctx.ogsID)
 	rfidCard := testpkg.CreateTestRFIDCard(t, ctx.db, "TESTRFID_STAFF001")
 	testpkg.LinkRFIDToStudent(t, ctx.db, student.PersonID, rfidCard.ID)
-	staff := testpkg.CreateTestStaff(t, ctx.db, "TestStaff", "ForToggle")
+	staff := testpkg.CreateTestStaff(t, ctx.db, "TestStaff", "ForToggle", ctx.ogsID)
 
 	router := chi.NewRouter()
 	router.Post("/toggle", ctx.resource.ToggleAttendanceHandler())
@@ -552,8 +556,8 @@ func TestToggleAttendance_DailyCheckoutUnterwegs(t *testing.T) {
 	defer func() { _ = ctx.db.Close() }()
 
 	// Create test fixtures
-	testDevice := testpkg.CreateTestDevice(t, ctx.db, "toggle-test-device-14")
-	student := testpkg.CreateTestStudent(t, ctx.db, "Unterwegs", "Student", "2b")
+	testDevice := testpkg.CreateTestDevice(t, ctx.db, "toggle-test-device-14", ctx.ogsID)
+	student := testpkg.CreateTestStudent(t, ctx.db, "Unterwegs", "Student", "2b", ctx.ogsID)
 	rfidCard := testpkg.CreateTestRFIDCard(t, ctx.db, "TESTRFID_UNTERWEGS001")
 	testpkg.LinkRFIDToStudent(t, ctx.db, student.PersonID, rfidCard.ID)
 

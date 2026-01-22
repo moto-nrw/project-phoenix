@@ -469,7 +469,6 @@ func TestAccountPermissionRepository_DeleteByPermissionID(t *testing.T) {
 func TestAccountPermissionRepository_FindAccountPermissionsWithDetails(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
-
 	repo := repositories.NewFactory(db).AccountPermission
 	ctx := context.Background()
 

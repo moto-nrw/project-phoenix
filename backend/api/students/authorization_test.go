@@ -19,11 +19,12 @@ import (
 
 func TestStudentAuthorization_NonAdminAccess(t *testing.T) {
 	tc := setupTestContext(t)
+	ogsID := testpkg.SetupTestOGS(t, tc.db)
 
 	// Create teacher, group, and student
-	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Auth", "Teacher")
-	group := testpkg.CreateTestEducationGroup(t, tc.db, "AuthTestGroup")
-	student := testpkg.CreateTestStudent(t, tc.db, "Auth", "Student", "AT1")
+	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Auth", "Teacher", ogsID)
+	group := testpkg.CreateTestEducationGroup(t, tc.db, "AuthTestGroup", ogsID)
+	student := testpkg.CreateTestStudent(t, tc.db, "Auth", "Student", "AT1", ogsID)
 	defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID, group.ID, student.ID)
 
 	// Assign student to group
@@ -44,7 +45,7 @@ func TestStudentAuthorization_NonAdminAccess(t *testing.T) {
 
 	t.Run("staff_without_permission_cannot_update", func(t *testing.T) {
 		// Create a staff member that does not supervise the student's group
-		otherStaff, otherAccount := testpkg.CreateTestStaffWithAccount(t, tc.db, "Other", "Staff")
+		otherStaff, otherAccount := testpkg.CreateTestStaffWithAccount(t, tc.db, "Other", "Staff", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, tc.db, otherStaff.ID)
 
 		router := setupRouter(tc.resource.UpdateStudentHandler(), "id")
@@ -61,7 +62,7 @@ func TestStudentAuthorization_NonAdminAccess(t *testing.T) {
 	})
 
 	t.Run("staff_without_permission_cannot_delete", func(t *testing.T) {
-		otherStaff, otherAccount := testpkg.CreateTestStaffWithAccount(t, tc.db, "Delete", "Restricted")
+		otherStaff, otherAccount := testpkg.CreateTestStaffWithAccount(t, tc.db, "Delete", "Restricted", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, tc.db, otherStaff.ID)
 
 		router := setupRouter(tc.resource.DeleteStudentHandler(), "id")
@@ -79,10 +80,10 @@ func TestStudentAuthorization_StudentWithoutGroup(t *testing.T) {
 	tc := setupTestContext(t)
 
 	// Create student without group assignment
-	student := testpkg.CreateTestStudent(t, tc.db, "NoGroup", "Student", "NG1")
+	student := testpkg.CreateTestStudent(t, tc.db, "NoGroup", "Student", "NG1", tc.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
-	staff, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "NoGroup", "Staff")
+	staff, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "NoGroup", "Staff", tc.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, tc.db, staff.ID)
 
 	t.Run("non_admin_cannot_update_student_without_group", func(t *testing.T) {
@@ -121,7 +122,7 @@ func TestStudentResponse_FullAccess(t *testing.T) {
 	tc := setupTestContext(t)
 
 	t.Run("admin_sees_all_fields", func(t *testing.T) {
-		student := testpkg.CreateTestStudent(t, tc.db, "Full", "Access", "FA1")
+		student := testpkg.CreateTestStudent(t, tc.db, "Full", "Access", "FA1", tc.ogsID)
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		// Update student with additional fields using raw SQL - use ? placeholders
@@ -143,8 +144,8 @@ func TestStudentResponse_FullAccess(t *testing.T) {
 	})
 
 	t.Run("non_supervisor_sees_limited_fields", func(t *testing.T) {
-		student := testpkg.CreateTestStudent(t, tc.db, "Limited", "Access", "LA1")
-		staff, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "Limited", "Staff")
+		student := testpkg.CreateTestStudent(t, tc.db, "Limited", "Access", "LA1", tc.ogsID)
+		staff, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "Limited", "Staff", tc.ogsID)
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID, staff.ID)
 
 		router := setupRouter(tc.resource.GetStudentHandler(), "id")
@@ -166,9 +167,9 @@ func TestGetStudentDetail_WithGroup(t *testing.T) {
 	tc := setupTestContext(t)
 
 	// Create teacher, group, and student
-	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Detail", "Teacher")
-	group := testpkg.CreateTestEducationGroup(t, tc.db, "DetailGroup")
-	student := testpkg.CreateTestStudent(t, tc.db, "Detail", "Student", "DT1")
+	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Detail", "Teacher", tc.ogsID)
+	group := testpkg.CreateTestEducationGroup(t, tc.db, "DetailGroup", tc.ogsID)
+	student := testpkg.CreateTestStudent(t, tc.db, "Detail", "Student", "DT1", tc.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID, group.ID, student.ID)
 
 	// Assign teacher and student to group
@@ -195,7 +196,7 @@ func TestGetStudentDetail_WithGroup(t *testing.T) {
 func TestListStudents_WithTeacherAccess(t *testing.T) {
 	tc := setupTestContext(t)
 
-	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "ListTeacher", "Access")
+	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "ListTeacher", "Access", tc.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID)
 
 	router := setupRouter(tc.resource.ListStudentsHandler(), "")
@@ -210,8 +211,8 @@ func TestListStudents_WithTeacherAccess(t *testing.T) {
 func TestGetStudent_WithTeacherAccess(t *testing.T) {
 	tc := setupTestContext(t)
 
-	student := testpkg.CreateTestStudent(t, tc.db, "TeacherAccess", "Test", "TAT1")
-	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "GetTeacher", "Access")
+	student := testpkg.CreateTestStudent(t, tc.db, "TeacherAccess", "Test", "TAT1", tc.ogsID)
+	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "GetTeacher", "Access", tc.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID, teacher.ID)
 
 	router := setupRouter(tc.resource.GetStudentHandler(), "id")

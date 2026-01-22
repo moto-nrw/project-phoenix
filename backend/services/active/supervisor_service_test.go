@@ -21,16 +21,17 @@ import (
 func TestActiveService_GetGroupSupervisor(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupActiveService(t, db)
 	ctx := context.Background()
 
 	t.Run("returns supervisor when found", func(t *testing.T) {
 		// ARRANGE
-		activity := testpkg.CreateTestActivityGroup(t, db, "get-supervisor")
-		room := testpkg.CreateTestRoom(t, db, "Supervisor Room")
-		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
-		staff := testpkg.CreateTestStaff(t, db, "Get", "Supervisor")
+		activity := testpkg.CreateTestActivityGroup(t, db, "get-supervisor", ogsID)
+		room := testpkg.CreateTestRoom(t, db, "Supervisor Room", ogsID)
+		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID, ogsID)
+		staff := testpkg.CreateTestStaff(t, db, "Get", "Supervisor", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, staff.ID)
 
 		// Create supervisor
@@ -81,16 +82,17 @@ func TestActiveService_GetGroupSupervisor(t *testing.T) {
 func TestActiveService_CreateGroupSupervisor(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupActiveService(t, db)
 	ctx := context.Background()
 
 	t.Run("creates supervisor successfully", func(t *testing.T) {
 		// ARRANGE
-		activity := testpkg.CreateTestActivityGroup(t, db, "create-supervisor")
-		room := testpkg.CreateTestRoom(t, db, "Create Supervisor Room")
-		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
-		staff := testpkg.CreateTestStaff(t, db, "Create", "Supervisor")
+		activity := testpkg.CreateTestActivityGroup(t, db, "create-supervisor", ogsID)
+		room := testpkg.CreateTestRoom(t, db, "Create Supervisor Room", ogsID)
+		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID, ogsID)
+		staff := testpkg.CreateTestStaff(t, db, "Create", "Supervisor", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, staff.ID)
 
 		now := time.Now()
@@ -120,7 +122,7 @@ func TestActiveService_CreateGroupSupervisor(t *testing.T) {
 
 	t.Run("returns error for invalid group ID", func(t *testing.T) {
 		// ARRANGE
-		staff := testpkg.CreateTestStaff(t, db, "Invalid", "Group")
+		staff := testpkg.CreateTestStaff(t, db, "Invalid", "Group", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
 
 		now := time.Now()
@@ -146,16 +148,17 @@ func TestActiveService_CreateGroupSupervisor(t *testing.T) {
 func TestActiveService_UpdateGroupSupervisor(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupActiveService(t, db)
 	ctx := context.Background()
 
 	t.Run("updates supervisor successfully", func(t *testing.T) {
 		// ARRANGE
-		activity := testpkg.CreateTestActivityGroup(t, db, "update-supervisor")
-		room := testpkg.CreateTestRoom(t, db, "Update Supervisor Room")
-		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
-		staff := testpkg.CreateTestStaff(t, db, "Update", "Supervisor")
+		activity := testpkg.CreateTestActivityGroup(t, db, "update-supervisor", ogsID)
+		room := testpkg.CreateTestRoom(t, db, "Update Supervisor Room", ogsID)
+		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID, ogsID)
+		staff := testpkg.CreateTestStaff(t, db, "Update", "Supervisor", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, staff.ID)
 
 		now := time.Now()
@@ -212,16 +215,17 @@ func TestActiveService_UpdateGroupSupervisor(t *testing.T) {
 func TestActiveService_DeleteGroupSupervisor(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupActiveService(t, db)
 	ctx := context.Background()
 
 	t.Run("deletes supervisor successfully", func(t *testing.T) {
 		// ARRANGE
-		activity := testpkg.CreateTestActivityGroup(t, db, "delete-supervisor")
-		room := testpkg.CreateTestRoom(t, db, "Delete Supervisor Room")
-		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
-		staff := testpkg.CreateTestStaff(t, db, "Delete", "Supervisor")
+		activity := testpkg.CreateTestActivityGroup(t, db, "delete-supervisor", ogsID)
+		room := testpkg.CreateTestRoom(t, db, "Delete Supervisor Room", ogsID)
+		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID, ogsID)
+		staff := testpkg.CreateTestStaff(t, db, "Delete", "Supervisor", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, staff.ID)
 
 		now := time.Now()
@@ -269,16 +273,17 @@ func TestActiveService_DeleteGroupSupervisor(t *testing.T) {
 func TestActiveService_ListGroupSupervisors(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupActiveService(t, db)
 	ctx := context.Background()
 
 	t.Run("returns supervisors with no options", func(t *testing.T) {
 		// ARRANGE
-		activity := testpkg.CreateTestActivityGroup(t, db, "list-supervisors")
-		room := testpkg.CreateTestRoom(t, db, "List Supervisors Room")
-		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
-		staff := testpkg.CreateTestStaff(t, db, "List", "Supervisor")
+		activity := testpkg.CreateTestActivityGroup(t, db, "list-supervisors", ogsID)
+		room := testpkg.CreateTestRoom(t, db, "List Supervisors Room", ogsID)
+		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID, ogsID)
+		staff := testpkg.CreateTestStaff(t, db, "List", "Supervisor", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, staff.ID)
 
 		now := time.Now()
@@ -322,16 +327,17 @@ func TestActiveService_ListGroupSupervisors(t *testing.T) {
 func TestActiveService_FindSupervisorsByStaffID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupActiveService(t, db)
 	ctx := context.Background()
 
 	t.Run("returns supervisors for staff", func(t *testing.T) {
 		// ARRANGE
-		activity := testpkg.CreateTestActivityGroup(t, db, "staff-supervisors")
-		room := testpkg.CreateTestRoom(t, db, "Staff Supervisors Room")
-		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
-		staff := testpkg.CreateTestStaff(t, db, "Find", "ByStaff")
+		activity := testpkg.CreateTestActivityGroup(t, db, "staff-supervisors", ogsID)
+		room := testpkg.CreateTestRoom(t, db, "Staff Supervisors Room", ogsID)
+		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID, ogsID)
+		staff := testpkg.CreateTestStaff(t, db, "Find", "ByStaff", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, staff.ID)
 
 		now := time.Now()
@@ -359,7 +365,7 @@ func TestActiveService_FindSupervisorsByStaffID(t *testing.T) {
 
 	t.Run("returns empty list for staff with no supervisions", func(t *testing.T) {
 		// ARRANGE
-		staff := testpkg.CreateTestStaff(t, db, "No", "Supervisions")
+		staff := testpkg.CreateTestStaff(t, db, "No", "Supervisions", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
 
 		// ACT
@@ -378,16 +384,17 @@ func TestActiveService_FindSupervisorsByStaffID(t *testing.T) {
 func TestActiveService_FindSupervisorsByActiveGroupID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupActiveService(t, db)
 	ctx := context.Background()
 
 	t.Run("returns supervisors for active group", func(t *testing.T) {
 		// ARRANGE
-		activity := testpkg.CreateTestActivityGroup(t, db, "group-supervisors")
-		room := testpkg.CreateTestRoom(t, db, "Group Supervisors Room")
-		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
-		staff := testpkg.CreateTestStaff(t, db, "Find", "ByGroup")
+		activity := testpkg.CreateTestActivityGroup(t, db, "group-supervisors", ogsID)
+		room := testpkg.CreateTestRoom(t, db, "Group Supervisors Room", ogsID)
+		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID, ogsID)
+		staff := testpkg.CreateTestStaff(t, db, "Find", "ByGroup", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, staff.ID)
 
 		now := time.Now()
@@ -415,9 +422,9 @@ func TestActiveService_FindSupervisorsByActiveGroupID(t *testing.T) {
 
 	t.Run("returns empty list for group with no supervisors", func(t *testing.T) {
 		// ARRANGE
-		activity := testpkg.CreateTestActivityGroup(t, db, "no-supervisors")
-		room := testpkg.CreateTestRoom(t, db, "No Supervisors Room")
-		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
+		activity := testpkg.CreateTestActivityGroup(t, db, "no-supervisors", ogsID)
+		room := testpkg.CreateTestRoom(t, db, "No Supervisors Room", ogsID)
+		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID, ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID)
 
 		// ACT
@@ -436,18 +443,19 @@ func TestActiveService_FindSupervisorsByActiveGroupID(t *testing.T) {
 func TestActiveService_FindSupervisorsByActiveGroupIDs(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupActiveService(t, db)
 	ctx := context.Background()
 
 	t.Run("returns supervisors for multiple groups", func(t *testing.T) {
 		// ARRANGE
-		activity1 := testpkg.CreateTestActivityGroup(t, db, "multi-group-1")
-		activity2 := testpkg.CreateTestActivityGroup(t, db, "multi-group-2")
-		room := testpkg.CreateTestRoom(t, db, "Multi Groups Room")
-		group1 := testpkg.CreateTestActiveGroup(t, db, activity1.ID, room.ID)
-		group2 := testpkg.CreateTestActiveGroup(t, db, activity2.ID, room.ID)
-		staff := testpkg.CreateTestStaff(t, db, "Multi", "Supervisor")
+		activity1 := testpkg.CreateTestActivityGroup(t, db, "multi-group-1", ogsID)
+		activity2 := testpkg.CreateTestActivityGroup(t, db, "multi-group-2", ogsID)
+		room := testpkg.CreateTestRoom(t, db, "Multi Groups Room", ogsID)
+		group1 := testpkg.CreateTestActiveGroup(t, db, activity1.ID, room.ID, ogsID)
+		group2 := testpkg.CreateTestActiveGroup(t, db, activity2.ID, room.ID, ogsID)
+		staff := testpkg.CreateTestStaff(t, db, "Multi", "Supervisor", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, activity1.ID, activity2.ID, room.ID, group1.ID, group2.ID, staff.ID)
 
 		now := time.Now()
@@ -484,16 +492,17 @@ func TestActiveService_FindSupervisorsByActiveGroupIDs(t *testing.T) {
 func TestActiveService_EndSupervision(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupActiveService(t, db)
 	ctx := context.Background()
 
 	t.Run("ends supervision successfully", func(t *testing.T) {
 		// ARRANGE
-		activity := testpkg.CreateTestActivityGroup(t, db, "end-supervision")
-		room := testpkg.CreateTestRoom(t, db, "End Supervision Room")
-		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
-		staff := testpkg.CreateTestStaff(t, db, "End", "Supervision")
+		activity := testpkg.CreateTestActivityGroup(t, db, "end-supervision", ogsID)
+		room := testpkg.CreateTestRoom(t, db, "End Supervision Room", ogsID)
+		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID, ogsID)
+		staff := testpkg.CreateTestStaff(t, db, "End", "Supervision", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, staff.ID)
 
 		now := time.Now()
@@ -549,16 +558,17 @@ func TestActiveService_EndSupervision(t *testing.T) {
 func TestActiveService_GetStaffActiveSupervisions(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupActiveService(t, db)
 	ctx := context.Background()
 
 	t.Run("returns active supervisions for staff", func(t *testing.T) {
 		// ARRANGE
-		activity := testpkg.CreateTestActivityGroup(t, db, "active-supervisions")
-		room := testpkg.CreateTestRoom(t, db, "Active Supervisions Room")
-		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
-		staff := testpkg.CreateTestStaff(t, db, "Active", "Supervisions")
+		activity := testpkg.CreateTestActivityGroup(t, db, "active-supervisions", ogsID)
+		room := testpkg.CreateTestRoom(t, db, "Active Supervisions Room", ogsID)
+		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID, ogsID)
+		staff := testpkg.CreateTestStaff(t, db, "Active", "Supervisions", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, staff.ID)
 
 		now := time.Now()
@@ -586,7 +596,7 @@ func TestActiveService_GetStaffActiveSupervisions(t *testing.T) {
 
 	t.Run("returns empty list for staff with no active supervisions", func(t *testing.T) {
 		// ARRANGE
-		staff := testpkg.CreateTestStaff(t, db, "No", "Active")
+		staff := testpkg.CreateTestStaff(t, db, "No", "Active", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
 
 		// ACT
@@ -605,17 +615,18 @@ func TestActiveService_GetStaffActiveSupervisions(t *testing.T) {
 func TestActiveService_UpdateActiveGroupSupervisors(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupActiveService(t, db)
 	ctx := context.Background()
 
 	t.Run("updates supervisors for group", func(t *testing.T) {
 		// ARRANGE
-		activity := testpkg.CreateTestActivityGroup(t, db, "update-supervisors")
-		room := testpkg.CreateTestRoom(t, db, "Update Supervisors Room")
-		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
-		staff1 := testpkg.CreateTestStaff(t, db, "First", "Supervisor")
-		staff2 := testpkg.CreateTestStaff(t, db, "Second", "Supervisor")
+		activity := testpkg.CreateTestActivityGroup(t, db, "update-supervisors", ogsID)
+		room := testpkg.CreateTestRoom(t, db, "Update Supervisors Room", ogsID)
+		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID, ogsID)
+		staff1 := testpkg.CreateTestStaff(t, db, "First", "Supervisor", ogsID)
+		staff2 := testpkg.CreateTestStaff(t, db, "Second", "Supervisor", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, staff1.ID, staff2.ID)
 
 		// ACT - set new supervisors
@@ -628,7 +639,7 @@ func TestActiveService_UpdateActiveGroupSupervisors(t *testing.T) {
 
 	t.Run("returns error for non-existent group", func(t *testing.T) {
 		// ARRANGE
-		staff := testpkg.CreateTestStaff(t, db, "Update", "NonExistent")
+		staff := testpkg.CreateTestStaff(t, db, "Update", "NonExistent", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
 
 		// ACT
@@ -641,9 +652,9 @@ func TestActiveService_UpdateActiveGroupSupervisors(t *testing.T) {
 
 	t.Run("returns error for empty supervisor list", func(t *testing.T) {
 		// ARRANGE
-		activity := testpkg.CreateTestActivityGroup(t, db, "empty-supervisors")
-		room := testpkg.CreateTestRoom(t, db, "Empty Supervisors Room")
-		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
+		activity := testpkg.CreateTestActivityGroup(t, db, "empty-supervisors", ogsID)
+		room := testpkg.CreateTestRoom(t, db, "Empty Supervisors Room", ogsID)
+		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID, ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID)
 
 		// ACT - service requires at least one supervisor

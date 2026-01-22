@@ -21,8 +21,8 @@ func TestListStudents(t *testing.T) {
 	tc := setupTestContext(t)
 
 	// Create test students using fixtures
-	student1 := testpkg.CreateTestStudent(t, tc.db, "List", "StudentOne", "1a")
-	student2 := testpkg.CreateTestStudent(t, tc.db, "List", "StudentTwo", "1b")
+	student1 := testpkg.CreateTestStudent(t, tc.db, "List", "StudentOne", "1a", tc.ogsID)
+	student2 := testpkg.CreateTestStudent(t, tc.db, "List", "StudentTwo", "1b", tc.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, tc.db, student1.ID, student2.ID)
 
 	router := setupRouter(tc.resource.ListStudentsHandler(), "")
@@ -59,7 +59,7 @@ func TestListStudents(t *testing.T) {
 func TestListStudents_WithLocationFilter(t *testing.T) {
 	tc := setupTestContext(t)
 
-	student := testpkg.CreateTestStudent(t, tc.db, "Location", "Filter", "LF1")
+	student := testpkg.CreateTestStudent(t, tc.db, "Location", "Filter", "LF1", tc.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 	router := setupRouter(tc.resource.ListStudentsHandler(), "")
@@ -82,7 +82,7 @@ func TestListStudents_WithLocationFilter(t *testing.T) {
 func TestListStudents_WithNameFilters(t *testing.T) {
 	tc := setupTestContext(t)
 
-	student := testpkg.CreateTestStudent(t, tc.db, "NameFilter", "Test", "NF1")
+	student := testpkg.CreateTestStudent(t, tc.db, "NameFilter", "Test", "NF1", tc.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 	t.Run("filter_by_first_name", func(t *testing.T) {
@@ -108,11 +108,11 @@ func TestListStudents_WithNameFilters(t *testing.T) {
 func TestListStudents_ExtendedFilters(t *testing.T) {
 	tc := setupTestContext(t)
 
-	student := testpkg.CreateTestStudent(t, tc.db, "Filter", "Student", "FI1")
+	student := testpkg.CreateTestStudent(t, tc.db, "Filter", "Student", "FI1", tc.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 	t.Run("filter_by_group_id", func(t *testing.T) {
-		group := testpkg.CreateTestEducationGroup(t, tc.db, "FilterGroup")
+		group := testpkg.CreateTestEducationGroup(t, tc.db, "FilterGroup", tc.ogsID)
 		defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID)
 
 		router := setupRouter(tc.resource.ListStudentsHandler(), "")
@@ -151,7 +151,7 @@ func TestListStudents_ExtendedFilters(t *testing.T) {
 func TestGetStudent(t *testing.T) {
 	tc := setupTestContext(t)
 
-	student := testpkg.CreateTestStudent(t, tc.db, "Get", "Student", "GS1")
+	student := testpkg.CreateTestStudent(t, tc.db, "Get", "Student", "GS1", tc.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 	router := setupRouter(tc.resource.GetStudentHandler(), "id")
@@ -266,7 +266,7 @@ func TestCreateStudent(t *testing.T) {
 func TestCreateStudent_WithGroupID(t *testing.T) {
 	tc := setupTestContext(t)
 
-	group := testpkg.CreateTestEducationGroup(t, tc.db, "CreateGroup")
+	group := testpkg.CreateTestEducationGroup(t, tc.db, "CreateGroup", tc.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID)
 
 	router := setupRouter(tc.resource.CreateStudentHandler(), "")
@@ -289,7 +289,7 @@ func TestCreateStudent_WithAllOptionalFields(t *testing.T) {
 	tc := setupTestContext(t)
 
 	t.Run("create_with_all_fields", func(t *testing.T) {
-		group := testpkg.CreateTestEducationGroup(t, tc.db, "FullCreateGroup")
+		group := testpkg.CreateTestEducationGroup(t, tc.db, "FullCreateGroup", tc.ogsID)
 		defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID)
 
 		router := setupRouter(tc.resource.CreateStudentHandler(), "")
@@ -323,7 +323,7 @@ func TestCreateStudent_WithAllOptionalFields(t *testing.T) {
 func TestUpdateStudent(t *testing.T) {
 	tc := setupTestContext(t)
 
-	student := testpkg.CreateTestStudent(t, tc.db, "Update", "Student", "US1")
+	student := testpkg.CreateTestStudent(t, tc.db, "Update", "Student", "US1", tc.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 	router := setupRouter(tc.resource.UpdateStudentHandler(), "id")
@@ -375,7 +375,7 @@ func TestUpdateStudent(t *testing.T) {
 func TestUpdateStudent_WithGuardianInfo(t *testing.T) {
 	tc := setupTestContext(t)
 
-	student := testpkg.CreateTestStudent(t, tc.db, "Guardian", "Update", "GU1")
+	student := testpkg.CreateTestStudent(t, tc.db, "Guardian", "Update", "GU1", tc.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 	router := setupRouter(tc.resource.UpdateStudentHandler(), "id")
@@ -414,7 +414,7 @@ func TestUpdateStudent_WithGuardianInfo(t *testing.T) {
 func TestUpdateStudent_WithSickStatus(t *testing.T) {
 	tc := setupTestContext(t)
 
-	student := testpkg.CreateTestStudent(t, tc.db, "Sick", "Status", "SS1")
+	student := testpkg.CreateTestStudent(t, tc.db, "Sick", "Status", "SS1", tc.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 	router := setupRouter(tc.resource.UpdateStudentHandler(), "id")
@@ -445,7 +445,7 @@ func TestUpdateStudent_SickStatusExtended(t *testing.T) {
 	tc := setupTestContext(t)
 
 	t.Run("mark_student_as_sick_sets_sick_since", func(t *testing.T) {
-		student := testpkg.CreateTestStudent(t, tc.db, "SickSince", "Student", "SS2")
+		student := testpkg.CreateTestStudent(t, tc.db, "SickSince", "Student", "SS2", tc.ogsID)
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		router := setupRouter(tc.resource.UpdateStudentHandler(), "id")
@@ -462,7 +462,7 @@ func TestUpdateStudent_SickStatusExtended(t *testing.T) {
 	})
 
 	t.Run("clear_sick_status_clears_sick_since", func(t *testing.T) {
-		student := testpkg.CreateTestStudent(t, tc.db, "ClearSick", "Student", "CS1")
+		student := testpkg.CreateTestStudent(t, tc.db, "ClearSick", "Student", "CS1", tc.ogsID)
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		router := setupRouter(tc.resource.UpdateStudentHandler(), "id")
@@ -491,7 +491,7 @@ func TestUpdateStudent_ExtendedFields(t *testing.T) {
 	tc := setupTestContext(t)
 
 	t.Run("update_health_info", func(t *testing.T) {
-		student := testpkg.CreateTestStudent(t, tc.db, "Health", "Student", "HS1")
+		student := testpkg.CreateTestStudent(t, tc.db, "Health", "Student", "HS1", tc.ogsID)
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		router := setupRouter(tc.resource.UpdateStudentHandler(), "id")
@@ -506,7 +506,7 @@ func TestUpdateStudent_ExtendedFields(t *testing.T) {
 	})
 
 	t.Run("update_extra_info", func(t *testing.T) {
-		student := testpkg.CreateTestStudent(t, tc.db, "Extra", "Student", "EX1")
+		student := testpkg.CreateTestStudent(t, tc.db, "Extra", "Student", "EX1", tc.ogsID)
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		router := setupRouter(tc.resource.UpdateStudentHandler(), "id")
@@ -521,7 +521,7 @@ func TestUpdateStudent_ExtendedFields(t *testing.T) {
 	})
 
 	t.Run("update_supervisor_notes", func(t *testing.T) {
-		student := testpkg.CreateTestStudent(t, tc.db, "Notes", "Student", "NS1")
+		student := testpkg.CreateTestStudent(t, tc.db, "Notes", "Student", "NS1", tc.ogsID)
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		router := setupRouter(tc.resource.UpdateStudentHandler(), "id")
@@ -536,7 +536,7 @@ func TestUpdateStudent_ExtendedFields(t *testing.T) {
 	})
 
 	t.Run("update_pickup_status", func(t *testing.T) {
-		student := testpkg.CreateTestStudent(t, tc.db, "Pickup", "Student", "PU1")
+		student := testpkg.CreateTestStudent(t, tc.db, "Pickup", "Student", "PU1", tc.ogsID)
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		router := setupRouter(tc.resource.UpdateStudentHandler(), "id")
@@ -551,7 +551,7 @@ func TestUpdateStudent_ExtendedFields(t *testing.T) {
 	})
 
 	t.Run("update_bus", func(t *testing.T) {
-		student := testpkg.CreateTestStudent(t, tc.db, "Bus", "Student", "BU1")
+		student := testpkg.CreateTestStudent(t, tc.db, "Bus", "Student", "BU1", tc.ogsID)
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		router := setupRouter(tc.resource.UpdateStudentHandler(), "id")
@@ -567,7 +567,7 @@ func TestUpdateStudent_ExtendedFields(t *testing.T) {
 	})
 
 	t.Run("update_guardian_contact", func(t *testing.T) {
-		student := testpkg.CreateTestStudent(t, tc.db, "Contact", "Student", "GC1")
+		student := testpkg.CreateTestStudent(t, tc.db, "Contact", "Student", "GC1", tc.ogsID)
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		router := setupRouter(tc.resource.UpdateStudentHandler(), "id")
@@ -586,7 +586,7 @@ func TestUpdateStudent_PersonFields(t *testing.T) {
 	tc := setupTestContext(t)
 
 	t.Run("update_last_name", func(t *testing.T) {
-		student := testpkg.CreateTestStudent(t, tc.db, "Original", "Last", "OL1")
+		student := testpkg.CreateTestStudent(t, tc.db, "Original", "Last", "OL1", tc.ogsID)
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		router := setupRouter(tc.resource.UpdateStudentHandler(), "id")
@@ -602,7 +602,7 @@ func TestUpdateStudent_PersonFields(t *testing.T) {
 	})
 
 	t.Run("update_birthday", func(t *testing.T) {
-		student := testpkg.CreateTestStudent(t, tc.db, "Birthday", "Update", "BU2")
+		student := testpkg.CreateTestStudent(t, tc.db, "Birthday", "Update", "BU2", tc.ogsID)
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		router := setupRouter(tc.resource.UpdateStudentHandler(), "id")
@@ -618,7 +618,7 @@ func TestUpdateStudent_PersonFields(t *testing.T) {
 	})
 
 	t.Run("clear_guardian_fields", func(t *testing.T) {
-		student := testpkg.CreateTestStudent(t, tc.db, "Guardian", "Clear", "GCL1")
+		student := testpkg.CreateTestStudent(t, tc.db, "Guardian", "Clear", "GCL1", tc.ogsID)
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		// First set guardian fields
@@ -651,7 +651,7 @@ func TestDeleteStudent(t *testing.T) {
 	router := setupRouter(tc.resource.DeleteStudentHandler(), "id")
 
 	t.Run("success_deletes_student", func(t *testing.T) {
-		student := testpkg.CreateTestStudent(t, tc.db, "Delete", "Me", "DM1")
+		student := testpkg.CreateTestStudent(t, tc.db, "Delete", "Me", "DM1", tc.ogsID)
 		// No cleanup needed - we're deleting
 
 		req := testutil.NewRequest("DELETE", fmt.Sprintf("/%d", student.ID), nil)
@@ -735,9 +735,9 @@ func TestGetStudent_WithGroupAndSupervisors(t *testing.T) {
 
 	t.Run("student_with_group_and_teacher", func(t *testing.T) {
 		// Create a complete setup: teacher, group, and student
-		teacher, _ := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Supervisor", "Teacher")
-		group := testpkg.CreateTestEducationGroup(t, tc.db, "SupervisorGroup")
-		student := testpkg.CreateTestStudent(t, tc.db, "Supervised", "Student", "SS1")
+		teacher, _ := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Supervisor", "Teacher", tc.ogsID)
+		group := testpkg.CreateTestEducationGroup(t, tc.db, "SupervisorGroup", tc.ogsID)
+		student := testpkg.CreateTestStudent(t, tc.db, "Supervised", "Student", "SS1", tc.ogsID)
 
 		// Assign teacher to group
 		testpkg.CreateTestGroupTeacher(t, tc.db, group.ID, teacher.ID)
@@ -760,9 +760,9 @@ func TestGetStudent_WithGroupAndSupervisors(t *testing.T) {
 
 	t.Run("non_admin_sees_supervisor_contacts", func(t *testing.T) {
 		// Create a complete setup: teacher assigned to group, student in group
-		teacher, teacherAccount := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Contact", "Teacher")
-		group := testpkg.CreateTestEducationGroup(t, tc.db, "ContactGroup")
-		student := testpkg.CreateTestStudent(t, tc.db, "Contact", "Student", "CS1")
+		teacher, teacherAccount := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Contact", "Teacher", tc.ogsID)
+		group := testpkg.CreateTestEducationGroup(t, tc.db, "ContactGroup", tc.ogsID)
+		student := testpkg.CreateTestStudent(t, tc.db, "Contact", "Student", "CS1", tc.ogsID)
 
 		// Assign teacher to group (this makes them a supervisor)
 		testpkg.CreateTestGroupTeacher(t, tc.db, group.ID, teacher.ID)
@@ -771,7 +771,7 @@ func TestGetStudent_WithGroupAndSupervisors(t *testing.T) {
 		testpkg.AssignStudentToGroup(t, tc.db, student.ID, group.ID)
 
 		// Create another staff member (not a supervisor of this group)
-		otherStaff, otherAccount := testpkg.CreateTestStaffWithAccount(t, tc.db, "Other", "Viewer")
+		otherStaff, otherAccount := testpkg.CreateTestStaffWithAccount(t, tc.db, "Other", "Viewer", tc.ogsID)
 
 		defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID, group.ID, student.ID, otherStaff.ID)
 
@@ -802,7 +802,7 @@ func TestUpdateStudent_AllPersonFields(t *testing.T) {
 	tc := setupTestContext(t)
 
 	t.Run("update_all_person_fields", func(t *testing.T) {
-		student := testpkg.CreateTestStudent(t, tc.db, "Update", "AllFields", "UAF1")
+		student := testpkg.CreateTestStudent(t, tc.db, "Update", "AllFields", "UAF1", tc.ogsID)
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		router := setupRouter(tc.resource.UpdateStudentHandler(), "id")
@@ -825,7 +825,7 @@ func TestUpdateStudent_AllPersonFields(t *testing.T) {
 	})
 
 	t.Run("update_guardian_fields", func(t *testing.T) {
-		student := testpkg.CreateTestStudent(t, tc.db, "Guardian", "Update", "GU1")
+		student := testpkg.CreateTestStudent(t, tc.db, "Guardian", "Update", "GU1", tc.ogsID)
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		router := setupRouter(tc.resource.UpdateStudentHandler(), "id")
@@ -843,7 +843,7 @@ func TestUpdateStudent_AllPersonFields(t *testing.T) {
 	})
 
 	t.Run("update_student_specific_fields", func(t *testing.T) {
-		student := testpkg.CreateTestStudent(t, tc.db, "Student", "Specific", "SS2")
+		student := testpkg.CreateTestStudent(t, tc.db, "Student", "Specific", "SS2", tc.ogsID)
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		router := setupRouter(tc.resource.UpdateStudentHandler(), "id")
@@ -863,7 +863,7 @@ func TestUpdateStudent_AllPersonFields(t *testing.T) {
 	})
 
 	t.Run("update_sick_status_extended", func(t *testing.T) {
-		student := testpkg.CreateTestStudent(t, tc.db, "Sick", "Status", "SK1")
+		student := testpkg.CreateTestStudent(t, tc.db, "Sick", "Status", "SK1", tc.ogsID)
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		router := setupRouter(tc.resource.UpdateStudentHandler(), "id")
@@ -880,7 +880,7 @@ func TestUpdateStudent_AllPersonFields(t *testing.T) {
 	})
 
 	t.Run("clear_sick_status", func(t *testing.T) {
-		student := testpkg.CreateTestStudent(t, tc.db, "Clear", "Sick", "CS1")
+		student := testpkg.CreateTestStudent(t, tc.db, "Clear", "Sick", "CS1", tc.ogsID)
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		// First set sick status
@@ -939,7 +939,7 @@ func TestCreateStudent_ExtendedValidation(t *testing.T) {
 	})
 
 	t.Run("create_with_group_assignment", func(t *testing.T) {
-		group := testpkg.CreateTestEducationGroup(t, tc.db, "AssignGroup")
+		group := testpkg.CreateTestEducationGroup(t, tc.db, "AssignGroup", tc.ogsID)
 		defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID)
 
 		router := setupRouter(tc.resource.CreateStudentHandler(), "")
@@ -967,8 +967,8 @@ func TestListStudents_GroupAndCombinedFilters(t *testing.T) {
 	tc := setupTestContext(t)
 
 	t.Run("filter_with_group_id", func(t *testing.T) {
-		group := testpkg.CreateTestEducationGroup(t, tc.db, "FilterGroup")
-		student := testpkg.CreateTestStudent(t, tc.db, "Filter", "GroupStudent", "FG1")
+		group := testpkg.CreateTestEducationGroup(t, tc.db, "FilterGroup", tc.ogsID)
+		student := testpkg.CreateTestStudent(t, tc.db, "Filter", "GroupStudent", "FG1", tc.ogsID)
 		testpkg.AssignStudentToGroup(t, tc.db, student.ID, group.ID)
 		defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID, student.ID)
 
@@ -981,7 +981,7 @@ func TestListStudents_GroupAndCombinedFilters(t *testing.T) {
 	})
 
 	t.Run("filter_combined_search_and_class", func(t *testing.T) {
-		student := testpkg.CreateTestStudent(t, tc.db, "Combined", "Filter", "CF1")
+		student := testpkg.CreateTestStudent(t, tc.db, "Combined", "Filter", "CF1", tc.ogsID)
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		router := setupRouter(tc.resource.ListStudentsHandler(), "")

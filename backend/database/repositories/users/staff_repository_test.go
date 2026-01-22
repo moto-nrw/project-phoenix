@@ -64,12 +64,13 @@ func cleanupStaffRecords(t *testing.T, db *bun.DB, staffIDs ...int64) {
 func TestStaffRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).Staff
 	ctx := context.Background()
 
 	t.Run("creates staff member with valid data", func(t *testing.T) {
-		person := testpkg.CreateTestPerson(t, db, "Staff", "Create")
+		person := testpkg.CreateTestPerson(t, db, "Staff", "Create", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, person.ID)
 
 		staff := &users.Staff{
@@ -91,7 +92,7 @@ func TestStaffRepository_Create(t *testing.T) {
 	})
 
 	t.Run("creates staff member with notes", func(t *testing.T) {
-		person := testpkg.CreateTestPerson(t, db, "Staff", "Notes")
+		person := testpkg.CreateTestPerson(t, db, "Staff", "Notes", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, person.ID)
 
 		staff := &users.Staff{
@@ -129,12 +130,13 @@ func TestStaffRepository_Create(t *testing.T) {
 func TestStaffRepository_FindByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).Staff
 	ctx := context.Background()
 
 	t.Run("finds existing staff member", func(t *testing.T) {
-		staff := testpkg.CreateTestStaff(t, db, "FindByID", "Test")
+		staff := testpkg.CreateTestStaff(t, db, "FindByID", "Test", ogsID)
 		defer cleanupStaffRecords(t, db, staff.ID)
 
 		found, err := repo.FindByID(ctx, staff.ID)
@@ -153,12 +155,13 @@ func TestStaffRepository_FindByID(t *testing.T) {
 func TestStaffRepository_FindByPersonID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).Staff
 	ctx := context.Background()
 
 	t.Run("finds staff by person ID", func(t *testing.T) {
-		staff := testpkg.CreateTestStaff(t, db, "FindByPerson", "Test")
+		staff := testpkg.CreateTestStaff(t, db, "FindByPerson", "Test", ogsID)
 		defer cleanupStaffRecords(t, db, staff.ID)
 
 		found, err := repo.FindByPersonID(ctx, staff.PersonID)
@@ -176,12 +179,13 @@ func TestStaffRepository_FindByPersonID(t *testing.T) {
 func TestStaffRepository_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).Staff
 	ctx := context.Background()
 
 	t.Run("updates staff notes", func(t *testing.T) {
-		staff := testpkg.CreateTestStaff(t, db, "Update", "Test")
+		staff := testpkg.CreateTestStaff(t, db, "Update", "Test", ogsID)
 		defer cleanupStaffRecords(t, db, staff.ID)
 
 		staff.StaffNotes = "Updated staff notes"
@@ -204,12 +208,13 @@ func TestStaffRepository_Update(t *testing.T) {
 func TestStaffRepository_Delete(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).Staff
 	ctx := context.Background()
 
 	t.Run("deletes existing staff member", func(t *testing.T) {
-		staff := testpkg.CreateTestStaff(t, db, "Delete", "Test")
+		staff := testpkg.CreateTestStaff(t, db, "Delete", "Test", ogsID)
 		personID := staff.PersonID
 
 		err := repo.Delete(ctx, staff.ID)
@@ -234,12 +239,13 @@ func TestStaffRepository_Delete(t *testing.T) {
 func TestStaffRepository_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).Staff
 	ctx := context.Background()
 
 	t.Run("lists all staff with no filters", func(t *testing.T) {
-		staff := testpkg.CreateTestStaff(t, db, "List", "Test")
+		staff := testpkg.CreateTestStaff(t, db, "List", "Test", ogsID)
 		defer cleanupStaffRecords(t, db, staff.ID)
 
 		staffMembers, err := repo.List(ctx, nil)
@@ -248,7 +254,7 @@ func TestStaffRepository_List(t *testing.T) {
 	})
 
 	t.Run("lists staff with filter", func(t *testing.T) {
-		staff := testpkg.CreateTestStaff(t, db, "FilterStaff", "Test")
+		staff := testpkg.CreateTestStaff(t, db, "FilterStaff", "Test", ogsID)
 		defer cleanupStaffRecords(t, db, staff.ID)
 
 		staffMembers, err := repo.List(ctx, map[string]any{
@@ -267,12 +273,13 @@ func TestStaffRepository_List(t *testing.T) {
 func TestStaffRepository_FindWithPerson(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).Staff
 	ctx := context.Background()
 
 	t.Run("finds staff with person loaded", func(t *testing.T) {
-		staff := testpkg.CreateTestStaff(t, db, "WithPerson", "Loaded")
+		staff := testpkg.CreateTestStaff(t, db, "WithPerson", "Loaded", ogsID)
 		defer cleanupStaffRecords(t, db, staff.ID)
 
 		found, err := repo.FindWithPerson(ctx, staff.ID)
@@ -295,12 +302,13 @@ func TestStaffRepository_FindWithPerson(t *testing.T) {
 func TestStaffRepository_UpdateNotes(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).Staff
 	ctx := context.Background()
 
 	t.Run("updates staff notes", func(t *testing.T) {
-		staff := testpkg.CreateTestStaff(t, db, "UpdateNotes", "Test")
+		staff := testpkg.CreateTestStaff(t, db, "UpdateNotes", "Test", ogsID)
 		defer cleanupStaffRecords(t, db, staff.ID)
 
 		err := repo.UpdateNotes(ctx, staff.ID, "New notes")
@@ -320,14 +328,15 @@ func TestStaffRepository_UpdateNotes(t *testing.T) {
 func TestStaffRepository_ListAllWithPerson(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).Staff
 	ctx := context.Background()
 
 	t.Run("returns all staff with person data", func(t *testing.T) {
 		// Create multiple staff members
-		staff1 := testpkg.CreateTestStaff(t, db, "AllWithPerson1", "Test1")
-		staff2 := testpkg.CreateTestStaff(t, db, "AllWithPerson2", "Test2")
+		staff1 := testpkg.CreateTestStaff(t, db, "AllWithPerson1", "Test1", ogsID)
+		staff2 := testpkg.CreateTestStaff(t, db, "AllWithPerson2", "Test2", ogsID)
 		defer cleanupStaffRecords(t, db, staff1.ID, staff2.ID)
 
 		results, err := repo.ListAllWithPerson(ctx)
@@ -366,7 +375,7 @@ func TestStaffRepository_ListAllWithPerson(t *testing.T) {
 	})
 
 	t.Run("loads all person fields correctly", func(t *testing.T) {
-		staff := testpkg.CreateTestStaff(t, db, "PersonFields", "Check")
+		staff := testpkg.CreateTestStaff(t, db, "PersonFields", "Check", ogsID)
 		defer cleanupStaffRecords(t, db, staff.ID)
 
 		results, err := repo.ListAllWithPerson(ctx)

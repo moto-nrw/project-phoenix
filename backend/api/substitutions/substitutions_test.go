@@ -27,6 +27,7 @@ type testContext struct {
 	db       *bun.DB
 	services *services.Factory
 	resource *substitutionsAPI.Resource
+	ogsID    string
 }
 
 // setupTestContext initializes test database, services, and resource.
@@ -34,6 +35,7 @@ func setupTestContext(t *testing.T) *testContext {
 	t.Helper()
 
 	db, svc := testutil.SetupAPITest(t)
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	resource := substitutionsAPI.NewResource(svc.Education)
 
@@ -41,6 +43,7 @@ func setupTestContext(t *testing.T) *testContext {
 		db:       db,
 		services: svc,
 		resource: resource,
+		ogsID:    ogsID,
 	}
 }
 
@@ -192,9 +195,10 @@ func TestGetSubstitution_InvalidID(t *testing.T) {
 func TestCreateSubstitution_Success(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, ctx.db)
 
 	// Create test fixtures
-	staff := testpkg.CreateTestStaff(t, ctx.db, "Substitute", "Teacher")
+	staff := testpkg.CreateTestStaff(t, ctx.db, "Substitute", "Teacher", ogsID)
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, staff.ID)
 
 	// Get a group ID from the database
@@ -512,7 +516,7 @@ func TestSubstitutionCRUDWorkflow(t *testing.T) {
 	defer func() { _ = ctx.db.Close() }()
 
 	// Create test fixtures
-	staff := testpkg.CreateTestStaff(t, ctx.db, "CRUD", "Test")
+	staff := testpkg.CreateTestStaff(t, ctx.db, "CRUD", "Test", ctx.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, staff.ID)
 
 	// Get a group ID from the database

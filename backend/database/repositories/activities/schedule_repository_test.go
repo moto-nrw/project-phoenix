@@ -43,12 +43,13 @@ func createSchedule(t *testing.T, db *bun.DB, groupID int64, weekday int, timefr
 func TestScheduleRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).ActivitySchedule
 	ctx := context.Background()
 
 	t.Run("creates schedule with valid data", func(t *testing.T) {
-		group := testpkg.CreateTestActivityGroup(t, db, "ScheduleGroup")
+		group := testpkg.CreateTestActivityGroup(t, db, "ScheduleGroup", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, group.CategoryID, 0)
 		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
 
@@ -65,7 +66,7 @@ func TestScheduleRepository_Create(t *testing.T) {
 	})
 
 	t.Run("creates schedule without timeframe", func(t *testing.T) {
-		group := testpkg.CreateTestActivityGroup(t, db, "NoTimeframeGroup")
+		group := testpkg.CreateTestActivityGroup(t, db, "NoTimeframeGroup", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, group.CategoryID, 0)
 		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
 
@@ -101,12 +102,13 @@ func TestScheduleRepository_Create_WithNil(t *testing.T) {
 func TestScheduleRepository_FindByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).ActivitySchedule
 	ctx := context.Background()
 
 	t.Run("finds existing schedule", func(t *testing.T) {
-		group := testpkg.CreateTestActivityGroup(t, db, "FindByID")
+		group := testpkg.CreateTestActivityGroup(t, db, "FindByID", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, group.CategoryID, 0)
 		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
 
@@ -128,12 +130,13 @@ func TestScheduleRepository_FindByID(t *testing.T) {
 func TestScheduleRepository_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).ActivitySchedule
 	ctx := context.Background()
 
 	t.Run("updates schedule weekday", func(t *testing.T) {
-		group := testpkg.CreateTestActivityGroup(t, db, "Update")
+		group := testpkg.CreateTestActivityGroup(t, db, "Update", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, group.CategoryID, 0)
 		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
 
@@ -167,12 +170,13 @@ func TestScheduleRepository_Update_WithNil(t *testing.T) {
 func TestScheduleRepository_Delete(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).ActivitySchedule
 	ctx := context.Background()
 
 	t.Run("deletes existing schedule", func(t *testing.T) {
-		group := testpkg.CreateTestActivityGroup(t, db, "Delete")
+		group := testpkg.CreateTestActivityGroup(t, db, "Delete", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, group.CategoryID, 0)
 		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
 
@@ -194,12 +198,13 @@ func TestScheduleRepository_List(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).ActivitySchedule
 	ctx := context.Background()
 
 	t.Run("lists all schedules", func(t *testing.T) {
-		group := testpkg.CreateTestActivityGroup(t, db, "List")
+		group := testpkg.CreateTestActivityGroup(t, db, "List", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, group.CategoryID, 0)
 		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
 
@@ -215,12 +220,13 @@ func TestScheduleRepository_List(t *testing.T) {
 func TestScheduleRepository_FindByGroupID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).ActivitySchedule
 	ctx := context.Background()
 
 	t.Run("finds schedules for a specific group", func(t *testing.T) {
-		group := testpkg.CreateTestActivityGroup(t, db, "GroupSchedules")
+		group := testpkg.CreateTestActivityGroup(t, db, "GroupSchedules", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, group.CategoryID, 0)
 		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
 
@@ -243,7 +249,7 @@ func TestScheduleRepository_FindByGroupID(t *testing.T) {
 	})
 
 	t.Run("returns empty for group with no schedules", func(t *testing.T) {
-		group := testpkg.CreateTestActivityGroup(t, db, "EmptySchedules")
+		group := testpkg.CreateTestActivityGroup(t, db, "EmptySchedules", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, group.CategoryID, 0)
 		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
 
@@ -256,12 +262,13 @@ func TestScheduleRepository_FindByGroupID(t *testing.T) {
 func TestScheduleRepository_FindByWeekday(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).ActivitySchedule
 	ctx := context.Background()
 
 	t.Run("finds schedules for a specific weekday", func(t *testing.T) {
-		group := testpkg.CreateTestActivityGroup(t, db, "WeekdaySchedules")
+		group := testpkg.CreateTestActivityGroup(t, db, "WeekdaySchedules", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, group.CategoryID, 0)
 		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
 
@@ -294,6 +301,7 @@ func TestScheduleRepository_FindByWeekday(t *testing.T) {
 func TestScheduleRepository_FindByTimeframeID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).ActivitySchedule
 	ctx := context.Background()
@@ -312,7 +320,7 @@ func TestScheduleRepository_FindByTimeframeID(t *testing.T) {
 		defer testpkg.CleanupScheduleFixtures(t, db, timeframe.ID)
 
 		// Create an activity group and schedule linked to the timeframe
-		group := testpkg.CreateTestActivityGroup(t, db, "TimeframeScheduleGroup")
+		group := testpkg.CreateTestActivityGroup(t, db, "TimeframeScheduleGroup", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, group.CategoryID, 0)
 		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
 

@@ -21,6 +21,7 @@ type testContext struct {
 	db       *bun.DB
 	services *services.Factory
 	resource *devicesAPI.Resource
+	ogsID    string
 }
 
 // setupTestContext initializes test database, services, and resource.
@@ -28,6 +29,7 @@ func setupTestContext(t *testing.T) *testContext {
 	t.Helper()
 
 	db, svc := testutil.SetupAPITest(t)
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	resource := devicesAPI.NewResource(svc.IoT)
 
@@ -35,6 +37,7 @@ func setupTestContext(t *testing.T) *testContext {
 		db:       db,
 		services: svc,
 		resource: resource,
+		ogsID:    ogsID,
 	}
 }
 
@@ -117,10 +120,11 @@ func TestListDevices_WithSearchFilter(t *testing.T) {
 func TestGetDevice_Success(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, ctx.db)
 
 	// Create test device
 	uniqueID := fmt.Sprintf("test-device-%d", time.Now().UnixNano())
-	device := testpkg.CreateTestDevice(t, ctx.db, uniqueID)
+	device := testpkg.CreateTestDevice(t, ctx.db, uniqueID, ogsID)
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
 
 	router := chi.NewRouter()
@@ -179,7 +183,7 @@ func TestGetDeviceByDeviceID_Success(t *testing.T) {
 	defer func() { _ = ctx.db.Close() }()
 
 	// Create test device - the fixture appends its own unique suffix
-	device := testpkg.CreateTestDevice(t, ctx.db, "test-device")
+	device := testpkg.CreateTestDevice(t, ctx.db, "test-device", ctx.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
 
 	router := chi.NewRouter()
@@ -306,7 +310,7 @@ func TestUpdateDevice_Success(t *testing.T) {
 
 	// Create test device
 	uniqueID := fmt.Sprintf("update-device-%d", time.Now().UnixNano())
-	device := testpkg.CreateTestDevice(t, ctx.db, uniqueID)
+	device := testpkg.CreateTestDevice(t, ctx.db, uniqueID, ctx.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
 
 	router := chi.NewRouter()
@@ -383,7 +387,7 @@ func TestDeleteDevice_Success(t *testing.T) {
 
 	// Create test device
 	uniqueID := fmt.Sprintf("delete-device-%d", time.Now().UnixNano())
-	device := testpkg.CreateTestDevice(t, ctx.db, uniqueID)
+	device := testpkg.CreateTestDevice(t, ctx.db, uniqueID, ctx.ogsID)
 	// Note: No defer cleanup needed since we're deleting it
 
 	router := chi.NewRouter()
@@ -442,7 +446,7 @@ func TestUpdateDeviceStatus_Success(t *testing.T) {
 	defer func() { _ = ctx.db.Close() }()
 
 	// Create test device - use device.DeviceID which includes fixture's unique suffix
-	device := testpkg.CreateTestDevice(t, ctx.db, "status-device")
+	device := testpkg.CreateTestDevice(t, ctx.db, "status-device", ctx.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
 
 	router := chi.NewRouter()
@@ -467,7 +471,7 @@ func TestUpdateDeviceStatus_MissingStatus(t *testing.T) {
 	defer func() { _ = ctx.db.Close() }()
 
 	// Create test device - use device.DeviceID which includes fixture's unique suffix
-	device := testpkg.CreateTestDevice(t, ctx.db, "status-missing")
+	device := testpkg.CreateTestDevice(t, ctx.db, "status-missing", ctx.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
 
 	router := chi.NewRouter()
@@ -494,7 +498,7 @@ func TestPingDevice_Success(t *testing.T) {
 	defer func() { _ = ctx.db.Close() }()
 
 	// Create test device - use device.DeviceID which includes fixture's unique suffix
-	device := testpkg.CreateTestDevice(t, ctx.db, "ping-device")
+	device := testpkg.CreateTestDevice(t, ctx.db, "ping-device", ctx.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
 
 	router := chi.NewRouter()
@@ -597,7 +601,7 @@ func TestGetDevicesByRegisteredBy_Success(t *testing.T) {
 	defer func() { _ = ctx.db.Close() }()
 
 	// Create test person
-	person := testpkg.CreateTestPerson(t, ctx.db, "RegisteredBy", "Test")
+	person := testpkg.CreateTestPerson(t, ctx.db, "RegisteredBy", "Test", ctx.ogsID)
 	defer testpkg.CleanupPerson(t, ctx.db, person.ID)
 
 	router := chi.NewRouter()

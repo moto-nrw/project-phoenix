@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/auth/tenant"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -80,7 +80,7 @@ func TestRequiresPermission(t *testing.T) {
 			rr := httptest.NewRecorder()
 
 			// Set permissions using the JWT context key
-			ctx := context.WithValue(req.Context(), jwt.CtxPermissions, tt.userPermissions)
+			ctx := context.WithValue(req.Context(), tenant.CtxPermissions, tt.userPermissions)
 			req = req.WithContext(ctx)
 
 			// Execute request
@@ -141,7 +141,7 @@ func TestRequiresAnyPermission(t *testing.T) {
 			rr := httptest.NewRecorder()
 
 			// Set permissions using the JWT context key
-			ctx := context.WithValue(req.Context(), jwt.CtxPermissions, tt.userPermissions)
+			ctx := context.WithValue(req.Context(), tenant.CtxPermissions, tt.userPermissions)
 			req = req.WithContext(ctx)
 
 			protectedHandler.ServeHTTP(rr, req)
@@ -197,7 +197,7 @@ func TestRequiresAllPermissions(t *testing.T) {
 			rr := httptest.NewRecorder()
 
 			// Set permissions using the JWT context key
-			ctx := context.WithValue(req.Context(), jwt.CtxPermissions, tt.userPermissions)
+			ctx := context.WithValue(req.Context(), tenant.CtxPermissions, tt.userPermissions)
 			req = req.WithContext(ctx)
 
 			protectedHandler.ServeHTTP(rr, req)
@@ -287,7 +287,7 @@ func TestHasPermission(t *testing.T) {
 			rr := httptest.NewRecorder()
 
 			// Set permissions using the JWT context key
-			ctx := context.WithValue(req.Context(), jwt.CtxPermissions, tt.permissions)
+			ctx := context.WithValue(req.Context(), tenant.CtxPermissions, tt.permissions)
 			req = req.WithContext(ctx)
 
 			protectedHandler.ServeHTTP(rr, req)

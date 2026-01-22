@@ -23,6 +23,7 @@ type testContext struct {
 	db       *bun.DB
 	services *services.Factory
 	resource *dataAPI.Resource
+	ogsID    string
 }
 
 // setupTestContext initializes test database, services, and resource.
@@ -30,6 +31,7 @@ func setupTestContext(t *testing.T) *testContext {
 	t.Helper()
 
 	db, svc := testutil.SetupAPITest(t)
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	// Create data resource
 	resource := dataAPI.NewResource(
@@ -43,6 +45,7 @@ func setupTestContext(t *testing.T) *testContext {
 		db:       db,
 		services: svc,
 		resource: resource,
+		ogsID:    ogsID,
 	}
 }
 
@@ -68,8 +71,9 @@ func TestGetAvailableTeachers_NoDevice(t *testing.T) {
 func TestGetAvailableTeachers_Success(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, ctx.db)
 
-	testDevice := testpkg.CreateTestDevice(t, ctx.db, "data-test-device-1")
+	testDevice := testpkg.CreateTestDevice(t, ctx.db, "data-test-device-1", ogsID)
 
 	router := chi.NewRouter()
 	router.Get("/teachers", ctx.resource.GetAvailableTeachersHandler())
@@ -107,7 +111,7 @@ func TestGetTeacherStudents_NoTeacherIDs(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	testDevice := testpkg.CreateTestDevice(t, ctx.db, "data-test-device-2")
+	testDevice := testpkg.CreateTestDevice(t, ctx.db, "data-test-device-2", ctx.ogsID)
 
 	router := chi.NewRouter()
 	router.Get("/students", ctx.resource.GetTeacherStudentsHandler())
@@ -127,7 +131,7 @@ func TestGetTeacherStudents_InvalidTeacherID(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	testDevice := testpkg.CreateTestDevice(t, ctx.db, "data-test-device-3")
+	testDevice := testpkg.CreateTestDevice(t, ctx.db, "data-test-device-3", ctx.ogsID)
 
 	router := chi.NewRouter()
 	router.Get("/students", ctx.resource.GetTeacherStudentsHandler())
@@ -146,7 +150,7 @@ func TestGetTeacherStudents_EmptyTeacherIDs(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	testDevice := testpkg.CreateTestDevice(t, ctx.db, "data-test-device-4")
+	testDevice := testpkg.CreateTestDevice(t, ctx.db, "data-test-device-4", ctx.ogsID)
 
 	router := chi.NewRouter()
 	router.Get("/students", ctx.resource.GetTeacherStudentsHandler())
@@ -166,7 +170,7 @@ func TestGetTeacherStudents_NonExistentTeacher(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	testDevice := testpkg.CreateTestDevice(t, ctx.db, "data-test-device-5")
+	testDevice := testpkg.CreateTestDevice(t, ctx.db, "data-test-device-5", ctx.ogsID)
 
 	router := chi.NewRouter()
 	router.Get("/students", ctx.resource.GetTeacherStudentsHandler())
@@ -205,7 +209,7 @@ func TestGetTeacherActivities_Success(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	testDevice := testpkg.CreateTestDevice(t, ctx.db, "data-test-device-6")
+	testDevice := testpkg.CreateTestDevice(t, ctx.db, "data-test-device-6", ctx.ogsID)
 
 	router := chi.NewRouter()
 	router.Get("/activities", ctx.resource.GetTeacherActivitiesHandler())
@@ -242,7 +246,7 @@ func TestGetAvailableRooms_Success(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	testDevice := testpkg.CreateTestDevice(t, ctx.db, "data-test-device-7")
+	testDevice := testpkg.CreateTestDevice(t, ctx.db, "data-test-device-7", ctx.ogsID)
 
 	router := chi.NewRouter()
 	router.Get("/rooms/available", ctx.resource.GetAvailableRoomsHandler())
@@ -260,7 +264,7 @@ func TestGetAvailableRooms_WithCapacityFilter(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	testDevice := testpkg.CreateTestDevice(t, ctx.db, "data-test-device-8")
+	testDevice := testpkg.CreateTestDevice(t, ctx.db, "data-test-device-8", ctx.ogsID)
 
 	router := chi.NewRouter()
 	router.Get("/rooms/available", ctx.resource.GetAvailableRoomsHandler())
@@ -279,7 +283,7 @@ func TestGetAvailableRooms_InvalidCapacity(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	testDevice := testpkg.CreateTestDevice(t, ctx.db, "data-test-device-9")
+	testDevice := testpkg.CreateTestDevice(t, ctx.db, "data-test-device-9", ctx.ogsID)
 
 	router := chi.NewRouter()
 	router.Get("/rooms/available", ctx.resource.GetAvailableRoomsHandler())
@@ -318,7 +322,7 @@ func TestCheckRFIDTagAssignment_MissingTagID(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	testDevice := testpkg.CreateTestDevice(t, ctx.db, "data-test-device-10")
+	testDevice := testpkg.CreateTestDevice(t, ctx.db, "data-test-device-10", ctx.ogsID)
 
 	router := chi.NewRouter()
 	router.Get("/rfid/{tagId}", ctx.resource.CheckRFIDTagAssignmentHandler())
@@ -338,7 +342,7 @@ func TestCheckRFIDTagAssignment_TagNotAssigned(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	testDevice := testpkg.CreateTestDevice(t, ctx.db, "data-test-device-11")
+	testDevice := testpkg.CreateTestDevice(t, ctx.db, "data-test-device-11", ctx.ogsID)
 
 	router := chi.NewRouter()
 	router.Get("/rfid/{tagId}", ctx.resource.CheckRFIDTagAssignmentHandler())
@@ -358,8 +362,8 @@ func TestCheckRFIDTagAssignment_AssignedToStudent(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	testDevice := testpkg.CreateTestDevice(t, ctx.db, "data-test-device-12")
-	student := testpkg.CreateTestStudent(t, ctx.db, "RFID", "Student", "2a")
+	testDevice := testpkg.CreateTestDevice(t, ctx.db, "data-test-device-12", ctx.ogsID)
+	student := testpkg.CreateTestStudent(t, ctx.db, "RFID", "Student", "2a", ctx.ogsID)
 	rfidCard := testpkg.CreateTestRFIDCard(t, ctx.db, "TESTRFID002")
 	testpkg.LinkRFIDToStudent(t, ctx.db, student.PersonID, rfidCard.ID)
 
@@ -379,8 +383,8 @@ func TestCheckRFIDTagAssignment_AssignedToStaff(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	testDevice := testpkg.CreateTestDevice(t, ctx.db, "data-test-device-13")
-	staff := testpkg.CreateTestStaff(t, ctx.db, "RFID", "Staff")
+	testDevice := testpkg.CreateTestDevice(t, ctx.db, "data-test-device-13", ctx.ogsID)
+	staff := testpkg.CreateTestStaff(t, ctx.db, "RFID", "Staff", ctx.ogsID)
 	rfidCard := testpkg.CreateTestRFIDCard(t, ctx.db, "TESTRFID003")
 	// LinkRFIDToStudent works for any person (staff also have a person_id)
 	testpkg.LinkRFIDToStudent(t, ctx.db, staff.PersonID, rfidCard.ID)

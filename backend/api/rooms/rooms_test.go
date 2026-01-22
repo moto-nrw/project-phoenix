@@ -27,6 +27,7 @@ type testContext struct {
 	db       *bun.DB
 	services *services.Factory
 	resource *roomsAPI.Resource
+	ogsID    string
 }
 
 // setupTestContext initializes the test environment.
@@ -34,6 +35,7 @@ func setupTestContext(t *testing.T) *testContext {
 	t.Helper()
 
 	db := testpkg.SetupTestDB(t)
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repoFactory := repositories.NewFactory(db)
 	svc, err := services.NewFactory(repoFactory, db)
@@ -51,6 +53,7 @@ func setupTestContext(t *testing.T) *testContext {
 		db:       db,
 		services: svc,
 		resource: resource,
+		ogsID:    ogsID,
 	}
 }
 
@@ -85,10 +88,11 @@ func executeWithAuth(router chi.Router, req *http.Request, claims jwt.AppClaims,
 
 func TestListRooms(t *testing.T) {
 	tc := setupTestContext(t)
+	ogsID := testpkg.SetupTestOGS(t, tc.db)
 
 	// Create test rooms
-	room1 := testpkg.CreateTestRoom(t, tc.db, "Test Room 1")
-	room2 := testpkg.CreateTestRoom(t, tc.db, "Test Room 2")
+	room1 := testpkg.CreateTestRoom(t, tc.db, "Test Room 1", ogsID)
+	room2 := testpkg.CreateTestRoom(t, tc.db, "Test Room 2", ogsID)
 	defer testpkg.CleanupActivityFixtures(t, tc.db, room1.ID, room2.ID)
 
 	t.Run("success_lists_all_rooms", func(t *testing.T) {
@@ -127,7 +131,7 @@ func TestGetRoom(t *testing.T) {
 	tc := setupTestContext(t)
 
 	// Create test room
-	room := testpkg.CreateTestRoom(t, tc.db, "Get Room Test")
+	room := testpkg.CreateTestRoom(t, tc.db, "Get Room Test", tc.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID)
 
 	t.Run("success_gets_room", func(t *testing.T) {
@@ -223,7 +227,7 @@ func TestUpdateRoom(t *testing.T) {
 	tc := setupTestContext(t)
 
 	// Create test room
-	room := testpkg.CreateTestRoom(t, tc.db, "Update Room Test")
+	room := testpkg.CreateTestRoom(t, tc.db, "Update Room Test", tc.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID)
 
 	t.Run("success_updates_room", func(t *testing.T) {
@@ -275,7 +279,7 @@ func TestDeleteRoom(t *testing.T) {
 
 	t.Run("success_deletes_room", func(t *testing.T) {
 		// Create room specifically for deletion
-		room := testpkg.CreateTestRoom(t, tc.db, "Delete Room Test")
+		room := testpkg.CreateTestRoom(t, tc.db, "Delete Room Test", tc.ogsID)
 
 		router := setupRouter(tc.resource.DeleteRoomHandler(), "id")
 		req := testutil.NewRequest("DELETE", fmt.Sprintf("/%d", room.ID), nil)
@@ -397,7 +401,7 @@ func TestGetRoomHistory(t *testing.T) {
 	tc := setupTestContext(t)
 
 	// Create test room
-	room := testpkg.CreateTestRoom(t, tc.db, "History Room Test")
+	room := testpkg.CreateTestRoom(t, tc.db, "History Room Test", tc.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID)
 
 	t.Run("success_gets_room_history", func(t *testing.T) {

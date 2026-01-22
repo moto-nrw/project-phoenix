@@ -58,12 +58,13 @@ func TestDeviceRepository_Create(t *testing.T) {
 func TestDeviceRepository_FindByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).Device
 	ctx := context.Background()
 
 	t.Run("finds existing device", func(t *testing.T) {
-		device := testpkg.CreateTestDevice(t, db, "findbyid")
+		device := testpkg.CreateTestDevice(t, db, "findbyid", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, device.ID, 0, 0)
 
 		found, err := repo.FindByID(ctx, device.ID)
@@ -80,12 +81,13 @@ func TestDeviceRepository_FindByID(t *testing.T) {
 func TestDeviceRepository_FindByDeviceID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).Device
 	ctx := context.Background()
 
 	t.Run("finds device by device_id string", func(t *testing.T) {
-		device := testpkg.CreateTestDevice(t, db, "bydeviceid")
+		device := testpkg.CreateTestDevice(t, db, "bydeviceid", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, device.ID, 0, 0)
 
 		found, err := repo.FindByDeviceID(ctx, device.DeviceID)
@@ -102,12 +104,13 @@ func TestDeviceRepository_FindByDeviceID(t *testing.T) {
 func TestDeviceRepository_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).Device
 	ctx := context.Background()
 
 	t.Run("updates device status", func(t *testing.T) {
-		device := testpkg.CreateTestDevice(t, db, "update")
+		device := testpkg.CreateTestDevice(t, db, "update", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, device.ID, 0, 0)
 
 		device.Status = iot.DeviceStatusInactive
@@ -123,12 +126,13 @@ func TestDeviceRepository_Update(t *testing.T) {
 func TestDeviceRepository_Delete(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).Device
 	ctx := context.Background()
 
 	t.Run("deletes existing device", func(t *testing.T) {
-		device := testpkg.CreateTestDevice(t, db, "delete")
+		device := testpkg.CreateTestDevice(t, db, "delete", ogsID)
 
 		err := repo.Delete(ctx, device.ID)
 		require.NoError(t, err)
@@ -145,12 +149,13 @@ func TestDeviceRepository_Delete(t *testing.T) {
 func TestDeviceRepository_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).Device
 	ctx := context.Background()
 
 	t.Run("lists all devices", func(t *testing.T) {
-		device := testpkg.CreateTestDevice(t, db, "list")
+		device := testpkg.CreateTestDevice(t, db, "list", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, device.ID, 0, 0)
 
 		devices, err := repo.List(ctx, nil)
@@ -162,12 +167,13 @@ func TestDeviceRepository_List(t *testing.T) {
 func TestDeviceRepository_FindActiveDevices(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).Device
 	ctx := context.Background()
 
 	t.Run("finds only active devices", func(t *testing.T) {
-		device := testpkg.CreateTestDevice(t, db, "activedevice")
+		device := testpkg.CreateTestDevice(t, db, "activedevice", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, device.ID, 0, 0)
 
 		devices, err := repo.FindActiveDevices(ctx)
@@ -357,13 +363,14 @@ func TestDeviceRepository_FindByStatus(t *testing.T) {
 func TestDeviceRepository_FindByRegisteredBy(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).Device
 	ctx := context.Background()
 
 	t.Run("finds devices registered by person", func(t *testing.T) {
 		// Create a person to register the device
-		person := testpkg.CreateTestStaff(t, db, "Device", "Registrar")
+		person := testpkg.CreateTestStaff(t, db, "Device", "Registrar", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, 0, person.ID, 0, 0, 0)
 
 		device := &iot.Device{
@@ -406,12 +413,13 @@ func TestDeviceRepository_FindByRegisteredBy(t *testing.T) {
 func TestDeviceRepository_UpdateLastSeen(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).Device
 	ctx := context.Background()
 
 	t.Run("updates last_seen timestamp", func(t *testing.T) {
-		device := testpkg.CreateTestDevice(t, db, "lastseen")
+		device := testpkg.CreateTestDevice(t, db, "lastseen", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, device.ID, 0, 0)
 
 		newLastSeen := time.Now().Add(-10 * time.Minute)
@@ -428,12 +436,13 @@ func TestDeviceRepository_UpdateLastSeen(t *testing.T) {
 func TestDeviceRepository_UpdateStatus(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).Device
 	ctx := context.Background()
 
 	t.Run("updates device status", func(t *testing.T) {
-		device := testpkg.CreateTestDevice(t, db, "statusupdate")
+		device := testpkg.CreateTestDevice(t, db, "statusupdate", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, device.ID, 0, 0)
 
 		err := repo.UpdateStatus(ctx, device.DeviceID, iot.DeviceStatusOffline)
@@ -445,7 +454,7 @@ func TestDeviceRepository_UpdateStatus(t *testing.T) {
 	})
 
 	t.Run("updates status to maintenance", func(t *testing.T) {
-		device := testpkg.CreateTestDevice(t, db, "maintenance")
+		device := testpkg.CreateTestDevice(t, db, "maintenance", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, device.ID, 0, 0)
 
 		err := repo.UpdateStatus(ctx, device.DeviceID, iot.DeviceStatusMaintenance)

@@ -29,11 +29,11 @@ type visitTestData struct {
 }
 
 // createVisitTestData creates test fixtures for visit tests
-func createVisitTestData(t *testing.T, db *bun.DB) *visitTestData {
-	student1 := testpkg.CreateTestStudent(t, db, "Visit", "Student1", "1a")
-	student2 := testpkg.CreateTestStudent(t, db, "Visit", "Student2", "1b")
-	activityGroup := testpkg.CreateTestActivityGroup(t, db, "VisitActivity")
-	room := testpkg.CreateTestRoom(t, db, "VisitRoom")
+func createVisitTestData(t *testing.T, db *bun.DB, ogsID string) *visitTestData {
+	student1 := testpkg.CreateTestStudent(t, db, "Visit", "Student1", "1a", ogsID)
+	student2 := testpkg.CreateTestStudent(t, db, "Visit", "Student2", "1b", ogsID)
+	activityGroup := testpkg.CreateTestActivityGroup(t, db, "VisitActivity", ogsID)
+	room := testpkg.CreateTestRoom(t, db, "VisitRoom", ogsID)
 
 	// Create an active group for visits
 	groupRepo := repositories.NewFactory(db).ActiveGroup
@@ -73,9 +73,11 @@ func TestVisitRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
+	ogsID := testpkg.SetupTestOGS(t, db)
+
 	repo := repositories.NewFactory(db).ActiveVisit
 	ctx := context.Background()
-	data := createVisitTestData(t, db)
+	data := createVisitTestData(t, db, ogsID)
 	defer cleanupVisitTestData(t, db, data)
 
 	t.Run("creates visit with valid data", func(t *testing.T) {
@@ -122,9 +124,11 @@ func TestVisitRepository_FindByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
+	ogsID := testpkg.SetupTestOGS(t, db)
+
 	repo := repositories.NewFactory(db).ActiveVisit
 	ctx := context.Background()
-	data := createVisitTestData(t, db)
+	data := createVisitTestData(t, db, ogsID)
 	defer cleanupVisitTestData(t, db, data)
 
 	t.Run("finds existing visit", func(t *testing.T) {
@@ -154,9 +158,11 @@ func TestVisitRepository_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
+	ogsID := testpkg.SetupTestOGS(t, db)
+
 	repo := repositories.NewFactory(db).ActiveVisit
 	ctx := context.Background()
-	data := createVisitTestData(t, db)
+	data := createVisitTestData(t, db, ogsID)
 	defer cleanupVisitTestData(t, db, data)
 
 	t.Run("updates visit exit time", func(t *testing.T) {
@@ -185,9 +191,11 @@ func TestVisitRepository_Delete(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
+	ogsID := testpkg.SetupTestOGS(t, db)
+
 	repo := repositories.NewFactory(db).ActiveVisit
 	ctx := context.Background()
-	data := createVisitTestData(t, db)
+	data := createVisitTestData(t, db, ogsID)
 	defer cleanupVisitTestData(t, db, data)
 
 	t.Run("deletes existing visit", func(t *testing.T) {
@@ -216,9 +224,11 @@ func TestVisitRepository_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
+	ogsID := testpkg.SetupTestOGS(t, db)
+
 	repo := repositories.NewFactory(db).ActiveVisit
 	ctx := context.Background()
-	data := createVisitTestData(t, db)
+	data := createVisitTestData(t, db, ogsID)
 	defer cleanupVisitTestData(t, db, data)
 
 	t.Run("lists all visits", func(t *testing.T) {
@@ -242,9 +252,11 @@ func TestVisitRepository_FindActiveVisits(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
+	ogsID := testpkg.SetupTestOGS(t, db)
+
 	repo := repositories.NewFactory(db).ActiveVisit
 	ctx := context.Background()
-	data := createVisitTestData(t, db)
+	data := createVisitTestData(t, db, ogsID)
 	defer cleanupVisitTestData(t, db, data)
 
 	t.Run("finds only active visits (no exit_time)", func(t *testing.T) {
@@ -282,9 +294,11 @@ func TestVisitRepository_FindActiveByStudentID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
+	ogsID := testpkg.SetupTestOGS(t, db)
+
 	repo := repositories.NewFactory(db).ActiveVisit
 	ctx := context.Background()
-	data := createVisitTestData(t, db)
+	data := createVisitTestData(t, db, ogsID)
 	defer cleanupVisitTestData(t, db, data)
 
 	t.Run("finds active visits for student", func(t *testing.T) {
@@ -321,9 +335,11 @@ func TestVisitRepository_FindByActiveGroupID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
+	ogsID := testpkg.SetupTestOGS(t, db)
+
 	repo := repositories.NewFactory(db).ActiveVisit
 	ctx := context.Background()
-	data := createVisitTestData(t, db)
+	data := createVisitTestData(t, db, ogsID)
 	defer cleanupVisitTestData(t, db, data)
 
 	t.Run("finds visits for active group", func(t *testing.T) {
@@ -357,9 +373,11 @@ func TestVisitRepository_FindByTimeRange(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
+	ogsID := testpkg.SetupTestOGS(t, db)
+
 	repo := repositories.NewFactory(db).ActiveVisit
 	ctx := context.Background()
-	data := createVisitTestData(t, db)
+	data := createVisitTestData(t, db, ogsID)
 	defer cleanupVisitTestData(t, db, data)
 
 	t.Run("finds visits in time range", func(t *testing.T) {
@@ -399,9 +417,11 @@ func TestVisitRepository_GetCurrentByStudentID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
+	ogsID := testpkg.SetupTestOGS(t, db)
+
 	repo := repositories.NewFactory(db).ActiveVisit
 	ctx := context.Background()
-	data := createVisitTestData(t, db)
+	data := createVisitTestData(t, db, ogsID)
 	defer cleanupVisitTestData(t, db, data)
 
 	t.Run("gets current active visit for student", func(t *testing.T) {
@@ -431,9 +451,11 @@ func TestVisitsRepository_GetCurrentByStudentIDs(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
+	ogsID := testpkg.SetupTestOGS(t, db)
+
 	repo := repositories.NewFactory(db).ActiveVisit
 	ctx := context.Background()
-	data := createVisitTestData(t, db)
+	data := createVisitTestData(t, db, ogsID)
 	defer cleanupVisitTestData(t, db, data)
 
 	t.Run("gets current visits for multiple students", func(t *testing.T) {
@@ -480,9 +502,11 @@ func TestVisitRepository_EndVisit(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
+	ogsID := testpkg.SetupTestOGS(t, db)
+
 	repo := repositories.NewFactory(db).ActiveVisit
 	ctx := context.Background()
-	data := createVisitTestData(t, db)
+	data := createVisitTestData(t, db, ogsID)
 	defer cleanupVisitTestData(t, db, data)
 
 	t.Run("ends active visit", func(t *testing.T) {
@@ -513,9 +537,11 @@ func TestVisitRepository_DeleteExpiredVisits(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
+	ogsID := testpkg.SetupTestOGS(t, db)
+
 	repo := repositories.NewFactory(db).ActiveVisit
 	ctx := context.Background()
-	data := createVisitTestData(t, db)
+	data := createVisitTestData(t, db, ogsID)
 	defer cleanupVisitTestData(t, db, data)
 
 	t.Run("deletes expired visits for student", func(t *testing.T) {
@@ -567,9 +593,11 @@ func TestVisitRepository_DeleteVisitsBeforeDate(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
+	ogsID := testpkg.SetupTestOGS(t, db)
+
 	repo := repositories.NewFactory(db).ActiveVisit
 	ctx := context.Background()
-	data := createVisitTestData(t, db)
+	data := createVisitTestData(t, db, ogsID)
 	defer cleanupVisitTestData(t, db, data)
 
 	t.Run("deletes visits before specified date", func(t *testing.T) {
@@ -605,16 +633,17 @@ func TestVisitRepository_DeleteVisitsBeforeDate(t *testing.T) {
 func TestVisitRepository_TransferVisitsFromRecentSessions(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).ActiveVisit
 	groupRepo := repositories.NewFactory(db).ActiveGroup
 	ctx := context.Background()
-	data := createVisitTestData(t, db)
+	data := createVisitTestData(t, db, ogsID)
 	defer cleanupVisitTestData(t, db, data)
 
 	t.Run("transfers visits from recently ended session", func(t *testing.T) {
 		// Create device for this test
-		device := testpkg.CreateTestDevice(t, db, "transfer-test-device")
+		device := testpkg.CreateTestDevice(t, db, "transfer-test-device", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, device.ID, 0, 0)
 
 		// Create old active group with device and end it recently
@@ -671,7 +700,7 @@ func TestVisitRepository_TransferVisitsFromRecentSessions(t *testing.T) {
 
 	t.Run("does not transfer from sessions ended more than 1 hour ago", func(t *testing.T) {
 		// Create device for this test
-		device := testpkg.CreateTestDevice(t, db, "no-transfer-device")
+		device := testpkg.CreateTestDevice(t, db, "no-transfer-device", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, device.ID, 0, 0)
 
 		// Create old group and end it more than 1 hour ago using raw SQL
@@ -720,14 +749,16 @@ func TestVisitRepository_GetVisitRetentionStats(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
+	ogsID := testpkg.SetupTestOGS(t, db)
+
 	repo := repositories.NewFactory(db).ActiveVisit
 	ctx := context.Background()
-	data := createVisitTestData(t, db)
+	data := createVisitTestData(t, db, ogsID)
 	defer cleanupVisitTestData(t, db, data)
 
 	t.Run("gets retention stats for students with expired visits", func(t *testing.T) {
 		// Create a student with privacy consent
-		student := testpkg.CreateTestStudent(t, db, "RetentionStats", "Student", "4a")
+		student := testpkg.CreateTestStudent(t, db, "RetentionStats", "Student", "4a", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		// Create privacy consent with short retention using raw SQL
@@ -772,14 +803,16 @@ func TestVisitRepository_CountExpiredVisits(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
+	ogsID := testpkg.SetupTestOGS(t, db)
+
 	repo := repositories.NewFactory(db).ActiveVisit
 	ctx := context.Background()
-	data := createVisitTestData(t, db)
+	data := createVisitTestData(t, db, ogsID)
 	defer cleanupVisitTestData(t, db, data)
 
 	t.Run("counts all expired visits", func(t *testing.T) {
 		// Create a student with privacy consent
-		student := testpkg.CreateTestStudent(t, db, "ExpiredCount", "Student", "4b")
+		student := testpkg.CreateTestStudent(t, db, "ExpiredCount", "Student", "4b", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		// Create privacy consent with short retention using raw SQL

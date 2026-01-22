@@ -27,6 +27,7 @@ type testContext struct {
 	db       *bun.DB
 	services *services.Factory
 	resource *feedbackAPI.Resource
+	ogsID    string
 }
 
 // setupTestContext initializes test database, services, and resource.
@@ -34,6 +35,7 @@ func setupTestContext(t *testing.T) *testContext {
 	t.Helper()
 
 	db, svc := testutil.SetupAPITest(t)
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	// Create feedback resource
 	resource := feedbackAPI.NewResource(
@@ -46,6 +48,7 @@ func setupTestContext(t *testing.T) *testContext {
 		db:       db,
 		services: svc,
 		resource: resource,
+		ogsID:    ogsID,
 	}
 }
 
@@ -76,8 +79,9 @@ func TestSubmitFeedback_NoDevice(t *testing.T) {
 func TestSubmitFeedback_InvalidJSON(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, ctx.db)
 
-	testDevice := testpkg.CreateTestDevice(t, ctx.db, "feedback-test-device-1")
+	testDevice := testpkg.CreateTestDevice(t, ctx.db, "feedback-test-device-1", ogsID)
 
 	router := chi.NewRouter()
 	router.Post("/feedback", ctx.resource.SubmitFeedbackHandler())
@@ -98,7 +102,7 @@ func TestSubmitFeedback_MissingStudentID(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	testDevice := testpkg.CreateTestDevice(t, ctx.db, "feedback-test-device-2")
+	testDevice := testpkg.CreateTestDevice(t, ctx.db, "feedback-test-device-2", ctx.ogsID)
 
 	router := chi.NewRouter()
 	router.Post("/feedback", ctx.resource.SubmitFeedbackHandler())
@@ -120,7 +124,7 @@ func TestSubmitFeedback_MissingValue(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	testDevice := testpkg.CreateTestDevice(t, ctx.db, "feedback-test-device-3")
+	testDevice := testpkg.CreateTestDevice(t, ctx.db, "feedback-test-device-3", ctx.ogsID)
 
 	router := chi.NewRouter()
 	router.Post("/feedback", ctx.resource.SubmitFeedbackHandler())
@@ -142,7 +146,7 @@ func TestSubmitFeedback_InvalidStudentID(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	testDevice := testpkg.CreateTestDevice(t, ctx.db, "feedback-test-device-4")
+	testDevice := testpkg.CreateTestDevice(t, ctx.db, "feedback-test-device-4", ctx.ogsID)
 
 	router := chi.NewRouter()
 	router.Post("/feedback", ctx.resource.SubmitFeedbackHandler())
@@ -165,7 +169,7 @@ func TestSubmitFeedback_StudentNotFound(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	testDevice := testpkg.CreateTestDevice(t, ctx.db, "feedback-test-device-5")
+	testDevice := testpkg.CreateTestDevice(t, ctx.db, "feedback-test-device-5", ctx.ogsID)
 
 	router := chi.NewRouter()
 	router.Post("/feedback", ctx.resource.SubmitFeedbackHandler())
@@ -188,8 +192,8 @@ func TestSubmitFeedback_Success(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	testDevice := testpkg.CreateTestDevice(t, ctx.db, "feedback-test-device-6")
-	student := testpkg.CreateTestStudent(t, ctx.db, "Feedback", "Student", "1a")
+	testDevice := testpkg.CreateTestDevice(t, ctx.db, "feedback-test-device-6", ctx.ogsID)
+	student := testpkg.CreateTestStudent(t, ctx.db, "Feedback", "Student", "1a", ctx.ogsID)
 
 	router := chi.NewRouter()
 	router.Post("/feedback", ctx.resource.SubmitFeedbackHandler())
@@ -212,8 +216,8 @@ func TestSubmitFeedback_NeutralValue(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	testDevice := testpkg.CreateTestDevice(t, ctx.db, "feedback-test-device-7")
-	student := testpkg.CreateTestStudent(t, ctx.db, "Feedback", "Student2", "1b")
+	testDevice := testpkg.CreateTestDevice(t, ctx.db, "feedback-test-device-7", ctx.ogsID)
+	student := testpkg.CreateTestStudent(t, ctx.db, "Feedback", "Student2", "1b", ctx.ogsID)
 
 	router := chi.NewRouter()
 	router.Post("/feedback", ctx.resource.SubmitFeedbackHandler())
@@ -236,8 +240,8 @@ func TestSubmitFeedback_NegativeValue(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	testDevice := testpkg.CreateTestDevice(t, ctx.db, "feedback-test-device-8")
-	student := testpkg.CreateTestStudent(t, ctx.db, "Feedback", "Student3", "1c")
+	testDevice := testpkg.CreateTestDevice(t, ctx.db, "feedback-test-device-8", ctx.ogsID)
+	student := testpkg.CreateTestStudent(t, ctx.db, "Feedback", "Student3", "1c", ctx.ogsID)
 
 	router := chi.NewRouter()
 	router.Post("/feedback", ctx.resource.SubmitFeedbackHandler())
@@ -260,8 +264,8 @@ func TestSubmitFeedback_InvalidValue(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	testDevice := testpkg.CreateTestDevice(t, ctx.db, "feedback-test-device-9")
-	student := testpkg.CreateTestStudent(t, ctx.db, "Feedback", "Student4", "1d")
+	testDevice := testpkg.CreateTestDevice(t, ctx.db, "feedback-test-device-9", ctx.ogsID)
+	student := testpkg.CreateTestStudent(t, ctx.db, "Feedback", "Student4", "1d", ctx.ogsID)
 
 	router := chi.NewRouter()
 	router.Post("/feedback", ctx.resource.SubmitFeedbackHandler())

@@ -26,13 +26,13 @@ type attendanceTestData struct {
 }
 
 // createAttendanceTestData creates test fixtures using the hermetic pattern
-func createAttendanceTestData(t *testing.T, db *bun.DB) *attendanceTestData {
+func createAttendanceTestData(t *testing.T, db *bun.DB, ogsID string) *attendanceTestData {
 	return &attendanceTestData{
-		Student1: testpkg.CreateTestStudent(t, db, "Attendance", "Student1", "1a"),
-		Student2: testpkg.CreateTestStudent(t, db, "Attendance", "Student2", "1b"),
-		Staff1:   testpkg.CreateTestStaff(t, db, "Attendance", "Staff1"),
-		Staff2:   testpkg.CreateTestStaff(t, db, "Attendance", "Staff2"),
-		Device1:  testpkg.CreateTestDevice(t, db, "attendance-repo-test-device"),
+		Student1: testpkg.CreateTestStudent(t, db, "Attendance", "Student1", "1a", ogsID),
+		Student2: testpkg.CreateTestStudent(t, db, "Attendance", "Student2", "1b", ogsID),
+		Staff1:   testpkg.CreateTestStaff(t, db, "Attendance", "Staff1", ogsID),
+		Staff2:   testpkg.CreateTestStaff(t, db, "Attendance", "Staff2", ogsID),
+		Device1:  testpkg.CreateTestDevice(t, db, "attendance-repo-test-device", ogsID),
 	}
 }
 
@@ -49,10 +49,11 @@ func cleanupAttendanceTestData(t *testing.T, db *bun.DB, data *attendanceTestDat
 func TestAttendanceRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).Attendance
 	ctx := context.Background()
-	data := createAttendanceTestData(t, db)
+	data := createAttendanceTestData(t, db, ogsID)
 	defer cleanupAttendanceTestData(t, db, data)
 
 	var createdIDs []int64
@@ -163,10 +164,11 @@ func TestAttendanceRepository_Create(t *testing.T) {
 func TestAttendanceRepository_FindByStudentAndDate(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).Attendance
 	ctx := context.Background()
-	data := createAttendanceTestData(t, db)
+	data := createAttendanceTestData(t, db, ogsID)
 	defer cleanupAttendanceTestData(t, db, data)
 
 	var createdIDs []int64
@@ -404,10 +406,11 @@ func TestAttendanceRepository_FindByStudentAndDate(t *testing.T) {
 func TestAttendanceRepository_FindLatestByStudent(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).Attendance
 	ctx := context.Background()
-	data := createAttendanceTestData(t, db)
+	data := createAttendanceTestData(t, db, ogsID)
 	defer cleanupAttendanceTestData(t, db, data)
 
 	var createdIDs []int64
@@ -502,7 +505,7 @@ func TestAttendanceRepository_FindLatestByStudent(t *testing.T) {
 
 	t.Run("no records for student", func(t *testing.T) {
 		// Create a new student with no attendance records
-		newStudent := testpkg.CreateTestStudent(t, db, "NoAttendance", "Student", "1c")
+		newStudent := testpkg.CreateTestStudent(t, db, "NoAttendance", "Student", "1c", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, newStudent.ID)
 
 		// Try to find latest record for student with no attendance
@@ -515,7 +518,7 @@ func TestAttendanceRepository_FindLatestByStudent(t *testing.T) {
 
 	t.Run("single record for student", func(t *testing.T) {
 		// Create a new student for isolated test
-		singleStudent := testpkg.CreateTestStudent(t, db, "Single", "RecordStudent", "1d")
+		singleStudent := testpkg.CreateTestStudent(t, db, "Single", "RecordStudent", "1d", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, singleStudent.ID)
 
 		now := time.Now()
@@ -544,7 +547,7 @@ func TestAttendanceRepository_FindLatestByStudent(t *testing.T) {
 
 	t.Run("complex scenario - mixed dates and times", func(t *testing.T) {
 		// Create a new student for isolated test
-		complexStudent := testpkg.CreateTestStudent(t, db, "Complex", "ScenarioStudent", "1e")
+		complexStudent := testpkg.CreateTestStudent(t, db, "Complex", "ScenarioStudent", "1e", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, complexStudent.ID)
 
 		now := time.Now()
@@ -639,10 +642,11 @@ func TestAttendanceRepository_FindLatestByStudent(t *testing.T) {
 func TestAttendanceRepository_GetStudentCurrentStatus(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).Attendance
 	ctx := context.Background()
-	data := createAttendanceTestData(t, db)
+	data := createAttendanceTestData(t, db, ogsID)
 	defer cleanupAttendanceTestData(t, db, data)
 
 	var createdIDs []int64
@@ -654,7 +658,7 @@ func TestAttendanceRepository_GetStudentCurrentStatus(t *testing.T) {
 
 	t.Run("no records today - student not checked in", func(t *testing.T) {
 		// Create a new student with no attendance records
-		newStudent := testpkg.CreateTestStudent(t, db, "NoRecords", "Today", "2a")
+		newStudent := testpkg.CreateTestStudent(t, db, "NoRecords", "Today", "2a", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, newStudent.ID)
 
 		// Try to get current status for student with no attendance today
@@ -667,7 +671,7 @@ func TestAttendanceRepository_GetStudentCurrentStatus(t *testing.T) {
 
 	t.Run("student checked in - latest record has no check-out time", func(t *testing.T) {
 		// Create isolated student
-		checkedInStudent := testpkg.CreateTestStudent(t, db, "CheckedIn", "StatusTest", "2b")
+		checkedInStudent := testpkg.CreateTestStudent(t, db, "CheckedIn", "StatusTest", "2b", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, checkedInStudent.ID)
 
 		now := time.Now()
@@ -699,7 +703,7 @@ func TestAttendanceRepository_GetStudentCurrentStatus(t *testing.T) {
 
 	t.Run("student checked out - latest record has check-out time", func(t *testing.T) {
 		// Create isolated student
-		checkedOutStudent := testpkg.CreateTestStudent(t, db, "CheckedOut", "StatusTest", "2c")
+		checkedOutStudent := testpkg.CreateTestStudent(t, db, "CheckedOut", "StatusTest", "2c", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, checkedOutStudent.ID)
 
 		now := time.Now()
@@ -734,7 +738,7 @@ func TestAttendanceRepository_GetStudentCurrentStatus(t *testing.T) {
 
 	t.Run("multiple records today - returns latest by check-in time", func(t *testing.T) {
 		// Create isolated student
-		multiRecordStudent := testpkg.CreateTestStudent(t, db, "MultiRecord", "StatusTest", "2d")
+		multiRecordStudent := testpkg.CreateTestStudent(t, db, "MultiRecord", "StatusTest", "2d", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, multiRecordStudent.ID)
 
 		now := time.Now()
@@ -789,7 +793,7 @@ func TestAttendanceRepository_GetStudentCurrentStatus(t *testing.T) {
 
 	t.Run("historical records exist but none today", func(t *testing.T) {
 		// Create isolated student
-		historicalStudent := testpkg.CreateTestStudent(t, db, "Historical", "StatusTest", "2e")
+		historicalStudent := testpkg.CreateTestStudent(t, db, "Historical", "StatusTest", "2e", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, historicalStudent.ID)
 
 		now := time.Now()
@@ -817,8 +821,8 @@ func TestAttendanceRepository_GetStudentCurrentStatus(t *testing.T) {
 
 	t.Run("different students on same day", func(t *testing.T) {
 		// Create isolated students
-		diffStudent1 := testpkg.CreateTestStudent(t, db, "Different1", "StatusTest", "2f")
-		diffStudent2 := testpkg.CreateTestStudent(t, db, "Different2", "StatusTest", "2g")
+		diffStudent1 := testpkg.CreateTestStudent(t, db, "Different1", "StatusTest", "2f", ogsID)
+		diffStudent2 := testpkg.CreateTestStudent(t, db, "Different2", "StatusTest", "2g", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, diffStudent1.ID, diffStudent2.ID)
 
 		now := time.Now()
@@ -871,7 +875,7 @@ func TestAttendanceRepository_GetStudentCurrentStatus(t *testing.T) {
 
 	t.Run("timezone handling - today calculation", func(t *testing.T) {
 		// Create isolated student
-		tzStudent := testpkg.CreateTestStudent(t, db, "Timezone", "StatusTest", "2h")
+		tzStudent := testpkg.CreateTestStudent(t, db, "Timezone", "StatusTest", "2h", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, tzStudent.ID)
 
 		today := timezone.Today()
@@ -902,10 +906,11 @@ func TestAttendanceRepository_GetStudentCurrentStatus(t *testing.T) {
 func TestAttendanceRepository_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).Attendance
 	ctx := context.Background()
-	data := createAttendanceTestData(t, db)
+	data := createAttendanceTestData(t, db, ogsID)
 	defer cleanupAttendanceTestData(t, db, data)
 
 	var createdIDs []int64
@@ -959,10 +964,11 @@ func TestAttendanceRepository_Update(t *testing.T) {
 func TestAttendanceRepository_FindByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).Attendance
 	ctx := context.Background()
-	data := createAttendanceTestData(t, db)
+	data := createAttendanceTestData(t, db, ogsID)
 	defer cleanupAttendanceTestData(t, db, data)
 
 	var createdIDs []int64
@@ -1004,10 +1010,11 @@ func TestAttendanceRepository_FindByID(t *testing.T) {
 func TestAttendanceRepository_Delete(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).Attendance
 	ctx := context.Background()
-	data := createAttendanceTestData(t, db)
+	data := createAttendanceTestData(t, db, ogsID)
 	defer cleanupAttendanceTestData(t, db, data)
 
 	t.Run("deletes existing attendance record", func(t *testing.T) {
@@ -1037,10 +1044,11 @@ func TestAttendanceRepository_Delete(t *testing.T) {
 func TestAttendanceRepository_GetTodayByStudentID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).Attendance
 	ctx := context.Background()
-	data := createAttendanceTestData(t, db)
+	data := createAttendanceTestData(t, db, ogsID)
 	defer cleanupAttendanceTestData(t, db, data)
 
 	var createdIDs []int64
@@ -1073,7 +1081,7 @@ func TestAttendanceRepository_GetTodayByStudentID(t *testing.T) {
 
 	t.Run("returns error when no attendance today", func(t *testing.T) {
 		// Create student with no attendance today
-		newStudent := testpkg.CreateTestStudent(t, db, "NoAttendanceToday", "Test", "3a")
+		newStudent := testpkg.CreateTestStudent(t, db, "NoAttendanceToday", "Test", "3a", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, newStudent.ID)
 
 		_, err := repo.GetTodayByStudentID(ctx, newStudent.ID)
@@ -1085,10 +1093,11 @@ func TestAttendanceRepository_GetTodayByStudentID(t *testing.T) {
 func TestAttendanceRepository_FindForDate(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).Attendance
 	ctx := context.Background()
-	data := createAttendanceTestData(t, db)
+	data := createAttendanceTestData(t, db, ogsID)
 	defer cleanupAttendanceTestData(t, db, data)
 
 	var createdIDs []int64

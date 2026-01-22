@@ -19,12 +19,13 @@ import (
 func TestDataDeletionRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).DataDeletion
 	ctx := context.Background()
 
 	// Create a test student for FK reference
-	student := testpkg.CreateTestStudent(t, db, "Deletion", "Student", "1a")
+	student := testpkg.CreateTestStudent(t, db, "Deletion", "Student", "1a", ogsID)
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 	t.Run("creates data deletion with valid data", func(t *testing.T) {
@@ -86,11 +87,12 @@ func TestDataDeletionRepository_Create(t *testing.T) {
 func TestDataDeletionRepository_FindByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).DataDeletion
 	ctx := context.Background()
 
-	student := testpkg.CreateTestStudent(t, db, "Find", "Student", "2a")
+	student := testpkg.CreateTestStudent(t, db, "Find", "Student", "2a", ogsID)
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 	t.Run("finds existing deletion", func(t *testing.T) {
@@ -123,12 +125,13 @@ func TestDataDeletionRepository_FindByID(t *testing.T) {
 func TestDataDeletionRepository_FindByStudentID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).DataDeletion
 	ctx := context.Background()
 
-	student1 := testpkg.CreateTestStudent(t, db, "Student", "One", "3a")
-	student2 := testpkg.CreateTestStudent(t, db, "Student", "Two", "3b")
+	student1 := testpkg.CreateTestStudent(t, db, "Student", "One", "3a", ogsID)
+	student2 := testpkg.CreateTestStudent(t, db, "Student", "Two", "3b", ogsID)
 	defer testpkg.CleanupActivityFixtures(t, db, student1.ID, student2.ID)
 
 	t.Run("finds deletions by student ID", func(t *testing.T) {
@@ -157,11 +160,12 @@ func TestDataDeletionRepository_FindByStudentID(t *testing.T) {
 func TestDataDeletionRepository_FindByDateRange(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).DataDeletion
 	ctx := context.Background()
 
-	student := testpkg.CreateTestStudent(t, db, "Range", "Student", "4a")
+	student := testpkg.CreateTestStudent(t, db, "Range", "Student", "4a", ogsID)
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 	t.Run("finds deletions in date range", func(t *testing.T) {
@@ -190,11 +194,12 @@ func TestDataDeletionRepository_FindByDateRange(t *testing.T) {
 func TestDataDeletionRepository_FindByType(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).DataDeletion
 	ctx := context.Background()
 
-	student := testpkg.CreateTestStudent(t, db, "Type", "Student", "5a")
+	student := testpkg.CreateTestStudent(t, db, "Type", "Student", "5a", ogsID)
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 	t.Run("finds deletions by type", func(t *testing.T) {
@@ -228,12 +233,13 @@ func TestDataDeletionRepository_FindByType(t *testing.T) {
 func TestDataDeletionRepository_GetDeletionStats(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).DataDeletion
 	ctx := context.Background()
 
-	student1 := testpkg.CreateTestStudent(t, db, "Stats", "One", "6a")
-	student2 := testpkg.CreateTestStudent(t, db, "Stats", "Two", "6b")
+	student1 := testpkg.CreateTestStudent(t, db, "Stats", "One", "6a", ogsID)
+	student2 := testpkg.CreateTestStudent(t, db, "Stats", "Two", "6b", ogsID)
 	defer testpkg.CleanupActivityFixtures(t, db, student1.ID, student2.ID)
 
 	t.Run("gets deletion statistics", func(t *testing.T) {
@@ -265,11 +271,12 @@ func TestDataDeletionRepository_GetDeletionStats(t *testing.T) {
 func TestDataDeletionRepository_CountByType(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).DataDeletion
 	ctx := context.Background()
 
-	student := testpkg.CreateTestStudent(t, db, "Count", "Student", "7a")
+	student := testpkg.CreateTestStudent(t, db, "Count", "Student", "7a", ogsID)
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 	t.Run("counts deletions by type", func(t *testing.T) {
@@ -293,11 +300,12 @@ func TestDataDeletionRepository_CountByType(t *testing.T) {
 func TestDataDeletionRepository_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).DataDeletion
 	ctx := context.Background()
 
-	student := testpkg.CreateTestStudent(t, db, "List", "Student", "8a")
+	student := testpkg.CreateTestStudent(t, db, "List", "Student", "8a", ogsID)
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 	t.Run("lists all deletions", func(t *testing.T) {

@@ -18,7 +18,7 @@ import (
 func TestGetStudentPrivacyConsent(t *testing.T) {
 	tc := setupTestContext(t)
 
-	student := testpkg.CreateTestStudent(t, tc.db, "Privacy", "Test", "PT1")
+	student := testpkg.CreateTestStudent(t, tc.db, "Privacy", "Test", "PT1", tc.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 	router := setupRouter(tc.resource.GetStudentPrivacyConsentHandler(), "id")
@@ -43,7 +43,7 @@ func TestGetStudentPrivacyConsent(t *testing.T) {
 func TestUpdateStudentPrivacyConsent(t *testing.T) {
 	tc := setupTestContext(t)
 
-	student := testpkg.CreateTestStudent(t, tc.db, "PrivacyUpdate", "Test", "PU1")
+	student := testpkg.CreateTestStudent(t, tc.db, "PrivacyUpdate", "Test", "PU1", tc.ogsID)
 	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 	router := setupRouter(tc.resource.UpdateStudentPrivacyConsentHandler(), "id")
@@ -89,7 +89,7 @@ func TestPrivacyConsent_Extended(t *testing.T) {
 	tc := setupTestContext(t)
 
 	t.Run("update_creates_new_consent_for_different_version", func(t *testing.T) {
-		student := testpkg.CreateTestStudent(t, tc.db, "Privacy", "MultiVersion", "PM1")
+		student := testpkg.CreateTestStudent(t, tc.db, "Privacy", "MultiVersion", "PM1", tc.ogsID)
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		router := setupRouter(tc.resource.UpdateStudentPrivacyConsentHandler(), "id")
@@ -116,7 +116,7 @@ func TestPrivacyConsent_Extended(t *testing.T) {
 	})
 
 	t.Run("update_with_duration_days", func(t *testing.T) {
-		student := testpkg.CreateTestStudent(t, tc.db, "Privacy", "Duration", "PD1")
+		student := testpkg.CreateTestStudent(t, tc.db, "Privacy", "Duration", "PD1", tc.ogsID)
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		router := setupRouter(tc.resource.UpdateStudentPrivacyConsentHandler(), "id")
@@ -134,7 +134,7 @@ func TestPrivacyConsent_Extended(t *testing.T) {
 	})
 
 	t.Run("update_with_details", func(t *testing.T) {
-		student := testpkg.CreateTestStudent(t, tc.db, "Privacy", "Details", "PDT1")
+		student := testpkg.CreateTestStudent(t, tc.db, "Privacy", "Details", "PDT1", tc.ogsID)
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		router := setupRouter(tc.resource.UpdateStudentPrivacyConsentHandler(), "id")
@@ -156,8 +156,8 @@ func TestPrivacyConsent_Extended(t *testing.T) {
 	})
 
 	t.Run("forbidden_without_full_access", func(t *testing.T) {
-		student := testpkg.CreateTestStudent(t, tc.db, "Privacy", "NoAccess", "PNA1")
-		staff, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "Privacy", "NoAccess")
+		student := testpkg.CreateTestStudent(t, tc.db, "Privacy", "NoAccess", "PNA1", tc.ogsID)
+		staff, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "Privacy", "NoAccess", tc.ogsID)
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID, staff.ID)
 
 		router := setupRouter(tc.resource.GetStudentPrivacyConsentHandler(), "id")
@@ -175,7 +175,7 @@ func TestPrivacyConsent_EdgeCases(t *testing.T) {
 	tc := setupTestContext(t)
 
 	t.Run("update_existing_consent_same_version", func(t *testing.T) {
-		student := testpkg.CreateTestStudent(t, tc.db, "Privacy", "SameVersion", "PSV1")
+		student := testpkg.CreateTestStudent(t, tc.db, "Privacy", "SameVersion", "PSV1", tc.ogsID)
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		router := setupRouter(tc.resource.UpdateStudentPrivacyConsentHandler(), "id")
@@ -199,8 +199,8 @@ func TestPrivacyConsent_EdgeCases(t *testing.T) {
 	})
 
 	t.Run("update_privacy_consent_forbidden", func(t *testing.T) {
-		student := testpkg.CreateTestStudent(t, tc.db, "Privacy", "Forbidden", "PF1")
-		staff, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "Privacy", "ForbiddenStaff")
+		student := testpkg.CreateTestStudent(t, tc.db, "Privacy", "Forbidden", "PF1", tc.ogsID)
+		staff, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "Privacy", "ForbiddenStaff", tc.ogsID)
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID, staff.ID)
 
 		router := setupRouter(tc.resource.UpdateStudentPrivacyConsentHandler(), "id")

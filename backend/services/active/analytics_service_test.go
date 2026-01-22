@@ -18,15 +18,16 @@ import (
 func TestGetActiveGroupsCount(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupActiveService(t, db)
 	ctx := context.Background()
 
 	t.Run("returns count of active groups", func(t *testing.T) {
 		// ARRANGE: Create an active group (no end time)
-		activity := testpkg.CreateTestActivityGroup(t, db, "count-active")
-		room := testpkg.CreateTestRoom(t, db, "Count Active Room")
-		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
+		activity := testpkg.CreateTestActivityGroup(t, db, "count-active", ogsID)
+		room := testpkg.CreateTestRoom(t, db, "Count Active Room", ogsID)
+		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID, ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID)
 
 		// ACT
@@ -39,9 +40,9 @@ func TestGetActiveGroupsCount(t *testing.T) {
 
 	t.Run("does not count ended groups", func(t *testing.T) {
 		// ARRANGE: Create and end a group
-		activity := testpkg.CreateTestActivityGroup(t, db, "count-ended")
-		room := testpkg.CreateTestRoom(t, db, "Count Ended Room")
-		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
+		activity := testpkg.CreateTestActivityGroup(t, db, "count-ended", ogsID)
+		room := testpkg.CreateTestRoom(t, db, "Count Ended Room", ogsID)
+		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID, ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID)
 
 		// Get count before ending
@@ -68,21 +69,22 @@ func TestGetActiveGroupsCount(t *testing.T) {
 func TestGetTotalVisitsCount(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupActiveService(t, db)
 	ctx := context.Background()
 
 	t.Run("returns total visit count", func(t *testing.T) {
 		// ARRANGE
-		activity := testpkg.CreateTestActivityGroup(t, db, "total-visits")
-		room := testpkg.CreateTestRoom(t, db, "Total Visits Room")
-		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
-		student := testpkg.CreateTestStudent(t, db, "TotalVisit", "Student", "9a")
+		activity := testpkg.CreateTestActivityGroup(t, db, "total-visits", ogsID)
+		room := testpkg.CreateTestRoom(t, db, "Total Visits Room", ogsID)
+		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID, ogsID)
+		student := testpkg.CreateTestStudent(t, db, "TotalVisit", "Student", "9a", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, student.ID)
 
 		// Create a visit
 		entryTime := time.Now().Add(-30 * time.Minute)
-		testpkg.CreateTestVisit(t, db, student.ID, activeGroup.ID, entryTime, nil)
+		testpkg.CreateTestVisit(t, db, student.ID, activeGroup.ID, entryTime, nil, ogsID)
 
 		// ACT
 		count, err := service.GetTotalVisitsCount(ctx)
@@ -100,26 +102,27 @@ func TestGetTotalVisitsCount(t *testing.T) {
 func TestGetActiveVisitsCount(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupActiveService(t, db)
 	ctx := context.Background()
 
 	t.Run("counts only active visits", func(t *testing.T) {
 		// ARRANGE
-		activity := testpkg.CreateTestActivityGroup(t, db, "active-visits")
-		room := testpkg.CreateTestRoom(t, db, "Active Visits Room")
-		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
-		student1 := testpkg.CreateTestStudent(t, db, "ActiveVisit1", "Student", "9b")
-		student2 := testpkg.CreateTestStudent(t, db, "ActiveVisit2", "Student", "9b")
+		activity := testpkg.CreateTestActivityGroup(t, db, "active-visits", ogsID)
+		room := testpkg.CreateTestRoom(t, db, "Active Visits Room", ogsID)
+		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID, ogsID)
+		student1 := testpkg.CreateTestStudent(t, db, "ActiveVisit1", "Student", "9b", ogsID)
+		student2 := testpkg.CreateTestStudent(t, db, "ActiveVisit2", "Student", "9b", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, student1.ID, student2.ID)
 
 		// Create one active visit (no exit time)
 		entryTime := time.Now().Add(-30 * time.Minute)
-		testpkg.CreateTestVisit(t, db, student1.ID, activeGroup.ID, entryTime, nil)
+		testpkg.CreateTestVisit(t, db, student1.ID, activeGroup.ID, entryTime, nil, ogsID)
 
 		// Create one ended visit (has exit time)
 		exitTime := time.Now().Add(-10 * time.Minute)
-		testpkg.CreateTestVisit(t, db, student2.ID, activeGroup.ID, entryTime, &exitTime)
+		testpkg.CreateTestVisit(t, db, student2.ID, activeGroup.ID, entryTime, &exitTime, ogsID)
 
 		// ACT
 		count, err := service.GetActiveVisitsCount(ctx)
@@ -137,21 +140,22 @@ func TestGetActiveVisitsCount(t *testing.T) {
 func TestGetRoomUtilization(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupActiveService(t, db)
 	ctx := context.Background()
 
 	t.Run("returns utilization ratio for room with capacity", func(t *testing.T) {
 		// ARRANGE: Create room with capacity
-		activity := testpkg.CreateTestActivityGroup(t, db, "util-activity")
-		room := testpkg.CreateTestRoom(t, db, "Utilization Room")
-		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
-		student := testpkg.CreateTestStudent(t, db, "Util", "Student", "10a")
+		activity := testpkg.CreateTestActivityGroup(t, db, "util-activity", ogsID)
+		room := testpkg.CreateTestRoom(t, db, "Utilization Room", ogsID)
+		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID, ogsID)
+		student := testpkg.CreateTestStudent(t, db, "Util", "Student", "10a", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, student.ID)
 
 		// Create active visit in this room
 		entryTime := time.Now().Add(-30 * time.Minute)
-		testpkg.CreateTestVisit(t, db, student.ID, activeGroup.ID, entryTime, nil)
+		testpkg.CreateTestVisit(t, db, student.ID, activeGroup.ID, entryTime, nil, ogsID)
 
 		// ACT
 		utilization, err := service.GetRoomUtilization(ctx, room.ID)
@@ -165,7 +169,7 @@ func TestGetRoomUtilization(t *testing.T) {
 
 	t.Run("returns 0 for room without capacity", func(t *testing.T) {
 		// ARRANGE: Create room and update capacity to nil
-		room := testpkg.CreateTestRoom(t, db, "No Capacity Room")
+		room := testpkg.CreateTestRoom(t, db, "No Capacity Room", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, room.ID)
 
 		// Update room to have no capacity
@@ -187,7 +191,7 @@ func TestGetRoomUtilization(t *testing.T) {
 
 	t.Run("returns 0 for room with zero capacity", func(t *testing.T) {
 		// ARRANGE: Create room and set capacity to 0
-		room := testpkg.CreateTestRoom(t, db, "Zero Capacity Room")
+		room := testpkg.CreateTestRoom(t, db, "Zero Capacity Room", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, room.ID)
 
 		// Update room to have zero capacity
@@ -223,21 +227,22 @@ func TestGetRoomUtilization(t *testing.T) {
 func TestGetStudentAttendanceRate(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupActiveService(t, db)
 	ctx := context.Background()
 
 	t.Run("returns 1.0 for student with active visit", func(t *testing.T) {
 		// ARRANGE
-		activity := testpkg.CreateTestActivityGroup(t, db, "rate-active")
-		room := testpkg.CreateTestRoom(t, db, "Rate Active Room")
-		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
-		student := testpkg.CreateTestStudent(t, db, "RateActive", "Student", "11a")
+		activity := testpkg.CreateTestActivityGroup(t, db, "rate-active", ogsID)
+		room := testpkg.CreateTestRoom(t, db, "Rate Active Room", ogsID)
+		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID, ogsID)
+		student := testpkg.CreateTestStudent(t, db, "RateActive", "Student", "11a", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, student.ID)
 
 		// Create active visit
 		entryTime := time.Now().Add(-30 * time.Minute)
-		testpkg.CreateTestVisit(t, db, student.ID, activeGroup.ID, entryTime, nil)
+		testpkg.CreateTestVisit(t, db, student.ID, activeGroup.ID, entryTime, nil, ogsID)
 
 		// ACT
 		rate, err := service.GetStudentAttendanceRate(ctx, student.ID)
@@ -249,7 +254,7 @@ func TestGetStudentAttendanceRate(t *testing.T) {
 
 	t.Run("returns 0.0 for student without active visit", func(t *testing.T) {
 		// ARRANGE
-		student := testpkg.CreateTestStudent(t, db, "RateInactive", "Student", "11b")
+		student := testpkg.CreateTestStudent(t, db, "RateInactive", "Student", "11b", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		// ACT
@@ -262,16 +267,16 @@ func TestGetStudentAttendanceRate(t *testing.T) {
 
 	t.Run("returns 0.0 for student with ended visit", func(t *testing.T) {
 		// ARRANGE
-		activity := testpkg.CreateTestActivityGroup(t, db, "rate-ended")
-		room := testpkg.CreateTestRoom(t, db, "Rate Ended Room")
-		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
-		student := testpkg.CreateTestStudent(t, db, "RateEnded", "Student", "11c")
+		activity := testpkg.CreateTestActivityGroup(t, db, "rate-ended", ogsID)
+		room := testpkg.CreateTestRoom(t, db, "Rate Ended Room", ogsID)
+		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID, ogsID)
+		student := testpkg.CreateTestStudent(t, db, "RateEnded", "Student", "11c", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, student.ID)
 
 		// Create ended visit
 		entryTime := time.Now().Add(-2 * time.Hour)
 		exitTime := time.Now().Add(-1 * time.Hour)
-		testpkg.CreateTestVisit(t, db, student.ID, activeGroup.ID, entryTime, &exitTime)
+		testpkg.CreateTestVisit(t, db, student.ID, activeGroup.ID, entryTime, &exitTime, ogsID)
 
 		// ACT
 		rate, err := service.GetStudentAttendanceRate(ctx, student.ID)
@@ -289,6 +294,7 @@ func TestGetStudentAttendanceRate(t *testing.T) {
 func TestGetDashboardAnalytics(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupActiveService(t, db)
 	ctx := context.Background()
@@ -306,9 +312,9 @@ func TestGetDashboardAnalytics(t *testing.T) {
 
 	t.Run("includes active groups in analytics", func(t *testing.T) {
 		// ARRANGE
-		activity := testpkg.CreateTestActivityGroup(t, db, "dashboard-active")
-		room := testpkg.CreateTestRoom(t, db, "Dashboard Room")
-		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
+		activity := testpkg.CreateTestActivityGroup(t, db, "dashboard-active", ogsID)
+		room := testpkg.CreateTestRoom(t, db, "Dashboard Room", ogsID)
+		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID, ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID)
 
 		// ACT

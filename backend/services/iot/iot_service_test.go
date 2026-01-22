@@ -33,6 +33,7 @@ func setupIoTService(t *testing.T, db *bun.DB) iot.Service {
 func TestIoTService_CreateDevice(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupIoTService(t, db)
 	ctx := context.Background()
@@ -118,7 +119,7 @@ func TestIoTService_CreateDevice(t *testing.T) {
 
 	t.Run("returns error for duplicate device ID", func(t *testing.T) {
 		// ARRANGE - create first device
-		existingDevice := testpkg.CreateTestDevice(t, db, "duplicate-test")
+		existingDevice := testpkg.CreateTestDevice(t, db, "duplicate-test", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, existingDevice.ID)
 
 		// Try to create another device with the same device ID
@@ -143,13 +144,14 @@ func TestIoTService_CreateDevice(t *testing.T) {
 func TestIoTService_GetDeviceByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupIoTService(t, db)
 	ctx := context.Background()
 
 	t.Run("returns device when found", func(t *testing.T) {
 		// ARRANGE
-		device := testpkg.CreateTestDevice(t, db, "get-by-id")
+		device := testpkg.CreateTestDevice(t, db, "get-by-id", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, device.ID)
 
 		// ACT
@@ -198,13 +200,14 @@ func TestIoTService_GetDeviceByID(t *testing.T) {
 func TestIoTService_GetDeviceByDeviceID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupIoTService(t, db)
 	ctx := context.Background()
 
 	t.Run("returns device when found", func(t *testing.T) {
 		// ARRANGE
-		device := testpkg.CreateTestDevice(t, db, "get-by-device-id")
+		device := testpkg.CreateTestDevice(t, db, "get-by-device-id", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, device.ID)
 
 		// ACT
@@ -243,13 +246,15 @@ func TestIoTService_GetDeviceByDeviceID(t *testing.T) {
 func TestIoTService_UpdateDevice(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupIoTService(t, db)
 	ctx := context.Background()
 
 	t.Run("updates device successfully", func(t *testing.T) {
 		// ARRANGE
-		device := testpkg.CreateTestDevice(t, db, "to-update")
+		device := testpkg.CreateTestDevice(t, db, "to-update", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, device.ID)
 
 		// Modify device
@@ -313,7 +318,7 @@ func TestIoTService_UpdateDevice(t *testing.T) {
 
 	t.Run("returns error for invalid device data", func(t *testing.T) {
 		// ARRANGE
-		device := testpkg.CreateTestDevice(t, db, "invalid-update")
+		device := testpkg.CreateTestDevice(t, db, "invalid-update", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, device.ID)
 
 		// Make device invalid
@@ -328,8 +333,8 @@ func TestIoTService_UpdateDevice(t *testing.T) {
 
 	t.Run("returns error when changing to duplicate device ID", func(t *testing.T) {
 		// ARRANGE - create two devices
-		device1 := testpkg.CreateTestDevice(t, db, "first-device")
-		device2 := testpkg.CreateTestDevice(t, db, "second-device")
+		device1 := testpkg.CreateTestDevice(t, db, "first-device", ogsID)
+		device2 := testpkg.CreateTestDevice(t, db, "second-device", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, device1.ID, device2.ID)
 
 		// Try to change device2's DeviceID to match device1's
@@ -351,13 +356,15 @@ func TestIoTService_UpdateDevice(t *testing.T) {
 func TestIoTService_DeleteDevice(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupIoTService(t, db)
 	ctx := context.Background()
 
 	t.Run("deletes device successfully", func(t *testing.T) {
 		// ARRANGE
-		device := testpkg.CreateTestDevice(t, db, "to-delete")
+		device := testpkg.CreateTestDevice(t, db, "to-delete", ogsID)
 
 		// ACT
 		err := service.DeleteDevice(ctx, device.ID)
@@ -404,14 +411,16 @@ func TestIoTService_DeleteDevice(t *testing.T) {
 func TestIoTService_ListDevices(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupIoTService(t, db)
 	ctx := context.Background()
 
 	t.Run("returns devices with no filters", func(t *testing.T) {
 		// ARRANGE - create test devices
-		device1 := testpkg.CreateTestDevice(t, db, "list-1")
-		device2 := testpkg.CreateTestDevice(t, db, "list-2")
+		device1 := testpkg.CreateTestDevice(t, db, "list-1", ogsID)
+		device2 := testpkg.CreateTestDevice(t, db, "list-2", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, device1.ID, device2.ID)
 
 		// ACT
@@ -426,7 +435,7 @@ func TestIoTService_ListDevices(t *testing.T) {
 
 	t.Run("returns devices with status filter", func(t *testing.T) {
 		// ARRANGE - create test device with specific status
-		device := testpkg.CreateTestDevice(t, db, "list-status")
+		device := testpkg.CreateTestDevice(t, db, "list-status", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, device.ID)
 
 		// ACT
@@ -464,13 +473,15 @@ func TestIoTService_ListDevices(t *testing.T) {
 func TestIoTService_UpdateDeviceStatus(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupIoTService(t, db)
 	ctx := context.Background()
 
 	t.Run("updates status successfully", func(t *testing.T) {
 		// ARRANGE
-		device := testpkg.CreateTestDevice(t, db, "status-update")
+		device := testpkg.CreateTestDevice(t, db, "status-update", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, device.ID)
 
 		// ACT
@@ -503,7 +514,7 @@ func TestIoTService_UpdateDeviceStatus(t *testing.T) {
 
 	t.Run("returns error for invalid status", func(t *testing.T) {
 		// ARRANGE
-		device := testpkg.CreateTestDevice(t, db, "invalid-status")
+		device := testpkg.CreateTestDevice(t, db, "invalid-status", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, device.ID)
 
 		// ACT
@@ -521,13 +532,15 @@ func TestIoTService_UpdateDeviceStatus(t *testing.T) {
 func TestIoTService_PingDevice(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupIoTService(t, db)
 	ctx := context.Background()
 
 	t.Run("updates last seen time successfully", func(t *testing.T) {
 		// ARRANGE
-		device := testpkg.CreateTestDevice(t, db, "ping-test")
+		device := testpkg.CreateTestDevice(t, db, "ping-test", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, device.ID)
 
 		originalLastSeen := device.LastSeen
@@ -574,13 +587,15 @@ func TestIoTService_PingDevice(t *testing.T) {
 func TestIoTService_GetDevicesByType(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupIoTService(t, db)
 	ctx := context.Background()
 
 	t.Run("returns devices of specified type", func(t *testing.T) {
 		// ARRANGE - CreateTestDevice creates rfid_reader type
-		device := testpkg.CreateTestDevice(t, db, "type-filter")
+		device := testpkg.CreateTestDevice(t, db, "type-filter", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, device.ID)
 
 		// ACT
@@ -620,13 +635,15 @@ func TestIoTService_GetDevicesByType(t *testing.T) {
 func TestIoTService_GetDevicesByStatus(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupIoTService(t, db)
 	ctx := context.Background()
 
 	t.Run("returns devices with specified status", func(t *testing.T) {
 		// ARRANGE - CreateTestDevice creates active devices
-		device := testpkg.CreateTestDevice(t, db, "status-filter")
+		device := testpkg.CreateTestDevice(t, db, "status-filter", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, device.ID)
 
 		// ACT
@@ -657,13 +674,15 @@ func TestIoTService_GetDevicesByStatus(t *testing.T) {
 func TestIoTService_GetDevicesByRegisteredBy(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupIoTService(t, db)
 	ctx := context.Background()
 
 	t.Run("returns devices registered by person", func(t *testing.T) {
 		// ARRANGE - create a person and device with that person as registerer
-		person := testpkg.CreateTestPerson(t, db, "Device", "Registerer")
+		person := testpkg.CreateTestPerson(t, db, "Device", "Registerer", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, person.ID)
 
 		device := &iotModels.Device{
@@ -694,7 +713,7 @@ func TestIoTService_GetDevicesByRegisteredBy(t *testing.T) {
 
 	t.Run("returns empty list when no devices registered by person", func(t *testing.T) {
 		// ARRANGE - create a person with no devices
-		person := testpkg.CreateTestPerson(t, db, "No", "Devices")
+		person := testpkg.CreateTestPerson(t, db, "No", "Devices", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, person.ID)
 
 		// ACT
@@ -731,13 +750,15 @@ func TestIoTService_GetDevicesByRegisteredBy(t *testing.T) {
 func TestIoTService_GetActiveDevices(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupIoTService(t, db)
 	ctx := context.Background()
 
 	t.Run("returns active devices", func(t *testing.T) {
 		// ARRANGE - CreateTestDevice creates active devices by default
-		device := testpkg.CreateTestDevice(t, db, "active-device")
+		device := testpkg.CreateTestDevice(t, db, "active-device", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, device.ID)
 
 		// ACT
@@ -759,13 +780,15 @@ func TestIoTService_GetActiveDevices(t *testing.T) {
 func TestIoTService_GetDevicesRequiringMaintenance(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupIoTService(t, db)
 	ctx := context.Background()
 
 	t.Run("returns devices in maintenance status", func(t *testing.T) {
 		// ARRANGE - create device and set to maintenance
-		device := testpkg.CreateTestDevice(t, db, "maintenance-device")
+		device := testpkg.CreateTestDevice(t, db, "maintenance-device", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, device.ID)
 
 		// Update to maintenance status
@@ -797,13 +820,15 @@ func TestIoTService_GetDevicesRequiringMaintenance(t *testing.T) {
 func TestIoTService_GetOfflineDevices(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupIoTService(t, db)
 	ctx := context.Background()
 
 	t.Run("returns devices offline for specified duration", func(t *testing.T) {
 		// ARRANGE - create device with old last seen
-		device := testpkg.CreateTestDevice(t, db, "offline-device")
+		device := testpkg.CreateTestDevice(t, db, "offline-device", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, device.ID)
 
 		// Update last_seen to be old (we'll check for devices offline > 1 second)
@@ -859,14 +884,16 @@ func TestIoTService_GetOfflineDevices(t *testing.T) {
 func TestIoTService_GetDeviceTypeStatistics(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupIoTService(t, db)
 	ctx := context.Background()
 
 	t.Run("returns device type statistics", func(t *testing.T) {
 		// ARRANGE - create test devices (they have rfid_reader type)
-		device1 := testpkg.CreateTestDevice(t, db, "stats-1")
-		device2 := testpkg.CreateTestDevice(t, db, "stats-2")
+		device1 := testpkg.CreateTestDevice(t, db, "stats-1", ogsID)
+		device2 := testpkg.CreateTestDevice(t, db, "stats-2", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, device1.ID, device2.ID)
 
 		// ACT
@@ -889,6 +916,8 @@ func TestIoTService_GetDeviceTypeStatistics(t *testing.T) {
 func TestIoTService_DetectNewDevices(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupIoTService(t, db)
 	ctx := context.Background()
@@ -907,6 +936,8 @@ func TestIoTService_DetectNewDevices(t *testing.T) {
 func TestIoTService_ScanNetwork(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupIoTService(t, db)
 	ctx := context.Background()
@@ -929,13 +960,15 @@ func TestIoTService_ScanNetwork(t *testing.T) {
 func TestIoTService_GetDeviceByAPIKey(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupIoTService(t, db)
 	ctx := context.Background()
 
 	t.Run("returns device when found by API key", func(t *testing.T) {
 		// ARRANGE - CreateTestDevice generates an API key
-		device := testpkg.CreateTestDevice(t, db, "api-key-test")
+		device := testpkg.CreateTestDevice(t, db, "api-key-test", ogsID)
 		defer testpkg.CleanupActivityFixtures(t, db, device.ID)
 
 		// ACT
@@ -974,6 +1007,7 @@ func TestIoTService_GetDeviceByAPIKey(t *testing.T) {
 func TestIoTService_WithTx(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupIoTService(t, db)
 	ctx := context.Background()

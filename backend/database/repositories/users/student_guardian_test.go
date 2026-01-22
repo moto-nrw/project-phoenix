@@ -53,12 +53,13 @@ func cleanupStudentGuardians(t *testing.T, db *bun.DB, ids ...int64) {
 func TestStudentGuardianRepository_FindByStudentID_Success(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).StudentGuardian
 	ctx := context.Background()
 
 	// Create dependencies
-	student := testpkg.CreateTestStudent(t, db, "Guardian", "Student", "1a")
+	student := testpkg.CreateTestStudent(t, db, "Guardian", "Student", "1a", ogsID)
 	guardian1 := testpkg.CreateTestGuardianProfile(t, db, "guardian1")
 	guardian2 := testpkg.CreateTestGuardianProfile(t, db, "guardian2")
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID, guardian1.ID, guardian2.ID)
@@ -83,12 +84,13 @@ func TestStudentGuardianRepository_FindByStudentID_Success(t *testing.T) {
 func TestStudentGuardianRepository_FindByStudentID_Empty(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).StudentGuardian
 	ctx := context.Background()
 
 	// Create student with no guardians
-	student := testpkg.CreateTestStudent(t, db, "NoGuardian", "Student", "1b")
+	student := testpkg.CreateTestStudent(t, db, "NoGuardian", "Student", "1b", ogsID)
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 	// ACT
@@ -106,13 +108,14 @@ func TestStudentGuardianRepository_FindByStudentID_Empty(t *testing.T) {
 func TestStudentGuardianRepository_FindByGuardianProfileID_Success(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).StudentGuardian
 	ctx := context.Background()
 
 	// Create dependencies
-	student1 := testpkg.CreateTestStudent(t, db, "Multi1", "Student", "2a")
-	student2 := testpkg.CreateTestStudent(t, db, "Multi2", "Student", "2b")
+	student1 := testpkg.CreateTestStudent(t, db, "Multi1", "Student", "2a", ogsID)
+	student2 := testpkg.CreateTestStudent(t, db, "Multi2", "Student", "2b", ogsID)
 	guardian := testpkg.CreateTestGuardianProfile(t, db, "multi-guardian")
 	defer testpkg.CleanupActivityFixtures(t, db, student1.ID, student2.ID, guardian.ID)
 
@@ -140,12 +143,13 @@ func TestStudentGuardianRepository_FindByGuardianProfileID_Success(t *testing.T)
 func TestStudentGuardianRepository_FindPrimaryByStudentID_Success(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).StudentGuardian
 	ctx := context.Background()
 
 	// Create dependencies
-	student := testpkg.CreateTestStudent(t, db, "Primary", "Student", "3a")
+	student := testpkg.CreateTestStudent(t, db, "Primary", "Student", "3a", ogsID)
 	primaryGuardian := testpkg.CreateTestGuardianProfile(t, db, "primary-guardian")
 	secondaryGuardian := testpkg.CreateTestGuardianProfile(t, db, "secondary-guardian")
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID, primaryGuardian.ID, secondaryGuardian.ID)
@@ -167,12 +171,13 @@ func TestStudentGuardianRepository_FindPrimaryByStudentID_Success(t *testing.T) 
 func TestStudentGuardianRepository_FindPrimaryByStudentID_NoPrimary(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).StudentGuardian
 	ctx := context.Background()
 
 	// Create student with no guardians
-	student := testpkg.CreateTestStudent(t, db, "NoPrimary", "Student", "3b")
+	student := testpkg.CreateTestStudent(t, db, "NoPrimary", "Student", "3b", ogsID)
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 	// ACT
@@ -189,12 +194,13 @@ func TestStudentGuardianRepository_FindPrimaryByStudentID_NoPrimary(t *testing.T
 func TestStudentGuardianRepository_FindEmergencyContactsByStudentID_Success(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).StudentGuardian
 	ctx := context.Background()
 
 	// Create dependencies
-	student := testpkg.CreateTestStudent(t, db, "Emergency", "Student", "4a")
+	student := testpkg.CreateTestStudent(t, db, "Emergency", "Student", "4a", ogsID)
 	emergencyGuardian := testpkg.CreateTestGuardianProfile(t, db, "emergency-contact")
 	regularGuardian := testpkg.CreateTestGuardianProfile(t, db, "regular-contact")
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID, emergencyGuardian.ID, regularGuardian.ID)
@@ -235,12 +241,13 @@ func TestStudentGuardianRepository_FindEmergencyContactsByStudentID_Success(t *t
 func TestStudentGuardianRepository_FindPickupAuthoritiesByStudentID_Success(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).StudentGuardian
 	ctx := context.Background()
 
 	// Create dependencies
-	student := testpkg.CreateTestStudent(t, db, "Pickup", "Student", "5a")
+	student := testpkg.CreateTestStudent(t, db, "Pickup", "Student", "5a", ogsID)
 	pickupGuardian := testpkg.CreateTestGuardianProfile(t, db, "pickup-guardian")
 	noPickupGuardian := testpkg.CreateTestGuardianProfile(t, db, "no-pickup-guardian")
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID, pickupGuardian.ID, noPickupGuardian.ID)
@@ -281,12 +288,13 @@ func TestStudentGuardianRepository_FindPickupAuthoritiesByStudentID_Success(t *t
 func TestStudentGuardianRepository_SetPrimary_Success(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).StudentGuardian
 	ctx := context.Background()
 
 	// Create dependencies
-	student := testpkg.CreateTestStudent(t, db, "SetPrimary", "Student", "6a")
+	student := testpkg.CreateTestStudent(t, db, "SetPrimary", "Student", "6a", ogsID)
 	guardian := testpkg.CreateTestGuardianProfile(t, db, "set-primary-guardian")
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID, guardian.ID)
 
@@ -322,12 +330,13 @@ func TestStudentGuardianRepository_SetPrimary_Success(t *testing.T) {
 func TestStudentGuardianRepository_SetEmergencyContact_Success(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).StudentGuardian
 	ctx := context.Background()
 
 	// Create dependencies
-	student := testpkg.CreateTestStudent(t, db, "SetEmergency", "Student", "7a")
+	student := testpkg.CreateTestStudent(t, db, "SetEmergency", "Student", "7a", ogsID)
 	guardian := testpkg.CreateTestGuardianProfile(t, db, "set-emergency-guardian")
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID, guardian.ID)
 
@@ -362,12 +371,13 @@ func TestStudentGuardianRepository_SetEmergencyContact_Success(t *testing.T) {
 func TestStudentGuardianRepository_SetCanPickup_Success(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).StudentGuardian
 	ctx := context.Background()
 
 	// Create dependencies
-	student := testpkg.CreateTestStudent(t, db, "SetPickup", "Student", "8a")
+	student := testpkg.CreateTestStudent(t, db, "SetPickup", "Student", "8a", ogsID)
 	guardian := testpkg.CreateTestGuardianProfile(t, db, "set-pickup-guardian")
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID, guardian.ID)
 
@@ -397,12 +407,13 @@ func TestStudentGuardianRepository_SetCanPickup_Success(t *testing.T) {
 func TestStudentGuardianRepository_UpdatePermissions_ValidJSON(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).StudentGuardian
 	ctx := context.Background()
 
 	// Create dependencies
-	student := testpkg.CreateTestStudent(t, db, "Permissions", "Student", "9a")
+	student := testpkg.CreateTestStudent(t, db, "Permissions", "Student", "9a", ogsID)
 	guardian := testpkg.CreateTestGuardianProfile(t, db, "permissions-guardian")
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID, guardian.ID)
 
@@ -436,12 +447,13 @@ func TestStudentGuardianRepository_UpdatePermissions_ValidJSON(t *testing.T) {
 func TestStudentGuardianRepository_UpdatePermissions_InvalidJSON(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).StudentGuardian
 	ctx := context.Background()
 
 	// Create dependencies
-	student := testpkg.CreateTestStudent(t, db, "InvalidJSON", "Student", "9b")
+	student := testpkg.CreateTestStudent(t, db, "InvalidJSON", "Student", "9b", ogsID)
 	guardian := testpkg.CreateTestGuardianProfile(t, db, "invalid-json-guardian")
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID, guardian.ID)
 
@@ -465,12 +477,13 @@ func TestStudentGuardianRepository_UpdatePermissions_InvalidJSON(t *testing.T) {
 func TestStudentGuardianRepository_Create_Success(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).StudentGuardian
 	ctx := context.Background()
 
 	// Create dependencies
-	student := testpkg.CreateTestStudent(t, db, "CreateSG", "Student", "10a")
+	student := testpkg.CreateTestStudent(t, db, "CreateSG", "Student", "10a", ogsID)
 	guardian := testpkg.CreateTestGuardianProfile(t, db, "create-sg-guardian")
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID, guardian.ID)
 
@@ -538,12 +551,13 @@ func TestStudentGuardianRepository_Create_ValidationError(t *testing.T) {
 func TestStudentGuardianRepository_FindByRelationshipType_Success(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).StudentGuardian
 	ctx := context.Background()
 
 	// Create dependencies
-	student := testpkg.CreateTestStudent(t, db, "RelType", "Student", "12a")
+	student := testpkg.CreateTestStudent(t, db, "RelType", "Student", "12a", ogsID)
 	parentGuardian := testpkg.CreateTestGuardianProfile(t, db, "parent-type")
 	relativeGuardian := testpkg.CreateTestGuardianProfile(t, db, "relative-type")
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID, parentGuardian.ID, relativeGuardian.ID)
@@ -572,12 +586,13 @@ func TestStudentGuardianRepository_FindByRelationshipType_Success(t *testing.T) 
 func TestStudentGuardianRepository_List_WithFilters(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).StudentGuardian
 	ctx := context.Background()
 
 	// Create dependencies
-	student := testpkg.CreateTestStudent(t, db, "ListTest", "Student", "13a")
+	student := testpkg.CreateTestStudent(t, db, "ListTest", "Student", "13a", ogsID)
 	guardian := testpkg.CreateTestGuardianProfile(t, db, "list-guardian")
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID, guardian.ID)
 

@@ -75,12 +75,13 @@ func cleanupFeedbackFixtures(t *testing.T, db *bun.DB, entryIDs []int64) {
 func TestFeedbackService_CreateEntry(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupFeedbackService(t, db)
 	ctx := context.Background()
 
 	// Create a test student
-	student := testpkg.CreateTestStudent(t, db, "Feedback", "TestStudent", "1a")
+	student := testpkg.CreateTestStudent(t, db, "Feedback", "TestStudent", "1a", ogsID)
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID, 0, 0, 0, 0)
 
 	t.Run("creates valid feedback entry", func(t *testing.T) {
@@ -147,12 +148,13 @@ func TestFeedbackService_CreateEntry(t *testing.T) {
 func TestFeedbackService_GetEntryByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupFeedbackService(t, db)
 	ctx := context.Background()
 
 	// Create a test student and entry
-	student := testpkg.CreateTestStudent(t, db, "Feedback", "GetStudent", "2a")
+	student := testpkg.CreateTestStudent(t, db, "Feedback", "GetStudent", "2a", ogsID)
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID, 0, 0, 0, 0)
 
 	entry := createTestFeedbackEntry(t, db, student.ID, feedback.ValueNeutral, time.Now())
@@ -189,12 +191,13 @@ func TestFeedbackService_GetEntryByID(t *testing.T) {
 func TestFeedbackService_UpdateEntry(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupFeedbackService(t, db)
 	ctx := context.Background()
 
 	// Create a test student and entry
-	student := testpkg.CreateTestStudent(t, db, "Feedback", "UpdateStudent", "3a")
+	student := testpkg.CreateTestStudent(t, db, "Feedback", "UpdateStudent", "3a", ogsID)
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID, 0, 0, 0, 0)
 
 	entry := createTestFeedbackEntry(t, db, student.ID, feedback.ValuePositive, time.Now())
@@ -261,12 +264,13 @@ func TestFeedbackService_UpdateEntry(t *testing.T) {
 func TestFeedbackService_DeleteEntry(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupFeedbackService(t, db)
 	ctx := context.Background()
 
 	// Create a test student
-	student := testpkg.CreateTestStudent(t, db, "Feedback", "DeleteStudent", "4a")
+	student := testpkg.CreateTestStudent(t, db, "Feedback", "DeleteStudent", "4a", ogsID)
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID, 0, 0, 0, 0)
 
 	t.Run("deletes entry successfully", func(t *testing.T) {
@@ -304,12 +308,13 @@ func TestFeedbackService_DeleteEntry(t *testing.T) {
 func TestFeedbackService_ListEntries(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupFeedbackService(t, db)
 	ctx := context.Background()
 
 	// Create a test student and entries
-	student := testpkg.CreateTestStudent(t, db, "Feedback", "ListStudent", "5a")
+	student := testpkg.CreateTestStudent(t, db, "Feedback", "ListStudent", "5a", ogsID)
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID, 0, 0, 0, 0)
 
 	entry1 := createTestFeedbackEntry(t, db, student.ID, feedback.ValuePositive, time.Now())
@@ -347,12 +352,13 @@ func TestFeedbackService_ListEntries(t *testing.T) {
 func TestFeedbackService_GetEntriesByStudent(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupFeedbackService(t, db)
 	ctx := context.Background()
 
 	// Create a test student and entries
-	student := testpkg.CreateTestStudent(t, db, "Feedback", "StudentQuery", "6a")
+	student := testpkg.CreateTestStudent(t, db, "Feedback", "StudentQuery", "6a", ogsID)
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID, 0, 0, 0, 0)
 
 	entry1 := createTestFeedbackEntry(t, db, student.ID, feedback.ValuePositive, time.Now())
@@ -380,12 +386,13 @@ func TestFeedbackService_GetEntriesByStudent(t *testing.T) {
 func TestFeedbackService_GetEntriesByDay(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupFeedbackService(t, db)
 	ctx := context.Background()
 
 	// Create a test student and entries
-	student := testpkg.CreateTestStudent(t, db, "Feedback", "DayQuery", "7a")
+	student := testpkg.CreateTestStudent(t, db, "Feedback", "DayQuery", "7a", ogsID)
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID, 0, 0, 0, 0)
 
 	today := timezone.Today()
@@ -413,12 +420,13 @@ func TestFeedbackService_GetEntriesByDay(t *testing.T) {
 func TestFeedbackService_GetEntriesByDateRange(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupFeedbackService(t, db)
 	ctx := context.Background()
 
 	// Create a test student and entries
-	student := testpkg.CreateTestStudent(t, db, "Feedback", "RangeQuery", "8a")
+	student := testpkg.CreateTestStudent(t, db, "Feedback", "RangeQuery", "8a", ogsID)
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID, 0, 0, 0, 0)
 
 	today := timezone.Today()
@@ -466,6 +474,7 @@ func TestFeedbackService_GetEntriesByDateRange(t *testing.T) {
 func TestFeedbackService_GetMensaFeedback(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupFeedbackService(t, db)
 	ctx := context.Background()
@@ -493,12 +502,13 @@ func TestFeedbackService_GetMensaFeedback(t *testing.T) {
 func TestFeedbackService_GetEntriesByStudentAndDateRange(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupFeedbackService(t, db)
 	ctx := context.Background()
 
 	// Create a test student and entries
-	student := testpkg.CreateTestStudent(t, db, "Feedback", "StudentRange", "9a")
+	student := testpkg.CreateTestStudent(t, db, "Feedback", "StudentRange", "9a", ogsID)
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID, 0, 0, 0, 0)
 
 	today := timezone.Today()
@@ -550,12 +560,13 @@ func TestFeedbackService_GetEntriesByStudentAndDateRange(t *testing.T) {
 func TestFeedbackService_CountByDay(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupFeedbackService(t, db)
 	ctx := context.Background()
 
 	// Create a test student and entry
-	student := testpkg.CreateTestStudent(t, db, "Feedback", "CountDay", "10a")
+	student := testpkg.CreateTestStudent(t, db, "Feedback", "CountDay", "10a", ogsID)
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID, 0, 0, 0, 0)
 
 	today := timezone.Today()
@@ -583,12 +594,13 @@ func TestFeedbackService_CountByDay(t *testing.T) {
 func TestFeedbackService_CountByStudent(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupFeedbackService(t, db)
 	ctx := context.Background()
 
 	// Create a test student and entry
-	student := testpkg.CreateTestStudent(t, db, "Feedback", "CountStudent", "11a")
+	student := testpkg.CreateTestStudent(t, db, "Feedback", "CountStudent", "11a", ogsID)
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID, 0, 0, 0, 0)
 
 	entry := createTestFeedbackEntry(t, db, student.ID, feedback.ValueNeutral, time.Now())
@@ -615,6 +627,7 @@ func TestFeedbackService_CountByStudent(t *testing.T) {
 func TestFeedbackService_CountMensaFeedback(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupFeedbackService(t, db)
 	ctx := context.Background()
@@ -646,12 +659,13 @@ func TestFeedbackService_CountMensaFeedback(t *testing.T) {
 func TestFeedbackService_CreateEntries(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupFeedbackService(t, db)
 	ctx := context.Background()
 
 	// Create a test student
-	student := testpkg.CreateTestStudent(t, db, "Feedback", "BatchStudent", "12a")
+	student := testpkg.CreateTestStudent(t, db, "Feedback", "BatchStudent", "12a", ogsID)
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID, 0, 0, 0, 0)
 
 	t.Run("creates multiple entries", func(t *testing.T) {
@@ -711,6 +725,7 @@ func TestFeedbackService_CreateEntries(t *testing.T) {
 func TestFeedbackService_WithTx(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	service := setupFeedbackService(t, db)
 	ctx := context.Background()

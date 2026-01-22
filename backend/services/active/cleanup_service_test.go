@@ -8,7 +8,7 @@
 // STRUCTURE: ARRANGE-ACT-ASSERT
 //
 //	ARRANGE: Create test fixtures (real database records)
-//	  student := testpkg.CreateTestStudent(t, db, "First", "Last", "1a")
+//	  student := testpkg.CreateTestStudent(t, db, "First", "Last", "1a", ogsID)
 //	  defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 //
 //	ACT: Perform the operation under test
@@ -51,6 +51,7 @@ func setupCleanupService(t *testing.T, db *bun.DB) active.CleanupService {
 func TestCleanupStaleAttendance_NoStaleRecords(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	cleanupService := setupCleanupService(t, db)
 	ctx := context.Background()
@@ -72,14 +73,15 @@ func TestCleanupStaleAttendance_NoStaleRecords(t *testing.T) {
 func TestCleanupStaleAttendance_ClosesStaleRecords(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	cleanupService := setupCleanupService(t, db)
 	ctx := context.Background()
 
 	// ARRANGE: Create fixtures for stale attendance
-	student := testpkg.CreateTestStudent(t, db, "Stale", "Attendance", "5a")
-	staff := testpkg.CreateTestStaff(t, db, "Cleanup", "Staff")
-	device := testpkg.CreateTestDevice(t, db, "cleanup-device-001")
+	student := testpkg.CreateTestStudent(t, db, "Stale", "Attendance", "5a", ogsID)
+	staff := testpkg.CreateTestStaff(t, db, "Cleanup", "Staff", ogsID)
+	device := testpkg.CreateTestDevice(t, db, "cleanup-device-001", ogsID)
 
 	// Create a stale attendance record (yesterday, no checkout)
 	yesterday := timezone.Today().AddDate(0, 0, -1)
@@ -119,6 +121,7 @@ func TestCleanupStaleAttendance_ClosesStaleRecords(t *testing.T) {
 func TestPreviewAttendanceCleanup_NoStaleRecords(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	cleanupService := setupCleanupService(t, db)
 	ctx := context.Background()
@@ -139,14 +142,15 @@ func TestPreviewAttendanceCleanup_NoStaleRecords(t *testing.T) {
 func TestPreviewAttendanceCleanup_ShowsStaleRecords(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	cleanupService := setupCleanupService(t, db)
 	ctx := context.Background()
 
 	// ARRANGE: Create fixtures for stale attendance
-	student := testpkg.CreateTestStudent(t, db, "Preview", "Stale", "5b")
-	staff := testpkg.CreateTestStaff(t, db, "Preview", "Staff")
-	device := testpkg.CreateTestDevice(t, db, "preview-device-001")
+	student := testpkg.CreateTestStudent(t, db, "Preview", "Stale", "5b", ogsID)
+	staff := testpkg.CreateTestStaff(t, db, "Preview", "Staff", ogsID)
+	device := testpkg.CreateTestDevice(t, db, "preview-device-001", ogsID)
 
 	// Create a stale attendance record (2 days ago, no checkout)
 	twoDaysAgo := timezone.Today().AddDate(0, 0, -2)
@@ -185,6 +189,7 @@ func TestPreviewAttendanceCleanup_ShowsStaleRecords(t *testing.T) {
 func TestGetRetentionStatistics_EmptyDatabase(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	cleanupService := setupCleanupService(t, db)
 	ctx := context.Background()
@@ -206,6 +211,7 @@ func TestGetRetentionStatistics_EmptyDatabase(t *testing.T) {
 func TestPreviewCleanup_EmptyDatabase(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	cleanupService := setupCleanupService(t, db)
 	ctx := context.Background()
@@ -228,6 +234,7 @@ func TestPreviewCleanup_EmptyDatabase(t *testing.T) {
 func TestCleanupExpiredVisits_NoExpiredVisits(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	cleanupService := setupCleanupService(t, db)
 	ctx := context.Background()
@@ -253,12 +260,13 @@ func TestCleanupExpiredVisits_NoExpiredVisits(t *testing.T) {
 func TestCleanupVisitsForStudent_NoConsent(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	cleanupService := setupCleanupService(t, db)
 	ctx := context.Background()
 
 	// ARRANGE: Create a student without privacy consent
-	student := testpkg.CreateTestStudent(t, db, "NoConsent", "Student", "6a")
+	student := testpkg.CreateTestStudent(t, db, "NoConsent", "Student", "6a", ogsID)
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 	// ACT: Run cleanup for student
@@ -274,12 +282,13 @@ func TestCleanupVisitsForStudent_NoConsent(t *testing.T) {
 func TestCleanupVisitsForStudent_WithConsent(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	cleanupService := setupCleanupService(t, db)
 	ctx := context.Background()
 
 	// ARRANGE: Create a student and add privacy consent
-	consent := testpkg.CreateTestPrivacyConsent(t, db, "WithConsent")
+	consent := testpkg.CreateTestPrivacyConsent(t, db, "WithConsent", ogsID)
 	defer testpkg.CleanupActivityFixtures(t, db, consent.Student.ID)
 
 	// ACT: Run cleanup for student with consent
@@ -299,6 +308,7 @@ func TestCleanupVisitsForStudent_WithConsent(t *testing.T) {
 func TestCleanupStaleAttendance_DatabaseError(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	cleanupService := setupCleanupService(t, db)
 
@@ -322,6 +332,7 @@ func TestCleanupStaleAttendance_DatabaseError(t *testing.T) {
 func TestPreviewAttendanceCleanup_DatabaseError(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	cleanupService := setupCleanupService(t, db)
 
@@ -342,6 +353,7 @@ func TestPreviewAttendanceCleanup_DatabaseError(t *testing.T) {
 func TestGetRetentionStatistics_DatabaseError(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	cleanupService := setupCleanupService(t, db)
 
@@ -362,6 +374,7 @@ func TestGetRetentionStatistics_DatabaseError(t *testing.T) {
 func TestPreviewCleanup_DatabaseError(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	cleanupService := setupCleanupService(t, db)
 
@@ -382,6 +395,7 @@ func TestPreviewCleanup_DatabaseError(t *testing.T) {
 func TestCleanupExpiredVisits_DatabaseError(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	cleanupService := setupCleanupService(t, db)
 
@@ -403,6 +417,7 @@ func TestCleanupExpiredVisits_DatabaseError(t *testing.T) {
 func TestCleanupVisitsForStudent_DatabaseError(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	_ = testpkg.SetupTestOGS(t, db)
 
 	cleanupService := setupCleanupService(t, db)
 

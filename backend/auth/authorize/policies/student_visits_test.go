@@ -126,25 +126,26 @@ func TestStudentVisitPolicy_UserWithPermissionCanAccess(t *testing.T) {
 func TestStudentVisitPolicy_StudentCanAccessOwnVisit(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	eduService, usersService, activeService := setupPolicyServices(t, db)
 	p := policies.NewStudentVisitPolicy(eduService, usersService, activeService)
 
 	// ARRANGE: Create student with account
-	student, studentAccount := testpkg.CreateTestStudentWithAccount(t, db, "Test", "Student", "1a")
+	student, studentAccount := testpkg.CreateTestStudentWithAccount(t, db, "Test", "Student", "1a", ogsID)
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID, studentAccount.ID)
 
 	// Create activity and room for the visit
-	activity := testpkg.CreateTestActivityGroup(t, db, "Test Activity")
-	room := testpkg.CreateTestRoom(t, db, "Test Room")
+	activity := testpkg.CreateTestActivityGroup(t, db, "Test Activity", ogsID)
+	room := testpkg.CreateTestRoom(t, db, "Test Room", ogsID)
 	defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID)
 
 	// Create active group (session)
-	activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
+	activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID, ogsID)
 	defer testpkg.CleanupActivityFixtures(t, db, activeGroup.ID)
 
 	// Create visit for this student
-	visit := testpkg.CreateTestVisit(t, db, student.ID, activeGroup.ID, time.Now(), nil)
+	visit := testpkg.CreateTestVisit(t, db, student.ID, activeGroup.ID, time.Now(), nil, ogsID)
 	defer testpkg.CleanupActivityFixtures(t, db, visit.ID)
 
 	// ACT: Student tries to access their own visit
@@ -168,26 +169,27 @@ func TestStudentVisitPolicy_StudentCanAccessOwnVisit(t *testing.T) {
 func TestStudentVisitPolicy_StudentCannotAccessOtherStudentsVisit(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	eduService, usersService, activeService := setupPolicyServices(t, db)
 	p := policies.NewStudentVisitPolicy(eduService, usersService, activeService)
 
 	// ARRANGE: Create two students
-	student1, student1Account := testpkg.CreateTestStudentWithAccount(t, db, "Student", "One", "1a")
-	student2, student2Account := testpkg.CreateTestStudentWithAccount(t, db, "Student", "Two", "1b")
+	student1, student1Account := testpkg.CreateTestStudentWithAccount(t, db, "Student", "One", "1a", ogsID)
+	student2, student2Account := testpkg.CreateTestStudentWithAccount(t, db, "Student", "Two", "1b", ogsID)
 	defer testpkg.CleanupActivityFixtures(t, db, student1.ID, student1Account.ID, student2.ID, student2Account.ID)
 
 	// Create activity and room
-	activity := testpkg.CreateTestActivityGroup(t, db, "Test Activity")
-	room := testpkg.CreateTestRoom(t, db, "Test Room")
+	activity := testpkg.CreateTestActivityGroup(t, db, "Test Activity", ogsID)
+	room := testpkg.CreateTestRoom(t, db, "Test Room", ogsID)
 	defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID)
 
 	// Create active group
-	activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
+	activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID, ogsID)
 	defer testpkg.CleanupActivityFixtures(t, db, activeGroup.ID)
 
 	// Create visit belonging to student2
-	visit := testpkg.CreateTestVisit(t, db, student2.ID, activeGroup.ID, time.Now(), nil)
+	visit := testpkg.CreateTestVisit(t, db, student2.ID, activeGroup.ID, time.Now(), nil, ogsID)
 	defer testpkg.CleanupActivityFixtures(t, db, visit.ID)
 
 	// ACT: Student1 tries to access Student2's visit
@@ -211,35 +213,36 @@ func TestStudentVisitPolicy_StudentCannotAccessOtherStudentsVisit(t *testing.T) 
 func TestStudentVisitPolicy_TeacherCanAccessVisitOfStudentInTheirGroup(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	eduService, usersService, activeService := setupPolicyServices(t, db)
 	p := policies.NewStudentVisitPolicy(eduService, usersService, activeService)
 
 	// ARRANGE: Create teacher with account
-	teacher, teacherAccount := testpkg.CreateTestTeacherWithAccount(t, db, "Test", "Teacher")
+	teacher, teacherAccount := testpkg.CreateTestTeacherWithAccount(t, db, "Test", "Teacher", ogsID)
 	defer testpkg.CleanupActivityFixtures(t, db, teacher.ID, teacher.Staff.ID, teacherAccount.ID)
 
 	// Create education group and assign teacher
-	eduGroup := testpkg.CreateTestEducationGroup(t, db, "Class 1a")
+	eduGroup := testpkg.CreateTestEducationGroup(t, db, "Class 1a", ogsID)
 	testpkg.CreateTestGroupTeacher(t, db, eduGroup.ID, teacher.ID)
 	defer testpkg.CleanupActivityFixtures(t, db, eduGroup.ID)
 
 	// Create student IN THE SAME GROUP as teacher
-	student, studentAccount := testpkg.CreateTestStudentWithAccount(t, db, "Test", "Student", "1a")
+	student, studentAccount := testpkg.CreateTestStudentWithAccount(t, db, "Test", "Student", "1a", ogsID)
 	testpkg.AssignStudentToGroup(t, db, student.ID, eduGroup.ID)
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID, studentAccount.ID)
 
 	// Create activity and room for the visit
-	activity := testpkg.CreateTestActivityGroup(t, db, "Test Activity")
-	room := testpkg.CreateTestRoom(t, db, "Test Room")
+	activity := testpkg.CreateTestActivityGroup(t, db, "Test Activity", ogsID)
+	room := testpkg.CreateTestRoom(t, db, "Test Room", ogsID)
 	defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID)
 
 	// Create active group (session)
-	activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
+	activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID, ogsID)
 	defer testpkg.CleanupActivityFixtures(t, db, activeGroup.ID)
 
 	// Create visit for student
-	visit := testpkg.CreateTestVisit(t, db, student.ID, activeGroup.ID, time.Now(), nil)
+	visit := testpkg.CreateTestVisit(t, db, student.ID, activeGroup.ID, time.Now(), nil, ogsID)
 	defer testpkg.CleanupActivityFixtures(t, db, visit.ID)
 
 	// ACT: Teacher tries to access student's visit
@@ -263,39 +266,40 @@ func TestStudentVisitPolicy_TeacherCanAccessVisitOfStudentInTheirGroup(t *testin
 func TestStudentVisitPolicy_TeacherCannotAccessVisitOfStudentNotInTheirGroup(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	eduService, usersService, activeService := setupPolicyServices(t, db)
 	p := policies.NewStudentVisitPolicy(eduService, usersService, activeService)
 
 	// ARRANGE: Create teacher with account
-	teacher, teacherAccount := testpkg.CreateTestTeacherWithAccount(t, db, "Test", "Teacher")
+	teacher, teacherAccount := testpkg.CreateTestTeacherWithAccount(t, db, "Test", "Teacher", ogsID)
 	defer testpkg.CleanupActivityFixtures(t, db, teacher.ID, teacher.Staff.ID, teacherAccount.ID)
 
 	// Create education group A and assign teacher to it
-	groupA := testpkg.CreateTestEducationGroup(t, db, "Class A")
+	groupA := testpkg.CreateTestEducationGroup(t, db, "Class A", ogsID)
 	testpkg.CreateTestGroupTeacher(t, db, groupA.ID, teacher.ID)
 	defer testpkg.CleanupActivityFixtures(t, db, groupA.ID)
 
 	// Create education group B (teacher NOT assigned)
-	groupB := testpkg.CreateTestEducationGroup(t, db, "Class B")
+	groupB := testpkg.CreateTestEducationGroup(t, db, "Class B", ogsID)
 	defer testpkg.CleanupActivityFixtures(t, db, groupB.ID)
 
 	// Create student in GROUP B (not teacher's group)
-	student, studentAccount := testpkg.CreateTestStudentWithAccount(t, db, "Other", "Student", "2b")
+	student, studentAccount := testpkg.CreateTestStudentWithAccount(t, db, "Other", "Student", "2b", ogsID)
 	testpkg.AssignStudentToGroup(t, db, student.ID, groupB.ID)
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID, studentAccount.ID)
 
 	// Create activity and room for the visit
-	activity := testpkg.CreateTestActivityGroup(t, db, "Test Activity")
-	room := testpkg.CreateTestRoom(t, db, "Test Room")
+	activity := testpkg.CreateTestActivityGroup(t, db, "Test Activity", ogsID)
+	room := testpkg.CreateTestRoom(t, db, "Test Room", ogsID)
 	defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID)
 
 	// Create active group (session)
-	activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
+	activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID, ogsID)
 	defer testpkg.CleanupActivityFixtures(t, db, activeGroup.ID)
 
 	// Create visit for student
-	visit := testpkg.CreateTestVisit(t, db, student.ID, activeGroup.ID, time.Now(), nil)
+	visit := testpkg.CreateTestVisit(t, db, student.ID, activeGroup.ID, time.Now(), nil, ogsID)
 	defer testpkg.CleanupActivityFixtures(t, db, visit.ID)
 
 	// ACT: Teacher tries to access student's visit (student not in their group)
@@ -319,26 +323,27 @@ func TestStudentVisitPolicy_TeacherCannotAccessVisitOfStudentNotInTheirGroup(t *
 func TestStudentVisitPolicy_RegularUserWithoutPermissionsCannotAccess(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	eduService, usersService, activeService := setupPolicyServices(t, db)
 	p := policies.NewStudentVisitPolicy(eduService, usersService, activeService)
 
 	// ARRANGE: Create a regular user (person with account but no student/staff/teacher)
-	person, account := testpkg.CreateTestPersonWithAccount(t, db, "Regular", "User")
+	person, account := testpkg.CreateTestPersonWithAccount(t, db, "Regular", "User", ogsID)
 	defer testpkg.CleanupActivityFixtures(t, db, person.ID, account.ID)
 
 	// Create student and visit
-	student, studentAccount := testpkg.CreateTestStudentWithAccount(t, db, "Test", "Student", "1a")
+	student, studentAccount := testpkg.CreateTestStudentWithAccount(t, db, "Test", "Student", "1a", ogsID)
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID, studentAccount.ID)
 
-	activity := testpkg.CreateTestActivityGroup(t, db, "Test Activity")
-	room := testpkg.CreateTestRoom(t, db, "Test Room")
+	activity := testpkg.CreateTestActivityGroup(t, db, "Test Activity", ogsID)
+	room := testpkg.CreateTestRoom(t, db, "Test Room", ogsID)
 	defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID)
 
-	activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
+	activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID, ogsID)
 	defer testpkg.CleanupActivityFixtures(t, db, activeGroup.ID)
 
-	visit := testpkg.CreateTestVisit(t, db, student.ID, activeGroup.ID, time.Now(), nil)
+	visit := testpkg.CreateTestVisit(t, db, student.ID, activeGroup.ID, time.Now(), nil, ogsID)
 	defer testpkg.CleanupActivityFixtures(t, db, visit.ID)
 
 	// ACT: Regular user (not student, not staff) tries to access visit
