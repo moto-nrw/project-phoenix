@@ -470,7 +470,7 @@ func TestHandlePendingDailyCheckoutResponse_Basic(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 
 	// Response is wrapped in common.Respond structure
-	var response map[string]interface{}
+	var response map[string]any
 	err := json.Unmarshal(w.Body.Bytes(), &response)
 	require.NoError(t, err)
 
@@ -498,7 +498,7 @@ func TestHandlePendingDailyCheckoutResponse_NoRoom(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 
-	var response map[string]interface{}
+	var response map[string]any
 	err := json.Unmarshal(w.Body.Bytes(), &response)
 	require.NoError(t, err)
 
@@ -596,4 +596,417 @@ func TestCheckinProcessingInput_Struct(t *testing.T) {
 	assert.False(t, input.SkipCheckin)
 	assert.True(t, input.CheckedOut)
 	assert.Nil(t, input.CurrentVisit)
+}
+
+// =============================================================================
+// checkinResult STRUCT TESTS
+// =============================================================================
+
+func TestCheckinResult_Struct(t *testing.T) {
+	visitID := int64(999)
+	result := &checkinResult{
+		Action:           "transferred",
+		VisitID:          &visitID,
+		RoomName:         "Room A",
+		PreviousRoomName: "Room B",
+		GreetingMsg:      "Welcome!",
+	}
+
+	assert.Equal(t, "transferred", result.Action)
+	assert.Equal(t, &visitID, result.VisitID)
+	assert.Equal(t, "Room A", result.RoomName)
+	assert.Equal(t, "Room B", result.PreviousRoomName)
+	assert.Equal(t, "Welcome!", result.GreetingMsg)
+}
+
+// =============================================================================
+// checkinResultInput STRUCT TESTS
+// =============================================================================
+
+func TestCheckinResultInput_Struct(t *testing.T) {
+	newVisitID := int64(100)
+	checkoutVisitID := int64(99)
+
+	input := &checkinResultInput{
+		Student:          &users.Student{TenantModel: base.TenantModel{Model: base.Model{ID: 1}}},
+		Person:           &users.Person{FirstName: "Test", LastName: "Person"},
+		CheckedOut:       true,
+		NewVisitID:       &newVisitID,
+		CheckoutVisitID:  &checkoutVisitID,
+		RoomName:         "Target Room",
+		PreviousRoomName: "Source Room",
+		CurrentVisit:     &active.Visit{TenantModel: base.TenantModel{Model: base.Model{ID: 50}}},
+	}
+
+	assert.NotNil(t, input.Student)
+	assert.NotNil(t, input.Person)
+	assert.True(t, input.CheckedOut)
+	assert.Equal(t, &newVisitID, input.NewVisitID)
+	assert.Equal(t, &checkoutVisitID, input.CheckoutVisitID)
+	assert.Equal(t, "Target Room", input.RoomName)
+	assert.Equal(t, "Source Room", input.PreviousRoomName)
+	assert.NotNil(t, input.CurrentVisit)
+}
+
+// =============================================================================
+// Additional shouldSkipCheckin TESTS
+// =============================================================================
+
+func TestShouldSkipCheckin_ZeroRoomID(t *testing.T) {
+	roomID := int64(0)
+	result := shouldSkipCheckin(&roomID, true, &active.Visit{ActiveGroup: &active.Group{RoomID: 0}})
+	// Zero room IDs match, so should skip
+	assert.True(t, result)
+}
+
+func TestShouldSkipCheckin_NegativeRoomID(t *testing.T) {
+	roomID := int64(-1)
+	result := shouldSkipCheckin(&roomID, true, &active.Visit{ActiveGroup: &active.Group{RoomID: -1}})
+	// Negative room IDs match, so should skip
+	assert.True(t, result)
+}
+
+// =============================================================================
+// Additional buildCheckinResult TESTS
+// =============================================================================
+
+func TestBuildCheckinResult_EmptyPreviousRoomMatchesCurrent(t *testing.T) {
+	// Test when previous room is empty but current room has value
+	// This scenario ensures we don't get "Gewechselt von  zu Room B"
+	newVisitID := int64(123)
+	checkoutVisitID := int64(100)
+
+	input := &checkinResultInput{
+		Student:          &users.Student{TenantModel: base.TenantModel{Model: base.Model{ID: 1}}},
+		Person:           &users.Person{FirstName: "Max", LastName: "Test"},
+		CheckedOut:       true,
+		NewVisitID:       &newVisitID,
+		CheckoutVisitID:  &checkoutVisitID,
+		RoomName:         "Room B",
+		PreviousRoomName: "", // Empty previous room
+	}
+
+	result := buildCheckinResult(input)
+
+	// Empty previous room should result in checked_in, not transferred
+	assert.Equal(t, "checked_in", result.Action)
+	assert.Equal(t, "Hallo Max!", result.GreetingMsg)
+}
+
+func TestBuildCheckinResult_MultiWordName(t *testing.T) {
+	newVisitID := int64(123)
+
+	input := &checkinResultInput{
+		Student:    &users.Student{TenantModel: base.TenantModel{Model: base.Model{ID: 1}}},
+		Person:     &users.Person{FirstName: "Anna Maria", LastName: "von Schmidt"},
+		CheckedOut: false,
+		NewVisitID: &newVisitID,
+		RoomName:   "Room A",
+	}
+
+	result := buildCheckinResult(input)
+
+	// Multi-word first name should only use first word in greeting
+	assert.Equal(t, "checked_in", result.Action)
+	assert.Equal(t, "Hallo Anna Maria!", result.GreetingMsg)
+}
+
+// =============================================================================
+// Additional buildCheckinResponse TESTS
+// =============================================================================
+
+func TestBuildCheckinResponse_NilVisitID(t *testing.T) {
+	now := time.Now()
+	student := &users.Student{
+		TenantModel: base.TenantModel{Model: base.Model{ID: 1}},
+		Person:      &users.Person{FirstName: "Max", LastName: "Test"},
+	}
+	result := &checkinResult{
+		Action:      "checked_out",
+		VisitID:     nil, // Nil visit ID
+		RoomName:    "Room A",
+		GreetingMsg: "Tschüss Max!",
+	}
+
+	response := buildCheckinResponse(student, result, now)
+
+	assert.Nil(t, response["visit_id"])
+	assert.Equal(t, "Room A", response["room_name"])
+}
+
+func TestBuildCheckinResponse_EmptyRoomName(t *testing.T) {
+	now := time.Now()
+	visitID := int64(123)
+	student := &users.Student{
+		TenantModel: base.TenantModel{Model: base.Model{ID: 1}},
+		Person:      &users.Person{FirstName: "Max", LastName: "Test"},
+	}
+	result := &checkinResult{
+		Action:      "checked_in",
+		VisitID:     &visitID,
+		RoomName:    "", // Empty room name
+		GreetingMsg: "Hallo Max!",
+	}
+
+	response := buildCheckinResponse(student, result, now)
+
+	assert.Equal(t, "", response["room_name"])
+}
+
+func TestBuildCheckinResponse_TransferWithEmptyPreviousRoom(t *testing.T) {
+	now := time.Now()
+	visitID := int64(123)
+	student := &users.Student{
+		TenantModel: base.TenantModel{Model: base.Model{ID: 1}},
+		Person:      &users.Person{FirstName: "Max", LastName: "Test"},
+	}
+	result := &checkinResult{
+		Action:           "transferred",
+		VisitID:          &visitID,
+		RoomName:         "Room B",
+		PreviousRoomName: "", // Empty - should still include previous_room key
+		GreetingMsg:      "Gewechselt!",
+	}
+
+	response := buildCheckinResponse(student, result, now)
+
+	// Previous room should still be included for transfers, even if empty
+	_, exists := response["previous_room"]
+	assert.False(t, exists, "Empty previous room should not be included")
+}
+
+// =============================================================================
+// Additional roomNameForResponse TESTS
+// =============================================================================
+
+func TestRoomNameForResponse_VisitWithNilActiveGroup(t *testing.T) {
+	rs := &Resource{}
+	currentVisit := &active.Visit{
+		ActiveGroup: nil, // Nil active group
+	}
+
+	// When visit has nil active group and no roomID, returns empty
+	name := rs.roomNameForResponse(context.Background(), currentVisit, nil)
+	assert.Equal(t, "", name)
+}
+
+func TestRoomNameForResponse_VisitWithNilRoom(t *testing.T) {
+	rs := &Resource{}
+	currentVisit := &active.Visit{
+		ActiveGroup: &active.Group{
+			Room: nil, // Nil room
+		},
+	}
+
+	// When visit has nil room and no roomID, returns empty
+	name := rs.roomNameForResponse(context.Background(), currentVisit, nil)
+	assert.Equal(t, "", name)
+}
+
+// =============================================================================
+// Additional roomNameByID TESTS
+// =============================================================================
+
+func TestRoomNameByID_EmptyRoomName(t *testing.T) {
+	rs := &Resource{}
+	room := &facilities.Room{Name: ""}
+	name := rs.roomNameByID(context.Background(), room, 1)
+	assert.Equal(t, "", name)
+}
+
+func TestRoomNameByID_RoomWithLongName(t *testing.T) {
+	rs := &Resource{}
+	room := &facilities.Room{Name: "Very Long Room Name With Special Characters äöü"}
+	name := rs.roomNameByID(context.Background(), room, 1)
+	assert.Equal(t, "Very Long Room Name With Special Characters äöü", name)
+}
+
+// =============================================================================
+// Additional shouldUpgradeToDailyCheckout TESTS
+// =============================================================================
+
+func TestShouldUpgradeToDailyCheckout_TransferredAction(t *testing.T) {
+	rs := &Resource{}
+	groupID := int64(1)
+	student := &users.Student{TenantModel: base.TenantModel{Model: base.Model{ID: 1}}, GroupID: &groupID}
+	visit := &active.Visit{ActiveGroup: &active.Group{RoomID: 1}}
+
+	// "transferred" is not "checked_out", so should return false
+	result := rs.shouldUpgradeToDailyCheckout(context.Background(), "transferred", student, visit)
+	assert.False(t, result)
+}
+
+func TestShouldUpgradeToDailyCheckout_CheckedInAction(t *testing.T) {
+	rs := &Resource{}
+	groupID := int64(1)
+	student := &users.Student{TenantModel: base.TenantModel{Model: base.Model{ID: 1}}, GroupID: &groupID}
+	visit := &active.Visit{ActiveGroup: &active.Group{RoomID: 1}}
+
+	result := rs.shouldUpgradeToDailyCheckout(context.Background(), "checked_in", student, visit)
+	assert.False(t, result)
+}
+
+// =============================================================================
+// Additional isPendingDailyCheckoutScenario TESTS
+// =============================================================================
+
+func TestIsPendingDailyCheckoutScenario_BeforeCheckoutTime(t *testing.T) {
+	// Set checkout time to far future
+	require.NoError(t, os.Setenv("STUDENT_DAILY_CHECKOUT_TIME", "23:59"))
+	defer func() { _ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME") }()
+
+	rs := &Resource{}
+	groupID := int64(1)
+	student := &users.Student{TenantModel: base.TenantModel{Model: base.Model{ID: 1}}, GroupID: &groupID}
+	visit := &active.Visit{ActiveGroup: &active.Group{RoomID: 1}}
+
+	result := rs.isPendingDailyCheckoutScenario(context.Background(), student, visit)
+	assert.False(t, result)
+}
+
+// =============================================================================
+// handlePendingDailyCheckoutResponse ADDITIONAL TESTS
+// =============================================================================
+
+func TestHandlePendingDailyCheckoutResponse_NilActiveGroup(t *testing.T) {
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest("POST", "/checkin", nil)
+
+	student := &users.Student{TenantModel: base.TenantModel{Model: base.Model{ID: 123}}}
+	person := &users.Person{FirstName: "Max", LastName: "Muster"}
+	currentVisit := &active.Visit{
+		TenantModel: base.TenantModel{Model: base.Model{ID: 789}},
+		ActiveGroup: nil, // Nil active group
+	}
+
+	handlePendingDailyCheckoutResponse(w, r, student, person, currentVisit)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var response map[string]any
+	err := json.Unmarshal(w.Body.Bytes(), &response)
+	require.NoError(t, err)
+
+	data, ok := response["data"].(map[string]interface{})
+	require.True(t, ok, "data field should be a map")
+	assert.Equal(t, "", data["room_name"])
+}
+
+// =============================================================================
+// getRoomNameFromVisit ADDITIONAL TESTS
+// =============================================================================
+
+func TestGetRoomNameFromVisit_EmptyRoomName(t *testing.T) {
+	visit := &active.Visit{
+		ActiveGroup: &active.Group{
+			Room: &facilities.Room{Name: ""},
+		},
+	}
+	result := getRoomNameFromVisit(visit)
+	assert.Equal(t, "", result)
+}
+
+func TestGetRoomNameFromVisit_SpecialCharacters(t *testing.T) {
+	visit := &active.Visit{
+		ActiveGroup: &active.Group{
+			Room: &facilities.Room{Name: "Raum 1a (Erdgeschoss) - Mensa/Caféteria"},
+		},
+	}
+	result := getRoomNameFromVisit(visit)
+	assert.Equal(t, "Raum 1a (Erdgeschoss) - Mensa/Caféteria", result)
+}
+
+// =============================================================================
+// sendCheckinResponse ADDITIONAL TESTS
+// =============================================================================
+
+func TestSendCheckinResponse_TransferAction(t *testing.T) {
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest("POST", "/checkin", nil)
+
+	response := map[string]interface{}{
+		"student_id":    int64(123),
+		"student_name":  "Test Student",
+		"action":        "transferred",
+		"status":        "success",
+		"previous_room": "Room A",
+	}
+
+	sendCheckinResponse(w, r, response, "transferred")
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var resp map[string]interface{}
+	err := json.Unmarshal(w.Body.Bytes(), &resp)
+	require.NoError(t, err)
+	assert.Equal(t, "success", resp["status"])
+}
+
+func TestSendCheckinResponse_CheckoutAction(t *testing.T) {
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest("POST", "/checkin", nil)
+
+	response := map[string]interface{}{
+		"student_id":   int64(123),
+		"student_name": "Test Student",
+		"action":       "checked_out",
+		"status":       "success",
+	}
+
+	sendCheckinResponse(w, r, response, "checked_out")
+
+	assert.Equal(t, http.StatusOK, w.Code)
+}
+
+// =============================================================================
+// getStudentDailyCheckoutTime ADDITIONAL EDGE CASES
+// =============================================================================
+
+func TestGetStudentDailyCheckoutTime_LeadingZeros(t *testing.T) {
+	require.NoError(t, os.Setenv("STUDENT_DAILY_CHECKOUT_TIME", "08:05"))
+	defer func() { _ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME") }()
+
+	checkoutTime, err := getStudentDailyCheckoutTime()
+	require.NoError(t, err)
+
+	assert.Equal(t, 8, checkoutTime.Hour())
+	assert.Equal(t, 5, checkoutTime.Minute())
+}
+
+func TestGetStudentDailyCheckoutTime_SingleDigitHour(t *testing.T) {
+	require.NoError(t, os.Setenv("STUDENT_DAILY_CHECKOUT_TIME", "9:30"))
+	defer func() { _ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME") }()
+
+	checkoutTime, err := getStudentDailyCheckoutTime()
+	require.NoError(t, err)
+
+	assert.Equal(t, 9, checkoutTime.Hour())
+	assert.Equal(t, 30, checkoutTime.Minute())
+}
+
+func TestGetStudentDailyCheckoutTime_ExtraColons(t *testing.T) {
+	require.NoError(t, os.Setenv("STUDENT_DAILY_CHECKOUT_TIME", "10:30:00"))
+	defer func() { _ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME") }()
+
+	_, err := getStudentDailyCheckoutTime()
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid checkout time format")
+}
+
+func TestGetStudentDailyCheckoutTime_NonNumericHour(t *testing.T) {
+	require.NoError(t, os.Setenv("STUDENT_DAILY_CHECKOUT_TIME", "ab:30"))
+	defer func() { _ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME") }()
+
+	_, err := getStudentDailyCheckoutTime()
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid hour")
+}
+
+func TestGetStudentDailyCheckoutTime_NonNumericMinute(t *testing.T) {
+	require.NoError(t, os.Setenv("STUDENT_DAILY_CHECKOUT_TIME", "12:xy"))
+	defer func() { _ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME") }()
+
+	_, err := getStudentDailyCheckoutTime()
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid minute")
 }

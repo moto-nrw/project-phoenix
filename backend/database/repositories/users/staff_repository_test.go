@@ -1176,7 +1176,7 @@ func TestStaffRepository_ListWithOptions(t *testing.T) {
 		require.NotEmpty(t, results)
 
 		// Find indices of our staff members
-		var idx1, idx2 int = -1, -1
+		idx1, idx2 := -1, -1
 		for i, s := range results {
 			if s.ID == staff1.ID {
 				idx1 = i
