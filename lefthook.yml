@@ -15,6 +15,11 @@ pre-commit:
       run: cd frontend && npx lint-staged
       stage_fixed: true
 
+    # BetterAuth lint (eslint on staged files)
+    betterauth-lint:
+      glob: "betterauth/**/*.ts"
+      run: cd betterauth && pnpm run lint
+
     # Go imports check (formatting and organization)
     go-imports:
       glob: "backend/**/*.go"
@@ -74,6 +79,16 @@ pre-push:
     frontend-knip:
       glob: "frontend/**/*.{ts,tsx,js,jsx}"
       run: cd frontend && pnpm knip
+
+    # BetterAuth lint + typecheck (matches CI)
+    betterauth-check:
+      glob: "betterauth/**/*.ts"
+      run: cd betterauth && pnpm run check
+
+    # BetterAuth unused code detection (matches CI)
+    betterauth-knip:
+      glob: "betterauth/**/*.ts"
+      run: cd betterauth && pnpm knip
 
 # Post-merge: Check env sync after git pull
 post-merge:
