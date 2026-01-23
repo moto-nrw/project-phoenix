@@ -47,7 +47,7 @@ env:
 jobs:
   # Determine target environment and whether to proceed
   check-environment:
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     outputs:
       should_deploy: ${{ steps.check.outputs.should_deploy }}
       is_staging: ${{ steps.check.outputs.is_staging }}
@@ -114,7 +114,7 @@ jobs:
 
   # Build and push backend image
   build-backend:
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     needs: [check-environment]
     if: needs.check-environment.outputs.should_deploy == 'true'
     permissions:
@@ -128,8 +128,8 @@ jobs:
           # For merged PRs, checkout the merge commit on development
           ref: ${{ github.event_name == 'pull_request' && 'development' || github.ref }}
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+      - name: Setup Blacksmith Builder
+        uses: useblacksmith/setup-docker-builder@v1
 
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
@@ -159,7 +159,7 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
 
       - name: Build and push backend
-        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+        uses: useblacksmith/build-push-action@v2
         with:
           context: ./backend
           file: ./backend/Dockerfile
@@ -168,8 +168,6 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           platforms: linux/amd64
           # Use separate cache scope to prevent frontend overwriting backend cache
-          cache-from: type=gha,scope=backend
-          cache-to: type=gha,mode=max,scope=backend
           provenance: false
 
       - name: Image digest
@@ -177,7 +175,7 @@ jobs:
 
   # Build and push frontend image
   build-frontend:
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     needs: [check-environment]
     if: needs.check-environment.outputs.should_deploy == 'true'
     permissions:
@@ -191,8 +189,8 @@ jobs:
           # For merged PRs, checkout the merge commit on development
           ref: ${{ github.event_name == 'pull_request' && 'development' || github.ref }}
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+      - name: Setup Blacksmith Builder
+        uses: useblacksmith/setup-docker-builder@v1
 
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
@@ -233,7 +231,7 @@ jobs:
           fi
 
       - name: Build and push frontend
-        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+        uses: useblacksmith/build-push-action@v2
         with:
           context: ./frontend
           file: ./frontend/Dockerfile.prod
@@ -244,8 +242,6 @@ jobs:
           build-args: |
             NEXT_PUBLIC_API_URL=${{ steps.api_url.outputs.url }}
           # Use separate cache scope to prevent backend overwriting frontend cache
-          cache-from: type=gha,scope=frontend
-          cache-to: type=gha,mode=max,scope=frontend
           provenance: false
 
       - name: Image digest
@@ -253,7 +249,7 @@ jobs:
 
   # Build and push BetterAuth image
   build-betterauth:
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     needs: [check-environment]
     if: needs.check-environment.outputs.should_deploy == 'true'
     permissions:
@@ -267,8 +263,8 @@ jobs:
           # For merged PRs, checkout the merge commit on development
           ref: ${{ github.event_name == 'pull_request' && 'development' || github.ref }}
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+      - name: Setup Blacksmith Builder
+        uses: useblacksmith/setup-docker-builder@v1
 
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
@@ -298,7 +294,7 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
 
       - name: Build and push BetterAuth
-        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+        uses: useblacksmith/build-push-action@v2
         with:
           context: ./betterauth
           file: ./betterauth/Dockerfile
@@ -306,9 +302,6 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           platforms: linux/amd64
-          # Use separate cache scope to prevent other builds overwriting betterauth cache
-          cache-from: type=gha,scope=betterauth
-          cache-to: type=gha,mode=max,scope=betterauth
           provenance: false
 
       - name: Image digest
@@ -320,7 +313,7 @@ jobs:
   deploy-staging:
     needs: [check-environment, build-backend, build-frontend, build-betterauth]
     if: needs.check-environment.outputs.should_deploy == 'true' && needs.check-environment.outputs.is_staging == 'true'
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     steps:
       - name: Deploy to staging
         env:
@@ -342,7 +335,7 @@ jobs:
   deploy-demo:
     needs: [check-environment, build-backend, build-frontend, build-betterauth]
     if: needs.check-environment.outputs.should_deploy == 'true' && needs.check-environment.outputs.is_demo == 'true'
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     steps:
       - name: Deploy to demo
         env:
@@ -364,7 +357,7 @@ jobs:
   deploy-production:
     needs: [check-environment, build-backend, build-frontend, build-betterauth]
     if: needs.check-environment.outputs.should_deploy == 'true' && needs.check-environment.outputs.is_staging == 'false' && needs.check-environment.outputs.is_demo == 'false'
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     steps:
       - name: Deploy to production
         env:
@@ -384,7 +377,7 @@ jobs:
 
   # Summary job for branch protection
   build-status:
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     needs: [check-environment, build-backend, build-frontend, build-betterauth]
     if: always() && needs.check-environment.outputs.should_deploy == 'true'
     steps:
