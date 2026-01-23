@@ -1,0 +1,45 @@
+# Dependencies (installed in container)
+node_modules/
+
+# Build output (rebuilt in container)
+dist/
+
+# Environment files - NEVER copy secrets into images
+.env
+.env.local
+.env.*.local
+*.env
+
+# Git
+.git/
+.gitignore
+
+# IDE and editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+*.sublime-*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Test files
+*.test.ts
+*.spec.ts
+__tests__/
+coverage/
+
+# Documentation
+*.md
+!README.md
+
+# Docker files (no need to copy into image)
+Dockerfile
+.dockerignore
+docker-compose*.yml
