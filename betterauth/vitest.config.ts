@@ -14,7 +14,6 @@ export default defineConfig({
       exclude: [
         "src/**/*.test.ts",
         "src/auth.ts", // BetterAuth config - integration tests needed
-        "src/permissions.ts", // Static role definitions
       ],
     },
   },
