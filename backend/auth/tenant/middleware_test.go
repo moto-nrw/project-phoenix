@@ -85,7 +85,7 @@ func TestHandleAuthError_NoSession(t *testing.T) {
 	handleAuthError(w, r, betterauth.ErrNoSession, "test context")
 
 	resp := w.Result()
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 }
 
@@ -96,7 +96,7 @@ func TestHandleAuthError_NoActiveOrg(t *testing.T) {
 	handleAuthError(w, r, betterauth.ErrNoActiveOrg, "test context")
 
 	resp := w.Result()
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	// ErrNoOrganization returns 401 Unauthorized (user needs to select an org)
 	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 }
@@ -108,7 +108,7 @@ func TestHandleAuthError_MemberNotFound(t *testing.T) {
 	handleAuthError(w, r, betterauth.ErrMemberNotFound, "test context")
 
 	resp := w.Result()
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	assert.Equal(t, http.StatusForbidden, resp.StatusCode)
 }
 
@@ -119,7 +119,7 @@ func TestHandleAuthError_UnknownError(t *testing.T) {
 	handleAuthError(w, r, assert.AnError, "test context")
 
 	resp := w.Result()
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	// Unknown errors should return 401 Unauthorized
 	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 }
@@ -252,7 +252,7 @@ func TestErrUnauthorized(t *testing.T) {
 	assert.NoError(t, err)
 
 	resp := w.Result()
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 }
 
@@ -264,7 +264,7 @@ func TestErrNoOrganization(t *testing.T) {
 	assert.NoError(t, err)
 
 	resp := w.Result()
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	// ErrNoOrganization returns 401 Unauthorized (user needs to select an org)
 	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 }
@@ -277,7 +277,7 @@ func TestErrInternalServer(t *testing.T) {
 	assert.NoError(t, err)
 
 	resp := w.Result()
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	assert.Equal(t, http.StatusInternalServerError, resp.StatusCode)
 }
 
@@ -290,6 +290,6 @@ func TestNewErrForbidden(t *testing.T) {
 	assert.NoError(t, err)
 
 	resp := w.Result()
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	assert.Equal(t, http.StatusForbidden, resp.StatusCode)
 }
