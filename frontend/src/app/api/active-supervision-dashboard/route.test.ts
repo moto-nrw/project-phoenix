@@ -11,14 +11,12 @@ interface ExtendedSession extends Session {
   user: Session["user"] & { token?: string };
 }
 
-const { mockAuth, mockApiGet } = vi.hoisted(() => ({
-  mockAuth: vi.fn<() => Promise<ExtendedSession | null>>(),
+const { mockApiGet } = vi.hoisted(() => ({
   mockApiGet: vi.fn(),
 }));
 
-vi.mock("~/server/auth", () => ({
-  auth: mockAuth,
-}));
+// Note: auth() is globally mocked in setup.ts
+// It checks for better-auth.session_token cookie
 
 vi.mock("~/lib/api-helpers", () => ({
   apiGet: mockApiGet,
@@ -68,11 +66,16 @@ async function parseJsonResponse<T>(response: Response): Promise<T> {
 describe("GET /api/active-supervision-dashboard", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockAuth.mockResolvedValue(defaultSession);
+    // Global mock provides authenticated session by default
   });
 
   it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
+    // Mock cookies to return undefined (no session cookie)
+    const { cookies } = await import("next/headers");
+    vi.mocked(cookies).mockResolvedValueOnce({
+      get: vi.fn(() => undefined),
+      toString: vi.fn(() => ""),
+    } as never);
 
     const request = createMockRequest("/api/active-supervision-dashboard");
     const response = await GET(request, createMockContext());

@@ -12,11 +12,8 @@ import type { SSEHookOptions } from "~/lib/sse-types";
 import { renderHook } from "@testing-library/react";
 
 // Mock dependencies
-vi.mock("next-auth/react", () => ({
-  useSession: vi.fn(() => ({
-    status: "authenticated",
-    data: { user: { token: "test-token" } },
-  })),
+vi.mock("next/navigation", () => ({
+  usePathname: vi.fn(() => "/dashboard"),
 }));
 
 vi.mock("swr", () => ({
@@ -36,7 +33,7 @@ vi.mock("~/lib/hooks/use-sse", () => ({
 import { useGlobalSSE } from "../use-global-sse";
 import { useSSE } from "~/lib/hooks/use-sse";
 import { mutate } from "swr";
-import { useSession } from "next-auth/react";
+import { useSession } from "~/lib/auth-client";
 
 describe("useGlobalSSE", () => {
   beforeEach(() => {
@@ -58,6 +55,32 @@ describe("useGlobalSSE", () => {
     });
 
     it("calls useSSE with correct endpoint", () => {
+      // Override global mock to provide activeOrganizationId in the structure the hook expects
+      vi.mocked(useSession).mockReturnValue({
+        data: {
+          user: {
+            id: "test-user-id",
+            email: "test@example.com",
+            name: "Test User",
+            emailVerified: true,
+            image: null,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          },
+          session: {
+            id: "test-session-id",
+            userId: "test-user-id",
+            expiresAt: new Date(Date.now() + 86400000),
+            ipAddress: null,
+            userAgent: null,
+            activeOrganizationId: "test-org-id", // Place it in nested session object
+          } as never,
+          activeOrganizationId: "test-org-id",
+        },
+        isPending: false,
+        error: null,
+      });
+
       renderHook(() => useGlobalSSE());
 
       const expectedOptions: SSEHookOptions = {
@@ -75,9 +98,9 @@ describe("useGlobalSSE", () => {
 
     it("is disabled when not authenticated", () => {
       vi.mocked(useSession).mockReturnValueOnce({
-        status: "unauthenticated",
         data: null,
-        update: vi.fn(),
+        isPending: false,
+        error: null,
       });
 
       renderHook(() => useGlobalSSE());
@@ -92,9 +115,9 @@ describe("useGlobalSSE", () => {
 
     it("is disabled when session is loading", () => {
       vi.mocked(useSession).mockReturnValueOnce({
-        status: "loading",
         data: null,
-        update: vi.fn(),
+        isPending: true,
+        error: null,
       });
 
       renderHook(() => useGlobalSSE());

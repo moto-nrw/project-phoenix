@@ -1,47 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { Session } from "next-auth";
 import { NextRequest } from "next/server";
 import { GET, PUT, DELETE } from "./route";
 
 // ============================================================================
-// Types
+// Mocks
 // ============================================================================
 
-interface ExtendedSession extends Session {
-  user: Session["user"] & { token?: string };
-}
+// Mock global fetch since the route handlers use it internally
+const mockFetch = vi.fn();
+global.fetch = mockFetch;
 
-// ============================================================================
-// Mocks (using vi.hoisted for proper hoisting)
-// ============================================================================
-
-const { mockAuth, mockApiGet, mockApiPut, mockApiDelete } = vi.hoisted(() => ({
-  mockAuth: vi.fn<() => Promise<ExtendedSession | null>>(),
-  mockApiGet: vi.fn(),
-  mockApiPut: vi.fn(),
-  mockApiDelete: vi.fn(),
-}));
-
-vi.mock("~/server/auth", () => ({
-  auth: mockAuth,
-}));
-
-vi.mock("~/lib/api-helpers", () => ({
-  apiGet: mockApiGet,
-  apiPost: vi.fn(),
-  apiPut: mockApiPut,
-  apiDelete: mockApiDelete,
-  handleApiError: vi.fn((error: unknown) => {
-    const message =
-      error instanceof Error ? error.message : "Internal Server Error";
-    const status = message.includes("(401)")
-      ? 401
-      : message.includes("(404)")
-        ? 404
-        : 500;
-    return new Response(JSON.stringify({ error: message }), { status });
-  }),
-}));
+// Note: auth() is globally mocked in setup.ts
+// It checks for better-auth.session_token cookie
 
 // ============================================================================
 // Test Helpers
@@ -71,10 +41,8 @@ function createMockContext(
   return { params: Promise.resolve(params) };
 }
 
-const defaultSession: ExtendedSession = {
-  user: { id: "1", token: "test-token", name: "Test User" },
-  expires: "2099-01-01",
-};
+// BetterAuth: Expected cookie header (from global setup.ts mock)
+const TEST_COOKIE_HEADER = "better-auth.session_token=test-session-token";
 
 interface ApiResponse<T> {
   success: boolean;
@@ -93,11 +61,16 @@ async function parseJsonResponse<T>(response: Response): Promise<T> {
 describe("GET /api/active/visits/[id]", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockAuth.mockResolvedValue(defaultSession);
+    // Global mock provides authenticated session by default
   });
 
   it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
+    // Mock cookies to return undefined (no session cookie)
+    const { cookies } = await import("next/headers");
+    vi.mocked(cookies).mockResolvedValueOnce({
+      get: vi.fn(() => undefined),
+      toString: vi.fn(() => ""),
+    } as never);
 
     const request = createMockRequest("/api/active/visits/123");
     const response = await GET(request, createMockContext({ id: "123" }));
@@ -112,14 +85,24 @@ describe("GET /api/active/visits/[id]", () => {
       active_group_id: 1,
       start_time: "2024-01-15T09:00:00Z",
     };
-    mockApiGet.mockResolvedValueOnce(mockVisit);
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => mockVisit,
+    });
 
     const request = createMockRequest("/api/active/visits/123");
     const response = await GET(request, createMockContext({ id: "123" }));
 
-    expect(mockApiGet).toHaveBeenCalledWith(
-      "/api/active/visits/123",
-      "test-token",
+    // BetterAuth: Server-side uses Cookie header
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining("/api/active/visits/123"),
+      expect.objectContaining({
+        method: "GET",
+        headers: expect.objectContaining({
+          Cookie: TEST_COOKIE_HEADER,
+        }) as Record<string, string>,
+      }),
     );
     expect(response.status).toBe(200);
   });
@@ -128,11 +111,16 @@ describe("GET /api/active/visits/[id]", () => {
 describe("PUT /api/active/visits/[id]", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockAuth.mockResolvedValue(defaultSession);
+    // Global mock provides authenticated session by default
   });
 
   it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
+    // Mock cookies to return undefined (no session cookie)
+    const { cookies } = await import("next/headers");
+    vi.mocked(cookies).mockResolvedValueOnce({
+      get: vi.fn(() => undefined),
+      toString: vi.fn(() => ""),
+    } as never);
 
     const request = createMockRequest("/api/active/visits/123", {
       method: "PUT",
@@ -152,7 +140,11 @@ describe("PUT /api/active/visits/[id]", () => {
       start_time: "2024-01-15T09:00:00Z",
       end_time: "2024-01-15T17:00:00Z",
     };
-    mockApiPut.mockResolvedValueOnce(mockUpdatedVisit);
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => mockUpdatedVisit,
+    });
 
     const request = createMockRequest("/api/active/visits/123", {
       method: "PUT",
@@ -160,10 +152,16 @@ describe("PUT /api/active/visits/[id]", () => {
     });
     const response = await PUT(request, createMockContext({ id: "123" }));
 
-    expect(mockApiPut).toHaveBeenCalledWith(
-      "/api/active/visits/123",
-      "test-token",
-      updateBody,
+    // BetterAuth: Server-side uses Cookie header
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining("/api/active/visits/123"),
+      expect.objectContaining({
+        method: "PUT",
+        headers: expect.objectContaining({
+          Cookie: TEST_COOKIE_HEADER,
+        }) as Record<string, string>,
+        body: JSON.stringify(updateBody),
+      }),
     );
     expect(response.status).toBe(200);
 
@@ -176,11 +174,16 @@ describe("PUT /api/active/visits/[id]", () => {
 describe("DELETE /api/active/visits/[id]", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockAuth.mockResolvedValue(defaultSession);
+    // Global mock provides authenticated session by default
   });
 
   it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
+    // Mock cookies to return undefined (no session cookie)
+    const { cookies } = await import("next/headers");
+    vi.mocked(cookies).mockResolvedValueOnce({
+      get: vi.fn(() => undefined),
+      toString: vi.fn(() => ""),
+    } as never);
 
     const request = createMockRequest("/api/active/visits/123", {
       method: "DELETE",
@@ -191,16 +194,25 @@ describe("DELETE /api/active/visits/[id]", () => {
   });
 
   it("deletes visit via backend and returns 204", async () => {
-    mockApiDelete.mockResolvedValueOnce(undefined);
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      status: 204,
+    });
 
     const request = createMockRequest("/api/active/visits/123", {
       method: "DELETE",
     });
     const response = await DELETE(request, createMockContext({ id: "123" }));
 
-    expect(mockApiDelete).toHaveBeenCalledWith(
-      "/api/active/visits/123",
-      "test-token",
+    // BetterAuth: Server-side uses Cookie header
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining("/api/active/visits/123"),
+      expect.objectContaining({
+        method: "DELETE",
+        headers: expect.objectContaining({
+          Cookie: TEST_COOKIE_HEADER,
+        }) as Record<string, string>,
+      }),
     );
     expect(response.status).toBe(204);
   });

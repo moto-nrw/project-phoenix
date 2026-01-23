@@ -9,13 +9,7 @@ import {
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import StudentSearchPage from "./page";
 
-// Mock next-auth/react
-vi.mock("next-auth/react", () => ({
-  useSession: vi.fn(() => ({
-    data: { user: { token: "test-token" } },
-    status: "authenticated",
-  })),
-}));
+// Global mock from setup.ts handles BetterAuth
 
 // Mock next/navigation
 const mockSearchParams = new URLSearchParams();
@@ -25,6 +19,7 @@ vi.mock("next/navigation", () => ({
     replace: vi.fn(),
   })),
   useSearchParams: vi.fn(() => mockSearchParams),
+  usePathname: vi.fn(() => "/students/search"),
 }));
 
 // Mock ResponsiveLayout
@@ -229,13 +224,31 @@ describe("StudentSearchPage", () => {
     vi.clearAllMocks();
     mockSearchParams.delete("status");
 
-    // Reset useSession mock to authenticated state
-    const sessionModule = await import("next-auth/react");
-    vi.mocked(sessionModule.useSession).mockReturnValue({
-      data: { user: { token: "test-token" }, expires: "2099-01-01" },
-      status: "authenticated",
-      update: vi.fn(),
-    } as unknown as ReturnType<typeof sessionModule.useSession>);
+    // Reset useSession mock to authenticated state (using BetterAuth structure)
+    const { useSession } = await import("~/lib/auth-client");
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: {
+          id: "test-user-id",
+          email: "test@example.com",
+          name: "Test User",
+          emailVerified: true,
+          image: null,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+        session: {
+          id: "test-session-id",
+          userId: "test-user-id",
+          expiresAt: new Date(Date.now() + 86400000),
+          ipAddress: null,
+          userAgent: null,
+        },
+        activeOrganizationId: "test-org-id",
+      },
+      isPending: false,
+      error: null,
+    });
 
     // Reset SWR mock data for each test
     const swrModule = await import("~/lib/swr");
@@ -425,11 +438,11 @@ describe("StudentSearchPage", () => {
 
   describe("Loading States", () => {
     it("shows loading state when session is loading", async () => {
-      const useSession = await import("next-auth/react");
-      vi.mocked(useSession.useSession).mockReturnValue({
+      const { useSession } = await import("~/lib/auth-client");
+      vi.mocked(useSession).mockReturnValue({
         data: null,
-        status: "loading",
-        update: vi.fn(),
+        isPending: true,
+        error: null,
       });
 
       render(<StudentSearchPage />);
@@ -825,26 +838,12 @@ describe("StudentSearchPage", () => {
         prefetch: vi.fn(),
       });
 
-      const useSession = await import("next-auth/react");
-      // Simulate NextAuth's useSession with required: true - it calls onUnauthenticated callback
-      vi.mocked(useSession.useSession).mockImplementation((options) => {
-        // When required: true and user is unauthenticated, NextAuth calls the callback
-        if (
-          options &&
-          typeof options === "object" &&
-          "required" in options &&
-          options.required
-        ) {
-          const opts = options as { onUnauthenticated?: () => void };
-          if (opts.onUnauthenticated) {
-            opts.onUnauthenticated();
-          }
-        }
-        return {
-          data: null,
-          status: "unauthenticated",
-          update: vi.fn(),
-        };
+      const { useSession } = await import("~/lib/auth-client");
+      // BetterAuth: unauthenticated state
+      vi.mocked(useSession).mockReturnValue({
+        data: null,
+        isPending: false,
+        error: null,
       });
 
       // SWR won't fetch when unauthenticated
@@ -862,11 +861,11 @@ describe("StudentSearchPage", () => {
     });
 
     it("shows loading state during auth check (no empty state flash)", async () => {
-      const useSession = await import("next-auth/react");
-      vi.mocked(useSession.useSession).mockReturnValue({
+      const { useSession } = await import("~/lib/auth-client");
+      vi.mocked(useSession).mockReturnValue({
         data: null,
-        status: "loading", // Session check in progress
-        update: vi.fn(),
+        isPending: true, // Session check in progress
+        error: null,
       });
 
       // SWR won't fetch during auth loading
@@ -886,7 +885,7 @@ describe("StudentSearchPage", () => {
       ).not.toBeInTheDocument();
     });
 
-    it("does NOT redirect when user is authenticated with token", async () => {
+    it("does NOT redirect when user is authenticated", async () => {
       const mockPush = vi.fn();
       const useRouter = await import("next/navigation");
       vi.mocked(useRouter.useRouter).mockReturnValue({
@@ -898,13 +897,31 @@ describe("StudentSearchPage", () => {
         prefetch: vi.fn(),
       });
 
-      // Default authenticated state with token
-      const useSession = await import("next-auth/react");
-      vi.mocked(useSession.useSession).mockReturnValue({
-        data: { user: { token: "valid-token" }, expires: "2099-01-01" },
-        status: "authenticated",
-        update: vi.fn(),
-      } as unknown as ReturnType<typeof useSession.useSession>);
+      // Default authenticated state (BetterAuth)
+      const { useSession } = await import("~/lib/auth-client");
+      vi.mocked(useSession).mockReturnValue({
+        data: {
+          user: {
+            id: "test-user-id",
+            email: "test@example.com",
+            name: "Test User",
+            emailVerified: true,
+            image: null,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          },
+          session: {
+            id: "test-session-id",
+            userId: "test-user-id",
+            expiresAt: new Date(Date.now() + 86400000),
+            ipAddress: null,
+            userAgent: null,
+          },
+          activeOrganizationId: "test-org-id",
+        },
+        isPending: false,
+        error: null,
+      });
 
       render(<StudentSearchPage />);
 

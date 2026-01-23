@@ -12,15 +12,6 @@ vi.mock("next/navigation", () => ({
   }),
 }));
 
-vi.mock("next-auth/react", () => ({
-  useSession: vi.fn(() => ({
-    data: {
-      user: { id: "1", token: "valid-token" },
-    },
-    status: "authenticated",
-  })),
-}));
-
 vi.mock("~/lib/supervision-context", () => ({
   useSupervision: vi.fn(() => ({
     hasGroups: false,
@@ -37,15 +28,41 @@ vi.mock("~/lib/redirect-utils", () => ({
     redirectPath: "/dashboard",
     isReady: true,
   })),
+  checkSaasAdminStatus: vi.fn(() => Promise.resolve(false)),
 }));
 
-import { useSession } from "next-auth/react";
+import { useSession } from "~/lib/auth-client";
 import { useSupervision } from "~/lib/supervision-context";
 import { useSmartRedirectPath } from "~/lib/redirect-utils";
 
 describe("SmartRedirect", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+
+    // Ensure session mock is set for each test
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: {
+          id: "test-user-id",
+          email: "test@example.com",
+          name: "Test User",
+          emailVerified: true,
+          image: null,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+        session: {
+          id: "test-session-id",
+          userId: "test-user-id",
+          expiresAt: new Date(Date.now() + 86400000),
+          ipAddress: null,
+          userAgent: null,
+        },
+        activeOrganizationId: "test-org-id",
+      },
+      isPending: false,
+      error: null,
+    });
   });
 
   it("renders nothing (returns null)", () => {
@@ -63,23 +80,11 @@ describe("SmartRedirect", () => {
     });
   });
 
-  it("does not redirect when status is not authenticated", () => {
+  it("does not redirect when not authenticated", () => {
     vi.mocked(useSession).mockReturnValue({
       data: null,
-      status: "unauthenticated",
-      update: vi.fn(),
-    });
-
-    render(<SmartRedirect />);
-
-    expect(mockPush).not.toHaveBeenCalled();
-  });
-
-  it("does not redirect when token is missing", () => {
-    vi.mocked(useSession).mockReturnValue({
-      data: { user: { id: "1", token: "" }, expires: "" },
-      status: "authenticated",
-      update: vi.fn(),
+      isPending: false,
+      error: null,
     });
 
     render(<SmartRedirect />);
@@ -100,11 +105,6 @@ describe("SmartRedirect", () => {
 
   it("calls onRedirect callback instead of router.push when provided", async () => {
     const onRedirect = vi.fn();
-    vi.mocked(useSession).mockReturnValue({
-      data: { user: { id: "1", token: "valid-token" }, expires: "" },
-      status: "authenticated",
-      update: vi.fn(),
-    });
     vi.mocked(useSmartRedirectPath).mockReturnValue({
       redirectPath: "/ogs-groups",
       isReady: true,
@@ -119,11 +119,6 @@ describe("SmartRedirect", () => {
   });
 
   it("uses redirect path from useSmartRedirectPath", async () => {
-    vi.mocked(useSession).mockReturnValue({
-      data: { user: { id: "1", token: "valid-token" }, expires: "" },
-      status: "authenticated",
-      update: vi.fn(),
-    });
     vi.mocked(useSmartRedirectPath).mockReturnValue({
       redirectPath: "/active-supervisions",
       isReady: true,
@@ -148,12 +143,12 @@ describe("SmartRedirect", () => {
 
     render(<SmartRedirect />);
 
-    expect(useSmartRedirectPath).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({
-        hasGroups: true,
-        isSupervising: true,
-      }),
-    );
+    // Check that useSmartRedirectPath was called with the correct supervision context
+    expect(useSmartRedirectPath).toHaveBeenCalled();
+    const call = vi.mocked(useSmartRedirectPath).mock.calls[0];
+    expect(call?.[1]).toMatchObject({
+      hasGroups: true,
+      isSupervising: true,
+    });
   });
 });

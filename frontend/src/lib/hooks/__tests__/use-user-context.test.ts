@@ -9,6 +9,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderHook } from "@testing-library/react";
 
+// Mock next/navigation
+vi.mock("next/navigation", () => ({
+  usePathname: vi.fn(() => "/dashboard"),
+}));
+
 // Mock useImmutableSWR
 vi.mock("~/lib/swr", () => ({
   useImmutableSWR: vi.fn(() => ({

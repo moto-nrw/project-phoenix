@@ -12,24 +12,28 @@ vi.mock("next/navigation", () => ({
   }),
 }));
 
+// BetterAuth session structure (no token field)
 const mockSession = {
   user: {
     id: "1",
     name: "Test Admin",
     email: "admin@test.com",
-    token: "test-token",
+    emailVerified: true,
+    image: null,
+    createdAt: new Date(),
+    updatedAt: new Date(),
     isAdmin: true,
     firstName: "Test",
   },
-  expires: "2099-12-31",
+  session: {
+    id: "test-session-id",
+    userId: "1",
+    expiresAt: new Date(Date.now() + 86400000),
+    ipAddress: null,
+    userAgent: null,
+  },
+  activeOrganizationId: "test-org-id",
 };
-
-vi.mock("next-auth/react", () => ({
-  useSession: vi.fn(() => ({
-    data: mockSession,
-    status: "authenticated",
-  })),
-}));
 
 vi.mock("~/lib/auth-utils", () => ({
   // eslint-disable-next-line @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-member-access
@@ -114,17 +118,17 @@ vi.mock("~/lib/dashboard-helpers", () => ({
   getGroupStatusColor: vi.fn(() => "bg-green-500"),
 }));
 
-import { useSession } from "next-auth/react";
 import { isAdmin } from "~/lib/auth-utils";
 import { fetchWithAuth } from "~/lib/fetch-with-auth";
 
 describe("DashboardPage", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.clearAllMocks();
+    const { useSession } = await import("~/lib/auth-client");
     vi.mocked(useSession).mockReturnValue({
       data: mockSession,
-      status: "authenticated",
-      update: vi.fn(),
+      isPending: false,
+      error: null,
     });
     vi.mocked(isAdmin).mockReturnValue(true);
     vi.mocked(fetchWithAuth).mockResolvedValue({
@@ -154,11 +158,12 @@ describe("DashboardPage", () => {
     });
   });
 
-  it("shows loading state when session is loading", () => {
+  it("shows loading state when session is loading", async () => {
+    const { useSession } = await import("~/lib/auth-client");
     vi.mocked(useSession).mockReturnValue({
       data: null,
-      status: "loading",
-      update: vi.fn(),
+      isPending: true,
+      error: null,
     });
 
     render(<DashboardPage />);
@@ -166,12 +171,13 @@ describe("DashboardPage", () => {
     expect(screen.getByTestId("loading")).toBeInTheDocument();
   });
 
-  it("returns null while redirecting non-admin users", () => {
+  it("returns null while redirecting non-admin users", async () => {
+    const { useSession } = await import("~/lib/auth-client");
     vi.mocked(isAdmin).mockReturnValue(false);
     vi.mocked(useSession).mockReturnValue({
       data: { ...mockSession, user: { ...mockSession.user, isAdmin: false } },
-      status: "authenticated",
-      update: vi.fn(),
+      isPending: false,
+      error: null,
     });
 
     const { container } = render(<DashboardPage />);
@@ -252,11 +258,12 @@ describe("DashboardPage", () => {
     });
   });
 
-  it("redirects when session error is RefreshTokenExpired", async () => {
+  it("redirects when session has error", async () => {
+    const { useSession } = await import("~/lib/auth-client");
     vi.mocked(useSession).mockReturnValue({
-      data: { ...mockSession, error: "RefreshTokenExpired" },
-      status: "authenticated",
-      update: vi.fn(),
+      data: null,
+      isPending: false,
+      error: new Error("Session error"),
     });
 
     render(<DashboardPage />);
@@ -266,11 +273,12 @@ describe("DashboardPage", () => {
     });
   });
 
-  it("redirects when token is missing", async () => {
+  it("redirects when session data is missing", async () => {
+    const { useSession } = await import("~/lib/auth-client");
     vi.mocked(useSession).mockReturnValue({
-      data: { ...mockSession, user: { ...mockSession.user, token: undefined } },
-      status: "authenticated",
-      update: vi.fn(),
+      data: null,
+      isPending: false,
+      error: null,
     });
 
     render(<DashboardPage />);
@@ -349,6 +357,7 @@ describe("DashboardContent rendering states", () => {
   });
 
   it("shows empty state for recent activity when no data", async () => {
+    const { useSession } = await import("~/lib/auth-client");
     vi.mocked(fetchWithAuth).mockResolvedValue({
       ok: true,
       json: () =>
@@ -358,8 +367,8 @@ describe("DashboardContent rendering states", () => {
     } as Response);
     vi.mocked(useSession).mockReturnValue({
       data: mockSession,
-      status: "authenticated",
-      update: vi.fn(),
+      isPending: false,
+      error: null,
     });
 
     render(<DashboardPage />);
@@ -372,6 +381,7 @@ describe("DashboardContent rendering states", () => {
   });
 
   it("shows empty state for current activities when no data", async () => {
+    const { useSession } = await import("~/lib/auth-client");
     vi.mocked(fetchWithAuth).mockResolvedValue({
       ok: true,
       json: () =>
@@ -381,8 +391,8 @@ describe("DashboardContent rendering states", () => {
     } as Response);
     vi.mocked(useSession).mockReturnValue({
       data: mockSession,
-      status: "authenticated",
-      update: vi.fn(),
+      isPending: false,
+      error: null,
     });
 
     render(<DashboardPage />);
@@ -395,6 +405,7 @@ describe("DashboardContent rendering states", () => {
   });
 
   it("shows empty state for active groups when no data", async () => {
+    const { useSession } = await import("~/lib/auth-client");
     vi.mocked(fetchWithAuth).mockResolvedValue({
       ok: true,
       json: () =>
@@ -404,8 +415,8 @@ describe("DashboardContent rendering states", () => {
     } as Response);
     vi.mocked(useSession).mockReturnValue({
       data: mockSession,
-      status: "authenticated",
-      update: vi.fn(),
+      isPending: false,
+      error: null,
     });
 
     render(<DashboardPage />);
@@ -416,6 +427,7 @@ describe("DashboardContent rendering states", () => {
   });
 
   it("displays student ratio when supervisors are present", async () => {
+    const { useSession } = await import("~/lib/auth-client");
     vi.mocked(fetchWithAuth).mockResolvedValue({
       ok: true,
       json: () =>
@@ -425,8 +437,8 @@ describe("DashboardContent rendering states", () => {
     } as Response);
     vi.mocked(useSession).mockReturnValue({
       data: mockSession,
-      status: "authenticated",
-      update: vi.fn(),
+      isPending: false,
+      error: null,
     });
 
     render(<DashboardPage />);
@@ -438,13 +450,14 @@ describe("DashboardContent rendering states", () => {
   });
 
   it("extracts first name from session for greeting", async () => {
+    const { useSession } = await import("~/lib/auth-client");
     vi.mocked(useSession).mockReturnValue({
       data: {
         ...mockSession,
         user: { ...mockSession.user, name: "John Doe" },
       },
-      status: "authenticated",
-      update: vi.fn(),
+      isPending: false,
+      error: null,
     });
 
     render(<DashboardPage />);
@@ -456,6 +469,7 @@ describe("DashboardContent rendering states", () => {
   });
 
   it("shows dash for student ratio when no supervisors", async () => {
+    const { useSession } = await import("~/lib/auth-client");
     vi.mocked(fetchWithAuth).mockResolvedValue({
       ok: true,
       json: () =>
@@ -465,8 +479,8 @@ describe("DashboardContent rendering states", () => {
     } as Response);
     vi.mocked(useSession).mockReturnValue({
       data: mockSession,
-      status: "authenticated",
-      update: vi.fn(),
+      isPending: false,
+      error: null,
     });
 
     render(<DashboardPage />);
@@ -477,6 +491,7 @@ describe("DashboardContent rendering states", () => {
   });
 
   it("shows dash for student ratio when no students present", async () => {
+    const { useSession } = await import("~/lib/auth-client");
     vi.mocked(fetchWithAuth).mockResolvedValue({
       ok: true,
       json: () =>
@@ -486,8 +501,8 @@ describe("DashboardContent rendering states", () => {
     } as Response);
     vi.mocked(useSession).mockReturnValue({
       data: mockSession,
-      status: "authenticated",
-      update: vi.fn(),
+      isPending: false,
+      error: null,
     });
 
     render(<DashboardPage />);
@@ -498,6 +513,7 @@ describe("DashboardContent rendering states", () => {
   });
 
   it("displays multiple recent activities", async () => {
+    const { useSession } = await import("~/lib/auth-client");
     const multipleActivities = [
       {
         type: "checkin",
@@ -524,8 +540,8 @@ describe("DashboardContent rendering states", () => {
     } as Response);
     vi.mocked(useSession).mockReturnValue({
       data: mockSession,
-      status: "authenticated",
-      update: vi.fn(),
+      isPending: false,
+      error: null,
     });
 
     render(<DashboardPage />);
@@ -538,6 +554,7 @@ describe("DashboardContent rendering states", () => {
   });
 
   it("displays multiple current activities with status", async () => {
+    const { useSession } = await import("~/lib/auth-client");
     const multipleCurrentActivities = [
       {
         name: "Schach",
@@ -567,8 +584,8 @@ describe("DashboardContent rendering states", () => {
     } as Response);
     vi.mocked(useSession).mockReturnValue({
       data: mockSession,
-      status: "authenticated",
-      update: vi.fn(),
+      isPending: false,
+      error: null,
     });
 
     render(<DashboardPage />);
@@ -581,6 +598,7 @@ describe("DashboardContent rendering states", () => {
   });
 
   it("displays multiple active groups with status", async () => {
+    const { useSession } = await import("~/lib/auth-client");
     const multipleGroups = [
       {
         type: "ogs",
@@ -607,8 +625,8 @@ describe("DashboardContent rendering states", () => {
     } as Response);
     vi.mocked(useSession).mockReturnValue({
       data: mockSession,
-      status: "authenticated",
-      update: vi.fn(),
+      isPending: false,
+      error: null,
     });
 
     render(<DashboardPage />);
@@ -621,13 +639,14 @@ describe("DashboardContent rendering states", () => {
   });
 
   it("defaults to User when session name is missing", async () => {
+    const { useSession } = await import("~/lib/auth-client");
     vi.mocked(useSession).mockReturnValue({
       data: {
         ...mockSession,
         user: { ...mockSession.user, name: undefined },
       },
-      status: "authenticated",
-      update: vi.fn(),
+      isPending: false,
+      error: null,
     });
 
     render(<DashboardPage />);
@@ -639,13 +658,14 @@ describe("DashboardContent rendering states", () => {
 });
 
 describe("StatCard component behavior", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
+    const { useSession } = await import("~/lib/auth-client");
     vi.clearAllMocks();
     vi.mocked(isAdmin).mockReturnValue(true);
     vi.mocked(useSession).mockReturnValue({
       data: mockSession,
-      status: "authenticated",
-      update: vi.fn(),
+      isPending: false,
+      error: null,
     });
   });
 
@@ -684,13 +704,14 @@ describe("StatCard component behavior", () => {
 });
 
 describe("InfoCard component behavior", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
+    const { useSession } = await import("~/lib/auth-client");
     vi.clearAllMocks();
     vi.mocked(isAdmin).mockReturnValue(true);
     vi.mocked(useSession).mockReturnValue({
       data: mockSession,
-      status: "authenticated",
-      update: vi.fn(),
+      isPending: false,
+      error: null,
     });
     vi.mocked(fetchWithAuth).mockResolvedValue({
       ok: true,

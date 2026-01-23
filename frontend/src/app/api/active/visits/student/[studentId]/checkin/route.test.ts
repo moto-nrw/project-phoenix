@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
-import type { Session } from "next-auth";
 
 // Type definitions for API responses
 interface ErrorResponse {
@@ -20,37 +19,25 @@ interface SuccessResponse {
 const mockFetch = vi.fn();
 global.fetch = mockFetch;
 
-// Create typed mock for auth
-const mockAuth = vi.fn<() => Promise<Session | null>>();
-
-// Mock next-auth
-vi.mock("~/server/auth", () => ({
-  auth: () => mockAuth(),
-}));
+// Note: auth() is globally mocked in setup.ts
+// It checks for better-auth.session_token cookie
 
 // Import after mocking
 import { POST } from "./route";
 
 describe("POST /api/active/visits/student/[studentId]/checkin", () => {
-  const mockToken = "test-jwt-token";
-
-  const createMockSession = (token: string): Session => ({
-    user: {
-      id: "1",
-      token,
-      name: "Test User",
-      email: "test@example.com",
-    },
-    expires: new Date(Date.now() + 3600000).toISOString(),
-  });
-
   beforeEach(() => {
     vi.clearAllMocks();
-    mockAuth.mockResolvedValue(createMockSession(mockToken));
+    // Global mock provides authenticated session by default
   });
 
   it("returns 401 when no session", async () => {
-    mockAuth.mockResolvedValue(null);
+    // Mock cookies to return undefined (no session cookie)
+    const { cookies } = await import("next/headers");
+    vi.mocked(cookies).mockResolvedValueOnce({
+      get: vi.fn(() => undefined),
+      toString: vi.fn(() => ""),
+    } as never);
 
     const request = new NextRequest(
       "http://localhost:3000/api/active/visits/student/123/checkin",
@@ -178,14 +165,14 @@ describe("POST /api/active/visits/student/[studentId]/checkin", () => {
       action: "checked_in",
     });
 
-    // Verify fetch was called correctly
+    // Verify fetch was called correctly with Cookie header (server-side auth)
     expect(mockFetch).toHaveBeenCalledWith(
       expect.stringContaining("/api/active/visits/student/123/checkin"),
       expect.objectContaining({
         method: "POST",
         headers: expect.objectContaining({
-          Authorization: `Bearer ${mockToken}`,
           "Content-Type": "application/json",
+          Cookie: "better-auth.session_token=test-session-token", // BetterAuth: Server-side uses Cookie header
         }) as Record<string, string>,
         body: JSON.stringify({ active_group_id: 456 }),
       }),

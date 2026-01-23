@@ -1,14 +1,13 @@
 /**
  * Tests for api.ts helper functions
  * These test the pure helper functions that parse, validate, and transform API data
+ *
+ * BetterAuth uses cookie-based auth via credentials: "include" in fetch calls.
+ * Tests verify error handling behavior that doesn't depend on the specific auth mechanism.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 // Mock dependencies before imports
-vi.mock("next-auth/react", () => ({
-  getSession: vi.fn(() => Promise.resolve({ user: { token: "test-token" } })),
-}));
-
 vi.mock("~/env", () => ({
   env: {
     NEXT_PUBLIC_API_URL: "http://localhost:8080",
@@ -650,11 +649,7 @@ describe("api.ts helper functions", () => {
           Promise.resolve('{"error":"cannot delete group with students"}'),
       });
 
-      const { getSession } = await import("next-auth/react");
-      vi.mocked(getSession).mockResolvedValue({
-        user: { token: "test" },
-      } as never);
-
+      // BetterAuth uses cookies (credentials: "include"), no session mocking needed
       const { groupService } = await import("./api");
 
       const restore = setupBrowserEnv();
@@ -673,11 +668,7 @@ describe("api.ts helper functions", () => {
         text: () => Promise.resolve("Error: cannot delete group with students"),
       });
 
-      const { getSession } = await import("next-auth/react");
-      vi.mocked(getSession).mockResolvedValue({
-        user: { token: "test" },
-      } as never);
-
+      // BetterAuth uses cookies (credentials: "include"), no session mocking needed
       const { groupService } = await import("./api");
 
       const restore = setupBrowserEnv();
@@ -808,9 +799,10 @@ describe("api.ts helper functions", () => {
       try {
         const result = await studentService.getStudent("1");
         expect(result).toBeDefined();
+        // BetterAuth: token is undefined (cookies handle auth)
         expect(fetchWithRetry).toHaveBeenCalledWith(
           expect.stringContaining("/api/students/1"),
-          expect.any(String),
+          undefined,
           expect.any(Object),
         );
       } finally {
@@ -845,11 +837,7 @@ describe("api.ts helper functions", () => {
         json: () => Promise.resolve({ data: { id: 1, first_name: "Updated" } }),
       });
 
-      const { getSession } = await import("next-auth/react");
-      vi.mocked(getSession).mockResolvedValue({
-        user: { token: "test-token" },
-      } as never);
-
+      // BetterAuth uses cookies (credentials: "include"), no session mocking needed
       const { studentService } = await import("./api");
 
       const restore = setupBrowserEnv();
@@ -877,11 +865,7 @@ describe("api.ts helper functions", () => {
         text: () => Promise.resolve('{"error":"Validation failed"}'),
       });
 
-      const { getSession } = await import("next-auth/react");
-      vi.mocked(getSession).mockResolvedValue({
-        user: { token: "test-token" },
-      } as never);
-
+      // BetterAuth uses cookies (credentials: "include"), no session mocking needed
       const { studentService } = await import("./api");
 
       const restore = setupBrowserEnv();
@@ -909,11 +893,7 @@ describe("api.ts helper functions", () => {
         json: () => Promise.resolve({ data: mockGroups }),
       });
 
-      const { getSession } = await import("next-auth/react");
-      vi.mocked(getSession).mockResolvedValue({
-        user: { token: "test-token" },
-      } as never);
-
+      // BetterAuth uses cookies (credentials: "include"), no session mocking needed
       const { combinedGroupService } = await import("./api");
 
       const restore = setupBrowserEnv();
@@ -935,11 +915,7 @@ describe("api.ts helper functions", () => {
         text: () => Promise.resolve("Server Error"),
       });
 
-      const { getSession } = await import("next-auth/react");
-      vi.mocked(getSession).mockResolvedValue({
-        user: { token: "test-token" },
-      } as never);
-
+      // BetterAuth uses cookies (credentials: "include"), no session mocking needed
       const { combinedGroupService } = await import("./api");
 
       const restore = setupBrowserEnv();
@@ -961,11 +937,7 @@ describe("api.ts helper functions", () => {
         json: () => Promise.resolve({ data: mockGroup }),
       });
 
-      const { getSession } = await import("next-auth/react");
-      vi.mocked(getSession).mockResolvedValue({
-        user: { token: "test-token" },
-      } as never);
-
+      // BetterAuth uses cookies (credentials: "include"), no session mocking needed
       const { combinedGroupService } = await import("./api");
 
       const restore = setupBrowserEnv();
@@ -987,11 +959,7 @@ describe("api.ts helper functions", () => {
         text: () => Promise.resolve("Not Found"),
       });
 
-      const { getSession } = await import("next-auth/react");
-      vi.mocked(getSession).mockResolvedValue({
-        user: { token: "test-token" },
-      } as never);
-
+      // BetterAuth uses cookies (credentials: "include"), no session mocking needed
       const { combinedGroupService } = await import("./api");
 
       const restore = setupBrowserEnv();
@@ -1012,11 +980,7 @@ describe("api.ts helper functions", () => {
         json: () => Promise.resolve({ id: 1, name: "Updated Room" }),
       });
 
-      const { getSession } = await import("next-auth/react");
-      vi.mocked(getSession).mockResolvedValue({
-        user: { token: "test-token" },
-      } as never);
-
+      // BetterAuth uses cookies (credentials: "include"), no session mocking needed
       const { roomService } = await import("./api");
 
       const restore = setupBrowserEnv();
@@ -1042,11 +1006,7 @@ describe("api.ts helper functions", () => {
         text: () => Promise.resolve("Bad Request"),
       });
 
-      const { getSession } = await import("next-auth/react");
-      vi.mocked(getSession).mockResolvedValue({
-        user: { token: "test-token" },
-      } as never);
-
+      // BetterAuth uses cookies (credentials: "include"), no session mocking needed
       const { roomService } = await import("./api");
 
       const restore = setupBrowserEnv();
@@ -1071,11 +1031,7 @@ describe("api.ts helper functions", () => {
         json: () => Promise.resolve({ id: 1, name: "Updated Group" }),
       });
 
-      const { getSession } = await import("next-auth/react");
-      vi.mocked(getSession).mockResolvedValue({
-        user: { token: "test-token" },
-      } as never);
-
+      // BetterAuth uses cookies (credentials: "include"), no session mocking needed
       const { groupService } = await import("./api");
 
       const restore = setupBrowserEnv();
@@ -1098,11 +1054,7 @@ describe("api.ts helper functions", () => {
         json: () => Promise.resolve({ id: 1, name: "Updated Combined" }),
       });
 
-      const { getSession } = await import("next-auth/react");
-      vi.mocked(getSession).mockResolvedValue({
-        user: { token: "test-token" },
-      } as never);
-
+      // BetterAuth uses cookies (credentials: "include"), no session mocking needed
       const { combinedGroupService } = await import("./api");
 
       const restore = setupBrowserEnv();
@@ -1129,11 +1081,7 @@ describe("api.ts helper functions", () => {
         json: () => Promise.resolve({}),
       });
 
-      const { getSession } = await import("next-auth/react");
-      vi.mocked(getSession).mockResolvedValue({
-        user: { token: "test-token" },
-      } as never);
-
+      // BetterAuth uses cookies (credentials: "include"), no session mocking needed
       const { studentService } = await import("./api");
 
       const restore = setupBrowserEnv();
@@ -1154,11 +1102,7 @@ describe("api.ts helper functions", () => {
         text: () => Promise.resolve("Delete failed"),
       });
 
-      const { getSession } = await import("next-auth/react");
-      vi.mocked(getSession).mockResolvedValue({
-        user: { token: "test-token" },
-      } as never);
-
+      // BetterAuth uses cookies (credentials: "include"), no session mocking needed
       const { studentService } = await import("./api");
 
       const restore = setupBrowserEnv();
@@ -1177,11 +1121,7 @@ describe("api.ts helper functions", () => {
         json: () => Promise.resolve({}),
       });
 
-      const { getSession } = await import("next-auth/react");
-      vi.mocked(getSession).mockResolvedValue({
-        user: { token: "test-token" },
-      } as never);
-
+      // BetterAuth uses cookies (credentials: "include"), no session mocking needed
       const { roomService } = await import("./api");
 
       const restore = setupBrowserEnv();
@@ -1204,11 +1144,7 @@ describe("api.ts helper functions", () => {
         json: () => Promise.resolve({}),
       });
 
-      const { getSession } = await import("next-auth/react");
-      vi.mocked(getSession).mockResolvedValue({
-        user: { token: "test-token" },
-      } as never);
-
+      // BetterAuth uses cookies (credentials: "include"), no session mocking needed
       const { combinedGroupService } = await import("./api");
 
       const restore = setupBrowserEnv();

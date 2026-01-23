@@ -35,34 +35,11 @@ describe("checkin-api", () => {
 
       await performImmediateCheckin(123, 456);
 
+      // BetterAuth: cookies are sent via withCredentials on axios instance
+      // The post call only receives URL and body (no third config argument)
       expect(mockAxiosInstance.post).toHaveBeenCalledWith(
         "/api/active/visits/student/123/checkin",
         { active_group_id: 456 },
-        { headers: {} },
-      );
-    });
-
-    it("includes authorization header when token is provided", async () => {
-      mockAxiosInstance.post.mockResolvedValueOnce({ data: {} });
-
-      await performImmediateCheckin(123, 456, "test-token");
-
-      expect(mockAxiosInstance.post).toHaveBeenCalledWith(
-        "/api/active/visits/student/123/checkin",
-        { active_group_id: 456 },
-        { headers: { Authorization: "Bearer test-token" } },
-      );
-    });
-
-    it("does not include authorization header when token is undefined", async () => {
-      mockAxiosInstance.post.mockResolvedValueOnce({ data: {} });
-
-      await performImmediateCheckin(789, 101);
-
-      expect(mockAxiosInstance.post).toHaveBeenCalledWith(
-        "/api/active/visits/student/789/checkin",
-        { active_group_id: 101 },
-        { headers: {} },
       );
     });
 
@@ -83,7 +60,6 @@ describe("checkin-api", () => {
       expect(mockAxiosInstance.post).toHaveBeenCalledWith(
         "/api/active/visits/student/999/checkin",
         { active_group_id: 111 },
-        { headers: {} },
       );
     });
 
@@ -95,7 +71,6 @@ describe("checkin-api", () => {
       expect(mockAxiosInstance.post).toHaveBeenCalledWith(
         "/api/active/visits/student/1/checkin",
         { active_group_id: 9999 },
-        { headers: {} },
       );
     });
   });

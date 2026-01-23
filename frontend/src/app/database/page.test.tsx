@@ -2,22 +2,26 @@ import { render, screen, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import DatabasePage from "./page";
 
+// BetterAuth session structure
 const mockSession = {
   user: {
     id: "1",
     name: "Test User",
     email: "test@test.com",
-    token: "test-token",
+    emailVerified: true,
+    image: null,
+    createdAt: new Date(),
+    updatedAt: new Date(),
   },
-  expires: "2099-12-31",
+  session: {
+    id: "test-session-id",
+    userId: "1",
+    expiresAt: new Date(Date.now() + 86400000),
+    ipAddress: null,
+    userAgent: null,
+  },
+  activeOrganizationId: "test-org-id",
 };
-
-vi.mock("next-auth/react", () => ({
-  useSession: vi.fn(() => ({
-    data: mockSession,
-    status: "authenticated",
-  })),
-}));
 
 vi.mock("next/navigation", () => ({
   redirect: vi.fn(),
@@ -81,16 +85,16 @@ global.fetch = vi.fn(() =>
   } as Response),
 );
 
-import { useSession } from "next-auth/react";
 import { useIsMobile } from "~/hooks/useIsMobile";
 
 describe("DatabasePage", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
+    const { useSession } = await import("~/lib/auth-client");
     vi.clearAllMocks();
     vi.mocked(useSession).mockReturnValue({
       data: mockSession,
-      status: "authenticated",
-      update: vi.fn(),
+      isPending: false,
+      error: null,
     });
     vi.mocked(useIsMobile).mockReturnValue(false);
     vi.mocked(global.fetch).mockResolvedValue({
@@ -105,11 +109,12 @@ describe("DatabasePage", () => {
     expect(screen.getByTestId("responsive-layout")).toBeInTheDocument();
   });
 
-  it("displays loading state initially", () => {
+  it("displays loading state initially", async () => {
+    const { useSession } = await import("~/lib/auth-client");
     vi.mocked(useSession).mockReturnValue({
       data: null,
-      status: "loading",
-      update: vi.fn(),
+      isPending: true,
+      error: null,
     });
 
     render(<DatabasePage />);

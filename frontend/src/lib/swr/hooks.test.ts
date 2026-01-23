@@ -1,10 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook } from "@testing-library/react";
-import { useSWRAuth, useImmutableSWR, useSWRWithId } from "./hooks";
 
-// Mock next-auth/react
-vi.mock("next-auth/react", () => ({
-  useSession: vi.fn(),
+// Use vi.hoisted for mocks that need to be available during vi.mock
+const { mockUseSession } = vi.hoisted(() => ({
+  mockUseSession: vi.fn(),
+}));
+
+// Mock auth-client BEFORE importing hooks
+vi.mock("~/lib/auth-client", () => ({
+  authClient: {
+    useSession: mockUseSession,
+  },
+  useSession: mockUseSession,
 }));
 
 // Mock swr
@@ -12,27 +19,25 @@ vi.mock("swr", () => ({
   default: vi.fn(),
 }));
 
-// Import mocked modules
-import { useSession } from "next-auth/react";
+// Import after mocks
+import { useSWRAuth, useImmutableSWR, useSWRWithId } from "./hooks";
 import useSWR from "swr";
 
-// Helper to create mock session data
-const createMockSession = (token?: string) => ({
-  data: token ? { user: { id: "user-1", token }, expires: "2099-01-01" } : null,
-  status: token ? ("authenticated" as const) : ("unauthenticated" as const),
-  update: vi.fn(),
+// Helper to create mock session data (using BetterAuth structure)
+const createMockSession = (authenticated = true) => ({
+  data: authenticated
+    ? {
+        user: { id: "user-1", email: "test@example.com" },
+        session: { token: "test-token", expiresAt: new Date("2099-01-01") },
+        activeOrganizationId: "test-org-id",
+      }
+    : null,
+  isPending: false,
 });
 
 const createLoadingSession = () => ({
   data: null,
-  status: "loading" as const,
-  update: vi.fn(),
-});
-
-const createSessionWithoutToken = () => ({
-  data: { user: { id: "user-1" }, expires: "2099-01-01" },
-  status: "authenticated" as const,
-  update: vi.fn(),
+  isPending: true,
 });
 
 describe("SWR Hooks", () => {
@@ -53,9 +58,7 @@ describe("SWR Hooks", () => {
 
   describe("useSWRAuth", () => {
     it("fetches data when user is authenticated", () => {
-      vi.mocked(useSession).mockReturnValue(
-        createMockSession("test-token") as ReturnType<typeof useSession>,
-      );
+      mockUseSession.mockReturnValue(createMockSession(true));
 
       renderHook(() => useSWRAuth("test-key", mockFetcher));
 
@@ -69,9 +72,7 @@ describe("SWR Hooks", () => {
     });
 
     it("does not fetch when session is loading", () => {
-      vi.mocked(useSession).mockReturnValue(
-        createLoadingSession() as ReturnType<typeof useSession>,
-      );
+      mockUseSession.mockReturnValue(createLoadingSession());
 
       renderHook(() => useSWRAuth("test-key", mockFetcher));
 
@@ -83,9 +84,7 @@ describe("SWR Hooks", () => {
     });
 
     it("does not fetch when user is unauthenticated", () => {
-      vi.mocked(useSession).mockReturnValue(
-        createMockSession() as ReturnType<typeof useSession>,
-      );
+      mockUseSession.mockReturnValue(createMockSession(false));
 
       renderHook(() => useSWRAuth("test-key", mockFetcher));
 
@@ -96,24 +95,8 @@ describe("SWR Hooks", () => {
       );
     });
 
-    it("does not fetch when user has no token", () => {
-      vi.mocked(useSession).mockReturnValue(
-        createSessionWithoutToken() as ReturnType<typeof useSession>,
-      );
-
-      renderHook(() => useSWRAuth("test-key", mockFetcher));
-
-      expect(useSWR).toHaveBeenCalledWith(
-        null, // Key should be null when no token
-        mockFetcher,
-        expect.any(Object),
-      );
-    });
-
     it("does not fetch when key is null", () => {
-      vi.mocked(useSession).mockReturnValue(
-        createMockSession("test-token") as ReturnType<typeof useSession>,
-      );
+      mockUseSession.mockReturnValue(createMockSession(true));
 
       renderHook(() => useSWRAuth(null, mockFetcher));
 
@@ -125,9 +108,7 @@ describe("SWR Hooks", () => {
     });
 
     it("merges custom options with default config", () => {
-      vi.mocked(useSession).mockReturnValue(
-        createMockSession("test-token") as ReturnType<typeof useSession>,
-      );
+      mockUseSession.mockReturnValue(createMockSession(true));
 
       const customOptions = { refreshInterval: 5000 };
       renderHook(() => useSWRAuth("test-key", mockFetcher, customOptions));
@@ -144,9 +125,7 @@ describe("SWR Hooks", () => {
 
   describe("useImmutableSWR", () => {
     it("uses immutable config (no revalidation)", () => {
-      vi.mocked(useSession).mockReturnValue(
-        createMockSession("test-token") as ReturnType<typeof useSession>,
-      );
+      mockUseSession.mockReturnValue(createMockSession(true));
 
       renderHook(() => useImmutableSWR("immutable-key", mockFetcher));
 
@@ -168,9 +147,7 @@ describe("SWR Hooks", () => {
     );
 
     it("generates cache key with id when authenticated", () => {
-      vi.mocked(useSession).mockReturnValue(
-        createMockSession("test-token") as ReturnType<typeof useSession>,
-      );
+      mockUseSession.mockReturnValue(createMockSession(true));
 
       renderHook(() => useSWRWithId("entity", "123", mockIdFetcher));
 
@@ -182,9 +159,7 @@ describe("SWR Hooks", () => {
     });
 
     it("does not fetch when id is null", () => {
-      vi.mocked(useSession).mockReturnValue(
-        createMockSession("test-token") as ReturnType<typeof useSession>,
-      );
+      mockUseSession.mockReturnValue(createMockSession(true));
 
       renderHook(() => useSWRWithId("entity", null, mockIdFetcher));
 
@@ -196,9 +171,7 @@ describe("SWR Hooks", () => {
     });
 
     it("does not fetch when id is undefined", () => {
-      vi.mocked(useSession).mockReturnValue(
-        createMockSession("test-token") as ReturnType<typeof useSession>,
-      );
+      mockUseSession.mockReturnValue(createMockSession(true));
 
       renderHook(() => useSWRWithId("entity", undefined, mockIdFetcher));
 
@@ -210,9 +183,7 @@ describe("SWR Hooks", () => {
     });
 
     it("does not fetch when session is loading", () => {
-      vi.mocked(useSession).mockReturnValue(
-        createLoadingSession() as ReturnType<typeof useSession>,
-      );
+      mockUseSession.mockReturnValue(createLoadingSession());
 
       renderHook(() => useSWRWithId("entity", "123", mockIdFetcher));
 
@@ -224,9 +195,7 @@ describe("SWR Hooks", () => {
     });
 
     it("merges custom options", () => {
-      vi.mocked(useSession).mockReturnValue(
-        createMockSession("test-token") as ReturnType<typeof useSession>,
-      );
+      mockUseSession.mockReturnValue(createMockSession(true));
 
       renderHook(() =>
         useSWRWithId("entity", "123", mockIdFetcher, { refreshInterval: 3000 }),
@@ -242,9 +211,7 @@ describe("SWR Hooks", () => {
     });
 
     it("passes id to fetcher when called", async () => {
-      vi.mocked(useSession).mockReturnValue(
-        createMockSession("test-token") as ReturnType<typeof useSession>,
-      );
+      mockUseSession.mockReturnValue(createMockSession(true));
 
       renderHook(() => useSWRWithId("entity", "123", mockIdFetcher));
 

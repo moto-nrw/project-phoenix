@@ -5,17 +5,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { Teacher } from "./teacher-api";
 
-// Mock next-auth/react before importing the module
-vi.mock("next-auth/react", () => ({
-  getSession: vi.fn(),
-}));
-
 // Import after mocks are set up
-import { getSession } from "next-auth/react";
 import { teacherService } from "./teacher-api";
-
-// Type for mocked functions
-const mockedGetSession = vi.mocked(getSession);
 
 // Sample teacher data
 const sampleTeacher: Teacher = {
@@ -56,12 +47,6 @@ describe("teacher-api", () => {
     consoleWarnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     originalFetch = globalThis.fetch;
     globalThis.fetch = vi.fn();
-
-    // Default session mock
-    mockedGetSession.mockResolvedValue({
-      user: { id: "1", token: "test-token" },
-      expires: "2099-01-01",
-    });
   });
 
   afterEach(() => {
@@ -158,20 +143,6 @@ describe("teacher-api", () => {
         "Error fetching teachers:",
         expect.any(Error),
       );
-    });
-
-    it("works without auth token", async () => {
-      mockedGetSession.mockResolvedValue(null);
-
-      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve([sampleTeacher]),
-      } as Response);
-
-      const result = await teacherService.getTeachers();
-
-      expect(result).toHaveLength(1);
     });
   });
 

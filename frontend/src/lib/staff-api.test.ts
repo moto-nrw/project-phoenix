@@ -5,17 +5,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { BackendStaffResponse, StaffFilters } from "./staff-api";
 
-// Mock next-auth/react before importing the module
-vi.mock("next-auth/react", () => ({
-  getSession: vi.fn(),
-}));
-
 // Import after mocks are set up
-import { getSession } from "next-auth/react";
 import { staffService } from "./staff-api";
-
-// Type for mocked functions
-const mockedGetSession = vi.mocked(getSession);
 
 // Sample backend staff data
 const sampleBackendStaff: BackendStaffResponse = {
@@ -79,12 +70,6 @@ describe("staff-api", () => {
     consoleWarnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     originalFetch = globalThis.fetch;
     globalThis.fetch = vi.fn();
-
-    // Default session mock
-    mockedGetSession.mockResolvedValue({
-      user: { id: "1", token: "test-token" },
-      expires: "2099-01-01",
-    });
   });
 
   afterEach(() => {
@@ -126,14 +111,6 @@ describe("staff-api", () => {
       expect(result[0]?.isTeacher).toBe(true);
       expect(result[0]?.isSupervising).toBe(false);
       expect(result[0]?.currentLocation).toBe("Zuhause");
-    });
-
-    it("throws error when no auth token available", async () => {
-      mockedGetSession.mockResolvedValue(null);
-
-      await expect(staffService.getAllStaff()).rejects.toThrow(
-        "No authentication token available",
-      );
     });
 
     it("throws error when staff fetch fails", async () => {
@@ -606,19 +583,6 @@ describe("staff-api", () => {
       const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
       mockFetch.mockRejectedValueOnce(new Error("Network error"));
 
-      const result = await staffService.getStaffSupervisions("1");
-
-      expect(result).toEqual([]);
-      expect(consoleErrorSpy).toHaveBeenCalledWith(
-        expect.stringContaining("Error fetching supervisions for staff 1"),
-        expect.any(Error),
-      );
-    });
-
-    it("returns empty array and logs error when no auth token available", async () => {
-      mockedGetSession.mockResolvedValue(null);
-
-      // Note: getStaffSupervisions catches the error and returns empty array
       const result = await staffService.getStaffSupervisions("1");
 
       expect(result).toEqual([]);

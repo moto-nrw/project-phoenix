@@ -174,12 +174,10 @@ describe("fetchRooms", () => {
         json: () => Promise.resolve(mockResponse),
       } as Response);
 
-      const result = await fetchRooms("test-token");
+      const result = await fetchRooms();
 
       expect(mockFetch).toHaveBeenCalledWith("/api/rooms", {
-        headers: {
-          Authorization: "Bearer test-token",
-        },
+        credentials: "include", // BetterAuth uses cookies
       });
       expect(result).toHaveLength(1);
       expect(result[0]?.id).toBe("1");
@@ -191,7 +189,7 @@ describe("fetchRooms", () => {
         status: 500,
       } as Response);
 
-      const result = await fetchRooms("test-token");
+      const result = await fetchRooms();
 
       expect(result).toEqual([]);
       expect(consoleErrorSpy).toHaveBeenCalledWith(
@@ -206,7 +204,7 @@ describe("fetchRooms", () => {
         json: () => Promise.resolve({ status: "success", data: null }),
       } as Response);
 
-      const result = await fetchRooms("test-token");
+      const result = await fetchRooms();
 
       expect(result).toEqual([]);
       expect(consoleErrorSpy).toHaveBeenCalledWith(
@@ -215,7 +213,7 @@ describe("fetchRooms", () => {
       );
     });
 
-    it("sends empty Authorization header when no token", async () => {
+    it("sends requests with credentials for cookie-based auth", async () => {
       const mockResponse: RoomsApiResponse = {
         status: "success",
         data: [sampleBackendRoom],
@@ -228,16 +226,14 @@ describe("fetchRooms", () => {
       await fetchRooms();
 
       expect(mockFetch).toHaveBeenCalledWith("/api/rooms", {
-        headers: {
-          Authorization: "",
-        },
+        credentials: "include", // Cookies sent automatically
       });
     });
 
     it("returns empty array when fetch throws an error", async () => {
       mockFetch.mockRejectedValueOnce(new Error("Network error"));
 
-      const result = await fetchRooms("test-token");
+      const result = await fetchRooms();
 
       expect(result).toEqual([]);
       expect(consoleErrorSpy).toHaveBeenCalledWith(
@@ -256,7 +252,7 @@ describe("fetchRooms", () => {
         json: () => Promise.resolve(mockResponse),
       } as Response);
 
-      const result = await fetchRooms("test-token");
+      const result = await fetchRooms();
 
       // Verify mapping from BackendRoom to Room
       expect(result[0]).toMatchObject({

@@ -1,20 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { Session } from "next-auth";
 import { NextRequest } from "next/server";
 import { GET } from "./route";
 
-interface ExtendedSession extends Session {
-  user: Session["user"] & { token?: string };
-}
+// ============================================================================
+// Mocks
+// ============================================================================
 
-const { mockAuth, mockApiGet } = vi.hoisted(() => ({
-  mockAuth: vi.fn<() => Promise<ExtendedSession | null>>(),
+const { mockApiGet } = vi.hoisted(() => ({
   mockApiGet: vi.fn(),
 }));
 
-vi.mock("~/server/auth", () => ({
-  auth: mockAuth,
-}));
+// Note: auth() is globally mocked in setup.ts
+// It checks for better-auth.session_token cookie
 
 vi.mock("~/lib/api-helpers", () => ({
   apiGet: mockApiGet,
@@ -33,6 +30,10 @@ vi.mock("~/lib/api-helpers", () => ({
   }),
 }));
 
+// ============================================================================
+// Test Helpers
+// ============================================================================
+
 function createMockRequest(path: string): NextRequest {
   const url = new URL(path, "http://localhost:3000");
   return new NextRequest(url);
@@ -44,10 +45,8 @@ function createMockContext(
   return { params: Promise.resolve(params) };
 }
 
-const defaultSession: ExtendedSession = {
-  user: { id: "1", token: "test-token", name: "Test User" },
-  expires: "2099-01-01",
-};
+// BetterAuth: Expected cookie header (from global setup.ts mock)
+const TEST_COOKIE_HEADER = "better-auth.session_token=test-session-token";
 
 interface ApiResponse<T> {
   success: boolean;
@@ -59,14 +58,23 @@ async function parseJsonResponse<T>(response: Response): Promise<T> {
   return (await response.json()) as T;
 }
 
+// ============================================================================
+// Tests
+// ============================================================================
+
 describe("GET /api/ogs-dashboard", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockAuth.mockResolvedValue(defaultSession);
+    // Global mock provides authenticated session by default
   });
 
   it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
+    // Mock cookies to return undefined (no session cookie)
+    const { cookies } = await import("next/headers");
+    vi.mocked(cookies).mockResolvedValueOnce({
+      get: vi.fn(() => undefined),
+      toString: vi.fn(() => ""),
+    } as never);
 
     const request = createMockRequest("/api/ogs-dashboard");
     const response = await GET(request, createMockContext());
@@ -81,7 +89,11 @@ describe("GET /api/ogs-dashboard", () => {
     const response = await GET(request, createMockContext());
 
     expect(mockApiGet).toHaveBeenCalledTimes(1);
-    expect(mockApiGet).toHaveBeenCalledWith("/api/me/groups", "test-token");
+    // BetterAuth: Now uses cookie header instead of token
+    expect(mockApiGet).toHaveBeenCalledWith(
+      "/api/me/groups",
+      TEST_COOKIE_HEADER,
+    );
 
     const json = await parseJsonResponse<
       ApiResponse<{
@@ -115,25 +127,26 @@ describe("GET /api/ogs-dashboard", () => {
     const request = createMockRequest("/api/ogs-dashboard");
     const response = await GET(request, createMockContext());
 
+    // BetterAuth: Now uses cookie header instead of token
     expect(mockApiGet).toHaveBeenNthCalledWith(
       1,
       "/api/me/groups",
-      "test-token",
+      TEST_COOKIE_HEADER,
     );
     expect(mockApiGet).toHaveBeenNthCalledWith(
       2,
       "/api/students?group_id=12",
-      "test-token",
+      TEST_COOKIE_HEADER,
     );
     expect(mockApiGet).toHaveBeenNthCalledWith(
       3,
       "/api/groups/12/students/room-status",
-      "test-token",
+      TEST_COOKIE_HEADER,
     );
     expect(mockApiGet).toHaveBeenNthCalledWith(
       4,
       "/api/groups/12/substitutions",
-      "test-token",
+      TEST_COOKIE_HEADER,
     );
 
     const json = await parseJsonResponse<

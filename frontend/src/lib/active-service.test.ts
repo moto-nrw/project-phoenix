@@ -14,10 +14,6 @@ import type {
 } from "./active-helpers";
 
 // Mock dependencies before importing the module
-vi.mock("next-auth/react", () => ({
-  getSession: vi.fn(),
-}));
-
 vi.mock("./api", () => ({
   default: {
     get: vi.fn(),
@@ -34,12 +30,10 @@ vi.mock("~/env", () => ({
 }));
 
 // Import after mocks are set up
-import { getSession } from "next-auth/react";
 import api from "./api";
 import { activeService } from "./active-service";
 
 // Type for mocked functions
-const mockedGetSession = vi.mocked(getSession);
 const mockedApiGet = vi.mocked(api.get);
 const mockedApiPost = vi.mocked(api.post);
 const mockedApiPut = vi.mocked(api.put);
@@ -133,12 +127,6 @@ describe("active-service", () => {
     originalWindow = globalThis.window;
     globalThis.fetch = vi.fn();
 
-    // Default session mock
-    mockedGetSession.mockResolvedValue({
-      user: { id: "1", token: "test-token" },
-      expires: "2099-01-01",
-    });
-
     // Default: simulate browser context
     // @ts-expect-error - mocking window
     globalThis.window = {};
@@ -166,9 +154,7 @@ describe("active-service", () => {
           "/api/active/groups",
           expect.objectContaining({
             method: "GET",
-            headers: expect.objectContaining({
-              Authorization: "Bearer test-token",
-            }),
+            credentials: "include", // BetterAuth uses cookies
           }),
         );
         expect(result).toHaveLength(1);

@@ -18,10 +18,7 @@ const { mockCreateSubstitution, mockDeleteSubstitution } = vi.hoisted(() => ({
   mockDeleteSubstitution: vi.fn(),
 }));
 
-// Mock next-auth
-vi.mock("next-auth/react", () => ({
-  useSession: vi.fn(),
-}));
+// Global mock from setup.ts handles BetterAuth
 
 // Mock next/navigation
 vi.mock("next/navigation", () => ({
@@ -161,7 +158,6 @@ vi.mock("~/components/ui/loading", () => ({
   Loading: () => <div aria-label="Lädt...">Loading...</div>,
 }));
 
-import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useSWRAuth, useImmutableSWR } from "~/lib/swr";
 
@@ -248,13 +244,33 @@ describe("SubstitutionsPage", () => {
   const mockMutateTeachers = vi.fn();
   const mockMutateSubstitutions = vi.fn();
 
-  beforeEach(() => {
+  beforeEach(async () => {
+    const { useSession } = await import("~/lib/auth-client");
     vi.clearAllMocks();
     vi.mocked(useRouter).mockReturnValue({ push: mockPush } as never);
     vi.mocked(useSession).mockReturnValue({
-      data: { user: { id: "1" } },
-      status: "authenticated",
-    } as never);
+      data: {
+        user: {
+          id: "1",
+          email: "test@example.com",
+          name: "Test User",
+          emailVerified: true,
+          image: null,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+        session: {
+          id: "test-session-id",
+          userId: "1",
+          expiresAt: new Date(Date.now() + 86400000),
+          ipAddress: null,
+          userAgent: null,
+        },
+        activeOrganizationId: "test-org-id",
+      },
+      isPending: false,
+      error: null,
+    });
 
     // Default SWR mock setup
     vi.mocked(useSWRAuth).mockImplementation((key: string | null) => {
@@ -285,11 +301,13 @@ describe("SubstitutionsPage", () => {
   });
 
   describe("Loading and Error States", () => {
-    it("shows loading state while session is loading", () => {
+    it("shows loading state while session is loading", async () => {
+      const { useSession } = await import("~/lib/auth-client");
       vi.mocked(useSession).mockReturnValue({
         data: null,
-        status: "loading",
-      } as never);
+        isPending: true,
+        error: null,
+      });
 
       render(<SubstitutionsPage />);
 

@@ -8,13 +8,7 @@ import {
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import StudentCSVImportPage from "./page";
 
-// Mock next-auth/react
-vi.mock("next-auth/react", () => ({
-  useSession: vi.fn(() => ({
-    data: { user: { token: "test-token" } },
-    status: "authenticated",
-  })),
-}));
+// Global mock from setup.ts handles BetterAuth
 
 // Mock next/navigation
 vi.mock("next/navigation", () => ({
@@ -121,9 +115,35 @@ vi.mock("~/components/import", () => ({
 }));
 
 describe("StudentCSVImportPage", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.clearAllMocks();
     global.fetch = vi.fn();
+
+    // Reset useSession mock to authenticated state (using BetterAuth structure)
+    const { useSession } = await import("~/lib/auth-client");
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: {
+          id: "test-user-id",
+          email: "test@example.com",
+          name: "Test User",
+          emailVerified: true,
+          image: null,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+        session: {
+          id: "test-session-id",
+          userId: "test-user-id",
+          expiresAt: new Date(Date.now() + 86400000),
+          ipAddress: null,
+          userAgent: null,
+        },
+        activeOrganizationId: "test-org-id",
+      },
+      isPending: false,
+      error: null,
+    });
   });
 
   afterEach(() => {
@@ -182,10 +202,11 @@ describe("StudentCSVImportPage", () => {
     fireEvent.click(downloadButton);
 
     await waitFor(() => {
+      // BetterAuth: fetch uses credentials: "include" for cookie auth
       expect(global.fetch).toHaveBeenCalledWith(
         "/api/import/students/template?format=csv",
         expect.objectContaining({
-          headers: { Authorization: "Bearer test-token" },
+          credentials: "include",
         }),
       );
     });
@@ -772,11 +793,11 @@ describe("StudentCSVImportPage", () => {
 
   it("shows loading state when session is loading", async () => {
     // Override mock for this test
-    const useSession = await import("next-auth/react");
-    vi.mocked(useSession.useSession).mockReturnValueOnce({
+    const { useSession } = await import("~/lib/auth-client");
+    vi.mocked(useSession).mockReturnValueOnce({
       data: null,
-      status: "loading",
-      update: vi.fn(),
+      isPending: true,
+      error: null,
     });
 
     render(<StudentCSVImportPage />);
@@ -784,22 +805,20 @@ describe("StudentCSVImportPage", () => {
     expect(screen.getByTestId("loading")).toBeInTheDocument();
   });
 
-  it("handles missing token gracefully", async () => {
+  it("redirects to home when user is unauthenticated", async () => {
+    const { redirect } = await import("next/navigation");
+
     // Override mock for this test
-    const useSession = await import("next-auth/react");
-    vi.mocked(useSession.useSession).mockReturnValueOnce({
-      data: { user: { token: undefined } },
-      status: "authenticated",
-      update: vi.fn(),
-    } as unknown as ReturnType<typeof useSession.useSession>);
+    const { useSession } = await import("~/lib/auth-client");
+    vi.mocked(useSession).mockReturnValueOnce({
+      data: null,
+      isPending: false,
+      error: null,
+    });
 
     render(<StudentCSVImportPage />);
 
-    const fileSelectButton = screen.getByTestId("file-select-trigger");
-    fireEvent.click(fileSelectButton);
-
-    await waitFor(() => {
-      expect(screen.getByText("Keine Authentifizierung")).toBeInTheDocument();
-    });
+    // BetterAuth: unauthenticated users are redirected to home
+    expect(redirect).toHaveBeenCalledWith("/");
   });
 });

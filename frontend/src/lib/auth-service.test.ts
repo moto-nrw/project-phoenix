@@ -23,10 +23,6 @@ import type {
 } from "./auth-helpers";
 
 // Mock dependencies
-vi.mock("next-auth/react", () => ({
-  getSession: vi.fn(),
-}));
-
 vi.mock("./api", () => ({
   default: {
     get: vi.fn(),
@@ -43,11 +39,9 @@ vi.mock("~/env", () => ({
 }));
 
 // Import after mocks
-import { getSession } from "next-auth/react";
 import api from "./api";
 import { authService } from "./auth-service";
 
-const mockedGetSession = vi.mocked(getSession);
 const mockedApiGet = vi.mocked(api.get);
 const mockedApiPost = vi.mocked(api.post);
 const mockedApiPut = vi.mocked(api.put);
@@ -226,10 +220,6 @@ describe("authService", () => {
 
   describe("logout", () => {
     it("logs out user in server context", async () => {
-      mockedGetSession.mockResolvedValueOnce({
-        user: { id: "1", token: "test-token" },
-        expires: "2099-01-01",
-      });
       mockedApiPost.mockResolvedValueOnce({});
 
       await authService.logout();
@@ -241,10 +231,6 @@ describe("authService", () => {
 
     it("logs out user in browser context", async () => {
       vi.stubGlobal("window", {});
-      mockedGetSession.mockResolvedValueOnce({
-        user: { id: "1", token: "test-token" },
-        expires: "2099-01-01",
-      });
 
       const mockResponse = { ok: true };
       vi.stubGlobal("fetch", vi.fn().mockResolvedValueOnce(mockResponse));
@@ -257,20 +243,20 @@ describe("authService", () => {
       );
     });
 
-    it("does nothing when no session exists", async () => {
-      mockedGetSession.mockResolvedValueOnce(null);
+    it("calls logout endpoint even when no local session exists", async () => {
+      // BetterAuth: logout always calls the backend to ensure server-side session is invalidated
+      // The backend handles cases where the session doesn't exist gracefully
+      mockedApiPost.mockResolvedValueOnce({});
 
       await authService.logout();
 
-      expect(mockedApiPost).not.toHaveBeenCalled();
+      expect(mockedApiPost).toHaveBeenCalledWith(
+        "http://localhost:8080/auth/logout",
+      );
     });
 
     it("does not throw on logout error", async () => {
       vi.stubGlobal("window", {});
-      mockedGetSession.mockResolvedValueOnce({
-        user: { id: "1", token: "test-token" },
-        expires: "2099-01-01",
-      });
 
       vi.stubGlobal(
         "fetch",
@@ -432,10 +418,6 @@ describe("authService", () => {
 
     it("fetches current account in browser context", async () => {
       vi.stubGlobal("window", {});
-      mockedGetSession.mockResolvedValueOnce({
-        user: { id: "1", token: "test-token" },
-        expires: "2099-01-01",
-      });
 
       const mockResponse = {
         ok: true,

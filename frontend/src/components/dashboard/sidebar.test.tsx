@@ -9,10 +9,6 @@ vi.mock("next/navigation", () => ({
   })),
 }));
 
-vi.mock("next-auth/react", () => ({
-  useSession: vi.fn(),
-}));
-
 vi.mock("~/lib/supervision-context", () => ({
   useSupervision: vi.fn(),
 }));
@@ -24,13 +20,11 @@ vi.mock("~/lib/auth-utils", () => ({
 // Import after mocks
 import { Sidebar } from "./sidebar";
 import { usePathname, useSearchParams } from "next/navigation";
-import { useSession } from "next-auth/react";
 import { useSupervision } from "~/lib/supervision-context";
 import { isAdmin } from "~/lib/auth-utils";
 
 const mockUsePathname = vi.mocked(usePathname);
 const mockUseSearchParams = vi.mocked(useSearchParams);
-const mockUseSession = vi.mocked(useSession);
 const mockUseSupervision = vi.mocked(useSupervision);
 const mockIsAdmin = vi.mocked(isAdmin);
 
@@ -55,23 +49,6 @@ function createMockSearchParams(
   } as unknown as ReturnType<typeof useSearchParams>;
 }
 
-// Helper to create mock session
-function createMockSession(isAdminUser: boolean) {
-  return {
-    data: {
-      user: {
-        id: "1",
-        token: "test-token",
-        isAdmin: isAdminUser,
-        email: "test@example.com",
-      },
-      expires: new Date(Date.now() + 86400000).toISOString(),
-    },
-    status: "authenticated" as const,
-    update: vi.fn(),
-  } as unknown as ReturnType<typeof useSession>;
-}
-
 describe("Sidebar", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -79,7 +56,6 @@ describe("Sidebar", () => {
     // Default mock implementations
     mockUsePathname.mockReturnValue("/dashboard");
     mockUseSearchParams.mockReturnValue(createMockSearchParams());
-    mockUseSession.mockReturnValue(createMockSession(false));
     mockUseSupervision.mockReturnValue({
       hasGroups: true,
       isSupervising: false,
@@ -121,7 +97,6 @@ describe("Sidebar", () => {
   describe("admin navigation", () => {
     beforeEach(() => {
       mockIsAdmin.mockReturnValue(true);
-      mockUseSession.mockReturnValue(createMockSession(true));
     });
 
     it("shows admin-only navigation items for admins", () => {
@@ -228,7 +203,6 @@ describe("Sidebar", () => {
     it("highlights dashboard link when on dashboard", () => {
       mockUsePathname.mockReturnValue("/dashboard");
       mockIsAdmin.mockReturnValue(true);
-      mockUseSession.mockReturnValue(createMockSession(true));
 
       render(<Sidebar />);
 
@@ -249,7 +223,6 @@ describe("Sidebar", () => {
     it("does not highlight dashboard for non-dashboard paths", () => {
       mockUsePathname.mockReturnValue("/activities");
       mockIsAdmin.mockReturnValue(true);
-      mockUseSession.mockReturnValue(createMockSession(true));
 
       render(<Sidebar />);
 
@@ -336,7 +309,6 @@ describe("Sidebar", () => {
 
     it("shows admin-only coming soon items for admins", () => {
       mockIsAdmin.mockReturnValue(true);
-      mockUseSession.mockReturnValue(createMockSession(true));
 
       render(<Sidebar />);
 

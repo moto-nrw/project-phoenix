@@ -219,43 +219,41 @@ describe("isBrowserContext", () => {
 });
 
 describe("buildAuthHeaders", () => {
-  it("returns undefined when token is undefined", () => {
-    const result = buildAuthHeaders(undefined);
-
-    expect(result).toBeUndefined();
-  });
-
-  it("returns undefined when token is empty string", () => {
-    const result = buildAuthHeaders("");
-
-    expect(result).toBeUndefined();
-  });
-
-  it("returns auth headers with token", () => {
+  // With BetterAuth migration, these functions now return Content-Type only
+  // Auth is handled via cookies, not Authorization header
+  it("returns Content-Type header (token parameter is deprecated)", () => {
     const result = buildAuthHeaders("test-token");
 
     expect(result).toEqual({
-      Authorization: "Bearer test-token",
+      "Content-Type": "application/json",
+    });
+  });
+
+  it("returns Content-Type header when token is undefined", () => {
+    const result = buildAuthHeaders(undefined);
+
+    expect(result).toEqual({
       "Content-Type": "application/json",
     });
   });
 });
 
 describe("buildAuthHeadersWithBody", () => {
-  it("returns Content-Type even without token", () => {
-    const result = buildAuthHeadersWithBody(undefined);
+  // With BetterAuth migration, token parameter is ignored
+  // Auth is handled via cookies
+  it("returns Content-Type header (token parameter is deprecated)", () => {
+    const result = buildAuthHeadersWithBody("test-token");
 
     expect(result).toEqual({
       "Content-Type": "application/json",
     });
   });
 
-  it("includes Authorization when token is provided", () => {
-    const result = buildAuthHeadersWithBody("test-token");
+  it("returns Content-Type header when token is undefined", () => {
+    const result = buildAuthHeadersWithBody(undefined);
 
     expect(result).toEqual({
       "Content-Type": "application/json",
-      Authorization: "Bearer test-token",
     });
   });
 });
@@ -368,7 +366,7 @@ describe("authFetch", () => {
     globalThis.fetch = originalFetch;
   });
 
-  it("makes GET request with auth headers", async () => {
+  it("makes GET request with credentials:include for cookie auth", async () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
       status: 200,
@@ -377,9 +375,6 @@ describe("authFetch", () => {
 
     const result = await authFetch<{ data: string }>(
       "http://api.test/endpoint",
-      {
-        token: "test-token",
-      },
     );
 
     expect(result.data).toBe("test");
@@ -387,29 +382,12 @@ describe("authFetch", () => {
       method: "GET",
       credentials: "include",
       headers: {
-        Authorization: "Bearer test-token",
         "Content-Type": "application/json",
       },
     });
   });
 
-  it("makes GET request without headers when no token", async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      status: 200,
-      json: () => Promise.resolve({ data: "test" }),
-    } as Response);
-
-    await authFetch<{ data: string }>("http://api.test/endpoint");
-
-    expect(mockFetch).toHaveBeenCalledWith("http://api.test/endpoint", {
-      method: "GET",
-      credentials: "include",
-      headers: undefined,
-    });
-  });
-
-  it("makes POST request with body", async () => {
+  it("makes POST request with body and credentials:include", async () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
       status: 200,
@@ -420,7 +398,6 @@ describe("authFetch", () => {
     await authFetch("http://api.test/endpoint", {
       method: "POST",
       body,
-      token: "test-token",
     });
 
     expect(mockFetch).toHaveBeenCalledWith("http://api.test/endpoint", {
@@ -428,7 +405,6 @@ describe("authFetch", () => {
       credentials: "include",
       headers: {
         "Content-Type": "application/json",
-        Authorization: "Bearer test-token",
       },
       body: JSON.stringify(body),
     });
@@ -444,7 +420,6 @@ describe("authFetch", () => {
       "http://api.test/endpoint",
       {
         method: "DELETE",
-        token: "test-token",
       },
     );
 
@@ -458,9 +433,9 @@ describe("authFetch", () => {
       statusText: "Not Found",
     } as Response);
 
-    await expect(
-      authFetch("http://api.test/endpoint", { token: "test-token" }),
-    ).rejects.toThrow("API error (404): Not Found");
+    await expect(authFetch("http://api.test/endpoint")).rejects.toThrow(
+      "API error (404): Not Found",
+    );
   });
 });
 
@@ -496,64 +471,30 @@ describe("fetchWithRetry", () => {
     } as Response;
     mockFetchRetry.mockResolvedValueOnce(mockResponse);
 
+    // Token param is deprecated - cookies are used via credentials:include
     const result = await fetchWithRetry<{ data: string }>(
       "http://api.test/endpoint",
-      "test-token",
+      undefined,
     );
 
     expect(result.response).toBeTruthy();
     expect(result.data).toEqual({ data: "test" });
   });
 
-  it("retries on 401 with token refresh", async () => {
-    // First call returns 401
+  it("returns null for 401 Unauthorized (access denied)", async () => {
+    // With BetterAuth, 401 means session expired - no retry mechanism
+    // The user needs to re-login
     mockFetchRetry.mockResolvedValueOnce({
       ok: false,
       status: 401,
       text: () => Promise.resolve("Unauthorized"),
     } as Response);
 
-    // Retry call succeeds
-    mockFetchRetry.mockResolvedValueOnce({
-      ok: true,
-      status: 200,
-      json: () => Promise.resolve({ data: "refreshed" }),
-    } as Response);
-
-    const onAuthFailure = vi.fn().mockResolvedValue(true);
-    const getNewToken = vi.fn().mockResolvedValue("new-token");
-
-    const result = await fetchWithRetry<{ data: string }>(
-      "http://api.test/endpoint",
-      "old-token",
-      { onAuthFailure, getNewToken },
-    );
-
-    expect(onAuthFailure).toHaveBeenCalled();
-    expect(getNewToken).toHaveBeenCalled();
-    expect(result.data).toEqual({ data: "refreshed" });
-    expect(mockFetchRetry).toHaveBeenCalledTimes(2);
-  });
-
-  it("returns null when 401 retry fails", async () => {
-    mockFetchRetry.mockResolvedValueOnce({
-      ok: false,
-      status: 401,
-      text: () => Promise.resolve("Unauthorized"),
-    } as Response);
-
-    const onAuthFailure = vi.fn().mockResolvedValue(false);
-    const getNewToken = vi.fn();
-
-    const result = await fetchWithRetry(
-      "http://api.test/endpoint",
-      "old-token",
-      { onAuthFailure, getNewToken },
-    );
+    const result = await fetchWithRetry("http://api.test/endpoint", undefined);
 
     expect(result.response).toBeNull();
     expect(result.data).toBeNull();
-    expect(getNewToken).not.toHaveBeenCalled();
+    expect(consoleWarnSpy).toHaveBeenCalled();
   });
 
   it("returns null for 403 Forbidden (access denied)", async () => {
@@ -563,10 +504,7 @@ describe("fetchWithRetry", () => {
       text: () => Promise.resolve("Forbidden"),
     } as Response);
 
-    const result = await fetchWithRetry(
-      "http://api.test/endpoint",
-      "test-token",
-    );
+    const result = await fetchWithRetry("http://api.test/endpoint", undefined);
 
     expect(result.response).toBeNull();
     expect(result.data).toBeNull();
@@ -581,7 +519,7 @@ describe("fetchWithRetry", () => {
     } as Response);
 
     await expect(
-      fetchWithRetry("http://api.test/endpoint", "test-token"),
+      fetchWithRetry("http://api.test/endpoint", undefined),
     ).rejects.toThrow("API error: 400");
   });
 
@@ -593,11 +531,11 @@ describe("fetchWithRetry", () => {
     } as Response);
 
     await expect(
-      fetchWithRetry("http://api.test/endpoint", "test-token"),
+      fetchWithRetry("http://api.test/endpoint", undefined),
     ).rejects.toThrow("API error: 500");
   });
 
-  it("makes request without headers when token is undefined", async () => {
+  it("uses credentials:include for cookie-based auth", async () => {
     mockFetchRetry.mockResolvedValueOnce({
       ok: true,
       status: 200,
@@ -609,7 +547,10 @@ describe("fetchWithRetry", () => {
     expect(mockFetchRetry).toHaveBeenCalledWith(
       "http://api.test/endpoint",
       expect.objectContaining({
-        headers: undefined,
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
       }),
     );
   });
@@ -622,7 +563,7 @@ describe("fetchWithRetry", () => {
     } as Response);
 
     const body = { name: "Test" };
-    await fetchWithRetry("http://api.test/endpoint", "token", {
+    await fetchWithRetry("http://api.test/endpoint", undefined, {
       method: "POST",
       body,
     });
@@ -639,31 +580,26 @@ describe("fetchWithRetry", () => {
 
 // ===== SERVER AUTH TESTS =====
 
-// Mock auth module for server-side tests
-vi.mock("../server/auth", () => ({
-  auth: vi.fn(),
-}));
-
+// checkAuth now uses cookies from next/headers (mocked in setup.ts)
 describe("checkAuth", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it("returns null when session has valid token", async () => {
-    const { auth } = await import("../server/auth");
-    vi.mocked(auth).mockResolvedValueOnce({
-      user: { id: "1", token: "valid-token" },
-      expires: "",
-    } as never);
-
+  it("returns null when session cookie exists", async () => {
+    // Global mock in setup.ts provides a valid session cookie
     const result = await checkAuth();
 
     expect(result).toBeNull();
   });
 
-  it("returns 401 response when session is null", async () => {
-    const { auth } = await import("../server/auth");
-    vi.mocked(auth).mockResolvedValueOnce(null as never);
+  it("returns 401 response when session cookie is missing", async () => {
+    // Override the global mock to simulate missing cookie
+    const { cookies } = await import("next/headers");
+    vi.mocked(cookies).mockResolvedValueOnce({
+      get: vi.fn(() => undefined),
+      toString: vi.fn(() => ""),
+    } as never);
 
     const result = await checkAuth();
 
@@ -672,24 +608,11 @@ describe("checkAuth", () => {
     const body = (await result?.json()) as { error: string };
     expect(body.error).toBe("Unauthorized");
   });
-
-  it("returns 401 response when user has no token", async () => {
-    const { auth } = await import("../server/auth");
-    vi.mocked(auth).mockResolvedValueOnce({
-      user: { id: "1", token: undefined },
-      expires: "",
-    } as never);
-
-    const result = await checkAuth();
-
-    expect(result).not.toBeNull();
-    expect(result?.status).toBe(401);
-  });
 });
 
 // ===== API FUNCTION TESTS (CLIENT-SIDE) =====
 
-// Mock api module
+// Mock api module - axios configured with withCredentials for cookie auth
 vi.mock("./api", () => ({
   default: {
     get: vi.fn(),
@@ -721,7 +644,7 @@ describe("apiGet (client-side)", () => {
     });
   });
 
-  it("makes GET request via axios in browser", async () => {
+  it("makes GET request via axios in browser (cookies sent automatically)", async () => {
     const api = (await import("./api")).default;
     // eslint-disable-next-line @typescript-eslint/unbound-method
     vi.mocked(api.get).mockResolvedValueOnce({
@@ -732,13 +655,12 @@ describe("apiGet (client-side)", () => {
       config: {} as never,
     });
 
-    const result = await apiGet<{ result: string }>("/test", "token");
+    // Cookie header param is deprecated - auth via cookies
+    const result = await apiGet<{ result: string }>("/test", "ignored");
 
     expect(result).toEqual({ result: "test" });
     // eslint-disable-next-line @typescript-eslint/unbound-method
-    expect(api.get).toHaveBeenCalledWith("/test", {
-      headers: { Authorization: "Bearer token" },
-    });
+    expect(api.get).toHaveBeenCalledWith("/test");
   });
 
   it("throws error on axios failure", async () => {
@@ -751,7 +673,7 @@ describe("apiGet (client-side)", () => {
     // eslint-disable-next-line @typescript-eslint/unbound-method
     vi.mocked(api.get).mockRejectedValueOnce(error);
 
-    await expect(apiGet("/test", "token")).rejects.toThrow(
+    await expect(apiGet("/test", "ignored")).rejects.toThrow(
       'API error (404): {"message":"Not Found"}',
     );
   });
@@ -778,7 +700,7 @@ describe("apiPost (client-side)", () => {
     });
   });
 
-  it("makes POST request via axios in browser", async () => {
+  it("makes POST request via axios in browser (cookies sent automatically)", async () => {
     const api = (await import("./api")).default;
     // eslint-disable-next-line @typescript-eslint/unbound-method
     vi.mocked(api.post).mockResolvedValueOnce({
@@ -790,13 +712,11 @@ describe("apiPost (client-side)", () => {
     });
 
     const body = { name: "Test" };
-    const result = await apiPost<{ id: number }>("/test", "token", body);
+    const result = await apiPost<{ id: number }>("/test", "ignored", body);
 
     expect(result).toEqual({ id: 1 });
     // eslint-disable-next-line @typescript-eslint/unbound-method
-    expect(api.post).toHaveBeenCalledWith("/test", body, {
-      headers: { Authorization: "Bearer token" },
-    });
+    expect(api.post).toHaveBeenCalledWith("/test", body);
   });
 });
 
@@ -821,7 +741,7 @@ describe("apiPut (client-side)", () => {
     });
   });
 
-  it("makes PUT request via axios in browser", async () => {
+  it("makes PUT request via axios in browser (cookies sent automatically)", async () => {
     const api = (await import("./api")).default;
     // eslint-disable-next-line @typescript-eslint/unbound-method
     vi.mocked(api.put).mockResolvedValueOnce({
@@ -833,13 +753,11 @@ describe("apiPut (client-side)", () => {
     });
 
     const body = { name: "Updated" };
-    const result = await apiPut<{ updated: boolean }>("/test", "token", body);
+    const result = await apiPut<{ updated: boolean }>("/test", "ignored", body);
 
     expect(result).toEqual({ updated: true });
     // eslint-disable-next-line @typescript-eslint/unbound-method
-    expect(api.put).toHaveBeenCalledWith("/test", body, {
-      headers: { Authorization: "Bearer token" },
-    });
+    expect(api.put).toHaveBeenCalledWith("/test", body);
   });
 });
 
@@ -864,7 +782,7 @@ describe("apiDelete (client-side)", () => {
     });
   });
 
-  it("makes DELETE request via axios in browser", async () => {
+  it("makes DELETE request via axios in browser (cookies sent automatically)", async () => {
     const api = (await import("./api")).default;
     // eslint-disable-next-line @typescript-eslint/unbound-method
     vi.mocked(api.delete).mockResolvedValueOnce({
@@ -875,13 +793,11 @@ describe("apiDelete (client-side)", () => {
       config: {} as never,
     });
 
-    const result = await apiDelete("/test/1", "token");
+    const result = await apiDelete("/test/1", "ignored");
 
     expect(result).toEqual({});
     // eslint-disable-next-line @typescript-eslint/unbound-method
-    expect(api.delete).toHaveBeenCalledWith("/test/1", {
-      headers: { Authorization: "Bearer token" },
-    });
+    expect(api.delete).toHaveBeenCalledWith("/test/1");
   });
 
   it("returns undefined for 204 No Content", async () => {
@@ -895,7 +811,7 @@ describe("apiDelete (client-side)", () => {
       config: {} as never,
     });
 
-    const result = await apiDelete("/test/1", "token");
+    const result = await apiDelete("/test/1", "ignored");
 
     expect(result).toBeUndefined();
   });

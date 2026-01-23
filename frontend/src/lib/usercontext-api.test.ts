@@ -13,14 +13,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 // Mock dependencies
-vi.mock("next-auth/react", () => ({
-  getSession: vi.fn(() =>
-    Promise.resolve({
-      user: { token: "test-token" },
-    }),
-  ),
-}));
-
 vi.mock("~/env", () => ({
   env: {
     NEXT_PUBLIC_API_URL: "http://localhost:8080",
@@ -123,23 +115,8 @@ describe("userContextService", () => {
       ).rejects.toThrow();
     });
 
-    it("uses provided token instead of getSession", async () => {
-      fetchWithAuthMock.mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve({ success: true, message: "", data: [] }),
-      } as Response);
-
-      await userContextService.getMyEducationalGroups("custom-token");
-
-      expect(fetchWithAuthMock).toHaveBeenCalledWith(
-        "/api/me/groups",
-        expect.objectContaining({
-          headers: expect.objectContaining({
-            Authorization: "Bearer custom-token",
-          }) as HeadersInit,
-        }),
-      );
-    });
+    // Note: With BetterAuth, authentication is handled via cookies (credentials: "include")
+    // The optional token parameter has been removed as it's no longer needed
   });
 
   describe("getMySupervisedGroups", () => {

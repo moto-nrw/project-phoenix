@@ -4,10 +4,6 @@ import type { BackendGroup } from "./group-helpers";
 import type { AxiosResponse } from "axios";
 
 // Mock dependencies before importing the module
-vi.mock("next-auth/react", () => ({
-  getSession: vi.fn(),
-}));
-
 vi.mock("./api-helpers", () => ({
   handleDomainApiError: vi.fn(() => {
     throw new Error("Mocked error");
@@ -32,7 +28,6 @@ vi.mock("~/env", () => ({
 }));
 
 // Import after mocks are set up
-import { getSession } from "next-auth/react";
 import {
   isBrowserContext,
   authFetch,
@@ -87,7 +82,6 @@ const sampleBackendGroup: BackendGroup = {
 // Type for mocked functions
 const mockedIsBrowserContext = vi.mocked(isBrowserContext);
 const mockedAuthFetch = vi.mocked(authFetch);
-const mockedGetSession = vi.mocked(getSession);
 const mockedHandleDomainApiError = vi.mocked(handleDomainApiError);
 
 // Helper to create mock AxiosResponse
@@ -108,10 +102,6 @@ describe("student-api", () => {
     vi.clearAllMocks();
     // eslint-disable-next-line @typescript-eslint/no-empty-function
     consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-    mockedGetSession.mockResolvedValue({
-      user: { id: "1", token: "test-token" },
-      expires: "2099-01-01",
-    });
   });
 
   afterEach(() => {
@@ -140,9 +130,8 @@ describe("student-api", () => {
 
         const result = await fetchStudents();
 
-        expect(mockedAuthFetch).toHaveBeenCalledWith("/api/students", {
-          token: "test-token",
-        });
+        // BetterAuth: authFetch uses credentials: "include" for cookies, no token parameter
+        expect(mockedAuthFetch).toHaveBeenCalledWith("/api/students");
         expect(result.students).toEqual([sampleStudent]);
         expect(result.pagination).toEqual(paginatedResponse.pagination);
       });
@@ -169,11 +158,10 @@ describe("student-api", () => {
 
         await fetchStudents(filters);
 
-        expect(mockedAuthFetch).toHaveBeenCalledWith(
-          expect.stringContaining("/api/students?"),
-          expect.anything(),
-        );
-        const calledUrl = mockedAuthFetch.mock.calls[0]![0];
+        // BetterAuth: authFetch uses credentials: "include" for cookies, no token parameter
+        expect(mockedAuthFetch).toHaveBeenCalled();
+        const calledUrl = mockedAuthFetch.mock.calls[0]![0] as string;
+        expect(calledUrl).toContain("/api/students?");
         expect(calledUrl).toContain("search=Max");
         expect(calledUrl).toContain("school_class=3a");
         expect(calledUrl).toContain("group_id=10");
@@ -233,9 +221,8 @@ describe("student-api", () => {
 
         const result = await fetchStudent("123");
 
-        expect(mockedAuthFetch).toHaveBeenCalledWith("/api/students/123", {
-          token: "test-token",
-        });
+        // BetterAuth: authFetch uses credentials: "include" for cookies, no token parameter
+        expect(mockedAuthFetch).toHaveBeenCalledWith("/api/students/123");
         expect(result).toEqual(sampleStudent);
       });
 
@@ -276,10 +263,10 @@ describe("student-api", () => {
 
         const result = await createStudent(studentData);
 
+        // BetterAuth: authFetch uses credentials: "include" for cookies, no token parameter
         expect(mockedAuthFetch).toHaveBeenCalledWith("/api/students", {
           method: "POST",
           body: studentData,
-          token: "test-token",
         });
         expect(result.first_name).toBe("Max");
       });
@@ -298,10 +285,10 @@ describe("student-api", () => {
         const updateData = { first_name: "Updated" };
         const result = await updateStudent("123", updateData);
 
+        // BetterAuth: authFetch uses credentials: "include" for cookies, no token parameter
         expect(mockedAuthFetch).toHaveBeenCalledWith("/api/students/123", {
           method: "PUT",
           body: updateData,
-          token: "test-token",
         });
         expect(result.id).toBe("1");
       });
@@ -319,9 +306,9 @@ describe("student-api", () => {
 
         await deleteStudent("123");
 
+        // BetterAuth: authFetch uses credentials: "include" for cookies, no token parameter
         expect(mockedAuthFetch).toHaveBeenCalledWith("/api/students/123", {
           method: "DELETE",
-          token: "test-token",
         });
       });
     });
@@ -356,9 +343,8 @@ describe("student-api", () => {
 
         const result = await fetchGroups();
 
-        expect(mockedAuthFetch).toHaveBeenCalledWith("/api/groups", {
-          token: "test-token",
-        });
+        // BetterAuth: authFetch uses credentials: "include" for cookies, no token parameter
+        expect(mockedAuthFetch).toHaveBeenCalledWith("/api/groups");
         expect(result).toHaveLength(1);
         expect(result[0]?.id).toBe("1");
         expect(result[0]?.name).toBe("Class 3A");
@@ -507,12 +493,12 @@ describe("student-api", () => {
 
         const result = await updateStudentPrivacyConsent("123", consentData);
 
+        // BetterAuth: authFetch uses credentials: "include" for cookies, no token parameter
         expect(mockedAuthFetch).toHaveBeenCalledWith(
           "/api/students/123/privacy-consent",
           {
             method: "PUT",
             body: consentData,
-            token: "test-token",
           },
         );
         expect(result.accepted).toBe(true);

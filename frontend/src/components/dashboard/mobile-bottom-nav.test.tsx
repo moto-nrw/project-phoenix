@@ -9,10 +9,6 @@ vi.mock("next/navigation", () => ({
   })),
 }));
 
-vi.mock("next-auth/react", () => ({
-  useSession: vi.fn(),
-}));
-
 vi.mock("~/lib/supervision-context", () => ({
   useSupervision: vi.fn(),
 }));
@@ -56,13 +52,11 @@ vi.mock("~/components/ui/drawer", () => ({
 // Import after mocks
 import { MobileBottomNav } from "./mobile-bottom-nav";
 import { usePathname, useSearchParams } from "next/navigation";
-import { useSession } from "next-auth/react";
 import { useSupervision } from "~/lib/supervision-context";
 import { isAdmin } from "~/lib/auth-utils";
 
 const mockUsePathname = vi.mocked(usePathname);
 const mockUseSearchParams = vi.mocked(useSearchParams);
-const mockUseSession = vi.mocked(useSession);
 const mockUseSupervision = vi.mocked(useSupervision);
 const mockIsAdmin = vi.mocked(isAdmin);
 
@@ -87,23 +81,6 @@ function createMockSearchParams(
   } as unknown as ReturnType<typeof useSearchParams>;
 }
 
-// Helper to create mock session - use unknown cast for test flexibility
-function createMockSession(isAdminUser: boolean) {
-  return {
-    data: {
-      user: {
-        id: "1",
-        token: "test-token",
-        isAdmin: isAdminUser,
-        email: "test@example.com",
-      },
-      expires: new Date(Date.now() + 86400000).toISOString(),
-    },
-    status: "authenticated" as const,
-    update: vi.fn(),
-  } as unknown as ReturnType<typeof useSession>;
-}
-
 describe("MobileBottomNav", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -111,7 +88,6 @@ describe("MobileBottomNav", () => {
     // Default mock implementations
     mockUsePathname.mockReturnValue("/dashboard");
     mockUseSearchParams.mockReturnValue(createMockSearchParams());
-    mockUseSession.mockReturnValue(createMockSession(false));
     mockUseSupervision.mockReturnValue({
       hasGroups: true,
       isSupervising: false,
@@ -136,7 +112,6 @@ describe("MobileBottomNav", () => {
 
     it("renders navigation bar for admin users", () => {
       mockIsAdmin.mockReturnValue(true);
-      mockUseSession.mockReturnValue(createMockSession(true));
 
       render(<MobileBottomNav />);
 
@@ -168,7 +143,6 @@ describe("MobileBottomNav", () => {
     it("highlights dashboard link when on dashboard", () => {
       mockUsePathname.mockReturnValue("/dashboard");
       mockIsAdmin.mockReturnValue(true);
-      mockUseSession.mockReturnValue(createMockSession(true));
 
       render(<MobileBottomNav />);
 
@@ -183,7 +157,6 @@ describe("MobileBottomNav", () => {
     it("highlights dashboard for root path", () => {
       mockUsePathname.mockReturnValue("/");
       mockIsAdmin.mockReturnValue(true);
-      mockUseSession.mockReturnValue(createMockSession(true));
 
       render(<MobileBottomNav />);
 
@@ -219,7 +192,6 @@ describe("MobileBottomNav", () => {
   describe("admin navigation", () => {
     beforeEach(() => {
       mockIsAdmin.mockReturnValue(true);
-      mockUseSession.mockReturnValue(createMockSession(true));
     });
 
     it("shows admin-specific navigation items", () => {
@@ -369,7 +341,6 @@ describe("MobileBottomNav", () => {
 
     it("shows admin-only coming soon items for admins", () => {
       mockIsAdmin.mockReturnValue(true);
-      mockUseSession.mockReturnValue(createMockSession(true));
 
       render(<MobileBottomNav />);
 

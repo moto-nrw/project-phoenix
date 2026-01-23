@@ -1,5 +1,4 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import type { Session } from "next-auth";
 import { NextRequest } from "next/server";
 import {
   isStringParam,
@@ -14,34 +13,28 @@ import {
 } from "./route-wrapper";
 
 // ============================================================================
-// Types
+// Constants
 // ============================================================================
 
-/**
- * Extended session type with token property used in this project
- */
-interface ExtendedSession extends Session {
-  user: Session["user"] & { token?: string };
-}
+// BetterAuth: The "token" parameter is now the cookie header string
+const TEST_COOKIE_HEADER = "better-auth.session_token=test-session-token";
 
 // ============================================================================
 // Mocks (using vi.hoisted for proper hoisting)
 // ============================================================================
 
 // Create hoisted mocks that will be available when vi.mock runs
-const { mockAuth, mockApiGet, mockApiPost, mockApiPut, mockApiDelete } =
-  vi.hoisted(() => ({
-    mockAuth: vi.fn<() => Promise<ExtendedSession | null>>(),
+const { mockApiGet, mockApiPost, mockApiPut, mockApiDelete } = vi.hoisted(
+  () => ({
     mockApiGet: vi.fn(),
     mockApiPost: vi.fn(),
     mockApiPut: vi.fn(),
     mockApiDelete: vi.fn(),
-  }));
+  }),
+);
 
-// Mock auth module
-vi.mock("../server/auth", () => ({
-  auth: mockAuth,
-}));
+// Note: auth() is globally mocked in setup.ts
+// It checks for better-auth.session_token cookie
 
 // Mock api-helpers module
 vi.mock("./api-helpers", () => ({
@@ -127,13 +120,8 @@ interface ApiErrorResponse {
   code?: string;
 }
 
-/**
- * Default authenticated session mock
- */
-const defaultSession: ExtendedSession = {
-  user: { id: "1", token: "test-token", name: "Test User" },
-  expires: "2099-01-01",
-};
+// Note: BetterAuth doesn't use session tokens in the session object
+// The cookie header is used for authentication instead
 
 // ============================================================================
 // Tests: isStringParam (pure function)
@@ -176,7 +164,7 @@ describe("isStringParam", () => {
 describe("createGetHandler", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockAuth.mockResolvedValue(defaultSession);
+    // Global mock provides authenticated session by default
   });
 
   afterEach(() => {
@@ -184,7 +172,12 @@ describe("createGetHandler", () => {
   });
 
   it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
+    // Mock cookies to return undefined (no session cookie)
+    const { cookies } = await import("next/headers");
+    vi.mocked(cookies).mockResolvedValueOnce({
+      get: vi.fn(() => undefined),
+      toString: vi.fn(() => ""),
+    } as never);
 
     const handler = createGetHandler(async () => ({ data: "test" }));
     const request = createMockRequest("/api/test");
@@ -196,9 +189,11 @@ describe("createGetHandler", () => {
   });
 
   it("returns 401 when session has no token", async () => {
-    mockAuth.mockResolvedValueOnce({
-      user: { id: "1", name: "Test" },
-      expires: "2099-01-01",
+    // Mock cookies to return undefined (no valid session token)
+    const { cookies } = await import("next/headers");
+    vi.mocked(cookies).mockResolvedValueOnce({
+      get: vi.fn(() => undefined),
+      toString: vi.fn(() => ""),
     } as never);
 
     const handler = createGetHandler(async () => ({ data: "test" }));
@@ -208,16 +203,17 @@ describe("createGetHandler", () => {
     expect(response.status).toBe(401);
   });
 
-  it("calls handler with request, token, and params", async () => {
+  it("calls handler with request, cookie header, and params", async () => {
     const mockHandler = vi.fn().mockResolvedValue({ id: 1, name: "Test" });
 
     const handler = createGetHandler(mockHandler);
     const request = createMockRequest("/api/test/123");
     await handler(request, createMockContext({ id: "123" }));
 
+    // BetterAuth: second param is now cookie header string (not JWT token)
     expect(mockHandler).toHaveBeenCalledWith(
       request,
-      "test-token",
+      TEST_COOKIE_HEADER,
       expect.objectContaining({ id: "123" }),
     );
   });
@@ -270,7 +266,7 @@ describe("createGetHandler", () => {
 
     expect(mockHandler).toHaveBeenCalledWith(
       request,
-      "test-token",
+      TEST_COOKIE_HEADER,
       expect.objectContaining({ id: "456" }),
     );
   });
@@ -286,7 +282,7 @@ describe("createGetHandler", () => {
 
     expect(mockHandler).toHaveBeenCalledWith(
       request,
-      "test-token",
+      TEST_COOKIE_HEADER,
       expect.objectContaining({ search: "Max", page: "2" }),
     );
   });
@@ -311,7 +307,7 @@ describe("createGetHandler", () => {
 describe("createPostHandler", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockAuth.mockResolvedValue(defaultSession);
+    // Global mock provides authenticated session by default
   });
 
   it("handles invalid JSON body gracefully by passing empty object", async () => {
@@ -333,14 +329,19 @@ describe("createPostHandler", () => {
     expect(mockHandler).toHaveBeenCalledWith(
       request,
       {}, // Empty object due to parse error
-      "test-token",
+      TEST_COOKIE_HEADER,
       expect.any(Object),
     );
     expect(response.status).toBe(200);
   });
 
   it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
+    // Mock cookies to return undefined (no session cookie)
+    const { cookies } = await import("next/headers");
+    vi.mocked(cookies).mockResolvedValueOnce({
+      get: vi.fn(() => undefined),
+      toString: vi.fn(() => ""),
+    } as never);
 
     const handler = createPostHandler(async () => ({ id: 1 }));
     const request = createMockRequest("/api/test", {
@@ -363,7 +364,7 @@ describe("createPostHandler", () => {
     expect(mockHandler).toHaveBeenCalledWith(
       request,
       body,
-      "test-token",
+      TEST_COOKIE_HEADER,
       expect.any(Object),
     );
   });
@@ -378,7 +379,7 @@ describe("createPostHandler", () => {
     expect(mockHandler).toHaveBeenCalledWith(
       request,
       {}, // Empty object for missing body
-      "test-token",
+      TEST_COOKIE_HEADER,
       expect.any(Object),
     );
   });
@@ -408,11 +409,16 @@ describe("createPostHandler", () => {
 describe("createPutHandler", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockAuth.mockResolvedValue(defaultSession);
+    // Global mock provides authenticated session by default
   });
 
   it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
+    // Mock cookies to return undefined (no session cookie)
+    const { cookies } = await import("next/headers");
+    vi.mocked(cookies).mockResolvedValueOnce({
+      get: vi.fn(() => undefined),
+      toString: vi.fn(() => ""),
+    } as never);
 
     const handler = createPutHandler(async () => ({ id: 1 }));
     const request = createMockRequest("/api/test/1", {
@@ -435,7 +441,7 @@ describe("createPutHandler", () => {
     expect(mockHandler).toHaveBeenCalledWith(
       request,
       body,
-      "test-token",
+      TEST_COOKIE_HEADER,
       expect.objectContaining({ id: "123" }),
     );
   });
@@ -465,11 +471,16 @@ describe("createPutHandler", () => {
 describe("createDeleteHandler", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockAuth.mockResolvedValue(defaultSession);
+    // Global mock provides authenticated session by default
   });
 
   it("returns 401 when not authenticated", async () => {
-    mockAuth.mockResolvedValueOnce(null);
+    // Mock cookies to return undefined (no session cookie)
+    const { cookies } = await import("next/headers");
+    vi.mocked(cookies).mockResolvedValueOnce({
+      get: vi.fn(() => undefined),
+      toString: vi.fn(() => ""),
+    } as never);
 
     const handler = createDeleteHandler(async () => null);
     const request = createMockRequest("/api/test/1", { method: "DELETE" });
@@ -513,28 +524,58 @@ describe("createDeleteHandler", () => {
 
 // ============================================================================
 // Tests: Proxy Handlers
+// Note: These handlers use apiGetWithCookies/apiPutWithCookies/apiDeleteWithCookies
+// which call fetch directly, so we mock fetch instead of api-helpers
 // ============================================================================
 
+// Helper to create a mock fetch response
+function createMockFetchResponse(
+  data: unknown,
+  status = 200,
+): Promise<Response> {
+  return Promise.resolve(
+    new Response(JSON.stringify(data), {
+      status,
+      headers: { "Content-Type": "application/json" },
+    }),
+  );
+}
+
 describe("createProxyGetHandler", () => {
+  const mockFetch = vi.fn();
+  const originalFetch = globalThis.fetch;
+
   beforeEach(() => {
     vi.clearAllMocks();
-    mockAuth.mockResolvedValue(defaultSession);
+    globalThis.fetch = mockFetch;
+  });
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
   });
 
   it("proxies GET request to backend endpoint", async () => {
     const mockData = [{ id: 1, name: "Item 1" }];
-    mockApiGet.mockResolvedValueOnce(mockData);
+    mockFetch.mockReturnValueOnce(createMockFetchResponse(mockData));
 
     const handler = createProxyGetHandler("/api/items");
     const request = createMockRequest("/api/items");
     const response = await handler(request, createMockContext());
 
-    expect(mockApiGet).toHaveBeenCalledWith("/api/items", "test-token");
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining("/api/items"),
+      expect.objectContaining({
+        method: "GET",
+        headers: expect.objectContaining({
+          Cookie: TEST_COOKIE_HEADER,
+        }),
+      }),
+    );
     expect(response.status).toBe(200);
   });
 
   it("passes query string to backend", async () => {
-    mockApiGet.mockResolvedValueOnce([]);
+    mockFetch.mockReturnValueOnce(createMockFetchResponse([]));
 
     const handler = createProxyGetHandler("/api/items");
     const request = createMockRequest("/api/items", {
@@ -542,28 +583,43 @@ describe("createProxyGetHandler", () => {
     });
     await handler(request, createMockContext());
 
-    expect(mockApiGet).toHaveBeenCalledWith(
-      "/api/items?page=2&limit=50",
-      "test-token",
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining("/api/items?page=2&limit=50"),
+      expect.anything(),
     );
   });
 });
 
 describe("createProxyGetByIdHandler", () => {
+  const mockFetch = vi.fn();
+  const originalFetch = globalThis.fetch;
+
   beforeEach(() => {
     vi.clearAllMocks();
-    mockAuth.mockResolvedValue(defaultSession);
+    globalThis.fetch = mockFetch;
+  });
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
   });
 
   it("proxies GET request with ID to backend", async () => {
     const mockData = { id: 123, name: "Item 123" };
-    mockApiGet.mockResolvedValueOnce(mockData);
+    mockFetch.mockReturnValueOnce(createMockFetchResponse(mockData));
 
     const handler = createProxyGetByIdHandler("/api/items");
     const request = createMockRequest("/api/items/123");
     const response = await handler(request, createMockContext({ id: "123" }));
 
-    expect(mockApiGet).toHaveBeenCalledWith("/api/items/123", "test-token");
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining("/api/items/123"),
+      expect.objectContaining({
+        method: "GET",
+        headers: expect.objectContaining({
+          Cookie: TEST_COOKIE_HEADER,
+        }),
+      }),
+    );
     expect(response.status).toBe(200);
   });
 
@@ -579,15 +635,22 @@ describe("createProxyGetByIdHandler", () => {
 });
 
 describe("createProxyPutHandler", () => {
+  const mockFetch = vi.fn();
+  const originalFetch = globalThis.fetch;
+
   beforeEach(() => {
     vi.clearAllMocks();
-    mockAuth.mockResolvedValue(defaultSession);
+    globalThis.fetch = mockFetch;
+  });
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
   });
 
   it("proxies PUT request with ID and body to backend", async () => {
     const mockData = { id: 123, name: "Updated" };
     const body = { name: "Updated" };
-    mockApiPut.mockResolvedValueOnce(mockData);
+    mockFetch.mockReturnValueOnce(createMockFetchResponse(mockData));
 
     const handler = createProxyPutHandler("/api/items");
     const request = createMockRequest("/api/items/123", {
@@ -596,10 +659,15 @@ describe("createProxyPutHandler", () => {
     });
     const response = await handler(request, createMockContext({ id: "123" }));
 
-    expect(mockApiPut).toHaveBeenCalledWith(
-      "/api/items/123",
-      "test-token",
-      body,
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining("/api/items/123"),
+      expect.objectContaining({
+        method: "PUT",
+        headers: expect.objectContaining({
+          Cookie: TEST_COOKIE_HEADER,
+        }),
+        body: JSON.stringify(body),
+      }),
     );
     expect(response.status).toBe(200);
   });
@@ -619,19 +687,36 @@ describe("createProxyPutHandler", () => {
 });
 
 describe("createProxyDeleteHandler", () => {
+  const mockFetch = vi.fn();
+  const originalFetch = globalThis.fetch;
+
   beforeEach(() => {
     vi.clearAllMocks();
-    mockAuth.mockResolvedValue(defaultSession);
+    globalThis.fetch = mockFetch;
+  });
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
   });
 
   it("proxies DELETE request with ID to backend", async () => {
-    mockApiDelete.mockResolvedValueOnce(undefined);
+    mockFetch.mockReturnValueOnce(
+      Promise.resolve(new Response(null, { status: 204 })),
+    );
 
     const handler = createProxyDeleteHandler("/api/items");
     const request = createMockRequest("/api/items/123", { method: "DELETE" });
     const response = await handler(request, createMockContext({ id: "123" }));
 
-    expect(mockApiDelete).toHaveBeenCalledWith("/api/items/123", "test-token");
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining("/api/items/123"),
+      expect.objectContaining({
+        method: "DELETE",
+        headers: expect.objectContaining({
+          Cookie: TEST_COOKIE_HEADER,
+        }),
+      }),
+    );
     expect(response.status).toBe(204);
   });
 
@@ -647,95 +732,30 @@ describe("createProxyDeleteHandler", () => {
 });
 
 // ============================================================================
-// Tests: Token Refresh / Retry Logic
+// Tests: Error Handling
+// Note: BetterAuth uses cookie-based sessions without JWT token refresh.
+// Sessions are managed server-side; no retry logic needed.
 // ============================================================================
 
-describe("Token Refresh and Retry Logic", () => {
+describe("Error Handling", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    // Suppress expected console.log for retry messages
-    vi.spyOn(console, "log").mockImplementation(() => undefined);
   });
 
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
-
-  it("retries request with refreshed token on 401 error", async () => {
-    // First call returns valid session
-    mockAuth.mockResolvedValueOnce(defaultSession);
-
-    // Handler fails first time with 401
-    let callCount = 0;
-    const mockHandler = vi.fn().mockImplementation(() => {
-      callCount++;
-      if (callCount === 1) {
-        throw new Error("API error (401): Unauthorized");
-      }
-      return { id: 1, name: "Success after retry" };
-    });
-
-    // Second auth call returns refreshed token
-    mockAuth.mockResolvedValueOnce({
-      user: { id: "1", token: "refreshed-token", name: "Test User" },
-      expires: "2099-01-01",
-    });
-
-    const handler = createGetHandler(mockHandler);
-    const request = createMockRequest("/api/test");
-    const response = await handler(request, createMockContext());
-
-    expect(mockHandler).toHaveBeenCalledTimes(2);
-    expect(response.status).toBe(200);
-    const json =
-      await parseJsonResponse<ApiSuccessResponse<{ name: string }>>(response);
-    expect(json.data.name).toBe("Success after retry");
-  });
-
-  it("returns TOKEN_EXPIRED when token was not actually refreshed", async () => {
-    mockAuth.mockResolvedValueOnce(defaultSession);
-
+  it("returns 401 for unauthorized errors from handler", async () => {
     const mockHandler = vi
       .fn()
       .mockRejectedValue(new Error("API error (401): Unauthorized"));
 
-    // Second auth call returns same token (not refreshed)
-    mockAuth.mockResolvedValueOnce(defaultSession);
-
     const handler = createGetHandler(mockHandler);
     const request = createMockRequest("/api/test");
     const response = await handler(request, createMockContext());
 
+    expect(mockHandler).toHaveBeenCalledTimes(1);
     expect(response.status).toBe(401);
-    const json = await parseJsonResponse<ApiErrorResponse>(response);
-    expect(json.code).toBe("TOKEN_EXPIRED");
   });
 
-  it("returns TOKEN_EXPIRED when retry with refreshed token also fails", async () => {
-    mockAuth.mockResolvedValueOnce(defaultSession);
-
-    const mockHandler = vi
-      .fn()
-      .mockRejectedValue(new Error("API error (401): Unauthorized"));
-
-    // Second auth call returns refreshed token
-    mockAuth.mockResolvedValueOnce({
-      user: { id: "1", token: "refreshed-token", name: "Test User" },
-      expires: "2099-01-01",
-    });
-
-    const handler = createGetHandler(mockHandler);
-    const request = createMockRequest("/api/test");
-    const response = await handler(request, createMockContext());
-
-    expect(response.status).toBe(401);
-    const json = await parseJsonResponse<ApiErrorResponse>(response);
-    expect(json.code).toBe("TOKEN_EXPIRED");
-  });
-
-  it("does not retry for non-401 errors", async () => {
-    mockAuth.mockResolvedValueOnce(defaultSession);
-
+  it("returns 500 for server errors from handler", async () => {
     const mockHandler = vi
       .fn()
       .mockRejectedValue(new Error("API error (500): Internal Server Error"));
@@ -746,5 +766,18 @@ describe("Token Refresh and Retry Logic", () => {
 
     expect(mockHandler).toHaveBeenCalledTimes(1);
     expect(response.status).toBe(500);
+  });
+
+  it("returns 404 for not found errors from handler", async () => {
+    const mockHandler = vi
+      .fn()
+      .mockRejectedValue(new Error("API error (404): Not Found"));
+
+    const handler = createGetHandler(mockHandler);
+    const request = createMockRequest("/api/test");
+    const response = await handler(request, createMockContext());
+
+    expect(mockHandler).toHaveBeenCalledTimes(1);
+    expect(response.status).toBe(404);
   });
 });

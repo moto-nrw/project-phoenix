@@ -11,16 +11,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { MockInstance } from "vitest";
 
-// Mock next-auth/react before importing the module
-vi.mock("next-auth/react", () => ({
-  getSession: vi.fn(() =>
-    Promise.resolve({
-      user: { token: "test-token" },
-    }),
-  ),
-}));
-
-// Import after mocking
+// Import modules
 import { groupTransferService } from "./group-transfer-api";
 import type { StaffWithRole, GroupTransfer } from "./group-transfer-api";
 
@@ -267,26 +258,8 @@ describe("groupTransferService", () => {
       expect(result).toEqual([]);
     });
 
-    it("uses provided token instead of getSession", async () => {
-      fetchMock.mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve({ data: [] }),
-      } as Response);
-
-      await groupTransferService.getActiveTransfersForGroup(
-        "100",
-        "custom-token",
-      );
-
-      expect(fetchMock).toHaveBeenCalledWith(
-        expect.any(String),
-        expect.objectContaining({
-          headers: expect.objectContaining({
-            Authorization: "Bearer custom-token",
-          }) as HeadersInit,
-        }),
-      );
-    });
+    // Note: With BetterAuth, authentication is handled via cookies (credentials: "include")
+    // The optional token parameter has been removed as it's no longer needed
 
     it("returns Unbekannt when substitute_staff.person is missing", async () => {
       const backendData = [

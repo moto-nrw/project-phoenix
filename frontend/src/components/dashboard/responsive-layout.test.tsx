@@ -11,21 +11,6 @@ vi.mock("next/navigation", () => ({
   usePathname: () => "/dashboard",
 }));
 
-vi.mock("next-auth/react", () => ({
-  useSession: vi.fn(() => ({
-    data: {
-      user: {
-        id: "1",
-        name: "Test User",
-        email: "test@example.com",
-        token: "valid-token",
-        roles: ["admin"],
-      },
-    },
-    status: "authenticated",
-  })),
-}));
-
 vi.mock("./header", () => ({
   Header: ({
     userName,
@@ -67,7 +52,7 @@ vi.mock("~/lib/profile-context", () => ({
   }),
 }));
 
-import { useSession } from "next-auth/react";
+import { useSession } from "~/lib/auth-client";
 
 describe("ResponsiveLayout", () => {
   beforeEach(() => {
@@ -141,6 +126,32 @@ describe("ResponsiveLayout", () => {
   });
 
   it("shows Admin role for admin users", () => {
+    // Override global mock to provide admin roles
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: {
+          id: "1",
+          name: "Admin User",
+          email: "admin@example.com",
+          emailVerified: true,
+          image: null,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          roles: ["admin"],
+        } as never,
+        session: {
+          id: "test-session-id",
+          userId: "1",
+          expiresAt: new Date(Date.now() + 86400000),
+          ipAddress: null,
+          userAgent: null,
+        },
+        activeOrganizationId: "test-org-id",
+      },
+      isPending: false,
+      error: null,
+    });
+
     render(
       <ResponsiveLayout>
         <div>Content</div>
@@ -151,19 +162,30 @@ describe("ResponsiveLayout", () => {
   });
 
   it("shows Betreuer role for non-admin users", () => {
+    // Restore global mock (no roles = Betreuer)
     vi.mocked(useSession).mockReturnValue({
       data: {
         user: {
           id: "2",
           name: "Regular User",
           email: "user@example.com",
-          token: "valid-token",
-          roles: ["betreuer"],
+          emailVerified: true,
+          image: null,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          // No roles property = defaults to Betreuer
+        } as never,
+        session: {
+          id: "test-session-id",
+          userId: "2",
+          expiresAt: new Date(Date.now() + 86400000),
+          ipAddress: null,
+          userAgent: null,
         },
-        expires: "",
+        activeOrganizationId: "test-org-id",
       },
-      status: "authenticated",
-      update: vi.fn(),
+      isPending: false,
+      error: null,
     });
 
     render(
@@ -175,20 +197,11 @@ describe("ResponsiveLayout", () => {
     expect(screen.getByTestId("header-role")).toHaveTextContent("Betreuer");
   });
 
-  it("redirects to login when session has no token", async () => {
+  it("redirects to login when session is null", async () => {
     vi.mocked(useSession).mockReturnValue({
-      data: {
-        user: {
-          id: "3",
-          name: "User",
-          email: "user@example.com",
-          token: "",
-          roles: [],
-        },
-        expires: "",
-      },
-      status: "authenticated",
-      update: vi.fn(),
+      data: null,
+      isPending: false,
+      error: null,
     });
 
     render(
@@ -205,8 +218,8 @@ describe("ResponsiveLayout", () => {
   it("does not redirect when session is loading", () => {
     vi.mocked(useSession).mockReturnValue({
       data: null,
-      status: "loading",
-      update: vi.fn(),
+      isPending: true,
+      error: null,
     });
 
     render(
