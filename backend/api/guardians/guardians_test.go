@@ -272,7 +272,9 @@ func TestCreateGuardian_BadRequest_MissingLastName(t *testing.T) {
 	testutil.AssertBadRequest(t, rr)
 }
 
-func TestCreateGuardian_BadRequest_NoContactMethod(t *testing.T) {
+func TestCreateGuardian_Success_WithoutContactMethod(t *testing.T) {
+	// With the flexible phone numbers system, guardians can be created without
+	// immediate contact methods - phone numbers are added in a separate step
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
@@ -295,7 +297,8 @@ func TestCreateGuardian_BadRequest_NoContactMethod(t *testing.T) {
 
 	rr := testutil.ExecuteRequest(router, req)
 
-	testutil.AssertBadRequest(t, rr)
+	// Should succeed - phone numbers can be added separately
+	testutil.AssertSuccessResponse(t, rr, http.StatusCreated)
 }
 
 // =============================================================================
