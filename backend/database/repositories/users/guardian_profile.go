@@ -33,7 +33,13 @@ func (r *GuardianProfileRepository) Create(ctx context.Context, profile *users.G
 		return fmt.Errorf("validation failed: %w", err)
 	}
 
-	_, err := r.db.NewInsert().
+	// Get the database connection (or transaction if in context)
+	var db bun.IDB = r.db
+	if tx, ok := base.TxFromContext(ctx); ok && tx != nil {
+		db = tx
+	}
+
+	_, err := db.NewInsert().
 		Model(profile).
 		ModelTableExpr(`users.guardian_profiles AS "guardian_profile"`).
 		Exec(ctx)

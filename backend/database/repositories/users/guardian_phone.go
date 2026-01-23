@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/uptrace/bun"
 )
@@ -31,7 +32,13 @@ func (r *GuardianPhoneNumberRepository) Create(ctx context.Context, phone *users
 		return fmt.Errorf("validation failed: %w", err)
 	}
 
-	_, err := r.db.NewInsert().
+	// Get the database connection (or transaction if in context)
+	var db bun.IDB = r.db
+	if tx, ok := modelBase.TxFromContext(ctx); ok && tx != nil {
+		db = tx
+	}
+
+	_, err := db.NewInsert().
 		Model(phone).
 		ModelTableExpr(`users.guardian_phone_numbers AS "guardian_phone_number"`).
 		Exec(ctx)
