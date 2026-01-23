@@ -14,6 +14,7 @@ import {
   normalizeSlug,
   generateSlugFromName,
 } from "~/lib/slug-validation";
+import { isValidEmail } from "~/lib/email-validation";
 
 const PASSWORD_REQUIREMENTS: Array<{
   label: string;
@@ -96,8 +97,8 @@ export function SignupForm() {
       return;
     }
 
-    // Validate email
-    if (!email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    // Validate email (using string methods to prevent ReDoS)
+    if (!isValidEmail(email)) {
       setError("Bitte gib eine gültige E-Mail-Adresse an.");
       return;
     }

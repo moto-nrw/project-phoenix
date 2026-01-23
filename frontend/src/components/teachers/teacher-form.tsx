@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import type { Teacher } from "@/lib/teacher-api";
 import { authService } from "@/lib/auth-service";
 import { getRoleDisplayName } from "@/lib/auth-helpers";
+import { isValidEmail, MAX_EMAIL_LENGTH } from "@/lib/email-validation";
 
 interface RoleOption {
   id: number;
@@ -145,12 +146,8 @@ export function TeacherForm({
     if (!initialData.id) {
       if (!email.trim()) {
         newErrors.email = "E-Mail ist erforderlich";
-      } else if (
-        email.length > 254 ||
-        !/^[a-zA-Z0-9_+&*-]+(?:\.[a-zA-Z0-9_+&*-]+)*@(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}$/.test(
-          email,
-        )
-      ) {
+      } else if (email.length > MAX_EMAIL_LENGTH || !isValidEmail(email)) {
+        // Using string-based validation to prevent ReDoS attacks
         newErrors.email = "Ungültige E-Mail-Adresse";
       }
 
