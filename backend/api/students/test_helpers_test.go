@@ -95,29 +95,6 @@ func (tc *testContext) setupRouter(handler http.HandlerFunc, urlParam string) ch
 	return router
 }
 
-// setupRouter creates a Chi router with the given handler (standalone version for backwards compatibility).
-func setupRouter(handler http.HandlerFunc, urlParam string) chi.Router {
-	router := chi.NewRouter()
-	router.Use(render.SetContentType(render.ContentTypeJSON))
-	if urlParam != "" {
-		router.Get(fmt.Sprintf("/{%s}", urlParam), handler)
-		router.Put(fmt.Sprintf("/{%s}", urlParam), handler)
-		router.Delete(fmt.Sprintf("/{%s}", urlParam), handler)
-		router.Post(fmt.Sprintf("/{%s}", urlParam), handler)
-	} else {
-		router.Get("/", handler)
-		router.Post("/", handler)
-	}
-	return router
-}
-
-// executeWithAuth executes a request with JWT claims, permissions, and tenant context.
-// The student handlers use tenant context for authorization.
-// This standalone version is kept for backwards compatibility.
-func executeWithAuth(router chi.Router, req *http.Request, claims jwt.AppClaims, permissions []string) *httptest.ResponseRecorder {
-	return executeWithAuthAndOGS(router, req, claims, permissions, "test-org")
-}
-
 // executeWithAuthAndOGS executes a request with JWT claims, permissions, tenant context, and specific OGS ID.
 func executeWithAuthAndOGS(router chi.Router, req *http.Request, claims jwt.AppClaims, permissions []string, ogsID string) *httptest.ResponseRecorder {
 	// Create tenant context with permissions
