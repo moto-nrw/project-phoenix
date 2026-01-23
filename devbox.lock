@@ -865,7 +865,7 @@
         }
       }
     },
-    "golangci-lint@latest": {
+    "golangci-lint@2.8.0": {
       "last_modified": "2026-01-09T13:41:53Z",
       "resolved": "github:NixOS/nixpkgs/5f02c91314c8ba4afe83b256b023756412218535#golangci-lint",
       "source": "devbox-search",
