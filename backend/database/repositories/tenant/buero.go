@@ -42,6 +42,7 @@ func (r *BueroRepository) Create(ctx context.Context, buero *tenant.Buero) error
 	_, err := r.db.NewInsert().
 		Model(buero).
 		ModelTableExpr(tableTenantBuero).
+		ExcludeColumn("id").
 		Exec(ctx)
 	if err != nil {
 		return &modelBase.DatabaseError{Op: "create", Err: err}
@@ -68,9 +69,9 @@ func (r *BueroRepository) FindByTraegerID(ctx context.Context, traegerID string)
 	var bueros []*tenant.Buero
 	err := r.db.NewSelect().
 		Model(&bueros).
-		ModelTableExpr(tableExprBueroAsBuero).
-		Where(`"buero".traeger_id = ?`, traegerID).
-		Order(`"buero".name ASC`).
+		ModelTableExpr(tableTenantBuero).
+		Where(`traeger_id = ?`, traegerID).
+		Order(`name ASC`).
 		Scan(ctx)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{Op: "find by traeger id", Err: err}
@@ -116,8 +117,8 @@ func (r *BueroRepository) List(ctx context.Context) ([]*tenant.Buero, error) {
 	var bueros []*tenant.Buero
 	err := r.db.NewSelect().
 		Model(&bueros).
-		ModelTableExpr(tableExprBueroAsBuero).
-		Order(`"buero".name ASC`).
+		ModelTableExpr(tableTenantBuero).
+		Order(`name ASC`).
 		Scan(ctx)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{Op: "list", Err: err}

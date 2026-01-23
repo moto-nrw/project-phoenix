@@ -42,6 +42,7 @@ func (r *TraegerRepository) Create(ctx context.Context, traeger *tenant.Traeger)
 	_, err := r.db.NewInsert().
 		Model(traeger).
 		ModelTableExpr(tableTenantTraeger).
+		ExcludeColumn("id").
 		Exec(ctx)
 	if err != nil {
 		return &modelBase.DatabaseError{Op: "create", Err: err}
@@ -115,8 +116,8 @@ func (r *TraegerRepository) List(ctx context.Context) ([]*tenant.Traeger, error)
 	var traegers []*tenant.Traeger
 	err := r.db.NewSelect().
 		Model(&traegers).
-		ModelTableExpr(tableExprTraegerAsTraeger).
-		Order(`"traeger".name ASC`).
+		ModelTableExpr(tableTenantTraeger).
+		Order(`name ASC`).
 		Scan(ctx)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{Op: "list", Err: err}
@@ -130,7 +131,9 @@ func (r *TraegerRepository) FindWithBueros(ctx context.Context, id string) (*ten
 	err := r.db.NewSelect().
 		Model(traeger).
 		ModelTableExpr(tableExprTraegerAsTraeger).
-		Relation("Bueros").
+		Relation("Bueros", func(q *bun.SelectQuery) *bun.SelectQuery {
+			return q.ModelTableExpr(`tenant.buero AS "buero"`)
+		}).
 		Where(`"traeger".id = ?`, id).
 		Scan(ctx)
 	if err != nil {
