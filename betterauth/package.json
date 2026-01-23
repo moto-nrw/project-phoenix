@@ -31,6 +31,9 @@
   "engines": {
     "node": ">=20.0.0"
   },
+  "pnpm": {
+    "onlyBuiltDependencies": ["esbuild"]
+  },
   "knip": {
     "entry": ["src/index.ts", "src/auth.ts", "src/email.ts"],
     "project": ["src/**/*.ts"],
