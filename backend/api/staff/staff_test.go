@@ -907,6 +907,7 @@ func TestUpdateStaff_ConvertToTeacher(t *testing.T) {
 	req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/staff/%d", staff.ID), body,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 		testutil.WithPermissions("users:update"),
+		testutil.WithTenantContext(testutil.TenantContextWithOrgID(ctx.ogsID)),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -915,7 +916,7 @@ func TestUpdateStaff_ConvertToTeacher(t *testing.T) {
 
 	// Verify it's now a teacher response
 	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
-	if data, ok := response["data"].(map[string]interface{}); ok {
+	if data, ok := response["data"].(map[string]any); ok {
 		// Check for teacher_id field which indicates it's a teacher response
 		_, hasTeacherID := data["teacher_id"]
 		assert.True(t, hasTeacherID || data["is_teacher"] == true)

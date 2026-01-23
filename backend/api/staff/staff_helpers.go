@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 
+	"github.com/moto-nrw/project-phoenix/auth/tenant"
 	"github.com/moto-nrw/project-phoenix/models/users"
 )
 
@@ -149,6 +150,11 @@ func (rs *Resource) handleTeacherRecordUpdate(
 		Specialization: req.Specialization,
 		Role:           req.Role,
 		Qualifications: req.Qualifications,
+	}
+
+	// Set OgsID from tenant context for multitenancy
+	if ogsID := tenant.OrgIDFromCtx(ctx); ogsID != "" {
+		teacher.OgsID = ogsID
 	}
 
 	if rs.TeacherRepo.Create(ctx, teacher) != nil {
