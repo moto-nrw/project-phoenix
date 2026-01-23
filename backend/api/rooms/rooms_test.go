@@ -2,6 +2,7 @@ package rooms_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -19,9 +20,139 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/auth/tenant"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/services"
+	facilitiesService "github.com/moto-nrw/project-phoenix/services/facilities"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
+
+// =============================================================================
+// Mock FacilityService Implementation for Error Path Testing
+// =============================================================================
+
+type mockFacilityService struct {
+	// Room operations
+	getRoomResult *facilities.Room
+	getRoomErr    error
+
+	getRoomWithOccupancyResult facilitiesService.RoomWithOccupancy
+	getRoomWithOccupancyErr    error
+
+	createRoomErr error
+	updateRoomErr error
+	deleteRoomErr error
+
+	listRoomsResult []facilitiesService.RoomWithOccupancy
+	listRoomsErr    error
+
+	findRoomByNameResult *facilities.Room
+	findRoomByNameErr    error
+
+	findRoomsByBuildingResult []*facilities.Room
+	findRoomsByBuildingErr    error
+
+	findRoomsByCategoryResult []*facilities.Room
+	findRoomsByCategoryErr    error
+
+	findRoomsByFloorResult []*facilities.Room
+	findRoomsByFloorErr    error
+
+	// Advanced operations
+	checkRoomAvailabilityResult bool
+	checkRoomAvailabilityErr    error
+
+	getAvailableRoomsResult []*facilities.Room
+	getAvailableRoomsErr    error
+
+	getAvailableRoomsWithOccupancyResult []facilitiesService.RoomWithOccupancy
+	getAvailableRoomsWithOccupancyErr    error
+
+	getRoomUtilizationResult float64
+	getRoomUtilizationErr    error
+
+	getBuildingListResult []string
+	getBuildingListErr    error
+
+	getCategoryListResult []string
+	getCategoryListErr    error
+
+	getRoomHistoryResult []facilitiesService.RoomHistoryEntry
+	getRoomHistoryErr    error
+}
+
+// Implement TransactionalService interface (ServiceTransactor)
+func (m *mockFacilityService) WithTx(_ bun.Tx) interface{} {
+	return m
+}
+
+func (m *mockFacilityService) GetRoom(_ context.Context, _ int64) (*facilities.Room, error) {
+	return m.getRoomResult, m.getRoomErr
+}
+
+func (m *mockFacilityService) GetRoomWithOccupancy(_ context.Context, _ int64) (facilitiesService.RoomWithOccupancy, error) {
+	return m.getRoomWithOccupancyResult, m.getRoomWithOccupancyErr
+}
+
+func (m *mockFacilityService) CreateRoom(_ context.Context, _ *facilities.Room) error {
+	return m.createRoomErr
+}
+
+func (m *mockFacilityService) UpdateRoom(_ context.Context, _ *facilities.Room) error {
+	return m.updateRoomErr
+}
+
+func (m *mockFacilityService) DeleteRoom(_ context.Context, _ int64) error {
+	return m.deleteRoomErr
+}
+
+func (m *mockFacilityService) ListRooms(_ context.Context, _ *base.QueryOptions) ([]facilitiesService.RoomWithOccupancy, error) {
+	return m.listRoomsResult, m.listRoomsErr
+}
+
+func (m *mockFacilityService) FindRoomByName(_ context.Context, _ string) (*facilities.Room, error) {
+	return m.findRoomByNameResult, m.findRoomByNameErr
+}
+
+func (m *mockFacilityService) FindRoomsByBuilding(_ context.Context, _ string) ([]*facilities.Room, error) {
+	return m.findRoomsByBuildingResult, m.findRoomsByBuildingErr
+}
+
+func (m *mockFacilityService) FindRoomsByCategory(_ context.Context, _ string) ([]*facilities.Room, error) {
+	return m.findRoomsByCategoryResult, m.findRoomsByCategoryErr
+}
+
+func (m *mockFacilityService) FindRoomsByFloor(_ context.Context, _ string, _ int) ([]*facilities.Room, error) {
+	return m.findRoomsByFloorResult, m.findRoomsByFloorErr
+}
+
+func (m *mockFacilityService) CheckRoomAvailability(_ context.Context, _ int64, _ int) (bool, error) {
+	return m.checkRoomAvailabilityResult, m.checkRoomAvailabilityErr
+}
+
+func (m *mockFacilityService) GetAvailableRooms(_ context.Context, _ int) ([]*facilities.Room, error) {
+	return m.getAvailableRoomsResult, m.getAvailableRoomsErr
+}
+
+func (m *mockFacilityService) GetAvailableRoomsWithOccupancy(_ context.Context, _ int) ([]facilitiesService.RoomWithOccupancy, error) {
+	return m.getAvailableRoomsWithOccupancyResult, m.getAvailableRoomsWithOccupancyErr
+}
+
+func (m *mockFacilityService) GetRoomUtilization(_ context.Context, _ int64) (float64, error) {
+	return m.getRoomUtilizationResult, m.getRoomUtilizationErr
+}
+
+func (m *mockFacilityService) GetBuildingList(_ context.Context) ([]string, error) {
+	return m.getBuildingListResult, m.getBuildingListErr
+}
+
+func (m *mockFacilityService) GetCategoryList(_ context.Context) ([]string, error) {
+	return m.getCategoryListResult, m.getCategoryListErr
+}
+
+func (m *mockFacilityService) GetRoomHistory(_ context.Context, _ int64, _, _ time.Time) ([]facilitiesService.RoomHistoryEntry, error) {
+	return m.getRoomHistoryResult, m.getRoomHistoryErr
+}
 
 // testContext holds shared test dependencies.
 type testContext struct {
@@ -487,5 +618,352 @@ func TestGetRoomHistory(t *testing.T) {
 		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"}, tenantCtx)
 
 		testutil.AssertBadRequest(t, rr)
+	})
+
+	t.Run("bad_request_invalid_id", func(t *testing.T) {
+		router := setupRouter(tc.resource.GetRoomHistoryHandler(), "id", tc.db)
+		req := testutil.NewRequest("GET", "/invalid", nil)
+
+		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"}, tenantCtx)
+
+		testutil.AssertBadRequest(t, rr)
+	})
+
+	t.Run("bad_request_invalid_end_date_format", func(t *testing.T) {
+		router := setupRouter(tc.resource.GetRoomHistoryHandler(), "id", tc.db)
+		start := time.Now().AddDate(0, 0, -7).UTC().Format(time.RFC3339)
+		// Create request with properly encoded start but invalid end
+		req := httptest.NewRequest("GET", fmt.Sprintf("/%d", room.ID), nil)
+		q := req.URL.Query()
+		q.Set("start", start)
+		q.Set("end", "invalid-date")
+		req.URL.RawQuery = q.Encode()
+
+		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"}, tenantCtx)
+
+		testutil.AssertBadRequest(t, rr)
+	})
+}
+
+// =============================================================================
+// Mock Service Error Path Tests
+// =============================================================================
+
+// setupMockRouter creates a Chi router with a handler using mock service.
+func setupMockRouter(handler http.HandlerFunc, urlParam string) chi.Router {
+	router := chi.NewRouter()
+	router.Use(render.SetContentType(render.ContentTypeJSON))
+	if urlParam != "" {
+		router.Get(fmt.Sprintf("/{%s}", urlParam), handler)
+		router.Put(fmt.Sprintf("/{%s}", urlParam), handler)
+		router.Delete(fmt.Sprintf("/{%s}", urlParam), handler)
+	} else {
+		router.Get("/", handler)
+		router.Post("/", handler)
+	}
+	return router
+}
+
+// executeWithAuthMock executes a request with JWT claims and permissions (no tenant context needed for mock).
+func executeWithAuthMock(router chi.Router, req *http.Request, claims jwt.AppClaims, permissions []string) *httptest.ResponseRecorder {
+	ctx := context.WithValue(req.Context(), jwt.CtxClaims, claims)
+	ctx = context.WithValue(ctx, jwt.CtxPermissions, permissions)
+	req = req.WithContext(ctx)
+	rr := httptest.NewRecorder()
+	router.ServeHTTP(rr, req)
+	return rr
+}
+
+func TestListRoomsServiceError(t *testing.T) {
+	mockService := &mockFacilityService{
+		listRoomsErr: errors.New("database connection failed"),
+	}
+	resource := roomsAPI.NewResource(mockService)
+
+	t.Run("internal_server_error_on_service_failure", func(t *testing.T) {
+		router := setupMockRouter(resource.ListRoomsHandler(), "")
+		req := testutil.NewRequest("GET", "/", nil)
+
+		rr := executeWithAuthMock(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+
+		testutil.AssertErrorResponse(t, rr, http.StatusInternalServerError)
+	})
+}
+
+func TestCreateRoomServiceError(t *testing.T) {
+	mockService := &mockFacilityService{
+		createRoomErr: errors.New("failed to create room"),
+	}
+	resource := roomsAPI.NewResource(mockService)
+
+	t.Run("internal_server_error_on_service_failure", func(t *testing.T) {
+		router := setupMockRouter(resource.CreateRoomHandler(), "")
+		body := map[string]interface{}{
+			"name":     "Test Room",
+			"building": "Main",
+		}
+		req := testutil.NewAuthenticatedRequest(t, "POST", "/", body)
+
+		rr := executeWithAuthMock(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+
+		testutil.AssertErrorResponse(t, rr, http.StatusInternalServerError)
+	})
+}
+
+func TestCreateRoomInvalidBody(t *testing.T) {
+	tc := setupTestContext(t)
+
+	// Create tenant context
+	tenantCtx := &tenant.TenantContext{OrgID: tc.ogsID, OrgName: "Test OGS"}
+
+	t.Run("bad_request_invalid_json", func(t *testing.T) {
+		router := setupRouter(tc.resource.CreateRoomHandler(), "", tc.db)
+		req := httptest.NewRequest("POST", "/", nil)
+		req.Header.Set("Content-Type", "application/json")
+
+		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"}, tenantCtx)
+
+		testutil.AssertBadRequest(t, rr)
+	})
+
+	t.Run("bad_request_negative_capacity", func(t *testing.T) {
+		router := setupRouter(tc.resource.CreateRoomHandler(), "", tc.db)
+		body := map[string]interface{}{
+			"name":     "Test Room",
+			"capacity": -1,
+		}
+		req := testutil.NewAuthenticatedRequest(t, "POST", "/", body)
+
+		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"}, tenantCtx)
+
+		testutil.AssertBadRequest(t, rr)
+	})
+
+	t.Run("bad_request_invalid_color_format", func(t *testing.T) {
+		router := setupRouter(tc.resource.CreateRoomHandler(), "", tc.db)
+		body := map[string]interface{}{
+			"name":  "Test Room",
+			"color": "invalid-color",
+		}
+		req := testutil.NewAuthenticatedRequest(t, "POST", "/", body)
+
+		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"}, tenantCtx)
+
+		testutil.AssertBadRequest(t, rr)
+	})
+}
+
+func TestUpdateRoomServiceError(t *testing.T) {
+	// Test case where GetRoom succeeds but UpdateRoom fails
+	room := &facilities.Room{
+		Name: "Original Room",
+	}
+	room.ID = 1
+	mockService := &mockFacilityService{
+		getRoomResult: room,
+		updateRoomErr: errors.New("failed to update room"),
+	}
+	resource := roomsAPI.NewResource(mockService)
+
+	t.Run("internal_server_error_on_update_failure", func(t *testing.T) {
+		router := setupMockRouter(resource.UpdateRoomHandler(), "id")
+		body := map[string]interface{}{
+			"name": "Updated Room",
+		}
+		req := testutil.NewAuthenticatedRequest(t, "PUT", "/1", body)
+
+		rr := executeWithAuthMock(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+
+		testutil.AssertErrorResponse(t, rr, http.StatusInternalServerError)
+	})
+}
+
+func TestUpdateRoomInvalidID(t *testing.T) {
+	tc := setupTestContext(t)
+
+	// Create tenant context
+	tenantCtx := &tenant.TenantContext{OrgID: tc.ogsID, OrgName: "Test OGS"}
+
+	t.Run("bad_request_invalid_id_format", func(t *testing.T) {
+		router := setupRouter(tc.resource.UpdateRoomHandler(), "id", tc.db)
+		body := map[string]interface{}{
+			"name": "Test Room",
+		}
+		req := testutil.NewAuthenticatedRequest(t, "PUT", "/invalid", body)
+
+		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"}, tenantCtx)
+
+		testutil.AssertBadRequest(t, rr)
+	})
+}
+
+func TestUpdateRoomValidationError(t *testing.T) {
+	tc := setupTestContext(t)
+
+	// Create test room
+	room := testpkg.CreateTestRoom(t, tc.db, "Validation Test Room", tc.ogsID)
+	defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID)
+
+	// Create tenant context
+	tenantCtx := &tenant.TenantContext{OrgID: tc.ogsID, OrgName: "Test OGS"}
+
+	t.Run("bad_request_invalid_color_format", func(t *testing.T) {
+		router := setupRouter(tc.resource.UpdateRoomHandler(), "id", tc.db)
+		body := map[string]interface{}{
+			"name":  "Updated Room",
+			"color": "not-a-hex-color",
+		}
+		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", room.ID), body)
+
+		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"}, tenantCtx)
+
+		testutil.AssertBadRequest(t, rr)
+	})
+}
+
+func TestUpdateRoomInvalidBody(t *testing.T) {
+	// Test case where GetRoom succeeds but Bind fails
+	room := &facilities.Room{
+		Name: "Original Room",
+	}
+	room.ID = 1
+	mockService := &mockFacilityService{
+		getRoomResult: room,
+	}
+	resource := roomsAPI.NewResource(mockService)
+
+	t.Run("bad_request_invalid_json", func(t *testing.T) {
+		router := setupMockRouter(resource.UpdateRoomHandler(), "id")
+		req := httptest.NewRequest("PUT", "/1", nil)
+		req.Header.Set("Content-Type", "application/json")
+
+		rr := executeWithAuthMock(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+
+		testutil.AssertBadRequest(t, rr)
+	})
+}
+
+func TestGetRoomsByCategoryServiceError(t *testing.T) {
+	mockService := &mockFacilityService{
+		findRoomsByCategoryErr: errors.New("database error"),
+	}
+	resource := roomsAPI.NewResource(mockService)
+
+	t.Run("internal_server_error_on_service_failure", func(t *testing.T) {
+		router := setupMockRouter(resource.GetRoomsByCategoryHandler(), "")
+		req := testutil.NewRequest("GET", "/?category=classroom", nil)
+
+		rr := executeWithAuthMock(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+
+		testutil.AssertErrorResponse(t, rr, http.StatusInternalServerError)
+	})
+}
+
+func TestGetBuildingListServiceError(t *testing.T) {
+	mockService := &mockFacilityService{
+		getBuildingListErr: errors.New("database error"),
+	}
+	resource := roomsAPI.NewResource(mockService)
+
+	t.Run("internal_server_error_on_service_failure", func(t *testing.T) {
+		router := setupMockRouter(resource.GetBuildingListHandler(), "")
+		req := testutil.NewRequest("GET", "/", nil)
+
+		rr := executeWithAuthMock(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+
+		testutil.AssertErrorResponse(t, rr, http.StatusInternalServerError)
+	})
+}
+
+func TestGetCategoryListServiceError(t *testing.T) {
+	mockService := &mockFacilityService{
+		getCategoryListErr: errors.New("database error"),
+	}
+	resource := roomsAPI.NewResource(mockService)
+
+	t.Run("internal_server_error_on_service_failure", func(t *testing.T) {
+		router := setupMockRouter(resource.GetCategoryListHandler(), "")
+		req := testutil.NewRequest("GET", "/", nil)
+
+		rr := executeWithAuthMock(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+
+		testutil.AssertErrorResponse(t, rr, http.StatusInternalServerError)
+	})
+}
+
+func TestGetAvailableRoomsServiceError(t *testing.T) {
+	mockService := &mockFacilityService{
+		getAvailableRoomsErr: errors.New("database error"),
+	}
+	resource := roomsAPI.NewResource(mockService)
+
+	t.Run("internal_server_error_on_service_failure", func(t *testing.T) {
+		router := setupMockRouter(resource.GetAvailableRoomsHandler(), "")
+		req := testutil.NewRequest("GET", "/", nil)
+
+		rr := executeWithAuthMock(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+
+		testutil.AssertErrorResponse(t, rr, http.StatusInternalServerError)
+	})
+
+	t.Run("internal_server_error_with_capacity_filter", func(t *testing.T) {
+		router := setupMockRouter(resource.GetAvailableRoomsHandler(), "")
+		req := testutil.NewRequest("GET", "/?capacity=20", nil)
+
+		rr := executeWithAuthMock(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+
+		testutil.AssertErrorResponse(t, rr, http.StatusInternalServerError)
+	})
+
+	t.Run("handles_invalid_capacity_gracefully", func(t *testing.T) {
+		// With invalid capacity, it should use capacity=0 and still hit service
+		router := setupMockRouter(resource.GetAvailableRoomsHandler(), "")
+		req := testutil.NewRequest("GET", "/?capacity=invalid", nil)
+
+		rr := executeWithAuthMock(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+
+		testutil.AssertErrorResponse(t, rr, http.StatusInternalServerError)
+	})
+
+	t.Run("handles_negative_capacity_gracefully", func(t *testing.T) {
+		// With negative capacity, it should use capacity=0 and still hit service
+		router := setupMockRouter(resource.GetAvailableRoomsHandler(), "")
+		req := testutil.NewRequest("GET", "/?capacity=-5", nil)
+
+		rr := executeWithAuthMock(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+
+		testutil.AssertErrorResponse(t, rr, http.StatusInternalServerError)
+	})
+}
+
+func TestGetRoomHistoryServiceError(t *testing.T) {
+	mockService := &mockFacilityService{
+		getRoomHistoryErr: errors.New("database error"),
+	}
+	resource := roomsAPI.NewResource(mockService)
+
+	t.Run("internal_server_error_on_service_failure", func(t *testing.T) {
+		router := setupMockRouter(resource.GetRoomHistoryHandler(), "id")
+		req := testutil.NewRequest("GET", "/1", nil)
+
+		rr := executeWithAuthMock(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+
+		testutil.AssertErrorResponse(t, rr, http.StatusInternalServerError)
+	})
+}
+
+func TestListRoomsWithCategoryFilter(t *testing.T) {
+	tc := setupTestContext(t)
+
+	// Create tenant context
+	tenantCtx := &tenant.TenantContext{OrgID: tc.ogsID, OrgName: "Test OGS"}
+
+	t.Run("success_with_category_filter", func(t *testing.T) {
+		router := setupRouter(tc.resource.ListRoomsHandler(), "", tc.db)
+		req := testutil.NewRequest("GET", "/?category=classroom", nil)
+
+		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"}, tenantCtx)
+
+		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
 	})
 }
