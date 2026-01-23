@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/auth/tenant"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/uptrace/bun"
@@ -272,6 +273,11 @@ func (s *service) createSessionBase(ctx context.Context, activityID, deviceID, r
 		GroupID:        activityID,
 		DeviceID:       &deviceID,
 		RoomID:         roomID,
+	}
+
+	// Set OgsID from tenant context (required for multitenancy)
+	if tc := tenant.TenantFromCtx(ctx); tc != nil {
+		newGroup.OgsID = tc.OrgID
 	}
 
 	if err := s.groupRepo.Create(ctx, newGroup); err != nil {

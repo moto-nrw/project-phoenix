@@ -23,6 +23,7 @@ func TestRoomRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
+	ogsID := testpkg.SetupTestOGS(t, db)
 	repo := repositories.NewFactory(db).Room
 	ctx := context.Background()
 
@@ -35,6 +36,7 @@ func TestRoomRepository_Create(t *testing.T) {
 			Capacity: testpkg.IntPtr(30),
 			Category: testpkg.StrPtr("classroom"),
 		}
+		room.OgsID = ogsID
 
 		err := repo.Create(ctx, room)
 		require.NoError(t, err)
@@ -53,6 +55,7 @@ func TestRoomRepository_Create(t *testing.T) {
 		room := &facilities.Room{
 			Name: "", // Invalid - empty name
 		}
+		room.OgsID = ogsID
 		err := repo.Create(ctx, room)
 		assert.Error(t, err)
 	})
@@ -62,6 +65,7 @@ func TestRoomRepository_FindByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
+	ogsID := testpkg.SetupTestOGS(t, db)
 	repo := repositories.NewFactory(db).Room
 	ctx := context.Background()
 
@@ -74,6 +78,7 @@ func TestRoomRepository_FindByID(t *testing.T) {
 			Capacity: testpkg.IntPtr(25),
 			Category: testpkg.StrPtr("classroom"),
 		}
+		room.OgsID = ogsID
 		err := repo.Create(ctx, room)
 		require.NoError(t, err)
 		defer testpkg.CleanupTableRecords(t, db, "facilities.rooms", room.ID)
@@ -94,6 +99,7 @@ func TestRoomRepository_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
+	ogsID := testpkg.SetupTestOGS(t, db)
 	repo := repositories.NewFactory(db).Room
 	ctx := context.Background()
 
@@ -106,6 +112,7 @@ func TestRoomRepository_Update(t *testing.T) {
 			Capacity: testpkg.IntPtr(20),
 			Category: testpkg.StrPtr("classroom"),
 		}
+		room.OgsID = ogsID
 		err := repo.Create(ctx, room)
 		require.NoError(t, err)
 		defer testpkg.CleanupTableRecords(t, db, "facilities.rooms", room.ID)
@@ -131,6 +138,7 @@ func TestRoomRepository_Delete(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
+	ogsID := testpkg.SetupTestOGS(t, db)
 	repo := repositories.NewFactory(db).Room
 	ctx := context.Background()
 
@@ -143,6 +151,7 @@ func TestRoomRepository_Delete(t *testing.T) {
 			Capacity: testpkg.IntPtr(20),
 			Category: testpkg.StrPtr("classroom"),
 		}
+		room.OgsID = ogsID
 		err := repo.Create(ctx, room)
 		require.NoError(t, err)
 
@@ -162,6 +171,7 @@ func TestRoomRepository_FindByName(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
+	ogsID := testpkg.SetupTestOGS(t, db)
 	repo := repositories.NewFactory(db).Room
 	ctx := context.Background()
 
@@ -174,6 +184,7 @@ func TestRoomRepository_FindByName(t *testing.T) {
 			Capacity: testpkg.IntPtr(20),
 			Category: testpkg.StrPtr("classroom"),
 		}
+		room.OgsID = ogsID
 		err := repo.Create(ctx, room)
 		require.NoError(t, err)
 		defer testpkg.CleanupTableRecords(t, db, "facilities.rooms", room.ID)
@@ -188,6 +199,7 @@ func TestRoomRepository_FindByBuilding(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
+	ogsID := testpkg.SetupTestOGS(t, db)
 	repo := repositories.NewFactory(db).Room
 	ctx := context.Background()
 
@@ -200,6 +212,7 @@ func TestRoomRepository_FindByBuilding(t *testing.T) {
 			Capacity: testpkg.IntPtr(20),
 			Category: testpkg.StrPtr("classroom"),
 		}
+		room1.OgsID = ogsID
 		room2 := &facilities.Room{
 			Name:     fmt.Sprintf("Room2_%d", time.Now().UnixNano()),
 			Building: uniqueBuilding,
@@ -207,6 +220,7 @@ func TestRoomRepository_FindByBuilding(t *testing.T) {
 			Capacity: testpkg.IntPtr(25),
 			Category: testpkg.StrPtr("classroom"),
 		}
+		room2.OgsID = ogsID
 
 		err := repo.Create(ctx, room1)
 		require.NoError(t, err)
@@ -224,6 +238,7 @@ func TestRoomRepository_FindByCategory(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
+	ogsID := testpkg.SetupTestOGS(t, db)
 	repo := repositories.NewFactory(db).Room
 	ctx := context.Background()
 
@@ -236,6 +251,7 @@ func TestRoomRepository_FindByCategory(t *testing.T) {
 			Capacity: testpkg.IntPtr(20),
 			Category: &uniqueCategory,
 		}
+		room.OgsID = ogsID
 
 		err := repo.Create(ctx, room)
 		require.NoError(t, err)
@@ -251,6 +267,7 @@ func TestRoomRepository_FindByFloor(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
+	ogsID := testpkg.SetupTestOGS(t, db)
 	repo := repositories.NewFactory(db).Room
 	ctx := context.Background()
 
@@ -263,6 +280,7 @@ func TestRoomRepository_FindByFloor(t *testing.T) {
 			Capacity: testpkg.IntPtr(20),
 			Category: testpkg.StrPtr("classroom"),
 		}
+		room.OgsID = ogsID
 
 		err := repo.Create(ctx, room)
 		require.NoError(t, err)
@@ -281,6 +299,7 @@ func TestRoomRepository_FindByFloor(t *testing.T) {
 			Capacity: testpkg.IntPtr(20),
 			Category: testpkg.StrPtr("classroom"),
 		}
+		room.OgsID = ogsID
 
 		err := repo.Create(ctx, room)
 		require.NoError(t, err)
@@ -296,6 +315,7 @@ func TestRoomRepository_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
+	ogsID := testpkg.SetupTestOGS(t, db)
 	repo := repositories.NewFactory(db).Room
 	ctx := context.Background()
 
@@ -307,6 +327,7 @@ func TestRoomRepository_List(t *testing.T) {
 			Capacity: testpkg.IntPtr(20),
 			Category: testpkg.StrPtr("classroom"),
 		}
+		room.OgsID = ogsID
 		err := repo.Create(ctx, room)
 		require.NoError(t, err)
 		defer testpkg.CleanupTableRecords(t, db, "facilities.rooms", room.ID)
@@ -325,6 +346,7 @@ func TestRoomRepository_List(t *testing.T) {
 			Capacity: testpkg.IntPtr(20),
 			Category: testpkg.StrPtr("classroom"),
 		}
+		room.OgsID = ogsID
 		err := repo.Create(ctx, room)
 		require.NoError(t, err)
 		defer testpkg.CleanupTableRecords(t, db, "facilities.rooms", room.ID)
@@ -346,6 +368,7 @@ func TestRoomRepository_List(t *testing.T) {
 			Capacity: testpkg.IntPtr(20),
 			Category: testpkg.StrPtr("classroom"),
 		}
+		room.OgsID = ogsID
 		err := repo.Create(ctx, room)
 		require.NoError(t, err)
 		defer testpkg.CleanupTableRecords(t, db, "facilities.rooms", room.ID)
@@ -366,6 +389,7 @@ func TestRoomRepository_List(t *testing.T) {
 			Capacity: testpkg.IntPtr(150),
 			Category: testpkg.StrPtr("classroom"),
 		}
+		room.OgsID = ogsID
 		err := repo.Create(ctx, room)
 		require.NoError(t, err)
 		defer testpkg.CleanupTableRecords(t, db, "facilities.rooms", room.ID)
@@ -390,6 +414,7 @@ func TestRoomRepository_List(t *testing.T) {
 			Capacity: testpkg.IntPtr(5),
 			Category: testpkg.StrPtr("office"),
 		}
+		room.OgsID = ogsID
 		err := repo.Create(ctx, room)
 		require.NoError(t, err)
 		defer testpkg.CleanupTableRecords(t, db, "facilities.rooms", room.ID)
@@ -415,6 +440,7 @@ func TestRoomRepository_List(t *testing.T) {
 			Capacity: testpkg.IntPtr(20),
 			Category: &uniqueCategory,
 		}
+		room.OgsID = ogsID
 		err := repo.Create(ctx, room)
 		require.NoError(t, err)
 		defer testpkg.CleanupTableRecords(t, db, "facilities.rooms", room.ID)
@@ -435,6 +461,7 @@ func TestRoomRepository_List(t *testing.T) {
 			Capacity: testpkg.IntPtr(20),
 			Category: testpkg.StrPtr("classroom"),
 		}
+		room.OgsID = ogsID
 		err := repo.Create(ctx, room)
 		require.NoError(t, err)
 		defer testpkg.CleanupTableRecords(t, db, "facilities.rooms", room.ID)
@@ -456,6 +483,7 @@ func TestRoomRepository_List(t *testing.T) {
 			Capacity: testpkg.IntPtr(20),
 			Category: testpkg.StrPtr("classroom"),
 		}
+		room.OgsID = ogsID
 		err := repo.Create(ctx, room)
 		require.NoError(t, err)
 		defer testpkg.CleanupTableRecords(t, db, "facilities.rooms", room.ID)
@@ -477,6 +505,7 @@ func TestRoomRepository_List(t *testing.T) {
 			Capacity: testpkg.IntPtr(20),
 			Category: testpkg.StrPtr("classroom"),
 		}
+		room.OgsID = ogsID
 		err := repo.Create(ctx, room)
 		require.NoError(t, err)
 		defer testpkg.CleanupTableRecords(t, db, "facilities.rooms", room.ID)
@@ -498,6 +527,7 @@ func TestRoomRepository_ListWithOptions(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
+	ogsID := testpkg.SetupTestOGS(t, db)
 	// Use concrete repository to access ListWithOptions
 	repo := facilitiesRepo.NewRoomRepository(db)
 	concreteRepo := repo.(*facilitiesRepo.RoomRepository)
@@ -511,6 +541,7 @@ func TestRoomRepository_ListWithOptions(t *testing.T) {
 			Capacity: testpkg.IntPtr(20),
 			Category: testpkg.StrPtr("classroom"),
 		}
+		room.OgsID = ogsID
 		err := repo.Create(ctx, room)
 		require.NoError(t, err)
 		defer testpkg.CleanupTableRecords(t, db, "facilities.rooms", room.ID)
@@ -533,6 +564,7 @@ func TestRoomRepository_FindWithCapacity(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
+	ogsID := testpkg.SetupTestOGS(t, db)
 	// Use concrete repository to access FindWithCapacity
 	repo := facilitiesRepo.NewRoomRepository(db)
 	concreteRepo := repo.(*facilitiesRepo.RoomRepository)
@@ -546,6 +578,7 @@ func TestRoomRepository_FindWithCapacity(t *testing.T) {
 			Capacity: testpkg.IntPtr(200),
 			Category: testpkg.StrPtr("classroom"),
 		}
+		room.OgsID = ogsID
 
 		err := repo.Create(ctx, room)
 		require.NoError(t, err)
@@ -566,6 +599,7 @@ func TestRoomRepository_SearchByText(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
+	ogsID := testpkg.SetupTestOGS(t, db)
 	// Use concrete repository to access SearchByText
 	repo := facilitiesRepo.NewRoomRepository(db)
 	concreteRepo := repo.(*facilitiesRepo.RoomRepository)
@@ -580,6 +614,7 @@ func TestRoomRepository_SearchByText(t *testing.T) {
 			Capacity: testpkg.IntPtr(20),
 			Category: testpkg.StrPtr("classroom"),
 		}
+		room.OgsID = ogsID
 
 		err := repo.Create(ctx, room)
 		require.NoError(t, err)

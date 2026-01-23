@@ -12,6 +12,7 @@ import (
 
 	checkinAPI "github.com/moto-nrw/project-phoenix/api/iot/checkin"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/auth/tenant"
 	"github.com/moto-nrw/project-phoenix/models/iot"
 	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -75,6 +76,7 @@ func TestDevicePing_Success(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/ping", nil,
 		testutil.WithDeviceContext(createTestDeviceContext(device)),
+		testutil.WithTenantContext(&tenant.TenantContext{OrgID: ogsID, OrgName: "Test OGS"}),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -123,6 +125,7 @@ func TestDeviceStatus_Success(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/checkin/status", nil,
 		testutil.WithDeviceContext(createTestDeviceContext(device)),
+		testutil.WithTenantContext(&tenant.TenantContext{OrgID: ctx.ogsID, OrgName: "Test OGS"}),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -193,6 +196,7 @@ func TestDeviceCheckin_MissingRFID(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/checkin", body,
 		testutil.WithDeviceContext(createTestDeviceContext(device)),
+		testutil.WithTenantContext(&tenant.TenantContext{OrgID: ctx.ogsID, OrgName: "Test OGS"}),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -218,6 +222,7 @@ func TestDeviceCheckin_StudentNotFound(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/checkin", body,
 		testutil.WithDeviceContext(createTestDeviceContext(device)),
+		testutil.WithTenantContext(&tenant.TenantContext{OrgID: ctx.ogsID, OrgName: "Test OGS"}),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -261,6 +266,7 @@ func TestDeviceCheckin_NoActiveGroups(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/checkin", body,
 		testutil.WithDeviceContext(createTestDeviceContext(device)),
+		testutil.WithTenantContext(&tenant.TenantContext{OrgID: ctx.ogsID, OrgName: "Test OGS"}),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -318,6 +324,7 @@ func TestDeviceCheckin_CheckoutWithActiveVisit(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/checkin", body,
 		testutil.WithDeviceContext(createTestDeviceContext(device)),
+		testutil.WithTenantContext(&tenant.TenantContext{OrgID: ctx.ogsID, OrgName: "Test OGS"}),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -369,6 +376,7 @@ func TestDeviceCheckin_CheckinWithNewVisitNoActiveGroup(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/checkin", body,
 		testutil.WithDeviceContext(createTestDeviceContext(device)),
+		testutil.WithTenantContext(&tenant.TenantContext{OrgID: ctx.ogsID, OrgName: "Test OGS"}),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -410,6 +418,7 @@ func TestDeviceCheckin_StaffRFIDNotSupported(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/checkin", body,
 		testutil.WithDeviceContext(createTestDeviceContext(device)),
+		testutil.WithTenantContext(&tenant.TenantContext{OrgID: ctx.ogsID, OrgName: "Test OGS"}),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -472,6 +481,7 @@ func TestDeviceCheckin_RoomTransferInvalidRoom(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/checkin", body,
 		testutil.WithDeviceContext(createTestDeviceContext(device)),
+		testutil.WithTenantContext(&tenant.TenantContext{OrgID: ctx.ogsID, OrgName: "Test OGS"}),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -503,6 +513,7 @@ func TestDeviceCheckin_InvalidJSON(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/checkin", body,
 		testutil.WithDeviceContext(createTestDeviceContext(device)),
+		testutil.WithTenantContext(&tenant.TenantContext{OrgID: ctx.ogsID, OrgName: "Test OGS"}),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -530,6 +541,7 @@ func TestDeviceCheckin_EmptyRFID(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/checkin", body,
 		testutil.WithDeviceContext(createTestDeviceContext(device)),
+		testutil.WithTenantContext(&tenant.TenantContext{OrgID: ctx.ogsID, OrgName: "Test OGS"}),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -639,6 +651,7 @@ func TestDeviceCheckin_SuccessfulCheckin(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/checkin", body,
 		testutil.WithDeviceContext(createTestDeviceContext(device)),
+		testutil.WithTenantContext(&tenant.TenantContext{OrgID: ctx.ogsID, OrgName: "Test OGS"}),
 		testutil.WithStaffContext(staff),
 	)
 
@@ -712,6 +725,7 @@ func TestDeviceCheckin_RoomTransferSucceeds(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/checkin", body,
 		testutil.WithDeviceContext(createTestDeviceContext(device)),
+		testutil.WithTenantContext(&tenant.TenantContext{OrgID: ctx.ogsID, OrgName: "Test OGS"}),
 		testutil.WithStaffContext(staff),
 	)
 
@@ -743,6 +757,7 @@ func TestDevicePing_SessionActiveStatus(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/ping", nil,
 		testutil.WithDeviceContext(createTestDeviceContext(device)),
+		testutil.WithTenantContext(&tenant.TenantContext{OrgID: ctx.ogsID, OrgName: "Test OGS"}),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -778,6 +793,7 @@ func TestDeviceCheckin_InvalidAction(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/checkin", body,
 		testutil.WithDeviceContext(createTestDeviceContext(device)),
+		testutil.WithTenantContext(&tenant.TenantContext{OrgID: ctx.ogsID, OrgName: "Test OGS"}),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -817,6 +833,7 @@ func TestDeviceCheckin_CheckoutWithoutActiveVisit(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/checkin", body,
 		testutil.WithDeviceContext(createTestDeviceContext(device)),
+		testutil.WithTenantContext(&tenant.TenantContext{OrgID: ctx.ogsID, OrgName: "Test OGS"}),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)

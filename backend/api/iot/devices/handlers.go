@@ -10,6 +10,7 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	iotCommon "github.com/moto-nrw/project-phoenix/api/iot/common"
+	"github.com/moto-nrw/project-phoenix/auth/tenant"
 	"github.com/moto-nrw/project-phoenix/models/iot"
 )
 
@@ -119,6 +120,11 @@ func (rs *Resource) createDevice(w http.ResponseWriter, r *http.Request) {
 		DeviceType:     req.DeviceType,
 		Name:           req.Name,
 		RegisteredByID: req.RegisteredByID,
+	}
+
+	// Set OgsID from tenant context
+	if ogsID := tenant.OrgIDFromCtx(r.Context()); ogsID != "" {
+		device.OgsID = ogsID
 	}
 
 	// Set status if provided, otherwise default to active

@@ -33,7 +33,7 @@ func setupActivityService(t *testing.T, db *bun.DB) activities.ActivityService {
 func TestActivityService_CreateCategory(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
-	_ = testpkg.SetupTestOGS(t, db)
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupActivityService(t, db)
 	ctx := context.Background()
@@ -44,6 +44,7 @@ func TestActivityService_CreateCategory(t *testing.T) {
 			Name:        fmt.Sprintf("Test Category %d", time.Now().UnixNano()),
 			Description: "Test description",
 		}
+		category.OgsID = ogsID
 
 		// ACT
 		result, err := service.CreateCategory(ctx, category)
@@ -821,6 +822,7 @@ func TestActivityService_CreateGroup(t *testing.T) {
 			IsOpen:          true,
 			CategoryID:      category.ID,
 		}
+		group.OgsID = ogsID
 
 		// ACT
 		result, err := service.CreateGroup(ctx, group, nil, nil)
@@ -847,6 +849,7 @@ func TestActivityService_CreateGroup(t *testing.T) {
 			IsOpen:          false,
 			CategoryID:      category.ID,
 		}
+		group.OgsID = ogsID
 
 		// ACT
 		result, err := service.CreateGroup(ctx, group, []int64{staff.ID}, nil)
@@ -871,6 +874,7 @@ func TestActivityService_CreateGroup(t *testing.T) {
 			MaxParticipants: 10,
 			CategoryID:      99999999, // nonexistent
 		}
+		group.OgsID = ogsID
 
 		// ACT
 		result, err := service.CreateGroup(ctx, group, nil, nil)
@@ -1317,6 +1321,7 @@ func TestActivityService_CreateGroup_WithSchedules(t *testing.T) {
 			IsOpen:          true,
 			CategoryID:      category.ID,
 		}
+		group.OgsID = ogsID
 
 		schedules := []*activitiesModels.Schedule{
 			{Weekday: 1}, // Monday
@@ -1932,7 +1937,7 @@ func TestActivityService_GetEnrollmentHistory_NoData(t *testing.T) {
 func TestActivityService_CreateGroup_WithCategoryValidation(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
-	_ = testpkg.SetupTestOGS(t, db)
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupActivityService(t, db)
 	ctx := context.Background()
@@ -1944,6 +1949,7 @@ func TestActivityService_CreateGroup_WithCategoryValidation(t *testing.T) {
 			CategoryID:      99999999, // nonexistent
 			MaxParticipants: 10,
 		}
+		group.OgsID = ogsID
 
 		// ACT
 		result, err := service.CreateGroup(ctx, group, nil, nil)
@@ -2125,7 +2131,7 @@ func TestActivityService_AddSupervisor_GroupNotFound(t *testing.T) {
 func TestActivityService_CreateCategory_ValidationError(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
-	_ = testpkg.SetupTestOGS(t, db)
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupActivityService(t, db)
 	ctx := context.Background()
@@ -2136,6 +2142,7 @@ func TestActivityService_CreateCategory_ValidationError(t *testing.T) {
 			Name:        "", // Invalid: empty
 			Description: "Test",
 		}
+		category.OgsID = ogsID
 
 		// ACT
 		result, err := service.CreateCategory(ctx, category)
@@ -2180,7 +2187,7 @@ func TestActivityService_UpdateCategory_ValidationError(t *testing.T) {
 func TestActivityService_CreateGroup_ValidationError(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
-	_ = testpkg.SetupTestOGS(t, db)
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupActivityService(t, db)
 	ctx := context.Background()
@@ -2192,6 +2199,7 @@ func TestActivityService_CreateGroup_ValidationError(t *testing.T) {
 			CategoryID:      1,
 			MaxParticipants: 10,
 		}
+		group.OgsID = ogsID
 
 		// ACT
 		result, err := service.CreateGroup(ctx, group, nil, nil)
@@ -2396,6 +2404,7 @@ func TestActivityService_CreateGroup_InvalidSupervisor(t *testing.T) {
 			CategoryID:      category.ID,
 			MaxParticipants: 20,
 		}
+		group.OgsID = ogsID
 
 		// ACT - non-existent staff ID
 		result, err := service.CreateGroup(ctx, group, []int64{99999999}, nil)
@@ -2424,6 +2433,7 @@ func TestActivityService_CreateGroup_InvalidScheduleWeekday(t *testing.T) {
 			CategoryID:      category.ID,
 			MaxParticipants: 20,
 		}
+		group.OgsID = ogsID
 
 		// Invalid weekday (should be 0-6)
 		invalidSchedule := &activitiesModels.Schedule{
@@ -2602,7 +2612,7 @@ func TestActivityService_UpdateGroup_Success(t *testing.T) {
 func TestActivityService_CreateGroup_InvalidCategoryID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
-	_ = testpkg.SetupTestOGS(t, db)
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupActivityService(t, db)
 	ctx := context.Background()
@@ -2614,6 +2624,7 @@ func TestActivityService_CreateGroup_InvalidCategoryID(t *testing.T) {
 			CategoryID:      99999999, // Non-existent
 			MaxParticipants: 20,
 		}
+		group.OgsID = ogsID
 
 		// ACT
 		result, err := service.CreateGroup(ctx, group, nil, nil)
@@ -2823,7 +2834,7 @@ func TestActivityService_UpdateGroupEnrollments_EmptyList(t *testing.T) {
 func TestActivityService_UpdateCategory_DatabaseError(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
-	_ = testpkg.SetupTestOGS(t, db)
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupActivityService(t, db)
 
@@ -2836,6 +2847,7 @@ func TestActivityService_UpdateCategory_DatabaseError(t *testing.T) {
 		Color: "#FFFFFF",
 	}
 	category.ID = 1
+	category.OgsID = ogsID
 
 	// ACT
 	_, err := service.UpdateCategory(canceledCtx, category)
@@ -2901,7 +2913,7 @@ func TestActivityService_GetEnrolledStudents_DatabaseError(t *testing.T) {
 func TestActivityService_CreateCategory_DatabaseError(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
-	_ = testpkg.SetupTestOGS(t, db)
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupActivityService(t, db)
 
@@ -2913,6 +2925,7 @@ func TestActivityService_CreateCategory_DatabaseError(t *testing.T) {
 		Name:  "Test",
 		Color: "#FFFFFF",
 	}
+	category.OgsID = ogsID
 
 	// ACT
 	_, err := service.CreateCategory(canceledCtx, category)

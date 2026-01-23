@@ -71,6 +71,8 @@ func createCombinedGroupTestData(t *testing.T, db *bun.DB, ogsID string) *combin
 		GroupID:        activityGroup.ID,
 		RoomID:         room1.ID,
 	}
+	activeGroup1.OgsID = ogsID
+
 	activeGroup2 := &active.Group{
 		StartTime:      now,
 		LastActivity:   now,
@@ -78,6 +80,7 @@ func createCombinedGroupTestData(t *testing.T, db *bun.DB, ogsID string) *combin
 		GroupID:        activityGroup.ID,
 		RoomID:         room2.ID,
 	}
+	activeGroup2.OgsID = ogsID
 
 	err := groupRepo.Create(ctx, activeGroup1)
 	require.NoError(t, err)

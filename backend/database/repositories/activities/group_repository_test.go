@@ -37,6 +37,7 @@ func TestActivityGroupRepository_Create(t *testing.T) {
 			MaxParticipants: 20,
 			IsOpen:          true,
 		}
+		group.OgsID = ogsID
 
 		err := repo.Create(ctx, group)
 		require.NoError(t, err)
@@ -56,6 +57,7 @@ func TestActivityGroupRepository_Create(t *testing.T) {
 			MaxParticipants: 15,
 			IsOpen:          false,
 		}
+		group.OgsID = ogsID
 
 		err := repo.Create(ctx, group)
 		require.NoError(t, err)

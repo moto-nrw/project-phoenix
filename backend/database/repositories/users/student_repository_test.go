@@ -162,6 +162,7 @@ func TestStudentRepository_Create(t *testing.T) {
 			PersonID:    person.ID,
 			SchoolClass: "1a",
 		}
+		student.OgsID = ogsID
 
 		err := repo.Create(ctx, student)
 		require.NoError(t, err)
@@ -190,6 +191,7 @@ func TestStudentRepository_Create(t *testing.T) {
 			GuardianEmail: &guardianEmail,
 			GuardianPhone: &guardianPhone,
 		}
+		student.OgsID = ogsID
 
 		err := repo.Create(ctx, student)
 		require.NoError(t, err)
@@ -218,6 +220,7 @@ func TestStudentRepository_Create(t *testing.T) {
 			PersonID:    person.ID,
 			SchoolClass: "", // Required field
 		}
+		student.OgsID = ogsID
 
 		err := repo.Create(ctx, student)
 		require.Error(t, err)
@@ -234,6 +237,7 @@ func TestStudentRepository_Create(t *testing.T) {
 			SchoolClass:   "1a",
 			GuardianEmail: &badEmail,
 		}
+		student.OgsID = ogsID
 
 		err := repo.Create(ctx, student)
 		require.Error(t, err)

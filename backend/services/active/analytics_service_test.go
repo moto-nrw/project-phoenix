@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/auth/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -21,7 +22,13 @@ func TestGetActiveGroupsCount(t *testing.T) {
 	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+
+	// Create context with tenant info
+	tc := &tenant.TenantContext{
+		OrgID:   ogsID,
+		OrgName: "Test OGS",
+	}
+	ctx := tenant.SetTenantContext(context.Background(), tc)
 
 	t.Run("returns count of active groups", func(t *testing.T) {
 		// ARRANGE: Create an active group (no end time)
@@ -72,7 +79,13 @@ func TestGetTotalVisitsCount(t *testing.T) {
 	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+
+	// Create context with tenant info
+	tc := &tenant.TenantContext{
+		OrgID:   ogsID,
+		OrgName: "Test OGS",
+	}
+	ctx := tenant.SetTenantContext(context.Background(), tc)
 
 	t.Run("returns total visit count", func(t *testing.T) {
 		// ARRANGE
@@ -105,7 +118,13 @@ func TestGetActiveVisitsCount(t *testing.T) {
 	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+
+	// Create context with tenant info
+	tc := &tenant.TenantContext{
+		OrgID:   ogsID,
+		OrgName: "Test OGS",
+	}
+	ctx := tenant.SetTenantContext(context.Background(), tc)
 
 	t.Run("counts only active visits", func(t *testing.T) {
 		// ARRANGE
@@ -143,7 +162,13 @@ func TestGetRoomUtilization(t *testing.T) {
 	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+
+	// Create context with tenant info
+	tc := &tenant.TenantContext{
+		OrgID:   ogsID,
+		OrgName: "Test OGS",
+	}
+	ctx := tenant.SetTenantContext(context.Background(), tc)
 
 	t.Run("returns utilization ratio for room with capacity", func(t *testing.T) {
 		// ARRANGE: Create room with capacity
@@ -230,7 +255,13 @@ func TestGetStudentAttendanceRate(t *testing.T) {
 	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+
+	// Create context with tenant info
+	tc := &tenant.TenantContext{
+		OrgID:   ogsID,
+		OrgName: "Test OGS",
+	}
+	ctx := tenant.SetTenantContext(context.Background(), tc)
 
 	t.Run("returns 1.0 for student with active visit", func(t *testing.T) {
 		// ARRANGE
@@ -297,7 +328,13 @@ func TestGetDashboardAnalytics(t *testing.T) {
 	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+
+	// Create context with tenant info
+	tc := &tenant.TenantContext{
+		OrgID:   ogsID,
+		OrgName: "Test OGS",
+	}
+	ctx := tenant.SetTenantContext(context.Background(), tc)
 
 	t.Run("returns dashboard analytics without error", func(t *testing.T) {
 		// ACT

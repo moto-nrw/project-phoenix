@@ -39,6 +39,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/auth/tenant"
+
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -60,7 +62,13 @@ func TestEndDailySessionsVisitLookupFailure(t *testing.T) {
 	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+
+	// Create context with tenant info
+	tc := &tenant.TenantContext{
+		OrgID:   ogsID,
+		OrgName: "Test OGS",
+	}
+	ctx := tenant.SetTenantContext(context.Background(), tc)
 
 	// ARRANGE: Create real test fixtures
 	activityGroup := testpkg.CreateTestActivityGroup(t, db, "Cleanup Test Activity 1", ogsID)
@@ -86,6 +94,7 @@ func TestEndDailySessionsVisitLookupFailure(t *testing.T) {
 		ActiveGroupID: session.ID,
 		EntryTime:     time.Now(),
 	}
+	visit.OgsID = ogsID
 	err = visitRepo.Create(ctx, visit)
 	require.NoError(t, err)
 
@@ -138,7 +147,13 @@ func TestEndDailySessionsConsistency(t *testing.T) {
 	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+
+	// Create context with tenant info
+	tc := &tenant.TenantContext{
+		OrgID:   ogsID,
+		OrgName: "Test OGS",
+	}
+	ctx := tenant.SetTenantContext(context.Background(), tc)
 
 	// ARRANGE: Create real test fixtures for multiple sessions
 	// Use SEPARATE devices to avoid ForceStart ending session1 prematurely
@@ -171,6 +186,7 @@ func TestEndDailySessionsConsistency(t *testing.T) {
 		ActiveGroupID: session1.ID,
 		EntryTime:     time.Now(),
 	}
+	visit1.OgsID = ogsID
 	err = visitRepo.Create(ctx, visit1)
 	require.NoError(t, err)
 
@@ -179,6 +195,7 @@ func TestEndDailySessionsConsistency(t *testing.T) {
 		ActiveGroupID: session2.ID,
 		EntryTime:     time.Now(),
 	}
+	visit2.OgsID = ogsID
 	err = visitRepo.Create(ctx, visit2)
 	require.NoError(t, err)
 

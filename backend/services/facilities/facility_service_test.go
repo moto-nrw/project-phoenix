@@ -154,6 +154,7 @@ func TestFacilitiesService_CreateRoom(t *testing.T) {
 			Capacity: &capacity,
 			Category: &category,
 		}
+		room.OgsID = ogsID
 
 		// ACT
 		err := service.CreateRoom(ctx, room)
@@ -210,6 +211,7 @@ func TestFacilitiesService_CreateRoom(t *testing.T) {
 			Name:     "ValidName-" + time.Now().Format("20060102150405.000"),
 			Building: "",
 		}
+		room.OgsID = ogsID
 
 		// ACT
 		err := service.CreateRoom(ctx, room)
@@ -528,7 +530,7 @@ func TestFacilitiesService_FindRoomsByBuilding(t *testing.T) {
 func TestFacilitiesService_FindRoomsByCategory(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
-	_ = testpkg.SetupTestOGS(t, db)
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupFacilitiesService(t, db)
 	ctx := context.Background()
@@ -543,6 +545,7 @@ func TestFacilitiesService_FindRoomsByCategory(t *testing.T) {
 			Category: &category,
 			Capacity: &capacity,
 		}
+		room.OgsID = ogsID
 		err := service.CreateRoom(ctx, room)
 		require.NoError(t, err)
 		defer testpkg.CleanupActivityFixtures(t, db, room.ID)
@@ -573,7 +576,7 @@ func TestFacilitiesService_FindRoomsByCategory(t *testing.T) {
 func TestFacilitiesService_FindRoomsByFloor(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
-	_ = testpkg.SetupTestOGS(t, db)
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupFacilitiesService(t, db)
 	ctx := context.Background()
@@ -589,6 +592,7 @@ func TestFacilitiesService_FindRoomsByFloor(t *testing.T) {
 			Floor:    &floor,
 			Capacity: &capacity,
 		}
+		room.OgsID = ogsID
 		err := service.CreateRoom(ctx, room)
 		require.NoError(t, err)
 		defer testpkg.CleanupActivityFixtures(t, db, room.ID)
@@ -619,7 +623,7 @@ func TestFacilitiesService_FindRoomsByFloor(t *testing.T) {
 func TestFacilitiesService_CheckRoomAvailability(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
-	_ = testpkg.SetupTestOGS(t, db)
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupFacilitiesService(t, db)
 	ctx := context.Background()
@@ -632,6 +636,7 @@ func TestFacilitiesService_CheckRoomAvailability(t *testing.T) {
 			Building: "Test Building",
 			Capacity: &capacity,
 		}
+		room.OgsID = ogsID
 		err := service.CreateRoom(ctx, room)
 		require.NoError(t, err)
 		defer testpkg.CleanupActivityFixtures(t, db, room.ID)
@@ -652,6 +657,7 @@ func TestFacilitiesService_CheckRoomAvailability(t *testing.T) {
 			Building: "Test Building",
 			Capacity: &capacity,
 		}
+		room.OgsID = ogsID
 		err := service.CreateRoom(ctx, room)
 		require.NoError(t, err)
 		defer testpkg.CleanupActivityFixtures(t, db, room.ID)
@@ -680,6 +686,7 @@ func TestFacilitiesService_CheckRoomAvailability(t *testing.T) {
 			Building: "Test Building",
 			Capacity: nil, // No capacity set
 		}
+		room.OgsID = ogsID
 		err := service.CreateRoom(ctx, room)
 		require.NoError(t, err)
 		defer testpkg.CleanupActivityFixtures(t, db, room.ID)
@@ -701,7 +708,7 @@ func TestFacilitiesService_CheckRoomAvailability(t *testing.T) {
 func TestFacilitiesService_GetAvailableRooms(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
-	_ = testpkg.SetupTestOGS(t, db)
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupFacilitiesService(t, db)
 	ctx := context.Background()
@@ -714,6 +721,7 @@ func TestFacilitiesService_GetAvailableRooms(t *testing.T) {
 			Building: "Test Building",
 			Capacity: &capacity,
 		}
+		room.OgsID = ogsID
 		err := service.CreateRoom(ctx, room)
 		require.NoError(t, err)
 		defer testpkg.CleanupActivityFixtures(t, db, room.ID)
@@ -744,6 +752,7 @@ func TestFacilitiesService_GetAvailableRooms(t *testing.T) {
 			Building: "Test Building",
 			Capacity: &capacity,
 		}
+		room.OgsID = ogsID
 		err := service.CreateRoom(ctx, room)
 		require.NoError(t, err)
 		defer testpkg.CleanupActivityFixtures(t, db, room.ID)
@@ -781,6 +790,7 @@ func TestFacilitiesService_GetAvailableRoomsWithOccupancy(t *testing.T) {
 			Building: "Test Building",
 			Capacity: &capacity,
 		}
+		room.OgsID = ogsID
 		err := service.CreateRoom(ctx, room)
 		require.NoError(t, err)
 		defer testpkg.CleanupActivityFixtures(t, db, room.ID)
@@ -810,6 +820,7 @@ func TestFacilitiesService_GetAvailableRoomsWithOccupancy(t *testing.T) {
 			Building: "Test Building",
 			Capacity: &capacity,
 		}
+		room.OgsID = ogsID
 		err := service.CreateRoom(ctx, room)
 		require.NoError(t, err)
 
@@ -876,6 +887,7 @@ func TestFacilitiesService_GetRoomUtilization(t *testing.T) {
 			Building: "Test Building",
 			Capacity: nil,
 		}
+		room.OgsID = ogsID
 		err := service.CreateRoom(ctx, room)
 		require.NoError(t, err)
 		defer testpkg.CleanupActivityFixtures(t, db, room.ID)
@@ -896,7 +908,7 @@ func TestFacilitiesService_GetRoomUtilization(t *testing.T) {
 func TestFacilitiesService_GetBuildingList(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
-	_ = testpkg.SetupTestOGS(t, db)
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupFacilitiesService(t, db)
 	ctx := context.Background()
@@ -912,11 +924,13 @@ func TestFacilitiesService_GetBuildingList(t *testing.T) {
 			Building: building1,
 			Capacity: &capacity,
 		}
+		room1.OgsID = ogsID
 		room2 := &facilities.Room{
 			Name:     "BldgList-Room2-" + time.Now().Format("20060102150405.001"),
 			Building: building2,
 			Capacity: &capacity,
 		}
+		room2.OgsID = ogsID
 
 		err := service.CreateRoom(ctx, room1)
 		require.NoError(t, err)
@@ -967,7 +981,7 @@ func TestFacilitiesService_GetBuildingList(t *testing.T) {
 func TestFacilitiesService_GetCategoryList(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
-	_ = testpkg.SetupTestOGS(t, db)
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupFacilitiesService(t, db)
 	ctx := context.Background()
@@ -984,12 +998,14 @@ func TestFacilitiesService_GetCategoryList(t *testing.T) {
 			Category: &category1,
 			Capacity: &capacity,
 		}
+		room1.OgsID = ogsID
 		room2 := &facilities.Room{
 			Name:     "CatList-Room2-" + time.Now().Format("20060102150405.001"),
 			Building: "Test Building",
 			Category: &category2,
 			Capacity: &capacity,
 		}
+		room2.OgsID = ogsID
 
 		err := service.CreateRoom(ctx, room1)
 		require.NoError(t, err)
@@ -1117,7 +1133,7 @@ func TestFacilitiesService_GetRoomHistory(t *testing.T) {
 func TestFacilitiesService_WithTx(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
-	_ = testpkg.SetupTestOGS(t, db)
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupFacilitiesService(t, db)
 	ctx := context.Background()
@@ -1145,6 +1161,7 @@ func TestFacilitiesService_WithTx(t *testing.T) {
 			Building: "Test Building",
 			Capacity: &capacity,
 		}
+		room.OgsID = ogsID
 
 		tx, err := db.BeginTx(ctx, nil)
 		require.NoError(t, err)

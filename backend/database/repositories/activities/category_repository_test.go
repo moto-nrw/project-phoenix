@@ -20,6 +20,7 @@ import (
 func TestCategoryRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).ActivityCategory
 	ctx := context.Background()
@@ -30,6 +31,7 @@ func TestCategoryRepository_Create(t *testing.T) {
 			Name:        uniqueName,
 			Description: "Test category description",
 		}
+		category.OgsID = ogsID
 
 		err := repo.Create(ctx, category)
 		require.NoError(t, err)

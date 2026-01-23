@@ -5,6 +5,8 @@ import (
 	"context"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/auth/tenant"
+
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -33,7 +35,13 @@ func TestSessionStartWithRoomConflict(t *testing.T) {
 	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := buildSessionEdgeCaseService(t, db)
-	ctx := context.Background()
+
+	// Create context with tenant info
+	tc := &tenant.TenantContext{
+		OrgID:   ogsID,
+		OrgName: "Test OGS",
+	}
+	ctx := tenant.SetTenantContext(context.Background(), tc)
 
 	t.Run("fails when room has existing session", func(t *testing.T) {
 		// ARRANGE: Create first session in a room
@@ -71,7 +79,13 @@ func TestForceStartOverridesExistingSession(t *testing.T) {
 	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := buildSessionEdgeCaseService(t, db)
-	ctx := context.Background()
+
+	// Create context with tenant info
+	tc := &tenant.TenantContext{
+		OrgID:   ogsID,
+		OrgName: "Test OGS",
+	}
+	ctx := tenant.SetTenantContext(context.Background(), tc)
 
 	t.Run("force start ends existing device session", func(t *testing.T) {
 		// ARRANGE: Create first session
@@ -107,7 +121,13 @@ func TestForceStartWithSupervisors(t *testing.T) {
 	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := buildSessionEdgeCaseService(t, db)
-	ctx := context.Background()
+
+	// Create context with tenant info
+	tc := &tenant.TenantContext{
+		OrgID:   ogsID,
+		OrgName: "Test OGS",
+	}
+	ctx := tenant.SetTenantContext(context.Background(), tc)
 
 	t.Run("force start with multiple supervisors", func(t *testing.T) {
 		// ARRANGE
@@ -155,7 +175,13 @@ func TestUpdateActiveGroupSupervisors(t *testing.T) {
 	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := buildSessionEdgeCaseService(t, db)
-	ctx := context.Background()
+
+	// Create context with tenant info
+	tc := &tenant.TenantContext{
+		OrgID:   ogsID,
+		OrgName: "Test OGS",
+	}
+	ctx := tenant.SetTenantContext(context.Background(), tc)
 
 	t.Run("replaces supervisors successfully", func(t *testing.T) {
 		// ARRANGE
@@ -248,7 +274,13 @@ func TestStartActivitySessionWithSupervisors_EdgeCases(t *testing.T) {
 	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := buildSessionEdgeCaseService(t, db)
-	ctx := context.Background()
+
+	// Create context with tenant info
+	tc := &tenant.TenantContext{
+		OrgID:   ogsID,
+		OrgName: "Test OGS",
+	}
+	ctx := tenant.SetTenantContext(context.Background(), tc)
 
 	t.Run("starts session with multiple supervisors", func(t *testing.T) {
 		// ARRANGE
@@ -314,7 +346,13 @@ func TestCheckActivityConflict(t *testing.T) {
 	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := buildSessionEdgeCaseService(t, db)
-	ctx := context.Background()
+
+	// Create context with tenant info
+	tc := &tenant.TenantContext{
+		OrgID:   ogsID,
+		OrgName: "Test OGS",
+	}
+	ctx := tenant.SetTenantContext(context.Background(), tc)
 
 	t.Run("no conflict for new activity", func(t *testing.T) {
 		// ARRANGE

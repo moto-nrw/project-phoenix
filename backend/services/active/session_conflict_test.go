@@ -93,6 +93,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/auth/tenant"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/services"
@@ -111,6 +112,15 @@ func setupActiveService(t *testing.T, db *bun.DB) activeSvc.Service {
 	return serviceFactory.Active
 }
 
+// setupTenantContext creates a context with tenant information for testing
+func setupTenantContext(ogsID string) context.Context {
+	tc := &tenant.TenantContext{
+		OrgID:   ogsID,
+		OrgName: "Test OGS",
+	}
+	return tenant.SetTenantContext(context.Background(), tc)
+}
+
 // TestActivitySessionConflictDetection tests the core conflict detection functionality
 // This test demonstrates the hermetic test pattern:
 // 1. Create test fixtures (real database records with proper relationships)
@@ -126,7 +136,7 @@ func TestActivitySessionConflictDetection(t *testing.T) {
 	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+	ctx := setupTenantContext(ogsID)
 
 	t.Run("no conflict when activity not active", func(t *testing.T) {
 		// ARRANGE: Create test fixtures with real database records
@@ -273,7 +283,7 @@ func TestSessionLifecycle(t *testing.T) {
 	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+	ctx := setupTenantContext(ogsID)
 
 	t.Run("complete session lifecycle", func(t *testing.T) {
 		// ARRANGE: Create test fixtures
@@ -363,7 +373,7 @@ func TestConcurrentSessionAttempts(t *testing.T) {
 	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+	ctx := setupTenantContext(ogsID)
 
 	t.Run("concurrent start attempts on same activity", func(t *testing.T) {
 		// ARRANGE: Create test fixtures
@@ -447,7 +457,7 @@ func TestForceStartActivitySessionWithSupervisors(t *testing.T) {
 	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+	ctx := setupTenantContext(ogsID)
 
 	t.Run("force start with multiple supervisors", func(t *testing.T) {
 		// ARRANGE: Create test fixtures
@@ -544,7 +554,7 @@ func TestStartActivitySessionWithSupervisors(t *testing.T) {
 	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+	ctx := setupTenantContext(ogsID)
 
 	t.Run("start with multiple supervisors", func(t *testing.T) {
 		// ARRANGE

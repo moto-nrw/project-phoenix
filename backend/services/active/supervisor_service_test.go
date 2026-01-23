@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/auth/tenant"
+
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/services/active"
@@ -24,7 +26,13 @@ func TestActiveService_GetGroupSupervisor(t *testing.T) {
 	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+
+	// Create context with tenant info
+	tc := &tenant.TenantContext{
+		OrgID:   ogsID,
+		OrgName: "Test OGS",
+	}
+	ctx := tenant.SetTenantContext(context.Background(), tc)
 
 	t.Run("returns supervisor when found", func(t *testing.T) {
 		// ARRANGE
@@ -85,7 +93,13 @@ func TestActiveService_CreateGroupSupervisor(t *testing.T) {
 	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+
+	// Create context with tenant info
+	tc := &tenant.TenantContext{
+		OrgID:   ogsID,
+		OrgName: "Test OGS",
+	}
+	ctx := tenant.SetTenantContext(context.Background(), tc)
 
 	t.Run("creates supervisor successfully", func(t *testing.T) {
 		// ARRANGE
@@ -151,7 +165,13 @@ func TestActiveService_UpdateGroupSupervisor(t *testing.T) {
 	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+
+	// Create context with tenant info
+	tc := &tenant.TenantContext{
+		OrgID:   ogsID,
+		OrgName: "Test OGS",
+	}
+	ctx := tenant.SetTenantContext(context.Background(), tc)
 
 	t.Run("updates supervisor successfully", func(t *testing.T) {
 		// ARRANGE
@@ -218,7 +238,13 @@ func TestActiveService_DeleteGroupSupervisor(t *testing.T) {
 	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+
+	// Create context with tenant info
+	tc := &tenant.TenantContext{
+		OrgID:   ogsID,
+		OrgName: "Test OGS",
+	}
+	ctx := tenant.SetTenantContext(context.Background(), tc)
 
 	t.Run("deletes supervisor successfully", func(t *testing.T) {
 		// ARRANGE
@@ -276,7 +302,13 @@ func TestActiveService_ListGroupSupervisors(t *testing.T) {
 	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+
+	// Create context with tenant info
+	tc := &tenant.TenantContext{
+		OrgID:   ogsID,
+		OrgName: "Test OGS",
+	}
+	ctx := tenant.SetTenantContext(context.Background(), tc)
 
 	t.Run("returns supervisors with no options", func(t *testing.T) {
 		// ARRANGE
@@ -330,7 +362,13 @@ func TestActiveService_FindSupervisorsByStaffID(t *testing.T) {
 	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+
+	// Create context with tenant info
+	tc := &tenant.TenantContext{
+		OrgID:   ogsID,
+		OrgName: "Test OGS",
+	}
+	ctx := tenant.SetTenantContext(context.Background(), tc)
 
 	t.Run("returns supervisors for staff", func(t *testing.T) {
 		// ARRANGE
@@ -387,7 +425,13 @@ func TestActiveService_FindSupervisorsByActiveGroupID(t *testing.T) {
 	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+
+	// Create context with tenant info
+	tc := &tenant.TenantContext{
+		OrgID:   ogsID,
+		OrgName: "Test OGS",
+	}
+	ctx := tenant.SetTenantContext(context.Background(), tc)
 
 	t.Run("returns supervisors for active group", func(t *testing.T) {
 		// ARRANGE
@@ -446,7 +490,13 @@ func TestActiveService_FindSupervisorsByActiveGroupIDs(t *testing.T) {
 	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+
+	// Create context with tenant info
+	tc := &tenant.TenantContext{
+		OrgID:   ogsID,
+		OrgName: "Test OGS",
+	}
+	ctx := tenant.SetTenantContext(context.Background(), tc)
 
 	t.Run("returns supervisors for multiple groups", func(t *testing.T) {
 		// ARRANGE
@@ -495,7 +545,13 @@ func TestActiveService_EndSupervision(t *testing.T) {
 	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+
+	// Create context with tenant info
+	tc := &tenant.TenantContext{
+		OrgID:   ogsID,
+		OrgName: "Test OGS",
+	}
+	ctx := tenant.SetTenantContext(context.Background(), tc)
 
 	t.Run("ends supervision successfully", func(t *testing.T) {
 		// ARRANGE
@@ -561,7 +617,13 @@ func TestActiveService_GetStaffActiveSupervisions(t *testing.T) {
 	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+
+	// Create context with tenant info
+	tc := &tenant.TenantContext{
+		OrgID:   ogsID,
+		OrgName: "Test OGS",
+	}
+	ctx := tenant.SetTenantContext(context.Background(), tc)
 
 	t.Run("returns active supervisions for staff", func(t *testing.T) {
 		// ARRANGE
@@ -618,7 +680,13 @@ func TestActiveService_UpdateActiveGroupSupervisors(t *testing.T) {
 	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+
+	// Create context with tenant info
+	tc := &tenant.TenantContext{
+		OrgID:   ogsID,
+		OrgName: "Test OGS",
+	}
+	ctx := tenant.SetTenantContext(context.Background(), tc)
 
 	t.Run("updates supervisors for group", func(t *testing.T) {
 		// ARRANGE

@@ -47,6 +47,8 @@ func createGroupMappingTestData(t *testing.T, db *bun.DB, ogsID string) *groupMa
 		GroupID:        activityGroup.ID,
 		RoomID:         room.ID,
 	}
+	activeGroup1.OgsID = ogsID
+
 	err := groupRepo.Create(ctx, activeGroup1)
 	require.NoError(t, err)
 
@@ -58,6 +60,7 @@ func createGroupMappingTestData(t *testing.T, db *bun.DB, ogsID string) *groupMa
 		GroupID:        activityGroup.ID,
 		RoomID:         room.ID,
 	}
+	activeGroup2.OgsID = ogsID
 	err = groupRepo.Create(ctx, activeGroup2)
 	require.NoError(t, err)
 

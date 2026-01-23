@@ -45,6 +45,7 @@ func TestIoTService_CreateDevice(t *testing.T) {
 			DeviceType: "rfid_reader",
 			Name:       stringPtr("Test Device"),
 		}
+		device.OgsID = ogsID
 
 		// ACT
 		err := service.CreateDevice(ctx, device)
@@ -68,6 +69,7 @@ func TestIoTService_CreateDevice(t *testing.T) {
 			DeviceType: "rfid_reader",
 			APIKey:     &providedAPIKey,
 		}
+		device.OgsID = ogsID
 
 		// ACT
 		err := service.CreateDevice(ctx, device)
@@ -95,6 +97,7 @@ func TestIoTService_CreateDevice(t *testing.T) {
 			DeviceID:   "", // invalid
 			DeviceType: "rfid_reader",
 		}
+		device.OgsID = ogsID
 
 		// ACT
 		err := service.CreateDevice(ctx, device)
@@ -109,6 +112,7 @@ func TestIoTService_CreateDevice(t *testing.T) {
 			DeviceID:   fmt.Sprintf("test-device-%d", time.Now().UnixNano()),
 			DeviceType: "", // invalid
 		}
+		device.OgsID = ogsID
 
 		// ACT
 		err := service.CreateDevice(ctx, device)
@@ -127,6 +131,7 @@ func TestIoTService_CreateDevice(t *testing.T) {
 			DeviceID:   existingDevice.DeviceID,
 			DeviceType: "rfid_reader",
 		}
+		duplicateDevice.OgsID = ogsID
 
 		// ACT
 		err := service.CreateDevice(ctx, duplicateDevice)
@@ -291,6 +296,7 @@ func TestIoTService_UpdateDevice(t *testing.T) {
 			DeviceType: "rfid_reader",
 		}
 		device.ID = 0 // Set ID via embedded base.Model
+		device.OgsID = ogsID
 
 		// ACT
 		err := service.UpdateDevice(ctx, device)
@@ -307,6 +313,7 @@ func TestIoTService_UpdateDevice(t *testing.T) {
 			DeviceType: "rfid_reader",
 		}
 		device.ID = 99999999 // Set ID via embedded base.Model
+		device.OgsID = ogsID
 
 		// ACT
 		err := service.UpdateDevice(ctx, device)
@@ -690,6 +697,7 @@ func TestIoTService_GetDevicesByRegisteredBy(t *testing.T) {
 			DeviceType:     "rfid_reader",
 			RegisteredByID: &person.ID,
 		}
+		device.OgsID = ogsID
 		err := service.CreateDevice(ctx, device)
 		require.NoError(t, err)
 		defer testpkg.CleanupActivityFixtures(t, db, device.ID)

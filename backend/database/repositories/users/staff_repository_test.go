@@ -76,6 +76,7 @@ func TestStaffRepository_Create(t *testing.T) {
 		staff := &users.Staff{
 			PersonID: person.ID,
 		}
+		staff.OgsID = ogsID
 
 		err := repo.Create(ctx, staff)
 		require.NoError(t, err)
@@ -99,6 +100,7 @@ func TestStaffRepository_Create(t *testing.T) {
 			PersonID:   person.ID,
 			StaffNotes: "Initial staff notes",
 		}
+		staff.OgsID = ogsID
 
 		err := repo.Create(ctx, staff)
 		require.NoError(t, err)

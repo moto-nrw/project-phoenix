@@ -32,6 +32,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"mime/multipart"
 	"net/http"
@@ -48,6 +49,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/auth/tenant"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/iot"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/services"
@@ -78,6 +80,32 @@ func SetupAPITest(t *testing.T) (*bun.DB, *services.Factory) {
 	require.NoError(t, err, "Failed to create service factory")
 
 	return db, serviceFactory
+}
+
+// TenantRLSMiddleware sets the PostgreSQL RLS context for tests.
+// This middleware reads the TenantContext from the request context
+// and sets the database session variable app.ogs_id accordingly.
+// This simulates what the production tenant.Middleware does.
+//
+// Uses SET instead of SET LOCAL since each repository operation
+// runs in its own transaction.
+//
+// Usage in tests:
+//
+//	router.Use(testutil.TenantRLSMiddleware(db))
+func TenantRLSMiddleware(db *bun.DB) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			tc := tenant.TenantFromCtx(r.Context())
+			if tc != nil && tc.OrgID != "" {
+				// Set RLS context for PostgreSQL (use SET, not SET LOCAL)
+				// SET persists for the session, SET LOCAL only for the current transaction
+				query := fmt.Sprintf("SET app.ogs_id = '%s'", tc.OrgID)
+				_, _ = db.ExecContext(r.Context(), query)
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
 }
 
 // RequestOption configures an HTTP request for testing.
@@ -343,6 +371,10 @@ func AdminTestClaims(accountID int) jwt.AppClaims {
 func WithTenantContext(tc *tenant.TenantContext) RequestOption {
 	return func(req *http.Request) {
 		ctx := tenant.SetTenantContext(req.Context(), tc)
+		// Also set the ogs_id for the transaction handler
+		if tc.OrgID != "" {
+			ctx = base.ContextWithOGSID(ctx, tc.OrgID)
+		}
 		*req = *req.WithContext(ctx)
 	}
 }
@@ -378,5 +410,39 @@ func OGSAdminTenantContext(email string) *tenant.TenantContext {
 		Permissions: []string{"student:read", "student:create", "student:update", "student:delete", "group:read", "group:create", "group:update", "group:delete", "staff:read", "staff:create", "staff:update", "staff:delete", "staff:invite", "room:read", "room:create", "room:update", "room:delete", "visit:read", "visit:create", "visit:update", "visit:delete", "activity:read", "activity:create", "activity:update", "activity:delete", "schedule:read", "schedule:create", "schedule:update", "schedule:delete", "feedback:read", "feedback:create", "feedback:update", "feedback:delete", "config:read", "config:update", "import:read", "import:create", "guardian:read", "guardian:create", "guardian:update", "guardian:delete", "location:read", "ogs:update", "attendance:read", "attendance:checkin", "attendance:checkout", "attendance:update", "attendance:delete"},
 		TraegerID:   "test-traeger-id",
 		TraegerName: "Test Träger",
+	}
+}
+
+// TenantContextWithOrgID creates a basic TenantContext with the specified OrgID.
+// This is useful for tests that need to set a specific ogs_id for database triggers.
+// Uses admin permissions to allow most operations.
+func TenantContextWithOrgID(ogsID string) *tenant.TenantContext {
+	return &tenant.TenantContext{
+		OrgID:       ogsID,
+		OrgName:     "Test OGS",
+		OrgSlug:     "test-ogs",
+		UserID:      "test-user-id",
+		UserEmail:   "test@example.com",
+		UserName:    "Test User",
+		Role:        "ogsAdmin",
+		Permissions: []string{"users:read", "users:create", "users:update", "users:delete", "student:read", "student:create", "student:update", "student:delete", "group:read", "group:create", "group:update", "group:delete", "staff:read", "staff:create", "staff:update", "staff:delete", "staff:invite", "room:read", "room:create", "room:update", "room:delete", "visit:read", "visit:create", "visit:update", "visit:delete", "activity:read", "activity:create", "activity:update", "activity:delete", "schedule:read", "schedule:create", "schedule:update", "schedule:delete", "feedback:read", "feedback:create", "feedback:update", "feedback:delete", "config:read", "config:update", "import:read", "import:create", "guardian:read", "guardian:create", "guardian:update", "guardian:delete", "location:read", "ogs:update", "attendance:read", "attendance:checkin", "attendance:checkout", "attendance:update", "attendance:delete"},
+		TraegerID:   "test-traeger-id",
+		TraegerName: "Test Träger",
+	}
+}
+
+// TenantMiddleware is a test middleware that sets PostgreSQL session variable for tenant context.
+// This simulates the production tenant middleware for test purposes.
+func TenantMiddleware(db *bun.DB) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			tc := tenant.TenantFromCtx(r.Context())
+			if tc != nil && tc.OrgID != "" {
+				// Set PostgreSQL session variable for RLS
+				// Note: Must use fmt.Sprintf as SET LOCAL doesn't support parameterized queries
+				_, _ = db.ExecContext(r.Context(), fmt.Sprintf("SET LOCAL app.ogs_id = '%s'", tc.OrgID))
+			}
+			next.ServeHTTP(w, r)
+		})
 	}
 }

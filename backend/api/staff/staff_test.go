@@ -177,6 +177,7 @@ func TestCreateStaff_Success(t *testing.T) {
 	defer testpkg.CleanupPerson(t, ctx.db, person.ID)
 
 	router := chi.NewRouter()
+	router.Use(testutil.TenantRLSMiddleware(ctx.db))
 	router.Post("/staff", ctx.resource.CreateStaffHandler())
 
 	body := map[string]interface{}{
@@ -185,6 +186,7 @@ func TestCreateStaff_Success(t *testing.T) {
 	}
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/staff", body,
+		testutil.WithTenantContext(testutil.TenantContextWithOrgID(ctx.ogsID)),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 		testutil.WithPermissions("users:create"),
 	)
@@ -212,6 +214,7 @@ func TestCreateStaff_AsTeacher(t *testing.T) {
 	defer testpkg.CleanupPerson(t, ctx.db, person.ID)
 
 	router := chi.NewRouter()
+	router.Use(testutil.TenantRLSMiddleware(ctx.db))
 	router.Post("/staff", ctx.resource.CreateStaffHandler())
 
 	body := map[string]interface{}{
@@ -223,6 +226,7 @@ func TestCreateStaff_AsTeacher(t *testing.T) {
 	}
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/staff", body,
+		testutil.WithTenantContext(testutil.TenantContextWithOrgID(ctx.ogsID)),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
 		testutil.WithPermissions("users:create"),
 	)

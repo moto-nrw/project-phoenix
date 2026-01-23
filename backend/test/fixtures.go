@@ -123,11 +123,17 @@ func CleanupDataByOGS(tb testing.TB, db *bun.DB, ogsID string) {
 // RLS Context Helpers
 // ============================================================================
 
+// FormatSetRLSQuery formats a SET LOCAL app.ogs_id query.
+// This is exported so testutil middleware can use it.
+func FormatSetRLSQuery(ogsID string) string {
+	return fmt.Sprintf("SET LOCAL app.ogs_id = '%s'", ogsID)
+}
+
 // SetRLSContext sets the RLS context for a database connection.
 // This simulates what the tenant middleware does for authenticated requests.
 // IMPORTANT: Use within a transaction for SET LOCAL to take effect.
 func SetRLSContext(ctx context.Context, db bun.IDB, ogsID string) error {
-	query := fmt.Sprintf("SET LOCAL app.ogs_id = '%s'", ogsID)
+	query := FormatSetRLSQuery(ogsID)
 	_, err := db.ExecContext(ctx, query)
 	return err
 }

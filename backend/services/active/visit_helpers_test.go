@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/auth/tenant"
+
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -28,7 +30,13 @@ func TestCreateVisit_WithDevice(t *testing.T) {
 	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupVisitHelperService(t, db)
-	ctx := context.Background()
+
+	// Create context with tenant info
+	tc := &tenant.TenantContext{
+		OrgID:   ogsID,
+		OrgName: "Test OGS",
+	}
+	ctx := tenant.SetTenantContext(context.Background(), tc)
 
 	t.Run("creates attendance with physical device when device in context", func(t *testing.T) {
 		// ARRANGE: Create fixtures using testpkg (proven to work)
@@ -50,6 +58,7 @@ func TestCreateVisit_WithDevice(t *testing.T) {
 			ActiveGroupID: activeGroup.ID,
 			EntryTime:     time.Now(),
 		}
+		visit.OgsID = ogsID
 
 		// ACT
 		err := service.CreateVisit(deviceCtx, visit)
@@ -76,7 +85,13 @@ func TestCreateVisit_ReEntry(t *testing.T) {
 	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupVisitHelperService(t, db)
-	ctx := context.Background()
+
+	// Create context with tenant info
+	tc := &tenant.TenantContext{
+		OrgID:   ogsID,
+		OrgName: "Test OGS",
+	}
+	ctx := tenant.SetTenantContext(context.Background(), tc)
 
 	t.Run("clears checkout time on re-entry", func(t *testing.T) {
 		// ARRANGE: Create fixtures
@@ -90,6 +105,7 @@ func TestCreateVisit_ReEntry(t *testing.T) {
 		// Create existing attendance with checkout time (student left earlier)
 		checkoutTime := time.Now().Add(-2 * time.Hour)
 		existingAttendance := createAttendanceWithCheckout(t, db, student.ID, staff.ID, rfidDevice.ID, checkoutTime)
+		_ = ogsID // ogsID is used by fixture creation above
 
 		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, student.ID, staff.ID, rfidDevice.ID, existingAttendance.ID)
 
@@ -102,6 +118,7 @@ func TestCreateVisit_ReEntry(t *testing.T) {
 			ActiveGroupID: activeGroup.ID,
 			EntryTime:     time.Now(),
 		}
+		visit.OgsID = ogsID
 
 		// ACT: Student re-enters
 		err := service.CreateVisit(deviceCtx, visit)

@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/auth/device"
+	"github.com/moto-nrw/project-phoenix/auth/tenant"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -87,7 +88,13 @@ func TestGetStudentAttendanceStatus_NotCheckedIn(t *testing.T) {
 	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+
+	// Create context with tenant info
+	tc := &tenant.TenantContext{
+		OrgID:   ogsID,
+		OrgName: "Test OGS",
+	}
+	ctx := tenant.SetTenantContext(context.Background(), tc)
 
 	// ARRANGE: Create a student (but NO attendance record)
 	student := testpkg.CreateTestStudent(t, db, "NotCheckedIn", "Student", "2a", ogsID)
@@ -117,7 +124,13 @@ func TestGetStudentAttendanceStatus_CheckedIn(t *testing.T) {
 	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+
+	// Create context with tenant info
+	tc := &tenant.TenantContext{
+		OrgID:   ogsID,
+		OrgName: "Test OGS",
+	}
+	ctx := tenant.SetTenantContext(context.Background(), tc)
 
 	// ARRANGE: Create fixtures
 	student := testpkg.CreateTestStudent(t, db, "CheckedIn", "Student", "2b", ogsID)
@@ -148,7 +161,13 @@ func TestGetStudentAttendanceStatus_CheckedOut(t *testing.T) {
 	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+
+	// Create context with tenant info
+	tc := &tenant.TenantContext{
+		OrgID:   ogsID,
+		OrgName: "Test OGS",
+	}
+	ctx := tenant.SetTenantContext(context.Background(), tc)
 
 	// ARRANGE: Create fixtures
 	student := testpkg.CreateTestStudent(t, db, "CheckedOut", "Student", "2c", ogsID)
@@ -180,7 +199,13 @@ func TestGetStudentsAttendanceStatuses(t *testing.T) {
 	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+
+	// Create context with tenant info
+	tc := &tenant.TenantContext{
+		OrgID:   ogsID,
+		OrgName: "Test OGS",
+	}
+	ctx := tenant.SetTenantContext(context.Background(), tc)
 
 	// ARRANGE: Create three students with different attendance states
 	studentNotCheckedIn := testpkg.CreateTestStudent(t, db, "NotIn", "Student1", "3a", ogsID)
@@ -237,11 +262,16 @@ func TestGetStudentsAttendanceStatuses(t *testing.T) {
 func TestGetStudentsAttendanceStatuses_EmptyInput(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
-	_ = testpkg.SetupTestOGS(t, db)
-	_ = testpkg.SetupTestOGS(t, db)
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+
+	// Create context with tenant info
+	tc := &tenant.TenantContext{
+		OrgID:   ogsID,
+		OrgName: "Test OGS",
+	}
+	ctx := tenant.SetTenantContext(context.Background(), tc)
 
 	// ACT: Get statuses with empty input
 	statuses, err := service.GetStudentsAttendanceStatuses(ctx, []int64{})
@@ -262,7 +292,13 @@ func TestToggleStudentAttendance_CheckIn(t *testing.T) {
 	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+
+	// Create context with tenant info
+	tc := &tenant.TenantContext{
+		OrgID:   ogsID,
+		OrgName: "Test OGS",
+	}
+	ctx := tenant.SetTenantContext(context.Background(), tc)
 
 	// ARRANGE: Create a student (not checked in)
 	student := testpkg.CreateTestStudent(t, db, "Toggle", "CheckIn", "4a", ogsID)
@@ -290,7 +326,13 @@ func TestToggleStudentAttendance_CheckOut(t *testing.T) {
 	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+
+	// Create context with tenant info
+	tc := &tenant.TenantContext{
+		OrgID:   ogsID,
+		OrgName: "Test OGS",
+	}
+	ctx := tenant.SetTenantContext(context.Background(), tc)
 
 	// ARRANGE: Create a student and check them in first
 	student := testpkg.CreateTestStudent(t, db, "Toggle", "CheckOut", "4b", ogsID)
@@ -320,7 +362,13 @@ func TestToggleStudentAttendance_ReCheckIn(t *testing.T) {
 	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+
+	// Create context with tenant info
+	tc := &tenant.TenantContext{
+		OrgID:   ogsID,
+		OrgName: "Test OGS",
+	}
+	ctx := tenant.SetTenantContext(context.Background(), tc)
 
 	// ARRANGE: Create a student who was checked in and then checked out
 	student := testpkg.CreateTestStudent(t, db, "Toggle", "ReCheckIn", "4c", ogsID)
@@ -355,7 +403,13 @@ func TestToggleStudentAttendance_WebAuthorizationPath(t *testing.T) {
 	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+
+	// Create context with tenant info
+	tc := &tenant.TenantContext{
+		OrgID:   ogsID,
+		OrgName: "Test OGS",
+	}
+	ctx := tenant.SetTenantContext(context.Background(), tc)
 
 	t.Run("web authorization fails when staff has no access to student", func(t *testing.T) {
 		// ARRANGE: Create student and staff with NO relationship
@@ -380,7 +434,13 @@ func TestCheckTeacherStudentAccess(t *testing.T) {
 	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+
+	// Create context with tenant info
+	tc := &tenant.TenantContext{
+		OrgID:   ogsID,
+		OrgName: "Test OGS",
+	}
+	ctx := tenant.SetTenantContext(context.Background(), tc)
 
 	t.Run("returns false for staff without teacher record", func(t *testing.T) {
 		// ARRANGE: Create student and staff (staff is not a teacher)
@@ -454,7 +514,13 @@ func TestGetUnclaimedActiveGroups(t *testing.T) {
 	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+
+	// Create context with tenant info
+	tc := &tenant.TenantContext{
+		OrgID:   ogsID,
+		OrgName: "Test OGS",
+	}
+	ctx := tenant.SetTenantContext(context.Background(), tc)
 
 	t.Run("returns unclaimed groups without error", func(t *testing.T) {
 		// ARRANGE: Create an active group without supervisors
@@ -488,7 +554,13 @@ func TestClaimActiveGroup(t *testing.T) {
 	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+
+	// Create context with tenant info
+	tc := &tenant.TenantContext{
+		OrgID:   ogsID,
+		OrgName: "Test OGS",
+	}
+	ctx := tenant.SetTenantContext(context.Background(), tc)
 
 	t.Run("claims group successfully", func(t *testing.T) {
 		// ARRANGE
@@ -589,7 +661,13 @@ func TestCheckRoomSupervisorAccess(t *testing.T) {
 	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+
+	// Create context with tenant info
+	tc := &tenant.TenantContext{
+		OrgID:   ogsID,
+		OrgName: "Test OGS",
+	}
+	ctx := tenant.SetTenantContext(context.Background(), tc)
 
 	t.Run("staff supervising student's room can toggle attendance", func(t *testing.T) {
 		// ARRANGE: Create fixtures
@@ -701,7 +779,13 @@ func TestGetStudentAttendanceStatus_WithStaffNames(t *testing.T) {
 	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+
+	// Create context with tenant info
+	tc := &tenant.TenantContext{
+		OrgID:   ogsID,
+		OrgName: "Test OGS",
+	}
+	ctx := tenant.SetTenantContext(context.Background(), tc)
 
 	t.Run("returns staff names for check-in and check-out", func(t *testing.T) {
 		// ARRANGE: Create fixtures with staff that has a person record

@@ -44,6 +44,7 @@ func TestGroupRepository_Create(t *testing.T) {
 		group := &education.Group{
 			Name: uniqueName,
 		}
+		group.OgsID = ogsID
 
 		err := repo.Create(ctx, group)
 		require.NoError(t, err)
@@ -62,6 +63,7 @@ func TestGroupRepository_Create(t *testing.T) {
 			Name:   uniqueName,
 			RoomID: &room.ID,
 		}
+		group.OgsID = ogsID
 
 		err := repo.Create(ctx, group)
 		require.NoError(t, err)
@@ -255,6 +257,7 @@ func TestGroupRepository_FindByRoom(t *testing.T) {
 			Name:   uniqueName,
 			RoomID: &room.ID,
 		}
+		group.OgsID = ogsID
 		err := repo.Create(ctx, group)
 		require.NoError(t, err)
 		defer cleanupGroupRecords(t, db, group.ID)
@@ -340,6 +343,7 @@ func TestGroupRepository_FindWithRoom(t *testing.T) {
 			Name:   uniqueName,
 			RoomID: &room.ID,
 		}
+		group.OgsID = ogsID
 		err := repo.Create(ctx, group)
 		require.NoError(t, err)
 		defer cleanupGroupRecords(t, db, group.ID)
@@ -368,6 +372,7 @@ func TestGroupRepository_FindWithRoom(t *testing.T) {
 func TestGroupRepository_Create_Validation(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).Group
 	ctx := context.Background()
@@ -382,6 +387,7 @@ func TestGroupRepository_Create_Validation(t *testing.T) {
 		group := &education.Group{
 			Name: "",
 		}
+		group.OgsID = ogsID
 		err := repo.Create(ctx, group)
 		require.Error(t, err)
 	})
@@ -459,6 +465,7 @@ func TestGroupRepository_List_WithFilters(t *testing.T) {
 			Name:   uniqueName,
 			RoomID: &room.ID,
 		}
+		groupWithRoom.OgsID = ogsID
 		err := repo.Create(ctx, groupWithRoom)
 		require.NoError(t, err)
 		defer cleanupGroupRecords(t, db, groupWithRoom.ID)
@@ -552,6 +559,7 @@ func TestGroupRepository_ListWithOptions_Advanced(t *testing.T) {
 func TestGroupRepository_FindByName_CaseInsensitive(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).Group
 	ctx := context.Background()
@@ -561,6 +569,7 @@ func TestGroupRepository_FindByName_CaseInsensitive(t *testing.T) {
 		group := &education.Group{
 			Name: uniqueName,
 		}
+		group.OgsID = ogsID
 		err := repo.Create(ctx, group)
 		require.NoError(t, err)
 		defer cleanupGroupRecords(t, db, group.ID)

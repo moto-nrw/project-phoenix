@@ -161,6 +161,7 @@ func TestTeacherRepository_Create(t *testing.T) {
 		teacher := &users.Teacher{
 			StaffID: staff.ID,
 		}
+		teacher.OgsID = ogsID
 
 		err := repo.Create(ctx, teacher)
 		require.NoError(t, err)
@@ -186,6 +187,7 @@ func TestTeacherRepository_Create(t *testing.T) {
 			StaffID:        staff.ID,
 			Specialization: "Mathematics",
 		}
+		teacher.OgsID = ogsID
 
 		err := repo.Create(ctx, teacher)
 		require.NoError(t, err)

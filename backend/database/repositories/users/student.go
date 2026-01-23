@@ -147,7 +147,7 @@ func (r *StudentRepository) RemoveFromGroup(ctx context.Context, studentID int64
 	return nil
 }
 
-// Create overrides the base Create method to handle validation
+// Create overrides the base Create method to handle validation and ensure transaction usage
 func (r *StudentRepository) Create(ctx context.Context, student *users.Student) error {
 	if student == nil {
 		return fmt.Errorf("student cannot be nil")
@@ -158,11 +158,20 @@ func (r *StudentRepository) Create(ctx context.Context, student *users.Student) 
 		return err
 	}
 
-	// Use the base Create method
-	return r.Repository.Create(ctx, student)
+	// Check if we already have a transaction in context
+	if _, ok := modelBase.TxFromContext(ctx); ok {
+		// Already in a transaction, use it directly
+		return r.Repository.Create(ctx, student)
+	}
+
+	// No transaction exists, create one with OGS ID support
+	txHandler := modelBase.NewTxHandler(r.db)
+	return txHandler.RunInTx(ctx, func(txCtx context.Context, tx bun.Tx) error {
+		return r.Repository.Create(txCtx, student)
+	})
 }
 
-// Update overrides the base Update method to handle validation
+// Update overrides the base Update method to handle validation and ensure transaction usage
 func (r *StudentRepository) Update(ctx context.Context, student *users.Student) error {
 	if student == nil {
 		return fmt.Errorf("student cannot be nil")
@@ -173,8 +182,17 @@ func (r *StudentRepository) Update(ctx context.Context, student *users.Student) 
 		return err
 	}
 
-	// Use the base Update method
-	return r.Repository.Update(ctx, student)
+	// Check if we already have a transaction in context
+	if _, ok := modelBase.TxFromContext(ctx); ok {
+		// Already in a transaction, use it directly
+		return r.Repository.Update(ctx, student)
+	}
+
+	// No transaction exists, create one with OGS ID support
+	txHandler := modelBase.NewTxHandler(r.db)
+	return txHandler.RunInTx(ctx, func(txCtx context.Context, tx bun.Tx) error {
+		return r.Repository.Update(txCtx, student)
+	})
 }
 
 // Legacy method to maintain compatibility with old interface

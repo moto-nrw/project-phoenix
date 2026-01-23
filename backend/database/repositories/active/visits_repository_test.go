@@ -45,6 +45,7 @@ func createVisitTestData(t *testing.T, db *bun.DB, ogsID string) *visitTestData 
 		GroupID:        activityGroup.ID,
 		RoomID:         room.ID,
 	}
+	activeGroup.OgsID = ogsID
 	err := groupRepo.Create(context.Background(), activeGroup)
 	require.NoError(t, err)
 
@@ -87,6 +88,7 @@ func TestVisitRepository_Create(t *testing.T) {
 			ActiveGroupID: data.ActiveGroup.ID,
 			EntryTime:     now,
 		}
+		visit.OgsID = ogsID
 
 		err := repo.Create(ctx, visit)
 		require.NoError(t, err)
@@ -104,6 +106,7 @@ func TestVisitRepository_Create(t *testing.T) {
 			EntryTime:     now,
 			ExitTime:      &exitTime,
 		}
+		visit.OgsID = ogsID
 
 		err := repo.Create(ctx, visit)
 		require.NoError(t, err)
@@ -138,6 +141,7 @@ func TestVisitRepository_FindByID(t *testing.T) {
 			ActiveGroupID: data.ActiveGroup.ID,
 			EntryTime:     now,
 		}
+		visit.OgsID = ogsID
 		err := repo.Create(ctx, visit)
 		require.NoError(t, err)
 		defer testpkg.CleanupTableRecords(t, db, "active.visits", visit.ID)
@@ -172,6 +176,7 @@ func TestVisitRepository_Update(t *testing.T) {
 			ActiveGroupID: data.ActiveGroup.ID,
 			EntryTime:     now,
 		}
+		visit.OgsID = ogsID
 		err := repo.Create(ctx, visit)
 		require.NoError(t, err)
 		defer testpkg.CleanupTableRecords(t, db, "active.visits", visit.ID)
@@ -205,6 +210,7 @@ func TestVisitRepository_Delete(t *testing.T) {
 			ActiveGroupID: data.ActiveGroup.ID,
 			EntryTime:     now,
 		}
+		visit.OgsID = ogsID
 		err := repo.Create(ctx, visit)
 		require.NoError(t, err)
 
@@ -238,6 +244,7 @@ func TestVisitRepository_List(t *testing.T) {
 			ActiveGroupID: data.ActiveGroup.ID,
 			EntryTime:     now,
 		}
+		visit.OgsID = ogsID
 		err := repo.Create(ctx, visit)
 		require.NoError(t, err)
 		defer testpkg.CleanupTableRecords(t, db, "active.visits", visit.ID)
@@ -266,6 +273,7 @@ func TestVisitRepository_FindActiveVisits(t *testing.T) {
 			ActiveGroupID: data.ActiveGroup.ID,
 			EntryTime:     now,
 		}
+		visit.OgsID = ogsID
 		err := repo.Create(ctx, visit)
 		require.NoError(t, err)
 		defer testpkg.CleanupTableRecords(t, db, "active.visits", visit.ID)
@@ -308,6 +316,7 @@ func TestVisitRepository_FindActiveByStudentID(t *testing.T) {
 			ActiveGroupID: data.ActiveGroup.ID,
 			EntryTime:     now,
 		}
+		visit.OgsID = ogsID
 		err := repo.Create(ctx, visit)
 		require.NoError(t, err)
 		defer testpkg.CleanupTableRecords(t, db, "active.visits", visit.ID)
@@ -349,6 +358,7 @@ func TestVisitRepository_FindByActiveGroupID(t *testing.T) {
 			ActiveGroupID: data.ActiveGroup.ID,
 			EntryTime:     now,
 		}
+		visit.OgsID = ogsID
 		err := repo.Create(ctx, visit)
 		require.NoError(t, err)
 		defer testpkg.CleanupTableRecords(t, db, "active.visits", visit.ID)
@@ -387,6 +397,7 @@ func TestVisitRepository_FindByTimeRange(t *testing.T) {
 			ActiveGroupID: data.ActiveGroup.ID,
 			EntryTime:     now.Add(-30 * time.Minute),
 		}
+		visit.OgsID = ogsID
 		err := repo.Create(ctx, visit)
 		require.NoError(t, err)
 		defer testpkg.CleanupTableRecords(t, db, "active.visits", visit.ID)
@@ -431,6 +442,7 @@ func TestVisitRepository_GetCurrentByStudentID(t *testing.T) {
 			ActiveGroupID: data.ActiveGroup.ID,
 			EntryTime:     now,
 		}
+		visit.OgsID = ogsID
 		err := repo.Create(ctx, visit)
 		require.NoError(t, err)
 		defer testpkg.CleanupTableRecords(t, db, "active.visits", visit.ID)
@@ -470,6 +482,8 @@ func TestVisitsRepository_GetCurrentByStudentIDs(t *testing.T) {
 			ActiveGroupID: data.ActiveGroup.ID,
 			EntryTime:     now,
 		}
+		visit1.OgsID = ogsID
+		visit2.OgsID = ogsID
 
 		err := repo.Create(ctx, visit1)
 		require.NoError(t, err)
@@ -516,6 +530,7 @@ func TestVisitRepository_EndVisit(t *testing.T) {
 			ActiveGroupID: data.ActiveGroup.ID,
 			EntryTime:     now,
 		}
+		visit.OgsID = ogsID
 		err := repo.Create(ctx, visit)
 		require.NoError(t, err)
 		defer testpkg.CleanupTableRecords(t, db, "active.visits", visit.ID)
@@ -553,10 +568,10 @@ func TestVisitRepository_DeleteExpiredVisits(t *testing.T) {
 
 		var visitID int64
 		err := db.NewRaw(`
-			INSERT INTO active.visits (student_id, active_group_id, entry_time, exit_time, created_at, updated_at)
-			VALUES (?, ?, ?, ?, ?, ?)
+			INSERT INTO active.visits (student_id, active_group_id, entry_time, exit_time, created_at, updated_at, ogs_id)
+			VALUES (?, ?, ?, ?, ?, ?, ?)
 			RETURNING id
-		`, data.Student1.ID, data.ActiveGroup.ID, entryTime, exitTime, createdAt, now).
+		`, data.Student1.ID, data.ActiveGroup.ID, entryTime, exitTime, createdAt, now, ogsID).
 			Scan(ctx, &visitID)
 		require.NoError(t, err)
 		defer testpkg.CleanupTableRecords(t, db, "active.visits", visitID)
@@ -574,6 +589,7 @@ func TestVisitRepository_DeleteExpiredVisits(t *testing.T) {
 			ActiveGroupID: data.ActiveGroup.ID,
 			EntryTime:     now.Add(-60 * 24 * time.Hour), // 60 days ago
 		}
+		visit.OgsID = ogsID
 		err := repo.Create(ctx, visit)
 		require.NoError(t, err)
 		defer testpkg.CleanupTableRecords(t, db, "active.visits", visit.ID)
@@ -608,10 +624,10 @@ func TestVisitRepository_DeleteVisitsBeforeDate(t *testing.T) {
 
 		var visitID int64
 		err := db.NewRaw(`
-			INSERT INTO active.visits (student_id, active_group_id, entry_time, exit_time, created_at, updated_at)
-			VALUES (?, ?, ?, ?, ?, ?)
+			INSERT INTO active.visits (student_id, active_group_id, entry_time, exit_time, created_at, updated_at, ogs_id)
+			VALUES (?, ?, ?, ?, ?, ?, ?)
 			RETURNING id
-		`, data.Student1.ID, data.ActiveGroup.ID, entryTime, exitTime, createdAt, now).
+		`, data.Student1.ID, data.ActiveGroup.ID, entryTime, exitTime, createdAt, now, ogsID).
 			Scan(ctx, &visitID)
 		require.NoError(t, err)
 
@@ -656,6 +672,7 @@ func TestVisitRepository_TransferVisitsFromRecentSessions(t *testing.T) {
 			DeviceID:       &device.ID,
 			RoomID:         data.Room,
 		}
+		oldGroup.OgsID = ogsID
 		err := groupRepo.Create(ctx, oldGroup)
 		require.NoError(t, err)
 		defer cleanupActiveGroupRecords(t, db, oldGroup.ID)
@@ -666,6 +683,7 @@ func TestVisitRepository_TransferVisitsFromRecentSessions(t *testing.T) {
 			ActiveGroupID: oldGroup.ID,
 			EntryTime:     now.Add(-1 * time.Hour),
 		}
+		visit.OgsID = ogsID
 		err = repo.Create(ctx, visit)
 		require.NoError(t, err)
 		defer testpkg.CleanupTableRecords(t, db, "active.visits", visit.ID)
@@ -683,6 +701,7 @@ func TestVisitRepository_TransferVisitsFromRecentSessions(t *testing.T) {
 			DeviceID:       &device.ID,
 			RoomID:         data.Room,
 		}
+		newGroup.OgsID = ogsID
 		err = groupRepo.Create(ctx, newGroup)
 		require.NoError(t, err)
 		defer cleanupActiveGroupRecords(t, db, newGroup.ID)
@@ -707,10 +726,10 @@ func TestVisitRepository_TransferVisitsFromRecentSessions(t *testing.T) {
 		now := time.Now()
 		var oldGroupID int64
 		err := db.NewRaw(`
-			INSERT INTO active.groups (start_time, last_activity, end_time, timeout_minutes, group_id, device_id, room_id, created_at, updated_at)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+			INSERT INTO active.groups (start_time, last_activity, end_time, timeout_minutes, group_id, device_id, room_id, created_at, updated_at, ogs_id)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 			RETURNING id
-		`, now.Add(-3*time.Hour), now.Add(-3*time.Hour), now.Add(-2*time.Hour), 30, data.ActivityGroup, device.ID, data.Room, now.Add(-3*time.Hour), now).
+		`, now.Add(-3*time.Hour), now.Add(-3*time.Hour), now.Add(-2*time.Hour), 30, data.ActivityGroup, device.ID, data.Room, now.Add(-3*time.Hour), now, ogsID).
 			Scan(ctx, &oldGroupID)
 		require.NoError(t, err)
 		defer cleanupActiveGroupRecords(t, db, oldGroupID)
@@ -721,6 +740,7 @@ func TestVisitRepository_TransferVisitsFromRecentSessions(t *testing.T) {
 			ActiveGroupID: oldGroupID,
 			EntryTime:     now.Add(-3 * time.Hour),
 		}
+		visit.OgsID = ogsID
 		err = repo.Create(ctx, visit)
 		require.NoError(t, err)
 		defer testpkg.CleanupTableRecords(t, db, "active.visits", visit.ID)
@@ -734,6 +754,7 @@ func TestVisitRepository_TransferVisitsFromRecentSessions(t *testing.T) {
 			DeviceID:       &device.ID,
 			RoomID:         data.Room,
 		}
+		newGroup.OgsID = ogsID
 		err = groupRepo.Create(ctx, newGroup)
 		require.NoError(t, err)
 		defer cleanupActiveGroupRecords(t, db, newGroup.ID)
@@ -779,10 +800,10 @@ func TestVisitRepository_GetVisitRetentionStats(t *testing.T) {
 
 		var visitID int64
 		err = db.NewRaw(`
-			INSERT INTO active.visits (student_id, active_group_id, entry_time, exit_time, created_at, updated_at)
-			VALUES (?, ?, ?, ?, ?, ?)
+			INSERT INTO active.visits (student_id, active_group_id, entry_time, exit_time, created_at, updated_at, ogs_id)
+			VALUES (?, ?, ?, ?, ?, ?, ?)
 			RETURNING id
-		`, student.ID, data.ActiveGroup.ID, entryTime, exitTime, createdAt, now).
+		`, student.ID, data.ActiveGroup.ID, entryTime, exitTime, createdAt, now, ogsID).
 			Scan(ctx, &visitID)
 		require.NoError(t, err)
 		defer testpkg.CleanupTableRecords(t, db, "active.visits", visitID)
@@ -833,10 +854,10 @@ func TestVisitRepository_CountExpiredVisits(t *testing.T) {
 
 		var visitID int64
 		err = db.NewRaw(`
-			INSERT INTO active.visits (student_id, active_group_id, entry_time, exit_time, created_at, updated_at)
-			VALUES (?, ?, ?, ?, ?, ?)
+			INSERT INTO active.visits (student_id, active_group_id, entry_time, exit_time, created_at, updated_at, ogs_id)
+			VALUES (?, ?, ?, ?, ?, ?, ?)
 			RETURNING id
-		`, student.ID, data.ActiveGroup.ID, entryTime, exitTime, createdAt, now).
+		`, student.ID, data.ActiveGroup.ID, entryTime, exitTime, createdAt, now, ogsID).
 			Scan(ctx, &visitID)
 		require.NoError(t, err)
 		defer testpkg.CleanupTableRecords(t, db, "active.visits", visitID)

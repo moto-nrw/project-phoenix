@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/auth/tenant"
+
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
@@ -32,10 +34,16 @@ func buildCombinedGroupService(t *testing.T, db *bun.DB) active.Service {
 func TestActiveService_GetCombinedGroup(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
-	_ = testpkg.SetupTestOGS(t, db)
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := buildCombinedGroupService(t, db)
-	ctx := context.Background()
+
+	// Create context with tenant info
+	tc := &tenant.TenantContext{
+		OrgID:   ogsID,
+		OrgName: "Test OGS",
+	}
+	ctx := tenant.SetTenantContext(context.Background(), tc)
 
 	t.Run("returns combined group when found", func(t *testing.T) {
 		// ARRANGE
@@ -83,10 +91,16 @@ func TestActiveService_GetCombinedGroup(t *testing.T) {
 func TestActiveService_CreateCombinedGroup(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
-	_ = testpkg.SetupTestOGS(t, db)
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := buildCombinedGroupService(t, db)
-	ctx := context.Background()
+
+	// Create context with tenant info
+	tc := &tenant.TenantContext{
+		OrgID:   ogsID,
+		OrgName: "Test OGS",
+	}
+	ctx := tenant.SetTenantContext(context.Background(), tc)
 
 	t.Run("creates combined group successfully", func(t *testing.T) {
 		// ARRANGE
@@ -138,10 +152,16 @@ func TestActiveService_CreateCombinedGroup(t *testing.T) {
 func TestActiveService_UpdateCombinedGroup(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
-	_ = testpkg.SetupTestOGS(t, db)
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := buildCombinedGroupService(t, db)
-	ctx := context.Background()
+
+	// Create context with tenant info
+	tc := &tenant.TenantContext{
+		OrgID:   ogsID,
+		OrgName: "Test OGS",
+	}
+	ctx := tenant.SetTenantContext(context.Background(), tc)
 
 	t.Run("updates combined group end time successfully", func(t *testing.T) {
 		// ARRANGE
@@ -199,10 +219,16 @@ func TestActiveService_UpdateCombinedGroup(t *testing.T) {
 func TestActiveService_DeleteCombinedGroup(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
-	_ = testpkg.SetupTestOGS(t, db)
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := buildCombinedGroupService(t, db)
-	ctx := context.Background()
+
+	// Create context with tenant info
+	tc := &tenant.TenantContext{
+		OrgID:   ogsID,
+		OrgName: "Test OGS",
+	}
+	ctx := tenant.SetTenantContext(context.Background(), tc)
 
 	t.Run("deletes combined group successfully", func(t *testing.T) {
 		// ARRANGE
@@ -248,10 +274,16 @@ func TestActiveService_DeleteCombinedGroup(t *testing.T) {
 func TestActiveService_ListCombinedGroups(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
-	_ = testpkg.SetupTestOGS(t, db)
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := buildCombinedGroupService(t, db)
-	ctx := context.Background()
+
+	// Create context with tenant info
+	tc := &tenant.TenantContext{
+		OrgID:   ogsID,
+		OrgName: "Test OGS",
+	}
+	ctx := tenant.SetTenantContext(context.Background(), tc)
 
 	t.Run("returns combined groups with no options", func(t *testing.T) {
 		// ARRANGE
@@ -293,10 +325,16 @@ func TestActiveService_ListCombinedGroups(t *testing.T) {
 func TestActiveService_FindActiveCombinedGroups(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
-	_ = testpkg.SetupTestOGS(t, db)
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := buildCombinedGroupService(t, db)
-	ctx := context.Background()
+
+	// Create context with tenant info
+	tc := &tenant.TenantContext{
+		OrgID:   ogsID,
+		OrgName: "Test OGS",
+	}
+	ctx := tenant.SetTenantContext(context.Background(), tc)
 
 	t.Run("returns active combined groups", func(t *testing.T) {
 		// ARRANGE - active group has no end_time
@@ -328,10 +366,16 @@ func TestActiveService_FindActiveCombinedGroups(t *testing.T) {
 func TestActiveService_FindCombinedGroupsByTimeRange(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
-	_ = testpkg.SetupTestOGS(t, db)
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := buildCombinedGroupService(t, db)
-	ctx := context.Background()
+
+	// Create context with tenant info
+	tc := &tenant.TenantContext{
+		OrgID:   ogsID,
+		OrgName: "Test OGS",
+	}
+	ctx := tenant.SetTenantContext(context.Background(), tc)
 
 	t.Run("returns groups in time range", func(t *testing.T) {
 		// ARRANGE
@@ -363,10 +407,16 @@ func TestActiveService_FindCombinedGroupsByTimeRange(t *testing.T) {
 func TestActiveService_EndCombinedGroup(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
-	_ = testpkg.SetupTestOGS(t, db)
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := buildCombinedGroupService(t, db)
-	ctx := context.Background()
+
+	// Create context with tenant info
+	tc := &tenant.TenantContext{
+		OrgID:   ogsID,
+		OrgName: "Test OGS",
+	}
+	ctx := tenant.SetTenantContext(context.Background(), tc)
 
 	t.Run("ends combined group successfully", func(t *testing.T) {
 		// ARRANGE
@@ -420,10 +470,16 @@ func TestActiveService_EndCombinedGroup(t *testing.T) {
 func TestActiveService_GetCombinedGroupWithGroups(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
-	_ = testpkg.SetupTestOGS(t, db)
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := buildCombinedGroupService(t, db)
-	ctx := context.Background()
+
+	// Create context with tenant info
+	tc := &tenant.TenantContext{
+		OrgID:   ogsID,
+		OrgName: "Test OGS",
+	}
+	ctx := tenant.SetTenantContext(context.Background(), tc)
 
 	t.Run("returns combined group with mapped groups", func(t *testing.T) {
 		// ARRANGE
@@ -464,7 +520,13 @@ func TestActiveService_AddGroupToCombination(t *testing.T) {
 	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := buildCombinedGroupService(t, db)
-	ctx := context.Background()
+
+	// Create context with tenant info
+	tc := &tenant.TenantContext{
+		OrgID:   ogsID,
+		OrgName: "Test OGS",
+	}
+	ctx := tenant.SetTenantContext(context.Background(), tc)
 
 	t.Run("adds group to combination successfully", func(t *testing.T) {
 		// ARRANGE
@@ -525,7 +587,13 @@ func TestActiveService_RemoveGroupFromCombination(t *testing.T) {
 	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := buildCombinedGroupService(t, db)
-	ctx := context.Background()
+
+	// Create context with tenant info
+	tc := &tenant.TenantContext{
+		OrgID:   ogsID,
+		OrgName: "Test OGS",
+	}
+	ctx := tenant.SetTenantContext(context.Background(), tc)
 
 	t.Run("removes group from combination successfully", func(t *testing.T) {
 		// ARRANGE
@@ -571,7 +639,13 @@ func TestActiveService_GetGroupMappingsByActiveGroupID(t *testing.T) {
 	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := buildCombinedGroupService(t, db)
-	ctx := context.Background()
+
+	// Create context with tenant info
+	tc := &tenant.TenantContext{
+		OrgID:   ogsID,
+		OrgName: "Test OGS",
+	}
+	ctx := tenant.SetTenantContext(context.Background(), tc)
 
 	t.Run("returns mappings for active group", func(t *testing.T) {
 		// ARRANGE
@@ -628,7 +702,13 @@ func TestActiveService_GetGroupMappingsByCombinedGroupID(t *testing.T) {
 	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := buildCombinedGroupService(t, db)
-	ctx := context.Background()
+
+	// Create context with tenant info
+	tc := &tenant.TenantContext{
+		OrgID:   ogsID,
+		OrgName: "Test OGS",
+	}
+	ctx := tenant.SetTenantContext(context.Background(), tc)
 
 	t.Run("returns mappings for combined group", func(t *testing.T) {
 		// ARRANGE
@@ -685,10 +765,16 @@ func TestActiveService_GetGroupMappingsByCombinedGroupID(t *testing.T) {
 func TestActiveService_FindCombinedGroupsByTimeRange_InvalidRange(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
-	_ = testpkg.SetupTestOGS(t, db)
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := buildCombinedGroupService(t, db)
-	ctx := context.Background()
+
+	// Create context with tenant info
+	tc := &tenant.TenantContext{
+		OrgID:   ogsID,
+		OrgName: "Test OGS",
+	}
+	ctx := tenant.SetTenantContext(context.Background(), tc)
 
 	t.Run("returns error when start is after end", func(t *testing.T) {
 		// ARRANGE
@@ -716,7 +802,13 @@ func TestActiveService_AddGroupToCombination_Duplicate(t *testing.T) {
 	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := buildCombinedGroupService(t, db)
-	ctx := context.Background()
+
+	// Create context with tenant info
+	tc := &tenant.TenantContext{
+		OrgID:   ogsID,
+		OrgName: "Test OGS",
+	}
+	ctx := tenant.SetTenantContext(context.Background(), tc)
 
 	t.Run("returns error when group already in combination", func(t *testing.T) {
 		// ARRANGE
@@ -757,7 +849,13 @@ func TestActiveService_DeleteCombinedGroup_WithMappings(t *testing.T) {
 	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := buildCombinedGroupService(t, db)
-	ctx := context.Background()
+
+	// Create context with tenant info
+	tc := &tenant.TenantContext{
+		OrgID:   ogsID,
+		OrgName: "Test OGS",
+	}
+	ctx := tenant.SetTenantContext(context.Background(), tc)
 
 	t.Run("deletes combined group with mappings successfully", func(t *testing.T) {
 		// ARRANGE: Create combined group with mappings

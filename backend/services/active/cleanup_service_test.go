@@ -24,6 +24,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/auth/tenant"
+
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/services"
@@ -51,10 +53,16 @@ func setupCleanupService(t *testing.T, db *bun.DB) active.CleanupService {
 func TestCleanupStaleAttendance_NoStaleRecords(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
-	_ = testpkg.SetupTestOGS(t, db)
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	cleanupService := setupCleanupService(t, db)
-	ctx := context.Background()
+
+	// Create context with tenant info
+	tc := &tenant.TenantContext{
+		OrgID:   ogsID,
+		OrgName: "Test OGS",
+	}
+	ctx := tenant.SetTenantContext(context.Background(), tc)
 
 	// ACT: Run cleanup when there are no stale records
 	result, err := cleanupService.CleanupStaleAttendance(ctx)
@@ -76,7 +84,13 @@ func TestCleanupStaleAttendance_ClosesStaleRecords(t *testing.T) {
 	ogsID := testpkg.SetupTestOGS(t, db)
 
 	cleanupService := setupCleanupService(t, db)
-	ctx := context.Background()
+
+	// Create context with tenant info
+	tc := &tenant.TenantContext{
+		OrgID:   ogsID,
+		OrgName: "Test OGS",
+	}
+	ctx := tenant.SetTenantContext(context.Background(), tc)
 
 	// ARRANGE: Create fixtures for stale attendance
 	student := testpkg.CreateTestStudent(t, db, "Stale", "Attendance", "5a", ogsID)
@@ -121,10 +135,16 @@ func TestCleanupStaleAttendance_ClosesStaleRecords(t *testing.T) {
 func TestPreviewAttendanceCleanup_NoStaleRecords(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
-	_ = testpkg.SetupTestOGS(t, db)
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	cleanupService := setupCleanupService(t, db)
-	ctx := context.Background()
+
+	// Create context with tenant info
+	tc := &tenant.TenantContext{
+		OrgID:   ogsID,
+		OrgName: "Test OGS",
+	}
+	ctx := tenant.SetTenantContext(context.Background(), tc)
 
 	// ACT: Preview cleanup when there are no stale records
 	preview, err := cleanupService.PreviewAttendanceCleanup(ctx)
@@ -145,7 +165,13 @@ func TestPreviewAttendanceCleanup_ShowsStaleRecords(t *testing.T) {
 	ogsID := testpkg.SetupTestOGS(t, db)
 
 	cleanupService := setupCleanupService(t, db)
-	ctx := context.Background()
+
+	// Create context with tenant info
+	tc := &tenant.TenantContext{
+		OrgID:   ogsID,
+		OrgName: "Test OGS",
+	}
+	ctx := tenant.SetTenantContext(context.Background(), tc)
 
 	// ARRANGE: Create fixtures for stale attendance
 	student := testpkg.CreateTestStudent(t, db, "Preview", "Stale", "5b", ogsID)
@@ -189,10 +215,16 @@ func TestPreviewAttendanceCleanup_ShowsStaleRecords(t *testing.T) {
 func TestGetRetentionStatistics_EmptyDatabase(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
-	_ = testpkg.SetupTestOGS(t, db)
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	cleanupService := setupCleanupService(t, db)
-	ctx := context.Background()
+
+	// Create context with tenant info
+	tc := &tenant.TenantContext{
+		OrgID:   ogsID,
+		OrgName: "Test OGS",
+	}
+	ctx := tenant.SetTenantContext(context.Background(), tc)
 
 	// ACT: Get statistics when there may be no expired visits
 	stats, err := cleanupService.GetRetentionStatistics(ctx)
@@ -211,10 +243,16 @@ func TestGetRetentionStatistics_EmptyDatabase(t *testing.T) {
 func TestPreviewCleanup_EmptyDatabase(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
-	_ = testpkg.SetupTestOGS(t, db)
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	cleanupService := setupCleanupService(t, db)
-	ctx := context.Background()
+
+	// Create context with tenant info
+	tc := &tenant.TenantContext{
+		OrgID:   ogsID,
+		OrgName: "Test OGS",
+	}
+	ctx := tenant.SetTenantContext(context.Background(), tc)
 
 	// ACT: Preview cleanup
 	preview, err := cleanupService.PreviewCleanup(ctx)
@@ -234,10 +272,16 @@ func TestPreviewCleanup_EmptyDatabase(t *testing.T) {
 func TestCleanupExpiredVisits_NoExpiredVisits(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
-	_ = testpkg.SetupTestOGS(t, db)
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	cleanupService := setupCleanupService(t, db)
-	ctx := context.Background()
+
+	// Create context with tenant info
+	tc := &tenant.TenantContext{
+		OrgID:   ogsID,
+		OrgName: "Test OGS",
+	}
+	ctx := tenant.SetTenantContext(context.Background(), tc)
 
 	// ACT: Run cleanup when there are no expired visits
 	result, err := cleanupService.CleanupExpiredVisits(ctx)
@@ -263,7 +307,13 @@ func TestCleanupVisitsForStudent_NoConsent(t *testing.T) {
 	ogsID := testpkg.SetupTestOGS(t, db)
 
 	cleanupService := setupCleanupService(t, db)
-	ctx := context.Background()
+
+	// Create context with tenant info
+	tc := &tenant.TenantContext{
+		OrgID:   ogsID,
+		OrgName: "Test OGS",
+	}
+	ctx := tenant.SetTenantContext(context.Background(), tc)
 
 	// ARRANGE: Create a student without privacy consent
 	student := testpkg.CreateTestStudent(t, db, "NoConsent", "Student", "6a", ogsID)
@@ -285,7 +335,13 @@ func TestCleanupVisitsForStudent_WithConsent(t *testing.T) {
 	ogsID := testpkg.SetupTestOGS(t, db)
 
 	cleanupService := setupCleanupService(t, db)
-	ctx := context.Background()
+
+	// Create context with tenant info
+	tc := &tenant.TenantContext{
+		OrgID:   ogsID,
+		OrgName: "Test OGS",
+	}
+	ctx := tenant.SetTenantContext(context.Background(), tc)
 
 	// ARRANGE: Create a student and add privacy consent
 	consent := testpkg.CreateTestPrivacyConsent(t, db, "WithConsent", ogsID)

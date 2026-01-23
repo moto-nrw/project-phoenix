@@ -75,6 +75,7 @@ func TestActiveGroupRepository_Create(t *testing.T) {
 			DeviceID:       &device.ID,
 			RoomID:         room.ID,
 		}
+		group.OgsID = ogsID
 
 		err := repo.Create(ctx, group)
 		require.NoError(t, err)
@@ -95,6 +96,7 @@ func TestActiveGroupRepository_Create(t *testing.T) {
 			GroupID:        activityGroup.ID,
 			RoomID:         room.ID,
 		}
+		group.OgsID = ogsID
 
 		err := repo.Create(ctx, group)
 		require.NoError(t, err)
@@ -131,6 +133,7 @@ func TestActiveGroupRepository_FindByID(t *testing.T) {
 			GroupID:        activityGroup.ID,
 			RoomID:         room.ID,
 		}
+		group.OgsID = ogsID
 		err := repo.Create(ctx, group)
 		require.NoError(t, err)
 		defer cleanupActiveGroupRecords(t, db, group.ID)
@@ -168,6 +171,7 @@ func TestActiveGroupRepository_Update(t *testing.T) {
 			GroupID:        activityGroup.ID,
 			RoomID:         room.ID,
 		}
+		group.OgsID = ogsID
 		err := repo.Create(ctx, group)
 		require.NoError(t, err)
 		defer cleanupActiveGroupRecords(t, db, group.ID)
@@ -203,6 +207,7 @@ func TestActiveGroupRepository_Delete(t *testing.T) {
 			GroupID:        activityGroup.ID,
 			RoomID:         room.ID,
 		}
+		group.OgsID = ogsID
 		err := repo.Create(ctx, group)
 		require.NoError(t, err)
 
@@ -239,6 +244,7 @@ func TestActiveGroupRepository_List(t *testing.T) {
 			GroupID:        activityGroup.ID,
 			RoomID:         room.ID,
 		}
+		group.OgsID = ogsID
 		err := repo.Create(ctx, group)
 		require.NoError(t, err)
 		defer cleanupActiveGroupRecords(t, db, group.ID)
@@ -270,6 +276,7 @@ func TestActiveGroupRepository_FindActiveGroups(t *testing.T) {
 			GroupID:        activityGroup.ID,
 			RoomID:         room.ID,
 		}
+		group.OgsID = ogsID
 		err := repo.Create(ctx, group)
 		require.NoError(t, err)
 		defer cleanupActiveGroupRecords(t, db, group.ID)
@@ -315,6 +322,7 @@ func TestActiveGroupRepository_FindActiveByRoomID(t *testing.T) {
 			GroupID:        activityGroup.ID,
 			RoomID:         room.ID,
 		}
+		group.OgsID = ogsID
 		err := repo.Create(ctx, group)
 		require.NoError(t, err)
 		defer cleanupActiveGroupRecords(t, db, group.ID)
@@ -365,6 +373,7 @@ func TestActiveGroupRepository_FindActiveByGroupID(t *testing.T) {
 			GroupID:        activityGroup.ID,
 			RoomID:         room.ID,
 		}
+		group.OgsID = ogsID
 		err := repo.Create(ctx, group)
 		require.NoError(t, err)
 		defer cleanupActiveGroupRecords(t, db, group.ID)
@@ -405,6 +414,7 @@ func TestActiveGroupRepository_FindByTimeRange(t *testing.T) {
 			GroupID:        activityGroup.ID,
 			RoomID:         room.ID,
 		}
+		group.OgsID = ogsID
 		err := repo.Create(ctx, group)
 		require.NoError(t, err)
 		defer cleanupActiveGroupRecords(t, db, group.ID)
@@ -453,6 +463,7 @@ func TestActiveGroupRepository_EndSession(t *testing.T) {
 			GroupID:        activityGroup.ID,
 			RoomID:         room.ID,
 		}
+		group.OgsID = ogsID
 		err := repo.Create(ctx, group)
 		require.NoError(t, err)
 		defer cleanupActiveGroupRecords(t, db, group.ID)
@@ -487,6 +498,7 @@ func TestActiveGroupRepository_UpdateLastActivity(t *testing.T) {
 			GroupID:        activityGroup.ID,
 			RoomID:         room.ID,
 		}
+		group.OgsID = ogsID
 		err := repo.Create(ctx, group)
 		require.NoError(t, err)
 		defer cleanupActiveGroupRecords(t, db, group.ID)
@@ -514,6 +526,7 @@ func TestActiveGroupRepository_UpdateLastActivity(t *testing.T) {
 			GroupID:        activityGroup.ID,
 			RoomID:         room.ID,
 		}
+		group.OgsID = ogsID
 		err := repo.Create(ctx, group)
 		require.NoError(t, err)
 		defer cleanupActiveGroupRecords(t, db, group.ID)
@@ -555,6 +568,7 @@ func TestActiveGroupRepository_FindActiveByDeviceID(t *testing.T) {
 			DeviceID:       &device.ID,
 			RoomID:         room.ID,
 		}
+		group.OgsID = ogsID
 		err := repo.Create(ctx, group)
 		require.NoError(t, err)
 		defer cleanupActiveGroupRecords(t, db, group.ID)
@@ -602,6 +616,7 @@ func TestActiveGroupRepository_FindActiveByDeviceIDWithNames(t *testing.T) {
 			DeviceID:       &device.ID,
 			RoomID:         room.ID,
 		}
+		group.OgsID = ogsID
 		err := repo.Create(ctx, group)
 		require.NoError(t, err)
 		defer cleanupActiveGroupRecords(t, db, group.ID)
@@ -655,6 +670,7 @@ func TestActiveGroupRepository_GetOccupiedRoomIDs(t *testing.T) {
 			GroupID:        activityGroup.ID,
 			RoomID:         room1.ID,
 		}
+		group1.OgsID = ogsID
 		err := repo.Create(ctx, group1)
 		require.NoError(t, err)
 		// Create active group in room2
@@ -665,6 +681,7 @@ func TestActiveGroupRepository_GetOccupiedRoomIDs(t *testing.T) {
 			GroupID:        activityGroup.ID,
 			RoomID:         room2.ID,
 		}
+		group2.OgsID = ogsID
 		err = repo.Create(ctx, group2)
 		require.NoError(t, err)
 		defer cleanupActiveGroupRecords(t, db, group1.ID, group2.ID)
@@ -715,6 +732,7 @@ func TestActiveGroupRepository_FindInactiveSessions(t *testing.T) {
 			DeviceID:       &device.ID,
 			RoomID:         room.ID,
 		}
+		group.OgsID = ogsID
 		err := repo.Create(ctx, group)
 		require.NoError(t, err)
 		defer cleanupActiveGroupRecords(t, db, group.ID)
@@ -757,6 +775,7 @@ func TestActiveGroupRepository_CheckRoomConflict(t *testing.T) {
 			GroupID:        activityGroup.ID,
 			RoomID:         room.ID,
 		}
+		group1.OgsID = ogsID
 		err := repo.Create(ctx, group1)
 		require.NoError(t, err)
 		defer cleanupActiveGroupRecords(t, db, group1.ID)
@@ -792,6 +811,7 @@ func TestActiveGroupRepository_CheckRoomConflict(t *testing.T) {
 			GroupID:        activityGroup.ID,
 			RoomID:         room.ID,
 		}
+		group.OgsID = ogsID
 		err := repo.Create(ctx, group)
 		require.NoError(t, err)
 		defer cleanupActiveGroupRecords(t, db, group.ID)
@@ -837,6 +857,8 @@ func TestActiveGroupRepository_FindByIDs(t *testing.T) {
 			GroupID:        activityGroup.ID,
 			RoomID:         room2.ID,
 		}
+		group1.OgsID = ogsID
+		group2.OgsID = ogsID
 
 		err := repo.Create(ctx, group1)
 		require.NoError(t, err)
@@ -883,6 +905,7 @@ func TestActiveGroupRepository_FindWithRelations(t *testing.T) {
 			GroupID:        activityGroup.ID,
 			RoomID:         room.ID,
 		}
+		group.OgsID = ogsID
 		err := repo.Create(ctx, group)
 		require.NoError(t, err)
 		defer cleanupActiveGroupRecords(t, db, group.ID)
@@ -921,17 +944,20 @@ func TestActiveGroupRepository_FindWithVisits(t *testing.T) {
 			GroupID:        activityGroup.ID,
 			RoomID:         room.ID,
 		}
+		group.OgsID = ogsID
 		err := repo.Create(ctx, group)
 		require.NoError(t, err)
 		defer cleanupActiveGroupRecords(t, db, group.ID)
 
 		// Create a visit for this group using ModelTableExpr
+		visit := &active.Visit{
+			StudentID:     student.ID,
+			ActiveGroupID: group.ID,
+			EntryTime:     now,
+		}
+		visit.OgsID = ogsID
 		_, err = db.NewInsert().
-			Model(&active.Visit{
-				StudentID:     student.ID,
-				ActiveGroupID: group.ID,
-				EntryTime:     now,
-			}).
+			Model(visit).
 			ModelTableExpr("active.visits").
 			Exec(ctx)
 		require.NoError(t, err)
@@ -973,6 +999,7 @@ func TestActiveGroupRepository_FindWithSupervisors(t *testing.T) {
 			GroupID:        activityGroup.ID,
 			RoomID:         room.ID,
 		}
+		group.OgsID = ogsID
 		err := repo.Create(ctx, group)
 		require.NoError(t, err)
 		defer cleanupActiveGroupRecords(t, db, group.ID)
@@ -1011,6 +1038,7 @@ func TestActiveGroupRepository_FindWithSupervisors(t *testing.T) {
 			GroupID:        activityGroup.ID,
 			RoomID:         room.ID,
 		}
+		group.OgsID = ogsID
 		err := repo.Create(ctx, group)
 		require.NoError(t, err)
 		defer cleanupActiveGroupRecords(t, db, group.ID)

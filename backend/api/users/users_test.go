@@ -60,6 +60,7 @@ func setupProtectedRouter(t *testing.T) (*testContext, chi.Router) {
 
 	router := chi.NewRouter()
 	router.Use(render.SetContentType(render.ContentTypeJSON))
+	router.Use(testutil.TenantRLSMiddleware(tc.db))
 
 	// Mount routes without JWT middleware for testing
 	router.Route("/users", func(r chi.Router) {
@@ -268,6 +269,7 @@ func TestCreatePerson_Success(t *testing.T) {
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/users", body,
 		testutil.WithPermissions("users:create"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithTenantContext(testutil.TenantContextWithOrgID(tc.ogsID)),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -331,6 +333,7 @@ func TestCreatePerson_WithoutTagOrAccount(t *testing.T) {
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/users", body,
 		testutil.WithPermissions("users:create"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithTenantContext(testutil.TenantContextWithOrgID(tc.ogsID)),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -384,6 +387,7 @@ func TestUpdatePerson_Success(t *testing.T) {
 	req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/users/%d", person.ID), body,
 		testutil.WithPermissions("users:update"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithTenantContext(testutil.TenantContextWithOrgID(tc.ogsID)),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -468,6 +472,7 @@ func TestDeletePerson_Success(t *testing.T) {
 	req := testutil.NewAuthenticatedRequest(t, "DELETE", fmt.Sprintf("/users/%d", person.ID), nil,
 		testutil.WithPermissions("users:delete"),
 		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithTenantContext(testutil.TenantContextWithOrgID(tc.ogsID)),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)

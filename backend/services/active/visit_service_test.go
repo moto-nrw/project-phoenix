@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/auth/tenant"
+
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
@@ -26,7 +28,13 @@ func TestActiveService_GetVisit(t *testing.T) {
 	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+
+	// Create context with tenant info
+	tc := &tenant.TenantContext{
+		OrgID:   ogsID,
+		OrgName: "Test OGS",
+	}
+	ctx := tenant.SetTenantContext(context.Background(), tc)
 
 	t.Run("returns visit when found", func(t *testing.T) {
 		// ARRANGE
@@ -76,7 +84,13 @@ func TestActiveService_CreateVisit(t *testing.T) {
 	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+
+	// Create context with tenant info
+	tc := &tenant.TenantContext{
+		OrgID:   ogsID,
+		OrgName: "Test OGS",
+	}
+	ctx := tenant.SetTenantContext(context.Background(), tc)
 
 	t.Run("creates visit successfully", func(t *testing.T) {
 		// ARRANGE
@@ -97,6 +111,7 @@ func TestActiveService_CreateVisit(t *testing.T) {
 			ActiveGroupID: activeGroup.ID,
 			EntryTime:     time.Now(),
 		}
+		visit.OgsID = ogsID
 
 		// ACT
 		err := service.CreateVisit(deviceCtx, visit)
@@ -133,6 +148,7 @@ func TestActiveService_CreateVisit(t *testing.T) {
 			ActiveGroupID: activeGroup.ID,
 			EntryTime:     time.Now(),
 		}
+		visit.OgsID = ogsID
 
 		// ACT
 		err := service.CreateVisit(deviceCtx, visit)
@@ -152,7 +168,13 @@ func TestActiveService_UpdateVisit(t *testing.T) {
 	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+
+	// Create context with tenant info
+	tc := &tenant.TenantContext{
+		OrgID:   ogsID,
+		OrgName: "Test OGS",
+	}
+	ctx := tenant.SetTenantContext(context.Background(), tc)
 
 	t.Run("updates visit successfully", func(t *testing.T) {
 		// ARRANGE
@@ -210,7 +232,13 @@ func TestActiveService_DeleteVisit(t *testing.T) {
 	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+
+	// Create context with tenant info
+	tc := &tenant.TenantContext{
+		OrgID:   ogsID,
+		OrgName: "Test OGS",
+	}
+	ctx := tenant.SetTenantContext(context.Background(), tc)
 
 	t.Run("deletes visit successfully", func(t *testing.T) {
 		// ARRANGE
@@ -259,7 +287,13 @@ func TestActiveService_ListVisits(t *testing.T) {
 	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+
+	// Create context with tenant info
+	tc := &tenant.TenantContext{
+		OrgID:   ogsID,
+		OrgName: "Test OGS",
+	}
+	ctx := tenant.SetTenantContext(context.Background(), tc)
 
 	t.Run("returns visits with no options", func(t *testing.T) {
 		// ARRANGE
@@ -303,7 +337,13 @@ func TestActiveService_FindVisitsByStudentID(t *testing.T) {
 	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+
+	// Create context with tenant info
+	tc := &tenant.TenantContext{
+		OrgID:   ogsID,
+		OrgName: "Test OGS",
+	}
+	ctx := tenant.SetTenantContext(context.Background(), tc)
 
 	t.Run("returns visits for student", func(t *testing.T) {
 		// ARRANGE
@@ -350,7 +390,13 @@ func TestActiveService_FindVisitsByActiveGroupID(t *testing.T) {
 	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+
+	// Create context with tenant info
+	tc := &tenant.TenantContext{
+		OrgID:   ogsID,
+		OrgName: "Test OGS",
+	}
+	ctx := tenant.SetTenantContext(context.Background(), tc)
 
 	t.Run("returns visits for active group", func(t *testing.T) {
 		// ARRANGE
@@ -399,7 +445,13 @@ func TestActiveService_FindVisitsByTimeRange(t *testing.T) {
 	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+
+	// Create context with tenant info
+	tc := &tenant.TenantContext{
+		OrgID:   ogsID,
+		OrgName: "Test OGS",
+	}
+	ctx := tenant.SetTenantContext(context.Background(), tc)
 
 	t.Run("returns visits in time range", func(t *testing.T) {
 		// ARRANGE
@@ -433,7 +485,13 @@ func TestActiveService_EndVisit(t *testing.T) {
 	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+
+	// Create context with tenant info
+	tc := &tenant.TenantContext{
+		OrgID:   ogsID,
+		OrgName: "Test OGS",
+	}
+	ctx := tenant.SetTenantContext(context.Background(), tc)
 
 	t.Run("ends visit successfully", func(t *testing.T) {
 		// ARRANGE
@@ -475,7 +533,13 @@ func TestActiveService_GetStudentCurrentVisit(t *testing.T) {
 	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+
+	// Create context with tenant info
+	tc := &tenant.TenantContext{
+		OrgID:   ogsID,
+		OrgName: "Test OGS",
+	}
+	ctx := tenant.SetTenantContext(context.Background(), tc)
 
 	t.Run("returns current visit when student is visiting", func(t *testing.T) {
 		// ARRANGE
@@ -540,7 +604,13 @@ func TestActiveService_GetStudentsCurrentVisits(t *testing.T) {
 	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+
+	// Create context with tenant info
+	tc := &tenant.TenantContext{
+		OrgID:   ogsID,
+		OrgName: "Test OGS",
+	}
+	ctx := tenant.SetTenantContext(context.Background(), tc)
 
 	t.Run("returns current visits for multiple students", func(t *testing.T) {
 		// ARRANGE
@@ -603,7 +673,13 @@ func TestActiveService_CheckTeacherStudentAccess(t *testing.T) {
 	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+
+	// Create context with tenant info
+	tc := &tenant.TenantContext{
+		OrgID:   ogsID,
+		OrgName: "Test OGS",
+	}
+	ctx := tenant.SetTenantContext(context.Background(), tc)
 
 	t.Run("returns false when teacher has no access", func(t *testing.T) {
 		// ARRANGE - teacher and student not related

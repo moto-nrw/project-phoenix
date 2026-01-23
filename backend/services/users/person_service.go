@@ -188,29 +188,42 @@ func (s *personService) Create(ctx context.Context, person *userModels.Person) e
 	// Note: Removed the requirement for TagID or AccountID
 	// Students can be created without either identifier
 
-	// Check if the account exists if AccountID is set
-	if person.AccountID != nil {
-		account, err := s.accountRepo.FindByID(ctx, *person.AccountID)
-		if err != nil {
-			return &UsersError{Op: opCreatePerson, Err: err}
-		}
-		if account == nil {
-			return &UsersError{Op: opCreatePerson, Err: ErrAccountNotFound}
-		}
-	}
+	// Use transaction to ensure OGS ID is set for RLS compliance
+	err := s.txHandler.RunInTx(ctx, func(txCtx context.Context, tx bun.Tx) error {
+		// Get transactional service
+		txService := s.WithTx(tx).(*personService)
 
-	// Check if the RFID card exists if TagID is set
-	if person.TagID != nil {
-		card, err := s.rfidRepo.FindByID(ctx, *person.TagID)
-		if err != nil {
-			return &UsersError{Op: opCreatePerson, Err: err}
+		// Check if the account exists if AccountID is set
+		if person.AccountID != nil {
+			account, err := txService.accountRepo.FindByID(txCtx, *person.AccountID)
+			if err != nil {
+				return err
+			}
+			if account == nil {
+				return ErrAccountNotFound
+			}
 		}
-		if card == nil {
-			return &UsersError{Op: opCreatePerson, Err: ErrRFIDCardNotFound}
-		}
-	}
 
-	if err := s.personRepo.Create(ctx, person); err != nil {
+		// Check if the RFID card exists if TagID is set
+		if person.TagID != nil {
+			card, err := txService.rfidRepo.FindByID(txCtx, *person.TagID)
+			if err != nil {
+				return err
+			}
+			if card == nil {
+				return ErrRFIDCardNotFound
+			}
+		}
+
+		// Create person within transaction
+		if err := txService.personRepo.Create(txCtx, person); err != nil {
+			return err
+		}
+
+		return nil
+	})
+
+	if err != nil {
 		return &UsersError{Op: opCreatePerson, Err: err}
 	}
 
@@ -223,23 +236,35 @@ func (s *personService) Update(ctx context.Context, person *userModels.Person) e
 		return &UsersError{Op: opUpdatePerson, Err: person.Validate()}
 	}
 
-	existingPerson, err := s.personRepo.FindByID(ctx, person.ID)
+	// Use transaction to ensure OGS ID is set for RLS compliance
+	err := s.txHandler.RunInTx(ctx, func(txCtx context.Context, tx bun.Tx) error {
+		// Get transactional service
+		txService := s.WithTx(tx).(*personService)
+
+		existingPerson, err := txService.personRepo.FindByID(txCtx, person.ID)
+		if err != nil {
+			return err
+		}
+		if existingPerson == nil {
+			return ErrPersonNotFound
+		}
+
+		if err := s.validateAccountIfChanged(txCtx, person, existingPerson); err != nil {
+			return err
+		}
+
+		if err := s.validateRFIDCardIfChanged(txCtx, person, existingPerson); err != nil {
+			return err
+		}
+
+		if err := txService.personRepo.Update(txCtx, person); err != nil {
+			return err
+		}
+
+		return nil
+	})
+
 	if err != nil {
-		return &UsersError{Op: opUpdatePerson, Err: err}
-	}
-	if existingPerson == nil {
-		return &UsersError{Op: opUpdatePerson, Err: ErrPersonNotFound}
-	}
-
-	if err := s.validateAccountIfChanged(ctx, person, existingPerson); err != nil {
-		return err
-	}
-
-	if err := s.validateRFIDCardIfChanged(ctx, person, existingPerson); err != nil {
-		return err
-	}
-
-	if err := s.personRepo.Update(ctx, person); err != nil {
 		return &UsersError{Op: opUpdatePerson, Err: err}
 	}
 
@@ -290,16 +315,27 @@ func (s *personService) validateRFIDCardIfChanged(ctx context.Context, person, e
 
 // Delete removes a person
 func (s *personService) Delete(ctx context.Context, id interface{}) error {
-	// Verify the person exists
-	person, err := s.personRepo.FindByID(ctx, id)
-	if err != nil {
-		return &UsersError{Op: opDeletePerson, Err: err}
-	}
-	if person == nil {
-		return &UsersError{Op: opDeletePerson, Err: ErrPersonNotFound}
-	}
+	// Use transaction to ensure OGS ID is set for RLS compliance
+	err := s.txHandler.RunInTx(ctx, func(txCtx context.Context, tx bun.Tx) error {
+		// Get transactional service
+		txService := s.WithTx(tx).(*personService)
 
-	if err := s.personRepo.Delete(ctx, id); err != nil {
+		// Verify the person exists
+		person, err := txService.personRepo.FindByID(txCtx, id)
+		if err != nil {
+			return err
+		}
+		if person == nil {
+			return ErrPersonNotFound
+		}
+
+		if err := txService.personRepo.Delete(txCtx, id); err != nil {
+			return err
+		}
+		return nil
+	})
+
+	if err != nil {
 		return &UsersError{Op: opDeletePerson, Err: err}
 	}
 	return nil

@@ -516,6 +516,7 @@ func TestGroupOperations(t *testing.T) {
 		group := &educationModels.Group{
 			Name: "New Test Group " + time.Now().Format("20060102150405"),
 		}
+		group.OgsID = ogsID
 
 		// ACT
 		err := service.CreateGroup(ctx, group)
@@ -754,6 +755,7 @@ func TestEducationService_UpdateGroup(t *testing.T) {
 		// ARRANGE
 		group := &educationModels.Group{Name: "NonExistent"}
 		group.ID = 999999999
+		group.OgsID = ogsID
 
 		// ACT
 		err := service.UpdateGroup(ctx, group)
@@ -1198,6 +1200,7 @@ func TestEducationService_CreateGroup_EdgeCases(t *testing.T) {
 	t.Run("rejects group with invalid name", func(t *testing.T) {
 		// ARRANGE
 		group := &educationModels.Group{Name: ""} // Empty name is invalid
+		group.OgsID = ogsID
 
 		// ACT
 		err := service.CreateGroup(ctx, group)
@@ -1214,6 +1217,7 @@ func TestEducationService_CreateGroup_EdgeCases(t *testing.T) {
 			Name:   uniqueName,
 			RoomID: &nonExistentRoomID,
 		}
+		group.OgsID = ogsID
 
 		// ACT
 		err := service.CreateGroup(ctx, group)
@@ -1231,6 +1235,7 @@ func TestEducationService_CreateGroup_EdgeCases(t *testing.T) {
 			Name:   uniqueName,
 			RoomID: &room.ID,
 		}
+		group.OgsID = ogsID
 		defer testpkg.CleanupActivityFixtures(t, db, room.ID)
 
 		// ACT
@@ -1248,6 +1253,7 @@ func TestEducationService_CreateGroup_EdgeCases(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, db, existingGroup.ID)
 
 		duplicateGroup := &educationModels.Group{Name: existingGroup.Name}
+		duplicateGroup.OgsID = ogsID
 
 		// ACT
 		err := service.CreateGroup(ctx, duplicateGroup)

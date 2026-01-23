@@ -47,6 +47,8 @@ func createSupervisorTestData(t *testing.T, db *bun.DB, ogsID string) *superviso
 		GroupID:        activityGroup.ID,
 		RoomID:         room.ID,
 	}
+	activeGroup.OgsID = ogsID
+
 	err := groupRepo.Create(context.Background(), activeGroup)
 	require.NoError(t, err)
 
@@ -444,6 +446,7 @@ func TestGroupSupervisorRepository_FindByActiveGroupIDs(t *testing.T) {
 			GroupID:        data.ActivityGroup,
 			RoomID:         room2.ID,
 		}
+		activeGroup2.OgsID = ogsID
 		err := groupRepo.Create(ctx, activeGroup2)
 		require.NoError(t, err)
 		defer cleanupActiveGroupRecords(t, db, activeGroup2.ID)

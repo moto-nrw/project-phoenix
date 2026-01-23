@@ -14,6 +14,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/auth/tenant"
+
 	"github.com/moto-nrw/project-phoenix/models/active"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -31,7 +33,13 @@ func TestUpdateSessionActivity(t *testing.T) {
 	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+
+	// Create context with tenant info
+	tc := &tenant.TenantContext{
+		OrgID:   ogsID,
+		OrgName: "Test OGS",
+	}
+	ctx := tenant.SetTenantContext(context.Background(), tc)
 
 	t.Run("successful activity update", func(t *testing.T) {
 		// ARRANGE: Create test fixtures
@@ -110,7 +118,13 @@ func TestValidateSessionTimeout(t *testing.T) {
 	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+
+	// Create context with tenant info
+	tc := &tenant.TenantContext{
+		OrgID:   ogsID,
+		OrgName: "Test OGS",
+	}
+	ctx := tenant.SetTenantContext(context.Background(), tc)
 
 	t.Run("valid timeout - session is timed out", func(t *testing.T) {
 		// ARRANGE: Create test fixtures
@@ -229,7 +243,13 @@ func TestGetSessionTimeoutInfo(t *testing.T) {
 	ogsID := testpkg.SetupTestOGS(t, db)
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+
+	// Create context with tenant info
+	tc := &tenant.TenantContext{
+		OrgID:   ogsID,
+		OrgName: "Test OGS",
+	}
+	ctx := tenant.SetTenantContext(context.Background(), tc)
 
 	t.Run("successful timeout info retrieval", func(t *testing.T) {
 		// ARRANGE: Create test fixtures
@@ -275,22 +295,26 @@ func TestGetSessionTimeoutInfo(t *testing.T) {
 		// Insert visits directly into database (bypasses attendance creation logic)
 		// This is acceptable for testing GetSessionTimeoutInfo since we're testing
 		// the timeout info retrieval, not the visit creation business logic
+		visit1 := &active.Visit{
+			StudentID:     student1.ID,
+			ActiveGroupID: session.ID,
+			EntryTime:     time.Now(),
+		}
+		visit1.OgsID = ogsID
 		_, err = db.NewInsert().
-			Model(&active.Visit{
-				StudentID:     student1.ID,
-				ActiveGroupID: session.ID,
-				EntryTime:     time.Now(),
-			}).
+			Model(visit1).
 			ModelTableExpr("active.visits").
 			Exec(ctx)
 		require.NoError(t, err)
 
+		visit2 := &active.Visit{
+			StudentID:     student2.ID,
+			ActiveGroupID: session.ID,
+			EntryTime:     time.Now(),
+		}
+		visit2.OgsID = ogsID
 		_, err = db.NewInsert().
-			Model(&active.Visit{
-				StudentID:     student2.ID,
-				ActiveGroupID: session.ID,
-				EntryTime:     time.Now(),
-			}).
+			Model(visit2).
 			ModelTableExpr("active.visits").
 			Exec(ctx)
 		require.NoError(t, err)

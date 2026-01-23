@@ -41,8 +41,11 @@ func (r *Repository[T]) Create(ctx context.Context, entity T) error {
 		}
 	}
 
+	// Check if there's a transaction in the context
+	db := r.getDB(ctx)
+
 	// Explicitly set the table name with schema
-	_, err := r.DB.NewInsert().
+	_, err := db.NewInsert().
 		Model(entity).
 		ModelTableExpr(r.TableName).
 		Exec(ctx)
@@ -54,6 +57,14 @@ func (r *Repository[T]) Create(ctx context.Context, entity T) error {
 	}
 
 	return nil
+}
+
+// getDB returns the transaction if one exists in context, otherwise returns the regular DB
+func (r *Repository[T]) getDB(ctx context.Context) bun.IDB {
+	if tx, ok := modelBase.TxFromContext(ctx); ok {
+		return tx
+	}
+	return r.DB
 }
 
 // FindByID retrieves an entity by its ID
@@ -70,12 +81,15 @@ func (r *Repository[T]) FindByID(ctx context.Context, id interface{}) (T, error)
 
 	entityVal := reflect.New(entityType).Interface().(T)
 
+	// Check if there's a transaction in the context
+	db := r.getDB(ctx)
+
 	// Use ModelTableExpr to specify the schema-qualified table name with proper alias
 	// Convert EntityName from CamelCase to snake_case for consistent alias
 	entityName := toSnakeCase(strings.TrimPrefix(r.EntityName, "*"))
 	tableExpr := fmt.Sprintf(`%s AS "%s"`, r.TableName, entityName)
 
-	err := r.DB.NewSelect().
+	err := db.NewSelect().
 		Model(entityVal).
 		ModelTableExpr(tableExpr).
 		Where(fmt.Sprintf(`"%s".id = ?`, entityName), id).
@@ -104,12 +118,15 @@ func (r *Repository[T]) Update(ctx context.Context, entity T) error {
 		}
 	}
 
+	// Check if there's a transaction in the context
+	db := r.getDB(ctx)
+
 	// Use ModelTableExpr to specify the schema-qualified table name with proper alias
 	// Convert EntityName from CamelCase to snake_case for consistent alias
 	entityName := toSnakeCase(strings.TrimPrefix(r.EntityName, "*"))
 	tableExpr := fmt.Sprintf(`%s AS "%s"`, r.TableName, entityName)
 
-	_, err := r.DB.NewUpdate().
+	_, err := db.NewUpdate().
 		Model(entity).
 		ModelTableExpr(tableExpr).
 		WherePK().
@@ -136,12 +153,15 @@ func (r *Repository[T]) Delete(ctx context.Context, id interface{}) error {
 
 	entityVal := reflect.New(entityType).Interface()
 
+	// Check if there's a transaction in the context
+	db := r.getDB(ctx)
+
 	// Use ModelTableExpr to specify the schema-qualified table name with proper alias
 	// Convert EntityName from CamelCase to snake_case for consistent alias
 	entityName := toSnakeCase(strings.TrimPrefix(r.EntityName, "*"))
 	tableExpr := fmt.Sprintf(`%s AS "%s"`, r.TableName, entityName)
 
-	_, err := r.DB.NewDelete().
+	_, err := db.NewDelete().
 		Model(entityVal).
 		ModelTableExpr(tableExpr).
 		Where(fmt.Sprintf(`"%s".id = ?`, entityName), id).
@@ -160,12 +180,15 @@ func (r *Repository[T]) Delete(ctx context.Context, id interface{}) error {
 func (r *Repository[T]) List(ctx context.Context, filters map[string]interface{}) ([]T, error) {
 	var entities []T
 
+	// Check if there's a transaction in the context
+	db := r.getDB(ctx)
+
 	// Use ModelTableExpr to specify the schema-qualified table name with proper alias
 	// Convert EntityName from CamelCase to snake_case for consistent alias
 	entityName := toSnakeCase(strings.TrimPrefix(r.EntityName, "*"))
 	tableExpr := fmt.Sprintf(`%s AS "%s"`, r.TableName, entityName)
 
-	query := r.DB.NewSelect().
+	query := db.NewSelect().
 		Model(&entities).
 		ModelTableExpr(tableExpr)
 
@@ -199,12 +222,15 @@ func (r *Repository[T]) Count(ctx context.Context, filters map[string]interface{
 
 	entityVal := reflect.New(entityType).Interface()
 
+	// Check if there's a transaction in the context
+	db := r.getDB(ctx)
+
 	// Use ModelTableExpr to specify the schema-qualified table name with proper alias
 	// Get the entity name in lowercase to use as alias
 	entityName := strings.ToLower(strings.TrimPrefix(r.EntityName, "*"))
 	tableExpr := fmt.Sprintf(`%s AS "%s"`, r.TableName, entityName)
 
-	query := r.DB.NewSelect().
+	query := db.NewSelect().
 		Model(entityVal).
 		ModelTableExpr(tableExpr).
 		Column("id")

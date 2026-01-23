@@ -20,6 +20,7 @@ import (
 func TestDeviceRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).Device
 	ctx := context.Background()
@@ -31,6 +32,7 @@ func TestDeviceRepository_Create(t *testing.T) {
 			DeviceType: "rfid_reader",
 			Status:     iot.DeviceStatusActive,
 		}
+		device.OgsID = ogsID
 
 		err := repo.Create(ctx, device)
 		require.NoError(t, err)
@@ -46,6 +48,7 @@ func TestDeviceRepository_Create(t *testing.T) {
 			DeviceType: "rfid_reader",
 			Status:     iot.DeviceStatusInactive,
 		}
+		device.OgsID = ogsID
 
 		err := repo.Create(ctx, device)
 		require.NoError(t, err)
@@ -203,6 +206,7 @@ func TestDeviceRepository_FindActiveDevices(t *testing.T) {
 func TestDeviceRepository_Create_Validation(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).Device
 	ctx := context.Background()
@@ -218,6 +222,7 @@ func TestDeviceRepository_Create_Validation(t *testing.T) {
 			DeviceType: "rfid_reader",
 			Status:     iot.DeviceStatusActive,
 		}
+		device.OgsID = ogsID
 
 		err := repo.Create(ctx, device)
 		require.Error(t, err)
@@ -229,6 +234,7 @@ func TestDeviceRepository_Create_Validation(t *testing.T) {
 			DeviceID: fmt.Sprintf("no-type-%d", time.Now().UnixNano()),
 			Status:   iot.DeviceStatusActive,
 		}
+		device.OgsID = ogsID
 
 		err := repo.Create(ctx, device)
 		require.Error(t, err)
@@ -257,6 +263,7 @@ func TestDeviceRepository_Update_Validation(t *testing.T) {
 func TestDeviceRepository_FindByAPIKey(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).Device
 	ctx := context.Background()
@@ -269,6 +276,7 @@ func TestDeviceRepository_FindByAPIKey(t *testing.T) {
 			Status:     iot.DeviceStatusActive,
 			APIKey:     &apiKey,
 		}
+		device.OgsID = ogsID
 
 		err := repo.Create(ctx, device)
 		require.NoError(t, err)
@@ -290,6 +298,7 @@ func TestDeviceRepository_FindByAPIKey(t *testing.T) {
 func TestDeviceRepository_FindByType(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).Device
 	ctx := context.Background()
@@ -301,6 +310,7 @@ func TestDeviceRepository_FindByType(t *testing.T) {
 			DeviceType: uniqueType,
 			Status:     iot.DeviceStatusActive,
 		}
+		device.OgsID = ogsID
 
 		err := repo.Create(ctx, device)
 		require.NoError(t, err)
@@ -330,6 +340,7 @@ func TestDeviceRepository_FindByType(t *testing.T) {
 func TestDeviceRepository_FindByStatus(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).Device
 	ctx := context.Background()
@@ -340,6 +351,7 @@ func TestDeviceRepository_FindByStatus(t *testing.T) {
 			DeviceType: "rfid_reader",
 			Status:     iot.DeviceStatusMaintenance,
 		}
+		device.OgsID = ogsID
 
 		err := repo.Create(ctx, device)
 		require.NoError(t, err)
@@ -379,6 +391,7 @@ func TestDeviceRepository_FindByRegisteredBy(t *testing.T) {
 			Status:         iot.DeviceStatusActive,
 			RegisteredByID: &person.PersonID,
 		}
+		device.OgsID = ogsID
 
 		err := repo.Create(ctx, device)
 		require.NoError(t, err)
@@ -473,6 +486,7 @@ func TestDeviceRepository_UpdateStatus(t *testing.T) {
 func TestDeviceRepository_FindDevicesRequiringMaintenance(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).Device
 	ctx := context.Background()
@@ -483,6 +497,7 @@ func TestDeviceRepository_FindDevicesRequiringMaintenance(t *testing.T) {
 			DeviceType: "rfid_reader",
 			Status:     iot.DeviceStatusMaintenance,
 		}
+		device.OgsID = ogsID
 
 		err := repo.Create(ctx, device)
 		require.NoError(t, err)
@@ -505,6 +520,7 @@ func TestDeviceRepository_FindDevicesRequiringMaintenance(t *testing.T) {
 func TestDeviceRepository_FindOfflineDevices(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).Device
 	ctx := context.Background()
@@ -518,6 +534,7 @@ func TestDeviceRepository_FindOfflineDevices(t *testing.T) {
 			Status:     iot.DeviceStatusActive,
 			LastSeen:   &oldTime,
 		}
+		device.OgsID = ogsID
 
 		err := repo.Create(ctx, device)
 		require.NoError(t, err)
@@ -546,6 +563,7 @@ func TestDeviceRepository_FindOfflineDevices(t *testing.T) {
 			DeviceType: "rfid_reader",
 			Status:     iot.DeviceStatusActive,
 		}
+		device.OgsID = ogsID
 
 		err := repo.Create(ctx, device)
 		require.NoError(t, err)
@@ -579,6 +597,7 @@ func TestDeviceRepository_FindOfflineDevices(t *testing.T) {
 func TestDeviceRepository_CountDevicesByType(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).Device
 	ctx := context.Background()
@@ -592,11 +611,13 @@ func TestDeviceRepository_CountDevicesByType(t *testing.T) {
 			DeviceType: uniqueType,
 			Status:     iot.DeviceStatusActive,
 		}
+		device1.OgsID = ogsID
 		device2 := &iot.Device{
 			DeviceID:   fmt.Sprintf("count-device-2-%d", time.Now().UnixNano()),
 			DeviceType: uniqueType,
 			Status:     iot.DeviceStatusActive,
 		}
+		device2.OgsID = ogsID
 
 		err := repo.Create(ctx, device1)
 		require.NoError(t, err)
@@ -624,6 +645,7 @@ func TestDeviceRepository_CountDevicesByType(t *testing.T) {
 func TestDeviceRepository_List_WithFilters(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).Device
 	ctx := context.Background()
@@ -634,6 +656,7 @@ func TestDeviceRepository_List_WithFilters(t *testing.T) {
 			DeviceType: "rfid_reader",
 			Status:     iot.DeviceStatusInactive,
 		}
+		device.OgsID = ogsID
 
 		err := repo.Create(ctx, device)
 		require.NoError(t, err)
@@ -661,6 +684,7 @@ func TestDeviceRepository_List_WithFilters(t *testing.T) {
 			DeviceType: uniqueType,
 			Status:     iot.DeviceStatusActive,
 		}
+		device.OgsID = ogsID
 
 		err := repo.Create(ctx, device)
 		require.NoError(t, err)
@@ -689,6 +713,7 @@ func TestDeviceRepository_List_WithFilters(t *testing.T) {
 			DeviceType: "rfid_reader",
 			Status:     iot.DeviceStatusActive,
 		}
+		device.OgsID = ogsID
 
 		err := repo.Create(ctx, device)
 		require.NoError(t, err)
@@ -717,6 +742,7 @@ func TestDeviceRepository_List_WithFilters(t *testing.T) {
 			Status:     iot.DeviceStatusActive,
 			Name:       &uniqueName,
 		}
+		device.OgsID = ogsID
 
 		err := repo.Create(ctx, device)
 		require.NoError(t, err)
@@ -747,6 +773,7 @@ func TestDeviceRepository_List_WithFilters(t *testing.T) {
 			Status:     iot.DeviceStatusActive,
 			Name:       &deviceName,
 		}
+		device.OgsID = ogsID
 
 		err := repo.Create(ctx, device)
 		require.NoError(t, err)
@@ -768,6 +795,7 @@ func TestDeviceRepository_List_WithFilters(t *testing.T) {
 			DeviceType: "rfid_reader",
 			Status:     iot.DeviceStatusActive,
 		}
+		device.OgsID = ogsID
 
 		err := repo.Create(ctx, device)
 		require.NoError(t, err)
@@ -796,6 +824,7 @@ func TestDeviceRepository_List_WithFilters(t *testing.T) {
 			Status:     iot.DeviceStatusActive,
 			LastSeen:   &recentTime,
 		}
+		device.OgsID = ogsID
 
 		err := repo.Create(ctx, device)
 		require.NoError(t, err)
@@ -827,6 +856,7 @@ func TestDeviceRepository_List_WithFilters(t *testing.T) {
 			Status:     iot.DeviceStatusActive,
 			LastSeen:   &oldTime,
 		}
+		device.OgsID = ogsID
 
 		err := repo.Create(ctx, device)
 		require.NoError(t, err)

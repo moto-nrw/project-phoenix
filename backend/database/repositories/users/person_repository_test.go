@@ -36,6 +36,7 @@ func cleanupPersonRecords(t *testing.T, db *bun.DB, ids ...int64) {
 func TestPersonRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 
 	repo := repositories.NewFactory(db).Person
 	ctx := context.Background()
@@ -48,6 +49,7 @@ func TestPersonRepository_Create(t *testing.T) {
 			FirstName: "Test",
 			LastName:  "Person",
 		}
+		person.OgsID = ogsID
 
 		err := repo.Create(ctx, person)
 		require.NoError(t, err)
@@ -65,6 +67,7 @@ func TestPersonRepository_Create(t *testing.T) {
 			LastName:  "Test",
 			Birthday:  &birthday,
 		}
+		person.OgsID = ogsID
 
 		err := repo.Create(ctx, person)
 		require.NoError(t, err)
@@ -608,6 +611,7 @@ func TestPersonRepository_ListWithNullableFilters(t *testing.T) {
 func TestPersonRepository_EdgeCases(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
 	repo := repositories.NewFactory(db).Person
 	ctx := context.Background()
 
@@ -616,6 +620,7 @@ func TestPersonRepository_EdgeCases(t *testing.T) {
 			FirstName: "Müller",
 			LastName:  "Über",
 		}
+		person.OgsID = ogsID
 
 		err := repo.Create(ctx, person)
 		require.NoError(t, err)
@@ -633,6 +638,7 @@ func TestPersonRepository_EdgeCases(t *testing.T) {
 			FirstName: longName,
 			LastName:  "Test",
 		}
+		person.OgsID = ogsID
 
 		err := repo.Create(ctx, person)
 		require.NoError(t, err)

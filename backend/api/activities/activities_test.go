@@ -108,10 +108,9 @@ func cleanupCategory(t *testing.T, db *bun.DB, categoryID int64) {
 func TestListActivities_Success(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
-	ogsID := testpkg.SetupTestOGS(t, ctx.db)
 
 	// Create test activity
-	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("TestList-%d", time.Now().UnixNano()), ogsID)
+	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("TestList-%d", time.Now().UnixNano()), ctx.ogsID)
 	defer cleanupActivity(t, ctx.db, activity.ID)
 	defer cleanupCategory(t, ctx.db, activity.CategoryID)
 
@@ -120,6 +119,7 @@ func TestListActivities_Success(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/activities", nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithTenantContext(testutil.TenantContextWithOrgID(ctx.ogsID)),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -145,6 +145,7 @@ func TestListActivities_WithCategoryFilter(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/activities?category_id=%d", activity.CategoryID), nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithTenantContext(testutil.TenantContextWithOrgID(ctx.ogsID)),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -165,6 +166,7 @@ func TestGetActivity_Success(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/activities/%d", activity.ID), nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithTenantContext(testutil.TenantContextWithOrgID(ctx.ogsID)),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -186,6 +188,7 @@ func TestGetActivity_NotFound(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/activities/99999", nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithTenantContext(testutil.TenantContextWithOrgID(ctx.ogsID)),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -202,6 +205,7 @@ func TestGetActivity_InvalidID(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/activities/invalid", nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithTenantContext(testutil.TenantContextWithOrgID(ctx.ogsID)),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -228,6 +232,7 @@ func TestCreateActivity_Success(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/activities", body,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithTenantContext(testutil.TenantContextWithOrgID(ctx.ogsID)),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -263,6 +268,7 @@ func TestCreateActivity_BadRequest_MissingName(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/activities", body,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithTenantContext(testutil.TenantContextWithOrgID(ctx.ogsID)),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -285,6 +291,7 @@ func TestCreateActivity_BadRequest_MissingCategoryID(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/activities", body,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithTenantContext(testutil.TenantContextWithOrgID(ctx.ogsID)),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -311,6 +318,7 @@ func TestCreateActivity_BadRequest_ZeroParticipants(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/activities", body,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithTenantContext(testutil.TenantContextWithOrgID(ctx.ogsID)),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -338,6 +346,7 @@ func TestUpdateActivity_Success(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/activities/%d", activity.ID), body,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithTenantContext(testutil.TenantContextWithOrgID(ctx.ogsID)),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -364,6 +373,7 @@ func TestUpdateActivity_NotFound(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, "PUT", "/activities/99999", body,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithTenantContext(testutil.TenantContextWithOrgID(ctx.ogsID)),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -384,6 +394,7 @@ func TestDeleteActivity_Success(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, "DELETE", fmt.Sprintf("/activities/%d", activity.ID), nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithTenantContext(testutil.TenantContextWithOrgID(ctx.ogsID)),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -402,6 +413,7 @@ func TestDeleteActivity_NonExistent_ReturnsSuccess(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, "DELETE", "/activities/99999", nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithTenantContext(testutil.TenantContextWithOrgID(ctx.ogsID)),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -419,6 +431,7 @@ func TestDeleteActivity_InvalidID(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, "DELETE", "/activities/invalid", nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithTenantContext(testutil.TenantContextWithOrgID(ctx.ogsID)),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -442,6 +455,7 @@ func TestListCategories_Success(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/activities/categories", nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithTenantContext(testutil.TenantContextWithOrgID(ctx.ogsID)),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -463,6 +477,7 @@ func TestGetTimespans_Success(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/activities/timespans", nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithTenantContext(testutil.TenantContextWithOrgID(ctx.ogsID)),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -491,6 +506,7 @@ func TestGetActivitySchedules_Success(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/activities/%d/schedules", activity.ID), nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithTenantContext(testutil.TenantContextWithOrgID(ctx.ogsID)),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -515,6 +531,7 @@ func TestCreateActivitySchedule_Success(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/activities/%d/schedules", activity.ID), body,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithTenantContext(testutil.TenantContextWithOrgID(ctx.ogsID)),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -539,6 +556,7 @@ func TestCreateActivitySchedule_BadRequest_InvalidWeekday(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/activities/%d/schedules", activity.ID), body,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithTenantContext(testutil.TenantContextWithOrgID(ctx.ogsID)),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -555,6 +573,7 @@ func TestGetAvailableTimeSlots_Success(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/activities/schedules/available", nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithTenantContext(testutil.TenantContextWithOrgID(ctx.ogsID)),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -571,6 +590,7 @@ func TestGetAvailableTimeSlots_BadRequest_InvalidWeekday(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/activities/schedules/available?weekday=invalid", nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithTenantContext(testutil.TenantContextWithOrgID(ctx.ogsID)),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -595,6 +615,7 @@ func TestGetActivitySupervisors_Success(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/activities/%d/supervisors", activity.ID), nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithTenantContext(testutil.TenantContextWithOrgID(ctx.ogsID)),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -623,6 +644,7 @@ func TestAssignSupervisor_Success(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/activities/%d/supervisors", activity.ID), body,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithTenantContext(testutil.TenantContextWithOrgID(ctx.ogsID)),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -647,6 +669,7 @@ func TestAssignSupervisor_BadRequest_MissingStaffID(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/activities/%d/supervisors", activity.ID), body,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithTenantContext(testutil.TenantContextWithOrgID(ctx.ogsID)),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -666,6 +689,7 @@ func TestGetAvailableSupervisors_Success(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/activities/supervisors/available", nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithTenantContext(testutil.TenantContextWithOrgID(ctx.ogsID)),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -694,6 +718,7 @@ func TestGetActivityStudents_Success(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/activities/%d/students", activity.ID), nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithTenantContext(testutil.TenantContextWithOrgID(ctx.ogsID)),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -717,6 +742,7 @@ func TestEnrollStudent_Success(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/activities/%d/students/%d", activity.ID, student.ID), nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithTenantContext(testutil.TenantContextWithOrgID(ctx.ogsID)),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -741,6 +767,7 @@ func TestEnrollStudent_Conflict_AlreadyEnrolled(t *testing.T) {
 	// First enrollment
 	req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/activities/%d/students/%d", activity.ID, student.ID), nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithTenantContext(testutil.TenantContextWithOrgID(ctx.ogsID)),
 	)
 	rr := testutil.ExecuteRequest(router, req)
 	require.Equal(t, http.StatusOK, rr.Code, "First enrollment failed: %s", rr.Body.String())
@@ -748,6 +775,7 @@ func TestEnrollStudent_Conflict_AlreadyEnrolled(t *testing.T) {
 	// Second enrollment - should conflict
 	req = testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/activities/%d/students/%d", activity.ID, student.ID), nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithTenantContext(testutil.TenantContextWithOrgID(ctx.ogsID)),
 	)
 	rr = testutil.ExecuteRequest(router, req)
 
@@ -766,6 +794,7 @@ func TestGetStudentEnrollments_Success(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/activities/students/%d", student.ID), nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithTenantContext(testutil.TenantContextWithOrgID(ctx.ogsID)),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -785,6 +814,7 @@ func TestGetAvailableActivities_Success(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/activities/students/%d/available", student.ID), nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithTenantContext(testutil.TenantContextWithOrgID(ctx.ogsID)),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -808,6 +838,7 @@ func TestUnenrollStudent_Success(t *testing.T) {
 	enrollRouter.Post("/activities/{id}/students/{studentId}", ctx.resource.EnrollStudentHandler())
 	enrollReq := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/activities/%d/students/%d", activity.ID, student.ID), nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithTenantContext(testutil.TenantContextWithOrgID(ctx.ogsID)),
 	)
 	enrollRr := testutil.ExecuteRequest(enrollRouter, enrollReq)
 	require.Equal(t, http.StatusOK, enrollRr.Code, "Enrollment failed: %s", enrollRr.Body.String())
@@ -818,6 +849,7 @@ func TestUnenrollStudent_Success(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, "DELETE", fmt.Sprintf("/activities/%d/students/%d", activity.ID, student.ID), nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithTenantContext(testutil.TenantContextWithOrgID(ctx.ogsID)),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -841,6 +873,7 @@ func TestUnenrollStudent_NotFound(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, "DELETE", fmt.Sprintf("/activities/%d/students/%d", activity.ID, student.ID), nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithTenantContext(testutil.TenantContextWithOrgID(ctx.ogsID)),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -869,6 +902,7 @@ func TestBatchEnrollment_Success(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/activities/%d/students", activity.ID), body,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithTenantContext(testutil.TenantContextWithOrgID(ctx.ogsID)),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -891,6 +925,7 @@ func TestBatchEnrollment_BadRequest_MissingStudentIDs(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/activities/%d/students", activity.ID), body,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithTenantContext(testutil.TenantContextWithOrgID(ctx.ogsID)),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -920,6 +955,7 @@ func TestQuickCreateActivity_Success(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/activities/quick-create", body,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithTenantContext(testutil.TenantContextWithOrgID(ctx.ogsID)),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -954,6 +990,7 @@ func TestQuickCreateActivity_BadRequest_MissingName(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/activities/quick-create", body,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithTenantContext(testutil.TenantContextWithOrgID(ctx.ogsID)),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -975,6 +1012,7 @@ func TestQuickCreateActivity_BadRequest_MissingCategoryID(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/activities/quick-create", body,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithTenantContext(testutil.TenantContextWithOrgID(ctx.ogsID)),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -1010,6 +1048,7 @@ func TestGetActivitySchedule_Success(t *testing.T) {
 	req := testutil.NewAuthenticatedRequest(t, "GET",
 		fmt.Sprintf("/activities/%d/schedules/%d", activity.ID, schedule.ID), nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithTenantContext(testutil.TenantContextWithOrgID(ctx.ogsID)),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -1031,6 +1070,7 @@ func TestGetActivitySchedule_NotFound(t *testing.T) {
 	req := testutil.NewAuthenticatedRequest(t, "GET",
 		fmt.Sprintf("/activities/%d/schedules/999999", activity.ID), nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithTenantContext(testutil.TenantContextWithOrgID(ctx.ogsID)),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -1065,6 +1105,7 @@ func TestUpdateActivitySchedule_Success(t *testing.T) {
 	req := testutil.NewAuthenticatedRequest(t, "PUT",
 		fmt.Sprintf("/activities/%d/schedules/%d", activity.ID, schedule.ID), body,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithTenantContext(testutil.TenantContextWithOrgID(ctx.ogsID)),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -1090,6 +1131,7 @@ func TestUpdateActivitySchedule_NotFound(t *testing.T) {
 	req := testutil.NewAuthenticatedRequest(t, "PUT",
 		fmt.Sprintf("/activities/%d/schedules/999999", activity.ID), body,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithTenantContext(testutil.TenantContextWithOrgID(ctx.ogsID)),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -1120,6 +1162,7 @@ func TestDeleteActivitySchedule_Success(t *testing.T) {
 	req := testutil.NewAuthenticatedRequest(t, "DELETE",
 		fmt.Sprintf("/activities/%d/schedules/%d", activity.ID, schedule.ID), nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithTenantContext(testutil.TenantContextWithOrgID(ctx.ogsID)),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -1143,6 +1186,7 @@ func TestDeleteActivitySchedule_NotFound(t *testing.T) {
 	req := testutil.NewAuthenticatedRequest(t, "DELETE",
 		fmt.Sprintf("/activities/%d/schedules/999999", activity.ID), nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithTenantContext(testutil.TenantContextWithOrgID(ctx.ogsID)),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -1180,6 +1224,7 @@ func TestUpdateSupervisorRole_Success(t *testing.T) {
 	req := testutil.NewAuthenticatedRequest(t, "PUT",
 		fmt.Sprintf("/activities/%d/supervisors/%d", activity.ID, supervisor.ID), body, // Use supervisor.ID
 		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithTenantContext(testutil.TenantContextWithOrgID(ctx.ogsID)),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -1205,6 +1250,7 @@ func TestUpdateSupervisorRole_NotFound(t *testing.T) {
 	req := testutil.NewAuthenticatedRequest(t, "PUT",
 		fmt.Sprintf("/activities/%d/supervisors/999999", activity.ID), body,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithTenantContext(testutil.TenantContextWithOrgID(ctx.ogsID)),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -1234,6 +1280,7 @@ func TestRemoveSupervisor_Success(t *testing.T) {
 	req := testutil.NewAuthenticatedRequest(t, "DELETE",
 		fmt.Sprintf("/activities/%d/supervisors/%d", activity.ID, supervisor.ID), nil, // Use supervisor.ID
 		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithTenantContext(testutil.TenantContextWithOrgID(ctx.ogsID)),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -1257,6 +1304,7 @@ func TestRemoveSupervisor_NotFound(t *testing.T) {
 	req := testutil.NewAuthenticatedRequest(t, "DELETE",
 		fmt.Sprintf("/activities/%d/supervisors/999999", activity.ID), nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithTenantContext(testutil.TenantContextWithOrgID(ctx.ogsID)),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)

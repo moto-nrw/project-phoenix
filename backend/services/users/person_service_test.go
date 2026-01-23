@@ -178,6 +178,7 @@ func TestPersonService_Create(t *testing.T) {
 			FirstName: "",
 			LastName:  "",
 		}
+		person.OgsID = ogsID
 
 		// ACT
 		err := service.Create(ctx, person)
@@ -196,6 +197,7 @@ func TestPersonService_Create(t *testing.T) {
 			LastName:  "Test",
 			AccountID: &account.ID,
 		}
+		person.OgsID = ogsID
 
 		// ACT
 		err := service.Create(ctx, person)
@@ -218,6 +220,7 @@ func TestPersonService_Create(t *testing.T) {
 			LastName:  "Account",
 			AccountID: &nonExistentAccountID,
 		}
+		person.OgsID = ogsID
 
 		// ACT
 		err := service.Create(ctx, person)
@@ -1237,6 +1240,7 @@ func TestPersonService_Create_ValidationError(t *testing.T) {
 			FirstName: "",
 			LastName:  "",
 		}
+		person.OgsID = ogsID
 
 		// ACT - Create returns only error
 		err := service.Create(ctx, person)
@@ -1416,6 +1420,7 @@ func TestPersonService_Create_WithRFIDCard(t *testing.T) {
 			LastName:  "Card",
 			TagID:     &rfidCard.ID,
 		}
+		person.OgsID = ogsID
 
 		// ACT
 		err := service.Create(ctx, person)
@@ -1443,6 +1448,7 @@ func TestPersonService_Create_WithRFIDCard(t *testing.T) {
 			LastName:  "RFID",
 			TagID:     &nonExistentTagID,
 		}
+		person.OgsID = ogsID
 
 		// ACT
 		err := service.Create(ctx, person)
