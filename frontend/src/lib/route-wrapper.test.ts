@@ -781,3 +781,506 @@ describe("Error Handling", () => {
     expect(response.status).toBe(404);
   });
 });
+
+// ============================================================================
+// Tests: API Helper Functions
+// These test the exported api*WithCookies functions directly
+// ============================================================================
+
+describe("apiGetWithCookies", () => {
+  const mockFetch = vi.fn();
+  const originalFetch = globalThis.fetch;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    globalThis.fetch = mockFetch;
+  });
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  it("makes GET request with cookie header", async () => {
+    const mockData = { id: 1, name: "Test" };
+    mockFetch.mockReturnValueOnce(createMockFetchResponse(mockData));
+
+    const { apiGetWithCookies } = await import("./route-wrapper");
+    const result = await apiGetWithCookies("/api/test", TEST_COOKIE_HEADER);
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      "http://localhost:8080/api/test",
+      expect.objectContaining({
+        method: "GET",
+        headers: {
+          Cookie: TEST_COOKIE_HEADER,
+          "Content-Type": "application/json",
+        },
+      }),
+    );
+    expect(result).toEqual(mockData);
+  });
+
+  it("returns empty object for 204 response", async () => {
+    mockFetch.mockReturnValueOnce(
+      Promise.resolve(new Response(null, { status: 204 })),
+    );
+
+    const { apiGetWithCookies } = await import("./route-wrapper");
+    const result = await apiGetWithCookies("/api/test", TEST_COOKIE_HEADER);
+
+    expect(result).toEqual({});
+  });
+
+  it("throws error for non-ok response", async () => {
+    mockFetch.mockReturnValueOnce(
+      Promise.resolve(
+        new Response("Not Found", { status: 404, statusText: "Not Found" }),
+      ),
+    );
+
+    const { apiGetWithCookies } = await import("./route-wrapper");
+
+    await expect(
+      apiGetWithCookies("/api/test", TEST_COOKIE_HEADER),
+    ).rejects.toThrow("API error (404): Not Found");
+  });
+});
+
+describe("apiPostWithCookies", () => {
+  const mockFetch = vi.fn();
+  const originalFetch = globalThis.fetch;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    globalThis.fetch = mockFetch;
+  });
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  it("makes POST request with cookie header and body", async () => {
+    const mockData = { id: 1, name: "Created" };
+    const body = { name: "New Item" };
+    mockFetch.mockReturnValueOnce(createMockFetchResponse(mockData));
+
+    const { apiPostWithCookies } = await import("./route-wrapper");
+    const result = await apiPostWithCookies(
+      "/api/test",
+      TEST_COOKIE_HEADER,
+      body,
+    );
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      "http://localhost:8080/api/test",
+      expect.objectContaining({
+        method: "POST",
+        headers: {
+          Cookie: TEST_COOKIE_HEADER,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
+      }),
+    );
+    expect(result).toEqual(mockData);
+  });
+
+  it("makes POST request without body when not provided", async () => {
+    const mockData = { id: 1 };
+    mockFetch.mockReturnValueOnce(createMockFetchResponse(mockData));
+
+    const { apiPostWithCookies } = await import("./route-wrapper");
+    await apiPostWithCookies("/api/test", TEST_COOKIE_HEADER);
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        method: "POST",
+        body: undefined,
+      }),
+    );
+  });
+
+  it("returns empty object for 204 response", async () => {
+    mockFetch.mockReturnValueOnce(
+      Promise.resolve(new Response(null, { status: 204 })),
+    );
+
+    const { apiPostWithCookies } = await import("./route-wrapper");
+    const result = await apiPostWithCookies("/api/test", TEST_COOKIE_HEADER, {
+      data: "test",
+    });
+
+    expect(result).toEqual({});
+  });
+
+  it("throws error for non-ok response", async () => {
+    mockFetch.mockReturnValueOnce(
+      Promise.resolve(
+        new Response("Validation Error", {
+          status: 400,
+          statusText: "Bad Request",
+        }),
+      ),
+    );
+
+    const { apiPostWithCookies } = await import("./route-wrapper");
+
+    await expect(
+      apiPostWithCookies("/api/test", TEST_COOKIE_HEADER, { invalid: true }),
+    ).rejects.toThrow("API error (400): Validation Error");
+  });
+
+  it("throws error for server error response", async () => {
+    mockFetch.mockReturnValueOnce(
+      Promise.resolve(
+        new Response("Internal Server Error", {
+          status: 500,
+          statusText: "Internal Server Error",
+        }),
+      ),
+    );
+
+    const { apiPostWithCookies } = await import("./route-wrapper");
+
+    await expect(
+      apiPostWithCookies("/api/test", TEST_COOKIE_HEADER, {}),
+    ).rejects.toThrow("API error (500): Internal Server Error");
+  });
+});
+
+describe("apiPutWithCookies", () => {
+  const mockFetch = vi.fn();
+  const originalFetch = globalThis.fetch;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    globalThis.fetch = mockFetch;
+  });
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  it("makes PUT request with cookie header and body", async () => {
+    const mockData = { id: 1, name: "Updated" };
+    const body = { name: "Updated Name" };
+    mockFetch.mockReturnValueOnce(createMockFetchResponse(mockData));
+
+    const { apiPutWithCookies } = await import("./route-wrapper");
+    const result = await apiPutWithCookies(
+      "/api/test/1",
+      TEST_COOKIE_HEADER,
+      body,
+    );
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      "http://localhost:8080/api/test/1",
+      expect.objectContaining({
+        method: "PUT",
+        headers: {
+          Cookie: TEST_COOKIE_HEADER,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
+      }),
+    );
+    expect(result).toEqual(mockData);
+  });
+
+  it("makes PUT request without body when not provided", async () => {
+    const mockData = { id: 1 };
+    mockFetch.mockReturnValueOnce(createMockFetchResponse(mockData));
+
+    const { apiPutWithCookies } = await import("./route-wrapper");
+    await apiPutWithCookies("/api/test/1", TEST_COOKIE_HEADER);
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        method: "PUT",
+        body: undefined,
+      }),
+    );
+  });
+
+  it("returns empty object for 204 response", async () => {
+    mockFetch.mockReturnValueOnce(
+      Promise.resolve(new Response(null, { status: 204 })),
+    );
+
+    const { apiPutWithCookies } = await import("./route-wrapper");
+    const result = await apiPutWithCookies("/api/test/1", TEST_COOKIE_HEADER, {
+      data: "test",
+    });
+
+    expect(result).toEqual({});
+  });
+
+  it("throws error for non-ok response", async () => {
+    mockFetch.mockReturnValueOnce(
+      Promise.resolve(
+        new Response("Forbidden", { status: 403, statusText: "Forbidden" }),
+      ),
+    );
+
+    const { apiPutWithCookies } = await import("./route-wrapper");
+
+    await expect(
+      apiPutWithCookies("/api/test/1", TEST_COOKIE_HEADER, { name: "Test" }),
+    ).rejects.toThrow("API error (403): Forbidden");
+  });
+
+  it("throws error for not found response", async () => {
+    mockFetch.mockReturnValueOnce(
+      Promise.resolve(
+        new Response("Resource not found", {
+          status: 404,
+          statusText: "Not Found",
+        }),
+      ),
+    );
+
+    const { apiPutWithCookies } = await import("./route-wrapper");
+
+    await expect(
+      apiPutWithCookies("/api/test/999", TEST_COOKIE_HEADER, { name: "Test" }),
+    ).rejects.toThrow("API error (404): Resource not found");
+  });
+});
+
+describe("apiDeleteWithCookies", () => {
+  const mockFetch = vi.fn();
+  const originalFetch = globalThis.fetch;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    globalThis.fetch = mockFetch;
+  });
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  it("makes DELETE request with cookie header", async () => {
+    mockFetch.mockReturnValueOnce(
+      Promise.resolve(new Response(null, { status: 204 })),
+    );
+
+    const { apiDeleteWithCookies } = await import("./route-wrapper");
+    const result = await apiDeleteWithCookies(
+      "/api/test/1",
+      TEST_COOKIE_HEADER,
+    );
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      "http://localhost:8080/api/test/1",
+      expect.objectContaining({
+        method: "DELETE",
+        headers: {
+          Cookie: TEST_COOKIE_HEADER,
+          "Content-Type": "application/json",
+        },
+      }),
+    );
+    expect(result).toBeUndefined();
+  });
+
+  it("returns undefined for 204 response", async () => {
+    mockFetch.mockReturnValueOnce(
+      Promise.resolve(new Response(null, { status: 204 })),
+    );
+
+    const { apiDeleteWithCookies } = await import("./route-wrapper");
+    const result = await apiDeleteWithCookies(
+      "/api/test/1",
+      TEST_COOKIE_HEADER,
+    );
+
+    expect(result).toBeUndefined();
+  });
+
+  it("returns JSON data for non-204 success response", async () => {
+    const mockData = { message: "Deleted", affectedRows: 1 };
+    mockFetch.mockReturnValueOnce(createMockFetchResponse(mockData, 200));
+
+    const { apiDeleteWithCookies } = await import("./route-wrapper");
+    const result = await apiDeleteWithCookies(
+      "/api/test/1",
+      TEST_COOKIE_HEADER,
+    );
+
+    expect(result).toEqual(mockData);
+  });
+
+  it("throws error for non-ok response", async () => {
+    mockFetch.mockReturnValueOnce(
+      Promise.resolve(
+        new Response("Not Found", { status: 404, statusText: "Not Found" }),
+      ),
+    );
+
+    const { apiDeleteWithCookies } = await import("./route-wrapper");
+
+    await expect(
+      apiDeleteWithCookies("/api/test/999", TEST_COOKIE_HEADER),
+    ).rejects.toThrow("API error (404): Not Found");
+  });
+
+  it("throws error for server error response", async () => {
+    mockFetch.mockReturnValueOnce(
+      Promise.resolve(
+        new Response("Database connection failed", {
+          status: 500,
+          statusText: "Internal Server Error",
+        }),
+      ),
+    );
+
+    const { apiDeleteWithCookies } = await import("./route-wrapper");
+
+    await expect(
+      apiDeleteWithCookies("/api/test/1", TEST_COOKIE_HEADER),
+    ).rejects.toThrow("API error (500): Database connection failed");
+  });
+
+  it("throws error for unauthorized response", async () => {
+    mockFetch.mockReturnValueOnce(
+      Promise.resolve(
+        new Response("Unauthorized", {
+          status: 401,
+          statusText: "Unauthorized",
+        }),
+      ),
+    );
+
+    const { apiDeleteWithCookies } = await import("./route-wrapper");
+
+    await expect(
+      apiDeleteWithCookies("/api/test/1", TEST_COOKIE_HEADER),
+    ).rejects.toThrow("API error (401): Unauthorized");
+  });
+});
+
+// ============================================================================
+// Tests: Edge Cases and Additional Coverage
+// ============================================================================
+
+describe("extractParams edge cases", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("handles undefined values in context params", async () => {
+    const mockHandler = vi.fn().mockResolvedValue({ data: "test" });
+
+    const handler = createGetHandler(mockHandler);
+    const request = createMockRequest("/api/test");
+    await handler(request, createMockContext({ id: undefined, name: "test" }));
+
+    // id should not be in params since it was undefined
+    expect(mockHandler).toHaveBeenCalledWith(
+      request,
+      TEST_COOKIE_HEADER,
+      expect.objectContaining({ name: "test" }),
+    );
+    // Verify id was not included due to undefined
+    const calledParams = mockHandler.mock.calls[0]?.[2] ?? {};
+    expect(Object.prototype.hasOwnProperty.call(calledParams, "id")).toBe(
+      false,
+    );
+  });
+
+  it("extracts multiple IDs from URL path, uses the last one", async () => {
+    const mockHandler = vi.fn().mockResolvedValue({ data: "test" });
+
+    const handler = createGetHandler(mockHandler);
+    const request = createMockRequest("/api/groups/123/students/456");
+    await handler(request, createMockContext({}));
+
+    // Should use the last numeric ID in the path
+    expect(mockHandler).toHaveBeenCalledWith(
+      request,
+      TEST_COOKIE_HEADER,
+      expect.objectContaining({ id: "456" }),
+    );
+  });
+
+  it("does not extract ID from URL when context params already has id", async () => {
+    const mockHandler = vi.fn().mockResolvedValue({ data: "test" });
+
+    const handler = createGetHandler(mockHandler);
+    const request = createMockRequest("/api/test/999");
+    await handler(request, createMockContext({ id: "123" }));
+
+    // Should use the ID from context params, not from URL
+    expect(mockHandler).toHaveBeenCalledWith(
+      request,
+      TEST_COOKIE_HEADER,
+      expect.objectContaining({ id: "123" }),
+    );
+  });
+
+  it("handles array values in context params", async () => {
+    const mockHandler = vi.fn().mockResolvedValue({ data: "test" });
+
+    const handler = createGetHandler(mockHandler);
+    const request = createMockRequest("/api/test");
+    await handler(request, createMockContext({ slugs: ["a", "b", "c"] }));
+
+    expect(mockHandler).toHaveBeenCalledWith(
+      request,
+      TEST_COOKIE_HEADER,
+      expect.objectContaining({ slugs: ["a", "b", "c"] }),
+    );
+  });
+});
+
+describe("wrapInApiResponse edge cases", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("passes through null data wrapped in response", async () => {
+    const handler = createGetHandler(async () => null);
+    const request = createMockRequest("/api/test");
+    const response = await handler(request, createMockContext());
+
+    expect(response.status).toBe(200);
+    const json = await parseJsonResponse<ApiSuccessResponse<null>>(response);
+    expect(json).toEqual({
+      success: true,
+      message: "Success",
+      data: null,
+    });
+  });
+
+  it("passes through empty array data", async () => {
+    const handler = createGetHandler(async () => []);
+    const request = createMockRequest("/api/test");
+    const response = await handler(request, createMockContext());
+
+    expect(response.status).toBe(200);
+    const json =
+      await parseJsonResponse<ApiSuccessResponse<unknown[]>>(response);
+    expect(json).toEqual({
+      success: true,
+      message: "Success",
+      data: [],
+    });
+  });
+
+  it("handles primitive return values", async () => {
+    const handler = createGetHandler(async () => 42);
+    const request = createMockRequest("/api/test");
+    const response = await handler(request, createMockContext());
+
+    expect(response.status).toBe(200);
+    const json = await parseJsonResponse<ApiSuccessResponse<number>>(response);
+    expect(json).toEqual({
+      success: true,
+      message: "Success",
+      data: 42,
+    });
+  });
+});
