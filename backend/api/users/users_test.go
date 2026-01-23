@@ -5,22 +5,55 @@
 package users_test
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	usersAPI "github.com/moto-nrw/project-phoenix/api/users"
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
+
+// generateHexID generates a unique hexadecimal ID for testing RFID cards
+func generateHexID(prefix string) string {
+	// Use nanoseconds converted to hex for unique, valid RFID IDs
+	nano := time.Now().UnixNano()
+	return fmt.Sprintf("%s%X", prefix, nano)
+}
+
+// createHexRFIDCard creates an RFID card with a valid hexadecimal ID for service-layer testing
+func createHexRFIDCard(t *testing.T, db *bun.DB, prefix string) *users.RFIDCard {
+	t.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	hexID := generateHexID(prefix)
+	card := &users.RFIDCard{
+		Active: true,
+	}
+	card.ID = hexID
+
+	err := db.NewInsert().
+		Model(card).
+		ModelTableExpr(`users.rfid_cards`).
+		Scan(ctx)
+	require.NoError(t, err, "Failed to create test RFID card with hex ID")
+
+	return card
+}
 
 // testContext holds shared test resources
 type testContext struct {
@@ -775,4 +808,414 @@ func TestGetPersonByAccount_NotFound(t *testing.T) {
 
 	rr := testutil.ExecuteRequest(router, req)
 	testutil.AssertNotFound(t, rr)
+}
+
+func TestGetPersonByAccount_WithoutPermission(t *testing.T) {
+	tc, router := setupProtectedRouter(t)
+
+	account := testpkg.CreateTestAccount(t, tc.db, "byaccount-noperm@example.com")
+	defer testpkg.CleanupAccount(t, tc.db, account.ID)
+
+	person := testpkg.CreateTestPersonWithAccountID(t, tc.db, "ByAccountNoPerm", "Test", account.ID, tc.ogsID)
+	defer testpkg.CleanupPerson(t, tc.db, person.ID)
+
+	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/users/by-account/%d", account.ID), nil,
+		testutil.WithPermissions(), // No permissions
+		testutil.WithClaims(testutil.DefaultTestClaims()),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+	testutil.AssertForbidden(t, rr)
+}
+
+// =============================================================================
+// GET PERSON BY TAG TESTS (Additional)
+// =============================================================================
+
+func TestGetPersonByTag_Success(t *testing.T) {
+	tc, router := setupProtectedRouter(t)
+
+	// Create RFID card first (must be valid hex, 8+ chars)
+	card := createHexRFIDCard(t, tc.db, "A1B2C3D4")
+	defer testpkg.CleanupRFIDCards(t, tc.db, card.ID)
+
+	// Create person with this tag
+	person := testpkg.CreateTestPerson(t, tc.db, "TagTest", "Person", tc.ogsID)
+	defer testpkg.CleanupPerson(t, tc.db, person.ID)
+
+	// Link RFID to person via direct DB update
+	testpkg.LinkRFIDToStudent(t, tc.db, person.ID, card.ID)
+
+	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/users/by-tag/%s", card.ID), nil,
+		testutil.WithPermissions("users:read"),
+		testutil.WithClaims(testutil.DefaultTestClaims()),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+
+	// Verify response
+	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+	data := response["data"].(map[string]any)
+	assert.Equal(t, "TagTest", data["first_name"])
+}
+
+func TestGetPersonByTag_WithoutPermission(t *testing.T) {
+	_, router := setupProtectedRouter(t)
+
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/users/by-tag/SOMETAG123", nil,
+		testutil.WithPermissions(), // No permissions
+		testutil.WithClaims(testutil.DefaultTestClaims()),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+	testutil.AssertForbidden(t, rr)
+}
+
+// =============================================================================
+// SEARCH PERSONS TESTS (Additional)
+// =============================================================================
+
+func TestSearchPersons_WithoutPermission(t *testing.T) {
+	_, router := setupProtectedRouter(t)
+
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/users/search?first_name=Test", nil,
+		testutil.WithPermissions(), // No permissions
+		testutil.WithClaims(testutil.DefaultTestClaims()),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+	testutil.AssertForbidden(t, rr)
+}
+
+// =============================================================================
+// GET FULL PROFILE TESTS (Additional)
+// =============================================================================
+
+func TestGetFullProfile_InvalidID(t *testing.T) {
+	_, router := setupProtectedRouter(t)
+
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/users/invalid/profile", nil,
+		testutil.WithPermissions("users:read"),
+		testutil.WithClaims(testutil.DefaultTestClaims()),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+	testutil.AssertBadRequest(t, rr)
+}
+
+func TestGetFullProfile_WithoutPermission(t *testing.T) {
+	tc, router := setupProtectedRouter(t)
+
+	person := testpkg.CreateTestPerson(t, tc.db, "ProfileNoPerm", "Test", tc.ogsID)
+	defer testpkg.CleanupPerson(t, tc.db, person.ID)
+
+	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/users/%d/profile", person.ID), nil,
+		testutil.WithPermissions(), // No permissions
+		testutil.WithClaims(testutil.DefaultTestClaims()),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+	testutil.AssertForbidden(t, rr)
+}
+
+func TestGetFullProfile_WithRFIDAndAccount(t *testing.T) {
+	tc, router := setupProtectedRouter(t)
+
+	// Create account
+	account := testpkg.CreateTestAccount(t, tc.db, "fullprofile-test@example.com")
+	defer testpkg.CleanupAccount(t, tc.db, account.ID)
+
+	// Create RFID card (must be valid hex, 8+ chars)
+	card := createHexRFIDCard(t, tc.db, "F1E2D3C4")
+	defer testpkg.CleanupRFIDCards(t, tc.db, card.ID)
+
+	// Create person with account
+	person := testpkg.CreateTestPersonWithAccountID(t, tc.db, "FullProfile", "Test", account.ID, tc.ogsID)
+	defer testpkg.CleanupPerson(t, tc.db, person.ID)
+
+	// Link RFID to person via direct DB update
+	testpkg.LinkRFIDToStudent(t, tc.db, person.ID, card.ID)
+
+	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/users/%d/profile", person.ID), nil,
+		testutil.WithPermissions("users:read"),
+		testutil.WithClaims(testutil.DefaultTestClaims()),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+
+	// Verify response contains profile data with RFID and account
+	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+	data := response["data"].(map[string]any)
+	assert.Equal(t, "FullProfile", data["first_name"])
+	assert.NotNil(t, data["account"])
+}
+
+// =============================================================================
+// LIST PERSONS TESTS (Additional)
+// =============================================================================
+
+func TestListPersons_WithTagFilter(t *testing.T) {
+	tc, router := setupProtectedRouter(t)
+
+	// Create RFID card (must be valid hex, 8+ chars)
+	card := createHexRFIDCard(t, tc.db, "B1C2D3E4")
+	defer testpkg.CleanupRFIDCards(t, tc.db, card.ID)
+
+	// Create person with this tag
+	person := testpkg.CreateTestPerson(t, tc.db, "ListTagTest", "Person", tc.ogsID)
+	defer testpkg.CleanupPerson(t, tc.db, person.ID)
+
+	// Link RFID to person via direct DB update
+	testpkg.LinkRFIDToStudent(t, tc.db, person.ID, card.ID)
+
+	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/users?tag_id=%s", card.ID), nil,
+		testutil.WithPermissions("users:read"),
+		testutil.WithClaims(testutil.DefaultTestClaims()),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+}
+
+// =============================================================================
+// LINK RFID TESTS (Additional)
+// =============================================================================
+
+func TestLinkRFID_Success(t *testing.T) {
+	tc, router := setupProtectedRouter(t)
+
+	// Create person without RFID
+	person := testpkg.CreateTestPerson(t, tc.db, "RFIDLink", "Success", tc.ogsID)
+	defer testpkg.CleanupPerson(t, tc.db, person.ID)
+
+	// Create RFID card (must be valid hex, 8+ chars)
+	card := createHexRFIDCard(t, tc.db, "C1D2E3F4")
+	defer testpkg.CleanupRFIDCards(t, tc.db, card.ID)
+
+	body := map[string]any{
+		"tag_id": card.ID, // Use the actual card ID created
+	}
+
+	req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/users/%d/rfid", person.ID), body,
+		testutil.WithPermissions("users:update"),
+		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithTenantContext(testutil.TenantContextWithOrgID(tc.ogsID)),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+
+	// Verify response contains the tag_id (uppercase because service normalizes it)
+	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+	data := response["data"].(map[string]any)
+	assert.NotEmpty(t, data["tag_id"])
+}
+
+func TestLinkRFID_NotFound(t *testing.T) {
+	_, router := setupProtectedRouter(t)
+
+	body := map[string]any{
+		"tag_id": "ABCD1234EFAB5678",
+	}
+
+	req := testutil.NewAuthenticatedRequest(t, "PUT", "/users/999999/rfid", body,
+		testutil.WithPermissions("users:update"),
+		testutil.WithClaims(testutil.DefaultTestClaims()),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+	// Service returns error when person not found
+	testutil.AssertErrorResponse(t, rr, http.StatusInternalServerError)
+}
+
+func TestLinkRFID_WithoutPermission(t *testing.T) {
+	tc, router := setupProtectedRouter(t)
+
+	person := testpkg.CreateTestPerson(t, tc.db, "RFIDLinkNoPerm", "Test", tc.ogsID)
+	defer testpkg.CleanupPerson(t, tc.db, person.ID)
+
+	body := map[string]any{
+		"tag_id": "ABCD1234EFAB5678",
+	}
+
+	req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/users/%d/rfid", person.ID), body,
+		testutil.WithPermissions(), // No permissions
+		testutil.WithClaims(testutil.DefaultTestClaims()),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+	testutil.AssertForbidden(t, rr)
+}
+
+// =============================================================================
+// UNLINK RFID TESTS (Additional)
+// =============================================================================
+
+func TestUnlinkRFID_Success(t *testing.T) {
+	tc, router := setupProtectedRouter(t)
+
+	// Create RFID card (must be valid hex, 8+ chars)
+	card := createHexRFIDCard(t, tc.db, "D1E2F3A4")
+	defer testpkg.CleanupRFIDCards(t, tc.db, card.ID)
+
+	// Create person with this tag
+	person := testpkg.CreateTestPerson(t, tc.db, "RFIDUnlink", "Success", tc.ogsID)
+	defer testpkg.CleanupPerson(t, tc.db, person.ID)
+
+	// Link RFID to person via direct DB update
+	testpkg.LinkRFIDToStudent(t, tc.db, person.ID, card.ID)
+
+	req := testutil.NewAuthenticatedRequest(t, "DELETE", fmt.Sprintf("/users/%d/rfid", person.ID), nil,
+		testutil.WithPermissions("users:update"),
+		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithTenantContext(testutil.TenantContextWithOrgID(tc.ogsID)),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+
+	// Verify response has no tag_id
+	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+	data := response["data"].(map[string]any)
+	assert.Empty(t, data["tag_id"])
+}
+
+func TestUnlinkRFID_WithoutPermission(t *testing.T) {
+	tc, router := setupProtectedRouter(t)
+
+	person := testpkg.CreateTestPerson(t, tc.db, "RFIDUnlinkNoPerm", "Test", tc.ogsID)
+	defer testpkg.CleanupPerson(t, tc.db, person.ID)
+
+	req := testutil.NewAuthenticatedRequest(t, "DELETE", fmt.Sprintf("/users/%d/rfid", person.ID), nil,
+		testutil.WithPermissions(), // No permissions
+		testutil.WithClaims(testutil.DefaultTestClaims()),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+	testutil.AssertForbidden(t, rr)
+}
+
+// =============================================================================
+// LINK ACCOUNT TESTS (Additional)
+// =============================================================================
+
+func TestLinkAccount_Success(t *testing.T) {
+	tc, router := setupProtectedRouter(t)
+
+	// Create person without account
+	person := testpkg.CreateTestPerson(t, tc.db, "AccountLink", "Success", tc.ogsID)
+	defer testpkg.CleanupPerson(t, tc.db, person.ID)
+
+	// Create account to link
+	account := testpkg.CreateTestAccount(t, tc.db, "link-account-success@example.com")
+	defer testpkg.CleanupAccount(t, tc.db, account.ID)
+
+	body := map[string]any{
+		"account_id": account.ID,
+	}
+
+	req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/users/%d/account", person.ID), body,
+		testutil.WithPermissions("users:update"),
+		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithTenantContext(testutil.TenantContextWithOrgID(tc.ogsID)),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+
+	// Verify response
+	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+	data := response["data"].(map[string]any)
+	assert.Equal(t, float64(account.ID), data["account_id"])
+}
+
+func TestLinkAccount_NotFound(t *testing.T) {
+	tc, router := setupProtectedRouter(t)
+
+	// Create a valid account to link
+	account := testpkg.CreateTestAccount(t, tc.db, "link-account-notfound@example.com")
+	defer testpkg.CleanupAccount(t, tc.db, account.ID)
+
+	body := map[string]any{
+		"account_id": account.ID,
+	}
+
+	req := testutil.NewAuthenticatedRequest(t, "PUT", "/users/999999/account", body,
+		testutil.WithPermissions("users:update"),
+		testutil.WithClaims(testutil.DefaultTestClaims()),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+	// Service returns error when person not found
+	testutil.AssertErrorResponse(t, rr, http.StatusInternalServerError)
+}
+
+func TestLinkAccount_WithoutPermission(t *testing.T) {
+	tc, router := setupProtectedRouter(t)
+
+	person := testpkg.CreateTestPerson(t, tc.db, "AccountLinkNoPerm", "Test", tc.ogsID)
+	defer testpkg.CleanupPerson(t, tc.db, person.ID)
+
+	body := map[string]any{
+		"account_id": 1,
+	}
+
+	req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/users/%d/account", person.ID), body,
+		testutil.WithPermissions(), // No permissions
+		testutil.WithClaims(testutil.DefaultTestClaims()),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+	testutil.AssertForbidden(t, rr)
+}
+
+// =============================================================================
+// UNLINK ACCOUNT TESTS (Additional)
+// =============================================================================
+
+func TestUnlinkAccount_Success(t *testing.T) {
+	tc, router := setupProtectedRouter(t)
+
+	// Create account
+	account := testpkg.CreateTestAccount(t, tc.db, "unlink-account-success@example.com")
+	defer testpkg.CleanupAccount(t, tc.db, account.ID)
+
+	// Create person with this account
+	person := testpkg.CreateTestPersonWithAccountID(t, tc.db, "AccountUnlink", "Success", account.ID, tc.ogsID)
+	defer testpkg.CleanupPerson(t, tc.db, person.ID)
+
+	req := testutil.NewAuthenticatedRequest(t, "DELETE", fmt.Sprintf("/users/%d/account", person.ID), nil,
+		testutil.WithPermissions("users:update"),
+		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithTenantContext(testutil.TenantContextWithOrgID(tc.ogsID)),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+
+	// Verify response has no account_id (omitempty means it's nil/missing when 0)
+	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+	data := response["data"].(map[string]any)
+	// account_id is omitempty in JSON, so when unlinked it's either 0 or nil
+	accountID := data["account_id"]
+	if accountID != nil {
+		assert.Equal(t, float64(0), accountID)
+	}
+}
+
+func TestUnlinkAccount_WithoutPermission(t *testing.T) {
+	tc, router := setupProtectedRouter(t)
+
+	person := testpkg.CreateTestPerson(t, tc.db, "AccountUnlinkNoPerm", "Test", tc.ogsID)
+	defer testpkg.CleanupPerson(t, tc.db, person.ID)
+
+	req := testutil.NewAuthenticatedRequest(t, "DELETE", fmt.Sprintf("/users/%d/account", person.ID), nil,
+		testutil.WithPermissions(), // No permissions
+		testutil.WithClaims(testutil.DefaultTestClaims()),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+	testutil.AssertForbidden(t, rr)
 }
