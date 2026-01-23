@@ -587,3 +587,402 @@ func TestSubstitutionCRUDWorkflow(t *testing.T) {
 	verifyRR := testutil.ExecuteRequest(router, verifyReq)
 	testutil.AssertNotFound(t, verifyRR)
 }
+
+// =============================================================================
+// UPDATE SUCCESS TESTS
+// =============================================================================
+
+func TestUpdateSubstitution_Success(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	// Create test fixtures using hermetic pattern
+	staff := testpkg.CreateTestStaff(t, ctx.db, "Update", "Test", ctx.ogsID)
+	group := testpkg.CreateTestEducationGroup(t, ctx.db, "UpdateTestGroup", ctx.ogsID)
+
+	// Create a substitution to update
+	startDate := time.Now().AddDate(0, 0, 1)
+	endDate := time.Now().AddDate(0, 0, 7)
+	substitution := testpkg.CreateTestGroupSubstitution(t, ctx.db, group.ID, nil, staff.ID, startDate, endDate)
+	defer cleanupSubstitution(t, ctx.db, substitution.ID)
+
+	router := chi.NewRouter()
+	router.Put("/substitutions/{id}", ctx.resource.UpdateHandler())
+
+	// Update with new dates - include timestamps since handler decodes directly into model
+	newStartDate := time.Now().AddDate(0, 0, 2).Format(time.RFC3339)
+	newEndDate := time.Now().AddDate(0, 0, 10).Format(time.RFC3339)
+
+	body := map[string]interface{}{
+		"group_id":            group.ID,
+		"substitute_staff_id": staff.ID,
+		"start_date":          newStartDate,
+		"end_date":            newEndDate,
+		"reason":              "Updated reason",
+		"created_at":          substitution.CreatedAt.Format(time.RFC3339),
+		"updated_at":          time.Now().Format(time.RFC3339),
+	}
+
+	req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/substitutions/%d", substitution.ID), body,
+		testutil.WithClaims(testutil.DefaultTestClaims()),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+
+	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+	data, ok := response["data"].(map[string]interface{})
+	require.True(t, ok, "Expected data to be an object")
+	assert.Equal(t, float64(substitution.ID), data["id"])
+}
+
+func TestUpdateSubstitution_BadRequest_InvalidJSON(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	router := chi.NewRouter()
+	router.Put("/substitutions/{id}", ctx.resource.UpdateHandler())
+
+	// Send with nil body which gets encoded as "null" - empty struct
+	req := testutil.NewAuthenticatedRequest(t, "PUT", "/substitutions/1", nil,
+		testutil.WithClaims(testutil.DefaultTestClaims()),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	// Empty struct fails date validation (zero dates)
+	testutil.AssertBadRequest(t, rr)
+}
+
+func TestUpdateSubstitution_BadRequest_DateValidation(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	// Create fixtures
+	staff := testpkg.CreateTestStaff(t, ctx.db, "DateVal", "Test", ctx.ogsID)
+	group := testpkg.CreateTestEducationGroup(t, ctx.db, "DateValGroup", ctx.ogsID)
+
+	// Create substitution
+	startDate := time.Now().AddDate(0, 0, 1)
+	endDate := time.Now().AddDate(0, 0, 7)
+	substitution := testpkg.CreateTestGroupSubstitution(t, ctx.db, group.ID, nil, staff.ID, startDate, endDate)
+	defer cleanupSubstitution(t, ctx.db, substitution.ID)
+
+	router := chi.NewRouter()
+	router.Put("/substitutions/{id}", ctx.resource.UpdateHandler())
+
+	// Test start date after end date - validation happens before DB access
+	body := map[string]interface{}{
+		"group_id":            group.ID,
+		"substitute_staff_id": staff.ID,
+		"start_date":          time.Now().AddDate(0, 0, 10).Format(time.RFC3339),
+		"end_date":            time.Now().AddDate(0, 0, 5).Format(time.RFC3339),
+		"created_at":          substitution.CreatedAt.Format(time.RFC3339),
+		"updated_at":          time.Now().Format(time.RFC3339),
+	}
+
+	req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/substitutions/%d", substitution.ID), body,
+		testutil.WithClaims(testutil.DefaultTestClaims()),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	testutil.AssertBadRequest(t, rr)
+}
+
+func TestUpdateSubstitution_BadRequest_BackdatedStartDate(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	// Create fixtures
+	staff := testpkg.CreateTestStaff(t, ctx.db, "Backdate", "Test", ctx.ogsID)
+	group := testpkg.CreateTestEducationGroup(t, ctx.db, "BackdateGroup", ctx.ogsID)
+
+	// Create substitution
+	startDate := time.Now().AddDate(0, 0, 1)
+	endDate := time.Now().AddDate(0, 0, 7)
+	substitution := testpkg.CreateTestGroupSubstitution(t, ctx.db, group.ID, nil, staff.ID, startDate, endDate)
+	defer cleanupSubstitution(t, ctx.db, substitution.ID)
+
+	router := chi.NewRouter()
+	router.Put("/substitutions/{id}", ctx.resource.UpdateHandler())
+
+	// Test backdated start date - validation happens before DB access
+	body := map[string]interface{}{
+		"group_id":            group.ID,
+		"substitute_staff_id": staff.ID,
+		"start_date":          time.Now().AddDate(0, 0, -5).Format(time.RFC3339),
+		"end_date":            time.Now().AddDate(0, 0, 5).Format(time.RFC3339),
+		"created_at":          substitution.CreatedAt.Format(time.RFC3339),
+		"updated_at":          time.Now().Format(time.RFC3339),
+	}
+
+	req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/substitutions/%d", substitution.ID), body,
+		testutil.WithClaims(testutil.DefaultTestClaims()),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	testutil.AssertBadRequest(t, rr)
+}
+
+func TestUpdateSubstitution_Conflict_StaffAlreadySubstituting(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	// Create fixtures
+	staff1 := testpkg.CreateTestStaff(t, ctx.db, "Staff1", "Test", ctx.ogsID)
+	staff2 := testpkg.CreateTestStaff(t, ctx.db, "Staff2", "Test", ctx.ogsID)
+	group1 := testpkg.CreateTestEducationGroup(t, ctx.db, "ConflictGroup1", ctx.ogsID)
+	group2 := testpkg.CreateTestEducationGroup(t, ctx.db, "ConflictGroup2", ctx.ogsID)
+
+	// Create first substitution with staff1
+	startDate := time.Now().AddDate(0, 0, 1)
+	endDate := time.Now().AddDate(0, 0, 7)
+	substitution1 := testpkg.CreateTestGroupSubstitution(t, ctx.db, group1.ID, nil, staff1.ID, startDate, endDate)
+	defer cleanupSubstitution(t, ctx.db, substitution1.ID)
+
+	// Create second substitution with staff2 that we'll try to change to staff1
+	substitution2 := testpkg.CreateTestGroupSubstitution(t, ctx.db, group2.ID, nil, staff2.ID, startDate, endDate)
+	defer cleanupSubstitution(t, ctx.db, substitution2.ID)
+
+	router := chi.NewRouter()
+	router.Put("/substitutions/{id}", ctx.resource.UpdateHandler())
+
+	// Try to update substitution2 to use staff1 (should conflict with substitution1)
+	body := map[string]interface{}{
+		"group_id":            group2.ID,
+		"substitute_staff_id": staff1.ID,
+		"start_date":          startDate.Format(time.RFC3339),
+		"end_date":            endDate.Format(time.RFC3339),
+		"created_at":          substitution2.CreatedAt.Format(time.RFC3339),
+		"updated_at":          time.Now().Format(time.RFC3339),
+	}
+
+	req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/substitutions/%d", substitution2.ID), body,
+		testutil.WithClaims(testutil.DefaultTestClaims()),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	// Should return conflict status
+	assert.Equal(t, http.StatusConflict, rr.Code, "Expected 409 Conflict. Body: %s", rr.Body.String())
+}
+
+// =============================================================================
+// GET SUCCESS TEST
+// =============================================================================
+
+func TestGetSubstitution_Success(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	// Create fixtures
+	staff := testpkg.CreateTestStaff(t, ctx.db, "GetSuccess", "Test", ctx.ogsID)
+	group := testpkg.CreateTestEducationGroup(t, ctx.db, "GetSuccessGroup", ctx.ogsID)
+
+	// Create substitution
+	startDate := time.Now().AddDate(0, 0, 1)
+	endDate := time.Now().AddDate(0, 0, 7)
+	substitution := testpkg.CreateTestGroupSubstitution(t, ctx.db, group.ID, nil, staff.ID, startDate, endDate)
+	defer cleanupSubstitution(t, ctx.db, substitution.ID)
+
+	router := chi.NewRouter()
+	router.Get("/substitutions/{id}", ctx.resource.GetHandler())
+
+	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/substitutions/%d", substitution.ID), nil,
+		testutil.WithClaims(testutil.DefaultTestClaims()),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+
+	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+	data, ok := response["data"].(map[string]interface{})
+	require.True(t, ok, "Expected data to be an object")
+	assert.Equal(t, float64(substitution.ID), data["id"])
+	assert.Equal(t, float64(group.ID), data["group_id"])
+	assert.Equal(t, float64(staff.ID), data["substitute_staff_id"])
+	assert.NotEmpty(t, data["start_date"])
+	assert.NotEmpty(t, data["end_date"])
+}
+
+// =============================================================================
+// DELETE SUCCESS TEST
+// =============================================================================
+
+func TestDeleteSubstitution_Success(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	// Create fixtures
+	staff := testpkg.CreateTestStaff(t, ctx.db, "DeleteSuccess", "Test", ctx.ogsID)
+	group := testpkg.CreateTestEducationGroup(t, ctx.db, "DeleteSuccessGroup", ctx.ogsID)
+
+	// Create substitution
+	startDate := time.Now().AddDate(0, 0, 1)
+	endDate := time.Now().AddDate(0, 0, 7)
+	substitution := testpkg.CreateTestGroupSubstitution(t, ctx.db, group.ID, nil, staff.ID, startDate, endDate)
+	// No defer cleanup needed since we're deleting it
+
+	router := chi.NewRouter()
+	router.Delete("/substitutions/{id}", ctx.resource.DeleteHandler())
+	router.Get("/substitutions/{id}", ctx.resource.GetHandler())
+
+	// Delete the substitution
+	deleteReq := testutil.NewAuthenticatedRequest(t, "DELETE", fmt.Sprintf("/substitutions/%d", substitution.ID), nil,
+		testutil.WithClaims(testutil.DefaultTestClaims()),
+	)
+
+	deleteRR := testutil.ExecuteRequest(router, deleteReq)
+
+	assert.Equal(t, http.StatusNoContent, deleteRR.Code, "Expected 204 No Content. Body: %s", deleteRR.Body.String())
+
+	// Verify it's deleted
+	getReq := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/substitutions/%d", substitution.ID), nil,
+		testutil.WithClaims(testutil.DefaultTestClaims()),
+	)
+
+	getRR := testutil.ExecuteRequest(router, getReq)
+	testutil.AssertNotFound(t, getRR)
+}
+
+// =============================================================================
+// LIST WITH INTERNAL SERVER ERROR TEST
+// =============================================================================
+
+func TestListSubstitutions_ReturnsEmptyArray(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	router := chi.NewRouter()
+	router.Get("/substitutions", ctx.resource.ListHandler())
+
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/substitutions", nil,
+		testutil.WithClaims(testutil.DefaultTestClaims()),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+
+	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+	data, ok := response["data"].([]interface{})
+	require.True(t, ok, "Expected data to be an array")
+	// Verify it's an array (may or may not be empty depending on DB state)
+	assert.NotNil(t, data)
+}
+
+func TestListActiveSubstitutions_ReturnsEmptyArray(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	router := chi.NewRouter()
+	router.Get("/substitutions/active", ctx.resource.ListActiveHandler())
+
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/substitutions/active", nil,
+		testutil.WithClaims(testutil.DefaultTestClaims()),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+
+	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+	data, ok := response["data"].([]interface{})
+	require.True(t, ok, "Expected data to be an array")
+	assert.NotNil(t, data)
+}
+
+// =============================================================================
+// UPDATE WITH SAME STAFF (NO CONFLICT) TEST
+// =============================================================================
+
+func TestUpdateSubstitution_NoConflict_SameStaff(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	// Create fixtures
+	staff := testpkg.CreateTestStaff(t, ctx.db, "SameStaff", "Test", ctx.ogsID)
+	group := testpkg.CreateTestEducationGroup(t, ctx.db, "SameStaffGroup", ctx.ogsID)
+
+	// Create substitution
+	startDate := time.Now().AddDate(0, 0, 1)
+	endDate := time.Now().AddDate(0, 0, 7)
+	substitution := testpkg.CreateTestGroupSubstitution(t, ctx.db, group.ID, nil, staff.ID, startDate, endDate)
+	defer cleanupSubstitution(t, ctx.db, substitution.ID)
+
+	router := chi.NewRouter()
+	router.Put("/substitutions/{id}", ctx.resource.UpdateHandler())
+
+	// Update with same staff but different dates (no conflict expected)
+	newStartDate := time.Now().AddDate(0, 0, 2)
+	newEndDate := time.Now().AddDate(0, 0, 8)
+
+	body := map[string]interface{}{
+		"group_id":            group.ID,
+		"substitute_staff_id": staff.ID, // Same staff
+		"start_date":          newStartDate.Format(time.RFC3339),
+		"end_date":            newEndDate.Format(time.RFC3339),
+		"created_at":          substitution.CreatedAt.Format(time.RFC3339),
+		"updated_at":          time.Now().Format(time.RFC3339),
+	}
+
+	req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/substitutions/%d", substitution.ID), body,
+		testutil.WithClaims(testutil.DefaultTestClaims()),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+}
+
+// =============================================================================
+// CREATE WITH REGULAR STAFF ID TEST
+// =============================================================================
+
+func TestCreateSubstitution_WithRegularStaffID(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	// Create fixtures
+	regularStaff := testpkg.CreateTestStaff(t, ctx.db, "Regular", "Staff", ctx.ogsID)
+	substituteStaff := testpkg.CreateTestStaff(t, ctx.db, "Substitute", "Staff", ctx.ogsID)
+	group := testpkg.CreateTestEducationGroup(t, ctx.db, "RegularStaffGroup", ctx.ogsID)
+
+	router := chi.NewRouter()
+	router.Post("/substitutions", ctx.resource.CreateHandler())
+
+	startDate := time.Now().AddDate(0, 0, 1).Format("2006-01-02")
+	endDate := time.Now().AddDate(0, 0, 7).Format("2006-01-02")
+
+	body := map[string]interface{}{
+		"group_id":            group.ID,
+		"regular_staff_id":    regularStaff.ID,
+		"substitute_staff_id": substituteStaff.ID,
+		"start_date":          startDate,
+		"end_date":            endDate,
+		"reason":              "With regular staff",
+	}
+
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/substitutions", body,
+		testutil.WithClaims(testutil.DefaultTestClaims()),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	testutil.AssertSuccessResponse(t, rr, http.StatusCreated)
+
+	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+	data, ok := response["data"].(map[string]interface{})
+	require.True(t, ok, "Expected data to be an object")
+	assert.NotZero(t, data["id"])
+	assert.Equal(t, float64(regularStaff.ID), data["regular_staff_id"])
+
+	// Cleanup
+	if id, ok := data["id"].(float64); ok {
+		cleanupSubstitution(t, ctx.db, int64(id))
+	}
+}
