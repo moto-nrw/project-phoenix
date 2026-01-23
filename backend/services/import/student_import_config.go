@@ -465,13 +465,11 @@ func (c *StudentImportConfig) createOrFindGuardian(ctx context.Context, data imp
 		// Guardian not found - will create new one below
 	}
 
-	// Create new guardian
+	// Create new guardian (phone numbers are added via createGuardianPhoneNumbers below)
 	guardian := &users.GuardianProfile{
-		FirstName:   strings.TrimSpace(data.FirstName),
-		LastName:    strings.TrimSpace(data.LastName),
-		Email:       stringPtr(data.Email),
-		Phone:       stringPtr(data.Phone),
-		MobilePhone: stringPtr(data.MobilePhone),
+		FirstName: strings.TrimSpace(data.FirstName),
+		LastName:  strings.TrimSpace(data.LastName),
+		Email:     stringPtr(data.Email),
 	}
 
 	if err := c.guardianRepo.Create(ctx, guardian); err != nil {

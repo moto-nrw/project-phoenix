@@ -135,13 +135,12 @@ func (s *guardianService) WithTx(tx bun.Tx) interface{} {
 }
 
 // CreateGuardian creates a new guardian profile without an account
+// Note: Phone numbers should be added separately via AddPhoneNumber
 func (s *guardianService) CreateGuardian(ctx context.Context, req GuardianCreateRequest) (*users.GuardianProfile, error) {
 	profile := &users.GuardianProfile{
 		FirstName:              req.FirstName,
 		LastName:               req.LastName,
 		Email:                  req.Email,
-		Phone:                  req.Phone,
-		MobilePhone:            req.MobilePhone,
 		AddressStreet:          req.AddressStreet,
 		AddressCity:            req.AddressCity,
 		AddressPostalCode:      req.AddressPostalCode,
@@ -231,12 +230,10 @@ func (s *guardianService) UpdateGuardian(ctx context.Context, id int64, req Guar
 		return err
 	}
 
-	// Update fields
+	// Update fields (phone numbers are managed separately)
 	profile.FirstName = req.FirstName
 	profile.LastName = req.LastName
 	profile.Email = req.Email
-	profile.Phone = req.Phone
-	profile.MobilePhone = req.MobilePhone
 	profile.AddressStreet = req.AddressStreet
 	profile.AddressCity = req.AddressCity
 	profile.AddressPostalCode = req.AddressPostalCode

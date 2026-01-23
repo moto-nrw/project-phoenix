@@ -38,8 +38,6 @@ type GuardianResponse struct {
 	FirstName              string                 `json:"first_name"`
 	LastName               string                 `json:"last_name"`
 	Email                  *string                `json:"email,omitempty"`
-	Phone                  *string                `json:"phone,omitempty"`        // Deprecated: use phone_numbers
-	MobilePhone            *string                `json:"mobile_phone,omitempty"` // Deprecated: use phone_numbers
 	PhoneNumbers           []*PhoneNumberResponse `json:"phone_numbers,omitempty"`
 	AddressStreet          *string                `json:"address_street,omitempty"`
 	AddressCity            *string                `json:"address_city,omitempty"`
@@ -54,12 +52,11 @@ type GuardianResponse struct {
 }
 
 // GuardianCreateRequest represents a request to create a new guardian
+// Note: Phone numbers should be added separately via POST /guardians/{id}/phone-numbers
 type GuardianCreateRequest struct {
 	FirstName              string  `json:"first_name"`
 	LastName               string  `json:"last_name"`
 	Email                  *string `json:"email,omitempty"`
-	Phone                  *string `json:"phone,omitempty"`
-	MobilePhone            *string `json:"mobile_phone,omitempty"`
 	AddressStreet          *string `json:"address_street,omitempty"`
 	AddressCity            *string `json:"address_city,omitempty"`
 	AddressPostalCode      *string `json:"address_postal_code,omitempty"`
@@ -71,12 +68,11 @@ type GuardianCreateRequest struct {
 }
 
 // GuardianUpdateRequest represents a request to update a guardian
+// Note: Phone numbers are updated via separate phone number endpoints
 type GuardianUpdateRequest struct {
 	FirstName              *string `json:"first_name,omitempty"`
 	LastName               *string `json:"last_name,omitempty"`
 	Email                  *string `json:"email,omitempty"`
-	Phone                  *string `json:"phone,omitempty"`
-	MobilePhone            *string `json:"mobile_phone,omitempty"`
 	AddressStreet          *string `json:"address_street,omitempty"`
 	AddressCity            *string `json:"address_city,omitempty"`
 	AddressPostalCode      *string `json:"address_postal_code,omitempty"`
@@ -195,18 +191,14 @@ type GuardianWithRelationship struct {
 }
 
 // Bind validates the guardian create request
+// Note: Contact method validation (email or phone) is done at the service/handler level
+// after phone numbers are added separately
 func (req *GuardianCreateRequest) Bind(_ *http.Request) error {
 	if req.FirstName == "" {
 		return errors.New("first_name is required")
 	}
 	if req.LastName == "" {
 		return errors.New("last_name is required")
-	}
-	// At least one contact method is required
-	if (req.Email == nil || *req.Email == "") &&
-		(req.Phone == nil || *req.Phone == "") &&
-		(req.MobilePhone == nil || *req.MobilePhone == "") {
-		return errors.New("at least one contact method (email, phone, or mobile_phone) is required")
 	}
 	return nil
 }
@@ -243,8 +235,6 @@ func newGuardianResponse(profile *users.GuardianProfile) *GuardianResponse {
 		FirstName:              profile.FirstName,
 		LastName:               profile.LastName,
 		Email:                  profile.Email,
-		Phone:                  profile.Phone,
-		MobilePhone:            profile.MobilePhone,
 		AddressStreet:          profile.AddressStreet,
 		AddressCity:            profile.AddressCity,
 		AddressPostalCode:      profile.AddressPostalCode,
@@ -463,13 +453,11 @@ func (rs *Resource) createGuardian(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Convert to service request
+	// Convert to service request (phone numbers are added separately)
 	createReq := guardianSvc.GuardianCreateRequest{
 		FirstName:              req.FirstName,
 		LastName:               req.LastName,
 		Email:                  req.Email,
-		Phone:                  req.Phone,
-		MobilePhone:            req.MobilePhone,
 		AddressStreet:          req.AddressStreet,
 		AddressCity:            req.AddressCity,
 		AddressPostalCode:      req.AddressPostalCode,
@@ -533,13 +521,12 @@ func (rs *Resource) updateGuardian(w http.ResponseWriter, r *http.Request) {
 }
 
 // buildGuardianUpdateRequest merges existing guardian data with partial updates
+// Note: Phone numbers are managed separately via phone number endpoints
 func buildGuardianUpdateRequest(guardian *users.GuardianProfile, req *GuardianUpdateRequest) guardianSvc.GuardianCreateRequest {
 	updateReq := guardianSvc.GuardianCreateRequest{
 		FirstName:              guardian.FirstName,
 		LastName:               guardian.LastName,
 		Email:                  guardian.Email,
-		Phone:                  guardian.Phone,
-		MobilePhone:            guardian.MobilePhone,
 		AddressStreet:          guardian.AddressStreet,
 		AddressCity:            guardian.AddressCity,
 		AddressPostalCode:      guardian.AddressPostalCode,
@@ -555,6 +542,7 @@ func buildGuardianUpdateRequest(guardian *users.GuardianProfile, req *GuardianUp
 }
 
 // applyGuardianUpdates applies non-nil updates to the request
+// Note: Phone numbers are managed separately via phone number endpoints
 func applyGuardianUpdates(updateReq *guardianSvc.GuardianCreateRequest, req *GuardianUpdateRequest) {
 	if req.FirstName != nil {
 		updateReq.FirstName = *req.FirstName
@@ -564,12 +552,6 @@ func applyGuardianUpdates(updateReq *guardianSvc.GuardianCreateRequest, req *Gua
 	}
 	if req.Email != nil {
 		updateReq.Email = req.Email
-	}
-	if req.Phone != nil {
-		updateReq.Phone = req.Phone
-	}
-	if req.MobilePhone != nil {
-		updateReq.MobilePhone = req.MobilePhone
 	}
 	if req.AddressStreet != nil {
 		updateReq.AddressStreet = req.AddressStreet

@@ -104,8 +104,6 @@ interface PartialGuardianUpdateRequest {
   first_name?: string;
   last_name?: string;
   email?: string | null;
-  phone?: string | null;
-  mobile_phone?: string | null;
   address_street?: string | null;
   address_city?: string | null;
   address_postal_code?: string | null;
@@ -128,8 +126,6 @@ function mapGuardianFormToBackend(
   if (data.firstName) result.first_name = data.firstName;
   if (data.lastName) result.last_name = data.lastName;
   if (data.email !== undefined) result.email = data.email;
-  if (data.phone !== undefined) result.phone = data.phone;
-  if (data.mobilePhone !== undefined) result.mobile_phone = data.mobilePhone;
   if (data.addressStreet !== undefined)
     result.address_street = data.addressStreet;
   if (data.addressCity !== undefined) result.address_city = data.addressCity;

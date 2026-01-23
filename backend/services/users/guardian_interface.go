@@ -9,12 +9,11 @@ import (
 )
 
 // GuardianCreateRequest represents data for creating a new guardian
+// Note: Phone numbers are managed separately via PhoneNumberCreateRequest
 type GuardianCreateRequest struct {
 	FirstName              string
 	LastName               string
 	Email                  *string
-	Phone                  *string
-	MobilePhone            *string
 	AddressStreet          *string
 	AddressCity            *string
 	AddressPostalCode      *string

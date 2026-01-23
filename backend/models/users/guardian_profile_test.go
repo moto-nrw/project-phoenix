@@ -23,31 +23,10 @@ func TestGuardianProfile_Validate(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "valid with phone only",
+			name: "valid without email (phone numbers are separate)",
 			profile: &GuardianProfile{
 				FirstName: "John",
 				LastName:  "Doe",
-				Phone:     base.StringPtr("+49 123 456789"),
-			},
-			wantErr: false,
-		},
-		{
-			name: "valid with mobile phone only",
-			profile: &GuardianProfile{
-				FirstName:   "John",
-				LastName:    "Doe",
-				MobilePhone: base.StringPtr("+49 171 1234567"),
-			},
-			wantErr: false,
-		},
-		{
-			name: "valid with all contact methods",
-			profile: &GuardianProfile{
-				FirstName:   "John",
-				LastName:    "Doe",
-				Email:       base.StringPtr("john@example.com"),
-				Phone:       base.StringPtr("+49 123 456789"),
-				MobilePhone: base.StringPtr("+49 171 1234567"),
 			},
 			wantErr: false,
 		},
@@ -98,32 +77,6 @@ func TestGuardianProfile_Validate(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name: "missing all contact methods",
-			profile: &GuardianProfile{
-				FirstName: "John",
-				LastName:  "Doe",
-			},
-			wantErr: true,
-		},
-		{
-			name: "empty email string",
-			profile: &GuardianProfile{
-				FirstName: "John",
-				LastName:  "Doe",
-				Email:     base.StringPtr(""),
-			},
-			wantErr: true,
-		},
-		{
-			name: "whitespace only email",
-			profile: &GuardianProfile{
-				FirstName: "John",
-				LastName:  "Doe",
-				Email:     base.StringPtr("   "),
-			},
-			wantErr: true,
-		},
-		{
 			name: "invalid email format",
 			profile: &GuardianProfile{
 				FirstName: "John",
@@ -147,7 +100,6 @@ func TestGuardianProfile_Validate(t *testing.T) {
 			profile: &GuardianProfile{
 				FirstName:              "John",
 				LastName:               "Doe",
-				MobilePhone:            base.StringPtr("+49 171 1234567"),
 				PreferredContactMethod: "sms",
 			},
 			wantErr: false,
@@ -157,7 +109,6 @@ func TestGuardianProfile_Validate(t *testing.T) {
 			profile: &GuardianProfile{
 				FirstName:              "John",
 				LastName:               "Doe",
-				MobilePhone:            base.StringPtr("+49 171 1234567"),
 				PreferredContactMethod: "mobile",
 			},
 			wantErr: false,
@@ -241,6 +192,15 @@ func TestGuardianProfile_GetFullName(t *testing.T) {
 }
 
 func TestGuardianProfile_GetPreferredContact(t *testing.T) {
+	// Helper to create phone number pointers
+	makePhone := func(number string, phoneType PhoneType, isPrimary bool) *GuardianPhoneNumber {
+		return &GuardianPhoneNumber{
+			PhoneNumber: number,
+			PhoneType:   phoneType,
+			IsPrimary:   isPrimary,
+		}
+	}
+
 	tests := []struct {
 		name     string
 		profile  *GuardianProfile
@@ -250,62 +210,61 @@ func TestGuardianProfile_GetPreferredContact(t *testing.T) {
 			name: "preferred email returns email",
 			profile: &GuardianProfile{
 				Email:                  base.StringPtr("john@example.com"),
-				Phone:                  base.StringPtr("+49 123 456789"),
+				PhoneNumbers:           []*GuardianPhoneNumber{makePhone("+49 123 456789", PhoneTypeHome, true)},
 				PreferredContactMethod: "email",
 			},
 			expected: "john@example.com",
 		},
 		{
-			name: "preferred phone returns phone",
+			name: "preferred phone returns home phone",
 			profile: &GuardianProfile{
 				Email:                  base.StringPtr("john@example.com"),
-				Phone:                  base.StringPtr("+49 123 456789"),
+				PhoneNumbers:           []*GuardianPhoneNumber{makePhone("+49 123 456789", PhoneTypeHome, true)},
 				PreferredContactMethod: "phone",
 			},
 			expected: "+49 123 456789",
 		},
 		{
-			name: "preferred mobile returns mobile",
+			name: "preferred mobile returns mobile phone",
 			profile: &GuardianProfile{
-				Email:                  base.StringPtr("john@example.com"),
-				MobilePhone:            base.StringPtr("+49 171 1234567"),
+				Email: base.StringPtr("john@example.com"),
+				PhoneNumbers: []*GuardianPhoneNumber{
+					makePhone("+49 171 1234567", PhoneTypeMobile, true),
+				},
 				PreferredContactMethod: "mobile",
 			},
 			expected: "+49 171 1234567",
 		},
 		{
-			name: "preferred sms returns mobile",
+			name: "preferred sms returns mobile phone",
 			profile: &GuardianProfile{
-				Email:                  base.StringPtr("john@example.com"),
-				MobilePhone:            base.StringPtr("+49 171 1234567"),
+				Email: base.StringPtr("john@example.com"),
+				PhoneNumbers: []*GuardianPhoneNumber{
+					makePhone("+49 171 1234567", PhoneTypeMobile, true),
+				},
 				PreferredContactMethod: "sms",
 			},
 			expected: "+49 171 1234567",
 		},
 		{
-			name: "fallback to mobile when preferred not available",
+			name: "fallback to primary phone when no preferred",
 			profile: &GuardianProfile{
-				Email:                  base.StringPtr("john@example.com"),
-				MobilePhone:            base.StringPtr("+49 171 1234567"),
-				Phone:                  base.StringPtr("+49 123 456789"),
-				PreferredContactMethod: "email",
-			},
-			expected: "john@example.com",
-		},
-		{
-			name: "fallback priority mobile > phone > email",
-			profile: &GuardianProfile{
-				Email:       base.StringPtr("john@example.com"),
-				Phone:       base.StringPtr("+49 123 456789"),
-				MobilePhone: base.StringPtr("+49 171 1234567"),
+				Email: base.StringPtr("john@example.com"),
+				PhoneNumbers: []*GuardianPhoneNumber{
+					makePhone("+49 171 1234567", PhoneTypeMobile, true),
+					makePhone("+49 123 456789", PhoneTypeHome, false),
+				},
 			},
 			expected: "+49 171 1234567",
 		},
 		{
-			name: "fallback to phone when no mobile",
+			name: "fallback to first phone when none primary",
 			profile: &GuardianProfile{
 				Email: base.StringPtr("john@example.com"),
-				Phone: base.StringPtr("+49 123 456789"),
+				PhoneNumbers: []*GuardianPhoneNumber{
+					makePhone("+49 123 456789", PhoneTypeHome, false),
+					makePhone("+49 171 1234567", PhoneTypeMobile, false),
+				},
 			},
 			expected: "+49 123 456789",
 		},
@@ -315,14 +274,6 @@ func TestGuardianProfile_GetPreferredContact(t *testing.T) {
 				Email: base.StringPtr("john@example.com"),
 			},
 			expected: "john@example.com",
-		},
-		{
-			name: "unknown preferred method uses fallback",
-			profile: &GuardianProfile{
-				MobilePhone:            base.StringPtr("+49 171 1234567"),
-				PreferredContactMethod: "unknown",
-			},
-			expected: "+49 171 1234567",
 		},
 		{
 			name: "empty string when no contact",
@@ -337,6 +288,90 @@ func TestGuardianProfile_GetPreferredContact(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := tt.profile.GetPreferredContact(); got != tt.expected {
 				t.Errorf("GuardianProfile.GetPreferredContact() = %q, want %q", got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestGuardianProfile_GetPrimaryPhone(t *testing.T) {
+	makePhone := func(number string, phoneType PhoneType, isPrimary bool) *GuardianPhoneNumber {
+		return &GuardianPhoneNumber{
+			PhoneNumber: number,
+			PhoneType:   phoneType,
+			IsPrimary:   isPrimary,
+		}
+	}
+
+	tests := []struct {
+		name     string
+		phones   []*GuardianPhoneNumber
+		expected string
+	}{
+		{
+			name:     "empty phones returns empty",
+			phones:   nil,
+			expected: "",
+		},
+		{
+			name: "returns primary phone",
+			phones: []*GuardianPhoneNumber{
+				makePhone("+49 123 456789", PhoneTypeHome, false),
+				makePhone("+49 171 1234567", PhoneTypeMobile, true),
+			},
+			expected: "+49 171 1234567",
+		},
+		{
+			name: "returns first phone if no primary",
+			phones: []*GuardianPhoneNumber{
+				makePhone("+49 123 456789", PhoneTypeHome, false),
+				makePhone("+49 171 1234567", PhoneTypeMobile, false),
+			},
+			expected: "+49 123 456789",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			profile := &GuardianProfile{PhoneNumbers: tt.phones}
+			if got := profile.GetPrimaryPhone(); got != tt.expected {
+				t.Errorf("GuardianProfile.GetPrimaryPhone() = %q, want %q", got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestGuardianProfile_GetPhoneByType(t *testing.T) {
+	makePhone := func(number string, phoneType PhoneType, isPrimary bool) *GuardianPhoneNumber {
+		return &GuardianPhoneNumber{
+			PhoneNumber: number,
+			PhoneType:   phoneType,
+			IsPrimary:   isPrimary,
+		}
+	}
+
+	phones := []*GuardianPhoneNumber{
+		makePhone("+49 123 456789", PhoneTypeHome, false),
+		makePhone("+49 171 1234567", PhoneTypeMobile, true),
+		makePhone("+49 30 123456", PhoneTypeWork, false),
+	}
+
+	profile := &GuardianProfile{PhoneNumbers: phones}
+
+	tests := []struct {
+		name      string
+		phoneType PhoneType
+		expected  string
+	}{
+		{"home phone", PhoneTypeHome, "+49 123 456789"},
+		{"mobile phone", PhoneTypeMobile, "+49 171 1234567"},
+		{"work phone", PhoneTypeWork, "+49 30 123456"},
+		{"other phone (not found)", PhoneTypeOther, ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := profile.GetPhoneByType(tt.phoneType); got != tt.expected {
+				t.Errorf("GuardianProfile.GetPhoneByType(%v) = %q, want %q", tt.phoneType, got, tt.expected)
 			}
 		})
 	}

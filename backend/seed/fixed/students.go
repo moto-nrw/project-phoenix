@@ -201,13 +201,11 @@ func (s *Seeder) seedGuardianRelationships(ctx context.Context) error {
 			city := []string{"Berlin", "Hamburg", "München", "Köln", "Frankfurt"}[rng.Intn(5)]
 			postalCode := fmt.Sprintf("%d", 10000+rng.Intn(90000))
 
-			// Create guardian profile (without legacy phone fields)
+			// Create guardian profile (phone numbers are added via seedGuardianPhoneNumbers)
 			guardian := &users.GuardianProfile{
 				FirstName:              guardianFirstName,
 				LastName:               guardianLastName,
 				Email:                  &email,
-				Phone:                  nil, // Deprecated: use guardian_phone_numbers
-				MobilePhone:            nil, // Deprecated: use guardian_phone_numbers
 				AddressStreet:          &street,
 				AddressCity:            &city,
 				AddressPostalCode:      &postalCode,

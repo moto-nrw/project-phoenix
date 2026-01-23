@@ -25,8 +25,22 @@ describe("guardian-helpers", () => {
         first_name: "John",
         last_name: "Doe",
         email: "john.doe@example.com",
-        phone: "030-12345678",
-        mobile_phone: "0170-12345678",
+        phone_numbers: [
+          {
+            id: 1,
+            phone_number: "030-12345678",
+            phone_type: "home",
+            is_primary: true,
+            priority: 1,
+          },
+          {
+            id: 2,
+            phone_number: "0170-12345678",
+            phone_type: "mobile",
+            is_primary: false,
+            priority: 2,
+          },
+        ],
         address_street: "Hauptstraße 1",
         address_city: "Berlin",
         address_postal_code: "10115",
@@ -46,9 +60,24 @@ describe("guardian-helpers", () => {
         firstName: "John",
         lastName: "Doe",
         email: "john.doe@example.com",
-        phone: "030-12345678",
-        mobilePhone: "0170-12345678",
-        phoneNumbers: [],
+        phoneNumbers: [
+          {
+            id: "1",
+            phoneNumber: "030-12345678",
+            phoneType: "home",
+            isPrimary: true,
+            priority: 1,
+            label: undefined,
+          },
+          {
+            id: "2",
+            phoneNumber: "0170-12345678",
+            phoneType: "mobile",
+            isPrimary: false,
+            priority: 2,
+            label: undefined,
+          },
+        ],
         addressStreet: "Hauptstraße 1",
         addressCity: "Berlin",
         addressPostalCode: "10115",
@@ -87,8 +116,7 @@ describe("guardian-helpers", () => {
         language_preference: "de",
         has_account: false,
         email: undefined,
-        phone: undefined,
-        mobile_phone: undefined,
+        phone_numbers: undefined,
         address_street: undefined,
         address_city: undefined,
         address_postal_code: undefined,
@@ -101,8 +129,7 @@ describe("guardian-helpers", () => {
       const result = mapGuardianResponse(backendData);
 
       expect(result.email).toBeUndefined();
-      expect(result.phone).toBeUndefined();
-      expect(result.mobilePhone).toBeUndefined();
+      expect(result.phoneNumbers).toEqual([]);
       expect(result.addressStreet).toBeUndefined();
       expect(result.addressCity).toBeUndefined();
       expect(result.addressPostalCode).toBeUndefined();
@@ -158,8 +185,6 @@ describe("guardian-helpers", () => {
         firstName: "Parent",
         lastName: "One",
         email: "parent@example.com",
-        phone: undefined,
-        mobilePhone: undefined,
         phoneNumbers: [],
         addressStreet: undefined,
         addressCity: undefined,
@@ -215,8 +240,6 @@ describe("guardian-helpers", () => {
         firstName: "John",
         lastName: "Doe",
         email: "john@example.com",
-        phone: "030-12345678",
-        mobilePhone: "0170-12345678",
         addressStreet: "Musterstraße 42",
         addressCity: "München",
         addressPostalCode: "80331",
@@ -233,8 +256,6 @@ describe("guardian-helpers", () => {
         first_name: "John",
         last_name: "Doe",
         email: "john@example.com",
-        phone: "030-12345678",
-        mobile_phone: "0170-12345678",
         address_street: "Musterstraße 42",
         address_city: "München",
         address_postal_code: "80331",
@@ -279,8 +300,6 @@ describe("guardian-helpers", () => {
       expect(result.first_name).toBe("Minimal");
       expect(result.last_name).toBe("User");
       expect(result.email).toBeUndefined();
-      expect(result.phone).toBeUndefined();
-      expect(result.mobile_phone).toBeUndefined();
     });
   });
 
@@ -398,12 +417,25 @@ describe("guardian-helpers", () => {
         firstName: "Test",
         lastName: "User",
         email: "test@example.com",
-        phone: "030-123456",
-        mobilePhone: "0170-123456",
+        phoneNumbers: [
+          {
+            id: "1",
+            phoneNumber: "030-123456",
+            phoneType: "home",
+            isPrimary: true,
+            priority: 1,
+          },
+          {
+            id: "2",
+            phoneNumber: "0170-123456",
+            phoneType: "mobile",
+            isPrimary: false,
+            priority: 2,
+          },
+        ],
         preferredContactMethod: "email",
         languagePreference: "de",
         hasAccount: false,
-        phoneNumbers: [],
       };
 
       const result = getGuardianPrimaryContact(guardian);
@@ -417,12 +449,25 @@ describe("guardian-helpers", () => {
         firstName: "Test",
         lastName: "User",
         email: "test@example.com",
-        phone: "030-123456",
-        mobilePhone: "0170-123456",
+        phoneNumbers: [
+          {
+            id: "1",
+            phoneNumber: "030-123456",
+            phoneType: "home",
+            isPrimary: false,
+            priority: 2,
+          },
+          {
+            id: "2",
+            phoneNumber: "0170-123456",
+            phoneType: "mobile",
+            isPrimary: true,
+            priority: 1,
+          },
+        ],
         preferredContactMethod: "mobile",
         languagePreference: "de",
         hasAccount: false,
-        phoneNumbers: [],
       };
 
       const result = getGuardianPrimaryContact(guardian);
@@ -430,18 +475,31 @@ describe("guardian-helpers", () => {
       expect(result).toBe("0170-123456");
     });
 
-    it("returns phone when preferred method is phone", () => {
+    it("returns home phone when preferred method is phone", () => {
       const guardian: Guardian = {
         id: "1",
         firstName: "Test",
         lastName: "User",
         email: "test@example.com",
-        phone: "030-123456",
-        mobilePhone: "0170-123456",
+        phoneNumbers: [
+          {
+            id: "1",
+            phoneNumber: "030-123456",
+            phoneType: "home",
+            isPrimary: true,
+            priority: 1,
+          },
+          {
+            id: "2",
+            phoneNumber: "0170-123456",
+            phoneType: "mobile",
+            isPrimary: false,
+            priority: 2,
+          },
+        ],
         preferredContactMethod: "phone",
         languagePreference: "de",
         hasAccount: false,
-        phoneNumbers: [],
       };
 
       const result = getGuardianPrimaryContact(guardian);
@@ -466,16 +524,23 @@ describe("guardian-helpers", () => {
       expect(result).toBe("test@example.com");
     });
 
-    it("falls back to mobile phone when email unavailable", () => {
+    it("falls back to primary phone when email unavailable", () => {
       const guardian: Guardian = {
         id: "1",
         firstName: "Test",
         lastName: "User",
-        mobilePhone: "0170-123456",
+        phoneNumbers: [
+          {
+            id: "1",
+            phoneNumber: "0170-123456",
+            phoneType: "mobile",
+            isPrimary: true,
+            priority: 1,
+          },
+        ],
         preferredContactMethod: "email", // Preferred email but not available
         languagePreference: "de",
         hasAccount: false,
-        phoneNumbers: [],
       };
 
       const result = getGuardianPrimaryContact(guardian);
@@ -483,16 +548,23 @@ describe("guardian-helpers", () => {
       expect(result).toBe("0170-123456");
     });
 
-    it("falls back to phone when email and mobile unavailable", () => {
+    it("falls back to first phone when no primary phone", () => {
       const guardian: Guardian = {
         id: "1",
         firstName: "Test",
         lastName: "User",
-        phone: "030-123456",
+        phoneNumbers: [
+          {
+            id: "1",
+            phoneNumber: "030-123456",
+            phoneType: "home",
+            isPrimary: false,
+            priority: 1,
+          },
+        ],
         preferredContactMethod: "email", // Preferred email but not available
         languagePreference: "de",
         hasAccount: false,
-        phoneNumbers: [],
       };
 
       const result = getGuardianPrimaryContact(guardian);

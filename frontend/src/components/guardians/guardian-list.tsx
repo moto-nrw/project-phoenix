@@ -109,19 +109,11 @@ export default function GuardianList({
                 <PhoneItem key={phone.id} phone={phone} />
               ))
             ) : (
-              // Fallback to legacy fields if no phone numbers
-              <>
-                <InfoItem
-                  label="Telefon"
-                  value={guardian.phone ?? "Nicht angegeben"}
-                  icon={<Phone className="h-4 w-4" />}
-                />
-                <InfoItem
-                  label="Mobiltelefon"
-                  value={guardian.mobilePhone ?? "Nicht angegeben"}
-                  icon={<Phone className="h-4 w-4" />}
-                />
-              </>
+              <InfoItem
+                label="Telefon"
+                value="Nicht angegeben"
+                icon={<Phone className="h-4 w-4" />}
+              />
             )}
           </div>
 
@@ -201,8 +193,7 @@ function getPrimaryPhone(
     const primary = guardian.phoneNumbers.find((p) => p.isPrimary);
     return primary?.phoneNumber ?? guardian.phoneNumbers[0]?.phoneNumber;
   }
-  // Fallback to legacy fields
-  return guardian.phone ?? guardian.mobilePhone;
+  return undefined;
 }
 
 // Helper to get phone label with type and custom label

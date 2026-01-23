@@ -76,11 +76,10 @@ export function createEmptyEntry(): GuardianEntry {
 // Convert GuardianWithRelationship to GuardianEntry
 // Exported for testing
 export function toEntry(data: GuardianWithRelationship): GuardianEntry {
-  // Convert existing phoneNumbers array or fallback to legacy fields
+  // Convert phoneNumbers from Guardian to PhoneEntry format
   let phoneNumbers: PhoneEntry[] = [];
 
   if (data.phoneNumbers && data.phoneNumbers.length > 0) {
-    // Use new phoneNumbers array
     phoneNumbers = data.phoneNumbers.map((p) => ({
       id: p.id,
       phoneNumber: p.phoneNumber,
@@ -88,29 +87,9 @@ export function toEntry(data: GuardianWithRelationship): GuardianEntry {
       label: p.label ?? "",
       isPrimary: p.isPrimary,
     }));
-  } else {
-    // Fallback: convert legacy phone/mobilePhone fields
-    if (data.phone) {
-      phoneNumbers.push({
-        id: crypto.randomUUID(),
-        phoneNumber: data.phone,
-        phoneType: "home",
-        label: "",
-        isPrimary: true,
-      });
-    }
-    if (data.mobilePhone) {
-      phoneNumbers.push({
-        id: crypto.randomUUID(),
-        phoneNumber: data.mobilePhone,
-        phoneType: "mobile",
-        label: "",
-        isPrimary: phoneNumbers.length === 0, // Primary if no home phone
-      });
-    }
   }
 
-  // Ensure at least one phone entry exists
+  // Ensure at least one phone entry exists for form
   if (phoneNumbers.length === 0) {
     phoneNumbers.push(createEmptyPhone(true));
   }
@@ -327,9 +306,6 @@ export default function GuardianFormModal({
         firstName: entry.firstName.trim(),
         lastName: entry.lastName.trim(),
         email: entry.email.trim() || undefined,
-        // Keep legacy fields for backward compatibility
-        phone: undefined,
-        mobilePhone: undefined,
       },
       relationshipData: {
         relationshipType: entry.relationshipType,

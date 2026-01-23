@@ -159,14 +159,12 @@ describe("toEntry", () => {
     expect(entry.isEmergencyContact).toBe(true);
   });
 
-  it("converts legacy phone/mobilePhone fields when phoneNumbers is empty", () => {
+  it("creates empty phone entry when phoneNumbers array is empty", () => {
     const guardianData: GuardianWithRelationship = {
       id: "guardian-123",
       firstName: "Max",
       lastName: "Mustermann",
       email: "max@example.com",
-      phone: "+49 123 456789",
-      mobilePhone: "+49 170 1234567",
       preferredContactMethod: "email",
       languagePreference: "de",
       hasAccount: false,
@@ -181,14 +179,11 @@ describe("toEntry", () => {
 
     const entry = toEntry(guardianData);
 
-    // Should convert legacy fields to phoneNumbers array
-    expect(entry.phoneNumbers).toHaveLength(2);
-    expect(entry.phoneNumbers[0]?.phoneNumber).toBe("+49 123 456789");
-    expect(entry.phoneNumbers[0]?.phoneType).toBe("home");
+    // Should create one empty phone entry for the form
+    expect(entry.phoneNumbers).toHaveLength(1);
+    expect(entry.phoneNumbers[0]?.phoneNumber).toBe("");
+    expect(entry.phoneNumbers[0]?.phoneType).toBe("mobile");
     expect(entry.phoneNumbers[0]?.isPrimary).toBe(true);
-    expect(entry.phoneNumbers[1]?.phoneNumber).toBe("+49 170 1234567");
-    expect(entry.phoneNumbers[1]?.phoneType).toBe("mobile");
-    expect(entry.phoneNumbers[1]?.isPrimary).toBe(false);
   });
 
   it("preserves relationship flags from initialData for edit mode", () => {
@@ -758,14 +753,12 @@ describe("GuardianFormModal", () => {
     });
   });
 
-  it("prefills form with initial data in edit mode (legacy fields)", () => {
+  it("prefills form with initial data in edit mode (empty phoneNumbers)", () => {
     const initialData: GuardianWithRelationship = {
       id: "guardian-123",
       firstName: "Max",
       lastName: "Mustermann",
       email: "max@example.com",
-      phone: "+49 123 456789",
-      mobilePhone: "+49 170 1234567",
       preferredContactMethod: "email",
       languagePreference: "de",
       hasAccount: false,
@@ -791,9 +784,7 @@ describe("GuardianFormModal", () => {
     expect(screen.getByDisplayValue("Max")).toBeInTheDocument();
     expect(screen.getByDisplayValue("Mustermann")).toBeInTheDocument();
     expect(screen.getByDisplayValue("max@example.com")).toBeInTheDocument();
-    // Legacy fields are converted to phoneNumbers
-    expect(screen.getByDisplayValue("+49 123 456789")).toBeInTheDocument();
-    expect(screen.getByDisplayValue("+49 170 1234567")).toBeInTheDocument();
+    // Creates empty phone entry when no phoneNumbers exist
   });
 
   it("prefills form with phoneNumbers in edit mode", () => {

@@ -74,12 +74,11 @@ func TestGuardianService_CreateGuardian(t *testing.T) {
 	})
 
 	t.Run("creates guardian with defaults", func(t *testing.T) {
-		// ARRANGE - phone provided, testing default language and contact method
-		phone := "+49123456789"
+		// ARRANGE - testing default language and contact method
+		// Note: Phone numbers are now added separately via AddPhoneNumber
 		req := users.GuardianCreateRequest{
 			FirstName: "Default",
 			LastName:  "Guardian",
-			Phone:     &phone, // At least one contact method required
 		}
 
 		// ACT
@@ -97,12 +96,11 @@ func TestGuardianService_CreateGuardian(t *testing.T) {
 	})
 
 	t.Run("creates guardian without email", func(t *testing.T) {
-		// ARRANGE - uses phone instead of email
-		phone := "+49987654321"
+		// ARRANGE - guardian can be created without email
+		// Phone numbers are added separately via AddPhoneNumber
 		req := users.GuardianCreateRequest{
 			FirstName: "NoEmail",
 			LastName:  "Guardian",
-			Phone:     &phone, // At least one contact method required
 		}
 
 		// ACT
@@ -868,12 +866,10 @@ func TestGuardianService_SendInvitation_NoEmail(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("returns error when guardian has no email", func(t *testing.T) {
-		// ARRANGE - create guardian without email (phone only)
-		phone := "+49123456789"
+		// ARRANGE - create guardian without email (phone numbers are added separately)
 		req := users.GuardianCreateRequest{
 			FirstName:              "NoEmail",
 			LastName:               "Guardian",
-			Phone:                  &phone,
 			PreferredContactMethod: "phone",
 		}
 		guardian, err := service.CreateGuardian(ctx, req)

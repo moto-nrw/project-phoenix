@@ -35,9 +35,7 @@ export interface Guardian {
   firstName: string;
   lastName: string;
   email?: string;
-  phone?: string; // Deprecated: use phoneNumbers
-  mobilePhone?: string; // Deprecated: use phoneNumbers
-  phoneNumbers: PhoneNumber[]; // New flexible phone numbers
+  phoneNumbers: PhoneNumber[]; // Flexible phone numbers
   addressStreet?: string;
   addressCity?: string;
   addressPostalCode?: string;
@@ -56,9 +54,7 @@ export interface BackendGuardianProfile {
   first_name: string;
   last_name: string;
   email?: string;
-  phone?: string; // Deprecated
-  mobile_phone?: string; // Deprecated
-  phone_numbers?: BackendPhoneNumber[]; // New flexible phone numbers
+  phone_numbers?: BackendPhoneNumber[]; // Flexible phone numbers
   address_street?: string;
   address_city?: string;
   address_postal_code?: string;
@@ -123,8 +119,6 @@ export interface GuardianFormData {
   firstName: string;
   lastName: string;
   email?: string;
-  phone?: string;
-  mobilePhone?: string;
   addressStreet?: string;
   addressCity?: string;
   addressPostalCode?: string;
@@ -140,8 +134,6 @@ export interface BackendGuardianCreateRequest {
   first_name: string;
   last_name: string;
   email?: string;
-  phone?: string;
-  mobile_phone?: string;
   address_street?: string;
   address_city?: string;
   address_postal_code?: string;
@@ -194,8 +186,6 @@ export function mapGuardianResponse(data: BackendGuardianProfile): Guardian {
     firstName: data.first_name,
     lastName: data.last_name,
     email: data.email,
-    phone: data.phone,
-    mobilePhone: data.mobile_phone,
     phoneNumbers: (data.phone_numbers ?? []).map(mapPhoneNumberResponse),
     addressStreet: data.address_street,
     addressCity: data.address_city,
@@ -232,8 +222,6 @@ export function mapGuardianFormDataToBackend(
     first_name: data.firstName,
     last_name: data.lastName,
     email: data.email,
-    phone: data.phone,
-    mobile_phone: data.mobilePhone,
     address_street: data.addressStreet,
     address_city: data.addressCity,
     address_postal_code: data.addressPostalCode,
@@ -293,19 +281,34 @@ export function getGuardianPrimaryContact(guardian: Guardian): string {
   if (guardian.preferredContactMethod === "email" && guardian.email) {
     return guardian.email;
   }
-  if (guardian.preferredContactMethod === "mobile" && guardian.mobilePhone) {
-    return guardian.mobilePhone;
+
+  // Find phone by preferred contact method
+  if (
+    guardian.preferredContactMethod === "mobile" ||
+    guardian.preferredContactMethod === "sms"
+  ) {
+    const mobilePhone = guardian.phoneNumbers.find(
+      (p) => p.phoneType === "mobile",
+    );
+    if (mobilePhone) return mobilePhone.phoneNumber;
   }
-  if (guardian.preferredContactMethod === "phone" && guardian.phone) {
-    return guardian.phone;
+
+  if (guardian.preferredContactMethod === "phone") {
+    const homePhone = guardian.phoneNumbers.find((p) => p.phoneType === "home");
+    if (homePhone) return homePhone.phoneNumber;
   }
+
   // Fallback: return any available contact
-  return (
-    guardian.email ??
-    guardian.mobilePhone ??
-    guardian.phone ??
-    "Keine Kontaktdaten"
-  );
+  if (guardian.email) return guardian.email;
+
+  // Return primary phone or first phone
+  const primaryPhone = guardian.phoneNumbers.find((p) => p.isPrimary);
+  if (primaryPhone) return primaryPhone.phoneNumber;
+
+  const firstPhone = guardian.phoneNumbers[0];
+  if (firstPhone) return firstPhone.phoneNumber;
+
+  return "Keine Kontaktdaten";
 }
 
 // Helper to get relationship type label
