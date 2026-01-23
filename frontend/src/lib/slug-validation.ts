@@ -160,7 +160,7 @@ export function generateSlugFromName(name: string): string {
     .replace(/[üÜ]/g, "ue")
     .replace(/ß/g, "ss")
     .replace(/[^a-z0-9]+/g, "-") // Replace non-alphanumeric with hyphens
-    .replace(/^-+|-+$/g, "") // Remove leading/trailing hyphens
+    .replace(/(^-+)|(-+$)/g, "") // Remove leading/trailing hyphens
     .replace(/-+/g, "-") // Replace multiple hyphens with single
     .slice(0, 30); // Limit length
 }
