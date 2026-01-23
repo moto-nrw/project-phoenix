@@ -540,13 +540,30 @@ function RejectModal({
 }) {
   const [reason, setReason] = useState("");
 
+  // Handle Escape key for accessibility
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        onClose();
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div
-        className="absolute inset-0 bg-gray-900/50 backdrop-blur-sm"
+      {/* Backdrop button - native button for accessibility (keyboard + click support) */}
+      <button
+        type="button"
         onClick={onClose}
+        aria-label="Hintergrund - Klicken zum Schließen"
+        className="absolute inset-0 cursor-default border-none bg-gray-900/50 p-0 backdrop-blur-sm"
       />
       <Card className="relative z-10 w-full max-w-md shadow-xl">
         <CardHeader>
