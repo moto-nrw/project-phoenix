@@ -22,7 +22,7 @@ import { createAccessControl } from "better-auth/plugins/access";
  * (supervisor, ogsAdmin) may have this permission. Administrative roles
  * (bueroAdmin, traegerAdmin) who manage remotely MUST NOT have location access.
  */
-export const statement = {
+const statement = {
   student: ["read", "create", "update", "delete"],
   group: ["read", "create", "update", "delete", "assign"], // assign = add/remove students
   room: ["read", "create", "update", "delete"],

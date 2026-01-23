@@ -1,4 +1,4 @@
-import { createServer, IncomingMessage, ServerResponse } from "node:http";
+import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { randomBytes } from "node:crypto";
 import { toNodeHandler } from "better-auth/node";
 import { Pool } from "pg";
@@ -30,10 +30,12 @@ async function readJsonBody(req: IncomingMessage): Promise<unknown> {
       try {
         resolve(body ? JSON.parse(body) : {});
       } catch (err) {
-        reject(err);
+        reject(err instanceof Error ? err : new Error(String(err)));
       }
     });
-    req.on("error", reject);
+    req.on("error", (err) => {
+      reject(err instanceof Error ? err : new Error(String(err)));
+    });
   });
 }
 
@@ -148,6 +150,8 @@ async function handleCreateOrganization(
     }
 
     // Generate slug from name if not provided
+    // Using || intentionally: empty string should also trigger fallback to generated slug
+    // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
     const slug = body.slug?.trim() || body.name.trim()
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "-")
@@ -898,7 +902,8 @@ const authHandler = toNodeHandler(auth);
  * - etc.
  */
 const server = createServer(
-  async (req: IncomingMessage, res: ServerResponse) => {
+  (req: IncomingMessage, res: ServerResponse): void => {
+    void (async () => {
     const url = req.url ?? "";
 
     // Custom health check endpoint (outside BetterAuth)
@@ -917,7 +922,7 @@ const server = createServer(
 
     // Custom org lookup by slug endpoint (public, no auth required)
     // Used by subdomain middleware to validate tenant context
-    const orgBySlugMatch = url.match(/^\/api\/auth\/org\/by-slug\/([^/?]+)/);
+    const orgBySlugMatch = /^\/api\/auth\/org\/by-slug\/([^/?]+)/.exec(url);
     if (orgBySlugMatch && req.method === "GET") {
       const slug = decodeURIComponent(orgBySlugMatch[1] ?? "");
       if (slug) {
@@ -929,7 +934,7 @@ const server = createServer(
     // Admin: List organizations
     if (url.startsWith("/api/admin/organizations") && req.method === "GET") {
       // Check for specific org ID
-      const orgIdMatch = url.match(/^\/api\/admin\/organizations\/([^/?]+)$/);
+      const orgIdMatch = /^\/api\/admin\/organizations\/([^/?]+)$/.exec(url);
       if (!orgIdMatch) {
         // List all organizations (with optional ?status=pending filter)
         await handleListOrganizations(req, res);
@@ -958,9 +963,7 @@ const server = createServer(
     }
 
     // Admin: Approve organization
-    const approveMatch = url.match(
-      /^\/api\/admin\/organizations\/([^/?]+)\/approve$/,
-    );
+    const approveMatch = /^\/api\/admin\/organizations\/([^/?]+)\/approve$/.exec(url);
     if (approveMatch && req.method === "POST") {
       const orgId = decodeURIComponent(approveMatch[1] ?? "");
       if (orgId) {
@@ -970,9 +973,7 @@ const server = createServer(
     }
 
     // Admin: Reject organization
-    const rejectMatch = url.match(
-      /^\/api\/admin\/organizations\/([^/?]+)\/reject$/,
-    );
+    const rejectMatch = /^\/api\/admin\/organizations\/([^/?]+)\/reject$/.exec(url);
     if (rejectMatch && req.method === "POST") {
       const orgId = decodeURIComponent(rejectMatch[1] ?? "");
       if (orgId) {
@@ -982,9 +983,7 @@ const server = createServer(
     }
 
     // Admin: Suspend organization
-    const suspendMatch = url.match(
-      /^\/api\/admin\/organizations\/([^/?]+)\/suspend$/,
-    );
+    const suspendMatch = /^\/api\/admin\/organizations\/([^/?]+)\/suspend$/.exec(url);
     if (suspendMatch && req.method === "POST") {
       const orgId = decodeURIComponent(suspendMatch[1] ?? "");
       if (orgId) {
@@ -994,9 +993,7 @@ const server = createServer(
     }
 
     // Admin: Reactivate (un-suspend) organization
-    const reactivateMatch = url.match(
-      /^\/api\/admin\/organizations\/([^/?]+)\/reactivate$/,
-    );
+    const reactivateMatch = /^\/api\/admin\/organizations\/([^/?]+)\/reactivate$/.exec(url);
     if (reactivateMatch && req.method === "POST") {
       const orgId = decodeURIComponent(reactivateMatch[1] ?? "");
       if (orgId) {
@@ -1016,6 +1013,7 @@ const server = createServer(
         res.end(JSON.stringify({ error: "Internal server error" }));
       }
     }
+    })();
   }
 );
 
