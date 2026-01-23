@@ -13,6 +13,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/auth/tenant"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/base"
@@ -844,6 +845,11 @@ func (rs *Resource) createActivity(w http.ResponseWriter, r *http.Request) {
 		PlannedRoomID:   req.PlannedRoomID,
 	}
 
+	// Set OgsID from tenant context (required for multitenancy)
+	if tc := tenant.TenantFromCtx(r.Context()); tc != nil {
+		group.OgsID = tc.OrgID
+	}
+
 	// Prepare schedules
 
 	schedules := make([]*activities.Schedule, 0, len(req.Schedules))
@@ -910,6 +916,11 @@ func (rs *Resource) quickCreateActivity(w http.ResponseWriter, r *http.Request) 
 		IsOpen:          true, // Default to true for quick-create
 		CategoryID:      req.CategoryID,
 		PlannedRoomID:   req.RoomID,
+	}
+
+	// Set OgsID from tenant context (required for multitenancy)
+	if tc := tenant.TenantFromCtx(r.Context()); tc != nil {
+		group.OgsID = tc.OrgID
 	}
 
 	// Try to get staff info to auto-assign as supervisor

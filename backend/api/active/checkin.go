@@ -16,6 +16,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/auth/tenant"
 	"github.com/moto-nrw/project-phoenix/logging"
 )
 
@@ -194,6 +195,11 @@ func (rs *Resource) createCheckinVisit(ctx context.Context, checkinCtx *checkinC
 		StudentID:     checkinCtx.studentID,
 		ActiveGroupID: checkinCtx.request.ActiveGroupID,
 		EntryTime:     time.Now(),
+	}
+
+	// Set OgsID from tenant context (required for multitenancy)
+	if tc := tenant.TenantFromCtx(ctx); tc != nil {
+		visit.OgsID = tc.OrgID
 	}
 
 	if createErr := rs.ActiveService.CreateVisit(ctx, visit); createErr != nil {

@@ -995,12 +995,17 @@ func (rs *Resource) createActiveGroup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Create active group
+	// Create active group with OgsID from tenant context
 	group := &active.Group{
 		GroupID:   req.GroupID,
 		RoomID:    req.RoomID,
 		StartTime: req.StartTime,
 		EndTime:   req.EndTime,
+	}
+
+	// Set OgsID from tenant context (required for multitenancy)
+	if tc := tenant.TenantFromCtx(r.Context()); tc != nil {
+		group.OgsID = tc.OrgID
 	}
 
 	// Create active group
@@ -1265,12 +1270,17 @@ func (rs *Resource) createVisit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Create visit
+	// Create visit with OgsID from tenant context
 	visit := &active.Visit{
 		StudentID:     req.StudentID,
 		ActiveGroupID: req.ActiveGroupID,
 		EntryTime:     req.CheckInTime,
 		ExitTime:      req.CheckOutTime,
+	}
+
+	// Set OgsID from tenant context (required for multitenancy)
+	if tc := tenant.TenantFromCtx(r.Context()); tc != nil {
+		visit.OgsID = tc.OrgID
 	}
 
 	// Create visit

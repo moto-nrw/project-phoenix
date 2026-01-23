@@ -12,6 +12,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	iotCommon "github.com/moto-nrw/project-phoenix/api/iot/common"
 	"github.com/moto-nrw/project-phoenix/auth/device"
+	"github.com/moto-nrw/project-phoenix/auth/tenant"
 	"github.com/moto-nrw/project-phoenix/constants"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
@@ -242,6 +243,11 @@ func (rs *Resource) processCheckin(ctx context.Context, w http.ResponseWriter, r
 		EntryTime:     time.Now(),
 	}
 
+	// Set OgsID from tenant context (required for multitenancy)
+	if tc := tenant.TenantFromCtx(ctx); tc != nil {
+		newVisit.OgsID = tc.OrgID
+	}
+
 	log.Printf("[CHECKIN] Creating visit for student %d in active group %d", student.ID, activeGroupID)
 	if err := rs.ActiveService.CreateVisit(ctx, newVisit); err != nil {
 		log.Printf("[CHECKIN] ERROR: Failed to create visit for student %d: %v", student.ID, err)
@@ -400,6 +406,11 @@ func (rs *Resource) createSchulhofActiveGroupIfNeeded(ctx context.Context, w htt
 		RoomID:       roomID,
 		StartTime:    time.Now(),
 		LastActivity: time.Now(),
+	}
+
+	// Set OgsID from tenant context (required for multitenancy)
+	if tc := tenant.TenantFromCtx(ctx); tc != nil {
+		newActiveGroup.OgsID = tc.OrgID
 	}
 
 	if err := rs.ActiveService.CreateActiveGroup(ctx, newActiveGroup); err != nil {
