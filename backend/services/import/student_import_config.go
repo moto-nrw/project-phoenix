@@ -460,6 +460,12 @@ func (c *StudentImportConfig) createOrFindGuardian(ctx context.Context, data imp
 			}
 		} else if existing != nil {
 			// Guardian found - reuse it (deduplication)
+			// But still add any new phone numbers from the import data
+			if err := c.createGuardianPhoneNumbers(ctx, existing.ID, data.PhoneNumbers); err != nil {
+				// Log but don't fail - phone numbers are additive
+				// Duplicates will be handled gracefully
+				return existing.ID, fmt.Errorf("add phone numbers to existing guardian: %w", err)
+			}
 			return existing.ID, nil
 		}
 		// Guardian not found - will create new one below

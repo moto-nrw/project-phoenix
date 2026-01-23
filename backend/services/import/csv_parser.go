@@ -86,6 +86,17 @@ func (p *CSVParser) mapStudentRow(values []string) (importModels.StudentImportRo
 		return sanitizeCellValue(strings.TrimSpace(values[idx]))
 	}
 
+	// Helper: Get raw column value without sanitization (for phone numbers)
+	// Phone numbers may start with + (international format) which would be corrupted by sanitization
+	// Phone numbers go through validation anyway, so CSV injection is not a risk
+	getRawCol := func(colName string) string {
+		idx, exists := p.columnMapping[colName]
+		if !exists || idx < 0 || idx >= len(values) {
+			return ""
+		}
+		return strings.TrimSpace(values[idx])
+	}
+
 	// Parse boolean ("Ja"/"Nein")
 	parseBool := func(val string) bool {
 		normalized := strings.ToLower(strings.TrimSpace(val))
@@ -141,16 +152,16 @@ func (p *CSVParser) mapStudentRow(values []string) (importModels.StudentImportRo
 			FirstName:          getCol(fmt.Sprintf("erz%d.vorname", guardianNum)),
 			LastName:           getCol(fmt.Sprintf("erz%d.nachname", guardianNum)),
 			Email:              getCol(emailKey),
-			Phone:              getCol(phoneKey),
-			MobilePhone:        getCol(mobileKey),
+			Phone:              getRawCol(phoneKey),  // Use raw for phone (may start with +)
+			MobilePhone:        getRawCol(mobileKey), // Use raw for phone (may start with +)
 			RelationshipType:   getCol(fmt.Sprintf("erz%d.verhältnis", guardianNum)),
 			IsPrimary:          parseBool(getCol(fmt.Sprintf("erz%d.primär", guardianNum))),
 			IsEmergencyContact: parseBool(getCol(fmt.Sprintf("erz%d.notfall", guardianNum))),
 			CanPickup:          parseBool(getCol(fmt.Sprintf("erz%d.abholung", guardianNum))),
 		}
 
-		// Parse flexible phone numbers into PhoneNumbers array
-		guardian.PhoneNumbers = p.parseGuardianPhoneNumbers(guardianNum, getCol)
+		// Parse flexible phone numbers into PhoneNumbers array (use getRawCol for phone columns)
+		guardian.PhoneNumbers = p.parseGuardianPhoneNumbers(guardianNum, getRawCol)
 
 		// Only add if has contact info (skip empty guardians)
 		hasPhoneNumbers := len(guardian.PhoneNumbers) > 0
