@@ -153,6 +153,12 @@ type StaffRepository interface {
 	// UpdateNotes updates staff notes
 	UpdateNotes(ctx context.Context, id int64, notes string) error
 
+	// AddNotes adds notes to a staff member's existing notes
+	AddNotes(ctx context.Context, id int64, notes string) error
+
+	// ListWithOptions provides a type-safe way to list staff with query options
+	ListWithOptions(ctx context.Context, options *base.QueryOptions) ([]*Staff, error)
+
 	// FindWithPerson retrieves a staff member with their associated person data
 	FindWithPerson(ctx context.Context, id int64) (*Staff, error)
 

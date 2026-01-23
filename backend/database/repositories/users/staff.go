@@ -233,12 +233,12 @@ func (r *StaffRepository) AddNotes(ctx context.Context, id int64, notes string) 
 	// Add the new notes to existing notes
 	staff.AddNotes(notes)
 
-	// Update the staff record
+	// Update the staff record using Set like UpdateNotes does
 	_, err = r.db.NewUpdate().
-		Model(staff).
+		Model((*users.Staff)(nil)).
 		ModelTableExpr(`users.staff AS "staff"`).
-		Column(`"staff".staff_notes`).
-		WherePK().
+		Set(`staff_notes = ?`, staff.StaffNotes).
+		Where(`"staff".id = ?`, id).
 		Exec(ctx)
 
 	if err != nil {

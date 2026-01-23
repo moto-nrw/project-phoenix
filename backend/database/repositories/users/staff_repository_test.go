@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -987,6 +988,256 @@ func TestStaffRepository_ConcurrentAccess(t *testing.T) {
 		for i := 0; i < numLists; i++ {
 			err := <-errors
 			assert.NoError(t, err)
+		}
+	})
+}
+
+// ============================================================================
+// AddNotes Tests
+// ============================================================================
+
+func TestStaffRepository_AddNotes(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
+
+	repo := repositories.NewFactory(db).Staff
+	ctx := context.Background()
+
+	t.Run("adds notes to staff with no existing notes", func(t *testing.T) {
+		staff := testpkg.CreateTestStaff(t, db, "AddNotesEmpty", "Test", ogsID)
+		defer cleanupStaffRecords(t, db, staff.ID)
+
+		err := repo.AddNotes(ctx, staff.ID, "First note")
+		require.NoError(t, err)
+
+		found, err := repo.FindByID(ctx, staff.ID)
+		require.NoError(t, err)
+		assert.Equal(t, "First note", found.StaffNotes)
+	})
+
+	t.Run("appends notes to existing notes with newline", func(t *testing.T) {
+		staff := testpkg.CreateTestStaff(t, db, "AddNotesAppend", "Test", ogsID)
+		defer cleanupStaffRecords(t, db, staff.ID)
+
+		// Set initial notes
+		err := repo.UpdateNotes(ctx, staff.ID, "Initial note")
+		require.NoError(t, err)
+
+		// Add more notes
+		err = repo.AddNotes(ctx, staff.ID, "Second note")
+		require.NoError(t, err)
+
+		found, err := repo.FindByID(ctx, staff.ID)
+		require.NoError(t, err)
+		assert.Equal(t, "Initial note\nSecond note", found.StaffNotes)
+	})
+
+	t.Run("returns error for non-existent staff", func(t *testing.T) {
+		err := repo.AddNotes(ctx, int64(999999999), "Some note")
+		require.Error(t, err)
+	})
+
+	t.Run("handles empty notes string", func(t *testing.T) {
+		staff := testpkg.CreateTestStaff(t, db, "AddNotesEmpty2", "Test", ogsID)
+		defer cleanupStaffRecords(t, db, staff.ID)
+
+		// Set initial notes
+		err := repo.UpdateNotes(ctx, staff.ID, "Existing")
+		require.NoError(t, err)
+
+		// Add empty string
+		err = repo.AddNotes(ctx, staff.ID, "")
+		require.NoError(t, err)
+
+		found, err := repo.FindByID(ctx, staff.ID)
+		require.NoError(t, err)
+		// Model.AddNotes appends with newline even for empty string
+		assert.Equal(t, "Existing\n", found.StaffNotes)
+	})
+
+	t.Run("handles notes with special characters", func(t *testing.T) {
+		staff := testpkg.CreateTestStaff(t, db, "AddNotesSpecial", "Test", ogsID)
+		defer cleanupStaffRecords(t, db, staff.ID)
+
+		specialNotes := "Notes with Ümläute & Sønderzeichen ß € @ \"quotes\" 'apostrophe'"
+
+		err := repo.AddNotes(ctx, staff.ID, specialNotes)
+		require.NoError(t, err)
+
+		found, err := repo.FindByID(ctx, staff.ID)
+		require.NoError(t, err)
+		assert.Equal(t, specialNotes, found.StaffNotes)
+	})
+
+	t.Run("handles multiple sequential adds", func(t *testing.T) {
+		staff := testpkg.CreateTestStaff(t, db, "AddNotesMulti", "Test", ogsID)
+		defer cleanupStaffRecords(t, db, staff.ID)
+
+		err := repo.AddNotes(ctx, staff.ID, "First")
+		require.NoError(t, err)
+		err = repo.AddNotes(ctx, staff.ID, "Second")
+		require.NoError(t, err)
+		err = repo.AddNotes(ctx, staff.ID, "Third")
+		require.NoError(t, err)
+
+		found, err := repo.FindByID(ctx, staff.ID)
+		require.NoError(t, err)
+		assert.Equal(t, "First\nSecond\nThird", found.StaffNotes)
+	})
+
+	t.Run("handles notes with newlines", func(t *testing.T) {
+		staff := testpkg.CreateTestStaff(t, db, "AddNotesNewline", "Test", ogsID)
+		defer cleanupStaffRecords(t, db, staff.ID)
+
+		err := repo.AddNotes(ctx, staff.ID, "Line 1\nLine 2\nLine 3")
+		require.NoError(t, err)
+
+		found, err := repo.FindByID(ctx, staff.ID)
+		require.NoError(t, err)
+		assert.Equal(t, "Line 1\nLine 2\nLine 3", found.StaffNotes)
+	})
+}
+
+// ============================================================================
+// ListWithOptions Direct Tests
+// ============================================================================
+
+func TestStaffRepository_ListWithOptions(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
+
+	repo := repositories.NewFactory(db).Staff
+	ctx := context.Background()
+
+	t.Run("returns all staff with nil options", func(t *testing.T) {
+		staff := testpkg.CreateTestStaff(t, db, "ListOptionsNil", "Test", ogsID)
+		defer cleanupStaffRecords(t, db, staff.ID)
+
+		results, err := repo.ListWithOptions(ctx, nil)
+		require.NoError(t, err)
+		assert.NotEmpty(t, results)
+
+		// Verify our staff is in the results
+		var found bool
+		for _, s := range results {
+			if s.ID == staff.ID {
+				found = true
+				break
+			}
+		}
+		assert.True(t, found, "created staff should be in results")
+	})
+
+	t.Run("filters by person_id using QueryOptions", func(t *testing.T) {
+		staff := testpkg.CreateTestStaff(t, db, "ListOptionsFilter", "Test", ogsID)
+		defer cleanupStaffRecords(t, db, staff.ID)
+
+		options := modelBase.NewQueryOptions()
+		options.Filter.Equal("person_id", staff.PersonID)
+
+		results, err := repo.ListWithOptions(ctx, options)
+		require.NoError(t, err)
+		require.Len(t, results, 1)
+		assert.Equal(t, staff.ID, results[0].ID)
+	})
+
+	t.Run("applies pagination", func(t *testing.T) {
+		// Create multiple staff members
+		staff1 := testpkg.CreateTestStaff(t, db, "ListOptionsPag1", "Test", ogsID)
+		staff2 := testpkg.CreateTestStaff(t, db, "ListOptionsPag2", "Test", ogsID)
+		staff3 := testpkg.CreateTestStaff(t, db, "ListOptionsPag3", "Test", ogsID)
+		defer cleanupStaffRecords(t, db, staff1.ID, staff2.ID, staff3.ID)
+
+		// Page 1 with size 2
+		options := modelBase.NewQueryOptions()
+		options.WithPagination(1, 2)
+
+		results, err := repo.ListWithOptions(ctx, options)
+		require.NoError(t, err)
+		assert.LessOrEqual(t, len(results), 2, "should return at most 2 results")
+	})
+
+	t.Run("applies sorting by created_at descending", func(t *testing.T) {
+		// Create multiple staff with slight time gaps
+		staff1 := testpkg.CreateTestStaff(t, db, "ListOptionsSort1", "Test", ogsID)
+		time.Sleep(10 * time.Millisecond)
+		staff2 := testpkg.CreateTestStaff(t, db, "ListOptionsSort2", "Test", ogsID)
+		defer cleanupStaffRecords(t, db, staff1.ID, staff2.ID)
+
+		options := modelBase.NewQueryOptions()
+		sorting := modelBase.Sorting{}
+		sorting.AddField("created_at", modelBase.SortDesc)
+		options.WithSorting(sorting)
+
+		results, err := repo.ListWithOptions(ctx, options)
+		require.NoError(t, err)
+		require.NotEmpty(t, results)
+
+		// Find indices of our staff members
+		var idx1, idx2 int = -1, -1
+		for i, s := range results {
+			if s.ID == staff1.ID {
+				idx1 = i
+			}
+			if s.ID == staff2.ID {
+				idx2 = i
+			}
+		}
+
+		// staff2 was created later so should appear first in DESC order
+		if idx1 >= 0 && idx2 >= 0 {
+			assert.Less(t, idx2, idx1, "staff2 should appear before staff1 in DESC order")
+		}
+	})
+
+	t.Run("returns empty slice for non-matching filter", func(t *testing.T) {
+		options := modelBase.NewQueryOptions()
+		options.Filter.Equal("person_id", int64(999999999))
+
+		results, err := repo.ListWithOptions(ctx, options)
+		require.NoError(t, err)
+		assert.Empty(t, results)
+	})
+
+	t.Run("works with empty filter (returns all)", func(t *testing.T) {
+		staff := testpkg.CreateTestStaff(t, db, "ListOptionsEmptyFilter", "Test", ogsID)
+		defer cleanupStaffRecords(t, db, staff.ID)
+
+		options := modelBase.NewQueryOptions()
+		// Filter is initialized but no conditions added
+
+		results, err := repo.ListWithOptions(ctx, options)
+		require.NoError(t, err)
+		assert.NotEmpty(t, results)
+	})
+
+	t.Run("combines filter and pagination", func(t *testing.T) {
+		// Create a person and multiple staff for that person
+		person := testpkg.CreateTestPerson(t, db, "MultiStaff", "Person", ogsID)
+		defer testpkg.CleanupActivityFixtures(t, db, person.ID)
+
+		// Create staff 1 for this person
+		staff1 := &users.Staff{PersonID: person.ID}
+		staff1.OgsID = ogsID
+		err := db.NewInsert().
+			Model(staff1).
+			ModelTableExpr("users.staff").
+			Scan(ctx)
+		require.NoError(t, err)
+		defer cleanupStaffRecords(t, db, staff1.ID)
+
+		// Filter by person_id with pagination
+		options := modelBase.NewQueryOptions()
+		options.Filter.Equal("person_id", person.ID)
+		options.WithPagination(1, 10)
+
+		results, err := repo.ListWithOptions(ctx, options)
+		require.NoError(t, err)
+		assert.NotEmpty(t, results)
+		for _, s := range results {
+			assert.Equal(t, person.ID, s.PersonID)
 		}
 	})
 }
