@@ -12,6 +12,9 @@
     "lint:fix": "eslint src --fix",
     "typecheck": "tsc --noEmit",
     "check": "pnpm run lint && pnpm run typecheck",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
     "knip": "knip"
   },
   "dependencies": {
@@ -22,21 +25,31 @@
   "devDependencies": {
     "@types/node": "^22.0.0",
     "@types/pg": "^8.11.0",
+    "@vitest/coverage-v8": "^3.2.4",
     "eslint": "^9.18.0",
-    "typescript-eslint": "^8.21.0",
     "knip": "^5.80.2",
     "tsx": "^4.19.0",
-    "typescript": "^5.6.0"
+    "typescript": "^5.6.0",
+    "typescript-eslint": "^8.21.0",
+    "vitest": "^3.2.4"
   },
   "engines": {
     "node": ">=20.0.0"
   },
   "pnpm": {
-    "onlyBuiltDependencies": ["esbuild"]
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
   },
   "knip": {
-    "entry": ["src/index.ts", "src/auth.ts", "src/email.ts"],
-    "project": ["src/**/*.ts"],
+    "entry": [
+      "src/index.ts",
+      "src/auth.ts",
+      "src/email.ts"
+    ],
+    "project": [
+      "src/**/*.ts"
+    ],
     "ignoreDependencies": []
   }
 }
