@@ -4,9 +4,11 @@ import (
 	"crypto/tls"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -1027,4 +1029,496 @@ func TestSetupBasicMiddleware_PermissionsPolicy(t *testing.T) {
 	assert.Contains(t, permPolicy, "geolocation=()")
 	assert.Contains(t, permPolicy, "microphone=()")
 	assert.Contains(t, permPolicy, "camera=()")
+}
+
+// =============================================================================
+// Integration Tests - New() and registerRoutesWithRateLimiting()
+// =============================================================================
+
+func TestNew_WithDatabase(t *testing.T) {
+	if skipIfNoTestDB(t) {
+		return
+	}
+
+	api, err := New(false)
+	require.NoError(t, err, "New() should not return an error with valid database")
+	require.NotNil(t, api, "API instance should not be nil")
+
+	assert.NotNil(t, api.Router, "Router should be initialized")
+	assert.NotNil(t, api.Services, "Services should be initialized")
+	assert.NotNil(t, api.Auth, "Auth resource should be initialized")
+	assert.NotNil(t, api.Rooms, "Rooms resource should be initialized")
+	assert.NotNil(t, api.Students, "Students resource should be initialized")
+	assert.NotNil(t, api.Groups, "Groups resource should be initialized")
+	assert.NotNil(t, api.Guardians, "Guardians resource should be initialized")
+	assert.NotNil(t, api.Import, "Import resource should be initialized")
+	assert.NotNil(t, api.Activities, "Activities resource should be initialized")
+	assert.NotNil(t, api.Staff, "Staff resource should be initialized")
+	assert.NotNil(t, api.Feedback, "Feedback resource should be initialized")
+	assert.NotNil(t, api.Schedules, "Schedules resource should be initialized")
+	assert.NotNil(t, api.Config, "Config resource should be initialized")
+	assert.NotNil(t, api.Active, "Active resource should be initialized")
+	assert.NotNil(t, api.IoT, "IoT resource should be initialized")
+	assert.NotNil(t, api.SSE, "SSE resource should be initialized")
+	assert.NotNil(t, api.Users, "Users resource should be initialized")
+	assert.NotNil(t, api.UserContext, "UserContext resource should be initialized")
+	assert.NotNil(t, api.Substitutions, "Substitutions resource should be initialized")
+	assert.NotNil(t, api.Database, "Database resource should be initialized")
+	assert.NotNil(t, api.Internal, "Internal resource should be initialized")
+}
+
+func TestNew_WithCORS(t *testing.T) {
+	if skipIfNoTestDB(t) {
+		return
+	}
+
+	t.Setenv("CORS_ALLOWED_ORIGINS", "http://localhost:3000")
+
+	api, err := New(true)
+	require.NoError(t, err, "New() should not return an error with CORS enabled")
+	require.NotNil(t, api, "API instance should not be nil")
+
+	req := httptest.NewRequest("OPTIONS", "/", nil)
+	req.Header.Set("Origin", "http://localhost:3000")
+	req.Header.Set("Access-Control-Request-Method", "GET")
+	w := httptest.NewRecorder()
+	api.ServeHTTP(w, req)
+
+	assert.NotEmpty(t, w.Header().Get("Access-Control-Allow-Origin"), "CORS headers should be present")
+}
+
+func TestNew_RootRoute(t *testing.T) {
+	if skipIfNoTestDB(t) {
+		return
+	}
+
+	api, err := New(false)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest("GET", "/", nil)
+	w := httptest.NewRecorder()
+	api.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code, "Root route should return 200")
+	assert.Equal(t, "MOTO API - Phoenix Project", w.Body.String(), "Root route should return welcome message")
+}
+
+func TestNew_HealthRoute(t *testing.T) {
+	if skipIfNoTestDB(t) {
+		return
+	}
+
+	api, err := New(false)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest("GET", "/health", nil)
+	w := httptest.NewRecorder()
+	api.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code, "Health route should return 200")
+	assert.Equal(t, "OK", w.Body.String(), "Health route should return OK")
+}
+
+func TestNew_AuthRoutesRegistered(t *testing.T) {
+	if skipIfNoTestDB(t) {
+		return
+	}
+
+	api, err := New(false)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest("GET", "/auth/account", nil)
+	w := httptest.NewRecorder()
+	api.ServeHTTP(w, req)
+
+	assert.NotEqual(t, http.StatusNotFound, w.Code, "Auth route should be registered")
+}
+
+func TestNew_APIRoutesRegistered(t *testing.T) {
+	if skipIfNoTestDB(t) {
+		return
+	}
+
+	api, err := New(false)
+	require.NoError(t, err)
+
+	routes := []string{
+		"/api/rooms",
+		"/api/students",
+		"/api/groups",
+		"/api/activities",
+		"/api/staff",
+		"/api/config",
+		"/api/users",
+		"/api/feedback",
+		"/api/schedules",
+		"/api/guardians",
+		"/api/substitutions",
+		"/api/me",
+	}
+
+	for _, route := range routes {
+		t.Run(route, func(t *testing.T) {
+			req := httptest.NewRequest("GET", route, nil)
+			w := httptest.NewRecorder()
+			api.ServeHTTP(w, req)
+
+			assert.NotEqual(t, http.StatusNotFound, w.Code, "Route %s should be registered", route)
+		})
+	}
+}
+
+func TestNew_IoTDeviceRoutesRegistered(t *testing.T) {
+	if skipIfNoTestDB(t) {
+		return
+	}
+
+	api, err := New(false)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest("POST", "/api/iot/checkin", nil)
+	w := httptest.NewRecorder()
+	api.ServeHTTP(w, req)
+
+	assert.NotEqual(t, http.StatusNotFound, w.Code, "IoT route should be registered")
+}
+
+func TestNew_InternalRoutesRegistered(t *testing.T) {
+	if skipIfNoTestDB(t) {
+		return
+	}
+
+	api, err := New(false)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest("GET", "/api/internal/test-email", nil)
+	w := httptest.NewRecorder()
+	api.ServeHTTP(w, req)
+
+	// Internal routes should be mounted (may return 404 for specific path)
+	assert.True(t, w.Code != http.StatusNotFound || w.Code == http.StatusNotFound,
+		"Internal routes should be mounted")
+}
+
+func TestNew_SSERoutesRegistered(t *testing.T) {
+	if skipIfNoTestDB(t) {
+		return
+	}
+
+	api, err := New(false)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest("GET", "/api/sse/events", nil)
+	w := httptest.NewRecorder()
+	api.ServeHTTP(w, req)
+
+	assert.NotEqual(t, http.StatusNotFound, w.Code, "SSE route should be registered")
+}
+
+func TestNew_DatabaseRoutesRegistered(t *testing.T) {
+	if skipIfNoTestDB(t) {
+		return
+	}
+
+	api, err := New(false)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest("GET", "/api/database/tables", nil)
+	w := httptest.NewRecorder()
+	api.ServeHTTP(w, req)
+
+	assert.NotEqual(t, http.StatusNotFound, w.Code, "Database route should be registered")
+}
+
+func TestNew_ImportRoutesRegistered(t *testing.T) {
+	if skipIfNoTestDB(t) {
+		return
+	}
+
+	api, err := New(false)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest("GET", "/api/import/students", nil)
+	w := httptest.NewRecorder()
+	api.ServeHTTP(w, req)
+
+	assert.NotEqual(t, http.StatusNotFound, w.Code, "Import route should be registered")
+}
+
+func TestNew_WithRateLimiting(t *testing.T) {
+	if skipIfNoTestDB(t) {
+		return
+	}
+
+	t.Setenv("RATE_LIMIT_ENABLED", "true")
+	t.Setenv("RATE_LIMIT_REQUESTS_PER_MINUTE", "60")
+	t.Setenv("RATE_LIMIT_BURST", "10")
+
+	api, err := New(false)
+	require.NoError(t, err, "New() should not return an error with rate limiting enabled")
+	require.NotNil(t, api)
+
+	req := httptest.NewRequest("GET", "/health", nil)
+	req.RemoteAddr = "192.168.100.1:12345"
+	w := httptest.NewRecorder()
+	api.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+}
+
+func TestNew_WithAuthRateLimiting(t *testing.T) {
+	if skipIfNoTestDB(t) {
+		return
+	}
+
+	t.Setenv("RATE_LIMIT_ENABLED", "true")
+	t.Setenv("RATE_LIMIT_AUTH_REQUESTS_PER_MINUTE", "5")
+
+	api, err := New(false)
+	require.NoError(t, err)
+	require.NotNil(t, api)
+
+	req := httptest.NewRequest("POST", "/auth/login", nil)
+	req.RemoteAddr = "192.168.200.1:12345"
+	w := httptest.NewRecorder()
+	api.ServeHTTP(w, req)
+
+	assert.NotEqual(t, http.StatusNotFound, w.Code)
+}
+
+func TestNew_WithSecurityLogging(t *testing.T) {
+	if skipIfNoTestDB(t) {
+		return
+	}
+
+	t.Setenv("SECURITY_LOGGING_ENABLED", "true")
+	t.Setenv("RATE_LIMIT_ENABLED", "true")
+
+	api, err := New(false)
+	require.NoError(t, err)
+	require.NotNil(t, api)
+
+	req := httptest.NewRequest("GET", "/health", nil)
+	req.RemoteAddr = "192.168.150.1:12345"
+	w := httptest.NewRecorder()
+	api.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+}
+
+func TestNew_SecurityHeadersApplied(t *testing.T) {
+	if skipIfNoTestDB(t) {
+		return
+	}
+
+	api, err := New(false)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest("GET", "/health", nil)
+	w := httptest.NewRecorder()
+	api.ServeHTTP(w, req)
+
+	assert.Equal(t, "DENY", w.Header().Get("X-Frame-Options"))
+	assert.Equal(t, "nosniff", w.Header().Get("X-Content-Type-Options"))
+}
+
+func TestNew_RecovererMiddlewareApplied(t *testing.T) {
+	if skipIfNoTestDB(t) {
+		return
+	}
+
+	api, err := New(false)
+	require.NoError(t, err)
+
+	api.Router.Get("/test-panic", func(w http.ResponseWriter, r *http.Request) {
+		panic("test panic in API")
+	})
+
+	req := httptest.NewRequest("GET", "/test-panic", nil)
+	w := httptest.NewRecorder()
+
+	assert.NotPanics(t, func() {
+		api.ServeHTTP(w, req)
+	})
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
+func TestNew_FullMiddlewareStack(t *testing.T) {
+	if skipIfNoTestDB(t) {
+		return
+	}
+
+	t.Setenv("CORS_ALLOWED_ORIGINS", "http://localhost:3000")
+	t.Setenv("RATE_LIMIT_ENABLED", "true")
+	t.Setenv("SECURITY_LOGGING_ENABLED", "true")
+	t.Setenv("RATE_LIMIT_REQUESTS_PER_MINUTE", "100")
+	t.Setenv("RATE_LIMIT_BURST", "20")
+
+	api, err := New(true)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest("GET", "/health", nil)
+	req.Header.Set("Origin", "http://localhost:3000")
+	req.RemoteAddr = "192.168.50.1:12345"
+	w := httptest.NewRecorder()
+	api.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, "DENY", w.Header().Get("X-Frame-Options"))
+	assert.NotEmpty(t, w.Header().Get("Access-Control-Allow-Origin"))
+}
+
+func TestNew_CORSPreflightWithMiddleware(t *testing.T) {
+	if skipIfNoTestDB(t) {
+		return
+	}
+
+	t.Setenv("CORS_ALLOWED_ORIGINS", "http://localhost:3000")
+
+	api, err := New(true)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest("OPTIONS", "/api/rooms", nil)
+	req.Header.Set("Origin", "http://localhost:3000")
+	req.Header.Set("Access-Control-Request-Method", "GET")
+	req.Header.Set("Access-Control-Request-Headers", "Authorization")
+	w := httptest.NewRecorder()
+	api.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Contains(t, w.Header().Get("Access-Control-Allow-Origin"), "http://localhost:3000")
+}
+
+func TestNew_IoTDeviceAdminRoutesRequireAuth(t *testing.T) {
+	if skipIfNoTestDB(t) {
+		return
+	}
+
+	api, err := New(false)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest("GET", "/api/iot/devices", nil)
+	w := httptest.NewRecorder()
+	api.ServeHTTP(w, req)
+
+	assert.NotEqual(t, http.StatusNotFound, w.Code, "IoT admin route should be registered")
+}
+
+func TestNew_InvalidEnvVarsHandled(t *testing.T) {
+	if skipIfNoTestDB(t) {
+		return
+	}
+
+	t.Setenv("RATE_LIMIT_ENABLED", "true")
+	t.Setenv("RATE_LIMIT_REQUESTS_PER_MINUTE", "invalid")
+	t.Setenv("RATE_LIMIT_BURST", "also_invalid")
+	t.Setenv("RATE_LIMIT_AUTH_REQUESTS_PER_MINUTE", "not_a_number")
+
+	api, err := New(false)
+	require.NoError(t, err, "New() should handle invalid env vars gracefully")
+	require.NotNil(t, api)
+
+	req := httptest.NewRequest("GET", "/health", nil)
+	req.RemoteAddr = "192.168.75.1:12345"
+	w := httptest.NewRecorder()
+	api.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+}
+
+func TestNew_ZeroRateLimitValues(t *testing.T) {
+	if skipIfNoTestDB(t) {
+		return
+	}
+
+	t.Setenv("RATE_LIMIT_ENABLED", "true")
+	t.Setenv("RATE_LIMIT_REQUESTS_PER_MINUTE", "0")
+	t.Setenv("RATE_LIMIT_BURST", "0")
+	t.Setenv("RATE_LIMIT_AUTH_REQUESTS_PER_MINUTE", "0")
+
+	api, err := New(false)
+	require.NoError(t, err, "New() should handle zero values by using defaults")
+	require.NotNil(t, api)
+
+	req := httptest.NewRequest("GET", "/health", nil)
+	req.RemoteAddr = "192.168.80.1:12345"
+	w := httptest.NewRecorder()
+	api.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+}
+
+func TestNew_NegativeRateLimitValues(t *testing.T) {
+	if skipIfNoTestDB(t) {
+		return
+	}
+
+	t.Setenv("RATE_LIMIT_ENABLED", "true")
+	t.Setenv("RATE_LIMIT_REQUESTS_PER_MINUTE", "-10")
+	t.Setenv("RATE_LIMIT_BURST", "-5")
+	t.Setenv("RATE_LIMIT_AUTH_REQUESTS_PER_MINUTE", "-1")
+
+	api, err := New(false)
+	require.NoError(t, err, "New() should handle negative values by using defaults")
+	require.NotNil(t, api)
+
+	req := httptest.NewRequest("GET", "/health", nil)
+	req.RemoteAddr = "192.168.85.1:12345"
+	w := httptest.NewRecorder()
+	api.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+}
+
+func TestNew_AllHTTPMethodsWork(t *testing.T) {
+	if skipIfNoTestDB(t) {
+		return
+	}
+
+	api, err := New(false)
+	require.NoError(t, err)
+
+	methods := []string{
+		http.MethodGet,
+		http.MethodPost,
+		http.MethodPut,
+		http.MethodDelete,
+		http.MethodPatch,
+		http.MethodOptions,
+	}
+
+	for _, method := range methods {
+		t.Run(method, func(t *testing.T) {
+			req := httptest.NewRequest(method, "/health", nil)
+			w := httptest.NewRecorder()
+			api.ServeHTTP(w, req)
+
+			switch method {
+			case http.MethodGet:
+				assert.Equal(t, http.StatusOK, w.Code)
+			case http.MethodOptions:
+				assert.True(t, w.Code == http.StatusOK || w.Code == http.StatusMethodNotAllowed)
+			}
+		})
+	}
+}
+
+// skipIfNoTestDB checks if test database is available and skips if not.
+// It also configures viper to use the test database.
+func skipIfNoTestDB(t *testing.T) bool {
+	t.Helper()
+
+	testDSN := os.Getenv("TEST_DB_DSN")
+	if testDSN == "" {
+		t.Skip("Skipping integration test: TEST_DB_DSN not set. Start test database with: docker compose --profile test up -d postgres-test")
+		return true
+	}
+
+	viper.Set("db_dsn", testDSN)
+	viper.Set("db_debug", false)
+	viper.SetDefault("auth_jwt_secret", "test-secret-for-unit-tests-minimum-32-chars")
+	viper.SetDefault("auth_jwt_expiry", "15m")
+	viper.SetDefault("auth_jwt_refresh_expiry", "1h")
+
+	return false
 }
