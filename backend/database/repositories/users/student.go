@@ -113,8 +113,9 @@ func (r *StudentRepository) FindBySchoolClass(ctx context.Context, schoolClass s
 
 // AssignToGroup assigns a student to a group
 func (r *StudentRepository) AssignToGroup(ctx context.Context, studentID int64, groupID int64) error {
+	// Use TableExpr directly without Model() to avoid nil model issues
 	_, err := r.db.NewUpdate().
-		Model((*users.Student)(nil)).
+		TableExpr(tableUsersStudents).
 		Set("group_id = ?", groupID).
 		Where("id = ?", studentID).
 		Exec(ctx)
@@ -131,8 +132,9 @@ func (r *StudentRepository) AssignToGroup(ctx context.Context, studentID int64, 
 
 // RemoveFromGroup removes a student from their group
 func (r *StudentRepository) RemoveFromGroup(ctx context.Context, studentID int64) error {
+	// Use TableExpr directly without Model() to avoid nil model issues
 	_, err := r.db.NewUpdate().
-		Model((*users.Student)(nil)).
+		TableExpr(tableUsersStudents).
 		Set("group_id = NULL").
 		Where("id = ?", studentID).
 		Exec(ctx)
@@ -289,11 +291,35 @@ func (r *StudentRepository) CountWithOptions(ctx context.Context, options *model
 
 // FindWithPerson retrieves a student with their associated person data
 func (r *StudentRepository) FindWithPerson(ctx context.Context, id int64) (*users.Student, error) {
-	student := new(users.Student)
+	// Use explicit JOINs to avoid schema issues with Relation()
+	type studentWithPerson struct {
+		Student *users.Student `bun:"student"`
+		Person  *users.Person  `bun:"person"`
+	}
+
+	result := &studentWithPerson{
+		Student: new(users.Student),
+		Person:  new(users.Person),
+	}
+
 	err := r.db.NewSelect().
-		Model(student).
-		Relation("Person").
-		Where("users.students.id = ?", id).
+		Model(result).
+		ModelTableExpr(tableExprUsersStudentsAsStudent).
+		// Student columns with proper aliasing
+		ColumnExpr(`"student".id AS "student__id", "student".created_at AS "student__created_at", "student".updated_at AS "student__updated_at"`).
+		ColumnExpr(`"student".ogs_id AS "student__ogs_id", "student".person_id AS "student__person_id", "student".school_class AS "student__school_class"`).
+		ColumnExpr(`"student".group_id AS "student__group_id", "student".guardian_name AS "student__guardian_name", "student".guardian_contact AS "student__guardian_contact"`).
+		ColumnExpr(`"student".guardian_email AS "student__guardian_email", "student".guardian_phone AS "student__guardian_phone"`).
+		ColumnExpr(`"student".extra_info AS "student__extra_info", "student".supervisor_notes AS "student__supervisor_notes"`).
+		ColumnExpr(`"student".health_info AS "student__health_info", "student".pickup_status AS "student__pickup_status"`).
+		ColumnExpr(`"student".bus AS "student__bus", "student".sick AS "student__sick", "student".sick_since AS "student__sick_since"`).
+		// Person columns
+		ColumnExpr(`"person".id AS "person__id", "person".created_at AS "person__created_at", "person".updated_at AS "person__updated_at"`).
+		ColumnExpr(`"person".ogs_id AS "person__ogs_id", "person".first_name AS "person__first_name", "person".last_name AS "person__last_name"`).
+		ColumnExpr(`"person".birthday AS "person__birthday", "person".tag_id AS "person__tag_id", "person".account_id AS "person__account_id"`).
+		// JOIN
+		Join(`INNER JOIN users.persons AS "person" ON "person".id = "student".person_id`).
+		Where(`"student".id = ?`, id).
 		Scan(ctx)
 
 	if err != nil {
@@ -303,7 +329,10 @@ func (r *StudentRepository) FindWithPerson(ctx context.Context, id int64) (*user
 		}
 	}
 
-	return student, nil
+	// Assign Person to Student for proper nesting
+	result.Student.Person = result.Person
+
+	return result.Student, nil
 }
 
 // FindByGuardianEmail finds students with a specific guardian email
@@ -311,7 +340,8 @@ func (r *StudentRepository) FindByGuardianEmail(ctx context.Context, email strin
 	var students []*users.Student
 	err := r.db.NewSelect().
 		Model(&students).
-		Where("LOWER(guardian_email) = LOWER(?)", email).
+		ModelTableExpr(tableExprUsersStudentsAsStudent).
+		Where(`LOWER("student".guardian_email) = LOWER(?)`, email).
 		Scan(ctx)
 
 	if err != nil {
@@ -329,7 +359,8 @@ func (r *StudentRepository) FindByGuardianPhone(ctx context.Context, phone strin
 	var students []*users.Student
 	err := r.db.NewSelect().
 		Model(&students).
-		Where("guardian_phone = ?", phone).
+		ModelTableExpr(tableExprUsersStudentsAsStudent).
+		Where(`"student".guardian_phone = ?`, phone).
 		Scan(ctx)
 
 	if err != nil {

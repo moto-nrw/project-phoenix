@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -773,6 +774,458 @@ func TestStudentRepository_FindByNameAndClass(t *testing.T) {
 	})
 }
 
-// NOTE: FindWithPerson, FindByGuardianEmail, and FindByGuardianPhone exist in the
-// implementation but are not exposed in the StudentRepository interface, so they
-// cannot be tested through the interface.
+// ============================================================================
+// Additional Coverage Tests
+// ============================================================================
+
+func TestStudentRepository_AssignToGroup_Direct(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
+
+	repo := repositories.NewFactory(db).Student
+	ctx := context.Background()
+
+	t.Run("assigns student to group via repository method", func(t *testing.T) {
+		group := testpkg.CreateTestEducationGroup(t, db, "AssignDirectClass", ogsID)
+		defer cleanupEducationData(t, db, []int64{group.ID}, nil)
+
+		student := testpkg.CreateTestStudent(t, db, "AssignDirect", "Test", "1a", ogsID)
+		defer cleanupStudentRecords(t, db, student.ID)
+
+		// Use the actual repository method
+		err := repo.AssignToGroup(ctx, student.ID, group.ID)
+		require.NoError(t, err)
+
+		// Verify assignment
+		found, err := repo.FindByID(ctx, student.ID)
+		require.NoError(t, err)
+		require.NotNil(t, found.GroupID)
+		assert.Equal(t, group.ID, *found.GroupID)
+	})
+}
+
+func TestStudentRepository_RemoveFromGroup_Direct(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
+
+	repo := repositories.NewFactory(db).Student
+	ctx := context.Background()
+
+	t.Run("removes student from group via repository method", func(t *testing.T) {
+		group := testpkg.CreateTestEducationGroup(t, db, "RemoveDirectClass", ogsID)
+		defer cleanupEducationData(t, db, []int64{group.ID}, nil)
+
+		student := testpkg.CreateTestStudent(t, db, "RemoveDirect", "Test", "1a", ogsID)
+		defer cleanupStudentRecords(t, db, student.ID)
+
+		// First assign using direct method
+		assignStudentToGroupDirect(t, db, student.ID, group.ID)
+
+		// Verify assigned
+		found, err := repo.FindByID(ctx, student.ID)
+		require.NoError(t, err)
+		require.NotNil(t, found.GroupID)
+
+		// Use the actual repository method to remove
+		err = repo.RemoveFromGroup(ctx, student.ID)
+		require.NoError(t, err)
+
+		// Verify removed
+		found, err = repo.FindByID(ctx, student.ID)
+		require.NoError(t, err)
+		assert.Nil(t, found.GroupID)
+	})
+}
+
+func TestStudentRepository_List_AllFilterTypes(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
+
+	repo := repositories.NewFactory(db).Student
+	ctx := context.Background()
+
+	t.Run("filters by guardian_name_like", func(t *testing.T) {
+		guardianName := fmt.Sprintf("UniqueGuardian%d", time.Now().UnixNano())
+		person := testpkg.CreateTestPerson(t, db, "GuardianFilter", "Test", ogsID)
+		defer testpkg.CleanupActivityFixtures(t, db, person.ID)
+
+		student := &users.Student{
+			PersonID:     person.ID,
+			SchoolClass:  "1a",
+			GuardianName: &guardianName,
+		}
+		student.OgsID = ogsID
+		err := repo.Create(ctx, student)
+		require.NoError(t, err)
+		defer cleanupStudentRecords(t, db, student.ID)
+
+		// Filter by guardian_name_like
+		students, err := repo.List(ctx, map[string]interface{}{
+			"guardian_name_like": "UniqueGuardian",
+		})
+		require.NoError(t, err)
+		assert.NotEmpty(t, students)
+
+		// Verify the filter worked
+		found := false
+		for _, s := range students {
+			if s.ID == student.ID {
+				found = true
+				break
+			}
+		}
+		assert.True(t, found, "Should find student by guardian name like filter")
+	})
+
+	t.Run("filters by has_group true", func(t *testing.T) {
+		group := testpkg.CreateTestEducationGroup(t, db, "HasGroupClass", ogsID)
+		defer cleanupEducationData(t, db, []int64{group.ID}, nil)
+
+		student := testpkg.CreateTestStudent(t, db, "HasGroup", "Test", "1a", ogsID)
+		assignStudentToGroupDirect(t, db, student.ID, group.ID)
+		defer cleanupStudentRecords(t, db, student.ID)
+
+		// Filter by has_group = true
+		students, err := repo.List(ctx, map[string]interface{}{
+			"has_group": true,
+		})
+		require.NoError(t, err)
+
+		// Should find students with groups
+		for _, s := range students {
+			assert.NotNil(t, s.GroupID, "All students should have a group")
+		}
+	})
+
+	t.Run("filters by has_group false", func(t *testing.T) {
+		student := testpkg.CreateTestStudent(t, db, "NoGroup", "Test", "1a", ogsID)
+		defer cleanupStudentRecords(t, db, student.ID)
+
+		// Ensure student has no group
+		assert.Nil(t, student.GroupID)
+
+		// Filter by has_group = false
+		students, err := repo.List(ctx, map[string]interface{}{
+			"has_group": false,
+		})
+		require.NoError(t, err)
+
+		// Should find students without groups
+		for _, s := range students {
+			assert.Nil(t, s.GroupID, "All students should not have a group")
+		}
+	})
+
+	t.Run("filters by direct field equality", func(t *testing.T) {
+		uniqueClass := fmt.Sprintf("EqualClass%d", time.Now().UnixNano())
+		student := testpkg.CreateTestStudent(t, db, "EqualFilter", "Test", uniqueClass, ogsID)
+		defer cleanupStudentRecords(t, db, student.ID)
+
+		// Filter by exact school_class (default equals filter)
+		students, err := repo.List(ctx, map[string]interface{}{
+			"school_class": uniqueClass,
+		})
+		require.NoError(t, err)
+		assert.Len(t, students, 1)
+		assert.Equal(t, student.ID, students[0].ID)
+	})
+}
+
+func TestStudentRepository_ListWithOptions_EdgeCases(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
+
+	repo := repositories.NewFactory(db).Student
+	ctx := context.Background()
+
+	t.Run("handles nil options", func(t *testing.T) {
+		student := testpkg.CreateTestStudent(t, db, "NilOpts", "Test", "1a", ogsID)
+		defer cleanupStudentRecords(t, db, student.ID)
+
+		// Pass nil options - should work without error
+		students, err := repo.ListWithOptions(ctx, nil)
+		require.NoError(t, err)
+		assert.NotEmpty(t, students)
+	})
+
+	t.Run("handles options with nil filter", func(t *testing.T) {
+		student := testpkg.CreateTestStudent(t, db, "NilFilterOpts", "Test", "1a", ogsID)
+		defer cleanupStudentRecords(t, db, student.ID)
+
+		options := base.NewQueryOptions()
+		options.Filter = nil
+
+		students, err := repo.ListWithOptions(ctx, options)
+		require.NoError(t, err)
+		assert.NotEmpty(t, students)
+	})
+}
+
+func TestStudentRepository_CountWithOptions_EdgeCases(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
+
+	repo := repositories.NewFactory(db).Student
+	ctx := context.Background()
+
+	t.Run("handles nil options", func(t *testing.T) {
+		student := testpkg.CreateTestStudent(t, db, "CountNilOpts", "Test", "1a", ogsID)
+		defer cleanupStudentRecords(t, db, student.ID)
+
+		// Pass nil options - should work
+		count, err := repo.CountWithOptions(ctx, nil)
+		require.NoError(t, err)
+		assert.Greater(t, count, 0)
+	})
+
+	t.Run("handles options with nil filter", func(t *testing.T) {
+		student := testpkg.CreateTestStudent(t, db, "CountNilFilter", "Test", "1a", ogsID)
+		defer cleanupStudentRecords(t, db, student.ID)
+
+		options := base.NewQueryOptions()
+		options.Filter = nil
+
+		count, err := repo.CountWithOptions(ctx, options)
+		require.NoError(t, err)
+		assert.Greater(t, count, 0)
+	})
+
+	t.Run("handles options with sorting", func(t *testing.T) {
+		student := testpkg.CreateTestStudent(t, db, "CountSorting", "Test", "1a", ogsID)
+		defer cleanupStudentRecords(t, db, student.ID)
+
+		options := base.NewQueryOptions()
+		sorting := &base.Sorting{}
+		sorting.AddField("school_class", base.SortAsc)
+		options.Sorting = sorting
+
+		count, err := repo.CountWithOptions(ctx, options)
+		require.NoError(t, err)
+		assert.Greater(t, count, 0)
+	})
+}
+
+func TestStudentRepository_Create_WithTransaction(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
+
+	repo := repositories.NewFactory(db).Student
+	ctx := context.Background()
+
+	t.Run("creates student within existing transaction", func(t *testing.T) {
+		person := testpkg.CreateTestPerson(t, db, "TxCreate", "Student", ogsID)
+		defer testpkg.CleanupActivityFixtures(t, db, person.ID)
+
+		// Start a transaction manually
+		tx, err := db.BeginTx(ctx, nil)
+		require.NoError(t, err)
+
+		// Add transaction to context
+		txCtx := base.ContextWithTx(ctx, &tx)
+
+		student := &users.Student{
+			PersonID:    person.ID,
+			SchoolClass: "1a",
+		}
+		student.OgsID = ogsID
+
+		// Create within transaction context
+		err = repo.Create(txCtx, student)
+		require.NoError(t, err)
+		assert.NotZero(t, student.ID)
+
+		// Commit the transaction
+		err = tx.Commit()
+		require.NoError(t, err)
+
+		// Verify student exists
+		found, err := repo.FindByID(ctx, student.ID)
+		require.NoError(t, err)
+		assert.Equal(t, person.ID, found.PersonID)
+
+		// Cleanup
+		cleanupStudentRecords(t, db, student.ID)
+	})
+}
+
+func TestStudentRepository_Update_WithTransaction(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
+
+	repo := repositories.NewFactory(db).Student
+	ctx := context.Background()
+
+	t.Run("updates student within existing transaction", func(t *testing.T) {
+		student := testpkg.CreateTestStudent(t, db, "TxUpdate", "Student", "1a", ogsID)
+		defer cleanupStudentRecords(t, db, student.ID)
+
+		// Start a transaction manually
+		tx, err := db.BeginTx(ctx, nil)
+		require.NoError(t, err)
+
+		// Add transaction to context
+		txCtx := base.ContextWithTx(ctx, &tx)
+
+		// Update within transaction context
+		student.SchoolClass = "2b"
+		err = repo.Update(txCtx, student)
+		require.NoError(t, err)
+
+		// Commit the transaction
+		err = tx.Commit()
+		require.NoError(t, err)
+
+		// Verify update persisted
+		found, err := repo.FindByID(ctx, student.ID)
+		require.NoError(t, err)
+		assert.Equal(t, "2b", found.SchoolClass)
+	})
+}
+
+// ============================================================================
+// Concrete Repository Tests (Internal Methods)
+// ============================================================================
+
+// TestStudentRepository_FindWithPerson tests the internal FindWithPerson method
+// by accessing the concrete repository type via type assertion.
+func TestStudentRepository_FindWithPerson(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
+
+	// Get the concrete repository type via type assertion
+	interfaceRepo := usersRepo.NewStudentRepository(db)
+	concreteRepo, ok := interfaceRepo.(*usersRepo.StudentRepository)
+	require.True(t, ok, "Failed to type assert to concrete StudentRepository")
+	ctx := context.Background()
+
+	t.Run("finds student with person data loaded", func(t *testing.T) {
+		student := testpkg.CreateTestStudent(t, db, "WithPerson", "Test", "1a", ogsID)
+		defer cleanupStudentRecords(t, db, student.ID)
+
+		found, err := concreteRepo.FindWithPerson(ctx, student.ID)
+		require.NoError(t, err)
+		assert.Equal(t, student.ID, found.ID)
+		require.NotNil(t, found.Person, "Person should be loaded")
+		assert.Equal(t, "WithPerson", found.Person.FirstName)
+		assert.Equal(t, "Test", found.Person.LastName)
+	})
+
+	t.Run("returns error for non-existent student", func(t *testing.T) {
+		_, err := concreteRepo.FindWithPerson(ctx, int64(999999))
+		require.Error(t, err)
+	})
+}
+
+// TestStudentRepository_FindByGuardianEmail tests the internal FindByGuardianEmail method.
+func TestStudentRepository_FindByGuardianEmail(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
+
+	interfaceRepo := usersRepo.NewStudentRepository(db)
+	concreteRepo, ok := interfaceRepo.(*usersRepo.StudentRepository)
+	require.True(t, ok, "Failed to type assert to concrete StudentRepository")
+	ctx := context.Background()
+
+	t.Run("finds students by guardian email", func(t *testing.T) {
+		uniqueEmail := fmt.Sprintf("guardian-%d@test.example.com", time.Now().UnixNano())
+
+		person := testpkg.CreateTestPerson(t, db, "GuardianEmail", "Test", ogsID)
+		defer testpkg.CleanupActivityFixtures(t, db, person.ID)
+
+		student := &users.Student{
+			PersonID:      person.ID,
+			SchoolClass:   "1a",
+			GuardianEmail: &uniqueEmail,
+		}
+		student.OgsID = ogsID
+		err := interfaceRepo.Create(ctx, student)
+		require.NoError(t, err)
+		defer cleanupStudentRecords(t, db, student.ID)
+
+		// Find by guardian email
+		students, err := concreteRepo.FindByGuardianEmail(ctx, uniqueEmail)
+		require.NoError(t, err)
+		assert.Len(t, students, 1)
+		assert.Equal(t, student.ID, students[0].ID)
+	})
+
+	t.Run("finds by email case-insensitive", func(t *testing.T) {
+		uniqueEmail := fmt.Sprintf("CaseSensitive-%d@test.example.com", time.Now().UnixNano())
+
+		person := testpkg.CreateTestPerson(t, db, "CaseEmail", "Test", ogsID)
+		defer testpkg.CleanupActivityFixtures(t, db, person.ID)
+
+		student := &users.Student{
+			PersonID:      person.ID,
+			SchoolClass:   "1a",
+			GuardianEmail: &uniqueEmail,
+		}
+		student.OgsID = ogsID
+		err := interfaceRepo.Create(ctx, student)
+		require.NoError(t, err)
+		defer cleanupStudentRecords(t, db, student.ID)
+
+		// Search with different case - lower case version
+		searchEmail := "casesensitive" + uniqueEmail[len("CaseSensitive"):]
+		students, err := concreteRepo.FindByGuardianEmail(ctx, searchEmail)
+		require.NoError(t, err)
+		// Should find due to case-insensitive search
+		assert.Len(t, students, 1)
+	})
+
+	t.Run("returns empty for non-existent email", func(t *testing.T) {
+		students, err := concreteRepo.FindByGuardianEmail(ctx, "nonexistent@nowhere.invalid")
+		require.NoError(t, err)
+		assert.Empty(t, students)
+	})
+}
+
+// TestStudentRepository_FindByGuardianPhone tests the internal FindByGuardianPhone method.
+func TestStudentRepository_FindByGuardianPhone(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+	ogsID := testpkg.SetupTestOGS(t, db)
+
+	interfaceRepo := usersRepo.NewStudentRepository(db)
+	concreteRepo, ok := interfaceRepo.(*usersRepo.StudentRepository)
+	require.True(t, ok, "Failed to type assert to concrete StudentRepository")
+	ctx := context.Background()
+
+	t.Run("finds students by guardian phone", func(t *testing.T) {
+		uniquePhone := fmt.Sprintf("+49 123 %d", time.Now().UnixNano()%1000000)
+
+		person := testpkg.CreateTestPerson(t, db, "GuardianPhone", "Test", ogsID)
+		defer testpkg.CleanupActivityFixtures(t, db, person.ID)
+
+		student := &users.Student{
+			PersonID:      person.ID,
+			SchoolClass:   "1a",
+			GuardianPhone: &uniquePhone,
+		}
+		student.OgsID = ogsID
+		err := interfaceRepo.Create(ctx, student)
+		require.NoError(t, err)
+		defer cleanupStudentRecords(t, db, student.ID)
+
+		// Find by guardian phone
+		students, err := concreteRepo.FindByGuardianPhone(ctx, uniquePhone)
+		require.NoError(t, err)
+		assert.Len(t, students, 1)
+		assert.Equal(t, student.ID, students[0].ID)
+	})
+
+	t.Run("returns empty for non-existent phone", func(t *testing.T) {
+		students, err := concreteRepo.FindByGuardianPhone(ctx, "+99 999 9999999")
+		require.NoError(t, err)
+		assert.Empty(t, students)
+	})
+}
