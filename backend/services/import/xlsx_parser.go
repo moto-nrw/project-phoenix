@@ -111,6 +111,17 @@ func (p *XLSXParser) mapStudentRow(values []string) (importModels.StudentImportR
 		return sanitizeCellValue(strings.TrimSpace(values[idx]))
 	}
 
+	// Helper: Get raw column value without sanitization (for phone numbers)
+	// Phone numbers may start with + (international format) which would be corrupted by sanitization
+	// Phone numbers go through validation anyway, so CSV injection is not a risk
+	getRawCol := func(colName string) string {
+		idx, exists := p.columnMapping[colName]
+		if !exists || idx < 0 || idx >= len(values) {
+			return ""
+		}
+		return strings.TrimSpace(values[idx])
+	}
+
 	// Parse boolean ("Ja"/"Nein")
 	parseBool := func(val string) bool {
 		normalized := strings.ToLower(strings.TrimSpace(val))
@@ -166,16 +177,20 @@ func (p *XLSXParser) mapStudentRow(values []string) (importModels.StudentImportR
 			FirstName:          getCol(fmt.Sprintf("erz%d.vorname", guardianNum)),
 			LastName:           getCol(fmt.Sprintf("erz%d.nachname", guardianNum)),
 			Email:              getCol(emailKey),
-			Phone:              getCol(phoneKey),
-			MobilePhone:        getCol(mobileKey),
+			Phone:              getRawCol(phoneKey),  // Use raw for phone (may start with +)
+			MobilePhone:        getRawCol(mobileKey), // Use raw for phone (may start with +)
 			RelationshipType:   getCol(fmt.Sprintf("erz%d.verhältnis", guardianNum)),
 			IsPrimary:          parseBool(getCol(fmt.Sprintf("erz%d.primär", guardianNum))),
 			IsEmergencyContact: parseBool(getCol(fmt.Sprintf("erz%d.notfall", guardianNum))),
 			CanPickup:          parseBool(getCol(fmt.Sprintf("erz%d.abholung", guardianNum))),
 		}
 
+		// Parse flexible phone numbers into PhoneNumbers array (use getRawCol for phone columns)
+		guardian.PhoneNumbers = p.parseGuardianPhoneNumbers(guardianNum, getRawCol)
+
 		// Only add if has contact info (skip empty guardians)
-		if guardian.Email != "" || guardian.Phone != "" || guardian.MobilePhone != "" {
+		hasPhoneNumbers := len(guardian.PhoneNumbers) > 0
+		if guardian.Email != "" || guardian.Phone != "" || guardian.MobilePhone != "" || hasPhoneNumbers {
 			row.Guardians = append(row.Guardians, guardian)
 		}
 
@@ -183,6 +198,47 @@ func (p *XLSXParser) mapStudentRow(values []string) (importModels.StudentImportR
 	}
 
 	return row, nil
+}
+
+// parseGuardianPhoneNumbers extracts phone numbers from Excel columns into PhoneImportData array
+// Supported columns: Erz{N}.Telefon, Erz{N}.Telefon2, Erz{N}.Mobil, Erz{N}.Mobil2,
+// Erz{N}.Dienstlich, Erz{N}.Dienstlich2
+func (p *XLSXParser) parseGuardianPhoneNumbers(guardianNum int, getCol func(string) string) []importModels.PhoneImportData {
+	var phones []importModels.PhoneImportData
+	priority := 1
+
+	// Define phone column mappings: column suffix → (phone_type, label)
+	phoneMappings := []struct {
+		suffix    string
+		phoneType string
+		label     string
+	}{
+		// Home phones (Telefon)
+		{"telefon", "home", ""},
+		{"telefon2", "home", ""},
+		// Mobile phones (Mobil)
+		{"mobil", "mobile", ""},
+		{"mobil2", "mobile", ""},
+		// Work phones with labels
+		{"dienstlich", "work", "Dienstlich"},
+		{"dienstlich2", "work", "Dienstlich"},
+	}
+
+	for _, mapping := range phoneMappings {
+		colKey := fmt.Sprintf("erz%d.%s", guardianNum, mapping.suffix)
+		value := getCol(colKey)
+		if value != "" {
+			phones = append(phones, importModels.PhoneImportData{
+				PhoneNumber: value,
+				PhoneType:   mapping.phoneType,
+				Label:       mapping.label,
+				IsPrimary:   priority == 1, // First phone is primary
+			})
+			priority++
+		}
+	}
+
+	return phones
 }
 
 // GetColumnMapping returns the detected column mapping
