@@ -240,13 +240,24 @@ func (r *GuardianProfileRepository) Delete(ctx context.Context, id int64) error 
 
 // LinkAccount links a guardian profile to a parent account
 func (r *GuardianProfileRepository) LinkAccount(ctx context.Context, profileID int64, accountID int64) error {
-	result, err := r.db.NewUpdate().
+	query := r.db.NewUpdate().
 		Model((*users.GuardianProfile)(nil)).
 		ModelTableExpr(`users.guardian_profiles AS "guardian_profile"`).
 		Set("account_id = ?", accountID).
 		Set("has_account = ?", true).
-		Where(`"guardian_profile".id = ?`, profileID).
-		Exec(ctx)
+		Where(`"guardian_profile".id = ?`, profileID)
+
+	// Extract transaction from context if it exists
+	if tx, ok := base.TxFromContext(ctx); ok && tx != nil {
+		query = tx.NewUpdate().
+			Model((*users.GuardianProfile)(nil)).
+			ModelTableExpr(`users.guardian_profiles AS "guardian_profile"`).
+			Set("account_id = ?", accountID).
+			Set("has_account = ?", true).
+			Where(`"guardian_profile".id = ?`, profileID)
+	}
+
+	result, err := query.Exec(ctx)
 
 	if err != nil {
 		return fmt.Errorf("failed to link account: %w", err)

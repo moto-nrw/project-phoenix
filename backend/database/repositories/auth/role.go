@@ -161,7 +161,7 @@ func (r *RoleRepository) Update(ctx context.Context, role *auth.Role) error {
 		ModelTableExpr(roleTableAlias)
 
 	// Extract transaction from context if it exists
-	if tx, ok := ctx.Value("tx").(*bun.Tx); ok && tx != nil {
+	if tx, ok := modelBase.TxFromContext(ctx); ok && tx != nil {
 		// Use the transaction if available
 		query = tx.NewUpdate().
 			Model(role).

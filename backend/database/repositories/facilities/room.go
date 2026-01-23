@@ -65,7 +65,7 @@ func (r *RoomRepository) Update(ctx context.Context, room *facilities.Room) erro
 		ModelTableExpr(tableExprFacilitiesRoomsAsRoom)
 
 	// Extract transaction from context if it exists
-	if tx, ok := ctx.Value("tx").(*bun.Tx); ok && tx != nil {
+	if tx, ok := modelBase.TxFromContext(ctx); ok && tx != nil {
 		// Use the transaction if available
 		query = tx.NewUpdate().
 			Model(room).
