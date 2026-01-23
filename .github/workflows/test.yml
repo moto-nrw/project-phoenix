@@ -13,7 +13,7 @@ defaults:
 
 jobs:
   test-and-coverage:
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
 
     # PostgreSQL service for integration tests
     services:
