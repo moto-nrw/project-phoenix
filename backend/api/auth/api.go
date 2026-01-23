@@ -1875,6 +1875,36 @@ func getClientIP(r *http.Request) string {
 // EXPORTED HANDLER METHODS (for testing)
 // ============================================================================
 
+// RefreshTokenHandler returns the refreshToken handler for testing.
+func (rs *Resource) RefreshTokenHandler() http.HandlerFunc {
+	return rs.refreshToken
+}
+
+// LogoutHandler returns the logout handler for testing.
+func (rs *Resource) LogoutHandler() http.HandlerFunc {
+	return rs.logout
+}
+
+// GetAccountJWTHandler returns the getAccountJWT handler for testing.
+func (rs *Resource) GetAccountJWTHandler() http.HandlerFunc {
+	return rs.getAccountJWT
+}
+
+// GetAccountTenantHandler returns the getAccountTenant handler for testing.
+func (rs *Resource) GetAccountTenantHandler() http.HandlerFunc {
+	return rs.getAccountTenant
+}
+
+// ChangePasswordJWTHandler returns the changePasswordJWT handler for testing.
+func (rs *Resource) ChangePasswordJWTHandler() http.HandlerFunc {
+	return rs.changePasswordJWT
+}
+
+// ChangePasswordTenantHandler returns the changePasswordTenant handler for testing.
+func (rs *Resource) ChangePasswordTenantHandler() http.HandlerFunc {
+	return rs.changePasswordTenant
+}
+
 // GetAccountHandler returns the getAccount handler for testing (JWT variant).
 func (rs *Resource) GetAccountHandler() http.HandlerFunc {
 	return rs.getAccountJWT
@@ -2058,4 +2088,9 @@ func (rs *Resource) DeactivateParentAccountHandler() http.HandlerFunc {
 // ListParentAccountsHandler returns the listParentAccounts handler for testing
 func (rs *Resource) ListParentAccountsHandler() http.HandlerFunc {
 	return rs.listParentAccounts
+}
+
+// MountAdminRoutes mounts admin routes to a router for testing purposes.
+func (rs *Resource) MountAdminRoutes(r chi.Router) {
+	rs.mountAdminRoutes(r)
 }
