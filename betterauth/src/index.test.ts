@@ -363,6 +363,60 @@ describe("betterauth/src/index.ts", () => {
       );
     });
 
+    it("treats limit=0 as default (falsy value)", async () => {
+      // Note: limit=0 is falsy, so || 10 kicks in, resulting in default of 10
+      mockPoolQuery.mockResolvedValueOnce({ rows: [] });
+
+      const req = createMockRequest({
+        url: "/api/auth/public/organizations?limit=0",
+        method: "GET",
+      });
+      const res = createMockResponse();
+
+      await handleRequest(req, res);
+
+      expect(mockPoolQuery).toHaveBeenCalledWith(
+        expect.any(String),
+        [10], // Falsy 0 becomes default 10
+      );
+    });
+
+    it("enforces min limit of 1 for negative values", async () => {
+      // Math.max(-5, 1) = 1, so negative values become 1
+      mockPoolQuery.mockResolvedValueOnce({ rows: [] });
+
+      const req = createMockRequest({
+        url: "/api/auth/public/organizations?limit=-5",
+        method: "GET",
+      });
+      const res = createMockResponse();
+
+      await handleRequest(req, res);
+
+      expect(mockPoolQuery).toHaveBeenCalledWith(
+        expect.any(String),
+        [1],
+      );
+    });
+
+    it("handles invalid limit value gracefully", async () => {
+      mockPoolQuery.mockResolvedValueOnce({ rows: [] });
+
+      const req = createMockRequest({
+        url: "/api/auth/public/organizations?limit=invalid",
+        method: "GET",
+      });
+      const res = createMockResponse();
+
+      await handleRequest(req, res);
+
+      // Invalid limit should default to 10
+      expect(mockPoolQuery).toHaveBeenCalledWith(
+        expect.any(String),
+        [10],
+      );
+    });
+
     it("handles database errors", async () => {
       mockPoolQuery.mockRejectedValueOnce(new Error("DB error"));
 
@@ -459,6 +513,24 @@ describe("betterauth/src/index.ts", () => {
         ["test-org"],
       );
     });
+
+    it("falls through to BetterAuth when slug would decode to empty string", async () => {
+      // URL-encoded empty string after the path - this matches regex but slug is empty
+      // The regex /^\/api\/auth\/org\/by-slug\/([^/?]+)/ requires at least one char
+      // so this test ensures the route doesn't match and falls through
+      mockAuthHandler.mockResolvedValueOnce(undefined);
+
+      const req = createMockRequest({
+        url: "/api/auth/org/by-slug/", // Trailing slash, no slug
+        method: "GET",
+      });
+      const res = createMockResponse();
+
+      await handleRequest(req, res);
+
+      // Should fall through to BetterAuth since regex doesn't match
+      expect(mockAuthHandler).toHaveBeenCalled();
+    });
   });
 
   // ============================================
@@ -540,6 +612,23 @@ describe("betterauth/src/index.ts", () => {
       await handleRequest(req, res);
 
       expect(res._statusCode).toBe(500);
+    });
+
+    it("falls through to BetterAuth when requesting specific org by ID", async () => {
+      // GET /api/admin/organizations/{id} matches orgIdMatch regex
+      // and falls through to BetterAuth (no specific handler)
+      mockAuthHandler.mockResolvedValueOnce(undefined);
+
+      const req = createMockRequest({
+        url: "/api/admin/organizations/some-org-id",
+        method: "GET",
+        headers: { "x-internal-api-key": "dev-internal-key" },
+      });
+      const res = createMockResponse();
+
+      await handleRequest(req, res);
+
+      expect(mockAuthHandler).toHaveBeenCalled();
     });
   });
 
@@ -686,6 +775,69 @@ describe("betterauth/src/index.ts", () => {
       await handleRequest(req, res);
 
       expect(res._statusCode).toBe(500);
+    });
+
+    it("uses empty string slug to trigger generation from name", async () => {
+      mockPoolQuery.mockResolvedValueOnce({ rows: [] }); // slug check
+      mockPoolQuery.mockResolvedValueOnce({
+        rows: [
+          {
+            id: "new-org-id",
+            name: "My New School",
+            slug: "my-new-school",
+            status: "active",
+            createdAt: new Date(),
+          },
+        ],
+      });
+
+      const req = createMockRequest({
+        url: "/api/admin/organizations",
+        method: "POST",
+        headers: { "x-internal-api-key": "dev-internal-key" },
+        body: { name: "My New School", slug: "" }, // Empty string slug
+      });
+      const res = createMockResponse();
+
+      await handleRequest(req, res);
+
+      expect(res._statusCode).toBe(201);
+      // Verify slug was generated from name
+      expect(mockPoolQuery).toHaveBeenCalledWith(
+        expect.stringContaining("SELECT id FROM organization WHERE slug"),
+        ["my-new-school"],
+      );
+    });
+
+    it("strips leading and trailing dashes from generated slug", async () => {
+      mockPoolQuery.mockResolvedValueOnce({ rows: [] }); // slug check
+      mockPoolQuery.mockResolvedValueOnce({
+        rows: [
+          {
+            id: "new-org-id",
+            name: "---Test School---",
+            slug: "test-school",
+            status: "active",
+            createdAt: new Date(),
+          },
+        ],
+      });
+
+      const req = createMockRequest({
+        url: "/api/admin/organizations",
+        method: "POST",
+        headers: { "x-internal-api-key": "dev-internal-key" },
+        body: { name: "---Test School---" },
+      });
+      const res = createMockResponse();
+
+      await handleRequest(req, res);
+
+      expect(res._statusCode).toBe(201);
+      expect(mockPoolQuery).toHaveBeenCalledWith(
+        expect.stringContaining("SELECT id FROM organization WHERE slug"),
+        ["test-school"],
+      );
     });
   });
 
@@ -999,6 +1151,112 @@ describe("betterauth/src/index.ts", () => {
         ["system@moto-app.de"],
       );
     });
+
+    it("provisions organization with multiple invitations", async () => {
+      mockClientQuery
+        .mockResolvedValueOnce({ rows: [] }) // slug check
+        .mockResolvedValueOnce({ rows: [] }) // pending invitations check
+        .mockResolvedValueOnce({}) // BEGIN
+        .mockResolvedValueOnce({
+          rows: [{
+            id: "new-org-id",
+            name: "Test Org",
+            slug: "test-slug",
+            status: "active",
+            createdAt: new Date(),
+          }],
+        }) // INSERT org
+        .mockResolvedValueOnce({
+          rows: [{ id: "inv-1", email: "admin@test.com", role: "admin" }],
+        }) // INSERT invitation 1
+        .mockResolvedValueOnce({
+          rows: [{ id: "inv-2", email: "member@test.com", role: "member" }],
+        }) // INSERT invitation 2
+        .mockResolvedValueOnce({
+          rows: [{ id: "inv-3", email: "owner@test.com", role: "owner" }],
+        }) // INSERT invitation 3
+        .mockResolvedValueOnce({}); // COMMIT
+
+      mockPoolQuery.mockResolvedValueOnce({ rows: [{ id: "system-user-id" }] });
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({
+          available: ["admin@test.com", "member@test.com", "owner@test.com"],
+          unavailable: [],
+        }),
+      });
+
+      const req = createMockRequest({
+        url: "/api/admin/organizations/provision",
+        method: "POST",
+        headers: { "x-internal-api-key": "dev-internal-key" },
+        body: {
+          orgName: "Test Org",
+          orgSlug: "test-slug",
+          invitations: [
+            { email: "admin@test.com", role: "admin", firstName: "Admin" },
+            { email: "member@test.com", role: "member" },
+            { email: "owner@test.com", role: "owner", lastName: "User" },
+          ],
+        },
+      });
+      const res = createMockResponse();
+
+      await handleRequest(req, res);
+
+      expect(res._statusCode).toBe(201);
+      const body = parseResponse<SuccessOrgResponse>(res);
+      expect(body.invitations).toHaveLength(3);
+      expect(mockSendOrgInvitationEmail).toHaveBeenCalledTimes(3);
+    });
+
+    it("continues even when invitation email sending fails", async () => {
+      mockClientQuery
+        .mockResolvedValueOnce({ rows: [] }) // slug check
+        .mockResolvedValueOnce({ rows: [] }) // pending invitations check
+        .mockResolvedValueOnce({}) // BEGIN
+        .mockResolvedValueOnce({
+          rows: [{
+            id: "new-org-id",
+            name: "Test Org",
+            slug: "test-slug",
+            status: "active",
+            createdAt: new Date(),
+          }],
+        })
+        .mockResolvedValueOnce({
+          rows: [{ id: "inv-1", email: "test@test.com", role: "admin" }],
+        })
+        .mockResolvedValueOnce({}); // COMMIT
+
+      mockPoolQuery.mockResolvedValueOnce({ rows: [{ id: "system-user-id" }] });
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ available: ["test@test.com"], unavailable: [] }),
+      });
+
+      // Make email sending fail
+      mockSendOrgInvitationEmail.mockRejectedValueOnce(new Error("Email send failed"));
+
+      const req = createMockRequest({
+        url: "/api/admin/organizations/provision",
+        method: "POST",
+        headers: { "x-internal-api-key": "dev-internal-key" },
+        body: {
+          orgName: "Test Org",
+          orgSlug: "test-slug",
+          invitations: [{ email: "test@test.com", role: "admin" }],
+        },
+      });
+      const res = createMockResponse();
+
+      await handleRequest(req, res);
+
+      // Should still succeed - email is fire-and-forget
+      expect(res._statusCode).toBe(201);
+    });
   });
 
   // ============================================
@@ -1205,6 +1463,126 @@ describe("betterauth/src/index.ts", () => {
       expect(res._statusCode).toBe(500);
       expect(mockClientQuery).toHaveBeenCalledWith("ROLLBACK");
     });
+
+    it("accepts password with exactly 8 characters (boundary)", async () => {
+      const now = new Date();
+      mockClientQuery
+        .mockResolvedValueOnce({ rows: [] }) // slug check
+        .mockResolvedValueOnce({ rows: [] }) // email check
+        .mockResolvedValueOnce({}) // BEGIN
+        .mockResolvedValueOnce({
+          rows: [{
+            id: "user-id",
+            email: "test@test.com",
+            name: "Test",
+            emailVerified: false,
+            createdAt: now,
+            updatedAt: now,
+          }],
+        })
+        .mockResolvedValueOnce({})
+        .mockResolvedValueOnce({
+          rows: [{
+            id: "org-id",
+            name: "Org",
+            slug: "org",
+            status: "pending",
+            createdAt: now,
+          }],
+        })
+        .mockResolvedValueOnce({})
+        .mockResolvedValueOnce({ rows: [{ id: "session-id" }] })
+        .mockResolvedValueOnce({});
+
+      const req = createMockRequest({
+        url: "/api/auth/signup-with-org",
+        method: "POST",
+        body: {
+          name: "Test",
+          email: "test@test.com",
+          password: "12345678", // Exactly 8 characters
+          orgName: "Org",
+          orgSlug: "org",
+        },
+      });
+      const res = createMockResponse();
+
+      await handleRequest(req, res);
+
+      expect(res._statusCode).toBe(201);
+    });
+
+    it("returns 400 when password is missing entirely", async () => {
+      const req = createMockRequest({
+        url: "/api/auth/signup-with-org",
+        method: "POST",
+        body: {
+          name: "Test User",
+          email: "test@test.com",
+          // password missing
+          orgName: "Test Org",
+          orgSlug: "test-slug",
+        },
+      });
+      const res = createMockResponse();
+
+      await handleRequest(req, res);
+
+      expect(res._statusCode).toBe(400);
+      expect(parseResponse<ErrorResponse>(res).field).toBe("password");
+    });
+
+    it("continues even when pending email sending fails", async () => {
+      const now = new Date();
+      mockClientQuery
+        .mockResolvedValueOnce({ rows: [] })
+        .mockResolvedValueOnce({ rows: [] })
+        .mockResolvedValueOnce({})
+        .mockResolvedValueOnce({
+          rows: [{
+            id: "user-id",
+            email: "test@test.com",
+            name: "Test User",
+            emailVerified: false,
+            createdAt: now,
+            updatedAt: now,
+          }],
+        })
+        .mockResolvedValueOnce({})
+        .mockResolvedValueOnce({
+          rows: [{
+            id: "org-id",
+            name: "Test Org",
+            slug: "test-slug",
+            status: "pending",
+            createdAt: now,
+          }],
+        })
+        .mockResolvedValueOnce({})
+        .mockResolvedValueOnce({ rows: [{ id: "session-id" }] })
+        .mockResolvedValueOnce({});
+
+      // Make email sending fail
+      mockSendOrgPendingEmail.mockRejectedValueOnce(new Error("Email send failed"));
+
+      const req = createMockRequest({
+        url: "/api/auth/signup-with-org",
+        method: "POST",
+        body: {
+          name: "Test User",
+          email: "test@test.com",
+          password: "password123",
+          orgName: "Test Org",
+          orgSlug: "test-slug",
+        },
+      });
+      const res = createMockResponse();
+
+      await handleRequest(req, res);
+
+      // Should still succeed - email is fire-and-forget
+      expect(res._statusCode).toBe(201);
+    });
   });
 
   // ============================================
@@ -1306,6 +1684,39 @@ describe("betterauth/src/index.ts", () => {
       expect(res._statusCode).toBe(200);
       expect(mockSendOrgApprovedEmail).not.toHaveBeenCalled();
     });
+
+    it("handles ownerName being single word without error", async () => {
+      mockPoolQuery
+        .mockResolvedValueOnce({
+          rows: [{
+            id: "org-id",
+            name: "Test Org",
+            slug: "test-org",
+            status: "pending",
+            ownerEmail: "owner@test.com",
+            ownerName: "SingleName",
+          }],
+        })
+        .mockResolvedValueOnce({});
+
+      const req = createMockRequest({
+        url: "/api/admin/organizations/org-id/approve",
+        method: "POST",
+        headers: { "x-internal-api-key": "dev-internal-key" },
+        body: {},
+      });
+      const res = createMockResponse();
+
+      await handleRequest(req, res);
+
+      expect(res._statusCode).toBe(200);
+      expect(mockSendOrgApprovedEmail).toHaveBeenCalledWith({
+        to: "owner@test.com",
+        firstName: "SingleName", // Takes first part of split
+        orgName: "Test Org",
+        subdomain: "test-org",
+      });
+    });
   });
 
   describe("POST /api/admin/organizations/:id/reject", () => {
@@ -1344,6 +1755,67 @@ describe("betterauth/src/index.ts", () => {
         orgName: "Test Org",
         reason: "Invalid documentation",
       });
+    });
+
+    it("rejects organization without reason", async () => {
+      mockPoolQuery
+        .mockResolvedValueOnce({
+          rows: [{
+            id: "org-id",
+            name: "Test Org",
+            slug: "test-org",
+            status: "pending",
+            ownerEmail: "owner@test.com",
+            ownerName: "Owner Name",
+          }],
+        })
+        .mockResolvedValueOnce({});
+
+      const req = createMockRequest({
+        url: "/api/admin/organizations/org-id/reject",
+        method: "POST",
+        headers: { "x-internal-api-key": "dev-internal-key" },
+        body: {}, // No reason provided
+      });
+      const res = createMockResponse();
+
+      await handleRequest(req, res);
+
+      expect(res._statusCode).toBe(200);
+      expect(mockSendOrgRejectedEmail).toHaveBeenCalledWith({
+        to: "owner@test.com",
+        firstName: "Owner",
+        orgName: "Test Org",
+        reason: undefined,
+      });
+    });
+
+    it("handles org without owner on rejection", async () => {
+      mockPoolQuery
+        .mockResolvedValueOnce({
+          rows: [{
+            id: "org-id",
+            name: "Test Org",
+            slug: "test-org",
+            status: "pending",
+            ownerEmail: null,
+            ownerName: null,
+          }],
+        })
+        .mockResolvedValueOnce({});
+
+      const req = createMockRequest({
+        url: "/api/admin/organizations/org-id/reject",
+        method: "POST",
+        headers: { "x-internal-api-key": "dev-internal-key" },
+        body: { reason: "Test reason" },
+      });
+      const res = createMockResponse();
+
+      await handleRequest(req, res);
+
+      expect(res._statusCode).toBe(200);
+      expect(mockSendOrgRejectedEmail).not.toHaveBeenCalled();
     });
   });
 
@@ -1464,6 +1936,28 @@ describe("betterauth/src/index.ts", () => {
 
       expect(res._statusCode).toBe(500);
       expect(parseResponse<ErrorResponse>(res)).toEqual({ error: "Internal server error" });
+    });
+
+    it("does not send error response when headers already sent", async () => {
+      // Simulate BetterAuth sending headers before throwing
+      mockAuthHandler.mockImplementationOnce((_req, res: MockResponse) => {
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.headersSent = true;
+        throw new Error("Auth error after headers sent");
+      });
+
+      const req = createMockRequest({
+        url: "/api/auth/some-endpoint",
+        method: "GET",
+      });
+      const res = createMockResponse();
+
+      await handleRequest(req, res);
+
+      // Status should remain 200 (set by mock before throw)
+      expect(res._statusCode).toBe(200);
+      // end() should only be called once by the mock, not twice for error
+      expect(res.end).toHaveBeenCalledTimes(0); // Our handler doesn't call end when headersSent
     });
   });
 
