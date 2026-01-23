@@ -1,13 +1,43 @@
 // Guardian Type Definitions and Mapping Helpers
 
+// Phone Number Types
+export type PhoneType = "mobile" | "home" | "work" | "other";
+
+export interface PhoneNumber {
+  id: string;
+  phoneNumber: string;
+  phoneType: PhoneType;
+  label?: string;
+  isPrimary: boolean;
+  priority: number;
+}
+
+export interface BackendPhoneNumber {
+  id: number;
+  phone_number: string;
+  phone_type: PhoneType;
+  label?: string;
+  is_primary: boolean;
+  priority: number;
+}
+
+// Phone number type labels (German)
+export const PHONE_TYPE_LABELS: Record<PhoneType, string> = {
+  mobile: "Mobil",
+  home: "Telefon",
+  work: "Dienstlich",
+  other: "Sonstige",
+};
+
 // Frontend Guardian Profile Type
 export interface Guardian {
   id: string;
   firstName: string;
   lastName: string;
   email?: string;
-  phone?: string;
-  mobilePhone?: string;
+  phone?: string; // Deprecated: use phoneNumbers
+  mobilePhone?: string; // Deprecated: use phoneNumbers
+  phoneNumbers: PhoneNumber[]; // New flexible phone numbers
   addressStreet?: string;
   addressCity?: string;
   addressPostalCode?: string;
@@ -26,8 +56,9 @@ export interface BackendGuardianProfile {
   first_name: string;
   last_name: string;
   email?: string;
-  phone?: string;
-  mobile_phone?: string;
+  phone?: string; // Deprecated
+  mobile_phone?: string; // Deprecated
+  phone_numbers?: BackendPhoneNumber[]; // New flexible phone numbers
   address_street?: string;
   address_city?: string;
   address_postal_code?: string;
@@ -145,6 +176,18 @@ export interface BackendStudentGuardianLinkRequest {
 
 // Mapping Functions
 
+// Map backend phone number to frontend format
+export function mapPhoneNumberResponse(data: BackendPhoneNumber): PhoneNumber {
+  return {
+    id: data.id.toString(),
+    phoneNumber: data.phone_number,
+    phoneType: data.phone_type,
+    label: data.label,
+    isPrimary: data.is_primary,
+    priority: data.priority,
+  };
+}
+
 export function mapGuardianResponse(data: BackendGuardianProfile): Guardian {
   return {
     id: data.id.toString(),
@@ -153,6 +196,7 @@ export function mapGuardianResponse(data: BackendGuardianProfile): Guardian {
     email: data.email,
     phone: data.phone,
     mobilePhone: data.mobile_phone,
+    phoneNumbers: (data.phone_numbers ?? []).map(mapPhoneNumberResponse),
     addressStreet: data.address_street,
     addressCity: data.address_city,
     addressPostalCode: data.address_postal_code,
@@ -268,4 +312,75 @@ export function getGuardianPrimaryContact(guardian: Guardian): string {
 export function getRelationshipTypeLabel(type: string): string {
   const found = RELATIONSHIP_TYPES.find((t) => t.value === type);
   return found ? found.label : type;
+}
+
+// Phone number request types
+export interface PhoneNumberCreateRequest {
+  phoneNumber: string;
+  phoneType: PhoneType;
+  label?: string;
+  isPrimary?: boolean;
+}
+
+export interface PhoneNumberUpdateRequest {
+  phoneNumber?: string;
+  phoneType?: PhoneType;
+  label?: string;
+}
+
+export interface BackendPhoneNumberCreateRequest {
+  phone_number: string;
+  phone_type: PhoneType;
+  label?: string;
+  is_primary?: boolean;
+}
+
+export interface BackendPhoneNumberUpdateRequest {
+  phone_number?: string;
+  phone_type?: PhoneType;
+  label?: string;
+}
+
+// Map phone number create request to backend format
+export function mapPhoneNumberCreateToBackend(
+  data: PhoneNumberCreateRequest,
+): BackendPhoneNumberCreateRequest {
+  return {
+    phone_number: data.phoneNumber,
+    phone_type: data.phoneType,
+    label: data.label,
+    is_primary: data.isPrimary,
+  };
+}
+
+// Map phone number update request to backend format
+export function mapPhoneNumberUpdateToBackend(
+  data: PhoneNumberUpdateRequest,
+): BackendPhoneNumberUpdateRequest {
+  const result: BackendPhoneNumberUpdateRequest = {};
+  if (data.phoneNumber !== undefined) result.phone_number = data.phoneNumber;
+  if (data.phoneType !== undefined) result.phone_type = data.phoneType;
+  if (data.label !== undefined) result.label = data.label;
+  return result;
+}
+
+// Helper to get phone type label
+export function getPhoneTypeLabel(type: PhoneType): string {
+  return PHONE_TYPE_LABELS[type] ?? type;
+}
+
+// Helper to get primary phone number
+export function getPrimaryPhoneNumber(
+  guardian: Guardian,
+): PhoneNumber | undefined {
+  return guardian.phoneNumbers.find((p) => p.isPrimary);
+}
+
+// Helper to format phone number display (includes type and label)
+export function formatPhoneNumberDisplay(phone: PhoneNumber): string {
+  const typeLabel = getPhoneTypeLabel(phone.phoneType);
+  if (phone.label && phone.label !== typeLabel) {
+    return `${phone.phoneNumber} (${typeLabel} - ${phone.label})`;
+  }
+  return `${phone.phoneNumber} (${typeLabel})`;
 }

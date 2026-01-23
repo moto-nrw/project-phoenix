@@ -48,6 +48,7 @@ describe("guardian-helpers", () => {
         email: "john.doe@example.com",
         phone: "030-12345678",
         mobilePhone: "0170-12345678",
+        phoneNumbers: [],
         addressStreet: "Hauptstraße 1",
         addressCity: "Berlin",
         addressPostalCode: "10115",
@@ -159,6 +160,7 @@ describe("guardian-helpers", () => {
         email: "parent@example.com",
         phone: undefined,
         mobilePhone: undefined,
+        phoneNumbers: [],
         addressStreet: undefined,
         addressCity: undefined,
         addressPostalCode: undefined,
@@ -348,6 +350,7 @@ describe("guardian-helpers", () => {
         preferredContactMethod: "email",
         languagePreference: "de",
         hasAccount: false,
+        phoneNumbers: [],
       };
 
       const result = getGuardianFullName(guardian);
@@ -363,6 +366,7 @@ describe("guardian-helpers", () => {
         preferredContactMethod: "email",
         languagePreference: "de",
         hasAccount: false,
+        phoneNumbers: [],
       };
 
       const result = getGuardianFullName(guardian);
@@ -378,6 +382,7 @@ describe("guardian-helpers", () => {
         preferredContactMethod: "email",
         languagePreference: "de",
         hasAccount: false,
+        phoneNumbers: [],
       };
 
       const result = getGuardianFullName(guardian);
@@ -398,6 +403,7 @@ describe("guardian-helpers", () => {
         preferredContactMethod: "email",
         languagePreference: "de",
         hasAccount: false,
+        phoneNumbers: [],
       };
 
       const result = getGuardianPrimaryContact(guardian);
@@ -416,6 +422,7 @@ describe("guardian-helpers", () => {
         preferredContactMethod: "mobile",
         languagePreference: "de",
         hasAccount: false,
+        phoneNumbers: [],
       };
 
       const result = getGuardianPrimaryContact(guardian);
@@ -434,6 +441,7 @@ describe("guardian-helpers", () => {
         preferredContactMethod: "phone",
         languagePreference: "de",
         hasAccount: false,
+        phoneNumbers: [],
       };
 
       const result = getGuardianPrimaryContact(guardian);
@@ -450,6 +458,7 @@ describe("guardian-helpers", () => {
         preferredContactMethod: "mobile", // Preferred mobile but not available
         languagePreference: "de",
         hasAccount: false,
+        phoneNumbers: [],
       };
 
       const result = getGuardianPrimaryContact(guardian);
@@ -466,6 +475,7 @@ describe("guardian-helpers", () => {
         preferredContactMethod: "email", // Preferred email but not available
         languagePreference: "de",
         hasAccount: false,
+        phoneNumbers: [],
       };
 
       const result = getGuardianPrimaryContact(guardian);
@@ -482,6 +492,7 @@ describe("guardian-helpers", () => {
         preferredContactMethod: "email", // Preferred email but not available
         languagePreference: "de",
         hasAccount: false,
+        phoneNumbers: [],
       };
 
       const result = getGuardianPrimaryContact(guardian);
@@ -497,6 +508,7 @@ describe("guardian-helpers", () => {
         preferredContactMethod: "email",
         languagePreference: "de",
         hasAccount: false,
+        phoneNumbers: [],
       };
 
       const result = getGuardianPrimaryContact(guardian);
@@ -556,12 +568,12 @@ describe("guardian-helpers", () => {
       });
 
       it("has German labels", () => {
-        expect(RELATIONSHIP_TYPES.find((t) => t.value === "parent")?.label).toBe(
-          "Elternteil"
-        );
-        expect(RELATIONSHIP_TYPES.find((t) => t.value === "guardian")?.label).toBe(
-          "Vormund"
-        );
+        expect(
+          RELATIONSHIP_TYPES.find((t) => t.value === "parent")?.label,
+        ).toBe("Elternteil");
+        expect(
+          RELATIONSHIP_TYPES.find((t) => t.value === "guardian")?.label,
+        ).toBe("Vormund");
       });
     });
 
@@ -577,13 +589,13 @@ describe("guardian-helpers", () => {
 
       it("has German labels", () => {
         expect(CONTACT_METHODS.find((m) => m.value === "email")?.label).toBe(
-          "E-Mail"
+          "E-Mail",
         );
         expect(CONTACT_METHODS.find((m) => m.value === "phone")?.label).toBe(
-          "Telefon"
+          "Telefon",
         );
         expect(CONTACT_METHODS.find((m) => m.value === "mobile")?.label).toBe(
-          "Mobiltelefon"
+          "Mobiltelefon",
         );
       });
     });
@@ -602,16 +614,16 @@ describe("guardian-helpers", () => {
 
       it("has correct labels for each language", () => {
         expect(LANGUAGE_PREFERENCES.find((l) => l.value === "de")?.label).toBe(
-          "Deutsch"
+          "Deutsch",
         );
         expect(LANGUAGE_PREFERENCES.find((l) => l.value === "en")?.label).toBe(
-          "English"
+          "English",
         );
         expect(LANGUAGE_PREFERENCES.find((l) => l.value === "tr")?.label).toBe(
-          "Türkçe"
+          "Türkçe",
         );
         expect(LANGUAGE_PREFERENCES.find((l) => l.value === "ar")?.label).toBe(
-          "العربية"
+          "العربية",
         );
       });
     });

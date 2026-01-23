@@ -44,7 +44,8 @@ type GuardianProfile struct {
 	Notes      *string `bun:"notes" json:"notes,omitempty"` // Staff/admin notes
 
 	// Relations (not stored in database)
-	Account *auth.AccountParent `bun:"rel:belongs-to,join:account_id=id" json:"account,omitempty"`
+	Account      *auth.AccountParent    `bun:"rel:belongs-to,join:account_id=id" json:"account,omitempty"`
+	PhoneNumbers []*GuardianPhoneNumber `bun:"rel:has-many,join:id=guardian_profile_id" json:"phone_numbers,omitempty"`
 }
 
 // BeforeAppendModel sets the correct table expression

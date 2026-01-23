@@ -49,8 +49,15 @@ describe("createEmptyEntry", () => {
     expect(entry.firstName).toBe("");
     expect(entry.lastName).toBe("");
     expect(entry.email).toBe("");
-    expect(entry.phone).toBe("");
-    expect(entry.mobilePhone).toBe("");
+  });
+
+  it("creates an entry with one empty phone number", () => {
+    const entry = createEmptyEntry();
+
+    expect(entry.phoneNumbers).toHaveLength(1);
+    expect(entry.phoneNumbers[0]?.phoneNumber).toBe("");
+    expect(entry.phoneNumbers[0]?.phoneType).toBe("mobile");
+    expect(entry.phoneNumbers[0]?.isPrimary).toBe(true);
   });
 
   it("creates an entry with default relationship type 'parent'", () => {
@@ -79,8 +86,7 @@ describe("createEmptyEntry", () => {
       "firstName",
       "lastName",
       "email",
-      "phone",
-      "mobilePhone",
+      "phoneNumbers",
       "relationshipType",
       "isEmergencyContact",
       "isPrimary",
@@ -103,17 +109,32 @@ describe("createEmptyEntry", () => {
 });
 
 describe("toEntry", () => {
-  it("converts GuardianWithRelationship to GuardianEntry", () => {
+  it("converts GuardianWithRelationship with phoneNumbers to GuardianEntry", () => {
     const guardianData: GuardianWithRelationship = {
       id: "guardian-123",
       firstName: "Max",
       lastName: "Mustermann",
       email: "max@example.com",
-      phone: "+49 123 456789",
-      mobilePhone: "+49 170 1234567",
       preferredContactMethod: "email",
       languagePreference: "de",
       hasAccount: false,
+      phoneNumbers: [
+        {
+          id: "phone-1",
+          phoneNumber: "+49 170 1234567",
+          phoneType: "mobile",
+          isPrimary: true,
+          priority: 1,
+        },
+        {
+          id: "phone-2",
+          phoneNumber: "+49 123 456789",
+          phoneType: "home",
+          label: "Festnetz",
+          isPrimary: false,
+          priority: 2,
+        },
+      ],
       relationshipType: "parent",
       isEmergencyContact: true,
       isPrimary: true,
@@ -128,10 +149,46 @@ describe("toEntry", () => {
     expect(entry.firstName).toBe("Max");
     expect(entry.lastName).toBe("Mustermann");
     expect(entry.email).toBe("max@example.com");
-    expect(entry.phone).toBe("+49 123 456789");
-    expect(entry.mobilePhone).toBe("+49 170 1234567");
+    expect(entry.phoneNumbers).toHaveLength(2);
+    expect(entry.phoneNumbers[0]?.phoneNumber).toBe("+49 170 1234567");
+    expect(entry.phoneNumbers[0]?.phoneType).toBe("mobile");
+    expect(entry.phoneNumbers[0]?.isPrimary).toBe(true);
+    expect(entry.phoneNumbers[1]?.phoneNumber).toBe("+49 123 456789");
+    expect(entry.phoneNumbers[1]?.label).toBe("Festnetz");
     expect(entry.relationshipType).toBe("parent");
     expect(entry.isEmergencyContact).toBe(true);
+  });
+
+  it("converts legacy phone/mobilePhone fields when phoneNumbers is empty", () => {
+    const guardianData: GuardianWithRelationship = {
+      id: "guardian-123",
+      firstName: "Max",
+      lastName: "Mustermann",
+      email: "max@example.com",
+      phone: "+49 123 456789",
+      mobilePhone: "+49 170 1234567",
+      preferredContactMethod: "email",
+      languagePreference: "de",
+      hasAccount: false,
+      phoneNumbers: [],
+      relationshipType: "parent",
+      isEmergencyContact: true,
+      isPrimary: true,
+      canPickup: true,
+      emergencyPriority: 1,
+      relationshipId: "rel-456",
+    };
+
+    const entry = toEntry(guardianData);
+
+    // Should convert legacy fields to phoneNumbers array
+    expect(entry.phoneNumbers).toHaveLength(2);
+    expect(entry.phoneNumbers[0]?.phoneNumber).toBe("+49 123 456789");
+    expect(entry.phoneNumbers[0]?.phoneType).toBe("home");
+    expect(entry.phoneNumbers[0]?.isPrimary).toBe(true);
+    expect(entry.phoneNumbers[1]?.phoneNumber).toBe("+49 170 1234567");
+    expect(entry.phoneNumbers[1]?.phoneType).toBe("mobile");
+    expect(entry.phoneNumbers[1]?.isPrimary).toBe(false);
   });
 
   it("preserves relationship flags from initialData for edit mode", () => {
@@ -142,6 +199,7 @@ describe("toEntry", () => {
       preferredContactMethod: "email",
       languagePreference: "de",
       hasAccount: false,
+      phoneNumbers: [],
       relationshipType: "parent",
       isEmergencyContact: false,
       isPrimary: true,
@@ -165,11 +223,10 @@ describe("toEntry", () => {
       firstName: undefined,
       lastName: undefined,
       email: undefined,
-      phone: undefined,
-      mobilePhone: undefined,
       preferredContactMethod: "email",
       languagePreference: "de",
       hasAccount: false,
+      phoneNumbers: [],
       relationshipType: undefined,
       isEmergencyContact: undefined,
       isPrimary: false,
@@ -183,8 +240,7 @@ describe("toEntry", () => {
     expect(entry.firstName).toBe("");
     expect(entry.lastName).toBe("");
     expect(entry.email).toBe("");
-    expect(entry.phone).toBe("");
-    expect(entry.mobilePhone).toBe("");
+    expect(entry.phoneNumbers).toHaveLength(1); // Creates empty phone entry
     expect(entry.relationshipType).toBe("parent");
     expect(entry.isEmergencyContact).toBe(false);
   });
@@ -195,14 +251,13 @@ describe("toEntry", () => {
       firstName: null,
       lastName: null,
       email: null,
-      phone: null,
-      mobilePhone: null,
       relationshipType: null,
       isEmergencyContact: null,
       isPrimary: false,
       canPickup: false,
       emergencyPriority: 1,
       relationshipId: "rel-456",
+      phoneNumbers: [],
     } as unknown as GuardianWithRelationship;
 
     const entry = toEntry(guardianData);
@@ -210,8 +265,7 @@ describe("toEntry", () => {
     expect(entry.firstName).toBe("");
     expect(entry.lastName).toBe("");
     expect(entry.email).toBe("");
-    expect(entry.phone).toBe("");
-    expect(entry.mobilePhone).toBe("");
+    expect(entry.phoneNumbers).toHaveLength(1); // Creates empty phone entry
     expect(entry.relationshipType).toBe("parent");
     expect(entry.isEmergencyContact).toBe(false);
   });
@@ -224,6 +278,7 @@ describe("toEntry", () => {
       preferredContactMethod: "email",
       languagePreference: "de",
       hasAccount: false,
+      phoneNumbers: [],
       relationshipType: "parent",
       isEmergencyContact: false,
       isPrimary: false,
@@ -254,6 +309,7 @@ describe("toEntry", () => {
         preferredContactMethod: "email",
         languagePreference: "de",
         hasAccount: false,
+        phoneNumbers: [],
         relationshipType: type,
         isEmergencyContact: false,
         isPrimary: false,
@@ -702,7 +758,7 @@ describe("GuardianFormModal", () => {
     });
   });
 
-  it("prefills form with initial data in edit mode", () => {
+  it("prefills form with initial data in edit mode (legacy fields)", () => {
     const initialData: GuardianWithRelationship = {
       id: "guardian-123",
       firstName: "Max",
@@ -713,6 +769,7 @@ describe("GuardianFormModal", () => {
       preferredContactMethod: "email",
       languagePreference: "de",
       hasAccount: false,
+      phoneNumbers: [],
       relationshipType: "parent",
       isEmergencyContact: true,
       isPrimary: true,
@@ -734,8 +791,53 @@ describe("GuardianFormModal", () => {
     expect(screen.getByDisplayValue("Max")).toBeInTheDocument();
     expect(screen.getByDisplayValue("Mustermann")).toBeInTheDocument();
     expect(screen.getByDisplayValue("max@example.com")).toBeInTheDocument();
+    // Legacy fields are converted to phoneNumbers
     expect(screen.getByDisplayValue("+49 123 456789")).toBeInTheDocument();
     expect(screen.getByDisplayValue("+49 170 1234567")).toBeInTheDocument();
+  });
+
+  it("prefills form with phoneNumbers in edit mode", () => {
+    const initialData: GuardianWithRelationship = {
+      id: "guardian-123",
+      firstName: "Max",
+      lastName: "Mustermann",
+      email: "max@example.com",
+      preferredContactMethod: "email",
+      languagePreference: "de",
+      hasAccount: false,
+      phoneNumbers: [
+        {
+          id: "phone-1",
+          phoneNumber: "+49 170 9999999",
+          phoneType: "mobile",
+          label: "Privat",
+          isPrimary: true,
+          priority: 1,
+        },
+      ],
+      relationshipType: "parent",
+      isEmergencyContact: true,
+      isPrimary: true,
+      canPickup: true,
+      emergencyPriority: 1,
+      relationshipId: "rel-456",
+    };
+
+    render(
+      <GuardianFormModal
+        isOpen={true}
+        onClose={mockOnClose}
+        onSubmit={mockOnSubmit}
+        mode="edit"
+        initialData={initialData}
+      />,
+    );
+
+    expect(screen.getByDisplayValue("Max")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("Mustermann")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("max@example.com")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("+49 170 9999999")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("Privat")).toBeInTheDocument();
   });
 
   it("passes callback to remove entries on partial success", async () => {
@@ -815,5 +917,32 @@ describe("GuardianFormModal", () => {
     await waitFor(() => {
       expect(screen.getByText("API Error")).toBeInTheDocument();
     });
+  });
+
+  it("can add and remove phone numbers", async () => {
+    render(
+      <GuardianFormModal
+        isOpen={true}
+        onClose={mockOnClose}
+        onSubmit={mockOnSubmit}
+        mode="create"
+      />,
+    );
+
+    // Initially has one phone input
+    const phoneInputs = screen.getAllByPlaceholderText("+49 170 1234567");
+    expect(phoneInputs).toHaveLength(1);
+
+    // Click "Weitere Nummer hinzufügen"
+    fireEvent.click(screen.getByText("Weitere Nummer hinzufügen"));
+
+    // Should now have two phone inputs
+    const updatedPhoneInputs =
+      screen.getAllByPlaceholderText("+49 170 1234567");
+    expect(updatedPhoneInputs).toHaveLength(2);
+
+    // Delete button should be available (since we have 2 phones)
+    const deleteButtons = screen.getAllByTitle("Entfernen");
+    expect(deleteButtons.length).toBeGreaterThan(0);
   });
 });

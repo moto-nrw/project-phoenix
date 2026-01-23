@@ -77,9 +77,9 @@ describe("translateApiError", () => {
     expect(translateApiError("API error: invalid email format detected")).toBe(
       "Ungültiges E-Mail-Format",
     );
-    expect(translateApiError("Error 400: email already exists in database")).toBe(
-      "Diese E-Mail-Adresse wird bereits verwendet",
-    );
+    expect(
+      translateApiError("Error 400: email already exists in database"),
+    ).toBe("Diese E-Mail-Adresse wird bereits verwendet");
   });
 
   it("returns generic German message for unknown errors", () => {
@@ -216,6 +216,7 @@ describe("guardian-api functions", () => {
         email: "john@example.com",
         phone: "123-456-7890",
         mobilePhone: "098-765-4321",
+        phoneNumbers: [],
         addressStreet: "123 Main St",
         addressCity: "Anytown",
         addressPostalCode: "12345",
@@ -235,7 +236,7 @@ describe("guardian-api functions", () => {
         emergencyPriority: 1,
       });
       expect(global.fetch).toHaveBeenCalledWith(
-        "/api/guardians/students/123/guardians"
+        "/api/guardians/students/123/guardians",
       );
     });
 
@@ -247,7 +248,7 @@ describe("guardian-api functions", () => {
       });
 
       await expect(fetchStudentGuardians("999")).rejects.toThrow(
-        "Student not found"
+        "Student not found",
       );
     });
 
@@ -259,7 +260,7 @@ describe("guardian-api functions", () => {
       });
 
       await expect(fetchStudentGuardians("123")).rejects.toThrow(
-        "Failed to fetch guardians"
+        "Failed to fetch guardians",
       );
     });
 
@@ -274,7 +275,7 @@ describe("guardian-api functions", () => {
       });
 
       await expect(fetchStudentGuardians("123")).rejects.toThrow(
-        "Database error"
+        "Database error",
       );
     });
 
@@ -327,7 +328,7 @@ describe("guardian-api functions", () => {
       });
 
       await expect(fetchGuardianStudents("999")).rejects.toThrow(
-        "Guardian not found"
+        "Guardian not found",
       );
     });
 
@@ -392,7 +393,7 @@ describe("guardian-api functions", () => {
       });
 
       await expect(createGuardian(mockGuardianFormData)).rejects.toThrow(
-        "Diese E-Mail-Adresse wird bereits verwendet"
+        "Diese E-Mail-Adresse wird bereits verwendet",
       );
     });
 
@@ -407,7 +408,7 @@ describe("guardian-api functions", () => {
       });
 
       await expect(createGuardian(mockGuardianFormData)).rejects.toThrow(
-        "Validierung fehlgeschlagen"
+        "Validierung fehlgeschlagen",
       );
     });
 
@@ -462,8 +463,14 @@ describe("guardian-api functions", () => {
       // When email is undefined, it should not be included in the request
       await updateGuardian("1", { firstName: "Johnny", email: undefined });
 
-      const callArgs = vi.mocked(global.fetch).mock.calls[0] as [string, RequestInit];
-      const body = JSON.parse(callArgs[1].body as string) as Record<string, unknown>;
+      const callArgs = vi.mocked(global.fetch).mock.calls[0] as [
+        string,
+        RequestInit,
+      ];
+      const body = JSON.parse(callArgs[1].body as string) as Record<
+        string,
+        unknown
+      >;
       // mapGuardianFormToBackend only includes email if !== undefined
       expect(body).toEqual({ first_name: "Johnny" });
     });
@@ -475,9 +482,9 @@ describe("guardian-api functions", () => {
         json: () => Promise.resolve({ error: "guardian not found" }),
       });
 
-      await expect(updateGuardian("999", { firstName: "Johnny" })).rejects.toThrow(
-        "Erziehungsberechtigte/r nicht gefunden"
-      );
+      await expect(
+        updateGuardian("999", { firstName: "Johnny" }),
+      ).rejects.toThrow("Erziehungsberechtigte/r nicht gefunden");
     });
 
     it("throws error when status is error", async () => {
@@ -490,9 +497,9 @@ describe("guardian-api functions", () => {
           }),
       });
 
-      await expect(updateGuardian("1", { firstName: "Johnny" })).rejects.toThrow(
-        "Keine Berechtigung"
-      );
+      await expect(
+        updateGuardian("1", { firstName: "Johnny" }),
+      ).rejects.toThrow("Keine Berechtigung");
     });
   });
 
@@ -544,7 +551,7 @@ describe("guardian-api functions", () => {
       });
 
       await expect(deleteGuardian("1")).rejects.toThrow(
-        "Cannot delete guardian with linked students"
+        "Cannot delete guardian with linked students",
       );
     });
   });
@@ -560,7 +567,7 @@ describe("guardian-api functions", () => {
       });
 
       await expect(
-        linkGuardianToStudent("123", mockLinkRequest)
+        linkGuardianToStudent("123", mockLinkRequest),
       ).resolves.toBeUndefined();
 
       expect(global.fetch).toHaveBeenCalledWith(
@@ -572,11 +579,17 @@ describe("guardian-api functions", () => {
           },
           // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
           body: expect.any(String),
-        }
+        },
       );
 
-      const callArgs = vi.mocked(global.fetch).mock.calls[0] as [string, RequestInit];
-      const body = JSON.parse(callArgs[1].body as string) as Record<string, unknown>;
+      const callArgs = vi.mocked(global.fetch).mock.calls[0] as [
+        string,
+        RequestInit,
+      ];
+      const body = JSON.parse(callArgs[1].body as string) as Record<
+        string,
+        unknown
+      >;
       expect(body.guardian_profile_id).toBe(1);
       expect(body.relationship_type).toBe("parent");
       expect(body.is_primary).toBe(true);
@@ -590,7 +603,7 @@ describe("guardian-api functions", () => {
       });
 
       await expect(
-        linkGuardianToStudent("123", mockLinkRequest)
+        linkGuardianToStudent("123", mockLinkRequest),
       ).rejects.toThrow("Relationship already exists");
     });
 
@@ -605,7 +618,7 @@ describe("guardian-api functions", () => {
       });
 
       await expect(
-        linkGuardianToStudent("999", mockLinkRequest)
+        linkGuardianToStudent("999", mockLinkRequest),
       ).rejects.toThrow("Student not found");
     });
   });
@@ -638,11 +651,17 @@ describe("guardian-api functions", () => {
           },
           // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
           body: expect.any(String),
-        }
+        },
       );
 
-      const callArgs = vi.mocked(global.fetch).mock.calls[0] as [string, RequestInit];
-      const body = JSON.parse(callArgs[1].body as string) as Record<string, unknown>;
+      const callArgs = vi.mocked(global.fetch).mock.calls[0] as [
+        string,
+        RequestInit,
+      ];
+      const body = JSON.parse(callArgs[1].body as string) as Record<
+        string,
+        unknown
+      >;
       expect(body).toEqual({
         relationship_type: "guardian",
         is_primary: false,
@@ -666,8 +685,14 @@ describe("guardian-api functions", () => {
         isPrimary: true,
       });
 
-      const callArgs = vi.mocked(global.fetch).mock.calls[0] as [string, RequestInit];
-      const body = JSON.parse(callArgs[1].body as string) as Record<string, unknown>;
+      const callArgs = vi.mocked(global.fetch).mock.calls[0] as [
+        string,
+        RequestInit,
+      ];
+      const body = JSON.parse(callArgs[1].body as string) as Record<
+        string,
+        unknown
+      >;
       expect(body).toEqual({ is_primary: true });
     });
 
@@ -679,7 +704,7 @@ describe("guardian-api functions", () => {
       });
 
       await expect(
-        updateStudentGuardianRelationship("999", { isPrimary: true })
+        updateStudentGuardianRelationship("999", { isPrimary: true }),
       ).rejects.toThrow("Relationship not found");
     });
 
@@ -694,7 +719,7 @@ describe("guardian-api functions", () => {
       });
 
       await expect(
-        updateStudentGuardianRelationship("10", { isPrimary: true })
+        updateStudentGuardianRelationship("10", { isPrimary: true }),
       ).rejects.toThrow("Permission denied");
     });
   });
@@ -707,14 +732,14 @@ describe("guardian-api functions", () => {
       });
 
       await expect(
-        removeGuardianFromStudent("123", "1")
+        removeGuardianFromStudent("123", "1"),
       ).resolves.toBeUndefined();
 
       expect(global.fetch).toHaveBeenCalledWith(
         "/api/guardians/students/123/guardians/1",
         {
           method: "DELETE",
-        }
+        },
       );
     });
 
@@ -729,7 +754,7 @@ describe("guardian-api functions", () => {
       });
 
       await expect(
-        removeGuardianFromStudent("123", "1")
+        removeGuardianFromStudent("123", "1"),
       ).resolves.toBeUndefined();
     });
 
@@ -741,7 +766,7 @@ describe("guardian-api functions", () => {
       });
 
       await expect(removeGuardianFromStudent("123", "999")).rejects.toThrow(
-        "Relationship not found"
+        "Relationship not found",
       );
     });
 
@@ -757,7 +782,7 @@ describe("guardian-api functions", () => {
       });
 
       await expect(removeGuardianFromStudent("123", "1")).rejects.toThrow(
-        "Cannot remove primary guardian"
+        "Cannot remove primary guardian",
       );
     });
   });
@@ -783,9 +808,7 @@ describe("guardian-api functions", () => {
 
       expect(result).toHaveLength(1);
       expect(result[0]!.firstName).toBe("John");
-      expect(global.fetch).toHaveBeenCalledWith(
-        "/api/guardians?search=john"
-      );
+      expect(global.fetch).toHaveBeenCalledWith("/api/guardians?search=john");
     });
 
     it("encodes search query properly", async () => {
@@ -801,7 +824,7 @@ describe("guardian-api functions", () => {
       await searchGuardians("john doe & sons");
 
       expect(global.fetch).toHaveBeenCalledWith(
-        "/api/guardians?search=john%20doe%20%26%20sons"
+        "/api/guardians?search=john%20doe%20%26%20sons",
       );
     });
 
@@ -812,7 +835,9 @@ describe("guardian-api functions", () => {
         json: () => Promise.resolve({ error: "Not authenticated" }),
       });
 
-      await expect(searchGuardians("john")).rejects.toThrow("Not authenticated");
+      await expect(searchGuardians("john")).rejects.toThrow(
+        "Not authenticated",
+      );
     });
 
     it("throws error when status is error", async () => {
@@ -850,7 +875,7 @@ describe("guardian-api functions", () => {
 
       // The catch block returns a generic error message without statusText
       await expect(searchGuardians("john")).rejects.toThrow(
-        "Failed to search guardians"
+        "Failed to search guardians",
       );
     });
   });

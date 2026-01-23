@@ -66,13 +66,14 @@ func mapRelationshipType(germanType string) string {
 
 // StudentImportConfig implements ImportConfig for student imports
 type StudentImportConfig struct {
-	personRepo   users.PersonRepository
-	studentRepo  users.StudentRepository
-	guardianRepo users.GuardianProfileRepository
-	relationRepo users.StudentGuardianRepository
-	privacyRepo  users.PrivacyConsentRepository
-	resolver     *RelationshipResolver
-	txHandler    *base.TxHandler
+	personRepo        users.PersonRepository
+	studentRepo       users.StudentRepository
+	guardianRepo      users.GuardianProfileRepository
+	guardianPhoneRepo users.GuardianPhoneNumberRepository
+	relationRepo      users.StudentGuardianRepository
+	privacyRepo       users.PrivacyConsentRepository
+	resolver          *RelationshipResolver
+	txHandler         *base.TxHandler
 }
 
 // NewStudentImportConfig creates a new student import configuration
@@ -81,19 +82,21 @@ func NewStudentImportConfig(
 	personRepo users.PersonRepository,
 	studentRepo users.StudentRepository,
 	guardianRepo users.GuardianProfileRepository,
+	guardianPhoneRepo users.GuardianPhoneNumberRepository,
 	relationRepo users.StudentGuardianRepository,
 	privacyRepo users.PrivacyConsentRepository,
 	resolver *RelationshipResolver,
 	db *bun.DB,
 ) *StudentImportConfig {
 	return &StudentImportConfig{
-		personRepo:   personRepo,
-		studentRepo:  studentRepo,
-		guardianRepo: guardianRepo,
-		relationRepo: relationRepo,
-		privacyRepo:  privacyRepo,
-		resolver:     resolver,
-		txHandler:    base.NewTxHandler(db),
+		personRepo:        personRepo,
+		studentRepo:       studentRepo,
+		guardianRepo:      guardianRepo,
+		guardianPhoneRepo: guardianPhoneRepo,
+		relationRepo:      relationRepo,
+		privacyRepo:       privacyRepo,
+		resolver:          resolver,
+		txHandler:         base.NewTxHandler(db),
 	}
 }
 
@@ -211,8 +214,12 @@ func (c *StudentImportConfig) validateGuardian(num int, guardian importModels.Gu
 	errors := []importModels.ValidationError{}
 	fieldPrefix := fmt.Sprintf("guardian_%d", num)
 
+	// Check contact methods: either legacy fields or new PhoneNumbers array
+	hasLegacyContact := guardian.Email != "" || guardian.Phone != "" || guardian.MobilePhone != ""
+	hasNewPhoneNumbers := len(guardian.PhoneNumbers) > 0
+
 	// At least one contact method required
-	if guardian.Email == "" && guardian.Phone == "" && guardian.MobilePhone == "" {
+	if !hasLegacyContact && !hasNewPhoneNumbers {
 		errors = append(errors, importModels.ValidationError{
 			Field:    fieldPrefix,
 			Message:  fmt.Sprintf("Erziehungsberechtigter %d benötigt mindestens eine Kontaktmethode (Email, Telefon oder Mobil)", num),
@@ -232,7 +239,7 @@ func (c *StudentImportConfig) validateGuardian(num int, guardian importModels.Gu
 		})
 	}
 
-	// Phone format validation (if provided)
+	// Phone format validation (if provided) - legacy field
 	if guardian.Phone != "" && !phoneRegex.MatchString(guardian.Phone) {
 		errors = append(errors, importModels.ValidationError{
 			Field:    fmt.Sprintf("%s_phone", fieldPrefix),
@@ -242,7 +249,7 @@ func (c *StudentImportConfig) validateGuardian(num int, guardian importModels.Gu
 		})
 	}
 
-	// Mobile phone format validation (if provided)
+	// Mobile phone format validation (if provided) - legacy field
 	if guardian.MobilePhone != "" && !phoneRegex.MatchString(guardian.MobilePhone) {
 		errors = append(errors, importModels.ValidationError{
 			Field:    fmt.Sprintf("%s_mobile", fieldPrefix),
@@ -250,6 +257,22 @@ func (c *StudentImportConfig) validateGuardian(num int, guardian importModels.Gu
 			Code:     "invalid_phone",
 			Severity: importModels.ErrorSeverityError,
 		})
+	}
+
+	// Validate phone numbers from new flexible PhoneNumbers array
+	for i, phone := range guardian.PhoneNumbers {
+		if phone.PhoneNumber != "" && !phoneRegex.MatchString(phone.PhoneNumber) {
+			label := phone.Label
+			if label == "" {
+				label = phone.PhoneType
+			}
+			errors = append(errors, importModels.ValidationError{
+				Field:    fmt.Sprintf("%s_phone_%d", fieldPrefix, i+1),
+				Message:  fmt.Sprintf("Ungültiges Telefon-Format für Erziehungsberechtigten %d (%s): %s", num, label, phone.PhoneNumber),
+				Code:     "invalid_phone",
+				Severity: importModels.ErrorSeverityError,
+			})
+		}
 	}
 
 	return errors
@@ -455,7 +478,58 @@ func (c *StudentImportConfig) createOrFindGuardian(ctx context.Context, data imp
 		return 0, err
 	}
 
+	// Create phone numbers from PhoneNumbers array (flexible phone support)
+	if err := c.createGuardianPhoneNumbers(ctx, guardian.ID, data.PhoneNumbers); err != nil {
+		return 0, fmt.Errorf("create phone numbers: %w", err)
+	}
+
 	return guardian.ID, nil
+}
+
+// createGuardianPhoneNumbers creates phone numbers for a guardian from import data
+func (c *StudentImportConfig) createGuardianPhoneNumbers(ctx context.Context, guardianID int64, phones []importModels.PhoneImportData) error {
+	for i, phoneData := range phones {
+		if phoneData.PhoneNumber == "" {
+			continue // Skip empty phone numbers
+		}
+
+		// Map phone type string to enum
+		phoneType := mapPhoneType(phoneData.PhoneType)
+
+		// Set label pointer (nil if empty)
+		var label *string
+		if phoneData.Label != "" {
+			label = &phoneData.Label
+		}
+
+		phone := &users.GuardianPhoneNumber{
+			GuardianProfileID: guardianID,
+			PhoneNumber:       phoneData.PhoneNumber,
+			PhoneType:         phoneType,
+			Label:             label,
+			IsPrimary:         phoneData.IsPrimary,
+			Priority:          i + 1, // Priority based on order in import
+		}
+
+		if err := c.guardianPhoneRepo.Create(ctx, phone); err != nil {
+			return fmt.Errorf("phone %d: %w", i+1, err)
+		}
+	}
+	return nil
+}
+
+// mapPhoneType converts import phone type string to users.PhoneType enum
+func mapPhoneType(importType string) users.PhoneType {
+	switch strings.ToLower(importType) {
+	case "mobile":
+		return users.PhoneTypeMobile
+	case "home":
+		return users.PhoneTypeHome
+	case "work":
+		return users.PhoneTypeWork
+	default:
+		return users.PhoneTypeOther
+	}
 }
 
 // Update updates an existing student (not implemented for MVP - see #556 for Phase 2)

@@ -1,13 +1,14 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { X } from "lucide-react";
+import { X, Plus, Star, Trash2 } from "lucide-react";
 import { Modal } from "~/components/ui/modal";
 import type {
   GuardianFormData,
   GuardianWithRelationship,
+  PhoneType,
 } from "@/lib/guardian-helpers";
-import { RELATIONSHIP_TYPES } from "@/lib/guardian-helpers";
+import { RELATIONSHIP_TYPES, PHONE_TYPE_LABELS } from "@/lib/guardian-helpers";
 
 export interface RelationshipFormData {
   readonly relationshipType: string;
@@ -18,6 +19,16 @@ export interface RelationshipFormData {
   readonly emergencyPriority: number;
 }
 
+// Phone entry type for the form
+// Exported for testing
+export interface PhoneEntry {
+  id: string;
+  phoneNumber: string;
+  phoneType: PhoneType;
+  label: string;
+  isPrimary: boolean;
+}
+
 // Entry type for multi-guardian form
 // Exported for testing
 export interface GuardianEntry {
@@ -25,14 +36,24 @@ export interface GuardianEntry {
   firstName: string;
   lastName: string;
   email: string;
-  phone: string;
-  mobilePhone: string;
+  phoneNumbers: PhoneEntry[];
   relationshipType: string;
   isEmergencyContact: boolean;
   // Relationship flags (preserved in edit mode)
   isPrimary: boolean;
   canPickup: boolean;
   emergencyPriority: number;
+}
+
+// Create empty phone entry
+function createEmptyPhone(isPrimary = false): PhoneEntry {
+  return {
+    id: crypto.randomUUID(),
+    phoneNumber: "",
+    phoneType: "mobile",
+    label: "",
+    isPrimary,
+  };
 }
 
 // Create empty guardian entry
@@ -43,8 +64,7 @@ export function createEmptyEntry(): GuardianEntry {
     firstName: "",
     lastName: "",
     email: "",
-    phone: "",
-    mobilePhone: "",
+    phoneNumbers: [createEmptyPhone(true)], // Start with one primary phone
     relationshipType: "parent",
     isEmergencyContact: false,
     isPrimary: false,
@@ -56,13 +76,51 @@ export function createEmptyEntry(): GuardianEntry {
 // Convert GuardianWithRelationship to GuardianEntry
 // Exported for testing
 export function toEntry(data: GuardianWithRelationship): GuardianEntry {
+  // Convert existing phoneNumbers array or fallback to legacy fields
+  let phoneNumbers: PhoneEntry[] = [];
+
+  if (data.phoneNumbers && data.phoneNumbers.length > 0) {
+    // Use new phoneNumbers array
+    phoneNumbers = data.phoneNumbers.map((p) => ({
+      id: p.id,
+      phoneNumber: p.phoneNumber,
+      phoneType: p.phoneType,
+      label: p.label ?? "",
+      isPrimary: p.isPrimary,
+    }));
+  } else {
+    // Fallback: convert legacy phone/mobilePhone fields
+    if (data.phone) {
+      phoneNumbers.push({
+        id: crypto.randomUUID(),
+        phoneNumber: data.phone,
+        phoneType: "home",
+        label: "",
+        isPrimary: true,
+      });
+    }
+    if (data.mobilePhone) {
+      phoneNumbers.push({
+        id: crypto.randomUUID(),
+        phoneNumber: data.mobilePhone,
+        phoneType: "mobile",
+        label: "",
+        isPrimary: phoneNumbers.length === 0, // Primary if no home phone
+      });
+    }
+  }
+
+  // Ensure at least one phone entry exists
+  if (phoneNumbers.length === 0) {
+    phoneNumbers.push(createEmptyPhone(true));
+  }
+
   return {
     id: data.id,
     firstName: data.firstName ?? "",
     lastName: data.lastName ?? "",
     email: data.email ?? "",
-    phone: data.phone ?? "",
-    mobilePhone: data.mobilePhone ?? "",
+    phoneNumbers,
     relationshipType: data.relationshipType ?? "parent",
     isEmergencyContact: data.isEmergencyContact ?? false,
     // Preserve relationship flags for edit mode
@@ -80,6 +138,13 @@ interface GuardianFormModalProps {
       id: string;
       guardianData: GuardianFormData;
       relationshipData: RelationshipFormData;
+      phoneNumbers: Array<{
+        id?: string; // Phone ID (for edit mode)
+        phoneNumber: string;
+        phoneType: PhoneType;
+        label?: string;
+        isPrimary: boolean;
+      }>;
     }>,
     onEntryCreated?: (entryId: string) => void,
   ) => Promise<void>;
@@ -128,13 +193,81 @@ export default function GuardianFormModal({
   // Update a single entry field
   const updateEntry = (
     id: string,
-    field: keyof GuardianEntry,
+    field: keyof Omit<GuardianEntry, "phoneNumbers">,
     value: string | boolean,
   ) => {
     setEntries((prev) =>
       prev.map((entry) =>
         entry.id === id ? { ...entry, [field]: value } : entry,
       ),
+    );
+  };
+
+  // Update phone number in an entry
+  const updatePhone = (
+    entryId: string,
+    phoneId: string,
+    field: keyof PhoneEntry,
+    value: string | boolean,
+  ) => {
+    setEntries((prev) =>
+      prev.map((entry) => {
+        if (entry.id !== entryId) return entry;
+        return {
+          ...entry,
+          phoneNumbers: entry.phoneNumbers.map((phone) =>
+            phone.id === phoneId ? { ...phone, [field]: value } : phone,
+          ),
+        };
+      }),
+    );
+  };
+
+  // Set phone as primary (unset others)
+  const setPhonePrimary = (entryId: string, phoneId: string) => {
+    setEntries((prev) =>
+      prev.map((entry) => {
+        if (entry.id !== entryId) return entry;
+        return {
+          ...entry,
+          phoneNumbers: entry.phoneNumbers.map((phone) => ({
+            ...phone,
+            isPrimary: phone.id === phoneId,
+          })),
+        };
+      }),
+    );
+  };
+
+  // Add phone number to entry
+  const addPhone = (entryId: string) => {
+    setEntries((prev) =>
+      prev.map((entry) => {
+        if (entry.id !== entryId) return entry;
+        return {
+          ...entry,
+          phoneNumbers: [...entry.phoneNumbers, createEmptyPhone(false)],
+        };
+      }),
+    );
+  };
+
+  // Remove phone number from entry
+  const removePhone = (entryId: string, phoneId: string) => {
+    setEntries((prev) =>
+      prev.map((entry) => {
+        if (entry.id !== entryId) return entry;
+        const newPhones = entry.phoneNumbers.filter((p) => p.id !== phoneId);
+        // If we removed the primary, make the first one primary
+        const hasPrimary = newPhones.some((p) => p.isPrimary);
+        if (!hasPrimary && newPhones.length > 0) {
+          newPhones[0] = { ...newPhones[0]!, isPrimary: true };
+        }
+        return {
+          ...entry,
+          phoneNumbers: newPhones,
+        };
+      }),
     );
   };
 
@@ -162,11 +295,13 @@ export default function GuardianFormModal({
         return `Vorname und Nachname sind erforderlich${label}`;
       }
 
-      if (
-        !entry.email.trim() &&
-        !entry.phone.trim() &&
-        !entry.mobilePhone.trim()
-      ) {
+      // Check for at least one contact method
+      const hasEmail = entry.email.trim() !== "";
+      const hasPhone = entry.phoneNumbers.some(
+        (p) => p.phoneNumber.trim() !== "",
+      );
+
+      if (!hasEmail && !hasPhone) {
         return `Mindestens eine Kontaktmöglichkeit ist erforderlich${label}`;
       }
     }
@@ -178,6 +313,13 @@ export default function GuardianFormModal({
     id: string;
     guardianData: GuardianFormData;
     relationshipData: RelationshipFormData;
+    phoneNumbers: Array<{
+      id?: string;
+      phoneNumber: string;
+      phoneType: PhoneType;
+      label?: string;
+      isPrimary: boolean;
+    }>;
   }> => {
     return entries.map((entry) => ({
       id: entry.id,
@@ -185,8 +327,9 @@ export default function GuardianFormModal({
         firstName: entry.firstName.trim(),
         lastName: entry.lastName.trim(),
         email: entry.email.trim() || undefined,
-        phone: entry.phone.trim() || undefined,
-        mobilePhone: entry.mobilePhone.trim() || undefined,
+        // Keep legacy fields for backward compatibility
+        phone: undefined,
+        mobilePhone: undefined,
       },
       relationshipData: {
         relationshipType: entry.relationshipType,
@@ -195,6 +338,15 @@ export default function GuardianFormModal({
         canPickup: entry.canPickup,
         emergencyPriority: entry.emergencyPriority,
       },
+      phoneNumbers: entry.phoneNumbers
+        .filter((p) => p.phoneNumber.trim() !== "")
+        .map((p) => ({
+          id: p.id, // Include phone ID for edit mode
+          phoneNumber: p.phoneNumber.trim(),
+          phoneType: p.phoneType,
+          label: p.label.trim() || undefined,
+          isPrimary: p.isPrimary,
+        })),
     }));
   };
 
@@ -398,66 +550,162 @@ export default function GuardianFormModal({
                 </svg>
                 Kontaktdaten
               </h3>
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-2 md:gap-4">
-                <div>
-                  <label
-                    htmlFor={`guardian-email-${entry.id}`}
-                    className="mb-1 block text-xs font-medium text-gray-700"
-                  >
-                    E-Mail
-                  </label>
-                  <input
-                    id={`guardian-email-${entry.id}`}
-                    type="email"
-                    value={entry.email}
-                    onChange={(e) =>
-                      updateEntry(entry.id, "email", e.target.value)
-                    }
-                    className="block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm transition-colors focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8]"
-                    placeholder="max.mustermann@example.com"
-                    disabled={isLoading}
-                  />
-                </div>
 
-                <div>
-                  <label
-                    htmlFor={`guardian-phone-${entry.id}`}
-                    className="mb-1 block text-xs font-medium text-gray-700"
-                  >
-                    Telefon
-                  </label>
-                  <input
-                    id={`guardian-phone-${entry.id}`}
-                    type="tel"
-                    value={entry.phone}
-                    onChange={(e) =>
-                      updateEntry(entry.id, "phone", e.target.value)
-                    }
-                    className="block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm transition-colors focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8]"
-                    placeholder="+49 123 456789"
-                    disabled={isLoading}
-                  />
-                </div>
+              {/* Email */}
+              <div className="mb-4">
+                <label
+                  htmlFor={`guardian-email-${entry.id}`}
+                  className="mb-1 block text-xs font-medium text-gray-700"
+                >
+                  E-Mail
+                </label>
+                <input
+                  id={`guardian-email-${entry.id}`}
+                  type="email"
+                  value={entry.email}
+                  onChange={(e) =>
+                    updateEntry(entry.id, "email", e.target.value)
+                  }
+                  className="block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm transition-colors focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8]"
+                  placeholder="max.mustermann@example.com"
+                  disabled={isLoading}
+                />
+              </div>
 
-                <div>
-                  <label
-                    htmlFor={`guardian-mobile-${entry.id}`}
-                    className="mb-1 block text-xs font-medium text-gray-700"
+              {/* Phone Numbers */}
+              <div className="space-y-3">
+                <label className="block text-xs font-medium text-gray-700">
+                  Telefonnummern
+                </label>
+
+                {entry.phoneNumbers.map((phone, phoneIndex) => (
+                  <div
+                    key={phone.id}
+                    className="flex flex-col gap-2 rounded-lg border border-gray-200 bg-white p-3 sm:flex-row sm:items-center"
                   >
-                    Mobiltelefon
-                  </label>
-                  <input
-                    id={`guardian-mobile-${entry.id}`}
-                    type="tel"
-                    value={entry.mobilePhone}
-                    onChange={(e) =>
-                      updateEntry(entry.id, "mobilePhone", e.target.value)
-                    }
-                    className="block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm transition-colors focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8]"
-                    placeholder="+49 170 1234567"
-                    disabled={isLoading}
-                  />
-                </div>
+                    {/* Phone Type Select */}
+                    <div className="w-full sm:w-32">
+                      <select
+                        id={`phone-type-${entry.id}-${phone.id}`}
+                        value={phone.phoneType}
+                        onChange={(e) =>
+                          updatePhone(
+                            entry.id,
+                            phone.id,
+                            "phoneType",
+                            e.target.value as PhoneType,
+                          )
+                        }
+                        className="block w-full appearance-none rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-sm transition-colors focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8]"
+                        disabled={isLoading}
+                        aria-label={`Telefontyp ${phoneIndex + 1}`}
+                      >
+                        {(Object.keys(PHONE_TYPE_LABELS) as PhoneType[]).map(
+                          (type) => (
+                            <option key={type} value={type}>
+                              {PHONE_TYPE_LABELS[type]}
+                            </option>
+                          ),
+                        )}
+                      </select>
+                    </div>
+
+                    {/* Phone Number Input */}
+                    <div className="flex-1">
+                      <input
+                        id={`phone-number-${entry.id}-${phone.id}`}
+                        type="tel"
+                        value={phone.phoneNumber}
+                        onChange={(e) =>
+                          updatePhone(
+                            entry.id,
+                            phone.id,
+                            "phoneNumber",
+                            e.target.value,
+                          )
+                        }
+                        className="block w-full rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm transition-colors focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8]"
+                        placeholder="+49 170 1234567"
+                        disabled={isLoading}
+                        aria-label={`Telefonnummer ${phoneIndex + 1}`}
+                      />
+                    </div>
+
+                    {/* Label Input (optional) */}
+                    <div className="w-full sm:w-28">
+                      <input
+                        id={`phone-label-${entry.id}-${phone.id}`}
+                        type="text"
+                        value={phone.label}
+                        onChange={(e) =>
+                          updatePhone(
+                            entry.id,
+                            phone.id,
+                            "label",
+                            e.target.value,
+                          )
+                        }
+                        className="block w-full rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-sm transition-colors focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8]"
+                        placeholder="Notiz"
+                        disabled={isLoading}
+                        aria-label={`Notiz für Nummer ${phoneIndex + 1}`}
+                      />
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div className="flex items-center gap-1">
+                      {/* Primary Star */}
+                      <button
+                        type="button"
+                        onClick={() => setPhonePrimary(entry.id, phone.id)}
+                        disabled={isLoading || phone.isPrimary}
+                        className={`rounded p-1.5 transition-colors ${
+                          phone.isPrimary
+                            ? "text-yellow-500"
+                            : "text-gray-300 hover:text-yellow-400"
+                        }`}
+                        title={
+                          phone.isPrimary ? "Primär" : "Als primär markieren"
+                        }
+                        aria-label={
+                          phone.isPrimary
+                            ? "Primäre Nummer"
+                            : "Als primäre Nummer markieren"
+                        }
+                      >
+                        <Star
+                          className="h-4 w-4"
+                          fill={phone.isPrimary ? "currentColor" : "none"}
+                        />
+                      </button>
+
+                      {/* Delete Button */}
+                      {entry.phoneNumbers.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => removePhone(entry.id, phone.id)}
+                          disabled={isLoading}
+                          className="rounded p-1.5 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600"
+                          title="Entfernen"
+                          aria-label={`Telefonnummer ${phoneIndex + 1} entfernen`}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+
+                {/* Add Phone Button */}
+                <button
+                  type="button"
+                  onClick={() => addPhone(entry.id)}
+                  disabled={isLoading}
+                  className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-gray-300 bg-gray-50 py-2 text-xs font-medium text-gray-600 transition-colors hover:border-gray-400 hover:bg-gray-100 disabled:opacity-50"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  Weitere Nummer hinzufügen
+                </button>
               </div>
             </div>
 

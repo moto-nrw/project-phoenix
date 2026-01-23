@@ -566,7 +566,6 @@ func TestRoomNameForResponse_NilVisit_NilRoomID(t *testing.T) {
 	assert.Equal(t, "", name)
 }
 
-
 // =============================================================================
 // processStudentCheckin result struct TESTS
 // =============================================================================

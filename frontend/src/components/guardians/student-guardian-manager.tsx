@@ -17,8 +17,14 @@ import {
   linkGuardianToStudent,
   updateStudentGuardianRelationship,
   removeGuardianFromStudent,
+  addGuardianPhoneNumber,
+  updateGuardianPhoneNumber,
+  deleteGuardianPhoneNumber,
+  setGuardianPrimaryPhone,
 } from "@/lib/guardian-api";
+import type { PhoneType } from "@/lib/guardian-helpers";
 import { getGuardianFullName } from "@/lib/guardian-helpers";
+import { useToast } from "~/contexts/ToastContext";
 
 interface StudentGuardianManagerProps {
   readonly studentId: string;
@@ -43,6 +49,7 @@ export default function StudentGuardianManager({
     GuardianWithRelationship | undefined
   >();
   const [isDeleting, setIsDeleting] = useState(false);
+  const { success: toastSuccess } = useToast();
 
   // Load guardians
   const loadGuardians = useCallback(async () => {
@@ -74,13 +81,24 @@ export default function StudentGuardianManager({
       id: string;
       guardianData: GuardianFormData;
       relationshipData: RelationshipFormData;
+      phoneNumbers?: Array<{
+        phoneNumber: string;
+        phoneType: PhoneType;
+        label?: string;
+        isPrimary: boolean;
+      }>;
     }>,
     onEntryCreated?: (entryId: string) => void,
   ) => {
     let successCount = 0;
     try {
       // Create all guardians sequentially to ensure proper error handling
-      for (const { id, guardianData, relationshipData } of guardians) {
+      for (const {
+        id,
+        guardianData,
+        relationshipData,
+        phoneNumbers,
+      } of guardians) {
         // Create guardian profile
         const newGuardian = await createGuardian(guardianData);
 
@@ -89,6 +107,18 @@ export default function StudentGuardianManager({
           guardianProfileId: newGuardian.id,
           ...relationshipData,
         });
+
+        // Add phone numbers if provided
+        if (phoneNumbers && phoneNumbers.length > 0) {
+          for (const phone of phoneNumbers) {
+            await addGuardianPhoneNumber(newGuardian.id, {
+              phoneNumber: phone.phoneNumber,
+              phoneType: phone.phoneType,
+              label: phone.label,
+              isPrimary: phone.isPrimary,
+            });
+          }
+        }
 
         // Remove successfully created entry from modal (enables retry without duplicates)
         onEntryCreated?.(id);
@@ -100,6 +130,11 @@ export default function StudentGuardianManager({
       if (successCount > 0) {
         await loadGuardians();
         onUpdate?.();
+        toastSuccess(
+          successCount === 1
+            ? "Erziehungsberechtigte/r erfolgreich hinzugefügt"
+            : `${successCount} Erziehungsberechtigte erfolgreich hinzugefügt`,
+        );
       }
     }
   };
@@ -110,6 +145,13 @@ export default function StudentGuardianManager({
       id: string;
       guardianData: GuardianFormData;
       relationshipData: RelationshipFormData;
+      phoneNumbers?: Array<{
+        phoneNumber: string;
+        phoneType: PhoneType;
+        label?: string;
+        isPrimary: boolean;
+        id?: string; // Existing phone ID (if editing)
+      }>;
     }>,
     _onEntryCreated?: (entryId: string) => void,
   ) => {
@@ -118,7 +160,7 @@ export default function StudentGuardianManager({
     const first = guardians[0];
     if (!first) return;
 
-    const { guardianData, relationshipData } = first;
+    const { guardianData, relationshipData, phoneNumbers } = first;
 
     // Update guardian profile
     await updateGuardian(editingGuardian.id, guardianData);
@@ -129,10 +171,72 @@ export default function StudentGuardianManager({
       relationshipData,
     );
 
+    // Sync phone numbers if provided
+    if (phoneNumbers) {
+      const existingPhones = editingGuardian.phoneNumbers ?? [];
+      const existingPhoneIds = new Set(existingPhones.map((p) => p.id));
+
+      // Track which phone should be primary
+      let primaryPhoneId: string | null = null;
+
+      // Process each phone number from the form
+      for (const phone of phoneNumbers) {
+        // Check if this is a UUID (new phone) or existing phone ID
+        const isNewPhone =
+          !phone.id ||
+          phone.id.includes("-") ||
+          !existingPhoneIds.has(phone.id);
+
+        if (isNewPhone) {
+          // Add new phone number
+          const created = await addGuardianPhoneNumber(editingGuardian.id, {
+            phoneNumber: phone.phoneNumber,
+            phoneType: phone.phoneType,
+            label: phone.label,
+            isPrimary: phone.isPrimary,
+          });
+          if (phone.isPrimary) {
+            primaryPhoneId = created.id;
+          }
+        } else {
+          // Update existing phone number
+          await updateGuardianPhoneNumber(editingGuardian.id, phone.id!, {
+            phoneNumber: phone.phoneNumber,
+            phoneType: phone.phoneType,
+            label: phone.label,
+          });
+          if (phone.isPrimary) {
+            primaryPhoneId = phone.id!;
+          }
+        }
+      }
+
+      // Delete phones that were removed
+      const newPhoneIds = new Set(
+        phoneNumbers
+          .filter((p) => p.id && !p.id.includes("-"))
+          .map((p) => p.id),
+      );
+      for (const existing of existingPhones) {
+        if (!newPhoneIds.has(existing.id)) {
+          await deleteGuardianPhoneNumber(editingGuardian.id, existing.id);
+        }
+      }
+
+      // Set primary phone if needed (and it's not already primary)
+      if (primaryPhoneId) {
+        const existingPrimary = existingPhones.find((p) => p.isPrimary);
+        if (existingPrimary?.id !== primaryPhoneId) {
+          await setGuardianPrimaryPhone(editingGuardian.id, primaryPhoneId);
+        }
+      }
+    }
+
     // Reload guardians
     await loadGuardians();
     onUpdate?.();
     setEditingGuardian(undefined);
+    toastSuccess("Erziehungsberechtigte/r erfolgreich aktualisiert");
   };
 
   // Handle delete guardian - open confirmation modal
@@ -145,6 +249,7 @@ export default function StudentGuardianManager({
   const handleConfirmDelete = async () => {
     if (!deletingGuardian) return;
 
+    const deletedName = getGuardianFullName(deletingGuardian);
     setIsDeleting(true);
     try {
       await removeGuardianFromStudent(studentId, deletingGuardian.id);
@@ -152,6 +257,7 @@ export default function StudentGuardianManager({
       onUpdate?.();
       setShowDeleteModal(false);
       setDeletingGuardian(undefined);
+      toastSuccess(`${deletedName} wurde erfolgreich entfernt`);
     } catch (err) {
       alert(
         err instanceof Error

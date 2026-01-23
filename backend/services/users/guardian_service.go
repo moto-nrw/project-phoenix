@@ -25,12 +25,13 @@ const (
 // GuardianServiceDependencies contains all dependencies required by the guardian service
 type GuardianServiceDependencies struct {
 	// Repository dependencies
-	GuardianProfileRepo    users.GuardianProfileRepository
-	StudentGuardianRepo    users.StudentGuardianRepository
-	GuardianInvitationRepo authModels.GuardianInvitationRepository
-	AccountParentRepo      authModels.AccountParentRepository
-	StudentRepo            users.StudentRepository
-	PersonRepo             users.PersonRepository
+	GuardianProfileRepo     users.GuardianProfileRepository
+	GuardianPhoneNumberRepo users.GuardianPhoneNumberRepository
+	StudentGuardianRepo     users.StudentGuardianRepository
+	GuardianInvitationRepo  authModels.GuardianInvitationRepository
+	AccountParentRepo       authModels.AccountParentRepository
+	StudentRepo             users.StudentRepository
+	PersonRepo              users.PersonRepository
 
 	// Email dependencies
 	Mailer           email.Mailer
@@ -44,18 +45,19 @@ type GuardianServiceDependencies struct {
 }
 
 type guardianService struct {
-	guardianProfileRepo    users.GuardianProfileRepository
-	studentGuardianRepo    users.StudentGuardianRepository
-	guardianInvitationRepo authModels.GuardianInvitationRepository
-	accountParentRepo      authModels.AccountParentRepository
-	studentRepo            users.StudentRepository
-	personRepo             users.PersonRepository
-	dispatcher             *email.Dispatcher
-	frontendURL            string
-	defaultFrom            email.Email
-	invitationExpiry       time.Duration
-	db                     *bun.DB
-	txHandler              *base.TxHandler
+	guardianProfileRepo     users.GuardianProfileRepository
+	guardianPhoneNumberRepo users.GuardianPhoneNumberRepository
+	studentGuardianRepo     users.StudentGuardianRepository
+	guardianInvitationRepo  authModels.GuardianInvitationRepository
+	accountParentRepo       authModels.AccountParentRepository
+	studentRepo             users.StudentRepository
+	personRepo              users.PersonRepository
+	dispatcher              *email.Dispatcher
+	frontendURL             string
+	defaultFrom             email.Email
+	invitationExpiry        time.Duration
+	db                      *bun.DB
+	txHandler               *base.TxHandler
 }
 
 // NewGuardianService creates a new GuardianService instance
@@ -67,24 +69,26 @@ func NewGuardianService(deps GuardianServiceDependencies) GuardianService {
 	}
 
 	return &guardianService{
-		guardianProfileRepo:    deps.GuardianProfileRepo,
-		studentGuardianRepo:    deps.StudentGuardianRepo,
-		guardianInvitationRepo: deps.GuardianInvitationRepo,
-		accountParentRepo:      deps.AccountParentRepo,
-		studentRepo:            deps.StudentRepo,
-		personRepo:             deps.PersonRepo,
-		dispatcher:             dispatcher,
-		frontendURL:            trimmedFrontend,
-		defaultFrom:            deps.DefaultFrom,
-		invitationExpiry:       deps.InvitationExpiry,
-		db:                     deps.DB,
-		txHandler:              base.NewTxHandler(deps.DB),
+		guardianProfileRepo:     deps.GuardianProfileRepo,
+		guardianPhoneNumberRepo: deps.GuardianPhoneNumberRepo,
+		studentGuardianRepo:     deps.StudentGuardianRepo,
+		guardianInvitationRepo:  deps.GuardianInvitationRepo,
+		accountParentRepo:       deps.AccountParentRepo,
+		studentRepo:             deps.StudentRepo,
+		personRepo:              deps.PersonRepo,
+		dispatcher:              dispatcher,
+		frontendURL:             trimmedFrontend,
+		defaultFrom:             deps.DefaultFrom,
+		invitationExpiry:        deps.InvitationExpiry,
+		db:                      deps.DB,
+		txHandler:               base.NewTxHandler(deps.DB),
 	}
 }
 
 // WithTx returns a new service instance with repositories bound to the transaction
 func (s *guardianService) WithTx(tx bun.Tx) interface{} {
 	var guardianProfileRepo = s.guardianProfileRepo
+	var guardianPhoneNumberRepo = s.guardianPhoneNumberRepo
 	var studentGuardianRepo = s.studentGuardianRepo
 	var guardianInvitationRepo = s.guardianInvitationRepo
 	var accountParentRepo = s.accountParentRepo
@@ -93,6 +97,9 @@ func (s *guardianService) WithTx(tx bun.Tx) interface{} {
 
 	if txRepo, ok := s.guardianProfileRepo.(base.TransactionalRepository); ok {
 		guardianProfileRepo = txRepo.WithTx(tx).(users.GuardianProfileRepository)
+	}
+	if txRepo, ok := s.guardianPhoneNumberRepo.(base.TransactionalRepository); ok {
+		guardianPhoneNumberRepo = txRepo.WithTx(tx).(users.GuardianPhoneNumberRepository)
 	}
 	if txRepo, ok := s.studentGuardianRepo.(base.TransactionalRepository); ok {
 		studentGuardianRepo = txRepo.WithTx(tx).(users.StudentGuardianRepository)
@@ -111,18 +118,19 @@ func (s *guardianService) WithTx(tx bun.Tx) interface{} {
 	}
 
 	return &guardianService{
-		guardianProfileRepo:    guardianProfileRepo,
-		studentGuardianRepo:    studentGuardianRepo,
-		guardianInvitationRepo: guardianInvitationRepo,
-		accountParentRepo:      accountParentRepo,
-		studentRepo:            studentRepo,
-		personRepo:             personRepo,
-		dispatcher:             s.dispatcher,
-		frontendURL:            s.frontendURL,
-		defaultFrom:            s.defaultFrom,
-		invitationExpiry:       s.invitationExpiry,
-		db:                     s.db,
-		txHandler:              s.txHandler.WithTx(tx),
+		guardianProfileRepo:     guardianProfileRepo,
+		guardianPhoneNumberRepo: guardianPhoneNumberRepo,
+		studentGuardianRepo:     studentGuardianRepo,
+		guardianInvitationRepo:  guardianInvitationRepo,
+		accountParentRepo:       accountParentRepo,
+		studentRepo:             studentRepo,
+		personRepo:              personRepo,
+		dispatcher:              s.dispatcher,
+		frontendURL:             s.frontendURL,
+		defaultFrom:             s.defaultFrom,
+		invitationExpiry:        s.invitationExpiry,
+		db:                      s.db,
+		txHandler:               s.txHandler.WithTx(tx),
 	}
 }
 
@@ -550,6 +558,12 @@ func (s *guardianService) GetStudentGuardians(ctx context.Context, studentID int
 			continue // Skip if profile not found
 		}
 
+		// Load phone numbers for this guardian
+		phoneNumbers, err := s.guardianPhoneNumberRepo.FindByGuardianID(ctx, profile.ID)
+		if err == nil {
+			profile.PhoneNumbers = phoneNumbers
+		}
+
 		result = append(result, &GuardianWithRelationship{
 			Profile:      profile,
 			Relationship: rel,
@@ -692,4 +706,149 @@ func (s *guardianService) GetPendingInvitations(ctx context.Context) ([]*authMod
 // CleanupExpiredInvitations deletes expired invitations
 func (s *guardianService) CleanupExpiredInvitations(ctx context.Context) (int, error) {
 	return s.guardianInvitationRepo.DeleteExpired(ctx)
+}
+
+// ============================================================================
+// Phone Number Management
+// ============================================================================
+
+// AddPhoneNumber adds a new phone number to a guardian
+func (s *guardianService) AddPhoneNumber(ctx context.Context, guardianID int64, req PhoneNumberCreateRequest) (*users.GuardianPhoneNumber, error) {
+	// Verify guardian exists
+	if _, err := s.guardianProfileRepo.FindByID(ctx, guardianID); err != nil {
+		return nil, fmt.Errorf(errMsgGuardianNotFound, err)
+	}
+
+	// Get current count to determine if this should be primary
+	count, err := s.guardianPhoneNumberRepo.CountByGuardianID(ctx, guardianID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to count existing phone numbers: %w", err)
+	}
+
+	// Get next priority
+	priority, err := s.guardianPhoneNumberRepo.GetNextPriority(ctx, guardianID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get next priority: %w", err)
+	}
+
+	// Determine phone type
+	phoneType := users.PhoneType(req.PhoneType)
+	if !users.ValidPhoneTypes[phoneType] {
+		phoneType = users.PhoneTypeMobile // Default to mobile
+	}
+
+	// If this is the first phone number or explicitly set as primary, make it primary
+	isPrimary := req.IsPrimary || count == 0
+
+	phone := &users.GuardianPhoneNumber{
+		GuardianProfileID: guardianID,
+		PhoneNumber:       req.PhoneNumber,
+		PhoneType:         phoneType,
+		Label:             req.Label,
+		IsPrimary:         isPrimary,
+		Priority:          priority,
+	}
+
+	// If setting as primary, unset others first
+	if isPrimary && count > 0 {
+		if err := s.guardianPhoneNumberRepo.UnsetAllPrimary(ctx, guardianID); err != nil {
+			return nil, fmt.Errorf("failed to unset existing primary: %w", err)
+		}
+	}
+
+	if err := s.guardianPhoneNumberRepo.Create(ctx, phone); err != nil {
+		return nil, fmt.Errorf("failed to create phone number: %w", err)
+	}
+
+	return phone, nil
+}
+
+// UpdatePhoneNumber updates an existing phone number
+func (s *guardianService) UpdatePhoneNumber(ctx context.Context, phoneID int64, req PhoneNumberUpdateRequest) error {
+	phone, err := s.guardianPhoneNumberRepo.FindByID(ctx, phoneID)
+	if err != nil {
+		return fmt.Errorf("phone number not found: %w", err)
+	}
+
+	// Update fields if provided
+	if req.PhoneNumber != nil {
+		phone.PhoneNumber = *req.PhoneNumber
+	}
+	if req.PhoneType != nil {
+		phoneType := users.PhoneType(*req.PhoneType)
+		if users.ValidPhoneTypes[phoneType] {
+			phone.PhoneType = phoneType
+		}
+	}
+	if req.Label != nil {
+		phone.Label = req.Label
+	}
+	if req.Priority != nil {
+		phone.Priority = *req.Priority
+	}
+
+	// Handle primary flag change
+	if req.IsPrimary != nil && *req.IsPrimary && !phone.IsPrimary {
+		// Setting as primary - unset others first
+		if err := s.guardianPhoneNumberRepo.UnsetAllPrimary(ctx, phone.GuardianProfileID); err != nil {
+			return fmt.Errorf("failed to unset existing primary: %w", err)
+		}
+		phone.IsPrimary = true
+	} else if req.IsPrimary != nil && !*req.IsPrimary && phone.IsPrimary {
+		// Unsetting primary - need to promote another number
+		phone.IsPrimary = false
+	}
+
+	return s.guardianPhoneNumberRepo.Update(ctx, phone)
+}
+
+// DeletePhoneNumber removes a phone number
+func (s *guardianService) DeletePhoneNumber(ctx context.Context, phoneID int64) error {
+	phone, err := s.guardianPhoneNumberRepo.FindByID(ctx, phoneID)
+	if err != nil {
+		return fmt.Errorf("phone number not found: %w", err)
+	}
+
+	wasPrimary := phone.IsPrimary
+	guardianID := phone.GuardianProfileID
+
+	// Delete the phone number
+	if err := s.guardianPhoneNumberRepo.Delete(ctx, phoneID); err != nil {
+		return fmt.Errorf("failed to delete phone number: %w", err)
+	}
+
+	// If deleted number was primary, promote the next one
+	if wasPrimary {
+		phones, err := s.guardianPhoneNumberRepo.FindByGuardianID(ctx, guardianID)
+		if err != nil {
+			return nil // Deletion succeeded, just couldn't promote - not fatal
+		}
+
+		// Promote the first remaining phone number (already sorted by priority)
+		if len(phones) > 0 {
+			_ = s.guardianPhoneNumberRepo.SetPrimary(ctx, phones[0].ID, guardianID)
+		}
+	}
+
+	return nil
+}
+
+// SetPrimaryPhone sets a phone number as the primary contact
+func (s *guardianService) SetPrimaryPhone(ctx context.Context, phoneID int64) error {
+	phone, err := s.guardianPhoneNumberRepo.FindByID(ctx, phoneID)
+	if err != nil {
+		return fmt.Errorf("phone number not found: %w", err)
+	}
+
+	return s.guardianPhoneNumberRepo.SetPrimary(ctx, phoneID, phone.GuardianProfileID)
+}
+
+// GetGuardianPhoneNumbers retrieves all phone numbers for a guardian, sorted by priority
+func (s *guardianService) GetGuardianPhoneNumbers(ctx context.Context, guardianID int64) ([]*users.GuardianPhoneNumber, error) {
+	return s.guardianPhoneNumberRepo.FindByGuardianID(ctx, guardianID)
+}
+
+// GetPhoneNumberByID retrieves a phone number by ID
+func (s *guardianService) GetPhoneNumberByID(ctx context.Context, phoneID int64) (*users.GuardianPhoneNumber, error) {
+	return s.guardianPhoneNumberRepo.FindByID(ctx, phoneID)
 }

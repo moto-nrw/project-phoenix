@@ -149,8 +149,12 @@ func (p *CSVParser) mapStudentRow(values []string) (importModels.StudentImportRo
 			CanPickup:          parseBool(getCol(fmt.Sprintf("erz%d.abholung", guardianNum))),
 		}
 
+		// Parse flexible phone numbers into PhoneNumbers array
+		guardian.PhoneNumbers = p.parseGuardianPhoneNumbers(guardianNum, getCol)
+
 		// Only add if has contact info (skip empty guardians)
-		if guardian.Email != "" || guardian.Phone != "" || guardian.MobilePhone != "" {
+		hasPhoneNumbers := len(guardian.PhoneNumbers) > 0
+		if guardian.Email != "" || guardian.Phone != "" || guardian.MobilePhone != "" || hasPhoneNumbers {
 			row.Guardians = append(row.Guardians, guardian)
 		}
 
@@ -158,6 +162,49 @@ func (p *CSVParser) mapStudentRow(values []string) (importModels.StudentImportRo
 	}
 
 	return row, nil
+}
+
+// parseGuardianPhoneNumbers extracts phone numbers from CSV columns into PhoneImportData array
+// Supported columns: Erz{N}.Telefon, Erz{N}.Telefon2, Erz{N}.Mobil, Erz{N}.Mobil2,
+// Erz{N}.Dienstlich, Erz{N}.Dienstlich2, Erz{N}.Geschäftlich, Erz{N}.Arbeit
+func (p *CSVParser) parseGuardianPhoneNumbers(guardianNum int, getCol func(string) string) []importModels.PhoneImportData {
+	var phones []importModels.PhoneImportData
+	priority := 1
+
+	// Define phone column mappings: column suffix → (phone_type, label)
+	phoneMappings := []struct {
+		suffix    string
+		phoneType string
+		label     string
+	}{
+		// Home phones (Telefon)
+		{"telefon", "home", ""},
+		{"telefon2", "home", ""},
+		// Mobile phones (Mobil)
+		{"mobil", "mobile", ""},
+		{"mobil2", "mobile", ""},
+		// Work phones with labels
+		{"dienstlich", "work", "Dienstlich"},
+		{"dienstlich2", "work", "Dienstlich"},
+		{"geschäftlich", "work", "Geschäftlich"},
+		{"arbeit", "work", "Arbeit"},
+	}
+
+	for _, mapping := range phoneMappings {
+		colKey := fmt.Sprintf("erz%d.%s", guardianNum, mapping.suffix)
+		value := getCol(colKey)
+		if value != "" {
+			phones = append(phones, importModels.PhoneImportData{
+				PhoneNumber: value,
+				PhoneType:   mapping.phoneType,
+				Label:       mapping.label,
+				IsPrimary:   priority == 1, // First phone is primary
+			})
+			priority++
+		}
+	}
+
+	return phones
 }
 
 // GetColumnMapping returns the detected column mapping

@@ -504,10 +504,10 @@ func TestStudentLocationSnapshot_MultipleStudents(t *testing.T) {
 	}
 
 	tests := []struct {
-		studentID      int64
-		hasFullAccess  bool
-		expectedLoc    string
-		expectSince    bool
+		studentID     int64
+		hasFullAccess bool
+		expectedLoc   string
+		expectSince   bool
 	}{
 		{1, true, "Abwesend", false},
 		{2, true, "Abwesend", true},
