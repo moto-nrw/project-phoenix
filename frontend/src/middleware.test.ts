@@ -776,6 +776,29 @@ describe("middleware integration", () => {
       // Should NOT be a redirect - second admin email should work
       expect(result.status).not.toBe(307);
     });
+
+    it("should allow non-SaaS admin to view /console/login while authenticated", async () => {
+      // A regular user (not SaaS admin) who is authenticated can still view the login page
+      // This covers the edge case where an authenticated non-admin visits /console/login
+      const sessionData = {
+        user: { id: "user-1", email: "regular-user@example.com" },
+        session: { activeOrganizationId: null },
+      };
+      global.fetch = vi.fn().mockResolvedValue(createMockResponse(sessionData));
+
+      const { middleware } = await import("./middleware");
+      const request = createMockRequest("/console/login", {
+        host: "localhost:3000",
+        cookies: "session=test",
+      });
+      const result = await middleware(request);
+
+      // Should NOT be a redirect - regular users can view the login page
+      // (they just can't access /console or /console/* pages)
+      expect(result.status).not.toBe(307);
+      // Verify tenant header is cleared
+      expect(result.headers.get("x-tenant-slug")).toBeNull();
+    });
   });
 
   describe("main domain - protected paths with org status", () => {
@@ -931,6 +954,97 @@ describe("middleware integration", () => {
 
       // Should NOT be a redirect (no org = no status to check)
       expect(result.status).not.toBe(307);
+    });
+
+    it("should handle non-200 response from org list API gracefully", async () => {
+      const sessionData = {
+        user: { id: "user-1", email: "user@example.com" },
+        session: { activeOrganizationId: "org-1" },
+      };
+
+      global.fetch = vi.fn().mockImplementation((url: string) => {
+        if (url.includes("get-session")) {
+          return Promise.resolve(createMockResponse(sessionData));
+        }
+        if (url.includes("list-organizations")) {
+          return Promise.resolve(
+            createMockResponse({ error: "Forbidden" }, { status: 403 }),
+          );
+        }
+        return Promise.resolve(createMockResponse(null));
+      });
+
+      const { middleware } = await import("./middleware");
+      const request = createMockRequest("/dashboard", {
+        host: "localhost:3000",
+        cookies: "session=test",
+      });
+      const result = await middleware(request);
+
+      // Should continue without blocking when org list API returns error
+      expect(result.status).not.toBe(307);
+    });
+  });
+
+  describe("production subdomain extraction edge cases", () => {
+    it("should return null subdomain when hostname equals base domain", async () => {
+      process.env.NEXT_PUBLIC_BASE_DOMAIN = "moto-app.de";
+      global.fetch = vi.fn().mockResolvedValue(createMockResponse(null));
+
+      const { middleware } = await import("./middleware");
+      const request = createMockRequest("/", {
+        host: "moto-app.de",
+      });
+      const result = await middleware(request);
+
+      // Should NOT redirect - main domain request
+      expect(result.status).not.toBe(307);
+      // Should clear tenant headers (no subdomain)
+      expect(result.headers.get("x-tenant-slug")).toBeNull();
+    });
+  });
+
+  describe("localhost subdomain extraction", () => {
+    beforeEach(() => {
+      process.env.NEXT_PUBLIC_BASE_DOMAIN = "localhost:3000";
+    });
+
+    it("should extract subdomain from localhost development URL", async () => {
+      const orgData = {
+        id: "org-1",
+        name: "Test OGS",
+        slug: "test-ogs",
+        status: "active",
+      };
+      global.fetch = vi.fn().mockImplementation((url: string) => {
+        if (url.includes("by-slug")) {
+          return Promise.resolve(createMockResponse(orgData));
+        }
+        return Promise.resolve(createMockResponse(null));
+      });
+
+      const { middleware } = await import("./middleware");
+      const request = createMockRequest("/login", {
+        host: "test-ogs.localhost:3000",
+      });
+      const result = await middleware(request);
+
+      // Should NOT redirect - valid org on public path
+      expect(result.status).not.toBe(307);
+      // Should set tenant headers
+      expect(result.headers.get("x-tenant-slug")).toBe("test-ogs");
+    });
+
+    it("should handle localhost without subdomain as main domain", async () => {
+      const { middleware } = await import("./middleware");
+      const request = createMockRequest("/", {
+        host: "localhost:3000",
+      });
+      const result = await middleware(request);
+
+      // Should NOT redirect and should clear tenant headers
+      expect(result.status).not.toBe(307);
+      expect(result.headers.get("x-tenant-slug")).toBeNull();
     });
   });
 
@@ -1143,6 +1257,69 @@ describe("middleware integration", () => {
 
       // Should NOT be a redirect
       expect(result.status).not.toBe(307);
+    });
+
+    it("should redirect to main domain for org lookup server error (non-404)", async () => {
+      const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {
+        // Suppress console output
+      });
+
+      global.fetch = vi.fn().mockImplementation((url: string) => {
+        if (url.includes("by-slug")) {
+          return Promise.resolve(
+            createMockResponse(
+              { error: "Internal server error" },
+              { status: 500 },
+            ),
+          );
+        }
+        return Promise.resolve(createMockResponse(null));
+      });
+
+      const { middleware } = await import("./middleware");
+      const request = createMockRequest("/", {
+        host: "server-error-org.moto-app.de",
+      });
+      const result = await middleware(request);
+
+      expect(result.status).toBe(307);
+      const locationUrl = new URL(
+        result.headers.get("location") ?? "",
+        "http://localhost",
+      );
+      expect(locationUrl.hostname).toBe("moto-app.de");
+      expect(locationUrl.searchParams.get("org_status")).toBe("not_found");
+
+      consoleSpy.mockRestore();
+    });
+
+    it("should redirect to main domain when org validation throws network error", async () => {
+      const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {
+        // Suppress console output
+      });
+
+      global.fetch = vi.fn().mockImplementation((url: string) => {
+        if (url.includes("by-slug")) {
+          return Promise.reject(new Error("Network error"));
+        }
+        return Promise.resolve(createMockResponse(null));
+      });
+
+      const { middleware } = await import("./middleware");
+      const request = createMockRequest("/", {
+        host: "network-error-org.moto-app.de",
+      });
+      const result = await middleware(request);
+
+      expect(result.status).toBe(307);
+      const locationUrl = new URL(
+        result.headers.get("location") ?? "",
+        "http://localhost",
+      );
+      expect(locationUrl.hostname).toBe("moto-app.de");
+      expect(locationUrl.searchParams.get("org_status")).toBe("not_found");
+
+      consoleSpy.mockRestore();
     });
   });
 
