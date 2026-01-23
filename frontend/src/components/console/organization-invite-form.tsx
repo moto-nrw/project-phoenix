@@ -240,7 +240,7 @@ function generateSlugFromName(name: string): string {
     .replace(/[üÜ]/g, "ue")
     .replace(/[ß]/g, "ss")
     .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
+    .replace(/(^-+)|(-+$)/g, "");
 }
 
 export function OrganizationInviteForm({
