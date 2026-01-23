@@ -1,389 +1,999 @@
 /**
- * Tests for SignupForm component and related logic
+ * Tests for SignupForm component
  *
  * This file tests:
- * - Password requirements validation logic
- * - Slug generation and validation logic
- * - Email validation logic
+ * - Form rendering and initial state
+ * - Password visibility toggles
+ * - Password requirement indicators
+ * - Slug generation and validation
+ * - Form field validation
+ * - Form submission (success and error cases)
+ * - Error handling for various API responses
  */
 
-import { describe, it, expect } from "vitest";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import {
+  describe,
+  it,
+  expect,
+  vi,
+  beforeEach,
+  afterEach,
+  type Mock,
+} from "vitest";
+import { SignupForm } from "./signup-form";
+import {
+  signupWithOrganization,
+  SignupWithOrgException,
+} from "~/lib/auth-client";
 
-// =============================================================================
-// Password Validation Logic Tests
-// =============================================================================
+// Mock next/navigation
+const mockPush = vi.fn();
+const mockRefresh = vi.fn();
 
-// Replicate the password requirements from the component
-const PASSWORD_REQUIREMENTS: Array<{
-  label: string;
-  test: (value: string) => boolean;
-}> = [
-  { label: "Mindestens 8 Zeichen", test: (value) => value.length >= 8 },
-  { label: "Ein Großbuchstabe", test: (value) => /[A-Z]/.test(value) },
-  { label: "Ein Kleinbuchstabe", test: (value) => /[a-z]/.test(value) },
-  { label: "Eine Zahl", test: (value) => /\d/.test(value) },
-  { label: "Ein Sonderzeichen", test: (value) => /[^A-Za-z0-9]/.test(value) },
-];
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({
+    push: mockPush,
+    refresh: mockRefresh,
+  }),
+}));
 
-function checkPasswordStrength(password: string): {
-  passed: string[];
-  failed: string[];
-  isStrong: boolean;
-} {
-  const passed: string[] = [];
-  const failed: string[] = [];
+// Mock toast context
+const mockToastSuccess = vi.fn();
+const mockToastError = vi.fn();
 
-  for (const req of PASSWORD_REQUIREMENTS) {
-    if (req.test(password)) {
-      passed.push(req.label);
-    } else {
-      failed.push(req.label);
-    }
-  }
+vi.mock("~/contexts/ToastContext", () => ({
+  useToast: () => ({
+    success: mockToastSuccess,
+    error: mockToastError,
+  }),
+}));
 
+// Mock signupWithOrganization from auth-client
+vi.mock("~/lib/auth-client", async (importOriginal) => {
+  const original = await importOriginal<typeof import("~/lib/auth-client")>();
   return {
-    passed,
-    failed,
-    isStrong: failed.length === 0,
+    ...original,
+    signupWithOrganization: vi.fn(),
+    SignupWithOrgException: original.SignupWithOrgException,
   };
-}
-
-describe("Password Validation", () => {
-  describe("minimum length requirement", () => {
-    it("fails for password shorter than 8 characters", () => {
-      expect(PASSWORD_REQUIREMENTS[0]?.test("short")).toBe(false);
-      expect(PASSWORD_REQUIREMENTS[0]?.test("1234567")).toBe(false);
-    });
-
-    it("passes for password with exactly 8 characters", () => {
-      expect(PASSWORD_REQUIREMENTS[0]?.test("12345678")).toBe(true);
-    });
-
-    it("passes for password longer than 8 characters", () => {
-      expect(PASSWORD_REQUIREMENTS[0]?.test("longpassword123")).toBe(true);
-    });
-  });
-
-  describe("uppercase letter requirement", () => {
-    it("fails for password without uppercase", () => {
-      expect(PASSWORD_REQUIREMENTS[1]?.test("lowercase")).toBe(false);
-      expect(PASSWORD_REQUIREMENTS[1]?.test("123456")).toBe(false);
-    });
-
-    it("passes for password with uppercase", () => {
-      expect(PASSWORD_REQUIREMENTS[1]?.test("Uppercase")).toBe(true);
-      expect(PASSWORD_REQUIREMENTS[1]?.test("ABC")).toBe(true);
-    });
-  });
-
-  describe("lowercase letter requirement", () => {
-    it("fails for password without lowercase", () => {
-      expect(PASSWORD_REQUIREMENTS[2]?.test("UPPERCASE")).toBe(false);
-      expect(PASSWORD_REQUIREMENTS[2]?.test("123456")).toBe(false);
-    });
-
-    it("passes for password with lowercase", () => {
-      expect(PASSWORD_REQUIREMENTS[2]?.test("lowercase")).toBe(true);
-      expect(PASSWORD_REQUIREMENTS[2]?.test("MixedCase")).toBe(true);
-    });
-  });
-
-  describe("digit requirement", () => {
-    it("fails for password without digit", () => {
-      expect(PASSWORD_REQUIREMENTS[3]?.test("nodigits")).toBe(false);
-    });
-
-    it("passes for password with digit", () => {
-      expect(PASSWORD_REQUIREMENTS[3]?.test("has1digit")).toBe(true);
-      expect(PASSWORD_REQUIREMENTS[3]?.test("123")).toBe(true);
-    });
-  });
-
-  describe("special character requirement", () => {
-    it("fails for password without special character", () => {
-      expect(PASSWORD_REQUIREMENTS[4]?.test("NoSpecial1")).toBe(false);
-    });
-
-    it("passes for password with special character", () => {
-      expect(PASSWORD_REQUIREMENTS[4]?.test("has!special")).toBe(true);
-      expect(PASSWORD_REQUIREMENTS[4]?.test("test@123")).toBe(true);
-      expect(PASSWORD_REQUIREMENTS[4]?.test("with space")).toBe(true);
-    });
-  });
-
-  describe("complete password strength check", () => {
-    it("identifies weak password missing all requirements", () => {
-      const result = checkPasswordStrength("short");
-      expect(result.isStrong).toBe(false);
-      expect(result.failed.length).toBeGreaterThan(0);
-    });
-
-    it("identifies strong password meeting all requirements", () => {
-      const result = checkPasswordStrength("StrongP@ss1");
-      expect(result.isStrong).toBe(true);
-      expect(result.failed.length).toBe(0);
-      expect(result.passed.length).toBe(5);
-    });
-
-    it("tracks individual requirement status", () => {
-      const result = checkPasswordStrength("weakpass");
-      expect(result.passed).toContain("Mindestens 8 Zeichen");
-      expect(result.passed).toContain("Ein Kleinbuchstabe");
-      expect(result.failed).toContain("Ein Großbuchstabe");
-      expect(result.failed).toContain("Eine Zahl");
-      expect(result.failed).toContain("Ein Sonderzeichen");
-    });
-  });
 });
 
-// =============================================================================
-// Slug Generation Logic Tests
-// =============================================================================
+// Mock slug-validation to use actual implementation
+vi.mock("~/lib/slug-validation", async (importOriginal) => {
+  const original =
+    await importOriginal<typeof import("~/lib/slug-validation")>();
+  return original;
+});
 
-// Replicate the slug generation logic from the component/lib
-function generateSlugFromName(name: string): string {
-  return name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/(^-)|(-$)/g, "");
-}
+// Mock email-validation to use actual implementation
+vi.mock("~/lib/email-validation", async (importOriginal) => {
+  const original =
+    await importOriginal<typeof import("~/lib/email-validation")>();
+  return original;
+});
 
-function normalizeSlug(slug: string): string {
-  return slug.toLowerCase().replace(/[^a-z0-9-]/g, "");
-}
+describe("SignupForm", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    // Mock navigator.onLine
+    Object.defineProperty(navigator, "onLine", {
+      value: true,
+      writable: true,
+      configurable: true,
+    });
+  });
 
-function validateSlug(slug: string): { valid: boolean; error: string | null } {
-  if (!slug) {
-    return { valid: false, error: "Subdomain ist erforderlich" };
-  }
-  if (slug.length < 3) {
-    return { valid: false, error: "Mindestens 3 Zeichen erforderlich" };
-  }
-  if (!/^[a-z0-9-]+$/.test(slug)) {
-    return {
-      valid: false,
-      error: "Nur Kleinbuchstaben, Zahlen und Bindestriche",
-    };
-  }
-  if (slug.startsWith("-") || slug.endsWith("-")) {
-    return {
-      valid: false,
-      error: "Darf nicht mit Bindestrich beginnen oder enden",
-    };
-  }
-  return { valid: true, error: null };
-}
+  afterEach(() => {
+    vi.useRealTimers();
+  });
 
-describe("Slug Generation", () => {
-  describe("generateSlugFromName", () => {
-    it("converts name to lowercase", () => {
-      expect(generateSlugFromName("OGS Musterstadt")).toBe("ogs-musterstadt");
+  // =============================================================================
+  // Rendering Tests
+  // =============================================================================
+
+  describe("initial rendering", () => {
+    it("renders personal information section", () => {
+      render(<SignupForm />);
+
+      expect(screen.getByText("Deine Daten")).toBeInTheDocument();
+      // Use getByLabelText with exact label text to avoid ambiguity
+      expect(screen.getByLabelText("Name")).toBeInTheDocument();
+      expect(screen.getByLabelText("E-Mail-Adresse")).toBeInTheDocument();
     });
 
-    it("replaces spaces with hyphens", () => {
-      expect(generateSlugFromName("my organization")).toBe("my-organization");
+    it("renders password fields", () => {
+      render(<SignupForm />);
+
+      expect(screen.getByLabelText("Passwort")).toBeInTheDocument();
+      expect(screen.getByLabelText("Passwort bestätigen")).toBeInTheDocument();
     });
 
-    it("removes special characters", () => {
-      expect(generateSlugFromName("OGS (Test)")).toBe("ogs-test");
+    it("renders password requirements section", () => {
+      render(<SignupForm />);
+
+      expect(screen.getByText("Passwortanforderungen")).toBeInTheDocument();
+      expect(screen.getByText("Mindestens 8 Zeichen")).toBeInTheDocument();
+      expect(screen.getByText("Ein Großbuchstabe")).toBeInTheDocument();
+      expect(screen.getByText("Ein Kleinbuchstabe")).toBeInTheDocument();
+      expect(screen.getByText("Eine Zahl")).toBeInTheDocument();
+      expect(screen.getByText("Ein Sonderzeichen")).toBeInTheDocument();
     });
 
-    it("removes leading and trailing hyphens", () => {
-      expect(generateSlugFromName("-leading")).toBe("leading");
-      expect(generateSlugFromName("trailing-")).toBe("trailing");
+    it("renders organization section", () => {
+      render(<SignupForm />);
+
+      expect(screen.getByText("Deine Organisation")).toBeInTheDocument();
+      expect(
+        screen.getByLabelText("Name der Organisation"),
+      ).toBeInTheDocument();
+      expect(screen.getByLabelText("Subdomain")).toBeInTheDocument();
+      expect(screen.getByText(".moto-app.de")).toBeInTheDocument();
     });
 
-    it("collapses multiple hyphens", () => {
-      expect(generateSlugFromName("test   multiple   spaces")).toBe(
-        "test-multiple-spaces",
+    it("renders submit button", () => {
+      render(<SignupForm />);
+
+      expect(
+        screen.getByRole("button", { name: /Organisation registrieren/ }),
+      ).toBeInTheDocument();
+    });
+
+    it("renders info about approval", () => {
+      render(<SignupForm />);
+
+      expect(
+        screen.getByText(/Nach der Registrierung wird deine Organisation/),
+      ).toBeInTheDocument();
+    });
+
+    it("renders link to login page", () => {
+      render(<SignupForm />);
+
+      expect(screen.getByText("Bereits ein Konto?")).toBeInTheDocument();
+      expect(screen.getByText("Zur Anmeldung")).toHaveAttribute("href", "/");
+    });
+  });
+
+  // =============================================================================
+  // Password Visibility Toggle Tests
+  // =============================================================================
+
+  describe("password visibility toggles", () => {
+    it("toggles password visibility when button is clicked", () => {
+      render(<SignupForm />);
+
+      const passwordInput = screen.getByLabelText("Passwort");
+      expect(passwordInput).toHaveAttribute("type", "password");
+
+      // Find the toggle button for password (first one)
+      const toggleButtons = screen.getAllByRole("button", {
+        name: /Passwort/,
+      });
+      const passwordToggle = toggleButtons[0]!;
+
+      fireEvent.click(passwordToggle);
+      expect(passwordInput).toHaveAttribute("type", "text");
+
+      fireEvent.click(passwordToggle);
+      expect(passwordInput).toHaveAttribute("type", "password");
+    });
+
+    it("toggles confirm password visibility when button is clicked", () => {
+      render(<SignupForm />);
+
+      const confirmPasswordInput = screen.getByLabelText("Passwort bestätigen");
+      expect(confirmPasswordInput).toHaveAttribute("type", "password");
+
+      // Find the toggle button for confirm password (second one)
+      const toggleButtons = screen.getAllByRole("button", {
+        name: /Passwort/,
+      });
+      const confirmToggle = toggleButtons[1]!;
+
+      fireEvent.click(confirmToggle);
+      expect(confirmPasswordInput).toHaveAttribute("type", "text");
+
+      fireEvent.click(confirmToggle);
+      expect(confirmPasswordInput).toHaveAttribute("type", "password");
+    });
+
+    it("shows correct aria-label for password toggle states", () => {
+      render(<SignupForm />);
+
+      const toggleButtons = screen.getAllByRole("button", {
+        name: /Passwort/,
+      });
+      const passwordToggle = toggleButtons[0]!;
+
+      expect(passwordToggle).toHaveAttribute("aria-label", "Passwort anzeigen");
+
+      fireEvent.click(passwordToggle);
+      expect(passwordToggle).toHaveAttribute(
+        "aria-label",
+        "Passwort verbergen",
       );
     });
+  });
 
-    it("handles German umlauts", () => {
-      // Umlauts are replaced with hyphens since they're not in a-z
-      // Note: In production, you might want to transliterate ü→ue, ö→oe, etc.
-      expect(generateSlugFromName("Müller")).toBe("m-ller");
+  // =============================================================================
+  // Password Requirements Indicator Tests
+  // =============================================================================
+
+  describe("password requirements indicators", () => {
+    it("shows all requirements as not met initially", () => {
+      render(<SignupForm />);
+
+      // All requirements should show empty checkmarks (not met)
+      const requirements = screen.getAllByText("", { selector: "span" });
+      const checkmarks = requirements.filter(
+        (el) => el.className.includes("rounded-full") && el.textContent === "",
+      );
+      expect(checkmarks.length).toBeGreaterThan(0);
     });
 
-    it("handles empty string", () => {
-      expect(generateSlugFromName("")).toBe("");
+    it("updates requirements as password is typed", () => {
+      render(<SignupForm />);
+
+      const passwordInput = screen.getByLabelText("Passwort");
+
+      // Type a password that meets length requirement only
+      fireEvent.change(passwordInput, { target: { value: "12345678" } });
+
+      // The "Mindestens 8 Zeichen" requirement should now show checkmark
+      const requirementElements = screen.getAllByText("✓");
+      expect(requirementElements.length).toBeGreaterThan(0);
+    });
+
+    it("shows all checkmarks when password meets all requirements", () => {
+      render(<SignupForm />);
+
+      const passwordInput = screen.getByLabelText("Passwort");
+
+      // Type a password that meets all requirements
+      fireEvent.change(passwordInput, { target: { value: "StrongP@ss1" } });
+
+      // All 5 requirements should show checkmarks
+      const checkmarks = screen.getAllByText("✓");
+      expect(checkmarks.length).toBe(5);
     });
   });
 
-  describe("normalizeSlug", () => {
-    it("converts to lowercase", () => {
-      expect(normalizeSlug("MySlug")).toBe("myslug");
+  // =============================================================================
+  // Slug Auto-Generation Tests
+  // =============================================================================
+
+  describe("slug auto-generation", () => {
+    it("auto-generates slug from organization name", () => {
+      render(<SignupForm />);
+
+      const orgNameInput = screen.getByLabelText("Name der Organisation");
+      const slugInput = screen.getByLabelText("Subdomain");
+
+      fireEvent.change(orgNameInput, { target: { value: "OGS Musterstadt" } });
+
+      expect(slugInput).toHaveValue("ogs-musterstadt");
     });
 
-    it("removes invalid characters", () => {
-      expect(normalizeSlug("my_slug!")).toBe("myslug");
+    it("handles German umlauts in slug generation", () => {
+      render(<SignupForm />);
+
+      const orgNameInput = screen.getByLabelText("Name der Organisation");
+      const slugInput = screen.getByLabelText("Subdomain");
+
+      fireEvent.change(orgNameInput, { target: { value: "OGS Müller" } });
+
+      expect(slugInput).toHaveValue("ogs-mueller");
     });
 
-    it("preserves hyphens", () => {
-      expect(normalizeSlug("my-slug")).toBe("my-slug");
-    });
-  });
+    it("stops auto-generating slug after manual edit", () => {
+      render(<SignupForm />);
 
-  describe("validateSlug", () => {
-    it("rejects empty slug", () => {
-      const result = validateSlug("");
-      expect(result.valid).toBe(false);
-      expect(result.error).toBe("Subdomain ist erforderlich");
-    });
+      const orgNameInput = screen.getByLabelText("Name der Organisation");
+      const slugInput = screen.getByLabelText("Subdomain");
 
-    it("rejects slug shorter than 3 characters", () => {
-      const result = validateSlug("ab");
-      expect(result.valid).toBe(false);
-      expect(result.error).toBe("Mindestens 3 Zeichen erforderlich");
-    });
+      // First, auto-generate
+      fireEvent.change(orgNameInput, { target: { value: "OGS Test" } });
+      expect(slugInput).toHaveValue("ogs-test");
 
-    it("rejects slug with invalid characters", () => {
-      const result = validateSlug("my_slug");
-      expect(result.valid).toBe(false);
-      expect(result.error).toBe("Nur Kleinbuchstaben, Zahlen und Bindestriche");
+      // Manually edit slug
+      fireEvent.change(slugInput, { target: { value: "custom-slug" } });
+      expect(slugInput).toHaveValue("custom-slug");
+
+      // Change org name again - slug should not change
+      fireEvent.change(orgNameInput, { target: { value: "OGS Different" } });
+      expect(slugInput).toHaveValue("custom-slug");
     });
 
-    it("rejects slug starting with hyphen", () => {
-      const result = validateSlug("-invalid");
-      expect(result.valid).toBe(false);
-    });
+    it("normalizes manually entered slug to lowercase", () => {
+      render(<SignupForm />);
 
-    it("rejects slug ending with hyphen", () => {
-      const result = validateSlug("invalid-");
-      expect(result.valid).toBe(false);
-    });
+      const slugInput = screen.getByLabelText("Subdomain");
 
-    it("accepts valid slug", () => {
-      const result = validateSlug("ogs-musterstadt");
-      expect(result.valid).toBe(true);
-      expect(result.error).toBeNull();
-    });
+      fireEvent.change(slugInput, { target: { value: "MY-SLUG" } });
 
-    it("accepts slug with numbers", () => {
-      const result = validateSlug("ogs123");
-      expect(result.valid).toBe(true);
-    });
-  });
-});
-
-// =============================================================================
-// Email Validation Logic Tests
-// =============================================================================
-
-function isValidEmail(email: string): boolean {
-  if (!email) return false;
-  // Check basic structure
-  const atIndex = email.indexOf("@");
-  if (atIndex < 1) return false;
-  const domainPart = email.substring(atIndex + 1);
-  if (!domainPart.includes(".")) return false;
-  // Check for common issues
-  if (email.includes("..")) return false;
-  if (domainPart.startsWith(".") || domainPart.endsWith(".")) return false;
-  return true;
-}
-
-describe("Email Validation", () => {
-  it("rejects empty email", () => {
-    expect(isValidEmail("")).toBe(false);
-  });
-
-  it("rejects email without @", () => {
-    expect(isValidEmail("notanemail")).toBe(false);
-  });
-
-  it("rejects email without domain", () => {
-    expect(isValidEmail("user@")).toBe(false);
-  });
-
-  it("rejects email without TLD", () => {
-    expect(isValidEmail("user@domain")).toBe(false);
-  });
-
-  it("rejects email with @ at start", () => {
-    expect(isValidEmail("@domain.com")).toBe(false);
-  });
-
-  it("rejects email with consecutive dots", () => {
-    expect(isValidEmail("user@domain..com")).toBe(false);
-  });
-
-  it("accepts valid email", () => {
-    expect(isValidEmail("user@domain.com")).toBe(true);
-    expect(isValidEmail("teacher@school.de")).toBe(true);
-    expect(isValidEmail("admin@ogs-musterstadt.moto-app.de")).toBe(true);
-  });
-
-  it("accepts email with subdomain", () => {
-    expect(isValidEmail("user@mail.domain.com")).toBe(true);
-  });
-
-  it("accepts email with plus sign", () => {
-    expect(isValidEmail("user+tag@domain.com")).toBe(true);
-  });
-});
-
-// =============================================================================
-// Form Field Validation Logic Tests
-// =============================================================================
-
-describe("Form Field Validation", () => {
-  describe("name validation", () => {
-    function validateName(name: string): {
-      valid: boolean;
-      error: string | null;
-    } {
-      const trimmed = name.trim();
-      if (!trimmed) {
-        return { valid: false, error: "Name ist erforderlich" };
-      }
-      if (trimmed.length < 2) {
-        return { valid: false, error: "Name muss mindestens 2 Zeichen haben" };
-      }
-      return { valid: true, error: null };
-    }
-
-    it("rejects empty name", () => {
-      expect(validateName("").valid).toBe(false);
-      expect(validateName("   ").valid).toBe(false);
-    });
-
-    it("rejects name shorter than 2 characters", () => {
-      expect(validateName("A").valid).toBe(false);
-    });
-
-    it("accepts valid name", () => {
-      expect(validateName("Max Mustermann").valid).toBe(true);
-      expect(validateName("Jo").valid).toBe(true);
+      expect(slugInput).toHaveValue("my-slug");
     });
   });
 
-  describe("password confirmation validation", () => {
-    function validatePasswordMatch(
-      password: string,
-      confirmPassword: string,
-    ): { valid: boolean; error: string | null } {
-      if (password !== confirmPassword) {
-        return { valid: false, error: "Passwörter stimmen nicht überein" };
-      }
-      return { valid: true, error: null };
-    }
+  // =============================================================================
+  // Slug Validation Display Tests
+  // =============================================================================
 
-    it("fails when passwords do not match", () => {
-      const result = validatePasswordMatch("password1", "password2");
-      expect(result.valid).toBe(false);
-      expect(result.error).toBe("Passwörter stimmen nicht überein");
+  describe("slug validation display", () => {
+    it("shows error message for slug too short", () => {
+      render(<SignupForm />);
+
+      const slugInput = screen.getByLabelText("Subdomain");
+
+      fireEvent.change(slugInput, { target: { value: "ab" } });
+
+      expect(
+        screen.getByText("Subdomain muss mindestens 3 Zeichen haben"),
+      ).toBeInTheDocument();
     });
 
-    it("passes when passwords match", () => {
-      const result = validatePasswordMatch("StrongP@ss1", "StrongP@ss1");
-      expect(result.valid).toBe(true);
-      expect(result.error).toBeNull();
+    it("shows success message for valid slug", () => {
+      render(<SignupForm />);
+
+      const slugInput = screen.getByLabelText("Subdomain");
+
+      fireEvent.change(slugInput, { target: { value: "ogs-musterstadt" } });
+
+      expect(
+        screen.getByText(/Deine Organisation wird unter/),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText("ogs-musterstadt.moto-app.de"),
+      ).toBeInTheDocument();
     });
 
-    it("is case-sensitive", () => {
-      const result = validatePasswordMatch("Password", "password");
-      expect(result.valid).toBe(false);
+    it("shows error for slug starting with hyphen", () => {
+      render(<SignupForm />);
+
+      const slugInput = screen.getByLabelText("Subdomain");
+
+      fireEvent.change(slugInput, { target: { value: "-invalid" } });
+
+      expect(
+        screen.getByText(/Subdomain darf nicht mit einem Bindestrich beginnen/),
+      ).toBeInTheDocument();
+    });
+
+    it("shows error for reserved slugs", () => {
+      render(<SignupForm />);
+
+      const slugInput = screen.getByLabelText("Subdomain");
+
+      fireEvent.change(slugInput, { target: { value: "admin" } });
+
+      expect(
+        screen.getByText(
+          "Diese Subdomain ist reserviert und kann nicht verwendet werden",
+        ),
+      ).toBeInTheDocument();
+    });
+  });
+
+  // =============================================================================
+  // Form Validation Tests
+  // =============================================================================
+
+  describe("form validation", () => {
+    it("shows error when name is empty", async () => {
+      render(<SignupForm />);
+
+      const submitButton = screen.getByRole("button", {
+        name: /Organisation registrieren/,
+      });
+      fireEvent.click(submitButton);
+
+      expect(
+        screen.getByText("Bitte gib deinen Namen an."),
+      ).toBeInTheDocument();
+    });
+
+    it("shows error for invalid email", async () => {
+      render(<SignupForm />);
+
+      const nameInput = screen.getByLabelText("Name");
+      fireEvent.change(nameInput, { target: { value: "Test User" } });
+
+      const emailInput = screen.getByLabelText("E-Mail-Adresse");
+      fireEvent.change(emailInput, { target: { value: "invalid-email" } });
+
+      const submitButton = screen.getByRole("button", {
+        name: /Organisation registrieren/,
+      });
+      fireEvent.click(submitButton);
+
+      expect(
+        screen.getByText("Bitte gib eine gültige E-Mail-Adresse an."),
+      ).toBeInTheDocument();
+    });
+
+    it("shows error when password does not meet requirements", async () => {
+      render(<SignupForm />);
+
+      const nameInput = screen.getByLabelText("Name");
+      fireEvent.change(nameInput, { target: { value: "Test User" } });
+
+      const emailInput = screen.getByLabelText("E-Mail-Adresse");
+      fireEvent.change(emailInput, { target: { value: "test@example.com" } });
+
+      const passwordInput = screen.getByLabelText("Passwort");
+      fireEvent.change(passwordInput, { target: { value: "weak" } });
+
+      const submitButton = screen.getByRole("button", {
+        name: /Organisation registrieren/,
+      });
+      fireEvent.click(submitButton);
+
+      expect(
+        screen.getByText(
+          "Das Passwort erfüllt noch nicht alle Sicherheitsanforderungen.",
+        ),
+      ).toBeInTheDocument();
+    });
+
+    it("shows error when passwords do not match", async () => {
+      render(<SignupForm />);
+
+      const nameInput = screen.getByLabelText("Name");
+      fireEvent.change(nameInput, { target: { value: "Test User" } });
+
+      const emailInput = screen.getByLabelText("E-Mail-Adresse");
+      fireEvent.change(emailInput, { target: { value: "test@example.com" } });
+
+      const passwordInput = screen.getByLabelText("Passwort");
+      fireEvent.change(passwordInput, { target: { value: "StrongP@ss1" } });
+
+      const confirmPasswordInput = screen.getByLabelText("Passwort bestätigen");
+      fireEvent.change(confirmPasswordInput, {
+        target: { value: "DifferentP@ss1" },
+      });
+
+      const submitButton = screen.getByRole("button", {
+        name: /Organisation registrieren/,
+      });
+      fireEvent.click(submitButton);
+
+      expect(
+        screen.getByText("Die Passwörter stimmen nicht überein."),
+      ).toBeInTheDocument();
+    });
+
+    it("shows error when organization name is empty", async () => {
+      render(<SignupForm />);
+
+      const nameInput = screen.getByLabelText("Name");
+      fireEvent.change(nameInput, { target: { value: "Test User" } });
+
+      const emailInput = screen.getByLabelText("E-Mail-Adresse");
+      fireEvent.change(emailInput, { target: { value: "test@example.com" } });
+
+      const passwordInput = screen.getByLabelText("Passwort");
+      fireEvent.change(passwordInput, { target: { value: "StrongP@ss1" } });
+
+      const confirmPasswordInput = screen.getByLabelText("Passwort bestätigen");
+      fireEvent.change(confirmPasswordInput, {
+        target: { value: "StrongP@ss1" },
+      });
+
+      const submitButton = screen.getByRole("button", {
+        name: /Organisation registrieren/,
+      });
+      fireEvent.click(submitButton);
+
+      expect(
+        screen.getByText("Bitte gib den Namen deiner Organisation an."),
+      ).toBeInTheDocument();
+    });
+
+    it("shows error for invalid slug", async () => {
+      render(<SignupForm />);
+
+      // Fill in all valid fields
+      const nameInput = screen.getByLabelText("Name");
+      fireEvent.change(nameInput, { target: { value: "Test User" } });
+
+      const emailInput = screen.getByLabelText("E-Mail-Adresse");
+      fireEvent.change(emailInput, { target: { value: "test@example.com" } });
+
+      const passwordInput = screen.getByLabelText("Passwort");
+      fireEvent.change(passwordInput, { target: { value: "StrongP@ss1" } });
+
+      const confirmPasswordInput = screen.getByLabelText("Passwort bestätigen");
+      fireEvent.change(confirmPasswordInput, {
+        target: { value: "StrongP@ss1" },
+      });
+
+      const orgNameInput = screen.getByLabelText("Name der Organisation");
+      fireEvent.change(orgNameInput, { target: { value: "Test Org" } });
+
+      // Set invalid slug manually
+      const slugInput = screen.getByLabelText("Subdomain");
+      fireEvent.change(slugInput, { target: { value: "ab" } });
+
+      const submitButton = screen.getByRole("button", {
+        name: /Organisation registrieren/,
+      });
+      fireEvent.click(submitButton);
+
+      // Both the inline validation and form-level error show the same message
+      const errorMessages = screen.getAllByText(
+        "Subdomain muss mindestens 3 Zeichen haben",
+      );
+      expect(errorMessages.length).toBeGreaterThanOrEqual(1);
+    });
+  });
+
+  // =============================================================================
+  // Form Submission Tests
+  // =============================================================================
+
+  describe("form submission", () => {
+    const fillValidForm = () => {
+      const nameInput = screen.getByLabelText("Name");
+      fireEvent.change(nameInput, { target: { value: "Test User" } });
+
+      const emailInput = screen.getByLabelText("E-Mail-Adresse");
+      fireEvent.change(emailInput, { target: { value: "test@example.com" } });
+
+      const passwordInput = screen.getByLabelText("Passwort");
+      fireEvent.change(passwordInput, { target: { value: "StrongP@ss1" } });
+
+      const confirmPasswordInput = screen.getByLabelText("Passwort bestätigen");
+      fireEvent.change(confirmPasswordInput, {
+        target: { value: "StrongP@ss1" },
+      });
+
+      const orgNameInput = screen.getByLabelText("Name der Organisation");
+      fireEvent.change(orgNameInput, { target: { value: "OGS Test" } });
+
+      // Slug is auto-generated to "ogs-test"
+    };
+
+    it("submits form successfully and shows success toast", async () => {
+      (signupWithOrganization as Mock).mockResolvedValue({
+        success: true,
+        user: { id: "user-123", email: "test@example.com", name: "Test User" },
+        organization: { id: "org-123", name: "OGS Test", slug: "ogs-test" },
+      });
+
+      render(<SignupForm />);
+      fillValidForm();
+
+      const submitButton = screen.getByRole("button", {
+        name: /Organisation registrieren/,
+      });
+      fireEvent.click(submitButton);
+
+      await waitFor(() => {
+        expect(signupWithOrganization).toHaveBeenCalledWith({
+          name: "Test User",
+          email: "test@example.com",
+          password: "StrongP@ss1",
+          orgName: "OGS Test",
+          orgSlug: "ogs-test",
+        });
+      });
+
+      await waitFor(() => {
+        expect(mockToastSuccess).toHaveBeenCalledWith(
+          "Registrierung erfolgreich! Deine Organisation wird geprüft.",
+        );
+      });
+    });
+
+    it("shows loading state during submission", async () => {
+      let resolvePromise: ((value: unknown) => void) | undefined;
+      (signupWithOrganization as Mock).mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            resolvePromise = resolve;
+          }),
+      );
+
+      render(<SignupForm />);
+      fillValidForm();
+
+      const submitButton = screen.getByRole("button", {
+        name: /Organisation registrieren/,
+      });
+      fireEvent.click(submitButton);
+
+      await waitFor(() => {
+        expect(
+          screen.getByRole("button", { name: /Wird registriert.../ }),
+        ).toBeInTheDocument();
+      });
+
+      // Inputs should be disabled during submission
+      expect(screen.getByLabelText("Name")).toBeDisabled();
+      expect(screen.getByLabelText("E-Mail-Adresse")).toBeDisabled();
+
+      // Cleanup: resolve the promise
+      resolvePromise?.({ success: true });
+    });
+
+    it("redirects to pending page after successful submission", async () => {
+      vi.useFakeTimers();
+      (signupWithOrganization as Mock).mockResolvedValue({ success: true });
+
+      render(<SignupForm />);
+      fillValidForm();
+
+      const submitButton = screen.getByRole("button", {
+        name: /Organisation registrieren/,
+      });
+      fireEvent.click(submitButton);
+
+      // Wait for the promise to resolve
+      await vi.runAllTimersAsync();
+
+      expect(mockToastSuccess).toHaveBeenCalled();
+
+      // Fast-forward timers to trigger redirect
+      await vi.advanceTimersByTimeAsync(1500);
+
+      expect(mockPush).toHaveBeenCalledWith("/signup/pending");
+      expect(mockRefresh).toHaveBeenCalled();
+    });
+  });
+
+  // =============================================================================
+  // Error Handling Tests
+  // =============================================================================
+
+  describe("error handling", () => {
+    const fillValidForm = () => {
+      const nameInput = screen.getByLabelText("Name");
+      fireEvent.change(nameInput, { target: { value: "Test User" } });
+
+      const emailInput = screen.getByLabelText("E-Mail-Adresse");
+      fireEvent.change(emailInput, { target: { value: "test@example.com" } });
+
+      const passwordInput = screen.getByLabelText("Passwort");
+      fireEvent.change(passwordInput, { target: { value: "StrongP@ss1" } });
+
+      const confirmPasswordInput = screen.getByLabelText("Passwort bestätigen");
+      fireEvent.change(confirmPasswordInput, {
+        target: { value: "StrongP@ss1" },
+      });
+
+      const orgNameInput = screen.getByLabelText("Name der Organisation");
+      fireEvent.change(orgNameInput, { target: { value: "OGS Test" } });
+    };
+
+    it("shows error for USER_ALREADY_EXISTS", async () => {
+      (signupWithOrganization as Mock).mockRejectedValue(
+        new SignupWithOrgException(
+          "Email already registered",
+          "USER_ALREADY_EXISTS",
+        ),
+      );
+
+      render(<SignupForm />);
+      fillValidForm();
+
+      const submitButton = screen.getByRole("button", {
+        name: /Organisation registrieren/,
+      });
+      fireEvent.click(submitButton);
+
+      await waitFor(() => {
+        expect(
+          screen.getByText(
+            "Diese E-Mail-Adresse ist bereits registriert. Bitte melde dich an oder verwende eine andere E-Mail.",
+          ),
+        ).toBeInTheDocument();
+      });
+    });
+
+    it("shows error for SLUG_ALREADY_EXISTS", async () => {
+      (signupWithOrganization as Mock).mockRejectedValue(
+        new SignupWithOrgException("Slug taken", "SLUG_ALREADY_EXISTS"),
+      );
+
+      render(<SignupForm />);
+      fillValidForm();
+
+      const submitButton = screen.getByRole("button", {
+        name: /Organisation registrieren/,
+      });
+      fireEvent.click(submitButton);
+
+      await waitFor(() => {
+        expect(
+          screen.getByText(
+            "Diese Subdomain ist bereits vergeben. Bitte wähle eine andere.",
+          ),
+        ).toBeInTheDocument();
+      });
+    });
+
+    it("shows generic SignupWithOrgException message", async () => {
+      (signupWithOrganization as Mock).mockRejectedValue(
+        new SignupWithOrgException("Custom error message", "UNKNOWN_ERROR"),
+      );
+
+      render(<SignupForm />);
+      fillValidForm();
+
+      const submitButton = screen.getByRole("button", {
+        name: /Organisation registrieren/,
+      });
+      fireEvent.click(submitButton);
+
+      await waitFor(() => {
+        expect(screen.getByText("Custom error message")).toBeInTheDocument();
+      });
+    });
+
+    it("shows generic Error message", async () => {
+      (signupWithOrganization as Mock).mockRejectedValue(
+        new Error("Network error"),
+      );
+
+      render(<SignupForm />);
+      fillValidForm();
+
+      const submitButton = screen.getByRole("button", {
+        name: /Organisation registrieren/,
+      });
+      fireEvent.click(submitButton);
+
+      await waitFor(() => {
+        expect(screen.getByText("Network error")).toBeInTheDocument();
+      });
+    });
+
+    it("shows fallback error for non-Error throws", async () => {
+      (signupWithOrganization as Mock).mockRejectedValue("String error");
+
+      render(<SignupForm />);
+      fillValidForm();
+
+      const submitButton = screen.getByRole("button", {
+        name: /Organisation registrieren/,
+      });
+      fireEvent.click(submitButton);
+
+      await waitFor(() => {
+        expect(
+          screen.getByText("Bei der Registrierung ist ein Fehler aufgetreten."),
+        ).toBeInTheDocument();
+      });
+    });
+
+    it("shows offline error when navigator is offline", async () => {
+      Object.defineProperty(navigator, "onLine", {
+        value: false,
+        writable: true,
+        configurable: true,
+      });
+
+      (signupWithOrganization as Mock).mockRejectedValue(
+        new Error("Network error"),
+      );
+
+      render(<SignupForm />);
+      fillValidForm();
+
+      const submitButton = screen.getByRole("button", {
+        name: /Organisation registrieren/,
+      });
+      fireEvent.click(submitButton);
+
+      await waitFor(() => {
+        expect(
+          screen.getByText(
+            "Keine Netzwerkverbindung. Bitte überprüfe deine Internetverbindung und versuche es erneut.",
+          ),
+        ).toBeInTheDocument();
+      });
+    });
+
+    it("clears error when form is resubmitted", async () => {
+      (signupWithOrganization as Mock)
+        .mockRejectedValueOnce(new Error("First error"))
+        .mockResolvedValueOnce({ success: true });
+
+      render(<SignupForm />);
+      fillValidForm();
+
+      const submitButton = screen.getByRole("button", {
+        name: /Organisation registrieren/,
+      });
+
+      // First submission - error
+      fireEvent.click(submitButton);
+      await waitFor(() => {
+        expect(screen.getByText("First error")).toBeInTheDocument();
+      });
+
+      // Wait for isSubmitting to become false
+      await waitFor(() => {
+        expect(
+          screen.getByRole("button", { name: /Organisation registrieren/ }),
+        ).not.toBeDisabled();
+      });
+
+      // Second submission - should clear error
+      fireEvent.click(submitButton);
+      await waitFor(() => {
+        expect(screen.queryByText("First error")).not.toBeInTheDocument();
+      });
+    });
+  });
+
+  // =============================================================================
+  // Edge Cases Tests
+  // =============================================================================
+
+  describe("edge cases", () => {
+    it("trims whitespace from input fields before submission", async () => {
+      (signupWithOrganization as Mock).mockResolvedValue({ success: true });
+
+      render(<SignupForm />);
+
+      const nameInput = screen.getByLabelText("Name");
+      fireEvent.change(nameInput, { target: { value: "  Test User  " } });
+
+      const emailInput = screen.getByLabelText("E-Mail-Adresse");
+      fireEvent.change(emailInput, {
+        target: { value: "  test@example.com  " },
+      });
+
+      const passwordInput = screen.getByLabelText("Passwort");
+      fireEvent.change(passwordInput, { target: { value: "StrongP@ss1" } });
+
+      const confirmPasswordInput = screen.getByLabelText("Passwort bestätigen");
+      fireEvent.change(confirmPasswordInput, {
+        target: { value: "StrongP@ss1" },
+      });
+
+      const orgNameInput = screen.getByLabelText("Name der Organisation");
+      fireEvent.change(orgNameInput, { target: { value: "  OGS Test  " } });
+
+      const submitButton = screen.getByRole("button", {
+        name: /Organisation registrieren/,
+      });
+      fireEvent.click(submitButton);
+
+      await waitFor(() => {
+        expect(signupWithOrganization).toHaveBeenCalledWith({
+          name: "Test User",
+          email: "test@example.com",
+          password: "StrongP@ss1",
+          orgName: "OGS Test",
+          orgSlug: "ogs-test",
+        });
+      });
+    });
+
+    it("handles name with only whitespace as invalid", async () => {
+      render(<SignupForm />);
+
+      const nameInput = screen.getByLabelText("Name");
+      fireEvent.change(nameInput, { target: { value: "   " } });
+
+      const submitButton = screen.getByRole("button", {
+        name: /Organisation registrieren/,
+      });
+      fireEvent.click(submitButton);
+
+      expect(
+        screen.getByText("Bitte gib deinen Namen an."),
+      ).toBeInTheDocument();
+    });
+
+    it("handles org name with only whitespace as invalid", async () => {
+      render(<SignupForm />);
+
+      const nameInput = screen.getByLabelText("Name");
+      fireEvent.change(nameInput, { target: { value: "Test User" } });
+
+      const emailInput = screen.getByLabelText("E-Mail-Adresse");
+      fireEvent.change(emailInput, { target: { value: "test@example.com" } });
+
+      const passwordInput = screen.getByLabelText("Passwort");
+      fireEvent.change(passwordInput, { target: { value: "StrongP@ss1" } });
+
+      const confirmPasswordInput = screen.getByLabelText("Passwort bestätigen");
+      fireEvent.change(confirmPasswordInput, {
+        target: { value: "StrongP@ss1" },
+      });
+
+      const orgNameInput = screen.getByLabelText("Name der Organisation");
+      fireEvent.change(orgNameInput, { target: { value: "   " } });
+
+      const submitButton = screen.getByRole("button", {
+        name: /Organisation registrieren/,
+      });
+      fireEvent.click(submitButton);
+
+      expect(
+        screen.getByText("Bitte gib den Namen deiner Organisation an."),
+      ).toBeInTheDocument();
+    });
+
+    it("shows error for slug ending with hyphen", () => {
+      render(<SignupForm />);
+
+      const slugInput = screen.getByLabelText("Subdomain");
+
+      fireEvent.change(slugInput, { target: { value: "invalid-" } });
+
+      expect(
+        screen.getByText(/Subdomain darf nicht mit einem Bindestrich enden/),
+      ).toBeInTheDocument();
+    });
+
+    it("shows error for consecutive hyphens in slug", () => {
+      render(<SignupForm />);
+
+      const slugInput = screen.getByLabelText("Subdomain");
+
+      fireEvent.change(slugInput, { target: { value: "test--slug" } });
+
+      expect(
+        screen.getByText(
+          /Subdomain darf keine aufeinanderfolgenden Bindestriche enthalten/,
+        ),
+      ).toBeInTheDocument();
+    });
+
+    it("shows error for slug too long", () => {
+      render(<SignupForm />);
+
+      const slugInput = screen.getByLabelText("Subdomain");
+
+      const longSlug =
+        "this-is-a-very-long-slug-that-exceeds-the-maximum-length-allowed";
+      fireEvent.change(slugInput, { target: { value: longSlug } });
+
+      expect(
+        screen.getByText(/Subdomain darf maximal 30 Zeichen haben/),
+      ).toBeInTheDocument();
+    });
+
+    it("normalizes slug when submitted", async () => {
+      (signupWithOrganization as Mock).mockResolvedValue({ success: true });
+
+      render(<SignupForm />);
+
+      const nameInput = screen.getByLabelText("Name");
+      fireEvent.change(nameInput, { target: { value: "Test User" } });
+
+      const emailInput = screen.getByLabelText("E-Mail-Adresse");
+      fireEvent.change(emailInput, { target: { value: "test@example.com" } });
+
+      const passwordInput = screen.getByLabelText("Passwort");
+      fireEvent.change(passwordInput, { target: { value: "StrongP@ss1" } });
+
+      const confirmPasswordInput = screen.getByLabelText("Passwort bestätigen");
+      fireEvent.change(confirmPasswordInput, {
+        target: { value: "StrongP@ss1" },
+      });
+
+      const orgNameInput = screen.getByLabelText("Name der Organisation");
+      fireEvent.change(orgNameInput, { target: { value: "OGS Test" } });
+
+      // Slug is auto-generated as lowercase
+      const submitButton = screen.getByRole("button", {
+        name: /Organisation registrieren/,
+      });
+      fireEvent.click(submitButton);
+
+      await waitFor(() => {
+        expect(signupWithOrganization).toHaveBeenCalledWith(
+          expect.objectContaining({
+            orgSlug: "ogs-test",
+          }),
+        );
+      });
     });
   });
 });
