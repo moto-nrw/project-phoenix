@@ -155,7 +155,7 @@ async function handleCreateOrganization(
     const slug = body.slug?.trim() || body.name.trim()
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-|-$/g, "");
+      .replace(/(^-)|(-$)/g, "");
 
     // Check if slug already exists
     const existingOrg = await pool.query(
