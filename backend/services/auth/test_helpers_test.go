@@ -14,9 +14,11 @@ import (
 
 // testRateLimitRepo provides an in-memory implementation of the password reset rate limiter.
 type testRateLimitRepo struct {
-	mu          sync.Mutex
-	attempts    int
-	windowStart time.Time
+	mu           sync.Mutex
+	attempts     int
+	windowStart  time.Time
+	checkErr     error
+	incrementErr error
 }
 
 func newTestRateLimitRepo() *testRateLimitRepo {
@@ -26,6 +28,10 @@ func newTestRateLimitRepo() *testRateLimitRepo {
 func (r *testRateLimitRepo) CheckRateLimit(_ context.Context, _ string) (*authModel.RateLimitState, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+
+	if r.checkErr != nil {
+		return nil, r.checkErr
+	}
 
 	retryAt := r.windowStart
 	if retryAt.IsZero() {
@@ -41,6 +47,10 @@ func (r *testRateLimitRepo) CheckRateLimit(_ context.Context, _ string) (*authMo
 func (r *testRateLimitRepo) IncrementAttempts(_ context.Context, _ string) (*authModel.RateLimitState, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+
+	if r.incrementErr != nil {
+		return nil, r.incrementErr
+	}
 
 	now := time.Now()
 	if r.windowStart.IsZero() || now.Sub(r.windowStart) > time.Hour {
@@ -65,6 +75,18 @@ func (r *testRateLimitRepo) setWindow(start time.Time, attempts int) {
 	defer r.mu.Unlock()
 	r.windowStart = start
 	r.attempts = attempts
+}
+
+func (r *testRateLimitRepo) setCheckError(err error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.checkErr = err
+}
+
+func (r *testRateLimitRepo) setIncrementError(err error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.incrementErr = err
 }
 
 func (r *testRateLimitRepo) Attempts() int {
@@ -238,7 +260,8 @@ type stubAccountRepository struct {
 	byID     map[int64]*authModel.Account
 	nextID   int64
 
-	failCreate bool
+	failCreate        bool
+	updatePasswordErr error
 }
 
 func newStubAccountRepository(initial ...*authModel.Account) *stubAccountRepository {
@@ -298,11 +321,20 @@ func (r *stubAccountRepository) FindByID(_ context.Context, id interface{}) (*au
 func (r *stubAccountRepository) UpdatePassword(_ context.Context, id int64, hash string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.updatePasswordErr != nil {
+		return r.updatePasswordErr
+	}
 	if acc, ok := r.byID[id]; ok {
 		acc.PasswordHash = &hash
 		return nil
 	}
 	return sql.ErrNoRows
+}
+
+func (r *stubAccountRepository) setUpdatePasswordError(err error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.updatePasswordErr = err
 }
 
 // noopPasswordResetTokenRepository provides default panic implementations.
@@ -364,10 +396,14 @@ func (noopPasswordResetTokenRepository) FindTokensWithAccount(context.Context, m
 type stubPasswordResetTokenRepository struct {
 	noopPasswordResetTokenRepository
 
-	mu     sync.Mutex
-	tokens map[string]*authModel.PasswordResetToken
-	byID   map[int64]*authModel.PasswordResetToken
-	nextID int64
+	mu                sync.Mutex
+	tokens            map[string]*authModel.PasswordResetToken
+	byID              map[int64]*authModel.PasswordResetToken
+	nextID            int64
+	createErr         error
+	invalidateErr     error
+	markAsUsedErr     error
+	updateDeliveryErr error
 }
 
 func newStubPasswordResetTokenRepository() *stubPasswordResetTokenRepository {
@@ -380,6 +416,9 @@ func newStubPasswordResetTokenRepository() *stubPasswordResetTokenRepository {
 func (r *stubPasswordResetTokenRepository) Create(_ context.Context, token *authModel.PasswordResetToken) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.createErr != nil {
+		return r.createErr
+	}
 	if token.ID == 0 {
 		r.nextID++
 		token.ID = r.nextID
@@ -418,6 +457,9 @@ func (r *stubPasswordResetTokenRepository) FindValidByToken(_ context.Context, t
 func (r *stubPasswordResetTokenRepository) MarkAsUsed(_ context.Context, id int64) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.markAsUsedErr != nil {
+		return r.markAsUsedErr
+	}
 	if token, ok := r.byID[id]; ok {
 		token.Used = true
 		return nil
@@ -428,6 +470,9 @@ func (r *stubPasswordResetTokenRepository) MarkAsUsed(_ context.Context, id int6
 func (r *stubPasswordResetTokenRepository) UpdateDeliveryResult(_ context.Context, tokenID int64, sentAt *time.Time, emailError *string, retryCount int) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.updateDeliveryErr != nil {
+		return r.updateDeliveryErr
+	}
 	token, exists := r.byID[tokenID]
 	if !exists {
 		return sql.ErrNoRows
@@ -449,6 +494,9 @@ func (r *stubPasswordResetTokenRepository) UpdateDeliveryResult(_ context.Contex
 func (r *stubPasswordResetTokenRepository) InvalidateTokensByAccountID(_ context.Context, accountID int64) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.invalidateErr != nil {
+		return r.invalidateErr
+	}
 	for key, token := range r.tokens {
 		if token.AccountID == accountID {
 			token.Used = true
@@ -456,6 +504,30 @@ func (r *stubPasswordResetTokenRepository) InvalidateTokensByAccountID(_ context
 		}
 	}
 	return nil
+}
+
+func (r *stubPasswordResetTokenRepository) setCreateError(err error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.createErr = err
+}
+
+func (r *stubPasswordResetTokenRepository) setInvalidateError(err error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.invalidateErr = err
+}
+
+func (r *stubPasswordResetTokenRepository) setMarkAsUsedError(err error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.markAsUsedErr = err
+}
+
+func (r *stubPasswordResetTokenRepository) setUpdateDeliveryError(err error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.updateDeliveryErr = err
 }
 
 // noopRoleRepository provides default panic implementations.
