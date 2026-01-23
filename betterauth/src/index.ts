@@ -3,7 +3,7 @@ import { randomBytes } from "node:crypto";
 import { toNodeHandler } from "better-auth/node";
 import { Pool } from "pg";
 import { scrypt } from "@noble/hashes/scrypt";
-import { bytesToHex, hexToBytes } from "@noble/hashes/utils";
+import { bytesToHex } from "@noble/hashes/utils";
 import { auth } from "./auth.js";
 import {
   sendOrgApprovedEmail,
@@ -55,25 +55,6 @@ function hashPassword(password: string): string {
   const hash = scrypt(password, salt, { N, r, p, dkLen });
 
   return `scrypt:${N}:${r}:${p}:${bytesToHex(salt)}:${bytesToHex(hash)}`;
-}
-
-/**
- * Verify a password against a scrypt hash.
- */
-function verifyPassword(password: string, storedHash: string): boolean {
-  const parts = storedHash.split(":");
-  if (parts.length !== 6 || parts[0] !== "scrypt") {
-    return false;
-  }
-
-  const N = parseInt(parts[1] ?? "0", 10);
-  const r = parseInt(parts[2] ?? "0", 10);
-  const p = parseInt(parts[3] ?? "0", 10);
-  const salt = hexToBytes(parts[4] ?? "");
-  const expectedHash = parts[5] ?? "";
-
-  const hash = scrypt(password, salt, { N, r, p, dkLen: 64 });
-  return bytesToHex(hash) === expectedHash;
 }
 
 // Helper to verify admin access
