@@ -11,7 +11,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -402,48 +401,6 @@ func newTestResource(mock *mockAuthService) *authAPI.Resource {
 
 func newAuthError(op string, err error) error {
 	return &authService.AuthError{Op: op, Err: err}
-}
-
-func postJSON(handler http.HandlerFunc, body interface{}) *httptest.ResponseRecorder {
-	jsonBody, _ := json.Marshal(body)
-	req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(jsonBody))
-	req.Header.Set("Content-Type", "application/json")
-	rr := httptest.NewRecorder()
-	handler.ServeHTTP(rr, req)
-	return rr
-}
-
-func putJSON(handler http.HandlerFunc, body interface{}) *httptest.ResponseRecorder {
-	jsonBody, _ := json.Marshal(body)
-	req := httptest.NewRequest(http.MethodPut, "/", bytes.NewReader(jsonBody))
-	req.Header.Set("Content-Type", "application/json")
-	rr := httptest.NewRecorder()
-	handler.ServeHTTP(rr, req)
-	return rr
-}
-
-func getRequest(handler http.HandlerFunc) *httptest.ResponseRecorder {
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
-	rr := httptest.NewRecorder()
-	handler.ServeHTTP(rr, req)
-	return rr
-}
-
-func deleteRequest(handler http.HandlerFunc) *httptest.ResponseRecorder {
-	req := httptest.NewRequest(http.MethodDelete, "/", nil)
-	rr := httptest.NewRecorder()
-	handler.ServeHTTP(rr, req)
-	return rr
-}
-
-// withChiURLParam adds a chi URL parameter to the request context
-func withChiURLParam(handler http.HandlerFunc, paramName, paramValue string) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		rctx := chi.NewRouteContext()
-		rctx.URLParams.Add(paramName, paramValue)
-		r = r.WithContext(context.WithValue(r.Context(), chi.RouteCtxKey, rctx))
-		handler.ServeHTTP(w, r)
-	}
 }
 
 // withJWTClaims adds JWT claims to the request context

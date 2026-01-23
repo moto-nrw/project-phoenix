@@ -43,12 +43,6 @@ func (m *testMailer) Send(msg email.Message) error {
 	return nil
 }
 
-func (m *testMailer) getMessages() []email.Message {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	return m.messages
-}
-
 // =============================================================================
 // Test Helpers
 // =============================================================================

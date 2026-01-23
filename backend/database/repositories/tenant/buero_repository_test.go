@@ -328,7 +328,7 @@ func TestBueroRepository_FindByTraegerID(t *testing.T) {
 		require.GreaterOrEqual(t, len(bueros), 2)
 
 		// Find the positions of our test bueros by name (since Create doesn't return ID)
-		var alphaIdx, zebraIdx int = -1, -1
+		var alphaIdx, zebraIdx = -1, -1
 		for i, b := range bueros {
 			if b.Name == alphaName {
 				alphaIdx = i
@@ -544,7 +544,7 @@ func TestBueroRepository_List(t *testing.T) {
 		require.NoError(t, err)
 
 		// Find positions by name (since Create doesn't return ID)
-		var alphaIdx, zebraIdx int = -1, -1
+		var alphaIdx, zebraIdx = -1, -1
 		for i, b := range bueros {
 			if b.Name == alphaName {
 				alphaIdx = i
