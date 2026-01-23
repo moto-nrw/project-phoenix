@@ -166,7 +166,7 @@ func (p *CSVParser) mapStudentRow(values []string) (importModels.StudentImportRo
 
 // parseGuardianPhoneNumbers extracts phone numbers from CSV columns into PhoneImportData array
 // Supported columns: Erz{N}.Telefon, Erz{N}.Telefon2, Erz{N}.Mobil, Erz{N}.Mobil2,
-// Erz{N}.Dienstlich, Erz{N}.Dienstlich2, Erz{N}.Geschäftlich, Erz{N}.Arbeit
+// Erz{N}.Dienstlich, Erz{N}.Dienstlich2
 func (p *CSVParser) parseGuardianPhoneNumbers(guardianNum int, getCol func(string) string) []importModels.PhoneImportData {
 	var phones []importModels.PhoneImportData
 	priority := 1
@@ -186,8 +186,6 @@ func (p *CSVParser) parseGuardianPhoneNumbers(guardianNum int, getCol func(strin
 		// Work phones with labels
 		{"dienstlich", "work", "Dienstlich"},
 		{"dienstlich2", "work", "Dienstlich"},
-		{"geschäftlich", "work", "Geschäftlich"},
-		{"arbeit", "work", "Arbeit"},
 	}
 
 	for _, mapping := range phoneMappings {

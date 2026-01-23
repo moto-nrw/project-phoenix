@@ -105,8 +105,8 @@ func (rs *Resource) downloadStudentTemplateCSV(w http.ResponseWriter, _ *http.Re
 	// Header row with all supported columns (RFID removed, flexible phone numbers added)
 	headers := []string{
 		"Vorname", "Nachname", "Klasse", "Gruppe", "Geburtstag",
-		"Erz1.Vorname", "Erz1.Nachname", "Erz1.Email", "Erz1.Telefon", "Erz1.Telefon2", "Erz1.Mobil", "Erz1.Mobil2", "Erz1.Dienstlich", "Erz1.Geschäftlich", "Erz1.Verhältnis", "Erz1.Primär", "Erz1.Notfall", "Erz1.Abholung",
-		"Erz2.Vorname", "Erz2.Nachname", "Erz2.Email", "Erz2.Telefon", "Erz2.Telefon2", "Erz2.Mobil", "Erz2.Mobil2", "Erz2.Dienstlich", "Erz2.Geschäftlich", "Erz2.Verhältnis", "Erz2.Primär", "Erz2.Notfall", "Erz2.Abholung",
+		"Erz1.Vorname", "Erz1.Nachname", "Erz1.Email", "Erz1.Telefon", "Erz1.Telefon2", "Erz1.Mobil", "Erz1.Mobil2", "Erz1.Dienstlich", "Erz1.Dienstlich2", "Erz1.Verhältnis", "Erz1.Primär", "Erz1.Notfall", "Erz1.Abholung",
+		"Erz2.Vorname", "Erz2.Nachname", "Erz2.Email", "Erz2.Telefon", "Erz2.Telefon2", "Erz2.Mobil", "Erz2.Mobil2", "Erz2.Dienstlich", "Erz2.Dienstlich2", "Erz2.Verhältnis", "Erz2.Primär", "Erz2.Notfall", "Erz2.Abholung",
 		"Gesundheitsinfo", "Betreuernotizen", "Zusatzinfo", "Abholstatus", "Datenschutz", "Aufbewahrung(Tage)", "Bus",
 	}
 
@@ -194,8 +194,8 @@ func setupExcelSheet(f *excelize.File, sheetName string) error {
 func getStudentImportHeaders() []string {
 	return []string{
 		"Vorname", "Nachname", "Klasse", "Gruppe", "Geburtstag",
-		"Erz1.Vorname", "Erz1.Nachname", "Erz1.Email", "Erz1.Telefon", "Erz1.Telefon2", "Erz1.Mobil", "Erz1.Mobil2", "Erz1.Dienstlich", "Erz1.Geschäftlich", "Erz1.Verhältnis", "Erz1.Primär", "Erz1.Notfall", "Erz1.Abholung",
-		"Erz2.Vorname", "Erz2.Nachname", "Erz2.Email", "Erz2.Telefon", "Erz2.Telefon2", "Erz2.Mobil", "Erz2.Mobil2", "Erz2.Dienstlich", "Erz2.Geschäftlich", "Erz2.Verhältnis", "Erz2.Primär", "Erz2.Notfall", "Erz2.Abholung",
+		"Erz1.Vorname", "Erz1.Nachname", "Erz1.Email", "Erz1.Telefon", "Erz1.Telefon2", "Erz1.Mobil", "Erz1.Mobil2", "Erz1.Dienstlich", "Erz1.Dienstlich2", "Erz1.Verhältnis", "Erz1.Primär", "Erz1.Notfall", "Erz1.Abholung",
+		"Erz2.Vorname", "Erz2.Nachname", "Erz2.Email", "Erz2.Telefon", "Erz2.Telefon2", "Erz2.Mobil", "Erz2.Mobil2", "Erz2.Dienstlich", "Erz2.Dienstlich2", "Erz2.Verhältnis", "Erz2.Primär", "Erz2.Notfall", "Erz2.Abholung",
 		"Gesundheitsinfo", "Betreuernotizen", "Zusatzinfo", "Abholstatus", "Datenschutz", "Aufbewahrung(Tage)", "Bus",
 	}
 }
@@ -204,7 +204,7 @@ func getStudentImportHeaders() []string {
 func getStudentImportExamples() [][]any {
 	return [][]any{
 		{"Max", "Mustermann", "1A", "Gruppe 1A", "2015-08-15",
-			// Guardian 1: Telefon, Telefon2, Mobil, Mobil2, Dienstlich, Geschäftlich, Verhältnis, Primär, Notfall, Abholung
+			// Guardian 1: Telefon, Telefon2, Mobil, Mobil2, Dienstlich, Dienstlich2, Verhältnis, Primär, Notfall, Abholung
 			"Maria", testLastNameMueller, "maria.mueller@example.com", "0123-456789", "", "", "", "0221-9876543", "", "Mutter", "Ja", "Ja", "Ja",
 			// Guardian 2
 			"Hans", testLastNameMueller, "hans.mueller@example.com", "", "", "0176-12345678", "", "", "", "Vater", "Nein", "Ja", "Ja",
