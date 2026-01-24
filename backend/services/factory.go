@@ -131,18 +131,19 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 
 	// Initialize guardian service
 	guardianService := users.NewGuardianService(users.GuardianServiceDependencies{
-		GuardianProfileRepo:    repos.GuardianProfile,
-		StudentGuardianRepo:    repos.StudentGuardian,
-		GuardianInvitationRepo: repos.GuardianInvitation,
-		AccountParentRepo:      repos.AccountParent,
-		StudentRepo:            repos.Student,
-		PersonRepo:             repos.Person,
-		Mailer:                 mailer,
-		Dispatcher:             dispatcher,
-		FrontendURL:            frontendURL,
-		DefaultFrom:            defaultFrom,
-		InvitationExpiry:       invitationTokenExpiry,
-		DB:                     db,
+		GuardianProfileRepo:     repos.GuardianProfile,
+		GuardianPhoneNumberRepo: repos.GuardianPhoneNumber,
+		StudentGuardianRepo:     repos.StudentGuardian,
+		GuardianInvitationRepo:  repos.GuardianInvitation,
+		AccountParentRepo:       repos.AccountParent,
+		StudentRepo:             repos.Student,
+		PersonRepo:              repos.Person,
+		Mailer:                  mailer,
+		Dispatcher:              dispatcher,
+		FrontendURL:             frontendURL,
+		DefaultFrom:             defaultFrom,
+		InvitationExpiry:        invitationTokenExpiry,
+		DB:                      db,
 	})
 
 	// Initialize active service with SSE broadcaster
@@ -295,12 +296,15 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 	// Initialize import service
 	relationshipResolver := importService.NewRelationshipResolver(repos.Group, repos.Room)
 	studentImportConfig := importService.NewStudentImportConfig(
-		repos.Person,
-		repos.Student,
-		repos.GuardianProfile,
-		repos.StudentGuardian,
-		repos.PrivacyConsent,
-		relationshipResolver,
+		importService.StudentImportDeps{
+			PersonRepo:        repos.Person,
+			StudentRepo:       repos.Student,
+			GuardianRepo:      repos.GuardianProfile,
+			GuardianPhoneRepo: repos.GuardianPhoneNumber,
+			RelationRepo:      repos.StudentGuardian,
+			PrivacyRepo:       repos.PrivacyConsent,
+			Resolver:          relationshipResolver,
+		},
 		db,
 	)
 	studentImportService := importService.NewImportService(studentImportConfig, db)

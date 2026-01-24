@@ -445,3 +445,39 @@ type GuardianProfileRepository interface {
 	// GetStudentCount returns the number of students for a guardian
 	GetStudentCount(ctx context.Context, profileID int64) (int, error)
 }
+
+// GuardianPhoneNumberRepository defines operations for managing guardian phone numbers
+type GuardianPhoneNumberRepository interface {
+	// Create inserts a new phone number into the database
+	Create(ctx context.Context, phone *GuardianPhoneNumber) error
+
+	// FindByID retrieves a phone number by its ID
+	FindByID(ctx context.Context, id int64) (*GuardianPhoneNumber, error)
+
+	// FindByGuardianID retrieves all phone numbers for a guardian profile
+	FindByGuardianID(ctx context.Context, guardianProfileID int64) ([]*GuardianPhoneNumber, error)
+
+	// GetPrimary retrieves the primary phone number for a guardian
+	GetPrimary(ctx context.Context, guardianProfileID int64) (*GuardianPhoneNumber, error)
+
+	// Update updates an existing phone number
+	Update(ctx context.Context, phone *GuardianPhoneNumber) error
+
+	// Delete removes a phone number
+	Delete(ctx context.Context, id int64) error
+
+	// SetPrimary sets a phone number as primary and unsets others for the guardian
+	SetPrimary(ctx context.Context, id int64, guardianProfileID int64) error
+
+	// UnsetAllPrimary unsets primary flag for all phone numbers of a guardian
+	UnsetAllPrimary(ctx context.Context, guardianProfileID int64) error
+
+	// CountByGuardianID returns the number of phone numbers for a guardian
+	CountByGuardianID(ctx context.Context, guardianProfileID int64) (int, error)
+
+	// DeleteByGuardianID removes all phone numbers for a guardian
+	DeleteByGuardianID(ctx context.Context, guardianProfileID int64) error
+
+	// GetNextPriority returns the next priority value for a guardian's phone numbers
+	GetNextPriority(ctx context.Context, guardianProfileID int64) (int, error)
+}

@@ -11,6 +11,9 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/users"
 )
 
+// Table name constants
+const tableGuardianPhoneNumbers = "users.guardian_phone_numbers"
+
 // seedStudents creates student records for persons 31-150
 func (s *Seeder) seedStudents(ctx context.Context) error {
 	// Students are persons 31-150 (120 students total)
@@ -181,7 +184,7 @@ func (s *Seeder) seedGuardianRelationships(ctx context.Context) error {
 				guardianLastName = lastNames[rng.Intn(len(lastNames))]
 			}
 
-			phone := fmt.Sprintf("+49 %d %d-%d",
+			homePhone := fmt.Sprintf("+49 %d %d-%d",
 				30+rng.Intn(900),
 				rng.Intn(900)+100,
 				rng.Intn(9000)+1000)
@@ -201,13 +204,11 @@ func (s *Seeder) seedGuardianRelationships(ctx context.Context) error {
 			city := []string{"Berlin", "Hamburg", "München", "Köln", "Frankfurt"}[rng.Intn(5)]
 			postalCode := fmt.Sprintf("%d", 10000+rng.Intn(90000))
 
-			// Create guardian profile
+			// Create guardian profile (phone numbers are added via seedGuardianPhoneNumbers)
 			guardian := &users.GuardianProfile{
 				FirstName:              guardianFirstName,
 				LastName:               guardianLastName,
 				Email:                  &email,
-				Phone:                  &phone,
-				MobilePhone:            &mobilePhone,
 				AddressStreet:          &street,
 				AddressCity:            &city,
 				AddressPostalCode:      &postalCode,
@@ -223,8 +224,6 @@ func (s *Seeder) seedGuardianRelationships(ctx context.Context) error {
 				On("CONFLICT (email) DO UPDATE").
 				Set("first_name = EXCLUDED.first_name").
 				Set("last_name = EXCLUDED.last_name").
-				Set("phone = EXCLUDED.phone").
-				Set("mobile_phone = EXCLUDED.mobile_phone").
 				Set("address_street = EXCLUDED.address_street").
 				Set("address_city = EXCLUDED.address_city").
 				Set("address_postal_code = EXCLUDED.address_postal_code").
@@ -233,6 +232,11 @@ func (s *Seeder) seedGuardianRelationships(ctx context.Context) error {
 				Exec(ctx)
 			if err != nil {
 				return fmt.Errorf("failed to upsert guardian profile: %w", err)
+			}
+
+			// Create phone numbers in the new flexible table
+			if err := s.seedGuardianPhoneNumbers(ctx, guardian.ID, homePhone, mobilePhone, rng); err != nil {
+				return fmt.Errorf("failed to seed guardian phone numbers: %w", err)
 			}
 
 			// Link guardian to student
@@ -289,4 +293,86 @@ func (s *Seeder) seedGuardianRelationships(ctx context.Context) error {
 // splitName splits a full name into parts by spaces
 func splitName(fullName string) []string {
 	return strings.Fields(fullName)
+}
+
+// seedGuardianPhoneNumbers creates phone number records for a guardian
+func (s *Seeder) seedGuardianPhoneNumbers(ctx context.Context, guardianID int64, homePhone, mobilePhone string, rng *rand.Rand) error {
+	now := time.Now()
+
+	// Delete existing phone numbers for this guardian (for idempotent seeding)
+	_, err := s.tx.NewDelete().
+		Table(tableGuardianPhoneNumbers).
+		Where("guardian_profile_id = ?", guardianID).
+		Exec(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to delete existing phone numbers: %w", err)
+	}
+
+	// Mobile phone is primary
+	mobilePhoneRecord := &users.GuardianPhoneNumber{
+		GuardianProfileID: guardianID,
+		PhoneNumber:       mobilePhone,
+		PhoneType:         users.PhoneTypeMobile,
+		IsPrimary:         true,
+		Priority:          1,
+	}
+	mobilePhoneRecord.CreatedAt = now
+	mobilePhoneRecord.UpdatedAt = now
+
+	_, err = s.tx.NewInsert().
+		Model(mobilePhoneRecord).
+		ModelTableExpr(tableGuardianPhoneNumbers).
+		Exec(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to insert mobile phone: %w", err)
+	}
+
+	// Home phone is secondary
+	homePhoneRecord := &users.GuardianPhoneNumber{
+		GuardianProfileID: guardianID,
+		PhoneNumber:       homePhone,
+		PhoneType:         users.PhoneTypeHome,
+		IsPrimary:         false,
+		Priority:          2,
+	}
+	homePhoneRecord.CreatedAt = now
+	homePhoneRecord.UpdatedAt = now
+
+	_, err = s.tx.NewInsert().
+		Model(homePhoneRecord).
+		ModelTableExpr(tableGuardianPhoneNumbers).
+		Exec(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to insert home phone: %w", err)
+	}
+
+	// 20% chance to also have a work phone (Dienstlich)
+	if rng.Float32() < 0.2 {
+		workPhone := fmt.Sprintf("+49 %d %d-%d",
+			30+rng.Intn(900),
+			rng.Intn(900)+100,
+			rng.Intn(9000)+1000)
+
+		workLabel := "Dienstlich"
+		workPhoneRecord := &users.GuardianPhoneNumber{
+			GuardianProfileID: guardianID,
+			PhoneNumber:       workPhone,
+			PhoneType:         users.PhoneTypeWork,
+			Label:             &workLabel,
+			IsPrimary:         false,
+			Priority:          3,
+		}
+		workPhoneRecord.CreatedAt = now
+		workPhoneRecord.UpdatedAt = now
+
+		_, err = s.tx.NewInsert().
+			Model(workPhoneRecord).
+			ModelTableExpr(tableGuardianPhoneNumbers).
+			Exec(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to insert work phone: %w", err)
+		}
+	}
+
+	return nil
 }

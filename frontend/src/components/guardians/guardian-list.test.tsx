@@ -13,6 +13,12 @@ vi.mock("@/lib/guardian-helpers", () => ({
     };
     return labels[type] ?? type;
   },
+  PHONE_TYPE_LABELS: {
+    mobile: "Mobil",
+    home: "Telefon",
+    work: "Dienstlich",
+    other: "Sonstige",
+  },
 }));
 
 vi.mock("~/components/simple/student", () => ({
@@ -39,11 +45,25 @@ const mockGuardians = [
     firstName: "Anna",
     lastName: "Müller",
     email: "anna@example.com",
-    phone: "01234567890",
-    mobilePhone: "01234567891",
     preferredContactMethod: "email",
     languagePreference: "de",
     hasAccount: false,
+    phoneNumbers: [
+      {
+        id: "phone-1",
+        phoneNumber: "01234567890",
+        phoneType: "home" as const,
+        isPrimary: true,
+        priority: 1,
+      },
+      {
+        id: "phone-2",
+        phoneNumber: "01234567891",
+        phoneType: "mobile" as const,
+        isPrimary: false,
+        priority: 2,
+      },
+    ],
     relationshipId: "rel-1",
     relationshipType: "mother",
     isPrimary: true,
@@ -56,11 +76,10 @@ const mockGuardians = [
     firstName: "Hans",
     lastName: "Müller",
     email: "hans@example.com",
-    phone: undefined,
-    mobilePhone: "09876543210",
     preferredContactMethod: "phone",
     languagePreference: "de",
     hasAccount: false,
+    phoneNumbers: [],
     relationshipId: "rel-2",
     relationshipType: "father",
     isPrimary: false,
@@ -89,7 +108,8 @@ describe("GuardianList", () => {
   it("shows primary badge for primary guardian", () => {
     render(<GuardianList guardians={mockGuardians} />);
 
-    expect(screen.getByText("Primär")).toBeInTheDocument();
+    // Multiple "Primär" badges may exist (guardian primary badge + phone primary indicator)
+    expect(screen.getAllByText("Primär").length).toBeGreaterThan(0);
   });
 
   it("shows relationship type when showRelationship is true", () => {

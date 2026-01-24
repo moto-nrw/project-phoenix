@@ -1,0 +1,392 @@
+meta {
+  name: 14 - Guardian Phone Numbers
+  type: http
+  seq: 14
+}
+
+get {
+  url: {{baseUrl}}/api/guardians
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+docs {
+  ## Guardian Phone Numbers Tests
+
+  Tests the flexible phone number management for guardians:
+  1. List all guardians to find test guardian
+  2. Get phone numbers for a guardian
+  3. Add a new phone number
+  4. Update the phone number
+  5. Set as primary
+  6. Delete the phone number
+  7. Verify primary promotion when deleting primary
+
+  **Prerequisites:**
+  - accessToken set in environment (from auth tests)
+  - At least one guardian exists in the database
+
+  **Endpoints Tested:**
+  - GET /api/guardians/{id}/phone-numbers
+  - POST /api/guardians/{id}/phone-numbers
+  - PUT /api/guardians/{id}/phone-numbers/{phoneId}
+  - POST /api/guardians/{id}/phone-numbers/{phoneId}/set-primary
+  - DELETE /api/guardians/{id}/phone-numbers/{phoneId}
+}
+
+script:pre-request {
+  // Ensure admin token exists
+  if (!bru.getEnvVar("accessToken")) {
+    await bru.sendRequest({
+      method: 'POST',
+      url: bru.getEnvVar("baseUrl") + "/auth/login",
+      headers: { 'Content-Type': 'application/json' },
+      data: {
+        email: "admin@example.com",
+        password: "Test1234%"
+      }
+    }, function(err, loginResponse) {
+      if (err || !loginResponse || loginResponse.status !== 200) {
+        throw new Error("Admin login failed: " + (err ? err.message : "Bad response"));
+      }
+
+      if (loginResponse.data) {
+        bru.setEnvVar("accessToken", loginResponse.data.access_token);
+        bru.setEnvVar("refreshToken", loginResponse.data.refresh_token);
+      }
+    });
+  }
+}
+
+script:post-response {
+  (async function() {
+    const baseUrl = bru.getEnvVar("baseUrl");
+    const accessToken = bru.getEnvVar("accessToken");
+    const headersWithAuth = {
+      "Authorization": `Bearer ${accessToken}`,
+      "Content-Type": "application/json"
+    };
+
+    // Test 1: Guardians list endpoint
+    test("Guardians API returns data", function() {
+      expect(res.getStatus()).to.equal(200);
+      expect(res.getBody()).to.have.property("status", "success");
+      expect(res.getBody().data).to.be.an("array");
+    });
+
+    const guardians = res.getBody().data || [];
+    if (guardians.length === 0) {
+      console.log("⚠️  No guardians found, skipping phone tests");
+      return;
+    }
+
+    const testGuardian = guardians[0];
+    const guardianId = testGuardian.id;
+    console.log(`✅ Using guardian ID: ${guardianId} (${testGuardian.first_name} ${testGuardian.last_name})`);
+
+    // Test 2: List phone numbers for guardian
+    let existingPhones = [];
+    await bru.sendRequest({
+      method: "GET",
+      url: `${baseUrl}/api/guardians/${guardianId}/phone-numbers`,
+      headers: { "Authorization": `Bearer ${accessToken}` }
+    }, function(err, response) {
+      if (err) {
+        test("List guardian phone numbers", function() {
+          throw new Error(`List phones failed: ${err.message}`);
+        });
+        return;
+      }
+
+      test("List guardian phone numbers", function() {
+        expect(response.status).to.equal(200);
+        expect(response.data).to.have.property("status", "success");
+        expect(response.data.data).to.be.an("array");
+      });
+
+      existingPhones = response.data.data || [];
+      console.log(`✅ Guardian has ${existingPhones.length} existing phone numbers`);
+    });
+
+    // Test 3: Add a new phone number
+    let newPhoneId = null;
+    const testPhoneNumber = "+49 170 " + Date.now().toString().slice(-7);
+
+    await bru.sendRequest({
+      method: "POST",
+      url: `${baseUrl}/api/guardians/${guardianId}/phone-numbers`,
+      headers: headersWithAuth,
+      data: {
+        phone_number: testPhoneNumber,
+        phone_type: "work",
+        label: "Dienstlich Test",
+        is_primary: false
+      }
+    }, function(err, response) {
+      if (err) {
+        test("Add phone number", function() {
+          throw new Error(`Add phone failed: ${err.message}`);
+        });
+        return;
+      }
+
+      test("Add phone number", function() {
+        expect(response.status).to.equal(201);
+        expect(response.data).to.have.property("status", "success");
+        expect(response.data.data).to.have.property("id");
+        expect(response.data.data).to.have.property("phone_number", testPhoneNumber);
+        expect(response.data.data).to.have.property("phone_type", "work");
+        expect(response.data.data).to.have.property("label", "Dienstlich Test");
+      });
+
+      if (response.status === 201 && response.data && response.data.data) {
+        newPhoneId = response.data.data.id;
+        console.log(`✅ Created phone number with ID: ${newPhoneId}`);
+      }
+    });
+
+    if (!newPhoneId) {
+      console.log("⚠️  Phone number creation failed, skipping remaining tests");
+      return;
+    }
+
+    // Test 4: Update the phone number
+    const updatedPhoneNumber = "+49 171 " + Date.now().toString().slice(-7);
+    await bru.sendRequest({
+      method: "PUT",
+      url: `${baseUrl}/api/guardians/${guardianId}/phone-numbers/${newPhoneId}`,
+      headers: headersWithAuth,
+      data: {
+        phone_number: updatedPhoneNumber,
+        phone_type: "mobile",
+        label: "Mobil Test"
+      }
+    }, function(err, response) {
+      if (err) {
+        test("Update phone number", function() {
+          throw new Error(`Update phone failed: ${err.message}`);
+        });
+        return;
+      }
+
+      test("Update phone number", function() {
+        expect(response.status).to.equal(200);
+        expect(response.data).to.have.property("status", "success");
+        expect(response.data.data).to.have.property("phone_number", updatedPhoneNumber);
+        expect(response.data.data).to.have.property("phone_type", "mobile");
+        expect(response.data.data).to.have.property("label", "Mobil Test");
+      });
+
+      console.log(`✅ Updated phone number to: ${updatedPhoneNumber}`);
+    });
+
+    // Test 5: Set as primary
+    await bru.sendRequest({
+      method: "POST",
+      url: `${baseUrl}/api/guardians/${guardianId}/phone-numbers/${newPhoneId}/set-primary`,
+      headers: headersWithAuth
+    }, function(err, response) {
+      if (err) {
+        test("Set phone as primary", function() {
+          throw new Error(`Set primary failed: ${err.message}`);
+        });
+        return;
+      }
+
+      test("Set phone as primary", function() {
+        expect(response.status).to.equal(200);
+        expect(response.data).to.have.property("status", "success");
+        expect(response.data.data).to.have.property("is_primary", true);
+      });
+
+      console.log(`✅ Phone number set as primary`);
+    });
+
+    // Test 6: Verify is_primary after listing
+    await bru.sendRequest({
+      method: "GET",
+      url: `${baseUrl}/api/guardians/${guardianId}/phone-numbers`,
+      headers: { "Authorization": `Bearer ${accessToken}` }
+    }, function(err, response) {
+      if (err) {
+        test("Verify primary phone in list", function() {
+          throw new Error(`List phones failed: ${err.message}`);
+        });
+        return;
+      }
+
+      test("Verify primary phone in list", function() {
+        expect(response.status).to.equal(200);
+        const phones = response.data.data || [];
+        const ourPhone = phones.find(p => p.id === newPhoneId || p.id === String(newPhoneId));
+        expect(ourPhone).to.be.an("object");
+        expect(ourPhone.is_primary).to.equal(true);
+      });
+
+      console.log(`✅ Verified phone is marked as primary in list`);
+    });
+
+    // Test 7: Add another phone to test primary promotion
+    let secondPhoneId = null;
+    const secondPhoneNumber = "+49 172 " + Date.now().toString().slice(-7);
+
+    await bru.sendRequest({
+      method: "POST",
+      url: `${baseUrl}/api/guardians/${guardianId}/phone-numbers`,
+      headers: headersWithAuth,
+      data: {
+        phone_number: secondPhoneNumber,
+        phone_type: "home",
+        label: null,
+        is_primary: false
+      }
+    }, function(err, response) {
+      if (err) {
+        test("Add second phone number", function() {
+          throw new Error(`Add second phone failed: ${err.message}`);
+        });
+        return;
+      }
+
+      test("Add second phone number", function() {
+        expect(response.status).to.equal(201);
+      });
+
+      if (response.status === 201 && response.data && response.data.data) {
+        secondPhoneId = response.data.data.id;
+        console.log(`✅ Created second phone number with ID: ${secondPhoneId}`);
+      }
+    });
+
+    // Test 8: Delete the primary phone (should promote second)
+    await bru.sendRequest({
+      method: "DELETE",
+      url: `${baseUrl}/api/guardians/${guardianId}/phone-numbers/${newPhoneId}`,
+      headers: { "Authorization": `Bearer ${accessToken}` }
+    }, function(err, response) {
+      if (err) {
+        test("Delete primary phone number", function() {
+          throw new Error(`Delete phone failed: ${err.message}`);
+        });
+        return;
+      }
+
+      test("Delete primary phone number", function() {
+        expect([200, 204]).to.include(response.status);
+      });
+
+      console.log(`✅ Deleted primary phone number`);
+    });
+
+    // Test 9: Verify second phone was promoted to primary
+    if (secondPhoneId) {
+      await bru.sendRequest({
+        method: "GET",
+        url: `${baseUrl}/api/guardians/${guardianId}/phone-numbers`,
+        headers: { "Authorization": `Bearer ${accessToken}` }
+      }, function(err, response) {
+        if (err) {
+          test("Verify primary promotion after delete", function() {
+            throw new Error(`List phones failed: ${err.message}`);
+          });
+          return;
+        }
+
+        test("Verify primary promotion after delete", function() {
+          expect(response.status).to.equal(200);
+          const phones = response.data.data || [];
+          // At least one phone should be primary
+          const primaryPhone = phones.find(p => p.is_primary === true);
+          expect(primaryPhone).to.be.an("object");
+        });
+
+        const phones = response.data.data || [];
+        const secondPhone = phones.find(p => p.id === secondPhoneId || p.id === String(secondPhoneId));
+        if (secondPhone && secondPhone.is_primary) {
+          console.log(`✅ Second phone was promoted to primary after deleting the primary`);
+        } else {
+          console.log(`⚠️  Primary promotion might not have occurred (or another phone became primary)`);
+        }
+      });
+
+      // Cleanup: Delete second phone
+      await bru.sendRequest({
+        method: "DELETE",
+        url: `${baseUrl}/api/guardians/${guardianId}/phone-numbers/${secondPhoneId}`,
+        headers: { "Authorization": `Bearer ${accessToken}` }
+      }, function(err, response) {
+        if (err) {
+          console.log(`⚠️  Cleanup: Failed to delete second phone: ${err.message}`);
+          return;
+        }
+        console.log(`✅ Cleanup: Deleted second phone number`);
+      });
+    }
+
+    // Test 10: Validation - invalid phone type
+    await bru.sendRequest({
+      method: "POST",
+      url: `${baseUrl}/api/guardians/${guardianId}/phone-numbers`,
+      headers: headersWithAuth,
+      data: {
+        phone_number: "+49 170 1234567",
+        phone_type: "invalid_type"
+      }
+    }, function(err, response) {
+      if (err) {
+        if (err.message.includes("400") || err.message.includes("422")) {
+          test("Reject invalid phone type", function() {
+            expect(true).to.equal(true);
+          });
+        } else {
+          test("Reject invalid phone type", function() {
+            throw new Error(`Unexpected error: ${err.message}`);
+          });
+        }
+        return;
+      }
+
+      test("Reject invalid phone type", function() {
+        expect([400, 422]).to.include(response.status);
+      });
+
+      console.log(`✅ Invalid phone type correctly rejected`);
+    });
+
+    // Test 11: Validation - empty phone number
+    await bru.sendRequest({
+      method: "POST",
+      url: `${baseUrl}/api/guardians/${guardianId}/phone-numbers`,
+      headers: headersWithAuth,
+      data: {
+        phone_number: "",
+        phone_type: "mobile"
+      }
+    }, function(err, response) {
+      if (err) {
+        if (err.message.includes("400") || err.message.includes("422")) {
+          test("Reject empty phone number", function() {
+            expect(true).to.equal(true);
+          });
+        } else {
+          test("Reject empty phone number", function() {
+            throw new Error(`Unexpected error: ${err.message}`);
+          });
+        }
+        return;
+      }
+
+      test("Reject empty phone number", function() {
+        expect([400, 422]).to.include(response.status);
+      });
+
+      console.log(`✅ Empty phone number correctly rejected`);
+    });
+
+    console.log("✅ Guardian phone number tests completed");
+  })();
+}

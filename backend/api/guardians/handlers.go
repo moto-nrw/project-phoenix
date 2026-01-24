@@ -18,37 +18,50 @@ import (
 )
 
 // Error messages (S1192 - avoid duplicate string literals)
-const errInvalidGuardianID = "invalid guardian ID"
+const (
+	errInvalidGuardianID    = "invalid guardian ID"
+	errInvalidPhoneID       = "invalid phone ID"
+	errPhoneNotFound        = "phone number not found"
+	errPhoneNotBelongsGuard = "phone number does not belong to this guardian"
+)
 
 // Note: "log" import kept for non-RenderError logging (e.g., line 741)
 
+// PhoneNumberResponse represents a guardian phone number in API responses
+type PhoneNumberResponse struct {
+	ID          int64   `json:"id"`
+	PhoneNumber string  `json:"phone_number"`
+	PhoneType   string  `json:"phone_type"`
+	Label       *string `json:"label,omitempty"`
+	IsPrimary   bool    `json:"is_primary"`
+	Priority    int     `json:"priority"`
+}
+
 // GuardianResponse represents a guardian profile response
 type GuardianResponse struct {
-	ID                     int64   `json:"id"`
-	FirstName              string  `json:"first_name"`
-	LastName               string  `json:"last_name"`
-	Email                  *string `json:"email,omitempty"`
-	Phone                  *string `json:"phone,omitempty"`
-	MobilePhone            *string `json:"mobile_phone,omitempty"`
-	AddressStreet          *string `json:"address_street,omitempty"`
-	AddressCity            *string `json:"address_city,omitempty"`
-	AddressPostalCode      *string `json:"address_postal_code,omitempty"`
-	PreferredContactMethod string  `json:"preferred_contact_method"`
-	LanguagePreference     string  `json:"language_preference"`
-	Occupation             *string `json:"occupation,omitempty"`
-	Employer               *string `json:"employer,omitempty"`
-	Notes                  *string `json:"notes,omitempty"`
-	HasAccount             bool    `json:"has_account"`
-	AccountID              *int64  `json:"account_id,omitempty"`
+	ID                     int64                  `json:"id"`
+	FirstName              string                 `json:"first_name"`
+	LastName               string                 `json:"last_name"`
+	Email                  *string                `json:"email,omitempty"`
+	PhoneNumbers           []*PhoneNumberResponse `json:"phone_numbers,omitempty"`
+	AddressStreet          *string                `json:"address_street,omitempty"`
+	AddressCity            *string                `json:"address_city,omitempty"`
+	AddressPostalCode      *string                `json:"address_postal_code,omitempty"`
+	PreferredContactMethod string                 `json:"preferred_contact_method"`
+	LanguagePreference     string                 `json:"language_preference"`
+	Occupation             *string                `json:"occupation,omitempty"`
+	Employer               *string                `json:"employer,omitempty"`
+	Notes                  *string                `json:"notes,omitempty"`
+	HasAccount             bool                   `json:"has_account"`
+	AccountID              *int64                 `json:"account_id,omitempty"`
 }
 
 // GuardianCreateRequest represents a request to create a new guardian
+// Note: Phone numbers should be added separately via POST /guardians/{id}/phone-numbers
 type GuardianCreateRequest struct {
 	FirstName              string  `json:"first_name"`
 	LastName               string  `json:"last_name"`
 	Email                  *string `json:"email,omitempty"`
-	Phone                  *string `json:"phone,omitempty"`
-	MobilePhone            *string `json:"mobile_phone,omitempty"`
 	AddressStreet          *string `json:"address_street,omitempty"`
 	AddressCity            *string `json:"address_city,omitempty"`
 	AddressPostalCode      *string `json:"address_postal_code,omitempty"`
@@ -60,12 +73,11 @@ type GuardianCreateRequest struct {
 }
 
 // GuardianUpdateRequest represents a request to update a guardian
+// Note: Phone numbers are updated via separate phone number endpoints
 type GuardianUpdateRequest struct {
 	FirstName              *string `json:"first_name,omitempty"`
 	LastName               *string `json:"last_name,omitempty"`
 	Email                  *string `json:"email,omitempty"`
-	Phone                  *string `json:"phone,omitempty"`
-	MobilePhone            *string `json:"mobile_phone,omitempty"`
 	AddressStreet          *string `json:"address_street,omitempty"`
 	AddressCity            *string `json:"address_city,omitempty"`
 	AddressPostalCode      *string `json:"address_postal_code,omitempty"`
@@ -103,6 +115,53 @@ func (req *StudentGuardianUpdateRequest) Bind(_ *http.Request) error {
 	return nil
 }
 
+// PhoneNumberCreateRequest represents a request to add a phone number
+type PhoneNumberCreateRequest struct {
+	PhoneNumber string  `json:"phone_number"`
+	PhoneType   string  `json:"phone_type"` // mobile, home, work, other
+	Label       *string `json:"label,omitempty"`
+	IsPrimary   bool    `json:"is_primary"`
+}
+
+// Bind validates the phone number create request
+func (req *PhoneNumberCreateRequest) Bind(_ *http.Request) error {
+	if req.PhoneNumber == "" {
+		return errors.New("phone_number is required")
+	}
+	// Validate phone type
+	validTypes := map[string]bool{"mobile": true, "home": true, "work": true, "other": true}
+	if req.PhoneType != "" && !validTypes[req.PhoneType] {
+		return errors.New("phone_type must be one of: mobile, home, work, other")
+	}
+	if req.PhoneType == "" {
+		req.PhoneType = "mobile" // Default to mobile
+	}
+	return nil
+}
+
+// PhoneNumberUpdateRequest represents a request to update a phone number
+type PhoneNumberUpdateRequest struct {
+	PhoneNumber *string `json:"phone_number,omitempty"`
+	PhoneType   *string `json:"phone_type,omitempty"`
+	Label       *string `json:"label,omitempty"`
+	IsPrimary   *bool   `json:"is_primary,omitempty"`
+	Priority    *int    `json:"priority,omitempty"`
+}
+
+// Bind validates the phone number update request
+func (req *PhoneNumberUpdateRequest) Bind(_ *http.Request) error {
+	if req.PhoneNumber != nil && *req.PhoneNumber == "" {
+		return errors.New("phone_number cannot be empty")
+	}
+	if req.PhoneType != nil {
+		validTypes := map[string]bool{"mobile": true, "home": true, "work": true, "other": true}
+		if !validTypes[*req.PhoneType] {
+			return errors.New("phone_type must be one of: mobile, home, work, other")
+		}
+	}
+	return nil
+}
+
 // GuardianWithStudentsResponse represents a guardian with their students
 type GuardianWithStudentsResponse struct {
 	Guardian *GuardianResponse          `json:"guardian"`
@@ -137,18 +196,14 @@ type GuardianWithRelationship struct {
 }
 
 // Bind validates the guardian create request
+// Note: Contact method validation (email or phone) is done at the service/handler level
+// after phone numbers are added separately
 func (req *GuardianCreateRequest) Bind(_ *http.Request) error {
 	if req.FirstName == "" {
 		return errors.New("first_name is required")
 	}
 	if req.LastName == "" {
 		return errors.New("last_name is required")
-	}
-	// At least one contact method is required
-	if (req.Email == nil || *req.Email == "") &&
-		(req.Phone == nil || *req.Phone == "") &&
-		(req.MobilePhone == nil || *req.MobilePhone == "") {
-		return errors.New("at least one contact method (email, phone, or mobile_phone) is required")
 	}
 	return nil
 }
@@ -180,13 +235,11 @@ func (req *StudentGuardianLinkRequest) Bind(_ *http.Request) error {
 
 // newGuardianResponse converts a guardian profile model to a response
 func newGuardianResponse(profile *users.GuardianProfile) *GuardianResponse {
-	return &GuardianResponse{
+	response := &GuardianResponse{
 		ID:                     profile.ID,
 		FirstName:              profile.FirstName,
 		LastName:               profile.LastName,
 		Email:                  profile.Email,
-		Phone:                  profile.Phone,
-		MobilePhone:            profile.MobilePhone,
 		AddressStreet:          profile.AddressStreet,
 		AddressCity:            profile.AddressCity,
 		AddressPostalCode:      profile.AddressPostalCode,
@@ -197,6 +250,28 @@ func newGuardianResponse(profile *users.GuardianProfile) *GuardianResponse {
 		Notes:                  profile.Notes,
 		HasAccount:             profile.HasAccount,
 		AccountID:              profile.AccountID,
+	}
+
+	// Convert phone numbers if present
+	if len(profile.PhoneNumbers) > 0 {
+		response.PhoneNumbers = make([]*PhoneNumberResponse, 0, len(profile.PhoneNumbers))
+		for _, phone := range profile.PhoneNumbers {
+			response.PhoneNumbers = append(response.PhoneNumbers, newPhoneNumberResponse(phone))
+		}
+	}
+
+	return response
+}
+
+// newPhoneNumberResponse converts a phone number model to a response
+func newPhoneNumberResponse(phone *users.GuardianPhoneNumber) *PhoneNumberResponse {
+	return &PhoneNumberResponse{
+		ID:          phone.ID,
+		PhoneNumber: phone.PhoneNumber,
+		PhoneType:   string(phone.PhoneType),
+		Label:       phone.Label,
+		IsPrimary:   phone.IsPrimary,
+		Priority:    phone.Priority,
 	}
 }
 
@@ -383,13 +458,11 @@ func (rs *Resource) createGuardian(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Convert to service request
+	// Convert to service request (phone numbers are added separately)
 	createReq := guardianSvc.GuardianCreateRequest{
 		FirstName:              req.FirstName,
 		LastName:               req.LastName,
 		Email:                  req.Email,
-		Phone:                  req.Phone,
-		MobilePhone:            req.MobilePhone,
 		AddressStreet:          req.AddressStreet,
 		AddressCity:            req.AddressCity,
 		AddressPostalCode:      req.AddressPostalCode,
@@ -453,13 +526,12 @@ func (rs *Resource) updateGuardian(w http.ResponseWriter, r *http.Request) {
 }
 
 // buildGuardianUpdateRequest merges existing guardian data with partial updates
+// Note: Phone numbers are managed separately via phone number endpoints
 func buildGuardianUpdateRequest(guardian *users.GuardianProfile, req *GuardianUpdateRequest) guardianSvc.GuardianCreateRequest {
 	updateReq := guardianSvc.GuardianCreateRequest{
 		FirstName:              guardian.FirstName,
 		LastName:               guardian.LastName,
 		Email:                  guardian.Email,
-		Phone:                  guardian.Phone,
-		MobilePhone:            guardian.MobilePhone,
 		AddressStreet:          guardian.AddressStreet,
 		AddressCity:            guardian.AddressCity,
 		AddressPostalCode:      guardian.AddressPostalCode,
@@ -475,6 +547,7 @@ func buildGuardianUpdateRequest(guardian *users.GuardianProfile, req *GuardianUp
 }
 
 // applyGuardianUpdates applies non-nil updates to the request
+// Note: Phone numbers are managed separately via phone number endpoints
 func applyGuardianUpdates(updateReq *guardianSvc.GuardianCreateRequest, req *GuardianUpdateRequest) {
 	if req.FirstName != nil {
 		updateReq.FirstName = *req.FirstName
@@ -484,12 +557,6 @@ func applyGuardianUpdates(updateReq *guardianSvc.GuardianCreateRequest, req *Gua
 	}
 	if req.Email != nil {
 		updateReq.Email = req.Email
-	}
-	if req.Phone != nil {
-		updateReq.Phone = req.Phone
-	}
-	if req.MobilePhone != nil {
-		updateReq.MobilePhone = req.MobilePhone
 	}
 	if req.AddressStreet != nil {
 		updateReq.AddressStreet = req.AddressStreet
@@ -1004,3 +1071,192 @@ func (rs *Resource) ValidateGuardianInvitationHandler() http.HandlerFunc {
 func (rs *Resource) AcceptGuardianInvitationHandler() http.HandlerFunc {
 	return rs.acceptGuardianInvitation
 }
+
+// =============================================================================
+// PHONE NUMBER HANDLERS
+// =============================================================================
+
+// validatePhoneAccess validates guardian ID, phone ID, permissions, and ownership.
+// Returns the validated phone number or renders an error response and returns nil.
+func (rs *Resource) validatePhoneAccess(w http.ResponseWriter, r *http.Request) *users.GuardianPhoneNumber {
+	guardianID, err := common.ParseID(r)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errInvalidGuardianID)))
+		return nil
+	}
+
+	phoneID, err := common.ParseIDParam(r, "phoneId")
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errInvalidPhoneID)))
+		return nil
+	}
+
+	// Check permissions
+	canModify, err := rs.canModifyGuardian(r.Context(), guardianID)
+	if !canModify {
+		common.RenderError(w, r, common.ErrorForbidden(err))
+		return nil
+	}
+
+	// Verify phone belongs to guardian
+	phone, err := rs.GuardianService.GetPhoneNumberByID(r.Context(), phoneID)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorNotFound(errors.New(errPhoneNotFound)))
+		return nil
+	}
+	if phone.GuardianProfileID != guardianID {
+		common.RenderError(w, r, common.ErrorForbidden(errors.New(errPhoneNotBelongsGuard)))
+		return nil
+	}
+
+	return phone
+}
+
+// listGuardianPhoneNumbers handles getting all phone numbers for a guardian
+func (rs *Resource) listGuardianPhoneNumbers(w http.ResponseWriter, r *http.Request) {
+	guardianID, err := common.ParseID(r)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errInvalidGuardianID)))
+		return
+	}
+
+	phones, err := rs.GuardianService.GetGuardianPhoneNumbers(r.Context(), guardianID)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+
+	responses := make([]*PhoneNumberResponse, 0, len(phones))
+	for _, phone := range phones {
+		responses = append(responses, newPhoneNumberResponse(phone))
+	}
+
+	common.Respond(w, r, http.StatusOK, responses, "Phone numbers retrieved successfully")
+}
+
+// addPhoneNumber handles adding a new phone number to a guardian
+func (rs *Resource) addPhoneNumber(w http.ResponseWriter, r *http.Request) {
+	guardianID, err := common.ParseID(r)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errInvalidGuardianID)))
+		return
+	}
+
+	// Check permissions
+	canModify, err := rs.canModifyGuardian(r.Context(), guardianID)
+	if !canModify {
+		common.RenderError(w, r, common.ErrorForbidden(err))
+		return
+	}
+
+	req := &PhoneNumberCreateRequest{}
+	if err := render.Bind(r, req); err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+
+	createReq := guardianSvc.PhoneNumberCreateRequest{
+		PhoneNumber: req.PhoneNumber,
+		PhoneType:   req.PhoneType,
+		Label:       req.Label,
+		IsPrimary:   req.IsPrimary,
+	}
+
+	phone, err := rs.GuardianService.AddPhoneNumber(r.Context(), guardianID, createReq)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+
+	common.Respond(w, r, http.StatusCreated, newPhoneNumberResponse(phone), "Phone number added successfully")
+}
+
+// updatePhoneNumber handles updating an existing phone number
+func (rs *Resource) updatePhoneNumber(w http.ResponseWriter, r *http.Request) {
+	phone := rs.validatePhoneAccess(w, r)
+	if phone == nil {
+		return // Error already rendered
+	}
+
+	req := &PhoneNumberUpdateRequest{}
+	if err := render.Bind(r, req); err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+
+	updateReq := guardianSvc.PhoneNumberUpdateRequest{
+		PhoneNumber: req.PhoneNumber,
+		PhoneType:   req.PhoneType,
+		Label:       req.Label,
+		IsPrimary:   req.IsPrimary,
+		Priority:    req.Priority,
+	}
+
+	if err := rs.GuardianService.UpdatePhoneNumber(r.Context(), phone.ID, updateReq); err != nil {
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+
+	// Get updated phone
+	updatedPhone, err := rs.GuardianService.GetPhoneNumberByID(r.Context(), phone.ID)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+
+	common.Respond(w, r, http.StatusOK, newPhoneNumberResponse(updatedPhone), "Phone number updated successfully")
+}
+
+// deletePhoneNumber handles removing a phone number
+func (rs *Resource) deletePhoneNumber(w http.ResponseWriter, r *http.Request) {
+	phone := rs.validatePhoneAccess(w, r)
+	if phone == nil {
+		return // Error already rendered
+	}
+
+	if err := rs.GuardianService.DeletePhoneNumber(r.Context(), phone.ID); err != nil {
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+
+	common.Respond(w, r, http.StatusOK, nil, "Phone number deleted successfully")
+}
+
+// setPrimaryPhone handles setting a phone number as primary
+func (rs *Resource) setPrimaryPhone(w http.ResponseWriter, r *http.Request) {
+	phone := rs.validatePhoneAccess(w, r)
+	if phone == nil {
+		return // Error already rendered
+	}
+
+	if err := rs.GuardianService.SetPrimaryPhone(r.Context(), phone.ID); err != nil {
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+
+	// Fetch the updated phone number to return in response
+	updatedPhone, err := rs.GuardianService.GetPhoneNumberByID(r.Context(), phone.ID)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+
+	common.Respond(w, r, http.StatusOK, newPhoneNumberResponse(updatedPhone), "Phone number set as primary successfully")
+}
+
+// ListGuardianPhoneNumbersHandler returns the list phone numbers handler
+func (rs *Resource) ListGuardianPhoneNumbersHandler() http.HandlerFunc {
+	return rs.listGuardianPhoneNumbers
+}
+
+// AddPhoneNumberHandler returns the add phone number handler
+func (rs *Resource) AddPhoneNumberHandler() http.HandlerFunc { return rs.addPhoneNumber }
+
+// UpdatePhoneNumberHandler returns the update phone number handler
+func (rs *Resource) UpdatePhoneNumberHandler() http.HandlerFunc { return rs.updatePhoneNumber }
+
+// DeletePhoneNumberHandler returns the delete phone number handler
+func (rs *Resource) DeletePhoneNumberHandler() http.HandlerFunc { return rs.deletePhoneNumber }
+
+// SetPrimaryPhoneHandler returns the set primary phone handler
+func (rs *Resource) SetPrimaryPhoneHandler() http.HandlerFunc { return rs.setPrimaryPhone }
