@@ -772,18 +772,19 @@ func setupGuardianServiceWithMailer(db *bun.DB, mailer *testpkg.CapturingMailer)
 	dispatcher.SetDefaults(1, []time.Duration{10 * time.Millisecond})
 
 	deps := users.GuardianServiceDependencies{
-		GuardianProfileRepo:    repoFactory.GuardianProfile,
-		StudentGuardianRepo:    repoFactory.StudentGuardian,
-		GuardianInvitationRepo: repoFactory.GuardianInvitation,
-		AccountParentRepo:      repoFactory.AccountParent,
-		StudentRepo:            repoFactory.Student,
-		PersonRepo:             repoFactory.Person,
-		Mailer:                 mailer,
-		Dispatcher:             dispatcher,
-		FrontendURL:            "http://localhost:3000",
-		DefaultFrom:            email.NewEmail("Test", "test@example.com"),
-		InvitationExpiry:       48 * time.Hour,
-		DB:                     db,
+		GuardianProfileRepo:     repoFactory.GuardianProfile,
+		GuardianPhoneNumberRepo: repoFactory.GuardianPhoneNumber,
+		StudentGuardianRepo:     repoFactory.StudentGuardian,
+		GuardianInvitationRepo:  repoFactory.GuardianInvitation,
+		AccountParentRepo:       repoFactory.AccountParent,
+		StudentRepo:             repoFactory.Student,
+		PersonRepo:              repoFactory.Person,
+		Mailer:                  mailer,
+		Dispatcher:              dispatcher,
+		FrontendURL:             "http://localhost:3000",
+		DefaultFrom:             email.NewEmail("Test", "test@example.com"),
+		InvitationExpiry:        48 * time.Hour,
+		DB:                      db,
 	}
 
 	return users.NewGuardianService(deps)
