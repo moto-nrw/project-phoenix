@@ -33,9 +33,9 @@ Arbeite die Liste von oben nach unten ab (groesste Impact zuerst).
 - [x] lib/admin-auth.ts (17 lines) - has admin-auth.test.ts
 - [x] lib/tenant-context.ts (15 lines) - has tenant-context.test.ts (24 tests)
 - [x] lib/profile-context.tsx (14 lines) - has profile-context.test.tsx (29 tests)
-- [ ] lib/redirect-utils.ts (11 lines)
-- [ ] lib/hooks/ (11 lines)
-- [ ] lib/api-client.ts (8 lines)
+- [x] lib/redirect-utils.ts (11 lines) - has redirect-utils.test.ts (30 tests)
+- [x] lib/hooks/ (11 lines) - has comprehensive tests in __tests__/
+- [x] lib/api-client.ts (8 lines) - has api-client.test.ts
 - [x] lib/api.ts (5 lines) - has api.test.ts
 - [x] lib/auth-api.ts (4 lines) - has auth-api.test.ts
 - [ ] lib/swr/ (4 lines)
