@@ -59,11 +59,11 @@ Arbeite die Liste von oben nach unten ab (groesste Impact zuerst).
 - [x] components/ui/ (15 lines) - has badge.test.tsx, card.test.tsx, logout-modal.test.tsx (41 tests)
 - [x] components/dashboard/ (5 lines) - covered by responsive-layout.test.tsx, mobile-bottom-nav.test.tsx, sidebar.test.tsx
 - [x] components/auth-wrapper.tsx (2 lines) - has auth-wrapper.test.tsx (12 tests)
-- [ ] components/teachers/ (1 line)
+- [x] components/teachers/ (1 line) - has teacher-edit-modal.test.tsx
 
 ### frontend/src/app (745 lines)
-- [ ] app/api/ (249 lines)
-- [ ] app/(auth)/ (162 lines)
+- [x] app/api/ (249 lines) - has health.test.ts, database/counts.test.ts, sse/events.test.ts, test.test.ts, auth/[...betterauth].test.ts
+- [x] app/(auth)/ (162 lines) - has loading.test.tsx, console/login.test.tsx, console/page.test.tsx (103 tests)
 - [ ] app/(public)/ (125 lines)
 - [ ] app/login/ (112 lines)
 - [ ] app/database/ (27 lines)
