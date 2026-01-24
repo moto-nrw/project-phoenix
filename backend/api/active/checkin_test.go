@@ -525,6 +525,9 @@ func TestCheckinStudent_Integration(t *testing.T) {
 	t.Run("successful checkin creates visit", func(t *testing.T) {
 		handler := setupCheckinTestHandler(t, db)
 
+		// Ensure web manual device exists (required for manual check-ins)
+		webDevice := testpkg.EnsureWebManualDevice(t, db)
+
 		// Create teacher with account and education group
 		teacher, account := testpkg.CreateTestTeacherWithAccount(t, db, "Success", "Teacher")
 		educationGroup := testpkg.CreateTestEducationGroup(t, db, "Success Group")
@@ -538,7 +541,7 @@ func TestCheckinStudent_Integration(t *testing.T) {
 		room := testpkg.CreateTestRoom(t, db, "Success Room")
 		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
 
-		defer testpkg.CleanupActivityFixtures(t, db, teacher.Staff.ID, teacher.Staff.PersonID, educationGroup.ID, student.ID, activity.ID, room.ID, activeGroup.ID)
+		defer testpkg.CleanupActivityFixtures(t, db, teacher.Staff.ID, teacher.Staff.PersonID, educationGroup.ID, student.ID, activity.ID, room.ID, activeGroup.ID, webDevice.ID)
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 		// Create JWT token
