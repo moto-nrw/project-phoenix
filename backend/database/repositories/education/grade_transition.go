@@ -43,7 +43,13 @@ func (r *GradeTransitionRepository) Create(ctx context.Context, t *education.Gra
 		return err
 	}
 
-	_, err := r.db.NewInsert().
+	// Use transaction from context if available
+	var db bun.IDB = r.db
+	if tx, ok := modelBase.TxFromContext(ctx); ok && tx != nil {
+		db = tx
+	}
+
+	_, err := db.NewInsert().
 		Model(t).
 		ModelTableExpr(tableGradeTransitions).
 		Exec(ctx)
@@ -112,7 +118,13 @@ func (r *GradeTransitionRepository) Update(ctx context.Context, t *education.Gra
 		return err
 	}
 
-	_, err := r.db.NewUpdate().
+	// Use transaction from context if available
+	var db bun.IDB = r.db
+	if tx, ok := modelBase.TxFromContext(ctx); ok && tx != nil {
+		db = tx
+	}
+
+	_, err := db.NewUpdate().
 		Model(t).
 		ModelTableExpr(tableGradeTransitions + ` AS "grade_transition"`).
 		WherePK().
@@ -129,7 +141,13 @@ func (r *GradeTransitionRepository) Update(ctx context.Context, t *education.Gra
 
 // Delete deletes a grade transition
 func (r *GradeTransitionRepository) Delete(ctx context.Context, id int64) error {
-	_, err := r.db.NewDelete().
+	// Use transaction from context if available
+	var db bun.IDB = r.db
+	if tx, ok := modelBase.TxFromContext(ctx); ok && tx != nil {
+		db = tx
+	}
+
+	_, err := db.NewDelete().
 		Model((*education.GradeTransition)(nil)).
 		ModelTableExpr(tableGradeTransitions + ` AS "grade_transition"`).
 		Where(`"grade_transition".id = ?`, id).
@@ -236,7 +254,13 @@ func (r *GradeTransitionRepository) CreateMapping(ctx context.Context, m *educat
 		return err
 	}
 
-	_, err := r.db.NewInsert().
+	// Use transaction from context if available
+	var db bun.IDB = r.db
+	if tx, ok := modelBase.TxFromContext(ctx); ok && tx != nil {
+		db = tx
+	}
+
+	_, err := db.NewInsert().
 		Model(m).
 		ModelTableExpr(tableGradeTransitionMappings).
 		Exec(ctx)
@@ -263,7 +287,13 @@ func (r *GradeTransitionRepository) CreateMappings(ctx context.Context, mappings
 		}
 	}
 
-	_, err := r.db.NewInsert().
+	// Use transaction from context if available
+	var db bun.IDB = r.db
+	if tx, ok := modelBase.TxFromContext(ctx); ok && tx != nil {
+		db = tx
+	}
+
+	_, err := db.NewInsert().
 		Model(&mappings).
 		ModelTableExpr(tableGradeTransitionMappings).
 		Exec(ctx)
@@ -279,7 +309,13 @@ func (r *GradeTransitionRepository) CreateMappings(ctx context.Context, mappings
 
 // DeleteMappings deletes all mappings for a transition
 func (r *GradeTransitionRepository) DeleteMappings(ctx context.Context, transitionID int64) error {
-	_, err := r.db.NewDelete().
+	// Use transaction from context if available
+	var db bun.IDB = r.db
+	if tx, ok := modelBase.TxFromContext(ctx); ok && tx != nil {
+		db = tx
+	}
+
+	_, err := db.NewDelete().
 		TableExpr(tableGradeTransitionMappings).
 		Where(whereTransitionID, transitionID).
 		Exec(ctx)
@@ -323,7 +359,13 @@ func (r *GradeTransitionRepository) CreateHistory(ctx context.Context, h *educat
 		return err
 	}
 
-	_, err := r.db.NewInsert().
+	// Use transaction from context if available
+	var db bun.IDB = r.db
+	if tx, ok := modelBase.TxFromContext(ctx); ok && tx != nil {
+		db = tx
+	}
+
+	_, err := db.NewInsert().
 		Model(h).
 		ModelTableExpr(tableGradeTransitionHistory).
 		Exec(ctx)
@@ -350,7 +392,13 @@ func (r *GradeTransitionRepository) CreateHistoryBatch(ctx context.Context, hist
 		}
 	}
 
-	_, err := r.db.NewInsert().
+	// Use transaction from context if available
+	var db bun.IDB = r.db
+	if tx, ok := modelBase.TxFromContext(ctx); ok && tx != nil {
+		db = tx
+	}
+
+	_, err := db.NewInsert().
 		Model(&history).
 		ModelTableExpr(tableGradeTransitionHistory).
 		Exec(ctx)
@@ -427,8 +475,14 @@ func (r *GradeTransitionRepository) GetStudentsByClasses(ctx context.Context, cl
 		return []*education.StudentClassInfo{}, nil
 	}
 
+	// Use transaction from context if available
+	var db bun.IDB = r.db
+	if tx, ok := modelBase.TxFromContext(ctx); ok && tx != nil {
+		db = tx
+	}
+
 	var students []*education.StudentClassInfo
-	err := r.db.NewSelect().
+	err := db.NewSelect().
 		ColumnExpr(`s.id AS student_id`).
 		ColumnExpr(`s.person_id`).
 		ColumnExpr(`CONCAT(p.first_name, ' ', p.last_name) AS person_name`).
