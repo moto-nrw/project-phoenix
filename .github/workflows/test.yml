@@ -114,6 +114,16 @@ jobs:
         working-directory: frontend
         run: pnpm run test:run -- --coverage
 
+      - name: Fix frontend coverage paths for SonarCloud
+        run: |
+          # Transform frontend paths: src/... → frontend/src/...
+          sed -i 's|^SF:src/|SF:frontend/src/|g' frontend/coverage/lcov.info
+
+      - name: Fix BetterAuth coverage paths for SonarCloud
+        run: |
+          # Transform betterauth paths: src/... → betterauth/src/...
+          sed -i 's|^SF:src/|SF:betterauth/src/|g' betterauth/coverage/lcov.info
+
       # Upload coverage artifacts for debugging
       - name: Upload coverage artifacts
         uses: actions/upload-artifact@v6
