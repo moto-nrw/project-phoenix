@@ -65,6 +65,7 @@ type Factory struct {
 	Group             educationModels.GroupRepository
 	GroupTeacher      educationModels.GroupTeacherRepository
 	GroupSubstitution educationModels.GroupSubstitutionRepository
+	GradeTransition   educationModels.GradeTransitionRepository
 
 	// Schedule domain
 	Dateframe      scheduleModels.DateframeRepository
@@ -139,6 +140,7 @@ func NewFactory(db *bun.DB) *Factory {
 		Group:             education.NewGroupRepository(db),
 		GroupTeacher:      education.NewGroupTeacherRepository(db),
 		GroupSubstitution: education.NewGroupSubstitutionRepository(db),
+		GradeTransition:   education.NewGradeTransitionRepository(db),
 
 		// Schedule repositories
 		Dateframe:      schedule.NewDateframeRepository(db),

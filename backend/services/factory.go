@@ -38,6 +38,7 @@ type Factory struct {
 	ActiveCleanup            active.CleanupService
 	Activities               activities.ActivityService
 	Education                education.Service
+	GradeTransition          education.GradeTransitionService
 	Facilities               facilities.Service
 	Invitation               auth.InvitationService
 	Feedback                 feedback.Service
@@ -116,6 +117,14 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 		repos.Staff,
 		db,
 	)
+
+	// Initialize grade transition service
+	gradeTransitionService := education.NewGradeTransitionService(education.GradeTransitionServiceDependencies{
+		TransitionRepo: repos.GradeTransition,
+		StudentRepo:    repos.Student,
+		PersonRepo:     repos.Person,
+		DB:             db,
+	})
 
 	// Initialize users service first (needed for active service)
 	usersService := users.NewPersonService(users.PersonServiceDependencies{
@@ -315,6 +324,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 		ActiveCleanup:            activeCleanupService,
 		Activities:               activitiesService,
 		Education:                educationService,
+		GradeTransition:          gradeTransitionService,
 		Facilities:               facilitiesService,
 		Feedback:                 feedbackService,
 		IoT:                      iotService,

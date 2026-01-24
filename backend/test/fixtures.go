@@ -27,6 +27,7 @@ import (
 // SQL constants to avoid duplication
 const (
 	whereIDEquals       = "id = ?"
+	whereIDIn           = "id IN (?)"
 	whereIDOrAccountID  = "id = ? OR account_id = ?"
 	whereAccountIDIn    = "account_id IN (?)"
 	tableUsersTeachers  = "users.teachers"
@@ -584,7 +585,7 @@ func CleanupAuthFixtures(tb testing.TB, db *bun.DB, accountIDs ...int64) {
 	// Finally delete the accounts themselves
 	cleanupDelete(tb, db.NewDelete().
 		Table("auth.accounts").
-		Where("id IN (?)", bun.In(accountIDs)),
+		Where(whereIDIn, bun.In(accountIDs)),
 		"auth.accounts")
 }
 
@@ -598,7 +599,7 @@ func CleanupParentAccountFixtures(tb testing.TB, db *bun.DB, accountIDs ...int64
 
 	cleanupDelete(tb, db.NewDelete().
 		Table("auth.accounts_parents").
-		Where("id IN (?)", bun.In(accountIDs)),
+		Where(whereIDIn, bun.In(accountIDs)),
 		"auth.accounts_parents")
 }
 
@@ -1767,4 +1768,83 @@ func CreateTestJWT(tb testing.TB, accountID int64, permissions []string) string 
 	require.NoError(tb, err, "Failed to create test JWT")
 
 	return token
+}
+
+// ============================================================================
+// Grade Transition Domain Fixtures
+// ============================================================================
+
+// CreateTestGradeTransition creates a grade transition in the database.
+func CreateTestGradeTransition(tb testing.TB, db *bun.DB, academicYear string, createdBy int64) *education.GradeTransition {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	transition := &education.GradeTransition{
+		AcademicYear: academicYear,
+		Status:       education.TransitionStatusDraft,
+		CreatedBy:    createdBy,
+	}
+
+	err := db.NewInsert().
+		Model(transition).
+		ModelTableExpr(`education.grade_transitions`).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to create test grade transition")
+
+	return transition
+}
+
+// CreateTestGradeTransitionMapping creates a mapping for a grade transition.
+func CreateTestGradeTransitionMapping(tb testing.TB, db *bun.DB, transitionID int64, fromClass string, toClass *string) *education.GradeTransitionMapping {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	mapping := &education.GradeTransitionMapping{
+		TransitionID: transitionID,
+		FromClass:    fromClass,
+		ToClass:      toClass,
+	}
+
+	err := db.NewInsert().
+		Model(mapping).
+		ModelTableExpr(`education.grade_transition_mappings`).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to create test grade transition mapping")
+
+	return mapping
+}
+
+// CleanupGradeTransitionFixtures removes grade transition fixtures from the database.
+// Pass transition IDs and it will clean up the transition, mappings, and history.
+func CleanupGradeTransitionFixtures(tb testing.TB, db *bun.DB, transitionIDs ...int64) {
+	tb.Helper()
+
+	if len(transitionIDs) == 0 {
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Delete history first (depends on transition)
+	_, _ = db.NewDelete().
+		TableExpr("education.grade_transition_history").
+		Where("transition_id IN (?)", bun.In(transitionIDs)).
+		Exec(ctx)
+
+	// Delete mappings (depends on transition)
+	_, _ = db.NewDelete().
+		TableExpr("education.grade_transition_mappings").
+		Where("transition_id IN (?)", bun.In(transitionIDs)).
+		Exec(ctx)
+
+	// Delete transitions
+	_, _ = db.NewDelete().
+		TableExpr("education.grade_transitions").
+		Where(whereIDIn, bun.In(transitionIDs)).
+		Exec(ctx)
 }

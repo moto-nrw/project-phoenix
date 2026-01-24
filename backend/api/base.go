@@ -13,6 +13,7 @@ import (
 
 	activeAPI "github.com/moto-nrw/project-phoenix/api/active"
 	activitiesAPI "github.com/moto-nrw/project-phoenix/api/activities"
+	adminAPI "github.com/moto-nrw/project-phoenix/api/admin"
 	authAPI "github.com/moto-nrw/project-phoenix/api/auth"
 	configAPI "github.com/moto-nrw/project-phoenix/api/config"
 	databaseAPI "github.com/moto-nrw/project-phoenix/api/database"
@@ -41,24 +42,25 @@ type API struct {
 	Router   chi.Router
 
 	// API Resources
-	Auth          *authAPI.Resource
-	Rooms         *roomsAPI.Resource
-	Students      *studentsAPI.Resource
-	Groups        *groupsAPI.Resource
-	Guardians     *guardiansAPI.Resource
-	Import        *importAPI.Resource
-	Activities    *activitiesAPI.Resource
-	Staff         *staffAPI.Resource
-	Feedback      *feedbackAPI.Resource
-	Schedules     *schedulesAPI.Resource
-	Config        *configAPI.Resource
-	Active        *activeAPI.Resource
-	IoT           *iotAPI.Resource
-	SSE           *sseAPI.Resource
-	Users         *usersAPI.Resource
-	UserContext   *usercontextAPI.Resource
-	Substitutions *substitutionsAPI.Resource
-	Database      *databaseAPI.Resource
+	Auth             *authAPI.Resource
+	Rooms            *roomsAPI.Resource
+	Students         *studentsAPI.Resource
+	Groups           *groupsAPI.Resource
+	Guardians        *guardiansAPI.Resource
+	Import           *importAPI.Resource
+	Activities       *activitiesAPI.Resource
+	Staff            *staffAPI.Resource
+	Feedback         *feedbackAPI.Resource
+	Schedules        *schedulesAPI.Resource
+	Config           *configAPI.Resource
+	Active           *activeAPI.Resource
+	IoT              *iotAPI.Resource
+	SSE              *sseAPI.Resource
+	Users            *usersAPI.Resource
+	UserContext      *usercontextAPI.Resource
+	Substitutions    *substitutionsAPI.Resource
+	Database         *databaseAPI.Resource
+	GradeTransitions *adminAPI.GradeTransitionResource
 }
 
 // New creates a new API instance
@@ -209,6 +211,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.UserContext = usercontextAPI.NewResource(api.Services.UserContext, repoFactory.GroupSubstitution)
 	api.Substitutions = substitutionsAPI.NewResource(api.Services.Education)
 	api.Database = databaseAPI.NewResource(api.Services.Database)
+	api.GradeTransitions = adminAPI.NewGradeTransitionResource(api.Services.GradeTransition)
 }
 
 // ServeHTTP implements the http.Handler interface for the API
@@ -317,6 +320,9 @@ func (a *API) registerRoutesWithRateLimiting() {
 
 		// Mount SSE resources (Server-Sent Events for real-time updates)
 		r.Mount("/sse", a.SSE.Router())
+
+		// Mount admin resources
+		r.Mount("/admin/grade-transitions", a.GradeTransitions.Router())
 
 		// Add other resource routes here as they are implemented
 	})

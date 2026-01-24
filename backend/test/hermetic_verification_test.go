@@ -128,14 +128,16 @@ func checkHardcodedIDs(t *testing.T, root string) []string {
 	// Patterns that require word boundary matching to avoid false negatives.
 	// For example, "count" should NOT match "AccountID" (Acc-ount-ID).
 	wordBoundaryPatterns := []*regexp.Regexp{
-		regexp.MustCompile(`\bcount\b`), // Counts (word boundary to avoid matching "AccountID")
+		regexp.MustCompile(`\bcount\b`),    // Counts (word boundary to avoid matching "AccountID")
+		regexp.MustCompile(`\baffected\b`), // Affected row counts from UPDATE/DELETE operations
 	}
 
 	// Files to skip (mock tests, model unit tests without DB)
 	skipPatterns := []string{
 		"_internal_test.go",                  // Internal tests often use mocks
 		"_mock_test.go",                      // Mock tests
-		"models/",                            // Model unit tests don't hit DB
+		"models/",                            // Model unit tests don't hit DB (Unix)
+		"models\\",                           // Model unit tests don't hit DB (Windows)
 		"invitation_service_test.go",         // Uses mocks
 		"password_reset_integration_test.go", // Uses mocks (sqlmock + stubs)
 		"handlers_unit_test.go",              // Unit tests for converters (no DB)
