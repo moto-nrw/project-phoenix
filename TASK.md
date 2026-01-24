@@ -48,12 +48,12 @@ Arbeite die Liste von oben nach unten ab (groesste Impact zuerst).
 - [x] lib/student-api.ts (2 lines) - has student-api.test.ts
 - [x] lib/activity-api.ts (1 line) - has activity-api.test.ts
 - [x] lib/api-helpers.server.ts (1 line) - has api-helpers.server.test.ts
-- [ ] lib/auth-utils.ts (1 line)
+- [x] lib/auth-utils.ts (1 line) - has auth-utils.test.ts (46 tests)
 - [x] lib/checkin-api.ts (1 line) - has checkin-api.test.ts
 - [x] lib/rooms-api.ts (1 line) - has rooms-api.test.ts
 
 ### frontend/src/components (473 lines)
-- [ ] components/auth/ (201 lines)
+- [x] components/auth/ (201 lines)
 - [ ] components/admin/ (144 lines)
 - [ ] components/console/ (105 lines)
 - [ ] components/ui/ (15 lines)
