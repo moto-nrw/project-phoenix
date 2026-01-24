@@ -82,6 +82,10 @@ jobs:
           echo ""
           echo "=== BetterAuth migrations complete ==="
 
+      - name: Run BetterAuth tests with coverage
+        working-directory: betterauth
+        run: pnpm run test:coverage
+
       - name: Run Go database migrations
         working-directory: backend
         env:
@@ -118,6 +122,7 @@ jobs:
           path: |
             backend/coverage.out
             frontend/coverage/lcov.info
+            betterauth/coverage/lcov.info
           retention-days: 7
         if: always()
 
