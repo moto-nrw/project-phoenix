@@ -73,6 +73,60 @@ export function createEmptyEntry(): GuardianEntry {
   };
 }
 
+// Helper: Update a phone in an entry
+function updatePhoneInEntry(
+  entry: GuardianEntry,
+  phoneId: string,
+  field: keyof PhoneEntry,
+  value: string | boolean,
+): GuardianEntry {
+  return {
+    ...entry,
+    phoneNumbers: entry.phoneNumbers.map((phone) =>
+      phone.id === phoneId ? { ...phone, [field]: value } : phone,
+    ),
+  };
+}
+
+// Helper: Set primary phone in an entry
+function setPrimaryPhoneInEntry(
+  entry: GuardianEntry,
+  phoneId: string,
+): GuardianEntry {
+  return {
+    ...entry,
+    phoneNumbers: entry.phoneNumbers.map((phone) => ({
+      ...phone,
+      isPrimary: phone.id === phoneId,
+    })),
+  };
+}
+
+// Helper: Add a phone to an entry
+function addPhoneToEntry(entry: GuardianEntry): GuardianEntry {
+  return {
+    ...entry,
+    phoneNumbers: [...entry.phoneNumbers, createEmptyPhone(false)],
+  };
+}
+
+// Helper: Remove a phone from an entry
+function removePhoneFromEntry(
+  entry: GuardianEntry,
+  phoneId: string,
+): GuardianEntry {
+  const newPhones = entry.phoneNumbers.filter((p) => p.id !== phoneId);
+  // If we removed the primary, make the first one primary
+  const hasPrimary = newPhones.some((p) => p.isPrimary);
+  if (!hasPrimary && newPhones.length > 0) {
+    newPhones[0] = { ...newPhones[0]!, isPrimary: true };
+  }
+  return {
+    ...entry,
+    phoneNumbers: newPhones,
+  };
+}
+
 // Convert GuardianWithRelationship to GuardianEntry
 // Exported for testing
 export function toEntry(data: GuardianWithRelationship): GuardianEntry {
@@ -190,63 +244,38 @@ export default function GuardianFormModal({
     value: string | boolean,
   ) => {
     setEntries((prev) =>
-      prev.map((entry) => {
-        if (entry.id !== entryId) return entry;
-        return {
-          ...entry,
-          phoneNumbers: entry.phoneNumbers.map((phone) =>
-            phone.id === phoneId ? { ...phone, [field]: value } : phone,
-          ),
-        };
-      }),
+      prev.map((entry) =>
+        entry.id !== entryId
+          ? entry
+          : updatePhoneInEntry(entry, phoneId, field, value),
+      ),
     );
   };
 
   // Set phone as primary (unset others)
   const setPhonePrimary = (entryId: string, phoneId: string) => {
     setEntries((prev) =>
-      prev.map((entry) => {
-        if (entry.id !== entryId) return entry;
-        return {
-          ...entry,
-          phoneNumbers: entry.phoneNumbers.map((phone) => ({
-            ...phone,
-            isPrimary: phone.id === phoneId,
-          })),
-        };
-      }),
+      prev.map((entry) =>
+        entry.id !== entryId ? entry : setPrimaryPhoneInEntry(entry, phoneId),
+      ),
     );
   };
 
   // Add phone number to entry
   const addPhone = (entryId: string) => {
     setEntries((prev) =>
-      prev.map((entry) => {
-        if (entry.id !== entryId) return entry;
-        return {
-          ...entry,
-          phoneNumbers: [...entry.phoneNumbers, createEmptyPhone(false)],
-        };
-      }),
+      prev.map((entry) =>
+        entry.id !== entryId ? entry : addPhoneToEntry(entry),
+      ),
     );
   };
 
   // Remove phone number from entry
   const removePhone = (entryId: string, phoneId: string) => {
     setEntries((prev) =>
-      prev.map((entry) => {
-        if (entry.id !== entryId) return entry;
-        const newPhones = entry.phoneNumbers.filter((p) => p.id !== phoneId);
-        // If we removed the primary, make the first one primary
-        const hasPrimary = newPhones.some((p) => p.isPrimary);
-        if (!hasPrimary && newPhones.length > 0) {
-          newPhones[0] = { ...newPhones[0]!, isPrimary: true };
-        }
-        return {
-          ...entry,
-          phoneNumbers: newPhones,
-        };
-      }),
+      prev.map((entry) =>
+        entry.id !== entryId ? entry : removePhoneFromEntry(entry, phoneId),
+      ),
     );
   };
 
@@ -550,9 +579,9 @@ export default function GuardianFormModal({
 
               {/* Phone Numbers */}
               <div className="space-y-3">
-                <label className="block text-xs font-medium text-gray-700">
+                <span className="block text-xs font-medium text-gray-700">
                   Telefonnummern
-                </label>
+                </span>
 
                 {entry.phoneNumbers.map((phone, phoneIndex) => (
                   <div

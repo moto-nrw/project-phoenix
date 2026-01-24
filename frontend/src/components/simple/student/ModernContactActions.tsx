@@ -125,9 +125,9 @@ export function ModernContactActions({
                 {/* Dropdown menu */}
                 {isPhoneDropdownOpen && (
                   <div className="absolute left-0 z-50 mt-1 min-w-[200px] rounded-lg border border-gray-200 bg-white py-1 shadow-lg">
-                    {phoneNumbers.map((phoneOption, index) => (
+                    {phoneNumbers.map((phoneOption) => (
                       <button
-                        key={index}
+                        key={phoneOption.number}
                         onClick={() => handlePhoneClick(phoneOption.number)}
                         className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
                       >

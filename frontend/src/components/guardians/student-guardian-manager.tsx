@@ -8,7 +8,9 @@ import { GuardianDeleteModal } from "./guardian-delete-modal";
 import type {
   GuardianWithRelationship,
   GuardianFormData,
+  PhoneType,
 } from "@/lib/guardian-helpers";
+import { getGuardianFullName } from "@/lib/guardian-helpers";
 import type { RelationshipFormData } from "./guardian-form-modal";
 import {
   fetchStudentGuardians,
@@ -22,8 +24,6 @@ import {
   deleteGuardianPhoneNumber,
   setGuardianPrimaryPhone,
 } from "@/lib/guardian-api";
-import type { PhoneType } from "@/lib/guardian-helpers";
-import { getGuardianFullName } from "@/lib/guardian-helpers";
 import { useToast } from "~/contexts/ToastContext";
 
 interface StudentGuardianManagerProps {
@@ -162,10 +162,8 @@ export default function StudentGuardianManager({
 
     const { guardianData, relationshipData, phoneNumbers } = first;
 
-    // Update guardian profile
+    // Update guardian profile and relationship
     await updateGuardian(editingGuardian.id, guardianData);
-
-    // Update relationship
     await updateStudentGuardianRelationship(
       editingGuardian.relationshipId,
       relationshipData,
@@ -173,63 +171,11 @@ export default function StudentGuardianManager({
 
     // Sync phone numbers if provided
     if (phoneNumbers) {
-      const existingPhones = editingGuardian.phoneNumbers ?? [];
-      const existingPhoneIds = new Set(existingPhones.map((p) => p.id));
-
-      // Track which phone should be primary
-      let primaryPhoneId: string | null = null;
-
-      // Process each phone number from the form
-      for (const phone of phoneNumbers) {
-        // Check if this is a UUID (new phone) or existing phone ID
-        const isNewPhone =
-          !phone.id ||
-          phone.id.includes("-") ||
-          !existingPhoneIds.has(phone.id);
-
-        if (isNewPhone) {
-          // Add new phone number
-          const created = await addGuardianPhoneNumber(editingGuardian.id, {
-            phoneNumber: phone.phoneNumber,
-            phoneType: phone.phoneType,
-            label: phone.label,
-            isPrimary: phone.isPrimary,
-          });
-          if (phone.isPrimary) {
-            primaryPhoneId = created.id;
-          }
-        } else {
-          // Update existing phone number
-          await updateGuardianPhoneNumber(editingGuardian.id, phone.id!, {
-            phoneNumber: phone.phoneNumber,
-            phoneType: phone.phoneType,
-            label: phone.label,
-          });
-          if (phone.isPrimary) {
-            primaryPhoneId = phone.id!;
-          }
-        }
-      }
-
-      // Delete phones that were removed
-      const newPhoneIds = new Set(
-        phoneNumbers
-          .filter((p) => p.id && !p.id.includes("-"))
-          .map((p) => p.id),
+      await syncGuardianPhoneNumbers(
+        editingGuardian.id,
+        phoneNumbers,
+        editingGuardian.phoneNumbers ?? [],
       );
-      for (const existing of existingPhones) {
-        if (!newPhoneIds.has(existing.id)) {
-          await deleteGuardianPhoneNumber(editingGuardian.id, existing.id);
-        }
-      }
-
-      // Set primary phone if needed (and it's not already primary)
-      if (primaryPhoneId) {
-        const existingPrimary = existingPhones.find((p) => p.isPrimary);
-        if (existingPrimary?.id !== primaryPhoneId) {
-          await setGuardianPrimaryPhone(editingGuardian.id, primaryPhoneId);
-        }
-      }
     }
 
     // Reload guardians
@@ -237,6 +183,63 @@ export default function StudentGuardianManager({
     onUpdate?.();
     setEditingGuardian(undefined);
     toastSuccess("Erziehungsberechtigte/r erfolgreich aktualisiert");
+  };
+
+  // Helper: Sync phone numbers (add/update/delete)
+  const syncGuardianPhoneNumbers = async (
+    guardianId: string,
+    formPhones: Array<{
+      phoneNumber: string;
+      phoneType: PhoneType;
+      label?: string;
+      isPrimary: boolean;
+      id?: string;
+    }>,
+    existingPhones: Array<{ id: string; isPrimary: boolean }>,
+  ) => {
+    const existingPhoneIds = new Set(existingPhones.map((p) => p.id));
+    let primaryPhoneId: string | null = null;
+
+    // Process each phone number from the form
+    for (const phone of formPhones) {
+      const isNewPhone =
+        !phone.id || phone.id.includes("-") || !existingPhoneIds.has(phone.id);
+
+      if (isNewPhone) {
+        const created = await addGuardianPhoneNumber(guardianId, {
+          phoneNumber: phone.phoneNumber,
+          phoneType: phone.phoneType,
+          label: phone.label,
+          isPrimary: phone.isPrimary,
+        });
+        if (phone.isPrimary) primaryPhoneId = created.id;
+      } else {
+        await updateGuardianPhoneNumber(guardianId, phone.id!, {
+          phoneNumber: phone.phoneNumber,
+          phoneType: phone.phoneType,
+          label: phone.label,
+        });
+        if (phone.isPrimary) primaryPhoneId = phone.id!;
+      }
+    }
+
+    // Delete phones that were removed
+    const newPhoneIds = new Set(
+      formPhones.filter((p) => p.id && !p.id.includes("-")).map((p) => p.id),
+    );
+    for (const existing of existingPhones) {
+      if (!newPhoneIds.has(existing.id)) {
+        await deleteGuardianPhoneNumber(guardianId, existing.id);
+      }
+    }
+
+    // Set primary phone if changed
+    if (primaryPhoneId) {
+      const existingPrimary = existingPhones.find((p) => p.isPrimary);
+      if (existingPrimary?.id !== primaryPhoneId) {
+        await setGuardianPrimaryPhone(guardianId, primaryPhoneId);
+      }
+    }
   };
 
   // Handle delete guardian - open confirmation modal

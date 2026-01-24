@@ -296,13 +296,15 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 	// Initialize import service
 	relationshipResolver := importService.NewRelationshipResolver(repos.Group, repos.Room)
 	studentImportConfig := importService.NewStudentImportConfig(
-		repos.Person,
-		repos.Student,
-		repos.GuardianProfile,
-		repos.GuardianPhoneNumber,
-		repos.StudentGuardian,
-		repos.PrivacyConsent,
-		relationshipResolver,
+		importService.StudentImportDeps{
+			PersonRepo:        repos.Person,
+			StudentRepo:       repos.Student,
+			GuardianRepo:      repos.GuardianProfile,
+			GuardianPhoneRepo: repos.GuardianPhoneNumber,
+			RelationRepo:      repos.StudentGuardian,
+			PrivacyRepo:       repos.PrivacyConsent,
+			Resolver:          relationshipResolver,
+		},
 		db,
 	)
 	studentImportService := importService.NewImportService(studentImportConfig, db)
