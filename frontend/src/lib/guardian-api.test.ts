@@ -11,12 +11,20 @@ import {
   updateStudentGuardianRelationship,
   removeGuardianFromStudent,
   searchGuardians,
+  fetchGuardianPhoneNumbers,
+  addGuardianPhoneNumber,
+  updateGuardianPhoneNumber,
+  deleteGuardianPhoneNumber,
+  setGuardianPrimaryPhone,
 } from "./guardian-api";
 import type {
   GuardianFormData,
   StudentGuardianLinkRequest,
   BackendGuardianProfile,
   BackendGuardianWithRelationship,
+  PhoneNumberCreateRequest,
+  PhoneNumberUpdateRequest,
+  BackendPhoneNumber,
 } from "./guardian-helpers";
 
 describe("translateApiError", () => {
@@ -903,6 +911,549 @@ describe("guardian-api functions", () => {
       // The catch block returns a generic error message without statusText
       await expect(searchGuardians("john")).rejects.toThrow(
         "Failed to search guardians",
+      );
+    });
+  });
+
+  // =============================================================================
+  // Phone Number API Functions Tests
+  // =============================================================================
+
+  describe("fetchGuardianPhoneNumbers", () => {
+    it("fetches phone numbers for a guardian", async () => {
+      const mockPhoneNumbers: BackendPhoneNumber[] = [
+        {
+          id: 1,
+          phone_number: "555-1234",
+          phone_type: "mobile",
+          is_primary: true,
+          priority: 1,
+        },
+        {
+          id: 2,
+          phone_number: "555-5678",
+          phone_type: "home",
+          label: "Home Office",
+          is_primary: false,
+          priority: 2,
+        },
+      ];
+
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            status: "success",
+            data: mockPhoneNumbers,
+          }),
+      });
+
+      const result = await fetchGuardianPhoneNumbers("123");
+
+      expect(result).toHaveLength(2);
+      expect(result[0]).toEqual({
+        id: "1",
+        phoneNumber: "555-1234",
+        phoneType: "mobile",
+        label: undefined,
+        isPrimary: true,
+        priority: 1,
+      });
+      expect(result[1]).toEqual({
+        id: "2",
+        phoneNumber: "555-5678",
+        phoneType: "home",
+        label: "Home Office",
+        isPrimary: false,
+        priority: 2,
+      });
+      expect(global.fetch).toHaveBeenCalledWith(
+        "/api/guardians/123/phone-numbers",
+      );
+    });
+
+    it("returns empty array when data is undefined", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            status: "success",
+            data: undefined,
+          }),
+      });
+
+      const result = await fetchGuardianPhoneNumbers("123");
+      expect(result).toEqual([]);
+    });
+
+    it("throws error on non-ok response", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        statusText: "Not Found",
+        json: () => Promise.resolve({ error: "Guardian not found" }),
+      });
+
+      await expect(fetchGuardianPhoneNumbers("999")).rejects.toThrow(
+        "Guardian not found",
+      );
+    });
+
+    it("throws error when status is error", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            status: "error",
+            error: "Database error",
+          }),
+      });
+
+      await expect(fetchGuardianPhoneNumbers("123")).rejects.toThrow(
+        "Database error",
+      );
+    });
+
+    it("throws fallback error when JSON parse fails", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        statusText: "Internal Server Error",
+        json: () => Promise.reject(new Error("Parse error")),
+      });
+
+      await expect(fetchGuardianPhoneNumbers("123")).rejects.toThrow(
+        "Failed to fetch phone numbers",
+      );
+    });
+  });
+
+  describe("addGuardianPhoneNumber", () => {
+    const mockCreateRequest: PhoneNumberCreateRequest = {
+      phoneNumber: "555-9999",
+      phoneType: "work",
+      label: "Office",
+      isPrimary: false,
+    };
+
+    const mockBackendPhoneNumber: BackendPhoneNumber = {
+      id: 3,
+      phone_number: "555-9999",
+      phone_type: "work",
+      label: "Office",
+      is_primary: false,
+      priority: 3,
+    };
+
+    it("adds a phone number to a guardian", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            status: "success",
+            data: mockBackendPhoneNumber,
+          }),
+      });
+
+      const result = await addGuardianPhoneNumber("123", mockCreateRequest);
+
+      expect(result).toEqual({
+        id: "3",
+        phoneNumber: "555-9999",
+        phoneType: "work",
+        label: "Office",
+        isPrimary: false,
+        priority: 3,
+      });
+
+      expect(global.fetch).toHaveBeenCalledWith(
+        "/api/guardians/123/phone-numbers",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+          body: expect.any(String),
+        },
+      );
+
+      // Verify the request body was mapped correctly
+      const callArgs = vi.mocked(global.fetch).mock.calls[0] as [
+        string,
+        RequestInit,
+      ];
+      const body = JSON.parse(callArgs[1].body as string) as Record<
+        string,
+        unknown
+      >;
+      expect(body).toEqual({
+        phone_number: "555-9999",
+        phone_type: "work",
+        label: "Office",
+        is_primary: false,
+      });
+    });
+
+    it("adds phone number without optional fields", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            status: "success",
+            data: {
+              id: 4,
+              phone_number: "555-0000",
+              phone_type: "mobile",
+              is_primary: true,
+              priority: 1,
+            },
+          }),
+      });
+
+      const minimalRequest: PhoneNumberCreateRequest = {
+        phoneNumber: "555-0000",
+        phoneType: "mobile",
+      };
+
+      const result = await addGuardianPhoneNumber("123", minimalRequest);
+
+      expect(result.phoneNumber).toBe("555-0000");
+      expect(result.phoneType).toBe("mobile");
+    });
+
+    it("throws translated error on non-ok response", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        statusText: "Bad Request",
+        json: () => Promise.resolve({ error: "validation failed" }),
+      });
+
+      await expect(
+        addGuardianPhoneNumber("123", mockCreateRequest),
+      ).rejects.toThrow("Validierung fehlgeschlagen");
+    });
+
+    it("throws error when status is error", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            status: "error",
+            error: "invalid phone format",
+          }),
+      });
+
+      await expect(
+        addGuardianPhoneNumber("123", mockCreateRequest),
+      ).rejects.toThrow();
+    });
+
+    it("throws error when data is missing", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            status: "success",
+            data: null,
+          }),
+      });
+
+      await expect(
+        addGuardianPhoneNumber("123", mockCreateRequest),
+      ).rejects.toThrow();
+    });
+
+    it("throws translated fallback error when JSON parse fails", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        statusText: "Bad Request",
+        json: () => Promise.reject(new Error("Parse error")),
+      });
+
+      await expect(
+        addGuardianPhoneNumber("123", mockCreateRequest),
+      ).rejects.toThrow(
+        "Ein Fehler ist aufgetreten. Bitte versuchen Sie es erneut.",
+      );
+    });
+  });
+
+  describe("updateGuardianPhoneNumber", () => {
+    const mockUpdateRequest: PhoneNumberUpdateRequest = {
+      phoneNumber: "555-1111",
+      phoneType: "mobile",
+      label: "New Mobile",
+    };
+
+    it("updates a guardian phone number", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            status: "success",
+          }),
+      });
+
+      await expect(
+        updateGuardianPhoneNumber("123", "456", mockUpdateRequest),
+      ).resolves.toBeUndefined();
+
+      expect(global.fetch).toHaveBeenCalledWith(
+        "/api/guardians/123/phone-numbers/456",
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+          body: expect.any(String),
+        },
+      );
+
+      // Verify the request body was mapped correctly
+      const callArgs = vi.mocked(global.fetch).mock.calls[0] as [
+        string,
+        RequestInit,
+      ];
+      const body = JSON.parse(callArgs[1].body as string) as Record<
+        string,
+        unknown
+      >;
+      expect(body).toEqual({
+        phone_number: "555-1111",
+        phone_type: "mobile",
+        label: "New Mobile",
+      });
+    });
+
+    it("updates only specified fields", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            status: "success",
+          }),
+      });
+
+      const partialUpdate: PhoneNumberUpdateRequest = {
+        phoneType: "home",
+      };
+
+      await updateGuardianPhoneNumber("123", "456", partialUpdate);
+
+      const callArgs = vi.mocked(global.fetch).mock.calls[0] as [
+        string,
+        RequestInit,
+      ];
+      const body = JSON.parse(callArgs[1].body as string) as Record<
+        string,
+        unknown
+      >;
+      expect(body).toEqual({
+        phone_type: "home",
+      });
+      expect(body).not.toHaveProperty("phone_number");
+      expect(body).not.toHaveProperty("label");
+    });
+
+    it("throws translated error on non-ok response", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        statusText: "Not Found",
+        json: () => Promise.resolve({ error: "guardian not found" }),
+      });
+
+      await expect(
+        updateGuardianPhoneNumber("999", "456", mockUpdateRequest),
+      ).rejects.toThrow("Erziehungsberechtigte/r nicht gefunden");
+    });
+
+    it("throws error when status is error", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            status: "error",
+            error: "unauthorized",
+          }),
+      });
+
+      await expect(
+        updateGuardianPhoneNumber("123", "456", mockUpdateRequest),
+      ).rejects.toThrow("Keine Berechtigung");
+    });
+
+    it("throws translated fallback error when JSON parse fails", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        statusText: "Bad Request",
+        json: () => Promise.reject(new Error("Parse error")),
+      });
+
+      await expect(
+        updateGuardianPhoneNumber("123", "456", mockUpdateRequest),
+      ).rejects.toThrow(
+        "Ein Fehler ist aufgetreten. Bitte versuchen Sie es erneut.",
+      );
+    });
+  });
+
+  describe("deleteGuardianPhoneNumber", () => {
+    it("deletes a phone number with 204 No Content response", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 204,
+      });
+
+      await expect(
+        deleteGuardianPhoneNumber("123", "456"),
+      ).resolves.toBeUndefined();
+
+      expect(global.fetch).toHaveBeenCalledWith(
+        "/api/guardians/123/phone-numbers/456",
+        {
+          method: "DELETE",
+        },
+      );
+    });
+
+    it("deletes a phone number with JSON success response", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: () =>
+          Promise.resolve({
+            status: "success",
+          }),
+      });
+
+      await expect(
+        deleteGuardianPhoneNumber("123", "456"),
+      ).resolves.toBeUndefined();
+    });
+
+    it("throws error on non-ok response", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        statusText: "Not Found",
+        json: () => Promise.resolve({ error: "Phone number not found" }),
+      });
+
+      await expect(deleteGuardianPhoneNumber("123", "999")).rejects.toThrow(
+        "Phone number not found",
+      );
+    });
+
+    it("throws error when status is error", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: () =>
+          Promise.resolve({
+            status: "error",
+            error: "Cannot delete primary phone number",
+          }),
+      });
+
+      await expect(deleteGuardianPhoneNumber("123", "456")).rejects.toThrow(
+        "Cannot delete primary phone number",
+      );
+    });
+
+    it("throws fallback error when JSON parse fails", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        statusText: "Bad Request",
+        json: () => Promise.reject(new Error("Parse error")),
+      });
+
+      await expect(deleteGuardianPhoneNumber("123", "456")).rejects.toThrow(
+        "Failed to delete phone number",
+      );
+    });
+  });
+
+  describe("setGuardianPrimaryPhone", () => {
+    it("sets a phone number as primary", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            status: "success",
+          }),
+      });
+
+      await expect(
+        setGuardianPrimaryPhone("123", "456"),
+      ).resolves.toBeUndefined();
+
+      expect(global.fetch).toHaveBeenCalledWith(
+        "/api/guardians/123/phone-numbers/456/set-primary",
+        {
+          method: "POST",
+        },
+      );
+    });
+
+    it("throws error on non-ok response", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        statusText: "Not Found",
+        json: () => Promise.resolve({ error: "Phone number not found" }),
+      });
+
+      await expect(setGuardianPrimaryPhone("123", "999")).rejects.toThrow(
+        "Phone number not found",
+      );
+    });
+
+    it("throws error when status is error", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            status: "error",
+            error: "Failed to update primary phone",
+          }),
+      });
+
+      await expect(setGuardianPrimaryPhone("123", "456")).rejects.toThrow(
+        "Failed to update primary phone",
+      );
+    });
+
+    it("throws fallback error when JSON parse fails", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        statusText: "Internal Server Error",
+        json: () => Promise.reject(new Error("Parse error")),
+      });
+
+      await expect(setGuardianPrimaryPhone("123", "456")).rejects.toThrow(
+        "Failed to set primary phone",
+      );
+    });
+
+    it("handles guardian not found error", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        statusText: "Not Found",
+        json: () => Promise.resolve({ error: "Guardian not found" }),
+      });
+
+      await expect(setGuardianPrimaryPhone("999", "456")).rejects.toThrow(
+        "Guardian not found",
+      );
+    });
+
+    it("handles unauthorized error", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        statusText: "Unauthorized",
+        json: () => Promise.resolve({ error: "Unauthorized" }),
+      });
+
+      await expect(setGuardianPrimaryPhone("123", "456")).rejects.toThrow(
+        "Unauthorized",
       );
     });
   });

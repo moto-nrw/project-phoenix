@@ -98,7 +98,7 @@ func TestListGuardians_Success(t *testing.T) {
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 
 	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
-	_, ok := response["data"].([]interface{})
+	_, ok := response["data"].([]any)
 	require.True(t, ok, "Expected data to be an array")
 }
 
@@ -165,7 +165,7 @@ func TestCreateGuardian_Success(t *testing.T) {
 	router := chi.NewRouter()
 	router.Post("/guardians", ctx.resource.CreateGuardianHandler())
 
-	body := map[string]interface{}{
+	body := map[string]any{
 		"first_name":               fmt.Sprintf("TestGuardian-%d", time.Now().UnixNano()),
 		"last_name":                "Test",
 		"email":                    fmt.Sprintf("guardian-%d@test.com", time.Now().UnixNano()),
@@ -185,7 +185,7 @@ func TestCreateGuardian_Success(t *testing.T) {
 	testutil.AssertSuccessResponse(t, rr, http.StatusCreated)
 
 	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
-	data, ok := response["data"].(map[string]interface{})
+	data, ok := response["data"].(map[string]any)
 	require.True(t, ok, "Expected data to be an object")
 	assert.NotZero(t, data["id"])
 
@@ -203,7 +203,7 @@ func TestCreateGuardian_Forbidden_NonStaffUser(t *testing.T) {
 	router := chi.NewRouter()
 	router.Post("/guardians", ctx.resource.CreateGuardianHandler())
 
-	body := map[string]interface{}{
+	body := map[string]any{
 		"first_name":               "Test",
 		"last_name":                "Guardian",
 		"email":                    "test@test.com",
@@ -227,7 +227,7 @@ func TestCreateGuardian_BadRequest_MissingFirstName(t *testing.T) {
 	router := chi.NewRouter()
 	router.Post("/guardians", ctx.resource.CreateGuardianHandler())
 
-	body := map[string]interface{}{
+	body := map[string]any{
 		"last_name":                "Test",
 		"email":                    "test@test.com",
 		"preferred_contact_method": "email",
@@ -253,7 +253,7 @@ func TestCreateGuardian_BadRequest_MissingLastName(t *testing.T) {
 	router := chi.NewRouter()
 	router.Post("/guardians", ctx.resource.CreateGuardianHandler())
 
-	body := map[string]interface{}{
+	body := map[string]any{
 		"first_name":               "Test",
 		"email":                    "test@test.com",
 		"preferred_contact_method": "email",
@@ -281,7 +281,7 @@ func TestCreateGuardian_Success_WithoutContactMethod(t *testing.T) {
 	router := chi.NewRouter()
 	router.Post("/guardians", ctx.resource.CreateGuardianHandler())
 
-	body := map[string]interface{}{
+	body := map[string]any{
 		"first_name":               "Test",
 		"last_name":                "Guardian",
 		"preferred_contact_method": "email",
@@ -313,7 +313,7 @@ func TestUpdateGuardian_Forbidden_NonStaff(t *testing.T) {
 	router := chi.NewRouter()
 	router.Put("/guardians/{id}", ctx.resource.UpdateGuardianHandler())
 
-	body := map[string]interface{}{
+	body := map[string]any{
 		"first_name": "Updated",
 	}
 
@@ -333,7 +333,7 @@ func TestUpdateGuardian_NotFound(t *testing.T) {
 	router := chi.NewRouter()
 	router.Put("/guardians/{id}", ctx.resource.UpdateGuardianHandler())
 
-	body := map[string]interface{}{
+	body := map[string]any{
 		"first_name": "Updated",
 	}
 
@@ -356,7 +356,7 @@ func TestUpdateGuardian_InvalidID(t *testing.T) {
 	router := chi.NewRouter()
 	router.Put("/guardians/{id}", ctx.resource.UpdateGuardianHandler())
 
-	body := map[string]interface{}{
+	body := map[string]any{
 		"first_name": "Updated",
 	}
 
@@ -445,7 +445,7 @@ func TestListGuardiansWithoutAccount_Success(t *testing.T) {
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 
 	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
-	_, ok := response["data"].([]interface{})
+	_, ok := response["data"].([]any)
 	require.True(t, ok, "Expected data to be an array")
 }
 
@@ -465,7 +465,7 @@ func TestListInvitableGuardians_Success(t *testing.T) {
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 
 	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
-	_, ok := response["data"].([]interface{})
+	_, ok := response["data"].([]any)
 	require.True(t, ok, "Expected data to be an array")
 }
 
@@ -485,7 +485,7 @@ func TestListPendingInvitations_Success(t *testing.T) {
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 
 	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
-	_, ok := response["data"].([]interface{})
+	_, ok := response["data"].([]any)
 	require.True(t, ok, "Expected data to be an array")
 }
 
@@ -512,7 +512,7 @@ func TestGetStudentGuardians_Success(t *testing.T) {
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 
 	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
-	_, ok := response["data"].([]interface{})
+	_, ok := response["data"].([]any)
 	require.True(t, ok, "Expected data to be an array")
 }
 
@@ -549,7 +549,7 @@ func TestGetGuardianStudents_NonExistent_ReturnsEmptyArray(t *testing.T) {
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 
 	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
-	data, ok := response["data"].([]interface{})
+	data, ok := response["data"].([]any)
 	require.True(t, ok, "Expected data to be an array")
 	assert.Empty(t, data, "Expected empty array for non-existent guardian")
 }
@@ -595,7 +595,7 @@ func TestAcceptGuardianInvitation_NotFound(t *testing.T) {
 	router := chi.NewRouter()
 	router.Post("/guardians/invitations/{token}/accept", ctx.resource.AcceptGuardianInvitationHandler())
 
-	body := map[string]interface{}{
+	body := map[string]any{
 		"password":         "Test1234%",
 		"confirm_password": "Test1234%",
 	}
@@ -614,7 +614,7 @@ func TestAcceptGuardianInvitation_BadRequest_MissingPassword(t *testing.T) {
 	router := chi.NewRouter()
 	router.Post("/guardians/invitations/{token}/accept", ctx.resource.AcceptGuardianInvitationHandler())
 
-	body := map[string]interface{}{
+	body := map[string]any{
 		"confirm_password": "Test1234%",
 	}
 
@@ -632,7 +632,7 @@ func TestAcceptGuardianInvitation_BadRequest_PasswordMismatch(t *testing.T) {
 	router := chi.NewRouter()
 	router.Post("/guardians/invitations/{token}/accept", ctx.resource.AcceptGuardianInvitationHandler())
 
-	body := map[string]interface{}{
+	body := map[string]any{
 		"password":         "Test1234%",
 		"confirm_password": "DifferentPassword%",
 	}
@@ -667,7 +667,7 @@ func TestLinkGuardianToStudent_Forbidden_NonStaff(t *testing.T) {
 	router := chi.NewRouter()
 	router.Post("/students/{studentId}/guardians", ctx.resource.LinkGuardianToStudentHandler())
 
-	body := map[string]interface{}{
+	body := map[string]any{
 		"guardian_profile_id":  1,
 		"relationship_type":    "parent",
 		"is_primary":           true,
@@ -692,7 +692,7 @@ func TestLinkGuardianToStudent_InvalidStudentID(t *testing.T) {
 	router := chi.NewRouter()
 	router.Post("/students/{studentId}/guardians", ctx.resource.LinkGuardianToStudentHandler())
 
-	body := map[string]interface{}{
+	body := map[string]any{
 		"guardian_profile_id": 1,
 		"relationship_type":   "parent",
 		"emergency_priority":  1,
@@ -718,7 +718,7 @@ func TestLinkGuardianToStudent_BadRequest_MissingGuardianID(t *testing.T) {
 	router := chi.NewRouter()
 	router.Post("/students/{studentId}/guardians", ctx.resource.LinkGuardianToStudentHandler())
 
-	body := map[string]interface{}{
+	body := map[string]any{
 		"relationship_type":  "parent",
 		"emergency_priority": 1,
 	}
@@ -745,7 +745,7 @@ func TestLinkGuardianToStudent_BadRequest_MissingRelationshipType(t *testing.T) 
 	router := chi.NewRouter()
 	router.Post("/students/{studentId}/guardians", ctx.resource.LinkGuardianToStudentHandler())
 
-	body := map[string]interface{}{
+	body := map[string]any{
 		"guardian_profile_id": 1,
 		"emergency_priority":  1,
 	}
@@ -771,7 +771,7 @@ func TestLinkGuardianToStudent_BadRequest_InvalidEmergencyPriority(t *testing.T)
 	router := chi.NewRouter()
 	router.Post("/students/{studentId}/guardians", ctx.resource.LinkGuardianToStudentHandler())
 
-	body := map[string]interface{}{
+	body := map[string]any{
 		"guardian_profile_id": 1,
 		"relationship_type":   "parent",
 		"emergency_priority":  0, // Invalid - must be at least 1
@@ -799,7 +799,7 @@ func TestUpdateStudentGuardianRelationship_InvalidRelationshipID(t *testing.T) {
 	router := chi.NewRouter()
 	router.Put("/guardians/relationships/{relationshipId}", ctx.resource.UpdateStudentGuardianRelationshipHandler())
 
-	body := map[string]interface{}{
+	body := map[string]any{
 		"is_primary": true,
 	}
 
@@ -819,7 +819,7 @@ func TestUpdateStudentGuardianRelationship_NotFound(t *testing.T) {
 	router := chi.NewRouter()
 	router.Put("/guardians/relationships/{relationshipId}", ctx.resource.UpdateStudentGuardianRelationshipHandler())
 
-	body := map[string]interface{}{
+	body := map[string]any{
 		"is_primary": true,
 	}
 
@@ -950,7 +950,7 @@ func TestAcceptGuardianInvitation_EmptyToken(t *testing.T) {
 	router := chi.NewRouter()
 	router.Post("/guardians/invitations/{token}/accept", ctx.resource.AcceptGuardianInvitationHandler())
 
-	body := map[string]interface{}{
+	body := map[string]any{
 		"password":         "Test1234%",
 		"confirm_password": "Test1234%",
 	}
@@ -970,7 +970,7 @@ func TestAcceptGuardianInvitation_BadRequest_MissingConfirmPassword(t *testing.T
 	router := chi.NewRouter()
 	router.Post("/guardians/invitations/{token}/accept", ctx.resource.AcceptGuardianInvitationHandler())
 
-	body := map[string]interface{}{
+	body := map[string]any{
 		"password": "Test1234%",
 	}
 
@@ -979,4 +979,905 @@ func TestAcceptGuardianInvitation_BadRequest_MissingConfirmPassword(t *testing.T
 	rr := testutil.ExecuteRequest(router, req)
 
 	testutil.AssertBadRequest(t, rr)
+}
+
+// =============================================================================
+// PHONE NUMBER HANDLER TESTS
+// =============================================================================
+
+// createTestGuardianWithPhones creates a guardian with phone numbers for testing
+func createTestGuardianWithPhones(t *testing.T, ctx *testContext) (int64, int64, int64) {
+	t.Helper()
+
+	// Create guardian profile
+	guardianReq := map[string]any{
+		"first_name":               fmt.Sprintf("TestGuardian-%d", time.Now().UnixNano()),
+		"last_name":                "PhoneTest",
+		"email":                    fmt.Sprintf("phone-%d@test.com", time.Now().UnixNano()),
+		"preferred_contact_method": "phone",
+		"language_preference":      "de",
+	}
+
+	claims := testutil.AdminTestClaims(999)
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/guardians", guardianReq,
+		testutil.WithClaims(claims),
+		testutil.WithPermissions("admin:*"),
+	)
+
+	router := chi.NewRouter()
+	router.Post("/guardians", ctx.resource.CreateGuardianHandler())
+	rr := testutil.ExecuteRequest(router, req)
+
+	require.Equal(t, http.StatusCreated, rr.Code)
+	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+	data := response["data"].(map[string]any)
+	guardianID := int64(data["id"].(float64))
+
+	// Add two phone numbers
+	phoneRouter := chi.NewRouter()
+	phoneRouter.Post("/guardians/{id}/phone-numbers", ctx.resource.AddPhoneNumberHandler())
+
+	// Primary phone
+	phoneReq1 := map[string]any{
+		"phone_number": "+49 123 456789",
+		"phone_type":   "mobile",
+		"is_primary":   true,
+	}
+	req1 := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/guardians/%d/phone-numbers", guardianID), phoneReq1,
+		testutil.WithClaims(claims),
+		testutil.WithPermissions("admin:*"),
+	)
+	rr1 := testutil.ExecuteRequest(phoneRouter, req1)
+	require.Equal(t, http.StatusCreated, rr1.Code)
+	response1 := testutil.ParseJSONResponse(t, rr1.Body.Bytes())
+	data1 := response1["data"].(map[string]any)
+	phone1ID := int64(data1["id"].(float64))
+
+	// Secondary phone
+	phoneReq2 := map[string]any{
+		"phone_number": "+49 987 654321",
+		"phone_type":   "work",
+		"is_primary":   false,
+	}
+	req2 := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/guardians/%d/phone-numbers", guardianID), phoneReq2,
+		testutil.WithClaims(claims),
+		testutil.WithPermissions("admin:*"),
+	)
+	rr2 := testutil.ExecuteRequest(phoneRouter, req2)
+	require.Equal(t, http.StatusCreated, rr2.Code)
+	response2 := testutil.ParseJSONResponse(t, rr2.Body.Bytes())
+	data2 := response2["data"].(map[string]any)
+	phone2ID := int64(data2["id"].(float64))
+
+	return guardianID, phone1ID, phone2ID
+}
+
+// =============================================================================
+// LIST PHONE NUMBERS TESTS
+// =============================================================================
+
+func TestListGuardianPhoneNumbers_Success(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	guardianID, _, _ := createTestGuardianWithPhones(t, ctx)
+	defer cleanupGuardian(t, ctx.db, guardianID)
+
+	router := chi.NewRouter()
+	router.Get("/guardians/{id}/phone-numbers", ctx.resource.ListGuardianPhoneNumbersHandler())
+
+	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/guardians/%d/phone-numbers", guardianID), nil,
+		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithPermissions("users:read"),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+
+	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+	phones := response["data"].([]any)
+	assert.Len(t, phones, 2, "Expected 2 phone numbers")
+}
+
+func TestListGuardianPhoneNumbers_InvalidGuardianID(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	router := chi.NewRouter()
+	router.Get("/guardians/{id}/phone-numbers", ctx.resource.ListGuardianPhoneNumbersHandler())
+
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/guardians/invalid/phone-numbers", nil,
+		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithPermissions("users:read"),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	testutil.AssertBadRequest(t, rr)
+}
+
+func TestListGuardianPhoneNumbers_EmptyList(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	// Create guardian without phones
+	guardianReq := map[string]any{
+		"first_name":               fmt.Sprintf("NoPhone-%d", time.Now().UnixNano()),
+		"last_name":                "Test",
+		"preferred_contact_method": "email",
+		"language_preference":      "de",
+	}
+
+	claims := testutil.AdminTestClaims(999)
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/guardians", guardianReq,
+		testutil.WithClaims(claims),
+		testutil.WithPermissions("admin:*"),
+	)
+
+	createRouter := chi.NewRouter()
+	createRouter.Post("/guardians", ctx.resource.CreateGuardianHandler())
+	rr := testutil.ExecuteRequest(createRouter, req)
+	require.Equal(t, http.StatusCreated, rr.Code)
+
+	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+	data := response["data"].(map[string]any)
+	guardianID := int64(data["id"].(float64))
+	defer cleanupGuardian(t, ctx.db, guardianID)
+
+	// List phones
+	router := chi.NewRouter()
+	router.Get("/guardians/{id}/phone-numbers", ctx.resource.ListGuardianPhoneNumbersHandler())
+
+	listReq := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/guardians/%d/phone-numbers", guardianID), nil,
+		testutil.WithClaims(claims),
+		testutil.WithPermissions("users:read"),
+	)
+
+	listRr := testutil.ExecuteRequest(router, listReq)
+
+	testutil.AssertSuccessResponse(t, listRr, http.StatusOK)
+
+	listResponse := testutil.ParseJSONResponse(t, listRr.Body.Bytes())
+	phones := listResponse["data"].([]any)
+	assert.Empty(t, phones, "Expected empty phone list")
+}
+
+// =============================================================================
+// ADD PHONE NUMBER TESTS
+// =============================================================================
+
+func TestAddPhoneNumber_Success(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	// Create guardian without phones first
+	guardianReq := map[string]any{
+		"first_name":               fmt.Sprintf("AddPhone-%d", time.Now().UnixNano()),
+		"last_name":                "Test",
+		"preferred_contact_method": "email",
+		"language_preference":      "de",
+	}
+
+	claims := testutil.AdminTestClaims(999)
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/guardians", guardianReq,
+		testutil.WithClaims(claims),
+		testutil.WithPermissions("admin:*"),
+	)
+
+	createRouter := chi.NewRouter()
+	createRouter.Post("/guardians", ctx.resource.CreateGuardianHandler())
+	rr := testutil.ExecuteRequest(createRouter, req)
+	require.Equal(t, http.StatusCreated, rr.Code)
+
+	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+	data := response["data"].(map[string]any)
+	guardianID := int64(data["id"].(float64))
+	defer cleanupGuardian(t, ctx.db, guardianID)
+
+	// Add phone number
+	router := chi.NewRouter()
+	router.Post("/guardians/{id}/phone-numbers", ctx.resource.AddPhoneNumberHandler())
+
+	phoneReq := map[string]any{
+		"phone_number": "+49 123 456789",
+		"phone_type":   "mobile",
+		"label":        "Personal",
+		"is_primary":   true,
+	}
+
+	phoneAddReq := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/guardians/%d/phone-numbers", guardianID), phoneReq,
+		testutil.WithClaims(claims),
+		testutil.WithPermissions("admin:*"),
+	)
+
+	phoneRr := testutil.ExecuteRequest(router, phoneAddReq)
+
+	testutil.AssertSuccessResponse(t, phoneRr, http.StatusCreated)
+
+	phoneResponse := testutil.ParseJSONResponse(t, phoneRr.Body.Bytes())
+	phoneData := phoneResponse["data"].(map[string]any)
+	assert.Equal(t, "+49 123 456789", phoneData["phone_number"])
+	assert.Equal(t, "mobile", phoneData["phone_type"])
+	assert.Equal(t, "Personal", phoneData["label"])
+	assert.True(t, phoneData["is_primary"].(bool))
+}
+
+func TestAddPhoneNumber_Forbidden_NonStaff(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	router := chi.NewRouter()
+	router.Post("/guardians/{id}/phone-numbers", ctx.resource.AddPhoneNumberHandler())
+
+	phoneReq := map[string]any{
+		"phone_number": "+49 123 456789",
+		"phone_type":   "mobile",
+		"is_primary":   true,
+	}
+
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/guardians/1/phone-numbers", phoneReq,
+		testutil.WithClaims(testutil.DefaultTestClaims()),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	testutil.AssertForbidden(t, rr)
+}
+
+func TestAddPhoneNumber_InvalidGuardianID(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	router := chi.NewRouter()
+	router.Post("/guardians/{id}/phone-numbers", ctx.resource.AddPhoneNumberHandler())
+
+	phoneReq := map[string]any{
+		"phone_number": "+49 123 456789",
+		"phone_type":   "mobile",
+		"is_primary":   true,
+	}
+
+	claims := testutil.AdminTestClaims(999)
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/guardians/invalid/phone-numbers", phoneReq,
+		testutil.WithClaims(claims),
+		testutil.WithPermissions("admin:*"),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	testutil.AssertBadRequest(t, rr)
+}
+
+func TestAddPhoneNumber_BadRequest_MissingPhoneNumber(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	guardianID, _, _ := createTestGuardianWithPhones(t, ctx)
+	defer cleanupGuardian(t, ctx.db, guardianID)
+
+	router := chi.NewRouter()
+	router.Post("/guardians/{id}/phone-numbers", ctx.resource.AddPhoneNumberHandler())
+
+	phoneReq := map[string]any{
+		"phone_type": "mobile",
+		"is_primary": true,
+	}
+
+	claims := testutil.AdminTestClaims(999)
+	req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/guardians/%d/phone-numbers", guardianID), phoneReq,
+		testutil.WithClaims(claims),
+		testutil.WithPermissions("admin:*"),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	testutil.AssertBadRequest(t, rr)
+}
+
+func TestAddPhoneNumber_BadRequest_InvalidPhoneType(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	guardianID, _, _ := createTestGuardianWithPhones(t, ctx)
+	defer cleanupGuardian(t, ctx.db, guardianID)
+
+	router := chi.NewRouter()
+	router.Post("/guardians/{id}/phone-numbers", ctx.resource.AddPhoneNumberHandler())
+
+	phoneReq := map[string]any{
+		"phone_number": "+49 123 456789",
+		"phone_type":   "invalid_type",
+		"is_primary":   true,
+	}
+
+	claims := testutil.AdminTestClaims(999)
+	req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/guardians/%d/phone-numbers", guardianID), phoneReq,
+		testutil.WithClaims(claims),
+		testutil.WithPermissions("admin:*"),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	testutil.AssertBadRequest(t, rr)
+}
+
+func TestAddPhoneNumber_DefaultPhoneType(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	// Create guardian without phones first
+	guardianReq := map[string]any{
+		"first_name":               fmt.Sprintf("DefaultType-%d", time.Now().UnixNano()),
+		"last_name":                "Test",
+		"preferred_contact_method": "email",
+		"language_preference":      "de",
+	}
+
+	claims := testutil.AdminTestClaims(999)
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/guardians", guardianReq,
+		testutil.WithClaims(claims),
+		testutil.WithPermissions("admin:*"),
+	)
+
+	createRouter := chi.NewRouter()
+	createRouter.Post("/guardians", ctx.resource.CreateGuardianHandler())
+	rr := testutil.ExecuteRequest(createRouter, req)
+	require.Equal(t, http.StatusCreated, rr.Code)
+
+	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+	data := response["data"].(map[string]any)
+	guardianID := int64(data["id"].(float64))
+	defer cleanupGuardian(t, ctx.db, guardianID)
+
+	// Add phone without specifying type
+	router := chi.NewRouter()
+	router.Post("/guardians/{id}/phone-numbers", ctx.resource.AddPhoneNumberHandler())
+
+	phoneReq := map[string]any{
+		"phone_number": "+49 123 456789",
+		"is_primary":   true,
+	}
+
+	phoneAddReq := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/guardians/%d/phone-numbers", guardianID), phoneReq,
+		testutil.WithClaims(claims),
+		testutil.WithPermissions("admin:*"),
+	)
+
+	phoneRr := testutil.ExecuteRequest(router, phoneAddReq)
+
+	testutil.AssertSuccessResponse(t, phoneRr, http.StatusCreated)
+
+	phoneResponse := testutil.ParseJSONResponse(t, phoneRr.Body.Bytes())
+	phoneData := phoneResponse["data"].(map[string]any)
+	assert.Equal(t, "mobile", phoneData["phone_type"], "Expected default phone_type to be 'mobile'")
+}
+
+// =============================================================================
+// UPDATE PHONE NUMBER TESTS
+// =============================================================================
+
+func TestUpdatePhoneNumber_Success(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	guardianID, phone1ID, _ := createTestGuardianWithPhones(t, ctx)
+	defer cleanupGuardian(t, ctx.db, guardianID)
+
+	router := chi.NewRouter()
+	router.Put("/guardians/{id}/phone-numbers/{phoneId}", ctx.resource.UpdatePhoneNumberHandler())
+
+	updateReq := map[string]any{
+		"phone_number": "+49 111 222333",
+		"phone_type":   "home",
+		"label":        "Updated Label",
+	}
+
+	claims := testutil.AdminTestClaims(999)
+	req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/guardians/%d/phone-numbers/%d", guardianID, phone1ID), updateReq,
+		testutil.WithClaims(claims),
+		testutil.WithPermissions("admin:*"),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+
+	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+	phoneData := response["data"].(map[string]any)
+	assert.Equal(t, "+49 111 222333", phoneData["phone_number"])
+	assert.Equal(t, "home", phoneData["phone_type"])
+	assert.Equal(t, "Updated Label", phoneData["label"])
+}
+
+func TestUpdatePhoneNumber_InvalidGuardianID(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	router := chi.NewRouter()
+	router.Put("/guardians/{id}/phone-numbers/{phoneId}", ctx.resource.UpdatePhoneNumberHandler())
+
+	updateReq := map[string]any{
+		"phone_number": "+49 111 222333",
+	}
+
+	claims := testutil.AdminTestClaims(999)
+	req := testutil.NewAuthenticatedRequest(t, "PUT", "/guardians/invalid/phone-numbers/1", updateReq,
+		testutil.WithClaims(claims),
+		testutil.WithPermissions("admin:*"),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	testutil.AssertBadRequest(t, rr)
+}
+
+func TestUpdatePhoneNumber_InvalidPhoneID(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	guardianID, _, _ := createTestGuardianWithPhones(t, ctx)
+	defer cleanupGuardian(t, ctx.db, guardianID)
+
+	router := chi.NewRouter()
+	router.Put("/guardians/{id}/phone-numbers/{phoneId}", ctx.resource.UpdatePhoneNumberHandler())
+
+	updateReq := map[string]any{
+		"phone_number": "+49 111 222333",
+	}
+
+	claims := testutil.AdminTestClaims(999)
+	req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/guardians/%d/phone-numbers/invalid", guardianID), updateReq,
+		testutil.WithClaims(claims),
+		testutil.WithPermissions("admin:*"),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	testutil.AssertBadRequest(t, rr)
+}
+
+func TestUpdatePhoneNumber_NotFound(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	guardianID, _, _ := createTestGuardianWithPhones(t, ctx)
+	defer cleanupGuardian(t, ctx.db, guardianID)
+
+	router := chi.NewRouter()
+	router.Put("/guardians/{id}/phone-numbers/{phoneId}", ctx.resource.UpdatePhoneNumberHandler())
+
+	updateReq := map[string]any{
+		"phone_number": "+49 111 222333",
+	}
+
+	claims := testutil.AdminTestClaims(999)
+	req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/guardians/%d/phone-numbers/99999", guardianID), updateReq,
+		testutil.WithClaims(claims),
+		testutil.WithPermissions("admin:*"),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	testutil.AssertNotFound(t, rr)
+}
+
+func TestUpdatePhoneNumber_Forbidden_NonStaff(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	router := chi.NewRouter()
+	router.Put("/guardians/{id}/phone-numbers/{phoneId}", ctx.resource.UpdatePhoneNumberHandler())
+
+	updateReq := map[string]any{
+		"phone_number": "+49 111 222333",
+	}
+
+	req := testutil.NewAuthenticatedRequest(t, "PUT", "/guardians/1/phone-numbers/1", updateReq,
+		testutil.WithClaims(testutil.DefaultTestClaims()),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	testutil.AssertForbidden(t, rr)
+}
+
+func TestUpdatePhoneNumber_BadRequest_EmptyPhoneNumber(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	guardianID, phone1ID, _ := createTestGuardianWithPhones(t, ctx)
+	defer cleanupGuardian(t, ctx.db, guardianID)
+
+	router := chi.NewRouter()
+	router.Put("/guardians/{id}/phone-numbers/{phoneId}", ctx.resource.UpdatePhoneNumberHandler())
+
+	emptyPhone := ""
+	updateReq := map[string]any{
+		"phone_number": &emptyPhone,
+	}
+
+	claims := testutil.AdminTestClaims(999)
+	req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/guardians/%d/phone-numbers/%d", guardianID, phone1ID), updateReq,
+		testutil.WithClaims(claims),
+		testutil.WithPermissions("admin:*"),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	testutil.AssertBadRequest(t, rr)
+}
+
+func TestUpdatePhoneNumber_BadRequest_InvalidPhoneType(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	guardianID, phone1ID, _ := createTestGuardianWithPhones(t, ctx)
+	defer cleanupGuardian(t, ctx.db, guardianID)
+
+	router := chi.NewRouter()
+	router.Put("/guardians/{id}/phone-numbers/{phoneId}", ctx.resource.UpdatePhoneNumberHandler())
+
+	invalidType := "invalid_type"
+	updateReq := map[string]any{
+		"phone_type": &invalidType,
+	}
+
+	claims := testutil.AdminTestClaims(999)
+	req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/guardians/%d/phone-numbers/%d", guardianID, phone1ID), updateReq,
+		testutil.WithClaims(claims),
+		testutil.WithPermissions("admin:*"),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	testutil.AssertBadRequest(t, rr)
+}
+
+func TestUpdatePhoneNumber_Forbidden_PhoneNotBelongToGuardian(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	// Create first guardian with phones
+	guardian1ID, phone1ID, _ := createTestGuardianWithPhones(t, ctx)
+	defer cleanupGuardian(t, ctx.db, guardian1ID)
+
+	// Create second guardian
+	guardianReq := map[string]any{
+		"first_name":               fmt.Sprintf("Guardian2-%d", time.Now().UnixNano()),
+		"last_name":                "Test",
+		"preferred_contact_method": "email",
+		"language_preference":      "de",
+	}
+
+	claims := testutil.AdminTestClaims(999)
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/guardians", guardianReq,
+		testutil.WithClaims(claims),
+		testutil.WithPermissions("admin:*"),
+	)
+
+	createRouter := chi.NewRouter()
+	createRouter.Post("/guardians", ctx.resource.CreateGuardianHandler())
+	rr := testutil.ExecuteRequest(createRouter, req)
+	require.Equal(t, http.StatusCreated, rr.Code)
+
+	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+	data := response["data"].(map[string]any)
+	guardian2ID := int64(data["id"].(float64))
+	defer cleanupGuardian(t, ctx.db, guardian2ID)
+
+	// Try to update guardian1's phone via guardian2's endpoint
+	router := chi.NewRouter()
+	router.Put("/guardians/{id}/phone-numbers/{phoneId}", ctx.resource.UpdatePhoneNumberHandler())
+
+	updateReq := map[string]any{
+		"phone_number": "+49 111 222333",
+	}
+
+	updatePhoneReq := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/guardians/%d/phone-numbers/%d", guardian2ID, phone1ID), updateReq,
+		testutil.WithClaims(claims),
+		testutil.WithPermissions("admin:*"),
+	)
+
+	updateRr := testutil.ExecuteRequest(router, updatePhoneReq)
+
+	testutil.AssertForbidden(t, updateRr)
+}
+
+// =============================================================================
+// DELETE PHONE NUMBER TESTS
+// =============================================================================
+
+func TestDeletePhoneNumber_Success(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	guardianID, _, phone2ID := createTestGuardianWithPhones(t, ctx)
+	defer cleanupGuardian(t, ctx.db, guardianID)
+
+	router := chi.NewRouter()
+	router.Delete("/guardians/{id}/phone-numbers/{phoneId}", ctx.resource.DeletePhoneNumberHandler())
+
+	claims := testutil.AdminTestClaims(999)
+	req := testutil.NewAuthenticatedRequest(t, "DELETE", fmt.Sprintf("/guardians/%d/phone-numbers/%d", guardianID, phone2ID), nil,
+		testutil.WithClaims(claims),
+		testutil.WithPermissions("admin:*"),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+}
+
+func TestDeletePhoneNumber_InvalidGuardianID(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	router := chi.NewRouter()
+	router.Delete("/guardians/{id}/phone-numbers/{phoneId}", ctx.resource.DeletePhoneNumberHandler())
+
+	claims := testutil.AdminTestClaims(999)
+	req := testutil.NewAuthenticatedRequest(t, "DELETE", "/guardians/invalid/phone-numbers/1", nil,
+		testutil.WithClaims(claims),
+		testutil.WithPermissions("admin:*"),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	testutil.AssertBadRequest(t, rr)
+}
+
+func TestDeletePhoneNumber_InvalidPhoneID(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	guardianID, _, _ := createTestGuardianWithPhones(t, ctx)
+	defer cleanupGuardian(t, ctx.db, guardianID)
+
+	router := chi.NewRouter()
+	router.Delete("/guardians/{id}/phone-numbers/{phoneId}", ctx.resource.DeletePhoneNumberHandler())
+
+	claims := testutil.AdminTestClaims(999)
+	req := testutil.NewAuthenticatedRequest(t, "DELETE", fmt.Sprintf("/guardians/%d/phone-numbers/invalid", guardianID), nil,
+		testutil.WithClaims(claims),
+		testutil.WithPermissions("admin:*"),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	testutil.AssertBadRequest(t, rr)
+}
+
+func TestDeletePhoneNumber_NotFound(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	guardianID, _, _ := createTestGuardianWithPhones(t, ctx)
+	defer cleanupGuardian(t, ctx.db, guardianID)
+
+	router := chi.NewRouter()
+	router.Delete("/guardians/{id}/phone-numbers/{phoneId}", ctx.resource.DeletePhoneNumberHandler())
+
+	claims := testutil.AdminTestClaims(999)
+	req := testutil.NewAuthenticatedRequest(t, "DELETE", fmt.Sprintf("/guardians/%d/phone-numbers/99999", guardianID), nil,
+		testutil.WithClaims(claims),
+		testutil.WithPermissions("admin:*"),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	testutil.AssertNotFound(t, rr)
+}
+
+func TestDeletePhoneNumber_Forbidden_NonStaff(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	router := chi.NewRouter()
+	router.Delete("/guardians/{id}/phone-numbers/{phoneId}", ctx.resource.DeletePhoneNumberHandler())
+
+	req := testutil.NewAuthenticatedRequest(t, "DELETE", "/guardians/1/phone-numbers/1", nil,
+		testutil.WithClaims(testutil.DefaultTestClaims()),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	testutil.AssertForbidden(t, rr)
+}
+
+func TestDeletePhoneNumber_Forbidden_PhoneNotBelongToGuardian(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	// Create first guardian with phones
+	guardian1ID, phone1ID, _ := createTestGuardianWithPhones(t, ctx)
+	defer cleanupGuardian(t, ctx.db, guardian1ID)
+
+	// Create second guardian
+	guardianReq := map[string]any{
+		"first_name":               fmt.Sprintf("Guardian2Del-%d", time.Now().UnixNano()),
+		"last_name":                "Test",
+		"preferred_contact_method": "email",
+		"language_preference":      "de",
+	}
+
+	claims := testutil.AdminTestClaims(999)
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/guardians", guardianReq,
+		testutil.WithClaims(claims),
+		testutil.WithPermissions("admin:*"),
+	)
+
+	createRouter := chi.NewRouter()
+	createRouter.Post("/guardians", ctx.resource.CreateGuardianHandler())
+	rr := testutil.ExecuteRequest(createRouter, req)
+	require.Equal(t, http.StatusCreated, rr.Code)
+
+	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+	data := response["data"].(map[string]any)
+	guardian2ID := int64(data["id"].(float64))
+	defer cleanupGuardian(t, ctx.db, guardian2ID)
+
+	// Try to delete guardian1's phone via guardian2's endpoint
+	router := chi.NewRouter()
+	router.Delete("/guardians/{id}/phone-numbers/{phoneId}", ctx.resource.DeletePhoneNumberHandler())
+
+	deleteReq := testutil.NewAuthenticatedRequest(t, "DELETE", fmt.Sprintf("/guardians/%d/phone-numbers/%d", guardian2ID, phone1ID), nil,
+		testutil.WithClaims(claims),
+		testutil.WithPermissions("admin:*"),
+	)
+
+	deleteRr := testutil.ExecuteRequest(router, deleteReq)
+
+	testutil.AssertForbidden(t, deleteRr)
+}
+
+// =============================================================================
+// SET PRIMARY PHONE TESTS
+// =============================================================================
+
+func TestSetPrimaryPhone_Success(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	guardianID, _, phone2ID := createTestGuardianWithPhones(t, ctx)
+	defer cleanupGuardian(t, ctx.db, guardianID)
+
+	router := chi.NewRouter()
+	router.Post("/guardians/{id}/phone-numbers/{phoneId}/set-primary", ctx.resource.SetPrimaryPhoneHandler())
+
+	claims := testutil.AdminTestClaims(999)
+	req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/guardians/%d/phone-numbers/%d/set-primary", guardianID, phone2ID), nil,
+		testutil.WithClaims(claims),
+		testutil.WithPermissions("admin:*"),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+
+	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+	phoneData := response["data"].(map[string]any)
+	assert.True(t, phoneData["is_primary"].(bool), "Expected phone to be set as primary")
+}
+
+func TestSetPrimaryPhone_InvalidGuardianID(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	router := chi.NewRouter()
+	router.Post("/guardians/{id}/phone-numbers/{phoneId}/set-primary", ctx.resource.SetPrimaryPhoneHandler())
+
+	claims := testutil.AdminTestClaims(999)
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/guardians/invalid/phone-numbers/1/set-primary", nil,
+		testutil.WithClaims(claims),
+		testutil.WithPermissions("admin:*"),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	testutil.AssertBadRequest(t, rr)
+}
+
+func TestSetPrimaryPhone_InvalidPhoneID(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	guardianID, _, _ := createTestGuardianWithPhones(t, ctx)
+	defer cleanupGuardian(t, ctx.db, guardianID)
+
+	router := chi.NewRouter()
+	router.Post("/guardians/{id}/phone-numbers/{phoneId}/set-primary", ctx.resource.SetPrimaryPhoneHandler())
+
+	claims := testutil.AdminTestClaims(999)
+	req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/guardians/%d/phone-numbers/invalid/set-primary", guardianID), nil,
+		testutil.WithClaims(claims),
+		testutil.WithPermissions("admin:*"),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	testutil.AssertBadRequest(t, rr)
+}
+
+func TestSetPrimaryPhone_NotFound(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	guardianID, _, _ := createTestGuardianWithPhones(t, ctx)
+	defer cleanupGuardian(t, ctx.db, guardianID)
+
+	router := chi.NewRouter()
+	router.Post("/guardians/{id}/phone-numbers/{phoneId}/set-primary", ctx.resource.SetPrimaryPhoneHandler())
+
+	claims := testutil.AdminTestClaims(999)
+	req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/guardians/%d/phone-numbers/99999/set-primary", guardianID), nil,
+		testutil.WithClaims(claims),
+		testutil.WithPermissions("admin:*"),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	testutil.AssertNotFound(t, rr)
+}
+
+func TestSetPrimaryPhone_Forbidden_NonStaff(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	router := chi.NewRouter()
+	router.Post("/guardians/{id}/phone-numbers/{phoneId}/set-primary", ctx.resource.SetPrimaryPhoneHandler())
+
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/guardians/1/phone-numbers/1/set-primary", nil,
+		testutil.WithClaims(testutil.DefaultTestClaims()),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	testutil.AssertForbidden(t, rr)
+}
+
+func TestSetPrimaryPhone_Forbidden_PhoneNotBelongToGuardian(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	// Create first guardian with phones
+	guardian1ID, phone1ID, _ := createTestGuardianWithPhones(t, ctx)
+	defer cleanupGuardian(t, ctx.db, guardian1ID)
+
+	// Create second guardian
+	guardianReq := map[string]any{
+		"first_name":               fmt.Sprintf("Guardian2Pri-%d", time.Now().UnixNano()),
+		"last_name":                "Test",
+		"preferred_contact_method": "email",
+		"language_preference":      "de",
+	}
+
+	claims := testutil.AdminTestClaims(999)
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/guardians", guardianReq,
+		testutil.WithClaims(claims),
+		testutil.WithPermissions("admin:*"),
+	)
+
+	createRouter := chi.NewRouter()
+	createRouter.Post("/guardians", ctx.resource.CreateGuardianHandler())
+	rr := testutil.ExecuteRequest(createRouter, req)
+	require.Equal(t, http.StatusCreated, rr.Code)
+
+	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+	data := response["data"].(map[string]any)
+	guardian2ID := int64(data["id"].(float64))
+	defer cleanupGuardian(t, ctx.db, guardian2ID)
+
+	// Try to set guardian1's phone as primary via guardian2's endpoint
+	router := chi.NewRouter()
+	router.Post("/guardians/{id}/phone-numbers/{phoneId}/set-primary", ctx.resource.SetPrimaryPhoneHandler())
+
+	setPrimaryReq := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/guardians/%d/phone-numbers/%d/set-primary", guardian2ID, phone1ID), nil,
+		testutil.WithClaims(claims),
+		testutil.WithPermissions("admin:*"),
+	)
+
+	setPrimaryRr := testutil.ExecuteRequest(router, setPrimaryReq)
+
+	testutil.AssertForbidden(t, setPrimaryRr)
 }

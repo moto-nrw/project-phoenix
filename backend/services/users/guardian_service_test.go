@@ -9,6 +9,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/email"
+	usermodels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/services/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -1346,5 +1347,618 @@ func TestGuardianService_AcceptInvitation_AlreadyAccepted(t *testing.T) {
 		require.Error(t, err)
 		assert.Nil(t, account)
 		assert.Contains(t, err.Error(), "already been accepted")
+	})
+}
+
+// =============================================================================
+// AddPhoneNumber Tests
+// =============================================================================
+
+func TestGuardianService_AddPhoneNumber_Success(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupGuardianService(t, db)
+	ctx := context.Background()
+
+	t.Run("adds first phone number as primary by default", func(t *testing.T) {
+		// ARRANGE
+		guardian := testpkg.CreateTestGuardianProfile(t, db, "first-phone")
+		defer testpkg.CleanupActivityFixtures(t, db, guardian.ID)
+
+		req := users.PhoneNumberCreateRequest{
+			PhoneNumber: "+49 123 456789",
+			PhoneType:   "mobile",
+		}
+
+		// ACT
+		result, err := service.AddPhoneNumber(ctx, guardian.ID, req)
+
+		// ASSERT
+		require.NoError(t, err)
+		assert.NotNil(t, result)
+		assert.Equal(t, "+49 123 456789", result.PhoneNumber)
+		assert.Equal(t, usermodels.PhoneTypeMobile, result.PhoneType)
+		assert.True(t, result.IsPrimary, "First phone should be primary")
+		assert.Equal(t, 1, result.Priority)
+	})
+
+	t.Run("adds second phone number as non-primary", func(t *testing.T) {
+		// ARRANGE
+		guardian := testpkg.CreateTestGuardianProfile(t, db, "second-phone")
+		defer testpkg.CleanupActivityFixtures(t, db, guardian.ID)
+
+		// Add first phone
+		_, err := service.AddPhoneNumber(ctx, guardian.ID, users.PhoneNumberCreateRequest{
+			PhoneNumber: "+49 111 111111",
+			PhoneType:   "mobile",
+		})
+		require.NoError(t, err)
+
+		// Add second phone
+		req := users.PhoneNumberCreateRequest{
+			PhoneNumber: "+49 222 222222",
+			PhoneType:   "work",
+		}
+
+		// ACT
+		result, err := service.AddPhoneNumber(ctx, guardian.ID, req)
+
+		// ASSERT
+		require.NoError(t, err)
+		assert.NotNil(t, result)
+		assert.Equal(t, "+49 222 222222", result.PhoneNumber)
+		assert.False(t, result.IsPrimary, "Second phone should not be primary")
+		assert.Equal(t, 2, result.Priority)
+	})
+
+	t.Run("adds phone with explicit primary flag", func(t *testing.T) {
+		// ARRANGE
+		guardian := testpkg.CreateTestGuardianProfile(t, db, "explicit-primary")
+		defer testpkg.CleanupActivityFixtures(t, db, guardian.ID)
+
+		// Add first phone
+		_, err := service.AddPhoneNumber(ctx, guardian.ID, users.PhoneNumberCreateRequest{
+			PhoneNumber: "+49 111 111111",
+			PhoneType:   "mobile",
+		})
+		require.NoError(t, err)
+
+		// Add second phone as primary
+		label := "Hauptnummer"
+		req := users.PhoneNumberCreateRequest{
+			PhoneNumber: "+49 333 333333",
+			PhoneType:   "home",
+			Label:       &label,
+			IsPrimary:   true,
+		}
+
+		// ACT
+		result, err := service.AddPhoneNumber(ctx, guardian.ID, req)
+
+		// ASSERT
+		require.NoError(t, err)
+		assert.True(t, result.IsPrimary)
+		assert.Equal(t, &label, result.Label)
+
+		// Verify first phone is no longer primary
+		phones, err := service.GetGuardianPhoneNumbers(ctx, guardian.ID)
+		require.NoError(t, err)
+		for _, phone := range phones {
+			if phone.PhoneNumber == "+49 111 111111" {
+				assert.False(t, phone.IsPrimary, "Old primary should be unset")
+			}
+		}
+	})
+
+	t.Run("defaults to mobile phone type for invalid type", func(t *testing.T) {
+		// ARRANGE
+		guardian := testpkg.CreateTestGuardianProfile(t, db, "invalid-type")
+		defer testpkg.CleanupActivityFixtures(t, db, guardian.ID)
+
+		req := users.PhoneNumberCreateRequest{
+			PhoneNumber: "+49 444 444444",
+			PhoneType:   "invalid_type",
+		}
+
+		// ACT
+		result, err := service.AddPhoneNumber(ctx, guardian.ID, req)
+
+		// ASSERT
+		require.NoError(t, err)
+		assert.Equal(t, usermodels.PhoneTypeMobile, result.PhoneType, "Should default to mobile")
+	})
+}
+
+func TestGuardianService_AddPhoneNumber_Errors(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupGuardianService(t, db)
+	ctx := context.Background()
+
+	t.Run("returns error when guardian not found", func(t *testing.T) {
+		// ARRANGE
+		req := users.PhoneNumberCreateRequest{
+			PhoneNumber: "+49 555 555555",
+			PhoneType:   "mobile",
+		}
+
+		// ACT
+		result, err := service.AddPhoneNumber(ctx, 99999999, req)
+
+		// ASSERT
+		require.Error(t, err)
+		assert.Nil(t, result)
+		assert.Contains(t, err.Error(), "not found")
+	})
+}
+
+// =============================================================================
+// UpdatePhoneNumber Tests
+// =============================================================================
+
+func TestGuardianService_UpdatePhoneNumber_Success(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupGuardianService(t, db)
+	ctx := context.Background()
+
+	t.Run("updates phone number fields", func(t *testing.T) {
+		// ARRANGE
+		guardian := testpkg.CreateTestGuardianProfile(t, db, "update-fields")
+		defer testpkg.CleanupActivityFixtures(t, db, guardian.ID)
+
+		phone, err := service.AddPhoneNumber(ctx, guardian.ID, users.PhoneNumberCreateRequest{
+			PhoneNumber: "+49 666 666666",
+			PhoneType:   "mobile",
+		})
+		require.NoError(t, err)
+
+		newNumber := "+49 777 777777"
+		newType := "work"
+		newLabel := "Büro"
+		req := users.PhoneNumberUpdateRequest{
+			PhoneNumber: &newNumber,
+			PhoneType:   &newType,
+			Label:       &newLabel,
+		}
+
+		// ACT
+		err = service.UpdatePhoneNumber(ctx, phone.ID, req)
+
+		// ASSERT
+		require.NoError(t, err)
+
+		// Verify update
+		updated, err := service.GetPhoneNumberByID(ctx, phone.ID)
+		require.NoError(t, err)
+		assert.Equal(t, newNumber, updated.PhoneNumber)
+		assert.Equal(t, usermodels.PhoneTypeWork, updated.PhoneType)
+		assert.Equal(t, &newLabel, updated.Label)
+	})
+
+	t.Run("sets phone as primary and unsets others", func(t *testing.T) {
+		// ARRANGE
+		guardian := testpkg.CreateTestGuardianProfile(t, db, "set-primary")
+		defer testpkg.CleanupActivityFixtures(t, db, guardian.ID)
+
+		// Create two phones
+		phone1, err := service.AddPhoneNumber(ctx, guardian.ID, users.PhoneNumberCreateRequest{
+			PhoneNumber: "+49 111 111111",
+			PhoneType:   "mobile",
+		})
+		require.NoError(t, err)
+
+		phone2, err := service.AddPhoneNumber(ctx, guardian.ID, users.PhoneNumberCreateRequest{
+			PhoneNumber: "+49 222 222222",
+			PhoneType:   "work",
+		})
+		require.NoError(t, err)
+
+		// Make phone2 primary
+		isPrimary := true
+		req := users.PhoneNumberUpdateRequest{
+			IsPrimary: &isPrimary,
+		}
+
+		// ACT
+		err = service.UpdatePhoneNumber(ctx, phone2.ID, req)
+
+		// ASSERT
+		require.NoError(t, err)
+
+		// Verify phone2 is primary
+		updated2, err := service.GetPhoneNumberByID(ctx, phone2.ID)
+		require.NoError(t, err)
+		assert.True(t, updated2.IsPrimary)
+
+		// Verify phone1 is not primary
+		updated1, err := service.GetPhoneNumberByID(ctx, phone1.ID)
+		require.NoError(t, err)
+		assert.False(t, updated1.IsPrimary, "Old primary should be unset")
+	})
+
+	t.Run("unsets primary flag", func(t *testing.T) {
+		// ARRANGE
+		guardian := testpkg.CreateTestGuardianProfile(t, db, "unset-primary")
+		defer testpkg.CleanupActivityFixtures(t, db, guardian.ID)
+
+		phone, err := service.AddPhoneNumber(ctx, guardian.ID, users.PhoneNumberCreateRequest{
+			PhoneNumber: "+49 888 888888",
+			PhoneType:   "mobile",
+			IsPrimary:   true,
+		})
+		require.NoError(t, err)
+
+		isPrimary := false
+		req := users.PhoneNumberUpdateRequest{
+			IsPrimary: &isPrimary,
+		}
+
+		// ACT
+		err = service.UpdatePhoneNumber(ctx, phone.ID, req)
+
+		// ASSERT
+		require.NoError(t, err)
+
+		updated, err := service.GetPhoneNumberByID(ctx, phone.ID)
+		require.NoError(t, err)
+		assert.False(t, updated.IsPrimary)
+	})
+
+	t.Run("updates priority", func(t *testing.T) {
+		// ARRANGE
+		guardian := testpkg.CreateTestGuardianProfile(t, db, "update-priority")
+		defer testpkg.CleanupActivityFixtures(t, db, guardian.ID)
+
+		phone, err := service.AddPhoneNumber(ctx, guardian.ID, users.PhoneNumberCreateRequest{
+			PhoneNumber: "+49 999 999999",
+			PhoneType:   "mobile",
+		})
+		require.NoError(t, err)
+
+		newPriority := 5
+		req := users.PhoneNumberUpdateRequest{
+			Priority: &newPriority,
+		}
+
+		// ACT
+		err = service.UpdatePhoneNumber(ctx, phone.ID, req)
+
+		// ASSERT
+		require.NoError(t, err)
+
+		updated, err := service.GetPhoneNumberByID(ctx, phone.ID)
+		require.NoError(t, err)
+		assert.Equal(t, 5, updated.Priority)
+	})
+}
+
+func TestGuardianService_UpdatePhoneNumber_Errors(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupGuardianService(t, db)
+	ctx := context.Background()
+
+	t.Run("returns error when phone not found", func(t *testing.T) {
+		// ARRANGE
+		newNumber := "+49 000 000000"
+		req := users.PhoneNumberUpdateRequest{
+			PhoneNumber: &newNumber,
+		}
+
+		// ACT
+		err := service.UpdatePhoneNumber(ctx, 99999999, req)
+
+		// ASSERT
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "not found")
+	})
+}
+
+// =============================================================================
+// DeletePhoneNumber Tests
+// =============================================================================
+
+func TestGuardianService_DeletePhoneNumber_Success(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupGuardianService(t, db)
+	ctx := context.Background()
+
+	t.Run("deletes non-primary phone", func(t *testing.T) {
+		// ARRANGE
+		guardian := testpkg.CreateTestGuardianProfile(t, db, "delete-non-primary")
+		defer testpkg.CleanupActivityFixtures(t, db, guardian.ID)
+
+		phone1, err := service.AddPhoneNumber(ctx, guardian.ID, users.PhoneNumberCreateRequest{
+			PhoneNumber: "+49 111 111111",
+			PhoneType:   "mobile",
+		})
+		require.NoError(t, err)
+
+		phone2, err := service.AddPhoneNumber(ctx, guardian.ID, users.PhoneNumberCreateRequest{
+			PhoneNumber: "+49 222 222222",
+			PhoneType:   "work",
+		})
+		require.NoError(t, err)
+
+		// ACT - delete non-primary phone
+		err = service.DeletePhoneNumber(ctx, phone2.ID)
+
+		// ASSERT
+		require.NoError(t, err)
+
+		// Verify phone2 is deleted
+		_, err = service.GetPhoneNumberByID(ctx, phone2.ID)
+		assert.Error(t, err, "Deleted phone should not be found")
+
+		// Verify phone1 still exists and is still primary
+		phone1After, err := service.GetPhoneNumberByID(ctx, phone1.ID)
+		require.NoError(t, err)
+		assert.True(t, phone1After.IsPrimary)
+	})
+
+	t.Run("deletes primary phone and promotes next", func(t *testing.T) {
+		// ARRANGE
+		guardian := testpkg.CreateTestGuardianProfile(t, db, "delete-primary")
+		defer testpkg.CleanupActivityFixtures(t, db, guardian.ID)
+
+		phone1, err := service.AddPhoneNumber(ctx, guardian.ID, users.PhoneNumberCreateRequest{
+			PhoneNumber: "+49 333 333333",
+			PhoneType:   "mobile",
+		})
+		require.NoError(t, err)
+
+		phone2, err := service.AddPhoneNumber(ctx, guardian.ID, users.PhoneNumberCreateRequest{
+			PhoneNumber: "+49 444 444444",
+			PhoneType:   "work",
+		})
+		require.NoError(t, err)
+
+		// Verify phone1 is primary
+		assert.True(t, phone1.IsPrimary)
+
+		// ACT - delete primary phone
+		err = service.DeletePhoneNumber(ctx, phone1.ID)
+
+		// ASSERT
+		require.NoError(t, err)
+
+		// Verify phone1 is deleted
+		_, err = service.GetPhoneNumberByID(ctx, phone1.ID)
+		assert.Error(t, err)
+
+		// Verify phone2 was promoted to primary
+		phone2After, err := service.GetPhoneNumberByID(ctx, phone2.ID)
+		require.NoError(t, err)
+		assert.True(t, phone2After.IsPrimary, "Next phone should be promoted to primary")
+	})
+
+	t.Run("deletes last phone number", func(t *testing.T) {
+		// ARRANGE
+		guardian := testpkg.CreateTestGuardianProfile(t, db, "delete-last")
+		defer testpkg.CleanupActivityFixtures(t, db, guardian.ID)
+
+		phone, err := service.AddPhoneNumber(ctx, guardian.ID, users.PhoneNumberCreateRequest{
+			PhoneNumber: "+49 555 555555",
+			PhoneType:   "mobile",
+		})
+		require.NoError(t, err)
+
+		// ACT
+		err = service.DeletePhoneNumber(ctx, phone.ID)
+
+		// ASSERT
+		require.NoError(t, err)
+
+		// Verify guardian has no phones
+		phones, err := service.GetGuardianPhoneNumbers(ctx, guardian.ID)
+		require.NoError(t, err)
+		assert.Empty(t, phones)
+	})
+}
+
+func TestGuardianService_DeletePhoneNumber_Errors(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupGuardianService(t, db)
+	ctx := context.Background()
+
+	t.Run("returns error when phone not found", func(t *testing.T) {
+		// ACT
+		err := service.DeletePhoneNumber(ctx, 99999999)
+
+		// ASSERT
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "not found")
+	})
+}
+
+// =============================================================================
+// SetPrimaryPhone Tests
+// =============================================================================
+
+func TestGuardianService_SetPrimaryPhone_Success(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupGuardianService(t, db)
+	ctx := context.Background()
+
+	t.Run("sets phone as primary", func(t *testing.T) {
+		// ARRANGE
+		guardian := testpkg.CreateTestGuardianProfile(t, db, "set-primary")
+		defer testpkg.CleanupActivityFixtures(t, db, guardian.ID)
+
+		phone1, err := service.AddPhoneNumber(ctx, guardian.ID, users.PhoneNumberCreateRequest{
+			PhoneNumber: "+49 111 111111",
+			PhoneType:   "mobile",
+		})
+		require.NoError(t, err)
+
+		phone2, err := service.AddPhoneNumber(ctx, guardian.ID, users.PhoneNumberCreateRequest{
+			PhoneNumber: "+49 222 222222",
+			PhoneType:   "work",
+		})
+		require.NoError(t, err)
+
+		// ACT - set phone2 as primary
+		err = service.SetPrimaryPhone(ctx, phone2.ID)
+
+		// ASSERT
+		require.NoError(t, err)
+
+		// Verify phone2 is now primary
+		phone2After, err := service.GetPhoneNumberByID(ctx, phone2.ID)
+		require.NoError(t, err)
+		assert.True(t, phone2After.IsPrimary)
+
+		// Verify phone1 is no longer primary
+		phone1After, err := service.GetPhoneNumberByID(ctx, phone1.ID)
+		require.NoError(t, err)
+		assert.False(t, phone1After.IsPrimary)
+	})
+}
+
+func TestGuardianService_SetPrimaryPhone_Errors(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupGuardianService(t, db)
+	ctx := context.Background()
+
+	t.Run("returns error when phone not found", func(t *testing.T) {
+		// ACT
+		err := service.SetPrimaryPhone(ctx, 99999999)
+
+		// ASSERT
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "not found")
+	})
+}
+
+// =============================================================================
+// GetGuardianPhoneNumbers Tests
+// =============================================================================
+
+func TestGuardianService_GetGuardianPhoneNumbers_Success(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupGuardianService(t, db)
+	ctx := context.Background()
+
+	t.Run("returns all phone numbers sorted by priority", func(t *testing.T) {
+		// ARRANGE
+		guardian := testpkg.CreateTestGuardianProfile(t, db, "get-phones")
+		defer testpkg.CleanupActivityFixtures(t, db, guardian.ID)
+
+		// Add three phones
+		_, err := service.AddPhoneNumber(ctx, guardian.ID, users.PhoneNumberCreateRequest{
+			PhoneNumber: "+49 111 111111",
+			PhoneType:   "mobile",
+		})
+		require.NoError(t, err)
+
+		_, err = service.AddPhoneNumber(ctx, guardian.ID, users.PhoneNumberCreateRequest{
+			PhoneNumber: "+49 222 222222",
+			PhoneType:   "work",
+		})
+		require.NoError(t, err)
+
+		_, err = service.AddPhoneNumber(ctx, guardian.ID, users.PhoneNumberCreateRequest{
+			PhoneNumber: "+49 333 333333",
+			PhoneType:   "home",
+		})
+		require.NoError(t, err)
+
+		// ACT
+		phones, err := service.GetGuardianPhoneNumbers(ctx, guardian.ID)
+
+		// ASSERT
+		require.NoError(t, err)
+		assert.Len(t, phones, 3)
+
+		// Verify they're sorted by priority
+		for i := 0; i < len(phones)-1; i++ {
+			assert.LessOrEqual(t, phones[i].Priority, phones[i+1].Priority,
+				"Phones should be sorted by priority")
+		}
+
+		// Verify first phone is primary
+		assert.True(t, phones[0].IsPrimary, "First phone should be primary")
+	})
+
+	t.Run("returns empty list when guardian has no phones", func(t *testing.T) {
+		// ARRANGE
+		guardian := testpkg.CreateTestGuardianProfile(t, db, "no-phones")
+		defer testpkg.CleanupActivityFixtures(t, db, guardian.ID)
+
+		// ACT
+		phones, err := service.GetGuardianPhoneNumbers(ctx, guardian.ID)
+
+		// ASSERT
+		require.NoError(t, err)
+		assert.Empty(t, phones)
+	})
+}
+
+// =============================================================================
+// GetPhoneNumberByID Tests
+// =============================================================================
+
+func TestGuardianService_GetPhoneNumberByID_Success(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupGuardianService(t, db)
+	ctx := context.Background()
+
+	t.Run("returns phone number by ID", func(t *testing.T) {
+		// ARRANGE
+		guardian := testpkg.CreateTestGuardianProfile(t, db, "get-by-id")
+		defer testpkg.CleanupActivityFixtures(t, db, guardian.ID)
+
+		label := "Hauptnummer"
+		phone, err := service.AddPhoneNumber(ctx, guardian.ID, users.PhoneNumberCreateRequest{
+			PhoneNumber: "+49 444 444444",
+			PhoneType:   "mobile",
+			Label:       &label,
+		})
+		require.NoError(t, err)
+
+		// ACT
+		result, err := service.GetPhoneNumberByID(ctx, phone.ID)
+
+		// ASSERT
+		require.NoError(t, err)
+		assert.NotNil(t, result)
+		assert.Equal(t, phone.ID, result.ID)
+		assert.Equal(t, "+49 444 444444", result.PhoneNumber)
+		assert.Equal(t, usermodels.PhoneTypeMobile, result.PhoneType)
+		assert.Equal(t, &label, result.Label)
+	})
+}
+
+func TestGuardianService_GetPhoneNumberByID_Errors(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupGuardianService(t, db)
+	ctx := context.Background()
+
+	t.Run("returns error when phone not found", func(t *testing.T) {
+		// ACT
+		result, err := service.GetPhoneNumberByID(ctx, 99999999)
+
+		// ASSERT
+		require.Error(t, err)
+		assert.Nil(t, result)
 	})
 }
