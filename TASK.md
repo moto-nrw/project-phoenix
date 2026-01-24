@@ -58,7 +58,7 @@ Arbeite die Liste von oben nach unten ab (groesste Impact zuerst).
 - [x] components/console/ (105 lines) - has organization-invite-form.test.tsx (56 tests)
 - [x] components/ui/ (15 lines) - has badge.test.tsx, card.test.tsx, logout-modal.test.tsx (41 tests)
 - [x] components/dashboard/ (5 lines) - covered by responsive-layout.test.tsx, mobile-bottom-nav.test.tsx, sidebar.test.tsx
-- [ ] components/auth-wrapper.tsx (2 lines)
+- [x] components/auth-wrapper.tsx (2 lines) - has auth-wrapper.test.tsx (12 tests)
 - [ ] components/teachers/ (1 line)
 
 ### frontend/src/app (745 lines)
