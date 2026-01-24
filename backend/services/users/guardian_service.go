@@ -215,9 +215,20 @@ func (s *guardianService) CreateGuardianWithInvitation(ctx context.Context, req 
 	return profile, invitation, nil
 }
 
-// GetGuardianByID retrieves a guardian profile by ID
+// GetGuardianByID retrieves a guardian profile by ID with phone numbers
 func (s *guardianService) GetGuardianByID(ctx context.Context, id int64) (*users.GuardianProfile, error) {
-	return s.guardianProfileRepo.FindByID(ctx, id)
+	profile, err := s.guardianProfileRepo.FindByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	// Load phone numbers for this guardian
+	phoneNumbers, err := s.guardianPhoneNumberRepo.FindByGuardianID(ctx, profile.ID)
+	if err == nil {
+		profile.PhoneNumbers = phoneNumbers
+	}
+
+	return profile, nil
 }
 
 // GetGuardianByEmail retrieves a guardian profile by email
@@ -682,9 +693,22 @@ func (s *guardianService) RemoveGuardianFromStudent(ctx context.Context, student
 	return errors.New("relationship not found")
 }
 
-// ListGuardians retrieves guardians with pagination and filters
+// ListGuardians retrieves guardians with pagination and filters, including phone numbers
 func (s *guardianService) ListGuardians(ctx context.Context, options *base.QueryOptions) ([]*users.GuardianProfile, error) {
-	return s.guardianProfileRepo.ListWithOptions(ctx, options)
+	profiles, err := s.guardianProfileRepo.ListWithOptions(ctx, options)
+	if err != nil {
+		return nil, err
+	}
+
+	// Load phone numbers for each guardian
+	for _, profile := range profiles {
+		phoneNumbers, err := s.guardianPhoneNumberRepo.FindByGuardianID(ctx, profile.ID)
+		if err == nil {
+			profile.PhoneNumbers = phoneNumbers
+		}
+	}
+
+	return profiles, nil
 }
 
 // GetGuardiansWithoutAccount retrieves guardians who don't have portal accounts
@@ -748,11 +772,22 @@ func (s *guardianService) AddPhoneNumber(ctx context.Context, guardianID int64, 
 		Priority:          priority,
 	}
 
-	// If setting as primary, unset others first
+	// If setting as primary, wrap unset + create in transaction to avoid orphan state
 	if isPrimary && count > 0 {
-		if err := s.guardianPhoneNumberRepo.UnsetAllPrimary(ctx, guardianID); err != nil {
-			return nil, fmt.Errorf("failed to unset existing primary: %w", err)
+		err := s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
+			svc := s.WithTx(tx).(*guardianService)
+			if err := svc.guardianPhoneNumberRepo.UnsetAllPrimary(ctx, guardianID); err != nil {
+				return fmt.Errorf("failed to unset existing primary: %w", err)
+			}
+			if err := svc.guardianPhoneNumberRepo.Create(ctx, phone); err != nil {
+				return fmt.Errorf("failed to create phone number: %w", err)
+			}
+			return nil
+		})
+		if err != nil {
+			return nil, err
 		}
+		return phone, nil
 	}
 
 	if err := s.guardianPhoneNumberRepo.Create(ctx, phone); err != nil {
@@ -786,13 +821,16 @@ func (s *guardianService) UpdatePhoneNumber(ctx context.Context, phoneID int64, 
 		phone.Priority = *req.Priority
 	}
 
-	// Handle primary flag change
+	// Handle primary flag change - wrap in transaction to avoid orphan state
 	if req.IsPrimary != nil && *req.IsPrimary && !phone.IsPrimary {
-		// Setting as primary - unset others first
-		if err := s.guardianPhoneNumberRepo.UnsetAllPrimary(ctx, phone.GuardianProfileID); err != nil {
-			return fmt.Errorf("failed to unset existing primary: %w", err)
-		}
 		phone.IsPrimary = true
+		return s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
+			svc := s.WithTx(tx).(*guardianService)
+			if err := svc.guardianPhoneNumberRepo.UnsetAllPrimary(ctx, phone.GuardianProfileID); err != nil {
+				return fmt.Errorf("failed to unset existing primary: %w", err)
+			}
+			return svc.guardianPhoneNumberRepo.Update(ctx, phone)
+		})
 	} else if req.IsPrimary != nil && !*req.IsPrimary && phone.IsPrimary {
 		// Unsetting primary - need to promote another number
 		phone.IsPrimary = false

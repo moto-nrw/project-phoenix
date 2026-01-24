@@ -85,10 +85,10 @@ func (rs *Resource) Router() chi.Router {
 		// Phone number management (nested under guardian)
 		r.Route("/{id}/phone-numbers", func(r chi.Router) {
 			r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/", rs.listGuardianPhoneNumbers)
-			r.Post("/", rs.addPhoneNumber)
-			r.Put("/{phoneId}", rs.updatePhoneNumber)
-			r.Delete("/{phoneId}", rs.deletePhoneNumber)
-			r.Post("/{phoneId}/set-primary", rs.setPrimaryPhone)
+			r.With(authorize.RequiresPermission(permissions.UsersUpdate)).Post("/", rs.addPhoneNumber)
+			r.With(authorize.RequiresPermission(permissions.UsersUpdate)).Put("/{phoneId}", rs.updatePhoneNumber)
+			r.With(authorize.RequiresPermission(permissions.UsersUpdate)).Delete("/{phoneId}", rs.deletePhoneNumber)
+			r.With(authorize.RequiresPermission(permissions.UsersUpdate)).Post("/{phoneId}/set-primary", rs.setPrimaryPhone)
 		})
 	})
 
