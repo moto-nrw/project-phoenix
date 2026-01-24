@@ -158,7 +158,7 @@ export function generateSlugFromName(name: string): string {
     .replaceAll(/[äÄ]/g, "ae")
     .replaceAll(/[öÖ]/g, "oe")
     .replaceAll(/[üÜ]/g, "ue")
-    .replaceAll(/ß/g, "ss")
+    .replaceAll("ß", "ss")
     .replaceAll(/[^a-z0-9]+/g, "-") // Replace non-alphanumeric with hyphens
     .replaceAll(/(^-+)|(-+$)/g, "") // Remove leading/trailing hyphens
     .replaceAll(/-+/g, "-") // Replace multiple hyphens with single

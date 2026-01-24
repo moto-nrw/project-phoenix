@@ -569,10 +569,10 @@ export function OrganizationInviteForm({
               className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm transition-colors focus:border-gray-400 focus:ring-2 focus:ring-gray-200 focus:outline-none disabled:bg-gray-100"
             />
           </div>
+          {/* prettier-ignore */}
           <p className="mt-1 text-xs text-gray-500">
             Die Subdomain wird für die URL der Organisation verwendet (z.B.{" "}
-            <span className="font-mono">{orgSlug || "subdomain"}.moto.nrw</span>
-            )
+            <span className="font-mono">{orgSlug || "subdomain"}.moto.nrw</span>)
           </p>
         </div>
 
