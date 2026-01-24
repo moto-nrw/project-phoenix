@@ -64,8 +64,8 @@ Arbeite die Liste von oben nach unten ab (groesste Impact zuerst).
 ### frontend/src/app (745 lines)
 - [x] app/api/ (249 lines) - has health.test.ts, database/counts.test.ts, sse/events.test.ts, test.test.ts, auth/[...betterauth].test.ts
 - [x] app/(auth)/ (162 lines) - has loading.test.tsx, console/login.test.tsx, console/page.test.tsx (103 tests)
-- [ ] app/(public)/ (125 lines)
-- [ ] app/login/ (112 lines)
+- [x] app/(public)/ (125 lines)
+- [x] app/login/ (112 lines)
 - [ ] app/database/ (27 lines)
 - [ ] app/page.tsx (23 lines)
 - [ ] app/invitations/ (9 lines)
