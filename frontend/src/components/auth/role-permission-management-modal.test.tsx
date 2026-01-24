@@ -371,11 +371,12 @@ describe("RolePermissionManagementModal", () => {
     it("enables save button after toggling", async () => {
       render(<RolePermissionManagementModal {...defaultProps} />);
 
+      // Wait for switches to render (permissions loaded)
       await waitFor(() => {
-        expect(
-          screen.getByRole("button", { name: "Speichern" }),
-        ).toBeDisabled();
+        expect(screen.getAllByRole("switch").length).toBe(3);
       });
+
+      expect(screen.getByRole("button", { name: "Speichern" })).toBeDisabled();
 
       const switches = screen.getAllByRole("switch");
       fireEvent.click(switches[1]!); // Toggle on second permission
