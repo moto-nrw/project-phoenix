@@ -235,12 +235,12 @@ function generateSlugFromName(name: string): string {
   return name
     .toLowerCase()
     .trim()
-    .replace(/[äÄ]/g, "ae")
-    .replace(/[öÖ]/g, "oe")
-    .replace(/[üÜ]/g, "ue")
-    .replace(/[ß]/g, "ss")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/(^-+)|(-+$)/g, "");
+    .replaceAll(/[äÄ]/g, "ae")
+    .replaceAll(/[öÖ]/g, "oe")
+    .replaceAll(/[üÜ]/g, "ue")
+    .replaceAll(/[ß]/g, "ss")
+    .replaceAll(/[^a-z0-9]+/g, "-")
+    .replaceAll(/(^-+)|(-+$)/g, "");
 }
 
 export function OrganizationInviteForm({
@@ -549,7 +549,7 @@ export function OrganizationInviteForm({
                   }
                 }}
                 className="rounded border-gray-300 text-gray-900 focus:ring-gray-500"
-              />
+              />{" "}
               Automatisch generieren
             </label>
           </div>
@@ -561,7 +561,7 @@ export function OrganizationInviteForm({
               onChange={(e) => {
                 setAutoGenerateSlug(false);
                 setOrgSlug(
-                  e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""),
+                  e.target.value.toLowerCase().replaceAll(/[^a-z0-9-]/g, ""),
                 );
               }}
               disabled={isSubmitting}
@@ -577,11 +577,11 @@ export function OrganizationInviteForm({
         </div>
 
         {/* Invitations section */}
-        <div>
+        <fieldset>
           <div className="mb-3 flex items-center justify-between">
-            <label className="block text-sm font-medium text-gray-700">
+            <legend className="block text-sm font-medium text-gray-700">
               Einladungen
-            </label>
+            </legend>
             <button
               type="button"
               onClick={addInvitation}
@@ -712,7 +712,7 @@ export function OrganizationInviteForm({
               </div>
             ))}
           </div>
-        </div>
+        </fieldset>
 
         {/* Submit button */}
         <button
