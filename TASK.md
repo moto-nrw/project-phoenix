@@ -69,14 +69,14 @@ Arbeite die Liste von oben nach unten ab (groesste Impact zuerst).
 - [x] app/database/ (27 lines)
 - [x] app/page.tsx (23 lines) - has page.test.tsx (21 tests)
 - [x] app/invitations/ (9 lines) - has page.test.tsx (19 tests)
-- [ ] app/dashboard/ (8 lines)
-- [ ] app/settings/ (6 lines)
-- [ ] app/ogs-groups/ (5 lines)
-- [ ] app/rooms/ (5 lines)
-- [ ] app/students/ (5 lines)
-- [ ] app/active-supervisions/ (3 lines)
-- [ ] app/staff/ (3 lines)
-- [ ] app/substitutions/ (3 lines)
+- [x] app/dashboard/ (8 lines) - has page.test.tsx (859 lines, 24 tests)
+- [x] app/settings/ (6 lines) - has page.test.tsx (703 lines, 24 tests)
+- [x] app/ogs-groups/ (5 lines) - has page.test.tsx (1260 lines, 48 tests)
+- [x] app/rooms/ (5 lines) - has page.test.tsx, [id]/page.test.tsx (1263 lines)
+- [x] app/students/ (5 lines) - has search/page.test.tsx, [id]/page.test.tsx, history pages (2833 lines)
+- [x] app/active-supervisions/ (3 lines) - has page.test.tsx (1404 lines)
+- [x] app/staff/ (3 lines) - has page.test.tsx (508 lines)
+- [x] app/substitutions/ (3 lines) - has page.test.tsx (964 lines)
 
 ## Iteration
 
