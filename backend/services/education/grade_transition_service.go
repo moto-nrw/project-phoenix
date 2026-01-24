@@ -677,7 +677,10 @@ func (s *gradeTransitionService) executeRevert(
 	history []*education.GradeTransitionHistory,
 	result *TransitionResult,
 ) error {
-	graduatedCount := s.revertPromotedStudents(ctx, history, result)
+	graduatedCount, err := s.revertPromotedStudents(ctx, history, result)
+	if err != nil {
+		return err
+	}
 
 	if graduatedCount > 0 {
 		result.Warnings = append(result.Warnings,
@@ -689,43 +692,76 @@ func (s *gradeTransitionService) executeRevert(
 }
 
 // revertPromotedStudents reverts promoted students to their original classes.
-// Returns the count of graduated students that cannot be restored.
+// Returns the count of graduated students that cannot be restored and any error.
 func (s *gradeTransitionService) revertPromotedStudents(
 	ctx context.Context,
 	history []*education.GradeTransitionHistory,
 	result *TransitionResult,
-) int {
+) (int, error) {
 	graduatedCount := 0
+	missingStudentCount := 0
 
 	for _, h := range history {
 		switch {
 		case h.WasPromoted():
-			if s.revertStudentClass(ctx, h) {
+			reverted, err := s.revertStudentClass(ctx, h)
+			if err != nil {
+				// Real database error - propagate to trigger transaction rollback
+				return graduatedCount, fmt.Errorf("failed to revert student %d: %w", h.StudentID, err)
+			}
+			if reverted {
 				result.StudentsPromoted++
+			} else {
+				// Student was deleted after promotion - track for warning
+				missingStudentCount++
 			}
 		case h.WasGraduated():
 			graduatedCount++
 		}
 	}
 
-	return graduatedCount
+	if missingStudentCount > 0 {
+		result.Warnings = append(result.Warnings,
+			fmt.Sprintf("%d promoted students could not be reverted (may have been deleted since promotion)",
+				missingStudentCount))
+	}
+
+	return graduatedCount, nil
 }
 
 // revertStudentClass updates a student back to their original class.
-// Returns true if the update was successful.
+// Returns (true, nil) if successful, (false, nil) if student no longer exists,
+// or (false, error) if a real database error occurred.
 func (s *gradeTransitionService) revertStudentClass(
 	ctx context.Context,
 	h *education.GradeTransitionHistory,
-) bool {
-	_, err := s.db.NewUpdate().
+) (bool, error) {
+	// Use transaction from context if available
+	var db bun.IDB = s.db
+	if tx, ok := base.TxFromContext(ctx); ok && tx != nil {
+		db = tx
+	}
+
+	result, err := db.NewUpdate().
 		Model((*users.Student)(nil)).
 		ModelTableExpr(`users.students AS "student"`).
 		Set("school_class = ?", h.FromClass).
 		Set("updated_at = NOW()").
 		Where(`"student".id = ?`, h.StudentID).
 		Exec(ctx)
-	// Student might have been deleted - return false to skip
-	return err == nil
+	if err != nil {
+		// Real database error - return it to trigger rollback
+		return false, err
+	}
+
+	// Check if a row was actually updated
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return false, err
+	}
+
+	// No rows affected means student was deleted - not an error, just a skip
+	return rowsAffected > 0, nil
 }
 
 // markTransitionReverted updates the transition status to reverted.
