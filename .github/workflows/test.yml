@@ -112,7 +112,7 @@ jobs:
 
       - name: Run frontend tests with coverage
         working-directory: frontend
-        run: pnpm run test:run -- --coverage
+        run: pnpm run test:coverage
 
       - name: Fix frontend coverage paths for SonarCloud
         run: |
