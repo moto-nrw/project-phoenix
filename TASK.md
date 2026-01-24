@@ -31,8 +31,8 @@ Arbeite die Liste von oben nach unten ab (groesste Impact zuerst).
 - [x] lib/slug-validation.ts (21 lines) - has slug-validation.test.ts
 - [x] lib/api-helpers.ts (20 lines) - has api-helpers.test.ts
 - [x] lib/admin-auth.ts (17 lines) - has admin-auth.test.ts
-- [ ] lib/tenant-context.ts (15 lines)
-- [ ] lib/profile-context.tsx (14 lines)
+- [x] lib/tenant-context.ts (15 lines) - has tenant-context.test.ts (24 tests)
+- [x] lib/profile-context.tsx (14 lines) - has profile-context.test.tsx (29 tests)
 - [ ] lib/redirect-utils.ts (11 lines)
 - [ ] lib/hooks/ (11 lines)
 - [ ] lib/api-client.ts (8 lines)
