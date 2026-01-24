@@ -83,7 +83,7 @@ jobs:
 
       - name: Run frontend tests with coverage
         working-directory: frontend
-        run: pnpm run test:run -- --coverage
+        run: pnpm run test:run --coverage
 
       # Upload coverage artifacts for debugging
       - name: Upload coverage artifacts
