@@ -236,19 +236,6 @@ export function OrgSelection() {
               </div>
             )}
         </div>
-
-        {/* Sign Up Link */}
-        <div className="mt-6 text-sm text-gray-600">
-          <p>
-            Neue Einrichtung registrieren?{" "}
-            <a
-              href="/signup"
-              className="font-medium text-gray-900 underline hover:text-gray-700"
-            >
-              Jetzt registrieren
-            </a>
-          </p>
-        </div>
       </div>
     </div>
   );

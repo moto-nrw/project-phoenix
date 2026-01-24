@@ -103,18 +103,6 @@ describe("OrgSelection", () => {
         screen.getByPlaceholderText("Einrichtung suchen..."),
       ).toBeInTheDocument();
     });
-
-    it("renders signup link", async () => {
-      render(<OrgSelection />);
-
-      expect(
-        screen.getByText("Neue Einrichtung registrieren?"),
-      ).toBeInTheDocument();
-      expect(screen.getByText("Jetzt registrieren")).toHaveAttribute(
-        "href",
-        "/signup",
-      );
-    });
   });
 
   // =============================================================================
