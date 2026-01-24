@@ -67,7 +67,7 @@ Arbeite die Liste von oben nach unten ab (groesste Impact zuerst).
 - [x] app/(public)/ (125 lines)
 - [x] app/login/ (112 lines)
 - [x] app/database/ (27 lines)
-- [ ] app/page.tsx (23 lines)
+- [x] app/page.tsx (23 lines) - has page.test.tsx (21 tests)
 - [ ] app/invitations/ (9 lines)
 - [ ] app/dashboard/ (8 lines)
 - [ ] app/settings/ (6 lines)
