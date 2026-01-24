@@ -66,7 +66,7 @@ Arbeite die Liste von oben nach unten ab (groesste Impact zuerst).
 - [x] app/(auth)/ (162 lines) - has loading.test.tsx, console/login.test.tsx, console/page.test.tsx (103 tests)
 - [x] app/(public)/ (125 lines)
 - [x] app/login/ (112 lines)
-- [ ] app/database/ (27 lines)
+- [x] app/database/ (27 lines)
 - [ ] app/page.tsx (23 lines)
 - [ ] app/invitations/ (9 lines)
 - [ ] app/dashboard/ (8 lines)
