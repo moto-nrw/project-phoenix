@@ -2,6 +2,7 @@ package users_test
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
@@ -213,7 +214,7 @@ func TestGuardianPhoneNumberRepository_GetPrimary(t *testing.T) {
 		// Create primary phone
 		primaryPhone := &users.GuardianPhoneNumber{
 			GuardianProfileID: guardian.ID,
-			PhoneNumber:       "+49 30 PRIMARY",
+			PhoneNumber:       "+49 30 111222",
 			PhoneType:         users.PhoneTypeMobile,
 			IsPrimary:         true,
 			Priority:          1,
@@ -225,7 +226,7 @@ func TestGuardianPhoneNumberRepository_GetPrimary(t *testing.T) {
 		// Create non-primary phone
 		secondaryPhone := &users.GuardianPhoneNumber{
 			GuardianProfileID: guardian.ID,
-			PhoneNumber:       "+49 30 SECONDARY",
+			PhoneNumber:       "+49 30 333444",
 			PhoneType:         users.PhoneTypeHome,
 			IsPrimary:         false,
 			Priority:          2,
@@ -247,7 +248,7 @@ func TestGuardianPhoneNumberRepository_GetPrimary(t *testing.T) {
 		// Create non-primary phone only
 		phone := &users.GuardianPhoneNumber{
 			GuardianProfileID: guardian.ID,
-			PhoneNumber:       "+49 30 NOT-PRIMARY",
+			PhoneNumber:       "+49 30 555666",
 			PhoneType:         users.PhoneTypeMobile,
 			IsPrimary:         false,
 			Priority:          1,
@@ -279,7 +280,7 @@ func TestGuardianPhoneNumberRepository_Update(t *testing.T) {
 
 		phone := &users.GuardianPhoneNumber{
 			GuardianProfileID: guardian.ID,
-			PhoneNumber:       "+49 30 ORIGINAL",
+			PhoneNumber:       "+49 30 777888",
 			PhoneType:         users.PhoneTypeMobile,
 			IsPrimary:         false,
 			Priority:          1,
@@ -289,7 +290,7 @@ func TestGuardianPhoneNumberRepository_Update(t *testing.T) {
 		defer testpkg.CleanupTableRecords(t, db, "users.guardian_phone_numbers", phone.ID)
 
 		// Update fields
-		phone.PhoneNumber = "+49 30 UPDATED"
+		phone.PhoneNumber = "+49 30 999000"
 		phone.PhoneType = users.PhoneTypeWork
 		label := "Updated Label"
 		phone.Label = &label
@@ -301,7 +302,7 @@ func TestGuardianPhoneNumberRepository_Update(t *testing.T) {
 		// Verify update
 		updated, err := repo.FindByID(ctx, phone.ID)
 		require.NoError(t, err)
-		assert.Equal(t, "+49 30 UPDATED", updated.PhoneNumber)
+		assert.Equal(t, "+49 30 999000", updated.PhoneNumber)
 		assert.Equal(t, users.PhoneTypeWork, updated.PhoneType)
 		assert.Equal(t, &label, updated.Label)
 		assert.True(t, updated.IsPrimary)
@@ -341,7 +342,7 @@ func TestGuardianPhoneNumberRepository_Delete(t *testing.T) {
 
 		phone := &users.GuardianPhoneNumber{
 			GuardianProfileID: guardian.ID,
-			PhoneNumber:       "+49 30 DELETE-ME",
+			PhoneNumber:       "+49 30 111000",
 			PhoneType:         users.PhoneTypeMobile,
 			Priority:          1,
 		}
@@ -382,7 +383,7 @@ func TestGuardianPhoneNumberRepository_SetPrimary(t *testing.T) {
 		// Create first phone as primary
 		phone1 := &users.GuardianPhoneNumber{
 			GuardianProfileID: guardian.ID,
-			PhoneNumber:       "+49 30 FIRST",
+			PhoneNumber:       "+49 30 222111",
 			PhoneType:         users.PhoneTypeMobile,
 			IsPrimary:         true,
 			Priority:          1,
@@ -394,7 +395,7 @@ func TestGuardianPhoneNumberRepository_SetPrimary(t *testing.T) {
 		// Create second phone as non-primary
 		phone2 := &users.GuardianPhoneNumber{
 			GuardianProfileID: guardian.ID,
-			PhoneNumber:       "+49 30 SECOND",
+			PhoneNumber:       "+49 30 333111",
 			PhoneType:         users.PhoneTypeHome,
 			IsPrimary:         false,
 			Priority:          2,
@@ -446,7 +447,7 @@ func TestGuardianPhoneNumberRepository_UnsetAllPrimary(t *testing.T) {
 		// Create primary phone
 		phone := &users.GuardianPhoneNumber{
 			GuardianProfileID: guardian.ID,
-			PhoneNumber:       "+49 30 PRIMARY",
+			PhoneNumber:       "+49 30 444111",
 			PhoneType:         users.PhoneTypeMobile,
 			IsPrimary:         true,
 			Priority:          1,
@@ -492,7 +493,7 @@ func TestGuardianPhoneNumberRepository_CountByGuardianID(t *testing.T) {
 		for i := range 3 {
 			phone := &users.GuardianPhoneNumber{
 				GuardianProfileID: guardian.ID,
-				PhoneNumber:       "+49 30 " + string(rune('0'+i)),
+				PhoneNumber:       fmt.Sprintf("+49 30 %d00%d00", i+1, i+1),
 				PhoneType:         users.PhoneTypeMobile,
 				IsPrimary:         i == 0,
 				Priority:          i + 1,
@@ -536,7 +537,7 @@ func TestGuardianPhoneNumberRepository_DeleteByGuardianID(t *testing.T) {
 		for i := range 2 {
 			phone := &users.GuardianPhoneNumber{
 				GuardianProfileID: guardian.ID,
-				PhoneNumber:       "+49 30 DELETE-" + string(rune('0'+i)),
+				PhoneNumber:       fmt.Sprintf("+49 30 %d55%d55", i+1, i+1),
 				PhoneType:         users.PhoneTypeMobile,
 				IsPrimary:         i == 0,
 				Priority:          i + 1,
@@ -591,7 +592,7 @@ func TestGuardianPhoneNumberRepository_GetNextPriority(t *testing.T) {
 		// Create phone with priority 3
 		phone := &users.GuardianPhoneNumber{
 			GuardianProfileID: guardian.ID,
-			PhoneNumber:       "+49 30 PRIORITY",
+			PhoneNumber:       "+49 30 555111",
 			PhoneType:         users.PhoneTypeMobile,
 			IsPrimary:         true,
 			Priority:          3,
