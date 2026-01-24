@@ -11,9 +11,10 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// Error messages
+// Error messages and SQL fragments
 const (
 	errGuardianPhoneNotFound = "guardian phone number not found"
+	sqlSetIsPrimary          = "is_primary = ?"
 )
 
 // GuardianPhoneNumberRepository implements the users.GuardianPhoneNumberRepository interface
@@ -175,7 +176,7 @@ func (r *GuardianPhoneNumberRepository) SetPrimary(ctx context.Context, id int64
 	_, err = tx.NewUpdate().
 		Model((*users.GuardianPhoneNumber)(nil)).
 		ModelTableExpr(`users.guardian_phone_numbers AS "guardian_phone_number"`).
-		Set("is_primary = ?", false).
+		Set(sqlSetIsPrimary, false).
 		Where(`"guardian_phone_number".guardian_profile_id = ?`, guardianProfileID).
 		Exec(ctx)
 
@@ -187,7 +188,7 @@ func (r *GuardianPhoneNumberRepository) SetPrimary(ctx context.Context, id int64
 	result, err := tx.NewUpdate().
 		Model((*users.GuardianPhoneNumber)(nil)).
 		ModelTableExpr(`users.guardian_phone_numbers AS "guardian_phone_number"`).
-		Set("is_primary = ?", true).
+		Set(sqlSetIsPrimary, true).
 		Where(`"guardian_phone_number".id = ?`, id).
 		Where(`"guardian_phone_number".guardian_profile_id = ?`, guardianProfileID).
 		Exec(ctx)
@@ -213,7 +214,7 @@ func (r *GuardianPhoneNumberRepository) UnsetAllPrimary(ctx context.Context, gua
 	_, err := r.db.NewUpdate().
 		Model((*users.GuardianPhoneNumber)(nil)).
 		ModelTableExpr(`users.guardian_phone_numbers AS "guardian_phone_number"`).
-		Set("is_primary = ?", false).
+		Set(sqlSetIsPrimary, false).
 		Where(`"guardian_phone_number".guardian_profile_id = ?`, guardianProfileID).
 		Exec(ctx)
 

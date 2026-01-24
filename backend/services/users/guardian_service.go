@@ -20,6 +20,8 @@ import (
 const (
 	// errMsgGuardianNotFound is the error message format for guardian profile not found errors
 	errMsgGuardianNotFound = "guardian profile not found: %w"
+	// errMsgPhoneNotFound is the error message format for phone number not found errors
+	errMsgPhoneNotFound = "phone number not found: %w"
 )
 
 // GuardianServiceDependencies contains all dependencies required by the guardian service
@@ -764,7 +766,7 @@ func (s *guardianService) AddPhoneNumber(ctx context.Context, guardianID int64, 
 func (s *guardianService) UpdatePhoneNumber(ctx context.Context, phoneID int64, req PhoneNumberUpdateRequest) error {
 	phone, err := s.guardianPhoneNumberRepo.FindByID(ctx, phoneID)
 	if err != nil {
-		return fmt.Errorf("phone number not found: %w", err)
+		return fmt.Errorf(errMsgPhoneNotFound, err)
 	}
 
 	// Update fields if provided
@@ -803,7 +805,7 @@ func (s *guardianService) UpdatePhoneNumber(ctx context.Context, phoneID int64, 
 func (s *guardianService) DeletePhoneNumber(ctx context.Context, phoneID int64) error {
 	phone, err := s.guardianPhoneNumberRepo.FindByID(ctx, phoneID)
 	if err != nil {
-		return fmt.Errorf("phone number not found: %w", err)
+		return fmt.Errorf(errMsgPhoneNotFound, err)
 	}
 
 	wasPrimary := phone.IsPrimary
@@ -834,7 +836,7 @@ func (s *guardianService) DeletePhoneNumber(ctx context.Context, phoneID int64) 
 func (s *guardianService) SetPrimaryPhone(ctx context.Context, phoneID int64) error {
 	phone, err := s.guardianPhoneNumberRepo.FindByID(ctx, phoneID)
 	if err != nil {
-		return fmt.Errorf("phone number not found: %w", err)
+		return fmt.Errorf(errMsgPhoneNotFound, err)
 	}
 
 	return s.guardianPhoneNumberRepo.SetPrimary(ctx, phoneID, phone.GuardianProfileID)

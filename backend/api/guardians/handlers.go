@@ -18,7 +18,12 @@ import (
 )
 
 // Error messages (S1192 - avoid duplicate string literals)
-const errInvalidGuardianID = "invalid guardian ID"
+const (
+	errInvalidGuardianID    = "invalid guardian ID"
+	errInvalidPhoneID       = "invalid phone ID"
+	errPhoneNotFound        = "phone number not found"
+	errPhoneNotBelongsGuard = "phone number does not belong to this guardian"
+)
 
 // Note: "log" import kept for non-RenderError logging (e.g., line 741)
 
@@ -1071,6 +1076,42 @@ func (rs *Resource) AcceptGuardianInvitationHandler() http.HandlerFunc {
 // PHONE NUMBER HANDLERS
 // =============================================================================
 
+// validatePhoneAccess validates guardian ID, phone ID, permissions, and ownership.
+// Returns the validated phone number or renders an error response and returns nil.
+func (rs *Resource) validatePhoneAccess(w http.ResponseWriter, r *http.Request) *users.GuardianPhoneNumber {
+	guardianID, err := common.ParseID(r)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errInvalidGuardianID)))
+		return nil
+	}
+
+	phoneID, err := common.ParseIDParam(r, "phoneId")
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errInvalidPhoneID)))
+		return nil
+	}
+
+	// Check permissions
+	canModify, err := rs.canModifyGuardian(r.Context(), guardianID)
+	if !canModify {
+		common.RenderError(w, r, common.ErrorForbidden(err))
+		return nil
+	}
+
+	// Verify phone belongs to guardian
+	phone, err := rs.GuardianService.GetPhoneNumberByID(r.Context(), phoneID)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorNotFound(errors.New(errPhoneNotFound)))
+		return nil
+	}
+	if phone.GuardianProfileID != guardianID {
+		common.RenderError(w, r, common.ErrorForbidden(errors.New(errPhoneNotBelongsGuard)))
+		return nil
+	}
+
+	return phone
+}
+
 // listGuardianPhoneNumbers handles getting all phone numbers for a guardian
 func (rs *Resource) listGuardianPhoneNumbers(w http.ResponseWriter, r *http.Request) {
 	guardianID, err := common.ParseID(r)
@@ -1132,34 +1173,9 @@ func (rs *Resource) addPhoneNumber(w http.ResponseWriter, r *http.Request) {
 
 // updatePhoneNumber handles updating an existing phone number
 func (rs *Resource) updatePhoneNumber(w http.ResponseWriter, r *http.Request) {
-	guardianID, err := common.ParseID(r)
-	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errInvalidGuardianID)))
-		return
-	}
-
-	phoneID, err := common.ParseIDParam(r, "phoneId")
-	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid phone ID")))
-		return
-	}
-
-	// Check permissions
-	canModify, err := rs.canModifyGuardian(r.Context(), guardianID)
-	if !canModify {
-		common.RenderError(w, r, common.ErrorForbidden(err))
-		return
-	}
-
-	// Verify phone belongs to guardian
-	phone, err := rs.GuardianService.GetPhoneNumberByID(r.Context(), phoneID)
-	if err != nil {
-		common.RenderError(w, r, common.ErrorNotFound(errors.New("phone number not found")))
-		return
-	}
-	if phone.GuardianProfileID != guardianID {
-		common.RenderError(w, r, common.ErrorForbidden(errors.New("phone number does not belong to this guardian")))
-		return
+	phone := rs.validatePhoneAccess(w, r)
+	if phone == nil {
+		return // Error already rendered
 	}
 
 	req := &PhoneNumberUpdateRequest{}
@@ -1176,13 +1192,13 @@ func (rs *Resource) updatePhoneNumber(w http.ResponseWriter, r *http.Request) {
 		Priority:    req.Priority,
 	}
 
-	if err := rs.GuardianService.UpdatePhoneNumber(r.Context(), phoneID, updateReq); err != nil {
+	if err := rs.GuardianService.UpdatePhoneNumber(r.Context(), phone.ID, updateReq); err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
 	// Get updated phone
-	updatedPhone, err := rs.GuardianService.GetPhoneNumberByID(r.Context(), phoneID)
+	updatedPhone, err := rs.GuardianService.GetPhoneNumberByID(r.Context(), phone.ID)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
@@ -1193,37 +1209,12 @@ func (rs *Resource) updatePhoneNumber(w http.ResponseWriter, r *http.Request) {
 
 // deletePhoneNumber handles removing a phone number
 func (rs *Resource) deletePhoneNumber(w http.ResponseWriter, r *http.Request) {
-	guardianID, err := common.ParseID(r)
-	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errInvalidGuardianID)))
-		return
+	phone := rs.validatePhoneAccess(w, r)
+	if phone == nil {
+		return // Error already rendered
 	}
 
-	phoneID, err := common.ParseIDParam(r, "phoneId")
-	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid phone ID")))
-		return
-	}
-
-	// Check permissions
-	canModify, err := rs.canModifyGuardian(r.Context(), guardianID)
-	if !canModify {
-		common.RenderError(w, r, common.ErrorForbidden(err))
-		return
-	}
-
-	// Verify phone belongs to guardian
-	phone, err := rs.GuardianService.GetPhoneNumberByID(r.Context(), phoneID)
-	if err != nil {
-		common.RenderError(w, r, common.ErrorNotFound(errors.New("phone number not found")))
-		return
-	}
-	if phone.GuardianProfileID != guardianID {
-		common.RenderError(w, r, common.ErrorForbidden(errors.New("phone number does not belong to this guardian")))
-		return
-	}
-
-	if err := rs.GuardianService.DeletePhoneNumber(r.Context(), phoneID); err != nil {
+	if err := rs.GuardianService.DeletePhoneNumber(r.Context(), phone.ID); err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
@@ -1233,43 +1224,18 @@ func (rs *Resource) deletePhoneNumber(w http.ResponseWriter, r *http.Request) {
 
 // setPrimaryPhone handles setting a phone number as primary
 func (rs *Resource) setPrimaryPhone(w http.ResponseWriter, r *http.Request) {
-	guardianID, err := common.ParseID(r)
-	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errInvalidGuardianID)))
-		return
+	phone := rs.validatePhoneAccess(w, r)
+	if phone == nil {
+		return // Error already rendered
 	}
 
-	phoneID, err := common.ParseIDParam(r, "phoneId")
-	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid phone ID")))
-		return
-	}
-
-	// Check permissions
-	canModify, err := rs.canModifyGuardian(r.Context(), guardianID)
-	if !canModify {
-		common.RenderError(w, r, common.ErrorForbidden(err))
-		return
-	}
-
-	// Verify phone belongs to guardian
-	phone, err := rs.GuardianService.GetPhoneNumberByID(r.Context(), phoneID)
-	if err != nil {
-		common.RenderError(w, r, common.ErrorNotFound(errors.New("phone number not found")))
-		return
-	}
-	if phone.GuardianProfileID != guardianID {
-		common.RenderError(w, r, common.ErrorForbidden(errors.New("phone number does not belong to this guardian")))
-		return
-	}
-
-	if err := rs.GuardianService.SetPrimaryPhone(r.Context(), phoneID); err != nil {
+	if err := rs.GuardianService.SetPrimaryPhone(r.Context(), phone.ID); err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
 	// Fetch the updated phone number to return in response
-	updatedPhone, err := rs.GuardianService.GetPhoneNumberByID(r.Context(), phoneID)
+	updatedPhone, err := rs.GuardianService.GetPhoneNumberByID(r.Context(), phone.ID)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return

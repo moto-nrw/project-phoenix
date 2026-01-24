@@ -11,6 +11,9 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/users"
 )
 
+// Table name constants
+const tableGuardianPhoneNumbers = "users.guardian_phone_numbers"
+
 // seedStudents creates student records for persons 31-150
 func (s *Seeder) seedStudents(ctx context.Context) error {
 	// Students are persons 31-150 (120 students total)
@@ -298,7 +301,7 @@ func (s *Seeder) seedGuardianPhoneNumbers(ctx context.Context, guardianID int64,
 
 	// Delete existing phone numbers for this guardian (for idempotent seeding)
 	_, err := s.tx.NewDelete().
-		Table("users.guardian_phone_numbers").
+		Table(tableGuardianPhoneNumbers).
 		Where("guardian_profile_id = ?", guardianID).
 		Exec(ctx)
 	if err != nil {
@@ -318,7 +321,7 @@ func (s *Seeder) seedGuardianPhoneNumbers(ctx context.Context, guardianID int64,
 
 	_, err = s.tx.NewInsert().
 		Model(mobilePhoneRecord).
-		ModelTableExpr("users.guardian_phone_numbers").
+		ModelTableExpr(tableGuardianPhoneNumbers).
 		Exec(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to insert mobile phone: %w", err)
@@ -337,7 +340,7 @@ func (s *Seeder) seedGuardianPhoneNumbers(ctx context.Context, guardianID int64,
 
 	_, err = s.tx.NewInsert().
 		Model(homePhoneRecord).
-		ModelTableExpr("users.guardian_phone_numbers").
+		ModelTableExpr(tableGuardianPhoneNumbers).
 		Exec(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to insert home phone: %w", err)
@@ -364,7 +367,7 @@ func (s *Seeder) seedGuardianPhoneNumbers(ctx context.Context, guardianID int64,
 
 		_, err = s.tx.NewInsert().
 			Model(workPhoneRecord).
-			ModelTableExpr("users.guardian_phone_numbers").
+			ModelTableExpr(tableGuardianPhoneNumbers).
 			Exec(ctx)
 		if err != nil {
 			return fmt.Errorf("failed to insert work phone: %w", err)
