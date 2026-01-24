@@ -38,7 +38,7 @@ Arbeite die Liste von oben nach unten ab (groesste Impact zuerst).
 - [x] lib/api-client.ts (8 lines) - has api-client.test.ts
 - [x] lib/api.ts (5 lines) - has api.test.ts
 - [x] lib/auth-api.ts (4 lines) - has auth-api.test.ts
-- [ ] lib/swr/ (4 lines)
+- [x] lib/swr/ (4 lines) - has config.test.ts, index.test.ts, hooks.test.ts (31 tests)
 - [x] lib/teacher-api.ts (4 lines) - has teacher-api.test.ts
 - [x] lib/auth-service.ts (3 lines) - has auth-service.test.ts
 - [ ] lib/file-upload-wrapper.ts (3 lines)
