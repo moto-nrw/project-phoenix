@@ -43,7 +43,7 @@ Arbeite die Liste von oben nach unten ab (groesste Impact zuerst).
 - [x] lib/auth-service.ts (3 lines) - has auth-service.test.ts
 - [x] lib/file-upload-wrapper.ts (3 lines) - has file-upload-wrapper.test.ts (31 tests)
 - [x] lib/password-validation.ts (3 lines) - has password-validation.test.ts (42 tests)
-- [ ] lib/usercontext-context.tsx (3 lines)
+- [x] lib/usercontext-context.tsx (3 lines) - has usercontext-context.test.tsx (29 tests)
 - [ ] lib/database/ (2 lines)
 - [x] lib/student-api.ts (2 lines) - has student-api.test.ts
 - [x] lib/activity-api.ts (1 line) - has activity-api.test.ts
