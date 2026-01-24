@@ -359,18 +359,6 @@ describe("LoginPage", () => {
         expect(screen.getByText("Passwort vergessen?")).toBeInTheDocument();
       });
     });
-
-    it("renders signup link", async () => {
-      render(<LoginPage />);
-
-      await waitFor(() => {
-        expect(screen.getByText("Noch kein Konto?")).toBeInTheDocument();
-        expect(screen.getByText("Jetzt registrieren")).toHaveAttribute(
-          "href",
-          "/signup",
-        );
-      });
-    });
   });
 
   describe("Form interactions", () => {

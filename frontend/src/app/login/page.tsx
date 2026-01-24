@@ -4,7 +4,6 @@
 import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
-import Link from "next/link";
 import { Input, Alert, HelpButton } from "~/components/ui";
 import { useSession, signIn, organization } from "~/lib/auth-client";
 import { SmartRedirect } from "~/components/auth/smart-redirect";
@@ -435,17 +434,6 @@ function LoginForm() {
             >
               Passwort vergessen?
             </button>
-
-            {/* Sign Up Link */}
-            <p className="text-sm text-gray-600">
-              Noch kein Konto?{" "}
-              <Link
-                href="/signup"
-                className="font-medium text-gray-900 underline hover:text-gray-700 focus-visible:rounded focus-visible:ring-2 focus-visible:ring-gray-900"
-              >
-                Jetzt registrieren
-              </Link>
-            </p>
           </div>
         </form>
       </div>
