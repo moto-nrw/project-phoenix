@@ -30,7 +30,7 @@ Arbeite die Liste von oben nach unten ab (groesste Impact zuerst).
 - [x] lib/supervision-context.tsx (23 lines) - has supervision-context.test.tsx (33 tests)
 - [x] lib/slug-validation.ts (21 lines) - has slug-validation.test.ts
 - [x] lib/api-helpers.ts (20 lines) - has api-helpers.test.ts
-- [ ] lib/admin-auth.ts (17 lines)
+- [x] lib/admin-auth.ts (17 lines) - has admin-auth.test.ts
 - [ ] lib/tenant-context.ts (15 lines)
 - [ ] lib/profile-context.tsx (14 lines)
 - [ ] lib/redirect-utils.ts (11 lines)
