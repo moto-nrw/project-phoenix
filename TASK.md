@@ -41,7 +41,7 @@ Arbeite die Liste von oben nach unten ab (groesste Impact zuerst).
 - [x] lib/swr/ (4 lines) - has config.test.ts, index.test.ts, hooks.test.ts (31 tests)
 - [x] lib/teacher-api.ts (4 lines) - has teacher-api.test.ts
 - [x] lib/auth-service.ts (3 lines) - has auth-service.test.ts
-- [ ] lib/file-upload-wrapper.ts (3 lines)
+- [x] lib/file-upload-wrapper.ts (3 lines) - has file-upload-wrapper.test.ts (31 tests)
 - [ ] lib/password-validation.ts (3 lines)
 - [ ] lib/usercontext-context.tsx (3 lines)
 - [ ] lib/database/ (2 lines)
