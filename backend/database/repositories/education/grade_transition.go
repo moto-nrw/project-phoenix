@@ -469,7 +469,11 @@ func (r *GradeTransitionRepository) GetStudentCountByClass(ctx context.Context, 
 	return count, nil
 }
 
-// GetStudentsByClasses retrieves students in the given classes with their names
+// GetStudentsByClasses retrieves students in the given classes with their names.
+// Note: Using unquoted aliases (s, p) here because this is raw SQL via TableExpr/ColumnExpr,
+// not ModelTableExpr. The CLAUDE.md quoting rule applies to ModelTableExpr where BUN maps
+// results to struct fields via the alias. Here we use explicit column aliases (student_id,
+// person_id, etc.) which BUN scans by name directly.
 func (r *GradeTransitionRepository) GetStudentsByClasses(ctx context.Context, classes []string) ([]*education.StudentClassInfo, error) {
 	if len(classes) == 0 {
 		return []*education.StudentClassInfo{}, nil
