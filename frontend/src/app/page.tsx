@@ -141,8 +141,9 @@ function LoginForm() {
       const delay = i < 50 ? 0 : Math.random() * 100;
 
       setTimeout(() => {
-        // Guard: skip if container was removed (e.g., component unmounted during tests)
-        if (!confettiContainer.isConnected) return;
+        // Guard: skip if document unavailable or container was removed (e.g., during tests)
+        if (typeof document === "undefined" || !confettiContainer.isConnected)
+          return;
 
         const confetti = document.createElement("div");
         const color = colors[Math.floor(Math.random() * colors.length)];
