@@ -245,9 +245,9 @@ export default function GuardianFormModal({
   ) => {
     setEntries((prev) =>
       prev.map((entry) =>
-        entry.id !== entryId
-          ? entry
-          : updatePhoneInEntry(entry, phoneId, field, value),
+        entry.id === entryId
+          ? updatePhoneInEntry(entry, phoneId, field, value)
+          : entry,
       ),
     );
   };
@@ -256,7 +256,7 @@ export default function GuardianFormModal({
   const setPhonePrimary = (entryId: string, phoneId: string) => {
     setEntries((prev) =>
       prev.map((entry) =>
-        entry.id !== entryId ? entry : setPrimaryPhoneInEntry(entry, phoneId),
+        entry.id === entryId ? setPrimaryPhoneInEntry(entry, phoneId) : entry,
       ),
     );
   };
@@ -265,7 +265,7 @@ export default function GuardianFormModal({
   const addPhone = (entryId: string) => {
     setEntries((prev) =>
       prev.map((entry) =>
-        entry.id !== entryId ? entry : addPhoneToEntry(entry),
+        entry.id === entryId ? addPhoneToEntry(entry) : entry,
       ),
     );
   };
@@ -274,7 +274,7 @@ export default function GuardianFormModal({
   const removePhone = (entryId: string, phoneId: string) => {
     setEntries((prev) =>
       prev.map((entry) =>
-        entry.id !== entryId ? entry : removePhoneFromEntry(entry, phoneId),
+        entry.id === entryId ? removePhoneFromEntry(entry, phoneId) : entry,
       ),
     );
   };

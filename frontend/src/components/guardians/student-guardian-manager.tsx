@@ -198,47 +198,75 @@ export default function StudentGuardianManager({
     existingPhones: Array<{ id: string; isPrimary: boolean }>,
   ) => {
     const existingPhoneIds = new Set(existingPhones.map((p) => p.id));
+
+    // Process phones and track primary
+    const primaryPhoneId = await processPhoneUpdates(
+      guardianId,
+      formPhones,
+      existingPhoneIds,
+    );
+
+    // Delete removed phones
+    await deleteRemovedPhones(guardianId, formPhones, existingPhones);
+
+    // Update primary if changed
+    await updatePrimaryIfNeeded(guardianId, primaryPhoneId, existingPhones);
+  };
+
+  // Helper: Process phone additions/updates
+  const processPhoneUpdates = async (
+    guardianId: string,
+    formPhones: Array<{
+      phoneNumber: string;
+      phoneType: PhoneType;
+      label?: string;
+      isPrimary: boolean;
+      id?: string;
+    }>,
+    existingPhoneIds: Set<string>,
+  ): Promise<string | null> => {
     let primaryPhoneId: string | null = null;
 
-    // Process each phone number from the form
     for (const phone of formPhones) {
-      const isNewPhone =
+      const isNew =
         !phone.id || phone.id.includes("-") || !existingPhoneIds.has(phone.id);
+      const resultId = isNew
+        ? (await addGuardianPhoneNumber(guardianId, phone)).id
+        : (await updateGuardianPhoneNumber(guardianId, phone.id!, phone),
+          phone.id!);
 
-      if (isNewPhone) {
-        const created = await addGuardianPhoneNumber(guardianId, {
-          phoneNumber: phone.phoneNumber,
-          phoneType: phone.phoneType,
-          label: phone.label,
-          isPrimary: phone.isPrimary,
-        });
-        if (phone.isPrimary) primaryPhoneId = created.id;
-      } else {
-        await updateGuardianPhoneNumber(guardianId, phone.id!, {
-          phoneNumber: phone.phoneNumber,
-          phoneType: phone.phoneType,
-          label: phone.label,
-        });
-        if (phone.isPrimary) primaryPhoneId = phone.id!;
-      }
+      if (phone.isPrimary) primaryPhoneId = resultId;
     }
 
-    // Delete phones that were removed
-    const newPhoneIds = new Set(
+    return primaryPhoneId;
+  };
+
+  // Helper: Delete phones removed from form
+  const deleteRemovedPhones = async (
+    guardianId: string,
+    formPhones: Array<{ id?: string }>,
+    existingPhones: Array<{ id: string }>,
+  ) => {
+    const keepIds = new Set(
       formPhones.filter((p) => p.id && !p.id.includes("-")).map((p) => p.id),
     );
     for (const existing of existingPhones) {
-      if (!newPhoneIds.has(existing.id)) {
+      if (!keepIds.has(existing.id)) {
         await deleteGuardianPhoneNumber(guardianId, existing.id);
       }
     }
+  };
 
-    // Set primary phone if changed
-    if (primaryPhoneId) {
-      const existingPrimary = existingPhones.find((p) => p.isPrimary);
-      if (existingPrimary?.id !== primaryPhoneId) {
-        await setGuardianPrimaryPhone(guardianId, primaryPhoneId);
-      }
+  // Helper: Update primary phone if changed
+  const updatePrimaryIfNeeded = async (
+    guardianId: string,
+    primaryPhoneId: string | null,
+    existingPhones: Array<{ id: string; isPrimary: boolean }>,
+  ) => {
+    if (!primaryPhoneId) return;
+    const existingPrimary = existingPhones.find((p) => p.isPrimary);
+    if (existingPrimary?.id !== primaryPhoneId) {
+      await setGuardianPrimaryPhone(guardianId, primaryPhoneId);
     }
   };
 
