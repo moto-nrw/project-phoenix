@@ -197,10 +197,10 @@ export function OrgSelection() {
                       type="button"
                       onClick={() => handleSelectOrg(org)}
                       onMouseEnter={() => setSelectedIndex(index)}
-                      className={`flex w-full items-center justify-between px-4 py-3 text-left transition-colors ${
+                      className={`flex w-full cursor-pointer items-center justify-between px-4 py-3 text-left transition-colors active:bg-blue-100 ${
                         index === selectedIndex
-                          ? "bg-blue-50"
-                          : "hover:bg-gray-50"
+                          ? "bg-blue-100"
+                          : "hover:bg-gray-100"
                       }`}
                     >
                       <span className="font-medium text-gray-900">

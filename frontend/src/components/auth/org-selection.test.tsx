@@ -278,7 +278,7 @@ describe("OrgSelection", () => {
 
       // First item should be highlighted - the class is on the button, not parent
       const firstItem = screen.getByText("Test Organization").closest("button");
-      expect(firstItem).toHaveClass("bg-blue-50");
+      expect(firstItem).toHaveClass("bg-blue-100");
     });
 
     it("navigates up with ArrowUp key", async () => {
@@ -304,7 +304,7 @@ describe("OrgSelection", () => {
 
       // First item should be highlighted - the class is on the button, not parent
       const firstItem = screen.getByText("Test Organization").closest("button");
-      expect(firstItem).toHaveClass("bg-blue-50");
+      expect(firstItem).toHaveClass("bg-blue-100");
     });
 
     it("selects item with Enter key", async () => {
@@ -408,7 +408,7 @@ describe("OrgSelection", () => {
 
       // Second item should be highlighted (last one) - the class is on the button
       const secondItem = screen.getByText("Another Org").closest("button");
-      expect(secondItem).toHaveClass("bg-blue-50");
+      expect(secondItem).toHaveClass("bg-blue-100");
     });
 
     it("does not go above first item", async () => {
@@ -435,7 +435,7 @@ describe("OrgSelection", () => {
 
       // First item should still be highlighted - the class is on the button
       const firstItem = screen.getByText("Test Organization").closest("button");
-      expect(firstItem).toHaveClass("bg-blue-50");
+      expect(firstItem).toHaveClass("bg-blue-100");
     });
   });
 
@@ -482,7 +482,7 @@ describe("OrgSelection", () => {
       fireEvent.mouseEnter(secondOrgButton!);
 
       // The class is on the button itself, not the parent
-      expect(secondOrgButton).toHaveClass("bg-blue-50");
+      expect(secondOrgButton).toHaveClass("bg-blue-100");
     });
   });
 
