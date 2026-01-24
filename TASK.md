@@ -54,9 +54,9 @@ Arbeite die Liste von oben nach unten ab (groesste Impact zuerst).
 
 ### frontend/src/components (473 lines)
 - [x] components/auth/ (201 lines)
-- [ ] components/admin/ (144 lines)
-- [ ] components/console/ (105 lines)
-- [ ] components/ui/ (15 lines)
+- [x] components/admin/ (144 lines) - has betterauth-invitation-create-form.test.tsx, betterauth-pending-invitations-list.test.tsx (80 tests)
+- [x] components/console/ (105 lines) - has organization-invite-form.test.tsx (56 tests)
+- [x] components/ui/ (15 lines) - has badge.test.tsx, card.test.tsx, logout-modal.test.tsx (41 tests)
 - [ ] components/dashboard/ (5 lines)
 - [ ] components/auth-wrapper.tsx (2 lines)
 - [ ] components/teachers/ (1 line)
