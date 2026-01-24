@@ -24,33 +24,33 @@ Arbeite die Liste von oben nach unten ab (groesste Impact zuerst).
 
 ### frontend/src/lib (360 lines)
 - [x] lib/route-wrapper.ts (61 lines) - has route-wrapper.test.ts
-- [ ] lib/email-validation.ts (56 lines)
-- [ ] lib/admin-api.ts (42 lines)
-- [ ] lib/auth-client.ts (23 lines)
-- [ ] lib/supervision-context.tsx (23 lines)
-- [ ] lib/slug-validation.ts (21 lines)
-- [ ] lib/api-helpers.ts (20 lines)
+- [x] lib/email-validation.ts (56 lines) - has email-validation.test.ts (80 tests)
+- [x] lib/admin-api.ts (42 lines) - has admin-api.test.ts (44 tests)
+- [x] lib/auth-client.ts (23 lines) - has auth-client.test.ts
+- [x] lib/supervision-context.tsx (23 lines) - has supervision-context.test.tsx (33 tests)
+- [x] lib/slug-validation.ts (21 lines) - has slug-validation.test.ts
+- [x] lib/api-helpers.ts (20 lines) - has api-helpers.test.ts
 - [ ] lib/admin-auth.ts (17 lines)
 - [ ] lib/tenant-context.ts (15 lines)
 - [ ] lib/profile-context.tsx (14 lines)
 - [ ] lib/redirect-utils.ts (11 lines)
 - [ ] lib/hooks/ (11 lines)
 - [ ] lib/api-client.ts (8 lines)
-- [ ] lib/api.ts (5 lines)
-- [ ] lib/auth-api.ts (4 lines)
+- [x] lib/api.ts (5 lines) - has api.test.ts
+- [x] lib/auth-api.ts (4 lines) - has auth-api.test.ts
 - [ ] lib/swr/ (4 lines)
-- [ ] lib/teacher-api.ts (4 lines)
-- [ ] lib/auth-service.ts (3 lines)
+- [x] lib/teacher-api.ts (4 lines) - has teacher-api.test.ts
+- [x] lib/auth-service.ts (3 lines) - has auth-service.test.ts
 - [ ] lib/file-upload-wrapper.ts (3 lines)
 - [ ] lib/password-validation.ts (3 lines)
 - [ ] lib/usercontext-context.tsx (3 lines)
 - [ ] lib/database/ (2 lines)
-- [ ] lib/student-api.ts (2 lines)
-- [ ] lib/activity-api.ts (1 line)
-- [ ] lib/api-helpers.server.ts (1 line)
+- [x] lib/student-api.ts (2 lines) - has student-api.test.ts
+- [x] lib/activity-api.ts (1 line) - has activity-api.test.ts
+- [x] lib/api-helpers.server.ts (1 line) - has api-helpers.server.test.ts
 - [ ] lib/auth-utils.ts (1 line)
-- [ ] lib/checkin-api.ts (1 line)
-- [ ] lib/rooms-api.ts (1 line)
+- [x] lib/checkin-api.ts (1 line) - has checkin-api.test.ts
+- [x] lib/rooms-api.ts (1 line) - has rooms-api.test.ts
 
 ### frontend/src/components (473 lines)
 - [ ] components/auth/ (201 lines)
