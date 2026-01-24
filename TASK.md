@@ -68,7 +68,7 @@ Arbeite die Liste von oben nach unten ab (groesste Impact zuerst).
 - [x] app/login/ (112 lines)
 - [x] app/database/ (27 lines)
 - [x] app/page.tsx (23 lines) - has page.test.tsx (21 tests)
-- [ ] app/invitations/ (9 lines)
+- [x] app/invitations/ (9 lines) - has page.test.tsx (19 tests)
 - [ ] app/dashboard/ (8 lines)
 - [ ] app/settings/ (6 lines)
 - [ ] app/ogs-groups/ (5 lines)
