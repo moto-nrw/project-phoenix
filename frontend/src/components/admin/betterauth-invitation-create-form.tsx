@@ -41,7 +41,7 @@ const GO_TO_BETTERAUTH_ROLE_MAP: Record<string, string> = {
  * Returns the original if no mapping found.
  */
 function toBetterAuthRole(goRoleName: string): string {
-  const normalized = goRoleName.toLowerCase().replace(/[\s_]/g, "-");
+  const normalized = goRoleName.toLowerCase().replaceAll(/[\s_]/g, "-");
   return GO_TO_BETTERAUTH_ROLE_MAP[normalized] ?? goRoleName;
 }
 

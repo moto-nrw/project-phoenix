@@ -573,10 +573,14 @@ function RejectModal({
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <label className="mb-2 block text-sm font-medium text-gray-700">
+          <label
+            htmlFor="reject-reason"
+            className="mb-2 block text-sm font-medium text-gray-700"
+          >
             Ablehnungsgrund (optional)
           </label>
           <textarea
+            id="reject-reason"
             value={reason}
             onChange={(e) => setReason(e.target.value)}
             placeholder="Geben Sie einen Grund für die Ablehnung an..."

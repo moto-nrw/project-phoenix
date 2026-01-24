@@ -12,7 +12,7 @@ import {
   sendOrgPendingEmail,
 } from "./email.js";
 
-const PORT = parseInt(process.env.PORT ?? "3001", 10);
+const PORT = Number.parseInt(process.env.PORT ?? "3001", 10);
 
 // Database pool for custom queries (separate from BetterAuth's internal pool)
 const pool = new Pool({
@@ -154,8 +154,8 @@ async function handleCreateOrganization(
     // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
     const slug = body.slug?.trim() || body.name.trim()
       .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/(^-)|(-$)/g, "");
+      .replaceAll(/[^a-z0-9]+/g, "-")
+      .replaceAll(/(^-)|(-$)/g, "");
 
     // Check if slug already exists
     const existingOrg = await pool.query(
@@ -804,7 +804,7 @@ async function handleSearchOrganizations(
     const urlObj = new URL(req.url ?? "", `http://${req.headers.host}`);
     const searchTerm = urlObj.searchParams.get("search") ?? "";
     const limitParam = urlObj.searchParams.get("limit");
-    const limit = Math.min(Math.max(parseInt(limitParam ?? "10", 10) || 10, 1), 50);
+    const limit = Math.min(Math.max(Number.parseInt(limitParam ?? "10", 10) || 10, 1), 50);
 
     let query: string;
     let params: (string | number)[];

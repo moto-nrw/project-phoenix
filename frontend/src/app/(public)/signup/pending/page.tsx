@@ -86,19 +86,19 @@ export default function SignupPendingPage() {
               <li className="flex items-start gap-2">
                 <span className="mt-1 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-gray-100 text-xs font-medium text-gray-600">
                   1
-                </span>
+                </span>{" "}
                 Unser Team prüft deine Anfrage
               </li>
               <li className="flex items-start gap-2">
                 <span className="mt-1 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-gray-100 text-xs font-medium text-gray-600">
                   2
-                </span>
+                </span>{" "}
                 Du erhältst eine E-Mail mit dem Ergebnis
               </li>
               <li className="flex items-start gap-2">
                 <span className="mt-1 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-gray-100 text-xs font-medium text-gray-600">
                   3
-                </span>
+                </span>{" "}
                 Nach der Freischaltung kannst du dich anmelden
               </li>
             </ul>
