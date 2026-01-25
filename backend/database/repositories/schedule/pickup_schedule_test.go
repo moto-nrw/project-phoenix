@@ -532,6 +532,8 @@ func TestStudentPickupExceptionRepository_DeletePastExceptions(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
 		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
+		// Create past exceptions (will be deleted)
+		pastExceptionCount := 0
 		for i := -10; i < -5; i++ {
 			exception := &scheduleModels.StudentPickupException{
 				StudentID:     student.ID,
@@ -541,8 +543,11 @@ func TestStudentPickupExceptionRepository_DeletePastExceptions(t *testing.T) {
 			}
 			err := repo.Create(ctx, exception)
 			require.NoError(t, err)
+			pastExceptionCount++
 		}
 
+		// Create future exceptions (should remain)
+		futureExceptionCount := 0
 		for i := 1; i <= 5; i++ {
 			exception := &scheduleModels.StudentPickupException{
 				StudentID:     student.ID,
@@ -552,17 +557,20 @@ func TestStudentPickupExceptionRepository_DeletePastExceptions(t *testing.T) {
 			}
 			err := repo.Create(ctx, exception)
 			require.NoError(t, err)
+			futureExceptionCount++
 		}
 
 		cutoffDate := time.Now().Truncate(24 * time.Hour)
 		rowsAffected, err := repo.DeletePastExceptions(ctx, cutoffDate)
 
 		require.NoError(t, err)
-		assert.Equal(t, int64(5), rowsAffected)
+		// At minimum, our past exceptions should be deleted (may be more from other tests)
+		assert.GreaterOrEqual(t, rowsAffected, int64(pastExceptionCount))
 
+		// Verify THIS student's future exceptions remain intact
 		results, err := repo.FindByStudentID(ctx, student.ID)
 		require.NoError(t, err)
-		assert.Len(t, results, 5)
+		assert.Len(t, results, futureExceptionCount)
 		for _, result := range results {
 			assert.True(t, result.ExceptionDate.After(cutoffDate) || result.ExceptionDate.Equal(cutoffDate))
 		}
