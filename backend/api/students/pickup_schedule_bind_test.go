@@ -645,3 +645,97 @@ func TestBulkPickupTimeRequest_Bind_EdgeCases(t *testing.T) {
 		require.NoError(t, err, "nil date should be valid")
 	})
 }
+
+func TestMapScheduleToResponse_ResponseFormat(t *testing.T) {
+	t.Run("formats created_at and updated_at as RFC3339", func(t *testing.T) {
+		now := time.Now()
+		sched := &schedule.StudentPickupSchedule{
+			StudentID:  1,
+			Weekday:    1,
+			PickupTime: time.Date(2000, 1, 1, 15, 30, 0, 0, time.UTC),
+			CreatedBy:  1,
+		}
+		sched.ID = 42
+		sched.CreatedAt = now
+		sched.UpdatedAt = now
+
+		resp := mapScheduleToResponse(sched)
+
+		assert.Equal(t, int64(42), resp.ID)
+		assert.Equal(t, int64(1), resp.StudentID)
+		assert.Equal(t, "15:30", resp.PickupTime)
+		assert.Equal(t, int64(1), resp.CreatedBy)
+		assert.Equal(t, now.Format(time.RFC3339), resp.CreatedAt)
+		assert.Equal(t, now.Format(time.RFC3339), resp.UpdatedAt)
+	})
+
+	t.Run("handles invalid weekday gracefully", func(t *testing.T) {
+		sched := &schedule.StudentPickupSchedule{
+			StudentID:  1,
+			Weekday:    99, // Invalid weekday
+			PickupTime: time.Date(2000, 1, 1, 15, 30, 0, 0, time.UTC),
+			CreatedBy:  1,
+		}
+		resp := mapScheduleToResponse(sched)
+
+		assert.Equal(t, 99, resp.Weekday)
+		// GetWeekdayName returns empty string for invalid weekdays
+		assert.Equal(t, "", resp.WeekdayName)
+	})
+}
+
+func TestMapExceptionToResponse_ResponseFormat(t *testing.T) {
+	t.Run("formats timestamps as RFC3339", func(t *testing.T) {
+		now := time.Now()
+		pickupTime := time.Date(2000, 1, 1, 12, 0, 0, 0, time.UTC)
+		exc := &schedule.StudentPickupException{
+			StudentID:     1,
+			ExceptionDate: time.Date(2026, 2, 15, 0, 0, 0, 0, time.UTC),
+			PickupTime:    &pickupTime,
+			Reason:        "Test",
+			CreatedBy:     1,
+		}
+		exc.ID = 42
+		exc.CreatedAt = now
+		exc.UpdatedAt = now
+
+		resp := mapExceptionToResponse(exc)
+
+		assert.Equal(t, int64(42), resp.ID)
+		assert.Equal(t, int64(1), resp.StudentID)
+		assert.Equal(t, "2026-02-15", resp.ExceptionDate)
+		assert.Equal(t, int64(1), resp.CreatedBy)
+		assert.Equal(t, now.Format(time.RFC3339), resp.CreatedAt)
+		assert.Equal(t, now.Format(time.RFC3339), resp.UpdatedAt)
+	})
+}
+
+func TestBulkPickupScheduleRequest_Bind_AllValidationPaths(t *testing.T) {
+	req := httptest.NewRequest(http.MethodPost, "/", nil)
+
+	t.Run("schedule with notes too long", func(t *testing.T) {
+		longNotes := string(make([]byte, 501))
+		r := &BulkPickupScheduleRequest{
+			Schedules: []PickupScheduleRequest{
+				{Weekday: 1, PickupTime: "15:30"},
+				{Weekday: 2, PickupTime: "16:00", Notes: &longNotes},
+			},
+		}
+		err := r.Bind(req)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "schedule 1: notes cannot exceed 500 characters")
+	})
+
+	t.Run("reports correct error index", func(t *testing.T) {
+		r := &BulkPickupScheduleRequest{
+			Schedules: []PickupScheduleRequest{
+				{Weekday: 1, PickupTime: "15:30"},
+				{Weekday: 2, PickupTime: "16:00"},
+				{Weekday: 0, PickupTime: "14:00"}, // Invalid weekday at index 2
+			},
+		}
+		err := r.Bind(req)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "schedule 2:")
+	})
+}
