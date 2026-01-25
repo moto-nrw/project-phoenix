@@ -74,8 +74,8 @@ func TestNewActiveGroupResponse_WithActiveSupervisors(t *testing.T) {
 		StartTime: now,
 		EndTime:   nil,
 		Supervisors: []*active.GroupSupervisor{
-			{Model: base.Model{ID: 1}, StaffID: 10, Role: "Teacher", StartDate: now, EndDate: nil},   // Active
-			{Model: base.Model{ID: 2}, StaffID: 20, Role: "Helper", StartDate: now, EndDate: &now},   // Inactive (has end date)
+			{Model: base.Model{ID: 1}, StaffID: 10, Role: "Teacher", StartDate: now, EndDate: nil},    // Active
+			{Model: base.Model{ID: 2}, StaffID: 20, Role: "Helper", StartDate: now, EndDate: &now},    // Inactive (has end date)
 			{Model: base.Model{ID: 3}, StaffID: 30, Role: "Supervisor", StartDate: now, EndDate: nil}, // Active
 		},
 	}

@@ -156,8 +156,8 @@ type GradeTransitionRepository interface {
 
 // StudentClassInfo contains basic student information for class transitions
 type StudentClassInfo struct {
-	StudentID  int64  `bun:"student_id"`
-	PersonID   int64  `bun:"person_id"`
-	PersonName string `bun:"person_name"`
+	StudentID   int64  `bun:"student_id"`
+	PersonID    int64  `bun:"person_id"`
+	PersonName  string `bun:"person_name"`
 	SchoolClass string `bun:"school_class"`
 }

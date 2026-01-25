@@ -109,20 +109,20 @@ type MappingRequest struct {
 
 // TransitionResponse represents a transition in API responses
 type TransitionResponse struct {
-	ID           int64                    `json:"id"`
-	AcademicYear string                   `json:"academic_year"`
-	Status       string                   `json:"status"`
-	AppliedAt    *string                  `json:"applied_at,omitempty"`
-	AppliedBy    *int64                   `json:"applied_by,omitempty"`
-	RevertedAt   *string                  `json:"reverted_at,omitempty"`
-	RevertedBy   *int64                   `json:"reverted_by,omitempty"`
-	CreatedAt    string                   `json:"created_at"`
-	CreatedBy    int64                    `json:"created_by"`
-	Notes        *string                  `json:"notes,omitempty"`
-	Mappings     []MappingResponse        `json:"mappings,omitempty"`
-	CanModify    bool                     `json:"can_modify"`
-	CanApply     bool                     `json:"can_apply"`
-	CanRevert    bool                     `json:"can_revert"`
+	ID           int64             `json:"id"`
+	AcademicYear string            `json:"academic_year"`
+	Status       string            `json:"status"`
+	AppliedAt    *string           `json:"applied_at,omitempty"`
+	AppliedBy    *int64            `json:"applied_by,omitempty"`
+	RevertedAt   *string           `json:"reverted_at,omitempty"`
+	RevertedBy   *int64            `json:"reverted_by,omitempty"`
+	CreatedAt    string            `json:"created_at"`
+	CreatedBy    int64             `json:"created_by"`
+	Notes        *string           `json:"notes,omitempty"`
+	Mappings     []MappingResponse `json:"mappings,omitempty"`
+	CanModify    bool              `json:"can_modify"`
+	CanApply     bool              `json:"can_apply"`
+	CanRevert    bool              `json:"can_revert"`
 }
 
 // MappingResponse represents a mapping in API responses
@@ -471,10 +471,14 @@ func (rs *GradeTransitionResource) ApplyHandler() http.HandlerFunc { return rs.a
 func (rs *GradeTransitionResource) RevertHandler() http.HandlerFunc { return rs.revert }
 
 // GetDistinctClassesHandler returns the getDistinctClasses handler for testing
-func (rs *GradeTransitionResource) GetDistinctClassesHandler() http.HandlerFunc { return rs.getDistinctClasses }
+func (rs *GradeTransitionResource) GetDistinctClassesHandler() http.HandlerFunc {
+	return rs.getDistinctClasses
+}
 
 // SuggestMappingsHandler returns the suggestMappings handler for testing
-func (rs *GradeTransitionResource) SuggestMappingsHandler() http.HandlerFunc { return rs.suggestMappings }
+func (rs *GradeTransitionResource) SuggestMappingsHandler() http.HandlerFunc {
+	return rs.suggestMappings
+}
 
 // GetHistoryHandler returns the getHistory handler for testing
 func (rs *GradeTransitionResource) GetHistoryHandler() http.HandlerFunc { return rs.getHistory }
