@@ -303,14 +303,16 @@ export function formatShortDate(date: Date): string {
 }
 
 /**
- * Format week range as "27.01. - 31.01.2025"
+ * Format week range as "27.01.2025 - 31.01.2025"
  */
 export function formatWeekRange(start: Date, end: Date): string {
-  const startStr = formatShortDate(start);
+  const startDay = start.getDate().toString().padStart(2, "0");
+  const startMonth = (start.getMonth() + 1).toString().padStart(2, "0");
+  const startYear = start.getFullYear();
   const endDay = end.getDate().toString().padStart(2, "0");
   const endMonth = (end.getMonth() + 1).toString().padStart(2, "0");
-  const year = end.getFullYear();
-  return `${startStr} - ${endDay}.${endMonth}.${year}`;
+  const endYear = end.getFullYear();
+  return `${startDay}.${startMonth}.${startYear} - ${endDay}.${endMonth}.${endYear}`;
 }
 
 /**

@@ -25,10 +25,8 @@ import {
   mergeSchedulesWithTemplate,
   getWeekDays,
   formatShortDate,
-  formatWeekRange,
   formatDateISO,
   getDayData,
-  getCalendarWeek,
 } from "@/lib/pickup-schedule-helpers";
 import {
   fetchStudentPickupData,
@@ -76,8 +74,6 @@ export default function PickupScheduleManager({
 
   // Compute week data
   const weekDays = useMemo(() => getWeekDays(weekOffset), [weekOffset]);
-  const weekStart = weekDays[0]!;
-  const weekEnd = weekDays[4]!;
 
   // Merge schedule + exceptions + sick for each day
   const dayDataList = useMemo(
@@ -202,7 +198,6 @@ export default function PickupScheduleManager({
   // Navigate weeks
   const goToPreviousWeek = () => setWeekOffset((w) => w - 1);
   const goToNextWeek = () => setWeekOffset((w) => w + 1);
-  const goToCurrentWeek = () => setWeekOffset(0);
 
   // Show loading state
   if (isLoading && pickupData.schedules.length === 0) {
@@ -253,18 +248,7 @@ export default function PickupScheduleManager({
           >
             <ChevronLeft className="h-5 w-5" />
           </button>
-          <button
-            onClick={goToCurrentWeek}
-            className="flex flex-col items-center gap-0.5"
-            title="Zur aktuellen Woche"
-          >
-            <span className="rounded bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-700">
-              KW {getCalendarWeek(weekStart)}
-            </span>
-            <span className="text-sm font-medium text-gray-600">
-              {formatWeekRange(weekStart, weekEnd)}
-            </span>
-          </button>
+          <div className="flex-1" />
           <button
             onClick={goToNextWeek}
             className="rounded-lg p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-700"
@@ -298,19 +282,6 @@ export default function PickupScheduleManager({
             <ChevronLeft className="h-5 w-5" />
           </button>
           <div className="flex-1">
-            {/* Week header */}
-            <button
-              onClick={goToCurrentWeek}
-              className="mb-2 flex w-full items-center justify-center gap-2"
-              title="Zur aktuellen Woche"
-            >
-              <span className="rounded bg-gray-100 px-2 py-0.5 text-sm font-semibold text-gray-700">
-                KW {getCalendarWeek(weekStart)}
-              </span>
-              <span className="text-sm text-gray-600">
-                {formatWeekRange(weekStart, weekEnd)}
-              </span>
-            </button>
             {/* Day grid */}
             <div className="grid grid-cols-5 gap-2">
               {dayDataList.map((day) => (
