@@ -81,30 +81,6 @@ func (sc *SettingChange) Validate() error {
 	return nil
 }
 
-// NewSettingChange creates a new setting change audit entry
-func NewSettingChange(
-	accountID *int64,
-	settingKey string,
-	scopeType string,
-	scopeID *int64,
-	changeType SettingChangeType,
-	oldValue, newValue json.RawMessage,
-	ipAddress, userAgent string,
-) *SettingChange {
-	return &SettingChange{
-		AccountID:  accountID,
-		SettingKey: settingKey,
-		ScopeType:  scopeType,
-		ScopeID:    scopeID,
-		ChangeType: string(changeType),
-		OldValue:   oldValue,
-		NewValue:   newValue,
-		IPAddress:  ipAddress,
-		UserAgent:  userAgent,
-		CreatedAt:  time.Now(),
-	}
-}
-
 // GetOldValueTyped parses the old value to a typed value
 func (sc *SettingChange) GetOldValueTyped() (any, error) {
 	if len(sc.OldValue) == 0 {

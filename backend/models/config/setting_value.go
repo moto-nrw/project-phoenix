@@ -101,16 +101,6 @@ func NewUserScope(personID int64) ScopeRef {
 	return ScopeRef{Type: ScopeUser, ID: &personID}
 }
 
-// NewDeviceScope creates a scope reference for device-level settings
-func NewDeviceScope(deviceID int64) ScopeRef {
-	return ScopeRef{Type: ScopeDevice, ID: &deviceID}
-}
-
-// NewSchoolScope creates a scope reference for school-level settings
-func NewSchoolScope(schoolID int64) ScopeRef {
-	return ScopeRef{Type: ScopeSchool, ID: &schoolID}
-}
-
 // String returns a string representation of the scope
 func (s ScopeRef) String() string {
 	if s.ID == nil {
