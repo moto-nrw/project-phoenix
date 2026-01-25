@@ -126,7 +126,7 @@ export function FormModal({
       />
       {/* Dialog container */}
       <div
-        className={`relative w-full ${sizeClasses[size]} ${mobilePosition === "bottom" ? "h-full" : "h-auto"} max-h-[90vh] md:h-auto md:max-h-[85vh] ${radiusClass} ${mobilePosition === "center" ? "mx-4" : ""} transform overflow-hidden border border-gray-200/50 shadow-2xl ${(() => {
+        className={`relative w-full ${sizeClasses[size]} max-h-[90vh] md:max-h-[85vh] ${radiusClass} ${mobilePosition === "center" ? "mx-4" : ""} transform overflow-hidden border border-gray-200/50 shadow-2xl ${(() => {
           if (isAnimating && !isExiting) return "animate-modalEnter";
           if (isExiting) return "animate-modalExit";
           return "translate-y-8 scale-75 -rotate-1 opacity-0";
@@ -180,6 +180,7 @@ export function FormModal({
 
         {/* Content area with custom scrollbar and reveal animation */}
         <div
+          data-modal-content="true"
           className={`${footer ? "max-h-[calc(90vh-240px)] md:max-h-[calc(85vh-240px)]" : "max-h-[60vh] md:max-h-[70vh]"} scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100 overflow-y-auto`}
         >
           <div

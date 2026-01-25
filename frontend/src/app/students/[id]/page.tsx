@@ -455,6 +455,7 @@ function FullAccessView({
           studentId={studentId}
           readOnly={false}
           onUpdate={onRefreshData}
+          isSick={student.sick}
         />
 
         {isEditingPersonal && editedStudent ? (
