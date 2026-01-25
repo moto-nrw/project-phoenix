@@ -476,6 +476,7 @@ export function PersonalInfoReadOnly({
           <button
             onClick={onEditClick}
             className="rounded-lg px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100"
+            title="Bearbeiten"
           >
             Bearbeiten
           </button>
@@ -538,6 +539,7 @@ export function FullAccessPersonalInfoReadOnly({
         <button
           onClick={onEditClick}
           className="rounded-lg px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100"
+          title="Bearbeiten"
         >
           Bearbeiten
         </button>

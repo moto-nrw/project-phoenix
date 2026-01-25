@@ -56,12 +56,10 @@ vi.mock("./guardian-list", () => ({
   default: ({
     guardians,
     onEdit,
-    onDelete,
     readOnly,
   }: {
     guardians: GuardianWithRelationship[];
     onEdit?: (g: GuardianWithRelationship) => void;
-    onDelete?: (g: GuardianWithRelationship) => void;
     readOnly?: boolean;
   }) => (
     <div data-testid="guardian-list">
@@ -72,11 +70,6 @@ vi.mock("./guardian-list", () => ({
           {!readOnly && onEdit && (
             <button onClick={() => onEdit(g)} data-testid={`edit-${g.id}`}>
               Edit {g.id}
-            </button>
-          )}
-          {!readOnly && onDelete && (
-            <button onClick={() => onDelete(g)} data-testid={`delete-${g.id}`}>
-              Delete {g.id}
             </button>
           )}
         </div>
@@ -90,6 +83,7 @@ vi.mock("./guardian-form-modal", () => ({
     isOpen,
     onClose,
     onSubmit,
+    onDelete,
     mode,
   }: {
     isOpen: boolean;
@@ -103,6 +97,7 @@ vi.mock("./guardian-form-modal", () => ({
       }>,
       onEntryCreated?: (entryId: string) => void,
     ) => Promise<void>;
+    onDelete?: () => void;
     mode: "create" | "edit";
   }) =>
     isOpen ? (
@@ -135,6 +130,11 @@ vi.mock("./guardian-form-modal", () => ({
         >
           Submit Form
         </button>
+        {mode === "edit" && onDelete && (
+          <button onClick={onDelete} data-testid="modal-delete-button">
+            Delete Guardian
+          </button>
+        )}
       </div>
     ) : null,
 }));
@@ -488,15 +488,21 @@ describe("StudentGuardianManager", () => {
   });
 
   describe("Delete Guardian Flow", () => {
-    it("opens delete modal when delete button is clicked", async () => {
+    it("opens delete modal when delete button is clicked in edit modal", async () => {
       render(<StudentGuardianManager studentId="student-123" />);
 
+      // First open edit modal
       await waitFor(() => {
-        expect(screen.getByTestId("delete-guardian-1")).toBeInTheDocument();
+        expect(screen.getByTestId("edit-guardian-1")).toBeInTheDocument();
       });
 
-      fireEvent.click(screen.getByTestId("delete-guardian-1"));
+      fireEvent.click(screen.getByTestId("edit-guardian-1"));
 
+      // Click delete button in edit modal
+      expect(screen.getByTestId("modal-delete-button")).toBeInTheDocument();
+      fireEvent.click(screen.getByTestId("modal-delete-button"));
+
+      // Delete confirmation modal should open
       expect(screen.getByTestId("guardian-delete-modal")).toBeInTheDocument();
       expect(screen.getByTestId("delete-guardian-name")).toHaveTextContent(
         "Delete Anna Müller?",
@@ -508,11 +514,17 @@ describe("StudentGuardianManager", () => {
 
       render(<StudentGuardianManager studentId="student-123" />);
 
+      // First open edit modal
       await waitFor(() => {
-        expect(screen.getByTestId("delete-guardian-1")).toBeInTheDocument();
+        expect(screen.getByTestId("edit-guardian-1")).toBeInTheDocument();
       });
 
-      fireEvent.click(screen.getByTestId("delete-guardian-1"));
+      fireEvent.click(screen.getByTestId("edit-guardian-1"));
+
+      // Click delete button in edit modal
+      fireEvent.click(screen.getByTestId("modal-delete-button"));
+
+      // Confirm deletion
       fireEvent.click(screen.getByTestId("confirm-delete"));
 
       await waitFor(() => {
@@ -532,11 +544,15 @@ describe("StudentGuardianManager", () => {
     it("closes delete modal when cancel is clicked", async () => {
       render(<StudentGuardianManager studentId="student-123" />);
 
+      // First open edit modal
       await waitFor(() => {
-        expect(screen.getByTestId("delete-guardian-1")).toBeInTheDocument();
+        expect(screen.getByTestId("edit-guardian-1")).toBeInTheDocument();
       });
 
-      fireEvent.click(screen.getByTestId("delete-guardian-1"));
+      fireEvent.click(screen.getByTestId("edit-guardian-1"));
+
+      // Click delete button in edit modal
+      fireEvent.click(screen.getByTestId("modal-delete-button"));
 
       expect(screen.getByTestId("guardian-delete-modal")).toBeInTheDocument();
 
@@ -549,7 +565,7 @@ describe("StudentGuardianManager", () => {
       });
     });
 
-    it("does not show delete buttons when readOnly", async () => {
+    it("does not show delete button in edit modal when readOnly", async () => {
       render(
         <StudentGuardianManager studentId="student-123" readOnly={true} />,
       );
@@ -558,8 +574,9 @@ describe("StudentGuardianManager", () => {
         expect(screen.getByTestId("guardian-list")).toBeInTheDocument();
       });
 
-      expect(screen.queryByTestId("delete-guardian-1")).not.toBeInTheDocument();
-      expect(screen.queryByTestId("delete-guardian-2")).not.toBeInTheDocument();
+      // Edit buttons should not be shown in readOnly mode
+      expect(screen.queryByTestId("edit-guardian-1")).not.toBeInTheDocument();
+      expect(screen.queryByTestId("edit-guardian-2")).not.toBeInTheDocument();
     });
   });
 
