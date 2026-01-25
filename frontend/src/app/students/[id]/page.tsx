@@ -24,7 +24,7 @@ import {
   FullAccessPersonalInfoReadOnly,
   StudentHistorySection,
 } from "~/components/students/student-detail-components";
-import { PersonalInfoEditForm } from "~/components/students/student-personal-info-form";
+import { PersonalInfoFormModal } from "~/components/students/personal-info-form-modal";
 import {
   StudentCheckoutSection,
   StudentCheckinSection,
@@ -59,11 +59,8 @@ export default function StudentDetailPage() {
     refreshData,
   } = useStudentData(studentId);
 
-  // Edit mode states
-  const [isEditingPersonal, setIsEditingPersonal] = useState(false);
-  const [editedStudent, setEditedStudent] = useState<ExtendedStudent | null>(
-    null,
-  );
+  // Personal info modal state
+  const [showPersonalInfoModal, setShowPersonalInfoModal] = useState(false);
 
   // Checkout states
   const [showConfirmCheckout, setShowConfirmCheckout] = useState(false);
@@ -133,30 +130,22 @@ export default function StudentDetailPage() {
   // EVENT HANDLERS
   // =============================================================================
 
-  const handleSavePersonal = async () => {
-    if (!editedStudent) return;
+  const handleSavePersonal = async (editedStudent: ExtendedStudent) => {
+    await studentService.updateStudent(studentId, {
+      first_name: editedStudent.first_name,
+      second_name: editedStudent.second_name,
+      school_class: editedStudent.school_class,
+      birthday: editedStudent.birthday,
+      bus: editedStudent.buskind ?? false,
+      health_info: editedStudent.health_info,
+      supervisor_notes: editedStudent.supervisor_notes,
+      extra_info: editedStudent.extra_info,
+      pickup_status: editedStudent.pickup_status,
+      sick: editedStudent.sick ?? false,
+    });
 
-    try {
-      await studentService.updateStudent(studentId, {
-        first_name: editedStudent.first_name,
-        second_name: editedStudent.second_name,
-        school_class: editedStudent.school_class,
-        birthday: editedStudent.birthday,
-        bus: editedStudent.buskind ?? false,
-        health_info: editedStudent.health_info,
-        supervisor_notes: editedStudent.supervisor_notes,
-        extra_info: editedStudent.extra_info,
-        pickup_status: editedStudent.pickup_status,
-        sick: editedStudent.sick ?? false,
-      });
-
-      refreshData();
-      setIsEditingPersonal(false);
-      toast.success("Persönliche Informationen erfolgreich aktualisiert");
-    } catch (err) {
-      console.error("Failed to save personal information:", err);
-      toast.error("Fehler beim Speichern der persönlichen Informationen");
-    }
+    refreshData();
+    toast.success("Persönliche Informationen erfolgreich aktualisiert");
   };
 
   const handleConfirmCheckout = async () => {
@@ -197,16 +186,6 @@ export default function StudentDetailPage() {
     } finally {
       setCheckingIn(false);
     }
-  };
-
-  const handleStartEditing = () => {
-    setIsEditingPersonal(true);
-    setEditedStudent(student);
-  };
-
-  const handleCancelEditing = () => {
-    setIsEditingPersonal(false);
-    setEditedStudent(student);
   };
 
   // =============================================================================
@@ -302,15 +281,13 @@ export default function StudentDetailPage() {
           <FullAccessView
             student={student}
             studentId={studentId}
-            editedStudent={editedStudent}
-            isEditingPersonal={isEditingPersonal}
             showCheckout={showCheckout}
             showCheckin={showCheckin}
+            showPersonalInfoModal={showPersonalInfoModal}
             onCheckoutClick={() => setShowConfirmCheckout(true)}
             onCheckinClick={() => setShowConfirmCheckin(true)}
-            onStartEditing={handleStartEditing}
-            onCancelEditing={handleCancelEditing}
-            onStudentChange={setEditedStudent}
+            onOpenPersonalInfoModal={() => setShowPersonalInfoModal(true)}
+            onClosePersonalInfoModal={() => setShowPersonalInfoModal(false)}
             onSavePersonal={handleSavePersonal}
             onRefreshData={refreshData}
           />
@@ -415,31 +392,27 @@ function LimitedAccessView({
 interface FullAccessViewProps {
   student: ExtendedStudent;
   studentId: string;
-  editedStudent: ExtendedStudent | null;
-  isEditingPersonal: boolean;
   showCheckout: boolean;
   showCheckin: boolean;
+  showPersonalInfoModal: boolean;
   onCheckoutClick: () => void;
   onCheckinClick: () => void;
-  onStartEditing: () => void;
-  onCancelEditing: () => void;
-  onStudentChange: (student: ExtendedStudent) => void;
-  onSavePersonal: () => Promise<void>;
+  onOpenPersonalInfoModal: () => void;
+  onClosePersonalInfoModal: () => void;
+  onSavePersonal: (student: ExtendedStudent) => Promise<void>;
   onRefreshData: () => void;
 }
 
 function FullAccessView({
   student,
   studentId,
-  editedStudent,
-  isEditingPersonal,
   showCheckout,
   showCheckin,
+  showPersonalInfoModal,
   onCheckoutClick,
   onCheckinClick,
-  onStartEditing,
-  onCancelEditing,
-  onStudentChange,
+  onOpenPersonalInfoModal,
+  onClosePersonalInfoModal,
   onSavePersonal,
   onRefreshData,
 }: Readonly<FullAccessViewProps>) {
@@ -458,19 +431,10 @@ function FullAccessView({
           isSick={student.sick}
         />
 
-        {isEditingPersonal && editedStudent ? (
-          <PersonalInfoEditForm
-            editedStudent={editedStudent}
-            onStudentChange={onStudentChange}
-            onSave={onSavePersonal}
-            onCancel={onCancelEditing}
-          />
-        ) : (
-          <FullAccessPersonalInfoReadOnly
-            student={student}
-            onEditClick={onStartEditing}
-          />
-        )}
+        <FullAccessPersonalInfoReadOnly
+          student={student}
+          onEditClick={onOpenPersonalInfoModal}
+        />
 
         <StudentGuardianManager
           studentId={studentId}
@@ -480,6 +444,13 @@ function FullAccessView({
 
         <StudentHistorySection />
       </div>
+
+      <PersonalInfoFormModal
+        isOpen={showPersonalInfoModal}
+        onClose={onClosePersonalInfoModal}
+        student={student}
+        onSave={onSavePersonal}
+      />
     </>
   );
 }
