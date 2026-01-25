@@ -247,3 +247,172 @@ export function mergeSchedulesWithTemplate(
     };
   });
 }
+
+// ============================================
+// Week View Helpers
+// ============================================
+
+/**
+ * Get the Monday of a week relative to the current week
+ * @param weekOffset 0 = current week, 1 = next week, -1 = last week
+ */
+export function getWeekStart(weekOffset = 0): Date {
+  const today = new Date();
+  const dayOfWeek = today.getDay(); // 0=Sun, 1=Mon, ..., 6=Sat
+  // Calculate days to subtract to get to Monday (if Sunday, go back 6 days)
+  const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+  const monday = new Date(today);
+  monday.setDate(today.getDate() - daysToMonday + weekOffset * 7);
+  monday.setHours(0, 0, 0, 0);
+  return monday;
+}
+
+/**
+ * Get the Friday of a week relative to the current week
+ * @param weekOffset 0 = current week, 1 = next week, -1 = last week
+ */
+export function getWeekEnd(weekOffset = 0): Date {
+  const monday = getWeekStart(weekOffset);
+  const friday = new Date(monday);
+  friday.setDate(monday.getDate() + 4); // Monday + 4 = Friday
+  return friday;
+}
+
+/**
+ * Get all 5 weekdays (Mon-Fri) for a given week
+ * @param weekOffset 0 = current week, 1 = next week, -1 = last week
+ */
+export function getWeekDays(weekOffset = 0): Date[] {
+  const monday = getWeekStart(weekOffset);
+  const days: Date[] = [];
+  for (let i = 0; i < 5; i++) {
+    const day = new Date(monday);
+    day.setDate(monday.getDate() + i);
+    days.push(day);
+  }
+  return days;
+}
+
+/**
+ * Format date as "27.01." (German short format)
+ */
+export function formatShortDate(date: Date): string {
+  const day = date.getDate().toString().padStart(2, "0");
+  const month = (date.getMonth() + 1).toString().padStart(2, "0");
+  return `${day}.${month}.`;
+}
+
+/**
+ * Format week range as "27.01. - 31.01.2025"
+ */
+export function formatWeekRange(start: Date, end: Date): string {
+  const startStr = formatShortDate(start);
+  const endDay = end.getDate().toString().padStart(2, "0");
+  const endMonth = (end.getMonth() + 1).toString().padStart(2, "0");
+  const year = end.getFullYear();
+  return `${startStr} - ${endDay}.${endMonth}.${year}`;
+}
+
+/**
+ * Check if two dates are the same day
+ */
+export function isSameDay(a: Date, b: Date): boolean {
+  return (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  );
+}
+
+/**
+ * Get weekday number (1=Mon, 5=Fri) from Date
+ * Returns null for weekend days
+ */
+export function getWeekdayFromDate(date: Date): number | null {
+  const jsDay = date.getDay(); // 0=Sun, 1=Mon, ..., 6=Sat
+  if (jsDay === 0 || jsDay === 6) return null; // Weekend
+  return jsDay; // 1-5 for Mon-Fri
+}
+
+/**
+ * Get ISO week number (1-53) for a given date
+ * Uses ISO 8601 definition: Week 1 is the week containing the first Thursday
+ */
+export function getCalendarWeek(date: Date): number {
+  const d = new Date(
+    Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()),
+  );
+  // Set to nearest Thursday: current date + 4 - current day number (Mon=1, Sun=7)
+  const dayNum = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+  // Get first day of year
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  // Calculate full weeks to nearest Thursday
+  const weekNo = Math.ceil(
+    ((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7,
+  );
+  return weekNo;
+}
+
+/**
+ * Format date as ISO string (YYYY-MM-DD) for comparison with exceptions
+ */
+export function formatDateISO(date: Date): string {
+  const year = date.getFullYear();
+  const month = (date.getMonth() + 1).toString().padStart(2, "0");
+  const day = date.getDate().toString().padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+/**
+ * Data for a single day in the week view
+ */
+export interface DayData {
+  date: Date;
+  weekday: number; // 1-5 (Mon-Fri)
+  isToday: boolean;
+  showSick: boolean;
+  exception: PickupException | undefined;
+  baseSchedule: PickupSchedule | undefined;
+  effectiveTime: string | undefined;
+  effectiveNotes: string | undefined;
+  isException: boolean;
+}
+
+/**
+ * Get merged data for a specific day
+ */
+export function getDayData(
+  date: Date,
+  schedules: PickupSchedule[],
+  exceptions: PickupException[],
+  isSickToday: boolean,
+): DayData {
+  const weekday = getWeekdayFromDate(date) ?? 1;
+  const dateStr = formatDateISO(date);
+  const today = new Date();
+
+  // Check for exception on this specific date
+  const exception = exceptions.find((e) => e.exceptionDate === dateStr);
+
+  // Check if this is today and student is sick
+  const isToday = isSameDay(date, today);
+  const showSick = isToday && isSickToday;
+
+  // Get base schedule for this weekday
+  const baseSchedule = schedules.find((s) => s.weekday === weekday);
+
+  return {
+    date,
+    weekday,
+    isToday,
+    showSick,
+    exception,
+    baseSchedule,
+    effectiveTime: showSick
+      ? undefined
+      : (exception?.pickupTime ?? baseSchedule?.pickupTime),
+    effectiveNotes: exception?.reason ?? baseSchedule?.notes,
+    isException: !!exception,
+  };
+}
