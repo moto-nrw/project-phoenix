@@ -144,8 +144,8 @@ func TestUpdateStudentPickupSchedules(t *testing.T) {
 		for i := range longNotes {
 			longNotes[i] = 'a'
 		}
-		body := map[string]interface{}{
-			"schedules": []map[string]interface{}{
+		body := map[string]any{
+			"schedules": []map[string]any{
 				{"weekday": 1, "pickup_time": "15:30", "notes": string(longNotes)},
 			},
 		}
@@ -160,8 +160,8 @@ func TestUpdateStudentPickupSchedules(t *testing.T) {
 		staff, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "NoAccess", "UpdateStaff")
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID, staff.ID)
 
-		body := map[string]interface{}{
-			"schedules": []map[string]interface{}{
+		body := map[string]any{
+			"schedules": []map[string]any{
 				{"weekday": 1, "pickup_time": "15:30"},
 			},
 		}
@@ -186,7 +186,7 @@ func TestCreateStudentPickupException(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "ExceptionNoDate", "Test", "END1")
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
-		body := map[string]interface{}{
+		body := map[string]any{
 			"pickup_time": "12:00",
 			"reason":      "Test reason",
 		}
@@ -200,7 +200,7 @@ func TestCreateStudentPickupException(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "ExceptionBadDate", "Test", "EBD1")
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
-		body := map[string]interface{}{
+		body := map[string]any{
 			"exception_date": "15-02-2026",
 			"pickup_time":    "12:00",
 			"reason":         "Test reason",
@@ -215,7 +215,7 @@ func TestCreateStudentPickupException(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "ExceptionNoTime", "Test", "ENT1")
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
-		body := map[string]interface{}{
+		body := map[string]any{
 			"exception_date": "2026-02-15",
 			"reason":         "Test reason",
 		}
@@ -229,7 +229,7 @@ func TestCreateStudentPickupException(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "ExceptionEmptyTime", "Test", "EET1")
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
-		body := map[string]interface{}{
+		body := map[string]any{
 			"exception_date": "2026-02-15",
 			"pickup_time":    "",
 			"reason":         "Test reason",
@@ -244,7 +244,7 @@ func TestCreateStudentPickupException(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "ExceptionBadTime", "Test", "EBT1")
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
-		body := map[string]interface{}{
+		body := map[string]any{
 			"exception_date": "2026-02-15",
 			"pickup_time":    "invalid",
 			"reason":         "Test reason",
@@ -259,7 +259,7 @@ func TestCreateStudentPickupException(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "ExceptionNoReason", "Test", "ENR1")
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
-		body := map[string]interface{}{
+		body := map[string]any{
 			"exception_date": "2026-02-15",
 			"pickup_time":    "12:00",
 		}
@@ -277,7 +277,7 @@ func TestCreateStudentPickupException(t *testing.T) {
 		for i := range longReason {
 			longReason[i] = 'a'
 		}
-		body := map[string]interface{}{
+		body := map[string]any{
 			"exception_date": "2026-02-15",
 			"pickup_time":    "12:00",
 			"reason":         string(longReason),
@@ -293,7 +293,7 @@ func TestCreateStudentPickupException(t *testing.T) {
 		staff, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "NoAccess", "ExceptionStaff")
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID, staff.ID)
 
-		body := map[string]interface{}{
+		body := map[string]any{
 			"exception_date": "2026-02-15",
 			"pickup_time":    "12:00",
 			"reason":         "Test reason",
@@ -319,7 +319,7 @@ func TestUpdateStudentPickupException(t *testing.T) {
 
 		router := setupExceptionRouter(tc.resource.UpdateStudentPickupExceptionHandler(), "PUT")
 
-		body := map[string]interface{}{
+		body := map[string]any{
 			"exception_date": "2026-02-15",
 			"pickup_time":    "12:00",
 			"reason":         "Updated reason",
@@ -337,7 +337,7 @@ func TestUpdateStudentPickupException(t *testing.T) {
 
 		router := setupExceptionRouter(tc.resource.UpdateStudentPickupExceptionHandler(), "PUT")
 
-		body := map[string]interface{}{
+		body := map[string]any{
 			"exception_date": "2026-02-15",
 			"pickup_time":    "12:00",
 			"reason":         "Updated reason",

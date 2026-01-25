@@ -449,3 +449,166 @@ func createTestExceptionModelAbsent(studentID int64, date, reason string) *sched
 		CreatedBy:     1,
 	}
 }
+
+// =============================================================================
+// Additional Edge Case Tests
+// =============================================================================
+
+func TestPickupScheduleRequest_Bind_EdgeCases(t *testing.T) {
+	req := httptest.NewRequest(http.MethodPost, "/", nil)
+
+	t.Run("weekday_boundary_monday", func(t *testing.T) {
+		r := &PickupScheduleRequest{
+			Weekday:    1,
+			PickupTime: "08:00",
+		}
+		err := r.Bind(req)
+		require.NoError(t, err)
+	})
+
+	t.Run("weekday_boundary_friday", func(t *testing.T) {
+		r := &PickupScheduleRequest{
+			Weekday:    5,
+			PickupTime: "17:00",
+		}
+		err := r.Bind(req)
+		require.NoError(t, err)
+	})
+
+	t.Run("time_format_variations", func(t *testing.T) {
+		testCases := []struct {
+			time    string
+			isValid bool
+		}{
+			{"00:00", true},
+			{"23:59", true},
+			{"12:30", true},
+			{"9:30", true},      // Go time.Parse accepts single-digit hours
+			{"12:5", false},     // Missing leading zero
+			{"24:00", false},    // Invalid hour
+			{"12:60", false},    // Invalid minute
+			{"12:30:00", false}, // Seconds not allowed
+		}
+		for _, tc := range testCases {
+			r := &PickupScheduleRequest{
+				Weekday:    1,
+				PickupTime: tc.time,
+			}
+			err := r.Bind(req)
+			if tc.isValid {
+				assert.NoError(t, err, "Time %s should be valid", tc.time)
+			} else {
+				assert.Error(t, err, "Time %s should be invalid", tc.time)
+			}
+		}
+	})
+
+	t.Run("notes_boundary_500_chars", func(t *testing.T) {
+		exactNotes := string(make([]byte, 500))
+		r := &PickupScheduleRequest{
+			Weekday:    1,
+			PickupTime: "15:30",
+			Notes:      &exactNotes,
+		}
+		err := r.Bind(req)
+		require.NoError(t, err, "500 characters should be allowed")
+	})
+}
+
+func TestBulkPickupScheduleRequest_Bind_EdgeCases(t *testing.T) {
+	req := httptest.NewRequest(http.MethodPost, "/", nil)
+
+	t.Run("all_weekdays", func(t *testing.T) {
+		r := &BulkPickupScheduleRequest{
+			Schedules: []PickupScheduleRequest{
+				{Weekday: 1, PickupTime: "15:30"},
+				{Weekday: 2, PickupTime: "15:30"},
+				{Weekday: 3, PickupTime: "15:30"},
+				{Weekday: 4, PickupTime: "15:30"},
+				{Weekday: 5, PickupTime: "15:30"},
+			},
+		}
+		err := r.Bind(req)
+		require.NoError(t, err)
+	})
+
+	t.Run("single_schedule", func(t *testing.T) {
+		r := &BulkPickupScheduleRequest{
+			Schedules: []PickupScheduleRequest{
+				{Weekday: 3, PickupTime: "12:00"},
+			},
+		}
+		err := r.Bind(req)
+		require.NoError(t, err)
+	})
+
+	t.Run("error_index_reporting", func(t *testing.T) {
+		r := &BulkPickupScheduleRequest{
+			Schedules: []PickupScheduleRequest{
+				{Weekday: 1, PickupTime: "15:30"},
+				{Weekday: 2, PickupTime: "15:30"},
+				{Weekday: 6, PickupTime: "15:30"}, // Invalid at index 2
+			},
+		}
+		err := r.Bind(req)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "schedule 2:")
+	})
+}
+
+func TestPickupExceptionRequest_Bind_EdgeCases(t *testing.T) {
+	req := httptest.NewRequest(http.MethodPost, "/", nil)
+
+	t.Run("reason_boundary_255_chars", func(t *testing.T) {
+		pickupTime := "12:00"
+		exactReason := string(make([]byte, 255))
+		r := &PickupExceptionRequest{
+			ExceptionDate: "2026-02-15",
+			PickupTime:    &pickupTime,
+			Reason:        exactReason,
+		}
+		err := r.Bind(req)
+		require.NoError(t, err, "255 characters should be allowed")
+	})
+
+	t.Run("date_format_variations", func(t *testing.T) {
+		pickupTime := "12:00"
+		invalidDates := []string{
+			"2026/02/15", // Wrong separator
+			"02-15-2026", // MM-DD-YYYY
+			"15-02-2026", // DD-MM-YYYY
+			"2026-2-15",  // Missing leading zero
+			"2026-02-5",  // Missing leading zero
+		}
+		for _, date := range invalidDates {
+			r := &PickupExceptionRequest{
+				ExceptionDate: date,
+				PickupTime:    &pickupTime,
+				Reason:        "Test",
+			}
+			err := r.Bind(req)
+			assert.Error(t, err, "Date %s should be invalid", date)
+		}
+	})
+}
+
+func TestMapScheduleToResponse_WeekdayNames(t *testing.T) {
+	weekdays := []struct {
+		day  int
+		name string
+	}{
+		{1, "Montag"},
+		{2, "Dienstag"},
+		{3, "Mittwoch"},
+		{4, "Donnerstag"},
+		{5, "Freitag"},
+	}
+
+	for _, wd := range weekdays {
+		t.Run(wd.name, func(t *testing.T) {
+			schedule := createTestScheduleModel(1, wd.day, "15:30", nil)
+			resp := mapScheduleToResponse(schedule)
+			assert.Equal(t, wd.name, resp.WeekdayName)
+		})
+	}
+}
