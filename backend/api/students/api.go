@@ -21,6 +21,7 @@ import (
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
 	educationService "github.com/moto-nrw/project-phoenix/services/education"
 	iotSvc "github.com/moto-nrw/project-phoenix/services/iot"
+	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 	userContextService "github.com/moto-nrw/project-phoenix/services/usercontext"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
 )
@@ -38,25 +39,27 @@ func renderError(w http.ResponseWriter, r *http.Request, errorResponse render.Re
 
 // Resource defines the students API resource
 type Resource struct {
-	PersonService      userService.PersonService
-	StudentRepo        users.StudentRepository
-	EducationService   educationService.Service
-	UserContextService userContextService.UserContextService
-	ActiveService      activeService.Service
-	IoTService         iotSvc.Service
-	PrivacyConsentRepo users.PrivacyConsentRepository
+	PersonService         userService.PersonService
+	StudentRepo           users.StudentRepository
+	EducationService      educationService.Service
+	UserContextService    userContextService.UserContextService
+	ActiveService         activeService.Service
+	IoTService            iotSvc.Service
+	PrivacyConsentRepo    users.PrivacyConsentRepository
+	PickupScheduleService scheduleService.PickupScheduleService
 }
 
 // NewResource creates a new students resource
-func NewResource(personService userService.PersonService, studentRepo users.StudentRepository, educationService educationService.Service, userContextService userContextService.UserContextService, activeService activeService.Service, iotService iotSvc.Service, privacyConsentRepo users.PrivacyConsentRepository) *Resource {
+func NewResource(personService userService.PersonService, studentRepo users.StudentRepository, educationService educationService.Service, userContextService userContextService.UserContextService, activeService activeService.Service, iotService iotSvc.Service, privacyConsentRepo users.PrivacyConsentRepository, pickupScheduleService scheduleService.PickupScheduleService) *Resource {
 	return &Resource{
-		PersonService:      personService,
-		StudentRepo:        studentRepo,
-		EducationService:   educationService,
-		UserContextService: userContextService,
-		ActiveService:      activeService,
-		IoTService:         iotService,
-		PrivacyConsentRepo: privacyConsentRepo,
+		PersonService:         personService,
+		StudentRepo:           studentRepo,
+		EducationService:      educationService,
+		UserContextService:    userContextService,
+		ActiveService:         activeService,
+		IoTService:            iotService,
+		PrivacyConsentRepo:    privacyConsentRepo,
+		PickupScheduleService: pickupScheduleService,
 	}
 }
 
@@ -93,6 +96,13 @@ func (rs *Resource) Router() chi.Router {
 		// Privacy consent routes
 		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/{id}/privacy-consent", rs.getStudentPrivacyConsent)
 		r.With(authorize.RequiresPermission(permissions.UsersUpdate)).Put("/{id}/privacy-consent", rs.updateStudentPrivacyConsent)
+
+		// Pickup schedule routes (full access required - checked in handlers)
+		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/{id}/pickup-schedules", rs.getStudentPickupSchedules)
+		r.With(authorize.RequiresPermission(permissions.UsersUpdate)).Put("/{id}/pickup-schedules", rs.updateStudentPickupSchedules)
+		r.With(authorize.RequiresPermission(permissions.UsersUpdate)).Post("/{id}/pickup-exceptions", rs.createStudentPickupException)
+		r.With(authorize.RequiresPermission(permissions.UsersUpdate)).Put("/{id}/pickup-exceptions/{exceptionId}", rs.updateStudentPickupException)
+		r.With(authorize.RequiresPermission(permissions.UsersUpdate)).Delete("/{id}/pickup-exceptions/{exceptionId}", rs.deleteStudentPickupException)
 	})
 
 	// Device-authenticated routes for RFID devices

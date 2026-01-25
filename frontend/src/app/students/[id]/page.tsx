@@ -32,6 +32,7 @@ import {
 } from "~/components/students/student-checkout-section";
 import { performImmediateCheckin } from "~/lib/checkin-api";
 import StudentGuardianManager from "~/components/guardians/student-guardian-manager";
+import PickupScheduleManager from "~/components/students/pickup-schedule-manager";
 
 // =============================================================================
 // MAIN COMPONENT
@@ -395,12 +396,10 @@ function LimitedAccessView({
 }: Readonly<LimitedAccessViewProps>) {
   return (
     <div className="space-y-4 sm:space-y-6">
-        {showCheckout && (
-          <StudentCheckoutSection onCheckoutClick={onCheckoutClick} />
-        )}
-        {showCheckin && (
-          <StudentCheckinSection onCheckinClick={onCheckinClick} />
-        )}
+      {showCheckout && (
+        <StudentCheckoutSection onCheckoutClick={onCheckoutClick} />
+      )}
+      {showCheckin && <StudentCheckinSection onCheckinClick={onCheckinClick} />}
 
       <SupervisorsCard supervisors={supervisors} studentName={student.name} />
 
@@ -451,9 +450,13 @@ function FullAccessView({
       )}
       {showCheckin && <StudentCheckinSection onCheckinClick={onCheckinClick} />}
 
-      <StudentHistorySection />
-
       <div className="mt-4 space-y-4 sm:mt-6 sm:space-y-6">
+        <PickupScheduleManager
+          studentId={studentId}
+          readOnly={false}
+          onUpdate={onRefreshData}
+        />
+
         {isEditingPersonal && editedStudent ? (
           <PersonalInfoEditForm
             editedStudent={editedStudent}
@@ -473,6 +476,8 @@ function FullAccessView({
           readOnly={false}
           onUpdate={onRefreshData}
         />
+
+        <StudentHistorySection />
       </div>
     </>
   );

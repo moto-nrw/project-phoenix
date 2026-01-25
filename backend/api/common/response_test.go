@@ -343,9 +343,9 @@ func TestNewPaginatedResponse_StandardCase(t *testing.T) {
 
 func TestNewPaginatedResponse_TotalPages_EdgeCases(t *testing.T) {
 	tests := []struct {
-		name              string
-		total             int
-		pageSize          int
+		name               string
+		total              int
+		pageSize           int
 		expectedTotalPages int
 	}{
 		{"exact division", 100, 25, 4},

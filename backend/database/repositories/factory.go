@@ -66,9 +66,11 @@ type Factory struct {
 	GroupSubstitution educationModels.GroupSubstitutionRepository
 
 	// Schedule domain
-	Dateframe      scheduleModels.DateframeRepository
-	Timeframe      scheduleModels.TimeframeRepository
-	RecurrenceRule scheduleModels.RecurrenceRuleRepository
+	Dateframe              scheduleModels.DateframeRepository
+	Timeframe              scheduleModels.TimeframeRepository
+	RecurrenceRule         scheduleModels.RecurrenceRuleRepository
+	StudentPickupSchedule  scheduleModels.StudentPickupScheduleRepository
+	StudentPickupException scheduleModels.StudentPickupExceptionRepository
 
 	// Activities domain
 	ActivityGroup      activitiesModels.GroupRepository
@@ -139,9 +141,11 @@ func NewFactory(db *bun.DB) *Factory {
 		GroupSubstitution: education.NewGroupSubstitutionRepository(db),
 
 		// Schedule repositories
-		Dateframe:      schedule.NewDateframeRepository(db),
-		Timeframe:      schedule.NewTimeframeRepository(db),
-		RecurrenceRule: schedule.NewRecurrenceRuleRepository(db),
+		Dateframe:              schedule.NewDateframeRepository(db),
+		Timeframe:              schedule.NewTimeframeRepository(db),
+		RecurrenceRule:         schedule.NewRecurrenceRuleRepository(db),
+		StudentPickupSchedule:  schedule.NewStudentPickupScheduleRepository(db),
+		StudentPickupException: schedule.NewStudentPickupExceptionRepository(db),
 
 		// Activities repositories
 		ActivityGroup:      activities.NewGroupRepository(db),

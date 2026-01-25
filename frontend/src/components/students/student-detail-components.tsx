@@ -96,24 +96,6 @@ function ViewOnlyIcon({
   );
 }
 
-function EditIcon({ className = "h-5 w-5" }: Readonly<{ className?: string }>) {
-  return (
-    <svg
-      className={className}
-      fill="none"
-      viewBox="0 0 24 24"
-      stroke="currentColor"
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth={2}
-        d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-      />
-    </svg>
-  );
-}
-
 function EmailIcon({
   className = "h-4 w-4",
 }: Readonly<{ className?: string }>) {
@@ -455,7 +437,7 @@ export function PersonalInfoReadOnly({
     <div className="rounded-2xl border border-gray-100 bg-white/50 p-4 backdrop-blur-sm sm:p-6">
       <div className="mb-4 flex items-center justify-between gap-2">
         <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
-          <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-gray-100 text-gray-600 sm:h-10 sm:w-10">
+          <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-[#83CD2D]/10 text-[#83CD2D] sm:h-10 sm:w-10">
             <PersonIcon />
           </div>
           <h2 className="truncate text-base font-semibold text-gray-900 sm:text-lg">
@@ -465,10 +447,9 @@ export function PersonalInfoReadOnly({
         {showEditButton && onEditClick ? (
           <button
             onClick={onEditClick}
-            className="rounded-lg p-2 text-gray-600 transition-colors hover:bg-gray-100"
-            title="Bearbeiten"
+            className="rounded-lg px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100"
           >
-            <EditIcon />
+            Bearbeiten
           </button>
         ) : (
           <ViewOnlyBadge />
@@ -519,7 +500,7 @@ export function FullAccessPersonalInfoReadOnly({
     <div className="rounded-2xl border border-gray-100 bg-white/50 p-4 backdrop-blur-sm sm:p-6">
       <div className="mb-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-gray-100 text-gray-600 sm:h-10 sm:w-10">
+          <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-[#83CD2D]/10 text-[#83CD2D] sm:h-10 sm:w-10">
             <PersonIcon />
           </div>
           <h2 className="text-base font-semibold text-gray-900 sm:text-lg">
@@ -528,10 +509,9 @@ export function FullAccessPersonalInfoReadOnly({
         </div>
         <button
           onClick={onEditClick}
-          className="rounded-lg p-2 text-gray-600 transition-colors hover:bg-gray-100"
-          title="Bearbeiten"
+          className="rounded-lg px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100"
         >
-          <EditIcon />
+          Bearbeiten
         </button>
       </div>
       <div className="space-y-3">
