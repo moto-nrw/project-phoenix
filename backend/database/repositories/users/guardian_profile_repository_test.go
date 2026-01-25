@@ -47,12 +47,11 @@ func TestGuardianProfileRepository_Create(t *testing.T) {
 		testpkg.CleanupTableRecords(t, db, "users.guardian_profiles", profile.ID)
 	})
 
-	t.Run("creates guardian profile with phone instead of email", func(t *testing.T) {
-		phone := "+49123456789"
+	t.Run("creates guardian profile without email", func(t *testing.T) {
+		// Note: Phone numbers are now stored in separate table (guardian_phone_numbers)
 		profile := &users.GuardianProfile{
 			FirstName:          "Minimal",
 			LastName:           "Guardian",
-			Phone:              &phone,
 			LanguagePreference: "de",
 		}
 

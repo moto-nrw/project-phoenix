@@ -66,34 +66,39 @@ func mapRelationshipType(germanType string) string {
 
 // StudentImportConfig implements ImportConfig for student imports
 type StudentImportConfig struct {
-	personRepo   users.PersonRepository
-	studentRepo  users.StudentRepository
-	guardianRepo users.GuardianProfileRepository
-	relationRepo users.StudentGuardianRepository
-	privacyRepo  users.PrivacyConsentRepository
-	resolver     *RelationshipResolver
-	txHandler    *base.TxHandler
+	personRepo        users.PersonRepository
+	studentRepo       users.StudentRepository
+	guardianRepo      users.GuardianProfileRepository
+	guardianPhoneRepo users.GuardianPhoneNumberRepository
+	relationRepo      users.StudentGuardianRepository
+	privacyRepo       users.PrivacyConsentRepository
+	resolver          *RelationshipResolver
+	txHandler         *base.TxHandler
+}
+
+// StudentImportDeps contains dependencies for StudentImportConfig
+type StudentImportDeps struct {
+	PersonRepo        users.PersonRepository
+	StudentRepo       users.StudentRepository
+	GuardianRepo      users.GuardianProfileRepository
+	GuardianPhoneRepo users.GuardianPhoneNumberRepository
+	RelationRepo      users.StudentGuardianRepository
+	PrivacyRepo       users.PrivacyConsentRepository
+	Resolver          *RelationshipResolver
 }
 
 // NewStudentImportConfig creates a new student import configuration
 // Note: RFID cards are not supported in CSV import and must be assigned separately
-func NewStudentImportConfig(
-	personRepo users.PersonRepository,
-	studentRepo users.StudentRepository,
-	guardianRepo users.GuardianProfileRepository,
-	relationRepo users.StudentGuardianRepository,
-	privacyRepo users.PrivacyConsentRepository,
-	resolver *RelationshipResolver,
-	db *bun.DB,
-) *StudentImportConfig {
+func NewStudentImportConfig(deps StudentImportDeps, db *bun.DB) *StudentImportConfig {
 	return &StudentImportConfig{
-		personRepo:   personRepo,
-		studentRepo:  studentRepo,
-		guardianRepo: guardianRepo,
-		relationRepo: relationRepo,
-		privacyRepo:  privacyRepo,
-		resolver:     resolver,
-		txHandler:    base.NewTxHandler(db),
+		personRepo:        deps.PersonRepo,
+		studentRepo:       deps.StudentRepo,
+		guardianRepo:      deps.GuardianRepo,
+		guardianPhoneRepo: deps.GuardianPhoneRepo,
+		relationRepo:      deps.RelationRepo,
+		privacyRepo:       deps.PrivacyRepo,
+		resolver:          deps.Resolver,
+		txHandler:         base.NewTxHandler(db),
 	}
 }
 
@@ -211,8 +216,12 @@ func (c *StudentImportConfig) validateGuardian(num int, guardian importModels.Gu
 	errors := []importModels.ValidationError{}
 	fieldPrefix := fmt.Sprintf("guardian_%d", num)
 
+	// Check contact methods: either legacy fields or new PhoneNumbers array
+	hasLegacyContact := guardian.Email != "" || guardian.Phone != "" || guardian.MobilePhone != ""
+	hasNewPhoneNumbers := len(guardian.PhoneNumbers) > 0
+
 	// At least one contact method required
-	if guardian.Email == "" && guardian.Phone == "" && guardian.MobilePhone == "" {
+	if !hasLegacyContact && !hasNewPhoneNumbers {
 		errors = append(errors, importModels.ValidationError{
 			Field:    fieldPrefix,
 			Message:  fmt.Sprintf("Erziehungsberechtigter %d benötigt mindestens eine Kontaktmethode (Email, Telefon oder Mobil)", num),
@@ -222,17 +231,31 @@ func (c *StudentImportConfig) validateGuardian(num int, guardian importModels.Gu
 		return errors // Return early if no contact info
 	}
 
-	// Email format validation (if provided)
-	if guardian.Email != "" && !emailRegex.MatchString(guardian.Email) {
-		errors = append(errors, importModels.ValidationError{
+	// Validate email, legacy phones, and new phone numbers
+	errors = append(errors, validateGuardianEmail(num, guardian.Email, fieldPrefix)...)
+	errors = append(errors, validateGuardianLegacyPhones(num, guardian, fieldPrefix)...)
+	errors = append(errors, validateGuardianPhoneNumbers(num, guardian.PhoneNumbers, fieldPrefix)...)
+
+	return errors
+}
+
+// validateGuardianEmail validates email format
+func validateGuardianEmail(num int, email, fieldPrefix string) []importModels.ValidationError {
+	if email != "" && !emailRegex.MatchString(email) {
+		return []importModels.ValidationError{{
 			Field:    fmt.Sprintf("%s_email", fieldPrefix),
-			Message:  fmt.Sprintf("Ungültiges Email-Format für Erziehungsberechtigten %d: %s", num, guardian.Email),
+			Message:  fmt.Sprintf("Ungültiges Email-Format für Erziehungsberechtigten %d: %s", num, email),
 			Code:     "invalid_email",
 			Severity: importModels.ErrorSeverityError,
-		})
+		}}
 	}
+	return nil
+}
 
-	// Phone format validation (if provided)
+// validateGuardianLegacyPhones validates legacy phone and mobile_phone fields
+func validateGuardianLegacyPhones(num int, guardian importModels.GuardianImportData, fieldPrefix string) []importModels.ValidationError {
+	var errors []importModels.ValidationError
+
 	if guardian.Phone != "" && !phoneRegex.MatchString(guardian.Phone) {
 		errors = append(errors, importModels.ValidationError{
 			Field:    fmt.Sprintf("%s_phone", fieldPrefix),
@@ -242,11 +265,33 @@ func (c *StudentImportConfig) validateGuardian(num int, guardian importModels.Gu
 		})
 	}
 
-	// Mobile phone format validation (if provided)
 	if guardian.MobilePhone != "" && !phoneRegex.MatchString(guardian.MobilePhone) {
 		errors = append(errors, importModels.ValidationError{
 			Field:    fmt.Sprintf("%s_mobile", fieldPrefix),
 			Message:  fmt.Sprintf("Ungültiges Mobiltelefon-Format für Erziehungsberechtigten %d: %s", num, guardian.MobilePhone),
+			Code:     "invalid_phone",
+			Severity: importModels.ErrorSeverityError,
+		})
+	}
+
+	return errors
+}
+
+// validateGuardianPhoneNumbers validates phone numbers from the new flexible PhoneNumbers array
+func validateGuardianPhoneNumbers(num int, phones []importModels.PhoneImportData, fieldPrefix string) []importModels.ValidationError {
+	var errors []importModels.ValidationError
+
+	for i, phone := range phones {
+		if phone.PhoneNumber == "" || phoneRegex.MatchString(phone.PhoneNumber) {
+			continue
+		}
+		label := phone.Label
+		if label == "" {
+			label = phone.PhoneType
+		}
+		errors = append(errors, importModels.ValidationError{
+			Field:    fmt.Sprintf("%s_phone_%d", fieldPrefix, i+1),
+			Message:  fmt.Sprintf("Ungültiges Telefon-Format für Erziehungsberechtigten %d (%s): %s", num, label, phone.PhoneNumber),
 			Code:     "invalid_phone",
 			Severity: importModels.ErrorSeverityError,
 		})
@@ -437,25 +482,80 @@ func (c *StudentImportConfig) createOrFindGuardian(ctx context.Context, data imp
 			}
 		} else if existing != nil {
 			// Guardian found - reuse it (deduplication)
+			// But still add any new phone numbers from the import data
+			if err := c.createGuardianPhoneNumbers(ctx, existing.ID, data.PhoneNumbers); err != nil {
+				// Log but don't fail - phone numbers are additive
+				// Duplicates will be handled gracefully
+				return existing.ID, fmt.Errorf("add phone numbers to existing guardian: %w", err)
+			}
 			return existing.ID, nil
 		}
 		// Guardian not found - will create new one below
 	}
 
-	// Create new guardian
+	// Create new guardian (phone numbers are added via createGuardianPhoneNumbers below)
 	guardian := &users.GuardianProfile{
-		FirstName:   strings.TrimSpace(data.FirstName),
-		LastName:    strings.TrimSpace(data.LastName),
-		Email:       stringPtr(data.Email),
-		Phone:       stringPtr(data.Phone),
-		MobilePhone: stringPtr(data.MobilePhone),
+		FirstName: strings.TrimSpace(data.FirstName),
+		LastName:  strings.TrimSpace(data.LastName),
+		Email:     stringPtr(data.Email),
 	}
 
 	if err := c.guardianRepo.Create(ctx, guardian); err != nil {
 		return 0, err
 	}
 
+	// Create phone numbers from PhoneNumbers array (flexible phone support)
+	if err := c.createGuardianPhoneNumbers(ctx, guardian.ID, data.PhoneNumbers); err != nil {
+		return 0, fmt.Errorf("create phone numbers: %w", err)
+	}
+
 	return guardian.ID, nil
+}
+
+// createGuardianPhoneNumbers creates phone numbers for a guardian from import data
+func (c *StudentImportConfig) createGuardianPhoneNumbers(ctx context.Context, guardianID int64, phones []importModels.PhoneImportData) error {
+	for i, phoneData := range phones {
+		if phoneData.PhoneNumber == "" {
+			continue // Skip empty phone numbers
+		}
+
+		// Map phone type string to enum
+		phoneType := mapPhoneType(phoneData.PhoneType)
+
+		// Set label pointer (nil if empty)
+		var label *string
+		if phoneData.Label != "" {
+			label = &phoneData.Label
+		}
+
+		phone := &users.GuardianPhoneNumber{
+			GuardianProfileID: guardianID,
+			PhoneNumber:       phoneData.PhoneNumber,
+			PhoneType:         phoneType,
+			Label:             label,
+			IsPrimary:         phoneData.IsPrimary,
+			Priority:          i + 1, // Priority based on order in import
+		}
+
+		if err := c.guardianPhoneRepo.Create(ctx, phone); err != nil {
+			return fmt.Errorf("phone %d: %w", i+1, err)
+		}
+	}
+	return nil
+}
+
+// mapPhoneType converts import phone type string to users.PhoneType enum
+func mapPhoneType(importType string) users.PhoneType {
+	switch strings.ToLower(importType) {
+	case "mobile":
+		return users.PhoneTypeMobile
+	case "home":
+		return users.PhoneTypeHome
+	case "work":
+		return users.PhoneTypeWork
+	default:
+		return users.PhoneTypeOther
+	}
 }
 
 // Update updates an existing student (not implemented for MVP - see #556 for Phase 2)

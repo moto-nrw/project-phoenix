@@ -38,6 +38,7 @@ type Factory struct {
 	ActiveCleanup            active.CleanupService
 	Activities               activities.ActivityService
 	Education                education.Service
+	GradeTransition          education.GradeTransitionService
 	Facilities               facilities.Service
 	Invitation               auth.InvitationService
 	Feedback                 feedback.Service
@@ -118,6 +119,14 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 		db,
 	)
 
+	// Initialize grade transition service
+	gradeTransitionService := education.NewGradeTransitionService(education.GradeTransitionServiceDependencies{
+		TransitionRepo: repos.GradeTransition,
+		StudentRepo:    repos.Student,
+		PersonRepo:     repos.Person,
+		DB:             db,
+	})
+
 	// Initialize users service first (needed for active service)
 	usersService := users.NewPersonService(users.PersonServiceDependencies{
 		PersonRepo:         repos.Person,
@@ -132,18 +141,19 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 
 	// Initialize guardian service
 	guardianService := users.NewGuardianService(users.GuardianServiceDependencies{
-		GuardianProfileRepo:    repos.GuardianProfile,
-		StudentGuardianRepo:    repos.StudentGuardian,
-		GuardianInvitationRepo: repos.GuardianInvitation,
-		AccountParentRepo:      repos.AccountParent,
-		StudentRepo:            repos.Student,
-		PersonRepo:             repos.Person,
-		Mailer:                 mailer,
-		Dispatcher:             dispatcher,
-		FrontendURL:            frontendURL,
-		DefaultFrom:            defaultFrom,
-		InvitationExpiry:       invitationTokenExpiry,
-		DB:                     db,
+		GuardianProfileRepo:     repos.GuardianProfile,
+		GuardianPhoneNumberRepo: repos.GuardianPhoneNumber,
+		StudentGuardianRepo:     repos.StudentGuardian,
+		GuardianInvitationRepo:  repos.GuardianInvitation,
+		AccountParentRepo:       repos.AccountParent,
+		StudentRepo:             repos.Student,
+		PersonRepo:              repos.Person,
+		Mailer:                  mailer,
+		Dispatcher:              dispatcher,
+		FrontendURL:             frontendURL,
+		DefaultFrom:             defaultFrom,
+		InvitationExpiry:        invitationTokenExpiry,
+		DB:                      db,
 	})
 
 	// Initialize active service with SSE broadcaster
@@ -303,12 +313,15 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 	// Initialize import service
 	relationshipResolver := importService.NewRelationshipResolver(repos.Group, repos.Room)
 	studentImportConfig := importService.NewStudentImportConfig(
-		repos.Person,
-		repos.Student,
-		repos.GuardianProfile,
-		repos.StudentGuardian,
-		repos.PrivacyConsent,
-		relationshipResolver,
+		importService.StudentImportDeps{
+			PersonRepo:        repos.Person,
+			StudentRepo:       repos.Student,
+			GuardianRepo:      repos.GuardianProfile,
+			GuardianPhoneRepo: repos.GuardianPhoneNumber,
+			RelationRepo:      repos.StudentGuardian,
+			PrivacyRepo:       repos.PrivacyConsent,
+			Resolver:          relationshipResolver,
+		},
 		db,
 	)
 	studentImportService := importService.NewImportService(studentImportConfig, db)
@@ -319,6 +332,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 		ActiveCleanup:            activeCleanupService,
 		Activities:               activitiesService,
 		Education:                educationService,
+		GradeTransition:          gradeTransitionService,
 		Facilities:               facilitiesService,
 		Feedback:                 feedbackService,
 		IoT:                      iotService,

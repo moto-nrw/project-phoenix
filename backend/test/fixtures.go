@@ -27,6 +27,7 @@ import (
 // SQL constants to avoid duplication
 const (
 	whereIDEquals       = "id = ?"
+	whereIDIn           = "id IN (?)"
 	whereIDOrAccountID  = "id = ? OR account_id = ?"
 	whereAccountIDIn    = "account_id IN (?)"
 	tableUsersTeachers  = "users.teachers"
@@ -151,6 +152,43 @@ func CreateTestDevice(tb testing.TB, db *bun.DB, deviceID string) *iot.Device {
 	require.NoError(tb, err, "Failed to create test device")
 
 	return device
+}
+
+// EnsureWebManualDevice creates or returns the web manual device needed for manual check-ins.
+// This device is normally created by migration 001007005 but may need to be created in tests.
+func EnsureWebManualDevice(tb testing.TB, db *bun.DB) *iot.Device {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	const webManualDeviceCode = "WEB-MANUAL-001"
+
+	// Use upsert pattern to avoid race conditions
+	device := &iot.Device{
+		DeviceID:   webManualDeviceCode,
+		DeviceType: "virtual",
+		Name:       stringPtr("Web-Portal (Manuell)"),
+		Status:     iot.DeviceStatusActive,
+	}
+
+	_, err := db.NewInsert().
+		Model(device).
+		ModelTableExpr(`iot.devices`).
+		On("CONFLICT (device_id) DO NOTHING").
+		Exec(ctx)
+	require.NoError(tb, err, "Failed to ensure web manual device")
+
+	// Fetch the device (either just created or existing)
+	var existingDevice iot.Device
+	err = db.NewSelect().
+		Model(&existingDevice).
+		ModelTableExpr(`iot.devices AS "device"`).
+		Where(`"device".device_id = ?`, webManualDeviceCode).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to fetch web manual device")
+
+	return &existingDevice
 }
 
 // CreateTestPerson creates a real person in the database (required for staff creation)
@@ -547,7 +585,7 @@ func CleanupAuthFixtures(tb testing.TB, db *bun.DB, accountIDs ...int64) {
 	// Finally delete the accounts themselves
 	cleanupDelete(tb, db.NewDelete().
 		Table("auth.accounts").
-		Where("id IN (?)", bun.In(accountIDs)),
+		Where(whereIDIn, bun.In(accountIDs)),
 		"auth.accounts")
 }
 
@@ -561,7 +599,7 @@ func CleanupParentAccountFixtures(tb testing.TB, db *bun.DB, accountIDs ...int64
 
 	cleanupDelete(tb, db.NewDelete().
 		Table("auth.accounts_parents").
-		Where("id IN (?)", bun.In(accountIDs)),
+		Where(whereIDIn, bun.In(accountIDs)),
 		"auth.accounts_parents")
 }
 
@@ -1730,4 +1768,83 @@ func CreateTestJWT(tb testing.TB, accountID int64, permissions []string) string 
 	require.NoError(tb, err, "Failed to create test JWT")
 
 	return token
+}
+
+// ============================================================================
+// Grade Transition Domain Fixtures
+// ============================================================================
+
+// CreateTestGradeTransition creates a grade transition in the database.
+func CreateTestGradeTransition(tb testing.TB, db *bun.DB, academicYear string, createdBy int64) *education.GradeTransition {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	transition := &education.GradeTransition{
+		AcademicYear: academicYear,
+		Status:       education.TransitionStatusDraft,
+		CreatedBy:    createdBy,
+	}
+
+	err := db.NewInsert().
+		Model(transition).
+		ModelTableExpr(`education.grade_transitions`).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to create test grade transition")
+
+	return transition
+}
+
+// CreateTestGradeTransitionMapping creates a mapping for a grade transition.
+func CreateTestGradeTransitionMapping(tb testing.TB, db *bun.DB, transitionID int64, fromClass string, toClass *string) *education.GradeTransitionMapping {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	mapping := &education.GradeTransitionMapping{
+		TransitionID: transitionID,
+		FromClass:    fromClass,
+		ToClass:      toClass,
+	}
+
+	err := db.NewInsert().
+		Model(mapping).
+		ModelTableExpr(`education.grade_transition_mappings`).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to create test grade transition mapping")
+
+	return mapping
+}
+
+// CleanupGradeTransitionFixtures removes grade transition fixtures from the database.
+// Pass transition IDs and it will clean up the transition, mappings, and history.
+func CleanupGradeTransitionFixtures(tb testing.TB, db *bun.DB, transitionIDs ...int64) {
+	tb.Helper()
+
+	if len(transitionIDs) == 0 {
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Delete history first (depends on transition)
+	_, _ = db.NewDelete().
+		TableExpr("education.grade_transition_history").
+		Where("transition_id IN (?)", bun.In(transitionIDs)).
+		Exec(ctx)
+
+	// Delete mappings (depends on transition)
+	_, _ = db.NewDelete().
+		TableExpr("education.grade_transition_mappings").
+		Where("transition_id IN (?)", bun.In(transitionIDs)).
+		Exec(ctx)
+
+	// Delete transitions
+	_, _ = db.NewDelete().
+		TableExpr("education.grade_transitions").
+		Where(whereIDIn, bun.In(transitionIDs)).
+		Exec(ctx)
 }

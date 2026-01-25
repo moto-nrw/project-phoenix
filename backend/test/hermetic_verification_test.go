@@ -128,16 +128,19 @@ func checkHardcodedIDs(t *testing.T, root string) []string {
 	// Patterns that require word boundary matching to avoid false negatives.
 	// For example, "count" should NOT match "AccountID" (Acc-ount-ID).
 	wordBoundaryPatterns := []*regexp.Regexp{
-		regexp.MustCompile(`\bcount\b`), // Counts (word boundary to avoid matching "AccountID")
+		regexp.MustCompile(`\bcount\b`),    // Counts (word boundary to avoid matching "AccountID")
+		regexp.MustCompile(`\baffected\b`), // Affected row counts from UPDATE/DELETE operations
 	}
 
 	// Files to skip (mock tests, model unit tests without DB)
 	skipPatterns := []string{
 		"_internal_test.go",                  // Internal tests often use mocks
 		"_mock_test.go",                      // Mock tests
-		"models/",                            // Model unit tests don't hit DB
+		"models/",                            // Model unit tests don't hit DB (Unix)
+		"models\\",                           // Model unit tests don't hit DB (Windows)
 		"invitation_service_test.go",         // Uses mocks
 		"password_reset_integration_test.go", // Uses mocks (sqlmock + stubs)
+		"handlers_unit_test.go",              // Unit tests for converters (no DB)
 	}
 
 	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
@@ -156,8 +159,10 @@ func checkHardcodedIDs(t *testing.T, root string) []string {
 		}
 
 		// Skip files matching skip patterns (mocks, model unit tests, etc.)
+		// Normalize path to forward slashes for cross-platform matching
+		normalizedPath := filepath.ToSlash(path)
 		for _, pattern := range skipPatterns {
-			if strings.Contains(path, pattern) {
+			if strings.Contains(normalizedPath, pattern) {
 				return nil
 			}
 		}
@@ -238,6 +243,7 @@ func checkMissingSetupTestDB(t *testing.T, root string) []string {
 		"setupTestDB",
 		"SetupAPITest",
 		"setupAPITest",
+		"setupTestContext", // Indirect setup via shared helper (calls SetupAPITest)
 	}
 
 	// Patterns indicating mock-based testing (legitimate alternative)

@@ -45,17 +45,18 @@ type Factory struct {
 	GuardianInvitation     authModels.GuardianInvitationRepository
 
 	// Users domain
-	Person          userModels.PersonRepository
-	RFIDCard        userModels.RFIDCardRepository
-	Staff           userModels.StaffRepository
-	Student         userModels.StudentRepository
-	Teacher         userModels.TeacherRepository
-	Guest           userModels.GuestRepository
-	Profile         userModels.ProfileRepository
-	PersonGuardian  userModels.PersonGuardianRepository
-	StudentGuardian userModels.StudentGuardianRepository
-	GuardianProfile userModels.GuardianProfileRepository
-	PrivacyConsent  userModels.PrivacyConsentRepository
+	Person              userModels.PersonRepository
+	RFIDCard            userModels.RFIDCardRepository
+	Staff               userModels.StaffRepository
+	Student             userModels.StudentRepository
+	Teacher             userModels.TeacherRepository
+	Guest               userModels.GuestRepository
+	Profile             userModels.ProfileRepository
+	PersonGuardian      userModels.PersonGuardianRepository
+	StudentGuardian     userModels.StudentGuardianRepository
+	GuardianProfile     userModels.GuardianProfileRepository
+	GuardianPhoneNumber userModels.GuardianPhoneNumberRepository
+	PrivacyConsent      userModels.PrivacyConsentRepository
 
 	// Facilities domain
 	Room facilityModels.RoomRepository
@@ -64,6 +65,7 @@ type Factory struct {
 	Group             educationModels.GroupRepository
 	GroupTeacher      educationModels.GroupTeacherRepository
 	GroupSubstitution educationModels.GroupSubstitutionRepository
+	GradeTransition   educationModels.GradeTransitionRepository
 
 	// Schedule domain
 	Dateframe              scheduleModels.DateframeRepository
@@ -120,17 +122,18 @@ func NewFactory(db *bun.DB) *Factory {
 		GuardianInvitation:     auth.NewGuardianInvitationRepository(db),
 
 		// Users repositories
-		Person:          users.NewPersonRepository(db),
-		RFIDCard:        users.NewRFIDCardRepository(db),
-		Staff:           users.NewStaffRepository(db),
-		Student:         users.NewStudentRepository(db),
-		Teacher:         users.NewTeacherRepository(db),
-		Guest:           users.NewGuestRepository(db),
-		Profile:         users.NewProfileRepository(db),
-		PersonGuardian:  users.NewPersonGuardianRepository(db),
-		StudentGuardian: users.NewStudentGuardianRepository(db),
-		GuardianProfile: users.NewGuardianProfileRepository(db),
-		PrivacyConsent:  users.NewPrivacyConsentRepository(db),
+		Person:              users.NewPersonRepository(db),
+		RFIDCard:            users.NewRFIDCardRepository(db),
+		Staff:               users.NewStaffRepository(db),
+		Student:             users.NewStudentRepository(db),
+		Teacher:             users.NewTeacherRepository(db),
+		Guest:               users.NewGuestRepository(db),
+		Profile:             users.NewProfileRepository(db),
+		PersonGuardian:      users.NewPersonGuardianRepository(db),
+		StudentGuardian:     users.NewStudentGuardianRepository(db),
+		GuardianProfile:     users.NewGuardianProfileRepository(db),
+		GuardianPhoneNumber: users.NewGuardianPhoneNumberRepository(db),
+		PrivacyConsent:      users.NewPrivacyConsentRepository(db),
 
 		// Facilities repositories
 		Room: facilities.NewRoomRepository(db),
@@ -139,6 +142,7 @@ func NewFactory(db *bun.DB) *Factory {
 		Group:             education.NewGroupRepository(db),
 		GroupTeacher:      education.NewGroupTeacherRepository(db),
 		GroupSubstitution: education.NewGroupSubstitutionRepository(db),
+		GradeTransition:   education.NewGradeTransitionRepository(db),
 
 		// Schedule repositories
 		Dateframe:              schedule.NewDateframeRepository(db),

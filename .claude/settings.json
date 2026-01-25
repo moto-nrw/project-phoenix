@@ -192,7 +192,15 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/skill-reminder.sh"
+            "command": "bash -c 'root=$(git rev-parse --show-toplevel 2>/dev/null) && bash \"$root/.claude/hooks/skill-reminder.sh\"'"
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c 'root=$(git rev-parse --show-toplevel 2>/dev/null) && bash \"$root/.claude/hooks/subagent-reminder.sh\"'"
           }
         ]
       }
@@ -201,7 +209,6 @@
   "enabledPlugins": {
     "superpowers@superpowers-marketplace": true,
     "codeguard-security@project-codeguard": true,
-    "pr-review-toolkit@claude-code-plugins": true,
     "code-refactoring@claude-code-workflows": true,
     "cicd-automation@claude-code-workflows": true,
     "backend-api-security@claude-code-workflows": true,

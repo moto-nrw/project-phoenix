@@ -133,3 +133,12 @@ const (
 	VisitsList   = "visits:list"
 	VisitsManage = "visits:manage"
 )
+
+// Grade Transition permissions (admin only)
+const (
+	GradeTransitionsRead   = "grade_transitions:read"
+	GradeTransitionsCreate = "grade_transitions:create"
+	GradeTransitionsUpdate = "grade_transitions:update"
+	GradeTransitionsDelete = "grade_transitions:delete"
+	GradeTransitionsApply  = "grade_transitions:apply"
+)

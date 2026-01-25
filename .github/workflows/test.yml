@@ -13,7 +13,7 @@ defaults:
 
 jobs:
   test-and-coverage:
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
 
     # PostgreSQL service for integration tests
     services:
@@ -83,7 +83,7 @@ jobs:
 
       - name: Run frontend tests with coverage
         working-directory: frontend
-        run: pnpm run test:run -- --coverage
+        run: pnpm run test:run --coverage
 
       # Upload coverage artifacts for debugging
       - name: Upload coverage artifacts

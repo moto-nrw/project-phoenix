@@ -102,11 +102,11 @@ func (rs *Resource) downloadStudentTemplateCSV(w http.ResponseWriter, _ *http.Re
 
 	csvWriter := csv.NewWriter(w)
 
-	// Header row with all supported columns (RFID removed)
+	// Header row with all supported columns (RFID removed, flexible phone numbers added)
 	headers := []string{
 		"Vorname", "Nachname", "Klasse", "Gruppe", "Geburtstag",
-		"Erz1.Vorname", "Erz1.Nachname", "Erz1.Email", "Erz1.Telefon", "Erz1.Mobil", "Erz1.Verhältnis", "Erz1.Primär", "Erz1.Notfall", "Erz1.Abholung",
-		"Erz2.Vorname", "Erz2.Nachname", "Erz2.Email", "Erz2.Telefon", "Erz2.Mobil", "Erz2.Verhältnis", "Erz2.Primär", "Erz2.Notfall", "Erz2.Abholung",
+		"Erz1.Vorname", "Erz1.Nachname", "Erz1.Email", "Erz1.Telefon", "Erz1.Telefon2", "Erz1.Mobil", "Erz1.Mobil2", "Erz1.Dienstlich", "Erz1.Dienstlich2", "Erz1.Verhältnis", "Erz1.Primär", "Erz1.Notfall", "Erz1.Abholung",
+		"Erz2.Vorname", "Erz2.Nachname", "Erz2.Email", "Erz2.Telefon", "Erz2.Telefon2", "Erz2.Mobil", "Erz2.Mobil2", "Erz2.Dienstlich", "Erz2.Dienstlich2", "Erz2.Verhältnis", "Erz2.Primär", "Erz2.Notfall", "Erz2.Abholung",
 		"Gesundheitsinfo", "Betreuernotizen", "Zusatzinfo", "Abholstatus", "Datenschutz", "Aufbewahrung(Tage)", "Bus",
 	}
 
@@ -116,25 +116,25 @@ func (rs *Resource) downloadStudentTemplateCSV(w http.ResponseWriter, _ *http.Re
 		return
 	}
 
-	// Example rows with realistic data (RFID removed)
+	// Example rows with realistic data (RFID removed, flexible phone numbers added)
 	examples := [][]string{
 		{
 			// Student info
 			"Max", "Mustermann", "1A", "Gruppe 1A", "2015-08-15",
-			// Guardian 1 (Mother)
-			"Maria", testLastNameMueller, "maria.mueller@example.com", "0123-456789", "", "Mutter", "Ja", "Ja", "Ja",
-			// Guardian 2 (Father)
-			"Hans", testLastNameMueller, "hans.mueller@example.com", "0123-987654", "0176-12345678", "Vater", "Nein", "Ja", "Ja",
+			// Guardian 1 (Mother) - with home phone and work phone
+			"Maria", testLastNameMueller, "maria.mueller@example.com", "0123-456789", "", "", "", "0221-9876543", "", "Mutter", "Ja", "Ja", "Ja",
+			// Guardian 2 (Father) - with mobile phone
+			"Hans", testLastNameMueller, "hans.mueller@example.com", "", "", "0176-12345678", "", "", "", "Vater", "Nein", "Ja", "Ja",
 			// Additional info
 			"", "Sehr ruhiges Kind", "", "Wird abgeholt", "Ja", "30", "Nein",
 		},
 		{
 			// Student info
 			"Anna", "Schmidt", "2B", "Gruppe 2B", "2014-03-22",
-			// Guardian 1 (Mother) - only one guardian
-			"Petra", "Schmidt", "petra.schmidt@example.com", "0234-567890", "", "Mutter", "Ja", "Ja", "Ja",
+			// Guardian 1 (Mother) - with work phone labeled "Dienstlich"
+			"Petra", "Schmidt", "petra.schmidt@example.com", "0234-567890", "", "", "", "0211-5551234", "", "Mutter", "Ja", "Ja", "Ja",
 			// Guardian 2 (empty - optional!)
-			"", "", "", "", "", "", "", "", "",
+			"", "", "", "", "", "", "", "", "", "", "", "", "",
 			// Additional info
 			"Allergie: Nüsse", "", "Kann gut malen", "Geht alleine nach Hause", "Ja", "15", "Ja",
 		},
@@ -194,22 +194,26 @@ func setupExcelSheet(f *excelize.File, sheetName string) error {
 func getStudentImportHeaders() []string {
 	return []string{
 		"Vorname", "Nachname", "Klasse", "Gruppe", "Geburtstag",
-		"Erz1.Vorname", "Erz1.Nachname", "Erz1.Email", "Erz1.Telefon", "Erz1.Mobil", "Erz1.Verhältnis", "Erz1.Primär", "Erz1.Notfall", "Erz1.Abholung",
-		"Erz2.Vorname", "Erz2.Nachname", "Erz2.Email", "Erz2.Telefon", "Erz2.Mobil", "Erz2.Verhältnis", "Erz2.Primär", "Erz2.Notfall", "Erz2.Abholung",
+		"Erz1.Vorname", "Erz1.Nachname", "Erz1.Email", "Erz1.Telefon", "Erz1.Telefon2", "Erz1.Mobil", "Erz1.Mobil2", "Erz1.Dienstlich", "Erz1.Dienstlich2", "Erz1.Verhältnis", "Erz1.Primär", "Erz1.Notfall", "Erz1.Abholung",
+		"Erz2.Vorname", "Erz2.Nachname", "Erz2.Email", "Erz2.Telefon", "Erz2.Telefon2", "Erz2.Mobil", "Erz2.Mobil2", "Erz2.Dienstlich", "Erz2.Dienstlich2", "Erz2.Verhältnis", "Erz2.Primär", "Erz2.Notfall", "Erz2.Abholung",
 		"Gesundheitsinfo", "Betreuernotizen", "Zusatzinfo", "Abholstatus", "Datenschutz", "Aufbewahrung(Tage)", "Bus",
 	}
 }
 
 // getStudentImportExamples returns example data rows for the template
-func getStudentImportExamples() [][]interface{} {
-	return [][]interface{}{
+func getStudentImportExamples() [][]any {
+	return [][]any{
 		{"Max", "Mustermann", "1A", "Gruppe 1A", "2015-08-15",
-			"Maria", testLastNameMueller, "maria.mueller@example.com", "0123-456789", "", "Mutter", "Ja", "Ja", "Ja",
-			"Hans", testLastNameMueller, "hans.mueller@example.com", "0123-987654", "0176-12345678", "Vater", "Nein", "Ja", "Ja",
+			// Guardian 1: Telefon, Telefon2, Mobil, Mobil2, Dienstlich, Dienstlich2, Verhältnis, Primär, Notfall, Abholung
+			"Maria", testLastNameMueller, "maria.mueller@example.com", "0123-456789", "", "", "", "0221-9876543", "", "Mutter", "Ja", "Ja", "Ja",
+			// Guardian 2
+			"Hans", testLastNameMueller, "hans.mueller@example.com", "", "", "0176-12345678", "", "", "", "Vater", "Nein", "Ja", "Ja",
 			"", "Sehr ruhiges Kind", "", "Wird abgeholt", "Ja", 30, "Nein"},
 		{"Anna", "Schmidt", "2B", "Gruppe 2B", "2014-03-22",
-			"Petra", "Schmidt", "petra.schmidt@example.com", "0234-567890", "", "Mutter", "Ja", "Ja", "Ja",
-			"", "", "", "", "", "", "", "", "",
+			// Guardian 1
+			"Petra", "Schmidt", "petra.schmidt@example.com", "0234-567890", "", "", "", "0211-5551234", "", "Mutter", "Ja", "Ja", "Ja",
+			// Guardian 2 (empty)
+			"", "", "", "", "", "", "", "", "", "", "", "", "",
 			"Allergie: Nüsse", "", "Kann gut malen", "Geht alleine nach Hause", "Ja", 15, "Ja"},
 	}
 }
@@ -225,7 +229,7 @@ func writeExcelHeaders(f *excelize.File, sheetName string, headers []string) {
 }
 
 // writeExcelExampleRows writes example data rows starting from row 2
-func writeExcelExampleRows(f *excelize.File, sheetName string, examples [][]interface{}) {
+func writeExcelExampleRows(f *excelize.File, sheetName string, examples [][]any) {
 	for rowIdx, row := range examples {
 		for colIdx, value := range row {
 			cell, _ := excelize.CoordinatesToCellName(colIdx+1, rowIdx+2)

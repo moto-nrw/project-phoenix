@@ -9,12 +9,11 @@ import (
 )
 
 // GuardianCreateRequest represents data for creating a new guardian
+// Note: Phone numbers are managed separately via PhoneNumberCreateRequest
 type GuardianCreateRequest struct {
 	FirstName              string
 	LastName               string
 	Email                  *string
-	Phone                  *string
-	MobilePhone            *string
 	AddressStreet          *string
 	AddressCity            *string
 	AddressPostalCode      *string
@@ -67,6 +66,23 @@ type StudentGuardianUpdateRequest struct {
 	CanPickup          *bool
 	PickupNotes        *string
 	EmergencyPriority  *int
+}
+
+// PhoneNumberCreateRequest represents data for creating a new phone number
+type PhoneNumberCreateRequest struct {
+	PhoneNumber string
+	PhoneType   string  // mobile, home, work, other
+	Label       *string // Optional label like "Dienstlich"
+	IsPrimary   bool
+}
+
+// PhoneNumberUpdateRequest represents data for updating a phone number
+type PhoneNumberUpdateRequest struct {
+	PhoneNumber *string
+	PhoneType   *string
+	Label       *string
+	IsPrimary   *bool
+	Priority    *int
 }
 
 // GuardianWithStudents represents a guardian with their associated students
@@ -150,4 +166,26 @@ type GuardianService interface {
 
 	// CleanupExpiredInvitations deletes expired invitations
 	CleanupExpiredInvitations(ctx context.Context) (int, error)
+
+	// Phone Number Management
+
+	// AddPhoneNumber adds a new phone number to a guardian
+	// If this is the first number, it will automatically be set as primary
+	AddPhoneNumber(ctx context.Context, guardianID int64, req PhoneNumberCreateRequest) (*users.GuardianPhoneNumber, error)
+
+	// UpdatePhoneNumber updates an existing phone number
+	UpdatePhoneNumber(ctx context.Context, phoneID int64, req PhoneNumberUpdateRequest) error
+
+	// DeletePhoneNumber removes a phone number
+	// If the deleted number was primary, the next highest-priority number becomes primary
+	DeletePhoneNumber(ctx context.Context, phoneID int64) error
+
+	// SetPrimaryPhone sets a phone number as the primary contact
+	SetPrimaryPhone(ctx context.Context, phoneID int64) error
+
+	// GetGuardianPhoneNumbers retrieves all phone numbers for a guardian, sorted by priority
+	GetGuardianPhoneNumbers(ctx context.Context, guardianID int64) ([]*users.GuardianPhoneNumber, error)
+
+	// GetPhoneNumberByID retrieves a phone number by ID
+	GetPhoneNumberByID(ctx context.Context, phoneID int64) (*users.GuardianPhoneNumber, error)
 }
