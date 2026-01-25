@@ -61,6 +61,7 @@ type API struct {
 	Substitutions    *substitutionsAPI.Resource
 	Database         *databaseAPI.Resource
 	GradeTransitions *adminAPI.GradeTransitionResource
+	ScopedSettings   *configAPI.ScopedSettingsResource
 }
 
 // New creates a new API instance
@@ -212,6 +213,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.Substitutions = substitutionsAPI.NewResource(api.Services.Education)
 	api.Database = databaseAPI.NewResource(api.Services.Database)
 	api.GradeTransitions = adminAPI.NewGradeTransitionResource(api.Services.GradeTransition)
+	api.ScopedSettings = configAPI.NewScopedSettingsResource(api.Services.ScopedSettings, api.Services.Users)
 }
 
 // ServeHTTP implements the http.Handler interface for the API
@@ -296,6 +298,9 @@ func (a *API) registerRoutesWithRateLimiting() {
 
 		// Mount config resources
 		r.Mount("/config", a.Config.Router())
+
+		// Mount scoped settings resources (hierarchical settings system)
+		r.Mount("/settings", a.ScopedSettings.Router())
 
 		// Mount active resources
 		r.Mount("/active", a.Active.Router())

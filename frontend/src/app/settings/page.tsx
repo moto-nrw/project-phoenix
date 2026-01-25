@@ -15,6 +15,7 @@ import { Loading } from "~/components/ui/loading";
 import { useProfile } from "~/lib/profile-context";
 import { compressAvatar } from "~/lib/image-utils";
 import { navigationIcons } from "~/lib/navigation-icons";
+import { PreferencesPanel, SystemSettingsPanel } from "~/components/settings";
 
 // Tab configuration
 interface Tab {
@@ -35,9 +36,21 @@ const tabs: Tab[] = [
     label: "Sicherheit",
     icon: navigationIcons.security,
   },
+  {
+    id: "preferences",
+    label: "Präferenzen",
+    icon: navigationIcons.settings,
+  },
 ];
 
-const adminTabs: Tab[] = [];
+const adminTabs: Tab[] = [
+  {
+    id: "system",
+    label: "System",
+    icon: navigationIcons.database,
+    adminOnly: true,
+  },
+];
 
 function SettingsContent() {
   const { data: session, status } = useSession({ required: true });
@@ -371,6 +384,12 @@ function SettingsContent() {
           </div>
         );
 
+      case "preferences":
+        return <PreferencesPanel isMobile={isMobile} />;
+
+      case "system":
+        return <SystemSettingsPanel isMobile={isMobile} showHistory />;
+
       default:
         return null;
     }
@@ -490,7 +509,7 @@ function SettingsContent() {
                   <div className="mx-4 overflow-hidden rounded-2xl bg-white shadow-sm">
                     <button
                       onClick={() => handleTabSelect("security")}
-                      className="flex w-full items-center justify-between px-4 py-3.5 transition-colors hover:bg-gray-50 active:bg-gray-100"
+                      className="flex w-full items-center justify-between border-b border-gray-100 px-4 py-3.5 transition-colors hover:bg-gray-50 active:bg-gray-100"
                     >
                       <div className="flex items-center gap-3">
                         <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gray-100">
@@ -524,6 +543,85 @@ function SettingsContent() {
                         />
                       </svg>
                     </button>
+                    <button
+                      onClick={() => handleTabSelect("preferences")}
+                      className="flex w-full items-center justify-between border-b border-gray-100 px-4 py-3.5 transition-colors hover:bg-gray-50 active:bg-gray-100"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gray-100">
+                          <svg
+                            className="h-4 w-4 text-gray-600"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d={navigationIcons.settings}
+                            />
+                          </svg>
+                        </div>
+                        <p className="text-base text-gray-900">Präferenzen</p>
+                      </div>
+                      <svg
+                        className="h-5 w-5 text-gray-400"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M9 5l7 7-7 7"
+                        />
+                      </svg>
+                    </button>
+                    {session?.user?.isAdmin && (
+                      <button
+                        onClick={() => handleTabSelect("system")}
+                        className="flex w-full items-center justify-between px-4 py-3.5 transition-colors hover:bg-gray-50 active:bg-gray-100"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-purple-100">
+                            <svg
+                              className="h-4 w-4 text-purple-600"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d={navigationIcons.database}
+                              />
+                            </svg>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <p className="text-base text-gray-900">System</p>
+                            <span className="rounded bg-purple-100 px-1.5 py-0.5 text-xs text-purple-700">
+                              Admin
+                            </span>
+                          </div>
+                        </div>
+                        <svg
+                          className="h-5 w-5 text-gray-400"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M9 5l7 7-7 7"
+                          />
+                        </svg>
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>

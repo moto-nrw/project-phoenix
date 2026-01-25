@@ -94,12 +94,15 @@ type Factory struct {
 	Device iotModels.DeviceRepository
 
 	// Config domain
-	Setting configModels.SettingRepository
+	Setting           configModels.SettingRepository
+	SettingDefinition configModels.SettingDefinitionRepository
+	SettingValue      configModels.SettingValueRepository
 
 	// Audit domain
-	DataDeletion auditModels.DataDeletionRepository
-	AuthEvent    auditModels.AuthEventRepository
-	DataImport   auditModels.DataImportRepository
+	DataDeletion  auditModels.DataDeletionRepository
+	AuthEvent     auditModels.AuthEventRepository
+	DataImport    auditModels.DataImportRepository
+	SettingChange auditModels.SettingChangeRepository
 }
 
 // NewFactory creates a new repository factory with all repositories
@@ -169,11 +172,14 @@ func NewFactory(db *bun.DB) *Factory {
 		Device: iot.NewDeviceRepository(db),
 
 		// Config repositories
-		Setting: config.NewSettingRepository(db),
+		Setting:           config.NewSettingRepository(db),
+		SettingDefinition: config.NewSettingDefinitionRepository(db),
+		SettingValue:      config.NewSettingValueRepository(db),
 
 		// Audit repositories
-		DataDeletion: audit.NewDataDeletionRepository(db),
-		AuthEvent:    audit.NewAuthEventRepository(db),
-		DataImport:   audit.NewDataImportRepository(db),
+		DataDeletion:  audit.NewDataDeletionRepository(db),
+		AuthEvent:     audit.NewAuthEventRepository(db),
+		DataImport:    audit.NewDataImportRepository(db),
+		SettingChange: audit.NewSettingChangeRepository(db),
 	}
 }

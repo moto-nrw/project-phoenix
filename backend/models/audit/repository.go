@@ -40,3 +40,25 @@ type DataImportRepository interface {
 	FindRecent(ctx context.Context, limit int) ([]*DataImport, error)
 	List(ctx context.Context, filters map[string]interface{}) ([]*DataImport, error)
 }
+
+// SettingChangeRepository defines operations for managing setting change audit records
+type SettingChangeRepository interface {
+	// Create a new setting change record
+	Create(ctx context.Context, change *SettingChange) error
+
+	// Find by ID
+	FindByID(ctx context.Context, id int64) (*SettingChange, error)
+
+	// Query operations
+	FindByScope(ctx context.Context, scopeType string, scopeID *int64, limit int) ([]*SettingChange, error)
+	FindByKey(ctx context.Context, settingKey string, limit int) ([]*SettingChange, error)
+	FindByKeyAndScope(ctx context.Context, settingKey string, scopeType string, scopeID *int64, limit int) ([]*SettingChange, error)
+	FindByAccount(ctx context.Context, accountID int64, limit int) ([]*SettingChange, error)
+	FindRecent(ctx context.Context, since time.Time, limit int) ([]*SettingChange, error)
+
+	// List with filters
+	List(ctx context.Context, filters map[string]interface{}) ([]*SettingChange, error)
+
+	// Cleanup old records
+	CleanupOldChanges(ctx context.Context, olderThan time.Duration) (int, error)
+}

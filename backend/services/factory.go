@@ -44,6 +44,7 @@ type Factory struct {
 	Feedback                 feedback.Service
 	IoT                      iot.Service
 	Config                   config.Service
+	ScopedSettings           config.ScopedSettingsService
 	Schedule                 schedule.Service
 	Users                    users.PersonService
 	Guardian                 users.GuardianService
@@ -196,6 +197,13 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 		db,
 	)
 
+	// Initialize scoped settings service
+	scopedSettingsService := config.NewScopedSettingsService(&config.ScopedSettingsRepositories{
+		Definition: repos.SettingDefinition,
+		Value:      repos.SettingValue,
+		Change:     repos.SettingChange,
+	})
+
 	// Initialize activities service
 	activitiesService, err := activities.NewService(
 		repos.ActivityCategory,
@@ -329,6 +337,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 		Feedback:                 feedbackService,
 		IoT:                      iotService,
 		Config:                   configService,
+		ScopedSettings:           scopedSettingsService,
 		Schedule:                 scheduleService,
 		Users:                    usersService,
 		Guardian:                 guardianService,

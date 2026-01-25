@@ -1,0 +1,393 @@
+meta {
+  name: 15 - Scoped Settings
+  type: http
+  seq: 15
+}
+
+get {
+  url: {{baseUrl}}/api/settings/definitions
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{authToken}}
+}
+
+docs {
+  ## Scoped Settings API Tests
+
+  Complete settings workflow covering test scenarios:
+  1. List all definitions (main request)
+  2. Get single definition by key
+  3. Initialize definitions (admin)
+  4. Get user settings
+  5. Update user setting
+  6. Get system settings (admin)
+  7. Update system setting (admin)
+  8. Get OG settings
+  9. Update OG setting
+  10. Reset OG setting
+
+  **Prerequisites:**
+  - authToken configured (admin user)
+  - Database seeded with activities (for OG ID)
+
+  **Note:**
+  Settings are hierarchical: system → school → og → user → device
+  User settings override inherited values from parent scopes
+}
+
+script:post-response {
+  // Test 1: List all definitions
+  test("List definitions returns array", function() {
+    expect(res.getStatus()).to.equal(200);
+    expect(res.getBody()).to.have.property('data');
+    expect(res.getBody().data).to.be.an('array');
+  });
+
+  if (res.status === 200 && res.body.data && res.body.data.length > 0) {
+    const definitions = res.body.data;
+    const firstKey = definitions[0].key;
+    bru.setVar("settingKey", firstKey);
+    console.log(`✅ Found ${definitions.length} setting definitions`);
+    console.log(`   First key: ${firstKey}`);
+
+    const authToken = bru.getEnvVar("authToken");
+    const baseUrl = bru.getEnvVar("baseUrl");
+
+    // Test 2: Get single definition by key
+    await (async function() {
+      await bru.sendRequest({
+        method: 'GET',
+        url: `${baseUrl}/api/settings/definitions/${firstKey}`,
+        headers: {
+          "Authorization": `Bearer ${authToken}`
+        }
+      }, function(err, response) {
+        if (err) {
+          test("Get single definition", function() {
+            throw new Error(`Get definition failed: ${err.message}`);
+          });
+          return;
+        }
+
+        test("Get single definition by key", function() {
+          expect(response.status).to.equal(200);
+          expect(response.data.data).to.have.property('key', firstKey);
+          expect(response.data.data).to.have.property('type');
+          expect(response.data.data).to.have.property('category');
+        });
+
+        console.log(`✅ Got definition: ${firstKey}`);
+      });
+    })();
+
+    // Test 3: Initialize definitions (admin)
+    await (async function() {
+      await bru.sendRequest({
+        method: 'POST',
+        url: `${baseUrl}/api/settings/initialize`,
+        headers: {
+          "Authorization": `Bearer ${authToken}`,
+          "Content-Type": "application/json"
+        },
+        data: {}
+      }, function(err, response) {
+        if (err) {
+          test("Initialize definitions", function() {
+            throw new Error(`Initialize failed: ${err.message}`);
+          });
+          return;
+        }
+
+        test("Initialize definitions (admin)", function() {
+          expect(response.status).to.equal(200);
+          expect(response.data).to.have.property('status', 'success');
+        });
+
+        console.log("✅ Definitions initialized");
+      });
+    })();
+
+    // Test 4: Get user settings
+    await (async function() {
+      await bru.sendRequest({
+        method: 'GET',
+        url: `${baseUrl}/api/settings/user/me`,
+        headers: {
+          "Authorization": `Bearer ${authToken}`
+        }
+      }, function(err, response) {
+        if (err) {
+          test("Get user settings", function() {
+            throw new Error(`Get user settings failed: ${err.message}`);
+          });
+          return;
+        }
+
+        test("Get user settings returns resolved values", function() {
+          expect(response.status).to.equal(200);
+          expect(response.data.data).to.be.an('array');
+          if (response.data.data.length > 0) {
+            expect(response.data.data[0]).to.have.property('key');
+            expect(response.data.data[0]).to.have.property('value');
+            expect(response.data.data[0]).to.have.property('is_default');
+            expect(response.data.data[0]).to.have.property('can_modify');
+          }
+        });
+
+        console.log(`✅ Got ${response.data.data.length} user settings`);
+      });
+    })();
+
+    // Test 5: Update user setting (find a user-scope setting)
+    const userScopeDef = definitions.find(d =>
+      d.allowed_scopes && d.allowed_scopes.includes('user')
+    );
+
+    if (userScopeDef) {
+      await (async function() {
+        let testValue;
+        if (userScopeDef.type === 'bool') {
+          testValue = true;
+        } else if (userScopeDef.type === 'int') {
+          testValue = userScopeDef.validation?.min || 5;
+        } else if (userScopeDef.type === 'enum' && userScopeDef.validation?.options) {
+          testValue = userScopeDef.validation.options[0];
+        } else {
+          testValue = "test_value";
+        }
+
+        await bru.sendRequest({
+          method: 'PUT',
+          url: `${baseUrl}/api/settings/user/me/${userScopeDef.key}`,
+          headers: {
+            "Authorization": `Bearer ${authToken}`,
+            "Content-Type": "application/json"
+          },
+          data: {
+            value: testValue,
+            reason: "Bruno API test"
+          }
+        }, function(err, response) {
+          if (err) {
+            // Some settings might not be modifiable
+            if (err.message.includes('403')) {
+              console.log(`⚠️ Cannot modify ${userScopeDef.key} (permission denied)`);
+              return;
+            }
+            test("Update user setting", function() {
+              throw new Error(`Update user setting failed: ${err.message}`);
+            });
+            return;
+          }
+
+          test("Update user setting", function() {
+            expect(response.status).to.equal(200);
+            expect(response.data).to.have.property('status', 'success');
+          });
+
+          console.log(`✅ Updated user setting: ${userScopeDef.key}`);
+        });
+      })();
+    } else {
+      console.log("⚠️ No user-scope settings found to test update");
+    }
+
+    // Test 6: Get system settings (admin)
+    await (async function() {
+      await bru.sendRequest({
+        method: 'GET',
+        url: `${baseUrl}/api/settings/system`,
+        headers: {
+          "Authorization": `Bearer ${authToken}`
+        }
+      }, function(err, response) {
+        if (err) {
+          if (err.message.includes('403')) {
+            console.log("⚠️ System settings access denied (non-admin?)");
+            return;
+          }
+          test("Get system settings", function() {
+            throw new Error(`Get system settings failed: ${err.message}`);
+          });
+          return;
+        }
+
+        test("Get system settings (admin)", function() {
+          expect(response.status).to.equal(200);
+          expect(response.data.data).to.be.an('array');
+        });
+
+        console.log(`✅ Got ${response.data.data.length} system settings`);
+      });
+    })();
+
+    // Test 7: Update system setting (admin)
+    const systemScopeDef = definitions.find(d =>
+      d.allowed_scopes && d.allowed_scopes.includes('system') && d.type === 'int'
+    );
+
+    if (systemScopeDef) {
+      await (async function() {
+        const testValue = systemScopeDef.validation?.min || 10;
+
+        await bru.sendRequest({
+          method: 'PUT',
+          url: `${baseUrl}/api/settings/system/${systemScopeDef.key}`,
+          headers: {
+            "Authorization": `Bearer ${authToken}`,
+            "Content-Type": "application/json"
+          },
+          data: {
+            value: testValue,
+            reason: "Bruno API test"
+          }
+        }, function(err, response) {
+          if (err) {
+            if (err.message.includes('403')) {
+              console.log(`⚠️ Cannot modify system setting (permission denied)`);
+              return;
+            }
+            test("Update system setting", function() {
+              throw new Error(`Update system setting failed: ${err.message}`);
+            });
+            return;
+          }
+
+          test("Update system setting (admin)", function() {
+            expect(response.status).to.equal(200);
+            expect(response.data).to.have.property('status', 'success');
+          });
+
+          console.log(`✅ Updated system setting: ${systemScopeDef.key}`);
+        });
+      })();
+    }
+
+    // Test 8: Get OG settings (using activity ID 1 as OG)
+    await (async function() {
+      await bru.sendRequest({
+        method: 'GET',
+        url: `${baseUrl}/api/settings/og/1`,
+        headers: {
+          "Authorization": `Bearer ${authToken}`
+        }
+      }, function(err, response) {
+        if (err) {
+          if (err.message.includes('403') || err.message.includes('404')) {
+            console.log("⚠️ OG settings access denied or OG not found");
+            return;
+          }
+          test("Get OG settings", function() {
+            throw new Error(`Get OG settings failed: ${err.message}`);
+          });
+          return;
+        }
+
+        test("Get OG settings returns resolved values", function() {
+          expect(response.status).to.equal(200);
+          expect(response.data.data).to.be.an('array');
+        });
+
+        console.log(`✅ Got ${response.data.data.length} OG settings`);
+      });
+    })();
+
+    // Test 9: Update OG setting
+    const ogScopeDef = definitions.find(d =>
+      d.allowed_scopes && d.allowed_scopes.includes('og') && d.type === 'bool'
+    );
+
+    if (ogScopeDef) {
+      await (async function() {
+        await bru.sendRequest({
+          method: 'PUT',
+          url: `${baseUrl}/api/settings/og/1/${ogScopeDef.key}`,
+          headers: {
+            "Authorization": `Bearer ${authToken}`,
+            "Content-Type": "application/json"
+          },
+          data: {
+            value: true,
+            reason: "Bruno API test"
+          }
+        }, function(err, response) {
+          if (err) {
+            if (err.message.includes('403')) {
+              console.log(`⚠️ Cannot modify OG setting (permission denied)`);
+              return;
+            }
+            test("Update OG setting", function() {
+              throw new Error(`Update OG setting failed: ${err.message}`);
+            });
+            return;
+          }
+
+          test("Update OG setting", function() {
+            expect(response.status).to.equal(200);
+            expect(response.data).to.have.property('status', 'success');
+          });
+
+          console.log(`✅ Updated OG setting: ${ogScopeDef.key}`);
+          bru.setVar("ogSettingKey", ogScopeDef.key);
+        });
+      })();
+
+      // Test 10: Reset OG setting
+      await (async function() {
+        await bru.sendRequest({
+          method: 'DELETE',
+          url: `${baseUrl}/api/settings/og/1/${ogScopeDef.key}`,
+          headers: {
+            "Authorization": `Bearer ${authToken}`
+          }
+        }, function(err, response) {
+          if (err) {
+            if (err.message.includes('403')) {
+              console.log(`⚠️ Cannot reset OG setting (permission denied)`);
+              return;
+            }
+            test("Reset OG setting", function() {
+              throw new Error(`Reset OG setting failed: ${err.message}`);
+            });
+            return;
+          }
+
+          test("Reset OG setting to inherit", function() {
+            expect([200, 204]).to.include(response.status);
+          });
+
+          console.log(`✅ Reset OG setting: ${ogScopeDef.key}`);
+        });
+      })();
+    }
+
+    // Test 11: Non-existent definition key
+    await (async function() {
+      await bru.sendRequest({
+        method: 'GET',
+        url: `${baseUrl}/api/settings/definitions/nonexistent_key_12345`,
+        headers: {
+          "Authorization": `Bearer ${authToken}`
+        }
+      }, function(err, response) {
+        if (err) {
+          if (err.message.includes('404')) {
+            console.log("✅ Non-existent key returns 404");
+            return;
+          }
+        }
+
+        test("Non-existent definition returns 404", function() {
+          expect(response.status).to.equal(404);
+        });
+      });
+    })();
+
+    console.log("✅ All settings tests completed");
+  } else {
+    console.log("⚠️ No definitions found - run initialize first");
+  }
+}

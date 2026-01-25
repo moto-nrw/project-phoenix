@@ -93,6 +93,18 @@ const (
 	ConfigManage = ResourceConfig + ":" + ActionManage
 )
 
+// Settings permissions (scoped settings)
+const (
+	ResourceSettings = "settings"
+
+	SettingsRead   = ResourceSettings + ":" + ActionRead
+	SettingsUpdate = ResourceSettings + ":" + ActionUpdate
+	SettingsManage = ResourceSettings + ":" + ActionManage
+
+	// School-level settings
+	SchoolSettings = "school:settings"
+)
+
 // IOT permissions
 const (
 	IOTRead   = ResourceIOT + ":" + ActionRead
