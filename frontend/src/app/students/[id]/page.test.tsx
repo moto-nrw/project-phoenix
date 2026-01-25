@@ -245,6 +245,41 @@ vi.mock("~/components/guardians/student-guardian-manager", () => ({
   ),
 }));
 
+// Mock pickup schedule manager
+vi.mock("~/components/students/pickup-schedule-manager", () => ({
+  default: ({
+    studentId,
+    onUpdate,
+  }: {
+    studentId: string;
+    onUpdate?: () => void;
+  }) => (
+    <div data-testid="pickup-schedule-manager" data-student-id={studentId}>
+      <button data-testid="update-pickup-schedule" onClick={() => onUpdate?.()}>
+        Update Pickup
+      </button>
+    </div>
+  ),
+}));
+
+// Mock pickup schedule API
+vi.mock("~/lib/pickup-schedule-api", () => ({
+  fetchStudentPickupData: vi.fn().mockResolvedValue({
+    schedules: [],
+    exceptions: [],
+  }),
+}));
+
+// Mock pickup schedule helpers
+vi.mock("~/lib/pickup-schedule-helpers", () => ({
+  getDayData: vi.fn().mockReturnValue({
+    effectiveTime: null,
+    effectiveNotes: null,
+    isException: false,
+  }),
+  formatPickupTime: vi.fn().mockReturnValue("15:30"),
+}));
+
 // Mock checkin API
 const mockPerformImmediateCheckin = vi.fn();
 vi.mock("~/lib/checkin-api", () => ({
