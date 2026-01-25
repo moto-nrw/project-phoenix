@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { UserPlus, Loader2 } from "lucide-react";
+import { Loader2, Plus } from "lucide-react";
 import GuardianList from "./guardian-list";
 import GuardianFormModal from "./guardian-form-modal";
 import { GuardianDeleteModal } from "./guardian-delete-modal";
@@ -343,7 +343,7 @@ export default function StudentGuardianManager({
   }
 
   return (
-    <div className="rounded-2xl border border-gray-100 bg-white/50 p-4 backdrop-blur-sm sm:p-6">
+    <div className="relative z-10 rounded-2xl border border-gray-100 bg-white/50 p-4 backdrop-blur-sm sm:p-6">
       {/* Header with Icon and Add Button */}
       <div className="mb-4 flex items-center justify-between gap-2">
         <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
@@ -395,13 +395,10 @@ export default function StudentGuardianManager({
           {!readOnly && (
             <button
               onClick={handleOpenCreateModal}
-              className="inline-flex items-center gap-2 rounded-lg bg-gray-900 p-2 text-white transition-all duration-200 hover:bg-gray-700 hover:shadow-lg active:scale-[0.99] sm:gap-2 sm:px-4 sm:py-2 sm:hover:scale-[1.01]"
-              title="Erziehungsberechtigte/n hinzufügen"
+              className="inline-flex items-center gap-1 rounded-lg bg-gray-900 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-gray-700"
             >
-              <UserPlus className="h-4 w-4" />
-              <span className="hidden text-sm font-medium sm:inline">
-                Hinzufügen
-              </span>
+              <Plus className="h-4 w-4" />
+              Hinzufügen
             </button>
           )}
         </div>
@@ -412,7 +409,6 @@ export default function StudentGuardianManager({
         <GuardianList
           guardians={guardians}
           onEdit={readOnly ? undefined : handleOpenEditModal}
-          onDelete={readOnly ? undefined : handleDeleteClick}
           readOnly={readOnly}
           showRelationship={true}
         />
@@ -423,6 +419,14 @@ export default function StudentGuardianManager({
         isOpen={isModalOpen}
         onClose={handleCloseModal}
         onSubmit={editingGuardian ? handleEditGuardian : handleCreateGuardians}
+        onDelete={
+          editingGuardian
+            ? () => {
+                handleCloseModal();
+                handleDeleteClick(editingGuardian);
+              }
+            : undefined
+        }
         initialData={editingGuardian}
         mode={editingGuardian ? "edit" : "create"}
       />

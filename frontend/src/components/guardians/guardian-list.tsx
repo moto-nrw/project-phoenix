@@ -10,19 +10,11 @@ import {
   PHONE_TYPE_LABELS,
 } from "@/lib/guardian-helpers";
 import { ModernContactActions } from "~/components/simple/student";
-import {
-  Trash2,
-  Edit,
-  UserCheck,
-  Phone,
-  AlertCircle,
-  Mail,
-} from "lucide-react";
+import { UserCheck, Phone, AlertCircle, Mail } from "lucide-react";
 
 interface GuardianListProps {
   readonly guardians: ReadonlyArray<GuardianWithRelationship>;
   readonly onEdit?: (guardian: GuardianWithRelationship) => void;
-  readonly onDelete?: (guardian: GuardianWithRelationship) => void;
   readonly readOnly?: boolean;
   readonly showRelationship?: boolean;
 }
@@ -30,7 +22,6 @@ interface GuardianListProps {
 export default function GuardianList({
   guardians,
   onEdit,
-  onDelete,
   readOnly = false,
   showRelationship = true,
 }: GuardianListProps) {
@@ -73,27 +64,13 @@ export default function GuardianList({
               )}
             </div>
 
-            {!readOnly && (
-              <div className="flex flex-shrink-0 gap-1 sm:gap-2">
-                {onEdit && (
-                  <button
-                    onClick={() => onEdit(guardian)}
-                    className="rounded-lg p-1.5 text-blue-600 transition-colors hover:bg-blue-50 sm:p-2"
-                    title="Bearbeiten"
-                  >
-                    <Edit className="h-4 w-4" />
-                  </button>
-                )}
-                {onDelete && (
-                  <button
-                    onClick={() => onDelete(guardian)}
-                    className="rounded-lg p-1.5 text-red-600 transition-colors hover:bg-red-50 sm:p-2"
-                    title="Entfernen"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                )}
-              </div>
+            {!readOnly && onEdit && (
+              <button
+                onClick={() => onEdit(guardian)}
+                className="flex-shrink-0 rounded-lg px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100"
+              >
+                Bearbeiten
+              </button>
             )}
           </div>
 

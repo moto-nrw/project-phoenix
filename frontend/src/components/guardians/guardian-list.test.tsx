@@ -151,16 +151,8 @@ describe("GuardianList", () => {
     const onEdit = vi.fn();
     render(<GuardianList guardians={mockGuardians} onEdit={onEdit} />);
 
-    const editButtons = screen.getAllByTitle("Bearbeiten");
+    const editButtons = screen.getAllByText("Bearbeiten");
     expect(editButtons.length).toBe(2);
-  });
-
-  it("renders delete buttons when not readOnly", () => {
-    const onDelete = vi.fn();
-    render(<GuardianList guardians={mockGuardians} onDelete={onDelete} />);
-
-    const deleteButtons = screen.getAllByTitle("Entfernen");
-    expect(deleteButtons.length).toBe(2);
   });
 
   it("hides action buttons when readOnly", () => {
@@ -168,33 +160,21 @@ describe("GuardianList", () => {
       <GuardianList
         guardians={mockGuardians}
         onEdit={vi.fn()}
-        onDelete={vi.fn()}
         readOnly={true}
       />,
     );
 
-    expect(screen.queryByTitle("Bearbeiten")).not.toBeInTheDocument();
-    expect(screen.queryByTitle("Entfernen")).not.toBeInTheDocument();
+    expect(screen.queryByText("Bearbeiten")).not.toBeInTheDocument();
   });
 
   it("calls onEdit when edit button clicked", () => {
     const onEdit = vi.fn();
     render(<GuardianList guardians={mockGuardians} onEdit={onEdit} />);
 
-    const editButtons = screen.getAllByTitle("Bearbeiten");
+    const editButtons = screen.getAllByText("Bearbeiten");
     fireEvent.click(editButtons[0]!);
 
     expect(onEdit).toHaveBeenCalledWith(mockGuardians[0]);
-  });
-
-  it("calls onDelete when delete button clicked", () => {
-    const onDelete = vi.fn();
-    render(<GuardianList guardians={mockGuardians} onDelete={onDelete} />);
-
-    const deleteButtons = screen.getAllByTitle("Entfernen");
-    fireEvent.click(deleteButtons[0]!);
-
-    expect(onDelete).toHaveBeenCalledWith(mockGuardians[0]);
   });
 
   it("renders ModernContactActions for each guardian", () => {
