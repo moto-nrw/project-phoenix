@@ -103,6 +103,9 @@ func (rs *Resource) Router() chi.Router {
 		r.With(authorize.RequiresPermission(permissions.UsersUpdate)).Post("/{id}/pickup-exceptions", rs.createStudentPickupException)
 		r.With(authorize.RequiresPermission(permissions.UsersUpdate)).Put("/{id}/pickup-exceptions/{exceptionId}", rs.updateStudentPickupException)
 		r.With(authorize.RequiresPermission(permissions.UsersUpdate)).Delete("/{id}/pickup-exceptions/{exceptionId}", rs.deleteStudentPickupException)
+
+		// Bulk pickup times endpoint (returns pickup times for multiple students)
+		r.With(authorize.RequiresPermission(permissions.UsersRead)).Post("/pickup-times/bulk", rs.getBulkPickupTimes)
 	})
 
 	// Device-authenticated routes for RFID devices

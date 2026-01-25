@@ -33,6 +33,8 @@ import {
 import { performImmediateCheckin } from "~/lib/checkin-api";
 import StudentGuardianManager from "~/components/guardians/student-guardian-manager";
 import PickupScheduleManager from "~/components/students/pickup-schedule-manager";
+import { fetchStudentPickupData } from "~/lib/pickup-schedule-api";
+import { getDayData, formatPickupTime } from "~/lib/pickup-schedule-helpers";
 
 // =============================================================================
 // MAIN COMPONENT
@@ -74,6 +76,13 @@ export default function StudentDetailPage() {
   const [activeGroups, setActiveGroups] = useState<ActiveGroup[]>([]);
   const [loadingActiveGroups, setLoadingActiveGroups] = useState(false);
 
+  // Today's pickup info (for header display)
+  const [todayPickup, setTodayPickup] = useState<{
+    time?: string;
+    note?: string;
+    isException?: boolean;
+  }>({});
+
   // Load active groups when check-in modal opens
   useEffect(() => {
     if (!showConfirmCheckin) {
@@ -99,6 +108,43 @@ export default function StudentDetailPage() {
 
     void loadActiveGroups();
   }, [showConfirmCheckin]);
+
+  // Load today's pickup time for header (only for full access users)
+  useEffect(() => {
+    if (!hasFullAccess || !studentId) {
+      setTodayPickup({});
+      return;
+    }
+
+    const loadTodayPickup = async () => {
+      try {
+        const data = await fetchStudentPickupData(studentId);
+        const today = new Date();
+
+        const dayData = getDayData(
+          today,
+          data.schedules,
+          data.exceptions,
+          student?.sick ?? false,
+        );
+
+        if (dayData.effectiveTime) {
+          setTodayPickup({
+            time: formatPickupTime(dayData.effectiveTime),
+            note: dayData.effectiveNotes,
+            isException: dayData.isException,
+          });
+        } else {
+          setTodayPickup({});
+        }
+      } catch (err) {
+        console.error("Failed to load pickup data:", err);
+        setTodayPickup({});
+      }
+    };
+
+    void loadTodayPickup();
+  }, [hasFullAccess, studentId, student?.sick]);
 
   // Show loading state
   if (loading) {
@@ -275,6 +321,9 @@ export default function StudentDetailPage() {
           myGroups={myGroups}
           myGroupRooms={myGroupRooms}
           mySupervisedRooms={mySupervisedRooms}
+          todayPickupTime={todayPickup.time}
+          todayPickupNote={todayPickup.note}
+          isPickupException={todayPickup.isException}
         />
 
         {hasFullAccess ? (

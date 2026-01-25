@@ -178,6 +178,9 @@ type StudentPickupScheduleRepository interface {
 	// FindByStudentIDAndWeekday finds a pickup schedule for a specific student and weekday
 	FindByStudentIDAndWeekday(ctx context.Context, studentID int64, weekday int) (*StudentPickupSchedule, error)
 
+	// FindByStudentIDsAndWeekday finds pickup schedules for multiple students and a specific weekday (bulk query)
+	FindByStudentIDsAndWeekday(ctx context.Context, studentIDs []int64, weekday int) ([]*StudentPickupSchedule, error)
+
 	// UpsertSchedule creates or updates a pickup schedule for a student and weekday
 	UpsertSchedule(ctx context.Context, schedule *StudentPickupSchedule) error
 
@@ -197,6 +200,9 @@ type StudentPickupExceptionRepository interface {
 
 	// FindByStudentIDAndDate finds a pickup exception for a specific student and date
 	FindByStudentIDAndDate(ctx context.Context, studentID int64, date time.Time) (*StudentPickupException, error)
+
+	// FindByStudentIDsAndDate finds pickup exceptions for multiple students and a specific date (bulk query)
+	FindByStudentIDsAndDate(ctx context.Context, studentIDs []int64, date time.Time) ([]*StudentPickupException, error)
 
 	// DeleteByStudentID deletes all pickup exceptions for a student
 	DeleteByStudentID(ctx context.Context, studentID int64) error

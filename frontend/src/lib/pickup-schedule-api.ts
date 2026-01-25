@@ -268,3 +268,109 @@ export async function deleteStudentPickupException(
     );
   }
 }
+
+// =============================================================================
+// BULK PICKUP TIMES API (for OGS dashboard)
+// =============================================================================
+
+/**
+ * Bulk pickup time response from backend
+ */
+export interface BulkPickupTimeResponse {
+  student_id: number;
+  date: string;
+  weekday_name: string;
+  pickup_time?: string;
+  is_exception: boolean;
+  reason?: string;
+  notes?: string;
+}
+
+/**
+ * Frontend-friendly bulk pickup time
+ */
+export interface BulkPickupTime {
+  studentId: string;
+  date: string;
+  weekdayName: string;
+  pickupTime?: string;
+  isException: boolean;
+  reason?: string;
+  notes?: string;
+}
+
+/**
+ * Map backend bulk pickup time to frontend format
+ */
+function mapBulkPickupTimeResponse(
+  data: BulkPickupTimeResponse,
+): BulkPickupTime {
+  return {
+    studentId: data.student_id.toString(),
+    date: data.date,
+    weekdayName: data.weekday_name,
+    pickupTime: data.pickup_time,
+    isException: data.is_exception,
+    reason: data.reason,
+    notes: data.notes,
+  };
+}
+
+/**
+ * Fetch effective pickup times for multiple students on a given date.
+ * Uses bulk backend endpoint (O(2) queries instead of O(N)).
+ *
+ * @param studentIds - Array of student IDs
+ * @param date - Optional date string (YYYY-MM-DD), defaults to today
+ * @returns Map of studentId -> pickup time data
+ */
+export async function fetchBulkPickupTimes(
+  studentIds: string[],
+  date?: string,
+): Promise<Map<string, BulkPickupTime>> {
+  if (studentIds.length === 0) {
+    return new Map();
+  }
+
+  const response = await fetch("/api/students/pickup-times/bulk", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      student_ids: studentIds.map((id) => parseInt(id, 10)),
+      date: date,
+    }),
+  });
+
+  if (!response.ok) {
+    const error: unknown = await response
+      .json()
+      .catch(() => ({ error: "Failed to fetch bulk pickup times" }));
+    const errorMessage = isErrorResponse(error)
+      ? translateApiError(error.error)
+      : translateApiError(
+          `Failed to fetch bulk pickup times: ${response.statusText}`,
+        );
+    throw new Error(errorMessage);
+  }
+
+  const result = (await response.json()) as ApiResponse<
+    BulkPickupTimeResponse[]
+  >;
+
+  if (result.status === "error" || !result.data) {
+    throw new Error(
+      translateApiError(result.error ?? "Failed to fetch bulk pickup times"),
+    );
+  }
+
+  // Convert array to Map for O(1) lookup
+  const pickupTimesMap = new Map<string, BulkPickupTime>();
+  for (const item of result.data) {
+    const mapped = mapBulkPickupTimeResponse(item);
+    pickupTimesMap.set(mapped.studentId, mapped);
+  }
+
+  return pickupTimesMap;
+}

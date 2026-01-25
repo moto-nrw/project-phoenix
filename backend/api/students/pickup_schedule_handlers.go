@@ -416,6 +416,83 @@ func (rs *Resource) deleteStudentPickupException(w http.ResponseWriter, r *http.
 	common.Respond(w, r, http.StatusOK, nil, "Pickup exception deleted successfully")
 }
 
+// BulkPickupTimeRequest represents a request to get pickup times for multiple students
+type BulkPickupTimeRequest struct {
+	StudentIDs []int64 `json:"student_ids"`
+	Date       *string `json:"date,omitempty"` // Optional date in YYYY-MM-DD format, defaults to today
+}
+
+// Bind implements render.Binder
+func (r *BulkPickupTimeRequest) Bind(_ *http.Request) error {
+	if len(r.StudentIDs) == 0 {
+		return errors.New("student_ids array cannot be empty")
+	}
+	if len(r.StudentIDs) > 500 {
+		return errors.New("student_ids array cannot exceed 500 items")
+	}
+	if r.Date != nil && *r.Date != "" {
+		if _, err := time.Parse("2006-01-02", *r.Date); err != nil {
+			return errors.New("invalid date format, expected YYYY-MM-DD")
+		}
+	}
+	return nil
+}
+
+// BulkPickupTimeResponse represents pickup time data for a single student
+type BulkPickupTimeResponse struct {
+	StudentID   int64   `json:"student_id"`
+	Date        string  `json:"date"`
+	WeekdayName string  `json:"weekday_name"`
+	PickupTime  *string `json:"pickup_time,omitempty"` // HH:MM format or null
+	IsException bool    `json:"is_exception"`
+	Reason      string  `json:"reason,omitempty"`
+	Notes       string  `json:"notes,omitempty"`
+}
+
+// getBulkPickupTimes handles POST /students/pickup-times/bulk
+// Returns effective pickup times for multiple students on a given date
+func (rs *Resource) getBulkPickupTimes(w http.ResponseWriter, r *http.Request) {
+	req := &BulkPickupTimeRequest{}
+	if err := render.Bind(r, req); err != nil {
+		renderError(w, r, ErrorInvalidRequest(err))
+		return
+	}
+
+	// Determine the date to query
+	date := time.Now()
+	if req.Date != nil && *req.Date != "" {
+		parsedDate, _ := time.Parse("2006-01-02", *req.Date) // Already validated in Bind
+		date = parsedDate
+	}
+
+	// Use bulk service method (O(2) queries instead of O(N))
+	pickupTimes, err := rs.PickupScheduleService.GetBulkEffectivePickupTimesForDate(r.Context(), req.StudentIDs, date)
+	if err != nil {
+		renderError(w, r, ErrorInternalServer(err))
+		return
+	}
+
+	// Convert to response format
+	responses := make([]BulkPickupTimeResponse, 0, len(pickupTimes))
+	for studentID, ept := range pickupTimes {
+		resp := BulkPickupTimeResponse{
+			StudentID:   studentID,
+			Date:        ept.Date.Format("2006-01-02"),
+			WeekdayName: ept.WeekdayName,
+			IsException: ept.IsException,
+			Reason:      ept.Reason,
+			Notes:       ept.Notes,
+		}
+		if ept.PickupTime != nil {
+			formatted := ept.PickupTime.Format("15:04")
+			resp.PickupTime = &formatted
+		}
+		responses = append(responses, resp)
+	}
+
+	common.Respond(w, r, http.StatusOK, responses, "Bulk pickup times retrieved successfully")
+}
+
 // Handler accessor methods for testing
 
 // GetStudentPickupSchedulesHandler returns the handler for getting pickup schedules

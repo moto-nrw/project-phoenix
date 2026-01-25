@@ -32,6 +32,7 @@ type PickupScheduleService interface {
 	// Computed operations
 	GetStudentPickupData(ctx context.Context, studentID int64) (*StudentPickupData, error)
 	GetEffectivePickupTimeForDate(ctx context.Context, studentID int64, date time.Time) (*EffectivePickupTime, error)
+	GetBulkEffectivePickupTimesForDate(ctx context.Context, studentIDs []int64, date time.Time) (map[int64]*EffectivePickupTime, error)
 }
 
 // StudentPickupData contains combined pickup schedule and exception data
@@ -282,6 +283,84 @@ func (s *pickupScheduleService) GetEffectivePickupTimeForDate(ctx context.Contex
 		result.PickupTime = &sched.PickupTime
 		if sched.Notes != nil {
 			result.Notes = *sched.Notes
+		}
+	}
+
+	return result, nil
+}
+
+// GetBulkEffectivePickupTimesForDate calculates effective pickup times for multiple students on a given date
+// Uses bulk database queries for optimal performance (O(2) queries instead of O(N))
+func (s *pickupScheduleService) GetBulkEffectivePickupTimesForDate(ctx context.Context, studentIDs []int64, date time.Time) (map[int64]*EffectivePickupTime, error) {
+	if len(studentIDs) == 0 {
+		return make(map[int64]*EffectivePickupTime), nil
+	}
+
+	dateOnly := date.Truncate(24 * time.Hour)
+	weekday := int(dateOnly.Weekday())
+
+	// Convert Go weekday (Sunday=0) to ISO weekday (Monday=1)
+	if weekday == 0 {
+		weekday = 7
+	}
+
+	result := make(map[int64]*EffectivePickupTime, len(studentIDs))
+
+	// Initialize results for all students
+	for _, studentID := range studentIDs {
+		result[studentID] = &EffectivePickupTime{
+			Date:        dateOnly,
+			WeekdayName: schedule.WeekdayNames[weekday],
+		}
+	}
+
+	// Weekend check - all students have no pickup time
+	if weekday > schedule.WeekdayFriday {
+		return result, nil
+	}
+
+	// Bulk fetch all exceptions for the given date (single query)
+	exceptions, err := s.exceptionRepo.FindByStudentIDsAndDate(ctx, studentIDs, dateOnly)
+	if err != nil {
+		return nil, &ScheduleError{Op: "get bulk effective pickup times", Err: err}
+	}
+
+	// Build exception map for O(1) lookup
+	exceptionMap := make(map[int64]*schedule.StudentPickupException, len(exceptions))
+	for _, exc := range exceptions {
+		exceptionMap[exc.StudentID] = exc
+	}
+
+	// Bulk fetch all schedules for the given weekday (single query)
+	schedules, err := s.scheduleRepo.FindByStudentIDsAndWeekday(ctx, studentIDs, weekday)
+	if err != nil {
+		return nil, &ScheduleError{Op: "get bulk effective pickup times", Err: err}
+	}
+
+	// Build schedule map for O(1) lookup
+	scheduleMap := make(map[int64]*schedule.StudentPickupSchedule, len(schedules))
+	for _, sched := range schedules {
+		scheduleMap[sched.StudentID] = sched
+	}
+
+	// Merge results: exception takes precedence over schedule
+	for _, studentID := range studentIDs {
+		r := result[studentID]
+
+		// Check for exception first (takes priority)
+		if exc, ok := exceptionMap[studentID]; ok {
+			r.IsException = true
+			r.Reason = exc.Reason
+			r.PickupTime = exc.PickupTime
+			continue
+		}
+
+		// Fall back to regular schedule
+		if sched, ok := scheduleMap[studentID]; ok {
+			r.PickupTime = &sched.PickupTime
+			if sched.Notes != nil {
+				r.Notes = *sched.Notes
+			}
 		}
 	}
 

@@ -70,6 +70,30 @@ func (r *StudentPickupScheduleRepository) FindByStudentIDAndWeekday(ctx context.
 	return &pickupSchedule, nil
 }
 
+// FindByStudentIDsAndWeekday finds pickup schedules for multiple students and a specific weekday (bulk query)
+func (r *StudentPickupScheduleRepository) FindByStudentIDsAndWeekday(ctx context.Context, studentIDs []int64, weekday int) ([]*schedule.StudentPickupSchedule, error) {
+	if len(studentIDs) == 0 {
+		return []*schedule.StudentPickupSchedule{}, nil
+	}
+
+	var schedules []*schedule.StudentPickupSchedule
+	err := r.db.NewSelect().
+		Model(&schedules).
+		ModelTableExpr(`schedule.student_pickup_schedules AS "student_pickup_schedule"`).
+		Where(`"student_pickup_schedule".student_id IN (?)`, bun.In(studentIDs)).
+		Where(`"student_pickup_schedule".weekday = ?`, weekday).
+		Scan(ctx)
+
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find by student ids and weekday",
+			Err: err,
+		}
+	}
+
+	return schedules, nil
+}
+
 // UpsertSchedule creates or updates a pickup schedule for a student and weekday
 func (r *StudentPickupScheduleRepository) UpsertSchedule(ctx context.Context, s *schedule.StudentPickupSchedule) error {
 	if s == nil {
@@ -265,6 +289,32 @@ func (r *StudentPickupExceptionRepository) FindByStudentIDAndDate(ctx context.Co
 	}
 
 	return &exception, nil
+}
+
+// FindByStudentIDsAndDate finds pickup exceptions for multiple students and a specific date (bulk query)
+func (r *StudentPickupExceptionRepository) FindByStudentIDsAndDate(ctx context.Context, studentIDs []int64, date time.Time) ([]*schedule.StudentPickupException, error) {
+	if len(studentIDs) == 0 {
+		return []*schedule.StudentPickupException{}, nil
+	}
+
+	dateOnly := date.Truncate(24 * time.Hour)
+	var exceptions []*schedule.StudentPickupException
+
+	err := r.db.NewSelect().
+		Model(&exceptions).
+		ModelTableExpr(`schedule.student_pickup_exceptions AS "student_pickup_exception"`).
+		Where(`"student_pickup_exception".student_id IN (?)`, bun.In(studentIDs)).
+		Where(`"student_pickup_exception".exception_date = ?`, dateOnly).
+		Scan(ctx)
+
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find by student ids and date",
+			Err: err,
+		}
+	}
+
+	return exceptions, nil
 }
 
 // DeleteByStudentID deletes all pickup exceptions for a student
