@@ -649,32 +649,37 @@ func TestBulkPickupTimeRequest_Bind_EdgeCases(t *testing.T) {
 func TestMapScheduleToResponse_ResponseFormat(t *testing.T) {
 	t.Run("formats created_at and updated_at as RFC3339", func(t *testing.T) {
 		now := time.Now()
+		studentID := int64(12345)
+		createdBy := int64(67890)
+		schedID := int64(42)
 		sched := &schedule.StudentPickupSchedule{
-			StudentID:  1,
+			StudentID:  studentID,
 			Weekday:    1,
 			PickupTime: time.Date(2000, 1, 1, 15, 30, 0, 0, time.UTC),
-			CreatedBy:  1,
+			CreatedBy:  createdBy,
 		}
-		sched.ID = 42
+		sched.ID = schedID
 		sched.CreatedAt = now
 		sched.UpdatedAt = now
 
 		resp := mapScheduleToResponse(sched)
 
-		assert.Equal(t, int64(42), resp.ID)
-		assert.Equal(t, int64(1), resp.StudentID)
+		assert.Equal(t, schedID, resp.ID)
+		assert.Equal(t, studentID, resp.StudentID)
 		assert.Equal(t, "15:30", resp.PickupTime)
-		assert.Equal(t, int64(1), resp.CreatedBy)
+		assert.Equal(t, createdBy, resp.CreatedBy)
 		assert.Equal(t, now.Format(time.RFC3339), resp.CreatedAt)
 		assert.Equal(t, now.Format(time.RFC3339), resp.UpdatedAt)
 	})
 
 	t.Run("handles invalid weekday gracefully", func(t *testing.T) {
+		studentID := int64(12345)
+		createdBy := int64(67890)
 		sched := &schedule.StudentPickupSchedule{
-			StudentID:  1,
+			StudentID:  studentID,
 			Weekday:    99, // Invalid weekday
 			PickupTime: time.Date(2000, 1, 1, 15, 30, 0, 0, time.UTC),
-			CreatedBy:  1,
+			CreatedBy:  createdBy,
 		}
 		resp := mapScheduleToResponse(sched)
 
@@ -687,24 +692,27 @@ func TestMapScheduleToResponse_ResponseFormat(t *testing.T) {
 func TestMapExceptionToResponse_ResponseFormat(t *testing.T) {
 	t.Run("formats timestamps as RFC3339", func(t *testing.T) {
 		now := time.Now()
+		studentID := int64(12345)
+		createdBy := int64(67890)
+		excID := int64(42)
 		pickupTime := time.Date(2000, 1, 1, 12, 0, 0, 0, time.UTC)
 		exc := &schedule.StudentPickupException{
-			StudentID:     1,
+			StudentID:     studentID,
 			ExceptionDate: time.Date(2026, 2, 15, 0, 0, 0, 0, time.UTC),
 			PickupTime:    &pickupTime,
 			Reason:        "Test",
-			CreatedBy:     1,
+			CreatedBy:     createdBy,
 		}
-		exc.ID = 42
+		exc.ID = excID
 		exc.CreatedAt = now
 		exc.UpdatedAt = now
 
 		resp := mapExceptionToResponse(exc)
 
-		assert.Equal(t, int64(42), resp.ID)
-		assert.Equal(t, int64(1), resp.StudentID)
+		assert.Equal(t, excID, resp.ID)
+		assert.Equal(t, studentID, resp.StudentID)
 		assert.Equal(t, "2026-02-15", resp.ExceptionDate)
-		assert.Equal(t, int64(1), resp.CreatedBy)
+		assert.Equal(t, createdBy, resp.CreatedBy)
 		assert.Equal(t, now.Format(time.RFC3339), resp.CreatedAt)
 		assert.Equal(t, now.Format(time.RFC3339), resp.UpdatedAt)
 	})
