@@ -423,10 +423,12 @@ function DayRow({
           {/* Exception indicator + notes */}
           <div className="flex min-w-0 flex-1 items-center gap-1.5">
             {day.isException && day.exception && (
-              <span
+              <button
+                type="button"
                 className="flex h-5 w-5 flex-shrink-0 cursor-pointer items-center justify-center rounded-full bg-orange-100 text-orange-600"
                 onClick={() => !readOnly && onEditException(day.exception!)}
                 title={readOnly ? day.exception.reason : "Ausnahme bearbeiten"}
+                disabled={readOnly}
               >
                 <svg
                   className="h-3 w-3"
@@ -435,7 +437,7 @@ function DayRow({
                 >
                   <circle cx="10" cy="10" r="5" />
                 </svg>
-              </span>
+              </button>
             )}
             {day.effectiveNotes && (
               <span className="truncate text-sm text-gray-500">
@@ -505,17 +507,19 @@ function DayCell({
           {weekdayInfo?.shortLabel}
         </div>
         {day.isException && (
-          <span
+          <button
+            type="button"
             className="flex h-4 w-4 cursor-pointer items-center justify-center rounded-full bg-orange-100 text-orange-600"
             onClick={() =>
               !readOnly && day.exception && onEditException(day.exception)
             }
             title={day.exception?.reason ?? "Ausnahme"}
+            disabled={readOnly}
           >
             <svg className="h-2 w-2" viewBox="0 0 20 20" fill="currentColor">
               <circle cx="10" cy="10" r="5" />
             </svg>
-          </span>
+          </button>
         )}
       </div>
 
