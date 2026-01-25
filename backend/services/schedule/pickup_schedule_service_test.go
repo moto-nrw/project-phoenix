@@ -671,6 +671,51 @@ func TestPickupScheduleService_GetEffectivePickupTimeForDate(t *testing.T) {
 		assert.Nil(t, result.PickupTime)
 		assert.False(t, result.IsException)
 	})
+
+	t.Run("returns schedule with notes", func(t *testing.T) {
+		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
+		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
+
+		notes := "Pick up with grandma"
+		sched := &scheduleModels.StudentPickupSchedule{
+			StudentID:  student.ID,
+			Weekday:    scheduleModels.WeekdayFriday,
+			PickupTime: time.Date(2024, 1, 1, 14, 0, 0, 0, time.UTC),
+			Notes:      &notes,
+			CreatedBy:  1,
+		}
+		err := service.UpsertStudentPickupSchedule(ctx, sched)
+		require.NoError(t, err)
+
+		testDate := time.Now()
+		for testDate.Weekday() != time.Friday {
+			testDate = testDate.AddDate(0, 0, 1)
+		}
+		testDate = testDate.Truncate(24 * time.Hour)
+
+		result, err := service.GetEffectivePickupTimeForDate(ctx, student.ID, testDate)
+
+		require.NoError(t, err)
+		assert.False(t, result.IsException)
+		assert.NotNil(t, result.PickupTime)
+		assert.Equal(t, "Pick up with grandma", result.Notes)
+	})
+
+	t.Run("handles Sunday correctly", func(t *testing.T) {
+		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
+		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
+
+		testDate := time.Now()
+		for testDate.Weekday() != time.Sunday {
+			testDate = testDate.AddDate(0, 0, 1)
+		}
+		testDate = testDate.Truncate(24 * time.Hour)
+
+		result, err := service.GetEffectivePickupTimeForDate(ctx, student.ID, testDate)
+
+		require.NoError(t, err)
+		assert.Nil(t, result.PickupTime)
+	})
 }
 
 func TestPickupScheduleService_GetBulkEffectivePickupTimesForDate(t *testing.T) {
@@ -763,5 +808,35 @@ func TestPickupScheduleService_GetBulkEffectivePickupTimesForDate(t *testing.T) 
 		require.NoError(t, err)
 		assert.Len(t, results, 1)
 		assert.Nil(t, results[student.ID].PickupTime)
+	})
+
+	t.Run("returns schedule notes in bulk lookup", func(t *testing.T) {
+		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
+		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
+
+		testDate := time.Now()
+		for testDate.Weekday() != time.Monday {
+			testDate = testDate.AddDate(0, 0, 1)
+		}
+		testDate = testDate.Truncate(24 * time.Hour)
+
+		notes := "Picked up by aunt"
+		sched := &scheduleModels.StudentPickupSchedule{
+			StudentID:  student.ID,
+			Weekday:    scheduleModels.WeekdayMonday,
+			PickupTime: time.Date(2024, 1, 1, 15, 0, 0, 0, time.UTC),
+			Notes:      &notes,
+			CreatedBy:  1,
+		}
+		err := service.UpsertStudentPickupSchedule(ctx, sched)
+		require.NoError(t, err)
+
+		results, err := service.GetBulkEffectivePickupTimesForDate(ctx, []int64{student.ID}, testDate)
+
+		require.NoError(t, err)
+		assert.Len(t, results, 1)
+		assert.NotNil(t, results[student.ID].PickupTime)
+		assert.Equal(t, "Picked up by aunt", results[student.ID].Notes)
+		assert.False(t, results[student.ID].IsException)
 	})
 }

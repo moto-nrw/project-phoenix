@@ -268,6 +268,98 @@ func TestStudentPickupScheduleRepository_UpsertSchedule(t *testing.T) {
 	})
 }
 
+func TestStudentPickupScheduleRepository_Update(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := scheduleRepo.NewStudentPickupScheduleRepository(db)
+	ctx := context.Background()
+
+	t.Run("updates schedule successfully", func(t *testing.T) {
+		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
+		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
+
+		schedule := &scheduleModels.StudentPickupSchedule{
+			StudentID:  student.ID,
+			Weekday:    scheduleModels.WeekdayMonday,
+			PickupTime: time.Date(2024, 1, 1, 14, 30, 0, 0, time.UTC),
+			CreatedBy:  1,
+		}
+		err := repo.Create(ctx, schedule)
+		require.NoError(t, err)
+
+		schedule.PickupTime = time.Date(2024, 1, 1, 16, 0, 0, 0, time.UTC)
+		notes := "Updated notes"
+		schedule.Notes = &notes
+
+		err = repo.Update(ctx, schedule)
+
+		require.NoError(t, err)
+
+		result, err := repo.FindByID(ctx, schedule.ID)
+		require.NoError(t, err)
+		assert.Equal(t, 16, result.PickupTime.Hour())
+		assert.Equal(t, "Updated notes", *result.Notes)
+	})
+
+	t.Run("fails validation on nil schedule", func(t *testing.T) {
+		err := repo.Update(ctx, nil)
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "cannot be nil")
+	})
+
+	t.Run("fails validation on invalid schedule", func(t *testing.T) {
+		schedule := &scheduleModels.StudentPickupSchedule{
+			StudentID:  0, // Invalid
+			Weekday:    scheduleModels.WeekdayMonday,
+			PickupTime: time.Date(2024, 1, 1, 14, 30, 0, 0, time.UTC),
+			CreatedBy:  1,
+		}
+
+		err := repo.Update(ctx, schedule)
+
+		require.Error(t, err)
+	})
+}
+
+func TestStudentPickupScheduleRepository_List(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := scheduleRepo.NewStudentPickupScheduleRepository(db)
+	ctx := context.Background()
+
+	t.Run("lists all schedules", func(t *testing.T) {
+		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
+		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
+
+		for _, weekday := range []int{scheduleModels.WeekdayMonday, scheduleModels.WeekdayTuesday} {
+			schedule := &scheduleModels.StudentPickupSchedule{
+				StudentID:  student.ID,
+				Weekday:    weekday,
+				PickupTime: time.Date(2024, 1, 1, 14, 30, 0, 0, time.UTC),
+				CreatedBy:  1,
+			}
+			err := repo.Create(ctx, schedule)
+			require.NoError(t, err)
+		}
+
+		results, err := repo.List(ctx, nil)
+
+		require.NoError(t, err)
+		// At least our 2 schedules should be present
+		assert.GreaterOrEqual(t, len(results), 2)
+	})
+
+	t.Run("lists with nil options", func(t *testing.T) {
+		results, err := repo.List(ctx, nil)
+
+		require.NoError(t, err)
+		assert.NotNil(t, results)
+	})
+}
+
 func TestStudentPickupScheduleRepository_DeleteByStudentID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
@@ -486,6 +578,135 @@ func TestStudentPickupExceptionRepository_FindByStudentIDsAndDate(t *testing.T) 
 
 		require.NoError(t, err)
 		assert.Empty(t, results)
+	})
+}
+
+func TestStudentPickupExceptionRepository_FindByID(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := scheduleRepo.NewStudentPickupExceptionRepository(db)
+	ctx := context.Background()
+
+	t.Run("finds exception by ID", func(t *testing.T) {
+		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
+		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
+
+		exception := &scheduleModels.StudentPickupException{
+			StudentID:     student.ID,
+			ExceptionDate: time.Date(2024, 5, 20, 0, 0, 0, 0, time.UTC),
+			Reason:        "Test reason",
+			CreatedBy:     1,
+		}
+		err := repo.Create(ctx, exception)
+		require.NoError(t, err)
+
+		result, err := repo.FindByID(ctx, exception.ID)
+
+		require.NoError(t, err)
+		assert.Equal(t, exception.ID, result.ID)
+		assert.Equal(t, "Test reason", result.Reason)
+	})
+
+	t.Run("returns error when not found", func(t *testing.T) {
+		result, err := repo.FindByID(ctx, int64(99999999))
+
+		require.Error(t, err)
+		assert.Nil(t, result)
+	})
+}
+
+func TestStudentPickupExceptionRepository_Update(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := scheduleRepo.NewStudentPickupExceptionRepository(db)
+	ctx := context.Background()
+
+	t.Run("updates exception successfully", func(t *testing.T) {
+		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
+		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
+
+		pickupTime := time.Date(2024, 1, 1, 14, 0, 0, 0, time.UTC)
+		exception := &scheduleModels.StudentPickupException{
+			StudentID:     student.ID,
+			ExceptionDate: time.Date(2024, 6, 15, 0, 0, 0, 0, time.UTC),
+			PickupTime:    &pickupTime,
+			Reason:        "Original reason",
+			CreatedBy:     1,
+		}
+		err := repo.Create(ctx, exception)
+		require.NoError(t, err)
+
+		exception.Reason = "Updated reason"
+		newPickupTime := time.Date(2024, 1, 1, 15, 30, 0, 0, time.UTC)
+		exception.PickupTime = &newPickupTime
+
+		err = repo.Update(ctx, exception)
+
+		require.NoError(t, err)
+
+		result, err := repo.FindByID(ctx, exception.ID)
+		require.NoError(t, err)
+		assert.Equal(t, "Updated reason", result.Reason)
+		assert.Equal(t, 15, result.PickupTime.Hour())
+	})
+
+	t.Run("fails validation on nil exception", func(t *testing.T) {
+		err := repo.Update(ctx, nil)
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "cannot be nil")
+	})
+
+	t.Run("fails validation on invalid exception", func(t *testing.T) {
+		exception := &scheduleModels.StudentPickupException{
+			StudentID:     0, // Invalid
+			ExceptionDate: time.Date(2024, 6, 15, 0, 0, 0, 0, time.UTC),
+			Reason:        "Test",
+			CreatedBy:     1,
+		}
+
+		err := repo.Update(ctx, exception)
+
+		require.Error(t, err)
+	})
+}
+
+func TestStudentPickupExceptionRepository_List(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := scheduleRepo.NewStudentPickupExceptionRepository(db)
+	ctx := context.Background()
+
+	t.Run("lists all exceptions", func(t *testing.T) {
+		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
+		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
+
+		for i := 1; i <= 3; i++ {
+			exception := &scheduleModels.StudentPickupException{
+				StudentID:     student.ID,
+				ExceptionDate: time.Now().AddDate(0, 0, i+100), // Far future to avoid conflicts
+				Reason:        "Test exception",
+				CreatedBy:     1,
+			}
+			err := repo.Create(ctx, exception)
+			require.NoError(t, err)
+		}
+
+		results, err := repo.List(ctx, nil)
+
+		require.NoError(t, err)
+		// At least our 3 exceptions should be present
+		assert.GreaterOrEqual(t, len(results), 3)
+	})
+
+	t.Run("lists with nil options", func(t *testing.T) {
+		results, err := repo.List(ctx, nil)
+
+		require.NoError(t, err)
+		assert.NotNil(t, results)
 	})
 }
 
