@@ -326,3 +326,53 @@ export function getSourceLabel(setting: ResolvedSetting): string {
   }
   return "Eigener Wert";
 }
+
+// === Utility Functions ===
+
+/**
+ * Safely convert a setting value to string for input fields
+ */
+export function valueToString(value: unknown): string {
+  if (value === null || value === undefined) {
+    return "";
+  }
+  if (typeof value === "string" || typeof value === "number") {
+    return String(value);
+  }
+  return "";
+}
+
+/**
+ * Check if a setting should be shown based on dependencies
+ */
+export function isSettingActive(
+  setting: ResolvedSetting,
+  allSettings: ResolvedSetting[],
+): boolean {
+  if (!setting.dependsOn) return true;
+
+  const dependentSetting = allSettings.find(
+    (s) => s.key === setting.dependsOn?.key,
+  );
+  if (!dependentSetting) return true;
+
+  const { condition, value: expectedValue } = setting.dependsOn;
+  const actualValue = dependentSetting.value;
+
+  switch (condition) {
+    case "equals":
+      return actualValue === expectedValue;
+    case "not_equals":
+      return actualValue !== expectedValue;
+    case "in":
+      return (
+        Array.isArray(expectedValue) && expectedValue.includes(actualValue)
+      );
+    case "not_empty":
+      return (
+        actualValue !== null && actualValue !== undefined && actualValue !== ""
+      );
+    default:
+      return true;
+  }
+}

@@ -6,26 +6,15 @@ import {
   getCategoryLabel,
   getSourceLabel,
   groupSettingsByCategory,
+  isSettingActive,
   type ResolvedSetting,
   type SettingCategory,
 } from "~/lib/settings-helpers";
 import { useToast } from "~/contexts/ToastContext";
+import { SettingInput, SettingLoadingSpinner } from "./setting-input";
 
 interface PreferencesPanelProps {
   isMobile?: boolean;
-}
-
-/**
- * Safely convert a setting value to string for input fields
- */
-function valueToString(value: unknown): string {
-  if (value === null || value === undefined) {
-    return "";
-  }
-  if (typeof value === "string" || typeof value === "number") {
-    return String(value);
-  }
-  return "";
 }
 
 export function PreferencesPanel({ isMobile = false }: PreferencesPanelProps) {
@@ -57,14 +46,11 @@ export function PreferencesPanel({ isMobile = false }: PreferencesPanelProps) {
     setSavingKey(key);
     try {
       await updateUserSetting(key, value);
-
-      // Update local state
       setSettings((prev) =>
         prev.map((s) =>
           s.key === key ? { ...s, value, isDefault: false } : s,
         ),
       );
-
       toastSuccess("Einstellung gespeichert");
     } catch (error) {
       console.error("Failed to update setting:", error);
@@ -74,156 +60,8 @@ export function PreferencesPanel({ isMobile = false }: PreferencesPanelProps) {
     }
   };
 
-  // Check if a setting should be shown based on dependencies
-  const isSettingActive = (setting: ResolvedSetting): boolean => {
-    if (!setting.dependsOn) return true;
-
-    const dependentSetting = settings.find(
-      (s) => s.key === setting.dependsOn?.key,
-    );
-    if (!dependentSetting) return true;
-
-    const { condition, value: expectedValue } = setting.dependsOn;
-    const actualValue = dependentSetting.value;
-
-    switch (condition) {
-      case "equals":
-        return actualValue === expectedValue;
-      case "not_equals":
-        return actualValue !== expectedValue;
-      case "in":
-        return (
-          Array.isArray(expectedValue) && expectedValue.includes(actualValue)
-        );
-      case "not_empty":
-        return (
-          actualValue !== null &&
-          actualValue !== undefined &&
-          actualValue !== ""
-        );
-      default:
-        return true;
-    }
-  };
-
-  const renderSettingInput = (setting: ResolvedSetting) => {
-    const isDisabled = !setting.canModify || savingKey === setting.key;
-    const isSaving = savingKey === setting.key;
-
-    switch (setting.type) {
-      case "bool":
-        return (
-          <label className="relative inline-flex cursor-pointer items-center">
-            <input
-              type="checkbox"
-              checked={Boolean(setting.value)}
-              onChange={(e) =>
-                void handleSettingChange(setting.key, e.target.checked)
-              }
-              disabled={isDisabled}
-              className="peer sr-only"
-            />
-            <div
-              className={`peer h-6 w-11 rounded-full bg-gray-200 peer-checked:bg-gray-900 peer-focus:ring-2 peer-focus:ring-gray-300 peer-disabled:cursor-not-allowed peer-disabled:opacity-50 after:absolute after:top-0.5 after:left-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:after:translate-x-full peer-checked:after:border-white`}
-            />
-            {isSaving && (
-              <span className="ml-2 text-xs text-gray-500">Speichern...</span>
-            )}
-          </label>
-        );
-
-      case "int":
-        return (
-          <div className="flex items-center gap-2">
-            <input
-              type="number"
-              value={valueToString(setting.value)}
-              onChange={(e) => {
-                const val = parseInt(e.target.value, 10);
-                if (!isNaN(val)) {
-                  void handleSettingChange(setting.key, val);
-                }
-              }}
-              disabled={isDisabled}
-              min={setting.validation?.min}
-              max={setting.validation?.max}
-              className="w-24 rounded-lg border border-gray-200 px-3 py-2 text-sm focus:ring-2 focus:ring-gray-300 focus:outline-none disabled:bg-gray-50 disabled:text-gray-500"
-            />
-            {isSaving && (
-              <span className="text-xs text-gray-500">Speichern...</span>
-            )}
-          </div>
-        );
-
-      case "enum":
-        return (
-          <div className="flex items-center gap-2">
-            <select
-              value={valueToString(setting.value)}
-              onChange={(e) =>
-                void handleSettingChange(setting.key, e.target.value)
-              }
-              disabled={isDisabled}
-              className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:ring-2 focus:ring-gray-300 focus:outline-none disabled:bg-gray-50 disabled:text-gray-500"
-            >
-              {setting.validation?.options?.map((option) => (
-                <option key={option} value={option}>
-                  {option}
-                </option>
-              ))}
-            </select>
-            {isSaving && (
-              <span className="text-xs text-gray-500">Speichern...</span>
-            )}
-          </div>
-        );
-
-      case "time":
-        return (
-          <div className="flex items-center gap-2">
-            <input
-              type="time"
-              value={valueToString(setting.value)}
-              onChange={(e) =>
-                void handleSettingChange(setting.key, e.target.value)
-              }
-              disabled={isDisabled}
-              className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:ring-2 focus:ring-gray-300 focus:outline-none disabled:bg-gray-50 disabled:text-gray-500"
-            />
-            {isSaving && (
-              <span className="text-xs text-gray-500">Speichern...</span>
-            )}
-          </div>
-        );
-
-      case "string":
-      default:
-        return (
-          <div className="flex items-center gap-2">
-            <input
-              type="text"
-              value={valueToString(setting.value)}
-              onChange={(e) =>
-                void handleSettingChange(setting.key, e.target.value)
-              }
-              disabled={isDisabled}
-              pattern={setting.validation?.pattern}
-              className="w-full max-w-xs rounded-lg border border-gray-200 px-3 py-2 text-sm focus:ring-2 focus:ring-gray-300 focus:outline-none disabled:bg-gray-50 disabled:text-gray-500"
-            />
-            {isSaving && (
-              <span className="text-xs text-gray-500">Speichern...</span>
-            )}
-          </div>
-        );
-    }
-  };
-
   if (loading) {
-    return (
-      <div className="flex items-center justify-center py-8">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-gray-300 border-t-gray-900" />
-      </div>
-    );
+    return <SettingLoadingSpinner variant="gray" />;
   }
 
   if (categories.length === 0) {
@@ -255,7 +93,7 @@ export function PreferencesPanel({ isMobile = false }: PreferencesPanelProps) {
                 )}
 
                 {group.settings
-                  .filter((setting) => isSettingActive(setting))
+                  .filter((setting) => isSettingActive(setting, settings))
                   .map((setting) => (
                     <div
                       key={setting.key}
@@ -278,7 +116,17 @@ export function PreferencesPanel({ isMobile = false }: PreferencesPanelProps) {
                       </div>
 
                       <div className={isMobile ? "self-start" : ""}>
-                        {renderSettingInput(setting)}
+                        <SettingInput
+                          setting={setting}
+                          isSaving={savingKey === setting.key}
+                          isDisabled={
+                            !setting.canModify || savingKey === setting.key
+                          }
+                          variant="gray"
+                          onChange={(key, value) =>
+                            void handleSettingChange(key, value)
+                          }
+                        />
                       </div>
                     </div>
                   ))}
