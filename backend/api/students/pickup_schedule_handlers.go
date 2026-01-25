@@ -519,3 +519,8 @@ func (rs *Resource) UpdateStudentPickupExceptionHandler() http.HandlerFunc {
 func (rs *Resource) DeleteStudentPickupExceptionHandler() http.HandlerFunc {
 	return rs.deleteStudentPickupException
 }
+
+// GetBulkPickupTimesHandler returns the handler for getting bulk pickup times
+func (rs *Resource) GetBulkPickupTimesHandler() http.HandlerFunc {
+	return rs.getBulkPickupTimes
+}

@@ -612,3 +612,36 @@ func TestMapScheduleToResponse_WeekdayNames(t *testing.T) {
 		})
 	}
 }
+
+func TestBulkPickupTimeRequest_Bind_EdgeCases(t *testing.T) {
+	req := httptest.NewRequest(http.MethodPost, "/", nil)
+
+	t.Run("exactly_500_student_ids", func(t *testing.T) {
+		ids := make([]int64, 500)
+		for i := range ids {
+			ids[i] = int64(i + 1)
+		}
+		r := &BulkPickupTimeRequest{
+			StudentIDs: ids,
+		}
+		err := r.Bind(req)
+		require.NoError(t, err, "exactly 500 student IDs should be allowed")
+	})
+
+	t.Run("single_student_id", func(t *testing.T) {
+		r := &BulkPickupTimeRequest{
+			StudentIDs: []int64{1},
+		}
+		err := r.Bind(req)
+		require.NoError(t, err, "single student ID should be allowed")
+	})
+
+	t.Run("nil_date_is_valid", func(t *testing.T) {
+		r := &BulkPickupTimeRequest{
+			StudentIDs: []int64{1, 2},
+			Date:       nil,
+		}
+		err := r.Bind(req)
+		require.NoError(t, err, "nil date should be valid")
+	})
+}

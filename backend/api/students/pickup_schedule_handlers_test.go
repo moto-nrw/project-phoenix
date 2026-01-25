@@ -385,6 +385,81 @@ func TestDeleteStudentPickupException(t *testing.T) {
 }
 
 // =============================================================================
+// Get Bulk Pickup Times Tests
+// =============================================================================
+
+func TestGetBulkPickupTimes(t *testing.T) {
+	tc := setupTestContext(t)
+
+	router := chi.NewRouter()
+	router.Use(render.SetContentType(render.ContentTypeJSON))
+	router.Post("/", tc.resource.GetBulkPickupTimesHandler())
+
+	t.Run("bad_request_empty_student_ids", func(t *testing.T) {
+		body := map[string]any{
+			"student_ids": []int64{},
+		}
+		req := testutil.NewAuthenticatedRequest(t, "POST", "/", body)
+		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+
+		testutil.AssertBadRequest(t, rr)
+	})
+
+	t.Run("bad_request_too_many_student_ids", func(t *testing.T) {
+		ids := make([]int64, 501)
+		for i := range ids {
+			ids[i] = int64(i + 1)
+		}
+		body := map[string]any{
+			"student_ids": ids,
+		}
+		req := testutil.NewAuthenticatedRequest(t, "POST", "/", body)
+		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+
+		testutil.AssertBadRequest(t, rr)
+	})
+
+	t.Run("bad_request_invalid_date_format", func(t *testing.T) {
+		body := map[string]any{
+			"student_ids": []int64{1, 2, 3},
+			"date":        "27-01-2026",
+		}
+		req := testutil.NewAuthenticatedRequest(t, "POST", "/", body)
+		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+
+		testutil.AssertBadRequest(t, rr)
+	})
+
+	t.Run("success_with_valid_request", func(t *testing.T) {
+		student1 := testpkg.CreateTestStudent(t, tc.db, "BulkTest1", "Student", "BT1")
+		student2 := testpkg.CreateTestStudent(t, tc.db, "BulkTest2", "Student", "BT2")
+		defer testpkg.CleanupActivityFixtures(t, tc.db, student1.ID, student2.ID)
+
+		body := map[string]any{
+			"student_ids": []int64{student1.ID, student2.ID},
+		}
+		req := testutil.NewAuthenticatedRequest(t, "POST", "/", body)
+		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+
+		assert.Equal(t, http.StatusOK, rr.Code)
+	})
+
+	t.Run("success_with_specific_date", func(t *testing.T) {
+		student := testpkg.CreateTestStudent(t, tc.db, "BulkDateTest", "Student", "BDT1")
+		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
+
+		body := map[string]any{
+			"student_ids": []int64{student.ID},
+			"date":        "2026-01-27",
+		}
+		req := testutil.NewAuthenticatedRequest(t, "POST", "/", body)
+		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+
+		assert.Equal(t, http.StatusOK, rr.Code)
+	})
+}
+
+// =============================================================================
 // Helper functions
 // =============================================================================
 
