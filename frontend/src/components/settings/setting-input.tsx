@@ -2,7 +2,7 @@
 
 import { type ResolvedSetting, valueToString } from "~/lib/settings-helpers";
 
-export type SettingColorVariant = "gray" | "green" | "purple";
+type SettingColorVariant = "gray" | "green" | "purple";
 
 interface SettingInputProps {
   setting: ResolvedSetting;
