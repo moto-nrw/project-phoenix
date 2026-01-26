@@ -347,6 +347,18 @@ func (s *pickupScheduleService) GetBulkEffectivePickupTimesForDate(ctx context.C
 	}
 
 	// Merge results: exception takes precedence over schedule
+	mergePickupResults(studentIDs, result, exceptionMap, scheduleMap)
+
+	return result, nil
+}
+
+// mergePickupResults merges exception and schedule data into effective pickup times
+func mergePickupResults(
+	studentIDs []int64,
+	result map[int64]*EffectivePickupTime,
+	exceptionMap map[int64]*schedule.StudentPickupException,
+	scheduleMap map[int64]*schedule.StudentPickupSchedule,
+) {
 	for _, studentID := range studentIDs {
 		r := result[studentID]
 
@@ -366,6 +378,4 @@ func (s *pickupScheduleService) GetBulkEffectivePickupTimesForDate(ctx context.C
 			}
 		}
 	}
-
-	return result, nil
 }
