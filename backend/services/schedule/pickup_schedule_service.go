@@ -51,6 +51,9 @@ type EffectivePickupTime struct {
 	Notes       string     `json:"notes,omitempty"`
 }
 
+// Operation names for ScheduleError.
+const opCreateStudentPickupException = "create student pickup exception"
+
 // pickupScheduleService implements PickupScheduleService
 type pickupScheduleService struct {
 	scheduleRepo  schedule.StudentPickupScheduleRepository
@@ -174,20 +177,20 @@ func (s *pickupScheduleService) GetUpcomingStudentPickupExceptions(ctx context.C
 // CreateStudentPickupException creates a new pickup exception
 func (s *pickupScheduleService) CreateStudentPickupException(ctx context.Context, exception *schedule.StudentPickupException) error {
 	if err := exception.Validate(); err != nil {
-		return &ScheduleError{Op: "create student pickup exception", Err: err}
+		return &ScheduleError{Op: opCreateStudentPickupException, Err: err}
 	}
 
 	// Check for existing exception on the same date
 	existing, err := s.exceptionRepo.FindByStudentIDAndDate(ctx, exception.StudentID, exception.ExceptionDate)
 	if err != nil {
-		return &ScheduleError{Op: "create student pickup exception", Err: err}
+		return &ScheduleError{Op: opCreateStudentPickupException, Err: err}
 	}
 	if existing != nil {
-		return &ScheduleError{Op: "create student pickup exception", Err: errors.New("exception already exists for this date")}
+		return &ScheduleError{Op: opCreateStudentPickupException, Err: errors.New("exception already exists for this date")}
 	}
 
 	if err := s.exceptionRepo.Create(ctx, exception); err != nil {
-		return &ScheduleError{Op: "create student pickup exception", Err: err}
+		return &ScheduleError{Op: opCreateStudentPickupException, Err: err}
 	}
 	return nil
 }
