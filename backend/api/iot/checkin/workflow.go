@@ -17,7 +17,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/models/iot"
 	"github.com/moto-nrw/project-phoenix/models/users"
-	activeService "github.com/moto-nrw/project-phoenix/services/active"
 )
 
 // checkinResult holds the result of processing a checkin request
@@ -167,8 +166,10 @@ func (rs *Resource) processCheckout(ctx context.Context, w http.ResponseWriter, 
 			currentVisit.ActiveGroup != nil && currentVisit.ActiveGroup.Room != nil)
 	}
 
-	// End current visit with attendance sync (ensures daily checkout updates attendance record)
-	if err := rs.ActiveService.EndVisit(activeService.WithAttendanceAutoSync(ctx), currentVisit.ID); err != nil {
+	// End current room visit WITHOUT attendance sync - leaving a room doesn't mean leaving the building.
+	// The student should become "Unterwegs" (in transit), not "Zuhause" (at home).
+	// Daily attendance checkout is handled separately via isPendingDailyCheckoutScenario/manual checkout.
+	if err := rs.ActiveService.EndVisit(ctx, currentVisit.ID); err != nil {
 		log.Printf("[CHECKIN] ERROR: Failed to end visit %d for student %d: %v",
 			currentVisit.ID, student.ID, err)
 		iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(errors.New("failed to end visit record")))

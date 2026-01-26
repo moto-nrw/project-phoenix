@@ -68,7 +68,7 @@ func (r *GradeTransitionRepository) FindByID(ctx context.Context, id int64) (*ed
 	t := new(education.GradeTransition)
 	err := r.db.NewSelect().
 		Model(t).
-		ModelTableExpr(tableGradeTransitions + ` AS "grade_transition"`).
+		ModelTableExpr(tableGradeTransitions+` AS "grade_transition"`).
 		Where(`"grade_transition".id = ?`, id).
 		Scan(ctx)
 
@@ -87,7 +87,7 @@ func (r *GradeTransitionRepository) FindByIDWithMappings(ctx context.Context, id
 	t := new(education.GradeTransition)
 	err := r.db.NewSelect().
 		Model(t).
-		ModelTableExpr(tableGradeTransitions + ` AS "grade_transition"`).
+		ModelTableExpr(tableGradeTransitions+` AS "grade_transition"`).
 		Where(`"grade_transition".id = ?`, id).
 		Scan(ctx)
 
@@ -149,7 +149,7 @@ func (r *GradeTransitionRepository) Delete(ctx context.Context, id int64) error 
 
 	_, err := db.NewDelete().
 		Model((*education.GradeTransition)(nil)).
-		ModelTableExpr(tableGradeTransitions + ` AS "grade_transition"`).
+		ModelTableExpr(tableGradeTransitions+` AS "grade_transition"`).
 		Where(`"grade_transition".id = ?`, id).
 		Exec(ctx)
 	if err != nil {

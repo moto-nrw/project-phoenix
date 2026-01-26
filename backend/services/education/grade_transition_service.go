@@ -59,22 +59,22 @@ type MappingRequest struct {
 
 // TransitionPreview contains information about what will happen when applied
 type TransitionPreview struct {
-	TransitionID    int64                `json:"transition_id"`
-	AcademicYear    string               `json:"academic_year"`
-	TotalStudents   int                  `json:"total_students"`
-	ToPromote       int                  `json:"to_promote"`
-	ToGraduate      int                  `json:"to_graduate"`
-	ByMapping       []MappingPreview     `json:"by_mapping"`
-	UnmappedClasses []UnmappedClassInfo  `json:"unmapped_classes"`
-	Warnings        []string             `json:"warnings"`
+	TransitionID    int64               `json:"transition_id"`
+	AcademicYear    string              `json:"academic_year"`
+	TotalStudents   int                 `json:"total_students"`
+	ToPromote       int                 `json:"to_promote"`
+	ToGraduate      int                 `json:"to_graduate"`
+	ByMapping       []MappingPreview    `json:"by_mapping"`
+	UnmappedClasses []UnmappedClassInfo `json:"unmapped_classes"`
+	Warnings        []string            `json:"warnings"`
 }
 
 // MappingPreview shows the impact of a single mapping
 type MappingPreview struct {
-	FromClass    string `json:"from_class"`
+	FromClass    string  `json:"from_class"`
 	ToClass      *string `json:"to_class,omitempty"`
-	StudentCount int    `json:"student_count"`
-	Action       string `json:"action"` // "promote" or "graduate"
+	StudentCount int     `json:"student_count"`
+	Action       string  `json:"action"` // "promote" or "graduate"
 }
 
 // UnmappedClassInfo shows classes not included in the transition
