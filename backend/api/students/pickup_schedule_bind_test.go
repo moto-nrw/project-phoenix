@@ -745,3 +745,42 @@ func TestBulkPickupScheduleRequest_Bind_AllValidationPaths(t *testing.T) {
 		assert.Contains(t, err.Error(), "schedule 2:")
 	})
 }
+
+// =============================================================================
+// Handler Accessor Method Tests
+// =============================================================================
+
+func TestHandlerAccessorMethods(t *testing.T) {
+	// Create a minimal Resource for testing accessor methods
+	rs := &Resource{}
+
+	t.Run("GetStudentPickupSchedulesHandler returns handler", func(t *testing.T) {
+		handler := rs.GetStudentPickupSchedulesHandler()
+		assert.NotNil(t, handler, "Handler should not be nil")
+	})
+
+	t.Run("UpdateStudentPickupSchedulesHandler returns handler", func(t *testing.T) {
+		handler := rs.UpdateStudentPickupSchedulesHandler()
+		assert.NotNil(t, handler, "Handler should not be nil")
+	})
+
+	t.Run("CreateStudentPickupExceptionHandler returns handler", func(t *testing.T) {
+		handler := rs.CreateStudentPickupExceptionHandler()
+		assert.NotNil(t, handler, "Handler should not be nil")
+	})
+
+	t.Run("UpdateStudentPickupExceptionHandler returns handler", func(t *testing.T) {
+		handler := rs.UpdateStudentPickupExceptionHandler()
+		assert.NotNil(t, handler, "Handler should not be nil")
+	})
+
+	t.Run("DeleteStudentPickupExceptionHandler returns handler", func(t *testing.T) {
+		handler := rs.DeleteStudentPickupExceptionHandler()
+		assert.NotNil(t, handler, "Handler should not be nil")
+	})
+
+	t.Run("GetBulkPickupTimesHandler returns handler", func(t *testing.T) {
+		handler := rs.GetBulkPickupTimesHandler()
+		assert.NotNil(t, handler, "Handler should not be nil")
+	})
+}

@@ -305,6 +305,24 @@ func TestUpdateStudentPickupException(t *testing.T) {
 		testutil.AssertBadRequest(t, rr)
 	})
 
+	t.Run("not_found_nonexistent_exception", func(t *testing.T) {
+		student := testpkg.CreateTestStudent(t, tc.db, "ExceptionUpdateNotFound", "Test", "EUNF1")
+		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
+
+		router := setupExceptionRouter(tc.resource.UpdateStudentPickupExceptionHandler(), "PUT")
+
+		body := map[string]any{
+			"exception_date": "2026-02-15",
+			"pickup_time":    "12:00",
+			"reason":         "Updated reason",
+		}
+		// Use a valid but nonexistent exception ID
+		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d/999999", student.ID), body)
+		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+
+		testutil.AssertNotFound(t, rr)
+	})
+
 	t.Run("forbidden_without_full_access", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "ExceptionUpdateForbidden", "Test", "EUF1")
 		staff, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "NoAccess", "UpdateExcStaff")
@@ -342,6 +360,19 @@ func TestDeleteStudentPickupException(t *testing.T) {
 		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		testutil.AssertBadRequest(t, rr)
+	})
+
+	t.Run("not_found_nonexistent_exception", func(t *testing.T) {
+		student := testpkg.CreateTestStudent(t, tc.db, "ExceptionDeleteNotFound", "Test", "EDNF1")
+		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
+
+		router := setupExceptionRouter(tc.resource.DeleteStudentPickupExceptionHandler(), "DELETE")
+
+		// Use a valid but nonexistent exception ID
+		req := testutil.NewRequest("DELETE", fmt.Sprintf("/%d/999999", student.ID), nil)
+		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+
+		testutil.AssertNotFound(t, rr)
 	})
 
 	t.Run("forbidden_without_full_access", func(t *testing.T) {
@@ -426,6 +457,38 @@ func TestGetBulkPickupTimes(t *testing.T) {
 		body := map[string]any{
 			"student_ids": []int64{student.ID},
 			"date":        "2026-01-27",
+		}
+		req := testutil.NewAuthenticatedRequest(t, "POST", "/", body)
+		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+
+		assert.Equal(t, http.StatusOK, rr.Code)
+	})
+
+	t.Run("success_returns_empty_for_unauthorized_students", func(t *testing.T) {
+		// Create a staff member who doesn't supervise any groups
+		staff, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "NoGroups", "Staff")
+		defer testpkg.CleanupActivityFixtures(t, tc.db, staff.ID)
+
+		// Create a student in no particular group
+		student := testpkg.CreateTestStudent(t, tc.db, "UnauthorizedTest", "Student", "UTS1")
+		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
+
+		body := map[string]any{
+			"student_ids": []int64{student.ID},
+		}
+		req := testutil.NewAuthenticatedRequest(t, "POST", "/", body)
+		claims := testutil.TeacherTestClaims(int(account.ID))
+		rr := executeWithAuth(router, req, claims, []string{"students:read"})
+
+		// Should return 200 OK with empty data (no authorized students)
+		assert.Equal(t, http.StatusOK, rr.Code)
+		assert.Contains(t, rr.Body.String(), "[]") // Empty array
+	})
+
+	t.Run("success_filters_nonexistent_student_ids", func(t *testing.T) {
+		// Admin requests non-existent students - should still succeed with empty results
+		body := map[string]any{
+			"student_ids": []int64{999998, 999999}, // Non-existent IDs
 		}
 		req := testutil.NewAuthenticatedRequest(t, "POST", "/", body)
 		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
