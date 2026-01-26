@@ -98,7 +98,7 @@ func (rs *Resource) lookupStudentFromPerson(ctx context.Context, personID int64)
 
 // handleStaffScan checks if person is staff and handles supervisor authentication
 // Returns true if the request was handled (either successfully or with error)
-func (rs *Resource) handleStaffScan(w http.ResponseWriter, r *http.Request, _ *iot.Device, person *users.Person) bool {
+func (rs *Resource) handleStaffScan(w http.ResponseWriter, r *http.Request, deviceCtx *iot.Device, person *users.Person) bool {
 	log.Printf("[CHECKIN] Person %d is not a student, checking if staff...", person.ID)
 
 	staffRepo := rs.UsersService.StaffRepository()
@@ -110,8 +110,8 @@ func (rs *Resource) handleStaffScan(w http.ResponseWriter, r *http.Request, _ *i
 	}
 
 	if staff != nil {
-		log.Printf("[CHECKIN] Found staff: ID %d - staff RFID authentication via checkin endpoint not supported", staff.ID)
-		iotCommon.RenderError(w, r, iotCommon.ErrorNotFound(errors.New("staff RFID authentication must be done via session management endpoints")))
+		log.Printf("[CHECKIN] Found staff: ID %d - attempting supervisor authentication", staff.ID)
+		rs.handleSupervisorScan(w, r, deviceCtx, staff, person)
 		return true
 	}
 
@@ -119,6 +119,90 @@ func (rs *Resource) handleStaffScan(w http.ResponseWriter, r *http.Request, _ *i
 	log.Printf("[CHECKIN] ERROR: Person %d is neither student nor staff", person.ID)
 	iotCommon.RenderError(w, r, iotCommon.ErrorNotFound(errors.New("RFID tag not assigned to student or staff")))
 	return true
+}
+
+// handleSupervisorScan processes RFID-based supervisor authentication for staff.
+// When staff scan their RFID at a device with an active session, they are
+// automatically added as supervisors to that session.
+func (rs *Resource) handleSupervisorScan(w http.ResponseWriter, r *http.Request, deviceCtx *iot.Device, staff *users.Staff, person *users.Person) {
+	ctx := r.Context()
+
+	// Step 1: Get current session for this device
+	session, err := rs.ActiveService.GetDeviceCurrentSession(ctx, deviceCtx.ID)
+	if err != nil || session == nil {
+		log.Printf("[CHECKIN] No active session for device %s (ID: %d) - supervisor scan rejected",
+			deviceCtx.DeviceID, deviceCtx.ID)
+		iotCommon.RenderError(w, r, iotCommon.ErrorNotFound(
+			errors.New("no active session - please start an activity first")))
+		return
+	}
+
+	log.Printf("[CHECKIN] Device %s has active session %d - processing supervisor authentication for staff %d",
+		deviceCtx.DeviceID, session.ID, staff.ID)
+
+	// Step 2: Load current supervisors to check for duplicates
+	groupWithSupervisors, err := rs.ActiveService.GetActiveGroupWithSupervisors(ctx, session.ID)
+	if err != nil {
+		log.Printf("[CHECKIN] ERROR: Failed to load supervisors for session %d: %v", session.ID, err)
+		iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(
+			errors.New("failed to load session supervisors")))
+		return
+	}
+
+	// Step 3: Build supervisor ID list (existing active + new)
+	var supervisorIDs []int64
+	alreadySupervisor := false
+	for _, sup := range groupWithSupervisors.Supervisors {
+		if sup.EndDate == nil { // Only include active supervisors
+			supervisorIDs = append(supervisorIDs, sup.StaffID)
+			if sup.StaffID == staff.ID {
+				alreadySupervisor = true
+			}
+		}
+	}
+
+	// Step 4: Add new supervisor if not already present
+	if !alreadySupervisor {
+		supervisorIDs = append(supervisorIDs, staff.ID)
+		if _, err := rs.ActiveService.UpdateActiveGroupSupervisors(ctx, session.ID, supervisorIDs); err != nil {
+			log.Printf("[CHECKIN] ERROR: Failed to add supervisor %d to session %d: %v",
+				staff.ID, session.ID, err)
+			iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(
+				errors.New("failed to update session supervisors")))
+			return
+		}
+		log.Printf("[CHECKIN] SUCCESS: Added staff %d as supervisor to session %d", staff.ID, session.ID)
+	} else {
+		log.Printf("[CHECKIN] Staff %d is already a supervisor for session %d (idempotent)",
+			staff.ID, session.ID)
+	}
+
+	// Step 5: Build and send response
+	staffName := person.FirstName + " " + person.LastName
+	var roomName, activityName string
+	if session.Room != nil {
+		roomName = session.Room.Name
+	}
+	if session.ActualGroup != nil {
+		activityName = session.ActualGroup.Name
+	}
+
+	message := "Supervisor authenticated"
+	if activityName != "" {
+		message = "Supervisor authenticated for " + activityName
+	}
+
+	response := map[string]interface{}{
+		"student_id":   staff.ID,
+		"student_name": staffName,
+		"action":       "supervisor_authenticated",
+		"room_name":    roomName,
+		"processed_at": time.Now(),
+		"message":      message,
+		"status":       "success",
+	}
+
+	common.Respond(w, r, http.StatusOK, response, "Supervisor authenticated")
 }
 
 // loadCurrentVisitWithRoom loads the current visit and its room information

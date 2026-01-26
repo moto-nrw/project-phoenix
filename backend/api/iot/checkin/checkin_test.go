@@ -377,41 +377,103 @@ func TestDeviceCheckin_CheckinWithNewVisitNoActiveGroup(t *testing.T) {
 // STAFF RFID TESTS
 // =============================================================================
 
-func TestDeviceCheckin_StaffRFIDNotSupported(t *testing.T) {
-	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
+func TestDeviceCheckin_SupervisorRFIDAuthentication(t *testing.T) {
+	t.Run("authenticates supervisor with active session", func(t *testing.T) {
+		ctx := setupTestContext(t)
+		defer func() { _ = ctx.db.Close() }()
 
-	// Create test device
-	device := testpkg.CreateTestDevice(t, ctx.db, "staff-rfid")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
+		// Create test device
+		device := testpkg.CreateTestDevice(t, ctx.db, "staff-rfid")
+		defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
 
-	// Create a test staff member with RFID tag
-	staff := testpkg.CreateTestStaff(t, ctx.db, "Staff", "Member")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, staff.ID)
+		// Create a test staff member with RFID tag
+		staff := testpkg.CreateTestStaff(t, ctx.db, "Staff", "Member")
+		defer testpkg.CleanupActivityFixtures(t, ctx.db, staff.ID)
 
-	// Create RFID card and link it to the staff's person
-	tagID := fmt.Sprintf("STAFF%d", time.Now().UnixNano())
-	card := testpkg.CreateTestRFIDCard(t, ctx.db, tagID)
-	defer testpkg.CleanupRFIDCards(t, ctx.db, card.ID)
-	// Link RFID to staff's person (same approach as student)
-	testpkg.LinkRFIDToStudent(t, ctx.db, staff.PersonID, card.ID)
+		// Create RFID card and link it to the staff's person
+		tagID := fmt.Sprintf("STAFF%d", time.Now().UnixNano())
+		card := testpkg.CreateTestRFIDCard(t, ctx.db, tagID)
+		defer testpkg.CleanupRFIDCards(t, ctx.db, card.ID)
+		testpkg.LinkRFIDToStudent(t, ctx.db, staff.PersonID, card.ID)
 
-	router := chi.NewRouter()
-	router.Post("/checkin/checkin", ctx.resource.DeviceCheckinHandler())
+		// Create room and activity
+		room := testpkg.CreateTestRoom(t, ctx.db, "Supervisor Room")
+		defer testpkg.CleanupActivityFixtures(t, ctx.db, room.ID)
 
-	body := map[string]interface{}{
-		"student_rfid": card.ID,
-		"action":       "checkin",
-	}
+		activity := testpkg.CreateTestActivityGroup(t, ctx.db, "Supervisor Activity")
+		defer testpkg.CleanupActivityFixtures(t, ctx.db, activity.ID)
 
-	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/checkin", body,
-		testutil.WithDeviceContext(createTestDeviceContext(device)),
-	)
+		// Create active group linked to the device (simulates an active session)
+		activeGroup := testpkg.CreateTestActiveGroup(t, ctx.db, activity.ID, room.ID)
+		defer testpkg.CleanupActivityFixtures(t, ctx.db, activeGroup.ID)
 
-	rr := testutil.ExecuteRequest(router, req)
+		// Link active group to device so GetDeviceCurrentSession finds it
+		_, err := ctx.db.NewUpdate().
+			TableExpr("active.groups").
+			Set("device_id = ?", device.ID).
+			Where("id = ?", activeGroup.ID).
+			Exec(t.Context())
+		assert.NoError(t, err)
 
-	// Staff RFID via checkin endpoint should return 404 with specific message
-	testutil.AssertNotFound(t, rr)
+		router := chi.NewRouter()
+		router.Post("/checkin/checkin", ctx.resource.DeviceCheckinHandler())
+
+		body := map[string]interface{}{
+			"student_rfid": card.ID,
+			"action":       "checkin",
+		}
+
+		req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/checkin", body,
+			testutil.WithDeviceContext(createTestDeviceContext(device)),
+		)
+
+		rr := testutil.ExecuteRequest(router, req)
+
+		// Staff RFID with active session should authenticate as supervisor
+		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+
+		response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+		data, ok := response["data"].(map[string]interface{})
+		assert.True(t, ok, "Response should have data field")
+		assert.Equal(t, "supervisor_authenticated", data["action"])
+		assert.Contains(t, data["student_name"], "Staff")
+		assert.Contains(t, data, "message")
+	})
+
+	t.Run("returns 404 when no active session", func(t *testing.T) {
+		ctx := setupTestContext(t)
+		defer func() { _ = ctx.db.Close() }()
+
+		// Create test device (no active session)
+		device := testpkg.CreateTestDevice(t, ctx.db, "staff-no-session")
+		defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
+
+		// Create a test staff member with RFID tag
+		staff := testpkg.CreateTestStaff(t, ctx.db, "NoSession", "Staff")
+		defer testpkg.CleanupActivityFixtures(t, ctx.db, staff.ID)
+
+		tagID := fmt.Sprintf("STAFFNS%d", time.Now().UnixNano())
+		card := testpkg.CreateTestRFIDCard(t, ctx.db, tagID)
+		defer testpkg.CleanupRFIDCards(t, ctx.db, card.ID)
+		testpkg.LinkRFIDToStudent(t, ctx.db, staff.PersonID, card.ID)
+
+		router := chi.NewRouter()
+		router.Post("/checkin/checkin", ctx.resource.DeviceCheckinHandler())
+
+		body := map[string]interface{}{
+			"student_rfid": card.ID,
+			"action":       "checkin",
+		}
+
+		req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/checkin", body,
+			testutil.WithDeviceContext(createTestDeviceContext(device)),
+		)
+
+		rr := testutil.ExecuteRequest(router, req)
+
+		// Staff RFID without active session should return 404
+		testutil.AssertNotFound(t, rr)
+	})
 }
 
 // =============================================================================
