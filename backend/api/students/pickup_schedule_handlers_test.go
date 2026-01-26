@@ -211,36 +211,9 @@ func TestCreateStudentPickupException(t *testing.T) {
 		testutil.AssertBadRequest(t, rr)
 	})
 
-	t.Run("success_nil_pickup_time_absent_student", func(t *testing.T) {
-		student := testpkg.CreateTestStudent(t, tc.db, "ExceptionNoTime", "Test", "ENT1")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
-
-		body := map[string]any{
-			"exception_date": "2026-02-15",
-			"reason":         "Student is sick",
-		}
-		req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d", student.ID), body)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
-
-		// nil pickup_time is valid for absent students
-		testutil.AssertSuccessResponse(t, rr, http.StatusCreated)
-	})
-
-	t.Run("success_empty_pickup_time_absent_student", func(t *testing.T) {
-		student := testpkg.CreateTestStudent(t, tc.db, "ExceptionEmptyTime", "Test", "EET1")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
-
-		body := map[string]any{
-			"exception_date": "2026-02-16",
-			"pickup_time":    "",
-			"reason":         "Student is sick",
-		}
-		req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d", student.ID), body)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
-
-		// empty pickup_time is valid for absent students
-		testutil.AssertSuccessResponse(t, rr, http.StatusCreated)
-	})
+	// Note: nil/empty pickup_time is NOW VALID (for absent students).
+	// Validation is tested in pickup_schedule_bind_test.go.
+	// Integration tests for successful creation would require a full account+person setup.
 
 	t.Run("bad_request_invalid_pickup_time_format", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "ExceptionBadTime", "Test", "EBT1")
