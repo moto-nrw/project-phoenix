@@ -267,7 +267,7 @@ export function groupSettingsByCategory(
     for (const [groupName, groupSettings] of groupMap) {
       groups.push({
         name: groupName,
-        settings: groupSettings.toSorted((a, b) => {
+        settings: [...groupSettings].sort((a, b) => {
           const aOrder =
             categorySettings.find((s) => s.key === a.key)?.validation?.min ?? 0;
           const bOrder =
