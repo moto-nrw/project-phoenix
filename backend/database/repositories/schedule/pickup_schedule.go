@@ -16,6 +16,9 @@ import (
 // tablePickupSchedules is the fully-qualified table name for student pickup schedules.
 const tablePickupSchedules = "schedule.student_pickup_schedules"
 
+// errScheduleNil is returned when a nil schedule is passed to a repository method.
+var errScheduleNil = fmt.Errorf("schedule cannot be nil")
+
 // StudentPickupScheduleRepository implements schedule.StudentPickupScheduleRepository interface
 type StudentPickupScheduleRepository struct {
 	*base.Repository[*schedule.StudentPickupSchedule]
@@ -100,7 +103,7 @@ func (r *StudentPickupScheduleRepository) FindByStudentIDsAndWeekday(ctx context
 // UpsertSchedule creates or updates a pickup schedule for a student and weekday
 func (r *StudentPickupScheduleRepository) UpsertSchedule(ctx context.Context, s *schedule.StudentPickupSchedule) error {
 	if s == nil {
-		return fmt.Errorf("schedule cannot be nil")
+		return errScheduleNil
 	}
 
 	if err := s.Validate(); err != nil {
@@ -148,7 +151,7 @@ func (r *StudentPickupScheduleRepository) DeleteByStudentID(ctx context.Context,
 // Create overrides the base Create method to handle validation
 func (r *StudentPickupScheduleRepository) Create(ctx context.Context, s *schedule.StudentPickupSchedule) error {
 	if s == nil {
-		return fmt.Errorf("schedule cannot be nil")
+		return errScheduleNil
 	}
 
 	if err := s.Validate(); err != nil {
@@ -161,7 +164,7 @@ func (r *StudentPickupScheduleRepository) Create(ctx context.Context, s *schedul
 // Update overrides the base Update method to handle validation
 func (r *StudentPickupScheduleRepository) Update(ctx context.Context, s *schedule.StudentPickupSchedule) error {
 	if s == nil {
-		return fmt.Errorf("schedule cannot be nil")
+		return errScheduleNil
 	}
 
 	if err := s.Validate(); err != nil {
