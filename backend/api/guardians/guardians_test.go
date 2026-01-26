@@ -220,7 +220,7 @@ func TestCreateGuardian_Forbidden_NonStaffUser(t *testing.T) {
 	testutil.AssertForbidden(t, rr)
 }
 
-func TestCreateGuardian_BadRequest_MissingFirstName(t *testing.T) {
+func TestCreateGuardian_Success_MissingFirstName(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
@@ -234,7 +234,7 @@ func TestCreateGuardian_BadRequest_MissingFirstName(t *testing.T) {
 		"language_preference":      "de",
 	}
 
-	// Use admin claims with admin:* permission - guardian creation requires admin or group supervisor
+	// Guardian names are optional (e.g., CSV imports may only have relationship type)
 	claims := testutil.AdminTestClaims(999)
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/guardians", body,
 		testutil.WithClaims(claims),
@@ -243,10 +243,10 @@ func TestCreateGuardian_BadRequest_MissingFirstName(t *testing.T) {
 
 	rr := testutil.ExecuteRequest(router, req)
 
-	testutil.AssertBadRequest(t, rr)
+	testutil.AssertSuccessResponse(t, rr, http.StatusCreated)
 }
 
-func TestCreateGuardian_BadRequest_MissingLastName(t *testing.T) {
+func TestCreateGuardian_Success_MissingLastName(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
@@ -260,7 +260,7 @@ func TestCreateGuardian_BadRequest_MissingLastName(t *testing.T) {
 		"language_preference":      "de",
 	}
 
-	// Use admin claims with admin:* permission - guardian creation requires admin or group supervisor
+	// Guardian names are optional (e.g., CSV imports may only have relationship type)
 	claims := testutil.AdminTestClaims(999)
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/guardians", body,
 		testutil.WithClaims(claims),
@@ -269,7 +269,7 @@ func TestCreateGuardian_BadRequest_MissingLastName(t *testing.T) {
 
 	rr := testutil.ExecuteRequest(router, req)
 
-	testutil.AssertBadRequest(t, rr)
+	testutil.AssertSuccessResponse(t, rr, http.StatusCreated)
 }
 
 func TestCreateGuardian_Success_WithoutContactMethod(t *testing.T) {
