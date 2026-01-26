@@ -1,15 +1,19 @@
 package students_test
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
+	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -33,6 +37,69 @@ func TestGetStudentPickupSchedules(t *testing.T) {
 		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
 		assert.Contains(t, rr.Body.String(), "schedules")
 		assert.Contains(t, rr.Body.String(), "exceptions")
+	})
+
+	t.Run("success_returns_schedules_and_exceptions_with_data", func(t *testing.T) {
+		// Create a new student for this test
+		studentWithData := testpkg.CreateTestStudent(t, tc.db, "PickupData", "Test", "PD1")
+		defer testpkg.CleanupActivityFixtures(t, tc.db, studentWithData.ID)
+
+		// Insert a pickup schedule directly into the database
+		pickupTime := time.Date(2000, 1, 1, 15, 30, 0, 0, time.UTC)
+		notes := "Mit Schwester"
+		schedule := &scheduleModel.StudentPickupSchedule{
+			StudentID:  studentWithData.ID,
+			Weekday:    1, // Monday
+			PickupTime: pickupTime,
+			Notes:      &notes,
+			CreatedBy:  1,
+		}
+		_, err := tc.db.NewInsert().Model(schedule).
+			ModelTableExpr("schedule.student_pickup_schedules").
+			Returning("id").
+			Exec(context.Background())
+		require.NoError(t, err)
+		defer func() {
+			_, _ = tc.db.NewDelete().Model((*scheduleModel.StudentPickupSchedule)(nil)).
+				ModelTableExpr("schedule.student_pickup_schedules").
+				Where("student_id = ?", studentWithData.ID).
+				Exec(context.Background())
+		}()
+
+		// Insert a pickup exception directly into the database
+		exceptionDate := time.Date(2026, 2, 15, 0, 0, 0, 0, time.UTC)
+		exceptionTime := time.Date(2000, 1, 1, 12, 0, 0, 0, time.UTC)
+		exception := &scheduleModel.StudentPickupException{
+			StudentID:     studentWithData.ID,
+			ExceptionDate: exceptionDate,
+			PickupTime:    &exceptionTime,
+			Reason:        "Arzttermin",
+			CreatedBy:     1,
+		}
+		_, err = tc.db.NewInsert().Model(exception).
+			ModelTableExpr("schedule.student_pickup_exceptions").
+			Returning("id").
+			Exec(context.Background())
+		require.NoError(t, err)
+		defer func() {
+			_, _ = tc.db.NewDelete().Model((*scheduleModel.StudentPickupException)(nil)).
+				ModelTableExpr("schedule.student_pickup_exceptions").
+				Where("student_id = ?", studentWithData.ID).
+				Exec(context.Background())
+		}()
+
+		req := testutil.NewRequest("GET", fmt.Sprintf("/%d", studentWithData.ID), nil)
+		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+
+		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
+		// Verify schedules data
+		assert.Contains(t, rr.Body.String(), "15:30", "Should contain pickup time")
+		assert.Contains(t, rr.Body.String(), "Montag", "Should contain weekday name")
+		assert.Contains(t, rr.Body.String(), "Mit Schwester", "Should contain notes")
+		// Verify exceptions data
+		assert.Contains(t, rr.Body.String(), "2026-02-15", "Should contain exception date")
+		assert.Contains(t, rr.Body.String(), "12:00", "Should contain exception pickup time")
+		assert.Contains(t, rr.Body.String(), "Arzttermin", "Should contain reason")
 	})
 
 	t.Run("not_found_for_nonexistent_student", func(t *testing.T) {
