@@ -562,6 +562,106 @@ func TestGetBulkPickupTimes(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, rr.Code)
 	})
+
+	t.Run("success_returns_pickup_times_with_data", func(t *testing.T) {
+		// Create a student with pickup schedule
+		student := testpkg.CreateTestStudent(t, tc.db, "BulkWithData", "Test", "BWD1")
+		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
+
+		// Insert a pickup schedule for Monday
+		pickupTime := time.Date(2000, 1, 1, 14, 30, 0, 0, time.UTC)
+		notes := "Regular pickup"
+		schedule := &scheduleModel.StudentPickupSchedule{
+			StudentID:  student.ID,
+			Weekday:    1, // Monday
+			PickupTime: pickupTime,
+			Notes:      &notes,
+			CreatedBy:  1,
+		}
+		_, err := tc.db.NewInsert().Model(schedule).
+			ModelTableExpr("schedule.student_pickup_schedules").
+			Returning("id").
+			Exec(context.Background())
+		require.NoError(t, err)
+		defer func() {
+			_, _ = tc.db.NewDelete().Model((*scheduleModel.StudentPickupSchedule)(nil)).
+				ModelTableExpr("schedule.student_pickup_schedules").
+				Where("student_id = ?", student.ID).
+				Exec(context.Background())
+		}()
+
+		// Request for a Monday date
+		body := map[string]any{
+			"student_ids": []int64{student.ID},
+			"date":        "2026-01-26", // Monday
+		}
+		req := testutil.NewAuthenticatedRequest(t, "POST", "/", body)
+		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+
+		assert.Equal(t, http.StatusOK, rr.Code)
+		assert.Contains(t, rr.Body.String(), "14:30", "Should contain pickup time")
+		assert.Contains(t, rr.Body.String(), "Montag", "Should contain weekday name")
+	})
+
+	t.Run("success_returns_exception_override", func(t *testing.T) {
+		// Create student with both schedule and exception
+		student := testpkg.CreateTestStudent(t, tc.db, "BulkException", "Test", "BEX1")
+		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
+
+		// Insert base schedule for Monday
+		baseTime := time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC)
+		schedule := &scheduleModel.StudentPickupSchedule{
+			StudentID:  student.ID,
+			Weekday:    1,
+			PickupTime: baseTime,
+			CreatedBy:  1,
+		}
+		_, err := tc.db.NewInsert().Model(schedule).
+			ModelTableExpr("schedule.student_pickup_schedules").
+			Returning("id").
+			Exec(context.Background())
+		require.NoError(t, err)
+		defer func() {
+			_, _ = tc.db.NewDelete().Model((*scheduleModel.StudentPickupSchedule)(nil)).
+				ModelTableExpr("schedule.student_pickup_schedules").
+				Where("student_id = ?", student.ID).
+				Exec(context.Background())
+		}()
+
+		// Insert exception for specific date
+		exceptionDate := time.Date(2026, 1, 26, 0, 0, 0, 0, time.UTC) // Monday
+		exceptionTime := time.Date(2000, 1, 1, 12, 0, 0, 0, time.UTC)
+		exception := &scheduleModel.StudentPickupException{
+			StudentID:     student.ID,
+			ExceptionDate: exceptionDate,
+			PickupTime:    &exceptionTime,
+			Reason:        "Early pickup",
+			CreatedBy:     1,
+		}
+		_, err = tc.db.NewInsert().Model(exception).
+			ModelTableExpr("schedule.student_pickup_exceptions").
+			Returning("id").
+			Exec(context.Background())
+		require.NoError(t, err)
+		defer func() {
+			_, _ = tc.db.NewDelete().Model((*scheduleModel.StudentPickupException)(nil)).
+				ModelTableExpr("schedule.student_pickup_exceptions").
+				Where("student_id = ?", student.ID).
+				Exec(context.Background())
+		}()
+
+		body := map[string]any{
+			"student_ids": []int64{student.ID},
+			"date":        "2026-01-26",
+		}
+		req := testutil.NewAuthenticatedRequest(t, "POST", "/", body)
+		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+
+		assert.Equal(t, http.StatusOK, rr.Code)
+		// Exception should override base time
+		assert.Contains(t, rr.Body.String(), "12:00", "Should contain exception pickup time")
+		assert.Contains(t, rr.Body.String(), "is_exception", "Should indicate exception")
+	})
 }
 
 // =============================================================================
