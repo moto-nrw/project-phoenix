@@ -13,8 +13,11 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// tablePickupSchedules is the fully-qualified table name for student pickup schedules.
-const tablePickupSchedules = "schedule.student_pickup_schedules"
+// Table names for pickup schedule repositories.
+const (
+	tablePickupSchedules  = "schedule.student_pickup_schedules"
+	tablePickupExceptions = "schedule.student_pickup_exceptions"
+)
 
 // errScheduleNil is returned when a nil schedule is passed to a repository method.
 var errScheduleNil = fmt.Errorf("schedule cannot be nil")
@@ -224,7 +227,7 @@ type StudentPickupExceptionRepository struct {
 // NewStudentPickupExceptionRepository creates a new StudentPickupExceptionRepository
 func NewStudentPickupExceptionRepository(db *bun.DB) schedule.StudentPickupExceptionRepository {
 	return &StudentPickupExceptionRepository{
-		Repository: base.NewRepository[*schedule.StudentPickupException](db, "schedule.student_pickup_exceptions", "StudentPickupException"),
+		Repository: base.NewRepository[*schedule.StudentPickupException](db, tablePickupExceptions, "StudentPickupException"),
 		db:         db,
 	}
 }
@@ -327,7 +330,7 @@ func (r *StudentPickupExceptionRepository) FindByStudentIDsAndDate(ctx context.C
 func (r *StudentPickupExceptionRepository) DeleteByStudentID(ctx context.Context, studentID int64) error {
 	_, err := r.db.NewDelete().
 		Model((*schedule.StudentPickupException)(nil)).
-		ModelTableExpr("schedule.student_pickup_exceptions").
+		ModelTableExpr(tablePickupExceptions).
 		Where("student_id = ?", studentID).
 		Exec(ctx)
 
@@ -345,7 +348,7 @@ func (r *StudentPickupExceptionRepository) DeleteByStudentID(ctx context.Context
 func (r *StudentPickupExceptionRepository) DeletePastExceptions(ctx context.Context, beforeDate time.Time) (int64, error) {
 	result, err := r.db.NewDelete().
 		Model((*schedule.StudentPickupException)(nil)).
-		ModelTableExpr("schedule.student_pickup_exceptions").
+		ModelTableExpr(tablePickupExceptions).
 		Where("exception_date < ?", beforeDate).
 		Exec(ctx)
 
