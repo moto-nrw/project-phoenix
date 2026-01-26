@@ -474,6 +474,165 @@ func TestDeviceCheckin_SupervisorRFIDAuthentication(t *testing.T) {
 		// Staff RFID without active session should return 404
 		testutil.AssertNotFound(t, rr)
 	})
+
+	t.Run("idempotent duplicate supervisor scan", func(t *testing.T) {
+		ctx := setupTestContext(t)
+		defer func() { _ = ctx.db.Close() }()
+
+		device := testpkg.CreateTestDevice(t, ctx.db, "staff-dup")
+		defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
+
+		staff := testpkg.CreateTestStaff(t, ctx.db, "Duplicate", "Supervisor")
+		defer testpkg.CleanupActivityFixtures(t, ctx.db, staff.ID)
+
+		tagID := fmt.Sprintf("STAFFDUP%d", time.Now().UnixNano())
+		card := testpkg.CreateTestRFIDCard(t, ctx.db, tagID)
+		defer testpkg.CleanupRFIDCards(t, ctx.db, card.ID)
+		testpkg.LinkRFIDToStudent(t, ctx.db, staff.PersonID, card.ID)
+
+		room := testpkg.CreateTestRoom(t, ctx.db, "Dup Supervisor Room")
+		defer testpkg.CleanupActivityFixtures(t, ctx.db, room.ID)
+
+		activity := testpkg.CreateTestActivityGroup(t, ctx.db, "Dup Supervisor Activity")
+		defer testpkg.CleanupActivityFixtures(t, ctx.db, activity.ID)
+
+		activeGroup := testpkg.CreateTestActiveGroup(t, ctx.db, activity.ID, room.ID)
+		defer testpkg.CleanupActivityFixtures(t, ctx.db, activeGroup.ID)
+
+		// Link device to session
+		_, err := ctx.db.NewUpdate().
+			TableExpr("active.groups").
+			Set("device_id = ?", device.ID).
+			Where("id = ?", activeGroup.ID).
+			Exec(t.Context())
+		assert.NoError(t, err)
+
+		// Pre-assign staff as supervisor BEFORE scanning
+		sup := testpkg.CreateTestGroupSupervisor(t, ctx.db, staff.ID, activeGroup.ID, "supervisor")
+		defer testpkg.CleanupActivityFixtures(t, ctx.db, sup.ID)
+
+		router := chi.NewRouter()
+		router.Post("/checkin/checkin", ctx.resource.DeviceCheckinHandler())
+
+		body := map[string]interface{}{
+			"student_rfid": card.ID,
+			"action":       "checkin",
+		}
+
+		req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/checkin", body,
+			testutil.WithDeviceContext(createTestDeviceContext(device)),
+		)
+
+		rr := testutil.ExecuteRequest(router, req)
+
+		// Duplicate scan should succeed (idempotent)
+		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+
+		response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+		data, ok := response["data"].(map[string]interface{})
+		assert.True(t, ok, "Response should have data field")
+		assert.Equal(t, "supervisor_authenticated", data["action"])
+		assert.Contains(t, data["student_name"], "Duplicate")
+		assert.Equal(t, room.Name, data["room_name"])
+		assert.Contains(t, data["message"].(string), "Dup Supervisor Activity")
+	})
+
+	t.Run("response includes room and activity names", func(t *testing.T) {
+		ctx := setupTestContext(t)
+		defer func() { _ = ctx.db.Close() }()
+
+		device := testpkg.CreateTestDevice(t, ctx.db, "staff-detail")
+		defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
+
+		staff := testpkg.CreateTestStaff(t, ctx.db, "Detail", "Check")
+		defer testpkg.CleanupActivityFixtures(t, ctx.db, staff.ID)
+
+		tagID := fmt.Sprintf("STAFFDET%d", time.Now().UnixNano())
+		card := testpkg.CreateTestRFIDCard(t, ctx.db, tagID)
+		defer testpkg.CleanupRFIDCards(t, ctx.db, card.ID)
+		testpkg.LinkRFIDToStudent(t, ctx.db, staff.PersonID, card.ID)
+
+		room := testpkg.CreateTestRoom(t, ctx.db, "Kreativraum")
+		defer testpkg.CleanupActivityFixtures(t, ctx.db, room.ID)
+
+		activity := testpkg.CreateTestActivityGroup(t, ctx.db, "Basteln")
+		defer testpkg.CleanupActivityFixtures(t, ctx.db, activity.ID)
+
+		activeGroup := testpkg.CreateTestActiveGroup(t, ctx.db, activity.ID, room.ID)
+		defer testpkg.CleanupActivityFixtures(t, ctx.db, activeGroup.ID)
+
+		_, err := ctx.db.NewUpdate().
+			TableExpr("active.groups").
+			Set("device_id = ?", device.ID).
+			Where("id = ?", activeGroup.ID).
+			Exec(t.Context())
+		assert.NoError(t, err)
+
+		router := chi.NewRouter()
+		router.Post("/checkin/checkin", ctx.resource.DeviceCheckinHandler())
+
+		body := map[string]interface{}{
+			"student_rfid": card.ID,
+			"action":       "checkin",
+		}
+
+		req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/checkin", body,
+			testutil.WithDeviceContext(createTestDeviceContext(device)),
+		)
+
+		rr := testutil.ExecuteRequest(router, req)
+
+		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+
+		response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+		data, ok := response["data"].(map[string]interface{})
+		assert.True(t, ok)
+		assert.Equal(t, "supervisor_authenticated", data["action"])
+		assert.Equal(t, room.Name, data["room_name"])
+		assert.Equal(t, "Supervisor authenticated for Basteln", data["message"])
+		assert.Equal(t, "success", data["status"])
+		assert.Contains(t, data, "processed_at")
+		assert.Contains(t, data, "student_id")
+		assert.Equal(t, "Detail Check", data["student_name"])
+	})
+}
+
+// TestDeviceCheckin_PersonNeitherStudentNorStaff verifies that a person who
+// exists with an RFID tag but is neither a student nor a staff member gets
+// a 404 response. This covers the "neither student nor staff" branch in
+// handleStaffScan (workflow.go lines 118-121).
+func TestDeviceCheckin_PersonNeitherStudentNorStaff(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	device := testpkg.CreateTestDevice(t, ctx.db, "bare-person")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
+
+	// Create a bare person (not linked to any student or staff record)
+	person := testpkg.CreateTestPerson(t, ctx.db, "Bare", "Person")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, person.ID)
+
+	tagID := fmt.Sprintf("BARE%d", time.Now().UnixNano())
+	card := testpkg.CreateTestRFIDCard(t, ctx.db, tagID)
+	defer testpkg.CleanupRFIDCards(t, ctx.db, card.ID)
+	testpkg.LinkRFIDToStudent(t, ctx.db, person.ID, card.ID)
+
+	router := chi.NewRouter()
+	router.Post("/checkin/checkin", ctx.resource.DeviceCheckinHandler())
+
+	body := map[string]interface{}{
+		"student_rfid": card.ID,
+		"action":       "checkin",
+	}
+
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/checkin", body,
+		testutil.WithDeviceContext(createTestDeviceContext(device)),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	// Person with RFID but no student/staff record should return 404
+	testutil.AssertNotFound(t, rr)
 }
 
 // =============================================================================
