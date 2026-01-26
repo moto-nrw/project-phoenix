@@ -130,12 +130,41 @@ func TestUpdateStudentPickupSchedules(t *testing.T) {
 
 	router := setupRouterWithMethods(tc.resource.UpdateStudentPickupSchedulesHandler(), "id", []string{"PUT"})
 
+	t.Run("success_updates_schedules_as_teacher", func(t *testing.T) {
+		// Create a student
+		student := testpkg.CreateTestStudent(t, tc.db, "PickupSuccess", "Test", "PST1")
+		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
+
+		// Create a teacher with account for auth
+		teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Update", "Teacher")
+		defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID)
+
+		body := map[string]any{
+			"schedules": []map[string]any{
+				{"weekday": 1, "pickup_time": "15:30"},
+				{"weekday": 3, "pickup_time": "16:00"},
+			},
+		}
+		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), body)
+		rr := executeWithAuth(router, req, testutil.AdminTestClaims(int(account.ID)), []string{"admin:*"})
+
+		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
+		assert.Contains(t, rr.Body.String(), "15:30", "Should contain first pickup time")
+		assert.Contains(t, rr.Body.String(), "16:00", "Should contain second pickup time")
+
+		// Cleanup created schedules
+		_, _ = tc.db.NewDelete().Model((*scheduleModel.StudentPickupSchedule)(nil)).
+			ModelTableExpr("schedule.student_pickup_schedules").
+			Where("student_id = ?", student.ID).
+			Exec(context.Background())
+	})
+
 	t.Run("bad_request_empty_schedules", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "PickupEmpty", "Test", "PE1")
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
-		body := map[string]interface{}{
-			"schedules": []map[string]interface{}{},
+		body := map[string]any{
+			"schedules": []map[string]any{},
 		}
 		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), body)
 		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
@@ -147,8 +176,8 @@ func TestUpdateStudentPickupSchedules(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "PickupWeekday", "Test", "PW1")
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
-		body := map[string]interface{}{
-			"schedules": []map[string]interface{}{
+		body := map[string]any{
+			"schedules": []map[string]any{
 				{"weekday": 7, "pickup_time": "15:30"},
 			},
 		}
@@ -162,8 +191,8 @@ func TestUpdateStudentPickupSchedules(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "PickupWeekdayZero", "Test", "PW0")
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
-		body := map[string]interface{}{
-			"schedules": []map[string]interface{}{
+		body := map[string]any{
+			"schedules": []map[string]any{
 				{"weekday": 0, "pickup_time": "15:30"},
 			},
 		}
@@ -177,8 +206,8 @@ func TestUpdateStudentPickupSchedules(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "PickupTime", "Test", "PT1")
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
-		body := map[string]interface{}{
-			"schedules": []map[string]interface{}{
+		body := map[string]any{
+			"schedules": []map[string]any{
 				{"weekday": 1, "pickup_time": "invalid"},
 			},
 		}
@@ -192,8 +221,8 @@ func TestUpdateStudentPickupSchedules(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "PickupNoTime", "Test", "PNT1")
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
-		body := map[string]interface{}{
-			"schedules": []map[string]interface{}{
+		body := map[string]any{
+			"schedules": []map[string]any{
 				{"weekday": 1},
 			},
 		}
@@ -248,6 +277,62 @@ func TestCreateStudentPickupException(t *testing.T) {
 	tc := setupTestContext(t)
 
 	router := setupRouterWithMethods(tc.resource.CreateStudentPickupExceptionHandler(), "id", []string{"POST"})
+
+	t.Run("success_creates_exception_as_teacher", func(t *testing.T) {
+		// Create a student
+		student := testpkg.CreateTestStudent(t, tc.db, "ExceptionCreate", "Test", "ECT1")
+		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
+
+		// Create a teacher with account for auth
+		teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Create", "ExcTeacher")
+		defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID)
+
+		body := map[string]any{
+			"exception_date": "2026-03-15",
+			"pickup_time":    "12:00",
+			"reason":         "Doctor appointment",
+		}
+		req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d", student.ID), body)
+		rr := executeWithAuth(router, req, testutil.AdminTestClaims(int(account.ID)), []string{"admin:*"})
+
+		assert.Equal(t, http.StatusCreated, rr.Code, "Expected 201 Created. Body: %s", rr.Body.String())
+		assert.Contains(t, rr.Body.String(), "2026-03-15", "Should contain exception date")
+		assert.Contains(t, rr.Body.String(), "12:00", "Should contain pickup time")
+		assert.Contains(t, rr.Body.String(), "Doctor appointment", "Should contain reason")
+
+		// Cleanup created exception
+		_, _ = tc.db.NewDelete().Model((*scheduleModel.StudentPickupException)(nil)).
+			ModelTableExpr("schedule.student_pickup_exceptions").
+			Where("student_id = ?", student.ID).
+			Exec(context.Background())
+	})
+
+	t.Run("success_creates_exception_without_pickup_time_absent", func(t *testing.T) {
+		// Create a student
+		student := testpkg.CreateTestStudent(t, tc.db, "ExceptionAbsent", "Test", "EAT1")
+		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
+
+		// Create a teacher with account for auth
+		teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Absent", "ExcTeacher")
+		defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID)
+
+		body := map[string]any{
+			"exception_date": "2026-03-16",
+			"reason":         "Student is sick",
+		}
+		req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d", student.ID), body)
+		rr := executeWithAuth(router, req, testutil.AdminTestClaims(int(account.ID)), []string{"admin:*"})
+
+		assert.Equal(t, http.StatusCreated, rr.Code, "Expected 201 Created. Body: %s", rr.Body.String())
+		assert.Contains(t, rr.Body.String(), "2026-03-16", "Should contain exception date")
+		assert.Contains(t, rr.Body.String(), "Student is sick", "Should contain reason")
+
+		// Cleanup created exception
+		_, _ = tc.db.NewDelete().Model((*scheduleModel.StudentPickupException)(nil)).
+			ModelTableExpr("schedule.student_pickup_exceptions").
+			Where("student_id = ?", student.ID).
+			Exec(context.Background())
+	})
 
 	t.Run("bad_request_missing_date", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "ExceptionNoDate", "Test", "END1")
@@ -355,6 +440,91 @@ func TestCreateStudentPickupException(t *testing.T) {
 func TestUpdateStudentPickupException(t *testing.T) {
 	tc := setupTestContext(t)
 
+	t.Run("success_updates_exception_as_teacher", func(t *testing.T) {
+		// Create a student
+		student := testpkg.CreateTestStudent(t, tc.db, "ExceptionUpdate", "Test", "EUT1")
+		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
+
+		// Create a teacher with account for auth
+		teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Update", "ExcTeacher2")
+		defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID)
+
+		// Create an exception to update
+		exceptionDate := time.Date(2026, 4, 15, 0, 0, 0, 0, time.UTC)
+		exceptionTime := time.Date(2000, 1, 1, 14, 0, 0, 0, time.UTC)
+		exception := &scheduleModel.StudentPickupException{
+			StudentID:     student.ID,
+			ExceptionDate: exceptionDate,
+			PickupTime:    &exceptionTime,
+			Reason:        "Original reason",
+			CreatedBy:     1,
+		}
+		_, err := tc.db.NewInsert().Model(exception).
+			ModelTableExpr("schedule.student_pickup_exceptions").
+			Returning("id").
+			Exec(context.Background())
+		require.NoError(t, err)
+		defer func() {
+			_, _ = tc.db.NewDelete().Model((*scheduleModel.StudentPickupException)(nil)).
+				ModelTableExpr("schedule.student_pickup_exceptions").
+				Where("id = ?", exception.ID).
+				Exec(context.Background())
+		}()
+
+		router := setupExceptionRouter(tc.resource.UpdateStudentPickupExceptionHandler(), "PUT")
+
+		body := map[string]any{
+			"exception_date": "2026-04-15",
+			"pickup_time":    "11:00",
+			"reason":         "Updated reason",
+		}
+		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d/%d", student.ID, exception.ID), body)
+		rr := executeWithAuth(router, req, testutil.AdminTestClaims(int(account.ID)), []string{"admin:*"})
+
+		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
+		assert.Contains(t, rr.Body.String(), "11:00", "Should contain updated pickup time")
+		assert.Contains(t, rr.Body.String(), "Updated reason", "Should contain updated reason")
+	})
+
+	t.Run("forbidden_exception_belongs_to_different_student", func(t *testing.T) {
+		// Create two students
+		student1 := testpkg.CreateTestStudent(t, tc.db, "Student1", "Test", "ST1")
+		student2 := testpkg.CreateTestStudent(t, tc.db, "Student2", "Test", "ST2")
+		defer testpkg.CleanupActivityFixtures(t, tc.db, student1.ID, student2.ID)
+
+		// Create exception for student2
+		exceptionDate := time.Date(2026, 5, 15, 0, 0, 0, 0, time.UTC)
+		exception := &scheduleModel.StudentPickupException{
+			StudentID:     student2.ID, // Belongs to student2
+			ExceptionDate: exceptionDate,
+			Reason:        "Test reason",
+			CreatedBy:     1,
+		}
+		_, err := tc.db.NewInsert().Model(exception).
+			ModelTableExpr("schedule.student_pickup_exceptions").
+			Returning("id").
+			Exec(context.Background())
+		require.NoError(t, err)
+		defer func() {
+			_, _ = tc.db.NewDelete().Model((*scheduleModel.StudentPickupException)(nil)).
+				ModelTableExpr("schedule.student_pickup_exceptions").
+				Where("id = ?", exception.ID).
+				Exec(context.Background())
+		}()
+
+		router := setupExceptionRouter(tc.resource.UpdateStudentPickupExceptionHandler(), "PUT")
+
+		body := map[string]any{
+			"exception_date": "2026-05-15",
+			"reason":         "Updated",
+		}
+		// Try to update student2's exception using student1's URL
+		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d/%d", student1.ID, exception.ID), body)
+		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+
+		testutil.AssertForbidden(t, rr)
+	})
+
 	t.Run("bad_request_invalid_exception_id", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "ExceptionUpdateInvalid", "Test", "EUI1")
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
@@ -416,6 +586,69 @@ func TestUpdateStudentPickupException(t *testing.T) {
 
 func TestDeleteStudentPickupException(t *testing.T) {
 	tc := setupTestContext(t)
+
+	t.Run("success_deletes_exception_as_teacher", func(t *testing.T) {
+		// Create a student
+		student := testpkg.CreateTestStudent(t, tc.db, "ExceptionDelete", "Test", "EDT1")
+		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
+
+		// Create exception to delete
+		exceptionDate := time.Date(2026, 6, 15, 0, 0, 0, 0, time.UTC)
+		exception := &scheduleModel.StudentPickupException{
+			StudentID:     student.ID,
+			ExceptionDate: exceptionDate,
+			Reason:        "To be deleted",
+			CreatedBy:     1,
+		}
+		_, err := tc.db.NewInsert().Model(exception).
+			ModelTableExpr("schedule.student_pickup_exceptions").
+			Returning("id").
+			Exec(context.Background())
+		require.NoError(t, err)
+
+		router := setupExceptionRouter(tc.resource.DeleteStudentPickupExceptionHandler(), "DELETE")
+
+		req := testutil.NewRequest("DELETE", fmt.Sprintf("/%d/%d", student.ID, exception.ID), nil)
+		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+
+		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
+		assert.Contains(t, rr.Body.String(), "deleted successfully")
+	})
+
+	t.Run("forbidden_delete_exception_belongs_to_different_student", func(t *testing.T) {
+		// Create two students
+		student1 := testpkg.CreateTestStudent(t, tc.db, "DeleteSt1", "Test", "DS1")
+		student2 := testpkg.CreateTestStudent(t, tc.db, "DeleteSt2", "Test", "DS2")
+		defer testpkg.CleanupActivityFixtures(t, tc.db, student1.ID, student2.ID)
+
+		// Create exception for student2
+		exceptionDate := time.Date(2026, 7, 15, 0, 0, 0, 0, time.UTC)
+		exception := &scheduleModel.StudentPickupException{
+			StudentID:     student2.ID, // Belongs to student2
+			ExceptionDate: exceptionDate,
+			Reason:        "Test reason",
+			CreatedBy:     1,
+		}
+		_, err := tc.db.NewInsert().Model(exception).
+			ModelTableExpr("schedule.student_pickup_exceptions").
+			Returning("id").
+			Exec(context.Background())
+		require.NoError(t, err)
+		defer func() {
+			_, _ = tc.db.NewDelete().Model((*scheduleModel.StudentPickupException)(nil)).
+				ModelTableExpr("schedule.student_pickup_exceptions").
+				Where("id = ?", exception.ID).
+				Exec(context.Background())
+		}()
+
+		router := setupExceptionRouter(tc.resource.DeleteStudentPickupExceptionHandler(), "DELETE")
+
+		// Try to delete student2's exception using student1's URL
+		req := testutil.NewRequest("DELETE", fmt.Sprintf("/%d/%d", student1.ID, exception.ID), nil)
+		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+
+		testutil.AssertForbidden(t, rr)
+	})
 
 	t.Run("bad_request_invalid_exception_id", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "ExceptionDeleteInvalid", "Test", "EDI1")
