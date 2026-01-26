@@ -373,7 +373,7 @@ interface DayComponentProps {
   readonly readOnly: boolean;
   readonly onEditException: (exception: PickupException) => void;
   readonly onDeleteException: (exception: PickupException) => void;
-  readonly onCreateException: () => void;
+  readonly onCreateException?: () => void;
 }
 
 function DayRow({
@@ -411,7 +411,7 @@ function DayRow({
       {day.showSick ? (
         <div className="inline-flex items-center gap-1 rounded-full bg-pink-100 px-2 py-0.5 text-xs font-medium text-pink-700">
           <span className="h-1.5 w-1.5 rounded-full bg-pink-500" />
-          Krank
+          <span>Krank</span>
         </div>
       ) : (
         <>
@@ -533,7 +533,7 @@ function DayCell({
       {day.showSick ? (
         <div className="mt-1 inline-flex items-center gap-1 rounded-full bg-pink-100 px-2 py-0.5 text-xs font-medium text-pink-700">
           <span className="h-1.5 w-1.5 rounded-full bg-pink-500" />
-          Krank
+          <span>Krank</span>
         </div>
       ) : (
         <>

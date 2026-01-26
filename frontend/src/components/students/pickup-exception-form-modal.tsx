@@ -85,7 +85,7 @@ export function PickupExceptionFormModal({
     }
 
     // Validate time format
-    const timeRegex = /^([01]?[0-9]|2[0-3]):[0-5][0-9]$/;
+    const timeRegex = /^([01]?\d|2[0-3]):[0-5]\d$/;
     if (!timeRegex.test(pickupTime)) {
       setError("Ungültiges Zeitformat. Bitte verwenden Sie HH:MM.");
       return;

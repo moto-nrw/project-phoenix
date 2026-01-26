@@ -338,7 +338,7 @@ export async function fetchBulkPickupTimes(
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      student_ids: studentIds.map((id) => parseInt(id, 10)),
+      student_ids: studentIds.map((id) => Number.parseInt(id, 10)),
       date: date,
     }),
   });

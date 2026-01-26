@@ -62,7 +62,7 @@ export function PickupScheduleFormModal({
     }
 
     // Validate time format (HH:MM)
-    const timeRegex = /^([01]?[0-9]|2[0-3]):[0-5][0-9]$/;
+    const timeRegex = /^([01]?\d|2[0-3]):[0-5]\d$/;
     for (const schedule of validSchedules) {
       if (!timeRegex.test(schedule.pickupTime)) {
         setError(
@@ -137,10 +137,14 @@ export function PickupScheduleFormModal({
                 </div>
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div>
-                    <label className="mb-1 block text-xs text-gray-500">
+                    <label
+                      htmlFor={`pickup-time-${day.value}`}
+                      className="mb-1 block text-xs text-gray-500"
+                    >
                       Abholzeit
                     </label>
                     <input
+                      id={`pickup-time-${day.value}`}
                       type="time"
                       value={schedule?.pickupTime ?? ""}
                       onChange={(e) =>
@@ -151,10 +155,14 @@ export function PickupScheduleFormModal({
                     />
                   </div>
                   <div>
-                    <label className="mb-1 block text-xs text-gray-500">
+                    <label
+                      htmlFor={`pickup-notes-${day.value}`}
+                      className="mb-1 block text-xs text-gray-500"
+                    >
                       Notiz (optional)
                     </label>
                     <input
+                      id={`pickup-notes-${day.value}`}
                       type="text"
                       value={schedule?.notes ?? ""}
                       onChange={(e) =>
