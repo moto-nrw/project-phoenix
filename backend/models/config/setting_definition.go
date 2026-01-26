@@ -141,22 +141,12 @@ func (d *SettingDefinition) Validate() error {
 		return errors.New("allowed_scopes is required")
 	}
 
-	// Validate allowed scopes
-	for _, scope := range d.AllowedScopes {
-		if !IsValidScopeType(scope) {
-			return fmt.Errorf("invalid scope type: %s", scope)
-		}
-	}
-
 	if len(d.ScopePermissions) == 0 {
 		return errors.New("scope_permissions is required")
 	}
 
-	// Validate scope permissions match allowed scopes
-	for _, scope := range d.AllowedScopes {
-		if _, ok := d.ScopePermissions[scope]; !ok {
-			return fmt.Errorf("missing permission for scope: %s", scope)
-		}
+	if err := d.validateScopes(); err != nil {
+		return err
 	}
 
 	// Validate enum type has options
@@ -166,6 +156,21 @@ func (d *SettingDefinition) Validate() error {
 		}
 	}
 
+	return nil
+}
+
+// validateScopes checks that all allowed scopes are valid and have permissions.
+func (d *SettingDefinition) validateScopes() error {
+	for _, scope := range d.AllowedScopes {
+		if !IsValidScopeType(scope) {
+			return fmt.Errorf("invalid scope type: %s", scope)
+		}
+	}
+	for _, scope := range d.AllowedScopes {
+		if _, ok := d.ScopePermissions[scope]; !ok {
+			return fmt.Errorf("missing permission for scope: %s", scope)
+		}
+	}
 	return nil
 }
 
@@ -229,82 +234,104 @@ func (d *SettingDefinition) parseValue(data json.RawMessage) (any, error) {
 
 // ValidateValue validates a value against this definition
 func (d *SettingDefinition) ValidateValue(value any) error {
-	// Type validation
 	switch d.Type {
 	case SettingTypeBool:
-		if _, ok := value.(bool); !ok {
-			return errors.New("value must be a boolean")
-		}
-
+		return d.validateBoolValue(value)
 	case SettingTypeInt:
-		var intVal int
-		switch v := value.(type) {
-		case int:
-			intVal = v
-		case int64:
-			intVal = int(v)
-		case float64:
-			intVal = int(v)
-		default:
-			return errors.New("value must be an integer")
-		}
-		if d.Validation != nil {
-			if d.Validation.Min != nil && float64(intVal) < *d.Validation.Min {
-				return fmt.Errorf("value must be at least %.0f", *d.Validation.Min)
-			}
-			if d.Validation.Max != nil && float64(intVal) > *d.Validation.Max {
-				return fmt.Errorf("value must be at most %.0f", *d.Validation.Max)
-			}
-		}
-
+		return d.validateIntValue(value)
 	case SettingTypeFloat:
-		var floatVal float64
-		switch v := value.(type) {
-		case float64:
-			floatVal = v
-		case float32:
-			floatVal = float64(v)
-		case int:
-			floatVal = float64(v)
-		default:
-			return errors.New("value must be a number")
-		}
-		if d.Validation != nil {
-			if d.Validation.Min != nil && floatVal < *d.Validation.Min {
-				return fmt.Errorf("value must be at least %f", *d.Validation.Min)
-			}
-			if d.Validation.Max != nil && floatVal > *d.Validation.Max {
-				return fmt.Errorf("value must be at most %f", *d.Validation.Max)
-			}
-		}
-
+		return d.validateFloatValue(value)
 	case SettingTypeString:
-		if _, ok := value.(string); !ok {
-			return errors.New("value must be a string")
-		}
-
+		return d.validateStringValue(value)
 	case SettingTypeEnum:
-		strVal, ok := value.(string)
-		if !ok {
-			return errors.New("value must be a string")
-		}
-		if d.Validation != nil && len(d.Validation.Options) > 0 {
-			if !slices.Contains(d.Validation.Options, strVal) {
-				return fmt.Errorf("value must be one of: %s", strings.Join(d.Validation.Options, ", "))
-			}
-		}
-
+		return d.validateEnumValue(value)
 	case SettingTypeTime:
-		strVal, ok := value.(string)
-		if !ok {
-			return errors.New("value must be a time string (HH:MM)")
+		return d.validateTimeValue(value)
+	}
+	return nil
+}
+
+func (d *SettingDefinition) validateBoolValue(value any) error {
+	if _, ok := value.(bool); !ok {
+		return errors.New("value must be a boolean")
+	}
+	return nil
+}
+
+func (d *SettingDefinition) validateIntValue(value any) error {
+	var intVal int
+	switch v := value.(type) {
+	case int:
+		intVal = v
+	case int64:
+		intVal = int(v)
+	case float64:
+		intVal = int(v)
+	default:
+		return errors.New("value must be an integer")
+	}
+	if d.Validation != nil {
+		if d.Validation.Min != nil && float64(intVal) < *d.Validation.Min {
+			return fmt.Errorf("value must be at least %.0f", *d.Validation.Min)
 		}
-		// Basic time format validation
-		if len(strVal) != 5 || strVal[2] != ':' {
-			return errors.New("value must be in HH:MM format")
+		if d.Validation.Max != nil && float64(intVal) > *d.Validation.Max {
+			return fmt.Errorf("value must be at most %.0f", *d.Validation.Max)
 		}
 	}
+	return nil
+}
 
+func (d *SettingDefinition) validateFloatValue(value any) error {
+	var floatVal float64
+	switch v := value.(type) {
+	case float64:
+		floatVal = v
+	case float32:
+		floatVal = float64(v)
+	case int:
+		floatVal = float64(v)
+	default:
+		return errors.New("value must be a number")
+	}
+	if d.Validation != nil {
+		if d.Validation.Min != nil && floatVal < *d.Validation.Min {
+			return fmt.Errorf("value must be at least %f", *d.Validation.Min)
+		}
+		if d.Validation.Max != nil && floatVal > *d.Validation.Max {
+			return fmt.Errorf("value must be at most %f", *d.Validation.Max)
+		}
+	}
+	return nil
+}
+
+func (d *SettingDefinition) validateStringValue(value any) error {
+	if _, ok := value.(string); !ok {
+		return errors.New("value must be a string")
+	}
+	return nil
+}
+
+func (d *SettingDefinition) validateEnumValue(value any) error {
+	strVal, ok := value.(string)
+	if !ok {
+		return errors.New("value must be a string")
+	}
+	if d.Validation != nil && len(d.Validation.Options) > 0 {
+		if !slices.Contains(d.Validation.Options, strVal) {
+			return fmt.Errorf("value must be one of: %s", strings.Join(d.Validation.Options, ", "))
+		}
+	}
+	return nil
+}
+
+func (d *SettingDefinition) validateTimeValue(value any) error {
+	strVal, ok := value.(string)
+	if !ok {
+		return errors.New("value must be a time string (HH:MM)")
+	}
+	if len(strVal) != 5 || strVal[2] != ':' {
+		return errors.New("value must be in HH:MM format")
+	}
 	return nil
 }
 

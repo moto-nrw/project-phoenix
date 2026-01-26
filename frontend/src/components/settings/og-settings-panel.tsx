@@ -19,9 +19,65 @@ import { SettingInput, SettingLoadingSpinner } from "./setting-input";
 import { SettingHistory } from "./setting-history";
 
 interface OGSettingsPanelProps {
-  ogId: string;
-  ogName?: string;
-  showHistory?: boolean;
+  readonly ogId: string;
+  readonly ogName?: string;
+  readonly showHistory?: boolean;
+}
+
+interface SettingRowProps {
+  readonly setting: ResolvedSetting;
+  readonly savingKey: string | null;
+  readonly onSettingChange: (key: string, value: unknown) => Promise<void>;
+  readonly onResetSetting: (key: string) => Promise<void>;
+}
+
+function SettingRow({
+  setting,
+  savingKey,
+  onSettingChange,
+  onResetSetting,
+}: SettingRowProps) {
+  return (
+    <div
+      className={`flex flex-col gap-2 rounded-lg bg-white/50 p-2.5 ${setting.canModify ? "" : "opacity-70"}`}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex-1">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-xs font-medium text-gray-800">
+              {setting.description ?? setting.key}
+            </span>
+            {!setting.isDefault && (
+              <span className="rounded-full bg-green-100 px-1.5 py-0.5 text-[10px] text-green-700">
+                Angepasst
+              </span>
+            )}
+          </div>
+          <p className="mt-0.5 text-[10px] text-gray-500">
+            {getSourceLabel(setting)}
+          </p>
+        </div>
+
+        <SettingInput
+          setting={setting}
+          isSaving={savingKey === setting.key}
+          isDisabled={!setting.canModify || savingKey === setting.key}
+          variant="green"
+          onChange={(key, value) => void onSettingChange(key, value)}
+        />
+      </div>
+
+      {!setting.isDefault && setting.canModify && (
+        <button
+          onClick={() => void onResetSetting(setting.key)}
+          disabled={savingKey === setting.key}
+          className="self-end text-[10px] text-gray-500 hover:text-green-600"
+        >
+          Zurücksetzen
+        </button>
+      )}
+    </div>
+  );
 }
 
 export function OGSettingsPanel({
@@ -147,50 +203,13 @@ export function OGSettingsPanel({
                 {group.settings
                   .filter((setting) => isSettingActive(setting, settings))
                   .map((setting) => (
-                    <div
+                    <SettingRow
                       key={setting.key}
-                      className={`flex flex-col gap-2 rounded-lg bg-white/50 p-2.5 ${!setting.canModify ? "opacity-70" : ""}`}
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex-1">
-                          <div className="flex flex-wrap items-center gap-1.5">
-                            <span className="text-xs font-medium text-gray-800">
-                              {setting.description ?? setting.key}
-                            </span>
-                            {!setting.isDefault && (
-                              <span className="rounded-full bg-green-100 px-1.5 py-0.5 text-[10px] text-green-700">
-                                Angepasst
-                              </span>
-                            )}
-                          </div>
-                          <p className="mt-0.5 text-[10px] text-gray-500">
-                            {getSourceLabel(setting)}
-                          </p>
-                        </div>
-
-                        <SettingInput
-                          setting={setting}
-                          isSaving={savingKey === setting.key}
-                          isDisabled={
-                            !setting.canModify || savingKey === setting.key
-                          }
-                          variant="green"
-                          onChange={(key, value) =>
-                            void handleSettingChange(key, value)
-                          }
-                        />
-                      </div>
-
-                      {!setting.isDefault && setting.canModify && (
-                        <button
-                          onClick={() => void handleResetSetting(setting.key)}
-                          disabled={savingKey === setting.key}
-                          className="self-end text-[10px] text-gray-500 hover:text-green-600"
-                        >
-                          Zurücksetzen
-                        </button>
-                      )}
-                    </div>
+                      setting={setting}
+                      savingKey={savingKey}
+                      onSettingChange={handleSettingChange}
+                      onResetSetting={handleResetSetting}
+                    />
                   ))}
               </div>
             ))}

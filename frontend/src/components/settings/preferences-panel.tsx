@@ -14,7 +14,53 @@ import { useToast } from "~/contexts/ToastContext";
 import { SettingInput, SettingLoadingSpinner } from "./setting-input";
 
 interface PreferencesPanelProps {
-  isMobile?: boolean;
+  readonly isMobile?: boolean;
+}
+
+interface PreferenceRowProps {
+  readonly setting: ResolvedSetting;
+  readonly isMobile: boolean;
+  readonly savingKey: string | null;
+  readonly onSettingChange: (key: string, value: unknown) => Promise<void>;
+}
+
+function PreferenceRow({
+  setting,
+  isMobile,
+  savingKey,
+  onSettingChange,
+}: PreferenceRowProps) {
+  return (
+    <div
+      className={`flex ${isMobile ? "flex-col gap-2" : "items-center justify-between"} rounded-lg bg-gray-50/50 p-3 transition-colors ${setting.canModify ? "" : "opacity-70"}`}
+    >
+      <div className={`${isMobile ? "" : "flex-1"}`}>
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-medium text-gray-800">
+            {setting.description ?? setting.key}
+          </span>
+          {!setting.isDefault && (
+            <span className="rounded-full bg-gray-200 px-2 py-0.5 text-xs text-gray-600">
+              Angepasst
+            </span>
+          )}
+        </div>
+        <p className="mt-0.5 text-xs text-gray-500">
+          {getSourceLabel(setting)}
+        </p>
+      </div>
+
+      <div className={isMobile ? "self-start" : ""}>
+        <SettingInput
+          setting={setting}
+          isSaving={savingKey === setting.key}
+          isDisabled={!setting.canModify || savingKey === setting.key}
+          variant="gray"
+          onChange={(key, value) => void onSettingChange(key, value)}
+        />
+      </div>
+    </div>
+  );
 }
 
 export function PreferencesPanel({ isMobile = false }: PreferencesPanelProps) {
@@ -95,40 +141,13 @@ export function PreferencesPanel({ isMobile = false }: PreferencesPanelProps) {
                 {group.settings
                   .filter((setting) => isSettingActive(setting, settings))
                   .map((setting) => (
-                    <div
+                    <PreferenceRow
                       key={setting.key}
-                      className={`flex ${isMobile ? "flex-col gap-2" : "items-center justify-between"} rounded-lg bg-gray-50/50 p-3 transition-colors ${!setting.canModify ? "opacity-70" : ""}`}
-                    >
-                      <div className={`${isMobile ? "" : "flex-1"}`}>
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-medium text-gray-800">
-                            {setting.description ?? setting.key}
-                          </span>
-                          {!setting.isDefault && (
-                            <span className="rounded-full bg-gray-200 px-2 py-0.5 text-xs text-gray-600">
-                              Angepasst
-                            </span>
-                          )}
-                        </div>
-                        <p className="mt-0.5 text-xs text-gray-500">
-                          {getSourceLabel(setting)}
-                        </p>
-                      </div>
-
-                      <div className={isMobile ? "self-start" : ""}>
-                        <SettingInput
-                          setting={setting}
-                          isSaving={savingKey === setting.key}
-                          isDisabled={
-                            !setting.canModify || savingKey === setting.key
-                          }
-                          variant="gray"
-                          onChange={(key, value) =>
-                            void handleSettingChange(key, value)
-                          }
-                        />
-                      </div>
-                    </div>
+                      setting={setting}
+                      isMobile={isMobile}
+                      savingKey={savingKey}
+                      onSettingChange={handleSettingChange}
+                    />
                   ))}
               </div>
             ))}

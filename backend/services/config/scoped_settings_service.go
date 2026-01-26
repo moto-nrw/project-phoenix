@@ -14,6 +14,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/config"
 )
 
+const errSettingNotFound = "setting not found: %s"
+
 // Repositories needed by the scoped settings service
 type ScopedSettingsRepositories struct {
 	Definition config.SettingDefinitionRepository
@@ -72,7 +74,7 @@ func (s *scopedSettingsService) GetWithSource(ctx context.Context, key string, s
 		return nil, err
 	}
 	if def == nil {
-		return nil, fmt.Errorf("setting not found: %s", key)
+		return nil, fmt.Errorf(errSettingNotFound, key)
 	}
 
 	// Build resolution chain based on scope and allowed scopes
@@ -205,7 +207,7 @@ func (s *scopedSettingsService) Set(
 		return err
 	}
 	if def == nil {
-		return fmt.Errorf("setting not found: %s", key)
+		return fmt.Errorf(errSettingNotFound, key)
 	}
 
 	// Validate scope is allowed
@@ -282,7 +284,7 @@ func (s *scopedSettingsService) Reset(
 		return err
 	}
 	if def == nil {
-		return fmt.Errorf("setting not found: %s", key)
+		return fmt.Errorf(errSettingNotFound, key)
 	}
 
 	// Get current value for audit
@@ -321,7 +323,7 @@ func (s *scopedSettingsService) IsSettingActive(ctx context.Context, key string,
 		return false, err
 	}
 	if def == nil {
-		return false, fmt.Errorf("setting not found: %s", key)
+		return false, fmt.Errorf(errSettingNotFound, key)
 	}
 
 	// No dependency = always active
@@ -343,48 +345,53 @@ func (s *scopedSettingsService) evaluateCondition(dep *config.SettingDependency,
 	switch dep.Condition {
 	case "equals":
 		return fmt.Sprintf("%v", actualValue) == fmt.Sprintf("%v", dep.Value)
-
 	case "not_equals":
 		return fmt.Sprintf("%v", actualValue) != fmt.Sprintf("%v", dep.Value)
-
 	case "in":
-		// Check if actualValue (slice) contains dep.Value
-		if slice, ok := actualValue.([]interface{}); ok {
-			for _, v := range slice {
-				if fmt.Sprintf("%v", v) == fmt.Sprintf("%v", dep.Value) {
-					return true
-				}
-			}
-		}
-		if slice, ok := actualValue.([]string); ok {
-			for _, v := range slice {
-				if v == fmt.Sprintf("%v", dep.Value) {
-					return true
-				}
-			}
-		}
-		return false
-
+		return sliceContains(actualValue, dep.Value)
 	case "not_empty":
-		if actualValue == nil {
-			return false
-		}
-		switch v := actualValue.(type) {
-		case string:
-			return v != ""
-		case int:
-			return v != 0
-		case float64:
-			return v != 0
-		case bool:
-			return true
-		default:
-			return true
-		}
-
+		return isNotEmpty(actualValue)
 	case "greater_than":
 		return toFloat(actualValue) > toFloat(dep.Value)
+	default:
+		return true
+	}
+}
 
+// sliceContains checks if a slice value contains the expected element.
+func sliceContains(actualValue any, expected any) bool {
+	target := fmt.Sprintf("%v", expected)
+	if slice, ok := actualValue.([]interface{}); ok {
+		for _, v := range slice {
+			if fmt.Sprintf("%v", v) == target {
+				return true
+			}
+		}
+	}
+	if slice, ok := actualValue.([]string); ok {
+		for _, v := range slice {
+			if v == target {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// isNotEmpty checks if a value is non-nil and non-zero.
+func isNotEmpty(actualValue any) bool {
+	if actualValue == nil {
+		return false
+	}
+	switch v := actualValue.(type) {
+	case string:
+		return v != ""
+	case int:
+		return v != 0
+	case float64:
+		return v != 0
+	case bool:
+		return true
 	default:
 		return true
 	}

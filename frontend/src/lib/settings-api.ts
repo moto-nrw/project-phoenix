@@ -54,7 +54,9 @@ export async function fetchDefinitions(
   filters?: Record<string, string>,
 ): Promise<SettingDefinition[]> {
   const params = new URLSearchParams(filters);
-  const url = `${API_BASE}/definitions${params.toString() ? `?${params}` : ""}`;
+  const query = params.toString();
+  const suffix = query ? `?${query}` : "";
+  const url = `${API_BASE}/definitions${suffix}`;
 
   const response = await fetch(url, {
     headers: await getAuthHeaders(),
@@ -238,7 +240,9 @@ export async function fetchSettingHistory(
   if (filters?.scopeId) params.set("scope_id", filters.scopeId);
   if (filters?.limit) params.set("limit", filters.limit.toString());
 
-  const url = `${API_BASE}/history${params.toString() ? `?${params}` : ""}`;
+  const query = params.toString();
+  const suffix = query ? `?${query}` : "";
+  const url = `${API_BASE}/history${suffix}`;
 
   const response = await fetch(url, {
     headers: await getAuthHeaders(),

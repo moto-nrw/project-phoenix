@@ -5,11 +5,11 @@ import { type ResolvedSetting, valueToString } from "~/lib/settings-helpers";
 type SettingColorVariant = "gray" | "green" | "purple";
 
 interface SettingInputProps {
-  setting: ResolvedSetting;
-  isSaving: boolean;
-  isDisabled: boolean;
-  variant?: SettingColorVariant;
-  onChange: (key: string, value: unknown) => void;
+  readonly setting: ResolvedSetting;
+  readonly isSaving: boolean;
+  readonly isDisabled: boolean;
+  readonly variant?: SettingColorVariant;
+  readonly onChange: (key: string, value: unknown) => void;
 }
 
 const variantStyles: Record<
@@ -73,8 +73,8 @@ export function SettingInput({
             type="number"
             value={valueToString(setting.value)}
             onChange={(e) => {
-              const val = parseInt(e.target.value, 10);
-              if (!isNaN(val)) {
+              const val = Number.parseInt(e.target.value, 10);
+              if (!Number.isNaN(val)) {
                 handleChange(val);
               }
             }}
@@ -147,7 +147,7 @@ export function SettingInput({
 }
 
 interface SettingLoadingSpinnerProps {
-  variant?: SettingColorVariant;
+  readonly variant?: SettingColorVariant;
 }
 
 export function SettingLoadingSpinner({

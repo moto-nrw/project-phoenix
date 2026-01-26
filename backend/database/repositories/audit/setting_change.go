@@ -11,10 +11,15 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// Table constants for setting changes
+// Table and query constants for setting changes
 const (
 	tableSettingChanges      = "audit.setting_changes"
 	tableSettingChangesAlias = `audit.setting_changes AS "setting_change"`
+
+	whereScopeType      = "scope_type = ?"
+	whereScopeID        = "scope_id = ?"
+	whereSettingKey     = "setting_key = ?"
+	orderCreatedAtDesc  = "created_at DESC"
 )
 
 // SettingChangeRepository implements audit.SettingChangeRepository
@@ -82,15 +87,15 @@ func (r *SettingChangeRepository) FindByScope(
 	query := r.db.NewSelect().
 		Model(&changes).
 		ModelTableExpr(tableSettingChangesAlias).
-		Where("scope_type = ?", scopeType)
+		Where(whereScopeType, scopeType)
 
 	if scopeID == nil {
 		query = query.Where("scope_id IS NULL")
 	} else {
-		query = query.Where("scope_id = ?", *scopeID)
+		query = query.Where(whereScopeID, *scopeID)
 	}
 
-	query = query.Order("created_at DESC")
+	query = query.Order(orderCreatedAtDesc)
 
 	if limit > 0 {
 		query = query.Limit(limit)
@@ -113,8 +118,8 @@ func (r *SettingChangeRepository) FindByKey(ctx context.Context, settingKey stri
 	query := r.db.NewSelect().
 		Model(&changes).
 		ModelTableExpr(tableSettingChangesAlias).
-		Where("setting_key = ?", settingKey).
-		Order("created_at DESC")
+		Where(whereSettingKey, settingKey).
+		Order(orderCreatedAtDesc)
 
 	if limit > 0 {
 		query = query.Limit(limit)
@@ -143,16 +148,16 @@ func (r *SettingChangeRepository) FindByKeyAndScope(
 	query := r.db.NewSelect().
 		Model(&changes).
 		ModelTableExpr(tableSettingChangesAlias).
-		Where("setting_key = ?", settingKey).
-		Where("scope_type = ?", scopeType)
+		Where(whereSettingKey, settingKey).
+		Where(whereScopeType, scopeType)
 
 	if scopeID == nil {
 		query = query.Where("scope_id IS NULL")
 	} else {
-		query = query.Where("scope_id = ?", *scopeID)
+		query = query.Where(whereScopeID, *scopeID)
 	}
 
-	query = query.Order("created_at DESC")
+	query = query.Order(orderCreatedAtDesc)
 
 	if limit > 0 {
 		query = query.Limit(limit)
@@ -176,7 +181,7 @@ func (r *SettingChangeRepository) FindByAccount(ctx context.Context, accountID i
 		Model(&changes).
 		ModelTableExpr(tableSettingChangesAlias).
 		Where("account_id = ?", accountID).
-		Order("created_at DESC")
+		Order(orderCreatedAtDesc)
 
 	if limit > 0 {
 		query = query.Limit(limit)
@@ -200,7 +205,7 @@ func (r *SettingChangeRepository) FindRecent(ctx context.Context, since time.Tim
 		Model(&changes).
 		ModelTableExpr(tableSettingChangesAlias).
 		Where("created_at >= ?", since).
-		Order("created_at DESC")
+		Order(orderCreatedAtDesc)
 
 	if limit > 0 {
 		query = query.Limit(limit)
@@ -217,24 +222,18 @@ func (r *SettingChangeRepository) FindRecent(ctx context.Context, since time.Tim
 	return changes, nil
 }
 
-// List retrieves setting changes with optional filters
-func (r *SettingChangeRepository) List(ctx context.Context, filters map[string]interface{}) ([]*audit.SettingChange, error) {
-	var changes []*audit.SettingChange
-	query := r.db.NewSelect().
-		Model(&changes).
-		ModelTableExpr(tableSettingChangesAlias)
-
-	// Apply filters
+// applyListFilters applies optional filters to a setting changes query.
+func applyListFilters(query *bun.SelectQuery, filters map[string]interface{}) *bun.SelectQuery {
 	if key, ok := filters["setting_key"].(string); ok && key != "" {
-		query = query.Where("setting_key = ?", key)
+		query = query.Where(whereSettingKey, key)
 	}
 
 	if scopeType, ok := filters["scope_type"].(string); ok && scopeType != "" {
-		query = query.Where("scope_type = ?", scopeType)
+		query = query.Where(whereScopeType, scopeType)
 	}
 
 	if scopeID, ok := filters["scope_id"].(int64); ok && scopeID > 0 {
-		query = query.Where("scope_id = ?", scopeID)
+		query = query.Where(whereScopeID, scopeID)
 	}
 
 	if changeType, ok := filters["change_type"].(string); ok && changeType != "" {
@@ -253,13 +252,22 @@ func (r *SettingChangeRepository) List(ctx context.Context, filters map[string]i
 		query = query.Where("created_at <= ?", until)
 	}
 
-	// Default ordering
-	query = query.Order("created_at DESC")
-
-	// Apply limit
 	if limit, ok := filters["limit"].(int); ok && limit > 0 {
 		query = query.Limit(limit)
 	}
+
+	return query
+}
+
+// List retrieves setting changes with optional filters
+func (r *SettingChangeRepository) List(ctx context.Context, filters map[string]interface{}) ([]*audit.SettingChange, error) {
+	var changes []*audit.SettingChange
+	query := r.db.NewSelect().
+		Model(&changes).
+		ModelTableExpr(tableSettingChangesAlias)
+
+	query = applyListFilters(query, filters)
+	query = query.Order(orderCreatedAtDesc)
 
 	err := query.Scan(ctx)
 	if err != nil {

@@ -11,15 +11,15 @@ import { getScopeLabel, type SettingChange } from "~/lib/settings-helpers";
 
 interface SettingHistoryProps {
   /** OG ID for OG-scoped history */
-  ogId?: string;
+  readonly ogId?: string;
   /** Setting key for key-specific history */
-  settingKey?: string;
+  readonly settingKey?: string;
   /** Filters for general history query */
-  filters?: HistoryFilters;
+  readonly filters?: HistoryFilters;
   /** Maximum number of entries to show */
-  limit?: number;
+  readonly limit?: number;
   /** Title for the history section */
-  title?: string;
+  readonly title?: string;
 }
 
 export function SettingHistory({

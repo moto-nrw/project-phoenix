@@ -10,10 +10,13 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// Table constants for setting values
+// Table and query constants for setting values
 const (
 	tableSettingValues      = "config.setting_values"
 	tableSettingValuesAlias = `config.setting_values AS "setting_value"`
+
+	whereScopeType = "scope_type = ?"
+	whereScopeID   = "scope_id = ?"
 )
 
 // SettingValueRepository implements config.SettingValueRepository
@@ -54,7 +57,7 @@ func (r *SettingValueRepository) FindByID(ctx context.Context, id int64) (*confi
 	err := r.db.NewSelect().
 		Model(value).
 		ModelTableExpr(tableSettingValuesAlias).
-		Where("id = ?", id).
+		Where(whereID, id).
 		Scan(ctx)
 
 	if err != nil {
@@ -79,7 +82,7 @@ func (r *SettingValueRepository) Update(ctx context.Context, value *config.Setti
 	_, err := r.db.NewUpdate().
 		Model(value).
 		ModelTableExpr(tableSettingValues).
-		Where("id = ?", value.ID).
+		Where(whereID, value.ID).
 		Returning("*").
 		Exec(ctx)
 
@@ -98,7 +101,7 @@ func (r *SettingValueRepository) Delete(ctx context.Context, id int64) error {
 	_, err := r.db.NewDelete().
 		Model((*config.SettingValue)(nil)).
 		ModelTableExpr(tableSettingValues).
-		Where("id = ?", id).
+		Where(whereID, id).
 		Exec(ctx)
 
 	if err != nil {
@@ -123,12 +126,12 @@ func (r *SettingValueRepository) FindByDefinitionAndScope(
 		Model(value).
 		ModelTableExpr(tableSettingValuesAlias).
 		Where("definition_id = ?", definitionID).
-		Where("scope_type = ?", scopeType)
+		Where(whereScopeType, scopeType)
 
 	if scopeID == nil {
 		query = query.Where("scope_id IS NULL")
 	} else {
-		query = query.Where("scope_id = ?", *scopeID)
+		query = query.Where(whereScopeID, *scopeID)
 	}
 
 	err := query.Scan(ctx)
@@ -155,12 +158,12 @@ func (r *SettingValueRepository) FindAllForScope(
 	query := r.db.NewSelect().
 		Model(&values).
 		ModelTableExpr(tableSettingValuesAlias).
-		Where("scope_type = ?", scopeType)
+		Where(whereScopeType, scopeType)
 
 	if scopeID == nil {
 		query = query.Where("scope_id IS NULL")
 	} else {
-		query = query.Where("scope_id = ?", *scopeID)
+		query = query.Where(whereScopeID, *scopeID)
 	}
 
 	err := query.Scan(ctx)
@@ -225,8 +228,8 @@ func (r *SettingValueRepository) DeleteByScope(ctx context.Context, scopeType st
 	result, err := r.db.NewDelete().
 		Model((*config.SettingValue)(nil)).
 		ModelTableExpr(tableSettingValues).
-		Where("scope_type = ?", scopeType).
-		Where("scope_id = ?", scopeID).
+		Where(whereScopeType, scopeType).
+		Where(whereScopeID, scopeID).
 		Exec(ctx)
 
 	if err != nil {

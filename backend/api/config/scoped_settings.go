@@ -17,6 +17,12 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/users"
 )
 
+const (
+	msgSettingUpdated    = "Setting updated successfully"
+	msgInvalidOGID       = "invalid OG ID"
+	msgHistoryRetrieved  = "History retrieved successfully"
+)
+
 // ScopedSettingsResource defines the scoped settings API resource
 type ScopedSettingsResource struct {
 	Service       configSvc.ScopedSettingsService
@@ -221,14 +227,14 @@ func (rs *ScopedSettingsResource) updateSystemSetting(w http.ResponseWriter, r *
 		return
 	}
 
-	common.Respond(w, r, http.StatusOK, nil, "Setting updated successfully")
+	common.Respond(w, r, http.StatusOK, nil, msgSettingUpdated)
 }
 
 // getOGSettings returns all settings for an OG
 func (rs *ScopedSettingsResource) getOGSettings(w http.ResponseWriter, r *http.Request) {
 	ogID, err := strconv.ParseInt(chi.URLParam(r, "ogId"), 10, 64)
 	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid OG ID")))
+		common.RenderError(w, r, ErrorInvalidRequest(errors.New(msgInvalidOGID)))
 		return
 	}
 
@@ -252,7 +258,7 @@ func (rs *ScopedSettingsResource) getOGSettings(w http.ResponseWriter, r *http.R
 func (rs *ScopedSettingsResource) updateOGSetting(w http.ResponseWriter, r *http.Request) {
 	ogID, err := strconv.ParseInt(chi.URLParam(r, "ogId"), 10, 64)
 	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid OG ID")))
+		common.RenderError(w, r, ErrorInvalidRequest(errors.New(msgInvalidOGID)))
 		return
 	}
 	key := chi.URLParam(r, "key")
@@ -277,14 +283,14 @@ func (rs *ScopedSettingsResource) updateOGSetting(w http.ResponseWriter, r *http
 		return
 	}
 
-	common.Respond(w, r, http.StatusOK, nil, "Setting updated successfully")
+	common.Respond(w, r, http.StatusOK, nil, msgSettingUpdated)
 }
 
 // resetOGSetting resets an OG-level setting to inherit from parent
 func (rs *ScopedSettingsResource) resetOGSetting(w http.ResponseWriter, r *http.Request) {
 	ogID, err := strconv.ParseInt(chi.URLParam(r, "ogId"), 10, 64)
 	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid OG ID")))
+		common.RenderError(w, r, ErrorInvalidRequest(errors.New(msgInvalidOGID)))
 		return
 	}
 	key := chi.URLParam(r, "key")
@@ -350,7 +356,7 @@ func (rs *ScopedSettingsResource) updateUserSetting(w http.ResponseWriter, r *ht
 		return
 	}
 
-	common.Respond(w, r, http.StatusOK, nil, "Setting updated successfully")
+	common.Respond(w, r, http.StatusOK, nil, msgSettingUpdated)
 }
 
 // getHistory returns setting change history with filters
@@ -384,14 +390,14 @@ func (rs *ScopedSettingsResource) getHistory(w http.ResponseWriter, r *http.Requ
 	}
 
 	responses := mapHistoryToResponse(history)
-	common.Respond(w, r, http.StatusOK, responses, "History retrieved successfully")
+	common.Respond(w, r, http.StatusOK, responses, msgHistoryRetrieved)
 }
 
 // getOGHistory returns history for an OG
 func (rs *ScopedSettingsResource) getOGHistory(w http.ResponseWriter, r *http.Request) {
 	ogID, err := strconv.ParseInt(chi.URLParam(r, "ogId"), 10, 64)
 	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid OG ID")))
+		common.RenderError(w, r, ErrorInvalidRequest(errors.New(msgInvalidOGID)))
 		return
 	}
 
@@ -409,14 +415,14 @@ func (rs *ScopedSettingsResource) getOGHistory(w http.ResponseWriter, r *http.Re
 	}
 
 	responses := mapHistoryToResponse(history)
-	common.Respond(w, r, http.StatusOK, responses, "History retrieved successfully")
+	common.Respond(w, r, http.StatusOK, responses, msgHistoryRetrieved)
 }
 
 // getOGKeyHistory returns history for a specific setting in an OG
 func (rs *ScopedSettingsResource) getOGKeyHistory(w http.ResponseWriter, r *http.Request) {
 	ogID, err := strconv.ParseInt(chi.URLParam(r, "ogId"), 10, 64)
 	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid OG ID")))
+		common.RenderError(w, r, ErrorInvalidRequest(errors.New(msgInvalidOGID)))
 		return
 	}
 	key := chi.URLParam(r, "key")
@@ -435,7 +441,7 @@ func (rs *ScopedSettingsResource) getOGKeyHistory(w http.ResponseWriter, r *http
 	}
 
 	responses := mapHistoryToResponse(history)
-	common.Respond(w, r, http.StatusOK, responses, "History retrieved successfully")
+	common.Respond(w, r, http.StatusOK, responses, msgHistoryRetrieved)
 }
 
 // initializeDefinitions syncs code-defined settings to the database

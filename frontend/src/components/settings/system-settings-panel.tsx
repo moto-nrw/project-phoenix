@@ -19,8 +19,75 @@ import { SettingInput, SettingLoadingSpinner } from "./setting-input";
 import { SettingHistory } from "./setting-history";
 
 interface SystemSettingsPanelProps {
-  isMobile?: boolean;
-  showHistory?: boolean;
+  readonly isMobile?: boolean;
+  readonly showHistory?: boolean;
+}
+
+interface SystemSettingRowProps {
+  readonly setting: ResolvedSetting;
+  readonly isMobile: boolean;
+  readonly savingKey: string | null;
+  readonly onSettingChange: (key: string, value: unknown) => Promise<void>;
+  readonly onResetSetting: (key: string) => Promise<void>;
+}
+
+function SystemSettingRow({
+  setting,
+  isMobile,
+  savingKey,
+  onSettingChange,
+  onResetSetting,
+}: SystemSettingRowProps) {
+  return (
+    <div
+      className={`rounded-lg bg-gray-50/50 p-3 transition-colors ${setting.canModify ? "" : "opacity-70"}`}
+    >
+      <div
+        className={`flex ${isMobile ? "flex-col gap-2" : "items-center justify-between"}`}
+      >
+        <div className={`${isMobile ? "" : "flex-1"}`}>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-sm font-medium text-gray-800">
+              {setting.description ?? setting.key}
+            </span>
+            {!setting.isDefault && (
+              <span className="rounded-full bg-purple-100 px-2 py-0.5 text-xs text-purple-700">
+                Angepasst
+              </span>
+            )}
+          </div>
+          <p className="mt-0.5 text-xs text-gray-500">
+            {getSourceLabel(setting)}
+          </p>
+          <p className="mt-1 font-mono text-[10px] text-gray-400">
+            {setting.key}
+          </p>
+        </div>
+
+        <div className={isMobile ? "self-start" : ""}>
+          <SettingInput
+            setting={setting}
+            isSaving={savingKey === setting.key}
+            isDisabled={!setting.canModify || savingKey === setting.key}
+            variant="purple"
+            onChange={(key, value) => void onSettingChange(key, value)}
+          />
+        </div>
+      </div>
+
+      {!setting.isDefault && setting.canModify && (
+        <div className="mt-2 border-t border-gray-100 pt-2">
+          <button
+            onClick={() => void onResetSetting(setting.key)}
+            disabled={savingKey === setting.key}
+            className="text-xs text-gray-500 hover:text-purple-600 disabled:opacity-50"
+          >
+            Auf Standardwert zurücksetzen
+          </button>
+        </div>
+      )}
+    </div>
+  );
 }
 
 export function SystemSettingsPanel({
@@ -167,59 +234,14 @@ export function SystemSettingsPanel({
                 {group.settings
                   .filter((setting) => isSettingActive(setting, settings))
                   .map((setting) => (
-                    <div
+                    <SystemSettingRow
                       key={setting.key}
-                      className={`rounded-lg bg-gray-50/50 p-3 transition-colors ${!setting.canModify ? "opacity-70" : ""}`}
-                    >
-                      <div
-                        className={`flex ${isMobile ? "flex-col gap-2" : "items-center justify-between"}`}
-                      >
-                        <div className={`${isMobile ? "" : "flex-1"}`}>
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className="text-sm font-medium text-gray-800">
-                              {setting.description ?? setting.key}
-                            </span>
-                            {!setting.isDefault && (
-                              <span className="rounded-full bg-purple-100 px-2 py-0.5 text-xs text-purple-700">
-                                Angepasst
-                              </span>
-                            )}
-                          </div>
-                          <p className="mt-0.5 text-xs text-gray-500">
-                            {getSourceLabel(setting)}
-                          </p>
-                          <p className="mt-1 font-mono text-[10px] text-gray-400">
-                            {setting.key}
-                          </p>
-                        </div>
-
-                        <div className={isMobile ? "self-start" : ""}>
-                          <SettingInput
-                            setting={setting}
-                            isSaving={savingKey === setting.key}
-                            isDisabled={
-                              !setting.canModify || savingKey === setting.key
-                            }
-                            variant="purple"
-                            onChange={(key, value) =>
-                              void handleSettingChange(key, value)
-                            }
-                          />
-                        </div>
-                      </div>
-
-                      {!setting.isDefault && setting.canModify && (
-                        <div className="mt-2 border-t border-gray-100 pt-2">
-                          <button
-                            onClick={() => void handleResetSetting(setting.key)}
-                            disabled={savingKey === setting.key}
-                            className="text-xs text-gray-500 hover:text-purple-600 disabled:opacity-50"
-                          >
-                            Auf Standardwert zurücksetzen
-                          </button>
-                        </div>
-                      )}
-                    </div>
+                      setting={setting}
+                      isMobile={isMobile}
+                      savingKey={savingKey}
+                      onSettingChange={handleSettingChange}
+                      onResetSetting={handleResetSetting}
+                    />
                   ))}
               </div>
             ))}

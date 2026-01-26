@@ -10,10 +10,13 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// Table constants for setting definitions
+// Table and query constants for setting definitions
 const (
 	tableSettingDefinitions      = "config.setting_definitions"
 	tableSettingDefinitionsAlias = `config.setting_definitions AS "setting_definition"`
+
+	whereID              = "id = ?"
+	orderCategorySortKey = `category ASC, sort_order ASC, "key" ASC`
 )
 
 // SettingDefinitionRepository implements config.SettingDefinitionRepository
@@ -54,7 +57,7 @@ func (r *SettingDefinitionRepository) FindByID(ctx context.Context, id int64) (*
 	err := r.db.NewSelect().
 		Model(def).
 		ModelTableExpr(tableSettingDefinitionsAlias).
-		Where("id = ?", id).
+		Where(whereID, id).
 		Scan(ctx)
 
 	if err != nil {
@@ -79,7 +82,7 @@ func (r *SettingDefinitionRepository) Update(ctx context.Context, def *config.Se
 	_, err := r.db.NewUpdate().
 		Model(def).
 		ModelTableExpr(tableSettingDefinitions).
-		Where("id = ?", def.ID).
+		Where(whereID, def.ID).
 		Returning("*").
 		Exec(ctx)
 
@@ -98,7 +101,7 @@ func (r *SettingDefinitionRepository) Delete(ctx context.Context, id int64) erro
 	_, err := r.db.NewDelete().
 		Model((*config.SettingDefinition)(nil)).
 		ModelTableExpr(tableSettingDefinitions).
-		Where("id = ?", id).
+		Where(whereID, id).
 		Exec(ctx)
 
 	if err != nil {
@@ -160,7 +163,7 @@ func (r *SettingDefinitionRepository) FindByScope(ctx context.Context, scopeType
 		Model(&defs).
 		ModelTableExpr(tableSettingDefinitionsAlias).
 		Where("? = ANY(allowed_scopes)", string(scopeType)).
-		OrderExpr("category ASC, sort_order ASC, \"key\" ASC").
+		OrderExpr(orderCategorySortKey).
 		Scan(ctx)
 
 	if err != nil {
@@ -219,7 +222,7 @@ func (r *SettingDefinitionRepository) List(ctx context.Context, filters map[stri
 	}
 
 	// Default ordering
-	query = query.OrderExpr("category ASC, sort_order ASC, \"key\" ASC")
+	query = query.OrderExpr(orderCategorySortKey)
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -238,7 +241,7 @@ func (r *SettingDefinitionRepository) ListAll(ctx context.Context) ([]*config.Se
 	err := r.db.NewSelect().
 		Model(&defs).
 		ModelTableExpr(tableSettingDefinitionsAlias).
-		OrderExpr("category ASC, sort_order ASC, \"key\" ASC").
+		OrderExpr(orderCategorySortKey).
 		Scan(ctx)
 
 	if err != nil {

@@ -6,6 +6,12 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/config"
 )
 
+// Permission constants for scope permissions
+const (
+	permConfigManage   = "config:manage"
+	permSchoolSettings = "school:settings"
+)
+
 // GetDefaultDefinitions returns the code-defined setting definitions
 // These are synced to the database at startup
 func GetDefaultDefinitions() []*config.SettingDefinition {
@@ -23,8 +29,8 @@ func GetDefaultDefinitions() []*config.SettingDefinition {
 			},
 			AllowedScopes: []string{"system", "school", "og"},
 			ScopePermissions: map[string]string{
-				"system": "config:manage",
-				"school": "school:settings",
+				"system": permConfigManage,
+				"school": permSchoolSettings,
 				"og":     "owner",
 			},
 			GroupName: "session",
@@ -38,7 +44,7 @@ func GetDefaultDefinitions() []*config.SettingDefinition {
 			Description:   "Automatischer Checkout bei Session-Ende",
 			AllowedScopes: []string{"system", "og"},
 			ScopePermissions: map[string]string{
-				"system": "config:manage",
+				"system": permConfigManage,
 				"og":     "owner",
 			},
 			GroupName: "session",
@@ -56,7 +62,7 @@ func GetDefaultDefinitions() []*config.SettingDefinition {
 			},
 			AllowedScopes: []string{"system", "og"},
 			ScopePermissions: map[string]string{
-				"system": "config:manage",
+				"system": permConfigManage,
 				"og":     "owner",
 			},
 			GroupName: "session",
@@ -72,7 +78,7 @@ func GetDefaultDefinitions() []*config.SettingDefinition {
 			Description:   "Gibt es eine frühste Abholzeit?",
 			AllowedScopes: []string{"system", "og"},
 			ScopePermissions: map[string]string{
-				"system": "config:manage",
+				"system": permConfigManage,
 				"og":     "owner",
 			},
 			GroupName: "pickup_time",
@@ -86,7 +92,7 @@ func GetDefaultDefinitions() []*config.SettingDefinition {
 			Description:   "Frühste Abholzeit",
 			AllowedScopes: []string{"system", "og"},
 			ScopePermissions: map[string]string{
-				"system": "config:manage",
+				"system": permConfigManage,
 				"og":     "owner",
 			},
 			DependsOn: &config.SettingDependency{
@@ -105,7 +111,7 @@ func GetDefaultDefinitions() []*config.SettingDefinition {
 			Description:   "Gibt es eine späteste Abholzeit?",
 			AllowedScopes: []string{"system", "og"},
 			ScopePermissions: map[string]string{
-				"system": "config:manage",
+				"system": permConfigManage,
 				"og":     "owner",
 			},
 			GroupName: "pickup_time",
@@ -119,7 +125,7 @@ func GetDefaultDefinitions() []*config.SettingDefinition {
 			Description:   "Späteste Abholzeit",
 			AllowedScopes: []string{"system", "og"},
 			ScopePermissions: map[string]string{
-				"system": "config:manage",
+				"system": permConfigManage,
 				"og":     "owner",
 			},
 			DependsOn: &config.SettingDependency{
@@ -140,8 +146,8 @@ func GetDefaultDefinitions() []*config.SettingDefinition {
 			Description:   "Benachrichtigungen bei Abwesenheit aktiviert",
 			AllowedScopes: []string{"system", "school"},
 			ScopePermissions: map[string]string{
-				"system": "config:manage",
-				"school": "school:settings",
+				"system": permConfigManage,
+				"school": permSchoolSettings,
 			},
 			GroupName: "notifications_absence",
 			SortOrder: 1,
@@ -154,8 +160,8 @@ func GetDefaultDefinitions() []*config.SettingDefinition {
 			Description:   "Benachrichtigungskanäle bei Abwesenheit",
 			AllowedScopes: []string{"system", "school", "user"},
 			ScopePermissions: map[string]string{
-				"system": "config:manage",
-				"school": "school:settings",
+				"system": permConfigManage,
+				"school": permSchoolSettings,
 				"user":   "self",
 			},
 			DependsOn: &config.SettingDependency{
@@ -179,7 +185,7 @@ func GetDefaultDefinitions() []*config.SettingDefinition {
 			},
 			AllowedScopes: []string{"system", "user"},
 			ScopePermissions: map[string]string{
-				"system": "config:manage",
+				"system": permConfigManage,
 				"user":   "self",
 			},
 			GroupName: "appearance",
@@ -196,7 +202,7 @@ func GetDefaultDefinitions() []*config.SettingDefinition {
 			},
 			AllowedScopes: []string{"system", "user"},
 			ScopePermissions: map[string]string{
-				"system": "config:manage",
+				"system": permConfigManage,
 				"user":   "self",
 			},
 			GroupName: "appearance",
@@ -212,7 +218,7 @@ func GetDefaultDefinitions() []*config.SettingDefinition {
 			Description:   "Änderungen an Einstellungen protokollieren",
 			AllowedScopes: []string{"system"},
 			ScopePermissions: map[string]string{
-				"system": "config:manage",
+				"system": permConfigManage,
 			},
 			GroupName: "audit",
 			SortOrder: 1,
@@ -229,7 +235,7 @@ func GetDefaultDefinitions() []*config.SettingDefinition {
 			},
 			AllowedScopes: []string{"system"},
 			ScopePermissions: map[string]string{
-				"system": "config:manage",
+				"system": permConfigManage,
 			},
 			GroupName: "audit",
 			SortOrder: 2,
@@ -244,7 +250,7 @@ func GetDefaultDefinitions() []*config.SettingDefinition {
 			Description:   "PIN-Eingabe bei Check-in erforderlich",
 			AllowedScopes: []string{"system", "og"},
 			ScopePermissions: map[string]string{
-				"system": "config:manage",
+				"system": permConfigManage,
 				"og":     "owner",
 			},
 			GroupName: "checkin",
@@ -258,7 +264,7 @@ func GetDefaultDefinitions() []*config.SettingDefinition {
 			Description:   "Manuelle Check-ins erlauben (ohne RFID)",
 			AllowedScopes: []string{"system", "og"},
 			ScopePermissions: map[string]string{
-				"system": "config:manage",
+				"system": permConfigManage,
 				"og":     "owner",
 			},
 			GroupName: "checkin",
@@ -274,7 +280,7 @@ func GetDefaultDefinitions() []*config.SettingDefinition {
 			Description:   "Ton bei RFID-Scan abspielen",
 			AllowedScopes: []string{"system", "device"},
 			ScopePermissions: map[string]string{
-				"system": "config:manage",
+				"system": permConfigManage,
 				"device": "iot:manage",
 			},
 			GroupName: "device",
@@ -292,7 +298,7 @@ func GetDefaultDefinitions() []*config.SettingDefinition {
 			},
 			AllowedScopes: []string{"system", "device"},
 			ScopePermissions: map[string]string{
-				"system": "config:manage",
+				"system": permConfigManage,
 				"device": "iot:manage",
 			},
 			GroupName: "device",
