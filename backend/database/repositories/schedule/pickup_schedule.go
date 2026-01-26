@@ -13,6 +13,9 @@ import (
 	"github.com/uptrace/bun"
 )
 
+// tablePickupSchedules is the fully-qualified table name for student pickup schedules.
+const tablePickupSchedules = "schedule.student_pickup_schedules"
+
 // StudentPickupScheduleRepository implements schedule.StudentPickupScheduleRepository interface
 type StudentPickupScheduleRepository struct {
 	*base.Repository[*schedule.StudentPickupSchedule]
@@ -22,7 +25,7 @@ type StudentPickupScheduleRepository struct {
 // NewStudentPickupScheduleRepository creates a new StudentPickupScheduleRepository
 func NewStudentPickupScheduleRepository(db *bun.DB) schedule.StudentPickupScheduleRepository {
 	return &StudentPickupScheduleRepository{
-		Repository: base.NewRepository[*schedule.StudentPickupSchedule](db, "schedule.student_pickup_schedules", "StudentPickupSchedule"),
+		Repository: base.NewRepository[*schedule.StudentPickupSchedule](db, tablePickupSchedules, "StudentPickupSchedule"),
 		db:         db,
 	}
 }
@@ -106,7 +109,7 @@ func (r *StudentPickupScheduleRepository) UpsertSchedule(ctx context.Context, s 
 
 	_, err := r.db.NewInsert().
 		Model(s).
-		ModelTableExpr("schedule.student_pickup_schedules").
+		ModelTableExpr(tablePickupSchedules).
 		On("CONFLICT (student_id, weekday) DO UPDATE").
 		Set("pickup_time = EXCLUDED.pickup_time").
 		Set("notes = EXCLUDED.notes").
@@ -128,7 +131,7 @@ func (r *StudentPickupScheduleRepository) UpsertSchedule(ctx context.Context, s 
 func (r *StudentPickupScheduleRepository) DeleteByStudentID(ctx context.Context, studentID int64) error {
 	_, err := r.db.NewDelete().
 		Model((*schedule.StudentPickupSchedule)(nil)).
-		ModelTableExpr("schedule.student_pickup_schedules").
+		ModelTableExpr(tablePickupSchedules).
 		Where("student_id = ?", studentID).
 		Exec(ctx)
 
