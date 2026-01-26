@@ -211,33 +211,35 @@ func TestCreateStudentPickupException(t *testing.T) {
 		testutil.AssertBadRequest(t, rr)
 	})
 
-	t.Run("bad_request_missing_pickup_time", func(t *testing.T) {
+	t.Run("success_nil_pickup_time_absent_student", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "ExceptionNoTime", "Test", "ENT1")
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		body := map[string]any{
 			"exception_date": "2026-02-15",
-			"reason":         "Test reason",
+			"reason":         "Student is sick",
 		}
 		req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d", student.ID), body)
 		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
-		testutil.AssertBadRequest(t, rr)
+		// nil pickup_time is valid for absent students
+		testutil.AssertSuccessResponse(t, rr, http.StatusCreated)
 	})
 
-	t.Run("bad_request_empty_pickup_time", func(t *testing.T) {
+	t.Run("success_empty_pickup_time_absent_student", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "ExceptionEmptyTime", "Test", "EET1")
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		body := map[string]any{
-			"exception_date": "2026-02-15",
+			"exception_date": "2026-02-16",
 			"pickup_time":    "",
-			"reason":         "Test reason",
+			"reason":         "Student is sick",
 		}
 		req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d", student.ID), body)
 		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
-		testutil.AssertBadRequest(t, rr)
+		// empty pickup_time is valid for absent students
+		testutil.AssertSuccessResponse(t, rr, http.StatusCreated)
 	})
 
 	t.Run("bad_request_invalid_pickup_time_format", func(t *testing.T) {
