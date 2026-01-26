@@ -534,3 +534,72 @@ func mapHistoryToResponse(history []*configSvc.SettingHistoryEntry) []HistoryEnt
 	}
 	return responses
 }
+
+// =============================================================================
+// EXPORTED HANDLERS FOR TESTING
+// =============================================================================
+
+// InitializeDefinitionsHandler returns the initializeDefinitions handler for testing.
+func (rs *ScopedSettingsResource) InitializeDefinitionsHandler() http.HandlerFunc {
+	return rs.initializeDefinitions
+}
+
+// ListDefinitionsHandler returns the listDefinitions handler for testing.
+func (rs *ScopedSettingsResource) ListDefinitionsHandler() http.HandlerFunc {
+	return rs.listDefinitions
+}
+
+// GetDefinitionHandler returns the getDefinition handler for testing.
+func (rs *ScopedSettingsResource) GetDefinitionHandler() http.HandlerFunc {
+	return rs.getDefinition
+}
+
+// GetSystemSettingsHandler returns the getSystemSettings handler for testing.
+func (rs *ScopedSettingsResource) GetSystemSettingsHandler() http.HandlerFunc {
+	return rs.getSystemSettings
+}
+
+// UpdateSystemSettingHandler returns the updateSystemSetting handler for testing.
+func (rs *ScopedSettingsResource) UpdateSystemSettingHandler() http.HandlerFunc {
+	return rs.updateSystemSetting
+}
+
+// GetOGSettingsHandler returns the getOGSettings handler for testing.
+func (rs *ScopedSettingsResource) GetOGSettingsHandler() http.HandlerFunc {
+	return rs.getOGSettings
+}
+
+// UpdateOGSettingHandler returns the updateOGSetting handler for testing.
+func (rs *ScopedSettingsResource) UpdateOGSettingHandler() http.HandlerFunc {
+	return rs.updateOGSetting
+}
+
+// ResetOGSettingHandler returns the resetOGSetting handler for testing.
+func (rs *ScopedSettingsResource) ResetOGSettingHandler() http.HandlerFunc {
+	return rs.resetOGSetting
+}
+
+// GetUserSettingsHandler returns the getUserSettings handler for testing.
+func (rs *ScopedSettingsResource) GetUserSettingsHandler() http.HandlerFunc {
+	return rs.getUserSettings
+}
+
+// UpdateUserSettingHandler returns the updateUserSetting handler for testing.
+func (rs *ScopedSettingsResource) UpdateUserSettingHandler() http.HandlerFunc {
+	return rs.updateUserSetting
+}
+
+// GetHistoryHandler returns the getHistory handler for testing.
+func (rs *ScopedSettingsResource) GetHistoryHandler() http.HandlerFunc {
+	return rs.getHistory
+}
+
+// GetOGHistoryHandler returns the getOGHistory handler for testing.
+func (rs *ScopedSettingsResource) GetOGHistoryHandler() http.HandlerFunc {
+	return rs.getOGHistory
+}
+
+// GetOGKeyHistoryHandler returns the getOGKeyHistory handler for testing.
+func (rs *ScopedSettingsResource) GetOGKeyHistoryHandler() http.HandlerFunc {
+	return rs.getOGKeyHistory
+}

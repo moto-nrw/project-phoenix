@@ -13,7 +13,7 @@ import (
 // Table constants for setting values
 const (
 	tableSettingValues      = "config.setting_values"
-	tableSettingValuesAlias = `config.setting_values AS "value"`
+	tableSettingValuesAlias = `config.setting_values AS "setting_value"`
 )
 
 // SettingValueRepository implements config.SettingValueRepository
@@ -54,7 +54,7 @@ func (r *SettingValueRepository) FindByID(ctx context.Context, id int64) (*confi
 	err := r.db.NewSelect().
 		Model(value).
 		ModelTableExpr(tableSettingValuesAlias).
-		Where(`"value".id = ?`, id).
+		Where("id = ?", id).
 		Scan(ctx)
 
 	if err != nil {
@@ -79,7 +79,7 @@ func (r *SettingValueRepository) Update(ctx context.Context, value *config.Setti
 	_, err := r.db.NewUpdate().
 		Model(value).
 		ModelTableExpr(tableSettingValues).
-		WherePK().
+		Where("id = ?", value.ID).
 		Returning("*").
 		Exec(ctx)
 
@@ -122,13 +122,13 @@ func (r *SettingValueRepository) FindByDefinitionAndScope(
 	query := r.db.NewSelect().
 		Model(value).
 		ModelTableExpr(tableSettingValuesAlias).
-		Where(`"value".definition_id = ?`, definitionID).
-		Where(`"value".scope_type = ?`, scopeType)
+		Where("definition_id = ?", definitionID).
+		Where("scope_type = ?", scopeType)
 
 	if scopeID == nil {
-		query = query.Where(`"value".scope_id IS NULL`)
+		query = query.Where("scope_id IS NULL")
 	} else {
-		query = query.Where(`"value".scope_id = ?`, *scopeID)
+		query = query.Where("scope_id = ?", *scopeID)
 	}
 
 	err := query.Scan(ctx)
@@ -155,13 +155,12 @@ func (r *SettingValueRepository) FindAllForScope(
 	query := r.db.NewSelect().
 		Model(&values).
 		ModelTableExpr(tableSettingValuesAlias).
-		Relation("Definition").
-		Where(`"value".scope_type = ?`, scopeType)
+		Where("scope_type = ?", scopeType)
 
 	if scopeID == nil {
-		query = query.Where(`"value".scope_id IS NULL`)
+		query = query.Where("scope_id IS NULL")
 	} else {
-		query = query.Where(`"value".scope_id = ?`, *scopeID)
+		query = query.Where("scope_id = ?", *scopeID)
 	}
 
 	err := query.Scan(ctx)
@@ -181,8 +180,8 @@ func (r *SettingValueRepository) FindByDefinition(ctx context.Context, definitio
 	err := r.db.NewSelect().
 		Model(&values).
 		ModelTableExpr(tableSettingValuesAlias).
-		Where(`"value".definition_id = ?`, definitionID).
-		Order(`"value".scope_type ASC`, `"value".scope_id ASC`).
+		Where("definition_id = ?", definitionID).
+		Order("scope_type ASC", "scope_id ASC").
 		Scan(ctx)
 
 	if err != nil {

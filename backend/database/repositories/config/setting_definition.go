@@ -13,7 +13,7 @@ import (
 // Table constants for setting definitions
 const (
 	tableSettingDefinitions      = "config.setting_definitions"
-	tableSettingDefinitionsAlias = `config.setting_definitions AS "definition"`
+	tableSettingDefinitionsAlias = `config.setting_definitions AS "setting_definition"`
 )
 
 // SettingDefinitionRepository implements config.SettingDefinitionRepository
@@ -54,7 +54,7 @@ func (r *SettingDefinitionRepository) FindByID(ctx context.Context, id int64) (*
 	err := r.db.NewSelect().
 		Model(def).
 		ModelTableExpr(tableSettingDefinitionsAlias).
-		Where(`"definition".id = ?`, id).
+		Where("id = ?", id).
 		Scan(ctx)
 
 	if err != nil {
@@ -79,7 +79,7 @@ func (r *SettingDefinitionRepository) Update(ctx context.Context, def *config.Se
 	_, err := r.db.NewUpdate().
 		Model(def).
 		ModelTableExpr(tableSettingDefinitions).
-		WherePK().
+		Where("id = ?", def.ID).
 		Returning("*").
 		Exec(ctx)
 
@@ -117,7 +117,7 @@ func (r *SettingDefinitionRepository) FindByKey(ctx context.Context, key string)
 	err := r.db.NewSelect().
 		Model(def).
 		ModelTableExpr(tableSettingDefinitionsAlias).
-		Where(`"definition".key = ?`, key).
+		Where(`"key" = ?`, key).
 		Scan(ctx)
 
 	if err != nil {
@@ -139,8 +139,8 @@ func (r *SettingDefinitionRepository) FindByCategory(ctx context.Context, catego
 	err := r.db.NewSelect().
 		Model(&defs).
 		ModelTableExpr(tableSettingDefinitionsAlias).
-		Where(`"definition".category = ?`, category).
-		Order(`"definition".sort_order ASC`, `"definition".key ASC`).
+		Where("category = ?", category).
+		OrderExpr("sort_order ASC, \"key\" ASC").
 		Scan(ctx)
 
 	if err != nil {
@@ -159,8 +159,8 @@ func (r *SettingDefinitionRepository) FindByScope(ctx context.Context, scopeType
 	err := r.db.NewSelect().
 		Model(&defs).
 		ModelTableExpr(tableSettingDefinitionsAlias).
-		Where(`? = ANY("definition".allowed_scopes)`, string(scopeType)).
-		Order(`"definition".category ASC`, `"definition".sort_order ASC`, `"definition".key ASC`).
+		Where("? = ANY(allowed_scopes)", string(scopeType)).
+		OrderExpr("category ASC, sort_order ASC, \"key\" ASC").
 		Scan(ctx)
 
 	if err != nil {
@@ -179,8 +179,8 @@ func (r *SettingDefinitionRepository) FindByGroup(ctx context.Context, groupName
 	err := r.db.NewSelect().
 		Model(&defs).
 		ModelTableExpr(tableSettingDefinitionsAlias).
-		Where(`"definition".group_name = ?`, groupName).
-		Order(`"definition".sort_order ASC`, `"definition".key ASC`).
+		Where("group_name = ?", groupName).
+		OrderExpr("sort_order ASC, \"key\" ASC").
 		Scan(ctx)
 
 	if err != nil {
@@ -202,24 +202,24 @@ func (r *SettingDefinitionRepository) List(ctx context.Context, filters map[stri
 
 	// Apply filters
 	if category, ok := filters["category"].(string); ok && category != "" {
-		query = query.Where(`"definition".category = ?`, category)
+		query = query.Where("category = ?", category)
 	}
 
 	if scopeType, ok := filters["scope"].(string); ok && scopeType != "" {
-		query = query.Where(`? = ANY("definition".allowed_scopes)`, scopeType)
+		query = query.Where("? = ANY(allowed_scopes)", scopeType)
 	}
 
 	if groupName, ok := filters["group"].(string); ok && groupName != "" {
-		query = query.Where(`"definition".group_name = ?`, groupName)
+		query = query.Where("group_name = ?", groupName)
 	}
 
 	if search, ok := filters["search"].(string); ok && search != "" {
 		pattern := "%" + search + "%"
-		query = query.Where(`("definition".key ILIKE ? OR "definition".description ILIKE ?)`, pattern, pattern)
+		query = query.Where(`("key" ILIKE ? OR description ILIKE ?)`, pattern, pattern)
 	}
 
 	// Default ordering
-	query = query.Order(`"definition".category ASC`, `"definition".sort_order ASC`, `"definition".key ASC`)
+	query = query.OrderExpr("category ASC, sort_order ASC, \"key\" ASC")
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -238,7 +238,7 @@ func (r *SettingDefinitionRepository) ListAll(ctx context.Context) ([]*config.Se
 	err := r.db.NewSelect().
 		Model(&defs).
 		ModelTableExpr(tableSettingDefinitionsAlias).
-		Order(`"definition".category ASC`, `"definition".sort_order ASC`, `"definition".key ASC`).
+		OrderExpr("category ASC, sort_order ASC, \"key\" ASC").
 		Scan(ctx)
 
 	if err != nil {
@@ -260,7 +260,7 @@ func (r *SettingDefinitionRepository) Upsert(ctx context.Context, def *config.Se
 	_, err := r.db.NewInsert().
 		Model(def).
 		ModelTableExpr(tableSettingDefinitions).
-		On("CONFLICT (key) DO UPDATE").
+		On(`CONFLICT ("key") DO UPDATE`).
 		Set("type = EXCLUDED.type").
 		Set("default_value = EXCLUDED.default_value").
 		Set("category = EXCLUDED.category").
