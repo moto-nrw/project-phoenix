@@ -265,7 +265,6 @@ export default function PickupScheduleManager({
               readOnly={readOnly}
               onEditException={handleOpenEditException}
               onDeleteException={handleDeleteClick}
-              onCreateException={() => handleOpenCreateException(day.date)}
             />
           ))}
         </div>
@@ -291,7 +290,6 @@ export default function PickupScheduleManager({
                   readOnly={readOnly}
                   onEditException={handleOpenEditException}
                   onDeleteException={handleDeleteClick}
-                  onCreateException={() => handleOpenCreateException(day.date)}
                 />
               ))}
             </div>
@@ -373,7 +371,6 @@ interface DayComponentProps {
   readonly readOnly: boolean;
   readonly onEditException: (exception: PickupException) => void;
   readonly onDeleteException: (exception: PickupException) => void;
-  readonly onCreateException?: () => void;
 }
 
 function DayRow({
