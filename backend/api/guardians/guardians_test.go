@@ -229,7 +229,7 @@ func TestCreateGuardian_Success_MissingFirstName(t *testing.T) {
 
 	body := map[string]any{
 		"last_name":                "Test",
-		"email":                    "test@test.com",
+		"email":                    "test-no-firstname@test.com",
 		"preferred_contact_method": "email",
 		"language_preference":      "de",
 	}
@@ -255,7 +255,7 @@ func TestCreateGuardian_Success_MissingLastName(t *testing.T) {
 
 	body := map[string]any{
 		"first_name":               "Test",
-		"email":                    "test@test.com",
+		"email":                    "test-no-lastname@test.com",
 		"preferred_contact_method": "email",
 		"language_preference":      "de",
 	}
