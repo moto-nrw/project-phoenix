@@ -66,8 +66,19 @@ async function extractParams(
  * Wraps data in ApiResponse format if not already wrapped
  */
 function wrapInApiResponse<T>(data: T): ApiResponse<T> {
-  if (typeof data === "object" && data !== null && "success" in data) {
-    return data as unknown as ApiResponse<T>;
+  if (typeof data === "object" && data !== null) {
+    // Already wrapped by frontend
+    if ("success" in data) {
+      return data as unknown as ApiResponse<T>;
+    }
+    // Already wrapped by backend (status: "success" + data field)
+    if (
+      "status" in data &&
+      (data as Record<string, unknown>).status === "success" &&
+      "data" in data
+    ) {
+      return data as unknown as ApiResponse<T>;
+    }
   }
   return { success: true, message: "Success", data };
 }
