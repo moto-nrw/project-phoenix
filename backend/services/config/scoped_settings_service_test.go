@@ -333,7 +333,7 @@ func TestGetIPAddress(t *testing.T) {
 				req := httptest.NewRequest("GET", "/", nil)
 				return req
 			},
-			expected: "192.0.2.1:1234", // Default from httptest
+			expected: "192.0.2.1", // Default from httptest, port stripped
 		},
 	}
 
