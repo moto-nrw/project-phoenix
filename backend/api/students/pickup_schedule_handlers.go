@@ -356,6 +356,17 @@ func (rs *Resource) updateStudentPickupException(w http.ResponseWriter, r *http.
 		return
 	}
 
+	// Verify exception exists and belongs to this student (ownership check)
+	existingException, err := rs.PickupScheduleService.GetStudentPickupExceptionByID(r.Context(), exceptionID)
+	if err != nil || existingException == nil {
+		renderError(w, r, ErrorNotFound(errors.New("pickup exception not found")))
+		return
+	}
+	if existingException.StudentID != student.ID {
+		renderError(w, r, ErrorForbidden(errors.New("exception does not belong to this student")))
+		return
+	}
+
 	req := &PickupExceptionRequest{}
 	if err := render.Bind(r, req); err != nil {
 		renderError(w, r, ErrorInvalidRequest(err))
@@ -367,6 +378,7 @@ func (rs *Resource) updateStudentPickupException(w http.ResponseWriter, r *http.
 		StudentID:     student.ID,
 		ExceptionDate: exceptionDate,
 		Reason:        req.Reason,
+		CreatedBy:     existingException.CreatedBy, // Preserve original creator
 	}
 	exception.ID = exceptionID
 
@@ -374,14 +386,6 @@ func (rs *Resource) updateStudentPickupException(w http.ResponseWriter, r *http.
 		pickupTime, _ := parseTimeOnly(*req.PickupTime)
 		exception.PickupTime = &pickupTime
 	}
-
-	// Get staff ID for created_by (required for validation)
-	staffID, err := rs.getStaffIDFromJWT(r)
-	if err != nil {
-		renderError(w, r, ErrorForbidden(err))
-		return
-	}
-	exception.CreatedBy = staffID
 
 	if err := rs.PickupScheduleService.UpdateStudentPickupException(r.Context(), exception); err != nil {
 		renderError(w, r, ErrorInternalServer(err))
@@ -408,6 +412,17 @@ func (rs *Resource) deleteStudentPickupException(w http.ResponseWriter, r *http.
 	exceptionID, err := strconv.ParseInt(exceptionIDStr, 10, 64)
 	if err != nil {
 		renderError(w, r, ErrorInvalidRequest(errors.New("invalid exception ID")))
+		return
+	}
+
+	// Verify exception exists and belongs to this student (ownership check)
+	existingException, err := rs.PickupScheduleService.GetStudentPickupExceptionByID(r.Context(), exceptionID)
+	if err != nil || existingException == nil {
+		renderError(w, r, ErrorNotFound(errors.New("pickup exception not found")))
+		return
+	}
+	if existingException.StudentID != student.ID {
+		renderError(w, r, ErrorForbidden(errors.New("exception does not belong to this student")))
 		return
 	}
 

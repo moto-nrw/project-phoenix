@@ -22,6 +22,7 @@ type PickupScheduleService interface {
 	DeleteAllStudentPickupSchedules(ctx context.Context, studentID int64) error
 
 	// Exception operations
+	GetStudentPickupExceptionByID(ctx context.Context, exceptionID int64) (*schedule.StudentPickupException, error)
 	GetStudentPickupExceptions(ctx context.Context, studentID int64) ([]*schedule.StudentPickupException, error)
 	GetUpcomingStudentPickupExceptions(ctx context.Context, studentID int64) ([]*schedule.StudentPickupException, error)
 	CreateStudentPickupException(ctx context.Context, exception *schedule.StudentPickupException) error
@@ -155,6 +156,15 @@ func (s *pickupScheduleService) DeleteAllStudentPickupSchedules(ctx context.Cont
 }
 
 // Exception operations
+
+// GetStudentPickupExceptionByID returns a pickup exception by its ID
+func (s *pickupScheduleService) GetStudentPickupExceptionByID(ctx context.Context, exceptionID int64) (*schedule.StudentPickupException, error) {
+	exception, err := s.exceptionRepo.FindByID(ctx, exceptionID)
+	if err != nil {
+		return nil, &ScheduleError{Op: "get student pickup exception by id", Err: err}
+	}
+	return exception, nil
+}
 
 // GetStudentPickupExceptions returns all pickup exceptions for a student
 func (s *pickupScheduleService) GetStudentPickupExceptions(ctx context.Context, studentID int64) ([]*schedule.StudentPickupException, error) {
