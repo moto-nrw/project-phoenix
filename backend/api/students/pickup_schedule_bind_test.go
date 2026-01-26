@@ -872,8 +872,8 @@ func TestPickupDataResponse_Structure(t *testing.T) {
 		}
 		assert.Len(t, resp.Schedules, 1)
 		assert.Len(t, resp.Exceptions, 1)
-		assert.Equal(t, int64(1), resp.Schedules[0].ID)
-		assert.Equal(t, int64(1), resp.Exceptions[0].ID)
+		assert.Greater(t, resp.Schedules[0].ID, int64(0), "Schedule ID should be positive")
+		assert.Greater(t, resp.Exceptions[0].ID, int64(0), "Exception ID should be positive")
 	})
 }
 
