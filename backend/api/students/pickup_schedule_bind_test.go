@@ -784,3 +784,133 @@ func TestHandlerAccessorMethods(t *testing.T) {
 		assert.NotNil(t, handler, "Handler should not be nil")
 	})
 }
+
+// =============================================================================
+// Parse Time Only Tests
+// =============================================================================
+
+func TestParseTimeOnly_Variations(t *testing.T) {
+	t.Run("parses morning time", func(t *testing.T) {
+		result, err := parseTimeOnly("08:30")
+		require.NoError(t, err)
+		assert.Equal(t, 8, result.Hour())
+		assert.Equal(t, 30, result.Minute())
+	})
+
+	t.Run("parses afternoon time", func(t *testing.T) {
+		result, err := parseTimeOnly("16:45")
+		require.NoError(t, err)
+		assert.Equal(t, 16, result.Hour())
+		assert.Equal(t, 45, result.Minute())
+	})
+
+	t.Run("parses end of day time", func(t *testing.T) {
+		result, err := parseTimeOnly("23:59")
+		require.NoError(t, err)
+		assert.Equal(t, 23, result.Hour())
+		assert.Equal(t, 59, result.Minute())
+	})
+
+	t.Run("returns error for out-of-range hour", func(t *testing.T) {
+		_, err := parseTimeOnly("25:00")
+		require.Error(t, err)
+	})
+
+	t.Run("returns error for out-of-range minute", func(t *testing.T) {
+		_, err := parseTimeOnly("12:60")
+		require.Error(t, err)
+	})
+
+	t.Run("returns error for malformed time", func(t *testing.T) {
+		_, err := parseTimeOnly("12-30")
+		require.Error(t, err)
+	})
+
+	t.Run("returns error for empty string", func(t *testing.T) {
+		_, err := parseTimeOnly("")
+		require.Error(t, err)
+	})
+}
+
+// =============================================================================
+// PickupDataResponse Type Tests
+// =============================================================================
+
+func TestPickupDataResponse_Structure(t *testing.T) {
+	t.Run("empty response has empty slices", func(t *testing.T) {
+		resp := PickupDataResponse{
+			Schedules:  []PickupScheduleResponse{},
+			Exceptions: []PickupExceptionResponse{},
+		}
+		assert.Len(t, resp.Schedules, 0)
+		assert.Len(t, resp.Exceptions, 0)
+	})
+
+	t.Run("response with data", func(t *testing.T) {
+		schedResp := PickupScheduleResponse{
+			ID:          1,
+			StudentID:   100,
+			Weekday:     1,
+			WeekdayName: "Montag",
+			PickupTime:  "15:30",
+			CreatedBy:   5,
+			CreatedAt:   "2026-01-27T10:00:00Z",
+			UpdatedAt:   "2026-01-27T10:00:00Z",
+		}
+		excResp := PickupExceptionResponse{
+			ID:            1,
+			StudentID:     100,
+			ExceptionDate: "2026-01-29",
+			Reason:        "Doctor",
+			CreatedBy:     5,
+			CreatedAt:     "2026-01-27T10:00:00Z",
+			UpdatedAt:     "2026-01-27T10:00:00Z",
+		}
+		resp := PickupDataResponse{
+			Schedules:  []PickupScheduleResponse{schedResp},
+			Exceptions: []PickupExceptionResponse{excResp},
+		}
+		assert.Len(t, resp.Schedules, 1)
+		assert.Len(t, resp.Exceptions, 1)
+		assert.Equal(t, int64(1), resp.Schedules[0].ID)
+		assert.Equal(t, int64(1), resp.Exceptions[0].ID)
+	})
+}
+
+// =============================================================================
+// BulkPickupTimeResponse Type Tests
+// =============================================================================
+
+func TestBulkPickupTimeResponse_Structure(t *testing.T) {
+	t.Run("response with pickup time", func(t *testing.T) {
+		pickupTime := "14:30"
+		resp := BulkPickupTimeResponse{
+			StudentID:   100,
+			Date:        "2026-01-27",
+			WeekdayName: "Montag",
+			PickupTime:  &pickupTime,
+			IsException: false,
+			Notes:       "Test notes",
+		}
+		assert.Equal(t, int64(100), resp.StudentID)
+		assert.Equal(t, "2026-01-27", resp.Date)
+		assert.NotNil(t, resp.PickupTime)
+		assert.Equal(t, "14:30", *resp.PickupTime)
+		assert.False(t, resp.IsException)
+	})
+
+	t.Run("response without pickup time (absent)", func(t *testing.T) {
+		resp := BulkPickupTimeResponse{
+			StudentID:   100,
+			Date:        "2026-01-27",
+			WeekdayName: "Montag",
+			PickupTime:  nil,
+			IsException: true,
+			Reason:      "Student is sick",
+		}
+		assert.Equal(t, int64(100), resp.StudentID)
+		assert.Nil(t, resp.PickupTime)
+		assert.True(t, resp.IsException)
+		assert.Equal(t, "Student is sick", resp.Reason)
+	})
+}
