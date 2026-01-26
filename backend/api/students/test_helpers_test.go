@@ -36,16 +36,16 @@ func setupTestContext(t *testing.T) *testContext {
 	svc, err := services.NewFactory(repoFactory, db)
 	require.NoError(t, err, "Failed to create service factory")
 
-	resource := studentsAPI.NewResource(
-		svc.Users, // PersonService
-		repoFactory.Student,
-		svc.Education,
-		svc.UserContext,
-		svc.Active,
-		svc.IoT,
-		repoFactory.PrivacyConsent,
-		svc.PickupSchedule,
-	)
+	resource := studentsAPI.NewResource(studentsAPI.ResourceConfig{
+		PersonService:         svc.Users,
+		StudentRepo:           repoFactory.Student,
+		EducationService:      svc.Education,
+		UserContextService:    svc.UserContext,
+		ActiveService:         svc.Active,
+		IoTService:            svc.IoT,
+		PrivacyConsentRepo:    repoFactory.PrivacyConsent,
+		PickupScheduleService: svc.PickupSchedule,
+	})
 
 	t.Cleanup(func() {
 		if err := db.Close(); err != nil {

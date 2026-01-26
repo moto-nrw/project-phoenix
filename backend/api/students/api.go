@@ -49,17 +49,30 @@ type Resource struct {
 	PickupScheduleService scheduleService.PickupScheduleService
 }
 
-// NewResource creates a new students resource
-func NewResource(personService userService.PersonService, studentRepo users.StudentRepository, educationService educationService.Service, userContextService userContextService.UserContextService, activeService activeService.Service, iotService iotSvc.Service, privacyConsentRepo users.PrivacyConsentRepository, pickupScheduleService scheduleService.PickupScheduleService) *Resource {
+// ResourceConfig holds all dependencies for creating a students Resource.
+// Using a config struct instead of individual parameters improves maintainability.
+type ResourceConfig struct {
+	PersonService         userService.PersonService
+	StudentRepo           users.StudentRepository
+	EducationService      educationService.Service
+	UserContextService    userContextService.UserContextService
+	ActiveService         activeService.Service
+	IoTService            iotSvc.Service
+	PrivacyConsentRepo    users.PrivacyConsentRepository
+	PickupScheduleService scheduleService.PickupScheduleService
+}
+
+// NewResource creates a new students resource from the provided configuration.
+func NewResource(cfg ResourceConfig) *Resource {
 	return &Resource{
-		PersonService:         personService,
-		StudentRepo:           studentRepo,
-		EducationService:      educationService,
-		UserContextService:    userContextService,
-		ActiveService:         activeService,
-		IoTService:            iotService,
-		PrivacyConsentRepo:    privacyConsentRepo,
-		PickupScheduleService: pickupScheduleService,
+		PersonService:         cfg.PersonService,
+		StudentRepo:           cfg.StudentRepo,
+		EducationService:      cfg.EducationService,
+		UserContextService:    cfg.UserContextService,
+		ActiveService:         cfg.ActiveService,
+		IoTService:            cfg.IoTService,
+		PrivacyConsentRepo:    cfg.PrivacyConsentRepo,
+		PickupScheduleService: cfg.PickupScheduleService,
 	}
 }
 
