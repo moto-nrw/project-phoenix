@@ -914,3 +914,84 @@ func TestBulkPickupTimeResponse_Structure(t *testing.T) {
 		assert.Equal(t, "Student is sick", resp.Reason)
 	})
 }
+
+// =============================================================================
+// Additional Coverage Tests
+// =============================================================================
+
+func TestMapExceptionToResponse_NilPickupTime(t *testing.T) {
+	t.Run("nil pickup time results in nil response pickup time", func(t *testing.T) {
+		now := time.Now()
+		studentID := int64(12345)
+		createdBy := int64(67890)
+		excID := int64(42)
+		exc := &schedule.StudentPickupException{
+			StudentID:     studentID,
+			ExceptionDate: time.Date(2026, 2, 15, 0, 0, 0, 0, time.UTC),
+			PickupTime:    nil, // Explicitly nil
+			Reason:        "Student is absent",
+			CreatedBy:     createdBy,
+		}
+		exc.ID = excID
+		exc.CreatedAt = now
+		exc.UpdatedAt = now
+
+		resp := mapExceptionToResponse(exc)
+
+		assert.Equal(t, excID, resp.ID)
+		assert.Equal(t, studentID, resp.StudentID)
+		assert.Equal(t, "2026-02-15", resp.ExceptionDate)
+		assert.Nil(t, resp.PickupTime, "PickupTime should be nil when exception has no pickup time")
+		assert.Equal(t, "Student is absent", resp.Reason)
+	})
+}
+
+func TestBulkPickupTimeRequest_Bind_EmptyStringDate(t *testing.T) {
+	req := httptest.NewRequest(http.MethodPost, "/", nil)
+
+	t.Run("empty string date is valid and skips date parsing", func(t *testing.T) {
+		emptyDate := ""
+		r := &BulkPickupTimeRequest{
+			StudentIDs: []int64{1, 2, 3},
+			Date:       &emptyDate,
+		}
+		err := r.Bind(req)
+		require.NoError(t, err, "empty string date should be valid and not trigger date parsing")
+	})
+}
+
+func TestPickupExceptionRequest_Bind_AdditionalCases(t *testing.T) {
+	req := httptest.NewRequest(http.MethodPost, "/", nil)
+
+	t.Run("valid request with nil pickup time (absent student)", func(t *testing.T) {
+		r := &PickupExceptionRequest{
+			ExceptionDate: "2026-02-15",
+			PickupTime:    nil,
+			Reason:        "Krank",
+		}
+		err := r.Bind(req)
+		require.NoError(t, err)
+	})
+
+	t.Run("valid request with empty string pickup time", func(t *testing.T) {
+		emptyTime := ""
+		r := &PickupExceptionRequest{
+			ExceptionDate: "2026-02-15",
+			PickupTime:    &emptyTime,
+			Reason:        "Krank",
+		}
+		err := r.Bind(req)
+		require.NoError(t, err, "empty string pickup time should be valid for absent students")
+	})
+
+	t.Run("reason exactly at max length", func(t *testing.T) {
+		maxReason := string(make([]byte, 255))
+		r := &PickupExceptionRequest{
+			ExceptionDate: "2026-02-15",
+			PickupTime:    nil,
+			Reason:        maxReason,
+		}
+		err := r.Bind(req)
+		require.NoError(t, err, "reason at exactly 255 chars should be valid")
+	})
+}
