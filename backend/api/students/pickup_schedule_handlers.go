@@ -14,6 +14,9 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 )
 
+// dateFormatISO is the standard date format (YYYY-MM-DD) used for pickup schedules.
+const dateFormatISO = "2006-01-02"
+
 // parseTimeOnly parses a time string (HH:MM) and returns a time.Time with a valid reference date.
 // PostgreSQL TIME columns require a valid date, so we use 2000-01-01 as reference.
 func parseTimeOnly(timeStr string) (time.Time, error) {
@@ -114,7 +117,7 @@ func (r *PickupExceptionRequest) Bind(_ *http.Request) error {
 	if r.ExceptionDate == "" {
 		return errors.New("exception_date is required")
 	}
-	if _, err := time.Parse("2006-01-02", r.ExceptionDate); err != nil {
+	if _, err := time.Parse(dateFormatISO, r.ExceptionDate); err != nil {
 		return errors.New("invalid exception_date format, expected YYYY-MM-DD")
 	}
 	if r.PickupTime == nil || *r.PickupTime == "" {
@@ -152,7 +155,7 @@ func mapExceptionToResponse(e *schedule.StudentPickupException) PickupExceptionR
 	resp := PickupExceptionResponse{
 		ID:            e.ID,
 		StudentID:     e.StudentID,
-		ExceptionDate: e.ExceptionDate.Format("2006-01-02"),
+		ExceptionDate: e.ExceptionDate.Format(dateFormatISO),
 		Reason:        e.Reason,
 		CreatedBy:     e.CreatedBy,
 		CreatedAt:     e.CreatedAt.Format(time.RFC3339),
@@ -312,7 +315,7 @@ func (rs *Resource) createStudentPickupException(w http.ResponseWriter, r *http.
 		return
 	}
 
-	exceptionDate, _ := time.Parse("2006-01-02", req.ExceptionDate)
+	exceptionDate, _ := time.Parse(dateFormatISO, req.ExceptionDate)
 	exception := &schedule.StudentPickupException{
 		StudentID:     student.ID,
 		ExceptionDate: exceptionDate,
@@ -359,7 +362,7 @@ func (rs *Resource) updateStudentPickupException(w http.ResponseWriter, r *http.
 		return
 	}
 
-	exceptionDate, _ := time.Parse("2006-01-02", req.ExceptionDate)
+	exceptionDate, _ := time.Parse(dateFormatISO, req.ExceptionDate)
 	exception := &schedule.StudentPickupException{
 		StudentID:     student.ID,
 		ExceptionDate: exceptionDate,
@@ -431,7 +434,7 @@ func (r *BulkPickupTimeRequest) Bind(_ *http.Request) error {
 		return errors.New("student_ids array cannot exceed 500 items")
 	}
 	if r.Date != nil && *r.Date != "" {
-		if _, err := time.Parse("2006-01-02", *r.Date); err != nil {
+		if _, err := time.Parse(dateFormatISO, *r.Date); err != nil {
 			return errors.New("invalid date format, expected YYYY-MM-DD")
 		}
 	}
@@ -461,7 +464,7 @@ func (rs *Resource) getBulkPickupTimes(w http.ResponseWriter, r *http.Request) {
 	// Determine the date to query
 	date := time.Now()
 	if req.Date != nil && *req.Date != "" {
-		parsedDate, _ := time.Parse("2006-01-02", *req.Date) // Already validated in Bind
+		parsedDate, _ := time.Parse(dateFormatISO, *req.Date) // Already validated in Bind
 		date = parsedDate
 	}
 
@@ -477,7 +480,7 @@ func (rs *Resource) getBulkPickupTimes(w http.ResponseWriter, r *http.Request) {
 	for studentID, ept := range pickupTimes {
 		resp := BulkPickupTimeResponse{
 			StudentID:   studentID,
-			Date:        ept.Date.Format("2006-01-02"),
+			Date:        ept.Date.Format(dateFormatISO),
 			WeekdayName: ept.WeekdayName,
 			IsException: ept.IsException,
 			Reason:      ept.Reason,
