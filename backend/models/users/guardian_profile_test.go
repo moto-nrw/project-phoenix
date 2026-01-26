@@ -41,40 +41,47 @@ func TestGuardianProfile_Validate(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "missing first name",
+			name: "empty first name is allowed",
 			profile: &GuardianProfile{
 				FirstName: "",
 				LastName:  "Doe",
 				Email:     base.StringPtr("john@example.com"),
 			},
-			wantErr: true,
+			wantErr: false,
 		},
 		{
-			name: "whitespace only first name",
+			name: "whitespace only first name is allowed",
 			profile: &GuardianProfile{
 				FirstName: "   ",
 				LastName:  "Doe",
 				Email:     base.StringPtr("john@example.com"),
 			},
-			wantErr: true,
+			wantErr: false,
 		},
 		{
-			name: "missing last name",
+			name: "empty last name is allowed",
 			profile: &GuardianProfile{
 				FirstName: "John",
 				LastName:  "",
 				Email:     base.StringPtr("john@example.com"),
 			},
-			wantErr: true,
+			wantErr: false,
 		},
 		{
-			name: "whitespace only last name",
+			name: "whitespace only last name is allowed",
 			profile: &GuardianProfile{
 				FirstName: "John",
 				LastName:  "   ",
 				Email:     base.StringPtr("john@example.com"),
 			},
-			wantErr: true,
+			wantErr: false,
+		},
+		{
+			name: "both names empty is allowed",
+			profile: &GuardianProfile{
+				Email: base.StringPtr("john@example.com"),
+			},
+			wantErr: false,
 		},
 		{
 			name: "invalid email format",
@@ -167,13 +174,19 @@ func TestGuardianProfile_GetFullName(t *testing.T) {
 			name:      "empty first name",
 			firstName: "",
 			lastName:  "Doe",
-			expected:  " Doe",
+			expected:  "Doe",
 		},
 		{
 			name:      "empty last name",
 			firstName: "John",
 			lastName:  "",
-			expected:  "John ",
+			expected:  "John",
+		},
+		{
+			name:      "both names empty",
+			firstName: "",
+			lastName:  "",
+			expected:  "",
 		},
 	}
 

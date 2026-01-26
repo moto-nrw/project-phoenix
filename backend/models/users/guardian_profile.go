@@ -16,9 +16,9 @@ import (
 type GuardianProfile struct {
 	base.Model `bun:"schema:users,table:guardian_profiles"`
 
-	// Personal Information (REQUIRED)
-	FirstName string `bun:"first_name,notnull" json:"first_name"`
-	LastName  string `bun:"last_name,notnull" json:"last_name"`
+	// Personal Information (optional - may be empty for imported guardians)
+	FirstName string `bun:"first_name" json:"first_name"`
+	LastName  string `bun:"last_name" json:"last_name"`
 
 	// Contact Information
 	Email *string `bun:"email" json:"email,omitempty"`
@@ -68,15 +68,7 @@ func (g *GuardianProfile) TableName() string {
 
 // Validate ensures guardian data is valid
 func (g *GuardianProfile) Validate() error {
-	// Validate names
-	if strings.TrimSpace(g.FirstName) == "" {
-		return errors.New("first name is required")
-	}
-	if strings.TrimSpace(g.LastName) == "" {
-		return errors.New("last name is required")
-	}
-
-	// Trim names
+	// Trim names (both are optional)
 	g.FirstName = strings.TrimSpace(g.FirstName)
 	g.LastName = strings.TrimSpace(g.LastName)
 
@@ -107,7 +99,18 @@ func (g *GuardianProfile) Validate() error {
 
 // GetFullName returns the complete name
 func (g *GuardianProfile) GetFullName() string {
-	return g.FirstName + " " + g.LastName
+	first := strings.TrimSpace(g.FirstName)
+	last := strings.TrimSpace(g.LastName)
+	if first == "" && last == "" {
+		return ""
+	}
+	if first == "" {
+		return last
+	}
+	if last == "" {
+		return first
+	}
+	return first + " " + last
 }
 
 // GetPreferredContact returns the contact information based on preference
