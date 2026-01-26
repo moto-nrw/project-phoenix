@@ -476,6 +476,19 @@ func (rs *Resource) getBulkPickupTimes(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Filter student IDs to only those the user has access to
+	authorizedIDs, err := rs.filterAuthorizedStudentIDs(r, req.StudentIDs)
+	if err != nil {
+		renderError(w, r, ErrorInternalServer(err))
+		return
+	}
+
+	if len(authorizedIDs) == 0 {
+		// No authorized students - return empty result
+		common.Respond(w, r, http.StatusOK, []BulkPickupTimeResponse{}, "Bulk pickup times retrieved successfully")
+		return
+	}
+
 	// Determine the date to query
 	date := time.Now()
 	if req.Date != nil && *req.Date != "" {
@@ -484,7 +497,7 @@ func (rs *Resource) getBulkPickupTimes(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Use bulk service method (O(2) queries instead of O(N))
-	pickupTimes, err := rs.PickupScheduleService.GetBulkEffectivePickupTimesForDate(r.Context(), req.StudentIDs, date)
+	pickupTimes, err := rs.PickupScheduleService.GetBulkEffectivePickupTimesForDate(r.Context(), authorizedIDs, date)
 	if err != nil {
 		renderError(w, r, ErrorInternalServer(err))
 		return
@@ -541,4 +554,53 @@ func (rs *Resource) DeleteStudentPickupExceptionHandler() http.HandlerFunc {
 // GetBulkPickupTimesHandler returns the handler for getting bulk pickup times
 func (rs *Resource) GetBulkPickupTimesHandler() http.HandlerFunc {
 	return rs.getBulkPickupTimes
+}
+
+// filterAuthorizedStudentIDs filters the requested student IDs to only those
+// the current user has access to (admin sees all, others see only their groups' students)
+func (rs *Resource) filterAuthorizedStudentIDs(r *http.Request, requestedIDs []int64) ([]int64, error) {
+	userPermissions := jwt.PermissionsFromCtx(r.Context())
+
+	// Admins have access to all students
+	if hasAdminPermissions(userPermissions) {
+		return requestedIDs, nil
+	}
+
+	// Get groups the user supervises
+	educationGroups, err := rs.UserContextService.GetMyGroups(r.Context())
+	if err != nil {
+		return nil, err
+	}
+
+	if len(educationGroups) == 0 {
+		return []int64{}, nil
+	}
+
+	// Extract group IDs
+	groupIDs := make([]int64, 0, len(educationGroups))
+	for _, group := range educationGroups {
+		groupIDs = append(groupIDs, group.ID)
+	}
+
+	// Get all students in these groups
+	students, err := rs.StudentRepo.FindByGroupIDs(r.Context(), groupIDs)
+	if err != nil {
+		return nil, err
+	}
+
+	// Build set of authorized student IDs for O(1) lookup
+	authorizedSet := make(map[int64]struct{}, len(students))
+	for _, student := range students {
+		authorizedSet[student.ID] = struct{}{}
+	}
+
+	// Filter requested IDs to only authorized ones
+	filtered := make([]int64, 0, len(requestedIDs))
+	for _, id := range requestedIDs {
+		if _, ok := authorizedSet[id]; ok {
+			filtered = append(filtered, id)
+		}
+	}
+
+	return filtered, nil
 }
