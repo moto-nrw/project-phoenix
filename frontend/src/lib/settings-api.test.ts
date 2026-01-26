@@ -410,4 +410,101 @@ describe("settings-api", () => {
       expect(result).toHaveLength(1);
     });
   });
+
+  describe("handleResponse error handling", () => {
+    it("handles json parse error gracefully", async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+        json: vi.fn().mockRejectedValue(new Error("Invalid JSON")),
+      });
+
+      await expect(fetchDefinitions()).rejects.toThrow(
+        "Request failed with status 500",
+      );
+    });
+  });
+
+  describe("fetchDefinition error cases", () => {
+    it("throws error for non-404 error status", async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+        json: vi.fn().mockResolvedValue({ message: "Internal server error" }),
+      });
+
+      await expect(fetchDefinition("test")).rejects.toThrow(
+        "Internal server error",
+      );
+    });
+  });
+
+  describe("updateUserSetting without reason", () => {
+    it("sends request without reason parameter", async () => {
+      mockFetch.mockResolvedValueOnce({ ok: true, json: vi.fn() });
+
+      await updateUserSetting("session.timeout", 45);
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        "/api/settings/user/me/session.timeout",
+        expect.objectContaining({
+          method: "PUT",
+          body: JSON.stringify({ value: 45, reason: undefined }),
+        }),
+      );
+    });
+  });
+
+  describe("updateSystemSetting error handling", () => {
+    it("throws error on failure", async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        json: vi.fn().mockResolvedValue({ message: "Update failed" }),
+      });
+
+      await expect(updateSystemSetting("test", "invalid")).rejects.toThrow(
+        "Update failed",
+      );
+    });
+  });
+
+  describe("updateOGSetting error handling", () => {
+    it("throws error on failure", async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        json: vi.fn().mockResolvedValue({ message: "OG update failed" }),
+      });
+
+      await expect(updateOGSetting("123", "test", "invalid")).rejects.toThrow(
+        "OG update failed",
+      );
+    });
+  });
+
+  describe("resetOGSetting error handling", () => {
+    it("throws error on failure", async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        json: vi.fn().mockResolvedValue({ message: "OG reset failed" }),
+      });
+
+      await expect(resetOGSetting("123", "test")).rejects.toThrow(
+        "OG reset failed",
+      );
+    });
+  });
+
+  describe("initializeDefinitions json parse error", () => {
+    it("handles json parse error on failure", async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+        json: vi.fn().mockRejectedValue(new Error("Invalid JSON")),
+      });
+
+      await expect(initializeDefinitions()).rejects.toThrow(
+        "Failed to initialize definitions",
+      );
+    });
+  });
 });

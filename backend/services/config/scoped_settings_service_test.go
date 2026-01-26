@@ -122,6 +122,18 @@ func TestEvaluateCondition(t *testing.T) {
 			expected:    true,
 		},
 		{
+			name:        "in - string slice not found",
+			dependency:  &config.SettingDependency{Condition: "in", Value: "superadmin"},
+			actualValue: []string{"admin", "user"},
+			expected:    false,
+		},
+		{
+			name:        "in - non-slice value returns false",
+			dependency:  &config.SettingDependency{Condition: "in", Value: "admin"},
+			actualValue: "not a slice",
+			expected:    false,
+		},
+		{
 			name:        "not_empty - non-empty string",
 			dependency:  &config.SettingDependency{Condition: "not_empty"},
 			actualValue: "value",
@@ -162,6 +174,24 @@ func TestEvaluateCondition(t *testing.T) {
 			dependency:  &config.SettingDependency{Condition: "not_empty"},
 			actualValue: false,
 			expected:    true, // false is still a value
+		},
+		{
+			name:        "not_empty - float64 non-zero",
+			dependency:  &config.SettingDependency{Condition: "not_empty"},
+			actualValue: float64(3.14),
+			expected:    true,
+		},
+		{
+			name:        "not_empty - float64 zero",
+			dependency:  &config.SettingDependency{Condition: "not_empty"},
+			actualValue: float64(0),
+			expected:    false,
+		},
+		{
+			name:        "not_empty - struct value",
+			dependency:  &config.SettingDependency{Condition: "not_empty"},
+			actualValue: struct{}{},
+			expected:    true, // default case
 		},
 		{
 			name:        "greater_than - true",

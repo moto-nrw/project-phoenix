@@ -265,6 +265,132 @@ func TestSettingDefinitionRepository_List(t *testing.T) {
 	})
 }
 
+func TestSettingDefinitionRepository_FindByGroup(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repoConfig.NewSettingDefinitionRepository(db)
+	ctx := context.Background()
+
+	t.Run("finds definitions by group name", func(t *testing.T) {
+		uniqueGroup := "testgroup" + t.Name()
+
+		def1 := createTestDefinition("test.group1." + t.Name())
+		def1.GroupName = uniqueGroup
+		err := repo.Create(ctx, def1)
+		require.NoError(t, err)
+		defer cleanupDefinition(t, db, def1.ID)
+
+		def2 := createTestDefinition("test.group2." + t.Name())
+		def2.GroupName = uniqueGroup
+		err = repo.Create(ctx, def2)
+		require.NoError(t, err)
+		defer cleanupDefinition(t, db, def2.ID)
+
+		found, err := repo.FindByGroup(ctx, uniqueGroup)
+		require.NoError(t, err)
+		assert.GreaterOrEqual(t, len(found), 2)
+
+		for _, f := range found {
+			assert.Equal(t, uniqueGroup, f.GroupName)
+		}
+	})
+
+	t.Run("returns empty for non-existent group", func(t *testing.T) {
+		found, err := repo.FindByGroup(ctx, "nonexistent_group_name")
+		require.NoError(t, err)
+		assert.Empty(t, found)
+	})
+}
+
+func TestSettingDefinitionRepository_List_WithScopeFilter(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repoConfig.NewSettingDefinitionRepository(db)
+	ctx := context.Background()
+
+	t.Run("filters by scope type", func(t *testing.T) {
+		def := createTestDefinition("test.list.scope." + t.Name())
+		def.AllowedScopes = []string{"user", "system"}
+		def.ScopePermissions = map[string]string{"user": "self", "system": "config:write"}
+		err := repo.Create(ctx, def)
+		require.NoError(t, err)
+		defer cleanupDefinition(t, db, def.ID)
+
+		filters := map[string]interface{}{
+			"scope": "user",
+		}
+		found, err := repo.List(ctx, filters)
+		require.NoError(t, err)
+		assert.GreaterOrEqual(t, len(found), 1)
+
+		// Verify our definition is in the results
+		var foundOurs bool
+		for _, f := range found {
+			if f.ID == def.ID {
+				foundOurs = true
+				break
+			}
+		}
+		assert.True(t, foundOurs, "Our definition should be in results")
+	})
+
+	t.Run("filters by group name", func(t *testing.T) {
+		uniqueGroup := "listgroup" + t.Name()
+		def := createTestDefinition("test.list.group." + t.Name())
+		def.GroupName = uniqueGroup
+		err := repo.Create(ctx, def)
+		require.NoError(t, err)
+		defer cleanupDefinition(t, db, def.ID)
+
+		filters := map[string]interface{}{
+			"group": uniqueGroup,
+		}
+		found, err := repo.List(ctx, filters)
+		require.NoError(t, err)
+		assert.GreaterOrEqual(t, len(found), 1)
+
+		for _, f := range found {
+			assert.Equal(t, uniqueGroup, f.GroupName)
+		}
+	})
+
+	t.Run("returns all with empty filters", func(t *testing.T) {
+		def := createTestDefinition("test.list.empty." + t.Name())
+		err := repo.Create(ctx, def)
+		require.NoError(t, err)
+		defer cleanupDefinition(t, db, def.ID)
+
+		found, err := repo.List(ctx, map[string]interface{}{})
+		require.NoError(t, err)
+		assert.GreaterOrEqual(t, len(found), 1)
+	})
+
+	t.Run("combines multiple filters", func(t *testing.T) {
+		uniqueCategory := "multifilter" + t.Name()
+		uniqueGroup := "multigroup" + t.Name()
+
+		def := createTestDefinition("test.list.multi." + t.Name())
+		def.Category = uniqueCategory
+		def.GroupName = uniqueGroup
+		def.AllowedScopes = []string{"system", "og"}
+		def.ScopePermissions = map[string]string{"system": "config:write", "og": "config:write"}
+		err := repo.Create(ctx, def)
+		require.NoError(t, err)
+		defer cleanupDefinition(t, db, def.ID)
+
+		filters := map[string]interface{}{
+			"category": def.Category,
+			"group":    uniqueGroup,
+			"scope":    "og",
+		}
+		found, err := repo.List(ctx, filters)
+		require.NoError(t, err)
+		assert.GreaterOrEqual(t, len(found), 1)
+	})
+}
+
 func TestSettingDefinitionRepository_ListAll(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()

@@ -320,6 +320,166 @@ func TestSettingChangeRepository_List(t *testing.T) {
 	})
 }
 
+func TestSettingChangeRepository_List_ScopeIDFilter(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repoAudit.NewSettingChangeRepository(db)
+	ctx := context.Background()
+
+	t.Run("filters by scope_id", func(t *testing.T) {
+		ogID := int64(42)
+		change := createTestChange("test.change.list.scopeid."+t.Name(), "og", &ogID, "create")
+		err := repo.Create(ctx, change)
+		require.NoError(t, err)
+		defer cleanupChange(t, db, change.ID)
+
+		filters := map[string]interface{}{
+			"scope_type": "og",
+			"scope_id":   ogID,
+			"limit":      10,
+		}
+		found, err := repo.List(ctx, filters)
+		require.NoError(t, err)
+		assert.GreaterOrEqual(t, len(found), 1)
+	})
+
+	t.Run("filters by account_id", func(t *testing.T) {
+		account := testpkg.CreateTestAccount(t, db, "listaccount")
+		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+		change := createTestChange("test.change.list.accountid."+t.Name(), "system", nil, "update")
+		change.AccountID = &account.ID
+		err := repo.Create(ctx, change)
+		require.NoError(t, err)
+		defer cleanupChange(t, db, change.ID)
+
+		filters := map[string]interface{}{
+			"account_id": account.ID,
+			"limit":      10,
+		}
+		found, err := repo.List(ctx, filters)
+		require.NoError(t, err)
+		assert.GreaterOrEqual(t, len(found), 1)
+	})
+
+	t.Run("filters without limit", func(t *testing.T) {
+		change := createTestChange("test.change.list.nolimit."+t.Name(), "system", nil, "create")
+		err := repo.Create(ctx, change)
+		require.NoError(t, err)
+		defer cleanupChange(t, db, change.ID)
+
+		filters := map[string]interface{}{
+			"setting_key": change.SettingKey,
+		}
+		found, err := repo.List(ctx, filters)
+		require.NoError(t, err)
+		assert.GreaterOrEqual(t, len(found), 1)
+	})
+}
+
+func TestSettingChangeRepository_FindByScope_NoLimit(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repoAudit.NewSettingChangeRepository(db)
+	ctx := context.Background()
+
+	t.Run("zero limit returns all", func(t *testing.T) {
+		change := createTestChange("test.change.nolimit."+t.Name(), "system", nil, "create")
+		err := repo.Create(ctx, change)
+		require.NoError(t, err)
+		defer cleanupChange(t, db, change.ID)
+
+		found, err := repo.FindByScope(ctx, "system", nil, 0)
+		require.NoError(t, err)
+		assert.GreaterOrEqual(t, len(found), 1)
+	})
+}
+
+func TestSettingChangeRepository_FindByKey_NoLimit(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repoAudit.NewSettingChangeRepository(db)
+	ctx := context.Background()
+
+	t.Run("zero limit returns all", func(t *testing.T) {
+		uniqueKey := "test.change.findbykey.nolimit." + t.Name()
+		change := createTestChange(uniqueKey, "system", nil, "create")
+		err := repo.Create(ctx, change)
+		require.NoError(t, err)
+		defer cleanupChange(t, db, change.ID)
+
+		found, err := repo.FindByKey(ctx, uniqueKey, 0)
+		require.NoError(t, err)
+		assert.GreaterOrEqual(t, len(found), 1)
+	})
+}
+
+func TestSettingChangeRepository_FindByKeyAndScope_NoLimit(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repoAudit.NewSettingChangeRepository(db)
+	ctx := context.Background()
+
+	t.Run("zero limit returns all", func(t *testing.T) {
+		uniqueKey := "test.change.keyscope.nolimit." + t.Name()
+		change := createTestChange(uniqueKey, "system", nil, "create")
+		err := repo.Create(ctx, change)
+		require.NoError(t, err)
+		defer cleanupChange(t, db, change.ID)
+
+		found, err := repo.FindByKeyAndScope(ctx, uniqueKey, "system", nil, 0)
+		require.NoError(t, err)
+		assert.GreaterOrEqual(t, len(found), 1)
+	})
+}
+
+func TestSettingChangeRepository_FindByAccount_NoLimit(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repoAudit.NewSettingChangeRepository(db)
+	ctx := context.Background()
+
+	t.Run("zero limit returns all", func(t *testing.T) {
+		account := testpkg.CreateTestAccount(t, db, "nolimitaccount")
+		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+		change := createTestChange("test.change.account.nolimit."+t.Name(), "system", nil, "create")
+		change.AccountID = &account.ID
+		err := repo.Create(ctx, change)
+		require.NoError(t, err)
+		defer cleanupChange(t, db, change.ID)
+
+		found, err := repo.FindByAccount(ctx, account.ID, 0)
+		require.NoError(t, err)
+		assert.GreaterOrEqual(t, len(found), 1)
+	})
+}
+
+func TestSettingChangeRepository_FindRecent_NoLimit(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repoAudit.NewSettingChangeRepository(db)
+	ctx := context.Background()
+
+	t.Run("zero limit returns all recent", func(t *testing.T) {
+		change := createTestChange("test.change.recent.nolimit."+t.Name(), "system", nil, "create")
+		err := repo.Create(ctx, change)
+		require.NoError(t, err)
+		defer cleanupChange(t, db, change.ID)
+
+		since := time.Now().Add(-1 * time.Hour)
+		found, err := repo.FindRecent(ctx, since, 0)
+		require.NoError(t, err)
+		assert.GreaterOrEqual(t, len(found), 1)
+	})
+}
+
 func TestSettingChangeRepository_CleanupOldChanges(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
