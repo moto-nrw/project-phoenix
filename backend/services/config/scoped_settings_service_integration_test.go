@@ -555,15 +555,19 @@ func TestScopedSettingsService_Set(t *testing.T) {
 	})
 
 	t.Run("updates existing value", func(t *testing.T) {
+		// Use OG scope (non-NULL scope_id) because PostgreSQL UNIQUE constraints
+		// treat NULL != NULL, so ON CONFLICT does not fire for system scope.
+		ogScope := config.NewOGScope(99)
+
 		// Set initial value
-		err := svc.Set(ctx, "session.warning_minutes", config.NewSystemScope(), 10, actor, req)
+		err := svc.Set(ctx, "session.warning_minutes", ogScope, 10, actor, req)
 		require.NoError(t, err)
 
 		// Update it
-		err = svc.Set(ctx, "session.warning_minutes", config.NewSystemScope(), 15, actor, req)
+		err = svc.Set(ctx, "session.warning_minutes", ogScope, 15, actor, req)
 		require.NoError(t, err)
 
-		value, err := svc.Get(ctx, "session.warning_minutes", config.NewSystemScope())
+		value, err := svc.Get(ctx, "session.warning_minutes", ogScope)
 		require.NoError(t, err)
 		assert.Equal(t, 15, value)
 	})

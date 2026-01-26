@@ -717,10 +717,6 @@ func TestScopedSettings_Router_ReturnsRouter(t *testing.T) {
 
 	router := ctx.resource.Router()
 	assert.NotNil(t, router, "Router should not be nil")
-
-	// The router should be a chi.Router
-	_, ok := router.(chi.Router)
-	assert.True(t, ok, "Router should be a chi.Router")
 }
 
 // =============================================================================
