@@ -120,11 +120,12 @@ func (r *PickupExceptionRequest) Bind(_ *http.Request) error {
 	if _, err := time.Parse(dateFormatISO, r.ExceptionDate); err != nil {
 		return errors.New("invalid exception_date format, expected YYYY-MM-DD")
 	}
-	if r.PickupTime == nil || *r.PickupTime == "" {
-		return errors.New("pickup_time is required")
-	}
-	if _, err := time.Parse("15:04", *r.PickupTime); err != nil {
-		return errors.New("invalid pickup_time format, expected HH:MM")
+	// pickup_time is optional (nil = absent/no pickup)
+	// but if provided, it must be valid HH:MM format
+	if r.PickupTime != nil && *r.PickupTime != "" {
+		if _, err := time.Parse("15:04", *r.PickupTime); err != nil {
+			return errors.New("invalid pickup_time format, expected HH:MM")
+		}
 	}
 	if r.Reason == "" {
 		return errors.New("reason is required")
