@@ -207,27 +207,25 @@ func TestPickupExceptionRequest_Bind(t *testing.T) {
 		assert.Contains(t, err.Error(), "invalid exception_date format")
 	})
 
-	t.Run("missing pickup_time", func(t *testing.T) {
+	t.Run("nil pickup_time is valid (absent student)", func(t *testing.T) {
 		r := &PickupExceptionRequest{
 			ExceptionDate: "2026-02-15",
 			PickupTime:    nil,
-			Reason:        "Test reason",
+			Reason:        "Student is sick",
 		}
 		err := r.Bind(req)
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "pickup_time is required")
+		require.NoError(t, err, "nil pickup_time should be valid for absent students")
 	})
 
-	t.Run("empty pickup_time", func(t *testing.T) {
+	t.Run("empty pickup_time is valid (absent student)", func(t *testing.T) {
 		emptyTime := ""
 		r := &PickupExceptionRequest{
 			ExceptionDate: "2026-02-15",
 			PickupTime:    &emptyTime,
-			Reason:        "Test reason",
+			Reason:        "Student is sick",
 		}
 		err := r.Bind(req)
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "pickup_time is required")
+		require.NoError(t, err, "empty pickup_time should be valid for absent students")
 	})
 
 	t.Run("invalid pickup_time format", func(t *testing.T) {
