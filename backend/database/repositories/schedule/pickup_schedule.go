@@ -279,7 +279,7 @@ func (r *StudentPickupExceptionRepository) FindUpcomingByStudentID(ctx context.C
 // FindByStudentIDAndDate finds a pickup exception for a specific student and date
 func (r *StudentPickupExceptionRepository) FindByStudentIDAndDate(ctx context.Context, studentID int64, date time.Time) (*schedule.StudentPickupException, error) {
 	var exception schedule.StudentPickupException
-	dateOnly := timezone.DateOf(date)
+	dateOnly := timezone.DateOfUTC(date) // Use UTC to avoid day shift in PostgreSQL DATE comparison
 
 	err := r.db.NewSelect().
 		Model(&exception).
@@ -307,7 +307,7 @@ func (r *StudentPickupExceptionRepository) FindByStudentIDsAndDate(ctx context.C
 		return []*schedule.StudentPickupException{}, nil
 	}
 
-	dateOnly := timezone.DateOf(date)
+	dateOnly := timezone.DateOfUTC(date) // Use UTC to avoid day shift in PostgreSQL DATE comparison
 	var exceptions []*schedule.StudentPickupException
 
 	err := r.db.NewSelect().
