@@ -56,6 +56,7 @@ type EffectivePickupTime struct {
 // Operation names for ScheduleError.
 const (
 	opCreateStudentPickupException     = "create student pickup exception"
+	opUpdateStudentPickupException     = "update student pickup exception"
 	opUpsertBulkStudentPickupSchedules = "upsert bulk student pickup schedules"
 )
 
@@ -221,20 +222,20 @@ func (s *pickupScheduleService) CreateStudentPickupException(ctx context.Context
 // UpdateStudentPickupException updates an existing pickup exception
 func (s *pickupScheduleService) UpdateStudentPickupException(ctx context.Context, exception *schedule.StudentPickupException) error {
 	if err := exception.Validate(); err != nil {
-		return &ScheduleError{Op: "update student pickup exception", Err: err}
+		return &ScheduleError{Op: opUpdateStudentPickupException, Err: err}
 	}
 
 	// Check if changing date would conflict with another exception
 	existing, err := s.exceptionRepo.FindByStudentIDAndDate(ctx, exception.StudentID, exception.ExceptionDate)
 	if err != nil {
-		return &ScheduleError{Op: "update student pickup exception", Err: err}
+		return &ScheduleError{Op: opUpdateStudentPickupException, Err: err}
 	}
 	if existing != nil && existing.ID != exception.ID {
-		return &ScheduleError{Op: "update student pickup exception", Err: errors.New("exception already exists for this date")}
+		return &ScheduleError{Op: opUpdateStudentPickupException, Err: errors.New("exception already exists for this date")}
 	}
 
 	if err := s.exceptionRepo.Update(ctx, exception); err != nil {
-		return &ScheduleError{Op: "update student pickup exception", Err: err}
+		return &ScheduleError{Op: opUpdateStudentPickupException, Err: err}
 	}
 	return nil
 }
