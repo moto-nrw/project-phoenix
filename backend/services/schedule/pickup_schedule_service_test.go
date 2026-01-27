@@ -598,7 +598,7 @@ func TestPickupScheduleService_GetEffectivePickupTimeForDate(t *testing.T) {
 		for testDate.Weekday() != time.Monday {
 			testDate = testDate.AddDate(0, 0, 1)
 		}
-		testDate = timezone.DateOf(testDate)
+		testDate = timezone.DateOfUTC(testDate) // Use UTC to match repository query
 
 		earlyTime := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
 		exception := &scheduleModels.StudentPickupException{
@@ -637,7 +637,7 @@ func TestPickupScheduleService_GetEffectivePickupTimeForDate(t *testing.T) {
 		for testDate.Weekday() != time.Tuesday {
 			testDate = testDate.AddDate(0, 0, 1)
 		}
-		testDate = timezone.DateOf(testDate)
+		testDate = timezone.DateOfUTC(testDate) // Use UTC to match repository query
 
 		result, err := service.GetEffectivePickupTimeForDate(ctx, student.ID, testDate)
 
@@ -656,7 +656,7 @@ func TestPickupScheduleService_GetEffectivePickupTimeForDate(t *testing.T) {
 		for testDate.Weekday() != time.Saturday {
 			testDate = testDate.AddDate(0, 0, 1)
 		}
-		testDate = timezone.DateOf(testDate)
+		testDate = timezone.DateOfUTC(testDate) // Use UTC to match repository query
 
 		result, err := service.GetEffectivePickupTimeForDate(ctx, student.ID, testDate)
 
@@ -672,7 +672,7 @@ func TestPickupScheduleService_GetEffectivePickupTimeForDate(t *testing.T) {
 		for testDate.Weekday() != time.Wednesday {
 			testDate = testDate.AddDate(0, 0, 1)
 		}
-		testDate = timezone.DateOf(testDate)
+		testDate = timezone.DateOfUTC(testDate) // Use UTC to match repository query
 
 		result, err := service.GetEffectivePickupTimeForDate(ctx, student.ID, testDate)
 
@@ -700,7 +700,7 @@ func TestPickupScheduleService_GetEffectivePickupTimeForDate(t *testing.T) {
 		for testDate.Weekday() != time.Friday {
 			testDate = testDate.AddDate(0, 0, 1)
 		}
-		testDate = timezone.DateOf(testDate)
+		testDate = timezone.DateOfUTC(testDate) // Use UTC to match repository query
 
 		result, err := service.GetEffectivePickupTimeForDate(ctx, student.ID, testDate)
 
@@ -718,7 +718,7 @@ func TestPickupScheduleService_GetEffectivePickupTimeForDate(t *testing.T) {
 		for testDate.Weekday() != time.Sunday {
 			testDate = testDate.AddDate(0, 0, 1)
 		}
-		testDate = timezone.DateOf(testDate)
+		testDate = timezone.DateOfUTC(testDate) // Use UTC to match repository query
 
 		result, err := service.GetEffectivePickupTimeForDate(ctx, student.ID, testDate)
 
@@ -744,7 +744,7 @@ func TestPickupScheduleService_GetBulkEffectivePickupTimesForDate(t *testing.T) 
 		for testDate.Weekday() != time.Thursday {
 			testDate = testDate.AddDate(0, 0, 1)
 		}
-		testDate = timezone.DateOf(testDate)
+		testDate = timezone.DateOfUTC(testDate) // Use UTC to match repository query
 
 		sched1 := &scheduleModels.StudentPickupSchedule{
 			StudentID:  student1.ID,
@@ -810,7 +810,7 @@ func TestPickupScheduleService_GetBulkEffectivePickupTimesForDate(t *testing.T) 
 		for testDate.Weekday() != time.Sunday {
 			testDate = testDate.AddDate(0, 0, 1)
 		}
-		testDate = timezone.DateOf(testDate)
+		testDate = timezone.DateOfUTC(testDate) // Use UTC to match repository query
 
 		results, err := service.GetBulkEffectivePickupTimesForDate(ctx, []int64{student.ID}, testDate)
 
@@ -827,7 +827,7 @@ func TestPickupScheduleService_GetBulkEffectivePickupTimesForDate(t *testing.T) 
 		for testDate.Weekday() != time.Monday {
 			testDate = testDate.AddDate(0, 0, 1)
 		}
-		testDate = timezone.DateOf(testDate)
+		testDate = timezone.DateOfUTC(testDate) // Use UTC to match repository query
 
 		notes := "Picked up by aunt"
 		sched := &scheduleModels.StudentPickupSchedule{
