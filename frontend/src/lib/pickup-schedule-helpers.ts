@@ -419,11 +419,14 @@ export function getDayData(
   // - If sick today: no pickup time (undefined)
   // - If exception exists: use exception's pickup time (even if null = absent)
   // - Otherwise: use base schedule's pickup time
-  const effectiveTime = showSick
-    ? undefined
-    : exception
-      ? exception.pickupTime // Use exception time (null means absent, don't fall back)
-      : baseSchedule?.pickupTime;
+  let effectiveTime: string | undefined;
+  if (showSick) {
+    effectiveTime = undefined;
+  } else if (exception) {
+    effectiveTime = exception.pickupTime; // null means absent, don't fall back
+  } else {
+    effectiveTime = baseSchedule?.pickupTime;
+  }
 
   return {
     date,
