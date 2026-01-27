@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/uptrace/bun"
@@ -255,7 +256,7 @@ func (r *StudentPickupExceptionRepository) FindByStudentID(ctx context.Context, 
 // FindUpcomingByStudentID finds upcoming pickup exceptions for a student (from today onwards)
 func (r *StudentPickupExceptionRepository) FindUpcomingByStudentID(ctx context.Context, studentID int64) ([]*schedule.StudentPickupException, error) {
 	var exceptions []*schedule.StudentPickupException
-	today := time.Now().Truncate(24 * time.Hour)
+	today := timezone.Today()
 
 	err := r.db.NewSelect().
 		Model(&exceptions).
@@ -278,7 +279,7 @@ func (r *StudentPickupExceptionRepository) FindUpcomingByStudentID(ctx context.C
 // FindByStudentIDAndDate finds a pickup exception for a specific student and date
 func (r *StudentPickupExceptionRepository) FindByStudentIDAndDate(ctx context.Context, studentID int64, date time.Time) (*schedule.StudentPickupException, error) {
 	var exception schedule.StudentPickupException
-	dateOnly := date.Truncate(24 * time.Hour)
+	dateOnly := timezone.DateOf(date)
 
 	err := r.db.NewSelect().
 		Model(&exception).
@@ -306,7 +307,7 @@ func (r *StudentPickupExceptionRepository) FindByStudentIDsAndDate(ctx context.C
 		return []*schedule.StudentPickupException{}, nil
 	}
 
-	dateOnly := date.Truncate(24 * time.Hour)
+	dateOnly := timezone.DateOf(date)
 	var exceptions []*schedule.StudentPickupException
 
 	err := r.db.NewSelect().

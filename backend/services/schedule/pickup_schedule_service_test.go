@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/services/schedule"
@@ -305,7 +306,7 @@ func TestPickupScheduleService_CreateStudentPickupException(t *testing.T) {
 
 		exception := &scheduleModels.StudentPickupException{
 			StudentID:     student.ID,
-			ExceptionDate: time.Date(2024, 3, 15, 0, 0, 0, 0, time.UTC),
+			ExceptionDate: time.Date(2024, 3, 15, 0, 0, 0, 0, timezone.Berlin),
 			Reason:        "Doctor appointment",
 			CreatedBy:     1,
 		}
@@ -320,7 +321,8 @@ func TestPickupScheduleService_CreateStudentPickupException(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
 		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
-		exceptionDate := time.Date(2024, 3, 20, 0, 0, 0, 0, time.UTC)
+		// Use Berlin timezone for consistent date handling
+		exceptionDate := time.Date(2024, 3, 20, 0, 0, 0, 0, timezone.Berlin)
 		exception1 := &scheduleModels.StudentPickupException{
 			StudentID:     student.ID,
 			ExceptionDate: exceptionDate,
@@ -346,7 +348,7 @@ func TestPickupScheduleService_CreateStudentPickupException(t *testing.T) {
 	t.Run("fails validation for invalid exception", func(t *testing.T) {
 		exception := &scheduleModels.StudentPickupException{
 			StudentID:     0,
-			ExceptionDate: time.Date(2024, 3, 15, 0, 0, 0, 0, time.UTC),
+			ExceptionDate: time.Date(2024, 3, 15, 0, 0, 0, 0, timezone.Berlin),
 			Reason:        "Test",
 			CreatedBy:     1,
 		}
@@ -368,10 +370,12 @@ func TestPickupScheduleService_GetStudentPickupExceptions(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
 		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
+		// Use consistent base date to avoid any timezone edge cases
+		baseDate := timezone.Today()
 		for i := -2; i <= 2; i++ {
 			exception := &scheduleModels.StudentPickupException{
 				StudentID:     student.ID,
-				ExceptionDate: time.Now().AddDate(0, 0, i),
+				ExceptionDate: baseDate.AddDate(0, 0, i),
 				Reason:        "Exception",
 				CreatedBy:     1,
 			}
@@ -397,10 +401,13 @@ func TestPickupScheduleService_GetUpcomingStudentPickupExceptions(t *testing.T) 
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
 		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
+		// Use consistent base date to avoid timezone edge cases
+		baseDate := timezone.Today()
+
 		for i := -5; i < 0; i++ {
 			exception := &scheduleModels.StudentPickupException{
 				StudentID:     student.ID,
-				ExceptionDate: time.Now().AddDate(0, 0, i),
+				ExceptionDate: baseDate.AddDate(0, 0, i),
 				Reason:        "Past",
 				CreatedBy:     1,
 			}
@@ -411,7 +418,7 @@ func TestPickupScheduleService_GetUpcomingStudentPickupExceptions(t *testing.T) 
 		for i := 1; i <= 3; i++ {
 			exception := &scheduleModels.StudentPickupException{
 				StudentID:     student.ID,
-				ExceptionDate: time.Now().AddDate(0, 0, i),
+				ExceptionDate: baseDate.AddDate(0, 0, i),
 				Reason:        "Future",
 				CreatedBy:     1,
 			}
@@ -503,10 +510,12 @@ func TestPickupScheduleService_DeleteAllStudentPickupExceptions(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
 		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
+		// Use consistent base date to avoid timezone edge cases
+		baseDate := timezone.Today()
 		for i := 1; i <= 5; i++ {
 			exception := &scheduleModels.StudentPickupException{
 				StudentID:     student.ID,
-				ExceptionDate: time.Now().AddDate(0, 0, i),
+				ExceptionDate: baseDate.AddDate(0, 0, i),
 				Reason:        "Exception",
 				CreatedBy:     1,
 			}
@@ -550,7 +559,7 @@ func TestPickupScheduleService_GetStudentPickupData(t *testing.T) {
 
 		exception := &scheduleModels.StudentPickupException{
 			StudentID:     student.ID,
-			ExceptionDate: time.Now().AddDate(0, 0, 5),
+			ExceptionDate: timezone.Today().AddDate(0, 0, 5),
 			Reason:        "Future exception",
 			CreatedBy:     1,
 		}
@@ -589,7 +598,7 @@ func TestPickupScheduleService_GetEffectivePickupTimeForDate(t *testing.T) {
 		for testDate.Weekday() != time.Monday {
 			testDate = testDate.AddDate(0, 0, 1)
 		}
-		testDate = testDate.Truncate(24 * time.Hour)
+		testDate = timezone.DateOf(testDate)
 
 		earlyTime := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
 		exception := &scheduleModels.StudentPickupException{
@@ -628,7 +637,7 @@ func TestPickupScheduleService_GetEffectivePickupTimeForDate(t *testing.T) {
 		for testDate.Weekday() != time.Tuesday {
 			testDate = testDate.AddDate(0, 0, 1)
 		}
-		testDate = testDate.Truncate(24 * time.Hour)
+		testDate = timezone.DateOf(testDate)
 
 		result, err := service.GetEffectivePickupTimeForDate(ctx, student.ID, testDate)
 
@@ -647,7 +656,7 @@ func TestPickupScheduleService_GetEffectivePickupTimeForDate(t *testing.T) {
 		for testDate.Weekday() != time.Saturday {
 			testDate = testDate.AddDate(0, 0, 1)
 		}
-		testDate = testDate.Truncate(24 * time.Hour)
+		testDate = timezone.DateOf(testDate)
 
 		result, err := service.GetEffectivePickupTimeForDate(ctx, student.ID, testDate)
 
@@ -663,7 +672,7 @@ func TestPickupScheduleService_GetEffectivePickupTimeForDate(t *testing.T) {
 		for testDate.Weekday() != time.Wednesday {
 			testDate = testDate.AddDate(0, 0, 1)
 		}
-		testDate = testDate.Truncate(24 * time.Hour)
+		testDate = timezone.DateOf(testDate)
 
 		result, err := service.GetEffectivePickupTimeForDate(ctx, student.ID, testDate)
 
@@ -691,7 +700,7 @@ func TestPickupScheduleService_GetEffectivePickupTimeForDate(t *testing.T) {
 		for testDate.Weekday() != time.Friday {
 			testDate = testDate.AddDate(0, 0, 1)
 		}
-		testDate = testDate.Truncate(24 * time.Hour)
+		testDate = timezone.DateOf(testDate)
 
 		result, err := service.GetEffectivePickupTimeForDate(ctx, student.ID, testDate)
 
@@ -709,7 +718,7 @@ func TestPickupScheduleService_GetEffectivePickupTimeForDate(t *testing.T) {
 		for testDate.Weekday() != time.Sunday {
 			testDate = testDate.AddDate(0, 0, 1)
 		}
-		testDate = testDate.Truncate(24 * time.Hour)
+		testDate = timezone.DateOf(testDate)
 
 		result, err := service.GetEffectivePickupTimeForDate(ctx, student.ID, testDate)
 
@@ -735,7 +744,7 @@ func TestPickupScheduleService_GetBulkEffectivePickupTimesForDate(t *testing.T) 
 		for testDate.Weekday() != time.Thursday {
 			testDate = testDate.AddDate(0, 0, 1)
 		}
-		testDate = testDate.Truncate(24 * time.Hour)
+		testDate = timezone.DateOf(testDate)
 
 		sched1 := &scheduleModels.StudentPickupSchedule{
 			StudentID:  student1.ID,
@@ -801,7 +810,7 @@ func TestPickupScheduleService_GetBulkEffectivePickupTimesForDate(t *testing.T) 
 		for testDate.Weekday() != time.Sunday {
 			testDate = testDate.AddDate(0, 0, 1)
 		}
-		testDate = testDate.Truncate(24 * time.Hour)
+		testDate = timezone.DateOf(testDate)
 
 		results, err := service.GetBulkEffectivePickupTimesForDate(ctx, []int64{student.ID}, testDate)
 
@@ -818,7 +827,7 @@ func TestPickupScheduleService_GetBulkEffectivePickupTimesForDate(t *testing.T) 
 		for testDate.Weekday() != time.Monday {
 			testDate = testDate.AddDate(0, 0, 1)
 		}
-		testDate = testDate.Truncate(24 * time.Hour)
+		testDate = timezone.DateOf(testDate)
 
 		notes := "Picked up by aunt"
 		sched := &scheduleModels.StudentPickupSchedule{

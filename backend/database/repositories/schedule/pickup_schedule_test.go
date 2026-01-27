@@ -6,6 +6,7 @@ import (
 	"time"
 
 	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -415,7 +416,7 @@ func TestStudentPickupExceptionRepository_Create(t *testing.T) {
 
 		exception := &scheduleModels.StudentPickupException{
 			StudentID:     student.ID,
-			ExceptionDate: time.Date(2024, 2, 14, 0, 0, 0, 0, time.UTC),
+			ExceptionDate: time.Date(2024, 2, 14, 0, 0, 0, 0, timezone.Berlin),
 			Reason:        "Doctor appointment",
 			CreatedBy:     1,
 		}
@@ -446,8 +447,8 @@ func TestStudentPickupExceptionRepository_FindByStudentID(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		dates := []time.Time{
-			time.Date(2024, 2, 14, 0, 0, 0, 0, time.UTC),
-			time.Date(2024, 2, 15, 0, 0, 0, 0, time.UTC),
+			time.Date(2024, 2, 14, 0, 0, 0, 0, timezone.Berlin),
+			time.Date(2024, 2, 15, 0, 0, 0, 0, timezone.Berlin),
 		}
 
 		for _, date := range dates {
@@ -517,7 +518,8 @@ func TestStudentPickupExceptionRepository_FindByStudentIDAndDate(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
 		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
-		exceptionDate := time.Date(2024, 3, 20, 0, 0, 0, 0, time.UTC)
+		// Use Berlin timezone for consistent date handling
+		exceptionDate := time.Date(2024, 3, 20, 0, 0, 0, 0, timezone.Berlin)
 		exception := &scheduleModels.StudentPickupException{
 			StudentID:     student.ID,
 			ExceptionDate: exceptionDate,
@@ -554,7 +556,8 @@ func TestStudentPickupExceptionRepository_FindByStudentIDsAndDate(t *testing.T) 
 		student2 := testpkg.CreateTestStudent(t, db, "Student", "Two", "1b")
 		defer testpkg.CleanupActivityFixtures(t, db, student1.ID, student2.ID)
 
-		exceptionDate := time.Date(2024, 4, 10, 0, 0, 0, 0, time.UTC)
+		// Use Berlin timezone for consistent date handling
+		exceptionDate := time.Date(2024, 4, 10, 0, 0, 0, 0, timezone.Berlin)
 
 		for _, studentID := range []int64{student1.ID, student2.ID} {
 			exception := &scheduleModels.StudentPickupException{
@@ -594,7 +597,7 @@ func TestStudentPickupExceptionRepository_FindByID(t *testing.T) {
 
 		exception := &scheduleModels.StudentPickupException{
 			StudentID:     student.ID,
-			ExceptionDate: time.Date(2024, 5, 20, 0, 0, 0, 0, time.UTC),
+			ExceptionDate: time.Date(2024, 5, 20, 0, 0, 0, 0, timezone.Berlin),
 			Reason:        "Test reason",
 			CreatedBy:     1,
 		}
@@ -630,7 +633,7 @@ func TestStudentPickupExceptionRepository_Update(t *testing.T) {
 		pickupTime := time.Date(2024, 1, 1, 14, 0, 0, 0, time.UTC)
 		exception := &scheduleModels.StudentPickupException{
 			StudentID:     student.ID,
-			ExceptionDate: time.Date(2024, 6, 15, 0, 0, 0, 0, time.UTC),
+			ExceptionDate: time.Date(2024, 6, 15, 0, 0, 0, 0, timezone.Berlin),
 			PickupTime:    &pickupTime,
 			Reason:        "Original reason",
 			CreatedBy:     1,
@@ -662,7 +665,7 @@ func TestStudentPickupExceptionRepository_Update(t *testing.T) {
 	t.Run("fails validation on invalid exception", func(t *testing.T) {
 		exception := &scheduleModels.StudentPickupException{
 			StudentID:     0, // Invalid
-			ExceptionDate: time.Date(2024, 6, 15, 0, 0, 0, 0, time.UTC),
+			ExceptionDate: time.Date(2024, 6, 15, 0, 0, 0, 0, timezone.Berlin),
 			Reason:        "Test",
 			CreatedBy:     1,
 		}

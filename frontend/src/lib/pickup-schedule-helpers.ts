@@ -198,9 +198,20 @@ export function formatPickupTime(time: string): string {
   return time;
 }
 
+// Helper to parse YYYY-MM-DD as local date (not UTC)
+// Note: new Date("YYYY-MM-DD") parses as UTC midnight, which can shift the date
+// when displayed in local timezone. This function parses as local midnight.
+function parseLocalDate(dateStr: string): Date {
+  const parts = dateStr.split("-").map(Number);
+  const year = parts[0] ?? 1970;
+  const month = (parts[1] ?? 1) - 1;
+  const day = parts[2] ?? 1;
+  return new Date(year, month, day);
+}
+
 // Helper to format date for display (German format)
 export function formatExceptionDate(dateStr: string): string {
-  const date = new Date(dateStr);
+  const date = parseLocalDate(dateStr);
   return date.toLocaleDateString("de-DE", {
     weekday: "short",
     day: "2-digit",
@@ -211,7 +222,7 @@ export function formatExceptionDate(dateStr: string): string {
 
 // Helper to check if a date is in the past
 export function isDateInPast(dateStr: string): boolean {
-  const date = new Date(dateStr);
+  const date = parseLocalDate(dateStr);
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   return date < today;
@@ -404,6 +415,16 @@ export function getDayData(
   // Get base schedule for this weekday
   const baseSchedule = schedules.find((s) => s.weekday === weekday);
 
+  // Determine effective pickup time:
+  // - If sick today: no pickup time (undefined)
+  // - If exception exists: use exception's pickup time (even if null = absent)
+  // - Otherwise: use base schedule's pickup time
+  const effectiveTime = showSick
+    ? undefined
+    : exception
+      ? exception.pickupTime // Use exception time (null means absent, don't fall back)
+      : baseSchedule?.pickupTime;
+
   return {
     date,
     weekday,
@@ -411,9 +432,7 @@ export function getDayData(
     showSick,
     exception,
     baseSchedule,
-    effectiveTime: showSick
-      ? undefined
-      : (exception?.pickupTime ?? baseSchedule?.pickupTime),
+    effectiveTime,
     effectiveNotes: exception?.reason ?? baseSchedule?.notes,
     isException: !!exception,
   };

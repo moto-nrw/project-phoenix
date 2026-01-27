@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/uptrace/bun"
@@ -255,7 +256,7 @@ func (s *pickupScheduleService) GetStudentPickupData(ctx context.Context, studen
 
 // GetEffectivePickupTimeForDate calculates the effective pickup time for a specific date
 func (s *pickupScheduleService) GetEffectivePickupTimeForDate(ctx context.Context, studentID int64, date time.Time) (*EffectivePickupTime, error) {
-	dateOnly := date.Truncate(24 * time.Hour)
+	dateOnly := timezone.DateOf(date)
 	weekday := int(dateOnly.Weekday())
 
 	// Convert Go weekday (Sunday=0) to ISO weekday (Monday=1)
@@ -309,7 +310,7 @@ func (s *pickupScheduleService) GetBulkEffectivePickupTimesForDate(ctx context.C
 		return make(map[int64]*EffectivePickupTime), nil
 	}
 
-	dateOnly := date.Truncate(24 * time.Hour)
+	dateOnly := timezone.DateOf(date)
 	weekday := int(dateOnly.Weekday())
 
 	// Convert Go weekday (Sunday=0) to ISO weekday (Monday=1)
