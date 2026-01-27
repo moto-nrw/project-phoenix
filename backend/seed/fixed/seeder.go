@@ -76,6 +76,11 @@ func (s *Seeder) SeedAll(ctx context.Context) (*Result, error) {
 		return nil, fmt.Errorf("failed to seed privacy consents: %w", err)
 	}
 
+	// 10.5. Pickup schedules and exceptions for students
+	if err := s.seedPickupSchedules(ctx); err != nil {
+		return nil, fmt.Errorf("failed to seed pickup schedules: %w", err)
+	}
+
 	// 11. Activity categories and groups
 	if err := s.seedActivities(ctx); err != nil {
 		return nil, fmt.Errorf("failed to seed activities: %w", err)

@@ -34,7 +34,14 @@ import { useSWRAuth } from "~/lib/swr";
 import { Loading } from "~/components/ui/loading";
 import { LocationBadge } from "@/components/ui/location-badge";
 import { EmptyStudentResults } from "~/components/ui/empty-student-results";
-import { StudentCard } from "~/components/students/student-card";
+import {
+  StudentCard,
+  StudentInfoRow,
+  PickupTimeIcon,
+  ExceptionIcon,
+} from "~/components/students/student-card";
+import { fetchBulkPickupTimes } from "~/lib/pickup-schedule-api";
+import type { BulkPickupTime } from "~/lib/pickup-schedule-api";
 
 // Define OGSGroup type based on EducationalGroup with additional fields
 interface OGSGroup {
@@ -215,6 +222,11 @@ function OGSGroupPageContent() {
 
   // State for mobile detection
   const [isMobile, setIsMobile] = useState(false);
+
+  // State for pickup times (bulk fetched for all students)
+  const [pickupTimes, setPickupTimes] = useState<Map<string, BulkPickupTime>>(
+    new Map(),
+  );
 
   // State for group transfer modal
   const [showTransferModal, setShowTransferModal] = useState(false);
@@ -429,6 +441,25 @@ function OGSGroupPageContent() {
       setRoomStatus(swrStudentsData.roomStatus);
     }
   }, [swrStudentsData]);
+
+  // Fetch pickup times for all students (bulk query - O(2) database queries)
+  useEffect(() => {
+    if (students.length === 0) {
+      setPickupTimes(new Map());
+      return;
+    }
+
+    const studentIds = students.map((s) => s.id.toString());
+
+    fetchBulkPickupTimes(studentIds)
+      .then((times) => {
+        setPickupTimes(times);
+      })
+      .catch((err) => {
+        console.error("Failed to fetch pickup times:", err);
+        setPickupTimes(new Map());
+      });
+  }, [students]);
 
   // Ref to track current group without triggering unnecessary re-renders
   const currentGroupRef = useRef<OGSGroup | null>(null);
@@ -987,6 +1018,7 @@ function OGSGroupPageContent() {
             {filteredStudents.map((student) => {
               const inGroupRoom = isStudentInGroupRoom(student, currentGroup);
               const cardGradient = getCardGradient(student);
+              const studentPickup = pickupTimes.get(student.id.toString());
 
               return (
                 <StudentCard
@@ -1006,6 +1038,26 @@ function OGSGroupPageContent() {
                       variant="modern"
                       size="md"
                     />
+                  }
+                  extraContent={
+                    studentPickup?.pickupTime ? (
+                      <StudentInfoRow
+                        icon={
+                          studentPickup.isException ? (
+                            <ExceptionIcon />
+                          ) : (
+                            <PickupTimeIcon />
+                          )
+                        }
+                      >
+                        Abholung: {studentPickup.pickupTime} Uhr
+                        {studentPickup.isException && studentPickup.reason && (
+                          <span className="ml-1 text-orange-500">
+                            ({studentPickup.reason})
+                          </span>
+                        )}
+                      </StudentInfoRow>
+                    ) : null
                   }
                 />
               );

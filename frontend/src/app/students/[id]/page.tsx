@@ -24,7 +24,7 @@ import {
   FullAccessPersonalInfoReadOnly,
   StudentHistorySection,
 } from "~/components/students/student-detail-components";
-import { PersonalInfoEditForm } from "~/components/students/student-personal-info-form";
+import { PersonalInfoFormModal } from "~/components/students/personal-info-form-modal";
 import {
   StudentCheckoutSection,
   StudentCheckinSection,
@@ -32,6 +32,9 @@ import {
 } from "~/components/students/student-checkout-section";
 import { performImmediateCheckin } from "~/lib/checkin-api";
 import StudentGuardianManager from "~/components/guardians/student-guardian-manager";
+import PickupScheduleManager from "~/components/students/pickup-schedule-manager";
+import { fetchStudentPickupData } from "~/lib/pickup-schedule-api";
+import { getDayData, formatPickupTime } from "~/lib/pickup-schedule-helpers";
 
 // =============================================================================
 // MAIN COMPONENT
@@ -58,11 +61,8 @@ export default function StudentDetailPage() {
     refreshData,
   } = useStudentData(studentId);
 
-  // Edit mode states
-  const [isEditingPersonal, setIsEditingPersonal] = useState(false);
-  const [editedStudent, setEditedStudent] = useState<ExtendedStudent | null>(
-    null,
-  );
+  // Personal info modal state
+  const [showPersonalInfoModal, setShowPersonalInfoModal] = useState(false);
 
   // Checkout states
   const [showConfirmCheckout, setShowConfirmCheckout] = useState(false);
@@ -75,6 +75,13 @@ export default function StudentDetailPage() {
     useState<string>("");
   const [activeGroups, setActiveGroups] = useState<ActiveGroup[]>([]);
   const [loadingActiveGroups, setLoadingActiveGroups] = useState(false);
+
+  // Today's pickup info (for header display)
+  const [todayPickup, setTodayPickup] = useState<{
+    time?: string;
+    note?: string;
+    isException?: boolean;
+  }>({});
 
   // Load active groups when check-in modal opens
   useEffect(() => {
@@ -101,6 +108,43 @@ export default function StudentDetailPage() {
 
     void loadActiveGroups();
   }, [showConfirmCheckin]);
+
+  // Load today's pickup time for header (only for full access users)
+  useEffect(() => {
+    if (!hasFullAccess || !studentId) {
+      setTodayPickup({});
+      return;
+    }
+
+    const loadTodayPickup = async () => {
+      try {
+        const data = await fetchStudentPickupData(studentId);
+        const today = new Date();
+
+        const dayData = getDayData(
+          today,
+          data.schedules,
+          data.exceptions,
+          student?.sick ?? false,
+        );
+
+        if (dayData.effectiveTime) {
+          setTodayPickup({
+            time: formatPickupTime(dayData.effectiveTime),
+            note: dayData.effectiveNotes,
+            isException: dayData.isException,
+          });
+        } else {
+          setTodayPickup({});
+        }
+      } catch (err) {
+        console.error("Failed to load pickup data:", err);
+        setTodayPickup({});
+      }
+    };
+
+    void loadTodayPickup();
+  }, [hasFullAccess, studentId, student?.sick]);
 
   // Show loading state
   if (loading) {
@@ -132,30 +176,22 @@ export default function StudentDetailPage() {
   // EVENT HANDLERS
   // =============================================================================
 
-  const handleSavePersonal = async () => {
-    if (!editedStudent) return;
+  const handleSavePersonal = async (editedStudent: ExtendedStudent) => {
+    await studentService.updateStudent(studentId, {
+      first_name: editedStudent.first_name,
+      second_name: editedStudent.second_name,
+      school_class: editedStudent.school_class,
+      birthday: editedStudent.birthday,
+      bus: editedStudent.buskind ?? false,
+      health_info: editedStudent.health_info,
+      supervisor_notes: editedStudent.supervisor_notes,
+      extra_info: editedStudent.extra_info,
+      pickup_status: editedStudent.pickup_status,
+      sick: editedStudent.sick ?? false,
+    });
 
-    try {
-      await studentService.updateStudent(studentId, {
-        first_name: editedStudent.first_name,
-        second_name: editedStudent.second_name,
-        school_class: editedStudent.school_class,
-        birthday: editedStudent.birthday,
-        bus: editedStudent.buskind ?? false,
-        health_info: editedStudent.health_info,
-        supervisor_notes: editedStudent.supervisor_notes,
-        extra_info: editedStudent.extra_info,
-        pickup_status: editedStudent.pickup_status,
-        sick: editedStudent.sick ?? false,
-      });
-
-      refreshData();
-      setIsEditingPersonal(false);
-      toast.success("Persönliche Informationen erfolgreich aktualisiert");
-    } catch (err) {
-      console.error("Failed to save personal information:", err);
-      toast.error("Fehler beim Speichern der persönlichen Informationen");
-    }
+    refreshData();
+    toast.success("Persönliche Informationen erfolgreich aktualisiert");
   };
 
   const handleConfirmCheckout = async () => {
@@ -196,16 +232,6 @@ export default function StudentDetailPage() {
     } finally {
       setCheckingIn(false);
     }
-  };
-
-  const handleStartEditing = () => {
-    setIsEditingPersonal(true);
-    setEditedStudent(student);
-  };
-
-  const handleCancelEditing = () => {
-    setIsEditingPersonal(false);
-    setEditedStudent(student);
   };
 
   // =============================================================================
@@ -295,21 +321,22 @@ export default function StudentDetailPage() {
           myGroups={myGroups}
           myGroupRooms={myGroupRooms}
           mySupervisedRooms={mySupervisedRooms}
+          todayPickupTime={todayPickup.time}
+          todayPickupNote={todayPickup.note}
+          isPickupException={todayPickup.isException}
         />
 
         {hasFullAccess ? (
           <FullAccessView
             student={student}
             studentId={studentId}
-            editedStudent={editedStudent}
-            isEditingPersonal={isEditingPersonal}
             showCheckout={showCheckout}
             showCheckin={showCheckin}
+            showPersonalInfoModal={showPersonalInfoModal}
             onCheckoutClick={() => setShowConfirmCheckout(true)}
             onCheckinClick={() => setShowConfirmCheckin(true)}
-            onStartEditing={handleStartEditing}
-            onCancelEditing={handleCancelEditing}
-            onStudentChange={setEditedStudent}
+            onOpenPersonalInfoModal={() => setShowPersonalInfoModal(true)}
+            onClosePersonalInfoModal={() => setShowPersonalInfoModal(false)}
             onSavePersonal={handleSavePersonal}
             onRefreshData={refreshData}
           />
@@ -395,12 +422,10 @@ function LimitedAccessView({
 }: Readonly<LimitedAccessViewProps>) {
   return (
     <div className="space-y-4 sm:space-y-6">
-        {showCheckout && (
-          <StudentCheckoutSection onCheckoutClick={onCheckoutClick} />
-        )}
-        {showCheckin && (
-          <StudentCheckinSection onCheckinClick={onCheckinClick} />
-        )}
+      {showCheckout && (
+        <StudentCheckoutSection onCheckoutClick={onCheckoutClick} />
+      )}
+      {showCheckin && <StudentCheckinSection onCheckinClick={onCheckinClick} />}
 
       <SupervisorsCard supervisors={supervisors} studentName={student.name} />
 
@@ -416,31 +441,27 @@ function LimitedAccessView({
 interface FullAccessViewProps {
   student: ExtendedStudent;
   studentId: string;
-  editedStudent: ExtendedStudent | null;
-  isEditingPersonal: boolean;
   showCheckout: boolean;
   showCheckin: boolean;
+  showPersonalInfoModal: boolean;
   onCheckoutClick: () => void;
   onCheckinClick: () => void;
-  onStartEditing: () => void;
-  onCancelEditing: () => void;
-  onStudentChange: (student: ExtendedStudent) => void;
-  onSavePersonal: () => Promise<void>;
+  onOpenPersonalInfoModal: () => void;
+  onClosePersonalInfoModal: () => void;
+  onSavePersonal: (student: ExtendedStudent) => Promise<void>;
   onRefreshData: () => void;
 }
 
 function FullAccessView({
   student,
   studentId,
-  editedStudent,
-  isEditingPersonal,
   showCheckout,
   showCheckin,
+  showPersonalInfoModal,
   onCheckoutClick,
   onCheckinClick,
-  onStartEditing,
-  onCancelEditing,
-  onStudentChange,
+  onOpenPersonalInfoModal,
+  onClosePersonalInfoModal,
   onSavePersonal,
   onRefreshData,
 }: Readonly<FullAccessViewProps>) {
@@ -451,29 +472,34 @@ function FullAccessView({
       )}
       {showCheckin && <StudentCheckinSection onCheckinClick={onCheckinClick} />}
 
-      <StudentHistorySection />
-
       <div className="mt-4 space-y-4 sm:mt-6 sm:space-y-6">
-        {isEditingPersonal && editedStudent ? (
-          <PersonalInfoEditForm
-            editedStudent={editedStudent}
-            onStudentChange={onStudentChange}
-            onSave={onSavePersonal}
-            onCancel={onCancelEditing}
-          />
-        ) : (
-          <FullAccessPersonalInfoReadOnly
-            student={student}
-            onEditClick={onStartEditing}
-          />
-        )}
+        <PickupScheduleManager
+          studentId={studentId}
+          readOnly={false}
+          onUpdate={onRefreshData}
+          isSick={student.sick}
+        />
+
+        <FullAccessPersonalInfoReadOnly
+          student={student}
+          onEditClick={onOpenPersonalInfoModal}
+        />
 
         <StudentGuardianManager
           studentId={studentId}
           readOnly={false}
           onUpdate={onRefreshData}
         />
+
+        <StudentHistorySection />
       </div>
+
+      <PersonalInfoFormModal
+        isOpen={showPersonalInfoModal}
+        onClose={onClosePersonalInfoModal}
+        student={student}
+        onSave={onSavePersonal}
+      />
     </>
   );
 }

@@ -68,9 +68,11 @@ type Factory struct {
 	GradeTransition   educationModels.GradeTransitionRepository
 
 	// Schedule domain
-	Dateframe      scheduleModels.DateframeRepository
-	Timeframe      scheduleModels.TimeframeRepository
-	RecurrenceRule scheduleModels.RecurrenceRuleRepository
+	Dateframe              scheduleModels.DateframeRepository
+	Timeframe              scheduleModels.TimeframeRepository
+	RecurrenceRule         scheduleModels.RecurrenceRuleRepository
+	StudentPickupSchedule  scheduleModels.StudentPickupScheduleRepository
+	StudentPickupException scheduleModels.StudentPickupExceptionRepository
 
 	// Activities domain
 	ActivityGroup      activitiesModels.GroupRepository
@@ -143,9 +145,11 @@ func NewFactory(db *bun.DB) *Factory {
 		GradeTransition:   education.NewGradeTransitionRepository(db),
 
 		// Schedule repositories
-		Dateframe:      schedule.NewDateframeRepository(db),
-		Timeframe:      schedule.NewTimeframeRepository(db),
-		RecurrenceRule: schedule.NewRecurrenceRuleRepository(db),
+		Dateframe:              schedule.NewDateframeRepository(db),
+		Timeframe:              schedule.NewTimeframeRepository(db),
+		RecurrenceRule:         schedule.NewRecurrenceRuleRepository(db),
+		StudentPickupSchedule:  schedule.NewStudentPickupScheduleRepository(db),
+		StudentPickupException: schedule.NewStudentPickupExceptionRepository(db),
 
 		// Activities repositories
 		ActivityGroup:      activities.NewGroupRepository(db),

@@ -186,7 +186,16 @@ func parsePositiveInt(envVar string, defaultValue int) int {
 func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun.DB) {
 	api.Auth = authAPI.NewResource(api.Services.Auth, api.Services.Invitation)
 	api.Rooms = roomsAPI.NewResource(api.Services.Facilities)
-	api.Students = studentsAPI.NewResource(api.Services.Users, repoFactory.Student, api.Services.Education, api.Services.UserContext, api.Services.Active, api.Services.IoT, repoFactory.PrivacyConsent)
+	api.Students = studentsAPI.NewResource(studentsAPI.ResourceConfig{
+		PersonService:         api.Services.Users,
+		StudentRepo:           repoFactory.Student,
+		EducationService:      api.Services.Education,
+		UserContextService:    api.Services.UserContext,
+		ActiveService:         api.Services.Active,
+		IoTService:            api.Services.IoT,
+		PrivacyConsentRepo:    repoFactory.PrivacyConsent,
+		PickupScheduleService: api.Services.PickupSchedule,
+	})
 	api.Groups = groupsAPI.NewResource(api.Services.Education, api.Services.Active, api.Services.Users, api.Services.UserContext, repoFactory.Student, repoFactory.GroupSubstitution)
 	api.Guardians = guardiansAPI.NewResource(api.Services.Guardian, api.Services.Users, api.Services.Education, api.Services.UserContext, repoFactory.Student)
 	api.Import = importAPI.NewResource(api.Services.Import, repoFactory.DataImport)

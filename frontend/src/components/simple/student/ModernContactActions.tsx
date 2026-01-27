@@ -95,7 +95,10 @@ export function ModernContactActions({
         )}
 
         {hasAnyPhone && (
-          <div className="relative" ref={dropdownRef}>
+          <div
+            className={`relative ${isPhoneDropdownOpen ? "z-50" : ""}`}
+            ref={dropdownRef}
+          >
             {hasMultiplePhones ? (
               // Dropdown button for multiple phone numbers
               <>

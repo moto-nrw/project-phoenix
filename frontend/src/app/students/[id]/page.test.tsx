@@ -159,27 +159,42 @@ vi.mock("~/components/students/student-detail-components", () => ({
   ),
 }));
 
-// Mock PersonalInfoEditForm
-vi.mock("~/components/students/student-personal-info-form", () => ({
-  PersonalInfoEditForm: ({
-    editedStudent,
+// Mock PersonalInfoFormModal
+vi.mock("~/components/students/personal-info-form-modal", () => ({
+  PersonalInfoFormModal: ({
+    isOpen,
+    onClose,
+    student,
     onSave,
-    onCancel,
   }: {
-    editedStudent: { name: string };
-    onSave: () => void;
-    onCancel: () => void;
-  }) => (
-    <div data-testid="personal-info-edit-form">
-      <span data-testid="edit-form-name">{editedStudent.name}</span>
-      <button data-testid="save-personal-info" onClick={onSave}>
-        Speichern
-      </button>
-      <button data-testid="cancel-edit" onClick={onCancel}>
-        Abbrechen
-      </button>
-    </div>
-  ),
+    isOpen: boolean;
+    onClose: () => void;
+    student: { name: string };
+    onSave: (student: { name: string }) => Promise<void>;
+  }) => {
+    const handleSave = async () => {
+      try {
+        await onSave(student);
+        onClose();
+      } catch {
+        // Error is handled by the modal (shows toast)
+      }
+    };
+    return isOpen ? (
+      <div data-testid="personal-info-modal">
+        <span data-testid="modal-student-name">{student.name}</span>
+        <button
+          data-testid="save-personal-info"
+          onClick={() => void handleSave()}
+        >
+          Speichern
+        </button>
+        <button data-testid="cancel-edit" onClick={onClose}>
+          Abbrechen
+        </button>
+      </div>
+    ) : null;
+  },
 }));
 
 // Track whether checkout/checkin sections should be shown
@@ -228,6 +243,41 @@ vi.mock("~/components/guardians/student-guardian-manager", () => ({
       </button>
     </div>
   ),
+}));
+
+// Mock pickup schedule manager
+vi.mock("~/components/students/pickup-schedule-manager", () => ({
+  default: ({
+    studentId,
+    onUpdate,
+  }: {
+    studentId: string;
+    onUpdate?: () => void;
+  }) => (
+    <div data-testid="pickup-schedule-manager" data-student-id={studentId}>
+      <button data-testid="update-pickup-schedule" onClick={() => onUpdate?.()}>
+        Update Pickup
+      </button>
+    </div>
+  ),
+}));
+
+// Mock pickup schedule API
+vi.mock("~/lib/pickup-schedule-api", () => ({
+  fetchStudentPickupData: vi.fn().mockResolvedValue({
+    schedules: [],
+    exceptions: [],
+  }),
+}));
+
+// Mock pickup schedule helpers
+vi.mock("~/lib/pickup-schedule-helpers", () => ({
+  getDayData: vi.fn().mockReturnValue({
+    effectiveTime: null,
+    effectiveNotes: null,
+    isException: false,
+  }),
+  formatPickupTime: vi.fn().mockReturnValue("15:30"),
 }));
 
 // Mock checkin API
@@ -530,29 +580,25 @@ describe("StudentDetailPage", () => {
   });
 
   describe("Edit Personal Information", () => {
-    it("shows edit form when edit button is clicked", async () => {
+    it("shows edit modal when edit button is clicked", async () => {
       render(<StudentDetailPage />);
 
       const editButton = screen.getByTestId("edit-personal-info");
       fireEvent.click(editButton);
 
       await waitFor(() => {
-        expect(
-          screen.getByTestId("personal-info-edit-form"),
-        ).toBeInTheDocument();
+        expect(screen.getByTestId("personal-info-modal")).toBeInTheDocument();
       });
     });
 
-    it("cancels edit mode when cancel button is clicked", async () => {
+    it("closes modal when cancel button is clicked", async () => {
       render(<StudentDetailPage />);
 
       const editButton = screen.getByTestId("edit-personal-info");
       fireEvent.click(editButton);
 
       await waitFor(() => {
-        expect(
-          screen.getByTestId("personal-info-edit-form"),
-        ).toBeInTheDocument();
+        expect(screen.getByTestId("personal-info-modal")).toBeInTheDocument();
       });
 
       const cancelButton = screen.getByTestId("cancel-edit");
@@ -560,7 +606,7 @@ describe("StudentDetailPage", () => {
 
       await waitFor(() => {
         expect(
-          screen.queryByTestId("personal-info-edit-form"),
+          screen.queryByTestId("personal-info-modal"),
         ).not.toBeInTheDocument();
         expect(
           screen.getByTestId("full-access-personal-info"),
@@ -577,9 +623,7 @@ describe("StudentDetailPage", () => {
       fireEvent.click(editButton);
 
       await waitFor(() => {
-        expect(
-          screen.getByTestId("personal-info-edit-form"),
-        ).toBeInTheDocument();
+        expect(screen.getByTestId("personal-info-modal")).toBeInTheDocument();
       });
 
       const saveButton = screen.getByTestId("save-personal-info");
@@ -594,7 +638,7 @@ describe("StudentDetailPage", () => {
       });
     });
 
-    it("shows error toast when save fails", async () => {
+    it("does not close modal when save fails", async () => {
       mockUpdateStudent.mockRejectedValue(new Error("Save failed"));
 
       render(<StudentDetailPage />);
@@ -603,9 +647,7 @@ describe("StudentDetailPage", () => {
       fireEvent.click(editButton);
 
       await waitFor(() => {
-        expect(
-          screen.getByTestId("personal-info-edit-form"),
-        ).toBeInTheDocument();
+        expect(screen.getByTestId("personal-info-modal")).toBeInTheDocument();
       });
 
       const saveButton = screen.getByTestId("save-personal-info");
@@ -613,8 +655,9 @@ describe("StudentDetailPage", () => {
         fireEvent.click(saveButton);
       });
 
+      // Modal should remain open after failed save
       await waitFor(() => {
-        expect(mockToastError).toHaveBeenCalled();
+        expect(screen.getByTestId("personal-info-modal")).toBeInTheDocument();
       });
     });
   });

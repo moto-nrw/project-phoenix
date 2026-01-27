@@ -45,6 +45,7 @@ type Factory struct {
 	IoT                      iot.Service
 	Config                   config.Service
 	Schedule                 schedule.Service
+	PickupSchedule           schedule.PickupScheduleService
 	Users                    users.PersonService
 	Guardian                 users.GuardianService
 	UserContext              usercontext.UserContextService
@@ -224,6 +225,13 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 		db,
 	)
 
+	// Initialize pickup schedule service
+	pickupScheduleService := schedule.NewPickupScheduleService(
+		repos.StudentPickupSchedule,
+		repos.StudentPickupException,
+		db,
+	)
+
 	// Initialize auth service with validated config
 	authConfig, err := auth.NewServiceConfig(
 		dispatcher,
@@ -330,6 +338,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 		IoT:                      iotService,
 		Config:                   configService,
 		Schedule:                 scheduleService,
+		PickupSchedule:           pickupScheduleService,
 		Users:                    usersService,
 		Guardian:                 guardianService,
 		UserContext:              userContextService,

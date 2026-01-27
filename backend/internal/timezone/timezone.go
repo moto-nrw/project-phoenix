@@ -48,3 +48,22 @@ func DateOf(t time.Time) time.Time {
 func Now() time.Time {
 	return time.Now().In(Berlin)
 }
+
+// DateOfUTC extracts the date portion of a timestamp in Berlin timezone
+// but returns it as UTC midnight. This is useful for database DATE column
+// comparisons where the driver converts timestamps to UTC before comparing.
+//
+// Example:
+//
+//	t := time.Date(2026, 1, 18, 0, 30, 0, 0, time.UTC) // 00:30 UTC = 01:30 CET
+//	date := timezone.DateOfUTC(t) // 2026-01-18 00:00:00 UTC
+func DateOfUTC(t time.Time) time.Time {
+	inBerlin := t.In(Berlin)
+	return time.Date(
+		inBerlin.Year(),
+		inBerlin.Month(),
+		inBerlin.Day(),
+		0, 0, 0, 0,
+		time.UTC,
+	)
+}

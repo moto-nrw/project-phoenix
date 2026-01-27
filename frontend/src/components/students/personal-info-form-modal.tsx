@@ -1,71 +1,115 @@
 "use client";
 
+import { useState, useEffect } from "react";
+import { FormModal } from "~/components/ui/form-modal";
+import { useToast } from "~/contexts/ToastContext";
 import type { ExtendedStudent } from "~/lib/hooks/use-student-data";
-import {
-  PersonIcon,
-  ChevronDownIcon,
-  WarningIcon,
-} from "~/components/students/student-detail-components";
+import { ChevronDownIcon, WarningIcon } from "./student-detail-components";
 
-interface PersonalInfoEditFormProps {
-  editedStudent: ExtendedStudent;
-  onStudentChange: (student: ExtendedStudent) => void;
-  onSave: () => Promise<void>;
-  onCancel: () => void;
+interface PersonalInfoFormModalProps {
+  readonly isOpen: boolean;
+  readonly onClose: () => void;
+  readonly student: ExtendedStudent;
+  readonly onSave: (student: ExtendedStudent) => Promise<void>;
 }
 
-export function PersonalInfoEditForm({
-  editedStudent,
-  onStudentChange,
+export function PersonalInfoFormModal({
+  isOpen,
+  onClose,
+  student,
   onSave,
-  onCancel,
-}: Readonly<PersonalInfoEditFormProps>) {
+}: PersonalInfoFormModalProps) {
+  const toast = useToast();
+  const [editedStudent, setEditedStudent] = useState<ExtendedStudent>(student);
+  const [isSaving, setIsSaving] = useState(false);
+
+  // Reset form when modal opens with new student data
+  useEffect(() => {
+    if (isOpen) {
+      setEditedStudent(student);
+    }
+  }, [isOpen, student]);
+
   const updateField = <K extends keyof ExtendedStudent>(
     field: K,
     value: ExtendedStudent[K],
   ) => {
-    onStudentChange({ ...editedStudent, [field]: value });
+    setEditedStudent((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleSave = async () => {
+    setIsSaving(true);
+    try {
+      await onSave(editedStudent);
+      onClose();
+    } catch (err) {
+      console.error("Failed to save personal information:", err);
+      toast.error("Fehler beim Speichern der persönlichen Informationen");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleCancel = () => {
+    setEditedStudent(student);
+    onClose();
   };
 
   return (
-    <div className="rounded-2xl border border-gray-100 bg-white/50 p-4 backdrop-blur-sm sm:p-6">
-      <div className="mb-4 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-gray-100 text-gray-600 sm:h-10 sm:w-10">
-            <PersonIcon />
-          </div>
-          <h2 className="text-base font-semibold text-gray-900 sm:text-lg">
-            Persönliche Informationen
-          </h2>
-        </div>
-      </div>
-      <div className="space-y-3">
+    <FormModal
+      isOpen={isOpen}
+      onClose={handleCancel}
+      title="Persönliche Infos"
+      size="lg"
+      mobilePosition="center"
+      footer={
+        <>
+          <button
+            type="button"
+            onClick={handleCancel}
+            disabled={isSaving}
+            className="inline-flex items-center justify-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-all duration-200 hover:bg-gray-50 disabled:opacity-50"
+          >
+            Abbrechen
+          </button>
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={isSaving}
+            className="inline-flex items-center justify-center rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:bg-gray-700 disabled:opacity-50"
+          >
+            {isSaving ? "Wird gespeichert..." : "Speichern"}
+          </button>
+        </>
+      }
+    >
+      <div className="space-y-4">
         <TextInput
-          id="student-first-name"
+          id="modal-student-first-name"
           label="Vorname"
           value={editedStudent.first_name ?? ""}
           onChange={(value) => updateField("first_name", value)}
         />
         <TextInput
-          id="student-last-name"
+          id="modal-student-last-name"
           label="Nachname"
           value={editedStudent.second_name ?? ""}
           onChange={(value) => updateField("second_name", value)}
         />
         <TextInput
-          id="student-school-class"
+          id="modal-student-school-class"
           label="Klasse"
           value={editedStudent.school_class}
           onChange={(value) => updateField("school_class", value)}
         />
         <DateInput
-          id="student-birthday"
+          id="modal-student-birthday"
           label="Geburtsdatum"
           value={editedStudent.birthday}
           onChange={(value) => updateField("birthday", value)}
         />
         <SelectInput
-          id="student-buskind"
+          id="modal-student-buskind"
           label="Buskind"
           value={editedStudent.buskind ? "true" : "false"}
           onChange={(value) => updateField("buskind", value === "true")}
@@ -75,7 +119,7 @@ export function PersonalInfoEditForm({
           ]}
         />
         <SelectInput
-          id="student-pickup-status"
+          id="modal-student-pickup-status"
           label="Abholstatus"
           value={editedStudent.pickup_status ?? ""}
           onChange={(value) => updateField("pickup_status", value || undefined)}
@@ -93,7 +137,7 @@ export function PersonalInfoEditForm({
           onToggle={() => updateField("sick", !editedStudent.sick)}
         />
         <TextAreaInput
-          id="student-health-info"
+          id="modal-student-health-info"
           label="Gesundheitsinformationen"
           value={editedStudent.health_info ?? ""}
           onChange={(value) => updateField("health_info", value)}
@@ -101,7 +145,7 @@ export function PersonalInfoEditForm({
           rows={3}
         />
         <TextAreaInput
-          id="student-supervisor-notes"
+          id="modal-student-supervisor-notes"
           label="Betreuernotizen"
           value={editedStudent.supervisor_notes ?? ""}
           onChange={(value) => updateField("supervisor_notes", value)}
@@ -109,16 +153,15 @@ export function PersonalInfoEditForm({
           rows={3}
         />
         <TextAreaInput
-          id="student-extra-info"
+          id="modal-student-extra-info"
           label="Elternnotizen"
           value={editedStudent.extra_info ?? ""}
           onChange={(value) => updateField("extra_info", value)}
           placeholder="Notizen der Eltern"
           rows={2}
         />
-        <FormActions onSave={onSave} onCancel={onCancel} />
       </div>
-    </div>
+    </FormModal>
   );
 }
 
@@ -310,36 +353,6 @@ function SicknessToggle({ isSick, onToggle }: Readonly<SicknessToggleProps>) {
           />
         </button>
       </div>
-    </div>
-  );
-}
-
-// =============================================================================
-// FORM ACTIONS
-// =============================================================================
-
-interface FormActionsProps {
-  onSave: () => Promise<void>;
-  onCancel: () => void;
-}
-
-function FormActions({ onSave, onCancel }: Readonly<FormActionsProps>) {
-  return (
-    <div className="flex flex-col-reverse gap-2 pt-4 sm:flex-row sm:justify-end">
-      <button
-        type="button"
-        onClick={onCancel}
-        className="inline-flex items-center justify-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-all duration-200 hover:bg-gray-50 hover:shadow-lg active:scale-[0.99] sm:hover:scale-[1.01]"
-      >
-        Abbrechen
-      </button>
-      <button
-        type="button"
-        onClick={onSave}
-        className="inline-flex items-center justify-center rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:bg-gray-700 hover:shadow-lg active:scale-[0.99] sm:hover:scale-[1.01]"
-      >
-        Speichern
-      </button>
     </div>
   );
 }
