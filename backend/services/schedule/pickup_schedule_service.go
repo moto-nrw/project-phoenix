@@ -54,7 +54,10 @@ type EffectivePickupTime struct {
 }
 
 // Operation names for ScheduleError.
-const opCreateStudentPickupException = "create student pickup exception"
+const (
+	opCreateStudentPickupException     = "create student pickup exception"
+	opUpsertBulkStudentPickupSchedules = "upsert bulk student pickup schedules"
+)
 
 // pickupScheduleService implements PickupScheduleService
 type pickupScheduleService struct {
@@ -126,14 +129,14 @@ func (s *pickupScheduleService) UpsertBulkStudentPickupSchedules(ctx context.Con
 			Where("student_id = ?", studentID).
 			Exec(ctx)
 		if err != nil {
-			return &ScheduleError{Op: "upsert bulk student pickup schedules", Err: fmt.Errorf("failed to delete existing schedules: %w", err)}
+			return &ScheduleError{Op: opUpsertBulkStudentPickupSchedules, Err: fmt.Errorf("failed to delete existing schedules: %w", err)}
 		}
 
 		// Insert new schedules
 		for _, sched := range schedules {
 			sched.StudentID = studentID
 			if err := sched.Validate(); err != nil {
-				return &ScheduleError{Op: "upsert bulk student pickup schedules", Err: fmt.Errorf("invalid schedule for weekday %d: %w", sched.Weekday, err)}
+				return &ScheduleError{Op: opUpsertBulkStudentPickupSchedules, Err: fmt.Errorf("invalid schedule for weekday %d: %w", sched.Weekday, err)}
 			}
 
 			_, err := tx.NewInsert().
@@ -142,7 +145,7 @@ func (s *pickupScheduleService) UpsertBulkStudentPickupSchedules(ctx context.Con
 				Returning("id").
 				Exec(ctx)
 			if err != nil {
-				return &ScheduleError{Op: "upsert bulk student pickup schedules", Err: err}
+				return &ScheduleError{Op: opUpsertBulkStudentPickupSchedules, Err: err}
 			}
 		}
 		return nil
