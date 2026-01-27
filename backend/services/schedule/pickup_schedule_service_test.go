@@ -306,7 +306,7 @@ func TestPickupScheduleService_CreateStudentPickupException(t *testing.T) {
 
 		exception := &scheduleModels.StudentPickupException{
 			StudentID:     student.ID,
-			ExceptionDate: time.Date(2024, 3, 15, 0, 0, 0, 0, timezone.Berlin),
+			ExceptionDate: time.Date(2024, 3, 15, 12, 0, 0, 0, timezone.Berlin),
 			Reason:        "Doctor appointment",
 			CreatedBy:     1,
 		}
@@ -322,7 +322,7 @@ func TestPickupScheduleService_CreateStudentPickupException(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		// Use Berlin timezone for consistent date handling
-		exceptionDate := time.Date(2024, 3, 20, 0, 0, 0, 0, timezone.Berlin)
+		exceptionDate := time.Date(2024, 3, 20, 12, 0, 0, 0, timezone.Berlin)
 		exception1 := &scheduleModels.StudentPickupException{
 			StudentID:     student.ID,
 			ExceptionDate: exceptionDate,
@@ -348,7 +348,7 @@ func TestPickupScheduleService_CreateStudentPickupException(t *testing.T) {
 	t.Run("fails validation for invalid exception", func(t *testing.T) {
 		exception := &scheduleModels.StudentPickupException{
 			StudentID:     0,
-			ExceptionDate: time.Date(2024, 3, 15, 0, 0, 0, 0, timezone.Berlin),
+			ExceptionDate: time.Date(2024, 3, 15, 12, 0, 0, 0, timezone.Berlin),
 			Reason:        "Test",
 			CreatedBy:     1,
 		}
