@@ -95,10 +95,15 @@ func (r *BulkPickupScheduleRequest) Bind(_ *http.Request) error {
 	if len(r.Schedules) == 0 {
 		return errors.New("schedules array cannot be empty")
 	}
+	seenWeekdays := make(map[int]bool)
 	for i, s := range r.Schedules {
 		if s.Weekday < schedule.WeekdayMonday || s.Weekday > schedule.WeekdayFriday {
 			return fmt.Errorf("schedule %d: weekday must be between 1 (Monday) and 5 (Friday)", i)
 		}
+		if seenWeekdays[s.Weekday] {
+			return fmt.Errorf("schedule %d: duplicate weekday %d", i, s.Weekday)
+		}
+		seenWeekdays[s.Weekday] = true
 		if s.PickupTime == "" {
 			return fmt.Errorf("schedule %d: pickup_time is required", i)
 		}

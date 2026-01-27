@@ -221,6 +221,15 @@ func (s *pickupScheduleService) UpdateStudentPickupException(ctx context.Context
 		return &ScheduleError{Op: "update student pickup exception", Err: err}
 	}
 
+	// Check if changing date would conflict with another exception
+	existing, err := s.exceptionRepo.FindByStudentIDAndDate(ctx, exception.StudentID, exception.ExceptionDate)
+	if err != nil {
+		return &ScheduleError{Op: "update student pickup exception", Err: err}
+	}
+	if existing != nil && existing.ID != exception.ID {
+		return &ScheduleError{Op: "update student pickup exception", Err: errors.New("exception already exists for this date")}
+	}
+
 	if err := s.exceptionRepo.Update(ctx, exception); err != nil {
 		return &ScheduleError{Op: "update student pickup exception", Err: err}
 	}
