@@ -582,6 +582,12 @@ func CleanupAuthFixtures(tb testing.TB, db *bun.DB, accountIDs ...int64) {
 		Where(whereAccountIDIn, bun.In(accountIDs)),
 		"auth.account_permissions")
 
+	// Delete grade_transitions that reference these accounts (created_by FK)
+	cleanupDelete(tb, db.NewDelete().
+		Table("education.grade_transitions").
+		Where("created_by IN (?)", bun.In(accountIDs)),
+		"education.grade_transitions")
+
 	// Finally delete the accounts themselves
 	cleanupDelete(tb, db.NewDelete().
 		Table("auth.accounts").
