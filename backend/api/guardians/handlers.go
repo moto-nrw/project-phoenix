@@ -198,24 +198,14 @@ type GuardianWithRelationship struct {
 // Bind validates the guardian create request
 // Note: Contact method validation (email or phone) is done at the service/handler level
 // after phone numbers are added separately
+// Note: FirstName and LastName are optional (e.g., CSV imports may only have relationship type)
 func (req *GuardianCreateRequest) Bind(_ *http.Request) error {
-	if req.FirstName == "" {
-		return errors.New("first_name is required")
-	}
-	if req.LastName == "" {
-		return errors.New("last_name is required")
-	}
 	return nil
 }
 
 // Bind validates the guardian update request
+// Note: FirstName and LastName are optional and can be set to empty
 func (req *GuardianUpdateRequest) Bind(_ *http.Request) error {
-	if req.FirstName != nil && *req.FirstName == "" {
-		return errors.New("first_name cannot be empty")
-	}
-	if req.LastName != nil && *req.LastName == "" {
-		return errors.New("last_name cannot be empty")
-	}
 	return nil
 }
 
