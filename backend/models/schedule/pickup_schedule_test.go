@@ -168,8 +168,9 @@ func TestStudentPickupSchedule_GetWeekdayName(t *testing.T) {
 		{"Wednesday", WeekdayWednesday, "Mittwoch"},
 		{"Thursday", WeekdayThursday, "Donnerstag"},
 		{"Friday", WeekdayFriday, "Freitag"},
+		{"Saturday", WeekdaySaturday, "Samstag"},
+		{"Sunday", WeekdaySunday, "Sonntag"},
 		{"Invalid weekday", 0, ""},
-		{"Weekend day", 6, ""},
 	}
 
 	for _, tt := range tests {
@@ -421,6 +422,8 @@ func TestWeekdayConstants(t *testing.T) {
 	assert.Equal(t, 3, WeekdayWednesday)
 	assert.Equal(t, 4, WeekdayThursday)
 	assert.Equal(t, 5, WeekdayFriday)
+	assert.Equal(t, 6, WeekdaySaturday)
+	assert.Equal(t, 7, WeekdaySunday)
 }
 
 func TestWeekdayNames(t *testing.T) {
@@ -429,4 +432,6 @@ func TestWeekdayNames(t *testing.T) {
 	assert.Equal(t, "Mittwoch", WeekdayNames[WeekdayWednesday])
 	assert.Equal(t, "Donnerstag", WeekdayNames[WeekdayThursday])
 	assert.Equal(t, "Freitag", WeekdayNames[WeekdayFriday])
+	assert.Equal(t, "Samstag", WeekdayNames[WeekdaySaturday])
+	assert.Equal(t, "Sonntag", WeekdayNames[WeekdaySunday])
 }

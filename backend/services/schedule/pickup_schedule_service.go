@@ -114,9 +114,22 @@ func (s *pickupScheduleService) UpsertStudentPickupSchedule(ctx context.Context,
 	return nil
 }
 
-// UpsertBulkStudentPickupSchedules creates or updates multiple pickup schedules in a transaction
+// UpsertBulkStudentPickupSchedules replaces all pickup schedules for a student.
+// This deletes existing schedules and inserts the new ones in a transaction,
+// ensuring that cleared weekdays are properly removed.
 func (s *pickupScheduleService) UpsertBulkStudentPickupSchedules(ctx context.Context, studentID int64, schedules []*schedule.StudentPickupSchedule) error {
 	return s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
+		// Delete all existing schedules for this student first
+		_, err := tx.NewDelete().
+			Model((*schedule.StudentPickupSchedule)(nil)).
+			ModelTableExpr("schedule.student_pickup_schedules").
+			Where("student_id = ?", studentID).
+			Exec(ctx)
+		if err != nil {
+			return &ScheduleError{Op: "upsert bulk student pickup schedules", Err: fmt.Errorf("failed to delete existing schedules: %w", err)}
+		}
+
+		// Insert new schedules
 		for _, sched := range schedules {
 			sched.StudentID = studentID
 			if err := sched.Validate(); err != nil {
@@ -126,10 +139,6 @@ func (s *pickupScheduleService) UpsertBulkStudentPickupSchedules(ctx context.Con
 			_, err := tx.NewInsert().
 				Model(sched).
 				ModelTableExpr("schedule.student_pickup_schedules").
-				On("CONFLICT (student_id, weekday) DO UPDATE").
-				Set("pickup_time = EXCLUDED.pickup_time").
-				Set("notes = EXCLUDED.notes").
-				Set("updated_at = NOW()").
 				Returning("id").
 				Exec(ctx)
 			if err != nil {
@@ -236,14 +245,15 @@ func (s *pickupScheduleService) DeleteAllStudentPickupExceptions(ctx context.Con
 
 // Computed operations
 
-// GetStudentPickupData returns combined schedule and exception data for a student
+// GetStudentPickupData returns combined schedule and exception data for a student.
+// Returns all exceptions (not just upcoming) to support week view navigation to past weeks.
 func (s *pickupScheduleService) GetStudentPickupData(ctx context.Context, studentID int64) (*StudentPickupData, error) {
 	schedules, err := s.scheduleRepo.FindByStudentID(ctx, studentID)
 	if err != nil {
 		return nil, &ScheduleError{Op: "get student pickup data", Err: err}
 	}
 
-	exceptions, err := s.exceptionRepo.FindUpcomingByStudentID(ctx, studentID)
+	exceptions, err := s.exceptionRepo.FindByStudentID(ctx, studentID)
 	if err != nil {
 		return nil, &ScheduleError{Op: "get student pickup data", Err: err}
 	}

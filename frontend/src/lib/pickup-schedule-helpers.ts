@@ -401,9 +401,24 @@ export function getDayData(
   exceptions: PickupException[],
   isSickToday: boolean,
 ): DayData {
-  const weekday = getWeekdayFromDate(date) ?? 1;
+  const weekday = getWeekdayFromDate(date);
   const dateStr = formatDateISO(date);
   const today = new Date();
+
+  // Handle weekend dates explicitly - no schedule available
+  if (weekday === null) {
+    return {
+      date,
+      weekday: 0, // Weekend indicator
+      isToday: isSameDay(date, today),
+      showSick: false,
+      exception: undefined,
+      baseSchedule: undefined,
+      effectiveTime: undefined,
+      effectiveNotes: undefined,
+      isException: false,
+    };
+  }
 
   // Check for exception on this specific date
   const exception = exceptions.find((e) => e.exceptionDate === dateStr);

@@ -18,6 +18,12 @@ const (
 	WeekdayFriday    = 5
 )
 
+// Weekend day constants (for completeness)
+const (
+	WeekdaySaturday = 6
+	WeekdaySunday   = 7
+)
+
 // WeekdayNames maps weekday numbers to German names
 var WeekdayNames = map[int]string{
 	WeekdayMonday:    "Montag",
@@ -25,6 +31,8 @@ var WeekdayNames = map[int]string{
 	WeekdayWednesday: "Mittwoch",
 	WeekdayThursday:  "Donnerstag",
 	WeekdayFriday:    "Freitag",
+	WeekdaySaturday:  "Samstag",
+	WeekdaySunday:    "Sonntag",
 }
 
 // StudentPickupSchedule represents a recurring weekly pickup schedule for a student
