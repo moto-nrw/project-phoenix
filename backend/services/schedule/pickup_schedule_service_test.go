@@ -594,11 +594,9 @@ func TestPickupScheduleService_GetEffectivePickupTimeForDate(t *testing.T) {
 		err := service.UpsertStudentPickupSchedule(ctx, sched)
 		require.NoError(t, err)
 
-		testDate := time.Now()
-		for testDate.Weekday() != time.Monday {
-			testDate = testDate.AddDate(0, 0, 1)
-		}
-		testDate = timezone.DateOfUTC(testDate) // Use UTC to match repository query
+		// Use a fixed Monday date at noon to avoid timezone boundary issues
+		// January 8, 2024 is a Monday, and noon UTC is still Monday in Berlin
+		testDate := time.Date(2024, 1, 8, 12, 0, 0, 0, time.UTC)
 
 		earlyTime := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
 		exception := &scheduleModels.StudentPickupException{
@@ -633,11 +631,9 @@ func TestPickupScheduleService_GetEffectivePickupTimeForDate(t *testing.T) {
 		err := service.UpsertStudentPickupSchedule(ctx, sched)
 		require.NoError(t, err)
 
-		testDate := time.Now()
-		for testDate.Weekday() != time.Tuesday {
-			testDate = testDate.AddDate(0, 0, 1)
-		}
-		testDate = timezone.DateOfUTC(testDate) // Use UTC to match repository query
+		// Use a fixed Tuesday date at noon to avoid timezone boundary issues
+		// January 9, 2024 is a Tuesday, and noon UTC is still Tuesday in Berlin
+		testDate := time.Date(2024, 1, 9, 12, 0, 0, 0, time.UTC)
 
 		result, err := service.GetEffectivePickupTimeForDate(ctx, student.ID, testDate)
 
@@ -652,11 +648,9 @@ func TestPickupScheduleService_GetEffectivePickupTimeForDate(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
 		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
-		testDate := time.Now()
-		for testDate.Weekday() != time.Saturday {
-			testDate = testDate.AddDate(0, 0, 1)
-		}
-		testDate = timezone.DateOfUTC(testDate) // Use UTC to match repository query
+		// Use a fixed Saturday date at noon to avoid timezone boundary issues
+		// January 13, 2024 is a Saturday, and noon UTC is still Saturday in Berlin
+		testDate := time.Date(2024, 1, 13, 12, 0, 0, 0, time.UTC)
 
 		result, err := service.GetEffectivePickupTimeForDate(ctx, student.ID, testDate)
 
@@ -668,11 +662,9 @@ func TestPickupScheduleService_GetEffectivePickupTimeForDate(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
 		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
-		testDate := time.Now()
-		for testDate.Weekday() != time.Wednesday {
-			testDate = testDate.AddDate(0, 0, 1)
-		}
-		testDate = timezone.DateOfUTC(testDate) // Use UTC to match repository query
+		// Use a fixed Wednesday date at noon to avoid timezone boundary issues
+		// January 10, 2024 is a Wednesday
+		testDate := time.Date(2024, 1, 10, 12, 0, 0, 0, time.UTC)
 
 		result, err := service.GetEffectivePickupTimeForDate(ctx, student.ID, testDate)
 
@@ -696,11 +688,9 @@ func TestPickupScheduleService_GetEffectivePickupTimeForDate(t *testing.T) {
 		err := service.UpsertStudentPickupSchedule(ctx, sched)
 		require.NoError(t, err)
 
-		testDate := time.Now()
-		for testDate.Weekday() != time.Friday {
-			testDate = testDate.AddDate(0, 0, 1)
-		}
-		testDate = timezone.DateOfUTC(testDate) // Use UTC to match repository query
+		// Use a fixed Friday date at noon to avoid timezone boundary issues
+		// January 12, 2024 is a Friday
+		testDate := time.Date(2024, 1, 12, 12, 0, 0, 0, time.UTC)
 
 		result, err := service.GetEffectivePickupTimeForDate(ctx, student.ID, testDate)
 
@@ -714,11 +704,9 @@ func TestPickupScheduleService_GetEffectivePickupTimeForDate(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
 		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
-		testDate := time.Now()
-		for testDate.Weekday() != time.Sunday {
-			testDate = testDate.AddDate(0, 0, 1)
-		}
-		testDate = timezone.DateOfUTC(testDate) // Use UTC to match repository query
+		// Use a fixed Sunday date at noon to avoid timezone boundary issues
+		// January 14, 2024 is a Sunday
+		testDate := time.Date(2024, 1, 14, 12, 0, 0, 0, time.UTC)
 
 		result, err := service.GetEffectivePickupTimeForDate(ctx, student.ID, testDate)
 
@@ -740,11 +728,9 @@ func TestPickupScheduleService_GetBulkEffectivePickupTimesForDate(t *testing.T) 
 		student3 := testpkg.CreateTestStudent(t, db, "Student", "Three", "1c")
 		defer testpkg.CleanupActivityFixtures(t, db, student1.ID, student2.ID, student3.ID)
 
-		testDate := time.Now()
-		for testDate.Weekday() != time.Thursday {
-			testDate = testDate.AddDate(0, 0, 1)
-		}
-		testDate = timezone.DateOfUTC(testDate) // Use UTC to match repository query
+		// Use a fixed Thursday date at noon to avoid timezone boundary issues
+		// January 11, 2024 is a Thursday
+		testDate := time.Date(2024, 1, 11, 12, 0, 0, 0, time.UTC)
 
 		sched1 := &scheduleModels.StudentPickupSchedule{
 			StudentID:  student1.ID,
@@ -806,11 +792,9 @@ func TestPickupScheduleService_GetBulkEffectivePickupTimesForDate(t *testing.T) 
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
 		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
-		testDate := time.Now()
-		for testDate.Weekday() != time.Sunday {
-			testDate = testDate.AddDate(0, 0, 1)
-		}
-		testDate = timezone.DateOfUTC(testDate) // Use UTC to match repository query
+		// Use a fixed Sunday date at noon to avoid timezone boundary issues
+		// January 14, 2024 is a Sunday
+		testDate := time.Date(2024, 1, 14, 12, 0, 0, 0, time.UTC)
 
 		results, err := service.GetBulkEffectivePickupTimesForDate(ctx, []int64{student.ID}, testDate)
 
@@ -823,11 +807,9 @@ func TestPickupScheduleService_GetBulkEffectivePickupTimesForDate(t *testing.T) 
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
 		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
-		testDate := time.Now()
-		for testDate.Weekday() != time.Monday {
-			testDate = testDate.AddDate(0, 0, 1)
-		}
-		testDate = timezone.DateOfUTC(testDate) // Use UTC to match repository query
+		// Use a fixed Monday date at noon to avoid timezone boundary issues
+		// January 8, 2024 is a Monday
+		testDate := time.Date(2024, 1, 8, 12, 0, 0, 0, time.UTC)
 
 		notes := "Picked up by aunt"
 		sched := &scheduleModels.StudentPickupSchedule{
