@@ -332,9 +332,10 @@
   }
 }
 
-/* Always show scrollbar to prevent layout shifts */
+/* Prevent layout shift when modals hide scrollbar */
 html {
   overflow-y: scroll;
+  scrollbar-gutter: stable;
 }
 
 /* Safe area support for mobile devices */
