@@ -235,7 +235,7 @@ export function ProfileDropdownMenu({
 
       {/* Dropdown menu */}
       <div
-        className={`absolute top-full right-0 z-50 mt-2 w-72 rounded-2xl border border-gray-200/50 bg-white/95 shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-300 ease-out ${
+        className={`absolute top-full right-0 z-50 mt-2 w-72 rounded-2xl border border-gray-200/50 bg-white/95 shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-150 ease-out ${
           isOpen
             ? "visible translate-y-0 opacity-100"
             : "invisible -translate-y-2 opacity-0"

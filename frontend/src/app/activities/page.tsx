@@ -363,7 +363,7 @@ export default function ActivitiesPage() {
                   type="button"
                   key={activity.id}
                   onClick={handleClick}
-                  className="group relative w-full cursor-pointer overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 text-left shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-500 active:scale-[0.99] md:hover:-translate-y-1 md:hover:scale-[1.01] md:hover:border-red-200/50 md:hover:bg-white md:hover:shadow-[0_20px_50px_rgb(0,0,0,0.15)]"
+                  className="group relative w-full cursor-pointer overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 text-left shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-150 active:scale-[0.99] md:hover:-translate-y-1 md:hover:scale-[1.01] md:hover:border-red-200/50 md:hover:bg-white md:hover:shadow-[0_20px_50px_rgb(0,0,0,0.15)]"
                   style={{
                     animationName: "fadeInUp",
                     animationDuration: "0.5s",
@@ -378,13 +378,13 @@ export default function ActivitiesPage() {
                   {/* Subtle inner glow */}
                   <div className="absolute inset-px rounded-3xl bg-gradient-to-br from-white/80 to-white/20"></div>
                   {/* Modern border highlight */}
-                  <div className="absolute inset-0 rounded-3xl ring-1 ring-white/20 transition-all duration-300 md:group-hover:ring-red-200/60"></div>
+                  <div className="absolute inset-0 rounded-3xl ring-1 ring-white/20 transition-all duration-150 md:group-hover:ring-red-200/60"></div>
 
                   <div className="relative flex items-center justify-between p-5">
                     {/* Left content */}
                     <div className="min-w-0 flex-1">
                       {/* Activity Name */}
-                      <h3 className="text-lg font-semibold text-gray-900 transition-colors duration-300 md:group-hover:text-red-600">
+                      <h3 className="text-lg font-semibold text-gray-900 transition-colors duration-150 md:group-hover:text-red-600">
                         {activity.name}
                       </h3>
 
@@ -430,7 +430,7 @@ export default function ActivitiesPage() {
                   </div>
 
                   {/* Glowing border effect */}
-                  <div className="pointer-events-none absolute inset-0 rounded-3xl bg-gradient-to-r from-transparent via-red-100/30 to-transparent opacity-0 transition-opacity duration-300 md:group-hover:opacity-100"></div>
+                  <div className="pointer-events-none absolute inset-0 rounded-3xl bg-gradient-to-r from-transparent via-red-100/30 to-transparent opacity-0 transition-opacity duration-150 md:group-hover:opacity-100"></div>
                 </button>
               );
             })}

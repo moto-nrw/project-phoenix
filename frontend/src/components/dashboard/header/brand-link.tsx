@@ -31,7 +31,7 @@ export function BrandLink({ isScrolled = false }: BrandLinkProps) {
 
       <div className="flex items-center space-x-3">
         <span
-          className={`font-bold tracking-tight transition-all duration-300 group-hover:scale-105 ${
+          className={`font-bold tracking-tight transition-all duration-150 group-hover:scale-105 ${
             isScrolled ? "text-lg lg:text-xl" : "text-xl"
           }`}
           style={{

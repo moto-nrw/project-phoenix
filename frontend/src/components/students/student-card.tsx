@@ -39,7 +39,7 @@ export function StudentCard({
       type="button"
       onClick={onClick}
       aria-label={`${firstName} ${lastName} - Tippen für mehr Infos`}
-      className="group relative w-full cursor-pointer overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 text-left shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-500 focus:ring-2 focus:ring-blue-500/50 focus:outline-none active:scale-[0.97] md:hover:-translate-y-3 md:hover:scale-[1.03] md:hover:border-[#5080D8]/30 md:hover:bg-white md:hover:shadow-[0_20px_50px_rgb(0,0,0,0.15)]"
+      className="group relative w-full cursor-pointer overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 text-left shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-150 focus:ring-2 focus:ring-blue-500/50 focus:outline-none active:scale-[0.97] md:hover:-translate-y-3 md:hover:scale-[1.03] md:hover:border-[#5080D8]/30 md:hover:bg-white md:hover:shadow-[0_20px_50px_rgb(0,0,0,0.15)]"
     >
       {/* Modern gradient overlay */}
       <div
@@ -48,7 +48,7 @@ export function StudentCard({
       {/* Subtle inner glow */}
       <div className="absolute inset-px rounded-3xl bg-gradient-to-br from-white/80 to-white/20" />
       {/* Modern border highlight */}
-      <div className="absolute inset-0 rounded-3xl ring-1 ring-white/20 transition-all duration-300 md:group-hover:ring-blue-200/60" />
+      <div className="absolute inset-0 rounded-3xl ring-1 ring-white/20 transition-all duration-150 md:group-hover:ring-blue-200/60" />
 
       <div className="relative p-6">
         {/* Header with student name */}
@@ -56,12 +56,12 @@ export function StudentCard({
           {/* Student Name */}
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
-              <h3 className="overflow-hidden text-lg font-bold text-ellipsis whitespace-nowrap text-gray-800 transition-colors duration-300 md:group-hover:text-blue-600">
+              <h3 className="overflow-hidden text-lg font-bold text-ellipsis whitespace-nowrap text-gray-800 transition-colors duration-150 md:group-hover:text-blue-600">
                 {firstName}
               </h3>
               {/* Subtle integrated arrow */}
               <svg
-                className="h-4 w-4 flex-shrink-0 text-gray-300 transition-all duration-300 md:group-hover:translate-x-1 md:group-hover:text-blue-500"
+                className="h-4 w-4 flex-shrink-0 text-gray-300 transition-all duration-150 md:group-hover:translate-x-1 md:group-hover:text-blue-500"
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
@@ -74,7 +74,7 @@ export function StudentCard({
                 />
               </svg>
             </div>
-            <p className="overflow-hidden text-base font-semibold text-ellipsis whitespace-nowrap text-gray-700 transition-colors duration-300 md:group-hover:text-blue-500">
+            <p className="overflow-hidden text-base font-semibold text-ellipsis whitespace-nowrap text-gray-700 transition-colors duration-150 md:group-hover:text-blue-500">
               {lastName}
             </p>
             {/* Extra content slot (school class, group name, etc.) */}
@@ -87,7 +87,7 @@ export function StudentCard({
 
         {/* Bottom row with click hint */}
         <div className="flex justify-start">
-          <p className="text-xs text-gray-400 transition-colors duration-300 md:group-hover:text-blue-400">
+          <p className="text-xs text-gray-400 transition-colors duration-150 md:group-hover:text-blue-400">
             Tippen für mehr Infos
           </p>
         </div>
@@ -98,7 +98,7 @@ export function StudentCard({
       </div>
 
       {/* Glowing border effect */}
-      <div className="absolute inset-0 rounded-3xl bg-gradient-to-r from-transparent via-blue-100/30 to-transparent opacity-0 transition-opacity duration-300 md:group-hover:opacity-100" />
+      <div className="absolute inset-0 rounded-3xl bg-gradient-to-r from-transparent via-blue-100/30 to-transparent opacity-0 transition-opacity duration-150 md:group-hover:opacity-100" />
     </button>
   );
 }

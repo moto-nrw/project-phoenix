@@ -289,20 +289,20 @@ function DatabaseContent() {
               <Link
                 key={section.id}
                 href={section.href}
-                className="group relative min-h-[44px] touch-manipulation overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-500 hover:scale-[1.01] hover:shadow-[0_20px_50px_rgb(0,0,0,0.15)] active:scale-[0.98]"
+                className="group relative min-h-[44px] touch-manipulation overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-150 hover:scale-[1.01] hover:shadow-[0_20px_50px_rgb(0,0,0,0.15)] active:scale-[0.98]"
               >
                 <div
                   className={`absolute inset-0 bg-gradient-to-br ${section.overlayColor} pointer-events-none rounded-3xl opacity-[0.03]`}
                 ></div>
                 <div className="pointer-events-none absolute inset-px rounded-3xl bg-gradient-to-br from-white/80 to-white/20"></div>
                 <div
-                  className={`absolute inset-0 rounded-3xl ring-1 ring-white/20 ${section.ringColor} pointer-events-none transition-all duration-300`}
+                  className={`absolute inset-0 rounded-3xl ring-1 ring-white/20 ${section.ringColor} pointer-events-none transition-all duration-150`}
                 ></div>
 
                 <div className="relative p-6">
                   <div className="mb-4 flex items-start justify-between">
                     <div
-                      className={`rounded-2xl bg-gradient-to-br ${section.color} p-3 text-white shadow-lg transition-all duration-300 group-hover:shadow-xl`}
+                      className={`rounded-2xl bg-gradient-to-br ${section.color} p-3 text-white shadow-lg transition-all duration-150 group-hover:shadow-xl`}
                     >
                       <Icon path={section.icon} className="h-6 w-6" />
                     </div>
@@ -334,7 +334,7 @@ function DatabaseContent() {
                 </div>
 
                 <div
-                  className={`absolute inset-0 rounded-3xl bg-gradient-to-r from-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100 ${section.glowColor} pointer-events-none to-transparent`}
+                  className={`absolute inset-0 rounded-3xl bg-gradient-to-r from-transparent opacity-0 transition-opacity duration-150 group-hover:opacity-100 ${section.glowColor} pointer-events-none to-transparent`}
                 ></div>
               </Link>
             );
