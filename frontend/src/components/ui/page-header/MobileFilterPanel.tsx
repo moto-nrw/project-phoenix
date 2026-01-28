@@ -41,7 +41,7 @@ export function MobileFilterPanel({
     switch (filter.type) {
       case "buttons":
         return (
-          <div className="grid grid-cols-5 gap-1.5">
+          <div className="flex flex-wrap gap-1.5">
             {filter.options.map((option) => (
               <button
                 key={option.value}
