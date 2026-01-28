@@ -7,6 +7,7 @@ import {
   useMemo,
   useCallback,
   useRef,
+  type JSX,
 } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
@@ -91,6 +92,49 @@ interface OGSDashboardBFFResponse {
     end_date: string;
   }>;
   firstGroupId: string | null;
+}
+
+// Pickup urgency constants and helper
+const PICKUP_URGENCY_SOON_MINUTES = 30;
+
+type PickupUrgency = "overdue" | "soon" | "normal" | "none";
+
+function getPickupUrgency(
+  pickupTimeStr: string | undefined,
+  now: Date,
+): PickupUrgency {
+  if (!pickupTimeStr) return "none";
+
+  const [hours, minutes] = pickupTimeStr.split(":").map(Number);
+  const pickupDate = new Date(now);
+  pickupDate.setHours(hours ?? 0, minutes ?? 0, 0, 0);
+
+  const diffMs = pickupDate.getTime() - now.getTime();
+  const diffMinutes = diffMs / 60000;
+
+  if (diffMinutes < 0) return "overdue";
+  if (diffMinutes <= PICKUP_URGENCY_SOON_MINUTES) return "soon";
+  return "normal";
+}
+
+function renderUrgencyDot(urgency: PickupUrgency): JSX.Element | null {
+  if (urgency === "overdue") {
+    return (
+      <span
+        className="ml-1.5 inline-flex h-2 w-2 rounded-full bg-red-500"
+        title="Abholung überfällig"
+      />
+    );
+  }
+  if (urgency === "soon") {
+    return (
+      <span
+        className="ml-1.5 inline-flex h-2 w-2 animate-pulse rounded-full bg-orange-500"
+        title="Abholung in Kürze"
+      />
+    );
+  }
+  return null;
 }
 
 function isStudentInGroupRoom(
@@ -227,6 +271,17 @@ function OGSGroupPageContent() {
   const [pickupTimes, setPickupTimes] = useState<Map<string, BulkPickupTime>>(
     new Map(),
   );
+
+  // Sort mode for student list
+  const [sortMode, setSortMode] = useState<"default" | "pickup">("default");
+
+  // Current time for urgency calculation (updates every minute)
+  const [now, setNow] = useState(() => new Date());
+
+  useEffect(() => {
+    const interval = setInterval(() => setNow(new Date()), 60_000);
+    return () => clearInterval(interval);
+  }, []);
 
   // State for group transfer modal
   const [showTransferModal, setShowTransferModal] = useState(false);
@@ -697,6 +752,45 @@ function OGSGroupPageContent() {
       matchesAttendanceFilter(student, attendanceFilter, roomStatus),
   );
 
+  // Sort students based on selected sort mode
+  const sortedStudents = useMemo(() => {
+    const sorted = [...filteredStudents];
+
+    if (sortMode === "pickup") {
+      // Pickup sort: anwesend mit Abholzeit (nach Zeit) → anwesend ohne Abholzeit → zuhause
+      return sorted.sort((a, b) => {
+        const aHome = isHomeLocation(a.current_location);
+        const bHome = isHomeLocation(b.current_location);
+
+        // Zuhause immer ganz unten
+        if (aHome && !bHome) return 1;
+        if (!aHome && bHome) return -1;
+        if (aHome && bHome) return 0;
+
+        // Beide anwesend: nach Abholzeit sortieren
+        const timeA = pickupTimes.get(a.id.toString())?.pickupTime;
+        const timeB = pickupTimes.get(b.id.toString())?.pickupTime;
+
+        // Ohne Abholzeit nach den mit Abholzeit
+        if (!timeA && !timeB) return 0;
+        if (!timeA) return 1;
+        if (!timeB) return -1;
+
+        return timeA.localeCompare(timeB);
+      });
+    }
+
+    // Alphabetisch (Standard): Nachname, dann Vorname
+    return sorted.sort((a, b) => {
+      const lastCmp = (a.second_name ?? "").localeCompare(
+        b.second_name ?? "",
+        "de",
+      );
+      if (lastCmp !== 0) return lastCmp;
+      return (a.first_name ?? "").localeCompare(b.first_name ?? "", "de");
+    });
+  }, [filteredStudents, sortMode, pickupTimes]);
+
   const getCardGradient = useCallback(
     (student: Student) => {
       if (isStudentInGroupRoom(student, currentGroup)) {
@@ -731,6 +825,17 @@ function OGSGroupPageContent() {
   // Prepare filter configurations for PageHeaderWithSearch
   const filterConfigs: FilterConfig[] = useMemo(
     () => [
+      {
+        id: "sort",
+        label: "Sortierung",
+        type: "buttons",
+        value: sortMode,
+        onChange: (value) => setSortMode(value as "default" | "pickup"),
+        options: [
+          { value: "default", label: "Alphabetisch" },
+          { value: "pickup", label: "Nächste Abholung" },
+        ],
+      },
       {
         id: "year",
         label: "Klassenstufe",
@@ -775,12 +880,20 @@ function OGSGroupPageContent() {
         ],
       },
     ],
-    [selectedYear, attendanceFilter],
+    [sortMode, selectedYear, attendanceFilter],
   );
 
   // Prepare active filters for display
   const activeFilters: ActiveFilter[] = useMemo(() => {
     const filters: ActiveFilter[] = [];
+
+    if (sortMode !== "default") {
+      filters.push({
+        id: "sort",
+        label: "Sortiert: Nächste Abholung",
+        onRemove: () => setSortMode("default"),
+      });
+    }
 
     if (searchTerm) {
       filters.push({
@@ -814,7 +927,7 @@ function OGSGroupPageContent() {
     }
 
     return filters;
-  }, [searchTerm, selectedYear, attendanceFilter]);
+  }, [sortMode, searchTerm, selectedYear, attendanceFilter]);
 
   if (status === "loading" || isLoading || hasAccess === null) {
     return (
@@ -1011,14 +1124,18 @@ function OGSGroupPageContent() {
         </div>
       );
     }
-    if (filteredStudents.length > 0) {
+    if (sortedStudents.length > 0) {
       return (
         <div>
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3">
-            {filteredStudents.map((student) => {
+            {sortedStudents.map((student) => {
               const inGroupRoom = isStudentInGroupRoom(student, currentGroup);
               const cardGradient = getCardGradient(student);
               const studentPickup = pickupTimes.get(student.id.toString());
+              const isAtHome = isHomeLocation(student.current_location);
+              const urgency = isAtHome
+                ? ("none" as PickupUrgency)
+                : getPickupUrgency(studentPickup?.pickupTime, now);
 
               return (
                 <StudentCard
@@ -1051,6 +1168,7 @@ function OGSGroupPageContent() {
                         }
                       >
                         Abholung: {studentPickup.pickupTime} Uhr
+                        {renderUrgencyDot(urgency)}
                         {studentPickup.isException && studentPickup.reason && (
                           <span className="ml-1 text-orange-500">
                             ({studentPickup.reason})
@@ -1116,6 +1234,7 @@ function OGSGroupPageContent() {
             setSearchTerm("");
             setSelectedYear("all");
             setAttendanceFilter("all");
+            setSortMode("default");
           }}
         />
 
