@@ -143,19 +143,13 @@
 
 /* Sophisticated Modal Animations - Following UI/UX Best Practices */
 
-/* Backdrop fade with progressive blur */
+/* Backdrop fade - simple opacity only to prevent layout shift */
 @keyframes backdropEnter {
   0% {
     opacity: 0;
-    backdrop-filter: blur(0px);
-  }
-  60% {
-    opacity: 0.8;
-    backdrop-filter: blur(8px);
   }
   100% {
     opacity: 1;
-    backdrop-filter: blur(12px);
   }
 }
 
