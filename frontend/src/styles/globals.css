@@ -10,17 +10,16 @@
   "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
 }
 
-/* Animation timing variables - optimized for perceived performance */
+/* CSS custom properties */
 :root {
+  /* Animation timing - optimized for perceived performance */
   --duration-instant: 100ms;   /* Micro-interactions, focus rings */
   --duration-fast: 150ms;      /* Hover states, small element transitions */
   --duration-normal: 200ms;    /* Standard transitions, card hovers */
   --duration-smooth: 250ms;    /* Modal content, dropdown opens */
   --duration-slow: 300ms;      /* Complex entrances (use sparingly) */
-}
 
-/* shadcn-style color variables (HSL tuples) */
-:root {
+  /* shadcn-style color variables (HSL tuples) */
   --background: 0 0% 100%;
   --foreground: 222.2 84% 4.9%;
 
