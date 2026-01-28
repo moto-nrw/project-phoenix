@@ -43,6 +43,7 @@ import {
 } from "~/components/students/student-card";
 import { fetchBulkPickupTimes } from "~/lib/pickup-schedule-api";
 import type { BulkPickupTime } from "~/lib/pickup-schedule-api";
+import { Clock, AlertTriangle } from "lucide-react";
 
 // Define OGSGroup type based on EducationalGroup with additional fields
 interface OGSGroup {
@@ -117,24 +118,15 @@ function getPickupUrgency(
   return "normal";
 }
 
-function renderUrgencyDot(urgency: PickupUrgency): JSX.Element | null {
+function renderPickupIcon(urgency: PickupUrgency): JSX.Element {
   if (urgency === "overdue") {
-    return (
-      <span
-        className="ml-1.5 inline-flex h-2 w-2 rounded-full bg-red-500"
-        title="Abholung überfällig"
-      />
-    );
+    return <AlertTriangle className="h-3.5 w-3.5 text-red-500" />;
   }
   if (urgency === "soon") {
-    return (
-      <span
-        className="ml-1.5 inline-flex h-2 w-2 animate-pulse rounded-full bg-orange-500"
-        title="Abholung in Kürze"
-      />
-    );
+    return <Clock className="h-3.5 w-3.5 animate-pulse text-orange-500" />;
   }
-  return null;
+  // normal / none — default gray clock
+  return <PickupTimeIcon />;
 }
 
 function isStudentInGroupRoom(
@@ -1163,12 +1155,11 @@ function OGSGroupPageContent() {
                           studentPickup.isException ? (
                             <ExceptionIcon />
                           ) : (
-                            <PickupTimeIcon />
+                            renderPickupIcon(urgency)
                           )
                         }
                       >
                         Abholung: {studentPickup.pickupTime} Uhr
-                        {renderUrgencyDot(urgency)}
                         {studentPickup.isException && studentPickup.reason && (
                           <span className="ml-1 text-orange-500">
                             ({studentPickup.reason})
