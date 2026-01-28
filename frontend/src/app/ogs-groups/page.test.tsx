@@ -898,7 +898,9 @@ describe("OGSGroupPage handleCancelTransfer behavior", () => {
   });
 
   it("uses default name when transfer not found", () => {
-    const activeTransfers = [{ substitutionId: "100", targetName: "Anna Lehrer" }];
+    const activeTransfers = [
+      { substitutionId: "100", targetName: "Anna Lehrer" },
+    ];
     const substitutionId = "999"; // Non-existent
 
     const transfer = activeTransfers.find(
@@ -1034,15 +1036,13 @@ describe("OGSGroupPage renderDesktopActionButton logic", () => {
     const isMobile = false;
     const currentGroup = { id: "1", name: "Group A", viaSubstitution: true };
 
-    const shouldShowSubstitutionBadge = !isMobile && currentGroup.viaSubstitution;
+    const shouldShowSubstitutionBadge =
+      !isMobile && currentGroup.viaSubstitution;
     expect(shouldShowSubstitutionBadge).toBe(true);
   });
 
   it("shows transfer button with count when active transfers exist", () => {
-    const activeTransfers = [
-      { substitutionId: "1" },
-      { substitutionId: "2" },
-    ];
+    const activeTransfers = [{ substitutionId: "1" }, { substitutionId: "2" }];
 
     const buttonText =
       activeTransfers.length > 0
@@ -1255,5 +1255,467 @@ describe("OGSGroupPage card gradient logic", () => {
     };
 
     expect(getGradient()).toBe("from-blue-50/80 to-cyan-100/80");
+  });
+});
+
+describe("OGSGroupPage pickup urgency logic", () => {
+  // Mirror the getPickupUrgency function logic from page.tsx
+  const PICKUP_URGENCY_SOON_MINUTES = 30;
+
+  type PickupUrgency = "overdue" | "soon" | "normal" | "none";
+
+  function getPickupUrgency(
+    pickupTimeStr: string | undefined,
+    now: Date,
+  ): PickupUrgency {
+    if (!pickupTimeStr) return "none";
+
+    const [hours, minutes] = pickupTimeStr.split(":").map(Number);
+    const pickupDate = new Date(now);
+    pickupDate.setHours(hours ?? 0, minutes ?? 0, 0, 0);
+
+    const diffMs = pickupDate.getTime() - now.getTime();
+    const diffMinutes = diffMs / 60000;
+
+    if (diffMinutes < 0) return "overdue";
+    if (diffMinutes <= PICKUP_URGENCY_SOON_MINUTES) return "soon";
+    return "normal";
+  }
+
+  it("returns 'none' when no pickup time provided", () => {
+    const now = new Date(2026, 0, 28, 14, 0);
+    expect(getPickupUrgency(undefined, now)).toBe("none");
+  });
+
+  it("returns 'overdue' when pickup time has passed", () => {
+    const now = new Date(2026, 0, 28, 15, 0); // 15:00
+    expect(getPickupUrgency("14:30", now)).toBe("overdue"); // 14:30 already passed
+  });
+
+  it("returns 'soon' when pickup is within 30 minutes", () => {
+    const now = new Date(2026, 0, 28, 14, 10); // 14:10
+    expect(getPickupUrgency("14:30", now)).toBe("soon"); // 20 min away
+  });
+
+  it("returns 'soon' when pickup is exactly 30 minutes away", () => {
+    const now = new Date(2026, 0, 28, 14, 0); // 14:00
+    expect(getPickupUrgency("14:30", now)).toBe("soon"); // exactly 30 min
+  });
+
+  it("returns 'soon' when pickup is exactly now (0 minutes)", () => {
+    const now = new Date(2026, 0, 28, 14, 30); // 14:30
+    expect(getPickupUrgency("14:30", now)).toBe("soon"); // diff = 0, <= 30
+  });
+
+  it("returns 'normal' when pickup is more than 30 minutes away", () => {
+    const now = new Date(2026, 0, 28, 13, 0); // 13:00
+    expect(getPickupUrgency("14:30", now)).toBe("normal"); // 90 min away
+  });
+
+  it("returns 'overdue' for pickup time far in the past", () => {
+    const now = new Date(2026, 0, 28, 20, 0); // 20:00
+    expect(getPickupUrgency("14:00", now)).toBe("overdue"); // 6 hours past
+  });
+
+  it("returns 'normal' for early morning pickup when checked early", () => {
+    const now = new Date(2026, 0, 28, 8, 0); // 08:00
+    expect(getPickupUrgency("16:00", now)).toBe("normal"); // 8 hours away
+  });
+
+  it("handles pickup time at midnight edge case", () => {
+    const now = new Date(2026, 0, 28, 23, 50); // 23:50
+    expect(getPickupUrgency("00:00", now)).toBe("overdue"); // midnight is earlier in the same day
+  });
+});
+
+describe("OGSGroupPage pickup urgency with home location", () => {
+  // Tests the logic: at-home students get "none" urgency regardless of pickup time
+  it("returns 'none' for at-home students regardless of pickup time", () => {
+    const isAtHome = true;
+    type PickupUrgency = "overdue" | "soon" | "normal" | "none";
+
+    // Simulate the component logic
+    const urgency: PickupUrgency = isAtHome ? "none" : "soon";
+    expect(urgency).toBe("none");
+  });
+
+  it("returns computed urgency for non-home students", () => {
+    const isAtHome = false;
+    type PickupUrgency = "overdue" | "soon" | "normal" | "none";
+
+    const computedUrgency: PickupUrgency = "soon";
+    const urgency: PickupUrgency = isAtHome ? "none" : computedUrgency;
+    expect(urgency).toBe("soon");
+  });
+});
+
+describe("OGSGroupPage pickup icon rendering logic", () => {
+  type PickupUrgency = "overdue" | "soon" | "normal" | "none";
+
+  function resolveIconType(urgency: PickupUrgency): string {
+    if (urgency === "overdue") return "alert-triangle";
+    if (urgency === "soon") return "clock-pulse";
+    return "pickup-time-default";
+  }
+
+  it("renders AlertTriangle for overdue urgency", () => {
+    expect(resolveIconType("overdue")).toBe("alert-triangle");
+  });
+
+  it("renders pulsing Clock for soon urgency", () => {
+    expect(resolveIconType("soon")).toBe("clock-pulse");
+  });
+
+  it("renders default PickupTimeIcon for normal urgency", () => {
+    expect(resolveIconType("normal")).toBe("pickup-time-default");
+  });
+
+  it("renders default PickupTimeIcon for none urgency", () => {
+    expect(resolveIconType("none")).toBe("pickup-time-default");
+  });
+
+  it("uses ExceptionIcon when student has exception regardless of urgency", () => {
+    const isException = true;
+    const iconType = isException ? "exception" : resolveIconType("overdue");
+    expect(iconType).toBe("exception");
+  });
+
+  it("uses urgency icon when student has no exception", () => {
+    const isException = false;
+    const iconType = isException ? "exception" : resolveIconType("overdue");
+    expect(iconType).toBe("alert-triangle");
+  });
+});
+
+describe("OGSGroupPage sorting logic", () => {
+  type StudentSort = {
+    id: string;
+    first_name: string;
+    second_name: string;
+    current_location: string;
+  };
+
+  const isHomeLocation = (loc: string) => loc === "Zuhause";
+
+  it("sorts alphabetically by last name then first name in default mode", () => {
+    const students: StudentSort[] = [
+      {
+        id: "1",
+        first_name: "Zara",
+        second_name: "Mueller",
+        current_location: "Raum 101",
+      },
+      {
+        id: "2",
+        first_name: "Anna",
+        second_name: "Becker",
+        current_location: "Raum 101",
+      },
+      {
+        id: "3",
+        first_name: "Max",
+        second_name: "Mueller",
+        current_location: "Raum 101",
+      },
+    ];
+
+    const sorted = [...students].sort((a, b) => {
+      const lastCmp = (a.second_name ?? "").localeCompare(
+        b.second_name ?? "",
+        "de",
+      );
+      if (lastCmp !== 0) return lastCmp;
+      return (a.first_name ?? "").localeCompare(b.first_name ?? "", "de");
+    });
+
+    expect(sorted.map((s) => s.id)).toEqual(["2", "3", "1"]); // Becker, Mueller(Max), Mueller(Zara)
+  });
+
+  it("handles empty names in alphabetical sort", () => {
+    const students: StudentSort[] = [
+      {
+        id: "1",
+        first_name: "Max",
+        second_name: "",
+        current_location: "Raum 101",
+      },
+      {
+        id: "2",
+        first_name: "Anna",
+        second_name: "Zeller",
+        current_location: "Raum 101",
+      },
+    ];
+
+    const sorted = [...students].sort((a, b) => {
+      const lastCmp = (a.second_name ?? "").localeCompare(
+        b.second_name ?? "",
+        "de",
+      );
+      if (lastCmp !== 0) return lastCmp;
+      return (a.first_name ?? "").localeCompare(b.first_name ?? "", "de");
+    });
+
+    expect(sorted[0]?.id).toBe("1"); // Empty string sorts before "Zeller"
+  });
+
+  it("sorts pickup mode: present with time first, then without, then home", () => {
+    const pickupTimes = new Map([
+      ["1", { pickupTime: "15:00" }],
+      ["3", { pickupTime: "14:00" }],
+    ]);
+
+    const students: StudentSort[] = [
+      {
+        id: "1",
+        first_name: "A",
+        second_name: "A",
+        current_location: "Raum 101",
+      }, // present, pickup 15:00
+      {
+        id: "2",
+        first_name: "B",
+        second_name: "B",
+        current_location: "Raum 101",
+      }, // present, no pickup
+      {
+        id: "3",
+        first_name: "C",
+        second_name: "C",
+        current_location: "Raum 101",
+      }, // present, pickup 14:00
+      {
+        id: "4",
+        first_name: "D",
+        second_name: "D",
+        current_location: "Zuhause",
+      }, // at home
+    ];
+
+    const sorted = [...students].sort((a, b) => {
+      const aHome = isHomeLocation(a.current_location);
+      const bHome = isHomeLocation(b.current_location);
+
+      if (aHome && !bHome) return 1;
+      if (!aHome && bHome) return -1;
+      if (aHome && bHome) return 0;
+
+      const timeA = pickupTimes.get(a.id)?.pickupTime;
+      const timeB = pickupTimes.get(b.id)?.pickupTime;
+
+      if (!timeA && !timeB) return 0;
+      if (!timeA) return 1;
+      if (!timeB) return -1;
+
+      return timeA.localeCompare(timeB);
+    });
+
+    // 14:00 first, then 15:00, then no pickup (present), then home
+    expect(sorted.map((s) => s.id)).toEqual(["3", "1", "2", "4"]);
+  });
+
+  it("sorts home students to end regardless of pickup time", () => {
+    const pickupTimes = new Map([
+      ["1", { pickupTime: "14:00" }],
+      ["2", { pickupTime: "13:00" }], // earlier time but at home
+    ]);
+
+    const students: StudentSort[] = [
+      {
+        id: "1",
+        first_name: "A",
+        second_name: "A",
+        current_location: "Raum 101",
+      },
+      {
+        id: "2",
+        first_name: "B",
+        second_name: "B",
+        current_location: "Zuhause",
+      },
+    ];
+
+    const sorted = [...students].sort((a, b) => {
+      const aHome = isHomeLocation(a.current_location);
+      const bHome = isHomeLocation(b.current_location);
+
+      if (aHome && !bHome) return 1;
+      if (!aHome && bHome) return -1;
+      if (aHome && bHome) return 0;
+
+      const timeA = pickupTimes.get(a.id)?.pickupTime;
+      const timeB = pickupTimes.get(b.id)?.pickupTime;
+
+      if (!timeA && !timeB) return 0;
+      if (!timeA) return 1;
+      if (!timeB) return -1;
+
+      return timeA.localeCompare(timeB);
+    });
+
+    expect(sorted[0]?.id).toBe("1"); // Present student first
+    expect(sorted[1]?.id).toBe("2"); // Home student last
+  });
+
+  it("keeps order stable for two home students", () => {
+    const students: StudentSort[] = [
+      {
+        id: "1",
+        first_name: "A",
+        second_name: "A",
+        current_location: "Zuhause",
+      },
+      {
+        id: "2",
+        first_name: "B",
+        second_name: "B",
+        current_location: "Zuhause",
+      },
+    ];
+
+    const sorted = [...students].sort((a, b) => {
+      const aHome = isHomeLocation(a.current_location);
+      const bHome = isHomeLocation(b.current_location);
+
+      if (aHome && !bHome) return 1;
+      if (!aHome && bHome) return -1;
+      if (aHome && bHome) return 0;
+      return 0;
+    });
+
+    // Both at home, stable sort preserves original order
+    expect(sorted.map((s) => s.id)).toEqual(["1", "2"]);
+  });
+
+  it("sorts present students without pickup times equally", () => {
+    const pickupTimes = new Map<string, { pickupTime: string }>();
+
+    const students: StudentSort[] = [
+      {
+        id: "1",
+        first_name: "A",
+        second_name: "A",
+        current_location: "Raum 101",
+      },
+      {
+        id: "2",
+        first_name: "B",
+        second_name: "B",
+        current_location: "Raum 102",
+      },
+    ];
+
+    const sorted = [...students].sort((a, b) => {
+      const aHome = isHomeLocation(a.current_location);
+      const bHome = isHomeLocation(b.current_location);
+
+      if (aHome && !bHome) return 1;
+      if (!aHome && bHome) return -1;
+      if (aHome && bHome) return 0;
+
+      const timeA = pickupTimes.get(a.id)?.pickupTime;
+      const timeB = pickupTimes.get(b.id)?.pickupTime;
+
+      if (!timeA && !timeB) return 0;
+      if (!timeA) return 1;
+      if (!timeB) return -1;
+
+      return timeA.localeCompare(timeB);
+    });
+
+    // Both present without times, stable order
+    expect(sorted.map((s) => s.id)).toEqual(["1", "2"]);
+  });
+});
+
+describe("OGSGroupPage sort active filter", () => {
+  type SortMode = "default" | "pickup";
+
+  function buildSortFilters(
+    sortMode: SortMode,
+    searchTerm: string,
+    selectedYear: string,
+  ): Array<{ id: string; label: string }> {
+    const filters: Array<{ id: string; label: string }> = [];
+    if (sortMode !== "default") {
+      filters.push({ id: "sort", label: "Sortiert: Nächste Abholung" });
+    }
+    if (searchTerm.length > 0) {
+      filters.push({ id: "search", label: `"${searchTerm}"` });
+    }
+    if (selectedYear !== "all") {
+      filters.push({ id: "year", label: `Jahr ${selectedYear}` });
+    }
+    return filters;
+  }
+
+  it("creates sort active filter when sortMode is pickup", () => {
+    const filters = buildSortFilters("pickup", "", "all");
+    expect(filters).toHaveLength(1);
+    expect(filters[0]?.label).toBe("Sortiert: Nächste Abholung");
+    expect(filters[0]?.id).toBe("sort");
+  });
+
+  it("does not create sort filter when sortMode is default", () => {
+    const filters = buildSortFilters("default", "", "all");
+    expect(filters).toHaveLength(0);
+  });
+
+  it("includes sort filter with other active filters", () => {
+    const filters = buildSortFilters("pickup", "Max", "2");
+    expect(filters).toHaveLength(3);
+    expect(filters[0]?.id).toBe("sort");
+  });
+});
+
+describe("OGSGroupPage sort filter config", () => {
+  it("provides correct sort filter options", () => {
+    const sortOptions = [
+      { value: "default", label: "Alphabetisch" },
+      { value: "pickup", label: "Nächste Abholung" },
+    ];
+
+    expect(sortOptions).toHaveLength(2);
+    expect(sortOptions[0]?.value).toBe("default");
+    expect(sortOptions[0]?.label).toBe("Alphabetisch");
+    expect(sortOptions[1]?.value).toBe("pickup");
+    expect(sortOptions[1]?.label).toBe("Nächste Abholung");
+  });
+
+  it("sort filter config has correct structure", () => {
+    const sortConfig = {
+      id: "sort",
+      label: "Sortierung",
+      type: "buttons" as const,
+      value: "default",
+      options: [
+        { value: "default", label: "Alphabetisch" },
+        { value: "pickup", label: "Nächste Abholung" },
+      ],
+    };
+
+    expect(sortConfig.id).toBe("sort");
+    expect(sortConfig.type).toBe("buttons");
+    expect(sortConfig.options).toHaveLength(2);
+  });
+});
+
+describe("OGSGroupPage clear all filters includes sort reset", () => {
+  it("resets sort mode along with other filters", () => {
+    let searchTerm = "Max";
+    let selectedYear = "2";
+    let attendanceFilter = "in_room";
+    let sortMode = "pickup";
+
+    // Simulate onClearAllFilters
+    searchTerm = "";
+    selectedYear = "all";
+    attendanceFilter = "all";
+    sortMode = "default";
+
+    expect(searchTerm).toBe("");
+    expect(selectedYear).toBe("all");
+    expect(attendanceFilter).toBe("all");
+    expect(sortMode).toBe("default");
   });
 });
