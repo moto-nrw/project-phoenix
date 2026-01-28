@@ -7,6 +7,7 @@ import (
 	"math/rand"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/models/users"
 )
@@ -234,16 +235,19 @@ func (s *Seeder) createException(ctx context.Context, rng *rand.Rand, studentID 
 }
 
 // generateExceptionDate generates a random weekday within the next 2 weeks
+// Returns UTC midnight of the date in Berlin timezone for consistent DB storage
 func generateExceptionDate(rng *rand.Rand) time.Time {
 	daysFromNow := rng.Intn(14) + 1
-	date := time.Now().AddDate(0, 0, daysFromNow)
+	// Use Berlin timezone to ensure consistent date calculation
+	date := timezone.Now().AddDate(0, 0, daysFromNow)
 
 	// Skip weekends
 	for date.Weekday() == time.Saturday || date.Weekday() == time.Sunday {
 		date = date.AddDate(0, 0, 1)
 	}
 
-	return date
+	// Return as UTC midnight for consistent DB storage
+	return timezone.DateOfUTC(date)
 }
 
 // parseTimeOnly parses a time string (HH:MM) into a time.Time with only hour/minute set
