@@ -124,9 +124,11 @@ function PersonalInfoDisplay({
 function SickBadge({ sickSince }: Readonly<{ sickSince?: string }>) {
   return (
     <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-      <span className="inline-flex items-center gap-1.5 rounded-full bg-pink-100 px-2.5 py-1 text-xs font-medium text-pink-800">
-        <span className="h-2 w-2 rounded-full bg-pink-500" />{" "}
-        <span>Krank gemeldet</span>
+      <span
+        className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium text-white"
+        style={{ backgroundColor: "#EAB308" }}
+      >
+        <span className="h-2 w-2 rounded-full bg-white/80" /> <span>Krank</span>
       </span>
       {sickSince && (
         <span className="text-sm text-gray-500">
