@@ -308,16 +308,16 @@ interface SicknessToggleProps {
 
 function SicknessToggle({ isSick, onToggle }: Readonly<SicknessToggleProps>) {
   const containerClass = isSick
-    ? "border-pink-200 bg-pink-50"
+    ? "border-amber-200 bg-amber-50"
     : "border-gray-200 bg-gray-50";
 
   const iconBgClass = isSick
-    ? "bg-pink-100 text-pink-600"
+    ? "bg-amber-100 text-amber-600"
     : "bg-gray-200 text-gray-500";
 
-  const textClass = isSick ? "text-pink-900" : "text-gray-700";
+  const textClass = isSick ? "text-amber-900" : "text-gray-700";
 
-  const toggleClass = isSick ? "bg-pink-500" : "bg-gray-300";
+  const toggleClass = isSick ? "bg-amber-500" : "bg-gray-300";
 
   const knobTransform = isSick ? "translate-x-6" : "translate-x-1";
 
@@ -346,7 +346,7 @@ function SicknessToggle({ isSick, onToggle }: Readonly<SicknessToggleProps>) {
           role="switch"
           aria-checked={isSick}
           onClick={onToggle}
-          className={`relative inline-flex h-7 w-12 flex-shrink-0 items-center rounded-full transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-pink-500 focus-visible:ring-offset-2 ${toggleClass}`}
+          className={`relative inline-flex h-7 w-12 flex-shrink-0 items-center rounded-full transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 ${toggleClass}`}
         >
           <span
             className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-sm transition-transform duration-200 ${knobTransform}`}

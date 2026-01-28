@@ -406,8 +406,11 @@ function DayRow({
 
       {/* Content */}
       {day.showSick ? (
-        <div className="inline-flex items-center gap-1 rounded-full bg-pink-100 px-2 py-0.5 text-xs font-medium text-pink-700">
-          <span className="h-1.5 w-1.5 rounded-full bg-pink-500" />
+        <div
+          className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium text-white"
+          style={{ backgroundColor: "#EAB308" }}
+        >
+          <span className="h-1.5 w-1.5 rounded-full bg-white/80" />
           <span>Krank</span>
         </div>
       ) : (
@@ -528,8 +531,11 @@ function DayCell({
 
       {/* Content */}
       {day.showSick ? (
-        <div className="mt-1 inline-flex items-center gap-1 rounded-full bg-pink-100 px-2 py-0.5 text-xs font-medium text-pink-700">
-          <span className="h-1.5 w-1.5 rounded-full bg-pink-500" />
+        <div
+          className="mt-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium text-white"
+          style={{ backgroundColor: "#EAB308" }}
+        >
+          <span className="h-1.5 w-1.5 rounded-full bg-white/80" />
           <span>Krank</span>
         </div>
       ) : (
