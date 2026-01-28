@@ -137,8 +137,8 @@ export default function StudentDetailPage() {
         } else {
           setTodayPickup({});
         }
-      } catch (err) {
-        console.error("Failed to load pickup data:", err);
+      } catch {
+        // Silently handle errors (e.g., permission denied for non-full-access users)
         setTodayPickup({});
       }
     };
