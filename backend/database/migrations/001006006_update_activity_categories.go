@@ -27,7 +27,7 @@ DELETE FROM activities.categories WHERE name = 'Mensa';
 `
 
 func init() {
-	Migrations.MustRegister(func(ctx context.Context, db *bun.DB) error {
+	Migrations.MustRegister(func(_ context.Context, db *bun.DB) error {
 		// Update existing categories to new names and descriptions
 		categoryUpdates := []struct {
 			oldName        string
@@ -64,7 +64,7 @@ func init() {
 		}
 
 		return nil
-	}, func(ctx context.Context, db *bun.DB) error {
+	}, func(_ context.Context, db *bun.DB) error {
 		_, err := db.Exec(Rollback001006006)
 		return err
 	})

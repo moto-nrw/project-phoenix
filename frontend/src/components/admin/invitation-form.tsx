@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useToast } from "~/contexts/ToastContext";
 import { Input } from "~/components/ui";
 import { authService } from "~/lib/auth-service";
+import { getRoleDisplayName } from "~/lib/auth-helpers";
 import { createInvitation } from "~/lib/invitation-api";
 import type {
   CreateInvitationRequest,
@@ -12,7 +13,7 @@ import type {
 import type { ApiError } from "~/lib/auth-api";
 
 interface InvitationFormProps {
-  onCreated?: (invitation: PendingInvitation) => void;
+  readonly onCreated?: (invitation: PendingInvitation) => void;
 }
 
 interface RoleOption {
@@ -50,7 +51,9 @@ export function InvitationForm({ onCreated }: InvitationFormProps) {
         const options = roleList
           .map<RoleOption>((role) => ({
             id: Number(role.id),
-            name: role.name ?? `Rolle ${role.id}`,
+            name: role.name
+              ? getRoleDisplayName(role.name)
+              : `Rolle ${role.id}`,
           }))
           .filter((role) => !Number.isNaN(role.id));
         setRoles(options);
@@ -75,8 +78,8 @@ export function InvitationForm({ onCreated }: InvitationFormProps) {
   }, []);
 
   const inviteBaseUrl = useMemo(() => {
-    if (typeof window !== "undefined") {
-      return window.location.origin;
+    if (typeof globalThis !== "undefined" && "location" in globalThis) {
+      return globalThis.location.origin;
     }
     return "";
   }, []);

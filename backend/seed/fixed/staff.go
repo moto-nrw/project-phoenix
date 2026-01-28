@@ -68,8 +68,8 @@ func (s *Seeder) seedStaff(ctx context.Context) error {
 			ModelTableExpr("users.staff").
 			On("CONFLICT (person_id) DO UPDATE").
 			Set("staff_notes = EXCLUDED.staff_notes").
-			Set("updated_at = EXCLUDED.updated_at").
-			Returning("id, created_at, updated_at").
+			Set(SQLExcludedUpdatedAt).
+			Returning(SQLBaseColumns).
 			Exec(ctx)
 		if err != nil {
 			return fmt.Errorf("failed to upsert staff for person %d: %w", person.ID, err)
@@ -108,8 +108,8 @@ func (s *Seeder) seedTeachers(ctx context.Context) error {
 			Set("specialization = EXCLUDED.specialization").
 			Set("role = EXCLUDED.role").
 			Set("qualifications = EXCLUDED.qualifications").
-			Set("updated_at = EXCLUDED.updated_at").
-			Returning("id, created_at, updated_at").
+			Set(SQLExcludedUpdatedAt).
+			Returning(SQLBaseColumns).
 			Exec(ctx)
 		if err != nil {
 			return fmt.Errorf("failed to upsert teacher for staff %d: %w", staff.ID, err)

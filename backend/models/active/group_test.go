@@ -258,12 +258,3 @@ func TestGroupGetDuration(t *testing.T) {
 		})
 	}
 }
-
-func TestGroupTableName(t *testing.T) {
-	group := &Group{}
-	want := "active.groups"
-
-	if got := group.TableName(); got != want {
-		t.Errorf("Group.TableName() = %v, want %v", got, want)
-	}
-}

@@ -13,7 +13,7 @@ interface PrivacyConsent {
 }
 
 /** Gets default value for a form field based on its type */
-function getDefaultValueForField(field: FormField): unknown {
+export function getDefaultValueForField(field: FormField): unknown {
   switch (field.type) {
     case "checkbox":
       return false;
@@ -27,7 +27,7 @@ function getDefaultValueForField(field: FormField): unknown {
 }
 
 /** Checks if sections contain privacy consent fields */
-function hasPrivacyConsentFields(sections: FormSection[]): boolean {
+export function hasPrivacyConsentFields(sections: FormSection[]): boolean {
   return sections.some((s) =>
     s.fields.some(
       (f) =>
@@ -38,7 +38,9 @@ function hasPrivacyConsentFields(sections: FormSection[]): boolean {
 }
 
 /** Extracts privacy consent from API response */
-function extractPrivacyConsent(responseData: unknown): PrivacyConsent | null {
+export function extractPrivacyConsent(
+  responseData: unknown,
+): PrivacyConsent | null {
   if (!responseData || typeof responseData !== "object") {
     return null;
   }
@@ -125,12 +127,12 @@ async function applyPrivacyConsent<T>(
 }
 
 /** Checks if a value is empty (undefined, null, or empty string) */
-function isEmptyValue(value: unknown): boolean {
+export function isEmptyValue(value: unknown): boolean {
   return value === undefined || value === null || value === "";
 }
 
 /** Validates a number field against min constraint */
-function validateNumberMin(
+export function validateNumberMin(
   value: unknown,
   min: number,
   label: string,
@@ -144,7 +146,7 @@ function validateNumberMin(
 }
 
 /** Validates a single form field and returns error message or null */
-function validateField(field: FormField, value: unknown): string | null {
+export function validateField(field: FormField, value: unknown): string | null {
   // Check required fields
   if (field.required && isEmptyValue(value)) {
     return `${field.label} ist erforderlich.`;
@@ -165,7 +167,7 @@ function validateField(field: FormField, value: unknown): string | null {
 }
 
 /** Validates all form fields and returns first error or null */
-function validateFormFields(
+export function validateFormFields(
   sections: FormSection[],
   formData: Record<string, unknown>,
 ): string | null {
@@ -223,16 +225,16 @@ export interface FormSection {
 }
 
 export interface DatabaseFormProps<T = Record<string, unknown>> {
-  theme: DatabaseTheme;
-  sections: FormSection[];
-  onSubmit: (data: T) => Promise<void>;
-  onCancel: () => void;
-  initialData?: Partial<T>;
-  isLoading?: boolean;
-  error?: string | null;
-  submitLabel: string;
-  submitButtonGradient?: string; // Override default gradient
-  stickyActions?: boolean; // Render sticky action bar like other entity forms
+  readonly theme: DatabaseTheme;
+  readonly sections: FormSection[];
+  readonly onSubmit: (data: T) => Promise<void>;
+  readonly onCancel: () => void;
+  readonly initialData?: Partial<T>;
+  readonly isLoading?: boolean;
+  readonly error?: string | null;
+  readonly submitLabel: string;
+  readonly submitButtonGradient?: string; // Override default gradient
+  readonly stickyActions?: boolean; // Render sticky action bar like other entity forms
 }
 
 export function DatabaseForm<T = Record<string, unknown>>({
@@ -340,10 +342,10 @@ export function DatabaseForm<T = Record<string, unknown>>({
           [name]: "",
         }));
       } else {
-        const numValue = parseInt(value, 10);
+        const numValue = Number.parseInt(value, 10);
         setFormData((prev) => ({
           ...prev,
-          [name]: isNaN(numValue) ? "" : numValue,
+          [name]: Number.isNaN(numValue) ? "" : numValue,
         }));
       }
     } else {
@@ -377,6 +379,18 @@ export function DatabaseForm<T = Record<string, unknown>>({
     }
   };
 
+  // Handler for removing a value from a multiselect field
+  const handleMultiselectRemove = (
+    fieldName: string,
+    currentValues: string[],
+    valueToRemove: string,
+  ) => {
+    setFormData((prev) => ({
+      ...prev,
+      [fieldName]: currentValues.filter((v) => v !== valueToRemove),
+    }));
+  };
+
   const renderField = (field: FormField, _sectionBackground: string) => {
     // Determine focus ring color based on theme accent for consistency across neutral backgrounds
     const focusRingColor = getAccentRing(theme.accent);
@@ -384,7 +398,7 @@ export function DatabaseForm<T = Record<string, unknown>>({
     const baseInputClasses = `w-full rounded-lg border border-gray-300 px-3 py-2 md:px-4 md:py-2 text-sm transition-all duration-200 focus:ring-2 ${focusRingColor} focus:outline-none`;
 
     switch (field.type) {
-      case "custom":
+      case "custom": {
         if (!field.component) return null;
         const Component = field.component;
         return (
@@ -402,6 +416,7 @@ export function DatabaseForm<T = Record<string, unknown>>({
             emptyLabel={field.placeholder}
           />
         );
+      }
 
       case "checkbox":
         return (
@@ -454,7 +469,7 @@ export function DatabaseForm<T = Record<string, unknown>>({
           </div>
         );
 
-      case "select":
+      case "select": {
         const selectOptions = Array.isArray(field.options)
           ? field.options
           : (asyncOptions[field.name] ?? []);
@@ -509,8 +524,9 @@ export function DatabaseForm<T = Record<string, unknown>>({
             )}
           </div>
         );
+      }
 
-      case "multiselect":
+      case "multiselect": {
         const multiselectOptions = Array.isArray(field.options)
           ? field.options
           : (asyncOptions[field.name] ?? []);
@@ -545,14 +561,13 @@ export function DatabaseForm<T = Record<string, unknown>>({
                       {option.label}
                       <button
                         type="button"
-                        onClick={() => {
-                          setFormData((prev) => ({
-                            ...prev,
-                            [field.name]: selectedValues.filter(
-                              (v) => v !== value,
-                            ),
-                          }));
-                        }}
+                        onClick={() =>
+                          handleMultiselectRemove(
+                            field.name,
+                            selectedValues,
+                            value,
+                          )
+                        }
                         className="ml-1 inline-flex h-3.5 w-3.5 items-center justify-center rounded-full bg-blue-200 text-blue-600 hover:bg-blue-300 hover:text-blue-700"
                         aria-label={`Remove ${option.label}`}
                       >
@@ -614,8 +629,9 @@ export function DatabaseForm<T = Record<string, unknown>>({
             )}
           </div>
         );
+      }
 
-      case "number":
+      case "number": {
         // Handle both number and empty string values
         const numberValue = formData[field.name] as
           | string
@@ -655,6 +671,7 @@ export function DatabaseForm<T = Record<string, unknown>>({
             )}
           </div>
         );
+      }
 
       default:
         return (
@@ -701,14 +718,14 @@ export function DatabaseForm<T = Record<string, unknown>>({
       )}
 
       <form onSubmit={handleSubmit} noValidate className="space-y-6">
-        {sections.map((section, sectionIndex) => {
+        {sections.map((section) => {
           // Use custom background or theme background
           const bgClass = section.backgroundColor ?? themeClasses.background;
           const textClass = "text-gray-900";
 
           return (
             <div
-              key={`section-${sectionIndex}`}
+              key={section.title}
               className={`mb-6 rounded-lg md:mb-8 ${bgClass} p-3 md:p-4`}
             >
               <h2

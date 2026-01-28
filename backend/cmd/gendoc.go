@@ -124,8 +124,19 @@ func genOpenAPIDoc() {
 
 // createBaseOpenAPISpecFromRouter creates an OpenAPI specification from the chi router
 func createBaseOpenAPISpecFromRouter(router chi.Router) map[string]interface{} {
-	// Define the base OpenAPI specification
-	spec := map[string]interface{}{
+	spec := createOpenAPIBaseStructure()
+	md := docgen.MarkdownRoutesDoc(router, docgen.MarkdownOpts{})
+	paths := spec["paths"].(map[string]interface{})
+
+	parseRoutesFromMarkdown(md, paths)
+	mergeSettingsSchemas(spec)
+
+	return spec
+}
+
+// createOpenAPIBaseStructure creates the base OpenAPI specification structure
+func createOpenAPIBaseStructure() map[string]interface{} {
+	return map[string]interface{}{
 		"openapi": "3.0.3",
 		"info": map[string]interface{}{
 			"title":       "MOTO API",
@@ -159,60 +170,76 @@ func createBaseOpenAPISpecFromRouter(router chi.Router) map[string]interface{} {
 		},
 		"paths": map[string]interface{}{},
 	}
+}
 
-	// Extract path information from the router using docgen's MarkdownRoutesDoc
-	md := docgen.MarkdownRoutesDoc(router, docgen.MarkdownOpts{})
-
-	// Parse the routes document to extract paths and methods
-	paths := spec["paths"].(map[string]interface{})
-
-	// Parse the routes from the markdown document
-	// Since we can't directly walk the router, we'll extract routes from the markdown
-
-	// Get all routes from our markdown doc
+// parseRoutesFromMarkdown parses routes from markdown documentation
+func parseRoutesFromMarkdown(md string, paths map[string]interface{}) {
 	lines := strings.Split(md, "\n")
 	var currentRoute string
 
 	for _, line := range lines {
-		// Look for route patterns in the markdown using the summary tag format
-		if strings.Contains(line, "`") && strings.Contains(line, "<summary>") {
-			// Extract the route pattern
-			routeStartIdx := strings.Index(line, "`") + 1
-			routeEndIdx := strings.LastIndex(line, "`")
-			if routeStartIdx > 0 && routeEndIdx > routeStartIdx {
-				currentRoute = line[routeStartIdx:routeEndIdx]
-
-				// Skip empty routes and middleware-only routes
-				if currentRoute == "" || currentRoute == "*" {
-					continue
-				}
-
-				// Initialize path if it doesn't exist
-				if paths[currentRoute] == nil {
-					paths[currentRoute] = map[string]interface{}{}
-				}
+		if route := extractRoutePattern(line); route != "" {
+			currentRoute = route
+			if paths[currentRoute] == nil {
+				paths[currentRoute] = map[string]interface{}{}
 			}
-		} else if strings.Contains(line, "_GET_") && currentRoute != "" {
-			addMethod(paths, currentRoute, "GET")
-		} else if strings.Contains(line, "_POST_") && currentRoute != "" {
-			addMethod(paths, currentRoute, "POST")
-		} else if strings.Contains(line, "_PUT_") && currentRoute != "" {
-			addMethod(paths, currentRoute, "PUT")
-		} else if strings.Contains(line, "_DELETE_") && currentRoute != "" {
-			addMethod(paths, currentRoute, "DELETE")
-		} else if strings.Contains(line, "_PATCH_") && currentRoute != "" {
-			addMethod(paths, currentRoute, "PATCH")
+		} else {
+			tryAddHTTPMethod(line, paths, currentRoute)
 		}
 	}
+}
 
-	// Add the settings schemas from the existing function
+// extractRoutePattern extracts route pattern from a markdown line
+func extractRoutePattern(line string) string {
+	if !strings.Contains(line, "`") || !strings.Contains(line, "<summary>") {
+		return ""
+	}
+
+	routeStartIdx := strings.Index(line, "`") + 1
+	routeEndIdx := strings.LastIndex(line, "`")
+
+	if routeStartIdx <= 0 || routeEndIdx <= routeStartIdx {
+		return ""
+	}
+
+	route := line[routeStartIdx:routeEndIdx]
+	if route == "" || route == "*" {
+		return ""
+	}
+
+	return route
+}
+
+// tryAddHTTPMethod tries to add HTTP method if the line contains a method marker
+func tryAddHTTPMethod(line string, paths map[string]interface{}, currentRoute string) {
+	if currentRoute == "" {
+		return
+	}
+
+	methods := map[string]string{
+		"_GET_":    "GET",
+		"_POST_":   "POST",
+		"_PUT_":    "PUT",
+		"_DELETE_": "DELETE",
+		"_PATCH_":  "PATCH",
+	}
+
+	for marker, method := range methods {
+		if strings.Contains(line, marker) {
+			addMethod(paths, currentRoute, method)
+			return
+		}
+	}
+}
+
+// mergeSettingsSchemas merges settings schemas into the OpenAPI spec
+func mergeSettingsSchemas(spec map[string]interface{}) {
 	schemas := spec["components"].(map[string]interface{})["schemas"].(map[string]interface{})
 	settingSchemas := getSettingsSchemas()
+
 	for name, schema := range settingSchemas {
 		schemas[name] = schema
 	}
-
-	return spec
 }
 
 // extractPathParams extracts URL parameters from a path pattern like /users/{id}

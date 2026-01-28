@@ -23,12 +23,12 @@ function ResetPasswordForm() {
   // Extract token from URL
   useEffect(() => {
     const tokenParam = searchParams.get("token");
-    if (!tokenParam) {
+    if (tokenParam) {
+      setToken(tokenParam);
+    } else {
       setError(
         "Ungültiger oder fehlender Reset-Token. Bitte fordern Sie einen neuen Link an.",
       );
-    } else {
-      setToken(tokenParam);
     }
   }, [searchParams]);
 
@@ -43,7 +43,7 @@ function ResetPasswordForm() {
     if (!/[a-z]/.test(pwd)) {
       return "Das Passwort muss mindestens einen Kleinbuchstaben enthalten.";
     }
-    if (!/[0-9]/.test(pwd)) {
+    if (!/\d/.test(pwd)) {
       return "Das Passwort muss mindestens eine Zahl enthalten.";
     }
     if (!/[^A-Za-z0-9]/.test(pwd)) {

@@ -3,6 +3,7 @@ package iot
 import (
 	"context"
 	"crypto/rand"
+	"database/sql"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -11,6 +12,11 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/iot"
 	"github.com/uptrace/bun"
+)
+
+// Error message constants to avoid string duplication
+const (
+	errDeviceIDEmpty = "device ID cannot be empty"
 )
 
 // service implements the Service interface
@@ -112,6 +118,10 @@ func (s *service) GetDeviceByID(ctx context.Context, id int64) (*iot.Device, err
 
 	device, err := s.deviceRepo.FindByID(ctx, id)
 	if err != nil {
+		// Check if this is a "not found" error
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, &IoTError{Op: "GetDeviceByID", Err: ErrDeviceNotFound}
+		}
 		return nil, &IoTError{Op: "GetDeviceByID", Err: err}
 	}
 
@@ -125,7 +135,7 @@ func (s *service) GetDeviceByID(ctx context.Context, id int64) (*iot.Device, err
 // GetDeviceByDeviceID retrieves a device by its device ID
 func (s *service) GetDeviceByDeviceID(ctx context.Context, deviceID string) (*iot.Device, error) {
 	if deviceID == "" {
-		return nil, &IoTError{Op: "GetDeviceByDeviceID", Err: errors.New("device ID cannot be empty")}
+		return nil, &IoTError{Op: "GetDeviceByDeviceID", Err: errors.New(errDeviceIDEmpty)}
 	}
 
 	device, err := s.deviceRepo.FindByDeviceID(ctx, deviceID)
@@ -154,6 +164,10 @@ func (s *service) UpdateDevice(ctx context.Context, device *iot.Device) error {
 	// Check if device exists
 	existingDevice, err := s.deviceRepo.FindByID(ctx, device.ID)
 	if err != nil {
+		// Check if this is a "not found" error
+		if errors.Is(err, sql.ErrNoRows) {
+			return &IoTError{Op: "UpdateDevice", Err: ErrDeviceNotFound}
+		}
 		return &IoTError{Op: "UpdateDevice", Err: err}
 	}
 
@@ -186,6 +200,10 @@ func (s *service) DeleteDevice(ctx context.Context, id int64) error {
 	// Check if device exists
 	device, err := s.deviceRepo.FindByID(ctx, id)
 	if err != nil {
+		// Check if this is a "not found" error
+		if errors.Is(err, sql.ErrNoRows) {
+			return &IoTError{Op: "DeleteDevice", Err: ErrDeviceNotFound}
+		}
 		return &IoTError{Op: "DeleteDevice", Err: err}
 	}
 
@@ -213,7 +231,7 @@ func (s *service) ListDevices(ctx context.Context, filters map[string]interface{
 // UpdateDeviceStatus updates the status of a device
 func (s *service) UpdateDeviceStatus(ctx context.Context, deviceID string, status iot.DeviceStatus) error {
 	if deviceID == "" {
-		return &IoTError{Op: "UpdateDeviceStatus", Err: errors.New("device ID cannot be empty")}
+		return &IoTError{Op: "UpdateDeviceStatus", Err: errors.New(errDeviceIDEmpty)}
 	}
 
 	// Validate the status
@@ -243,7 +261,7 @@ func (s *service) UpdateDeviceStatus(ctx context.Context, deviceID string, statu
 // PingDevice updates the last seen time for a device
 func (s *service) PingDevice(ctx context.Context, deviceID string) error {
 	if deviceID == "" {
-		return &IoTError{Op: "PingDevice", Err: errors.New("device ID cannot be empty")}
+		return &IoTError{Op: "PingDevice", Err: errors.New(errDeviceIDEmpty)}
 	}
 
 	// Check if device exists
@@ -356,7 +374,7 @@ func (s *service) GetDeviceTypeStatistics(ctx context.Context) (map[string]int, 
 // DetectNewDevices scans the network for new devices and returns them
 // This is a placeholder implementation and would need to be extended
 // with actual IoT device discovery logic
-func (s *service) DetectNewDevices(ctx context.Context) ([]*iot.Device, error) {
+func (s *service) DetectNewDevices(_ context.Context) ([]*iot.Device, error) {
 	// This would be implemented with actual network scanning logic in a real system
 	// For now, just return an error to indicate this is not implemented
 	return nil, &IoTError{Op: "DetectNewDevices", Err: errors.New("device auto-discovery not implemented")}
@@ -365,7 +383,7 @@ func (s *service) DetectNewDevices(ctx context.Context) ([]*iot.Device, error) {
 // ScanNetwork scans the network for all IoT devices and returns a map of device IDs to device types
 // This is a placeholder implementation and would need to be extended
 // with actual network scanning logic
-func (s *service) ScanNetwork(ctx context.Context) (map[string]string, error) {
+func (s *service) ScanNetwork(_ context.Context) (map[string]string, error) {
 	// This would be implemented with actual network scanning logic in a real system
 	// For now, just return an error to indicate this is not implemented
 	return nil, &IoTError{Op: "ScanNetwork", Err: errors.New("network scanning not implemented")}

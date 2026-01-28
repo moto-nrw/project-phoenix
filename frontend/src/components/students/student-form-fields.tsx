@@ -3,6 +3,7 @@
  * Extracted to reduce code duplication between create and edit modals
  */
 
+import { useId } from "react";
 import type { Student } from "@/lib/api";
 
 interface SelectOption {
@@ -21,10 +22,17 @@ export function PersonalInfoSection({
   requiredFields = { firstName: true, lastName: true, schoolClass: true },
 }: Readonly<{
   formData: Partial<Student>;
-  onChange: (field: keyof Student, value: string | boolean | number | null) => void;
+  onChange: (
+    field: keyof Student,
+    value: string | boolean | number | null,
+  ) => void;
   errors: Record<string, string>;
   groups?: SelectOption[];
-  requiredFields?: { firstName?: boolean; lastName?: boolean; schoolClass?: boolean };
+  requiredFields?: {
+    firstName?: boolean;
+    lastName?: boolean;
+    schoolClass?: boolean;
+  };
 }>) {
   return (
     <div className="rounded-xl border border-gray-100 bg-blue-50/30 p-3 md:p-4">
@@ -138,11 +146,18 @@ function SelectInput({
   onChange: (value: string) => void;
   options: SelectOption[];
 }>) {
+  const selectId = useId();
   return (
     <div>
-      <label className="mb-1 block text-xs font-medium text-gray-700">{label}</label>
+      <label
+        htmlFor={selectId}
+        className="mb-1 block text-xs font-medium text-gray-700"
+      >
+        {label}
+      </label>
       <div className="relative">
         <select
+          id={selectId}
           value={value}
           onChange={(e) => onChange(e.target.value)}
           className="block w-full appearance-none rounded-lg border border-gray-200 bg-white px-3 py-2 pr-10 text-sm transition-colors focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8]"
@@ -185,10 +200,17 @@ function DateInput({
   value: string;
   onChange: (value: string) => void;
 }>) {
+  const inputId = useId();
   return (
     <div>
-      <label className="mb-1 block text-xs font-medium text-gray-700">{label}</label>
+      <label
+        htmlFor={inputId}
+        className="mb-1 block text-xs font-medium text-gray-700"
+      >
+        {label}
+      </label>
       <input
+        id={inputId}
         type="date"
         value={value}
         onChange={(e) => onChange(e.target.value)}
@@ -322,7 +344,10 @@ export function PrivacyConsentSection({
   errors,
 }: Readonly<{
   formData: Partial<Student>;
-  onChange: (field: keyof Student, value: string | boolean | number | null) => void;
+  onChange: (
+    field: keyof Student,
+    value: string | boolean | number | null,
+  ) => void;
   errors: Record<string, string>;
 }>) {
   return (
@@ -348,7 +373,9 @@ export function PrivacyConsentSection({
           <input
             type="checkbox"
             checked={formData.privacy_consent_accepted ?? false}
-            onChange={(e) => onChange("privacy_consent_accepted", e.target.checked)}
+            onChange={(e) =>
+              onChange("privacy_consent_accepted", e.target.checked)
+            }
             className="mt-0.5 h-4 w-4 rounded border-gray-300 text-[#5080D8] focus:ring-[#5080D8]"
           />
           <span className="text-sm text-gray-700 transition-colors group-hover:text-gray-900">
@@ -356,7 +383,10 @@ export function PrivacyConsentSection({
           </span>
         </label>
         <div>
-          <label htmlFor="data-retention-days" className="mb-1 block text-xs font-medium text-gray-700">
+          <label
+            htmlFor="data-retention-days"
+            className="mb-1 block text-xs font-medium text-gray-700"
+          >
             Aufbewahrungsdauer (Tage)
           </label>
           <input
@@ -382,7 +412,9 @@ export function PrivacyConsentSection({
             placeholder="30"
           />
           {errors.data_retention_days && (
-            <p className="mt-1 text-xs text-red-600">{errors.data_retention_days}</p>
+            <p className="mt-1 text-xs text-red-600">
+              {errors.data_retention_days}
+            </p>
           )}
           <p className="mt-1 text-xs text-gray-500">
             Daten werden nach dieser Zeit automatisch gelöscht (1-31 Tage)
@@ -405,7 +437,10 @@ export function BusStatusSection({
 }>) {
   return (
     <div className="rounded-xl border border-orange-200 bg-orange-50 p-4">
-      <label htmlFor="bus-status" className="group flex cursor-pointer items-center gap-3">
+      <label
+        htmlFor="bus-status"
+        className="group flex cursor-pointer items-center gap-3"
+      >
         <input
           id="bus-status"
           type="checkbox"
@@ -428,7 +463,9 @@ export function BusStatusSection({
               d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
             />
           </svg>
-          <span className="text-sm font-medium text-orange-900">Fährt mit dem Bus</span>
+          <span className="text-sm font-medium text-orange-900">
+            Fährt mit dem Bus
+          </span>
         </div>
       </label>
     </div>
@@ -470,7 +507,9 @@ export function PickupStatusSection({
           className="block w-full appearance-none rounded-lg border border-gray-200 bg-white px-3 py-2 pr-10 text-sm transition-colors focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8]"
         >
           <option value="">Nicht gesetzt</option>
-          <option value="Geht alleine nach Hause">Geht alleine nach Hause</option>
+          <option value="Geht alleine nach Hause">
+            Geht alleine nach Hause
+          </option>
           <option value="Wird abgeholt">Wird abgeholt</option>
         </select>
         <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-500">

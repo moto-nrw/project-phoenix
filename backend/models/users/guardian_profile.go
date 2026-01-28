@@ -16,14 +16,13 @@ import (
 type GuardianProfile struct {
 	base.Model `bun:"schema:users,table:guardian_profiles"`
 
-	// Personal Information (REQUIRED)
-	FirstName string `bun:"first_name,notnull" json:"first_name"`
-	LastName  string `bun:"last_name,notnull" json:"last_name"`
+	// Personal Information (optional - may be empty for imported guardians)
+	FirstName string `bun:"first_name" json:"first_name"`
+	LastName  string `bun:"last_name" json:"last_name"`
 
-	// Contact Information (At least ONE required via DB constraint)
-	Email       *string `bun:"email" json:"email,omitempty"`
-	Phone       *string `bun:"phone" json:"phone,omitempty"`
-	MobilePhone *string `bun:"mobile_phone" json:"mobile_phone,omitempty"`
+	// Contact Information
+	Email *string `bun:"email" json:"email,omitempty"`
+	// Note: Phone numbers are stored in guardian_phone_numbers table (see PhoneNumbers relation)
 
 	// Address (Optional)
 	AddressStreet     *string `bun:"address_street" json:"address_street,omitempty"`
@@ -44,7 +43,8 @@ type GuardianProfile struct {
 	Notes      *string `bun:"notes" json:"notes,omitempty"` // Staff/admin notes
 
 	// Relations (not stored in database)
-	Account *auth.AccountParent `bun:"rel:belongs-to,join:account_id=id" json:"account,omitempty"`
+	Account      *auth.AccountParent    `bun:"rel:belongs-to,join:account_id=id" json:"account,omitempty"`
+	PhoneNumbers []*GuardianPhoneNumber `bun:"rel:has-many,join:id=guardian_profile_id" json:"phone_numbers,omitempty"`
 }
 
 // BeforeAppendModel sets the correct table expression
@@ -68,24 +68,12 @@ func (g *GuardianProfile) TableName() string {
 
 // Validate ensures guardian data is valid
 func (g *GuardianProfile) Validate() error {
-	// Validate names
-	if strings.TrimSpace(g.FirstName) == "" {
-		return errors.New("first name is required")
-	}
-	if strings.TrimSpace(g.LastName) == "" {
-		return errors.New("last name is required")
-	}
-
-	// Trim names
+	// Trim names (both are optional)
 	g.FirstName = strings.TrimSpace(g.FirstName)
 	g.LastName = strings.TrimSpace(g.LastName)
 
-	// At least one contact method required
-	if (g.Email == nil || strings.TrimSpace(*g.Email) == "") &&
-		(g.Phone == nil || strings.TrimSpace(*g.Phone) == "") &&
-		(g.MobilePhone == nil || strings.TrimSpace(*g.MobilePhone) == "") {
-		return errors.New("at least one contact method (email, phone, or mobile phone) is required")
-	}
+	// Note: Contact method validation (email or phone) is done at the service/handler level
+	// because phone numbers are in a separate table and may not be loaded here
 
 	// Validate email format if provided
 	if g.Email != nil && *g.Email != "" {
@@ -93,14 +81,6 @@ func (g *GuardianProfile) Validate() error {
 		if _, err := mail.ParseAddress(*g.Email); err != nil {
 			return errors.New("invalid email format")
 		}
-	}
-
-	// Trim contact fields
-	if g.Phone != nil {
-		*g.Phone = strings.TrimSpace(*g.Phone)
-	}
-	if g.MobilePhone != nil {
-		*g.MobilePhone = strings.TrimSpace(*g.MobilePhone)
 	}
 
 	// Validate preferred contact method
@@ -119,37 +99,80 @@ func (g *GuardianProfile) Validate() error {
 
 // GetFullName returns the complete name
 func (g *GuardianProfile) GetFullName() string {
-	return g.FirstName + " " + g.LastName
+	first := strings.TrimSpace(g.FirstName)
+	last := strings.TrimSpace(g.LastName)
+	if first == "" && last == "" {
+		return ""
+	}
+	if first == "" {
+		return last
+	}
+	if last == "" {
+		return first
+	}
+	return first + " " + last
 }
 
 // GetPreferredContact returns the contact information based on preference
+// Uses PhoneNumbers relation if loaded, otherwise falls back to email
 func (g *GuardianProfile) GetPreferredContact() string {
-	switch g.PreferredContactMethod {
-	case "email":
-		if g.Email != nil && *g.Email != "" {
-			return *g.Email
-		}
-	case "mobile", "sms":
-		if g.MobilePhone != nil && *g.MobilePhone != "" {
-			return *g.MobilePhone
-		}
-	case "phone":
-		if g.Phone != nil && *g.Phone != "" {
-			return *g.Phone
-		}
+	// Try preferred contact method first
+	if contact := g.getContactByMethod(g.PreferredContactMethod); contact != "" {
+		return contact
 	}
 
-	// Fallback to any available contact
-	if g.MobilePhone != nil && *g.MobilePhone != "" {
-		return *g.MobilePhone
+	// Fallback to any available contact (primary phone > any phone > email)
+	if primary := g.GetPrimaryPhone(); primary != "" {
+		return primary
 	}
-	if g.Phone != nil && *g.Phone != "" {
-		return *g.Phone
+	return ptrString(g.Email)
+}
+
+// GetPrimaryPhone returns the primary phone number from PhoneNumbers relation
+func (g *GuardianProfile) GetPrimaryPhone() string {
+	if len(g.PhoneNumbers) == 0 {
+		return ""
 	}
-	if g.Email != nil && *g.Email != "" {
-		return *g.Email
+	// First try to find the primary phone
+	for _, p := range g.PhoneNumbers {
+		if p.IsPrimary {
+			return p.PhoneNumber
+		}
+	}
+	// Fallback to first phone
+	return g.PhoneNumbers[0].PhoneNumber
+}
+
+// GetPhoneByType returns the first phone number of the specified type
+func (g *GuardianProfile) GetPhoneByType(phoneType PhoneType) string {
+	for _, p := range g.PhoneNumbers {
+		if p.PhoneType == phoneType {
+			return p.PhoneNumber
+		}
 	}
 	return ""
+}
+
+// getContactByMethod returns the contact value for the specified method
+func (g *GuardianProfile) getContactByMethod(method string) string {
+	switch method {
+	case "email":
+		return ptrString(g.Email)
+	case "mobile", "sms":
+		return g.GetPhoneByType(PhoneTypeMobile)
+	case "phone":
+		return g.GetPhoneByType(PhoneTypeHome)
+	default:
+		return ""
+	}
+}
+
+// ptrString safely dereferences a string pointer, returning empty string if nil
+func ptrString(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
 }
 
 // CanInvite checks if guardian can be invited to create an account

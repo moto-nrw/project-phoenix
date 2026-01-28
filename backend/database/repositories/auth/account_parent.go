@@ -34,9 +34,12 @@ func NewAccountParentRepository(db *bun.DB) auth.AccountParentRepository {
 // FindByEmail retrieves a parent account by email address
 func (r *AccountParentRepository) FindByEmail(ctx context.Context, email string) (*auth.AccountParent, error) {
 	account := new(auth.AccountParent)
+
+	// Explicitly specify the schema and table
 	err := r.db.NewSelect().
 		Model(account).
-		Where("LOWER(email) = LOWER(?)", email).
+		ModelTableExpr(accountParentTableAlias).
+		Where(`LOWER("account_parent".email) = LOWER(?)`, email).
 		Scan(ctx)
 
 	if err != nil {
@@ -52,9 +55,12 @@ func (r *AccountParentRepository) FindByEmail(ctx context.Context, email string)
 // FindByUsername retrieves a parent account by username
 func (r *AccountParentRepository) FindByUsername(ctx context.Context, username string) (*auth.AccountParent, error) {
 	account := new(auth.AccountParent)
+
+	// Explicitly specify the schema and table
 	err := r.db.NewSelect().
 		Model(account).
-		Where("LOWER(username) = LOWER(?)", username).
+		ModelTableExpr(accountParentTableAlias).
+		Where(`LOWER("account_parent".username) = LOWER(?)`, username).
 		Scan(ctx)
 
 	if err != nil {

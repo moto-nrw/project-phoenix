@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
@@ -16,33 +17,51 @@ import (
 	guardianSvc "github.com/moto-nrw/project-phoenix/services/users"
 )
 
+// Error messages (S1192 - avoid duplicate string literals)
+const (
+	errInvalidGuardianID    = "invalid guardian ID"
+	errInvalidPhoneID       = "invalid phone ID"
+	errPhoneNotFound        = "phone number not found"
+	errPhoneNotBelongsGuard = "phone number does not belong to this guardian"
+)
+
+// Note: "log" import kept for non-RenderError logging (e.g., line 741)
+
+// PhoneNumberResponse represents a guardian phone number in API responses
+type PhoneNumberResponse struct {
+	ID          int64   `json:"id"`
+	PhoneNumber string  `json:"phone_number"`
+	PhoneType   string  `json:"phone_type"`
+	Label       *string `json:"label,omitempty"`
+	IsPrimary   bool    `json:"is_primary"`
+	Priority    int     `json:"priority"`
+}
+
 // GuardianResponse represents a guardian profile response
 type GuardianResponse struct {
-	ID                     int64   `json:"id"`
-	FirstName              string  `json:"first_name"`
-	LastName               string  `json:"last_name"`
-	Email                  *string `json:"email,omitempty"`
-	Phone                  *string `json:"phone,omitempty"`
-	MobilePhone            *string `json:"mobile_phone,omitempty"`
-	AddressStreet          *string `json:"address_street,omitempty"`
-	AddressCity            *string `json:"address_city,omitempty"`
-	AddressPostalCode      *string `json:"address_postal_code,omitempty"`
-	PreferredContactMethod string  `json:"preferred_contact_method"`
-	LanguagePreference     string  `json:"language_preference"`
-	Occupation             *string `json:"occupation,omitempty"`
-	Employer               *string `json:"employer,omitempty"`
-	Notes                  *string `json:"notes,omitempty"`
-	HasAccount             bool    `json:"has_account"`
-	AccountID              *int64  `json:"account_id,omitempty"`
+	ID                     int64                  `json:"id"`
+	FirstName              string                 `json:"first_name"`
+	LastName               string                 `json:"last_name"`
+	Email                  *string                `json:"email,omitempty"`
+	PhoneNumbers           []*PhoneNumberResponse `json:"phone_numbers,omitempty"`
+	AddressStreet          *string                `json:"address_street,omitempty"`
+	AddressCity            *string                `json:"address_city,omitempty"`
+	AddressPostalCode      *string                `json:"address_postal_code,omitempty"`
+	PreferredContactMethod string                 `json:"preferred_contact_method"`
+	LanguagePreference     string                 `json:"language_preference"`
+	Occupation             *string                `json:"occupation,omitempty"`
+	Employer               *string                `json:"employer,omitempty"`
+	Notes                  *string                `json:"notes,omitempty"`
+	HasAccount             bool                   `json:"has_account"`
+	AccountID              *int64                 `json:"account_id,omitempty"`
 }
 
 // GuardianCreateRequest represents a request to create a new guardian
+// Note: Phone numbers should be added separately via POST /guardians/{id}/phone-numbers
 type GuardianCreateRequest struct {
 	FirstName              string  `json:"first_name"`
 	LastName               string  `json:"last_name"`
 	Email                  *string `json:"email,omitempty"`
-	Phone                  *string `json:"phone,omitempty"`
-	MobilePhone            *string `json:"mobile_phone,omitempty"`
 	AddressStreet          *string `json:"address_street,omitempty"`
 	AddressCity            *string `json:"address_city,omitempty"`
 	AddressPostalCode      *string `json:"address_postal_code,omitempty"`
@@ -54,12 +73,11 @@ type GuardianCreateRequest struct {
 }
 
 // GuardianUpdateRequest represents a request to update a guardian
+// Note: Phone numbers are updated via separate phone number endpoints
 type GuardianUpdateRequest struct {
 	FirstName              *string `json:"first_name,omitempty"`
 	LastName               *string `json:"last_name,omitempty"`
 	Email                  *string `json:"email,omitempty"`
-	Phone                  *string `json:"phone,omitempty"`
-	MobilePhone            *string `json:"mobile_phone,omitempty"`
 	AddressStreet          *string `json:"address_street,omitempty"`
 	AddressCity            *string `json:"address_city,omitempty"`
 	AddressPostalCode      *string `json:"address_postal_code,omitempty"`
@@ -92,8 +110,55 @@ type StudentGuardianUpdateRequest struct {
 }
 
 // Bind validates the student-guardian update request
-func (req *StudentGuardianUpdateRequest) Bind(r *http.Request) error {
+func (req *StudentGuardianUpdateRequest) Bind(_ *http.Request) error {
 	// All fields are optional for update
+	return nil
+}
+
+// PhoneNumberCreateRequest represents a request to add a phone number
+type PhoneNumberCreateRequest struct {
+	PhoneNumber string  `json:"phone_number"`
+	PhoneType   string  `json:"phone_type"` // mobile, home, work, other
+	Label       *string `json:"label,omitempty"`
+	IsPrimary   bool    `json:"is_primary"`
+}
+
+// Bind validates the phone number create request
+func (req *PhoneNumberCreateRequest) Bind(_ *http.Request) error {
+	if req.PhoneNumber == "" {
+		return errors.New("phone_number is required")
+	}
+	// Validate phone type
+	validTypes := map[string]bool{"mobile": true, "home": true, "work": true, "other": true}
+	if req.PhoneType != "" && !validTypes[req.PhoneType] {
+		return errors.New("phone_type must be one of: mobile, home, work, other")
+	}
+	if req.PhoneType == "" {
+		req.PhoneType = "mobile" // Default to mobile
+	}
+	return nil
+}
+
+// PhoneNumberUpdateRequest represents a request to update a phone number
+type PhoneNumberUpdateRequest struct {
+	PhoneNumber *string `json:"phone_number,omitempty"`
+	PhoneType   *string `json:"phone_type,omitempty"`
+	Label       *string `json:"label,omitempty"`
+	IsPrimary   *bool   `json:"is_primary,omitempty"`
+	Priority    *int    `json:"priority,omitempty"`
+}
+
+// Bind validates the phone number update request
+func (req *PhoneNumberUpdateRequest) Bind(_ *http.Request) error {
+	if req.PhoneNumber != nil && *req.PhoneNumber == "" {
+		return errors.New("phone_number cannot be empty")
+	}
+	if req.PhoneType != nil {
+		validTypes := map[string]bool{"mobile": true, "home": true, "work": true, "other": true}
+		if !validTypes[*req.PhoneType] {
+			return errors.New("phone_type must be one of: mobile, home, work, other")
+		}
+	}
 	return nil
 }
 
@@ -131,35 +196,21 @@ type GuardianWithRelationship struct {
 }
 
 // Bind validates the guardian create request
-func (req *GuardianCreateRequest) Bind(r *http.Request) error {
-	if req.FirstName == "" {
-		return errors.New("first_name is required")
-	}
-	if req.LastName == "" {
-		return errors.New("last_name is required")
-	}
-	// At least one contact method is required
-	if (req.Email == nil || *req.Email == "") &&
-		(req.Phone == nil || *req.Phone == "") &&
-		(req.MobilePhone == nil || *req.MobilePhone == "") {
-		return errors.New("at least one contact method (email, phone, or mobile_phone) is required")
-	}
+// Note: Contact method validation (email or phone) is done at the service/handler level
+// after phone numbers are added separately
+// Note: FirstName and LastName are optional (e.g., CSV imports may only have relationship type)
+func (req *GuardianCreateRequest) Bind(_ *http.Request) error {
 	return nil
 }
 
 // Bind validates the guardian update request
-func (req *GuardianUpdateRequest) Bind(r *http.Request) error {
-	if req.FirstName != nil && *req.FirstName == "" {
-		return errors.New("first_name cannot be empty")
-	}
-	if req.LastName != nil && *req.LastName == "" {
-		return errors.New("last_name cannot be empty")
-	}
+// Note: FirstName and LastName are optional and can be set to empty
+func (req *GuardianUpdateRequest) Bind(_ *http.Request) error {
 	return nil
 }
 
 // Bind validates the student-guardian link request
-func (req *StudentGuardianLinkRequest) Bind(r *http.Request) error {
+func (req *StudentGuardianLinkRequest) Bind(_ *http.Request) error {
 	if req.GuardianProfileID == 0 {
 		return errors.New("guardian_profile_id is required")
 	}
@@ -174,13 +225,11 @@ func (req *StudentGuardianLinkRequest) Bind(r *http.Request) error {
 
 // newGuardianResponse converts a guardian profile model to a response
 func newGuardianResponse(profile *users.GuardianProfile) *GuardianResponse {
-	return &GuardianResponse{
+	response := &GuardianResponse{
 		ID:                     profile.ID,
 		FirstName:              profile.FirstName,
 		LastName:               profile.LastName,
 		Email:                  profile.Email,
-		Phone:                  profile.Phone,
-		MobilePhone:            profile.MobilePhone,
 		AddressStreet:          profile.AddressStreet,
 		AddressCity:            profile.AddressCity,
 		AddressPostalCode:      profile.AddressPostalCode,
@@ -191,6 +240,28 @@ func newGuardianResponse(profile *users.GuardianProfile) *GuardianResponse {
 		Notes:                  profile.Notes,
 		HasAccount:             profile.HasAccount,
 		AccountID:              profile.AccountID,
+	}
+
+	// Convert phone numbers if present
+	if len(profile.PhoneNumbers) > 0 {
+		response.PhoneNumbers = make([]*PhoneNumberResponse, 0, len(profile.PhoneNumbers))
+		for _, phone := range profile.PhoneNumbers {
+			response.PhoneNumbers = append(response.PhoneNumbers, newPhoneNumberResponse(phone))
+		}
+	}
+
+	return response
+}
+
+// newPhoneNumberResponse converts a phone number model to a response
+func newPhoneNumberResponse(phone *users.GuardianPhoneNumber) *PhoneNumberResponse {
+	return &PhoneNumberResponse{
+		ID:          phone.ID,
+		PhoneNumber: phone.PhoneNumber,
+		PhoneType:   string(phone.PhoneType),
+		Label:       phone.Label,
+		IsPrimary:   phone.IsPrimary,
+		Priority:    phone.Priority,
 	}
 }
 
@@ -313,9 +384,7 @@ func (rs *Resource) listGuardians(w http.ResponseWriter, r *http.Request) {
 	// Get guardians
 	guardians, err := rs.GuardianService.ListGuardians(r.Context(), queryOptions)
 	if err != nil {
-		if err := render.Render(w, r, common.ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -326,7 +395,7 @@ func (rs *Resource) listGuardians(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// For now, return without total count (would need separate count query)
-	common.RespondWithPagination(w, r, http.StatusOK, responses, page, pageSize, len(responses), "Guardians retrieved successfully")
+	common.RespondPaginated(w, r, http.StatusOK, responses, common.PaginationParams{Page: page, PageSize: pageSize, Total: len(responses)}, "Guardians retrieved successfully")
 }
 
 // getGuardian handles getting a guardian by ID
@@ -334,18 +403,14 @@ func (rs *Resource) getGuardian(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
-		if err := render.Render(w, r, common.ErrorInvalidRequest(errors.New("invalid guardian ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errInvalidGuardianID)))
 		return
 	}
 
 	// Get guardian
 	guardian, err := rs.GuardianService.GetGuardianByID(r.Context(), id)
 	if err != nil {
-		if err := render.Render(w, r, common.ErrorNotFound(errors.New("guardian not found"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorNotFound(errors.New("guardian not found")))
 		return
 	}
 
@@ -364,18 +429,14 @@ func (rs *Resource) createGuardian(w http.ResponseWriter, r *http.Request) {
 		// Check if user is staff member
 		staff, err := rs.UserContextService.GetCurrentStaff(r.Context())
 		if err != nil || staff == nil {
-			if err := render.Render(w, r, common.ErrorForbidden(errors.New("only staff members can create guardian profiles"))); err != nil {
-				log.Printf("Error rendering error response: %v", err)
-			}
+			common.RenderError(w, r, common.ErrorForbidden(errors.New("only staff members can create guardian profiles")))
 			return
 		}
 
 		// Non-admin staff must supervise at least one group to create guardians
 		educationGroups, err := rs.UserContextService.GetMyGroups(r.Context())
 		if err != nil || len(educationGroups) == 0 {
-			if err := render.Render(w, r, common.ErrorForbidden(errors.New("only administrators or group supervisors can create guardian profiles"))); err != nil {
-				log.Printf("Error rendering error response: %v", err)
-			}
+			common.RenderError(w, r, common.ErrorForbidden(errors.New("only administrators or group supervisors can create guardian profiles")))
 			return
 		}
 	}
@@ -383,19 +444,15 @@ func (rs *Resource) createGuardian(w http.ResponseWriter, r *http.Request) {
 	// Parse request
 	req := &GuardianCreateRequest{}
 	if err := render.Bind(r, req); err != nil {
-		if err := render.Render(w, r, common.ErrorInvalidRequest(err)); err != nil {
-			log.Printf("Render error: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
-	// Convert to service request
+	// Convert to service request (phone numbers are added separately)
 	createReq := guardianSvc.GuardianCreateRequest{
 		FirstName:              req.FirstName,
 		LastName:               req.LastName,
 		Email:                  req.Email,
-		Phone:                  req.Phone,
-		MobilePhone:            req.MobilePhone,
 		AddressStreet:          req.AddressStreet,
 		AddressCity:            req.AddressCity,
 		AddressPostalCode:      req.AddressPostalCode,
@@ -409,9 +466,7 @@ func (rs *Resource) createGuardian(w http.ResponseWriter, r *http.Request) {
 	// Create guardian
 	guardian, err := rs.GuardianService.CreateGuardian(r.Context(), createReq)
 	if err != nil {
-		if err := render.Render(w, r, common.ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -420,49 +475,53 @@ func (rs *Resource) createGuardian(w http.ResponseWriter, r *http.Request) {
 
 // updateGuardian handles updating an existing guardian
 func (rs *Resource) updateGuardian(w http.ResponseWriter, r *http.Request) {
-	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
-		if err := render.Render(w, r, common.ErrorInvalidRequest(errors.New("invalid guardian ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errInvalidGuardianID)))
 		return
 	}
 
-	// Check permissions - only supervisors of the guardian's students can update
 	canModify, err := rs.canModifyGuardian(r.Context(), id)
 	if !canModify {
-		if err := render.Render(w, r, common.ErrorForbidden(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorForbidden(err))
 		return
 	}
 
-	// Parse request
 	req := &GuardianUpdateRequest{}
 	if err := render.Bind(r, req); err != nil {
-		if err := render.Render(w, r, common.ErrorInvalidRequest(err)); err != nil {
-			log.Printf("Render error: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
-	// Get existing guardian
 	guardian, err := rs.GuardianService.GetGuardianByID(r.Context(), id)
 	if err != nil {
-		if err := render.Render(w, r, common.ErrorNotFound(errors.New("guardian not found"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorNotFound(errors.New("guardian not found")))
 		return
 	}
 
-	// Build update request with existing values as defaults
+	updateReq := buildGuardianUpdateRequest(guardian, req)
+
+	if err := rs.GuardianService.UpdateGuardian(r.Context(), id, updateReq); err != nil {
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+
+	updated, err := rs.GuardianService.GetGuardianByID(r.Context(), id)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+
+	common.Respond(w, r, http.StatusOK, newGuardianResponse(updated), "Guardian updated successfully")
+}
+
+// buildGuardianUpdateRequest merges existing guardian data with partial updates
+// Note: Phone numbers are managed separately via phone number endpoints
+func buildGuardianUpdateRequest(guardian *users.GuardianProfile, req *GuardianUpdateRequest) guardianSvc.GuardianCreateRequest {
 	updateReq := guardianSvc.GuardianCreateRequest{
 		FirstName:              guardian.FirstName,
 		LastName:               guardian.LastName,
 		Email:                  guardian.Email,
-		Phone:                  guardian.Phone,
-		MobilePhone:            guardian.MobilePhone,
 		AddressStreet:          guardian.AddressStreet,
 		AddressCity:            guardian.AddressCity,
 		AddressPostalCode:      guardian.AddressPostalCode,
@@ -473,7 +532,13 @@ func (rs *Resource) updateGuardian(w http.ResponseWriter, r *http.Request) {
 		Notes:                  guardian.Notes,
 	}
 
-	// Apply updates
+	applyGuardianUpdates(&updateReq, req)
+	return updateReq
+}
+
+// applyGuardianUpdates applies non-nil updates to the request
+// Note: Phone numbers are managed separately via phone number endpoints
+func applyGuardianUpdates(updateReq *guardianSvc.GuardianCreateRequest, req *GuardianUpdateRequest) {
 	if req.FirstName != nil {
 		updateReq.FirstName = *req.FirstName
 	}
@@ -482,12 +547,6 @@ func (rs *Resource) updateGuardian(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.Email != nil {
 		updateReq.Email = req.Email
-	}
-	if req.Phone != nil {
-		updateReq.Phone = req.Phone
-	}
-	if req.MobilePhone != nil {
-		updateReq.MobilePhone = req.MobilePhone
 	}
 	if req.AddressStreet != nil {
 		updateReq.AddressStreet = req.AddressStreet
@@ -513,25 +572,6 @@ func (rs *Resource) updateGuardian(w http.ResponseWriter, r *http.Request) {
 	if req.Notes != nil {
 		updateReq.Notes = req.Notes
 	}
-
-	// Update guardian
-	if err := rs.GuardianService.UpdateGuardian(r.Context(), id, updateReq); err != nil {
-		if err := render.Render(w, r, common.ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
-		return
-	}
-
-	// Get updated guardian
-	updated, err := rs.GuardianService.GetGuardianByID(r.Context(), id)
-	if err != nil {
-		if err := render.Render(w, r, common.ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
-		return
-	}
-
-	common.Respond(w, r, http.StatusOK, newGuardianResponse(updated), "Guardian updated successfully")
 }
 
 // deleteGuardian handles deleting a guardian and all their relationships
@@ -539,25 +579,24 @@ func (rs *Resource) deleteGuardian(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
-		if err := render.Render(w, r, common.ErrorInvalidRequest(errors.New("invalid guardian ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errInvalidGuardianID)))
 		return
 	}
 
 	// Check permissions - only supervisors of the guardian's students can delete
 	canModify, err := rs.canModifyGuardian(r.Context(), id)
 	if !canModify {
-		if err := render.Render(w, r, common.ErrorForbidden(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorForbidden(err))
 		return
 	}
 
 	// Delete guardian
 	if err := rs.GuardianService.DeleteGuardian(r.Context(), id); err != nil {
-		if err := render.Render(w, r, common.ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
+		// Check for "not found" errors and return 404
+		if strings.Contains(err.Error(), "not found") {
+			common.RenderError(w, r, common.ErrorNotFound(err))
+		} else {
+			common.RenderError(w, r, common.ErrorInternalServer(err))
 		}
 		return
 	}
@@ -569,9 +608,7 @@ func (rs *Resource) deleteGuardian(w http.ResponseWriter, r *http.Request) {
 func (rs *Resource) listGuardiansWithoutAccount(w http.ResponseWriter, r *http.Request) {
 	guardians, err := rs.GuardianService.GetGuardiansWithoutAccount(r.Context())
 	if err != nil {
-		if err := render.Render(w, r, common.ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -587,9 +624,7 @@ func (rs *Resource) listGuardiansWithoutAccount(w http.ResponseWriter, r *http.R
 func (rs *Resource) listInvitableGuardians(w http.ResponseWriter, r *http.Request) {
 	guardians, err := rs.GuardianService.GetInvitableGuardians(r.Context())
 	if err != nil {
-		if err := render.Render(w, r, common.ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -606,18 +641,14 @@ func (rs *Resource) sendInvitation(w http.ResponseWriter, r *http.Request) {
 	// Parse guardian ID from URL
 	guardianID, err := common.ParseID(r)
 	if err != nil {
-		if err := render.Render(w, r, common.ErrorInvalidRequest(errors.New("invalid guardian ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errInvalidGuardianID)))
 		return
 	}
 
 	// Get current user ID
 	claims := jwt.ClaimsFromCtx(r.Context())
 	if claims.ID == 0 {
-		if err := render.Render(w, r, common.ErrorUnauthorized(errors.New("user not authenticated"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorUnauthorized(errors.New("user not authenticated")))
 		return
 	}
 	accountID := int64(claims.ID)
@@ -630,9 +661,7 @@ func (rs *Resource) sendInvitation(w http.ResponseWriter, r *http.Request) {
 
 	invitation, err := rs.GuardianService.SendInvitation(r.Context(), invitationReq)
 	if err != nil {
-		if err := render.Render(w, r, common.ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -651,9 +680,7 @@ func (rs *Resource) sendInvitation(w http.ResponseWriter, r *http.Request) {
 func (rs *Resource) listPendingInvitations(w http.ResponseWriter, r *http.Request) {
 	invitations, err := rs.GuardianService.GetPendingInvitations(r.Context())
 	if err != nil {
-		if err := render.Render(w, r, common.ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -679,18 +706,14 @@ func (rs *Resource) getStudentGuardians(w http.ResponseWriter, r *http.Request) 
 	// Parse student ID from URL
 	studentID, err := common.ParseIDParam(r, "studentId")
 	if err != nil {
-		if err := render.Render(w, r, common.ErrorInvalidRequest(errors.New("invalid student ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(common.MsgInvalidStudentID)))
 		return
 	}
 
 	// Get guardians with relationships
 	guardiansWithRel, err := rs.GuardianService.GetStudentGuardians(r.Context(), studentID)
 	if err != nil {
-		if err := render.Render(w, r, common.ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -717,18 +740,14 @@ func (rs *Resource) getGuardianStudents(w http.ResponseWriter, r *http.Request) 
 	// Parse guardian ID from URL
 	guardianID, err := common.ParseID(r)
 	if err != nil {
-		if err := render.Render(w, r, common.ErrorInvalidRequest(errors.New("invalid guardian ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errInvalidGuardianID)))
 		return
 	}
 
 	// Get students with relationships
 	studentsWithRel, err := rs.GuardianService.GetGuardianStudents(r.Context(), guardianID)
 	if err != nil {
-		if err := render.Render(w, r, common.ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -765,27 +784,21 @@ func (rs *Resource) linkGuardianToStudent(w http.ResponseWriter, r *http.Request
 	// Parse student ID from URL
 	studentID, err := common.ParseIDParam(r, "studentId")
 	if err != nil {
-		if err := render.Render(w, r, common.ErrorInvalidRequest(errors.New("invalid student ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(common.MsgInvalidStudentID)))
 		return
 	}
 
 	// Check permissions - only supervisors of the student's group can link guardians
 	canModify, err := rs.canModifyStudent(r.Context(), studentID)
 	if !canModify {
-		if err := render.Render(w, r, common.ErrorForbidden(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorForbidden(err))
 		return
 	}
 
 	// Parse request
 	req := &StudentGuardianLinkRequest{}
 	if err := render.Bind(r, req); err != nil {
-		if err := render.Render(w, r, common.ErrorInvalidRequest(err)); err != nil {
-			log.Printf("Render error: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
@@ -804,9 +817,7 @@ func (rs *Resource) linkGuardianToStudent(w http.ResponseWriter, r *http.Request
 	// Link guardian to student
 	relationship, err := rs.GuardianService.LinkGuardianToStudent(r.Context(), linkReq)
 	if err != nil {
-		if err := render.Render(w, r, common.ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -818,36 +829,28 @@ func (rs *Resource) updateStudentGuardianRelationship(w http.ResponseWriter, r *
 	// Parse relationship ID from URL
 	relationshipID, err := common.ParseIDParam(r, "relationshipId")
 	if err != nil {
-		if err := render.Render(w, r, common.ErrorInvalidRequest(errors.New("invalid relationship ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid relationship ID")))
 		return
 	}
 
 	// Get the relationship to find the student ID
 	relationship, err := rs.GuardianService.GetStudentGuardianRelationship(r.Context(), relationshipID)
 	if err != nil {
-		if err := render.Render(w, r, common.ErrorNotFound(errors.New("relationship not found"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorNotFound(errors.New("relationship not found")))
 		return
 	}
 
 	// Check permissions - only supervisors of the student's group can update relationships
 	canModify, err := rs.canModifyStudent(r.Context(), relationship.StudentID)
 	if !canModify {
-		if err := render.Render(w, r, common.ErrorForbidden(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorForbidden(err))
 		return
 	}
 
 	// Parse request
 	req := &StudentGuardianUpdateRequest{}
 	if err := render.Bind(r, req); err != nil {
-		if err := render.Render(w, r, common.ErrorInvalidRequest(err)); err != nil {
-			log.Printf("Render error: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
@@ -863,9 +866,7 @@ func (rs *Resource) updateStudentGuardianRelationship(w http.ResponseWriter, r *
 
 	// Update relationship
 	if err := rs.GuardianService.UpdateStudentGuardianRelationship(r.Context(), relationshipID, updateReq); err != nil {
-		if err := render.Render(w, r, common.ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -877,35 +878,27 @@ func (rs *Resource) removeGuardianFromStudent(w http.ResponseWriter, r *http.Req
 	// Parse student ID from URL
 	studentID, err := common.ParseIDParam(r, "studentId")
 	if err != nil {
-		if err := render.Render(w, r, common.ErrorInvalidRequest(errors.New("invalid student ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(common.MsgInvalidStudentID)))
 		return
 	}
 
 	// Parse guardian ID from URL
 	guardianID, err := common.ParseIDParam(r, "guardianId")
 	if err != nil {
-		if err := render.Render(w, r, common.ErrorInvalidRequest(errors.New("invalid guardian ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errInvalidGuardianID)))
 		return
 	}
 
 	// Check permissions - only supervisors of the student's group can remove guardians
 	canModify, err := rs.canModifyStudent(r.Context(), studentID)
 	if !canModify {
-		if err := render.Render(w, r, common.ErrorForbidden(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorForbidden(err))
 		return
 	}
 
 	// Remove guardian from student
 	if err := rs.GuardianService.RemoveGuardianFromStudent(r.Context(), studentID, guardianID); err != nil {
-		if err := render.Render(w, r, common.ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -921,7 +914,7 @@ type GuardianInvitationAcceptRequest struct {
 }
 
 // Bind validates the invitation accept request
-func (req *GuardianInvitationAcceptRequest) Bind(r *http.Request) error {
+func (req *GuardianInvitationAcceptRequest) Bind(_ *http.Request) error {
 	if req.Password == "" {
 		return errors.New("password is required")
 	}
@@ -939,18 +932,14 @@ func (rs *Resource) validateGuardianInvitation(w http.ResponseWriter, r *http.Re
 	// Get token from URL
 	token := chi.URLParam(r, "token")
 	if token == "" {
-		if err := render.Render(w, r, common.ErrorInvalidRequest(errors.New("invitation token is required"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invitation token is required")))
 		return
 	}
 
 	// Validate invitation
 	result, err := rs.GuardianService.ValidateInvitation(r.Context(), token)
 	if err != nil {
-		if err := render.Render(w, r, common.ErrorNotFound(errors.New("invitation not found or expired"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorNotFound(errors.New("invitation not found or expired")))
 		return
 	}
 
@@ -962,18 +951,14 @@ func (rs *Resource) acceptGuardianInvitation(w http.ResponseWriter, r *http.Requ
 	// Get token from URL
 	token := chi.URLParam(r, "token")
 	if token == "" {
-		if err := render.Render(w, r, common.ErrorInvalidRequest(errors.New("invitation token is required"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invitation token is required")))
 		return
 	}
 
 	// Parse request
 	req := &GuardianInvitationAcceptRequest{}
 	if err := render.Bind(r, req); err != nil {
-		if err := render.Render(w, r, common.ErrorInvalidRequest(err)); err != nil {
-			log.Printf("Render error: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
@@ -990,15 +975,12 @@ func (rs *Resource) acceptGuardianInvitation(w http.ResponseWriter, r *http.Requ
 		// Log the full error for debugging
 		log.Printf("Error accepting invitation: %v", err)
 
-		// Return appropriate error
-		if err.Error() == "invitation not found" || err.Error() == "invitation has expired" {
-			if err := render.Render(w, r, common.ErrorNotFound(err)); err != nil {
-				log.Printf("Error rendering error response: %v", err)
-			}
+		// Return appropriate error (use Contains for wrapped errors)
+		errMsg := err.Error()
+		if strings.Contains(errMsg, "not found") || strings.Contains(errMsg, "has expired") {
+			common.RenderError(w, r, common.ErrorNotFound(err))
 		} else {
-			if err := render.Render(w, r, common.ErrorInternalServer(err)); err != nil {
-				log.Printf("Error rendering error response: %v", err)
-			}
+			common.RenderError(w, r, common.ErrorInternalServer(err))
 		}
 		return
 	}
@@ -1013,3 +995,258 @@ func (rs *Resource) acceptGuardianInvitation(w http.ResponseWriter, r *http.Requ
 
 	common.Respond(w, r, http.StatusCreated, response, "Invitation accepted and account created successfully")
 }
+
+// =============================================================================
+// HANDLER ACCESSOR METHODS (for testing)
+// =============================================================================
+
+// ListGuardiansHandler returns the list guardians handler
+func (rs *Resource) ListGuardiansHandler() http.HandlerFunc { return rs.listGuardians }
+
+// GetGuardianHandler returns the get guardian handler
+func (rs *Resource) GetGuardianHandler() http.HandlerFunc { return rs.getGuardian }
+
+// CreateGuardianHandler returns the create guardian handler
+func (rs *Resource) CreateGuardianHandler() http.HandlerFunc { return rs.createGuardian }
+
+// UpdateGuardianHandler returns the update guardian handler
+func (rs *Resource) UpdateGuardianHandler() http.HandlerFunc { return rs.updateGuardian }
+
+// DeleteGuardianHandler returns the delete guardian handler
+func (rs *Resource) DeleteGuardianHandler() http.HandlerFunc { return rs.deleteGuardian }
+
+// ListGuardiansWithoutAccountHandler returns the list guardians without account handler
+func (rs *Resource) ListGuardiansWithoutAccountHandler() http.HandlerFunc {
+	return rs.listGuardiansWithoutAccount
+}
+
+// ListInvitableGuardiansHandler returns the list invitable guardians handler
+func (rs *Resource) ListInvitableGuardiansHandler() http.HandlerFunc {
+	return rs.listInvitableGuardians
+}
+
+// SendInvitationHandler returns the send invitation handler
+func (rs *Resource) SendInvitationHandler() http.HandlerFunc { return rs.sendInvitation }
+
+// ListPendingInvitationsHandler returns the list pending invitations handler
+func (rs *Resource) ListPendingInvitationsHandler() http.HandlerFunc {
+	return rs.listPendingInvitations
+}
+
+// GetStudentGuardiansHandler returns the get student guardians handler
+func (rs *Resource) GetStudentGuardiansHandler() http.HandlerFunc { return rs.getStudentGuardians }
+
+// GetGuardianStudentsHandler returns the get guardian students handler
+func (rs *Resource) GetGuardianStudentsHandler() http.HandlerFunc { return rs.getGuardianStudents }
+
+// LinkGuardianToStudentHandler returns the link guardian to student handler
+func (rs *Resource) LinkGuardianToStudentHandler() http.HandlerFunc { return rs.linkGuardianToStudent }
+
+// UpdateStudentGuardianRelationshipHandler returns the update relationship handler
+func (rs *Resource) UpdateStudentGuardianRelationshipHandler() http.HandlerFunc {
+	return rs.updateStudentGuardianRelationship
+}
+
+// RemoveGuardianFromStudentHandler returns the remove guardian from student handler
+func (rs *Resource) RemoveGuardianFromStudentHandler() http.HandlerFunc {
+	return rs.removeGuardianFromStudent
+}
+
+// ValidateGuardianInvitationHandler returns the validate invitation handler
+func (rs *Resource) ValidateGuardianInvitationHandler() http.HandlerFunc {
+	return rs.validateGuardianInvitation
+}
+
+// AcceptGuardianInvitationHandler returns the accept invitation handler
+func (rs *Resource) AcceptGuardianInvitationHandler() http.HandlerFunc {
+	return rs.acceptGuardianInvitation
+}
+
+// =============================================================================
+// PHONE NUMBER HANDLERS
+// =============================================================================
+
+// validatePhoneAccess validates guardian ID, phone ID, permissions, and ownership.
+// Returns the validated phone number or renders an error response and returns nil.
+func (rs *Resource) validatePhoneAccess(w http.ResponseWriter, r *http.Request) *users.GuardianPhoneNumber {
+	guardianID, err := common.ParseID(r)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errInvalidGuardianID)))
+		return nil
+	}
+
+	phoneID, err := common.ParseIDParam(r, "phoneId")
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errInvalidPhoneID)))
+		return nil
+	}
+
+	// Check permissions
+	canModify, err := rs.canModifyGuardian(r.Context(), guardianID)
+	if !canModify {
+		common.RenderError(w, r, common.ErrorForbidden(err))
+		return nil
+	}
+
+	// Verify phone belongs to guardian
+	phone, err := rs.GuardianService.GetPhoneNumberByID(r.Context(), phoneID)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorNotFound(errors.New(errPhoneNotFound)))
+		return nil
+	}
+	if phone.GuardianProfileID != guardianID {
+		common.RenderError(w, r, common.ErrorForbidden(errors.New(errPhoneNotBelongsGuard)))
+		return nil
+	}
+
+	return phone
+}
+
+// listGuardianPhoneNumbers handles getting all phone numbers for a guardian
+func (rs *Resource) listGuardianPhoneNumbers(w http.ResponseWriter, r *http.Request) {
+	guardianID, err := common.ParseID(r)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errInvalidGuardianID)))
+		return
+	}
+
+	phones, err := rs.GuardianService.GetGuardianPhoneNumbers(r.Context(), guardianID)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+
+	responses := make([]*PhoneNumberResponse, 0, len(phones))
+	for _, phone := range phones {
+		responses = append(responses, newPhoneNumberResponse(phone))
+	}
+
+	common.Respond(w, r, http.StatusOK, responses, "Phone numbers retrieved successfully")
+}
+
+// addPhoneNumber handles adding a new phone number to a guardian
+func (rs *Resource) addPhoneNumber(w http.ResponseWriter, r *http.Request) {
+	guardianID, err := common.ParseID(r)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errInvalidGuardianID)))
+		return
+	}
+
+	// Check permissions
+	canModify, err := rs.canModifyGuardian(r.Context(), guardianID)
+	if !canModify {
+		common.RenderError(w, r, common.ErrorForbidden(err))
+		return
+	}
+
+	req := &PhoneNumberCreateRequest{}
+	if err := render.Bind(r, req); err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+
+	createReq := guardianSvc.PhoneNumberCreateRequest{
+		PhoneNumber: req.PhoneNumber,
+		PhoneType:   req.PhoneType,
+		Label:       req.Label,
+		IsPrimary:   req.IsPrimary,
+	}
+
+	phone, err := rs.GuardianService.AddPhoneNumber(r.Context(), guardianID, createReq)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+
+	common.Respond(w, r, http.StatusCreated, newPhoneNumberResponse(phone), "Phone number added successfully")
+}
+
+// updatePhoneNumber handles updating an existing phone number
+func (rs *Resource) updatePhoneNumber(w http.ResponseWriter, r *http.Request) {
+	phone := rs.validatePhoneAccess(w, r)
+	if phone == nil {
+		return // Error already rendered
+	}
+
+	req := &PhoneNumberUpdateRequest{}
+	if err := render.Bind(r, req); err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+
+	updateReq := guardianSvc.PhoneNumberUpdateRequest{
+		PhoneNumber: req.PhoneNumber,
+		PhoneType:   req.PhoneType,
+		Label:       req.Label,
+		IsPrimary:   req.IsPrimary,
+		Priority:    req.Priority,
+	}
+
+	if err := rs.GuardianService.UpdatePhoneNumber(r.Context(), phone.ID, updateReq); err != nil {
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+
+	// Get updated phone
+	updatedPhone, err := rs.GuardianService.GetPhoneNumberByID(r.Context(), phone.ID)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+
+	common.Respond(w, r, http.StatusOK, newPhoneNumberResponse(updatedPhone), "Phone number updated successfully")
+}
+
+// deletePhoneNumber handles removing a phone number
+func (rs *Resource) deletePhoneNumber(w http.ResponseWriter, r *http.Request) {
+	phone := rs.validatePhoneAccess(w, r)
+	if phone == nil {
+		return // Error already rendered
+	}
+
+	if err := rs.GuardianService.DeletePhoneNumber(r.Context(), phone.ID); err != nil {
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+
+	common.Respond(w, r, http.StatusOK, nil, "Phone number deleted successfully")
+}
+
+// setPrimaryPhone handles setting a phone number as primary
+func (rs *Resource) setPrimaryPhone(w http.ResponseWriter, r *http.Request) {
+	phone := rs.validatePhoneAccess(w, r)
+	if phone == nil {
+		return // Error already rendered
+	}
+
+	if err := rs.GuardianService.SetPrimaryPhone(r.Context(), phone.ID); err != nil {
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+
+	// Fetch the updated phone number to return in response
+	updatedPhone, err := rs.GuardianService.GetPhoneNumberByID(r.Context(), phone.ID)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+
+	common.Respond(w, r, http.StatusOK, newPhoneNumberResponse(updatedPhone), "Phone number set as primary successfully")
+}
+
+// ListGuardianPhoneNumbersHandler returns the list phone numbers handler
+func (rs *Resource) ListGuardianPhoneNumbersHandler() http.HandlerFunc {
+	return rs.listGuardianPhoneNumbers
+}
+
+// AddPhoneNumberHandler returns the add phone number handler
+func (rs *Resource) AddPhoneNumberHandler() http.HandlerFunc { return rs.addPhoneNumber }
+
+// UpdatePhoneNumberHandler returns the update phone number handler
+func (rs *Resource) UpdatePhoneNumberHandler() http.HandlerFunc { return rs.updatePhoneNumber }
+
+// DeletePhoneNumberHandler returns the delete phone number handler
+func (rs *Resource) DeletePhoneNumberHandler() http.HandlerFunc { return rs.deletePhoneNumber }
+
+// SetPrimaryPhoneHandler returns the set primary phone handler
+func (rs *Resource) SetPrimaryPhoneHandler() http.HandlerFunc { return rs.setPrimaryPhone }

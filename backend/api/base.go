@@ -9,9 +9,11 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
+	"github.com/uptrace/bun"
 
 	activeAPI "github.com/moto-nrw/project-phoenix/api/active"
 	activitiesAPI "github.com/moto-nrw/project-phoenix/api/activities"
+	adminAPI "github.com/moto-nrw/project-phoenix/api/admin"
 	authAPI "github.com/moto-nrw/project-phoenix/api/auth"
 	configAPI "github.com/moto-nrw/project-phoenix/api/config"
 	databaseAPI "github.com/moto-nrw/project-phoenix/api/database"
@@ -40,24 +42,25 @@ type API struct {
 	Router   chi.Router
 
 	// API Resources
-	Auth          *authAPI.Resource
-	Rooms         *roomsAPI.Resource
-	Students      *studentsAPI.Resource
-	Groups        *groupsAPI.Resource
-	Guardians     *guardiansAPI.Resource
-	Import        *importAPI.Resource
-	Activities    *activitiesAPI.Resource
-	Staff         *staffAPI.Resource
-	Feedback      *feedbackAPI.Resource
-	Schedules     *schedulesAPI.Resource
-	Config        *configAPI.Resource
-	Active        *activeAPI.Resource
-	IoT           *iotAPI.Resource
-	SSE           *sseAPI.Resource
-	Users         *usersAPI.Resource
-	UserContext   *usercontextAPI.Resource
-	Substitutions *substitutionsAPI.Resource
-	Database      *databaseAPI.Resource
+	Auth             *authAPI.Resource
+	Rooms            *roomsAPI.Resource
+	Students         *studentsAPI.Resource
+	Groups           *groupsAPI.Resource
+	Guardians        *guardiansAPI.Resource
+	Import           *importAPI.Resource
+	Activities       *activitiesAPI.Resource
+	Staff            *staffAPI.Resource
+	Feedback         *feedbackAPI.Resource
+	Schedules        *schedulesAPI.Resource
+	Config           *configAPI.Resource
+	Active           *activeAPI.Resource
+	IoT              *iotAPI.Resource
+	SSE              *sseAPI.Resource
+	Users            *usersAPI.Resource
+	UserContext      *usercontextAPI.Resource
+	Substitutions    *substitutionsAPI.Resource
+	Database         *databaseAPI.Resource
+	GradeTransitions *adminAPI.GradeTransitionResource
 }
 
 // New creates a new API instance
@@ -84,79 +87,120 @@ func New(enableCORS bool) (*API, error) {
 	}
 
 	// Setup router middleware
-	api.Router.Use(middleware.RequestID)
-	api.Router.Use(middleware.RealIP)
-	api.Router.Use(middleware.Logger)
-	api.Router.Use(middleware.Recoverer)
+	setupBasicMiddleware(api.Router)
 
-	// Add security headers to all responses
-	api.Router.Use(customMiddleware.SecurityHeaders)
-
-	// Setup CORS if enabled
+	// Setup CORS, security logging, and rate limiting
 	if enableCORS {
-		// Get allowed origins from environment variable
-		// Default to "*" for backwards compatibility if not specified
-		// This maintains current behavior while allowing restriction in production
-		allowedOrigins := []string{"*"}
-		if originsEnv := os.Getenv("CORS_ALLOWED_ORIGINS"); originsEnv != "" {
-			// Parse comma-separated origins
-			allowedOrigins = strings.Split(originsEnv, ",")
-			for i := range allowedOrigins {
-				allowedOrigins[i] = strings.TrimSpace(allowedOrigins[i])
-			}
-		}
-
-		api.Router.Use(cors.Handler(cors.Options{
-			AllowedOrigins:   allowedOrigins,
-			AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-			AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token", "X-Staff-PIN", "X-Staff-ID", "X-Device-Key"},
-			ExposedHeaders:   []string{"Link"},
-			AllowCredentials: true,
-			MaxAge:           300,
-		}))
+		setupCORS(api.Router)
 	}
-
-	// Setup security logging if enabled
-	var securityLogger *customMiddleware.SecurityLogger
-	if securityLogging := os.Getenv("SECURITY_LOGGING_ENABLED"); securityLogging == "true" {
-		securityLogger = customMiddleware.NewSecurityLogger()
-		api.Router.Use(customMiddleware.SecurityLoggingMiddleware(securityLogger))
-	}
-
-	// Setup rate limiting if enabled
-	if rateLimitEnabled := os.Getenv("RATE_LIMIT_ENABLED"); rateLimitEnabled == "true" {
-		// Get rate limit configuration from environment
-		generalLimit := 60 // default: 60 requests per minute
-		if limit := os.Getenv("RATE_LIMIT_REQUESTS_PER_MINUTE"); limit != "" {
-			if parsed, err := strconv.Atoi(limit); err == nil && parsed > 0 {
-				generalLimit = parsed
-			}
-		}
-
-		generalBurst := 10 // default burst
-		if burst := os.Getenv("RATE_LIMIT_BURST"); burst != "" {
-			if parsed, err := strconv.Atoi(burst); err == nil && parsed > 0 {
-				generalBurst = parsed
-			}
-		}
-
-		// Create general rate limiter for all endpoints
-		generalRateLimiter := customMiddleware.NewRateLimiter(generalLimit, generalBurst)
-		if securityLogger != nil {
-			generalRateLimiter.SetLogger(securityLogger)
-		}
-		api.Router.Use(generalRateLimiter.Middleware())
-	}
+	securityLogger := setupSecurityLogging(api.Router)
+	setupRateLimiting(api.Router, securityLogger)
 
 	// Initialize API resources
+	initializeAPIResources(api, repoFactory, db)
+
+	// Register routes with rate limiting
+	api.registerRoutesWithRateLimiting()
+
+	return api, nil
+}
+
+// setupBasicMiddleware configures basic router middleware
+func setupBasicMiddleware(router chi.Router) {
+	router.Use(middleware.RequestID)
+	router.Use(middleware.RealIP)
+	router.Use(middleware.Logger)
+	router.Use(middleware.Recoverer)
+	router.Use(customMiddleware.SecurityHeaders)
+}
+
+// setupCORS configures CORS middleware with allowed origins from environment
+func setupCORS(router chi.Router) {
+	allowedOrigins := parseAllowedOrigins()
+	router.Use(cors.Handler(cors.Options{
+		AllowedOrigins:   allowedOrigins,
+		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token", "X-Staff-PIN", "X-Staff-ID", "X-Device-Key"},
+		ExposedHeaders:   []string{"Link"},
+		AllowCredentials: true,
+		MaxAge:           300,
+	}))
+}
+
+// parseAllowedOrigins parses CORS_ALLOWED_ORIGINS environment variable
+func parseAllowedOrigins() []string {
+	originsEnv := os.Getenv("CORS_ALLOWED_ORIGINS")
+	if originsEnv == "" {
+		return []string{"*"}
+	}
+
+	origins := strings.Split(originsEnv, ",")
+	for i := range origins {
+		origins[i] = strings.TrimSpace(origins[i])
+	}
+	return origins
+}
+
+// setupSecurityLogging configures security logging middleware if enabled
+func setupSecurityLogging(router chi.Router) *customMiddleware.SecurityLogger {
+	if os.Getenv("SECURITY_LOGGING_ENABLED") != "true" {
+		return nil
+	}
+
+	securityLogger := customMiddleware.NewSecurityLogger()
+	router.Use(customMiddleware.SecurityLoggingMiddleware(securityLogger))
+	return securityLogger
+}
+
+// setupRateLimiting configures rate limiting middleware if enabled
+func setupRateLimiting(router chi.Router, securityLogger *customMiddleware.SecurityLogger) {
+	if os.Getenv("RATE_LIMIT_ENABLED") != "true" {
+		return
+	}
+
+	generalLimit := parsePositiveInt("RATE_LIMIT_REQUESTS_PER_MINUTE", 60)
+	generalBurst := parsePositiveInt("RATE_LIMIT_BURST", 10)
+
+	generalRateLimiter := customMiddleware.NewRateLimiter(generalLimit, generalBurst)
+	if securityLogger != nil {
+		generalRateLimiter.SetLogger(securityLogger)
+	}
+	router.Use(generalRateLimiter.Middleware())
+}
+
+// parsePositiveInt parses a positive integer from environment variable with a default value
+func parsePositiveInt(envVar string, defaultValue int) int {
+	valueStr := os.Getenv(envVar)
+	if valueStr == "" {
+		return defaultValue
+	}
+
+	parsed, err := strconv.Atoi(valueStr)
+	if err != nil || parsed <= 0 {
+		return defaultValue
+	}
+	return parsed
+}
+
+// initializeAPIResources initializes all API resource instances
+func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun.DB) {
 	api.Auth = authAPI.NewResource(api.Services.Auth, api.Services.Invitation)
 	api.Rooms = roomsAPI.NewResource(api.Services.Facilities)
-	api.Students = studentsAPI.NewResource(api.Services.Users, repoFactory.Student, api.Services.Education, api.Services.UserContext, api.Services.Active, api.Services.IoT, repoFactory.PrivacyConsent)
+	api.Students = studentsAPI.NewResource(studentsAPI.ResourceConfig{
+		PersonService:         api.Services.Users,
+		StudentRepo:           repoFactory.Student,
+		EducationService:      api.Services.Education,
+		UserContextService:    api.Services.UserContext,
+		ActiveService:         api.Services.Active,
+		IoTService:            api.Services.IoT,
+		PrivacyConsentRepo:    repoFactory.PrivacyConsent,
+		PickupScheduleService: api.Services.PickupSchedule,
+	})
 	api.Groups = groupsAPI.NewResource(api.Services.Education, api.Services.Active, api.Services.Users, api.Services.UserContext, repoFactory.Student, repoFactory.GroupSubstitution)
 	api.Guardians = guardiansAPI.NewResource(api.Services.Guardian, api.Services.Users, api.Services.Education, api.Services.UserContext, repoFactory.Student)
 	api.Import = importAPI.NewResource(api.Services.Import, repoFactory.DataImport)
 	api.Activities = activitiesAPI.NewResource(api.Services.Activities, api.Services.Schedule, api.Services.Users, api.Services.UserContext)
-	api.Staff = staffAPI.NewResource(api.Services.Users, api.Services.Education, api.Services.Auth)
+	api.Staff = staffAPI.NewResource(api.Services.Users, api.Services.Education, api.Services.Auth, repoFactory.GroupSupervisor)
 	api.Feedback = feedbackAPI.NewResource(api.Services.Feedback)
 	api.Schedules = schedulesAPI.NewResource(api.Services.Schedule)
 	api.Config = configAPI.NewResource(api.Services.Config, api.Services.ActiveCleanup)
@@ -176,11 +220,7 @@ func New(enableCORS bool) (*API, error) {
 	api.UserContext = usercontextAPI.NewResource(api.Services.UserContext, repoFactory.GroupSubstitution)
 	api.Substitutions = substitutionsAPI.NewResource(api.Services.Education)
 	api.Database = databaseAPI.NewResource(api.Services.Database)
-
-	// Register routes with rate limiting
-	api.registerRoutesWithRateLimiting()
-
-	return api, nil
+	api.GradeTransitions = adminAPI.NewGradeTransitionResource(api.Services.GradeTransition)
 }
 
 // ServeHTTP implements the http.Handler interface for the API
@@ -195,7 +235,7 @@ func (a *API) registerRoutesWithRateLimiting() {
 
 	// Get security logger if it exists
 	var securityLogger *customMiddleware.SecurityLogger
-	if securityLogging := os.Getenv("SECURITY_LOGGING_ENABLED"); securityLogging == "true" {
+	if os.Getenv("SECURITY_LOGGING_ENABLED") == "true" {
 		securityLogger = customMiddleware.NewSecurityLogger()
 	}
 
@@ -289,6 +329,9 @@ func (a *API) registerRoutesWithRateLimiting() {
 
 		// Mount SSE resources (Server-Sent Events for real-time updates)
 		r.Mount("/sse", a.SSE.Router())
+
+		// Mount admin resources
+		r.Mount("/admin/grade-transitions", a.GradeTransitions.Router())
 
 		// Add other resource routes here as they are implemented
 	})

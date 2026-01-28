@@ -1,25 +1,27 @@
 "use client";
 
-import type { GuardianWithRelationship } from "@/lib/guardian-helpers";
+import type {
+  GuardianWithRelationship,
+  PhoneNumber,
+} from "@/lib/guardian-helpers";
 import {
   getGuardianFullName,
   getRelationshipTypeLabel,
+  PHONE_TYPE_LABELS,
 } from "@/lib/guardian-helpers";
 import { ModernContactActions } from "~/components/simple/student";
-import { Trash2, Edit, UserCheck, Phone, AlertCircle } from "lucide-react";
+import { UserCheck, Phone, AlertCircle, Mail } from "lucide-react";
 
 interface GuardianListProps {
-  guardians: GuardianWithRelationship[];
-  onEdit?: (guardian: GuardianWithRelationship) => void;
-  onDelete?: (guardian: GuardianWithRelationship) => void;
-  readOnly?: boolean;
-  showRelationship?: boolean;
+  readonly guardians: ReadonlyArray<GuardianWithRelationship>;
+  readonly onEdit?: (guardian: GuardianWithRelationship) => void;
+  readonly readOnly?: boolean;
+  readonly showRelationship?: boolean;
 }
 
 export default function GuardianList({
   guardians,
   onEdit,
-  onDelete,
   readOnly = false,
   showRelationship = true,
 }: GuardianListProps) {
@@ -62,61 +64,34 @@ export default function GuardianList({
               )}
             </div>
 
-            {!readOnly && (
-              <div className="flex flex-shrink-0 gap-1 sm:gap-2">
-                {onEdit && (
-                  <button
-                    onClick={() => onEdit(guardian)}
-                    className="rounded-lg p-1.5 text-blue-600 transition-colors hover:bg-blue-50 sm:p-2"
-                    title="Bearbeiten"
-                  >
-                    <Edit className="h-4 w-4" />
-                  </button>
-                )}
-                {onDelete && (
-                  <button
-                    onClick={() => onDelete(guardian)}
-                    className="rounded-lg p-1.5 text-red-600 transition-colors hover:bg-red-50 sm:p-2"
-                    title="Entfernen"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                )}
-              </div>
+            {!readOnly && onEdit && (
+              <button
+                onClick={() => onEdit(guardian)}
+                className="flex-shrink-0 rounded-lg px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100"
+              >
+                Bearbeiten
+              </button>
             )}
           </div>
 
           {/* Contact Information */}
           <div className="grid grid-cols-1 gap-2 sm:gap-3 md:grid-cols-2">
-            <InfoItem
-              label="E-Mail"
-              value={guardian.email ?? "Nicht angegeben"}
-              icon={
-                <svg
-                  className="h-4 w-4"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
-                  />
-                </svg>
-              }
+            <EmailItem
+              email={guardian.email}
+              guardianName={getGuardianFullName(guardian)}
             />
-            <InfoItem
-              label="Telefon"
-              value={guardian.phone ?? "Nicht angegeben"}
-              icon={<Phone className="h-4 w-4" />}
-            />
-            <InfoItem
-              label="Mobiltelefon"
-              value={guardian.mobilePhone ?? "Nicht angegeben"}
-              icon={<Phone className="h-4 w-4" />}
-            />
+            {/* Display flexible phone numbers */}
+            {guardian.phoneNumbers && guardian.phoneNumbers.length > 0 ? (
+              guardian.phoneNumbers.map((phone) => (
+                <PhoneItem key={phone.id} phone={phone} />
+              ))
+            ) : (
+              <InfoItem
+                label="Telefon"
+                value="Nicht angegeben"
+                icon={<Phone className="h-4 w-4" />}
+              />
+            )}
           </div>
 
           {/* Additional Information */}
@@ -133,7 +108,14 @@ export default function GuardianList({
           <div className="mt-2 sm:mt-3">
             <ModernContactActions
               email={guardian.email}
-              phone={guardian.phone ?? guardian.mobilePhone}
+              phone={getPrimaryPhone(guardian)}
+              phoneNumbers={
+                guardian.phoneNumbers?.map((p) => ({
+                  number: p.phoneNumber,
+                  label: getPhoneLabel(p),
+                  isPrimary: p.isPrimary,
+                })) ?? []
+              }
               studentName={getGuardianFullName(guardian)}
             />
           </div>
@@ -143,16 +125,98 @@ export default function GuardianList({
   );
 }
 
+// Helper component for displaying email (clickable)
+function EmailItem({
+  email,
+  guardianName,
+}: Readonly<{ email?: string; guardianName: string }>) {
+  if (!email) {
+    return (
+      <div className="min-w-0">
+        <div className="mb-1 flex items-center gap-1 text-xs text-gray-500">
+          <Mail className="h-4 w-4" />
+          <span>E-Mail</span>
+        </div>
+        <p className="text-sm font-medium text-gray-900">Nicht angegeben</p>
+      </div>
+    );
+  }
+
+  const subject = `Betreff: ${guardianName}`;
+  const mailtoUrl = `mailto:${email}?subject=${encodeURIComponent(subject)}`;
+
+  return (
+    <div className="min-w-0">
+      <div className="mb-1 flex items-center gap-1 text-xs text-gray-500">
+        <Mail className="h-4 w-4" />
+        <span>E-Mail</span>
+      </div>
+      <a
+        href={mailtoUrl}
+        className="text-sm font-medium break-words text-gray-900 underline decoration-gray-300 underline-offset-2 transition-colors hover:text-blue-600 hover:decoration-blue-600"
+      >
+        {email}
+      </a>
+    </div>
+  );
+}
+
+// Helper to get primary phone number for contact actions
+function getPrimaryPhone(
+  guardian: GuardianWithRelationship,
+): string | undefined {
+  if (guardian.phoneNumbers && guardian.phoneNumbers.length > 0) {
+    // Prefer primary phone, otherwise first phone
+    const primary = guardian.phoneNumbers.find((p) => p.isPrimary);
+    return primary?.phoneNumber ?? guardian.phoneNumbers[0]?.phoneNumber;
+  }
+  return undefined;
+}
+
+// Helper to get phone label with type and custom label
+function getPhoneLabel(phone: PhoneNumber): string {
+  const typeLabel = PHONE_TYPE_LABELS[phone.phoneType] ?? phone.phoneType;
+  if (phone.label) {
+    return `${typeLabel} (${phone.label})`;
+  }
+  return typeLabel;
+}
+
+// Helper component for displaying phone numbers (clickable)
+function PhoneItem({ phone }: Readonly<{ phone: PhoneNumber }>) {
+  const cleanPhone = phone.phoneNumber.replaceAll(/\s+/g, "");
+
+  return (
+    <div className="min-w-0">
+      <div className="mb-1 flex items-center gap-1 text-xs text-gray-500">
+        <Phone className="h-4 w-4" />
+        <span>{getPhoneLabel(phone)}</span>
+        {phone.isPrimary && (
+          <span className="ml-1 rounded bg-purple-100 px-1 py-0.5 text-[10px] font-medium text-purple-700">
+            Primär
+          </span>
+        )}
+      </div>
+      <a
+        href={`tel:${cleanPhone}`}
+        className="text-sm font-medium break-words text-gray-900 underline decoration-gray-300 underline-offset-2 transition-colors hover:text-blue-600 hover:decoration-blue-600"
+      >
+        {phone.phoneNumber}
+      </a>
+    </div>
+  );
+}
+
 // Helper component for displaying information items
 function InfoItem({
   label,
   value,
   icon,
-}: {
+}: Readonly<{
   label: string;
   value: string;
   icon?: React.ReactNode;
-}) {
+}>) {
   return (
     <div className="min-w-0">
       <div className="mb-1 flex items-center gap-1 text-xs text-gray-500">

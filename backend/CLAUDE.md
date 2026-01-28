@@ -29,14 +29,20 @@ Backend service for Project Phoenix - a RFID-based student attendance and room m
 
 ```bash
 # Environment Setup
-cp dev.env.example dev.env      # Create local config (edit DB_DSN and AUTH_JWT_SECRET)
+cp dev.env.example dev.env      # Create local config (edit AUTH_JWT_SECRET)
+# Note: DB_DSN now auto-configured based on APP_ENV (see database/database_config.go)
 
-# Server Operations
-go run main.go serve            # Start server (port 8080)
-go run main.go migrate          # Run database migrations
+# Server Operations (Development Database)
+go run main.go serve            # Start server (uses dev DB on :5432)
+go run main.go migrate          # Run migrations (development DB)
 go run main.go migrate status   # Show migration status
 go run main.go migrate validate # Validate migration dependencies
 go run main.go migrate reset    # WARNING: Reset database and run all migrations
+
+# Server Operations (Test Database)
+APP_ENV=test go run main.go migrate reset  # Reset test database (uses :5433)
+APP_ENV=test go run main.go seed           # Seed test database
+APP_ENV=test go test ./...                 # Run integration tests against test DB
 
 # Development Data
 go run main.go seed             # Populate database with test data
@@ -64,6 +70,26 @@ goimports -w .  # Organize imports
 go mod tidy                     # Clean up dependencies
 ```
 
+## Database Configuration
+
+The database DSN is automatically selected based on `APP_ENV`:
+
+```go
+// Precedence order in database/database_config.go:
+// 1. Explicit DB_DSN env var (production/Docker override)
+// 2. APP_ENV-based smart defaults:
+//    - test:        localhost:5433 (test DB, no SSL)
+//    - development: localhost:5432 (dev DB, sslmode=require)
+//    - production:  Requires explicit DB_DSN
+// 3. Legacy TEST_DB_DSN (backwards compatibility)
+// 4. Fallback to development default
+```
+
+**Usage**:
+- **Local development**: No configuration needed (defaults to dev DB)
+- **Test database**: `APP_ENV=test go run main.go migrate reset`
+- **Production**: `DB_DSN="postgres://..." go run main.go serve`
+
 ## Docker Development
 
 ```bash
@@ -77,27 +103,116 @@ docker compose up               # Start all services
 docker compose logs -f server   # View server logs
 ```
 
-## Architecture Patterns
+## 🏛️ Layered Architecture (Claude Should Help Maintain)
 
-### Domain-Driven Design Structure
+### The Core Flow
+
+**Handler → Service → Repository → Database**
+
+This is the foundational pattern. Each layer has a distinct responsibility, and dependencies flow in one direction only.
+
 ```
-api/{domain}/           # HTTP handlers (thin layer)
-services/{domain}/      # Business logic (orchestration)
-models/{domain}/        # Domain models and repository interfaces
-database/repositories/{domain}/  # Data access implementation
+┌─────────────────────────────────────────────────────────────────┐
+│  api/{domain}/                    ← HANDLERS (HTTP adapters)   │
+│       ↓                                                         │
+│  services/{domain}/               ← SERVICES (business logic)  │
+│       ↓                                                         │
+│  database/repositories/{domain}/  ← REPOSITORIES (data access) │
+│       ↓                                                         │
+│  models/{domain}/                 ← MODELS (shared entities)   │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
-### Factory Pattern for Dependency Injection
+**Domains in this codebase:** `auth`, `users`, `education`, `facilities`, `activities`, `active`, `schedule`, `iot`, `feedback`, `config`
+
+### Why This Matters
+
+| Principle | Benefit |
+|-----------|---------|
+| **Separation of Concerns** | Each layer has exactly one job, making code easier to understand and modify |
+| **Testability** | Services can be tested without HTTP, repositories can be mocked |
+| **Replaceability** | Swap database, change HTTP framework, or modify business rules independently |
+| **Maintainability** | Know exactly where to look when debugging or adding features |
+
+### Layer Philosophy
+
+**Handlers (api/)** are *adapters* — they translate between HTTP and the domain. They should be thin: parse the request, call a service, format the response. If you find yourself writing business logic here, something is wrong.
+
+**Services (services/)** are where the *interesting work* happens — business rules, orchestration of multiple repositories, transaction boundaries, domain validation. Services should be completely HTTP-agnostic; they work with domain concepts, not web concepts.
+
+**Repositories (database/repositories/)** are *data access only* — they translate between domain models and database queries. They should not make business decisions; they just fetch and persist data as instructed.
+
+**Models (models/)** define the *domain language* — entities, value objects, and the interfaces that repositories implement. They are shared across all layers.
+
+### Dependency Injection via Factory Pattern
+
 ```go
-// Repository factory
+// Repository factory creates all repositories
 repoFactory := repositories.NewFactory(db)
-userRepo := repoFactory.NewUserRepository()
 
-// Service factory
+// Service factory creates all services (receives repo factory)
 serviceFactory := services.NewFactory(repoFactory, mailer)
-authService := serviceFactory.NewAuthService()
+
+// Handlers receive services (never repositories directly)
+authHandler := auth.NewResource(serviceFactory.NewAuthService())
 ```
 
+### Code Smells to Watch For
+
+When reviewing or writing code, Claude should notice when something *feels wrong* about the layer boundaries:
+
+- A handler growing beyond simple request/response translation
+- A service method that takes or returns HTTP types
+- A repository method with conditional logic that isn't purely query-related
+- Direct database access (BUN/SQL) outside the repository layer
+- Business validation happening in multiple layers instead of one
+
+### How to Respond to Violations
+
+When you notice code that diverges from these principles, **discuss it with the user**. Don't just silently accept it. Ask:
+
+- "I notice this handler contains business logic. Should this move to the service layer?"
+- "This service is accessing the database directly. Would you like me to add a repository method?"
+- "This repository seems to be making a business decision. Should this logic live in the service?"
+
+The goal is collaborative improvement, not rigid enforcement. There may be valid exceptions, but they should be conscious decisions.
+
+### Tools for Investigating Architecture
+
+When discussing architectural concerns, Claude can suggest running these tools to gather evidence:
+
+| Tool | What It Reveals | When to Suggest |
+|------|-----------------|-----------------|
+| `depth ./services/active` | Dependency tree for a package | "Let's check what this package depends on" |
+| `goda graph "./..." \| dot -Tsvg -o deps.svg` | Visual dependency graph | Investigating coupling between layers |
+| `gocyclo -top 10 ./...` | Functions with most branches (testability) | Handler or service growing too complex |
+| `gocognit -top 10 ./...` | Functions hardest to read | Nested conditionals, hard-to-follow logic |
+| `goconst ./...` | Duplicated strings | Magic strings that should be constants |
+| `golangci-lint run` | 50+ linters at once | General code quality check |
+
+**Installation (if not already installed):**
+```bash
+go install github.com/loov/goda@latest
+go install github.com/fzipp/gocyclo/cmd/gocyclo@latest
+go install github.com/uudashr/gocognit/cmd/gocognit@latest
+go install github.com/jgautheron/goconst/cmd/goconst@latest
+go install github.com/KyleBanks/depth/cmd/depth@latest
+brew install graphviz  # Required for goda SVG output
+```
+
+**Complexity Thresholds:**
+
+| Metric | Simple | Watch It | Refactor Soon | Refactor Now |
+|--------|--------|----------|---------------|--------------|
+| Cyclomatic (gocyclo) | 1-5 | 6-10 | 11-15 | 16+ |
+| Cognitive (gocognit) | 1-8 | 9-15 | 16-25 | 25+ |
+
+**Key insight:** Cyclomatic = "How many tests do I need?" / Cognitive = "How hard is this to read?"
+
+When a function exceeds thresholds, it's often a sign that:
+- A handler is doing too much (should delegate to service)
+- A service method should be split into smaller methods
+- Business logic is scattered across layers
 
 ## Email & Invitation Services
 
@@ -215,21 +330,101 @@ var Rollback = `DROP TABLE IF EXISTS schema.table_name CASCADE;`
 
 ## Testing Strategy
 
+### Running Tests
+
+```bash
+# Run all tests
+go test ./...
+
+# Run specific package
+go test ./services/active/... -v
+
+# Run specific test
+go test ./services/active/... -run TestSessionConflict -v
+
+# Run with race detection
+go test -race ./...
+```
+
+### Shared Test Database Helper
+
+Use `testpkg.SetupTestDB(t)` from `test/helpers.go` - it automatically:
+1. Finds project root by walking up to `go.mod`
+2. Loads `.env` from project root
+3. Configures and connects to test database
+4. Skips test if no database is configured
+
 ```go
-func TestFeature(t *testing.T) {
-    // Setup test database
-    db := setupTestDB(t)
-    defer cleanupTestDB(db)
-    
-    // Create test data
-    user := createTestUser(t, db)
-    
-    // Test functionality
-    result, err := service.DoSomething(ctx, user.ID)
-    require.NoError(t, err)
-    assert.Equal(t, expected, result)
+import testpkg "github.com/moto-nrw/project-phoenix/test"
+
+func TestSomething(t *testing.T) {
+    db := testpkg.SetupTestDB(t)  // Auto-loads .env, connects to test DB
+    defer db.Close()
+    // ... test code
 }
 ```
+
+**Available helpers in `test/helpers.go`:**
+- `FindProjectRoot()` - Walks up directory tree to find `go.mod`
+- `LoadTestEnv(t)` - Loads `.env` from project root
+- `SetupTestDB(t)` - Complete test DB setup (recommended)
+
+### Hermetic Testing Pattern
+
+Tests use real database fixtures instead of mocks. Each test creates its own data and cleans up after itself.
+
+**Shared fixtures in `test/fixtures.go`:**
+```go
+import testpkg "github.com/moto-nrw/project-phoenix/test"
+
+func TestExample(t *testing.T) {
+    db := testpkg.SetupTestDB(t)
+    defer db.Close()
+
+    // ARRANGE: Create real database records
+    student := testpkg.CreateTestStudent(t, db, "First", "Last", "1a")
+    staff := testpkg.CreateTestStaff(t, db, "Supervisor", "Name")
+    device := testpkg.CreateTestDevice(t, db, "device-001")
+    activity := testpkg.CreateTestActivityGroup(t, db, "Activity Name")
+    room := testpkg.CreateTestRoom(t, db, "Room Name")
+
+    // Cleanup handles all fixture types automatically
+    defer testpkg.CleanupActivityFixtures(t, db, student.ID, staff.ID, device.ID, activity.ID, room.ID)
+
+    // ACT: Call the code under test
+    result, err := service.DoSomething(ctx, student.ID)
+
+    // ASSERT: Verify results
+    require.NoError(t, err)
+    assert.NotNil(t, result)
+}
+```
+
+**⚠️ Never use hardcoded IDs** like `int64(1)` - they cause "sql: no rows in result set" errors.
+
+**Additional Auth Fixtures** (for policy/authorization tests):
+- `CreateTestAccount(t, db, "email")` - Auth account
+- `CreateTestPersonWithAccount(t, db, "first", "last")` - Person + Account
+- `CreateTestStudentWithAccount(t, db, "first", "last", "class")` - Student with auth
+- `CreateTestTeacherWithAccount(t, db, "first", "last")` - Full teacher chain with auth
+- `CreateTestGroupSupervisor(t, db, staffID, groupID, "role")` - Active supervision
+
+### Test File Structure
+
+Tests using real database go in `package {name}_test` (external test package):
+```go
+package active_test  // External package - tests public API only
+
+import testpkg "github.com/moto-nrw/project-phoenix/test"
+
+func TestFeature(t *testing.T) {
+    db := testpkg.SetupTestDB(t)
+    defer db.Close()
+    // ...
+}
+```
+
+Pure model tests (no database) stay in `package active` (internal).
 
 ## Common Linting Fixes
 

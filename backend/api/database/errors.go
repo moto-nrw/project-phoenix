@@ -17,7 +17,7 @@ type ErrResponse struct {
 }
 
 // Render method for ErrResponse
-func (e *ErrResponse) Render(w http.ResponseWriter, r *http.Request) error {
+func (e *ErrResponse) Render(_ http.ResponseWriter, r *http.Request) error {
 	render.Status(r, e.HTTPStatusCode)
 	return nil
 }
@@ -31,4 +31,3 @@ func ErrorInternalServer(err error) render.Renderer {
 		ErrorText:      "Internal server error",
 	}
 }
-

@@ -1,17 +1,17 @@
 "use client";
 
-import { useState, useEffect, useMemo, Suspense, useCallback } from "react";
+import { useState, useEffect, useMemo, Suspense } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { useSSE } from "~/lib/hooks/use-sse";
-import type { SSEEvent } from "~/lib/sse-types";
 import { ResponsiveLayout } from "~/components/dashboard";
 import { PageHeaderWithSearch } from "~/components/ui/page-header";
 import type { FilterConfig, ActiveFilter } from "~/components/ui/page-header";
-import { mapRoomsResponse } from "~/lib/room-helpers";
+import { formatFloor, mapRoomsResponse } from "~/lib/room-helpers";
 import type { BackendRoom } from "~/lib/room-helpers";
+import { useSWRAuth } from "~/lib/swr";
 
 import { Loading } from "~/components/ui/loading";
+
 // Room interface - entspricht der BackendRoom-Struktur aus den API-Dateien
 interface Room {
   id: string;
@@ -46,12 +46,9 @@ function RoomsPageContent() {
   });
   const router = useRouter();
 
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [buildingFilter, setBuildingFilter] = useState("all");
   const [occupiedFilter, setOccupiedFilter] = useState("all");
-  const [rooms, setRooms] = useState<Room[]>([]);
   const [isMobile, setIsMobile] = useState(false);
 
   // Handle mobile detection
@@ -64,110 +61,56 @@ function RoomsPageContent() {
     return () => window.removeEventListener("resize", checkMobile);
   }, []);
 
-  // API Daten laden
-  useEffect(() => {
-    const fetchRooms = async () => {
-      try {
-        setLoading(true);
-
-        const response = await fetch("/api/rooms");
-
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        const data = (await response.json()) as
-          | BackendRoom[]
-          | { data: BackendRoom[] };
-
-        // Use mapping helper to transform backend data to frontend format
-        let roomsData: Room[];
-        if (data && Array.isArray(data)) {
-          roomsData = mapRoomsResponse(data);
-        } else if (data?.data && Array.isArray(data.data)) {
-          roomsData = mapRoomsResponse(data.data);
-        } else {
-          console.error("Unerwartetes Antwortformat:", data);
-          throw new Error("Unerwartetes Antwortformat");
-        }
-
-        // Apply color defaults
-        roomsData = roomsData.map((room) => ({
-          ...room,
-          color:
-            room.color ??
-            (room.category ? categoryColors[room.category] : undefined) ??
-            "#6B7280",
-        }));
-
-        setRooms(roomsData);
-        setError(null);
-      } catch (err) {
-        console.error("Fehler beim Laden der Räume:", err);
-        setError(
-          "Fehler beim Laden der Raumdaten. Bitte versuchen Sie es später erneut.",
-        );
-        setRooms([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    void fetchRooms();
-  }, []);
-
-  // Silent refetch for SSE updates (no loading spinner)
-  const silentRefetchRooms = useCallback(async () => {
-    try {
+  // Fetch rooms with SWR (automatic caching, deduplication, revalidation)
+  // Global SSE in AuthWrapper handles cache invalidation automatically
+  const {
+    data: roomsData,
+    isLoading: loading,
+    error: roomsError,
+  } = useSWRAuth<Room[]>(
+    "rooms-list",
+    async () => {
       const response = await fetch("/api/rooms");
-      if (!response.ok) return;
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
 
       const data = (await response.json()) as
         | BackendRoom[]
         | { data: BackendRoom[] };
 
+      // Use mapping helper to transform backend data to frontend format
       let roomsData: Room[];
       if (data && Array.isArray(data)) {
         roomsData = mapRoomsResponse(data);
       } else if (data?.data && Array.isArray(data.data)) {
         roomsData = mapRoomsResponse(data.data);
       } else {
-        return;
+        throw new Error("Unerwartetes Antwortformat");
       }
 
-      roomsData = roomsData.map((room) => ({
+      // Apply color defaults
+      return roomsData.map((room) => ({
         ...room,
         color:
           room.color ??
           (room.category ? categoryColors[room.category] : undefined) ??
           "#6B7280",
       }));
-
-      setRooms(roomsData);
-    } catch {
-      // Silently fail on background refresh
-    }
-  }, []);
-
-  // SSE event handler - refresh when activities start/end (room occupancy changes)
-  const handleSSEEvent = useCallback(
-    (event: SSEEvent) => {
-      if (event.type === "activity_start" || event.type === "activity_end") {
-        void silentRefetchRooms();
-      }
     },
-    [silentRefetchRooms],
+    {
+      keepPreviousData: true,
+      revalidateOnFocus: false,
+    },
   );
 
-  // SSE connection for real-time occupancy updates
-  // Backend enforces staff-only access via person/staff record check
-  useSSE("/api/sse/events", {
-    onMessage: handleSSEEvent,
-    enabled: !loading,
-  });
+  const error = roomsError
+    ? "Fehler beim Laden der Raumdaten. Bitte versuchen Sie es später erneut."
+    : null;
 
   // Apply filters
   const filteredRooms = useMemo(() => {
+    const rooms = roomsData ?? [];
     let filtered = [...rooms];
 
     // Search filter
@@ -198,7 +141,7 @@ function RoomsPageContent() {
     filtered.sort((a, b) => a.name.localeCompare(b.name, "de"));
 
     return filtered;
-  }, [rooms, searchTerm, buildingFilter, occupiedFilter]);
+  }, [roomsData, searchTerm, buildingFilter, occupiedFilter]);
 
   // Handle room selection
   const handleSelectRoom = (room: Room) => {
@@ -206,11 +149,12 @@ function RoomsPageContent() {
   };
 
   // Get unique values for filters
-  const uniqueBuildings = useMemo(
-    () =>
-      Array.from(new Set(rooms.map((room) => room.building).filter(Boolean))),
-    [rooms],
-  );
+  const uniqueBuildings = useMemo(() => {
+    const rooms = roomsData ?? [];
+    return Array.from(
+      new Set(rooms.map((room) => room.building).filter(Boolean)),
+    );
+  }, [roomsData]);
 
   // Prepare filter configurations
   const filterConfigs: FilterConfig[] = useMemo(
@@ -365,81 +309,151 @@ function RoomsPageContent() {
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-            {filteredRooms.map((room) => (
-              <div
-                key={room.id}
-                onClick={() => handleSelectRoom(room)}
-                className="group relative cursor-pointer overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-500 active:scale-[0.98] md:hover:scale-[1.02] md:hover:shadow-[0_20px_50px_rgb(0,0,0,0.15)]"
-              >
-                {/* Modern gradient overlay */}
-                <div className="absolute inset-0 rounded-3xl bg-gradient-to-br from-blue-50/80 to-cyan-100/80 opacity-[0.03]"></div>
-                {/* Subtle inner glow */}
-                <div className="absolute inset-px rounded-3xl bg-gradient-to-br from-white/80 to-white/20"></div>
-                {/* Modern border highlight */}
-                <div className="absolute inset-0 rounded-3xl ring-1 ring-white/20 transition-all duration-300 md:group-hover:ring-blue-200/60"></div>
+            {filteredRooms.map((room) => {
+              const handleClick = () => handleSelectRoom(room);
+              return (
+                <button
+                  type="button"
+                  key={room.id}
+                  onClick={handleClick}
+                  className="group relative w-full cursor-pointer overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 text-left shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-500 active:scale-[0.98] md:hover:scale-[1.02] md:hover:shadow-[0_20px_50px_rgb(0,0,0,0.15)]"
+                >
+                  {/* Modern gradient overlay */}
+                  <div className="absolute inset-0 rounded-3xl bg-gradient-to-br from-blue-50/80 to-cyan-100/80 opacity-[0.03]"></div>
+                  {/* Subtle inner glow */}
+                  <div className="absolute inset-px rounded-3xl bg-gradient-to-br from-white/80 to-white/20"></div>
+                  {/* Modern border highlight */}
+                  <div className="absolute inset-0 rounded-3xl ring-1 ring-white/20 transition-all duration-300 md:group-hover:ring-blue-200/60"></div>
 
-                <div className="relative p-6">
-                  {/* Header with room name and status */}
-                  <div className="mb-3 flex items-start justify-between">
-                    <div className="min-w-0 flex-1">
-                      <h3 className="overflow-hidden text-lg font-bold text-ellipsis whitespace-nowrap text-gray-800 transition-colors duration-300 md:group-hover:text-blue-600">
-                        {room.name}
-                      </h3>
-                      {(room.building !== undefined ||
-                        room.floor !== undefined) && (
-                        <p className="mt-0.5 text-sm text-gray-500">
-                          {room.building &&
-                            room.floor !== undefined &&
-                            `${room.building} · Etage ${room.floor}`}
-                          {room.building &&
-                            room.floor === undefined &&
-                            room.building}
-                          {!room.building &&
-                            room.floor !== undefined &&
-                            `Etage ${room.floor}`}
-                        </p>
+                  <div className="relative flex min-h-[180px] flex-col p-6">
+                    {/* Top section: Header with room name and status */}
+                    <div className="mb-3 flex items-start justify-between">
+                      <div className="min-w-0 flex-1">
+                        <h3 className="overflow-hidden text-lg font-bold text-ellipsis whitespace-nowrap text-gray-800 transition-colors duration-300 md:group-hover:text-blue-600">
+                          {room.name}
+                        </h3>
+                        {(room.building !== undefined ||
+                          room.floor !== undefined) && (
+                          <p className="mt-0.5 text-sm text-gray-500">
+                            {room.building &&
+                              room.floor !== undefined &&
+                              `${room.building} · ${formatFloor(room.floor)}`}
+                            {room.building &&
+                              room.floor === undefined &&
+                              room.building}
+                            {!room.building &&
+                              room.floor !== undefined &&
+                              formatFloor(room.floor)}
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Status indicator */}
+                      <span
+                        className={`ml-3 inline-flex items-center rounded-full px-2.5 py-1 text-xs font-bold ${
+                          room.isOccupied
+                            ? "bg-red-100 text-red-700"
+                            : "bg-green-100 text-green-700"
+                        }`}
+                      >
+                        <span
+                          className={`mr-1.5 h-1.5 w-1.5 rounded-full ${
+                            room.isOccupied
+                              ? "animate-pulse bg-red-500"
+                              : "bg-green-500"
+                          }`}
+                        ></span>
+                        {room.isOccupied ? "Belegt" : "Frei"}
+                      </span>
+                    </div>
+
+                    {/* Middle section: Room details (grows to fill space) */}
+                    <div className="flex-1 space-y-2">
+                      {/* When occupied: Activity + Student count + Supervisor */}
+                      {room.isOccupied && room.groupName && (
+                        <div className="text-sm text-gray-700">
+                          <span className="font-medium">
+                            Aktuelle Aktivität:
+                          </span>{" "}
+                          {room.groupName}
+                        </div>
+                      )}
+                      {room.isOccupied &&
+                        ((room.studentCount !== undefined &&
+                          room.studentCount > 0) ||
+                          room.supervisorName) && (
+                          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-gray-600">
+                            {room.studentCount !== undefined &&
+                              room.studentCount > 0 && (
+                                <span className="flex items-center gap-1">
+                                  <svg
+                                    className="h-4 w-4"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                  >
+                                    <path
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                      strokeWidth={2}
+                                      d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+                                    />
+                                  </svg>
+                                  {room.studentCount}{" "}
+                                  {room.studentCount === 1 ? "Kind" : "Kinder"}
+                                </span>
+                              )}
+                            {room.supervisorName && (
+                              <span className="flex items-center gap-1">
+                                <svg
+                                  className="h-4 w-4"
+                                  fill="none"
+                                  viewBox="0 0 24 24"
+                                  stroke="currentColor"
+                                >
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2"
+                                  />
+                                </svg>
+                                {room.supervisorName}
+                              </span>
+                            )}
+                          </div>
+                        )}
+
+                      {/* When free: Placeholder text */}
+                      {!room.isOccupied && (
+                        <>
+                          <div className="text-sm text-gray-600">
+                            Für Aktivitäten buchbar
+                          </div>
+                          {room.capacity !== undefined && room.capacity > 0 && (
+                            <div className="text-sm text-gray-600">
+                              Kapazität: {room.capacity} Plätze
+                            </div>
+                          )}
+                        </>
                       )}
                     </div>
 
-                    {/* Status indicator */}
-                    <span
-                      className={`ml-3 inline-flex items-center rounded-full px-2.5 py-1 text-xs font-bold ${
-                        room.isOccupied
-                          ? "bg-red-100 text-red-700"
-                          : "bg-green-100 text-green-700"
-                      }`}
-                    >
-                      <span
-                        className={`mr-1.5 h-1.5 w-1.5 rounded-full ${
-                          room.isOccupied
-                            ? "animate-pulse bg-red-500"
-                            : "bg-green-500"
-                        }`}
-                      ></span>
-                      {room.isOccupied ? "Belegt" : "Frei"}
-                    </span>
+                    {/* Bottom section: Tap hint (always at bottom) */}
+                    <p className="mt-2 text-xs text-gray-400 transition-colors duration-300 md:group-hover:text-blue-400">
+                      Tippen für mehr Infos
+                    </p>
+
+                    {/* Decorative elements */}
+                    <div className="absolute top-4 left-4 h-4 w-4 animate-ping rounded-full bg-white/20"></div>
+                    <div className="absolute right-4 bottom-4 h-2.5 w-2.5 rounded-full bg-white/30"></div>
                   </div>
 
-                  {/* Room details */}
-                  <div className="space-y-2">
-                    {/* Current Activity (only shown when occupied) */}
-                    {room.isOccupied && room.groupName && (
-                      <div className="text-sm text-gray-700">
-                        <span className="font-medium">Aktuelle Aktivität:</span>{" "}
-                        {room.groupName}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Decorative elements */}
-                  <div className="absolute top-4 left-4 h-4 w-4 animate-ping rounded-full bg-white/20"></div>
-                  <div className="absolute right-4 bottom-4 h-2.5 w-2.5 rounded-full bg-white/30"></div>
-                </div>
-
-                {/* Glowing border effect on hover */}
-                <div className="absolute inset-0 rounded-3xl bg-gradient-to-r from-transparent via-blue-100/30 to-transparent opacity-0 transition-opacity duration-300 md:group-hover:opacity-100"></div>
-              </div>
-            ))}
+                  {/* Glowing border effect on hover */}
+                  <div className="absolute inset-0 rounded-3xl bg-gradient-to-r from-transparent via-blue-100/30 to-transparent opacity-0 transition-opacity duration-300 md:group-hover:opacity-100"></div>
+                </button>
+              );
+            })}
           </div>
         )}
       </div>

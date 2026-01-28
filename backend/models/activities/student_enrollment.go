@@ -17,6 +17,12 @@ const (
 	AttendanceUnknown = "UNKNOWN"
 )
 
+// Table name constants for BUN ORM schema qualification
+const (
+	tableActivitiesStudentEnrollments       = "activities.student_enrollments"
+	tableExprStudentEnrollmentsAsEnrollment = `activities.student_enrollments AS "student_enrollment"`
+)
+
 // StudentEnrollment represents a student enrolled in an activity group
 type StudentEnrollment struct {
 	base.Model       `bun:"schema:activities,table:student_enrollments"`
@@ -32,13 +38,16 @@ type StudentEnrollment struct {
 
 func (se *StudentEnrollment) BeforeAppendModel(query any) error {
 	if q, ok := query.(*bun.SelectQuery); ok {
-		q.ModelTableExpr("activities.student_enrollments")
+		q.ModelTableExpr(tableExprStudentEnrollmentsAsEnrollment)
 	}
 	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr("activities.student_enrollments")
+		q.ModelTableExpr(tableActivitiesStudentEnrollments)
 	}
 	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr("activities.student_enrollments")
+		q.ModelTableExpr(tableActivitiesStudentEnrollments)
+	}
+	if q, ok := query.(*bun.InsertQuery); ok {
+		q.ModelTableExpr(tableActivitiesStudentEnrollments)
 	}
 	return nil
 }
@@ -60,7 +69,7 @@ func (se *StudentEnrollment) GetUpdatedAt() time.Time {
 
 // TableName returns the database table name
 func (se *StudentEnrollment) TableName() string {
-	return "activities.student_enrollments"
+	return tableActivitiesStudentEnrollments
 }
 
 // IsValidAttendanceStatus checks if the attendance status is valid

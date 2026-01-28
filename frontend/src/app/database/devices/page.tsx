@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
-import { ResponsiveLayout } from "~/components/dashboard";
+import { DatabasePageLayout } from "~/components/database/database-page-layout";
 import { PageHeaderWithSearch } from "~/components/ui/page-header";
 import type {
   FilterConfig,
@@ -18,17 +18,19 @@ import {
   DeviceDetailModal,
   DeviceEditModal,
 } from "@/components/devices";
+import { ConfirmationModal } from "~/components/ui/modal";
 import { getDeviceTypeDisplayName } from "@/lib/iot-helpers";
 import { useToast } from "~/contexts/ToastContext";
+import { useIsMobile } from "~/hooks/useIsMobile";
+import { useDeleteConfirmation } from "~/hooks/useDeleteConfirmation";
 
-import { Loading } from "~/components/ui/loading";
 export default function DevicesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [devices, setDevices] = useState<Device[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   // No filters on this page (per requirements)
-  const [isMobile, setIsMobile] = useState(false);
+  const isMobile = useIsMobile();
 
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [createLoading, setCreateLoading] = useState(false);
@@ -36,6 +38,14 @@ export default function DevicesPage() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [selectedDevice, setSelectedDevice] = useState<Device | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+
+  // Delete confirmation modal management
+  const {
+    showConfirmModal: showDeleteConfirmModal,
+    handleDeleteClick,
+    handleDeleteCancel,
+    confirmDelete,
+  } = useDeleteConfirmation(setShowDetailModal);
 
   const { success: toastSuccess } = useToast();
 
@@ -47,13 +57,6 @@ export default function DevicesPage() {
   });
 
   const service = useMemo(() => createCrudService(devicesConfig), []);
-
-  useEffect(() => {
-    const checkMobile = () => setIsMobile(window.innerWidth < 768);
-    checkMobile();
-    window.addEventListener("resize", checkMobile);
-    return () => window.removeEventListener("resize", checkMobile);
-  }, []);
 
   const fetchDevices = useCallback(async () => {
     try {
@@ -74,7 +77,9 @@ export default function DevicesPage() {
   }, [service]);
 
   useEffect(() => {
-    void fetchDevices();
+    fetchDevices().catch(() => {
+      // Error already handled in fetchDevices
+    });
   }, [fetchDevices]);
 
   // uniqueTypes removed
@@ -197,147 +202,15 @@ export default function DevicesPage() {
     setShowEditModal(true);
   };
 
-  if (status === "loading" || loading) {
-    return (
-      <ResponsiveLayout>
-        <Loading fullPage={false} />
-      </ResponsiveLayout>
-    );
-  }
-
   return (
-    <ResponsiveLayout>
-      <div className="w-full">
-        {isMobile && (
-          <button
-            onClick={() => (window.location.href = "/database")}
-            className="relative z-10 mb-3 flex items-center gap-2 text-gray-600 transition-colors duration-200 hover:text-gray-900"
-            aria-label="Zurück zur Datenverwaltung"
-          >
-            <svg
-              className="h-5 w-5"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M15 19l-7-7 7-7"
-              />
-            </svg>
-            <span className="text-sm font-medium">Zurück</span>
-          </button>
-        )}
-
-        <div className="mb-4">
-          <PageHeaderWithSearch
-            title={isMobile ? "Geräte" : ""}
-            badge={{
-              icon: (
-                <svg
-                  className="h-5 w-5 text-gray-600"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
-                  />
-                </svg>
-              ),
-              count: filteredDevices.length,
-              label: "Geräte",
-            }}
-            search={{
-              value: searchTerm,
-              onChange: setSearchTerm,
-              placeholder: "Geräte suchen...",
-            }}
-            filters={filters}
-            activeFilters={activeFilters}
-            onClearAllFilters={() => {
-              setSearchTerm("");
-            }}
-            actionButton={
-              !isMobile && (
-                <button
-                  onClick={() => setShowCreateModal(true)}
-                  className="group relative flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-yellow-500 to-yellow-600 text-white shadow-lg transition-all duration-300 hover:scale-110 hover:shadow-xl active:scale-95"
-                  style={{
-                    background:
-                      "linear-gradient(135deg, rgb(234, 179, 8) 0%, rgb(202, 138, 4) 100%)",
-                    willChange: "transform, opacity",
-                    WebkitTransform: "translateZ(0)",
-                    transform: "translateZ(0)",
-                  }}
-                  aria-label="Gerät registrieren"
-                >
-                  <div className="pointer-events-none absolute inset-[2px] rounded-full bg-gradient-to-br from-white/20 to-white/0 opacity-0 transition-opacity duration-300 group-hover:opacity-100"></div>
-                  <svg
-                    className="relative h-5 w-5 transition-transform duration-300 group-active:rotate-90"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    strokeWidth={2.5}
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M12 4.5v15m7.5-7.5h-15"
-                    />
-                  </svg>
-                  <div className="pointer-events-none absolute inset-0 scale-0 rounded-full bg-white/20 opacity-0 transition-transform duration-500 group-hover:scale-100 group-hover:opacity-100"></div>
-                </button>
-              )
-            }
-          />
-        </div>
-
-        <button
-          onClick={() => setShowCreateModal(true)}
-          className="group pointer-events-auto fixed right-4 bottom-24 z-40 flex h-14 w-14 translate-y-0 items-center justify-center rounded-full bg-gradient-to-br from-yellow-500 to-yellow-600 text-white opacity-100 shadow-[0_8px_30px_rgb(0,0,0,0.12)] transition-all duration-300 ease-out hover:shadow-[0_8px_40px_rgba(234,179,8,0.3)] active:scale-95 md:hidden"
-          style={{
-            background:
-              "linear-gradient(135deg, rgb(234, 179, 8) 0%, rgb(202, 138, 4) 100%)",
-            willChange: "transform, opacity",
-            WebkitTransform: "translateZ(0)",
-            transform: "translateZ(0)",
-          }}
-          aria-label="Gerät registrieren"
-        >
-          <div className="pointer-events-none absolute inset-[2px] rounded-full bg-gradient-to-br from-white/20 to-white/0 opacity-0 transition-opacity duration-300 group-hover:opacity-100"></div>
-          <svg
-            className="pointer-events-none relative h-6 w-6 transition-transform duration-300 group-active:rotate-90"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={2.5}
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M12 4.5v15m7.5-7.5h-15"
-            />
-          </svg>
-          <div className="pointer-events-none absolute inset-0 scale-0 rounded-full bg-white/20 opacity-0 transition-transform duration-500 group-hover:scale-100 group-hover:opacity-100"></div>
-        </button>
-
-        {error && (
-          <div className="mb-6 rounded-lg border border-red-200 bg-red-50 p-4">
-            <p className="text-sm text-red-800">{error}</p>
-          </div>
-        )}
-
-        {filteredDevices.length === 0 ? (
-          <div className="flex min-h-[300px] items-center justify-center">
-            <div className="text-center">
+    <DatabasePageLayout loading={loading} sessionLoading={status === "loading"}>
+      <div className="mb-4">
+        <PageHeaderWithSearch
+          title={isMobile ? "Geräte" : ""}
+          badge={{
+            icon: (
               <svg
-                className="mx-auto h-12 w-12 text-gray-400"
+                className="h-5 w-5 text-gray-600"
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
@@ -345,29 +218,130 @@ export default function DevicesPage() {
                 <path
                   strokeLinecap="round"
                   strokeLinejoin="round"
-                  strokeWidth={1.5}
+                  strokeWidth={2}
                   d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
                 />
               </svg>
-              <h3 className="mt-4 text-lg font-medium text-gray-900">
-                {searchTerm
-                  ? "Keine Geräte gefunden"
-                  : "Keine Geräte vorhanden"}
-              </h3>
-              <p className="mt-2 text-sm text-gray-600">
-                {searchTerm
-                  ? "Versuchen Sie einen anderen Suchbegriff."
-                  : "Es wurden noch keine Geräte registriert."}
-              </p>
-            </div>
+            ),
+            count: filteredDevices.length,
+            label: "Geräte",
+          }}
+          search={{
+            value: searchTerm,
+            onChange: setSearchTerm,
+            placeholder: "Geräte suchen...",
+          }}
+          filters={filters}
+          activeFilters={activeFilters}
+          onClearAllFilters={() => {
+            setSearchTerm("");
+          }}
+          actionButton={
+            !isMobile && (
+              <button
+                onClick={() => setShowCreateModal(true)}
+                className="group relative flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-yellow-500 to-yellow-600 text-white shadow-lg transition-all duration-300 hover:scale-110 hover:shadow-xl active:scale-95"
+                style={{
+                  background:
+                    "linear-gradient(135deg, rgb(234, 179, 8) 0%, rgb(202, 138, 4) 100%)",
+                  willChange: "transform, opacity",
+                  WebkitTransform: "translateZ(0)",
+                  transform: "translateZ(0)",
+                }}
+                aria-label="Gerät registrieren"
+              >
+                <div className="pointer-events-none absolute inset-[2px] rounded-full bg-gradient-to-br from-white/20 to-white/0 opacity-0 transition-opacity duration-300 group-hover:opacity-100"></div>
+                <svg
+                  className="relative h-5 w-5 transition-transform duration-300 group-active:rotate-90"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2.5}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M12 4.5v15m7.5-7.5h-15"
+                  />
+                </svg>
+                <div className="pointer-events-none absolute inset-0 scale-0 rounded-full bg-white/20 opacity-0 transition-transform duration-500 group-hover:scale-100 group-hover:opacity-100"></div>
+              </button>
+            )
+          }
+        />
+      </div>
+
+      <button
+        onClick={() => setShowCreateModal(true)}
+        className="group pointer-events-auto fixed right-4 bottom-24 z-40 flex h-14 w-14 translate-y-0 items-center justify-center rounded-full bg-gradient-to-br from-yellow-500 to-yellow-600 text-white opacity-100 shadow-[0_8px_30px_rgb(0,0,0,0.12)] transition-all duration-300 ease-out hover:shadow-[0_8px_40px_rgba(234,179,8,0.3)] active:scale-95 md:hidden"
+        style={{
+          background:
+            "linear-gradient(135deg, rgb(234, 179, 8) 0%, rgb(202, 138, 4) 100%)",
+          willChange: "transform, opacity",
+          WebkitTransform: "translateZ(0)",
+          transform: "translateZ(0)",
+        }}
+        aria-label="Gerät registrieren"
+      >
+        <div className="pointer-events-none absolute inset-[2px] rounded-full bg-gradient-to-br from-white/20 to-white/0 opacity-0 transition-opacity duration-300 group-hover:opacity-100"></div>
+        <svg
+          className="pointer-events-none relative h-6 w-6 transition-transform duration-300 group-active:rotate-90"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          strokeWidth={2.5}
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M12 4.5v15m7.5-7.5h-15"
+          />
+        </svg>
+        <div className="pointer-events-none absolute inset-0 scale-0 rounded-full bg-white/20 opacity-0 transition-transform duration-500 group-hover:scale-100 group-hover:opacity-100"></div>
+      </button>
+
+      {error && (
+        <div className="mb-6 rounded-lg border border-red-200 bg-red-50 p-4">
+          <p className="text-sm text-red-800">{error}</p>
+        </div>
+      )}
+
+      {filteredDevices.length === 0 ? (
+        <div className="flex min-h-[300px] items-center justify-center">
+          <div className="text-center">
+            <svg
+              className="mx-auto h-12 w-12 text-gray-400"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={1.5}
+                d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+              />
+            </svg>
+            <h3 className="mt-4 text-lg font-medium text-gray-900">
+              {searchTerm ? "Keine Geräte gefunden" : "Keine Geräte vorhanden"}
+            </h3>
+            <p className="mt-2 text-sm text-gray-600">
+              {searchTerm
+                ? "Versuchen Sie einen anderen Suchbegriff."
+                : "Es wurden noch keine Geräte registriert."}
+            </p>
           </div>
-        ) : (
-          <div className="space-y-3">
-            {filteredDevices.map((device, index) => (
-              <div
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {filteredDevices.map((device, index) => {
+            const handleClick = () => void handleSelectDevice(device);
+            return (
+              <button
+                type="button"
                 key={device.id}
-                onClick={() => void handleSelectDevice(device)}
-                className="group relative cursor-pointer overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-500 active:scale-[0.99] md:hover:-translate-y-1 md:hover:scale-[1.01] md:hover:border-amber-300/60 md:hover:bg-white md:hover:shadow-[0_20px_50px_rgb(0,0,0,0.15)]"
+                onClick={handleClick}
+                className="group relative w-full cursor-pointer overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 text-left shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-500 active:scale-[0.99] md:hover:-translate-y-1 md:hover:scale-[1.01] md:hover:border-amber-300/60 md:hover:bg-white md:hover:shadow-[0_20px_50px_rgb(0,0,0,0.15)]"
                 style={{
                   animationName: "fadeInUp",
                   animationDuration: "0.5s",
@@ -417,23 +391,11 @@ export default function DevicesPage() {
                 </div>
 
                 <div className="pointer-events-none absolute inset-0 rounded-3xl bg-gradient-to-r from-transparent via-amber-100/30 to-transparent opacity-0 transition-opacity duration-300 md:group-hover:opacity-100"></div>
-              </div>
-            ))}
-            <style jsx>{`
-              @keyframes fadeInUp {
-                from {
-                  opacity: 0;
-                  transform: translateY(20px);
-                }
-                to {
-                  opacity: 1;
-                  transform: translateY(0);
-                }
-              }
-            `}</style>
-          </div>
-        )}
-      </div>
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {/* Create */}
       <DeviceCreateModal
@@ -455,7 +417,29 @@ export default function DevicesPage() {
           onEdit={handleEditClick}
           onDelete={() => void handleDeleteDevice()}
           loading={detailLoading}
+          onDeleteClick={handleDeleteClick}
         />
+      )}
+
+      {/* Delete Confirmation */}
+      {selectedDevice && (
+        <ConfirmationModal
+          isOpen={showDeleteConfirmModal}
+          onClose={handleDeleteCancel}
+          onConfirm={() => confirmDelete(() => void handleDeleteDevice())}
+          title="Gerät löschen?"
+          confirmText="Löschen"
+          cancelText="Abbrechen"
+          confirmButtonClass="bg-red-600 hover:bg-red-700"
+        >
+          <p className="text-sm text-gray-700">
+            Möchten Sie das Gerät{" "}
+            <span className="font-medium">
+              {selectedDevice.name ?? selectedDevice.device_id}
+            </span>{" "}
+            wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.
+          </p>
+        </ConfirmationModal>
       )}
 
       {/* Edit */}
@@ -472,6 +456,6 @@ export default function DevicesPage() {
       )}
 
       {/* Success toasts are handled globally */}
-    </ResponsiveLayout>
+    </DatabasePageLayout>
   );
 }

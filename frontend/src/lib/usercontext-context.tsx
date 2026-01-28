@@ -28,7 +28,7 @@ const UserContextContext = createContext<UserContextState | undefined>(
 );
 
 interface UserContextProviderProps {
-  children: ReactNode;
+  readonly children: ReactNode;
 }
 
 export function UserContextProvider({ children }: UserContextProviderProps) {
@@ -66,13 +66,16 @@ export function UserContextProvider({ children }: UserContextProviderProps) {
     }
   }, [refresh]);
 
-  const value: UserContextState = {
-    educationalGroups: mappedGroups,
-    hasEducationalGroups: mappedGroups.length > 0,
-    isLoading,
-    error: null,
-    refetch,
-  };
+  const value = useMemo<UserContextState>(
+    () => ({
+      educationalGroups: mappedGroups,
+      hasEducationalGroups: mappedGroups.length > 0,
+      isLoading,
+      error: null,
+      refetch,
+    }),
+    [mappedGroups, isLoading, refetch],
+  );
 
   return (
     <UserContextContext.Provider value={value}>

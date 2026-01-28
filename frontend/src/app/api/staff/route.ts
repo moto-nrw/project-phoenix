@@ -26,6 +26,7 @@ interface BackendStaffResponse {
   };
   created_at: string;
   updated_at: string;
+  was_present_today?: boolean;
 }
 
 /**
@@ -38,6 +39,22 @@ interface StaffCreateRequest {
   specialization?: string | null;
   role?: string | null;
   qualifications?: string | null;
+}
+
+/**
+ * Normalizes an optional string field for API submission.
+ * - If original is undefined, returns undefined (field not provided)
+ * - If trimmed value is empty, returns empty string (field explicitly cleared)
+ * - Otherwise returns the trimmed value
+ */
+function normalizeOptionalString(
+  original: string | null | undefined,
+  trimmed: string | undefined,
+): string | undefined {
+  if (original === undefined) {
+    return undefined;
+  }
+  return trimmed === "" ? "" : trimmed;
 }
 
 /**
@@ -101,6 +118,7 @@ export const GET = createGetHandler(
           staff_id: String(staff.id),
           teacher_id: staff.teacher_id ? String(staff.teacher_id) : undefined,
           person_id: staff.person_id,
+          was_present_today: staff.was_present_today,
         }));
 
         return mappedStaff;
@@ -128,6 +146,7 @@ export const GET = createGetHandler(
             staff_id: String(staff.id),
             teacher_id: staff.teacher_id ? String(staff.teacher_id) : undefined,
             person_id: staff.person_id,
+            was_present_today: staff.was_present_today,
           }),
         );
 
@@ -186,30 +205,16 @@ export const POST = createPostHandler<TeacherResponse, StaffCreateRequest>(
 
       const normalizedBody: StaffCreateRequest = {
         ...body,
-        staff_notes:
-          body.staff_notes !== undefined
-            ? trimmedNotes === ""
-              ? ""
-              : trimmedNotes
-            : undefined,
-        specialization:
-          body.specialization !== undefined
-            ? trimmedSpecialization === ""
-              ? ""
-              : trimmedSpecialization
-            : undefined,
-        role:
-          body.role !== undefined
-            ? trimmedRole === ""
-              ? ""
-              : trimmedRole
-            : undefined,
-        qualifications:
-          body.qualifications !== undefined
-            ? trimmedQualifications === ""
-              ? ""
-              : trimmedQualifications
-            : undefined,
+        staff_notes: normalizeOptionalString(body.staff_notes, trimmedNotes),
+        specialization: normalizeOptionalString(
+          body.specialization,
+          trimmedSpecialization,
+        ),
+        role: normalizeOptionalString(body.role, trimmedRole),
+        qualifications: normalizeOptionalString(
+          body.qualifications,
+          trimmedQualifications,
+        ),
       };
 
       // Create the staff member via the API

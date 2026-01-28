@@ -3,6 +3,9 @@ package education
 import (
 	"testing"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/models/users"
 )
 
 // Helper function to create int64 pointer
@@ -264,6 +267,202 @@ func TestGroupSubstitution_IsActive(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := tt.substitution.IsActive(tt.checkDate); got != tt.want {
 				t.Errorf("GroupSubstitution.IsActive() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestGroupSubstitution_SetGroup(t *testing.T) {
+	t.Run("set group", func(t *testing.T) {
+		gs := &GroupSubstitution{SubstituteStaffID: 1}
+		group := &Group{
+			Model: base.Model{ID: 42},
+			Name:  "Test Group",
+		}
+
+		gs.SetGroup(group)
+
+		if gs.Group != group {
+			t.Error("GroupSubstitution.SetGroup() did not set Group reference")
+		}
+
+		if gs.GroupID != 42 {
+			t.Errorf("GroupSubstitution.GroupID = %v, want 42", gs.GroupID)
+		}
+	})
+
+	t.Run("set nil group", func(t *testing.T) {
+		gs := &GroupSubstitution{
+			GroupID:           42,
+			SubstituteStaffID: 1,
+		}
+
+		gs.SetGroup(nil)
+
+		if gs.Group != nil {
+			t.Error("GroupSubstitution.SetGroup(nil) did not clear Group reference")
+		}
+	})
+}
+
+func TestGroupSubstitution_SetRegularStaff(t *testing.T) {
+	t.Run("set regular staff", func(t *testing.T) {
+		gs := &GroupSubstitution{GroupID: 1, SubstituteStaffID: 2}
+		staff := &users.Staff{
+			Model:    base.Model{ID: 42},
+			PersonID: 1,
+		}
+
+		gs.SetRegularStaff(staff)
+
+		if gs.RegularStaff != staff {
+			t.Error("GroupSubstitution.SetRegularStaff() did not set RegularStaff reference")
+		}
+
+		if gs.RegularStaffID == nil || *gs.RegularStaffID != 42 {
+			t.Errorf("GroupSubstitution.RegularStaffID = %v, want 42", gs.RegularStaffID)
+		}
+	})
+
+	t.Run("set nil regular staff", func(t *testing.T) {
+		staffID := int64(42)
+		gs := &GroupSubstitution{
+			GroupID:           1,
+			RegularStaffID:    &staffID,
+			SubstituteStaffID: 2,
+		}
+
+		gs.SetRegularStaff(nil)
+
+		if gs.RegularStaff != nil {
+			t.Error("GroupSubstitution.SetRegularStaff(nil) did not clear RegularStaff reference")
+		}
+
+		if gs.RegularStaffID != nil {
+			t.Error("GroupSubstitution.SetRegularStaff(nil) did not clear RegularStaffID")
+		}
+	})
+}
+
+func TestGroupSubstitution_SetSubstituteStaff(t *testing.T) {
+	t.Run("set substitute staff", func(t *testing.T) {
+		gs := &GroupSubstitution{GroupID: 1}
+		staff := &users.Staff{
+			Model:    base.Model{ID: 42},
+			PersonID: 1,
+		}
+
+		gs.SetSubstituteStaff(staff)
+
+		if gs.SubstituteStaff != staff {
+			t.Error("GroupSubstitution.SetSubstituteStaff() did not set SubstituteStaff reference")
+		}
+
+		if gs.SubstituteStaffID != 42 {
+			t.Errorf("GroupSubstitution.SubstituteStaffID = %v, want 42", gs.SubstituteStaffID)
+		}
+	})
+
+	t.Run("set nil substitute staff", func(t *testing.T) {
+		gs := &GroupSubstitution{
+			GroupID:           1,
+			SubstituteStaffID: 42,
+		}
+
+		gs.SetSubstituteStaff(nil)
+
+		if gs.SubstituteStaff != nil {
+			t.Error("GroupSubstitution.SetSubstituteStaff(nil) did not clear SubstituteStaff reference")
+		}
+	})
+}
+
+func TestGroupSubstitution_TableName(t *testing.T) {
+	gs := &GroupSubstitution{}
+	if got := gs.TableName(); got != "education.group_substitution" {
+		t.Errorf("TableName() = %v, want education.group_substitution", got)
+	}
+}
+
+func TestGroupSubstitution_GetID(t *testing.T) {
+	gs := &GroupSubstitution{
+		Model:             base.Model{ID: 42},
+		GroupID:           1,
+		SubstituteStaffID: 1,
+	}
+
+	if got, ok := gs.GetID().(int64); !ok || got != 42 {
+		t.Errorf("GetID() = %v, want 42", gs.GetID())
+	}
+}
+
+func TestGroupSubstitution_GetCreatedAt(t *testing.T) {
+	now := time.Now()
+	gs := &GroupSubstitution{
+		Model:             base.Model{CreatedAt: now},
+		GroupID:           1,
+		SubstituteStaffID: 1,
+	}
+
+	if got := gs.GetCreatedAt(); !got.Equal(now) {
+		t.Errorf("GetCreatedAt() = %v, want %v", got, now)
+	}
+}
+
+func TestGroupSubstitution_GetUpdatedAt(t *testing.T) {
+	now := time.Now()
+	gs := &GroupSubstitution{
+		Model:             base.Model{UpdatedAt: now},
+		GroupID:           1,
+		SubstituteStaffID: 1,
+	}
+
+	if got := gs.GetUpdatedAt(); !got.Equal(now) {
+		t.Errorf("GetUpdatedAt() = %v, want %v", got, now)
+	}
+}
+
+func TestGroupSubstitution_IsCurrentlyActive(t *testing.T) {
+	now := time.Now()
+	yesterday := now.AddDate(0, 0, -1)
+	tomorrow := now.AddDate(0, 0, 1)
+	lastWeek := now.AddDate(0, 0, -7)
+
+	tests := []struct {
+		name string
+		gs   *GroupSubstitution
+		want bool
+	}{
+		{
+			name: "currently active",
+			gs: &GroupSubstitution{
+				StartDate: yesterday,
+				EndDate:   tomorrow,
+			},
+			want: true,
+		},
+		{
+			name: "already ended",
+			gs: &GroupSubstitution{
+				StartDate: lastWeek,
+				EndDate:   yesterday,
+			},
+			want: false,
+		},
+		{
+			name: "not yet started",
+			gs: &GroupSubstitution{
+				StartDate: tomorrow,
+				EndDate:   tomorrow.AddDate(0, 0, 1),
+			},
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.gs.IsCurrentlyActive(); got != tt.want {
+				t.Errorf("IsCurrentlyActive() = %v, want %v", got, tt.want)
 			}
 		})
 	}

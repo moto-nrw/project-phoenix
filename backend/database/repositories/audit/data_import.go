@@ -48,7 +48,7 @@ func (r *DataImportRepository) FindByImportedBy(ctx context.Context, accountID i
 	err := r.db.NewSelect().
 		Model(&imports).
 		Where("imported_by = ?", accountID).
-		Order("created_at DESC").
+		Order(orderByCreatedAtDesc).
 		Limit(limit).
 		Scan(ctx)
 	if err != nil {
@@ -63,7 +63,7 @@ func (r *DataImportRepository) FindByEntityType(ctx context.Context, entityType 
 	err := r.db.NewSelect().
 		Model(&imports).
 		Where("entity_type = ?", entityType).
-		Order("created_at DESC").
+		Order(orderByCreatedAtDesc).
 		Limit(limit).
 		Scan(ctx)
 	if err != nil {
@@ -77,7 +77,7 @@ func (r *DataImportRepository) FindRecent(ctx context.Context, limit int) ([]*au
 	var imports []*audit.DataImport
 	err := r.db.NewSelect().
 		Model(&imports).
-		Order("created_at DESC").
+		Order(orderByCreatedAtDesc).
 		Limit(limit).
 		Scan(ctx)
 	if err != nil {
@@ -102,7 +102,7 @@ func (r *DataImportRepository) List(ctx context.Context, filters map[string]inte
 		query = query.Where("dry_run = ?", dryRun)
 	}
 
-	query = query.Order("created_at DESC")
+	query = query.Order(orderByCreatedAtDesc)
 
 	err := query.Scan(ctx)
 	if err != nil {

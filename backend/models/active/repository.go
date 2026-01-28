@@ -23,9 +23,6 @@ type GroupRepository interface {
 	// EndSession marks a group session as ended at the current time
 	EndSession(ctx context.Context, id int64) error
 
-	// FindBySourceIDs finds active groups based on source IDs and source type
-	FindBySourceIDs(ctx context.Context, sourceIDs []int64, sourceType string) ([]*Group, error)
-
 	// Relations methods
 	FindWithRelations(ctx context.Context, id int64) (*Group, error)
 	FindWithVisits(ctx context.Context, id int64) (*Group, error)
@@ -53,6 +50,9 @@ type GroupRepository interface {
 
 	// FindByIDs finds active groups by their IDs
 	FindByIDs(ctx context.Context, ids []int64) (map[int64]*Group, error)
+
+	// GetOccupiedRoomIDs returns a set of room IDs that currently have active groups
+	GetOccupiedRoomIDs(ctx context.Context, roomIDs []int64) (map[int64]bool, error)
 }
 
 // VisitRepository defines operations for managing active visits
@@ -114,6 +114,9 @@ type GroupSupervisorRepository interface {
 
 	// EndSupervision marks a supervision as ended at the current date
 	EndSupervision(ctx context.Context, id int64) error
+
+	// GetStaffIDsWithSupervisionToday returns staff IDs who had any supervision activity today
+	GetStaffIDsWithSupervisionToday(ctx context.Context) ([]int64, error)
 }
 
 // CombinedGroupRepository defines operations for managing active combined groups
@@ -148,4 +151,7 @@ type GroupMappingRepository interface {
 
 	// RemoveGroupFromCombination removes an active group from a combined group
 	RemoveGroupFromCombination(ctx context.Context, combinedGroupID, activeGroupID int64) error
+
+	// FindWithRelations retrieves a mapping with its associated CombinedGroup and ActiveGroup relations
+	FindWithRelations(ctx context.Context, id int64) (*GroupMapping, error)
 }

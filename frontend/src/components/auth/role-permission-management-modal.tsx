@@ -11,12 +11,13 @@ import {
   formatPermissionDisplay,
 } from "~/lib/permission-labels";
 import type { Role, Permission } from "~/lib/auth-helpers";
+import { getRoleDisplayName } from "~/lib/auth-helpers";
 
 interface RolePermissionManagementModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  role: Role;
-  onUpdate: () => void;
+  readonly isOpen: boolean;
+  readonly onClose: () => void;
+  readonly role: Role;
+  readonly onUpdate: () => void;
 }
 
 export function RolePermissionManagementModal({
@@ -184,7 +185,7 @@ export function RolePermissionManagementModal({
       <FormModal
         isOpen={isOpen}
         onClose={onClose}
-        title={`Berechtigungen verwalten - ${role.name}`}
+        title={`Berechtigungen verwalten - ${getRoleDisplayName(role.name)}`}
         size="xl"
         mobilePosition="center"
         footer={footer}

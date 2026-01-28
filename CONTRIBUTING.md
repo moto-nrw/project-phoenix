@@ -52,15 +52,15 @@ go fmt ./...                      # Formatting
 **Frontend (Next.js):**
 ```bash
 cd frontend
-npm run check    # Lint + TypeScript (MUST pass before PR)
-npm run test     # Run tests
+pnpm run check    # Lint + TypeScript (MUST pass before PR)
+pnpm run test     # Run tests
 ```
 
 ## Submitting Changes
 
 ### Pull Request Process
 
-1. Ensure all quality checks pass (`npm run check` for frontend, `golangci-lint run` for backend)
+1. Ensure all quality checks pass (`pnpm run check` for frontend, `golangci-lint run` for backend)
 2. Update documentation if you changed APIs or behavior
 3. Write clear commit messages following [Conventional Commits](https://www.conventionalcommits.org/)
 4. Open a PR against the `development` branch (NOT `main`)

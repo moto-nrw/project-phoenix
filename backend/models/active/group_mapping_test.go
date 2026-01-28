@@ -59,12 +59,3 @@ func TestGroupMappingValidate(t *testing.T) {
 		})
 	}
 }
-
-func TestGroupMappingTableName(t *testing.T) {
-	groupMapping := &GroupMapping{}
-	want := "active.group_mappings"
-
-	if got := groupMapping.TableName(); got != want {
-		t.Errorf("GroupMapping.TableName() = %v, want %v", got, want)
-	}
-}

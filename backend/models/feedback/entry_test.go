@@ -3,6 +3,9 @@ package feedback
 import (
 	"testing"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/models/users"
 )
 
 func TestEntry_Validate(t *testing.T) {
@@ -149,5 +152,127 @@ func TestEntry_FormatMethods(t *testing.T) {
 
 	if entry.GetFormattedTime() != "12:30:45" {
 		t.Errorf("GetFormattedTime() = %s, want 12:30:45", entry.GetFormattedTime())
+	}
+}
+
+func TestEntry_SetStudent(t *testing.T) {
+	t.Run("set with student", func(t *testing.T) {
+		entry := &Entry{
+			Value:     "positive",
+			Day:       time.Date(2025, 5, 9, 0, 0, 0, 0, time.UTC),
+			Time:      time.Date(0, 0, 0, 12, 30, 0, 0, time.UTC),
+			StudentID: 0,
+		}
+
+		student := &users.Student{
+			Model: base.Model{ID: 42},
+		}
+
+		entry.SetStudent(student)
+
+		if entry.Student != student {
+			t.Error("SetStudent should set the Student field")
+		}
+		if entry.StudentID != 42 {
+			t.Errorf("SetStudent should set StudentID = 42, got %d", entry.StudentID)
+		}
+	})
+
+	t.Run("set with nil student", func(t *testing.T) {
+		entry := &Entry{
+			Value:     "positive",
+			Day:       time.Date(2025, 5, 9, 0, 0, 0, 0, time.UTC),
+			Time:      time.Date(0, 0, 0, 12, 30, 0, 0, time.UTC),
+			StudentID: 10,
+		}
+
+		entry.SetStudent(nil)
+
+		if entry.Student != nil {
+			t.Error("SetStudent(nil) should set Student to nil")
+		}
+		// StudentID should remain unchanged when setting nil
+		if entry.StudentID != 10 {
+			t.Errorf("SetStudent(nil) should not change StudentID, got %d", entry.StudentID)
+		}
+	})
+}
+
+func TestEntry_BeforeAppendModel(t *testing.T) {
+	t.Run("handles nil query", func(t *testing.T) {
+		entry := &Entry{
+			Value:     "positive",
+			Day:       time.Date(2025, 5, 9, 0, 0, 0, 0, time.UTC),
+			Time:      time.Date(0, 0, 0, 12, 30, 0, 0, time.UTC),
+			StudentID: 1,
+		}
+		err := entry.BeforeAppendModel(nil)
+		if err != nil {
+			t.Errorf("BeforeAppendModel() error = %v", err)
+		}
+	})
+
+	t.Run("returns no error for unknown query type", func(t *testing.T) {
+		entry := &Entry{
+			Value:     "positive",
+			Day:       time.Date(2025, 5, 9, 0, 0, 0, 0, time.UTC),
+			Time:      time.Date(0, 0, 0, 12, 30, 0, 0, time.UTC),
+			StudentID: 1,
+		}
+		err := entry.BeforeAppendModel("some string")
+		if err != nil {
+			t.Errorf("BeforeAppendModel() error = %v", err)
+		}
+	})
+}
+
+func TestEntry_TableName(t *testing.T) {
+	entry := &Entry{}
+	if got := entry.TableName(); got != "feedback.entries" {
+		t.Errorf("TableName() = %v, want feedback.entries", got)
+	}
+}
+
+func TestEntry_GetID(t *testing.T) {
+	entry := &Entry{
+		Model:     base.Model{ID: 42},
+		Value:     "positive",
+		Day:       time.Date(2025, 5, 9, 0, 0, 0, 0, time.UTC),
+		Time:      time.Date(0, 0, 0, 12, 30, 0, 0, time.UTC),
+		StudentID: 1,
+	}
+
+	if got, ok := entry.GetID().(int64); !ok || got != 42 {
+		t.Errorf("GetID() = %v, want 42", entry.GetID())
+	}
+}
+
+func TestEntry_GetCreatedAt(t *testing.T) {
+	now := time.Now()
+	entry := &Entry{
+		Model:     base.Model{CreatedAt: now},
+		Value:     "positive",
+		Day:       time.Date(2025, 5, 9, 0, 0, 0, 0, time.UTC),
+		Time:      time.Date(0, 0, 0, 12, 30, 0, 0, time.UTC),
+		StudentID: 1,
+	}
+
+	if got := entry.GetCreatedAt(); !got.Equal(now) {
+		t.Errorf("GetCreatedAt() = %v, want %v", got, now)
+	}
+}
+
+func TestEntry_GetUpdatedAt(t *testing.T) {
+	now := time.Now()
+	entry := &Entry{
+		Model:     base.Model{UpdatedAt: now},
+		Value:     "positive",
+		Day:       time.Date(2025, 5, 9, 0, 0, 0, 0, time.UTC),
+		Time:      time.Date(0, 0, 0, 12, 30, 0, 0, time.UTC),
+		StudentID: 1,
+	}
+
+	if got := entry.GetUpdatedAt(); !got.Equal(now) {
+		t.Errorf("GetUpdatedAt() = %v, want %v", got, now)
 	}
 }

@@ -6,6 +6,7 @@ import React, {
   useEffect,
   useState,
   useCallback,
+  useMemo,
 } from "react";
 import { useSession } from "next-auth/react";
 
@@ -46,9 +47,9 @@ const SupervisionContext = createContext<SupervisionContextType | undefined>(
  */
 export function SupervisionProvider({
   children,
-}: {
+}: Readonly<{
   children: React.ReactNode;
-}) {
+}>) {
   const { data: session } = useSession();
 
   const [state, setState] = useState<SupervisionState>({
@@ -62,7 +63,7 @@ export function SupervisionProvider({
   });
 
   // Debounce mechanism to prevent rapid successive calls
-  const [, setIsRefreshing] = useState(false);
+  const isRefreshingRef = React.useRef(false);
   const lastRefreshRef = React.useRef<number>(0);
 
   // Store token in ref to avoid dependency loops
@@ -215,7 +216,7 @@ export function SupervisionProvider({
           setState((prev) => {
             // Only update if values actually changed
             if (
-              prev.isSupervising === true &&
+              prev.isSupervising &&
               prev.supervisedRoomId === newRoomId &&
               prev.supervisedRoomName === newRoomName &&
               !prev.isLoadingSupervision
@@ -302,23 +303,21 @@ export function SupervisionProvider({
       }
       lastRefreshRef.current = now;
 
-      setIsRefreshing((prev) => {
-        if (prev) return prev; // Already refreshing, don't start another
+      // Already refreshing, don't start another
+      if (isRefreshingRef.current) return;
+      isRefreshingRef.current = true;
 
-        // Only show loading states if not a silent refresh
-        if (!silent) {
-          setState((s) => ({
-            ...s,
-            isLoadingGroups: true,
-            isLoadingSupervision: true,
-          }));
-        }
+      // Only show loading states if not a silent refresh
+      if (!silent) {
+        setState((s) => ({
+          ...s,
+          isLoadingGroups: true,
+          isLoadingSupervision: true,
+        }));
+      }
 
-        void Promise.all([checkGroups(), checkSupervision()]).finally(() =>
-          setIsRefreshing(false),
-        );
-
-        return true;
+      void Promise.all([checkGroups(), checkSupervision()]).finally(() => {
+        isRefreshingRef.current = false;
       });
     },
     [checkGroups, checkSupervision],
@@ -331,7 +330,7 @@ export function SupervisionProvider({
   useEffect(() => {
     // Only refresh when session actually changes (not on every render)
     if (session?.user?.token) {
-      void refreshRef.current?.();
+      refreshRef.current?.().catch(console.error);
     } else {
       // Clear state when no session
       setState({
@@ -362,8 +361,13 @@ export function SupervisionProvider({
     return () => clearInterval(interval);
   }, [session?.user?.token]); // Only depend on token
 
+  const value = useMemo<SupervisionContextType>(
+    () => ({ ...state, refresh }),
+    [state, refresh],
+  );
+
   return (
-    <SupervisionContext.Provider value={{ ...state, refresh }}>
+    <SupervisionContext.Provider value={value}>
       {children}
     </SupervisionContext.Provider>
   );

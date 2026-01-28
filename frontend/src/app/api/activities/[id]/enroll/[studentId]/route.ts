@@ -23,12 +23,8 @@ export const POST = createPostHandler<
     // Match the backend endpoint format
     const endpoint = `/api/activities/${id}/students/${studentId}`;
 
-    try {
-      // Empty body since the backend doesn't expect one
-      await apiPost(endpoint, token, {});
-      return { success: true };
-    } catch (error) {
-      throw error;
-    }
+    // Empty body since the backend doesn't expect one
+    await apiPost(endpoint, token, {});
+    return { success: true };
   },
 );

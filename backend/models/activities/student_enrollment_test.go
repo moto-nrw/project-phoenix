@@ -3,6 +3,9 @@ package activities
 import (
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/uptrace/bun"
 )
 
 func TestIsValidAttendanceStatus(t *testing.T) {
@@ -226,11 +229,60 @@ func TestStudentEnrollmentClearAttendance(t *testing.T) {
 	}
 }
 
-func TestStudentEnrollmentTableName(t *testing.T) {
-	studentEnrollment := &StudentEnrollment{}
-	expected := "activities.student_enrollments"
+// ============================================================================
+// BeforeAppendModel Hook Tests
+// ============================================================================
 
-	if got := studentEnrollment.TableName(); got != expected {
-		t.Errorf("StudentEnrollment.TableName() = %v, want %v", got, expected)
-	}
+func TestStudentEnrollment_BeforeAppendModel(t *testing.T) {
+	se := &StudentEnrollment{}
+
+	t.Run("handles SelectQuery", func(t *testing.T) {
+		err := se.BeforeAppendModel(&bun.SelectQuery{})
+		assert.NoError(t, err)
+	})
+
+	t.Run("handles InsertQuery", func(t *testing.T) {
+		err := se.BeforeAppendModel(&bun.InsertQuery{})
+		assert.NoError(t, err)
+	})
+
+	t.Run("handles UpdateQuery", func(t *testing.T) {
+		err := se.BeforeAppendModel(&bun.UpdateQuery{})
+		assert.NoError(t, err)
+	})
+
+	t.Run("handles DeleteQuery", func(t *testing.T) {
+		err := se.BeforeAppendModel(&bun.DeleteQuery{})
+		assert.NoError(t, err)
+	})
+
+	t.Run("handles unknown query type", func(t *testing.T) {
+		err := se.BeforeAppendModel("unknown")
+		assert.NoError(t, err)
+	})
+}
+
+func TestStudentEnrollment_TableName(t *testing.T) {
+	se := &StudentEnrollment{}
+	assert.Equal(t, "activities.student_enrollments", se.TableName())
+}
+
+func TestStudentEnrollment_GetID(t *testing.T) {
+	se := &StudentEnrollment{}
+	se.ID = 123
+	assert.Equal(t, int64(123), se.GetID())
+}
+
+func TestStudentEnrollment_GetCreatedAt(t *testing.T) {
+	now := time.Now()
+	se := &StudentEnrollment{}
+	se.CreatedAt = now
+	assert.Equal(t, now, se.GetCreatedAt())
+}
+
+func TestStudentEnrollment_GetUpdatedAt(t *testing.T) {
+	now := time.Now()
+	se := &StudentEnrollment{}
+	se.UpdatedAt = now
+	assert.Equal(t, now, se.GetUpdatedAt())
 }

@@ -32,14 +32,14 @@ func NewResponse(data interface{}, message string) *Response {
 }
 
 // Render implements the render.Renderer interface for Response
-func (r *Response) Render(w http.ResponseWriter, req *http.Request) error {
+func (r *Response) Render(_ http.ResponseWriter, _ *http.Request) error {
 	return nil
 }
 
 // Respond sends a structured response
 func Respond(w http.ResponseWriter, r *http.Request, status int, data interface{}, message string) {
 	render.Status(r, status)
-	if err := render.Render(w, r, NewResponse(data, message)); err != nil {
+	if render.Render(w, r, NewResponse(data, message)) != nil {
 		// Log the error but don't fail the operation since the response was already started
 		// This is a best-effort operation
 		http.Error(w, "Error rendering response", http.StatusInternalServerError)
@@ -74,6 +74,13 @@ type Pagination struct {
 	TotalRecords int `json:"total_records"`
 }
 
+// PaginationParams groups parameters for paginated responses to reduce function parameter count
+type PaginationParams struct {
+	Page     int
+	PageSize int
+	Total    int
+}
+
 // PaginatedResponse is a response with pagination metadata
 type PaginatedResponse struct {
 	Status     string      `json:"status"`
@@ -103,14 +110,14 @@ func NewPaginatedResponse(data interface{}, page, pageSize, total int, message s
 }
 
 // Render implements the render.Renderer interface for PaginatedResponse
-func (p *PaginatedResponse) Render(w http.ResponseWriter, req *http.Request) error {
+func (p *PaginatedResponse) Render(_ http.ResponseWriter, _ *http.Request) error {
 	return nil
 }
 
-// RespondWithPagination sends a paginated response
-func RespondWithPagination(w http.ResponseWriter, r *http.Request, status int, data interface{}, page, pageSize, total int, message string) {
+// RespondPaginated sends a paginated response using PaginationParams struct
+func RespondPaginated(w http.ResponseWriter, r *http.Request, status int, data interface{}, params PaginationParams, message string) {
 	render.Status(r, status)
-	if err := render.Render(w, r, NewPaginatedResponse(data, page, pageSize, total, message)); err != nil {
+	if render.Render(w, r, NewPaginatedResponse(data, params.Page, params.PageSize, params.Total, message)) != nil {
 		// Log the error but don't fail the operation since the response was already started
 		// This is a best-effort operation
 		http.Error(w, "Error rendering paginated response", http.StatusInternalServerError)

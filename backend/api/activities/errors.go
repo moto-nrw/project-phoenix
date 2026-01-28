@@ -17,7 +17,7 @@ type ErrorResponse struct {
 }
 
 // Render implements the render.Renderer interface
-func (e *ErrorResponse) Render(w http.ResponseWriter, r *http.Request) error {
+func (e *ErrorResponse) Render(_ http.ResponseWriter, r *http.Request) error {
 	render.Status(r, e.HTTPStatusCode)
 	return nil
 }
@@ -48,6 +48,8 @@ func ErrorRenderer(err error) render.Renderer {
 			return ErrorForbidden(actErr)
 		case activities.ErrInvalidAttendanceStatus:
 			return ErrorInvalidRequest(actErr)
+		case activities.ErrStaffNotFound:
+			return ErrorNotFound(actErr)
 		default:
 			return ErrorInternalServer(actErr)
 		}

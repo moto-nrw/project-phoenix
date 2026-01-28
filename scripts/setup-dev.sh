@@ -11,8 +11,8 @@ echo "Project Phoenix - Development Environment Setup"
 echo "==============================================="
 
 # Check if running from repository root
-if [ ! -f "docker-compose.example.yml" ]; then
-  echo "Error: This script must be run from the repository root"
+if [[ ! -f "docker-compose.example.yml" ]]; then
+  echo "Error: This script must be run from the repository root" >&2
   exit 1
 fi
 
@@ -25,13 +25,14 @@ NC='\033[0m' # No Color
 # Function to generate random string for secrets
 generate_secret() {
   openssl rand -base64 32 | tr -d '\n'
+  return 0
 }
 
 # 1. Creating environment files from templates
 echo -e "\n${YELLOW}Creating environment files from templates...${NC}"
 
 # 1.1 Main .env file
-if [ ! -f ".env" ]; then
+if [[ ! -f ".env" ]]; then
   echo "Creating .env file..."
   cp .env.example .env
   
@@ -51,7 +52,7 @@ else
 fi
 
 # 1.2 Backend dev.env file
-if [ ! -f "backend/dev.env" ]; then
+if [[ ! -f "backend/dev.env" ]]; then
   echo "Creating backend/dev.env file..."
   cp backend/dev.env.example backend/dev.env
   
@@ -68,7 +69,7 @@ else
 fi
 
 # 1.3 Frontend .env.local file
-if [ ! -f "frontend/.env.local" ]; then
+if [[ ! -f "frontend/.env.local" ]]; then
   echo "Creating frontend/.env.local file..."
   cp frontend/.env.example frontend/.env.local
   
@@ -85,7 +86,7 @@ else
 fi
 
 # 1.4 Docker compose file
-if [ ! -f "docker-compose.yml" ]; then
+if [[ ! -f "docker-compose.yml" ]]; then
   echo "Creating docker-compose.yml file..."
   cp docker-compose.example.yml docker-compose.yml
   echo -e "${GREEN}Created docker-compose.yml file${NC}"
@@ -97,7 +98,7 @@ fi
 echo -e "\n${YELLOW}Setting up SSL certificates...${NC}"
 
 # Check if certificates already exist
-if [ ! -d "config/ssl/postgres/certs" ] || [ ! -f "config/ssl/postgres/certs/server.crt" ]; then
+if [[ ! -d "config/ssl/postgres/certs" || ! -f "config/ssl/postgres/certs/server.crt" ]]; then
   echo "Generating PostgreSQL SSL certificates..."
   cd config/ssl/postgres
   chmod +x create-certs.sh
@@ -113,8 +114,8 @@ echo -e "\n${YELLOW}Checking Docker and Docker Compose installation...${NC}"
 
 # Check for Docker
 if ! command -v docker &> /dev/null; then
-  echo -e "${RED}Error: Docker is not installed. Please install Docker first.${NC}"
-  echo "Visit https://docs.docker.com/get-docker/ for installation instructions."
+  echo -e "${RED}Error: Docker is not installed. Please install Docker first.${NC}" >&2
+  echo "Visit https://docs.docker.com/get-docker/ for installation instructions." >&2
   exit 1
 fi
 
@@ -131,9 +132,9 @@ elif command -v docker-compose &> /dev/null; then
   echo -e "${GREEN}Docker Compose V1 detected${NC}"
 fi
 
-if [ "$DOCKER_COMPOSE_FOUND" = false ]; then
-  echo -e "${RED}Error: Docker Compose is not installed. Please install Docker Compose first.${NC}"
-  echo "Visit https://docs.docker.com/compose/install/ for installation instructions."
+if [[ "$DOCKER_COMPOSE_FOUND" = false ]]; then
+  echo -e "${RED}Error: Docker Compose is not installed. Please install Docker Compose first.${NC}" >&2
+  echo "Visit https://docs.docker.com/compose/install/ for installation instructions." >&2
   exit 1
 fi
 

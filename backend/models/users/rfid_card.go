@@ -20,6 +20,8 @@ var (
 	MaxRFIDCardLength = 64
 )
 
+const rfidCardTableName = "users.rfid_cards"
+
 // RFIDCard represents a physical RFID card used for identification and access
 type RFIDCard struct {
 	base.StringIDModel `bun:"schema:users,table:rfid_cards"`
@@ -28,20 +30,20 @@ type RFIDCard struct {
 
 func (r *RFIDCard) BeforeAppendModel(query any) error {
 	if q, ok := query.(*bun.SelectQuery); ok {
-		q.ModelTableExpr("users.rfid_cards")
+		q.ModelTableExpr(rfidCardTableName)
 	}
 	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr("users.rfid_cards")
+		q.ModelTableExpr(rfidCardTableName)
 	}
 	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr("users.rfid_cards")
+		q.ModelTableExpr(rfidCardTableName)
 	}
 	return nil
 }
 
 // TableName returns the database table name
 func (r *RFIDCard) TableName() string {
-	return "users.rfid_cards"
+	return rfidCardTableName
 }
 
 // Validate ensures the RFID card data is valid

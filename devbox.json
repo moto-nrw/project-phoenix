@@ -1,0 +1,57 @@
+{
+  "$schema": "https://raw.githubusercontent.com/jetify-com/devbox/0.16.0/.schema/devbox.schema.json",
+  "packages": [
+    "go@1.25.5",
+    "nodejs_20@latest",
+    "pnpm@latest",
+    "openssl@latest",
+    "jq@latest",
+    "ripgrep@latest",
+    "fd@latest",
+    "bat@latest",
+    "eza@latest",
+    "fzf@latest",
+    "btop@latest",
+    "pgcli@latest",
+    "dotenv-linter@latest",
+    "lefthook@latest",
+    "git-secrets@latest",
+    "ni@latest",
+    "tree@latest",
+    "curl@latest",
+    "git@latest",
+    "dyff@latest",
+    "air@latest",
+    "gotestsum@latest",
+    "lazydocker@latest",
+    "lazygit@latest",
+    "gh@latest",
+    "glow@latest",
+    "yq@latest",
+    "xh@latest",
+    "pg_activity@latest",
+    "go-swag@latest",
+    "govulncheck@latest",
+    "ollama@latest",
+    "golangci-lint@2.8.0"
+  ],
+  "env": {
+    "GOPATH":      "$PWD/.devbox/go",
+    "GOBIN":       "$HOME/go/bin",
+    "CGO_ENABLED": "0",
+    "PATH":        "$HOME/go/bin:$PATH"
+  },
+  "shell": {
+    "init_hook": [
+      "lefthook install --force > /dev/null 2>&1 || true",
+      "which goimports > /dev/null 2>&1 || go install golang.org/x/tools/cmd/goimports@latest > /dev/null 2>&1",
+      "which deadcode > /dev/null 2>&1 || go install golang.org/x/tools/cmd/deadcode@latest > /dev/null 2>&1",
+      "which grepai > /dev/null 2>&1 || (curl -sSL https://raw.githubusercontent.com/yoanbernabeu/grepai/main/install.sh | sh > /dev/null 2>&1)",
+      "ollama list 2>/dev/null | grep -q nomic-embed-text || (echo 'pulling nomic-embed-text model...' && ollama pull nomic-embed-text > /dev/null 2>&1 &)",
+      "pgrep -f 'grepai watch' > /dev/null || echo '💡 grepai watch not running — run: grepai watch &'",
+      "which agent-browser > /dev/null 2>&1 || npm install -g agent-browser > /dev/null 2>&1",
+      "[ ! -d frontend/node_modules ] && echo 'installing frontend deps...' && cd frontend && nci --silent || true",
+      "echo \"go $(go version | cut -d' ' -f3 | sed 's/go//') node $(node -v | sed 's/v//') pnpm $(pnpm -v) | bat eza fzf rg fd tree jq yq glow xh btop curl | ni pgcli air gotestsum lazygit lazydocker gh swag govulncheck\""
+    ]
+  }
+}

@@ -187,6 +187,48 @@ export function mapParentAccountResponse(
   };
 }
 
+// System role display names and descriptions (German localization)
+// Backend uses English names for authorization logic, frontend displays German
+const SYSTEM_ROLE_TRANSLATIONS: Record<
+  string,
+  { name: string; description: string }
+> = {
+  admin: {
+    name: "Administrator",
+    description: "Systemadministrator mit vollem Zugriff",
+  },
+  user: {
+    name: "Nutzer",
+    description: "Standardbenutzer mit grundlegenden Berechtigungen",
+  },
+  guest: {
+    name: "Gast",
+    description: "Eingeschränkter Zugriff für nicht authentifizierte Benutzer",
+  },
+};
+
+/**
+ * Get the German display name for a system role.
+ * Falls back to the original name if no translation exists.
+ */
+export function getRoleDisplayName(roleName: string): string {
+  return SYSTEM_ROLE_TRANSLATIONS[roleName.toLowerCase()]?.name ?? roleName;
+}
+
+/**
+ * Get the German description for a system role.
+ * Falls back to the original description if no translation exists.
+ */
+export function getRoleDisplayDescription(
+  roleName: string,
+  originalDescription: string,
+): string {
+  return (
+    SYSTEM_ROLE_TRANSLATIONS[roleName.toLowerCase()]?.description ??
+    originalDescription
+  );
+}
+
 // Request/Response types
 export interface LoginRequest {
   email: string;

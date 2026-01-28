@@ -107,9 +107,9 @@ export interface PrivacyConsent {
   updatedAt: Date;
 }
 
-// Student attendance status enum (updated to use attendance-based terminology)
+// Student attendance status (updated to use attendance-based terminology)
 // Now includes specific location details from backend
-export type StudentLocation = string;
+// Note: StudentLocation is a simple string type, no separate alias needed
 
 // Frontend types (mapped from backend)
 export interface Student {
@@ -122,8 +122,8 @@ export interface Student {
   studentId?: string;
   group_name?: string;
   group_id?: string;
-  // Current attendance status of student
-  current_location: StudentLocation;
+  // Current attendance status of student (location string)
+  current_location: string;
   // When student entered current location (only for hasFullAccess users)
   location_since?: string;
   // Transportation method (separate from attendance)
@@ -163,9 +163,7 @@ export function mapStudentResponse(
   const name = `${firstName} ${lastName}`.trim();
 
   // Map backend attendance status with normalization for legacy values (e.g., "Abwesend")
-  const current_location: StudentLocation = normalizeLocation(
-    backendStudent.current_location,
-  );
+  const current_location = normalizeLocation(backendStudent.current_location);
 
   const mapped = {
     id: String(backendStudent.id),
@@ -182,7 +180,7 @@ export function mapStudentResponse(
     // New attendance-based system
     current_location,
     location_since: backendStudent.location_since ?? undefined,
-    takes_bus: undefined, // TODO: Map from backend when available
+    takes_bus: undefined,
     bus: backendStudent.bus ?? false, // Administrative permission flag (Buskind)
     sick: backendStudent.sick ?? false, // Sickness status
     sick_since: backendStudent.sick_since,

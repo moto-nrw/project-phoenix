@@ -120,7 +120,7 @@ func (r *GuardianInvitationRepository) FindByGuardianProfileID(ctx context.Conte
 		Model(&invitations).
 		ModelTableExpr(`auth.guardian_invitations AS "guardian_invitation"`).
 		Where(`"guardian_invitation".guardian_profile_id = ?`, guardianProfileID).
-		Order(`"guardian_invitation".created_at DESC`).
+		OrderExpr(`"guardian_invitation".created_at DESC`).
 		Scan(ctx)
 
 	if err != nil {
@@ -139,7 +139,7 @@ func (r *GuardianInvitationRepository) FindPending(ctx context.Context) ([]*auth
 		ModelTableExpr(`auth.guardian_invitations AS "guardian_invitation"`).
 		Where(`"guardian_invitation".accepted_at IS NULL`).
 		Where(`"guardian_invitation".expires_at > ?`, time.Now()).
-		Order(`"guardian_invitation".created_at DESC`).
+		OrderExpr(`"guardian_invitation".created_at DESC`).
 		Scan(ctx)
 
 	if err != nil {
@@ -158,7 +158,7 @@ func (r *GuardianInvitationRepository) FindExpired(ctx context.Context) ([]*auth
 		ModelTableExpr(`auth.guardian_invitations AS "guardian_invitation"`).
 		Where(`"guardian_invitation".accepted_at IS NULL`).
 		Where(`"guardian_invitation".expires_at <= ?`, time.Now()).
-		Order(`"guardian_invitation".expires_at DESC`).
+		OrderExpr(`"guardian_invitation".expires_at DESC`).
 		Scan(ctx)
 
 	if err != nil {

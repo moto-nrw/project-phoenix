@@ -8,6 +8,9 @@ import (
 	"github.com/uptrace/bun"
 )
 
+// tableAuthAccountRoles is the schema-qualified table name for account roles
+const tableAuthAccountRoles = "auth.account_roles"
+
 // AccountRole represents a mapping between accounts and roles
 type AccountRole struct {
 	base.Model `bun:"schema:auth,table:account_roles"`
@@ -21,20 +24,20 @@ type AccountRole struct {
 
 func (ar *AccountRole) BeforeAppendModel(query any) error {
 	if q, ok := query.(*bun.SelectQuery); ok {
-		q.ModelTableExpr("auth.account_roles")
+		q.ModelTableExpr(tableAuthAccountRoles)
 	}
 	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr("auth.account_roles")
+		q.ModelTableExpr(tableAuthAccountRoles)
 	}
 	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr("auth.account_roles")
+		q.ModelTableExpr(tableAuthAccountRoles)
 	}
 	return nil
 }
 
 // TableName returns the database table name
 func (ar *AccountRole) TableName() string {
-	return "auth.account_roles"
+	return tableAuthAccountRoles
 }
 
 // Validate ensures account role mapping data is valid

@@ -7,10 +7,10 @@ import { roomsConfig } from "@/lib/database/configs/rooms.config";
 import { configToFormSection } from "@/lib/database/types";
 
 interface RoomCreateModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onCreate: (data: Partial<Room>) => Promise<void>;
-  loading?: boolean;
+  readonly isOpen: boolean;
+  readonly onClose: () => void;
+  readonly onCreate: (data: Partial<Room>) => Promise<void>;
+  readonly loading?: boolean;
 }
 
 export function RoomCreateModal({

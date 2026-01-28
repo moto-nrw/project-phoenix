@@ -58,8 +58,8 @@ type AfterScanner interface {
 	AfterScan() error
 }
 
-// Paginatable provides a standard interface for pagination
-type Paginatable interface {
+// Paginator provides a standard interface for pagination
+type Paginator interface {
 	// Paginate applies pagination to a database query
 	Paginate(query *bun.SelectQuery, page, pageSize int) *bun.SelectQuery
 }

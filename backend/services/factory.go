@@ -38,18 +38,20 @@ type Factory struct {
 	ActiveCleanup            active.CleanupService
 	Activities               activities.ActivityService
 	Education                education.Service
+	GradeTransition          education.GradeTransitionService
 	Facilities               facilities.Service
 	Invitation               auth.InvitationService
 	Feedback                 feedback.Service
 	IoT                      iot.Service
 	Config                   config.Service
 	Schedule                 schedule.Service
+	PickupSchedule           schedule.PickupScheduleService
 	Users                    users.PersonService
 	Guardian                 users.GuardianService
 	UserContext              usercontext.UserContextService
 	Database                 database.DatabaseService
 	Import                   *importService.ImportService[importModels.StudentImportRow] // Student import service
-	RealtimeHub              *realtime.Hub                                                // SSE event hub (shared by services and API)
+	RealtimeHub              *realtime.Hub                                               // SSE event hub (shared by services and API)
 	Mailer                   email.Mailer
 	DefaultFrom              email.Email
 	FrontendURL              string
@@ -117,56 +119,65 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 		db,
 	)
 
+	// Initialize grade transition service
+	gradeTransitionService := education.NewGradeTransitionService(education.GradeTransitionServiceDependencies{
+		TransitionRepo: repos.GradeTransition,
+		StudentRepo:    repos.Student,
+		PersonRepo:     repos.Person,
+		DB:             db,
+	})
+
 	// Initialize users service first (needed for active service)
-	usersService := users.NewPersonService(
-		repos.Person,
-		repos.RFIDCard,
-		repos.Account,
-		repos.PersonGuardian,
-		repos.Student,
-		repos.Staff,
-		repos.Teacher,
-		db,
-	)
+	usersService := users.NewPersonService(users.PersonServiceDependencies{
+		PersonRepo:         repos.Person,
+		RFIDRepo:           repos.RFIDCard,
+		AccountRepo:        repos.Account,
+		PersonGuardianRepo: repos.PersonGuardian,
+		StudentRepo:        repos.Student,
+		StaffRepo:          repos.Staff,
+		TeacherRepo:        repos.Teacher,
+		DB:                 db,
+	})
 
 	// Initialize guardian service
-	guardianService := users.NewGuardianService(
-		repos.GuardianProfile,
-		repos.StudentGuardian,
-		repos.GuardianInvitation,
-		repos.AccountParent,
-		repos.Student,
-		repos.Person,
-		mailer,
-		dispatcher,
-		frontendURL,
-		defaultFrom,
-		invitationTokenExpiry,
-		db,
-	)
+	guardianService := users.NewGuardianService(users.GuardianServiceDependencies{
+		GuardianProfileRepo:     repos.GuardianProfile,
+		GuardianPhoneNumberRepo: repos.GuardianPhoneNumber,
+		StudentGuardianRepo:     repos.StudentGuardian,
+		GuardianInvitationRepo:  repos.GuardianInvitation,
+		AccountParentRepo:       repos.AccountParent,
+		StudentRepo:             repos.Student,
+		PersonRepo:              repos.Person,
+		Mailer:                  mailer,
+		Dispatcher:              dispatcher,
+		FrontendURL:             frontendURL,
+		DefaultFrom:             defaultFrom,
+		InvitationExpiry:        invitationTokenExpiry,
+		DB:                      db,
+	})
 
 	// Initialize active service with SSE broadcaster
-	activeService := active.NewService(
-		repos.ActiveGroup,
-		repos.ActiveVisit,
-		repos.GroupSupervisor,
-		repos.CombinedGroup,
-		repos.GroupMapping,
-		repos.ScheduledCheckout,
-		repos.Student,
-		repos.Room,
-		repos.ActivityGroup,
-		repos.ActivityCategory,
-		repos.Group,
-		repos.Person,
-		repos.Attendance,
-		educationService,
-		usersService,
-		repos.Teacher,
-		repos.Staff,
-		db,
-		realtimeHub, // Pass SSE broadcaster
-	)
+	activeService := active.NewService(active.ServiceDependencies{
+		GroupRepo:          repos.ActiveGroup,
+		VisitRepo:          repos.ActiveVisit,
+		SupervisorRepo:     repos.GroupSupervisor,
+		CombinedGroupRepo:  repos.CombinedGroup,
+		GroupMappingRepo:   repos.GroupMapping,
+		AttendanceRepo:     repos.Attendance,
+		StudentRepo:        repos.Student,
+		PersonRepo:         repos.Person,
+		TeacherRepo:        repos.Teacher,
+		StaffRepo:          repos.Staff,
+		RoomRepo:           repos.Room,
+		ActivityGroupRepo:  repos.ActivityGroup,
+		ActivityCatRepo:    repos.ActivityCategory,
+		EducationGroupRepo: repos.Group,
+		DeviceRepo:         repos.Device,
+		EducationService:   educationService,
+		UsersService:       usersService,
+		DB:                 db,
+		Broadcaster:        realtimeHub, // Pass SSE broadcaster
+	})
 
 	// Initialize feedback service
 	feedbackService := feedback.NewService(
@@ -214,6 +225,13 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 		db,
 	)
 
+	// Initialize pickup schedule service
+	pickupScheduleService := schedule.NewPickupScheduleService(
+		repos.StudentPickupSchedule,
+		repos.StudentPickupException,
+		db,
+	)
+
 	// Initialize auth service with validated config
 	authConfig, err := auth.NewServiceConfig(
 		dispatcher,
@@ -229,21 +247,21 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 		return nil, err
 	}
 
-	invitationService := auth.NewInvitationService(
-		repos.InvitationToken,
-		repos.Account,
-		repos.Role,
-		repos.AccountRole,
-		repos.Person,
-		repos.Staff,
-		repos.Teacher,
-		mailer,
-		dispatcher,
-		frontendURL,
-		defaultFrom,
-		invitationTokenExpiry,
-		db,
-	)
+	invitationService := auth.NewInvitationService(auth.InvitationServiceConfig{
+		InvitationRepo:   repos.InvitationToken,
+		AccountRepo:      repos.Account,
+		RoleRepo:         repos.Role,
+		AccountRoleRepo:  repos.AccountRole,
+		PersonRepo:       repos.Person,
+		StaffRepo:        repos.Staff,
+		TeacherRepo:      repos.Teacher,
+		Mailer:           mailer,
+		Dispatcher:       dispatcher,
+		FrontendURL:      frontendURL,
+		DefaultFrom:      defaultFrom,
+		InvitationExpiry: invitationTokenExpiry,
+		DB:               db,
+	})
 
 	// Initialize authorization
 	authorizationService := authorize.NewAuthorizationService()
@@ -266,21 +284,20 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 	)
 
 	// Initialize user context service
-	userContextService := usercontext.NewUserContextService(
-		repos.Account,
-		repos.Person,
-		repos.Staff,
-		repos.Teacher,
-		repos.Student,
-		repos.Group,
-		repos.ActivityGroup,
-		repos.ActiveGroup,
-		repos.ActiveVisit,
-		repos.GroupSupervisor,
-		repos.Profile,
-		repos.GroupSubstitution,
-		db,
-	)
+	userContextService := usercontext.NewUserContextServiceWithRepos(usercontext.UserContextRepositories{
+		AccountRepo:        repos.Account,
+		PersonRepo:         repos.Person,
+		StaffRepo:          repos.Staff,
+		TeacherRepo:        repos.Teacher,
+		StudentRepo:        repos.Student,
+		EducationGroupRepo: repos.Group,
+		ActivityGroupRepo:  repos.ActivityGroup,
+		ActiveGroupRepo:    repos.ActiveGroup,
+		VisitsRepo:         repos.ActiveVisit,
+		SupervisorRepo:     repos.GroupSupervisor,
+		ProfileRepo:        repos.Profile,
+		SubstitutionRepo:   repos.GroupSubstitution,
+	}, db)
 
 	// Initialize database stats service
 	databaseService := database.NewService(repos)
@@ -296,12 +313,15 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 	// Initialize import service
 	relationshipResolver := importService.NewRelationshipResolver(repos.Group, repos.Room)
 	studentImportConfig := importService.NewStudentImportConfig(
-		repos.Person,
-		repos.Student,
-		repos.GuardianProfile,
-		repos.StudentGuardian,
-		repos.PrivacyConsent,
-		relationshipResolver,
+		importService.StudentImportDeps{
+			PersonRepo:        repos.Person,
+			StudentRepo:       repos.Student,
+			GuardianRepo:      repos.GuardianProfile,
+			GuardianPhoneRepo: repos.GuardianPhoneNumber,
+			RelationRepo:      repos.StudentGuardian,
+			PrivacyRepo:       repos.PrivacyConsent,
+			Resolver:          relationshipResolver,
+		},
 		db,
 	)
 	studentImportService := importService.NewImportService(studentImportConfig, db)
@@ -312,11 +332,13 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 		ActiveCleanup:            activeCleanupService,
 		Activities:               activitiesService,
 		Education:                educationService,
+		GradeTransition:          gradeTransitionService,
 		Facilities:               facilitiesService,
 		Feedback:                 feedbackService,
 		IoT:                      iotService,
 		Config:                   configService,
 		Schedule:                 scheduleService,
+		PickupSchedule:           pickupScheduleService,
 		Users:                    usersService,
 		Guardian:                 guardianService,
 		UserContext:              userContextService,

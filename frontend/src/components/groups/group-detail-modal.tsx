@@ -5,12 +5,18 @@ import { DetailModalActions } from "~/components/ui/detail-modal-actions";
 import type { Group } from "@/lib/group-helpers";
 
 interface GroupDetailModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  group: Group | null;
-  onEdit: () => void;
-  onDelete: () => void;
-  loading?: boolean;
+  readonly isOpen: boolean;
+  readonly onClose: () => void;
+  readonly group: Group | null;
+  readonly onEdit: () => void;
+  readonly onDelete: () => void;
+  readonly loading?: boolean;
+  /**
+   * Custom click handler for delete button.
+   * When provided, bypasses internal confirmation modal.
+   * Use this to handle confirmation at the page level.
+   */
+  readonly onDeleteClick?: () => void;
 }
 
 export function GroupDetailModal({
@@ -20,6 +26,7 @@ export function GroupDetailModal({
   onEdit,
   onDelete,
   loading = false,
+  onDeleteClick,
 }: GroupDetailModalProps) {
   if (!group) return null;
 
@@ -100,6 +107,7 @@ export function GroupDetailModal({
             onDelete={onDelete}
             entityName={group.name}
             entityType="Gruppe"
+            onDeleteClick={onDeleteClick}
           />
         </div>
       )}

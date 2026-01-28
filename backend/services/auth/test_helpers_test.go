@@ -525,10 +525,12 @@ func (r *stubInvitationTokenRepository) FindByToken(_ context.Context, value str
 	return nil, sql.ErrNoRows
 }
 
-func (r *stubInvitationTokenRepository) FindValidByToken(ctx context.Context, value string, now time.Time) (*authModel.InvitationToken, error) {
-	token, err := r.FindByToken(ctx, value)
-	if err != nil {
-		return nil, err
+func (r *stubInvitationTokenRepository) FindValidByToken(_ context.Context, value string, now time.Time) (*authModel.InvitationToken, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	token, ok := r.byToken[value]
+	if !ok {
+		return nil, sql.ErrNoRows
 	}
 	if token.IsUsed() || token.ExpiresAt.Before(now) {
 		return nil, sql.ErrNoRows
@@ -748,6 +750,10 @@ func (noopAccountRoleRepository) DeleteByAccountID(context.Context, int64) error
 	panic("DeleteByAccountID not implemented")
 }
 
+func (noopAccountRoleRepository) DeleteByRoleID(context.Context, int64) error {
+	panic("DeleteByRoleID not implemented")
+}
+
 func (noopAccountRoleRepository) FindAccountRolesWithDetails(context.Context, map[string]interface{}) ([]*authModel.AccountRole, error) {
 	panic("FindAccountRolesWithDetails not implemented")
 }
@@ -812,6 +818,10 @@ func (noopPersonRepository) Delete(context.Context, interface{}) error {
 
 func (noopPersonRepository) List(context.Context, map[string]interface{}) ([]*userModel.Person, error) {
 	panic("List not implemented")
+}
+
+func (noopPersonRepository) ListWithOptions(context.Context, *base.QueryOptions) ([]*userModel.Person, error) {
+	panic("ListWithOptions not implemented")
 }
 
 func (noopPersonRepository) LinkToAccount(context.Context, int64, int64) error {
@@ -1040,6 +1050,10 @@ func (r *stubStaffRepository) FindWithPerson(context.Context, int64) (*userModel
 	panic("FindWithPerson not implemented")
 }
 
+func (r *stubStaffRepository) ListAllWithPerson(context.Context) ([]*userModel.Staff, error) {
+	panic("ListAllWithPerson not implemented")
+}
+
 // stubTeacherRepository provides a minimal test implementation.
 type stubTeacherRepository struct {
 	mu       sync.Mutex
@@ -1072,6 +1086,10 @@ func (r *stubTeacherRepository) FindByStaffID(context.Context, int64) (*userMode
 	panic("FindByStaffID not implemented")
 }
 
+func (r *stubTeacherRepository) FindByStaffIDs(context.Context, []int64) (map[int64]*userModel.Teacher, error) {
+	panic("FindByStaffIDs not implemented")
+}
+
 func (r *stubTeacherRepository) FindBySpecialization(context.Context, string) ([]*userModel.Teacher, error) {
 	panic("FindBySpecialization not implemented")
 }
@@ -1102,6 +1120,10 @@ func (r *stubTeacherRepository) UpdateQualifications(context.Context, int64, str
 
 func (r *stubTeacherRepository) FindWithStaffAndPerson(context.Context, int64) (*userModel.Teacher, error) {
 	panic("FindWithStaffAndPerson not implemented")
+}
+
+func (r *stubTeacherRepository) ListAllWithStaffAndPerson(context.Context) ([]*userModel.Teacher, error) {
+	panic("ListAllWithStaffAndPerson not implemented")
 }
 
 // helper to build default email used in tests.

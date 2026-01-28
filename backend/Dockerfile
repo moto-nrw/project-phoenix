@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-FROM golang:1.24-alpine AS builder
+FROM golang:1.25-alpine AS builder
 
 WORKDIR /src
 
@@ -19,9 +19,13 @@ RUN --mount=type=cache,mode=0755,target=/go/pkg/mod \
     CGO_ENABLED=0 go build -ldflags="-s -w" -o main .
 
 # Multi-Stage production build
-FROM alpine AS production
+FROM alpine:3.21 AS production
 RUN apk --no-cache add ca-certificates bash tzdata
 ENV TZ=Europe/Berlin
+
+# Create non-root user for security
+RUN addgroup -g 1001 -S appgroup && \
+    adduser -S appuser -u 1001 -G appgroup
 
 WORKDIR /app
 # Retrieve the binary from the previous stage
@@ -30,6 +34,11 @@ COPY --from=builder /src/main .
 COPY templates templates
 # Copy frontend
 COPY public public
+
+# Set ownership and switch to non-root user
+RUN chown -R appuser:appgroup /app
+USER appuser
+
 # Expose port
 EXPOSE 8080
 # Set the binary as the entrypoint of the container

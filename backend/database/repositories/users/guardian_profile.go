@@ -11,6 +11,12 @@ import (
 	"github.com/uptrace/bun"
 )
 
+// Error messages (S1192 - avoid duplicate string literals)
+const (
+	errGuardianProfileNotFound = "guardian profile not found"
+	errRowsAffected            = "failed to get rows affected: %w"
+)
+
 // GuardianProfileRepository implements the users.GuardianProfileRepository interface
 type GuardianProfileRepository struct {
 	db *bun.DB
@@ -27,7 +33,13 @@ func (r *GuardianProfileRepository) Create(ctx context.Context, profile *users.G
 		return fmt.Errorf("validation failed: %w", err)
 	}
 
-	_, err := r.db.NewInsert().
+	// Get the database connection (or transaction if in context)
+	var db bun.IDB = r.db
+	if tx, ok := base.TxFromContext(ctx); ok && tx != nil {
+		db = tx
+	}
+
+	_, err := db.NewInsert().
 		Model(profile).
 		ModelTableExpr(`users.guardian_profiles AS "guardian_profile"`).
 		Exec(ctx)
@@ -51,7 +63,7 @@ func (r *GuardianProfileRepository) FindByID(ctx context.Context, id int64) (*us
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, fmt.Errorf("guardian profile not found")
+			return nil, errors.New(errGuardianProfileNotFound)
 		}
 		return nil, fmt.Errorf("failed to find guardian profile: %w", err)
 	}
@@ -71,7 +83,7 @@ func (r *GuardianProfileRepository) FindByEmail(ctx context.Context, email strin
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, fmt.Errorf("guardian profile not found")
+			return nil, errors.New(errGuardianProfileNotFound)
 		}
 		return nil, fmt.Errorf("failed to find guardian profile by email: %w", err)
 	}
@@ -91,7 +103,7 @@ func (r *GuardianProfileRepository) FindByAccountID(ctx context.Context, account
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, fmt.Errorf("guardian profile not found")
+			return nil, errors.New(errGuardianProfileNotFound)
 		}
 		return nil, fmt.Errorf("failed to find guardian profile by account ID: %w", err)
 	}
@@ -108,7 +120,7 @@ func (r *GuardianProfileRepository) FindWithoutAccount(ctx context.Context) ([]*
 		ModelTableExpr(`users.guardian_profiles AS "guardian_profile"`).
 		Where(`"guardian_profile".account_id IS NULL`).
 		Where(`"guardian_profile".has_account = ?`, false).
-		Order(`"guardian_profile".last_name ASC`, `"guardian_profile".first_name ASC`).
+		Order(`last_name ASC`, `first_name ASC`).
 		Scan(ctx)
 
 	if err != nil {
@@ -129,7 +141,7 @@ func (r *GuardianProfileRepository) FindInvitable(ctx context.Context) ([]*users
 		Where(`"guardian_profile".email != ''`).
 		Where(`"guardian_profile".account_id IS NULL`).
 		Where(`"guardian_profile".has_account = ?`, false).
-		Order(`"guardian_profile".last_name ASC`, `"guardian_profile".first_name ASC`).
+		Order(`last_name ASC`, `first_name ASC`).
 		Scan(ctx)
 
 	if err != nil {
@@ -156,7 +168,7 @@ func (r *GuardianProfileRepository) ListWithOptions(ctx context.Context, options
 	}
 
 	// Default ordering
-	query = query.Order(`"guardian_profile".last_name ASC`, `"guardian_profile".first_name ASC`)
+	query = query.Order(`last_name ASC`, `first_name ASC`)
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -198,11 +210,11 @@ func (r *GuardianProfileRepository) Update(ctx context.Context, profile *users.G
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		return fmt.Errorf("failed to get rows affected: %w", err)
+		return fmt.Errorf(errRowsAffected, err)
 	}
 
 	if rowsAffected == 0 {
-		return fmt.Errorf("guardian profile not found")
+		return errors.New(errGuardianProfileNotFound)
 	}
 
 	return nil
@@ -222,11 +234,11 @@ func (r *GuardianProfileRepository) Delete(ctx context.Context, id int64) error 
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		return fmt.Errorf("failed to get rows affected: %w", err)
+		return fmt.Errorf(errRowsAffected, err)
 	}
 
 	if rowsAffected == 0 {
-		return fmt.Errorf("guardian profile not found")
+		return errors.New(errGuardianProfileNotFound)
 	}
 
 	return nil
@@ -248,11 +260,11 @@ func (r *GuardianProfileRepository) LinkAccount(ctx context.Context, profileID i
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		return fmt.Errorf("failed to get rows affected: %w", err)
+		return fmt.Errorf(errRowsAffected, err)
 	}
 
 	if rowsAffected == 0 {
-		return fmt.Errorf("guardian profile not found")
+		return errors.New(errGuardianProfileNotFound)
 	}
 
 	return nil
@@ -274,11 +286,11 @@ func (r *GuardianProfileRepository) UnlinkAccount(ctx context.Context, profileID
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		return fmt.Errorf("failed to get rows affected: %w", err)
+		return fmt.Errorf(errRowsAffected, err)
 	}
 
 	if rowsAffected == 0 {
-		return fmt.Errorf("guardian profile not found")
+		return errors.New(errGuardianProfileNotFound)
 	}
 
 	return nil

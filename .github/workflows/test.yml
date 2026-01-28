@@ -1,15 +1,103 @@
-on: [workflow_call]
+name: Test & Coverage
+
+on:
+  workflow_call:
+    secrets:
+      SONAR_TOKEN:
+        description: "SonarCloud authentication token"
+        required: true
+
 defaults:
   run:
     shell: bash
 
 jobs:
-  test:
-    runs-on: ubuntu-latest
+  test-and-coverage:
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+
+    # PostgreSQL service for integration tests
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: phoenix_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
-      - name: Go and dependencies
-        uses: ./.github/actions/setup-go-and-deps
-      - name: test
-        run: cd backend && go test -v ./...
+        with:
+          fetch-depth: 0 # Required for SonarCloud
+
+      # Go Setup & Tests
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: backend/go.mod
+          cache: true
+          cache-dependency-path: backend/go.sum
+
+      - name: Install Go dependencies
+        run: cd backend && go mod tidy
+
+      - name: Run database migrations
+        working-directory: backend
+        env:
+          DB_DSN: postgres://postgres:postgres@localhost:5432/phoenix_test?sslmode=disable
+        run: go run main.go migrate
+
+      - name: Run Go tests with coverage
+        working-directory: backend
+        env:
+          TEST_DB_DSN: postgres://postgres:postgres@localhost:5432/phoenix_test?sslmode=disable
+        run: go test -v -coverprofile=coverage.out -covermode=atomic ./...
+
+      - name: Fix Go coverage paths for SonarCloud
+        run: |
+          # Transform Go module paths to relative paths
+          # From: github.com/moto-nrw/project-phoenix/... → backend/...
+          sed -i 's|github.com/moto-nrw/project-phoenix/|backend/|g' backend/coverage.out
+
+      # Node Setup & Tests
+      - name: Enable corepack
+        run: corepack enable
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "20"
+          cache: "pnpm"
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile
+
+      - name: Run frontend tests with coverage
+        working-directory: frontend
+        run: pnpm run test:run --coverage
+
+      # Upload coverage artifacts for debugging
+      - name: Upload coverage artifacts
+        uses: actions/upload-artifact@v6
+        with:
+          name: coverage-reports
+          path: |
+            backend/coverage.out
+            frontend/coverage/lcov.info
+          retention-days: 7
+        if: always()
+
+      # SonarCloud Scan
+      - name: SonarCloud Scan
+        uses: SonarSource/sonarqube-scan-action@a31c9398be7ace6bbfaf30c0bd5d415f843d45e9 # v7.0.0
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}

@@ -3,15 +3,25 @@
 import React, { useState } from "react";
 import { Modal, ConfirmationModal } from "~/components/ui/modal";
 import type { Role } from "@/lib/auth-helpers";
+import {
+  getRoleDisplayName,
+  getRoleDisplayDescription,
+} from "@/lib/auth-helpers";
 
 interface Props {
-  isOpen: boolean;
-  onClose: () => void;
-  role: Role | null;
-  onEdit: () => void;
-  onDelete: () => void;
-  onManagePermissions?: () => void;
-  loading?: boolean;
+  readonly isOpen: boolean;
+  readonly onClose: () => void;
+  readonly role: Role | null;
+  readonly onEdit: () => void;
+  readonly onDelete: () => void;
+  readonly onManagePermissions?: () => void;
+  readonly loading?: boolean;
+  /**
+   * Custom click handler for delete button.
+   * When provided, bypasses internal confirmation modal.
+   * Use this to handle confirmation at the page level.
+   */
+  readonly onDeleteClick?: () => void;
 }
 
 export function RoleDetailModal({
@@ -22,10 +32,16 @@ export function RoleDetailModal({
   onDelete,
   onManagePermissions,
   loading = false,
+  onDeleteClick,
 }: Props) {
   const [confirmOpen, setConfirmOpen] = useState(false);
   if (!role) return null;
-  const initials = (role.name?.slice(0, 2) ?? "RO").toUpperCase();
+  const displayName = getRoleDisplayName(role.name);
+  const displayDescription = getRoleDisplayDescription(
+    role.name,
+    role.description,
+  );
+  const initials = (displayName?.slice(0, 2) ?? "RO").toUpperCase();
 
   return (
     <>
@@ -46,10 +62,10 @@ export function RoleDetailModal({
               </div>
               <div className="min-w-0">
                 <h2 className="truncate text-lg font-semibold text-gray-900 md:text-xl">
-                  {role.name}
+                  {displayName}
                 </h2>
                 <p className="truncate text-sm text-gray-500">
-                  {role.description || "Keine Beschreibung"}
+                  {displayDescription || "Keine Beschreibung"}
                 </p>
               </div>
             </div>
@@ -77,7 +93,7 @@ export function RoleDetailModal({
                   <div>
                     <dt className="text-xs text-gray-500">Name</dt>
                     <dd className="mt-0.5 text-sm font-medium break-words text-gray-900">
-                      {role.name}
+                      {displayName}
                     </dd>
                   </div>
                   <div>
@@ -89,7 +105,7 @@ export function RoleDetailModal({
                   <div className="sm:col-span-2">
                     <dt className="text-xs text-gray-500">Beschreibung</dt>
                     <dd className="mt-0.5 text-xs break-words whitespace-pre-wrap text-gray-700 md:text-sm">
-                      {role.description || "Keine Beschreibung"}
+                      {displayDescription || "Keine Beschreibung"}
                     </dd>
                   </div>
                 </dl>
@@ -124,7 +140,7 @@ export function RoleDetailModal({
               )}
               <button
                 type="button"
-                onClick={() => setConfirmOpen(true)}
+                onClick={onDeleteClick ?? (() => setConfirmOpen(true))}
                 className="min-w-0 flex-[1_1_0%] truncate rounded-lg border border-red-300 px-3 py-2 text-center text-xs font-medium whitespace-nowrap text-red-700 transition-all duration-200 hover:border-red-400 hover:bg-red-50 hover:shadow-md active:scale-100 md:flex-1 md:px-4 md:text-sm md:hover:scale-105"
               >
                 <span className="flex items-center justify-center gap-2">
@@ -171,25 +187,27 @@ export function RoleDetailModal({
         )}
       </Modal>
 
-      {/* Delete confirmation */}
-      <ConfirmationModal
-        isOpen={confirmOpen}
-        onClose={() => setConfirmOpen(false)}
-        onConfirm={() => {
-          setConfirmOpen(false);
-          onDelete();
-        }}
-        title="Rolle löschen?"
-        confirmText="Löschen"
-        cancelText="Abbrechen"
-        confirmButtonClass="bg-red-600 hover:bg-red-700"
-      >
-        <p className="text-sm text-gray-700">
-          Möchten Sie die Rolle{" "}
-          <span className="font-medium">{role?.name}</span> wirklich löschen?
-          Diese Aktion kann nicht rückgängig gemacht werden.
-        </p>
-      </ConfirmationModal>
+      {/* Delete confirmation - only render when using internal confirmation */}
+      {!onDeleteClick && (
+        <ConfirmationModal
+          isOpen={confirmOpen}
+          onClose={() => setConfirmOpen(false)}
+          onConfirm={() => {
+            setConfirmOpen(false);
+            onDelete();
+          }}
+          title="Rolle löschen?"
+          confirmText="Löschen"
+          cancelText="Abbrechen"
+          confirmButtonClass="bg-red-600 hover:bg-red-700"
+        >
+          <p className="text-sm text-gray-700">
+            Möchten Sie die Rolle{" "}
+            <span className="font-medium">{displayName}</span> wirklich löschen?
+            Diese Aktion kann nicht rückgängig gemacht werden.
+          </p>
+        </ConfirmationModal>
+      )}
     </>
   );
 }

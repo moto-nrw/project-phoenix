@@ -3,11 +3,11 @@
 import { Modal } from "~/components/ui/modal";
 
 interface GuardianDeleteModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onConfirm: () => void;
-  guardianName: string;
-  isLoading?: boolean;
+  readonly isOpen: boolean;
+  readonly onClose: () => void;
+  readonly onConfirm: () => void;
+  readonly guardianName: string;
+  readonly isLoading?: boolean;
 }
 
 export function GuardianDeleteModal({

@@ -20,6 +20,8 @@ export interface StudentLocationContext {
   location_since?: string | null;
   group_id?: string | null;
   group_name?: string | null;
+  sick?: boolean;
+  sick_since?: string | null;
 }
 
 export const LOCATION_STATUSES = {
@@ -28,6 +30,7 @@ export const LOCATION_STATUSES = {
   SCHOOLYARD: "Schulhof",
   TRANSIT: "Unterwegs",
   UNKNOWN: "Unbekannt",
+  SICK: "Krank",
 } as const;
 
 export const LOCATION_COLORS = {
@@ -37,6 +40,7 @@ export const LOCATION_COLORS = {
   SCHOOLYARD: "#F78C10",
   TRANSIT: "#D946EF",
   UNKNOWN: "#6B7280",
+  SICK: "#EAB308", // Amber - medical/sick status
 } as const;
 
 const LOCATION_SEPARATOR = "-";
@@ -155,7 +159,7 @@ function getColorForPresentWithRoom(
   }
 
   // Fallback to isGroupRoom prop if groupRooms not provided
-  if (isGroupRoom === true) {
+  if (isGroupRoom) {
     return LOCATION_COLORS.GROUP_ROOM; // Green - in their group's room
   }
 

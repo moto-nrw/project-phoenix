@@ -7,7 +7,7 @@ import { useSupervision } from "~/lib/supervision-context";
 import { useSmartRedirectPath } from "~/lib/redirect-utils";
 
 interface SmartRedirectProps {
-  onRedirect?: (path: string) => void;
+  readonly onRedirect?: (path: string) => void;
 }
 
 /**

@@ -19,8 +19,7 @@
     "test:ui": "vitest --ui",
     "test:run": "vitest run",
     "typecheck": "tsc --noEmit",
-    "knip": "knip",
-    "prepare": "husky"
+    "knip": "knip"
   },
   "dependencies": {
     "@fontsource/geist-sans": "^5.2.5",
@@ -33,24 +32,27 @@
     "next-auth": "^5.0.0-beta.30",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
+    "swr": "^2.3.8",
     "tailwind-merge": "^3.4.0",
     "vaul": "^1.1.2",
-    "zod": "^4.2.1"
+    "zod": "^4.3.5"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.3",
+    "@playwright/test": "^1.57.0",
     "@tailwindcss/postcss": "^4.1.18",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.1",
-    "@types/node": "^25.0.3",
-    "@types/react": "^19.2.7",
+    "@types/node": "^25.0.6",
+    "@types/react": "^19.2.8",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.1.2",
+    "@vitest/coverage-v8": "^4.0.17",
     "eslint": "^9.39.2",
     "eslint-config-next": "^15.2.3",
-    "happy-dom": "^20.0.11",
-    "husky": "^9.1.7",
-    "jsdom": "^27.4.0",
+    "happy-dom": "^20.1.0",
+        "jsdom": "^27.4.0",
+    "knip": "^5.80.2",
     "lint-staged": "^16.2.7",
     "postcss": "^8.5.3",
     "prettier": "^3.7.4",
@@ -58,15 +60,20 @@
     "sharp": "^0.34.5",
     "tailwindcss": "^4.0.15",
     "typescript": "^5.9.3",
-    "typescript-eslint": "^8.50.1",
-    "vitest": "^4.0.16",
-    "@vitest/coverage-v8": "^4.0.16",
-    "knip": "^5.78.0"
+    "typescript-eslint": "^8.53.0",
+    "vitest": "^4.0.17"
   },
   "ct3aMetadata": {
     "initVersion": "7.39.3"
   },
-  "packageManager": "npm@11.3.0",
+  "packageManager": "pnpm@10.28.1",
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "sharp",
+      "unrs-resolver"
+    ]
+  },
   "lint-staged": {
     "*.{ts,tsx,js,jsx,mdx}": [
       "prettier --write",
@@ -80,8 +87,10 @@
       "src/lib/utils.ts",
       "src/lib/image-utils.ts",
       "src/lib/database/configs/*.{ts,tsx}",
+      "src/lib/swr/index.ts",
       "src/server/auth/token-refresh.ts",
-      "src/**/*.test.{ts,tsx}"
+      "src/**/*.test.{ts,tsx}",
+      "src/test/mocks/*.ts"
     ],
     "project": [
       "src/**/*.{ts,tsx,js}"

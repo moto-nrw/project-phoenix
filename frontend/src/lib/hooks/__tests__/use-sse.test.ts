@@ -13,7 +13,10 @@ class MockEventSource {
   public CONNECTING = 0;
   public OPEN = 1;
   public CLOSED = 2;
-  private eventListeners = new Map<string, ((event: Event) => void)[]>();
+  private readonly eventListeners = new Map<
+    string,
+    ((event: Event) => void)[]
+  >();
 
   constructor(url: string) {
     this.url = url;
@@ -88,8 +91,7 @@ describe("useSSE Hook", () => {
   };
 
   // Helper: Get the latest EventSource instance
-  const getLatestEventSource = () =>
-    eventSourceInstances[eventSourceInstances.length - 1];
+  const getLatestEventSource = () => eventSourceInstances.at(-1);
   const requireLatestEventSource = () => {
     const instance = getLatestEventSource();
     if (!instance) {
@@ -102,15 +104,20 @@ describe("useSSE Hook", () => {
     eventSourceInstances = [];
 
     // Replace global EventSource with our mock
-    vi.stubGlobal(
-      "EventSource",
-      vi.fn((url: string) => {
-        const instance = new MockEventSource(url);
-        mockEventSource = instance;
-        eventSourceInstances.push(instance);
-        return instance;
-      }),
-    );
+    // IMPORTANT: Must use a class or function constructor, NOT an arrow function
+    // Arrow functions cannot be used with 'new' in Vitest 4.x
+    const setMockInstance = (instance: MockEventSource) => {
+      mockEventSource = instance;
+      eventSourceInstances.push(instance);
+    };
+
+    class EventSourceMock extends MockEventSource {
+      constructor(url: string) {
+        super(url);
+        setMockInstance(this);
+      }
+    }
+    vi.stubGlobal("EventSource", EventSourceMock);
 
     // Mock console methods to reduce test noise
     vi.spyOn(console, "log").mockImplementation(() => undefined);

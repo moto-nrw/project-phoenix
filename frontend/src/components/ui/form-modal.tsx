@@ -1,20 +1,22 @@
 "use client";
 
-import { useEffect, useCallback, useState } from "react";
+import { useEffect, useCallback, useState, useRef } from "react";
 import type { ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useModal } from "../dashboard/modal-context";
+import { useScrollLock } from "~/hooks/useScrollLock";
+import { dialogAriaProps } from "./modal-utils";
 
 interface FormModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  title: string;
-  children: ReactNode;
-  footer?: ReactNode;
-  size?: "sm" | "md" | "lg" | "xl";
+  readonly isOpen: boolean;
+  readonly onClose: () => void;
+  readonly title: string;
+  readonly children: ReactNode;
+  readonly footer?: ReactNode;
+  readonly size?: "sm" | "md" | "lg" | "xl";
   // Where to position the modal on mobile viewports
   // 'bottom' mimics a bottom sheet; 'center' behaves like a classic modal
-  mobilePosition?: "bottom" | "center";
+  readonly mobilePosition?: "bottom" | "center";
 }
 
 export function FormModal({
@@ -29,6 +31,15 @@ export function FormModal({
   const [isAnimating, setIsAnimating] = useState(false);
   const [isExiting, setIsExiting] = useState(false);
   const { openModal, closeModal } = useModal();
+
+  // Store functions in refs to avoid effect re-runs
+  const openModalRef = useRef(openModal);
+  const closeModalRef = useRef(closeModal);
+  openModalRef.current = openModal;
+  closeModalRef.current = closeModal;
+
+  // Use scroll lock hook (handles overflow:hidden and event blocking)
+  useScrollLock(isOpen);
 
   // Map size to max-width classes
   const sizeClasses = {
@@ -49,7 +60,17 @@ export function FormModal({
     }, 250);
   }, [onClose]);
 
-  // Close on escape key press
+  // Handle modal context state for blur overlay
+  useEffect(() => {
+    if (isOpen) {
+      openModalRef.current();
+      return () => {
+        closeModalRef.current();
+      };
+    }
+  }, [isOpen]);
+
+  // Close on escape key press and handle animations
   useEffect(() => {
     const handleEscKey = (event: KeyboardEvent) => {
       if (event.key === "Escape" && isOpen) {
@@ -59,36 +80,25 @@ export function FormModal({
 
     if (isOpen) {
       document.addEventListener("keydown", handleEscKey);
-      document.body.style.overflow = "hidden";
-      openModal();
-      window.dispatchEvent(new CustomEvent("mobile-modal-open"));
+      globalThis.dispatchEvent(new CustomEvent("mobile-modal-open"));
 
       setTimeout(() => {
         setIsAnimating(true);
       }, 10);
     } else {
-      closeModal();
-      window.dispatchEvent(new CustomEvent("mobile-modal-close"));
+      globalThis.dispatchEvent(new CustomEvent("mobile-modal-close"));
     }
 
     return () => {
       document.removeEventListener("keydown", handleEscKey);
-      document.body.style.overflow = "";
       if (!isOpen) {
         setIsAnimating(false);
         setIsExiting(false);
       }
     };
-  }, [isOpen, handleClose, openModal, closeModal]);
+  }, [isOpen, handleClose]);
 
   if (!isOpen) return null;
-
-  // Close when clicking on the backdrop
-  const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (e.target === e.currentTarget) {
-      handleClose();
-    }
-  };
 
   const radiusClass =
     mobilePosition === "bottom"
@@ -96,31 +106,32 @@ export function FormModal({
       : "rounded-2xl";
   const modalContent = (
     <div
-      className={`fixed inset-0 z-[9999] flex ${mobilePosition === "bottom" ? "items-end" : "items-center"} justify-center transition-all duration-400 ease-out md:items-center md:p-6 ${
-        isAnimating && !isExiting ? "bg-black/40" : "bg-black/0"
-      }`}
-      onClick={handleBackdropClick}
-      style={{
-        position: "fixed",
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        animation:
-          isAnimating && !isExiting
-            ? "backdropEnter 400ms ease-out"
-            : undefined,
-      }}
+      className={`fixed inset-0 z-[9999] flex ${mobilePosition === "bottom" ? "items-end" : "items-center"} justify-center md:items-center md:p-6`}
+      style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0 }}
     >
-      <div
-        className={`relative w-full ${sizeClasses[size]} ${mobilePosition === "bottom" ? "h-full" : "h-auto"} max-h-[90vh] md:h-auto md:max-h-[85vh] ${radiusClass} ${mobilePosition === "center" ? "mx-4" : ""} transform overflow-hidden border border-gray-200/50 shadow-2xl ${
-          isAnimating && !isExiting
-            ? "animate-modalEnter"
-            : isExiting
-              ? "animate-modalExit"
-              : "translate-y-8 scale-75 -rotate-1 opacity-0"
+      {/* Backdrop button - native button for accessibility (keyboard + click support) */}
+      <button
+        type="button"
+        onClick={handleClose}
+        aria-label="Hintergrund - Klicken zum Schließen"
+        className={`absolute inset-0 cursor-default border-none bg-transparent p-0 transition-all duration-400 ease-out ${
+          isAnimating && !isExiting ? "bg-black/40" : "bg-black/0"
         }`}
-        onClick={(e) => e.stopPropagation()}
+        style={{
+          animation:
+            isAnimating && !isExiting
+              ? "backdropEnter 400ms ease-out"
+              : undefined,
+        }}
+      />
+      {/* Dialog container */}
+      <div
+        className={`relative w-full ${sizeClasses[size]} max-h-[90vh] md:max-h-[85vh] ${radiusClass} ${mobilePosition === "center" ? "mx-4" : ""} transform overflow-hidden border border-gray-200/50 shadow-2xl ${(() => {
+          if (isAnimating && !isExiting) return "animate-modalEnter";
+          if (isExiting) return "animate-modalExit";
+          return "translate-y-8 scale-75 -rotate-1 opacity-0";
+        })()}`}
+        {...dialogAriaProps}
         style={{
           background:
             "linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(248,250,252,0.98) 100%)",
@@ -169,6 +180,7 @@ export function FormModal({
 
         {/* Content area with custom scrollbar and reveal animation */}
         <div
+          data-modal-content="true"
           className={`${footer ? "max-h-[calc(90vh-240px)] md:max-h-[calc(85vh-240px)]" : "max-h-[60vh] md:max-h-[70vh]"} scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100 overflow-y-auto`}
         >
           <div

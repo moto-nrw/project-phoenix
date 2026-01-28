@@ -50,7 +50,7 @@ async function extractParams(
   if (!safeParams.id) {
     const potentialIds = pathParts.filter((part) => /^\d+$/.test(part));
     if (potentialIds.length > 0) {
-      safeParams.id = potentialIds[potentialIds.length - 1];
+      safeParams.id = potentialIds.at(-1);
     }
   }
 
@@ -107,7 +107,6 @@ async function tryRetryWithRefreshedToken<T>(
     return null;
   }
 
-  console.log("Token was refreshed, retrying request with new token");
   return retryFn(updatedSession.user.token);
 }
 
@@ -241,6 +240,7 @@ function createNoBodyHandler<T>(
   ): RouteHandlerResponse<T> => {
     try {
       const session = await auth();
+
       if (!session?.user?.token) {
         return createUnauthorizedResponse();
       }
@@ -249,8 +249,10 @@ function createNoBodyHandler<T>(
       const executeHandler = (token: string) =>
         handler(request, token, safeParams);
 
-      return await executeWithRetry(session.user.token, executeHandler, (data) =>
-        formatResponse(data, request),
+      return await executeWithRetry(
+        session.user.token,
+        executeHandler,
+        (data) => formatResponse(data, request),
       );
     } catch (error) {
       return handleApiError(error);
@@ -280,8 +282,10 @@ function createWithBodyHandler<T, B>(
       const executeHandler = (token: string) =>
         handler(request, body, token, safeParams);
 
-      return await executeWithRetry(session.user.token, executeHandler, (data) =>
-        formatResponse(data, request),
+      return await executeWithRetry(
+        session.user.token,
+        executeHandler,
+        (data) => formatResponse(data, request),
       );
     } catch (error) {
       return handleApiError(error);
@@ -358,6 +362,10 @@ export function createGetHandler<T>(handler: NoBodyHandler<T>) {
   );
 }
 
+// Shared formatter for POST/PUT handlers that return JSON with API response wrapper
+const formatBodyHandlerResponse = <T>(data: T) =>
+  NextResponse.json(wrapInApiResponse(data));
+
 /**
  * Wrapper function for handling POST API routes
  * @param handler Function that handles the API request
@@ -366,22 +374,19 @@ export function createGetHandler<T>(handler: NoBodyHandler<T>) {
 export function createPostHandler<T, B = unknown>(
   handler: WithBodyHandler<T, B>,
 ) {
-  return createWithBodyHandler(handler, (data) =>
-    NextResponse.json(wrapInApiResponse(data)),
-  );
+  return createWithBodyHandler(handler, formatBodyHandlerResponse);
 }
 
 /**
  * Wrapper function for handling PUT API routes
+ * Uses the same response format as POST handlers (both modify resources)
  * @param handler Function that handles the API request
  * @returns Response from the handler or error response
  */
 export function createPutHandler<T, B = unknown>(
   handler: WithBodyHandler<T, B>,
 ) {
-  return createWithBodyHandler(handler, (data) =>
-    NextResponse.json(wrapInApiResponse(data)),
-  );
+  return createWithBodyHandler(handler, formatBodyHandlerResponse);
 }
 
 /**

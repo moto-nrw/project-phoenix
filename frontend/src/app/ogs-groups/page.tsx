@@ -14,7 +14,6 @@ import { ResponsiveLayout } from "~/components/dashboard";
 import { Alert } from "~/components/ui/alert";
 import { PageHeaderWithSearch } from "~/components/ui/page-header";
 import type { FilterConfig, ActiveFilter } from "~/components/ui/page-header";
-import { userContextService } from "~/lib/usercontext-api";
 import { studentService } from "~/lib/api";
 import type { Student } from "~/lib/api";
 import {
@@ -25,18 +24,24 @@ import {
   parseLocation,
 } from "~/lib/location-helper";
 import { SCHOOL_YEAR_FILTER_OPTIONS } from "~/lib/student-helpers";
-import { useSSE } from "~/lib/hooks/use-sse";
 import { SSEErrorBoundary } from "~/components/sse/SSEErrorBoundary";
-import type { SSEEvent } from "~/lib/sse-types";
 import { GroupTransferModal } from "~/components/groups/group-transfer-modal";
 import { groupTransferService } from "~/lib/group-transfer-api";
 import type { StaffWithRole, GroupTransfer } from "~/lib/group-transfer-api";
 import { useToast } from "~/contexts/ToastContext";
+import { useSWRAuth } from "~/lib/swr";
 
 import { Loading } from "~/components/ui/loading";
 import { LocationBadge } from "@/components/ui/location-badge";
 import { EmptyStudentResults } from "~/components/ui/empty-student-results";
-import { StudentCard } from "~/components/students/student-card";
+import {
+  StudentCard,
+  StudentInfoRow,
+  PickupTimeIcon,
+  ExceptionIcon,
+} from "~/components/students/student-card";
+import { fetchBulkPickupTimes } from "~/lib/pickup-schedule-api";
+import type { BulkPickupTime } from "~/lib/pickup-schedule-api";
 
 // Define OGSGroup type based on EducationalGroup with additional fields
 interface OGSGroup {
@@ -48,6 +53,44 @@ interface OGSGroup {
   supervisor_name?: string;
   students?: Student[];
   viaSubstitution?: boolean; // True if this group was assigned via temporary transfer
+}
+
+// BFF response type for dashboard data
+interface OGSDashboardBFFResponse {
+  groups: Array<{
+    id: number;
+    name: string;
+    room_id?: number;
+    room?: { id: number; name: string };
+    via_substitution?: boolean;
+  }>;
+  students: Student[];
+  roomStatus: {
+    group_has_room: boolean;
+    group_room_id?: number;
+    student_room_status: Record<
+      string,
+      {
+        in_group_room: boolean;
+        current_room_id?: number;
+        first_name?: string;
+        last_name?: string;
+        reason?: string;
+      }
+    >;
+  } | null;
+  substitutions: Array<{
+    id: number;
+    group_id: number;
+    regular_staff_id: number | null;
+    substitute_staff_id: number;
+    substitute_staff?: {
+      person?: { first_name: string; last_name: string };
+    };
+    start_date: string;
+    end_date: string;
+  }>;
+  firstGroupId: string | null;
 }
 
 function isStudentInGroupRoom(
@@ -73,6 +116,72 @@ function isStudentInGroupRoom(
   }
 
   return false;
+}
+
+// Helper functions for student filtering
+
+function matchesSearchFilter(student: Student, searchTerm: string): boolean {
+  if (!searchTerm) return true;
+
+  const searchLower = searchTerm.toLowerCase();
+  return (
+    (student.name?.toLowerCase().includes(searchLower) ?? false) ||
+    (student.first_name?.toLowerCase().includes(searchLower) ?? false) ||
+    (student.second_name?.toLowerCase().includes(searchLower) ?? false) ||
+    (student.school_class?.toLowerCase().includes(searchLower) ?? false)
+  );
+}
+
+function matchesYearFilter(student: Student, selectedYear: string): boolean {
+  if (selectedYear === "all") return true;
+
+  const studentYear = extractStudentYear(student.school_class);
+  return studentYear === selectedYear;
+}
+
+function extractStudentYear(schoolClass?: string): string | null {
+  if (!schoolClass) return null;
+
+  const yearMatch = /^(\d)/.exec(schoolClass);
+  return yearMatch?.[1] ?? null;
+}
+
+function matchesAttendanceFilter(
+  student: Student,
+  attendanceFilter: string,
+  roomStatus: Record<
+    string,
+    { in_group_room?: boolean; current_room_id?: number }
+  >,
+): boolean {
+  if (attendanceFilter === "all") return true;
+
+  const studentRoomStatus = roomStatus[student.id.toString()];
+
+  switch (attendanceFilter) {
+    case "in_room":
+      return studentRoomStatus?.in_group_room ?? false;
+    case "foreign_room":
+      return matchesForeignRoomFilter(studentRoomStatus);
+    case "transit":
+      return isTransitLocation(student.current_location);
+    case "schoolyard":
+      return isSchoolyardLocation(student.current_location);
+    case "at_home":
+      return isHomeLocation(student.current_location);
+    default:
+      return true;
+  }
+}
+
+function matchesForeignRoomFilter(studentRoomStatus?: {
+  in_group_room?: boolean;
+  current_room_id?: number;
+}): boolean {
+  return (
+    !!studentRoomStatus?.current_room_id &&
+    studentRoomStatus.in_group_room === false
+  );
 }
 
 function OGSGroupPageContent() {
@@ -111,21 +220,248 @@ function OGSGroupPageContent() {
     >
   >({});
 
-  // State for showing group selection (for 5+ groups)
-  const [showGroupSelection, setShowGroupSelection] = useState(true);
-
   // State for mobile detection
   const [isMobile, setIsMobile] = useState(false);
+
+  // State for pickup times (bulk fetched for all students)
+  const [pickupTimes, setPickupTimes] = useState<Map<string, BulkPickupTime>>(
+    new Map(),
+  );
 
   // State for group transfer modal
   const [showTransferModal, setShowTransferModal] = useState(false);
   const [availableUsers, setAvailableUsers] = useState<StaffWithRole[]>([]);
   const [activeTransfers, setActiveTransfers] = useState<GroupTransfer[]>([]);
 
+  // SWR-based dashboard data fetching with caching
+  // Cache key "ogs-dashboard" will be invalidated by global SSE on relevant events
+  const {
+    data: dashboardData,
+    isLoading: isDashboardLoading,
+    error: dashboardError,
+  } = useSWRAuth<OGSDashboardBFFResponse>(
+    session?.user?.token ? "ogs-dashboard" : null,
+    async () => {
+      console.log("⏱️ [OGS-GROUPS] SWR fetching dashboard via BFF...");
+      const start = performance.now();
+
+      const response = await fetch("/api/ogs-dashboard", {
+        credentials: "include",
+        headers: {
+          Authorization: `Bearer ${session?.user?.token}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`API error: ${response.status}`);
+      }
+
+      const json = (await response.json()) as {
+        success: boolean;
+        data: OGSDashboardBFFResponse;
+      };
+
+      console.log(
+        `⏱️ [OGS-GROUPS] SWR fetch complete: ${(performance.now() - start).toFixed(0)}ms`,
+      );
+      return json.data;
+    },
+    {
+      keepPreviousData: true, // Show cached data while revalidating
+      revalidateOnFocus: false, // Handled by global SSE
+    },
+  );
+
+  // Sync SWR dashboard data with local state
+  useEffect(() => {
+    if (!dashboardData) return;
+
+    const {
+      groups,
+      students: studentsData,
+      roomStatus: rs,
+      substitutions,
+    } = dashboardData;
+
+    if (groups.length === 0) {
+      setHasAccess(false);
+      setIsLoading(false);
+      return;
+    }
+
+    setHasAccess(true);
+
+    // Convert groups to OGSGroup format
+    const ogsGroups: OGSGroup[] = groups.map((group) => ({
+      id: group.id.toString(),
+      name: group.name,
+      room_name: group.room?.name,
+      room_id: group.room_id?.toString(),
+      student_count: undefined,
+      supervisor_name: undefined,
+      viaSubstitution: group.via_substitution,
+    }));
+
+    // Update student count on first group (metadata only)
+    if (ogsGroups[0]) {
+      ogsGroups[0].student_count = studentsData.length;
+    }
+
+    setAllGroups(ogsGroups);
+
+    // IMPORTANT: Only apply first group's students/roomStatus when first group is selected.
+    // When SSE triggers revalidation while user views another group, we must NOT
+    // overwrite their current view with the first group's data.
+    if (selectedGroupIndex === 0) {
+      setStudents(studentsData);
+
+      if (rs?.student_room_status) {
+        setRoomStatus(rs.student_room_status);
+      }
+    }
+
+    // Convert substitutions to GroupTransfer format
+    const transfers = substitutions
+      .filter((sub) => !sub.regular_staff_id)
+      .map((transfer) => {
+        const targetName = transfer.substitute_staff?.person
+          ? `${transfer.substitute_staff.person.first_name} ${transfer.substitute_staff.person.last_name}`
+          : "Unbekannt";
+        return {
+          substitutionId: transfer.id.toString(),
+          groupId: transfer.group_id.toString(),
+          targetStaffId: transfer.substitute_staff_id.toString(),
+          targetName,
+          validUntil: transfer.end_date,
+        };
+      });
+    setActiveTransfers(transfers);
+    setError(null);
+    setIsLoading(false);
+  }, [dashboardData, selectedGroupIndex]);
+
+  // Handle dashboard error
+  useEffect(() => {
+    if (dashboardError) {
+      if (dashboardError.message.includes("403")) {
+        setError(
+          "Sie haben keine Berechtigung für den Zugriff auf OGS-Gruppendaten.",
+        );
+        setHasAccess(false);
+      } else {
+        setError("Fehler beim Laden der OGS-Gruppendaten.");
+      }
+      setIsLoading(false);
+    }
+  }, [dashboardError]);
+
+  // Derive loading state from SWR
+  useEffect(() => {
+    if (isDashboardLoading && !dashboardData) {
+      setIsLoading(true);
+    }
+  }, [isDashboardLoading, dashboardData]);
+
   // Get current selected group
   const currentGroup = allGroups[selectedGroupIndex] ?? null;
+  const currentGroupId = currentGroup?.id;
 
-  // Ref to track current group without triggering SSE reconnections
+  // SWR-based student data subscription for real-time updates.
+  // When global SSE invalidates "student*" caches, this triggers a refetch.
+  // Only fetches when hasAccess is confirmed and we have a group ID.
+  // Includes room status to ensure filters (in_room, foreign_room) stay accurate.
+  const { data: swrStudentsData } = useSWRAuth<{
+    students: Student[];
+    roomStatus?: Record<
+      string,
+      {
+        in_group_room: boolean;
+        current_room_id?: number;
+        first_name?: string;
+        last_name?: string;
+        reason?: string;
+      }
+    >;
+  }>(
+    hasAccess && currentGroupId ? `ogs-students-${currentGroupId}` : null,
+    async () => {
+      // Fetch both students and room status in parallel for accurate filtering
+      const [studentsResponse, roomStatusResponse] = await Promise.all([
+        studentService.getStudents({
+          groupId: currentGroupId!,
+          token: session?.user?.token,
+        }),
+        // Fetch room status inline (don't use callback that sets state)
+        fetch(`/api/groups/${currentGroupId}/students/room-status`, {
+          headers: {
+            Authorization: `Bearer ${session?.user?.token}`,
+            "Content-Type": "application/json",
+          },
+        })
+          .then(async (res) => {
+            if (!res.ok) return null;
+            const data = (await res.json()) as {
+              data?: {
+                student_room_status?: Record<
+                  string,
+                  {
+                    in_group_room: boolean;
+                    current_room_id?: number;
+                    first_name?: string;
+                    last_name?: string;
+                    reason?: string;
+                  }
+                >;
+              };
+            };
+            return data.data?.student_room_status ?? null;
+          })
+          .catch(() => null),
+      ]);
+
+      return {
+        students: studentsResponse.students || [],
+        roomStatus: roomStatusResponse ?? undefined,
+      };
+    },
+    {
+      keepPreviousData: true, // Prevent loading flash during refetch
+      revalidateOnFocus: false, // Handled by global SSE
+    },
+  );
+
+  // Sync SWR student data with local state
+  // Also syncs room status to keep filters (in_room, foreign_room) accurate
+  useEffect(() => {
+    if (swrStudentsData?.students) {
+      setStudents(swrStudentsData.students);
+    }
+    if (swrStudentsData?.roomStatus) {
+      setRoomStatus(swrStudentsData.roomStatus);
+    }
+  }, [swrStudentsData]);
+
+  // Fetch pickup times for all students (bulk query - O(2) database queries)
+  useEffect(() => {
+    if (students.length === 0) {
+      setPickupTimes(new Map());
+      return;
+    }
+
+    const studentIds = students.map((s) => s.id.toString());
+
+    fetchBulkPickupTimes(studentIds)
+      .then((times) => {
+        setPickupTimes(times);
+      })
+      .catch((err) => {
+        console.error("Failed to fetch pickup times:", err);
+        setPickupTimes(new Map());
+      });
+  }, [students]);
+
+  // Ref to track current group without triggering unnecessary re-renders
   const currentGroupRef = useRef<OGSGroup | null>(null);
   useEffect(() => {
     currentGroupRef.current = currentGroup;
@@ -138,10 +474,23 @@ function OGSGroupPageContent() {
   }, [session?.user?.token]);
 
   // Load available users for transfer dropdown
+  // Query both "teacher" and "staff" roles, as existing deployments may have
+  // staff accounts with different role assignments
   const loadAvailableUsers = useCallback(async () => {
     try {
-      const users = await groupTransferService.getStaffByRole("user");
-      setAvailableUsers(users);
+      // Fetch both teacher and staff roles in parallel
+      const [teachers, staffMembers] = await Promise.all([
+        groupTransferService.getStaffByRole("teacher").catch(() => []),
+        groupTransferService.getStaffByRole("staff").catch(() => []),
+      ]);
+      // Merge and deduplicate by staff ID
+      const uniqueUsers = new Map<string, (typeof teachers)[0]>();
+      for (const user of [...teachers, ...staffMembers]) {
+        if (!uniqueUsers.has(user.id)) {
+          uniqueUsers.set(user.id, user);
+        }
+      }
+      setAvailableUsers(Array.from(uniqueUsers.values()));
     } catch (error) {
       console.error("Error loading available users:", error);
       setAvailableUsers([]);
@@ -149,27 +498,37 @@ function OGSGroupPageContent() {
   }, []);
 
   // Check if current group has active transfers
-  const checkActiveTransfers = useCallback(async (groupId: string) => {
-    try {
-      const transfers =
-        await groupTransferService.getActiveTransfersForGroup(groupId);
-      setActiveTransfers(transfers);
-    } catch (error) {
-      console.error("Error checking active transfers:", error);
-      setActiveTransfers([]);
-    }
-  }, []);
+  // Pass token to skip redundant getSession() call (saves ~600ms)
+  const checkActiveTransfers = useCallback(
+    async (groupId: string, token?: string) => {
+      try {
+        const transfers = await groupTransferService.getActiveTransfersForGroup(
+          groupId,
+          token,
+        );
+        setActiveTransfers(transfers);
+      } catch (error) {
+        console.error("Error checking active transfers:", error);
+        setActiveTransfers([]);
+      }
+    },
+    [],
+  );
 
   // Load users when modal opens
-  // IMPORTANT: Use currentGroup?.id as dependency, not currentGroup object
+  // IMPORTANT: Use currentGroupId as dependency, not currentGroup object
   // Otherwise setAllGroups() creates new object references and triggers this effect again
-  const currentGroupId = currentGroup?.id;
   useEffect(() => {
     if (showTransferModal && currentGroupId) {
       loadAvailableUsers().catch(console.error);
       checkActiveTransfers(currentGroupId).catch(console.error);
     }
-  }, [showTransferModal, currentGroupId, loadAvailableUsers, checkActiveTransfers]);
+  }, [
+    showTransferModal,
+    currentGroupId,
+    loadAvailableUsers,
+    checkActiveTransfers,
+  ]);
 
   // Handle group transfer
   const handleTransferGroup = async (
@@ -270,43 +629,9 @@ function OGSGroupPageContent() {
     [], // No dependencies - function is stable
   );
 
-  // SSE event handler - refetch students + room status when students check in/out
-  const handleSSEEvent = useCallback(
-    (event: SSEEvent) => {
-      const group = currentGroupRef.current;
-      if (!group) return;
-
-      const isStudentLocationEvent =
-        event.type === "student_checkin" || event.type === "student_checkout";
-
-      if (!isStudentLocationEvent) return;
-
-      // Handle async operations without returning promise
-      void (async () => {
-        try {
-          const studentsPromise = studentService.getStudents({
-            groupId: group.id,
-          });
-
-          const [studentsResponse] = await Promise.all([
-            studentsPromise,
-            loadGroupRoomStatus(group.id),
-          ]);
-
-          setStudents(studentsResponse.students || []);
-        } catch (error) {
-          console.error("Error refetching after SSE:", error);
-        }
-      })();
-    },
-    [loadGroupRoomStatus],
-  );
-
-  // Connect to SSE for real-time updates
-  // Backend enforces staff-only access via person/staff record check
-  useSSE("/api/sse/events", {
-    onMessage: handleSSEEvent,
-  });
+  // SSE is handled globally by AuthWrapper - no page-level setup needed.
+  // When student_checkin/checkout events occur, global SSE invalidates "student*" caches,
+  // which triggers SWR refetch for ogs-students-* keys automatically.
 
   // Handle mobile detection
   useEffect(() => {
@@ -317,89 +642,6 @@ function OGSGroupPageContent() {
     window.addEventListener("resize", checkMobile);
     return () => window.removeEventListener("resize", checkMobile);
   }, []);
-
-  // Check access and fetch OGS group data
-  useEffect(() => {
-    const checkAccessAndFetchData = async () => {
-      try {
-        setIsLoading(true);
-
-        // First check if user has any educational groups (OGS groups)
-        const myGroups = await userContextService.getMyEducationalGroups();
-
-        if (myGroups.length === 0) {
-          // User has no OGS groups - show empty state instead of redirecting
-          setHasAccess(false);
-          setIsLoading(false);
-          return;
-        }
-
-        setHasAccess(true);
-
-        // Convert all groups to OGSGroup format (no pre-loading)
-        const ogsGroups: OGSGroup[] = myGroups.map((group) => ({
-          id: group.id,
-          name: group.name,
-          room_name: group.room?.name,
-          room_id: group.room_id,
-          student_count: undefined, // Will be loaded on-demand
-          supervisor_name: undefined,
-          viaSubstitution: group.viaSubstitution,
-        }));
-
-        setAllGroups(ogsGroups);
-
-        // Use the first group by default
-        const firstGroup = ogsGroups[0];
-
-        if (!firstGroup) {
-          throw new Error("No educational group found");
-        }
-
-        // Fetch students for the first group only
-        const studentsResponse = await studentService.getStudents({
-          groupId: firstGroup.id,
-        });
-        const studentsData = studentsResponse.students || [];
-
-        setStudents(studentsData);
-
-        // Update first group with actual student count
-        setAllGroups((prev) =>
-          prev.map((group, idx) =>
-            idx === 0
-              ? { ...group, student_count: studentsData.length }
-              : group,
-          ),
-        );
-
-        // Fetch room status for all students in the group
-        await loadGroupRoomStatus(firstGroup.id);
-
-        // Load active transfers for the first group (to show badge indicator)
-        await checkActiveTransfers(firstGroup.id);
-
-        setError(null);
-      } catch (err) {
-        if (err instanceof Error && err.message.includes("403")) {
-          setError(
-            "Sie haben keine Berechtigung für den Zugriff auf OGS-Gruppendaten.",
-          );
-          setHasAccess(false);
-        } else {
-          setError("Fehler beim Laden der OGS-Gruppendaten.");
-        }
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    if (session?.user?.token) {
-      void checkAccessAndFetchData();
-    }
-    // loadGroupRoomStatus is stable (empty deps array), so no need to include it
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session?.user?.token, router]);
 
   // Function to switch between groups
   const switchToGroup = async (groupIndex: number) => {
@@ -414,8 +656,10 @@ function OGSGroupPageContent() {
       const selectedGroup = allGroups[groupIndex];
 
       // Fetch students for the selected group
+      // Pass token to skip redundant getSession() call (~600ms savings)
       const studentsResponse = await studentService.getStudents({
         groupId: selectedGroup.id,
+        token: session?.user?.token,
       });
       const studentsData = studentsResponse.students || [];
 
@@ -430,11 +674,12 @@ function OGSGroupPageContent() {
         ),
       );
 
-      // Fetch room status for the selected group
-      await loadGroupRoomStatus(selectedGroup.id);
-
-      // Load active transfers for the selected group (to show badge indicator)
-      await checkActiveTransfers(selectedGroup.id);
+      // Fetch room status and active transfers in parallel
+      // Pass token to skip redundant getSession() call
+      await Promise.all([
+        loadGroupRoomStatus(selectedGroup.id),
+        checkActiveTransfers(selectedGroup.id, session?.user?.token),
+      ]);
 
       setError(null);
     } catch {
@@ -446,59 +691,10 @@ function OGSGroupPageContent() {
 
   // Apply filters to students (ensure students is an array)
   const filteredStudents = (Array.isArray(students) ? students : []).filter(
-    (student) => {
-      // Apply search filter - search in multiple fields
-      if (searchTerm) {
-        const searchLower = searchTerm.toLowerCase();
-        const matchesSearch =
-          (student.name?.toLowerCase().includes(searchLower) ?? false) ||
-          (student.first_name?.toLowerCase().includes(searchLower) ?? false) ||
-          (student.second_name?.toLowerCase().includes(searchLower) ?? false) ||
-          (student.school_class?.toLowerCase().includes(searchLower) ?? false);
-
-        if (!matchesSearch) return false;
-      }
-
-      // Apply year filter
-      if (selectedYear !== "all") {
-        const yearMatch = /^(\d)/.exec(student.school_class ?? "");
-        const studentYear = yearMatch ? yearMatch[1] : null;
-        if (studentYear !== selectedYear) {
-          return false;
-        }
-      }
-
-      // Apply attendance filter
-      if (attendanceFilter !== "all") {
-        const studentRoomStatus = roomStatus[student.id.toString()];
-
-        switch (attendanceFilter) {
-          case "in_room":
-            if (!studentRoomStatus?.in_group_room) return false;
-            break;
-          case "foreign_room":
-            // Student is in a room but NOT their group room
-            // They have a current_room_id but in_group_room is false
-            if (
-              !studentRoomStatus?.current_room_id ||
-              studentRoomStatus?.in_group_room !== false
-            )
-              return false;
-            break;
-          case "transit":
-            if (!isTransitLocation(student.current_location)) return false;
-            break;
-          case "schoolyard":
-            if (!isSchoolyardLocation(student.current_location)) return false;
-            break;
-          case "at_home":
-            if (!isHomeLocation(student.current_location)) return false;
-            break;
-        }
-      }
-
-      return true;
-    },
+    (student) =>
+      matchesSearchFilter(student, searchTerm) &&
+      matchesYearFilter(student, selectedYear) &&
+      matchesAttendanceFilter(student, attendanceFilter, roomStatus),
   );
 
   const getCardGradient = useCallback(
@@ -629,7 +825,7 @@ function OGSGroupPageContent() {
   }
 
   // If user doesn't have access, show empty state
-  if (hasAccess === false) {
+  if (!hasAccess) {
     return (
       <ResponsiveLayout pageTitle="Meine Gruppe">
         <div className="-mt-1.5 w-full">
@@ -666,79 +862,217 @@ function OGSGroupPageContent() {
     );
   }
 
-  // TODO: Remove group selection screen entirely - threshold raised to effectively disable
-  // Show group selection screen for 99+ groups (effectively disabled)
-  if (allGroups.length >= 99 && showGroupSelection) {
-    return (
-      <ResponsiveLayout>
-        <div className="mx-auto w-full max-w-6xl px-4">
-          <div className="mb-8">
-            <h1 className="mb-2 text-3xl font-bold text-gray-900 md:text-4xl">
-              Wählen Sie Ihre Gruppe
-            </h1>
-            <p className="text-lg text-gray-600">
-              Sie haben Zugriff auf {allGroups.length} Gruppen
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {allGroups.map((group, index) => (
-              <button
-                key={group.id}
-                onClick={async () => {
-                  await switchToGroup(index);
-                  setShowGroupSelection(false);
-                }}
-                className="group rounded-2xl border-2 border-gray-200 bg-white p-6 text-left transition-all duration-200 hover:border-[#5080D8] hover:shadow-lg active:scale-95"
-              >
-                {/* Group Icon */}
-                <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-xl bg-gradient-to-br from-[#5080D8] to-[#83CD2D] transition-transform duration-200 group-hover:scale-110">
-                  <span className="text-2xl font-bold text-white">
-                    {group.name.charAt(0)}
-                  </span>
-                </div>
-
-                {/* Group Name */}
-                <h3 className="mb-2 text-xl font-bold text-gray-900 group-hover:text-[#5080D8]">
-                  {group.name}
-                </h3>
-
-                {/* Student Count */}
-                <div className="flex items-center gap-2 text-gray-600">
-                  <svg
-                    className="h-5 w-5"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"
-                    />
-                  </svg>
-                  <span className="font-medium">
-                    {group.student_count ?? "..."} Schüler
-                  </span>
-                </div>
-
-                {/* Room Info if available */}
-                {group.room_name && (
-                  <div className="mt-2 text-sm text-gray-500">
-                    Raum: {group.room_name}
-                  </div>
-                )}
-              </button>
-            ))}
-          </div>
-        </div>
-      </ResponsiveLayout>
-    );
-  }
-
   // Compute page title for header - used as fallback when no group selected
   const headerPageTitle = "Meine Gruppe";
+
+  // Render helper for desktop action button
+  const renderDesktopActionButton = () => {
+    if (isMobile || !currentGroup) return undefined;
+    if (currentGroup.viaSubstitution) {
+      return (
+        <div className="flex h-10 items-center gap-2 rounded-full border border-orange-200 bg-orange-50 px-4">
+          <svg
+            className="h-5 w-5 text-orange-600"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2.5}
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
+            />
+          </svg>
+          <span className="text-sm font-medium text-orange-900">
+            In Vertretung
+          </span>
+        </div>
+      );
+    }
+    return (
+      <button
+        onClick={() => setShowTransferModal(true)}
+        className="group relative flex h-10 items-center gap-2 rounded-full bg-gradient-to-br from-[#83CD2D] to-[#70b525] px-4 text-white shadow-lg transition-all duration-300 hover:scale-105 hover:shadow-xl active:scale-95"
+        aria-label="Gruppe übergeben"
+      >
+        <div className="pointer-events-none absolute inset-[2px] rounded-full bg-gradient-to-br from-white/20 to-white/0 opacity-0 transition-opacity duration-300 group-hover:opacity-100"></div>
+        <svg
+          className="relative h-5 w-5 transition-transform duration-300"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          strokeWidth={2.5}
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
+          />
+        </svg>
+        <span className="relative text-sm font-semibold">
+          {activeTransfers.length > 0
+            ? `Gruppe übergeben (${activeTransfers.length})`
+            : "Gruppe übergeben"}
+        </span>
+      </button>
+    );
+  };
+
+  // Render helper for mobile action button
+  const renderMobileActionButton = () => {
+    if (!isMobile || !currentGroup) return undefined;
+    if (currentGroup.viaSubstitution) {
+      return (
+        <div
+          className="flex h-8 w-8 items-center justify-center rounded-full border border-orange-200 bg-orange-50"
+          title="In Vertretung"
+        >
+          <svg
+            className="h-4 w-4 text-orange-600"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2.5}
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
+            />
+          </svg>
+        </div>
+      );
+    }
+    return (
+      <button
+        onClick={() => setShowTransferModal(true)}
+        className="relative flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-[#83CD2D] to-[#70b525] text-white shadow-md transition-all duration-200 active:scale-90"
+        aria-label="Gruppe übergeben"
+      >
+        <svg
+          className="h-4 w-4"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          strokeWidth={2.5}
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
+          />
+        </svg>
+        {activeTransfers.length > 0 && (
+          <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-white text-[10px] font-bold text-[#70b525] shadow-sm">
+            {activeTransfers.length}
+          </span>
+        )}
+      </button>
+    );
+  };
+
+  // Render helper for student grid content
+  const renderStudentContent = () => {
+    if (isLoading) {
+      return <Loading fullPage={false} />;
+    }
+    if (students.length === 0) {
+      return (
+        <div className="mt-8 flex min-h-[30vh] items-center justify-center">
+          <div className="flex max-w-md flex-col items-center gap-4 text-center">
+            <svg
+              className="h-12 w-12 text-gray-400"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"
+              />
+            </svg>
+            <div className="space-y-1">
+              <h3 className="text-lg font-medium text-gray-900">
+                Keine Schüler in {currentGroup?.name ?? "dieser Gruppe"}
+              </h3>
+              <p className="text-sm text-gray-500">
+                Es wurden noch keine Schüler zu dieser OGS-Gruppe hinzugefügt.
+              </p>
+              {allGroups.length > 1 && (
+                <p className="mt-1 text-sm text-gray-500">
+                  Versuchen Sie eine andere Gruppe auszuwählen.
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      );
+    }
+    if (filteredStudents.length > 0) {
+      return (
+        <div>
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3">
+            {filteredStudents.map((student) => {
+              const inGroupRoom = isStudentInGroupRoom(student, currentGroup);
+              const cardGradient = getCardGradient(student);
+              const studentPickup = pickupTimes.get(student.id.toString());
+
+              return (
+                <StudentCard
+                  key={student.id}
+                  studentId={student.id}
+                  firstName={student.first_name}
+                  lastName={student.second_name}
+                  gradient={cardGradient}
+                  onClick={() =>
+                    router.push(`/students/${student.id}?from=/ogs-groups`)
+                  }
+                  locationBadge={
+                    <LocationBadge
+                      student={student}
+                      displayMode="roomName"
+                      isGroupRoom={inGroupRoom}
+                      variant="modern"
+                      size="md"
+                    />
+                  }
+                  extraContent={
+                    studentPickup?.pickupTime ? (
+                      <StudentInfoRow
+                        icon={
+                          studentPickup.isException ? (
+                            <ExceptionIcon />
+                          ) : (
+                            <PickupTimeIcon />
+                          )
+                        }
+                      >
+                        Abholung: {studentPickup.pickupTime} Uhr
+                        {studentPickup.isException && studentPickup.reason && (
+                          <span className="ml-1 text-orange-500">
+                            ({studentPickup.reason})
+                          </span>
+                        )}
+                      </StudentInfoRow>
+                    ) : null
+                  }
+                />
+              );
+            })}
+          </div>
+        </div>
+      );
+    }
+    return (
+      <EmptyStudentResults
+        totalCount={students.length}
+        filteredCount={filteredStudents.length}
+      />
+    );
+  };
 
   return (
     <ResponsiveLayout
@@ -753,110 +1087,8 @@ function OGSGroupPageContent() {
               ? (currentGroup?.name ?? "Meine Gruppe")
               : "" // No title when multiple groups (tabs show group names) or on desktop
           }
-          actionButton={
-            !isMobile && currentGroup ? (
-              currentGroup.viaSubstitution ? (
-                // Label for groups received via transfer (read-only)
-                <div className="flex h-10 items-center gap-2 rounded-full border border-orange-200 bg-orange-50 px-4">
-                  <svg
-                    className="h-5 w-5 text-orange-600"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    strokeWidth={2.5}
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
-                    />
-                  </svg>
-                  <span className="text-sm font-medium text-orange-900">
-                    In Vertretung
-                  </span>
-                </div>
-              ) : (
-                // Button for groups you own (can transfer)
-                <button
-                  onClick={() => setShowTransferModal(true)}
-                  className="group relative flex h-10 items-center gap-2 rounded-full bg-gradient-to-br from-[#83CD2D] to-[#70b525] px-4 text-white shadow-lg transition-all duration-300 hover:scale-105 hover:shadow-xl active:scale-95"
-                  aria-label="Gruppe übergeben"
-                >
-                  <div className="pointer-events-none absolute inset-[2px] rounded-full bg-gradient-to-br from-white/20 to-white/0 opacity-0 transition-opacity duration-300 group-hover:opacity-100"></div>
-                  <svg
-                    className="relative h-5 w-5 transition-transform duration-300"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    strokeWidth={2.5}
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
-                    />
-                  </svg>
-                  <span className="relative text-sm font-semibold">
-                    {activeTransfers.length > 0
-                      ? `Gruppe übergeben (${activeTransfers.length})`
-                      : "Gruppe übergeben"}
-                  </span>
-                </button>
-              )
-            ) : undefined
-          }
-          mobileActionButton={
-            isMobile && currentGroup ? (
-              currentGroup.viaSubstitution ? (
-                // Compact label for mobile
-                <div
-                  className="flex h-8 w-8 items-center justify-center rounded-full border border-orange-200 bg-orange-50"
-                  title="In Vertretung"
-                >
-                  <svg
-                    className="h-4 w-4 text-orange-600"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    strokeWidth={2.5}
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
-                    />
-                  </svg>
-                </div>
-              ) : (
-                // Button for groups you own
-                <button
-                  onClick={() => setShowTransferModal(true)}
-                  className="relative flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-[#83CD2D] to-[#70b525] text-white shadow-md transition-all duration-200 active:scale-90"
-                  aria-label="Gruppe übergeben"
-                >
-                  <svg
-                    className="h-4 w-4"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    strokeWidth={2.5}
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
-                    />
-                  </svg>
-                  {/* Badge showing active transfer count */}
-                  {activeTransfers.length > 0 && (
-                    <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-white text-[10px] font-bold text-[#70b525] shadow-sm">
-                      {activeTransfers.length}
-                    </span>
-                  )}
-                </button>
-              )
-            ) : undefined
-          }
+          actionButton={renderDesktopActionButton()}
+          mobileActionButton={renderMobileActionButton()}
           tabs={
             allGroups.length > 1
               ? {
@@ -895,76 +1127,7 @@ function OGSGroupPageContent() {
         )}
 
         {/* Student Grid - Mobile Optimized */}
-        {isLoading ? (
-          <Loading fullPage={false} />
-        ) : students.length === 0 ? (
-          <div className="mt-8 flex min-h-[30vh] items-center justify-center">
-            <div className="flex max-w-md flex-col items-center gap-4 text-center">
-              <svg
-                className="h-12 w-12 text-gray-400"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"
-                />
-              </svg>
-              <div className="space-y-1">
-                <h3 className="text-lg font-medium text-gray-900">
-                  Keine Schüler in {currentGroup?.name ?? "dieser Gruppe"}
-                </h3>
-                <p className="text-sm text-gray-500">
-                  Es wurden noch keine Schüler zu dieser OGS-Gruppe hinzugefügt.
-                </p>
-                {allGroups.length > 1 && (
-                  <p className="mt-1 text-sm text-gray-500">
-                    Versuchen Sie eine andere Gruppe auszuwählen.
-                  </p>
-                )}
-              </div>
-            </div>
-          </div>
-        ) : filteredStudents.length > 0 ? (
-          <div>
-            <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3">
-              {filteredStudents.map((student) => {
-                const inGroupRoom = isStudentInGroupRoom(student, currentGroup);
-                const cardGradient = getCardGradient(student);
-
-                return (
-                  <StudentCard
-                    key={student.id}
-                    studentId={student.id}
-                    firstName={student.first_name}
-                    lastName={student.second_name}
-                    gradient={cardGradient}
-                    onClick={() =>
-                      router.push(`/students/${student.id}?from=/ogs-groups`)
-                    }
-                    locationBadge={
-                      <LocationBadge
-                        student={student}
-                        displayMode="roomName"
-                        isGroupRoom={inGroupRoom}
-                        variant="modern"
-                        size="md"
-                      />
-                    }
-                  />
-                );
-              })}
-            </div>
-          </div>
-        ) : (
-          <EmptyStudentResults
-            totalCount={students.length}
-            filteredCount={filteredStudents.length}
-          />
-        )}
+        {renderStudentContent()}
       </div>
 
       {/* Group Transfer Modal */}

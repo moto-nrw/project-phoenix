@@ -1,0 +1,186 @@
+import { render, screen, fireEvent } from "@testing-library/react";
+import { describe, it, expect, vi } from "vitest";
+import GuardianList from "./guardian-list";
+
+vi.mock("@/lib/guardian-helpers", () => ({
+  getGuardianFullName: (g: { firstName?: string; lastName?: string }) =>
+    `${g.firstName ?? ""} ${g.lastName ?? ""}`.trim(),
+  getRelationshipTypeLabel: (type: string) => {
+    const labels: Record<string, string> = {
+      mother: "Mutter",
+      father: "Vater",
+      guardian: "Vormund",
+    };
+    return labels[type] ?? type;
+  },
+  PHONE_TYPE_LABELS: {
+    mobile: "Mobil",
+    home: "Telefon",
+    work: "Dienstlich",
+    other: "Sonstige",
+  },
+}));
+
+vi.mock("~/components/simple/student", () => ({
+  ModernContactActions: ({
+    email,
+    phone,
+    studentName,
+  }: {
+    email?: string;
+    phone?: string;
+    studentName: string;
+  }) => (
+    <div data-testid="contact-actions">
+      <span data-testid="contact-email">{email}</span>
+      <span data-testid="contact-phone">{phone}</span>
+      <span data-testid="contact-name">{studentName}</span>
+    </div>
+  ),
+}));
+
+const mockGuardians = [
+  {
+    id: "1",
+    firstName: "Anna",
+    lastName: "Müller",
+    email: "anna@example.com",
+    preferredContactMethod: "email",
+    languagePreference: "de",
+    hasAccount: false,
+    phoneNumbers: [
+      {
+        id: "phone-1",
+        phoneNumber: "01234567890",
+        phoneType: "home" as const,
+        isPrimary: true,
+        priority: 1,
+      },
+      {
+        id: "phone-2",
+        phoneNumber: "01234567891",
+        phoneType: "mobile" as const,
+        isPrimary: false,
+        priority: 2,
+      },
+    ],
+    relationshipId: "rel-1",
+    relationshipType: "mother",
+    isPrimary: true,
+    isEmergencyContact: true,
+    canPickup: true,
+    emergencyPriority: 1,
+  },
+  {
+    id: "2",
+    firstName: "Hans",
+    lastName: "Müller",
+    email: "hans@example.com",
+    preferredContactMethod: "phone",
+    languagePreference: "de",
+    hasAccount: false,
+    phoneNumbers: [],
+    relationshipId: "rel-2",
+    relationshipType: "father",
+    isPrimary: false,
+    isEmergencyContact: false,
+    canPickup: true,
+    emergencyPriority: 2,
+  },
+];
+
+describe("GuardianList", () => {
+  it("renders empty state when no guardians", () => {
+    render(<GuardianList guardians={[]} />);
+
+    expect(
+      screen.getByText("Keine Erziehungsberechtigten zugewiesen"),
+    ).toBeInTheDocument();
+  });
+
+  it("renders guardian names", () => {
+    render(<GuardianList guardians={mockGuardians} />);
+
+    expect(screen.getAllByText("Anna Müller").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Hans Müller").length).toBeGreaterThan(0);
+  });
+
+  it("shows primary badge for primary guardian", () => {
+    render(<GuardianList guardians={mockGuardians} />);
+
+    // Multiple "Primär" badges may exist (guardian primary badge + phone primary indicator)
+    expect(screen.getAllByText("Primär").length).toBeGreaterThan(0);
+  });
+
+  it("shows relationship type when showRelationship is true", () => {
+    render(<GuardianList guardians={mockGuardians} showRelationship={true} />);
+
+    expect(screen.getByText("Mutter")).toBeInTheDocument();
+    expect(screen.getByText("Vater")).toBeInTheDocument();
+  });
+
+  it("hides relationship type when showRelationship is false", () => {
+    render(<GuardianList guardians={mockGuardians} showRelationship={false} />);
+
+    expect(screen.queryByText("Mutter")).not.toBeInTheDocument();
+    expect(screen.queryByText("Vater")).not.toBeInTheDocument();
+  });
+
+  it("displays contact information", () => {
+    render(<GuardianList guardians={mockGuardians} />);
+
+    expect(screen.getAllByText("anna@example.com").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("01234567890").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("01234567891").length).toBeGreaterThan(0);
+  });
+
+  it("shows 'Nicht angegeben' for missing phone", () => {
+    render(<GuardianList guardians={mockGuardians} />);
+
+    // Hans has no phone, should show Nicht angegeben
+    expect(screen.getAllByText("Nicht angegeben").length).toBeGreaterThan(0);
+  });
+
+  it("shows emergency contact indicator", () => {
+    render(<GuardianList guardians={mockGuardians} showRelationship={true} />);
+
+    expect(screen.getByText("Notfallkontakt")).toBeInTheDocument();
+  });
+
+  it("renders edit buttons when not readOnly", () => {
+    const onEdit = vi.fn();
+    render(<GuardianList guardians={mockGuardians} onEdit={onEdit} />);
+
+    const editButtons = screen.getAllByText("Bearbeiten");
+    expect(editButtons.length).toBe(2);
+  });
+
+  it("hides action buttons when readOnly", () => {
+    render(
+      <GuardianList
+        guardians={mockGuardians}
+        onEdit={vi.fn()}
+        readOnly={true}
+      />,
+    );
+
+    expect(screen.queryByText("Bearbeiten")).not.toBeInTheDocument();
+  });
+
+  it("calls onEdit when edit button clicked", () => {
+    const onEdit = vi.fn();
+    render(<GuardianList guardians={mockGuardians} onEdit={onEdit} />);
+
+    const editButtons = screen.getAllByText("Bearbeiten");
+    fireEvent.click(editButtons[0]!);
+
+    expect(onEdit).toHaveBeenCalledWith(mockGuardians[0]);
+  });
+
+  it("renders ModernContactActions for each guardian", () => {
+    render(<GuardianList guardians={mockGuardians} />);
+
+    const contactActions = screen.getAllByTestId("contact-actions");
+    expect(contactActions.length).toBe(2);
+  });
+});

@@ -2,6 +2,9 @@ package activities
 
 import (
 	"testing"
+	"time"
+
+	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 func TestIsValidWeekday(t *testing.T) {
@@ -174,11 +177,65 @@ func TestScheduleHasTimeframe(t *testing.T) {
 	}
 }
 
-func TestScheduleTableName(t *testing.T) {
+func TestSchedule_TableName(t *testing.T) {
 	schedule := &Schedule{}
-	expected := "activities.schedules"
+	if got := schedule.TableName(); got != "activities.schedules" {
+		t.Errorf("TableName() = %v, want activities.schedules", got)
+	}
+}
 
-	if got := schedule.TableName(); got != expected {
-		t.Errorf("Schedule.TableName() = %v, want %v", got, expected)
+func TestSchedule_BeforeAppendModel(t *testing.T) {
+	t.Run("handles nil query", func(t *testing.T) {
+		schedule := &Schedule{Weekday: WeekdayMonday, ActivityGroupID: 1}
+		err := schedule.BeforeAppendModel(nil)
+		if err != nil {
+			t.Errorf("BeforeAppendModel() error = %v", err)
+		}
+	})
+
+	t.Run("returns no error for unknown query type", func(t *testing.T) {
+		schedule := &Schedule{Weekday: WeekdayMonday, ActivityGroupID: 1}
+		err := schedule.BeforeAppendModel("some string")
+		if err != nil {
+			t.Errorf("BeforeAppendModel() error = %v", err)
+		}
+	})
+}
+
+func TestSchedule_GetID(t *testing.T) {
+	schedule := &Schedule{
+		Model:           base.Model{ID: 42},
+		Weekday:         WeekdayMonday,
+		ActivityGroupID: 1,
+	}
+
+	if got, ok := schedule.GetID().(int64); !ok || got != 42 {
+		t.Errorf("GetID() = %v, want 42", schedule.GetID())
+	}
+}
+
+func TestSchedule_GetCreatedAt(t *testing.T) {
+	now := time.Now()
+	schedule := &Schedule{
+		Model:           base.Model{CreatedAt: now},
+		Weekday:         WeekdayMonday,
+		ActivityGroupID: 1,
+	}
+
+	if got := schedule.GetCreatedAt(); !got.Equal(now) {
+		t.Errorf("GetCreatedAt() = %v, want %v", got, now)
+	}
+}
+
+func TestSchedule_GetUpdatedAt(t *testing.T) {
+	now := time.Now()
+	schedule := &Schedule{
+		Model:           base.Model{UpdatedAt: now},
+		Weekday:         WeekdayMonday,
+		ActivityGroupID: 1,
+	}
+
+	if got := schedule.GetUpdatedAt(); !got.Equal(now) {
+		t.Errorf("GetUpdatedAt() = %v, want %v", got, now)
 	}
 }

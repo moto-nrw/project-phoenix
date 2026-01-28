@@ -17,6 +17,7 @@ export interface BackendStaffResponse {
   updated_at: string;
   staff_id?: string;
   teacher_id?: string;
+  was_present_today?: boolean;
 }
 
 export interface ActiveSupervisionResponse {
@@ -45,6 +46,7 @@ export interface Staff {
   firstName: string;
   lastName: string;
   email?: string;
+  role?: string; // Display role (Admin/Betreuer/Extern)
   specialization?: string;
   qualifications?: string;
   staffNotes?: string;
@@ -54,6 +56,7 @@ export interface Staff {
   isSupervising: boolean;
   currentLocation?: string;
   supervisionRole?: string;
+  wasPresentToday?: boolean;
 }
 
 export interface StaffFilters {
@@ -153,22 +156,33 @@ function buildStaffGroupsMap(
 
 /**
  * Determines location and supervision info for a staff member
+ * @param staffId - Staff ID to look up
+ * @param staffGroupsMap - Map of staff IDs to their supervised groups
+ * @param wasPresentToday - Whether the staff had supervision activity today
  */
 function getSupervisionInfo(
   staffId: string | undefined,
   staffGroupsMap: Record<string, SupervisedGroupEntry[]>,
+  wasPresentToday?: boolean,
 ): {
   isSupervising: boolean;
   currentLocation: string;
   supervisionRole?: string;
 } {
   if (!staffId) {
-    return { isSupervising: false, currentLocation: "Zuhause" };
+    return {
+      isSupervising: false,
+      currentLocation: wasPresentToday ? "Anwesend" : "Zuhause",
+    };
   }
 
   const supervisedGroups = staffGroupsMap[staffId];
   if (!supervisedGroups) {
-    return { isSupervising: false, currentLocation: "Zuhause" };
+    // Not currently supervising - check if they were present today
+    return {
+      isSupervising: false,
+      currentLocation: wasPresentToday ? "Anwesend" : "Zuhause",
+    };
   }
 
   const supervisedRooms: string[] = [];
@@ -201,7 +215,7 @@ function mapStaffMember(
   staffGroupsMap: Record<string, SupervisedGroupEntry[]>,
 ): Staff {
   const { isSupervising, currentLocation, supervisionRole } =
-    getSupervisionInfo(staff.staff_id, staffGroupsMap);
+    getSupervisionInfo(staff.staff_id, staffGroupsMap, staff.was_present_today);
 
   return {
     id: staff.id,
@@ -209,6 +223,7 @@ function mapStaffMember(
     firstName: staff.firstName,
     lastName: staff.lastName,
     email: undefined,
+    role: staff.role ?? undefined,
     specialization: staff.specialization?.trim() ?? undefined,
     qualifications: staff.qualifications ?? undefined,
     staffNotes: staff.staff_notes ?? undefined,
@@ -217,6 +232,7 @@ function mapStaffMember(
     isSupervising,
     currentLocation,
     supervisionRole,
+    wasPresentToday: staff.was_present_today,
   };
 }
 

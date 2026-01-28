@@ -17,7 +17,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/models/iot"
 	"github.com/moto-nrw/project-phoenix/models/users"
-	activeService "github.com/moto-nrw/project-phoenix/services/active"
 )
 
 // checkinResult holds the result of processing a checkin request
@@ -99,7 +98,7 @@ func (rs *Resource) lookupStudentFromPerson(ctx context.Context, personID int64)
 
 // handleStaffScan checks if person is staff and handles supervisor authentication
 // Returns true if the request was handled (either successfully or with error)
-func (rs *Resource) handleStaffScan(w http.ResponseWriter, r *http.Request, _ *iot.Device, person *users.Person) bool {
+func (rs *Resource) handleStaffScan(w http.ResponseWriter, r *http.Request, deviceCtx *iot.Device, person *users.Person) bool {
 	log.Printf("[CHECKIN] Person %d is not a student, checking if staff...", person.ID)
 
 	staffRepo := rs.UsersService.StaffRepository()
@@ -111,8 +110,8 @@ func (rs *Resource) handleStaffScan(w http.ResponseWriter, r *http.Request, _ *i
 	}
 
 	if staff != nil {
-		log.Printf("[CHECKIN] Found staff: ID %d - staff RFID authentication via checkin endpoint not supported", staff.ID)
-		iotCommon.RenderError(w, r, iotCommon.ErrorNotFound(errors.New("staff RFID authentication must be done via session management endpoints")))
+		log.Printf("[CHECKIN] Found staff: ID %d - attempting supervisor authentication", staff.ID)
+		rs.handleSupervisorScan(w, r, deviceCtx, staff, person)
 		return true
 	}
 
@@ -120,6 +119,90 @@ func (rs *Resource) handleStaffScan(w http.ResponseWriter, r *http.Request, _ *i
 	log.Printf("[CHECKIN] ERROR: Person %d is neither student nor staff", person.ID)
 	iotCommon.RenderError(w, r, iotCommon.ErrorNotFound(errors.New("RFID tag not assigned to student or staff")))
 	return true
+}
+
+// handleSupervisorScan processes RFID-based supervisor authentication for staff.
+// When staff scan their RFID at a device with an active session, they are
+// automatically added as supervisors to that session.
+func (rs *Resource) handleSupervisorScan(w http.ResponseWriter, r *http.Request, deviceCtx *iot.Device, staff *users.Staff, person *users.Person) {
+	ctx := r.Context()
+
+	// Step 1: Get current session for this device
+	session, err := rs.ActiveService.GetDeviceCurrentSession(ctx, deviceCtx.ID)
+	if err != nil || session == nil {
+		log.Printf("[CHECKIN] No active session for device %s (ID: %d) - supervisor scan rejected",
+			deviceCtx.DeviceID, deviceCtx.ID)
+		iotCommon.RenderError(w, r, iotCommon.ErrorNotFound(
+			errors.New("no active session - please start an activity first")))
+		return
+	}
+
+	log.Printf("[CHECKIN] Device %s has active session %d - processing supervisor authentication for staff %d",
+		deviceCtx.DeviceID, session.ID, staff.ID)
+
+	// Step 2: Load current supervisors to check for duplicates
+	groupWithSupervisors, err := rs.ActiveService.GetActiveGroupWithSupervisors(ctx, session.ID)
+	if err != nil {
+		log.Printf("[CHECKIN] ERROR: Failed to load supervisors for session %d: %v", session.ID, err)
+		iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(
+			errors.New("failed to load session supervisors")))
+		return
+	}
+
+	// Step 3: Build supervisor ID list (existing active + new)
+	var supervisorIDs []int64
+	alreadySupervisor := false
+	for _, sup := range groupWithSupervisors.Supervisors {
+		if sup.EndDate == nil { // Only include active supervisors
+			supervisorIDs = append(supervisorIDs, sup.StaffID)
+			if sup.StaffID == staff.ID {
+				alreadySupervisor = true
+			}
+		}
+	}
+
+	// Step 4: Add new supervisor if not already present
+	if !alreadySupervisor {
+		supervisorIDs = append(supervisorIDs, staff.ID)
+		if _, err := rs.ActiveService.UpdateActiveGroupSupervisors(ctx, session.ID, supervisorIDs); err != nil {
+			log.Printf("[CHECKIN] ERROR: Failed to add supervisor %d to session %d: %v",
+				staff.ID, session.ID, err)
+			iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(
+				errors.New("failed to update session supervisors")))
+			return
+		}
+		log.Printf("[CHECKIN] SUCCESS: Added staff %d as supervisor to session %d", staff.ID, session.ID)
+	} else {
+		log.Printf("[CHECKIN] Staff %d is already a supervisor for session %d (idempotent)",
+			staff.ID, session.ID)
+	}
+
+	// Step 5: Build and send response
+	staffName := person.FirstName + " " + person.LastName
+	var roomName, activityName string
+	if session.Room != nil {
+		roomName = session.Room.Name
+	}
+	if session.ActualGroup != nil {
+		activityName = session.ActualGroup.Name
+	}
+
+	message := "Supervisor authenticated"
+	if activityName != "" {
+		message = "Supervisor authenticated for " + activityName
+	}
+
+	response := map[string]interface{}{
+		"student_id":   staff.ID,
+		"student_name": staffName,
+		"action":       "supervisor_authenticated",
+		"room_name":    roomName,
+		"processed_at": time.Now(),
+		"message":      message,
+		"status":       "success",
+	}
+
+	common.Respond(w, r, http.StatusOK, response, "Supervisor authenticated")
 }
 
 // loadCurrentVisitWithRoom loads the current visit and its room information
@@ -167,46 +250,21 @@ func (rs *Resource) processCheckout(ctx context.Context, w http.ResponseWriter, 
 			currentVisit.ActiveGroup != nil && currentVisit.ActiveGroup.Room != nil)
 	}
 
-	// End current visit with attendance sync (ensures daily checkout updates attendance record)
-	if err := rs.ActiveService.EndVisit(activeService.WithAttendanceAutoSync(ctx), currentVisit.ID); err != nil {
+	// End current room visit WITHOUT attendance sync - leaving a room doesn't mean leaving the building.
+	// The student should become "Unterwegs" (in transit), not "Zuhause" (at home).
+	// Daily attendance checkout is handled separately via isPendingDailyCheckoutScenario/manual checkout.
+	if err := rs.ActiveService.EndVisit(ctx, currentVisit.ID); err != nil {
 		log.Printf("[CHECKIN] ERROR: Failed to end visit %d for student %d: %v",
 			currentVisit.ID, student.ID, err)
 		iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(errors.New("failed to end visit record")))
 		return nil, "", err
 	}
 
-	// Cancel any pending scheduled checkout
-	rs.cancelPendingScheduledCheckout(ctx, student.ID)
-
 	log.Printf("[CHECKIN] SUCCESS: Checked out student %s %s (ID: %d), ended visit %d",
 		person.FirstName, person.LastName, student.ID, currentVisit.ID)
 
 	visitID := currentVisit.ID
 	return &visitID, previousRoomName, nil
-}
-
-// cancelPendingScheduledCheckout cancels any pending scheduled checkout for the student
-func (rs *Resource) cancelPendingScheduledCheckout(ctx context.Context, studentID int64) {
-	pendingCheckout, err := rs.ActiveService.GetPendingScheduledCheckout(ctx, studentID)
-	if err != nil {
-		log.Printf("[CHECKIN] Warning: Failed to check for pending scheduled checkout: %v", err)
-		return
-	}
-	if pendingCheckout == nil {
-		return
-	}
-
-	// Get staff ID from context if available
-	var cancelledBy int64 = 1 // Default to admin ID
-	if staffCtx := device.StaffFromCtx(ctx); staffCtx != nil {
-		cancelledBy = staffCtx.ID
-	}
-
-	if err := rs.ActiveService.CancelScheduledCheckout(ctx, pendingCheckout.ID, cancelledBy); err != nil {
-		log.Printf("[CHECKIN] Warning: Failed to cancel scheduled checkout %d: %v", pendingCheckout.ID, err)
-	} else {
-		log.Printf("[CHECKIN] Cancelled pending scheduled checkout %d for student %d", pendingCheckout.ID, studentID)
-	}
 }
 
 // shouldSkipCheckin determines if checkin should be skipped (same room scenario)

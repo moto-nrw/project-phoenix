@@ -42,31 +42,14 @@ func (p *StudentVisitPolicy) ResourceType() string {
 
 // Evaluate evaluates whether the subject can access student visits
 func (p *StudentVisitPolicy) Evaluate(ctx context.Context, authCtx *policy.Context) (bool, error) {
-	// Admin users can always access
-	if hasRole(authCtx.Subject.Roles, "admin") {
+	// Admin users or users with specific permissions can always access
+	if p.canAccessByRoleOrPermission(authCtx) {
 		return true, nil
 	}
 
-	// Users with specific permissions can access
-	if hasPermission(authCtx.Subject.Permissions, permissions.VisitsRead) ||
-		hasPermission(authCtx.Subject.Permissions, permissions.VisitsManage) {
-		return true, nil
-	}
-
-	// Get student ID from extra context or resource ID
-	var studentID int64
-	if id, ok := authCtx.Extra["student_id"].(int64); ok {
-		studentID = id
-	} else if id, ok := authCtx.Resource.ID.(int64); ok {
-		// If resource ID is the visit ID, we need to get the student ID from the visit
-		visit, err := p.activeService.GetVisit(ctx, id)
-		if err != nil {
-			return false, nil
-		}
-		studentID = visit.StudentID
-	}
-
-	if studentID == 0 {
+	// Extract student ID from context
+	studentID, err := p.extractStudentID(ctx, authCtx)
+	if err != nil || studentID == 0 {
 		return false, nil
 	}
 
@@ -77,57 +60,101 @@ func (p *StudentVisitPolicy) Evaluate(ctx context.Context, authCtx *policy.Conte
 	}
 
 	// Check if person is a student accessing their own visits
-	student, err := p.usersService.StudentRepository().FindByPersonID(ctx, person.ID)
-	if err == nil && student != nil && student.ID == studentID {
-		return true, nil // Students can view their own visits
+	if p.isStudentOwnVisit(ctx, person.ID, studentID) {
+		return true, nil
 	}
 
-	// Check if person is a staff member
+	// Check if person is staff/teacher supervising the student
 	staff, err := p.usersService.StaffRepository().FindByPersonID(ctx, person.ID)
 	if err != nil || staff == nil {
 		return false, nil
 	}
 
-	// Check if staff is a teacher
 	teacher, err := p.usersService.TeacherRepository().FindByStaffID(ctx, staff.ID)
 	if err != nil || teacher == nil {
 		return false, nil
 	}
 
-	// Get all groups the teacher supervises
-	teacherGroups, err := p.educationService.GetTeacherGroups(ctx, teacher.ID)
+	// Check if teacher supervises student's group
+	if allowed, err := p.isTeacherSupervisingStudent(ctx, teacher.ID, studentID); err != nil || allowed {
+		return allowed, err
+	}
+
+	// Check if staff is supervising student's current active group
+	return p.isStaffSupervisingActiveGroup(ctx, staff.ID, studentID)
+}
+
+// canAccessByRoleOrPermission checks if user has admin role or visit permissions
+func (p *StudentVisitPolicy) canAccessByRoleOrPermission(authCtx *policy.Context) bool {
+	if hasRole(authCtx.Subject.Roles, "admin") {
+		return true
+	}
+
+	return hasPermission(authCtx.Subject.Permissions, permissions.VisitsRead) ||
+		hasPermission(authCtx.Subject.Permissions, permissions.VisitsManage)
+}
+
+// extractStudentID extracts student ID from extra context or resource ID
+func (p *StudentVisitPolicy) extractStudentID(ctx context.Context, authCtx *policy.Context) (int64, error) {
+	// Try to get from extra context first
+	if id, ok := authCtx.Extra["student_id"].(int64); ok {
+		return id, nil
+	}
+
+	// Try to get from resource ID (visit ID)
+	if id, ok := authCtx.Resource.ID.(int64); ok {
+		visit, err := p.activeService.GetVisit(ctx, id)
+		if err != nil {
+			return 0, err
+		}
+		return visit.StudentID, nil
+	}
+
+	return 0, nil
+}
+
+// isStudentOwnVisit checks if the person is the student accessing their own visits
+func (p *StudentVisitPolicy) isStudentOwnVisit(ctx context.Context, personID, studentID int64) bool {
+	student, err := p.usersService.StudentRepository().FindByPersonID(ctx, personID)
+	return err == nil && student != nil && student.ID == studentID
+}
+
+// isTeacherSupervisingStudent checks if teacher supervises the student's group
+func (p *StudentVisitPolicy) isTeacherSupervisingStudent(ctx context.Context, teacherID, studentID int64) (bool, error) {
+	teacherGroups, err := p.educationService.GetTeacherGroups(ctx, teacherID)
 	if err != nil {
 		return false, err
 	}
 
-	// Get the student's information
 	targetStudent, err := p.usersService.StudentRepository().FindByID(ctx, studentID)
-	if err != nil || targetStudent == nil {
+	if err != nil || targetStudent == nil || targetStudent.GroupID == nil {
 		return false, nil
 	}
 
-	// Check if student is in any of the teacher's groups
-	if targetStudent.GroupID != nil {
-		for _, group := range teacherGroups {
-			if group.ID == *targetStudent.GroupID {
-				return true, nil // Teacher supervises student's group
-			}
+	for _, group := range teacherGroups {
+		if group.ID == *targetStudent.GroupID {
+			return true, nil
 		}
 	}
 
-	// Also check if staff is currently supervising any active groups
-	// that the student is participating in
-	activeSupervisors, err := p.activeService.FindSupervisorsByStaffID(ctx, staff.ID)
-	if err == nil && len(activeSupervisors) > 0 {
-		// Get student's current visit to see which active group they're in
-		currentVisit, err := p.activeService.GetStudentCurrentVisit(ctx, studentID)
-		if err == nil && currentVisit != nil {
-			// Check if staff is supervising the active group the student is visiting
-			for _, supervisor := range activeSupervisors {
-				if supervisor.GroupID == currentVisit.ActiveGroupID {
-					return true, nil // Staff is supervising student's current activity
-				}
-			}
+	return false, nil
+}
+
+// isStaffSupervisingActiveGroup checks if staff is supervising student's current active group
+func (p *StudentVisitPolicy) isStaffSupervisingActiveGroup(ctx context.Context, staffID, studentID int64) (bool, error) {
+	activeSupervisors, err := p.activeService.FindSupervisorsByStaffID(ctx, staffID)
+	if err != nil || len(activeSupervisors) == 0 {
+		return false, nil
+	}
+
+	currentVisit, err := p.activeService.GetStudentCurrentVisit(ctx, studentID)
+	if err != nil || currentVisit == nil {
+		return false, nil
+	}
+
+	for _, supervisor := range activeSupervisors {
+		if supervisor.GroupID == currentVisit.ActiveGroupID {
+			return true, nil
 		}
 	}
 

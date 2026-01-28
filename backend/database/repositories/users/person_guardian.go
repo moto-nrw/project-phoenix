@@ -3,12 +3,22 @@ package users
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/uptrace/bun"
+)
+
+// Table and query constants (S1192 - avoid duplicate string literals)
+const (
+	tableUsersPersonsGuardians    = "users.persons_guardians"
+	tableExprPersonsGuardiansAsPG = `users.persons_guardians AS "person_guardian"`
+	wherePersonGuardianIDEquals   = `"person_guardian".id = ?`
+	wherePersonGuardianIDEqualsPK = "id = ?"
 )
 
 // PersonGuardianRepository implements users.PersonGuardianRepository interface
@@ -20,7 +30,7 @@ type PersonGuardianRepository struct {
 // NewPersonGuardianRepository creates a new PersonGuardianRepository
 func NewPersonGuardianRepository(db *bun.DB) users.PersonGuardianRepository {
 	return &PersonGuardianRepository{
-		Repository: base.NewRepository[*users.PersonGuardian](db, "users.persons_guardians", "PersonGuardian"),
+		Repository: base.NewRepository[*users.PersonGuardian](db, tableUsersPersonsGuardians, "PersonGuardian"),
 		db:         db,
 	}
 }
@@ -30,7 +40,8 @@ func (r *PersonGuardianRepository) FindByPersonID(ctx context.Context, personID 
 	var relationships []*users.PersonGuardian
 	err := r.db.NewSelect().
 		Model(&relationships).
-		Where("person_id = ?", personID).
+		ModelTableExpr(tableExprPersonsGuardiansAsPG).
+		Where(`"person_guardian".person_id = ?`, personID).
 		Scan(ctx)
 
 	if err != nil {
@@ -48,7 +59,8 @@ func (r *PersonGuardianRepository) FindByGuardianID(ctx context.Context, guardia
 	var relationships []*users.PersonGuardian
 	err := r.db.NewSelect().
 		Model(&relationships).
-		Where("guardian_account_id = ?", guardianID).
+		ModelTableExpr(tableExprPersonsGuardiansAsPG).
+		Where(`"person_guardian".guardian_account_id = ?`, guardianID).
 		Scan(ctx)
 
 	if err != nil {
@@ -66,7 +78,8 @@ func (r *PersonGuardianRepository) FindPrimaryByPersonID(ctx context.Context, pe
 	relationship := new(users.PersonGuardian)
 	err := r.db.NewSelect().
 		Model(relationship).
-		Where("person_id = ? AND is_primary = TRUE", personID).
+		ModelTableExpr(tableExprPersonsGuardiansAsPG).
+		Where(`"person_guardian".person_id = ? AND "person_guardian".is_primary = TRUE`, personID).
 		Scan(ctx)
 
 	if err != nil {
@@ -84,7 +97,8 @@ func (r *PersonGuardianRepository) FindByRelationshipType(ctx context.Context, p
 	var relationships []*users.PersonGuardian
 	err := r.db.NewSelect().
 		Model(&relationships).
-		Where("person_id = ? AND relationship_type = ?", personID, relationshipType).
+		ModelTableExpr(tableExprPersonsGuardiansAsPG).
+		Where(`"person_guardian".person_id = ? AND "person_guardian".relationship_type = ?`, personID, relationshipType).
 		Scan(ctx)
 
 	if err != nil {
@@ -103,8 +117,9 @@ func (r *PersonGuardianRepository) SetPrimary(ctx context.Context, id int64, isP
 	// Just update the current relationship
 	_, err := r.db.NewUpdate().
 		Model((*users.PersonGuardian)(nil)).
+		ModelTableExpr(tableExprPersonsGuardiansAsPG).
 		Set("is_primary = ?", isPrimary).
-		Where("id = ?", id).
+		Where(wherePersonGuardianIDEquals, id).
 		Exec(ctx)
 
 	if err != nil {
@@ -121,8 +136,9 @@ func (r *PersonGuardianRepository) SetPrimary(ctx context.Context, id int64, isP
 func (r *PersonGuardianRepository) UpdatePermissions(ctx context.Context, id int64, permissions string) error {
 	_, err := r.db.NewUpdate().
 		Model((*users.PersonGuardian)(nil)).
+		ModelTableExpr(tableExprPersonsGuardiansAsPG).
 		Set("permissions = ?", permissions).
-		Where("id = ?", id).
+		Where(wherePersonGuardianIDEquals, id).
 		Exec(ctx)
 
 	if err != nil {
@@ -195,10 +211,15 @@ func (r *PersonGuardianRepository) List(ctx context.Context, filters map[string]
 // ListWithOptions provides a type-safe way to list person guardian relationships with query options
 func (r *PersonGuardianRepository) ListWithOptions(ctx context.Context, options *modelBase.QueryOptions) ([]*users.PersonGuardian, error) {
 	var relationships []*users.PersonGuardian
-	query := r.db.NewSelect().Model(&relationships)
+	query := r.db.NewSelect().
+		Model(&relationships).
+		ModelTableExpr(tableExprPersonsGuardiansAsPG)
 
-	// Apply query options
+	// Apply query options with table alias
 	if options != nil {
+		if options.Filter != nil {
+			options.Filter.WithTableAlias("person_guardian")
+		}
 		query = options.ApplyToQuery(query)
 	}
 
@@ -215,11 +236,12 @@ func (r *PersonGuardianRepository) ListWithOptions(ctx context.Context, options 
 
 // FindWithPerson retrieves a person guardian relationship with its associated person
 func (r *PersonGuardianRepository) FindWithPerson(ctx context.Context, id int64) (*users.PersonGuardian, error) {
+	// First get the person guardian relationship
 	relationship := new(users.PersonGuardian)
 	err := r.db.NewSelect().
 		Model(relationship).
-		Relation("Person").
-		Where("id = ?", id).
+		ModelTableExpr(tableExprPersonsGuardiansAsPG).
+		Where(wherePersonGuardianIDEquals, id).
 		Scan(ctx)
 
 	if err != nil {
@@ -227,6 +249,27 @@ func (r *PersonGuardianRepository) FindWithPerson(ctx context.Context, id int64)
 			Op:  "find with person",
 			Err: err,
 		}
+	}
+
+	// Then load the person if PersonID is set
+	if relationship.PersonID > 0 {
+		person := new(users.Person)
+		personErr := r.db.NewSelect().
+			Model(person).
+			ModelTableExpr(`users.persons AS "person"`).
+			Where(`"person".id = ?`, relationship.PersonID).
+			Scan(ctx)
+
+		if personErr == nil {
+			relationship.Person = person
+		} else if !errors.Is(personErr, sql.ErrNoRows) {
+			// Only ignore "not found" errors - propagate all other DB errors
+			return nil, &modelBase.DatabaseError{
+				Op:  "find with person - load person",
+				Err: personErr,
+			}
+		}
+		// Person not found is acceptable - relationship.Person remains nil
 	}
 
 	return relationship, nil
@@ -248,8 +291,9 @@ func (r *PersonGuardianRepository) GrantPermissionToGuardian(ctx context.Context
 	// Update the relationship
 	_, err = r.db.NewUpdate().
 		Model(relationship).
+		ModelTableExpr(tableExprPersonsGuardiansAsPG).
 		Column("permissions").
-		WherePK().
+		Where(wherePersonGuardianIDEquals, id).
 		Exec(ctx)
 
 	if err != nil {
@@ -278,8 +322,9 @@ func (r *PersonGuardianRepository) RevokePermissionFromGuardian(ctx context.Cont
 	// Update the relationship
 	_, err = r.db.NewUpdate().
 		Model(relationship).
+		ModelTableExpr(tableExprPersonsGuardiansAsPG).
 		Column("permissions").
-		WherePK().
+		Where(wherePersonGuardianIDEquals, id).
 		Exec(ctx)
 
 	if err != nil {

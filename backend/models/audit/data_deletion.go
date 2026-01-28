@@ -3,8 +3,6 @@ package audit
 import (
 	"errors"
 	"time"
-
-	"github.com/uptrace/bun"
 )
 
 // DataDeletion represents a record of deleted data for GDPR compliance
@@ -25,20 +23,6 @@ const (
 	DeletionTypeManual         = "manual"
 	DeletionTypeGDPRRequest    = "gdpr_request"
 )
-
-// BeforeAppendModel sets the correct table expression
-func (dd *DataDeletion) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.SelectQuery); ok {
-		q.ModelTableExpr("audit.data_deletions")
-	}
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr("audit.data_deletions")
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr("audit.data_deletions")
-	}
-	return nil
-}
 
 // TableName returns the database table name
 func (dd *DataDeletion) TableName() string {

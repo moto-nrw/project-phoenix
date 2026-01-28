@@ -16,11 +16,11 @@ interface MinimalActiveGroup {
 }
 
 interface UnclaimedRoomsProps {
-  onClaimed: () => void;
+  readonly onClaimed: () => void;
   /** Pre-fetched active groups to avoid duplicate API call */
-  activeGroups?: MinimalActiveGroup[];
+  readonly activeGroups?: ReadonlyArray<MinimalActiveGroup>;
   /** Current staff ID to check supervisor status without extra API call */
-  currentStaffId?: string;
+  readonly currentStaffId?: string;
 }
 
 interface SchulhofState {
@@ -126,7 +126,7 @@ export function UnclaimedRooms({
   useEffect(() => {
     const wasDismissed = localStorage.getItem(DISMISSED_KEY) === "true";
     setDismissed(wasDismissed);
-    void loadSchulhofStatus();
+    loadSchulhofStatus().catch(() => undefined);
   }, [loadSchulhofStatus]);
 
   async function handleClaim() {
@@ -192,7 +192,7 @@ export function UnclaimedRooms({
       {hasSupervisors && (
         <button
           onClick={handleDismiss}
-          className="absolute -right-2 -top-2 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-gray-100 text-gray-500 shadow-sm ring-2 ring-white transition-colors hover:bg-gray-200 hover:text-gray-700"
+          className="absolute -top-2 -right-2 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-gray-100 text-gray-500 shadow-sm ring-2 ring-white transition-colors hover:bg-gray-200 hover:text-gray-700"
           aria-label="Banner schließen"
         >
           <svg

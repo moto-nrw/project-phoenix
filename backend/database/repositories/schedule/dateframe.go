@@ -11,6 +11,12 @@ import (
 	"github.com/uptrace/bun"
 )
 
+// Table name constants for BUN ORM schema qualification
+const (
+	tableDateframes         = "schedule.dateframes"
+	tableExprDateframesAsDF = `schedule.dateframes AS "dateframe"`
+)
+
 // DateframeRepository implements schedule.DateframeRepository interface
 type DateframeRepository struct {
 	*repoBase.Repository[*schedule.Dateframe]
@@ -30,6 +36,7 @@ func (r *DateframeRepository) FindByName(ctx context.Context, name string) (*sch
 	dateframe := new(schedule.Dateframe)
 	err := r.db.NewSelect().
 		Model(dateframe).
+		ModelTableExpr(tableExprDateframesAsDF).
 		Where("LOWER(name) = LOWER(?)", name).
 		Scan(ctx)
 
@@ -52,6 +59,7 @@ func (r *DateframeRepository) FindByDate(ctx context.Context, date time.Time) ([
 
 	err := r.db.NewSelect().
 		Model(&dateframes).
+		ModelTableExpr(tableExprDateframesAsDF).
 		Where("start_date <= ? AND end_date >= ?", normalizedDate, normalizedDate).
 		Scan(ctx)
 
@@ -75,6 +83,7 @@ func (r *DateframeRepository) FindOverlapping(ctx context.Context, startDate, en
 
 	err := r.db.NewSelect().
 		Model(&dateframes).
+		ModelTableExpr(tableExprDateframesAsDF).
 		Where("start_date <= ? AND end_date >= ?", normalizedEndDate, normalizedStartDate).
 		Scan(ctx)
 
@@ -120,8 +129,8 @@ func (r *DateframeRepository) Update(ctx context.Context, dateframe *schedule.Da
 
 // List retrieves dateframes matching the provided query options
 func (r *DateframeRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*schedule.Dateframe, error) {
-	var dateframes []*schedule.Dateframe
-	query := r.db.NewSelect().Model(&dateframes)
+	dateframes := make([]*schedule.Dateframe, 0)
+	query := r.db.NewSelect().Model(&dateframes).ModelTableExpr(tableExprDateframesAsDF)
 
 	// Apply query options
 	if options != nil {

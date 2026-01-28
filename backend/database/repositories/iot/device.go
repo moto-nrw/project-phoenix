@@ -11,6 +11,13 @@ import (
 	"github.com/uptrace/bun"
 )
 
+// Constants to avoid duplicate string literals (S1192)
+const (
+	tableIoTDevices    = "iot.devices"
+	whereDeviceIDEqual = "device_id = ?"
+	whereStatusEqual   = "status = ?"
+)
+
 // DeviceRepository implements iot.DeviceRepository interface
 type DeviceRepository struct {
 	*base.Repository[*iot.Device]
@@ -20,7 +27,7 @@ type DeviceRepository struct {
 // NewDeviceRepository creates a new DeviceRepository
 func NewDeviceRepository(db *bun.DB) iot.DeviceRepository {
 	return &DeviceRepository{
-		Repository: base.NewRepository[*iot.Device](db, "iot.devices", "Device"),
+		Repository: base.NewRepository[*iot.Device](db, tableIoTDevices, "Device"),
 		db:         db,
 	}
 }
@@ -31,7 +38,7 @@ func (r *DeviceRepository) FindByDeviceID(ctx context.Context, deviceID string) 
 	err := r.db.NewSelect().
 		Model(device).
 		ModelTableExpr(`iot.devices AS "device"`).
-		Where("device_id = ?", deviceID).
+		Where(whereDeviceIDEqual, deviceID).
 		Scan(ctx)
 
 	if err != nil {
@@ -88,7 +95,7 @@ func (r *DeviceRepository) FindByStatus(ctx context.Context, status iot.DeviceSt
 	err := r.db.NewSelect().
 		Model(&devices).
 		ModelTableExpr(`iot.devices AS "device"`).
-		Where("status = ?", status).
+		Where(whereStatusEqual, status).
 		Scan(ctx)
 
 	if err != nil {
@@ -124,9 +131,9 @@ func (r *DeviceRepository) FindByRegisteredBy(ctx context.Context, personID int6
 func (r *DeviceRepository) UpdateLastSeen(ctx context.Context, deviceID string, lastSeen time.Time) error {
 	_, err := r.db.NewUpdate().
 		Model((*iot.Device)(nil)).
-		ModelTableExpr("iot.devices").
+		ModelTableExpr(tableIoTDevices).
 		Set("last_seen = ?", lastSeen).
-		Where("device_id = ?", deviceID).
+		Where(whereDeviceIDEqual, deviceID).
 		Exec(ctx)
 
 	if err != nil {
@@ -143,9 +150,9 @@ func (r *DeviceRepository) UpdateLastSeen(ctx context.Context, deviceID string, 
 func (r *DeviceRepository) UpdateStatus(ctx context.Context, deviceID string, status iot.DeviceStatus) error {
 	_, err := r.db.NewUpdate().
 		Model((*iot.Device)(nil)).
-		ModelTableExpr("iot.devices").
-		Set("status = ?", status).
-		Where("device_id = ?", deviceID).
+		ModelTableExpr(tableIoTDevices).
+		Set(whereStatusEqual, status).
+		Where(whereDeviceIDEqual, deviceID).
 		Exec(ctx)
 
 	if err != nil {
@@ -164,7 +171,7 @@ func (r *DeviceRepository) FindActiveDevices(ctx context.Context) ([]*iot.Device
 	err := r.db.NewSelect().
 		Model(&devices).
 		ModelTableExpr(`iot.devices AS "device"`).
-		Where("status = ?", iot.DeviceStatusActive).
+		Where(whereStatusEqual, iot.DeviceStatusActive).
 		Scan(ctx)
 
 	if err != nil {
@@ -183,7 +190,7 @@ func (r *DeviceRepository) FindDevicesRequiringMaintenance(ctx context.Context) 
 	err := r.db.NewSelect().
 		Model(&devices).
 		ModelTableExpr(`iot.devices AS "device"`).
-		Where("status = ?", iot.DeviceStatusMaintenance).
+		Where(whereStatusEqual, iot.DeviceStatusMaintenance).
 		Scan(ctx)
 
 	if err != nil {
@@ -288,37 +295,7 @@ func (r *DeviceRepository) List(ctx context.Context, filters map[string]interfac
 	// Apply filters
 	for field, value := range filters {
 		if value != nil {
-			switch field {
-			case "device_id_like":
-				if strValue, ok := value.(string); ok {
-					query = query.Where("device_id ILIKE ?", "%"+strValue+"%")
-				}
-			case "name_like":
-				if strValue, ok := value.(string); ok {
-					query = query.Where("name ILIKE ?", "%"+strValue+"%")
-				}
-			case "status":
-				query = query.Where("status = ?", value)
-			case "device_type":
-				query = query.Where("device_type = ?", value)
-			case "seen_after":
-				if timeValue, ok := value.(time.Time); ok {
-					query = query.Where("last_seen > ?", timeValue)
-				}
-			case "seen_before":
-				if timeValue, ok := value.(time.Time); ok {
-					query = query.Where("last_seen < ?", timeValue)
-				}
-			case "has_name":
-				if boolValue, ok := value.(bool); ok && boolValue {
-					query = query.Where("name IS NOT NULL")
-				} else if boolValue, ok := value.(bool); ok && !boolValue {
-					query = query.Where("name IS NULL")
-				}
-			default:
-				// Default to exact match for other fields
-				query = query.Where("? = ?", bun.Ident(field), value)
-			}
+			query = applyDeviceFilter(query, field, value)
 		}
 	}
 
@@ -331,4 +308,53 @@ func (r *DeviceRepository) List(ctx context.Context, filters map[string]interfac
 	}
 
 	return devices, nil
+}
+
+// applyDeviceFilter applies a single filter to the query based on field name
+func applyDeviceFilter(query *bun.SelectQuery, field string, value interface{}) *bun.SelectQuery {
+	switch field {
+	case "device_id_like":
+		return applyDeviceStringLikeFilter(query, "device_id", value)
+	case "name_like":
+		return applyDeviceStringLikeFilter(query, "name", value)
+	case "status":
+		return query.Where(whereStatusEqual, value)
+	case "device_type":
+		return query.Where("device_type = ?", value)
+	case "seen_after":
+		return applyDeviceTimeFilter(query, "last_seen", ">", value)
+	case "seen_before":
+		return applyDeviceTimeFilter(query, "last_seen", "<", value)
+	case "has_name":
+		return applyHasNameFilter(query, value)
+	default:
+		return query.Where("? = ?", bun.Ident(field), value)
+	}
+}
+
+// applyDeviceStringLikeFilter applies LIKE filter for string fields
+func applyDeviceStringLikeFilter(query *bun.SelectQuery, column string, value interface{}) *bun.SelectQuery {
+	if strValue, ok := value.(string); ok {
+		return query.Where(column+" ILIKE ?", "%"+strValue+"%")
+	}
+	return query
+}
+
+// applyDeviceTimeFilter applies time comparison filter
+func applyDeviceTimeFilter(query *bun.SelectQuery, column, operator string, value interface{}) *bun.SelectQuery {
+	if timeValue, ok := value.(time.Time); ok {
+		return query.Where(column+" "+operator+" ?", timeValue)
+	}
+	return query
+}
+
+// applyHasNameFilter applies NULL/NOT NULL filter for name field
+func applyHasNameFilter(query *bun.SelectQuery, value interface{}) *bun.SelectQuery {
+	if boolValue, ok := value.(bool); ok {
+		if boolValue {
+			return query.Where("name IS NOT NULL")
+		}
+		return query.Where("name IS NULL")
+	}
+	return query
 }

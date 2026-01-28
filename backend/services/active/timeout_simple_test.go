@@ -1,4 +1,13 @@
-package active
+// Package active_test tests the timeout-related service methods with hermetic testing pattern.
+//
+// This file tests:
+// - UpdateSessionActivity: Updates the LastActivity timestamp of an active session
+// - ValidateSessionTimeout: Validates if a timeout request is valid for a device
+// - GetSessionTimeoutInfo: Retrieves comprehensive timeout information for a device session
+//
+// Each test creates its own fixtures, performs operations, and cleans up after itself.
+// No mocks are used - all tests run against a real test database.
+package active_test
 
 import (
 	"context"
@@ -6,422 +15,340 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/active"
-	"github.com/moto-nrw/project-phoenix/models/base"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
 
-// Simple mock for testing core logic without transaction complexity
-type SimpleGroupRepo struct {
-	mock.Mock
+// TestUpdateSessionActivity tests updating session activity timestamp
+func TestUpdateSessionActivity(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() {
+		if err := db.Close(); err != nil {
+			t.Logf("Failed to close database: %v", err)
+		}
+	}()
+
+	service := setupActiveService(t, db)
+	ctx := context.Background()
+
+	t.Run("successful activity update", func(t *testing.T) {
+		// ARRANGE: Create test fixtures
+		activity := testpkg.CreateTestActivityGroup(t, db, "Update Activity Test")
+		device := testpkg.CreateTestDevice(t, db, "update-device-001")
+		room := testpkg.CreateTestRoom(t, db, "Update Test Room")
+		staff := testpkg.CreateTestStaff(t, db, "Update", "Tester")
+
+		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, device.ID, room.ID, staff.ID)
+
+		// Start a session to test activity update
+		session, err := service.StartActivitySession(ctx, activity.ID, device.ID, staff.ID, &room.ID)
+		require.NoError(t, err)
+		require.NotNil(t, session)
+
+		// Wait a small amount of time so LastActivity will be different
+		time.Sleep(50 * time.Millisecond)
+		originalLastActivity := session.LastActivity
+
+		// ACT: Update session activity
+		err = service.UpdateSessionActivity(ctx, session.ID)
+
+		// ASSERT
+		require.NoError(t, err)
+
+		// Verify LastActivity was updated
+		updatedSession, err := service.GetActiveGroup(ctx, session.ID)
+		require.NoError(t, err)
+		assert.True(t, updatedSession.LastActivity.After(originalLastActivity),
+			"LastActivity should be updated to a later time")
+	})
+
+	t.Run("session not found", func(t *testing.T) {
+		// ACT: Try to update a non-existent session
+		err := service.UpdateSessionActivity(ctx, 99999)
+
+		// ASSERT
+		require.Error(t, err)
+		// Service wraps repository errors with operation context
+		assert.Contains(t, err.Error(), "UpdateSessionActivity")
+	})
+
+	t.Run("session already ended", func(t *testing.T) {
+		// ARRANGE: Create test fixtures
+		activity := testpkg.CreateTestActivityGroup(t, db, "Ended Session Activity")
+		device := testpkg.CreateTestDevice(t, db, "ended-device-001")
+		room := testpkg.CreateTestRoom(t, db, "Ended Session Room")
+		staff := testpkg.CreateTestStaff(t, db, "Ended", "Staff")
+
+		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, device.ID, room.ID, staff.ID)
+
+		// Start and immediately end a session
+		session, err := service.StartActivitySession(ctx, activity.ID, device.ID, staff.ID, &room.ID)
+		require.NoError(t, err)
+
+		err = service.EndActivitySession(ctx, session.ID)
+		require.NoError(t, err)
+
+		// ACT: Try to update the ended session
+		err = service.UpdateSessionActivity(ctx, session.ID)
+
+		// ASSERT
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "already ended")
+	})
 }
 
-func (m *SimpleGroupRepo) FindActiveByDeviceID(ctx context.Context, deviceID int64) (*active.Group, error) {
-	args := m.Called(ctx, deviceID)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*active.Group), args.Error(1)
+// TestValidateSessionTimeout tests timeout validation logic
+func TestValidateSessionTimeout(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() {
+		if err := db.Close(); err != nil {
+			t.Logf("Failed to close database: %v", err)
+		}
+	}()
+
+	service := setupActiveService(t, db)
+	ctx := context.Background()
+
+	t.Run("valid timeout - session is timed out", func(t *testing.T) {
+		// ARRANGE: Create test fixtures
+		activity := testpkg.CreateTestActivityGroup(t, db, "Timeout Activity 1")
+		device := testpkg.CreateTestDevice(t, db, "timeout-device-001")
+		room := testpkg.CreateTestRoom(t, db, "Timeout Room 1")
+		staff := testpkg.CreateTestStaff(t, db, "Timeout", "Staff1")
+
+		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, device.ID, room.ID, staff.ID)
+
+		// Start a session
+		session, err := service.StartActivitySession(ctx, activity.ID, device.ID, staff.ID, &room.ID)
+		require.NoError(t, err)
+
+		// Manually set LastActivity to 35 minutes ago (older than the 30-minute timeout)
+		_, err = db.NewUpdate().
+			Table("active.groups").
+			Set("last_activity = ?", time.Now().Add(-35*time.Minute)).
+			Where("id = ?", session.ID).
+			Exec(ctx)
+		require.NoError(t, err)
+
+		// ACT: Validate with 30-minute timeout (session is 35 min inactive)
+		err = service.ValidateSessionTimeout(ctx, device.ID, 30)
+
+		// ASSERT: Should succeed because 35 min > 30 min timeout
+		require.NoError(t, err)
+	})
+
+	t.Run("invalid timeout - session not yet timed out", func(t *testing.T) {
+		// ARRANGE: Create test fixtures
+		activity := testpkg.CreateTestActivityGroup(t, db, "Fresh Activity")
+		device := testpkg.CreateTestDevice(t, db, "fresh-device-001")
+		room := testpkg.CreateTestRoom(t, db, "Fresh Room")
+		staff := testpkg.CreateTestStaff(t, db, "Fresh", "Staff")
+
+		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, device.ID, room.ID, staff.ID)
+
+		// Start a fresh session (LastActivity = now)
+		_, err := service.StartActivitySession(ctx, activity.ID, device.ID, staff.ID, &room.ID)
+		require.NoError(t, err)
+
+		// ACT: Validate immediately - should fail because session is fresh
+		err = service.ValidateSessionTimeout(ctx, device.ID, 30)
+
+		// ASSERT
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "not yet timed out")
+	})
+
+	t.Run("invalid timeout minutes - too high", func(t *testing.T) {
+		// ARRANGE: Create test fixtures
+		activity := testpkg.CreateTestActivityGroup(t, db, "High Timeout Activity")
+		device := testpkg.CreateTestDevice(t, db, "high-timeout-device-001")
+		room := testpkg.CreateTestRoom(t, db, "High Timeout Room")
+		staff := testpkg.CreateTestStaff(t, db, "High", "Staff")
+
+		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, device.ID, room.ID, staff.ID)
+
+		// Start a session
+		_, err := service.StartActivitySession(ctx, activity.ID, device.ID, staff.ID, &room.ID)
+		require.NoError(t, err)
+
+		// ACT: Validate with 500 minutes (>480 max)
+		err = service.ValidateSessionTimeout(ctx, device.ID, 500)
+
+		// ASSERT
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid timeout minutes")
+	})
+
+	t.Run("invalid timeout minutes - zero", func(t *testing.T) {
+		// ARRANGE: Create test fixtures
+		activity := testpkg.CreateTestActivityGroup(t, db, "Zero Timeout Activity")
+		device := testpkg.CreateTestDevice(t, db, "zero-timeout-device-001")
+		room := testpkg.CreateTestRoom(t, db, "Zero Timeout Room")
+		staff := testpkg.CreateTestStaff(t, db, "Zero", "Staff")
+
+		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, device.ID, room.ID, staff.ID)
+
+		// Start a session
+		_, err := service.StartActivitySession(ctx, activity.ID, device.ID, staff.ID, &room.ID)
+		require.NoError(t, err)
+
+		// ACT: Validate with 0 minutes
+		err = service.ValidateSessionTimeout(ctx, device.ID, 0)
+
+		// ASSERT
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid timeout minutes")
+	})
+
+	t.Run("no active session", func(t *testing.T) {
+		// ARRANGE: Create a device without a session
+		device := testpkg.CreateTestDevice(t, db, "orphan-device-001")
+
+		defer testpkg.CleanupActivityFixtures(t, db, device.ID)
+
+		// ACT: Try to validate timeout for device with no session
+		err := service.ValidateSessionTimeout(ctx, device.ID, 30)
+
+		// ASSERT
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "no active session")
+	})
 }
 
-func (m *SimpleGroupRepo) FindActiveByDeviceIDWithNames(ctx context.Context, deviceID int64) (*active.Group, error) {
-	args := m.Called(ctx, deviceID)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*active.Group), args.Error(1)
-}
+// TestGetSessionTimeoutInfo tests retrieving timeout information
+func TestGetSessionTimeoutInfo(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() {
+		if err := db.Close(); err != nil {
+			t.Logf("Failed to close database: %v", err)
+		}
+	}()
 
-func (m *SimpleGroupRepo) FindByID(ctx context.Context, id interface{}) (*active.Group, error) {
-	args := m.Called(ctx, id)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*active.Group), args.Error(1)
-}
+	service := setupActiveService(t, db)
+	ctx := context.Background()
 
-func (m *SimpleGroupRepo) UpdateLastActivity(ctx context.Context, id int64, lastActivity time.Time) error {
-	args := m.Called(ctx, id, lastActivity)
-	return args.Error(0)
-}
+	t.Run("successful timeout info retrieval", func(t *testing.T) {
+		// ARRANGE: Create test fixtures
+		activity := testpkg.CreateTestActivityGroup(t, db, "Info Activity")
+		device := testpkg.CreateTestDevice(t, db, "info-device-001")
+		room := testpkg.CreateTestRoom(t, db, "Info Room")
+		staff := testpkg.CreateTestStaff(t, db, "Info", "Staff")
 
-func (m *SimpleGroupRepo) FindActiveSessionsOlderThan(ctx context.Context, cutoffTime time.Time) ([]*active.Group, error) {
-	args := m.Called(ctx, cutoffTime)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).([]*active.Group), args.Error(1)
-}
+		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, device.ID, room.ID, staff.ID)
 
-// Stub methods for interface compliance
-func (m *SimpleGroupRepo) Create(ctx context.Context, entity *active.Group) error { return nil }
-func (m *SimpleGroupRepo) Update(ctx context.Context, entity *active.Group) error { return nil }
-func (m *SimpleGroupRepo) Delete(ctx context.Context, id interface{}) error       { return nil }
-func (m *SimpleGroupRepo) List(ctx context.Context, options *base.QueryOptions) ([]*active.Group, error) {
-	return nil, nil
-}
-func (m *SimpleGroupRepo) FindActiveByRoomID(ctx context.Context, roomID int64) ([]*active.Group, error) {
-	return nil, nil
-}
-func (m *SimpleGroupRepo) FindActiveByGroupID(ctx context.Context, groupID int64) ([]*active.Group, error) {
-	return nil, nil
-}
-func (m *SimpleGroupRepo) FindByTimeRange(ctx context.Context, start, end time.Time) ([]*active.Group, error) {
-	return nil, nil
-}
-func (m *SimpleGroupRepo) EndSession(ctx context.Context, id int64) error { return nil }
-func (m *SimpleGroupRepo) FindBySourceIDs(ctx context.Context, sourceIDs []int64, sourceType string) ([]*active.Group, error) {
-	return nil, nil
-}
+		// Start a session
+		session, err := service.StartActivitySession(ctx, activity.ID, device.ID, staff.ID, &room.ID)
+		require.NoError(t, err)
 
-// FindWithRelations - missing method from interface
-func (m *SimpleGroupRepo) FindWithRelations(ctx context.Context, id int64) (*active.Group, error) {
-	return nil, nil
-}
-func (m *SimpleGroupRepo) FindWithVisits(ctx context.Context, id int64) (*active.Group, error) {
-	return nil, nil
-}
-func (m *SimpleGroupRepo) FindWithSupervisors(ctx context.Context, id int64) (*active.Group, error) {
-	return nil, nil
-}
-func (m *SimpleGroupRepo) FindActiveByGroupIDWithDevice(ctx context.Context, groupID int64) ([]*active.Group, error) {
-	return nil, nil
-}
-func (m *SimpleGroupRepo) CheckActivityDeviceConflict(ctx context.Context, activityID, excludeDeviceID int64) (bool, *active.Group, error) {
-	return false, nil, nil
-}
-func (m *SimpleGroupRepo) CheckRoomConflict(ctx context.Context, roomID int64, excludeGroupID int64) (bool, *active.Group, error) {
-	return false, nil, nil
-}
-func (m *SimpleGroupRepo) FindActiveByDeviceIDWithRelations(ctx context.Context, deviceID int64) (*active.Group, error) {
-	return nil, nil
-}
-func (m *SimpleGroupRepo) FindInactiveSessions(ctx context.Context, inactiveDuration time.Duration) ([]*active.Group, error) {
-	return nil, nil
-}
-func (m *SimpleGroupRepo) FindUnclaimed(ctx context.Context) ([]*active.Group, error) {
-	return nil, nil
-}
-func (m *SimpleGroupRepo) FindActiveGroups(ctx context.Context) ([]*active.Group, error) {
-	return nil, nil
-}
-func (m *SimpleGroupRepo) FindByIDs(ctx context.Context, ids []int64) (map[int64]*active.Group, error) {
-	return nil, nil
-}
+		// ACT: Get timeout info
+		info, err := service.GetSessionTimeoutInfo(ctx, device.ID)
 
-// Simple MockVisitRepository for testing
-type MockVisitRepository struct {
-	mock.Mock
-}
+		// ASSERT
+		require.NoError(t, err)
+		require.NotNil(t, info)
+		assert.Equal(t, session.ID, info.SessionID)
+		assert.Equal(t, activity.ID, info.ActivityID)
+		assert.Equal(t, 0, info.ActiveStudentCount) // No visits yet
+		assert.False(t, info.IsTimedOut)            // Fresh session
+	})
 
-func (m *MockVisitRepository) FindByActiveGroupID(ctx context.Context, activeGroupID int64) ([]*active.Visit, error) {
-	args := m.Called(mock.Anything, activeGroupID)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).([]*active.Visit), args.Error(1)
-}
+	t.Run("timeout info with active visits", func(t *testing.T) {
+		// ARRANGE: Create test fixtures
+		activity := testpkg.CreateTestActivityGroup(t, db, "Visit Info Activity")
+		device := testpkg.CreateTestDevice(t, db, "visit-info-device-001")
+		room := testpkg.CreateTestRoom(t, db, "Visit Info Room")
+		staff := testpkg.CreateTestStaff(t, db, "Visit", "Staff")
+		student1 := testpkg.CreateTestStudent(t, db, "Student", "One", "1a")
+		student2 := testpkg.CreateTestStudent(t, db, "Student", "Two", "1b")
 
-// Stub methods for interface compliance
-func (m *MockVisitRepository) FindByID(ctx context.Context, id interface{}) (*active.Visit, error) {
-	return nil, nil
-}
-func (m *MockVisitRepository) Create(ctx context.Context, entity *active.Visit) error { return nil }
-func (m *MockVisitRepository) Update(ctx context.Context, entity *active.Visit) error { return nil }
-func (m *MockVisitRepository) Delete(ctx context.Context, id interface{}) error       { return nil }
-func (m *MockVisitRepository) List(ctx context.Context, options *base.QueryOptions) ([]*active.Visit, error) {
-	return nil, nil
-}
-func (m *MockVisitRepository) FindActiveByStudentID(ctx context.Context, studentID int64) ([]*active.Visit, error) {
-	return nil, nil
-}
-func (m *MockVisitRepository) FindByTimeRange(ctx context.Context, start, end time.Time) ([]*active.Visit, error) {
-	return nil, nil
-}
-func (m *MockVisitRepository) EndVisit(ctx context.Context, id int64) error { return nil }
-func (m *MockVisitRepository) TransferVisitsFromRecentSessions(ctx context.Context, newActiveGroupID, deviceID int64) (int, error) {
-	return 0, nil
-}
-func (m *MockVisitRepository) DeleteExpiredVisits(ctx context.Context, studentID int64, retentionDays int) (int64, error) {
-	return 0, nil
-}
-func (m *MockVisitRepository) DeleteVisitsBeforeDate(ctx context.Context, studentID int64, beforeDate time.Time) (int64, error) {
-	return 0, nil
-}
-func (m *MockVisitRepository) GetVisitRetentionStats(ctx context.Context) (map[int64]int, error) {
-	return nil, nil
-}
-func (m *MockVisitRepository) CountExpiredVisits(ctx context.Context) (int64, error) {
-	return 0, nil
-}
-func (m *MockVisitRepository) GetCurrentByStudentID(ctx context.Context, studentID int64) (*active.Visit, error) {
-	return nil, nil
-}
-func (m *MockVisitRepository) GetCurrentByStudentIDs(ctx context.Context, studentIDs []int64) (map[int64]*active.Visit, error) {
-	return nil, nil
-}
-func (m *MockVisitRepository) FindActiveVisits(ctx context.Context) ([]*active.Visit, error) {
-	return nil, nil
-}
+		defer testpkg.CleanupActivityFixtures(t, db,
+			activity.ID, device.ID, room.ID, staff.ID, student1.ID, student2.ID)
 
-func TestUpdateSessionActivity_Simple(t *testing.T) {
-	tests := []struct {
-		name          string
-		activeGroupID int64
-		setupMock     func(*SimpleGroupRepo)
-		expectError   bool
-		errorContains string
-	}{
-		{
-			name:          "successful activity update",
-			activeGroupID: 123,
-			setupMock: func(repo *SimpleGroupRepo) {
-				activeGroup := &active.Group{
-					Model:          base.Model{ID: 123},
-					StartTime:      time.Now().Add(-10 * time.Minute),
-					LastActivity:   time.Now().Add(-5 * time.Minute),
-					TimeoutMinutes: 30,
-				}
+		// Start a session
+		session, err := service.StartActivitySession(ctx, activity.ID, device.ID, staff.ID, &room.ID)
+		require.NoError(t, err)
 
-				repo.On("FindByID", mock.Anything, int64(123)).Return(activeGroup, nil)
-				repo.On("UpdateLastActivity", mock.Anything, int64(123), mock.Anything).Return(nil)
-			},
-			expectError: false,
-		},
-		{
-			name:          "session not found",
-			activeGroupID: 456,
-			setupMock: func(repo *SimpleGroupRepo) {
-				repo.On("FindByID", mock.Anything, int64(456)).Return(nil, ErrActiveGroupNotFound)
-			},
-			expectError:   true,
-			errorContains: "not found",
-		},
-		{
-			name:          "session already ended",
-			activeGroupID: 789,
-			setupMock: func(repo *SimpleGroupRepo) {
-				endTime := time.Now()
-				endedGroup := &active.Group{
-					Model:          base.Model{ID: 789},
-					StartTime:      time.Now().Add(-30 * time.Minute),
-					EndTime:        &endTime,
-					LastActivity:   time.Now().Add(-10 * time.Minute),
-					TimeoutMinutes: 30,
-				}
+		// Insert visits directly into database (bypasses attendance creation logic)
+		// This is acceptable for testing GetSessionTimeoutInfo since we're testing
+		// the timeout info retrieval, not the visit creation business logic
+		_, err = db.NewInsert().
+			Model(&active.Visit{
+				StudentID:     student1.ID,
+				ActiveGroupID: session.ID,
+				EntryTime:     time.Now(),
+			}).
+			ModelTableExpr("active.visits").
+			Exec(ctx)
+		require.NoError(t, err)
 
-				repo.On("FindByID", mock.Anything, int64(789)).Return(endedGroup, nil)
-			},
-			expectError:   true,
-			errorContains: "already ended",
-		},
-	}
+		_, err = db.NewInsert().
+			Model(&active.Visit{
+				StudentID:     student2.ID,
+				ActiveGroupID: session.ID,
+				EntryTime:     time.Now(),
+			}).
+			ModelTableExpr("active.visits").
+			Exec(ctx)
+		require.NoError(t, err)
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Setup mock
-			repo := &SimpleGroupRepo{}
-			tt.setupMock(repo)
+		// ACT: Get timeout info
+		info, err := service.GetSessionTimeoutInfo(ctx, device.ID)
 
-			// Create service with minimal dependencies
-			service := &service{
-				groupRepo: repo,
-			}
+		// ASSERT
+		require.NoError(t, err)
+		require.NotNil(t, info)
+		assert.Equal(t, session.ID, info.SessionID)
+		assert.Equal(t, activity.ID, info.ActivityID)
+		assert.Equal(t, 2, info.ActiveStudentCount) // Two active visits
+		assert.False(t, info.IsTimedOut)            // Fresh session
+	})
 
-			// Execute test
-			err := service.UpdateSessionActivity(context.Background(), tt.activeGroupID)
+	t.Run("timeout info shows timed out session", func(t *testing.T) {
+		// ARRANGE: Create test fixtures
+		activity := testpkg.CreateTestActivityGroup(t, db, "Timed Out Info Activity")
+		device := testpkg.CreateTestDevice(t, db, "timedout-info-device-001")
+		room := testpkg.CreateTestRoom(t, db, "Timed Out Info Room")
+		staff := testpkg.CreateTestStaff(t, db, "TimedOut", "Staff")
 
-			// Assertions
-			if tt.expectError {
-				require.Error(t, err)
-				if tt.errorContains != "" {
-					assert.Contains(t, err.Error(), tt.errorContains)
-				}
-			} else {
-				require.NoError(t, err)
-			}
+		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, device.ID, room.ID, staff.ID)
 
-			// Verify mock expectations
-			repo.AssertExpectations(t)
-		})
-	}
-}
+		// Start a session
+		session, err := service.StartActivitySession(ctx, activity.ID, device.ID, staff.ID, &room.ID)
+		require.NoError(t, err)
 
-func TestValidateSessionTimeout_Simple(t *testing.T) {
-	tests := []struct {
-		name           string
-		deviceID       int64
-		timeoutMinutes int
-		setupMock      func(*SimpleGroupRepo)
-		expectError    bool
-		errorContains  string
-	}{
-		{
-			name:           "valid timeout - session is timed out",
-			deviceID:       1,
-			timeoutMinutes: 30,
-			setupMock: func(repo *SimpleGroupRepo) {
-				activeGroup := &active.Group{
-					Model:          base.Model{ID: 123},
-					StartTime:      time.Now().Add(-45 * time.Minute),
-					LastActivity:   time.Now().Add(-35 * time.Minute), // 35 minutes ago
-					TimeoutMinutes: 30,
-				}
-				deviceID := int64(1)
-				activeGroup.DeviceID = &deviceID
+		// Manually set LastActivity to 35 minutes ago and TimeoutMinutes to 30
+		_, err = db.NewUpdate().
+			Table("active.groups").
+			Set("last_activity = ?", time.Now().Add(-35*time.Minute)).
+			Set("timeout_minutes = ?", 30).
+			Where("id = ?", session.ID).
+			Exec(ctx)
+		require.NoError(t, err)
 
-				repo.On("FindActiveByDeviceIDWithNames", mock.Anything, int64(1)).Return(activeGroup, nil)
-			},
-			expectError: false,
-		},
-		{
-			name:           "invalid timeout - session not yet timed out",
-			deviceID:       2,
-			timeoutMinutes: 30,
-			setupMock: func(repo *SimpleGroupRepo) {
-				activeGroup := &active.Group{
-					Model:          base.Model{ID: 456},
-					StartTime:      time.Now().Add(-20 * time.Minute),
-					LastActivity:   time.Now().Add(-10 * time.Minute), // Only 10 minutes ago
-					TimeoutMinutes: 30,
-				}
-				deviceID := int64(2)
-				activeGroup.DeviceID = &deviceID
+		// ACT: Get timeout info
+		info, err := service.GetSessionTimeoutInfo(ctx, device.ID)
 
-				repo.On("FindActiveByDeviceIDWithNames", mock.Anything, int64(2)).Return(activeGroup, nil)
-			},
-			expectError:   true,
-			errorContains: "not yet timed out",
-		},
-		{
-			name:           "invalid timeout minutes - too high",
-			deviceID:       3,
-			timeoutMinutes: 500, // > 480 max
-			setupMock: func(repo *SimpleGroupRepo) {
-				activeGroup := &active.Group{
-					Model:          base.Model{ID: 789},
-					StartTime:      time.Now().Add(-45 * time.Minute),
-					LastActivity:   time.Now().Add(-35 * time.Minute),
-					TimeoutMinutes: 30,
-				}
-				deviceID := int64(3)
-				activeGroup.DeviceID = &deviceID
+		// ASSERT
+		require.NoError(t, err)
+		require.NotNil(t, info)
+		assert.Equal(t, session.ID, info.SessionID)
+		assert.Equal(t, 30, info.TimeoutMinutes)
+		assert.True(t, info.IsTimedOut) // Should be timed out (35 min > 30 min timeout)
+	})
 
-				repo.On("FindActiveByDeviceIDWithNames", mock.Anything, int64(3)).Return(activeGroup, nil)
-			},
-			expectError:   true,
-			errorContains: "invalid timeout minutes",
-		},
-		{
-			name:           "no active session",
-			deviceID:       4,
-			timeoutMinutes: 30,
-			setupMock: func(repo *SimpleGroupRepo) {
-				repo.On("FindActiveByDeviceIDWithNames", mock.Anything, int64(4)).Return(nil, ErrNoActiveSession)
-			},
-			expectError:   true,
-			errorContains: "no active session",
-		},
-	}
+	t.Run("no active session returns error", func(t *testing.T) {
+		// ARRANGE: Create a device without a session
+		device := testpkg.CreateTestDevice(t, db, "no-session-info-device-001")
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Setup mock
-			repo := &SimpleGroupRepo{}
-			tt.setupMock(repo)
+		defer testpkg.CleanupActivityFixtures(t, db, device.ID)
 
-			// Create service with minimal dependencies
-			service := &service{
-				groupRepo: repo,
-			}
+		// ACT: Try to get info for device with no session
+		info, err := service.GetSessionTimeoutInfo(ctx, device.ID)
 
-			// Execute test
-			err := service.ValidateSessionTimeout(context.Background(), tt.deviceID, tt.timeoutMinutes)
-
-			// Assertions
-			if tt.expectError {
-				require.Error(t, err)
-				if tt.errorContains != "" {
-					assert.Contains(t, err.Error(), tt.errorContains)
-				}
-			} else {
-				require.NoError(t, err)
-			}
-
-			// Verify mock expectations
-			repo.AssertExpectations(t)
-		})
-	}
-}
-
-func TestGetSessionTimeoutInfo_Simple(t *testing.T) {
-	tests := []struct {
-		name       string
-		deviceID   int64
-		setupMock  func(*SimpleGroupRepo, *MockVisitRepository)
-		expectInfo bool
-	}{
-		{
-			name:     "successful timeout info retrieval",
-			deviceID: 1,
-			setupMock: func(groupRepo *SimpleGroupRepo, visitRepo *MockVisitRepository) {
-				activeGroup := &active.Group{
-					Model:          base.Model{ID: 123},
-					GroupID:        456,
-					StartTime:      time.Now().Add(-20 * time.Minute),
-					LastActivity:   time.Now().Add(-10 * time.Minute),
-					TimeoutMinutes: 30,
-				}
-				deviceID := int64(1)
-				activeGroup.DeviceID = &deviceID
-
-				groupRepo.On("FindActiveByDeviceIDWithNames", mock.Anything, int64(1)).Return(activeGroup, nil)
-
-				// Mock active visits
-				activeVisits := []*active.Visit{
-					{Model: base.Model{ID: 1}, StudentID: 100, ActiveGroupID: 123},
-					{Model: base.Model{ID: 2}, StudentID: 101, ActiveGroupID: 123},
-				}
-				visitRepo.On("FindByActiveGroupID", mock.Anything, int64(123)).Return(activeVisits, nil)
-			},
-			expectInfo: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Setup mocks
-			groupRepo := &SimpleGroupRepo{}
-			visitRepo := &MockVisitRepository{}
-			tt.setupMock(groupRepo, visitRepo)
-
-			// Create service
-			service := &service{
-				groupRepo: groupRepo,
-				visitRepo: visitRepo,
-			}
-
-			// Execute test
-			info, err := service.GetSessionTimeoutInfo(context.Background(), tt.deviceID)
-
-			// Assertions
-			if tt.expectInfo {
-				require.NoError(t, err)
-				require.NotNil(t, info)
-				assert.Equal(t, int64(123), info.SessionID)
-				assert.Equal(t, int64(456), info.ActivityID)
-				assert.Equal(t, 30, info.TimeoutMinutes)
-				assert.Equal(t, 2, info.ActiveStudentCount)
-				assert.False(t, info.IsTimedOut) // 10 minutes < 30 minute timeout
-			} else {
-				require.Error(t, err)
-				assert.Nil(t, info)
-			}
-
-			// Verify mock expectations
-			groupRepo.AssertExpectations(t)
-			visitRepo.AssertExpectations(t)
-		})
-	}
+		// ASSERT
+		require.Error(t, err)
+		assert.Nil(t, info)
+		assert.Contains(t, err.Error(), "no active session")
+	})
 }

@@ -4,12 +4,12 @@ import { useState, useEffect } from "react";
 import type { CombinedGroup } from "@/lib/api";
 
 interface CombinedGroupFormProps {
-  initialData?: Partial<CombinedGroup>;
-  onSubmitAction: (groupData: Partial<CombinedGroup>) => Promise<void>;
-  onCancelAction: () => void;
-  isLoading: boolean;
-  formTitle: string;
-  submitLabel: string;
+  readonly initialData?: Partial<CombinedGroup>;
+  readonly onSubmitAction: (groupData: Partial<CombinedGroup>) => Promise<void>;
+  readonly onCancelAction: () => void;
+  readonly isLoading: boolean;
+  readonly formTitle: string;
+  readonly submitLabel: string;
 }
 
 export default function CombinedGroupForm({

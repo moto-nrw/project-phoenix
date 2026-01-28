@@ -80,9 +80,7 @@ export async function fetchPrivacyConsent(
  * @param response - The API response
  * @returns Extracted consent data or null if not found
  */
-function extractConsentData(
-  response: unknown,
-): PrivacyConsentData | null {
+function extractConsentData(response: unknown): PrivacyConsentData | null {
   if (!response || typeof response !== "object") {
     return null;
   }
@@ -97,7 +95,10 @@ function extractConsentData(
       "accepted" in wrappedData &&
       "data_retention_days" in wrappedData
     ) {
-      const data = wrappedData as { accepted: unknown; data_retention_days: unknown };
+      const data = wrappedData as {
+        accepted: unknown;
+        data_retention_days: unknown;
+      };
       if (
         typeof data.accepted === "boolean" &&
         typeof data.data_retention_days === "number"
@@ -140,7 +141,9 @@ export function shouldCreatePrivacyConsent(
 ): boolean {
   return (
     accepted === true ||
-    (retentionDays !== undefined && retentionDays !== 30 && retentionDays !== null)
+    (retentionDays !== undefined &&
+      retentionDays !== 30 &&
+      retentionDays !== null)
   );
 }
 
@@ -161,22 +164,11 @@ export async function updatePrivacyConsent(
   token: string,
   accepted?: boolean,
   retentionDays?: number,
-  operationName = "Operation",
+  _operationName = "Operation",
 ): Promise<void> {
-  console.log(
-    `[${operationName}] Updating privacy consent for student ${studentId} - accepted:`,
-    accepted,
-    "retention:",
-    retentionDays,
-  );
-
   await apiPut(`/api/students/${studentId}/privacy-consent`, token, {
     policy_version: "1.0",
     accepted: accepted ?? false,
     data_retention_days: retentionDays ?? 30,
   });
-
-  console.log(
-    `[${operationName}] Privacy consent updated - accepted=${accepted}, retention=${retentionDays}`,
-  );
 }

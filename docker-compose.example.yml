@@ -2,22 +2,17 @@ services:
   server:
     build:
       context: ./backend
-      dockerfile: Dockerfile
-      cache_from:
-        - project-phoenix-server:latest
+      dockerfile: Dockerfile.dev
     depends_on:
       postgres:
         condition: service_healthy
     ports:
       - 8080:8080
-    develop:
-      watch:
-        - action: rebuild
-          path: ./backend
-          ignore:
-            - backend/bin/
-            - backend/*.log
-            - backend/tmp/
+    volumes:
+      # Mount source code for hot reload
+      - ./backend:/app
+      # Preserve go modules cache
+      - go_mod_cache:/go/pkg/mod
     environment:
       TZ: ${TZ:-Europe/Berlin}
       LOG_LEVEL: ${LOG_LEVEL:-debug}
@@ -27,7 +22,7 @@ services:
       DB_DEBUG: ${DB_DEBUG:-"true"}
       AUTH_JWT_SECRET: ${AUTH_JWT_SECRET}
       AUTH_JWT_EXPIRY: ${AUTH_JWT_EXPIRY:-15m}
-      AUTH_JWT_REFRESH_EXPIRY: ${AUTH_JWT_REFRESH_EXPIRY:-1h}
+      AUTH_JWT_REFRESH_EXPIRY: ${AUTH_JWT_REFRESH_EXPIRY:-24h}
       ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@example.com}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD}
       EMAIL_FROM_ADDRESS: ${EMAIL_FROM_ADDRESS:-"no-reply@example.com"}
@@ -36,6 +31,9 @@ services:
       EMAIL_SMTP_PORT: ${EMAIL_SMTP_PORT:-465}
       EMAIL_SMTP_USER: ${EMAIL_SMTP_USER}
       EMAIL_SMTP_PASSWORD: ${EMAIL_SMTP_PASSWORD}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
+      INVITATION_TOKEN_EXPIRY_HOURS: ${INVITATION_TOKEN_EXPIRY_HOURS:-48}
+      PASSWORD_RESET_TOKEN_EXPIRY_MINUTES: ${PASSWORD_RESET_TOKEN_EXPIRY_MINUTES:-30}
       ENABLE_CORS: ${ENABLE_CORS:-"true"}
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-}
       RATE_LIMIT_ENABLED: ${RATE_LIMIT_ENABLED:-"false"}
@@ -54,7 +52,7 @@ services:
       SESSION_CLEANUP_INTERVAL_MINUTES: ${SESSION_CLEANUP_INTERVAL_MINUTES:-15}
       SESSION_ABANDONED_THRESHOLD_MINUTES: ${SESSION_ABANDONED_THRESHOLD_MINUTES:-60}
       OGS_DEVICE_PIN: ${OGS_DEVICE_PIN:-1234}
-    command: ["./main", "serve", "--db_debug"]
+    # air handles the serve command via .air.toml
 
   frontend:
     build:
@@ -67,7 +65,7 @@ services:
       - "3000:3000"
     environment:
       TZ: ${TZ:-Europe/Berlin}
-      AUTH_JWT_REFRESH_EXPIRY: ${AUTH_JWT_REFRESH_EXPIRY:-12h}
+      AUTH_JWT_REFRESH_EXPIRY: ${AUTH_JWT_REFRESH_EXPIRY:-24h}
       # API URL for both client and server-side calls
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-"http://server:8080"}
       # NextAuth configuration
@@ -84,7 +82,7 @@ services:
       - ./frontend/public:/app/public
       # Mount config files that might change
       - ./frontend/package.json:/app/package.json
-      - ./frontend/package-lock.json:/app/package-lock.json
+      - ./frontend/pnpm-lock.yaml:/app/pnpm-lock.yaml
       - ./frontend/next.config.js:/app/next.config.js
       - ./frontend/tsconfig.json:/app/tsconfig.json
       - ./frontend/tailwind.config.js:/app/tailwind.config.js
@@ -100,7 +98,7 @@ services:
       start_period: 10s
 
   postgres:
-    image: postgres:17-alpine
+    image: postgres:17
     restart: unless-stopped
     ports:
       - 5432:5432
@@ -126,6 +124,30 @@ services:
       interval: 1s
       timeout: 1s
       retries: 2
+
+  # Test database for integration tests
+  # Start with: docker compose --profile test up -d postgres-test
+  # Or run all tests: docker compose --profile test up -d
+  postgres-test:
+    image: postgres:17
+    profiles: ["test"]
+    restart: unless-stopped
+    ports:
+      - "${TEST_DB_PORT:-5433}:5432"
+    volumes:
+      - postgres_test:/var/lib/postgresql/data
+    environment:
+      TZ: ${TZ:-Europe/Berlin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: phoenix_test
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d phoenix_test"]
+      interval: 1s
+      timeout: 1s
+      retries: 5
+
 volumes:
   postgres:
+  postgres_test:
   frontend_node_modules:
+  go_mod_cache:

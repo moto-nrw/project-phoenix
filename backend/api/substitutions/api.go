@@ -1,8 +1,10 @@
 package substitutions
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -11,9 +13,17 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	modelEducation "github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/services/education"
+)
+
+// Constants for date formats and error messages (S1192 - avoid duplicate string literals)
+const (
+	dateFormatYMD           = "2006-01-02"
+	errSubstitutionNotFound = "substitution not found"
+	errContainsNotFound     = "not found" // Used for error message checks
 )
 
 type Resource struct {
@@ -65,8 +75,8 @@ func newSubstitutionResponse(sub *modelEducation.GroupSubstitution) Substitution
 		GroupID:           sub.GroupID,
 		RegularStaffID:    sub.RegularStaffID,
 		SubstituteStaffID: sub.SubstituteStaffID,
-		StartDate:         sub.StartDate.Format("2006-01-02"),
-		EndDate:           sub.EndDate.Format("2006-01-02"),
+		StartDate:         sub.StartDate.Format(dateFormatYMD),
+		EndDate:           sub.EndDate.Format(dateFormatYMD),
 		Reason:            sub.Reason,
 		Duration:          sub.Duration(),
 		IsActive:          sub.IsCurrentlyActive(),
@@ -165,7 +175,7 @@ func (rs *Resource) list(w http.ResponseWriter, r *http.Request) {
 		responses = append(responses, newSubstitutionResponse(sub))
 	}
 
-	common.RespondWithPagination(w, r, http.StatusOK, responses, page, pageSize, len(responses), "Substitutions retrieved successfully")
+	common.RespondPaginated(w, r, http.StatusOK, responses, common.PaginationParams{Page: page, PageSize: pageSize, Total: len(responses)}, "Substitutions retrieved successfully")
 }
 
 // listActive handles GET /api/substitutions/active
@@ -174,7 +184,7 @@ func (rs *Resource) listActive(w http.ResponseWriter, r *http.Request) {
 	dateStr := r.URL.Query().Get("date")
 	var date time.Time
 	if dateStr != "" {
-		parsedDate, err := time.Parse("2006-01-02", dateStr)
+		parsedDate, err := time.Parse(dateFormatYMD, dateStr)
 		if err != nil {
 			common.RespondWithError(w, r, http.StatusBadRequest, ErrInvalidSubstitutionData.Error())
 			return
@@ -203,7 +213,7 @@ func (rs *Resource) listActive(w http.ResponseWriter, r *http.Request) {
 func (rs *Resource) create(w http.ResponseWriter, r *http.Request) {
 	var req createSubstitutionRequest
 
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if json.NewDecoder(r.Body).Decode(&req) != nil {
 		common.RespondWithError(w, r, http.StatusBadRequest, ErrInvalidSubstitutionData.Error())
 		return
 	}
@@ -215,13 +225,13 @@ func (rs *Resource) create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Parse dates
-	startDate, err := time.Parse("2006-01-02", req.StartDate)
+	startDate, err := time.Parse(dateFormatYMD, req.StartDate)
 	if err != nil {
 		common.RespondWithError(w, r, http.StatusBadRequest, "Invalid start date format. Expected YYYY-MM-DD")
 		return
 	}
 
-	endDate, err := time.Parse("2006-01-02", req.EndDate)
+	endDate, err := time.Parse(dateFormatYMD, req.EndDate)
 	if err != nil {
 		common.RespondWithError(w, r, http.StatusBadRequest, "Invalid end date format. Expected YYYY-MM-DD")
 		return
@@ -234,7 +244,7 @@ func (rs *Resource) create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Validate no backdating - start date must be today or in the future
-	today := time.Now().Truncate(24 * time.Hour)
+	today := timezone.Today()
 	if startDate.Before(today) {
 		common.RespondWithError(w, r, http.StatusBadRequest, ErrSubstitutionBackdated.Error())
 		return
@@ -275,7 +285,7 @@ func (rs *Resource) get(w http.ResponseWriter, r *http.Request) {
 
 	substitution, err := rs.Service.GetSubstitution(r.Context(), id)
 	if err != nil {
-		if err.Error() == "substitution not found" {
+		if strings.Contains(err.Error(), errContainsNotFound) {
 			common.RespondWithError(w, r, http.StatusNotFound, ErrSubstitutionNotFound.Error())
 			return
 		}
@@ -297,80 +307,96 @@ func (rs *Resource) update(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var substitution modelEducation.GroupSubstitution
-	if err := json.NewDecoder(r.Body).Decode(&substitution); err != nil {
+	if json.NewDecoder(r.Body).Decode(&substitution) != nil {
 		common.RespondWithError(w, r, http.StatusBadRequest, ErrInvalidSubstitutionData.Error())
 		return
 	}
-
-	// Set the ID from the URL
 	substitution.ID = id
 
-	// Validate date range
-	if substitution.StartDate.After(substitution.EndDate) {
-		common.RespondWithError(w, r, http.StatusBadRequest, ErrSubstitutionDateRange.Error())
+	// Validate dates
+	if errMsg := validateSubstitutionDates(&substitution); errMsg != nil {
+		common.RespondWithError(w, r, http.StatusBadRequest, errMsg.Error())
 		return
 	}
 
-	// Validate no backdating - start date must be today or in the future
-	today := time.Now().Truncate(24 * time.Hour)
-	if substitution.StartDate.Before(today) {
-		common.RespondWithError(w, r, http.StatusBadRequest, ErrSubstitutionBackdated.Error())
-		return
-	}
-
-	// Check for conflicts if staff member changed
+	// Check existing and validate conflicts
 	existing, err := rs.Service.GetSubstitution(r.Context(), id)
 	if err != nil {
-		if err.Error() == "substitution not found" {
-			common.RespondWithError(w, r, http.StatusNotFound, ErrSubstitutionNotFound.Error())
-			return
-		}
-		common.RespondWithError(w, r, http.StatusInternalServerError, err.Error())
+		rs.handleGetSubstitutionError(w, r, err)
 		return
 	}
 
-	if existing.SubstituteStaffID != substitution.SubstituteStaffID {
-		conflicts, err := rs.Service.CheckSubstitutionConflicts(
-			r.Context(),
-			substitution.SubstituteStaffID,
-			substitution.StartDate,
-			substitution.EndDate,
-		)
-		if err != nil {
-			common.RespondWithError(w, r, http.StatusInternalServerError, err.Error())
-			return
-		}
-
-		// Filter out the current substitution from conflicts
-		var realConflicts []*modelEducation.GroupSubstitution
-		for _, conflict := range conflicts {
-			if conflict.ID != id {
-				realConflicts = append(realConflicts, conflict)
-			}
-		}
-
-		if len(realConflicts) > 0 {
-			common.RespondWithError(w, r, http.StatusConflict, ErrStaffAlreadySubstituting.Error())
-			return
-		}
+	if err := rs.checkStaffChangeConflicts(r.Context(), &substitution, existing); err != nil {
+		common.RespondWithError(w, r, http.StatusConflict, err.Error())
+		return
 	}
 
-	// Update the substitution
+	// Perform update
 	if err := rs.Service.UpdateSubstitution(r.Context(), &substitution); err != nil {
 		common.RespondWithError(w, r, http.StatusInternalServerError, err.Error())
 		return
 	}
 
-	// Get the updated substitution with all relations
 	updated, err := rs.Service.GetSubstitution(r.Context(), id)
 	if err != nil {
 		common.RespondWithError(w, r, http.StatusInternalServerError, err.Error())
 		return
 	}
 
-	// Convert to response DTO
-	response := newSubstitutionResponse(updated)
-	common.Respond(w, r, http.StatusOK, response, "Substitution updated successfully")
+	common.Respond(w, r, http.StatusOK, newSubstitutionResponse(updated), "Substitution updated successfully")
+}
+
+// validateSubstitutionDates validates date range and no backdating
+func validateSubstitutionDates(sub *modelEducation.GroupSubstitution) error {
+	if sub.StartDate.After(sub.EndDate) {
+		return ErrSubstitutionDateRange
+	}
+
+	today := timezone.Today()
+	if sub.StartDate.Before(today) {
+		return ErrSubstitutionBackdated
+	}
+	return nil
+}
+
+// handleGetSubstitutionError handles errors from GetSubstitution
+func (rs *Resource) handleGetSubstitutionError(w http.ResponseWriter, r *http.Request, err error) {
+	if strings.Contains(err.Error(), errContainsNotFound) {
+		common.RespondWithError(w, r, http.StatusNotFound, ErrSubstitutionNotFound.Error())
+		return
+	}
+	common.RespondWithError(w, r, http.StatusInternalServerError, err.Error())
+}
+
+// checkStaffChangeConflicts checks for conflicts when staff member changes
+func (rs *Resource) checkStaffChangeConflicts(
+	ctx context.Context,
+	newSub *modelEducation.GroupSubstitution,
+	existing *modelEducation.GroupSubstitution,
+) error {
+	if existing.SubstituteStaffID == newSub.SubstituteStaffID {
+		return nil
+	}
+
+	conflicts, err := rs.Service.CheckSubstitutionConflicts(ctx, newSub.SubstituteStaffID, newSub.StartDate, newSub.EndDate)
+	if err != nil {
+		return err
+	}
+
+	if hasRealConflicts(conflicts, newSub.ID) {
+		return ErrStaffAlreadySubstituting
+	}
+	return nil
+}
+
+// hasRealConflicts checks if there are conflicts excluding the current substitution
+func hasRealConflicts(conflicts []*modelEducation.GroupSubstitution, excludeID int64) bool {
+	for _, conflict := range conflicts {
+		if conflict.ID != excludeID {
+			return true
+		}
+	}
+	return false
 }
 
 // delete handles DELETE /api/substitutions/{id}
@@ -384,7 +410,7 @@ func (rs *Resource) delete(w http.ResponseWriter, r *http.Request) {
 	// Check if substitution exists
 	_, err = rs.Service.GetSubstitution(r.Context(), id)
 	if err != nil {
-		if err.Error() == "substitution not found" {
+		if strings.Contains(err.Error(), errContainsNotFound) {
 			common.RespondWithError(w, r, http.StatusNotFound, ErrSubstitutionNotFound.Error())
 			return
 		}
@@ -400,3 +426,25 @@ func (rs *Resource) delete(w http.ResponseWriter, r *http.Request) {
 
 	common.RespondNoContent(w, r)
 }
+
+// =============================================================================
+// HANDLER ACCESSOR METHODS (for testing)
+// =============================================================================
+
+// ListHandler returns the list handler
+func (rs *Resource) ListHandler() http.HandlerFunc { return rs.list }
+
+// ListActiveHandler returns the list active handler
+func (rs *Resource) ListActiveHandler() http.HandlerFunc { return rs.listActive }
+
+// GetHandler returns the get handler
+func (rs *Resource) GetHandler() http.HandlerFunc { return rs.get }
+
+// CreateHandler returns the create handler
+func (rs *Resource) CreateHandler() http.HandlerFunc { return rs.create }
+
+// UpdateHandler returns the update handler
+func (rs *Resource) UpdateHandler() http.HandlerFunc { return rs.update }
+
+// DeleteHandler returns the delete handler
+func (rs *Resource) DeleteHandler() http.HandlerFunc { return rs.delete }

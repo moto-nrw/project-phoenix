@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { Header } from "./header";
@@ -8,14 +8,14 @@ import { Sidebar } from "./sidebar";
 import { MobileBottomNav } from "./mobile-bottom-nav";
 
 interface ResponsiveLayoutProps {
-  children: React.ReactNode;
-  pageTitle?: string;
-  studentName?: string; // For student detail page breadcrumbs
-  roomName?: string; // For room detail page breadcrumbs
-  activityName?: string; // For activity detail page breadcrumbs
-  referrerPage?: string; // Where the user came from (for contextual breadcrumbs)
-  activeSupervisionName?: string; // For active supervision breadcrumb (e.g., "Schulhof")
-  ogsGroupName?: string; // For OGS group breadcrumb (e.g., "Sonngruppe")
+  readonly children: React.ReactNode;
+  readonly pageTitle?: string;
+  readonly studentName?: string; // For student detail page breadcrumbs
+  readonly roomName?: string; // For room detail page breadcrumbs
+  readonly activityName?: string; // For activity detail page breadcrumbs
+  readonly referrerPage?: string; // Where the user came from (for contextual breadcrumbs)
+  readonly activeSupervisionName?: string; // For active supervision breadcrumb (e.g., "Schulhof")
+  readonly ogsGroupName?: string; // For OGS group breadcrumb (e.g., "Sonngruppe")
 }
 
 export default function ResponsiveLayout({
@@ -34,12 +34,7 @@ export default function ResponsiveLayout({
   const userName = session?.user?.name?.trim() || undefined;
   const userEmail = session?.user?.email ?? "";
   const userRoles = session?.user?.roles ?? [];
-  const userRole = userRoles.includes("admin")
-    ? "Admin"
-    : userRoles.length > 0
-      ? "Betreuer"
-      : "Betreuer";
-  const [isMobileModalOpen, setIsMobileModalOpen] = useState(false);
+  const userRole = userRoles.includes("admin") ? "Admin" : "Betreuer";
 
   // Check for invalid session and redirect
   useEffect(() => {
@@ -51,26 +46,12 @@ export default function ResponsiveLayout({
     }
   }, [session, status, router]);
 
-  // Listen for modal state changes via custom events
-  useEffect(() => {
-    const handleModalOpen = () => setIsMobileModalOpen(true);
-    const handleModalClose = () => setIsMobileModalOpen(false);
-
-    window.addEventListener("mobile-modal-open", handleModalOpen);
-    window.addEventListener("mobile-modal-close", handleModalClose);
-
-    return () => {
-      window.removeEventListener("mobile-modal-open", handleModalOpen);
-      window.removeEventListener("mobile-modal-close", handleModalClose);
-    };
-  }, []);
-
   return (
-    <div className="min-h-screen">
-      {/* Header with conditional blur - sticky positioning */}
-      <div
-        className={`sticky top-0 z-40 transition-all duration-300 ${isMobileModalOpen ? "blur-md lg:blur-none" : ""}`}
-      >
+    <div className="relative min-h-screen">
+      {/* Note: Modal blur overlay is now in BackgroundWrapper for global coverage */}
+
+      {/* Header - sticky positioning */}
+      <div className="sticky top-0 z-40">
         <Header
           userName={userName}
           userEmail={userEmail}
@@ -85,10 +66,8 @@ export default function ResponsiveLayout({
         />
       </div>
 
-      {/* Main content with conditional blur */}
-      <div
-        className={`flex transition-all duration-300 ${isMobileModalOpen ? "blur-md lg:blur-none" : ""}`}
-      >
+      {/* Main content */}
+      <div className="flex">
         {/* Desktop sidebar - only visible on md+ screens */}
         <Sidebar className="hidden lg:block" />
 
@@ -96,10 +75,8 @@ export default function ResponsiveLayout({
         <main className="flex-1 p-4 pb-24 md:p-8 lg:pb-8">{children}</main>
       </div>
 
-      {/* Mobile bottom navigation with conditional blur */}
-      <MobileBottomNav
-        className={`transition-all duration-300 ${isMobileModalOpen ? "blur-md lg:blur-none" : ""}`}
-      />
+      {/* Mobile bottom navigation */}
+      <MobileBottomNav />
     </div>
   );
 }

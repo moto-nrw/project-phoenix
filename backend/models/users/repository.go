@@ -57,6 +57,9 @@ type PersonRepository interface {
 	// List retrieves persons matching the filters
 	List(ctx context.Context, filters map[string]interface{}) ([]*Person, error)
 
+	// ListWithOptions retrieves persons with type-safe query options
+	ListWithOptions(ctx context.Context, options *base.QueryOptions) ([]*Person, error)
+
 	// LinkToAccount associates a person with an account
 	LinkToAccount(ctx context.Context, personID int64, accountID int64) error
 
@@ -144,6 +147,9 @@ type StaffRepository interface {
 	// List retrieves staff members matching the filters
 	List(ctx context.Context, filters map[string]interface{}) ([]*Staff, error)
 
+	// ListAllWithPerson retrieves all staff members with their associated person data in a single query
+	ListAllWithPerson(ctx context.Context) ([]*Staff, error)
+
 	// UpdateNotes updates staff notes
 	UpdateNotes(ctx context.Context, id int64, notes string) error
 
@@ -161,6 +167,10 @@ type TeacherRepository interface {
 
 	// FindByStaffID retrieves a teacher by their staff ID
 	FindByStaffID(ctx context.Context, staffID int64) (*Teacher, error)
+
+	// FindByStaffIDs retrieves teachers by multiple staff IDs in a single query
+	// Returns a map of staff_id -> Teacher for efficient lookup
+	FindByStaffIDs(ctx context.Context, staffIDs []int64) (map[int64]*Teacher, error)
 
 	// FindBySpecialization retrieves teachers by their specialization
 	FindBySpecialization(ctx context.Context, specialization string) ([]*Teacher, error)
@@ -185,6 +195,9 @@ type TeacherRepository interface {
 
 	// FindWithStaffAndPerson retrieves a teacher with their associated staff and person data
 	FindWithStaffAndPerson(ctx context.Context, id int64) (*Teacher, error)
+
+	// ListAllWithStaffAndPerson retrieves all teachers with their staff and person data in a single query
+	ListAllWithStaffAndPerson(ctx context.Context) ([]*Teacher, error)
 }
 
 // GuestRepository defines operations for managing guests
@@ -284,6 +297,15 @@ type PersonGuardianRepository interface {
 
 	// UpdatePermissions updates a guardian's permissions
 	UpdatePermissions(ctx context.Context, id int64, permissions string) error
+
+	// FindWithPerson retrieves a relationship with the associated person loaded
+	FindWithPerson(ctx context.Context, id int64) (*PersonGuardian, error)
+
+	// GrantPermissionToGuardian grants a specific permission to a guardian
+	GrantPermissionToGuardian(ctx context.Context, id int64, permission string) error
+
+	// RevokePermissionFromGuardian revokes a specific permission from a guardian
+	RevokePermissionFromGuardian(ctx context.Context, id int64, permission string) error
 }
 
 // StudentGuardianRepository defines operations for managing student-guardian relationships
@@ -422,4 +444,40 @@ type GuardianProfileRepository interface {
 
 	// GetStudentCount returns the number of students for a guardian
 	GetStudentCount(ctx context.Context, profileID int64) (int, error)
+}
+
+// GuardianPhoneNumberRepository defines operations for managing guardian phone numbers
+type GuardianPhoneNumberRepository interface {
+	// Create inserts a new phone number into the database
+	Create(ctx context.Context, phone *GuardianPhoneNumber) error
+
+	// FindByID retrieves a phone number by its ID
+	FindByID(ctx context.Context, id int64) (*GuardianPhoneNumber, error)
+
+	// FindByGuardianID retrieves all phone numbers for a guardian profile
+	FindByGuardianID(ctx context.Context, guardianProfileID int64) ([]*GuardianPhoneNumber, error)
+
+	// GetPrimary retrieves the primary phone number for a guardian
+	GetPrimary(ctx context.Context, guardianProfileID int64) (*GuardianPhoneNumber, error)
+
+	// Update updates an existing phone number
+	Update(ctx context.Context, phone *GuardianPhoneNumber) error
+
+	// Delete removes a phone number
+	Delete(ctx context.Context, id int64) error
+
+	// SetPrimary sets a phone number as primary and unsets others for the guardian
+	SetPrimary(ctx context.Context, id int64, guardianProfileID int64) error
+
+	// UnsetAllPrimary unsets primary flag for all phone numbers of a guardian
+	UnsetAllPrimary(ctx context.Context, guardianProfileID int64) error
+
+	// CountByGuardianID returns the number of phone numbers for a guardian
+	CountByGuardianID(ctx context.Context, guardianProfileID int64) (int, error)
+
+	// DeleteByGuardianID removes all phone numbers for a guardian
+	DeleteByGuardianID(ctx context.Context, guardianProfileID int64) error
+
+	// GetNextPriority returns the next priority value for a guardian's phone numbers
+	GetNextPriority(ctx context.Context, guardianProfileID int64) (int, error)
 }

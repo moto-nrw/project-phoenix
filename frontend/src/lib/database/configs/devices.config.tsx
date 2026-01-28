@@ -166,11 +166,11 @@ export const devicesConfig = defineEntityConfig<Device>({
                       onClick={(e) => (e.target as HTMLInputElement).select()}
                     />
                     <button
-                      onClick={() => {
+                      onClick={(e) => {
                         const input = document.getElementById(
                           `api-key-${device.id}`,
                         ) as HTMLInputElement;
-                        const btn = event?.target as HTMLButtonElement;
+                        const btn = e.currentTarget as HTMLButtonElement;
 
                         if (input.type === "password") {
                           input.type = "text";

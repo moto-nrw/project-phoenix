@@ -4,6 +4,7 @@ import React, {
   createContext,
   useState,
   useCallback,
+  useMemo,
   type ReactNode,
 } from "react";
 
@@ -24,7 +25,7 @@ export const AlertContext = createContext<AlertContextType | undefined>(
 );
 
 interface AlertProviderProps {
-  children: ReactNode;
+  readonly children: ReactNode;
 }
 
 export function AlertProvider({ children }: AlertProviderProps) {
@@ -48,11 +49,14 @@ export function AlertProvider({ children }: AlertProviderProps) {
     });
   }, []);
 
-  const value: AlertContextType = {
-    alertState,
-    showAlert,
-    hideAlert,
-  };
+  const value = useMemo<AlertContextType>(
+    () => ({
+      alertState,
+      showAlert,
+      hideAlert,
+    }),
+    [alertState, showAlert, hideAlert],
+  );
 
   return (
     <AlertContext.Provider value={value}>{children}</AlertContext.Provider>

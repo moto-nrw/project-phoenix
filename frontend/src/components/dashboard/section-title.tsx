@@ -3,7 +3,7 @@
 import React from "react";
 
 interface SectionTitleProps {
-  title: string;
+  readonly title: string;
 }
 
 export function SectionTitle({ title }: SectionTitleProps) {

@@ -4,7 +4,6 @@ import (
 	"context"
 	"log"
 
-	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
@@ -15,14 +14,13 @@ import (
 // StudentDataSnapshot caches all data needed for building student list responses.
 // This eliminates N+1 query problems by loading all related data in bulk.
 type StudentDataSnapshot struct {
-	Persons            map[int64]*userModels.Person
-	Groups             map[int64]*educationModels.Group
-	ScheduledCheckouts map[int64]*activeModels.ScheduledCheckout
-	LocationSnapshot   *StudentLocationSnapshot
+	Persons          map[int64]*userModels.Person
+	Groups           map[int64]*educationModels.Group
+	LocationSnapshot *StudentLocationSnapshot
 }
 
 // LoadStudentDataSnapshot batches all data needed to build student list responses.
-// This prevents N+1 queries by loading persons, groups, scheduled checkouts, and locations in bulk.
+// This prevents N+1 queries by loading persons, groups, and locations in bulk.
 func LoadStudentDataSnapshot(
 	ctx context.Context,
 	personService userService.PersonService,
@@ -33,50 +31,32 @@ func LoadStudentDataSnapshot(
 	groupIDs []int64,
 ) (*StudentDataSnapshot, error) {
 	snapshot := &StudentDataSnapshot{
-		Persons:            make(map[int64]*userModels.Person),
-		Groups:             make(map[int64]*educationModels.Group),
-		ScheduledCheckouts: make(map[int64]*activeModels.ScheduledCheckout),
+		Persons: make(map[int64]*userModels.Person),
+		Groups:  make(map[int64]*educationModels.Group),
 	}
 
-	// Load persons
+	// Load persons (continue with empty map on error)
 	if len(personIDs) > 0 {
-		persons, err := personService.GetByIDs(ctx, personIDs)
-		if err != nil {
+		if persons, err := personService.GetByIDs(ctx, personIDs); err != nil {
 			log.Printf("Failed to bulk load persons: %v", err)
-			// Continue with empty map rather than failing completely
 		} else {
 			snapshot.Persons = persons
 		}
 	}
 
-	// Load groups
+	// Load groups (continue with empty map on error)
 	if len(groupIDs) > 0 {
-		groups, err := educationSvc.GetGroupsByIDs(ctx, groupIDs)
-		if err != nil {
+		if groups, err := educationSvc.GetGroupsByIDs(ctx, groupIDs); err != nil {
 			log.Printf("Failed to bulk load groups: %v", err)
-			// Continue with empty map rather than failing completely
 		} else {
 			snapshot.Groups = groups
 		}
 	}
 
-	// Load scheduled checkouts
+	// Load location snapshot (continue on error)
 	if len(studentIDs) > 0 {
-		checkouts, err := activeSvc.GetPendingScheduledCheckouts(ctx, studentIDs)
-		if err != nil {
-			log.Printf("Failed to bulk load scheduled checkouts: %v", err)
-			// Continue with empty map rather than failing completely
-		} else {
-			snapshot.ScheduledCheckouts = checkouts
-		}
-	}
-
-	// Load location snapshot
-	if len(studentIDs) > 0 {
-		locationSnapshot, err := LoadStudentLocationSnapshot(ctx, activeSvc, studentIDs)
-		if err != nil {
+		if locationSnapshot, err := LoadStudentLocationSnapshot(ctx, activeSvc, studentIDs); err != nil {
 			log.Printf("Failed to load student location snapshot: %v", err)
-			// Continue without location data rather than failing completely
 		} else {
 			snapshot.LocationSnapshot = locationSnapshot
 		}
@@ -99,14 +79,6 @@ func (s *StudentDataSnapshot) GetGroup(groupID int64) *educationModels.Group {
 		return nil
 	}
 	return s.Groups[groupID]
-}
-
-// GetScheduledCheckout retrieves a scheduled checkout from the snapshot with nil safety
-func (s *StudentDataSnapshot) GetScheduledCheckout(studentID int64) *activeModels.ScheduledCheckout {
-	if s == nil || s.ScheduledCheckouts == nil {
-		return nil
-	}
-	return s.ScheduledCheckouts[studentID]
 }
 
 // ResolveLocationWithTime retrieves location info including entry time from the snapshot

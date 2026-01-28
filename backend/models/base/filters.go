@@ -111,12 +111,12 @@ func (f *Filter) LessThanOrEqual(field string, value interface{}) *Filter {
 }
 
 // Like adds a LIKE condition
-func (f *Filter) Like(field string, value string) *Filter {
+func (f *Filter) Like(field, value string) *Filter {
 	return f.Where(field, OpLike, value)
 }
 
 // ILike adds a case-insensitive LIKE condition
-func (f *Filter) ILike(field string, value string) *Filter {
+func (f *Filter) ILike(field, value string) *Filter {
 	return f.Where(field, OpILike, value)
 }
 
@@ -164,6 +164,29 @@ func (f *Filter) DateBetween(startField, endField string, date time.Time) *Filte
 	return f
 }
 
+// Get retrieves the value of a filter condition by field name (first match only)
+// Returns the value and true if found, or nil and false if not found
+func (f *Filter) Get(field string) (interface{}, bool) {
+	for _, condition := range f.conditions {
+		if condition.Field == field && condition.Operator == OpEqual {
+			return condition.Value, true
+		}
+	}
+	return nil, false
+}
+
+// Remove removes all conditions for a specific field from the filter
+func (f *Filter) Remove(field string) *Filter {
+	filtered := make([]FilterCondition, 0, len(f.conditions))
+	for _, condition := range f.conditions {
+		if condition.Field != field {
+			filtered = append(filtered, condition)
+		}
+	}
+	f.conditions = filtered
+	return f
+}
+
 // ToMap converts a filter to a simple map for repository use
 func (f *Filter) ToMap() map[string]interface{} {
 	result := make(map[string]interface{})
@@ -189,102 +212,116 @@ func (f *Filter) ToMap() map[string]interface{} {
 func (f *Filter) ApplyToQuery(query *bun.SelectQuery) *bun.SelectQuery {
 	// Apply basic conditions
 	for _, condition := range f.conditions {
-		// When we have a table alias, we need to use quoted column references
-		// like "alias"."column" instead of bun.Ident
-		if f.tableAlias != "" {
-			columnRef := fmt.Sprintf(`"%s"."%s"`, f.tableAlias, condition.Field)
-			switch condition.Operator {
-			case OpEqual:
-				query = query.Where(columnRef+" = ?", condition.Value)
-			case OpNotEqual:
-				query = query.Where(columnRef+" != ?", condition.Value)
-			case OpGreaterThan:
-				query = query.Where(columnRef+" > ?", condition.Value)
-			case OpGreaterThanOrEqual:
-				query = query.Where(columnRef+" >= ?", condition.Value)
-			case OpLessThan:
-				query = query.Where(columnRef+" < ?", condition.Value)
-			case OpLessThanOrEqual:
-				query = query.Where(columnRef+" <= ?", condition.Value)
-			case OpLike:
-				query = query.Where(columnRef+" LIKE ?", condition.Value)
-			case OpILike:
-				query = query.Where(columnRef+" ILIKE ?", condition.Value)
-			case OpIsNull:
-				query = query.Where(columnRef + " IS NULL")
-			case OpIsNotNull:
-				query = query.Where(columnRef + " IS NOT NULL")
-			case OpIn:
-				if values, ok := condition.Value.([]interface{}); ok {
-					query = query.Where(columnRef+" IN (?)", bun.In(values))
-				}
-			case OpNotIn:
-				if values, ok := condition.Value.([]interface{}); ok {
-					query = query.Where(columnRef+" NOT IN (?)", bun.In(values))
-				}
-			case OpContains:
-				query = query.Where(columnRef+" @> ?", condition.Value)
-			case OpContainedBy:
-				query = query.Where(columnRef+" <@ ?", condition.Value)
-			case OpHasKey:
-				query = query.Where(columnRef+" ? ?", condition.Value)
-			}
-		} else {
-			// Original behavior for queries without table alias
-			fieldIdent := bun.Ident(condition.Field)
-			switch condition.Operator {
-			case OpEqual:
-				query = query.Where("? = ?", fieldIdent, condition.Value)
-			case OpNotEqual:
-				query = query.Where("? != ?", fieldIdent, condition.Value)
-			case OpGreaterThan:
-				query = query.Where("? > ?", fieldIdent, condition.Value)
-			case OpGreaterThanOrEqual:
-				query = query.Where("? >= ?", fieldIdent, condition.Value)
-			case OpLessThan:
-				query = query.Where("? < ?", fieldIdent, condition.Value)
-			case OpLessThanOrEqual:
-				query = query.Where("? <= ?", fieldIdent, condition.Value)
-			case OpLike:
-				query = query.Where("? LIKE ?", fieldIdent, condition.Value)
-			case OpILike:
-				query = query.Where("? ILIKE ?", fieldIdent, condition.Value)
-			case OpIsNull:
-				query = query.Where("? IS NULL", fieldIdent)
-			case OpIsNotNull:
-				query = query.Where("? IS NOT NULL", fieldIdent)
-			case OpIn:
-				if values, ok := condition.Value.([]interface{}); ok {
-					query = query.Where("? IN (?)", fieldIdent, bun.In(values))
-				}
-			case OpNotIn:
-				if values, ok := condition.Value.([]interface{}); ok {
-					query = query.Where("? NOT IN (?)", fieldIdent, bun.In(values))
-				}
-			case OpContains:
-				query = query.Where("? @> ?", fieldIdent, condition.Value)
-			case OpContainedBy:
-				query = query.Where("? <@ ?", fieldIdent, condition.Value)
-			case OpHasKey:
-				query = query.Where("? ? ?", fieldIdent, condition.Value)
-			}
+		query = f.applyConditionToQuery(query, condition)
+	}
+
+	// Apply OR and AND conditions
+	query = applyLogicalConditions(query, f.or, " OR ")
+	query = applyLogicalConditions(query, f.and, " AND ")
+
+	return query
+}
+
+// applyConditionToQuery applies a single filter condition to the query
+func (f *Filter) applyConditionToQuery(query *bun.SelectQuery, condition FilterCondition) *bun.SelectQuery {
+	if f.tableAlias != "" {
+		columnRef := fmt.Sprintf(`"%s"."%s"`, f.tableAlias, condition.Field)
+		return applyOperatorWithColumnRef(query, columnRef, condition)
+	}
+	return applyOperatorWithIdent(query, condition.Field, condition)
+}
+
+// applyOperatorWithColumnRef applies operator with direct column reference (for aliased tables)
+func applyOperatorWithColumnRef(query *bun.SelectQuery, columnRef string, condition FilterCondition) *bun.SelectQuery {
+	switch condition.Operator {
+	case OpEqual:
+		return query.Where(columnRef+" = ?", condition.Value)
+	case OpNotEqual:
+		return query.Where(columnRef+" != ?", condition.Value)
+	case OpGreaterThan:
+		return query.Where(columnRef+" > ?", condition.Value)
+	case OpGreaterThanOrEqual:
+		return query.Where(columnRef+" >= ?", condition.Value)
+	case OpLessThan:
+		return query.Where(columnRef+" < ?", condition.Value)
+	case OpLessThanOrEqual:
+		return query.Where(columnRef+" <= ?", condition.Value)
+	case OpLike:
+		return query.Where(columnRef+" LIKE ?", condition.Value)
+	case OpILike:
+		return query.Where(columnRef+" ILIKE ?", condition.Value)
+	case OpIsNull:
+		return query.Where(columnRef + " IS NULL")
+	case OpIsNotNull:
+		return query.Where(columnRef + " IS NOT NULL")
+	case OpIn:
+		if values, ok := condition.Value.([]interface{}); ok {
+			return query.Where(columnRef+" IN (?)", bun.In(values))
 		}
+	case OpNotIn:
+		if values, ok := condition.Value.([]interface{}); ok {
+			return query.Where(columnRef+" NOT IN (?)", bun.In(values))
+		}
+	case OpContains:
+		return query.Where(columnRef+" @> ?", condition.Value)
+	case OpContainedBy:
+		return query.Where(columnRef+" <@ ?", condition.Value)
+	case OpHasKey:
+		return query.Where(columnRef+" ? ?", condition.Value)
 	}
+	return query
+}
 
-	// Apply OR conditions
-	for _, orFilter := range f.or {
-		query = query.WhereGroup(" OR ", func(q *bun.SelectQuery) *bun.SelectQuery {
-			return orFilter.ApplyToQuery(q)
+// applyOperatorWithIdent applies operator with bun.Ident (for non-aliased tables)
+func applyOperatorWithIdent(query *bun.SelectQuery, field string, condition FilterCondition) *bun.SelectQuery {
+	fieldIdent := bun.Ident(field)
+	switch condition.Operator {
+	case OpEqual:
+		return query.Where("? = ?", fieldIdent, condition.Value)
+	case OpNotEqual:
+		return query.Where("? != ?", fieldIdent, condition.Value)
+	case OpGreaterThan:
+		return query.Where("? > ?", fieldIdent, condition.Value)
+	case OpGreaterThanOrEqual:
+		return query.Where("? >= ?", fieldIdent, condition.Value)
+	case OpLessThan:
+		return query.Where("? < ?", fieldIdent, condition.Value)
+	case OpLessThanOrEqual:
+		return query.Where("? <= ?", fieldIdent, condition.Value)
+	case OpLike:
+		return query.Where("? LIKE ?", fieldIdent, condition.Value)
+	case OpILike:
+		return query.Where("? ILIKE ?", fieldIdent, condition.Value)
+	case OpIsNull:
+		return query.Where("? IS NULL", fieldIdent)
+	case OpIsNotNull:
+		return query.Where("? IS NOT NULL", fieldIdent)
+	case OpIn:
+		if values, ok := condition.Value.([]interface{}); ok {
+			return query.Where("? IN (?)", fieldIdent, bun.In(values))
+		}
+	case OpNotIn:
+		if values, ok := condition.Value.([]interface{}); ok {
+			return query.Where("? NOT IN (?)", fieldIdent, bun.In(values))
+		}
+	case OpContains:
+		return query.Where("? @> ?", fieldIdent, condition.Value)
+	case OpContainedBy:
+		return query.Where("? <@ ?", fieldIdent, condition.Value)
+	case OpHasKey:
+		return query.Where("? ? ?", fieldIdent, condition.Value)
+	}
+	return query
+}
+
+// applyLogicalConditions applies OR or AND conditions to the query
+func applyLogicalConditions(query *bun.SelectQuery, filters []Filter, operator string) *bun.SelectQuery {
+	for _, filter := range filters {
+		localFilter := filter
+		query = query.WhereGroup(operator, func(q *bun.SelectQuery) *bun.SelectQuery {
+			return localFilter.ApplyToQuery(q)
 		})
 	}
-
-	// Apply AND conditions
-	for _, andFilter := range f.and {
-		query = query.WhereGroup(" AND ", func(q *bun.SelectQuery) *bun.SelectQuery {
-			return andFilter.ApplyToQuery(q)
-		})
-	}
-
 	return query
 }
 

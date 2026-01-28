@@ -19,7 +19,7 @@ type ErrResponse struct {
 }
 
 // Render sets the specific error code for the response
-func (e *ErrResponse) Render(w http.ResponseWriter, r *http.Request) error {
+func (e *ErrResponse) Render(_ http.ResponseWriter, r *http.Request) error {
 	render.Status(r, e.HTTPStatusCode)
 	return nil
 }
@@ -103,6 +103,14 @@ func ErrorRenderer(err error) render.Renderer {
 	case errors.Is(err, activeSvc.ErrRoomConflict):
 		renderer.HTTPStatusCode = http.StatusConflict
 		renderer.StatusText = "Room Conflict"
+
+	case errors.Is(err, activeSvc.ErrStudentNotFound):
+		renderer.HTTPStatusCode = http.StatusNotFound
+		renderer.StatusText = "Student Not Found"
+
+	case errors.Is(err, activeSvc.ErrStaffNotFound):
+		renderer.HTTPStatusCode = http.StatusNotFound
+		renderer.StatusText = "Staff Not Found"
 	}
 
 	return renderer

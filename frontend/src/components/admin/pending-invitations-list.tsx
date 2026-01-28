@@ -10,10 +10,11 @@ import {
 } from "~/lib/invitation-api";
 import type { PendingInvitation } from "~/lib/invitation-helpers";
 import type { ApiError } from "~/lib/auth-api";
+import { getRoleDisplayName } from "~/lib/auth-helpers";
 import { isValidDateString, isDateExpired } from "~/lib/utils/date-helpers";
 
 interface PendingInvitationsListProps {
-  refreshKey: number;
+  readonly refreshKey: number;
 }
 
 export function PendingInvitationsList({
@@ -22,9 +23,6 @@ export function PendingInvitationsList({
   const [invitations, setInvitations] = useState<PendingInvitation[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  // Local inline success feedback removed in favor of global toasts
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [feedback, setFeedback] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState<number | null>(null);
   const [revokeTarget, setRevokeTarget] = useState<PendingInvitation | null>(
     null,
@@ -54,7 +52,6 @@ export function PendingInvitationsList({
   }, [loadInvitations, refreshKey]);
 
   const handleResend = async (id: number) => {
-    setFeedback(null);
     setError(null);
     try {
       setActionLoading(id);
@@ -74,7 +71,6 @@ export function PendingInvitationsList({
 
   const handleRevoke = async () => {
     if (!revokeTarget) return;
-    setFeedback(null);
     setError(null);
     try {
       setActionLoading(revokeTarget.id);
@@ -245,7 +241,7 @@ export function PendingInvitationsList({
                       {invitation.email}
                     </td>
                     <td className="hidden truncate px-3 py-2 text-xs text-gray-600 sm:table-cell md:px-4 md:py-3 md:text-sm">
-                      {invitation.roleName}
+                      {getRoleDisplayName(invitation.roleName)}
                     </td>
                     <td className="hidden truncate px-3 py-2 text-xs text-gray-500 md:px-4 md:py-3 lg:table-cell">
                       {invitation.creatorEmail ??

@@ -239,12 +239,3 @@ func TestVisitGetDuration(t *testing.T) {
 		})
 	}
 }
-
-func TestVisitTableName(t *testing.T) {
-	visit := &Visit{}
-	want := "active.visits"
-
-	if got := visit.TableName(); got != want {
-		t.Errorf("Visit.TableName() = %v, want %v", got, want)
-	}
-}

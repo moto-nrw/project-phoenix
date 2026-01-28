@@ -5,12 +5,18 @@ import { DetailModalActions } from "~/components/ui/detail-modal-actions";
 import type { Activity } from "@/lib/activity-helpers";
 
 interface ActivityDetailModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  activity: Activity | null;
-  onEdit: () => void;
-  onDelete: () => void;
-  loading?: boolean;
+  readonly isOpen: boolean;
+  readonly onClose: () => void;
+  readonly activity: Activity | null;
+  readonly onEdit: () => void;
+  readonly onDelete: () => void;
+  readonly loading?: boolean;
+  /**
+   * Custom click handler for delete button.
+   * When provided, bypasses internal confirmation modal.
+   * Use this to handle confirmation at the page level.
+   */
+  readonly onDeleteClick?: () => void;
 }
 
 export function ActivityDetailModal({
@@ -20,6 +26,7 @@ export function ActivityDetailModal({
   onEdit,
   onDelete,
   loading = false,
+  onDeleteClick,
 }: ActivityDetailModalProps) {
   if (!activity) return null;
 
@@ -100,6 +107,7 @@ export function ActivityDetailModal({
             onDelete={onDelete}
             entityName={activity.name}
             entityType="Aktivität"
+            onDeleteClick={onDeleteClick}
           />
         </div>
       )}

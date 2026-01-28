@@ -5,13 +5,14 @@ import { signOut } from "next-auth/react";
 import { useToast } from "~/contexts/ToastContext";
 import { useRouter } from "next/navigation";
 import { Input } from "~/components/ui";
+import { getRoleDisplayName } from "~/lib/auth-helpers";
 import { acceptInvitation } from "~/lib/invitation-api";
 import type { InvitationValidation } from "~/lib/invitation-helpers";
 import type { ApiError } from "~/lib/auth-api";
 
 interface InvitationAcceptFormProps {
-  token: string;
-  invitation: InvitationValidation;
+  readonly token: string;
+  readonly invitation: InvitationValidation;
 }
 
 const PASSWORD_REQUIREMENTS: Array<{
@@ -21,22 +22,32 @@ const PASSWORD_REQUIREMENTS: Array<{
   { label: "Mindestens 8 Zeichen", test: (value) => value.length >= 8 },
   { label: "Ein Großbuchstabe", test: (value) => /[A-Z]/.test(value) },
   { label: "Ein Kleinbuchstabe", test: (value) => /[a-z]/.test(value) },
-  { label: "Eine Zahl", test: (value) => /[0-9]/.test(value) },
+  { label: "Eine Zahl", test: (value) => /\d/.test(value) },
   { label: "Ein Sonderzeichen", test: (value) => /[^A-Za-z0-9]/.test(value) },
 ];
 
-const translateRole = (roleName: string): string => {
-  const lowerRole = roleName.toLowerCase();
-  switch (lowerRole) {
-    case "user":
-      return "Nutzer";
-    case "admin":
-      return "Admin";
-    case "guest":
-      return "Gast";
-    default:
-      return roleName;
+// Helper to map API error status to user-friendly message
+const getInvitationErrorMessage = (
+  apiError: ApiError | undefined,
+  err: unknown,
+): string => {
+  if (apiError?.status === 410) {
+    return "Diese Einladung ist nicht mehr gültig. Bitte fordere eine neue Einladung an.";
   }
+  if (apiError?.status === 404) {
+    return "Einladung wurde nicht gefunden.";
+  }
+  if (apiError?.status === 409) {
+    return "Für diese E-Mail existiert bereits ein Konto. Bitte melde dich direkt an oder kontaktiere den Support.";
+  }
+  if (apiError?.status === 400) {
+    return (
+      apiError.message ?? "Ungültige Eingaben. Bitte überprüfe das Formular."
+    );
+  }
+  const generic =
+    apiError?.message ?? (err instanceof Error ? err.message : undefined);
+  return generic ?? "Beim Annehmen der Einladung ist ein Fehler aufgetreten.";
 };
 
 export function InvitationAcceptForm({
@@ -114,35 +125,16 @@ export function InvitationAcceptForm({
       }, 2500);
     } catch (err) {
       // Distinguish network/offline from HTTP errors
-      if (typeof navigator !== "undefined" && navigator.onLine === false) {
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
         setError(
           "Keine Netzwerkverbindung. Bitte überprüfe deine Internetverbindung und versuche es erneut.",
         );
+        setIsSubmitting(false);
         return;
       }
       const apiError = err as ApiError | undefined;
-      if (apiError?.status === 410) {
-        setError(
-          "Diese Einladung ist nicht mehr gültig. Bitte fordere eine neue Einladung an.",
-        );
-      } else if (apiError?.status === 404) {
-        setError("Einladung wurde nicht gefunden.");
-      } else if (apiError?.status === 409) {
-        setError(
-          "Für diese E-Mail existiert bereits ein Konto. Bitte melde dich direkt an oder kontaktiere den Support.",
-        );
-      } else if (apiError?.status === 400) {
-        setError(
-          apiError.message ??
-            "Ungültige Eingaben. Bitte überprüfe das Formular.",
-        );
-      } else {
-        const generic =
-          apiError?.message ?? (err instanceof Error ? err.message : undefined);
-        setError(
-          generic ?? "Beim Annehmen der Einladung ist ein Fehler aufgetreten.",
-        );
-      }
+      const errorMessage = getInvitationErrorMessage(apiError, err);
+      setError(errorMessage);
     } finally {
       setIsSubmitting(false);
     }
@@ -178,16 +170,16 @@ export function InvitationAcceptForm({
           <span className="font-medium text-gray-900">{invitation.email}</span>{" "}
           als{" "}
           <span className="font-medium text-gray-900">
-            {translateRole(invitation.roleName)}
+            {getRoleDisplayName(invitation.roleName)}
           </span>
         </p>
       </div>
 
       <div className="space-y-2 rounded-lg border border-gray-200 bg-gray-50 p-3">
         <div>
-          <label className="block text-xs font-medium text-gray-600">
+          <span className="block text-xs font-medium text-gray-600">
             Gültig bis
-          </label>
+          </span>
           <p className="mt-0.5 text-sm font-semibold text-gray-900">
             {new Date(invitation.expiresAt).toLocaleDateString("de-DE", {
               day: "2-digit",
@@ -200,9 +192,9 @@ export function InvitationAcceptForm({
         </div>
         {invitation.position && (
           <div>
-            <label className="block text-xs font-medium text-gray-600">
+            <span className="block text-xs font-medium text-gray-600">
               Zugewiesene Position
-            </label>
+            </span>
             <p className="mt-0.5 text-sm font-semibold text-gray-900">
               {invitation.position}
             </p>

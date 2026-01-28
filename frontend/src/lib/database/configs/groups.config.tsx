@@ -223,9 +223,9 @@ export const groupsConfig = defineEntityConfig<Group>({
       title: (group: Group) => group.name,
       subtitle: (group: Group) => {
         const supervisorCount = group.supervisors?.length ?? 0;
-        return supervisorCount > 0
-          ? `${supervisorCount} Gruppenleiter/in${supervisorCount === 1 ? "" : "nen"}`
-          : "Keine Gruppenleitung";
+        if (supervisorCount === 0) return "Keine Gruppenleitung";
+        const suffix = supervisorCount === 1 ? "" : "nen";
+        return `${supervisorCount} Gruppenleiter/in${suffix}`;
       },
       description: (group: Group) => {
         const parts = [];
@@ -272,8 +272,9 @@ export const groupsConfig = defineEntityConfig<Group>({
       const mapped: Record<string, unknown> = {
         ...data,
         // Backend expects these as numbers, frontend stores as strings
-        room_id: data.room_id ? parseInt(data.room_id) : undefined,
-        teacher_ids: data.teacher_ids?.map((id) => parseInt(id)) ?? undefined,
+        room_id: data.room_id ? Number.parseInt(data.room_id, 10) : undefined,
+        teacher_ids:
+          data.teacher_ids?.map((id) => Number.parseInt(id, 10)) ?? undefined,
       };
 
       return mapped;

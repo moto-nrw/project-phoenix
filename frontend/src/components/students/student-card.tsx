@@ -5,19 +5,19 @@ import type { ReactNode } from "react";
 
 interface StudentCardProps {
   /** Unique student ID */
-  studentId: string;
+  readonly studentId: string;
   /** Student's first name */
-  firstName?: string;
+  readonly firstName?: string;
   /** Student's last name */
-  lastName?: string;
+  readonly lastName?: string;
   /** Gradient class for the card overlay */
-  gradient?: string;
+  readonly gradient?: string;
   /** Click handler for navigation */
-  onClick: () => void;
+  readonly onClick: () => void;
   /** Location badge component to render */
-  locationBadge: ReactNode;
+  readonly locationBadge: ReactNode;
   /** Optional extra content between name and click hint */
-  extraContent?: ReactNode;
+  readonly extraContent?: ReactNode;
 }
 
 /**
@@ -33,21 +33,13 @@ export function StudentCard({
   locationBadge,
   extraContent,
 }: StudentCardProps) {
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" || e.key === " ") {
-      e.preventDefault();
-      onClick();
-    }
-  };
-
   return (
-    <div
+    <button
       key={studentId}
-      role="button"
-      tabIndex={0}
+      type="button"
       onClick={onClick}
-      onKeyDown={handleKeyDown}
-      className="group relative cursor-pointer overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 active:scale-[0.97] md:hover:-translate-y-3 md:hover:scale-[1.03] md:hover:border-[#5080D8]/30 md:hover:bg-white md:hover:shadow-[0_20px_50px_rgb(0,0,0,0.15)]"
+      aria-label={`${firstName} ${lastName} - Tippen für mehr Infos`}
+      className="group relative w-full cursor-pointer overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 text-left shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-500 focus:ring-2 focus:ring-blue-500/50 focus:outline-none active:scale-[0.97] md:hover:-translate-y-3 md:hover:scale-[1.03] md:hover:border-[#5080D8]/30 md:hover:bg-white md:hover:shadow-[0_20px_50px_rgb(0,0,0,0.15)]"
     >
       {/* Modern gradient overlay */}
       <div
@@ -107,7 +99,7 @@ export function StudentCard({
 
       {/* Glowing border effect */}
       <div className="absolute inset-0 rounded-3xl bg-gradient-to-r from-transparent via-blue-100/30 to-transparent opacity-0 transition-opacity duration-300 md:group-hover:opacity-100" />
-    </div>
+    </button>
   );
 }
 
@@ -153,10 +145,10 @@ export function GroupIcon() {
 export function StudentInfoRow({
   icon,
   children,
-}: {
+}: Readonly<{
   icon: ReactNode;
   children: ReactNode;
-}) {
+}>) {
   return (
     <div className="mt-1 flex items-center gap-1.5">
       {icon}
@@ -164,5 +156,43 @@ export function StudentInfoRow({
         {children}
       </span>
     </div>
+  );
+}
+
+/** Icon for pickup time display */
+export function PickupTimeIcon() {
+  return (
+    <svg
+      className="h-3.5 w-3.5 text-gray-400"
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+      />
+    </svg>
+  );
+}
+
+/** Icon for exception indicator */
+export function ExceptionIcon() {
+  return (
+    <svg
+      className="h-3.5 w-3.5 text-orange-500"
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+      />
+    </svg>
   );
 }

@@ -95,13 +95,13 @@ function getColorTheme(color: string): ColorTheme {
 
 // Stat Card Component - matches database page style
 interface StatCardProps {
-  title: string;
-  value: string | number;
-  icon: string;
-  color: string;
-  subtitle?: string;
-  loading?: boolean;
-  href?: string;
+  readonly title: string;
+  readonly value: string | number;
+  readonly icon: string;
+  readonly color: string;
+  readonly subtitle?: string;
+  readonly loading?: boolean;
+  readonly href?: string;
 }
 
 const StatCard: React.FC<StatCardProps> = ({
@@ -165,11 +165,11 @@ const StatCard: React.FC<StatCardProps> = ({
 
 // Info Card Component for lists
 interface InfoCardProps {
-  title: string;
-  children: React.ReactNode;
-  icon?: string;
-  href?: string;
-  linkText?: string;
+  readonly title: string;
+  readonly children: React.ReactNode;
+  readonly icon?: string;
+  readonly href?: string;
+  readonly linkText?: string;
 }
 
 const InfoCard: React.FC<InfoCardProps> = ({
@@ -364,7 +364,7 @@ function DashboardContent() {
             icon="M13 10V3L4 14h7v7l9-11h-7z"
             color="from-orange-500 to-orange-600"
             loading={isLoading}
-            href="/students/search"
+            href="/students/search?status=unterwegs"
           />
           <StatCard
             title="Schulhof"
@@ -372,7 +372,7 @@ function DashboardContent() {
             icon="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707"
             color="from-yellow-400 to-yellow-500"
             loading={isLoading}
-            href="/students/search"
+            href="/students/search?status=schulhof"
           />
         </div>
 
@@ -422,60 +422,74 @@ function DashboardContent() {
             title="Letzte Bewegungen"
             icon="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
           >
-            {isLoading ? (
-              <div className="space-y-3">
-                {[1, 2, 3].map((i) => (
-                  <div
-                    key={i}
-                    className="h-12 animate-pulse rounded-lg bg-gray-100"
-                  ></div>
-                ))}
-              </div>
-            ) : dashboardData?.recentActivity &&
-              dashboardData.recentActivity.length > 0 ? (
-              <div className="space-y-2">
-                {dashboardData.recentActivity
-                  .slice(0, 5)
-                  .map((activity, index) => (
-                    <div
-                      key={index}
-                      className="flex items-center justify-between rounded-xl bg-gray-50/50 p-3 transition-colors hover:bg-gray-100/50"
-                    >
-                      <div className="min-w-0 flex-1">
-                        <p className="flex items-center gap-1.5 text-sm font-medium text-gray-900">
-                          <span className="truncate">{activity.groupName}</span>
-                          <svg
-                            className="h-3.5 w-3.5 flex-shrink-0 text-gray-400"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                            strokeWidth={2.5}
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              d="M9 5l7 7-7 7"
-                            />
-                          </svg>
-                          <span className="truncate">{activity.roomName}</span>
-                        </p>
-                        {activity.count > 1 && (
-                          <p className="text-xs text-gray-500">
-                            {activity.count} Kinder
+            {(() => {
+              if (isLoading) {
+                return (
+                  <div className="space-y-3">
+                    {[1, 2, 3].map((i) => (
+                      <div
+                        key={i}
+                        className="h-12 animate-pulse rounded-lg bg-gray-100"
+                      ></div>
+                    ))}
+                  </div>
+                );
+              }
+              const activities = dashboardData?.recentActivity;
+              if (!activities || activities.length === 0) {
+                return (
+                  <p className="py-8 text-center text-sm text-gray-500">
+                    Keine aktuellen Bewegungen
+                  </p>
+                );
+              }
+              return (
+                <div className="space-y-2">
+                  {activities.slice(0, 5).map((activity, idx) => {
+                    const ts = new Date(activity.timestamp).getTime();
+                    const tsKey = Number.isFinite(ts) ? ts : `idx-${idx}`;
+                    return (
+                      <div
+                        key={`${activity.type}-${activity.groupName}-${activity.roomName}-${tsKey}`}
+                        className="flex items-center justify-between rounded-xl bg-gray-50/50 p-3 transition-colors hover:bg-gray-100/50"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <p className="flex items-center gap-1.5 text-sm font-medium text-gray-900">
+                            <span className="truncate">
+                              {activity.groupName}
+                            </span>
+                            <svg
+                              className="h-3.5 w-3.5 flex-shrink-0 text-gray-400"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
+                              strokeWidth={2.5}
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                d="M9 5l7 7-7 7"
+                              />
+                            </svg>
+                            <span className="truncate">
+                              {activity.roomName}
+                            </span>
                           </p>
-                        )}
+                          {activity.count > 1 && (
+                            <p className="text-xs text-gray-500">
+                              {activity.count} Kinder
+                            </p>
+                          )}
+                        </div>
+                        <span className="ml-2 flex-shrink-0 text-xs text-gray-500">
+                          {formatRecentActivityTime(activity.timestamp)}
+                        </span>
                       </div>
-                      <span className="ml-2 flex-shrink-0 text-xs text-gray-500">
-                        {formatRecentActivityTime(activity.timestamp)}
-                      </span>
-                    </div>
-                  ))}
-              </div>
-            ) : (
-              <p className="py-8 text-center text-sm text-gray-500">
-                Keine aktuellen Bewegungen
-              </p>
-            )}
+                    );
+                  })}
+                </div>
+              );
+            })()}
           </InfoCard>
 
           {/* Current Activities */}
@@ -484,23 +498,32 @@ function DashboardContent() {
             icon="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
             href="/activities"
           >
-            {isLoading ? (
-              <div className="space-y-3">
-                {[1, 2, 3].map((i) => (
-                  <div
-                    key={i}
-                    className="h-14 animate-pulse rounded-lg bg-gray-100"
-                  ></div>
-                ))}
-              </div>
-            ) : dashboardData?.currentActivities &&
-              dashboardData.currentActivities.length > 0 ? (
-              <div className="space-y-2">
-                {dashboardData.currentActivities
-                  .slice(0, 5)
-                  .map((activity, index) => (
+            {(() => {
+              if (isLoading) {
+                return (
+                  <div className="space-y-3">
+                    {[1, 2, 3].map((i) => (
+                      <div
+                        key={i}
+                        className="h-14 animate-pulse rounded-lg bg-gray-100"
+                      ></div>
+                    ))}
+                  </div>
+                );
+              }
+              const activities = dashboardData?.currentActivities;
+              if (!activities || activities.length === 0) {
+                return (
+                  <p className="py-8 text-center text-sm text-gray-500">
+                    Keine laufenden Aktivitäten
+                  </p>
+                );
+              }
+              return (
+                <div className="space-y-2">
+                  {activities.slice(0, 5).map((activity, idx) => (
                     <div
-                      key={index}
+                      key={`${activity.name}-${activity.category}-${idx}`}
                       className="flex items-center justify-between rounded-xl bg-gray-50/50 p-3 transition-colors hover:bg-gray-100/50"
                     >
                       <div className="min-w-0 flex-1">
@@ -517,12 +540,9 @@ function DashboardContent() {
                       ></div>
                     </div>
                   ))}
-              </div>
-            ) : (
-              <p className="py-8 text-center text-sm text-gray-500">
-                Keine laufenden Aktivitäten
-              </p>
-            )}
+                </div>
+              );
+            })()}
           </InfoCard>
 
           {/* Active Groups */}
@@ -531,23 +551,32 @@ function DashboardContent() {
             icon="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
             href="/ogs-groups"
           >
-            {isLoading ? (
-              <div className="space-y-3">
-                {[1, 2, 3].map((i) => (
-                  <div
-                    key={i}
-                    className="h-14 animate-pulse rounded-lg bg-gray-100"
-                  ></div>
-                ))}
-              </div>
-            ) : dashboardData?.activeGroupsSummary &&
-              dashboardData.activeGroupsSummary.length > 0 ? (
-              <div className="space-y-2">
-                {dashboardData.activeGroupsSummary
-                  .slice(0, 5)
-                  .map((group, index) => (
+            {(() => {
+              if (isLoading) {
+                return (
+                  <div className="space-y-3">
+                    {[1, 2, 3].map((i) => (
+                      <div
+                        key={i}
+                        className="h-14 animate-pulse rounded-lg bg-gray-100"
+                      ></div>
+                    ))}
+                  </div>
+                );
+              }
+              const groups = dashboardData?.activeGroupsSummary;
+              if (!groups || groups.length === 0) {
+                return (
+                  <p className="py-8 text-center text-sm text-gray-500">
+                    Keine aktiven Gruppen
+                  </p>
+                );
+              }
+              return (
+                <div className="space-y-2">
+                  {groups.slice(0, 5).map((group) => (
                     <div
-                      key={index}
+                      key={`${group.type}-${group.name}`}
                       className="flex items-center justify-between rounded-xl bg-gray-50/50 p-3 transition-colors hover:bg-gray-100/50"
                     >
                       <div className="min-w-0 flex-1">
@@ -563,12 +592,9 @@ function DashboardContent() {
                       ></div>
                     </div>
                   ))}
-              </div>
-            ) : (
-              <p className="py-8 text-center text-sm text-gray-500">
-                Keine aktiven Gruppen
-              </p>
-            )}
+                </div>
+              );
+            })()}
           </InfoCard>
 
           {/* Betreuer Summary */}
@@ -631,6 +657,13 @@ export default function DashboardPage() {
   const router = useRouter();
   const { data: session, status } = useSession();
 
+  // Redirect non-admins to OGS groups (must be in useEffect to avoid SSR issues)
+  useEffect(() => {
+    if (status !== "loading" && !isAdmin(session)) {
+      router.replace("/ogs-groups");
+    }
+  }, [status, session, router]);
+
   // Gate access: only admins can view dashboard
   if (status === "loading") {
     return (
@@ -640,11 +673,8 @@ export default function DashboardPage() {
     );
   }
 
+  // Show nothing while redirecting non-admins
   if (!isAdmin(session)) {
-    // Redirect non-admins to OGS groups (mobile default)
-    if (typeof window !== "undefined") {
-      router.replace("/ogs-groups");
-    }
     return null;
   }
 

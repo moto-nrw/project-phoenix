@@ -12,6 +12,11 @@ import (
 	"github.com/uptrace/bun"
 )
 
+const (
+	// attendanceTableName is the fully-qualified table name for attendance records
+	attendanceTableName = "active.attendance"
+)
+
 // cleanupService implements the CleanupService interface
 type cleanupService struct {
 	visitRepo          active.VisitRepository
@@ -346,14 +351,15 @@ func (s *cleanupService) CleanupStaleAttendance(ctx context.Context) (*Attendanc
 
 	// Find all attendance records from before today that don't have check-out times
 	var staleRecords []struct {
-		ID        int64     `bun:"id"`
-		StudentID int64     `bun:"student_id"`
-		Date      time.Time `bun:"date"`
+		ID          int64     `bun:"id"`
+		StudentID   int64     `bun:"student_id"`
+		Date        time.Time `bun:"date"`
+		CheckInTime time.Time `bun:"check_in_time"`
 	}
 
 	err := s.db.NewSelect().
-		Table("active.attendance").
-		Column("id", "student_id", "date").
+		Table(attendanceTableName).
+		Column("id", "student_id", "date", "check_in_time").
 		Where("date < ?", today).
 		Where("check_out_time IS NULL").
 		Scan(ctx, &staleRecords)
@@ -373,18 +379,26 @@ func (s *cleanupService) CleanupStaleAttendance(ctx context.Context) (*Attendanc
 	studentsAffected := make(map[int64]bool)
 	var oldestRecord *time.Time
 
-	// Close each stale record by setting check-out time to end of that day
+	// Close each stale record by setting check-out time
 	for _, record := range staleRecords {
-		// Set check-out time to 11:59:59 PM of the record's date
+		// Calculate appropriate check-out time:
+		// - Normally use 23:59:59 of the record's date
+		// - But if check_in_time is after that (data integrity issue), use check_in_time + 1 second
 		endOfDay := time.Date(
 			record.Date.Year(), record.Date.Month(), record.Date.Day(),
 			23, 59, 59, 0, record.Date.Location(),
 		)
+		checkOutTime := endOfDay
+		if record.CheckInTime.After(endOfDay) {
+			// check_in_time is after end of day - this is a data integrity issue
+			// Use check_in_time + 1 second to satisfy the constraint
+			checkOutTime = record.CheckInTime.Add(time.Second)
+		}
 
 		// Update the record
 		_, err := s.db.NewUpdate().
-			Table("active.attendance").
-			Set("check_out_time = ?", endOfDay).
+			Table(attendanceTableName).
+			Set("check_out_time = ?", checkOutTime).
 			Set("updated_at = ?", now).
 			Where("id = ?", record.ID).
 			Exec(ctx)
@@ -449,7 +463,7 @@ func (s *cleanupService) PreviewAttendanceCleanup(ctx context.Context) (*Attenda
 	}
 
 	err := s.db.NewSelect().
-		Table("active.attendance").
+		Table(attendanceTableName).
 		Column("student_id", "date").
 		Where("date < ?", today).
 		Where("check_out_time IS NULL").

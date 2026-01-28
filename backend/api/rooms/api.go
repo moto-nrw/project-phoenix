@@ -2,7 +2,6 @@ package rooms
 
 import (
 	"errors"
-	"log"
 	"net/http"
 	"strconv"
 	"time"
@@ -75,7 +74,7 @@ type RoomRequest struct {
 }
 
 // Bind validates the room request
-func (req *RoomRequest) Bind(r *http.Request) error {
+func (req *RoomRequest) Bind(_ *http.Request) error {
 	// Only validate capacity if provided
 	rules := []*validation.FieldRules{
 		validation.Field(&req.Name, validation.Required),
@@ -90,35 +89,39 @@ func (req *RoomRequest) Bind(r *http.Request) error {
 
 // RoomResponse represents a room response
 type RoomResponse struct {
-	ID           int64     `json:"id"`
-	Name         string    `json:"name"`
-	Building     string    `json:"building,omitempty"`
-	Floor        *int      `json:"floor,omitempty"`
-	Capacity     *int      `json:"capacity,omitempty"`
-	Category     *string   `json:"category,omitempty"`
-	Color        *string   `json:"color,omitempty"`
-	IsOccupied   bool      `json:"is_occupied"`
-	GroupName    *string   `json:"group_name,omitempty"`
-	CategoryName *string   `json:"category_name,omitempty"`
-	CreatedAt    time.Time `json:"created_at"`
-	UpdatedAt    time.Time `json:"updated_at"`
+	ID              int64     `json:"id"`
+	Name            string    `json:"name"`
+	Building        string    `json:"building,omitempty"`
+	Floor           *int      `json:"floor,omitempty"`
+	Capacity        *int      `json:"capacity,omitempty"`
+	Category        *string   `json:"category,omitempty"`
+	Color           *string   `json:"color,omitempty"`
+	IsOccupied      bool      `json:"is_occupied"`
+	GroupName       *string   `json:"group_name,omitempty"`
+	CategoryName    *string   `json:"category_name,omitempty"`
+	StudentCount    int       `json:"student_count"`
+	SupervisorNames *string   `json:"supervisor_names,omitempty"`
+	CreatedAt       time.Time `json:"created_at"`
+	UpdatedAt       time.Time `json:"updated_at"`
 }
 
 // Convert a RoomWithOccupancy to a RoomResponse
 func newRoomResponse(roomWithOcc facilityService.RoomWithOccupancy) RoomResponse {
 	return RoomResponse{
-		ID:           roomWithOcc.ID,
-		Name:         roomWithOcc.Name,
-		Building:     roomWithOcc.Building,
-		Floor:        roomWithOcc.Floor,
-		Capacity:     roomWithOcc.Capacity,
-		Category:     roomWithOcc.Category,
-		Color:        roomWithOcc.Color,
-		IsOccupied:   roomWithOcc.IsOccupied,
-		GroupName:    roomWithOcc.GroupName,
-		CategoryName: roomWithOcc.CategoryName,
-		CreatedAt:    roomWithOcc.CreatedAt,
-		UpdatedAt:    roomWithOcc.UpdatedAt,
+		ID:              roomWithOcc.ID,
+		Name:            roomWithOcc.Name,
+		Building:        roomWithOcc.Building,
+		Floor:           roomWithOcc.Floor,
+		Capacity:        roomWithOcc.Capacity,
+		Category:        roomWithOcc.Category,
+		Color:           roomWithOcc.Color,
+		IsOccupied:      roomWithOcc.IsOccupied,
+		GroupName:       roomWithOcc.GroupName,
+		CategoryName:    roomWithOcc.CategoryName,
+		StudentCount:    roomWithOcc.StudentCount,
+		SupervisorNames: roomWithOcc.SupervisorNames,
+		CreatedAt:       roomWithOcc.CreatedAt,
+		UpdatedAt:       roomWithOcc.UpdatedAt,
 	}
 }
 
@@ -156,9 +159,7 @@ func (rs *Resource) listRooms(w http.ResponseWriter, r *http.Request) {
 	// Get rooms with occupancy from service
 	roomsWithOccupancy, err := rs.FacilityService.ListRooms(r.Context(), queryOptions)
 	if err != nil {
-		if err := render.Render(w, r, common.ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -169,7 +170,7 @@ func (rs *Resource) listRooms(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Use common paginated response
-	common.RespondWithPagination(w, r, http.StatusOK, roomResponses, page, pageSize, len(roomsWithOccupancy), "Rooms retrieved successfully")
+	common.RespondPaginated(w, r, http.StatusOK, roomResponses, common.PaginationParams{Page: page, PageSize: pageSize, Total: len(roomsWithOccupancy)}, "Rooms retrieved successfully")
 }
 
 // getRoom handles getting a room by ID
@@ -177,18 +178,14 @@ func (rs *Resource) getRoom(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
-		if err := render.Render(w, r, common.ErrorInvalidRequest(errors.New("invalid room ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(common.MsgInvalidRoomID)))
 		return
 	}
 
 	// Get room with occupancy from service
 	roomWithOcc, err := rs.FacilityService.GetRoomWithOccupancy(r.Context(), id)
 	if err != nil {
-		if err := render.Render(w, r, common.ErrorNotFound(errors.New("room not found"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorNotFound(errors.New("room not found")))
 		return
 	}
 
@@ -200,9 +197,7 @@ func (rs *Resource) getRoom(w http.ResponseWriter, r *http.Request) {
 func (rs *Resource) createRoom(w http.ResponseWriter, r *http.Request) {
 	req := &RoomRequest{}
 	if err := render.Bind(r, req); err != nil {
-		if err := render.Render(w, r, common.ErrorInvalidRequest(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
@@ -218,17 +213,13 @@ func (rs *Resource) createRoom(w http.ResponseWriter, r *http.Request) {
 
 	// Validate the room
 	if err := room.Validate(); err != nil {
-		if err := render.Render(w, r, common.ErrorInvalidRequest(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
 	// Create room using service
 	if err := rs.FacilityService.CreateRoom(r.Context(), room); err != nil {
-		if err := render.Render(w, r, common.ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -241,27 +232,21 @@ func (rs *Resource) updateRoom(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
-		if err := render.Render(w, r, common.ErrorInvalidRequest(errors.New("invalid room ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(common.MsgInvalidRoomID)))
 		return
 	}
 
 	// Get existing room
 	room, err := rs.FacilityService.GetRoom(r.Context(), id)
 	if err != nil {
-		if err := render.Render(w, r, common.ErrorNotFound(errors.New("room not found"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorNotFound(errors.New("room not found")))
 		return
 	}
 
 	// Parse request
 	req := &RoomRequest{}
 	if err := render.Bind(r, req); err != nil {
-		if err := render.Render(w, r, common.ErrorInvalidRequest(err)); err != nil {
-			log.Printf("Render error: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
@@ -275,17 +260,13 @@ func (rs *Resource) updateRoom(w http.ResponseWriter, r *http.Request) {
 
 	// Validate the room
 	if err := room.Validate(); err != nil {
-		if err := render.Render(w, r, common.ErrorInvalidRequest(err)); err != nil {
-			log.Printf("Render error: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
 	// Update room using service
 	if err := rs.FacilityService.UpdateRoom(r.Context(), room); err != nil {
-		if err := render.Render(w, r, common.ErrorInternalServer(err)); err != nil {
-			log.Printf("Render error: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -298,17 +279,13 @@ func (rs *Resource) deleteRoom(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
-		if err := render.Render(w, r, common.ErrorInvalidRequest(errors.New("invalid room ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(common.MsgInvalidRoomID)))
 		return
 	}
 
 	// Delete room using service
 	if err := rs.FacilityService.DeleteRoom(r.Context(), id); err != nil {
-		if err := render.Render(w, r, common.ErrorInternalServer(err)); err != nil {
-			log.Printf("Render error: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -321,18 +298,14 @@ func (rs *Resource) getRoomsByCategory(w http.ResponseWriter, r *http.Request) {
 	// Get category from query parameter
 	category := r.URL.Query().Get("category")
 	if category == "" {
-		if err := render.Render(w, r, common.ErrorInvalidRequest(errors.New("category parameter is required"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("category parameter is required")))
 		return
 	}
 
 	// Get rooms by category
 	rooms, err := rs.FacilityService.FindRoomsByCategory(r.Context(), category)
 	if err != nil {
-		if err := render.Render(w, r, common.ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -351,9 +324,7 @@ func (rs *Resource) getBuildingList(w http.ResponseWriter, r *http.Request) {
 	// Get buildings list
 	buildings, err := rs.FacilityService.GetBuildingList(r.Context())
 	if err != nil {
-		if err := render.Render(w, r, common.ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -366,9 +337,7 @@ func (rs *Resource) getCategoryList(w http.ResponseWriter, r *http.Request) {
 	// Get categories list
 	categories, err := rs.FacilityService.GetCategoryList(r.Context())
 	if err != nil {
-		if err := render.Render(w, r, common.ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -389,9 +358,7 @@ func (rs *Resource) getAvailableRooms(w http.ResponseWriter, r *http.Request) {
 	// Get available rooms
 	rooms, err := rs.FacilityService.GetAvailableRooms(r.Context(), capacity)
 	if err != nil {
-		if err := render.Render(w, r, common.ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -410,9 +377,7 @@ func (rs *Resource) getRoomHistory(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
-		if err := render.Render(w, r, common.ErrorInvalidRequest(errors.New("invalid room ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(common.MsgInvalidRoomID)))
 		return
 	}
 
@@ -423,9 +388,7 @@ func (rs *Resource) getRoomHistory(w http.ResponseWriter, r *http.Request) {
 	if startStr := r.URL.Query().Get("start"); startStr != "" {
 		parsedStart, err := time.Parse(time.RFC3339, startStr)
 		if err != nil {
-			if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid start date format"))); err != nil {
-				log.Printf("Error rendering error response: %v", err)
-			}
+			common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid start date format")))
 			return
 		}
 		startTime = parsedStart
@@ -434,9 +397,7 @@ func (rs *Resource) getRoomHistory(w http.ResponseWriter, r *http.Request) {
 	if endStr := r.URL.Query().Get("end"); endStr != "" {
 		parsedEnd, err := time.Parse(time.RFC3339, endStr)
 		if err != nil {
-			if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid end date format"))); err != nil {
-				log.Printf("Error rendering error response: %v", err)
-			}
+			common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid end date format")))
 			return
 		}
 		endTime = parsedEnd
@@ -444,21 +405,53 @@ func (rs *Resource) getRoomHistory(w http.ResponseWriter, r *http.Request) {
 
 	// Validate date range
 	if startTime.After(endTime) {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("start date must be before end date"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, ErrorInvalidRequest(errors.New("start date must be before end date")))
 		return
 	}
 
 	// Get room history from service
 	history, err := rs.FacilityService.GetRoomHistory(r.Context(), id, startTime, endTime)
 	if err != nil {
-		if err := render.Render(w, r, common.ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
 	// Return response
 	common.Respond(w, r, http.StatusOK, history, "Room history retrieved successfully")
 }
+
+// =============================================================================
+// Exported Handler Methods for Testing
+// =============================================================================
+// These methods expose the underlying handlers for test access without going
+// through the router's middleware chain.
+
+// ListRoomsHandler returns the handler for listing rooms.
+func (rs *Resource) ListRoomsHandler() http.HandlerFunc { return rs.listRooms }
+
+// GetRoomHandler returns the handler for getting a single room.
+func (rs *Resource) GetRoomHandler() http.HandlerFunc { return rs.getRoom }
+
+// CreateRoomHandler returns the handler for creating a room.
+func (rs *Resource) CreateRoomHandler() http.HandlerFunc { return rs.createRoom }
+
+// UpdateRoomHandler returns the handler for updating a room.
+func (rs *Resource) UpdateRoomHandler() http.HandlerFunc { return rs.updateRoom }
+
+// DeleteRoomHandler returns the handler for deleting a room.
+func (rs *Resource) DeleteRoomHandler() http.HandlerFunc { return rs.deleteRoom }
+
+// GetRoomsByCategoryHandler returns the handler for getting rooms by category.
+func (rs *Resource) GetRoomsByCategoryHandler() http.HandlerFunc { return rs.getRoomsByCategory }
+
+// GetBuildingListHandler returns the handler for getting the building list.
+func (rs *Resource) GetBuildingListHandler() http.HandlerFunc { return rs.getBuildingList }
+
+// GetCategoryListHandler returns the handler for getting the category list.
+func (rs *Resource) GetCategoryListHandler() http.HandlerFunc { return rs.getCategoryList }
+
+// GetAvailableRoomsHandler returns the handler for getting available rooms.
+func (rs *Resource) GetAvailableRoomsHandler() http.HandlerFunc { return rs.getAvailableRooms }
+
+// GetRoomHistoryHandler returns the handler for getting room history.
+func (rs *Resource) GetRoomHistoryHandler() http.HandlerFunc { return rs.getRoomHistory }

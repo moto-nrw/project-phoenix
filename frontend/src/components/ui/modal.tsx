@@ -1,16 +1,17 @@
 "use client";
 
-import React, { useEffect, useCallback } from "react";
+import React, { useEffect, useCallback, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useModal } from "../dashboard/modal-context";
 import { useScrollLock } from "~/hooks/useScrollLock";
+import { dialogAriaProps, getModalAnimationClass } from "./modal-utils";
 
 interface ModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  title: string;
-  children: React.ReactNode;
-  footer?: React.ReactNode;
+  readonly isOpen: boolean;
+  readonly onClose: () => void;
+  readonly title: string;
+  readonly children: React.ReactNode;
+  readonly footer?: React.ReactNode;
 }
 
 export function Modal({
@@ -23,6 +24,12 @@ export function Modal({
   const [isAnimating, setIsAnimating] = React.useState(false);
   const [isExiting, setIsExiting] = React.useState(false);
   const { openModal, closeModal } = useModal();
+
+  // Store functions in refs to avoid effect re-runs
+  const openModalRef = useRef(openModal);
+  const closeModalRef = useRef(closeModal);
+  openModalRef.current = openModal;
+  closeModalRef.current = closeModal;
 
   // Use scroll lock hook
   useScrollLock(isOpen);
@@ -38,77 +45,70 @@ export function Modal({
     }, 250);
   }, [onClose]);
 
-  // Close on escape key press
+  // Handle modal context state for blur overlay
+  // Only depends on isOpen - uses refs for stable function access
   useEffect(() => {
+    if (isOpen) {
+      openModalRef.current();
+      return () => {
+        closeModalRef.current();
+      };
+    }
+  }, [isOpen]);
+
+  // Handle escape key and animations
+  useEffect(() => {
+    if (!isOpen) {
+      setIsAnimating(false);
+      setIsExiting(false);
+      return;
+    }
+
     const handleEscKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && isOpen) {
+      if (event.key === "Escape") {
         handleClose();
       }
     };
 
-    if (isOpen) {
-      document.addEventListener("keydown", handleEscKey);
-      // Trigger blur effect on layout
-      openModal();
-      // Dispatch custom event for ResponsiveLayout (help modal)
-      window.dispatchEvent(new CustomEvent("mobile-modal-open"));
+    document.addEventListener("keydown", handleEscKey);
 
-      // Trigger sophisticated entrance animation with slight delay for smooth effect
-      setTimeout(() => {
-        setIsAnimating(true);
-      }, 10);
-    } else {
-      // Remove blur effect on layout
-      closeModal();
-      // Dispatch custom event for ResponsiveLayout
-      window.dispatchEvent(new CustomEvent("mobile-modal-close"));
-    }
+    // Trigger sophisticated entrance animation with slight delay for smooth effect
+    const animationTimer = setTimeout(() => {
+      setIsAnimating(true);
+    }, 10);
 
     return () => {
       document.removeEventListener("keydown", handleEscKey);
-      if (!isOpen) {
-        setIsAnimating(false);
-        setIsExiting(false);
-      }
+      clearTimeout(animationTimer);
     };
-  }, [isOpen, handleClose, openModal, closeModal]);
+  }, [isOpen, handleClose]);
 
   if (!isOpen) return null;
 
-  // Close when clicking on the backdrop (not the modal itself)
-  const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (e.target === e.currentTarget) {
-      handleClose();
-    }
-  };
-
   const modalContent = (
     <div
-      className={`fixed inset-0 z-[9999] flex items-center justify-center transition-all duration-400 ease-out ${
-        isAnimating && !isExiting ? "bg-black/40" : "bg-black/0"
-      }`}
-      onClick={handleBackdropClick}
-      style={{
-        position: "fixed",
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        animation:
-          isAnimating && !isExiting
-            ? "backdropEnter 400ms ease-out"
-            : undefined,
-      }}
+      className="fixed inset-0 z-[9999] flex items-center justify-center"
+      style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0 }}
     >
-      <div
-        className={`relative mx-4 w-[calc(100%-2rem)] max-w-lg transform overflow-hidden rounded-2xl border border-gray-200/50 shadow-2xl ${
-          isAnimating && !isExiting
-            ? "animate-modalEnter"
-            : isExiting
-              ? "animate-modalExit"
-              : "translate-y-8 scale-75 -rotate-1 opacity-0"
+      {/* Backdrop button - native button for accessibility (keyboard + click support) */}
+      <button
+        type="button"
+        onClick={handleClose}
+        aria-label="Hintergrund - Klicken zum Schließen"
+        className={`absolute inset-0 cursor-default border-none bg-transparent p-0 transition-all duration-400 ease-out ${
+          isAnimating && !isExiting ? "bg-black/40" : "bg-black/0"
         }`}
-        onClick={(e) => e.stopPropagation()}
+        style={{
+          animation:
+            isAnimating && !isExiting
+              ? "backdropEnter 400ms ease-out"
+              : undefined,
+        }}
+      />
+      {/* Dialog container */}
+      <div
+        className={`relative mx-4 w-[calc(100%-2rem)] max-w-lg transform overflow-hidden rounded-2xl border border-gray-200/50 shadow-2xl ${getModalAnimationClass(isAnimating, isExiting)}`}
+        {...dialogAriaProps}
         style={{
           background:
             "linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(248,250,252,0.98) 100%)",
@@ -187,7 +187,7 @@ export function Modal({
 
         {/* Content area with hidden scrollbar and reveal animation */}
         <div
-          className="modal-scrollbar-hidden max-h-[calc(100vh-8rem)] overflow-y-auto md:max-h-[70vh]"
+          className="scrollbar-hidden max-h-[calc(100vh-8rem)] overflow-y-auto md:max-h-[70vh]"
           data-modal-content="true"
         >
           <div
@@ -198,17 +198,6 @@ export function Modal({
             {children}
           </div>
         </div>
-
-        {/* Hide scrollbar CSS */}
-        <style jsx>{`
-          .modal-scrollbar-hidden::-webkit-scrollbar {
-            display: none;
-          }
-          .modal-scrollbar-hidden {
-            -ms-overflow-style: none;
-            scrollbar-width: none;
-          }
-        `}</style>
 
         {/* Footer if provided */}
         {footer && (
@@ -230,15 +219,16 @@ export function Modal({
 
 // A specialized confirmation modal with yes/no buttons
 interface ConfirmationModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onConfirm: () => void;
-  title: string;
-  children: React.ReactNode;
-  confirmText?: string;
-  cancelText?: string;
-  isConfirmLoading?: boolean;
-  confirmButtonClass?: string;
+  readonly isOpen: boolean;
+  readonly onClose: () => void;
+  readonly onConfirm: () => void;
+  readonly title: string;
+  readonly children: React.ReactNode;
+  readonly confirmText?: string;
+  readonly cancelText?: string;
+  readonly isConfirmLoading?: boolean;
+  readonly isConfirmDisabled?: boolean;
+  readonly confirmButtonClass?: string;
 }
 
 export function ConfirmationModal({
@@ -250,6 +240,7 @@ export function ConfirmationModal({
   confirmText = "Bestätigen",
   cancelText = "Abbrechen",
   isConfirmLoading = false,
+  isConfirmDisabled = false,
   confirmButtonClass = "bg-blue-500 hover:bg-blue-600",
 }: ConfirmationModalProps) {
   const modalFooter = (
@@ -265,7 +256,7 @@ export function ConfirmationModal({
       <button
         type="button"
         onClick={onConfirm}
-        disabled={isConfirmLoading}
+        disabled={isConfirmLoading || isConfirmDisabled}
         className={`flex-1 rounded-lg px-4 py-2 ${confirmButtonClass} text-sm font-medium text-white transition-all duration-200 hover:scale-105 hover:shadow-lg active:scale-100 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100`}
       >
         {isConfirmLoading ? (

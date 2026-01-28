@@ -3,6 +3,8 @@ package users
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
@@ -49,7 +51,7 @@ func (r *StaffRepository) UpdateNotes(ctx context.Context, id int64, notes strin
 	_, err := r.db.NewUpdate().
 		Model((*users.Staff)(nil)).
 		ModelTableExpr(`users.staff AS "staff"`).
-		Set(`"staff".staff_notes = ?`, notes).
+		Set(`staff_notes = ?`, notes).
 		Where(`"staff".id = ?`, id).
 		Exec(ctx)
 
@@ -133,6 +135,52 @@ func (r *StaffRepository) ListWithOptions(ctx context.Context, options *modelBas
 	return staffMembers, nil
 }
 
+// ListAllWithPerson retrieves all staff members with their associated person data in a single query
+func (r *StaffRepository) ListAllWithPerson(ctx context.Context) ([]*users.Staff, error) {
+	type staffResult struct {
+		Staff  *users.Staff  `bun:"staff"`
+		Person *users.Person `bun:"person"`
+	}
+
+	var results []staffResult
+
+	err := r.db.NewSelect().
+		Model(&results).
+		ModelTableExpr(`users.staff AS "staff"`).
+		ColumnExpr(`"staff".id AS "staff__id"`).
+		ColumnExpr(`"staff".created_at AS "staff__created_at"`).
+		ColumnExpr(`"staff".updated_at AS "staff__updated_at"`).
+		ColumnExpr(`"staff".person_id AS "staff__person_id"`).
+		ColumnExpr(`"staff".staff_notes AS "staff__staff_notes"`).
+		ColumnExpr(`"person".id AS "person__id"`).
+		ColumnExpr(`"person".created_at AS "person__created_at"`).
+		ColumnExpr(`"person".updated_at AS "person__updated_at"`).
+		ColumnExpr(`"person".first_name AS "person__first_name"`).
+		ColumnExpr(`"person".last_name AS "person__last_name"`).
+		ColumnExpr(`"person".tag_id AS "person__tag_id"`).
+		ColumnExpr(`"person".account_id AS "person__account_id"`).
+		Join(`LEFT JOIN users.persons AS "person" ON "person".id = "staff".person_id`).
+		Scan(ctx)
+
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "list all with person",
+			Err: err,
+		}
+	}
+
+	// Convert results to Staff objects with Person attached
+	staffMembers := make([]*users.Staff, len(results))
+	for i, result := range results {
+		staffMembers[i] = result.Staff
+		if result.Staff != nil {
+			result.Staff.Person = result.Person
+		}
+	}
+
+	return staffMembers, nil
+}
+
 // FindWithPerson retrieves a staff member with their associated person data
 func (r *StaffRepository) FindWithPerson(ctx context.Context, id int64) (*users.Staff, error) {
 	// First get the staff member
@@ -153,16 +201,22 @@ func (r *StaffRepository) FindWithPerson(ctx context.Context, id int64) (*users.
 	// Then get the person if exists
 	if staff.PersonID > 0 {
 		person := new(users.Person)
-		err = r.db.NewSelect().
+		personErr := r.db.NewSelect().
 			Model(person).
 			ModelTableExpr(`users.persons AS "person"`).
 			Where(`"person".id = ?`, staff.PersonID).
 			Scan(ctx)
 
-		if err == nil {
+		if personErr == nil {
 			staff.Person = person
+		} else if !errors.Is(personErr, sql.ErrNoRows) {
+			// Only ignore "not found" errors - propagate all other DB errors
+			return nil, &modelBase.DatabaseError{
+				Op:  "find with person - load person",
+				Err: personErr,
+			}
 		}
-		// Ignore person not found errors
+		// Person not found is acceptable - staff.Person remains nil
 	}
 
 	return staff, nil

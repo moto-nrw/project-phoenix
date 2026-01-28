@@ -45,17 +45,18 @@ type Factory struct {
 	GuardianInvitation     authModels.GuardianInvitationRepository
 
 	// Users domain
-	Person          userModels.PersonRepository
-	RFIDCard        userModels.RFIDCardRepository
-	Staff           userModels.StaffRepository
-	Student         userModels.StudentRepository
-	Teacher         userModels.TeacherRepository
-	Guest           userModels.GuestRepository
-	Profile         userModels.ProfileRepository
-	PersonGuardian  userModels.PersonGuardianRepository
-	StudentGuardian userModels.StudentGuardianRepository
-	GuardianProfile userModels.GuardianProfileRepository
-	PrivacyConsent  userModels.PrivacyConsentRepository
+	Person              userModels.PersonRepository
+	RFIDCard            userModels.RFIDCardRepository
+	Staff               userModels.StaffRepository
+	Student             userModels.StudentRepository
+	Teacher             userModels.TeacherRepository
+	Guest               userModels.GuestRepository
+	Profile             userModels.ProfileRepository
+	PersonGuardian      userModels.PersonGuardianRepository
+	StudentGuardian     userModels.StudentGuardianRepository
+	GuardianProfile     userModels.GuardianProfileRepository
+	GuardianPhoneNumber userModels.GuardianPhoneNumberRepository
+	PrivacyConsent      userModels.PrivacyConsentRepository
 
 	// Facilities domain
 	Room facilityModels.RoomRepository
@@ -64,11 +65,14 @@ type Factory struct {
 	Group             educationModels.GroupRepository
 	GroupTeacher      educationModels.GroupTeacherRepository
 	GroupSubstitution educationModels.GroupSubstitutionRepository
+	GradeTransition   educationModels.GradeTransitionRepository
 
 	// Schedule domain
-	Dateframe      scheduleModels.DateframeRepository
-	Timeframe      scheduleModels.TimeframeRepository
-	RecurrenceRule scheduleModels.RecurrenceRuleRepository
+	Dateframe              scheduleModels.DateframeRepository
+	Timeframe              scheduleModels.TimeframeRepository
+	RecurrenceRule         scheduleModels.RecurrenceRuleRepository
+	StudentPickupSchedule  scheduleModels.StudentPickupScheduleRepository
+	StudentPickupException scheduleModels.StudentPickupExceptionRepository
 
 	// Activities domain
 	ActivityGroup      activitiesModels.GroupRepository
@@ -78,13 +82,12 @@ type Factory struct {
 	StudentEnrollment  activitiesModels.StudentEnrollmentRepository
 
 	// Active domain
-	ActiveGroup       activeModels.GroupRepository
-	ActiveVisit       activeModels.VisitRepository
-	GroupSupervisor   activeModels.GroupSupervisorRepository
-	CombinedGroup     activeModels.CombinedGroupRepository
-	GroupMapping      activeModels.GroupMappingRepository
-	Attendance        activeModels.AttendanceRepository
-	ScheduledCheckout activeModels.ScheduledCheckoutRepository
+	ActiveGroup     activeModels.GroupRepository
+	ActiveVisit     activeModels.VisitRepository
+	GroupSupervisor activeModels.GroupSupervisorRepository
+	CombinedGroup   activeModels.CombinedGroupRepository
+	GroupMapping    activeModels.GroupMappingRepository
+	Attendance      activeModels.AttendanceRepository
 
 	// Feedback domain
 	FeedbackEntry feedbackModels.EntryRepository
@@ -119,17 +122,18 @@ func NewFactory(db *bun.DB) *Factory {
 		GuardianInvitation:     auth.NewGuardianInvitationRepository(db),
 
 		// Users repositories
-		Person:          users.NewPersonRepository(db),
-		RFIDCard:        users.NewRFIDCardRepository(db),
-		Staff:           users.NewStaffRepository(db),
-		Student:         users.NewStudentRepository(db),
-		Teacher:         users.NewTeacherRepository(db),
-		Guest:           users.NewGuestRepository(db),
-		Profile:         users.NewProfileRepository(db),
-		PersonGuardian:  users.NewPersonGuardianRepository(db),
-		StudentGuardian: users.NewStudentGuardianRepository(db),
-		GuardianProfile: users.NewGuardianProfileRepository(db),
-		PrivacyConsent:  users.NewPrivacyConsentRepository(db),
+		Person:              users.NewPersonRepository(db),
+		RFIDCard:            users.NewRFIDCardRepository(db),
+		Staff:               users.NewStaffRepository(db),
+		Student:             users.NewStudentRepository(db),
+		Teacher:             users.NewTeacherRepository(db),
+		Guest:               users.NewGuestRepository(db),
+		Profile:             users.NewProfileRepository(db),
+		PersonGuardian:      users.NewPersonGuardianRepository(db),
+		StudentGuardian:     users.NewStudentGuardianRepository(db),
+		GuardianProfile:     users.NewGuardianProfileRepository(db),
+		GuardianPhoneNumber: users.NewGuardianPhoneNumberRepository(db),
+		PrivacyConsent:      users.NewPrivacyConsentRepository(db),
 
 		// Facilities repositories
 		Room: facilities.NewRoomRepository(db),
@@ -138,11 +142,14 @@ func NewFactory(db *bun.DB) *Factory {
 		Group:             education.NewGroupRepository(db),
 		GroupTeacher:      education.NewGroupTeacherRepository(db),
 		GroupSubstitution: education.NewGroupSubstitutionRepository(db),
+		GradeTransition:   education.NewGradeTransitionRepository(db),
 
 		// Schedule repositories
-		Dateframe:      schedule.NewDateframeRepository(db),
-		Timeframe:      schedule.NewTimeframeRepository(db),
-		RecurrenceRule: schedule.NewRecurrenceRuleRepository(db),
+		Dateframe:              schedule.NewDateframeRepository(db),
+		Timeframe:              schedule.NewTimeframeRepository(db),
+		RecurrenceRule:         schedule.NewRecurrenceRuleRepository(db),
+		StudentPickupSchedule:  schedule.NewStudentPickupScheduleRepository(db),
+		StudentPickupException: schedule.NewStudentPickupExceptionRepository(db),
 
 		// Activities repositories
 		ActivityGroup:      activities.NewGroupRepository(db),
@@ -152,13 +159,12 @@ func NewFactory(db *bun.DB) *Factory {
 		StudentEnrollment:  activities.NewStudentEnrollmentRepository(db),
 
 		// Active repositories
-		ActiveGroup:       active.NewGroupRepository(db),
-		ActiveVisit:       active.NewVisitRepository(db),
-		GroupSupervisor:   active.NewGroupSupervisorRepository(db),
-		CombinedGroup:     active.NewCombinedGroupRepository(db),
-		GroupMapping:      active.NewGroupMappingRepository(db),
-		Attendance:        active.NewAttendanceRepository(db),
-		ScheduledCheckout: active.NewScheduledCheckoutRepository(db),
+		ActiveGroup:     active.NewGroupRepository(db),
+		ActiveVisit:     active.NewVisitRepository(db),
+		GroupSupervisor: active.NewGroupSupervisorRepository(db),
+		CombinedGroup:   active.NewCombinedGroupRepository(db),
+		GroupMapping:    active.NewGroupMappingRepository(db),
+		Attendance:      active.NewAttendanceRepository(db),
 
 		// Feedback repositories
 		FeedbackEntry: feedback.NewEntryRepository(db),

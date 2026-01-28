@@ -14,7 +14,8 @@ export interface BackendRoom {
   is_occupied: boolean;
   activity_name?: string;
   group_name?: string;
-  supervisor_name?: string;
+  supervisor_name?: string; // Legacy singular field
+  supervisor_names?: string; // New: comma-separated list of supervisors
   student_count?: number;
   created_at: string;
   updated_at: string;
@@ -54,7 +55,7 @@ export function mapRoomResponse(backendRoom: BackendRoom): Room {
     isOccupied: backendRoom.is_occupied,
     activityName: backendRoom.activity_name,
     groupName: backendRoom.group_name,
-    supervisorName: backendRoom.supervisor_name,
+    supervisorName: backendRoom.supervisor_names ?? backendRoom.supervisor_name,
     studentCount: backendRoom.student_count,
     createdAt: backendRoom.created_at,
     updatedAt: backendRoom.updated_at,
@@ -144,6 +145,12 @@ export interface UpdateRoomRequest {
 }
 
 // Helper functions
+export function formatFloor(floor: number | undefined): string {
+  if (floor === undefined) return "Etage nicht angegeben";
+  if (floor === 0) return "Erdgeschoss";
+  return `Etage ${floor}`;
+}
+
 export function formatRoomName(room: Room): string {
   let name = room.name;
 
@@ -155,8 +162,7 @@ export function formatRoomName(room: Room): string {
 }
 
 export function formatRoomLocation(room: Room): string {
-  if (room.floor === undefined) return "Etage nicht angegeben";
-  return `Etage ${room.floor}`;
+  return formatFloor(room.floor);
 }
 
 export function formatRoomCategory(room: Room): string {

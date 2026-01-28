@@ -6,11 +6,11 @@ import { permissionsConfig } from "@/lib/database/configs/permissions.config";
 import type { Permission } from "@/lib/auth-helpers";
 
 interface Props {
-  isOpen: boolean;
-  onClose: () => void;
-  onCreate: (data: Partial<Permission>) => Promise<void>;
-  loading?: boolean;
-  error?: string | null;
+  readonly isOpen: boolean;
+  readonly onClose: () => void;
+  readonly onCreate: (data: Partial<Permission>) => Promise<void>;
+  readonly loading?: boolean;
+  readonly error?: string | null;
 }
 
 export function PermissionCreateModal({

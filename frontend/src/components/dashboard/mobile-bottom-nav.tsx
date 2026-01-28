@@ -2,10 +2,9 @@
 // Ultra-minimalist mobile navigation following Instagram/Twitter/Uber patterns
 "use client";
 
-import React, { useRef, useCallback } from "react";
+import React, { useRef, useCallback, useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { useSupervision } from "~/lib/supervision-context";
 import { isAdmin } from "~/lib/auth-utils";
@@ -47,21 +46,32 @@ interface NavItem {
 }
 
 // Static base definitions; actual main items are computed per session
+// Admins don't have assigned groups or supervision duties (#608)
 const ADMIN_MAIN_ITEMS: NavItem[] = [
   { href: "/dashboard", label: "Home", iconKey: "home", alwaysShow: true },
-  { href: "/ogs-groups", label: "Gruppe", iconKey: "group", alwaysShow: true },
-  { href: "/active-supervisions", label: "Aufsicht", iconKey: "supervision", alwaysShow: true },
   {
     href: "/students/search",
     label: "Suchen",
     iconKey: "search",
     alwaysShow: true,
   },
+  {
+    href: "/activities",
+    label: "Aktivitäten",
+    iconKey: "activities",
+    alwaysShow: true,
+  },
+  { href: "/rooms", label: "Räume", iconKey: "rooms", alwaysShow: true },
 ];
 
 const STAFF_MAIN_ITEMS: NavItem[] = [
   { href: "/ogs-groups", label: "Gruppe", iconKey: "group", alwaysShow: true },
-  { href: "/active-supervisions", label: "Aufsicht", iconKey: "supervision", alwaysShow: true },
+  {
+    href: "/active-supervisions",
+    label: "Aufsicht",
+    iconKey: "supervision",
+    alwaysShow: true,
+  },
   {
     href: "/students/search",
     label: "Suchen",
@@ -85,6 +95,8 @@ interface AdditionalNavItem {
   requiresSupervision?: boolean;
   requiresActiveSupervision?: boolean;
   alwaysShow?: boolean;
+  hideForAdmin?: boolean; // Hide from admin users (for caregiver-specific features)
+  comingSoon?: boolean; // Show as grayed out "coming soon" feature
 }
 
 const additionalNavItems: AdditionalNavItem[] = [
@@ -114,10 +126,56 @@ const additionalNavItems: AdditionalNavItem[] = [
     iconKey: "settings",
     alwaysShow: true,
   },
+  // Coming soon features - shown to all users
+  {
+    href: "#",
+    label: "Zeiterfassung",
+    iconKey: "clock",
+    alwaysShow: true,
+    comingSoon: true,
+  },
+  {
+    href: "#",
+    label: "Nachrichten",
+    iconKey: "chat",
+    alwaysShow: true,
+    comingSoon: true,
+  },
+  {
+    href: "#",
+    label: "Mittagessen",
+    iconKey: "utensils",
+    alwaysShow: true,
+    comingSoon: true,
+  },
+  // Coming soon features - caregivers only
+  {
+    href: "#",
+    label: "Erinnerungen",
+    iconKey: "bell",
+    alwaysShow: true,
+    hideForAdmin: true,
+    comingSoon: true,
+  },
+  // Coming soon features - admin only
+  {
+    href: "#",
+    label: "Dienstpläne",
+    iconKey: "calendar",
+    requiresAdmin: true,
+    comingSoon: true,
+  },
+  {
+    href: "#",
+    label: "Berichte",
+    iconKey: "chart",
+    requiresAdmin: true,
+    comingSoon: true,
+  },
 ];
 
 interface MobileBottomNavProps {
-  className?: string;
+  readonly className?: string;
 }
 
 export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
@@ -165,20 +223,24 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
   const baseMain = isAdmin(session) ? ADMIN_MAIN_ITEMS : STAFF_MAIN_ITEMS;
   const filteredMainItems = baseMain;
 
+  // Pre-compute permission flags to reduce complexity in filter
+  const userIsAdmin = isAdmin(session);
+  const hasGroupSupervision = !isLoadingGroups && hasGroups;
+  const hasRoomSupervision = !isLoadingSupervision && isSupervising;
+
   // Filter additional navigation items based on permissions
   const filteredAdditionalItems = additionalNavItems.filter((item) => {
-    if (item.alwaysShow) return true;
-    if (item.requiresAdmin && !isAdmin(session)) return false;
-    if (item.requiresSupervision) {
-      if (isAdmin(session)) return false;
-      const hasGroupSupervision = !isLoadingGroups && hasGroups;
-      const hasRoomSupervision = !isLoadingSupervision && isSupervising;
-      if (!hasGroupSupervision && !hasRoomSupervision) return false;
+    // Hide items marked as hideForAdmin for admin users
+    if (item.hideForAdmin && userIsAdmin) {
+      return false;
     }
-    if (item.requiresActiveSupervision) {
-      if (isAdmin(session)) return false;
-      const hasRoomSupervision = !isLoadingSupervision && isSupervising;
-      if (!hasRoomSupervision) return false;
+    if (item.alwaysShow) return true;
+    if (item.requiresAdmin) return userIsAdmin;
+    if (item.requiresSupervision && !userIsAdmin) {
+      return hasGroupSupervision || hasRoomSupervision;
+    }
+    if (item.requiresActiveSupervision && !userIsAdmin) {
+      return hasRoomSupervision;
     }
     return true;
   });
@@ -275,6 +337,30 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
                 {displayAdditionalItems.map((item) => {
                   const isActive = isActiveRoute(item.href);
 
+                  // Coming soon items are not clickable
+                  if (item.comingSoon) {
+                    return (
+                      <div
+                        key={item.label}
+                        className="flex items-center gap-3 rounded-xl bg-gray-50 px-4 py-3 opacity-50"
+                      >
+                        <Icon
+                          path={
+                            navigationIcons[item.iconKey] ??
+                            navigationIcons.home
+                          }
+                          className="h-5 w-5 text-gray-400"
+                        />
+                        <span className="flex-1 text-base font-medium text-gray-400">
+                          {item.label}
+                        </span>
+                        <span className="rounded bg-gray-200 px-2 py-0.5 text-xs text-gray-500">
+                          Bald verfügbar
+                        </span>
+                      </div>
+                    );
+                  }
+
                   return (
                     <Link
                       key={item.href}
@@ -317,9 +403,9 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
               {indicatorVisible && (
                 <div
                   className={`absolute top-0 h-full rounded-full bg-gray-900 shadow-md ${
-                    !isInitialMount.current
-                      ? "transition-all duration-300 ease-out"
-                      : ""
+                    isInitialMount.current
+                      ? ""
+                      : "transition-all duration-300 ease-out"
                   }`}
                   style={{
                     left: `${indicatorStyle.left}px`,

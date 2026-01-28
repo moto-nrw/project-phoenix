@@ -26,62 +26,75 @@ func NewResourceAuthorizer(authService AuthorizationService) *ResourceAuthorizer
 func (ra *ResourceAuthorizer) RequiresResourceAccess(resourceType string, action policy.Action, extractors ...ResourceExtractor) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// Get claims from context
-			claims := jwt.ClaimsFromCtx(r.Context())
-			permissions := jwt.PermissionsFromCtx(r.Context())
+			subject := createSubjectFromContext(r)
+			resourceID, extra := applyExtractors(r, extractors)
 
-			// Create subject from claims
-			subject := policy.Subject{
-				AccountID:   int64(claims.ID),
-				Roles:       claims.Roles,
-				Permissions: permissions,
-			}
-
-			// Extract resource ID and extra context
-			var resourceID interface{}
-			extra := make(map[string]interface{})
-
-			// Apply extractors
-			for _, extractor := range extractors {
-				id, extraData := extractor(r)
-				if id != nil {
-					resourceID = id
-				}
-				for k, v := range extraData {
-					extra[k] = v
-				}
-			}
-
-			// Create resource
 			resource := policy.Resource{
 				Type: resourceType,
 				ID:   resourceID,
 			}
 
-			// Authorize
 			allowed, err := ra.authService.AuthorizeResource(r.Context(), subject, resource, action, extra)
 			if err != nil {
-				if renderErr := render.Render(w, r, &ErrResponse{
-					HTTPStatusCode: http.StatusInternalServerError,
-					StatusText:     "Authorization error",
-					ErrorText:      err.Error(),
-				}); renderErr != nil {
-					// Error already occurred while sending the response
-					http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-				}
+				handleAuthorizationError(w, r, err)
 				return
 			}
 
 			if !allowed {
-				if renderErr := render.Render(w, r, ErrForbidden); renderErr != nil {
-					// Error already occurred while sending the response
-					http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
-				}
+				handleForbiddenResponse(w, r)
 				return
 			}
 
 			next.ServeHTTP(w, r)
 		})
+	}
+}
+
+// createSubjectFromContext creates a policy subject from JWT context
+func createSubjectFromContext(r *http.Request) policy.Subject {
+	claims := jwt.ClaimsFromCtx(r.Context())
+	permissions := jwt.PermissionsFromCtx(r.Context())
+
+	return policy.Subject{
+		AccountID:   int64(claims.ID),
+		Roles:       claims.Roles,
+		Permissions: permissions,
+	}
+}
+
+// applyExtractors applies all resource extractors and collects resource ID and extra data
+func applyExtractors(r *http.Request, extractors []ResourceExtractor) (interface{}, map[string]interface{}) {
+	var resourceID interface{}
+	extra := make(map[string]interface{})
+
+	for _, extractor := range extractors {
+		id, extraData := extractor(r)
+		if id != nil {
+			resourceID = id
+		}
+		for k, v := range extraData {
+			extra[k] = v
+		}
+	}
+
+	return resourceID, extra
+}
+
+// handleAuthorizationError handles authorization error response
+func handleAuthorizationError(w http.ResponseWriter, r *http.Request, err error) {
+	if render.Render(w, r, &ErrResponse{
+		HTTPStatusCode: http.StatusInternalServerError,
+		StatusText:     "Authorization error",
+		ErrorText:      err.Error(),
+	}) != nil {
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+	}
+}
+
+// handleForbiddenResponse handles forbidden response
+func handleForbiddenResponse(w http.ResponseWriter, r *http.Request) {
+	if render.Render(w, r, ErrForbidden) != nil {
+		http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
 	}
 }
 

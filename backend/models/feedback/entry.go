@@ -17,6 +17,9 @@ const (
 	ValueNegative = "negative"
 )
 
+// tableFeedbackEntries is the schema-qualified table name for feedback entries
+const tableFeedbackEntries = "feedback.entries"
+
 // Entry represents a feedback entry from a student
 type Entry struct {
 	base.Model      `bun:"schema:feedback,table:entries"`
@@ -32,20 +35,20 @@ type Entry struct {
 
 func (e *Entry) BeforeAppendModel(query any) error {
 	if q, ok := query.(*bun.SelectQuery); ok {
-		q.ModelTableExpr("feedback.entries")
+		q.ModelTableExpr(tableFeedbackEntries)
 	}
 	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr("feedback.entries")
+		q.ModelTableExpr(tableFeedbackEntries)
 	}
 	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr("feedback.entries")
+		q.ModelTableExpr(tableFeedbackEntries)
 	}
 	return nil
 }
 
 // TableName returns the database table name
 func (e *Entry) TableName() string {
-	return "feedback.entries"
+	return tableFeedbackEntries
 }
 
 // Validate ensures feedback entry data is valid

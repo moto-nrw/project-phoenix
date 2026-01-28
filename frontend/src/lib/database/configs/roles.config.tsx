@@ -5,7 +5,11 @@
 import { defineEntityConfig } from "../types";
 import { databaseThemes } from "@/components/ui/database/themes";
 import type { Role, BackendRole } from "@/lib/auth-helpers";
-import { mapRoleResponse } from "@/lib/auth-helpers";
+import {
+  mapRoleResponse,
+  getRoleDisplayName,
+  getRoleDisplayDescription,
+} from "@/lib/auth-helpers";
 
 export const rolesConfig = defineEntityConfig<Role>({
   name: {
@@ -54,10 +58,12 @@ export const rolesConfig = defineEntityConfig<Role>({
 
   detail: {
     header: {
-      title: (role: Role) => role.name,
-      subtitle: (role: Role) => role.description || "Keine Beschreibung",
+      title: (role: Role) => getRoleDisplayName(role.name),
+      subtitle: (role: Role) =>
+        getRoleDisplayDescription(role.name, role.description) ||
+        "Keine Beschreibung",
       avatar: {
-        text: (role: Role) => role.name?.[0] ?? "R",
+        text: (role: Role) => getRoleDisplayName(role.name)?.[0] ?? "R",
         size: "lg",
       },
       badges: [
@@ -77,11 +83,13 @@ export const rolesConfig = defineEntityConfig<Role>({
         items: [
           {
             label: "Name",
-            value: (role: Role) => role.name,
+            value: (role: Role) => getRoleDisplayName(role.name),
           },
           {
             label: "Beschreibung",
-            value: (role: Role) => role.description || "Keine Beschreibung",
+            value: (role: Role) =>
+              getRoleDisplayDescription(role.name, role.description) ||
+              "Keine Beschreibung",
           },
           {
             label: "Berechtigungen",
@@ -114,10 +122,12 @@ export const rolesConfig = defineEntityConfig<Role>({
     minSearchLength: 0,
 
     item: {
-      title: (role: Role) => role.name,
-      subtitle: (role: Role) => role.description || "Keine Beschreibung",
+      title: (role: Role) => getRoleDisplayName(role.name),
+      subtitle: (role: Role) =>
+        getRoleDisplayDescription(role.name, role.description) ||
+        "Keine Beschreibung",
       avatar: {
-        text: (role: Role) => role.name?.[0] ?? "R",
+        text: (role: Role) => getRoleDisplayName(role.name)?.[0] ?? "R",
       },
       badges: [],
     },

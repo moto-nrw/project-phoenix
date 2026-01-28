@@ -17,7 +17,7 @@ export const POST = createPostHandler(
     const { id } = params;
 
     if (typeof id !== "string") {
-      throw new Error("Invalid group ID");
+      throw new TypeError("Invalid group ID");
     }
 
     // Claim the group with default supervisor role

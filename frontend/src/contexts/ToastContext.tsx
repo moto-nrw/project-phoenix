@@ -117,8 +117,8 @@ const desktopStylesByType: Record<
 function useReducedMotion() {
   const [reduced, setReduced] = useState(false);
   useEffect(() => {
-    if (typeof window === "undefined" || !window.matchMedia) return;
-    const media = window.matchMedia("(prefers-reduced-motion: reduce)");
+    if (typeof globalThis === "undefined" || !globalThis.matchMedia) return;
+    const media = globalThis.matchMedia("(prefers-reduced-motion: reduce)");
     const update = () => setReduced(media.matches);
     update();
     media.addEventListener?.("change", update);
@@ -137,11 +137,11 @@ function ToastRow({
   item,
   onClose,
   reducedMotion,
-}: {
+}: Readonly<{
   item: ToastItemData;
   onClose: (id: string) => void;
   reducedMotion: boolean;
-}) {
+}>) {
   const mobileStyles = mobileStylesByType[item.type];
   const desktopStyles = desktopStylesByType[item.type];
 
@@ -174,10 +174,9 @@ function ToastRow({
       timersRef.current.timeoutId = localTimeout;
     }
 
-    if (typeof window !== "undefined") {
-      isDesktopRef.current = !!(
-        window.matchMedia && window.matchMedia("(min-width: 768px)").matches
-      );
+    if (typeof globalThis !== "undefined") {
+      isDesktopRef.current =
+        !!globalThis.matchMedia?.("(min-width: 768px)").matches;
     }
 
     return () => {
@@ -221,17 +220,20 @@ function ToastRow({
   return (
     <>
       {/* Mobile: Center-Overlay Modal Style - tap to dismiss */}
-      <div
-        role="status"
-        aria-live="polite"
-        aria-atomic="true"
+      <button
+        type="button"
+        aria-label={`${modalTitles[item.type]}: ${item.message}. Tippen zum Schließen`}
         aria-hidden={isDesktopRef.current}
         onClick={handleMobileDismiss}
-        className={`pointer-events-auto ${mobileStyles.bg} ${mobileStyles.border} rounded-2xl border shadow-lg backdrop-blur-sm transition-all md:hidden ${reducedMotion ? "" : "duration-300 ease-out"} w-full max-w-xs cursor-pointer ${
+        className={`pointer-events-auto ${mobileStyles.bg} ${mobileStyles.border} rounded-2xl border shadow-lg backdrop-blur-sm transition-all md:hidden ${reducedMotion ? "" : "duration-300 ease-out"} w-full max-w-xs cursor-pointer focus:ring-2 focus:ring-gray-400 focus:ring-offset-2 focus:outline-none ${
           visible && !exiting ? "scale-100 opacity-100" : "scale-95 opacity-0"
         }`}
       >
-        <div className="flex flex-col items-center gap-3 p-6 text-center">
+        <output
+          aria-live="polite"
+          aria-atomic="true"
+          className="flex flex-col items-center gap-3 p-6 text-center"
+        >
           <div className={mobileStyles.iconColor}>
             <svg
               className="h-12 w-12"
@@ -255,12 +257,11 @@ function ToastRow({
               {item.message}
             </p>
           </div>
-        </div>
-      </div>
+        </output>
+      </button>
 
       {/* Desktop: Original bottom-right notification style */}
-      <div
-        role="status"
+      <output
         aria-live="polite"
         aria-atomic="true"
         aria-hidden={!isDesktopRef.current}
@@ -307,12 +308,14 @@ function ToastRow({
             </svg>
           </button>
         </div>
-      </div>
+      </output>
     </>
   );
 }
 
-export function ToastProvider({ children }: { children: React.ReactNode }) {
+export function ToastProvider({
+  children,
+}: Readonly<{ children: React.ReactNode }>) {
   const [items, setItems] = useState<ToastItemData[]>([]);
   const reducedMotion = useReducedMotion();
 
@@ -368,11 +371,9 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
 
   // Handle backdrop click - dismiss the topmost (last) toast on mobile
   const handleBackdropClick = useCallback(() => {
-    if (items.length > 0) {
-      const lastItem = items[items.length - 1];
-      if (lastItem) {
-        remove(lastItem.id);
-      }
+    const lastItem = items.at(-1);
+    if (lastItem) {
+      remove(lastItem.id);
     }
   }, [items, remove]);
 
@@ -380,11 +381,13 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     <ToastContext.Provider value={api}>
       {children}
 
-      {/* Shared backdrop for mobile - only rendered once */}
+      {/* Shared backdrop for mobile - native button for accessibility */}
       {items.length > 0 && (
-        <div
+        <button
+          type="button"
           onClick={handleBackdropClick}
-          className="pointer-events-auto fixed inset-0 z-[8999] cursor-pointer bg-black/20 transition-opacity md:hidden"
+          aria-label="Benachrichtigungen schließen"
+          className="pointer-events-auto fixed inset-0 z-[8999] cursor-pointer border-none bg-black/20 p-0 transition-opacity md:hidden"
           style={{
             opacity: items.length > 0 ? 1 : 0,
             transition: reducedMotion ? "none" : "opacity 300ms",

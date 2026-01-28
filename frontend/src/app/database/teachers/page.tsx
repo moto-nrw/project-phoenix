@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useMemo } from "react";
 import { useSession } from "next-auth/react";
 import { redirect, useRouter } from "next/navigation";
-import { ResponsiveLayout } from "~/components/dashboard";
+import { DatabasePageLayout } from "~/components/database/database-page-layout";
 import { PageHeaderWithSearch } from "~/components/ui/page-header";
 import type { ActiveFilter } from "~/components/ui/page-header/types";
 import { useToast } from "~/contexts/ToastContext";
+import { useIsMobile } from "~/hooks/useIsMobile";
 import {
   TeacherRoleManagementModal,
   TeacherPermissionManagementModal,
@@ -18,16 +19,33 @@ import { getDbOperationMessage } from "@/lib/use-notification";
 import { createCrudService } from "@/lib/database/service-factory";
 import { teachersConfig } from "@/lib/database/configs/teachers.config";
 import type { Teacher } from "@/lib/teacher-api";
-import { Modal } from "~/components/ui/modal";
+import { Modal, ConfirmationModal } from "~/components/ui/modal";
+import { useDeleteConfirmation } from "~/hooks/useDeleteConfirmation";
+import { useSWRAuth, mutate } from "~/lib/swr";
 
-import { Loading } from "~/components/ui/loading";
+// Helper function to get teacher initials without nested ternary
+function getTeacherInitials(
+  firstName: string | undefined,
+  lastName: string | undefined,
+  fullName: string | undefined,
+): string {
+  if (firstName && lastName) {
+    return `${firstName[0]}${lastName[0]}`;
+  }
+  if (fullName) {
+    return fullName
+      .split(" ")
+      .map((n) => n[0])
+      .join("")
+      .substring(0, 2);
+  }
+  return "XX";
+}
+
 export default function TeachersPage() {
   const router = useRouter();
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
-  const [isMobile, setIsMobile] = useState(false);
+  const isMobile = useIsMobile();
 
   // Modal states
   const [showChoiceModal, setShowChoiceModal] = useState(false);
@@ -38,6 +56,14 @@ export default function TeachersPage() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [selectedTeacher, setSelectedTeacher] = useState<Teacher | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+
+  // Delete confirmation modal management
+  const {
+    showConfirmModal: showDeleteConfirmModal,
+    handleDeleteClick,
+    handleDeleteCancel,
+    confirmDelete,
+  } = useDeleteConfirmation(setShowDetailModal);
 
   // Role and permission modals
   const [roleModalOpen, setRoleModalOpen] = useState(false);
@@ -55,42 +81,23 @@ export default function TeachersPage() {
   // Create service instance
   const service = useMemo(() => createCrudService(teachersConfig), []);
 
-  // Handle mobile detection
-  useEffect(() => {
-    const checkMobile = () => {
-      setIsMobile(window.innerWidth < 768);
-    };
-    checkMobile();
-    window.addEventListener("resize", checkMobile);
-    return () => window.removeEventListener("resize", checkMobile);
-  }, []);
+  // Fetch teachers with SWR (automatic caching, deduplication, revalidation)
+  const {
+    data: teachersData,
+    isLoading: loading,
+    error: teachersError,
+  } = useSWRAuth("database-teachers-list", async () => {
+    const data = await service.getList({ page: 1, pageSize: 1000 });
+    return Array.isArray(data.data) ? data.data : [];
+  });
 
-  // Fetch teachers
-  const fetchTeachers = useCallback(async () => {
-    try {
-      setLoading(true);
-      const data = await service.getList({ page: 1, pageSize: 1000 });
-      const teachersArray = Array.isArray(data.data) ? data.data : [];
-      setTeachers(teachersArray);
-      setError(null);
-    } catch (err) {
-      console.error("Error fetching teachers:", err);
-      setError(
-        "Fehler beim Laden der Betreuer. Bitte versuchen Sie es später erneut.",
-      );
-      setTeachers([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [service]);
+  const error = teachersError
+    ? "Fehler beim Laden der Betreuer. Bitte versuchen Sie es später erneut."
+    : null;
 
-  // Load teachers on mount
-  useEffect(() => {
-    void fetchTeachers();
-  }, [fetchTeachers]);
-
-  // Apply filters
+  // Apply filters (use teachersData directly to avoid dependency issues)
   const filteredTeachers = useMemo(() => {
+    const teachers = teachersData ?? [];
     let filtered = [...teachers];
 
     // Search filter
@@ -116,7 +123,7 @@ export default function TeachersPage() {
     });
 
     return filtered;
-  }, [teachers, searchTerm]);
+  }, [teachersData, searchTerm]);
 
   // Prepare active filters
   const activeFilters: ActiveFilter[] = useMemo(() => {
@@ -162,7 +169,7 @@ export default function TeachersPage() {
       toastSuccess(
         getDbOperationMessage("create", teachersConfig.name.singular),
       );
-      await fetchTeachers();
+      await mutate("database-teachers-list");
     } catch (err) {
       console.error("Error creating teacher:", err);
       throw err;
@@ -185,7 +192,7 @@ export default function TeachersPage() {
       toastSuccess(
         getDbOperationMessage("update", teachersConfig.name.singular),
       );
-      await fetchTeachers();
+      await mutate("database-teachers-list");
       setSelectedTeacher(null);
     } catch (err) {
       console.error("Error updating teacher:", err);
@@ -206,7 +213,7 @@ export default function TeachersPage() {
       toastSuccess(
         getDbOperationMessage("delete", teachersConfig.name.singular),
       );
-      await fetchTeachers();
+      await mutate("database-teachers-list");
       setSelectedTeacher(null);
     } catch (err) {
       console.error("Error deleting teacher:", err);
@@ -222,152 +229,19 @@ export default function TeachersPage() {
     setShowEditModal(true);
   };
 
-  if (status === "loading" || loading) {
-    return (
-      <ResponsiveLayout>
-        <Loading fullPage={false} />
-      </ResponsiveLayout>
-    );
-  }
-
   return (
-    <ResponsiveLayout>
-      <div className="-mt-1.5 w-full">
-        {/* Mobile Back Button */}
-        {isMobile && (
-          <button
-            onClick={() => (window.location.href = "/database")}
-            className="relative z-10 mb-3 flex items-center gap-2 text-gray-600 transition-colors duration-200 hover:text-gray-900"
-            aria-label="Zurück zur Datenverwaltung"
-          >
-            <svg
-              className="h-5 w-5"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M15 19l-7-7 7-7"
-              />
-            </svg>
-            <span className="text-sm font-medium">Zurück</span>
-          </button>
-        )}
-
-        {/* PageHeaderWithSearch - Title only on mobile */}
-        <div className="mb-4">
-          <PageHeaderWithSearch
-            title={isMobile ? "Betreuer" : ""}
-            badge={{
-              icon: (
-                <svg
-                  className="h-5 w-5 text-gray-600"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M12 14l9-5-9-5-9 5 9 5z M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z"
-                  />
-                </svg>
-              ),
-              count: filteredTeachers.length,
-              label: "Betreuer",
-            }}
-            search={{
-              value: searchTerm,
-              onChange: setSearchTerm,
-              placeholder: "Betreuer suchen...",
-            }}
-            filters={[]}
-            activeFilters={activeFilters}
-            onClearAllFilters={() => {
-              setSearchTerm("");
-            }}
-            actionButton={
-              !isMobile && (
-                <button
-                  onClick={() => setShowChoiceModal(true)}
-                  className="group relative flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-[#F78C10] to-[#e57a00] text-white shadow-lg transition-all duration-300 hover:scale-110 hover:shadow-xl active:scale-95"
-                  style={{
-                    background:
-                      "linear-gradient(135deg, rgb(247, 140, 16) 0%, rgb(229, 122, 0) 100%)",
-                    willChange: "transform, opacity",
-                    WebkitTransform: "translateZ(0)",
-                    transform: "translateZ(0)",
-                  }}
-                  aria-label="Betreuer hinzufügen"
-                >
-                  <div className="pointer-events-none absolute inset-[2px] rounded-full bg-gradient-to-br from-white/20 to-white/0 opacity-0 transition-opacity duration-300 group-hover:opacity-100"></div>
-                  <svg
-                    className="relative h-5 w-5 transition-transform duration-300 group-active:rotate-90"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    strokeWidth={2.5}
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M12 4.5v15m7.5-7.5h-15"
-                    />
-                  </svg>
-                  <div className="pointer-events-none absolute inset-0 scale-0 rounded-full bg-white/20 opacity-0 transition-transform duration-500 group-hover:scale-100 group-hover:opacity-100"></div>
-                </button>
-              )
-            }
-          />
-        </div>
-
-        {/* Mobile FAB Create Button */}
-        <button
-          onClick={() => setShowChoiceModal(true)}
-          className="group pointer-events-auto fixed right-4 bottom-24 z-40 flex h-14 w-14 translate-y-0 items-center justify-center rounded-full bg-gradient-to-br from-[#F78C10] to-[#e57a00] text-white opacity-100 shadow-[0_8px_30px_rgb(0,0,0,0.12)] transition-all duration-300 ease-out hover:shadow-[0_8px_40px_rgb(247,140,16,0.3)] active:scale-95 md:hidden"
-          style={{
-            background:
-              "linear-gradient(135deg, rgb(247, 140, 16) 0%, rgb(229, 122, 0) 100%)",
-            willChange: "transform, opacity",
-            WebkitTransform: "translateZ(0)",
-            transform: "translateZ(0)",
-          }}
-          aria-label="Betreuer hinzufügen"
-        >
-          <div className="pointer-events-none absolute inset-[2px] rounded-full bg-gradient-to-br from-white/20 to-white/0 opacity-0 transition-opacity duration-300 group-hover:opacity-100"></div>
-          <svg
-            className="pointer-events-none relative h-6 w-6 transition-transform duration-300 group-active:rotate-90"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={2.5}
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M12 4.5v15m7.5-7.5h-15"
-            />
-          </svg>
-          <div className="pointer-events-none absolute inset-0 scale-0 rounded-full bg-white/20 opacity-0 transition-transform duration-500 group-hover:scale-100 group-hover:opacity-100"></div>
-        </button>
-
-        {/* Error Display */}
-        {error && (
-          <div className="mb-6 rounded-lg border border-red-200 bg-red-50 p-4">
-            <p className="text-sm text-red-800">{error}</p>
-          </div>
-        )}
-
-        {/* Teacher List */}
-        {filteredTeachers.length === 0 ? (
-          <div className="flex min-h-[300px] items-center justify-center">
-            <div className="text-center">
+    <DatabasePageLayout
+      loading={loading}
+      sessionLoading={status === "loading"}
+      className="-mt-1.5 w-full"
+    >
+      <div className="mb-4">
+        <PageHeaderWithSearch
+          title={isMobile ? "Betreuer" : ""}
+          badge={{
+            icon: (
               <svg
-                className="mx-auto h-12 w-12 text-gray-400"
+                className="h-5 w-5 text-gray-600"
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
@@ -375,130 +249,214 @@ export default function TeachersPage() {
                 <path
                   strokeLinecap="round"
                   strokeLinejoin="round"
-                  strokeWidth={1.5}
+                  strokeWidth={2}
                   d="M12 14l9-5-9-5-9 5 9 5z M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z"
                 />
               </svg>
-              <h3 className="mt-4 text-lg font-medium text-gray-900">
-                {searchTerm
-                  ? "Keine Betreuer gefunden"
-                  : "Keine Betreuer vorhanden"}
-              </h3>
-              <p className="mt-2 text-sm text-gray-600">
-                {searchTerm
-                  ? "Versuchen Sie andere Suchkriterien."
-                  : "Es wurden noch keine Betreuer erstellt."}
-              </p>
-            </div>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {filteredTeachers.map((teacher, index) => {
-              // Get initials from first_name and last_name, or from name if those aren't available
-              const initials =
-                teacher.first_name && teacher.last_name
-                  ? `${teacher.first_name[0]}${teacher.last_name[0]}`
-                  : teacher.name
-                    ? teacher.name
-                        .split(" ")
-                        .map((n) => n[0])
-                        .join("")
-                        .substring(0, 2)
-                    : "XX";
-              const displayName =
-                teacher.name || `${teacher.first_name} ${teacher.last_name}`;
-
-              return (
-                <div
-                  key={teacher.id}
-                  onClick={() => handleSelectTeacher(teacher)}
-                  className="group relative cursor-pointer overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-500 active:scale-[0.99] md:hover:-translate-y-1 md:hover:scale-[1.01] md:hover:border-orange-200/50 md:hover:bg-white md:hover:shadow-[0_20px_50px_rgb(0,0,0,0.15)]"
-                  style={{
-                    animationName: "fadeInUp",
-                    animationDuration: "0.5s",
-                    animationTimingFunction: "ease-out",
-                    animationFillMode: "forwards",
-                    animationDelay: `${index * 0.03}s`,
-                    opacity: 0,
-                  }}
+            ),
+            count: filteredTeachers.length,
+            label: "Betreuer",
+          }}
+          search={{
+            value: searchTerm,
+            onChange: setSearchTerm,
+            placeholder: "Betreuer suchen...",
+          }}
+          filters={[]}
+          activeFilters={activeFilters}
+          onClearAllFilters={() => {
+            setSearchTerm("");
+          }}
+          actionButton={
+            !isMobile && (
+              <button
+                onClick={() => setShowChoiceModal(true)}
+                className="group relative flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-[#F78C10] to-[#e57a00] text-white shadow-lg transition-all duration-300 hover:scale-110 hover:shadow-xl active:scale-95"
+                style={{
+                  background:
+                    "linear-gradient(135deg, rgb(247, 140, 16) 0%, rgb(229, 122, 0) 100%)",
+                  willChange: "transform, opacity",
+                  WebkitTransform: "translateZ(0)",
+                  transform: "translateZ(0)",
+                }}
+                aria-label="Betreuer hinzufügen"
+              >
+                <div className="pointer-events-none absolute inset-[2px] rounded-full bg-gradient-to-br from-white/20 to-white/0 opacity-0 transition-opacity duration-300 group-hover:opacity-100"></div>
+                <svg
+                  className="relative h-5 w-5 transition-transform duration-300 group-active:rotate-90"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2.5}
                 >
-                  {/* Modern gradient overlay */}
-                  <div className="absolute inset-0 rounded-3xl bg-gradient-to-br from-orange-50/80 to-amber-100/80 opacity-[0.03]"></div>
-                  {/* Subtle inner glow */}
-                  <div className="absolute inset-px rounded-3xl bg-gradient-to-br from-white/80 to-white/20"></div>
-                  {/* Modern border highlight */}
-                  <div className="absolute inset-0 rounded-3xl ring-1 ring-white/20 transition-all duration-300 md:group-hover:ring-orange-200/60"></div>
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M12 4.5v15m7.5-7.5h-15"
+                  />
+                </svg>
+                <div className="pointer-events-none absolute inset-0 scale-0 rounded-full bg-white/20 opacity-0 transition-transform duration-500 group-hover:scale-100 group-hover:opacity-100"></div>
+              </button>
+            )
+          }
+        />
+      </div>
 
-                  <div className="relative flex items-center gap-4 p-5">
-                    {/* Avatar */}
-                    <div className="flex-shrink-0">
-                      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-[#F78C10] to-[#e57a00] text-sm font-semibold text-white shadow-md transition-transform duration-300 md:group-hover:scale-110">
-                        {initials.toUpperCase()}
-                      </div>
-                    </div>
+      {/* Mobile FAB Create Button */}
+      <button
+        onClick={() => setShowChoiceModal(true)}
+        className="group pointer-events-auto fixed right-4 bottom-24 z-40 flex h-14 w-14 translate-y-0 items-center justify-center rounded-full bg-gradient-to-br from-[#F78C10] to-[#e57a00] text-white opacity-100 shadow-[0_8px_30px_rgb(0,0,0,0.12)] transition-all duration-300 ease-out hover:shadow-[0_8px_40px_rgb(247,140,16,0.3)] active:scale-95 md:hidden"
+        style={{
+          background:
+            "linear-gradient(135deg, rgb(247, 140, 16) 0%, rgb(229, 122, 0) 100%)",
+          willChange: "transform, opacity",
+          WebkitTransform: "translateZ(0)",
+          transform: "translateZ(0)",
+        }}
+        aria-label="Betreuer hinzufügen"
+      >
+        <div className="pointer-events-none absolute inset-[2px] rounded-full bg-gradient-to-br from-white/20 to-white/0 opacity-0 transition-opacity duration-300 group-hover:opacity-100"></div>
+        <svg
+          className="pointer-events-none relative h-6 w-6 transition-transform duration-300 group-active:rotate-90"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          strokeWidth={2.5}
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M12 4.5v15m7.5-7.5h-15"
+          />
+        </svg>
+        <div className="pointer-events-none absolute inset-0 scale-0 rounded-full bg-white/20 opacity-0 transition-transform duration-500 group-hover:scale-100 group-hover:opacity-100"></div>
+      </button>
 
-                    {/* Teacher Info */}
-                    <div className="min-w-0 flex-1">
-                      <h3 className="text-lg font-semibold text-gray-900 transition-colors duration-300 md:group-hover:text-orange-600">
-                        {displayName}
-                      </h3>
-                      <div className="mt-1 flex flex-wrap items-center gap-2">
-                        {/* Specialization Badge */}
-                        {teacher.role && (
-                          <span className="inline-flex items-center rounded-full bg-orange-100 px-2 py-1 text-xs font-medium text-orange-800">
-                            {teacher.role}
-                          </span>
-                        )}
-                      </div>
-                      {/* Email info */}
-                      {teacher.email && (
-                        <p className="mt-1 text-sm text-gray-500">
-                          <span className="text-gray-400">E-Mail:</span>{" "}
-                          {teacher.email}
-                        </p>
-                      )}
-                    </div>
+      {/* Error Display */}
+      {error && (
+        <div className="mb-6 rounded-lg border border-red-200 bg-red-50 p-4">
+          <p className="text-sm text-red-800">{error}</p>
+        </div>
+      )}
 
-                    {/* Arrow Icon */}
-                    <div className="flex-shrink-0">
-                      <svg
-                        className="h-6 w-6 text-gray-400 transition-all duration-300 md:group-hover:translate-x-1 md:group-hover:text-orange-600"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M9 5l7 7-7 7"
-                        />
-                      </svg>
+      {/* Teacher List */}
+      {filteredTeachers.length === 0 ? (
+        <div className="flex min-h-[300px] items-center justify-center">
+          <div className="text-center">
+            <svg
+              className="mx-auto h-12 w-12 text-gray-400"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={1.5}
+                d="M12 14l9-5-9-5-9 5 9 5z M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z"
+              />
+            </svg>
+            <h3 className="mt-4 text-lg font-medium text-gray-900">
+              {searchTerm
+                ? "Keine Betreuer gefunden"
+                : "Keine Betreuer vorhanden"}
+            </h3>
+            <p className="mt-2 text-sm text-gray-600">
+              {searchTerm
+                ? "Versuchen Sie andere Suchkriterien."
+                : "Es wurden noch keine Betreuer erstellt."}
+            </p>
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {filteredTeachers.map((teacher, index) => {
+            const initials = getTeacherInitials(
+              teacher.first_name,
+              teacher.last_name,
+              teacher.name,
+            );
+            const displayName =
+              teacher.name || `${teacher.first_name} ${teacher.last_name}`;
+
+            const handleClick = () => handleSelectTeacher(teacher);
+            return (
+              <button
+                type="button"
+                key={teacher.id}
+                onClick={handleClick}
+                className="group relative w-full cursor-pointer overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 text-left shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-500 active:scale-[0.99] md:hover:-translate-y-1 md:hover:scale-[1.01] md:hover:border-orange-200/50 md:hover:bg-white md:hover:shadow-[0_20px_50px_rgb(0,0,0,0.15)]"
+                style={{
+                  animationName: "fadeInUp",
+                  animationDuration: "0.5s",
+                  animationTimingFunction: "ease-out",
+                  animationFillMode: "forwards",
+                  animationDelay: `${index * 0.03}s`,
+                  opacity: 0,
+                }}
+              >
+                {/* Modern gradient overlay */}
+                <div className="absolute inset-0 rounded-3xl bg-gradient-to-br from-orange-50/80 to-amber-100/80 opacity-[0.03]"></div>
+                {/* Subtle inner glow */}
+                <div className="absolute inset-px rounded-3xl bg-gradient-to-br from-white/80 to-white/20"></div>
+                {/* Modern border highlight */}
+                <div className="absolute inset-0 rounded-3xl ring-1 ring-white/20 transition-all duration-300 md:group-hover:ring-orange-200/60"></div>
+
+                <div className="relative flex items-center gap-4 p-5">
+                  {/* Avatar */}
+                  <div className="flex-shrink-0">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-[#F78C10] to-[#e57a00] text-sm font-semibold text-white shadow-md transition-transform duration-300 md:group-hover:scale-110">
+                      {initials.toUpperCase()}
                     </div>
                   </div>
 
-                  {/* Glowing border effect on hover */}
-                  <div className="absolute inset-0 rounded-3xl bg-gradient-to-r from-transparent via-orange-100/30 to-transparent opacity-0 transition-opacity duration-300 md:group-hover:opacity-100"></div>
-                </div>
-              );
-            })}
+                  {/* Teacher Info */}
+                  <div className="min-w-0 flex-1">
+                    <h3 className="text-lg font-semibold text-gray-900 transition-colors duration-300 md:group-hover:text-orange-600">
+                      {displayName}
+                    </h3>
+                    <div className="mt-1 flex flex-wrap items-center gap-2">
+                      {/* Specialization Badge */}
+                      {teacher.role && (
+                        <span className="inline-flex items-center rounded-full bg-orange-100 px-2 py-1 text-xs font-medium text-orange-800">
+                          {teacher.role}
+                        </span>
+                      )}
+                    </div>
+                    {/* Email info */}
+                    {teacher.email && (
+                      <p className="mt-1 text-sm text-gray-500">
+                        <span className="text-gray-400">E-Mail:</span>{" "}
+                        {teacher.email}
+                      </p>
+                    )}
+                  </div>
 
-            {/* Add fadeInUp animation */}
-            <style jsx>{`
-              @keyframes fadeInUp {
-                from {
-                  opacity: 0;
-                  transform: translateY(20px);
-                }
-                to {
-                  opacity: 1;
-                  transform: translateY(0);
-                }
-              }
-            `}</style>
-          </div>
-        )}
-      </div>
+                  {/* Arrow Icon */}
+                  <div className="flex-shrink-0">
+                    <svg
+                      className="h-6 w-6 text-gray-400 transition-all duration-300 md:group-hover:translate-x-1 md:group-hover:text-orange-600"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M9 5l7 7-7 7"
+                      />
+                    </svg>
+                  </div>
+                </div>
+
+                {/* Glowing border effect on hover */}
+                <div className="absolute inset-0 rounded-3xl bg-gradient-to-r from-transparent via-orange-100/30 to-transparent opacity-0 transition-opacity duration-300 md:group-hover:opacity-100"></div>
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {/* Choice Modal - Create or Invite */}
       <Modal
@@ -606,7 +564,29 @@ export default function TeachersPage() {
           onEdit={handleEditClick}
           onDelete={handleDeleteTeacher}
           loading={detailLoading}
+          onDeleteClick={handleDeleteClick}
         />
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {selectedTeacher && (
+        <ConfirmationModal
+          isOpen={showDeleteConfirmModal}
+          onClose={handleDeleteCancel}
+          onConfirm={() => confirmDelete(() => void handleDeleteTeacher())}
+          title="Betreuer löschen?"
+          confirmText="Löschen"
+          cancelText="Abbrechen"
+          confirmButtonClass="bg-red-600 hover:bg-red-700"
+        >
+          <p className="text-sm text-gray-700">
+            Möchten Sie den Betreuer{" "}
+            <span className="font-medium">
+              {selectedTeacher.first_name} {selectedTeacher.last_name}
+            </span>{" "}
+            wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.
+          </p>
+        </ConfirmationModal>
       )}
 
       {/* Teacher Edit Modal */}
@@ -631,7 +611,9 @@ export default function TeachersPage() {
             setSelectedTeacher(null);
           }}
           teacher={selectedTeacher}
-          onUpdate={() => void fetchTeachers()}
+          onUpdate={() => {
+            void mutate("database-teachers-list");
+          }}
         />
       )}
 
@@ -644,11 +626,13 @@ export default function TeachersPage() {
             setSelectedTeacher(null);
           }}
           teacher={selectedTeacher}
-          onUpdate={() => void fetchTeachers()}
+          onUpdate={() => {
+            void mutate("database-teachers-list");
+          }}
         />
       )}
 
       {/* Success toasts handled globally */}
-    </ResponsiveLayout>
+    </DatabasePageLayout>
   );
 }

@@ -6,10 +6,10 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	guardianSvc "github.com/moto-nrw/project-phoenix/services/users"
+	"github.com/moto-nrw/project-phoenix/models/users"
 	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
 	userContextSvc "github.com/moto-nrw/project-phoenix/services/usercontext"
-	"github.com/moto-nrw/project-phoenix/models/users"
+	guardianSvc "github.com/moto-nrw/project-phoenix/services/users"
 )
 
 // Resource defines the guardians API resource
@@ -81,6 +81,15 @@ func (rs *Resource) Router() chi.Router {
 		r.Post("/students/{studentId}/guardians", rs.linkGuardianToStudent)
 		r.Put("/relationships/{relationshipId}", rs.updateStudentGuardianRelationship)
 		r.Delete("/students/{studentId}/guardians/{guardianId}", rs.removeGuardianFromStudent)
+
+		// Phone number management (nested under guardian)
+		r.Route("/{id}/phone-numbers", func(r chi.Router) {
+			r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/", rs.listGuardianPhoneNumbers)
+			r.With(authorize.RequiresPermission(permissions.UsersUpdate)).Post("/", rs.addPhoneNumber)
+			r.With(authorize.RequiresPermission(permissions.UsersUpdate)).Put("/{phoneId}", rs.updatePhoneNumber)
+			r.With(authorize.RequiresPermission(permissions.UsersUpdate)).Delete("/{phoneId}", rs.deletePhoneNumber)
+			r.With(authorize.RequiresPermission(permissions.UsersUpdate)).Post("/{phoneId}/set-primary", rs.setPrimaryPhone)
+		})
 	})
 
 	return r

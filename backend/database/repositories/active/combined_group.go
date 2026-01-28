@@ -3,6 +3,8 @@ package active
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 
@@ -10,6 +12,12 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/active"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/uptrace/bun"
+)
+
+// Table name constants for BUN ORM schema qualification
+const (
+	tableCombinedGroups         = "active.combined_groups"
+	tableExprCombinedGroupsAsCG = `active.combined_groups AS "combined_group"`
 )
 
 // CombinedGroupRepository implements active.CombinedGroupRepository interface
@@ -31,6 +39,7 @@ func (r *CombinedGroupRepository) FindActive(ctx context.Context) ([]*active.Com
 	var groups []*active.CombinedGroup
 	err := r.db.NewSelect().
 		Model(&groups).
+		ModelTableExpr(tableExprCombinedGroupsAsCG).
 		Where("end_time IS NULL").
 		Scan(ctx)
 
@@ -49,6 +58,7 @@ func (r *CombinedGroupRepository) FindByTimeRange(ctx context.Context, start, en
 	var groups []*active.CombinedGroup
 	err := r.db.NewSelect().
 		Model(&groups).
+		ModelTableExpr(tableExprCombinedGroupsAsCG).
 		Where("start_time <= ? AND (end_time IS NULL OR end_time >= ?)", end, start).
 		Scan(ctx)
 
@@ -65,7 +75,7 @@ func (r *CombinedGroupRepository) FindByTimeRange(ctx context.Context, start, en
 // EndCombination marks a combined group as ended at the current time
 func (r *CombinedGroupRepository) EndCombination(ctx context.Context, id int64) error {
 	_, err := r.db.NewUpdate().
-		Model((*active.CombinedGroup)(nil)).
+		Table(tableCombinedGroups).
 		Set("end_time = ?", time.Now()).
 		Where("id = ? AND end_time IS NULL", id).
 		Exec(ctx)
@@ -85,6 +95,7 @@ func (r *CombinedGroupRepository) FindWithGroups(ctx context.Context, id int64) 
 	combinedGroup := new(active.CombinedGroup)
 	err := r.db.NewSelect().
 		Model(combinedGroup).
+		ModelTableExpr(tableExprCombinedGroupsAsCG).
 		Where("id = ?", id).
 		Scan(ctx)
 
@@ -95,11 +106,11 @@ func (r *CombinedGroupRepository) FindWithGroups(ctx context.Context, id int64) 
 		}
 	}
 
-	// Load group mappings with active groups
-	var groupMappings []*active.GroupMapping
+	// Load group mappings (multi-schema requires explicit ModelTableExpr)
+	groupMappings := make([]*active.GroupMapping, 0)
 	err = r.db.NewSelect().
 		Model(&groupMappings).
-		Relation("ActiveGroup").
+		ModelTableExpr(`active.group_mappings AS "group_mapping"`).
 		Where("active_combined_group_id = ?", id).
 		Scan(ctx)
 
@@ -107,6 +118,27 @@ func (r *CombinedGroupRepository) FindWithGroups(ctx context.Context, id int64) 
 		return nil, &modelBase.DatabaseError{
 			Op:  "find group mappings",
 			Err: err,
+		}
+	}
+
+	// Load ActiveGroup for each mapping separately (multi-schema)
+	for _, mapping := range groupMappings {
+		if mapping.ActiveGroupID > 0 {
+			activeGroup := new(active.Group)
+			agErr := r.db.NewSelect().
+				Model(activeGroup).
+				ModelTableExpr(`active.groups AS "group"`).
+				Where("id = ?", mapping.ActiveGroupID).
+				Scan(ctx)
+			if agErr == nil {
+				mapping.ActiveGroup = activeGroup
+			} else if !errors.Is(agErr, sql.ErrNoRows) {
+				// Return actual database errors, but allow "not found" to continue
+				return nil, &modelBase.DatabaseError{
+					Op:  "find active group relation",
+					Err: agErr,
+				}
+			}
 		}
 	}
 
@@ -140,13 +172,40 @@ func (r *CombinedGroupRepository) Create(ctx context.Context, combinedGroup *act
 	return r.Repository.Create(ctx, combinedGroup)
 }
 
+// applyActiveOnlyFilter handles the special active_only filter for combined groups.
+// Returns the modified query with the appropriate WHERE clause applied.
+func (r *CombinedGroupRepository) applyActiveOnlyFilter(query *bun.SelectQuery, filter *modelBase.Filter) *bun.SelectQuery {
+	activeOnly, ok := filter.Get("active_only")
+	if !ok {
+		return query
+	}
+
+	// Remove from filter so ApplyToQuery doesn't try to use it as a column
+	filter.Remove("active_only")
+
+	isActive, isBool := activeOnly.(bool)
+	if !isBool {
+		return query
+	}
+
+	if isActive {
+		// Match FindByTimeRange semantics: active means not yet ended (includes future end_time)
+		return query.Where(`"combined_group".end_time IS NULL OR "combined_group".end_time > NOW()`)
+	}
+	// active=false returns only inactive (ended) combined groups
+	return query.Where(`"combined_group".end_time IS NOT NULL AND "combined_group".end_time <= NOW()`)
+}
+
 // List overrides the base List method to accept the new QueryOptions type
 func (r *CombinedGroupRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*active.CombinedGroup, error) {
 	var groups []*active.CombinedGroup
-	query := r.db.NewSelect().Model(&groups)
+	query := r.db.NewSelect().Model(&groups).ModelTableExpr(tableExprCombinedGroupsAsCG)
 
-	// Apply query options
 	if options != nil {
+		if options.Filter != nil {
+			query = r.applyActiveOnlyFilter(query, options.Filter)
+			options.Filter.WithTableAlias("combined_group")
+		}
 		query = options.ApplyToQuery(query)
 	}
 

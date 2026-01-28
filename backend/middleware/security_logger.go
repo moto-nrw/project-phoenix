@@ -56,9 +56,6 @@ func (sl *SecurityLogger) LogRateLimitExceeded(r *http.Request) {
 func SecurityLoggingMiddleware(sl *SecurityLogger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// TODO: Add suspicious pattern detection for login attempts
-			// e.g., SQL injection attempts, unusual payloads, etc.
-
 			// Wrap response writer to capture status code
 			wrapped := &responseWriter{ResponseWriter: w, statusCode: http.StatusOK}
 

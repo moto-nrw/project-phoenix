@@ -108,6 +108,45 @@ export const GET = createGetHandler(
   },
 );
 
+/** Extract BackendActivity from various response formats */
+function extractBackendActivity(
+  response: ApiResponse<BackendActivity> | BackendActivity | null,
+): BackendActivity | null {
+  if (!response) return null;
+
+  // Handle wrapped response { status: "success", data: BackendActivity }
+  if (
+    "status" in response &&
+    response.status === "success" &&
+    "data" in response
+  ) {
+    const data = response.data;
+    if (data && "id" in data) return data;
+  }
+
+  // Handle direct response (BackendActivity)
+  if ("id" in response) return response;
+
+  return null;
+}
+
+/** Create fallback activity from request body */
+function createFallbackActivity(body: CreateActivityRequest): Activity {
+  return {
+    id: "0",
+    name: body.name ?? "",
+    max_participant: body.max_participants ?? 0,
+    is_open_ags: false,
+    supervisor_id: "",
+    ag_category_id: String(body.category_id ?? ""),
+    created_at: new Date(),
+    updated_at: new Date(),
+    participant_count: 0,
+    times: [],
+    students: [],
+  };
+}
+
 /**
  * Handler for POST /api/activities
  * Creates a new activity
@@ -115,82 +154,22 @@ export const GET = createGetHandler(
 export const POST = createPostHandler<Activity, CreateActivityRequest>(
   async (_request: NextRequest, body: CreateActivityRequest, token: string) => {
     // Validate required fields
-    if (!body.name?.trim()) {
-      throw new Error("Name is required");
-    }
+    if (!body.name?.trim()) throw new Error("Name is required");
     if (!body.max_participants || body.max_participants <= 0) {
       throw new Error("Max participants must be greater than 0");
     }
-    if (!body.category_id) {
-      throw new Error("Category is required");
-    }
+    if (!body.category_id) throw new Error("Category is required");
 
-    try {
-      // We already have the backend data type from the request body
-      const response = await apiPost<
-        ApiResponse<BackendActivity> | BackendActivity,
-        CreateActivityRequest
-      >(
-        `/api/activities`,
-        token,
-        body, // Send the raw CreateActivityRequest (which already matches backend expectations)
-      );
+    const response = await apiPost<
+      ApiResponse<BackendActivity> | BackendActivity,
+      CreateActivityRequest
+    >(`/api/activities`, token, body);
 
-      // Create a safe activity object with default values to avoid nil pointer dereferences
-      const safeActivity: Activity = {
-        id: "0",
-        name: body.name ?? "",
-        max_participant: body.max_participants ?? 0,
-        is_open_ags: false,
-        supervisor_id: "",
-        ag_category_id: String(body.category_id ?? ""),
-        created_at: new Date(),
-        updated_at: new Date(),
-        participant_count: 0,
-        times: [],
-        students: [],
-      };
+    // Try to extract and map the backend activity
+    const backendActivity = extractBackendActivity(response);
+    if (backendActivity) return mapActivityResponse(backendActivity);
 
-      // Try to extract data from response if possible
-      if (response) {
-        // Handle wrapped response { status: "success", data: BackendActivity }
-        if (
-          "status" in response &&
-          response.status === "success" &&
-          "data" in response
-        ) {
-          const backendActivity = response.data;
-          if (backendActivity && "id" in backendActivity) {
-            return mapActivityResponse(backendActivity);
-          }
-        }
-
-        // Handle direct response (BackendActivity)
-        if ("id" in response) {
-          return mapActivityResponse(response);
-        }
-
-        // Try to get ID if it exists for the safe activity fallback
-        if ("id" in response) {
-          safeActivity.id = String(response.id);
-        } else if (
-          "data" in response &&
-          response.data &&
-          typeof response.data === "object" &&
-          "id" in response.data
-        ) {
-          safeActivity.id = String(response.data.id);
-        }
-
-        // Return the safe activity with as much data as we could extract
-        return safeActivity;
-      }
-
-      // If we get here, the request was successful but we couldn't parse the response
-      // Just return the safe activity with the data from the request
-      return safeActivity;
-    } catch (error) {
-      throw error; // Rethrow to see the real error
-    }
+    // Fallback: return safe activity from request data
+    return createFallbackActivity(body);
   },
 );

@@ -8,12 +8,19 @@ import type {
   StudentGuardianLinkRequest,
   BackendGuardianProfile,
   BackendGuardianWithRelationship,
+  PhoneNumber,
+  PhoneNumberCreateRequest,
+  PhoneNumberUpdateRequest,
+  BackendPhoneNumber,
 } from "./guardian-helpers";
 import {
   mapGuardianResponse,
   mapGuardianWithRelationshipResponse,
   mapGuardianFormDataToBackend,
   mapStudentGuardianLinkToBackend,
+  mapPhoneNumberResponse,
+  mapPhoneNumberCreateToBackend,
+  mapPhoneNumberUpdateToBackend,
 } from "./guardian-helpers";
 
 // API Response Types
@@ -52,6 +59,38 @@ function isErrorResponse(value: unknown): value is ErrorResponse {
   );
 }
 
+// Error message translations (English backend -> German frontend)
+// Exported for testing
+export const errorTranslations: Record<string, string> = {
+  "invalid email format": "Ungültiges E-Mail-Format",
+  "email already exists": "Diese E-Mail-Adresse wird bereits verwendet",
+  "guardian not found": "Erziehungsberechtigte/r nicht gefunden",
+  "student not found": "Schüler/in nicht gefunden",
+  "relationship already exists": "Diese Verknüpfung existiert bereits",
+  "validation failed": "Validierung fehlgeschlagen",
+  unauthorized: "Keine Berechtigung",
+  forbidden: "Zugriff verweigert",
+};
+
+/**
+ * Translate backend error messages to user-friendly German messages
+ * Exported for testing
+ */
+export function translateApiError(errorMessage: string): string {
+  // Check for exact matches first
+  const lowerError = errorMessage.toLowerCase();
+
+  // Check if any known error pattern is contained in the message
+  for (const [pattern, translation] of Object.entries(errorTranslations)) {
+    if (lowerError.includes(pattern)) {
+      return translation;
+    }
+  }
+
+  // Return generic message for unknown errors
+  return "Ein Fehler ist aufgetreten. Bitte versuchen Sie es erneut.";
+}
+
 // Backend student type (minimal representation for guardian relationships)
 interface BackendStudent {
   id: number;
@@ -65,8 +104,6 @@ interface PartialGuardianUpdateRequest {
   first_name?: string;
   last_name?: string;
   email?: string | null;
-  phone?: string | null;
-  mobile_phone?: string | null;
   address_street?: string | null;
   address_city?: string | null;
   address_postal_code?: string | null;
@@ -89,8 +126,6 @@ function mapGuardianFormToBackend(
   if (data.firstName) result.first_name = data.firstName;
   if (data.lastName) result.last_name = data.lastName;
   if (data.email !== undefined) result.email = data.email;
-  if (data.phone !== undefined) result.phone = data.phone;
-  if (data.mobilePhone !== undefined) result.mobile_phone = data.mobilePhone;
   if (data.addressStreet !== undefined)
     result.address_street = data.addressStreet;
   if (data.addressCity !== undefined) result.address_city = data.addressCity;
@@ -198,15 +233,17 @@ export async function createGuardian(
       .json()
       .catch(() => ({ error: "Failed to create guardian" }));
     const errorMessage = isErrorResponse(error)
-      ? error.error
-      : `Failed to create guardian: ${response.statusText}`;
+      ? translateApiError(error.error)
+      : translateApiError(`Failed to create guardian: ${response.statusText}`);
     throw new Error(errorMessage);
   }
 
   const result = (await response.json()) as ApiResponse<BackendGuardianProfile>;
 
   if (result.status === "error" || !result.data) {
-    throw new Error(result.error ?? "Failed to create guardian");
+    throw new Error(
+      translateApiError(result.error ?? "Failed to create guardian"),
+    );
   }
 
   return mapGuardianResponse(result.data);
@@ -234,15 +271,17 @@ export async function updateGuardian(
       .json()
       .catch(() => ({ error: "Failed to update guardian" }));
     const errorMessage = isErrorResponse(error)
-      ? error.error
-      : `Failed to update guardian: ${response.statusText}`;
+      ? translateApiError(error.error)
+      : translateApiError(`Failed to update guardian: ${response.statusText}`);
     throw new Error(errorMessage);
   }
 
   const result = (await response.json()) as ApiResponse<BackendGuardianProfile>;
 
   if (result.status === "error" || !result.data) {
-    throw new Error(result.error ?? "Failed to update guardian");
+    throw new Error(
+      translateApiError(result.error ?? "Failed to update guardian"),
+    );
   }
 
   return mapGuardianResponse(result.data);
@@ -435,4 +474,182 @@ export async function searchGuardians(query: string): Promise<Guardian[]> {
   }
 
   return (result.data ?? []).map(mapGuardianResponse);
+}
+
+// =============================================================================
+// Phone Number API Functions
+// =============================================================================
+
+/**
+ * Fetch all phone numbers for a guardian
+ */
+export async function fetchGuardianPhoneNumbers(
+  guardianId: string,
+): Promise<PhoneNumber[]> {
+  const response = await fetch(`/api/guardians/${guardianId}/phone-numbers`);
+
+  if (!response.ok) {
+    const error: unknown = await response
+      .json()
+      .catch(() => ({ error: "Failed to fetch phone numbers" }));
+    const errorMessage = isErrorResponse(error)
+      ? error.error
+      : `Failed to fetch phone numbers: ${response.statusText}`;
+    throw new Error(errorMessage);
+  }
+
+  const result = (await response.json()) as ApiResponse<BackendPhoneNumber[]>;
+
+  if (result.status === "error") {
+    throw new Error(result.error ?? "Failed to fetch phone numbers");
+  }
+
+  return (result.data ?? []).map(mapPhoneNumberResponse);
+}
+
+/**
+ * Add a phone number to a guardian
+ */
+export async function addGuardianPhoneNumber(
+  guardianId: string,
+  data: PhoneNumberCreateRequest,
+): Promise<PhoneNumber> {
+  const backendData = mapPhoneNumberCreateToBackend(data);
+
+  const response = await fetch(`/api/guardians/${guardianId}/phone-numbers`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(backendData),
+  });
+
+  if (!response.ok) {
+    const error: unknown = await response
+      .json()
+      .catch(() => ({ error: "Failed to add phone number" }));
+    const errorMessage = isErrorResponse(error)
+      ? translateApiError(error.error)
+      : translateApiError(`Failed to add phone number: ${response.statusText}`);
+    throw new Error(errorMessage);
+  }
+
+  const result = (await response.json()) as ApiResponse<BackendPhoneNumber>;
+
+  if (result.status === "error" || !result.data) {
+    throw new Error(
+      translateApiError(result.error ?? "Failed to add phone number"),
+    );
+  }
+
+  return mapPhoneNumberResponse(result.data);
+}
+
+/**
+ * Update a guardian's phone number
+ */
+export async function updateGuardianPhoneNumber(
+  guardianId: string,
+  phoneId: string,
+  data: PhoneNumberUpdateRequest,
+): Promise<void> {
+  const backendData = mapPhoneNumberUpdateToBackend(data);
+
+  const response = await fetch(
+    `/api/guardians/${guardianId}/phone-numbers/${phoneId}`,
+    {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(backendData),
+    },
+  );
+
+  if (!response.ok) {
+    const error: unknown = await response
+      .json()
+      .catch(() => ({ error: "Failed to update phone number" }));
+    const errorMessage = isErrorResponse(error)
+      ? translateApiError(error.error)
+      : translateApiError(
+          `Failed to update phone number: ${response.statusText}`,
+        );
+    throw new Error(errorMessage);
+  }
+
+  const result = (await response.json()) as ApiResponse<null>;
+
+  if (result.status === "error") {
+    throw new Error(
+      translateApiError(result.error ?? "Failed to update phone number"),
+    );
+  }
+}
+
+/**
+ * Delete a guardian's phone number
+ */
+export async function deleteGuardianPhoneNumber(
+  guardianId: string,
+  phoneId: string,
+): Promise<void> {
+  const response = await fetch(
+    `/api/guardians/${guardianId}/phone-numbers/${phoneId}`,
+    {
+      method: "DELETE",
+    },
+  );
+
+  if (!response.ok) {
+    const error: unknown = await response
+      .json()
+      .catch(() => ({ error: "Failed to delete phone number" }));
+    const errorMessage = isErrorResponse(error)
+      ? error.error
+      : `Failed to delete phone number: ${response.statusText}`;
+    throw new Error(errorMessage);
+  }
+
+  // 204 No Content means successful deletion with no response body
+  if (response.status === 204) {
+    return;
+  }
+
+  const result = (await response.json()) as ApiResponse<null>;
+
+  if (result.status === "error") {
+    throw new Error(result.error ?? "Failed to delete phone number");
+  }
+}
+
+/**
+ * Set a phone number as primary for a guardian
+ */
+export async function setGuardianPrimaryPhone(
+  guardianId: string,
+  phoneId: string,
+): Promise<void> {
+  const response = await fetch(
+    `/api/guardians/${guardianId}/phone-numbers/${phoneId}/set-primary`,
+    {
+      method: "POST",
+    },
+  );
+
+  if (!response.ok) {
+    const error: unknown = await response
+      .json()
+      .catch(() => ({ error: "Failed to set primary phone" }));
+    const errorMessage = isErrorResponse(error)
+      ? error.error
+      : `Failed to set primary phone: ${response.statusText}`;
+    throw new Error(errorMessage);
+  }
+
+  const result = (await response.json()) as ApiResponse<null>;
+
+  if (result.status === "error") {
+    throw new Error(result.error ?? "Failed to set primary phone");
+  }
 }

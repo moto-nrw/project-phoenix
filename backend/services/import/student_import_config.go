@@ -66,34 +66,39 @@ func mapRelationshipType(germanType string) string {
 
 // StudentImportConfig implements ImportConfig for student imports
 type StudentImportConfig struct {
-	personRepo   users.PersonRepository
-	studentRepo  users.StudentRepository
-	guardianRepo users.GuardianProfileRepository
-	relationRepo users.StudentGuardianRepository
-	privacyRepo  users.PrivacyConsentRepository
-	resolver     *RelationshipResolver
-	txHandler    *base.TxHandler
+	personRepo        users.PersonRepository
+	studentRepo       users.StudentRepository
+	guardianRepo      users.GuardianProfileRepository
+	guardianPhoneRepo users.GuardianPhoneNumberRepository
+	relationRepo      users.StudentGuardianRepository
+	privacyRepo       users.PrivacyConsentRepository
+	resolver          *RelationshipResolver
+	txHandler         *base.TxHandler
+}
+
+// StudentImportDeps contains dependencies for StudentImportConfig
+type StudentImportDeps struct {
+	PersonRepo        users.PersonRepository
+	StudentRepo       users.StudentRepository
+	GuardianRepo      users.GuardianProfileRepository
+	GuardianPhoneRepo users.GuardianPhoneNumberRepository
+	RelationRepo      users.StudentGuardianRepository
+	PrivacyRepo       users.PrivacyConsentRepository
+	Resolver          *RelationshipResolver
 }
 
 // NewStudentImportConfig creates a new student import configuration
 // Note: RFID cards are not supported in CSV import and must be assigned separately
-func NewStudentImportConfig(
-	personRepo users.PersonRepository,
-	studentRepo users.StudentRepository,
-	guardianRepo users.GuardianProfileRepository,
-	relationRepo users.StudentGuardianRepository,
-	privacyRepo users.PrivacyConsentRepository,
-	resolver *RelationshipResolver,
-	db *bun.DB,
-) *StudentImportConfig {
+func NewStudentImportConfig(deps StudentImportDeps, db *bun.DB) *StudentImportConfig {
 	return &StudentImportConfig{
-		personRepo:   personRepo,
-		studentRepo:  studentRepo,
-		guardianRepo: guardianRepo,
-		relationRepo: relationRepo,
-		privacyRepo:  privacyRepo,
-		resolver:     resolver,
-		txHandler:    base.NewTxHandler(db),
+		personRepo:        deps.PersonRepo,
+		studentRepo:       deps.StudentRepo,
+		guardianRepo:      deps.GuardianRepo,
+		guardianPhoneRepo: deps.GuardianPhoneRepo,
+		relationRepo:      deps.RelationRepo,
+		privacyRepo:       deps.PrivacyRepo,
+		resolver:          deps.Resolver,
+		txHandler:         base.NewTxHandler(db),
 	}
 }
 
@@ -211,8 +216,12 @@ func (c *StudentImportConfig) validateGuardian(num int, guardian importModels.Gu
 	errors := []importModels.ValidationError{}
 	fieldPrefix := fmt.Sprintf("guardian_%d", num)
 
+	// Check contact methods: either legacy fields or new PhoneNumbers array
+	hasLegacyContact := guardian.Email != "" || guardian.Phone != "" || guardian.MobilePhone != ""
+	hasNewPhoneNumbers := len(guardian.PhoneNumbers) > 0
+
 	// At least one contact method required
-	if guardian.Email == "" && guardian.Phone == "" && guardian.MobilePhone == "" {
+	if !hasLegacyContact && !hasNewPhoneNumbers {
 		errors = append(errors, importModels.ValidationError{
 			Field:    fieldPrefix,
 			Message:  fmt.Sprintf("Erziehungsberechtigter %d benötigt mindestens eine Kontaktmethode (Email, Telefon oder Mobil)", num),
@@ -222,17 +231,31 @@ func (c *StudentImportConfig) validateGuardian(num int, guardian importModels.Gu
 		return errors // Return early if no contact info
 	}
 
-	// Email format validation (if provided)
-	if guardian.Email != "" && !emailRegex.MatchString(guardian.Email) {
-		errors = append(errors, importModels.ValidationError{
+	// Validate email, legacy phones, and new phone numbers
+	errors = append(errors, validateGuardianEmail(num, guardian.Email, fieldPrefix)...)
+	errors = append(errors, validateGuardianLegacyPhones(num, guardian, fieldPrefix)...)
+	errors = append(errors, validateGuardianPhoneNumbers(num, guardian.PhoneNumbers, fieldPrefix)...)
+
+	return errors
+}
+
+// validateGuardianEmail validates email format
+func validateGuardianEmail(num int, email, fieldPrefix string) []importModels.ValidationError {
+	if email != "" && !emailRegex.MatchString(email) {
+		return []importModels.ValidationError{{
 			Field:    fmt.Sprintf("%s_email", fieldPrefix),
-			Message:  fmt.Sprintf("Ungültiges Email-Format für Erziehungsberechtigten %d: %s", num, guardian.Email),
+			Message:  fmt.Sprintf("Ungültiges Email-Format für Erziehungsberechtigten %d: %s", num, email),
 			Code:     "invalid_email",
 			Severity: importModels.ErrorSeverityError,
-		})
+		}}
 	}
+	return nil
+}
 
-	// Phone format validation (if provided)
+// validateGuardianLegacyPhones validates legacy phone and mobile_phone fields
+func validateGuardianLegacyPhones(num int, guardian importModels.GuardianImportData, fieldPrefix string) []importModels.ValidationError {
+	var errors []importModels.ValidationError
+
 	if guardian.Phone != "" && !phoneRegex.MatchString(guardian.Phone) {
 		errors = append(errors, importModels.ValidationError{
 			Field:    fmt.Sprintf("%s_phone", fieldPrefix),
@@ -242,11 +265,33 @@ func (c *StudentImportConfig) validateGuardian(num int, guardian importModels.Gu
 		})
 	}
 
-	// Mobile phone format validation (if provided)
 	if guardian.MobilePhone != "" && !phoneRegex.MatchString(guardian.MobilePhone) {
 		errors = append(errors, importModels.ValidationError{
 			Field:    fmt.Sprintf("%s_mobile", fieldPrefix),
 			Message:  fmt.Sprintf("Ungültiges Mobiltelefon-Format für Erziehungsberechtigten %d: %s", num, guardian.MobilePhone),
+			Code:     "invalid_phone",
+			Severity: importModels.ErrorSeverityError,
+		})
+	}
+
+	return errors
+}
+
+// validateGuardianPhoneNumbers validates phone numbers from the new flexible PhoneNumbers array
+func validateGuardianPhoneNumbers(num int, phones []importModels.PhoneImportData, fieldPrefix string) []importModels.ValidationError {
+	var errors []importModels.ValidationError
+
+	for i, phone := range phones {
+		if phone.PhoneNumber == "" || phoneRegex.MatchString(phone.PhoneNumber) {
+			continue
+		}
+		label := phone.Label
+		if label == "" {
+			label = phone.PhoneType
+		}
+		errors = append(errors, importModels.ValidationError{
+			Field:    fmt.Sprintf("%s_phone_%d", fieldPrefix, i+1),
+			Message:  fmt.Sprintf("Ungültiges Telefon-Format für Erziehungsberechtigten %d (%s): %s", num, label, phone.PhoneNumber),
 			Code:     "invalid_phone",
 			Severity: importModels.ErrorSeverityError,
 		})
@@ -281,88 +326,141 @@ func (c *StudentImportConfig) Create(ctx context.Context, row importModels.Stude
 	var studentID int64
 
 	err := c.txHandler.RunInTx(ctx, func(txCtx context.Context, tx bun.Tx) error {
-		// 1. Create Person (without RFID card - not supported in CSV import)
-		birthday, _ := parseOptionalDate(row.Birthday)
-		person := &users.Person{
-			FirstName: strings.TrimSpace(row.FirstName),
-			LastName:  strings.TrimSpace(row.LastName),
-			Birthday:  birthday,
-			TagID:     nil, // RFID cards not supported in CSV import
+		person, err := c.createPersonFromRow(txCtx, row)
+		if err != nil {
+			return err
 		}
 
-		if err := c.personRepo.Create(txCtx, person); err != nil {
-			return fmt.Errorf("create person: %w", err)
-		}
-
-		// 2. Create Student
-		student := &users.Student{
-			PersonID:        person.ID,
-			SchoolClass:     strings.TrimSpace(row.SchoolClass),
-			GroupID:         row.GroupID, // May be nil (no group)
-			ExtraInfo:       stringPtr(row.ExtraInfo),
-			SupervisorNotes: stringPtr(row.SupervisorNotes),
-			HealthInfo:      stringPtr(row.HealthInfo),
-			PickupStatus:    stringPtr(row.PickupStatus),
-		}
-
-		if err := c.studentRepo.Create(txCtx, student); err != nil {
-			return fmt.Errorf("create student: %w", err)
+		student, err := c.createStudentFromRow(txCtx, person.ID, row)
+		if err != nil {
+			return err
 		}
 		studentID = student.ID
 
-		// 3. Create/Link Multiple Guardians
-		for i, guardianData := range row.Guardians {
-			guardianID, err := c.createOrFindGuardian(txCtx, guardianData)
-			if err != nil {
-				return fmt.Errorf("guardian %d: %w", i+1, err)
-			}
-
-			// Create Student-Guardian Relationship
-			relationship := &users.StudentGuardian{
-				StudentID:          studentID,
-				GuardianProfileID:  guardianID,
-				RelationshipType:   mapRelationshipType(guardianData.RelationshipType),
-				IsPrimary:          guardianData.IsPrimary,
-				IsEmergencyContact: guardianData.IsEmergencyContact,
-				CanPickup:          guardianData.CanPickup,
-			}
-
-			if err := c.relationRepo.Create(txCtx, relationship); err != nil {
-				return fmt.Errorf("create relationship %d: %w", i+1, err)
-			}
+		if err := c.createGuardianRelationships(txCtx, studentID, row.Guardians); err != nil {
+			return err
 		}
 
-		// 4. Create Privacy Consent
-		if row.PrivacyAccepted || row.DataRetentionDays > 0 {
-			// Defensive: Ensure data_retention_days is within valid range (1-31)
-			retentionDays := row.DataRetentionDays
-			if retentionDays < 1 {
-				retentionDays = 30 // Default to 30 if invalid
-			} else if retentionDays > 31 {
-				retentionDays = 31 // Cap to maximum
-			}
-
-			consent := &users.PrivacyConsent{
-				StudentID:         studentID,
-				PolicyVersion:     "1.0", // Default policy version for imports
-				Accepted:          row.PrivacyAccepted,
-				DataRetentionDays: retentionDays,
-			}
-
-			if row.PrivacyAccepted {
-				now := time.Now()
-				consent.AcceptedAt = &now
-			}
-
-			if err := c.privacyRepo.Create(txCtx, consent); err != nil {
-				return fmt.Errorf("create privacy consent: %w", err)
-			}
-		}
-
-		return nil
+		return c.createPrivacyConsentIfNeeded(txCtx, studentID, row)
 	})
 
 	return studentID, err
+}
+
+// createPersonFromRow creates a person from import row
+func (c *StudentImportConfig) createPersonFromRow(ctx context.Context, row importModels.StudentImportRow) (*users.Person, error) {
+	birthday, _ := parseOptionalDate(row.Birthday)
+	person := &users.Person{
+		FirstName: strings.TrimSpace(row.FirstName),
+		LastName:  strings.TrimSpace(row.LastName),
+		Birthday:  birthday,
+		TagID:     nil, // RFID cards not supported in CSV import
+	}
+
+	if err := c.personRepo.Create(ctx, person); err != nil {
+		return nil, fmt.Errorf("create person: %w", err)
+	}
+
+	return person, nil
+}
+
+// createStudentFromRow creates a student from person and row
+func (c *StudentImportConfig) createStudentFromRow(ctx context.Context, personID int64, row importModels.StudentImportRow) (*users.Student, error) {
+	student := &users.Student{
+		PersonID:        personID,
+		SchoolClass:     strings.TrimSpace(row.SchoolClass),
+		GroupID:         row.GroupID,
+		ExtraInfo:       stringPtr(row.ExtraInfo),
+		SupervisorNotes: stringPtr(row.SupervisorNotes),
+		HealthInfo:      stringPtr(row.HealthInfo),
+		PickupStatus:    stringPtr(row.PickupStatus),
+	}
+
+	if err := c.studentRepo.Create(ctx, student); err != nil {
+		return nil, fmt.Errorf("create student: %w", err)
+	}
+
+	return student, nil
+}
+
+// createGuardianRelationships creates all guardian relationships
+func (c *StudentImportConfig) createGuardianRelationships(ctx context.Context, studentID int64, guardians []importModels.GuardianImportData) error {
+	for i, guardianData := range guardians {
+		if err := c.createSingleGuardianRelationship(ctx, studentID, guardianData, i+1); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// createSingleGuardianRelationship creates a single guardian relationship
+func (c *StudentImportConfig) createSingleGuardianRelationship(ctx context.Context, studentID int64, guardianData importModels.GuardianImportData, index int) error {
+	guardianID, err := c.createOrFindGuardian(ctx, guardianData)
+	if err != nil {
+		return fmt.Errorf("guardian %d: %w", index, err)
+	}
+
+	relationship := &users.StudentGuardian{
+		StudentID:          studentID,
+		GuardianProfileID:  guardianID,
+		RelationshipType:   mapRelationshipType(guardianData.RelationshipType),
+		IsPrimary:          guardianData.IsPrimary,
+		IsEmergencyContact: guardianData.IsEmergencyContact,
+		CanPickup:          guardianData.CanPickup,
+	}
+
+	if err := c.relationRepo.Create(ctx, relationship); err != nil {
+		return fmt.Errorf("create relationship %d: %w", index, err)
+	}
+
+	return nil
+}
+
+// createPrivacyConsentIfNeeded creates privacy consent if specified in row.
+// Only creates consent if privacy is explicitly accepted OR a valid retention period (>0) is specified.
+func (c *StudentImportConfig) createPrivacyConsentIfNeeded(ctx context.Context, studentID int64, row importModels.StudentImportRow) error {
+	// Skip if privacy not accepted AND no valid retention days specified
+	// This prevents creating consent for negative/zero/missing retention values
+	if !row.PrivacyAccepted && row.DataRetentionDays <= 0 {
+		return nil
+	}
+
+	consent := buildPrivacyConsent(studentID, row)
+	if err := c.privacyRepo.Create(ctx, consent); err != nil {
+		return fmt.Errorf("create privacy consent: %w", err)
+	}
+
+	return nil
+}
+
+// buildPrivacyConsent builds a privacy consent object
+func buildPrivacyConsent(studentID int64, row importModels.StudentImportRow) *users.PrivacyConsent {
+	retentionDays := validateRetentionDays(row.DataRetentionDays)
+
+	consent := &users.PrivacyConsent{
+		StudentID:         studentID,
+		PolicyVersion:     "1.0",
+		Accepted:          row.PrivacyAccepted,
+		DataRetentionDays: retentionDays,
+	}
+
+	if row.PrivacyAccepted {
+		now := time.Now()
+		consent.AcceptedAt = &now
+	}
+
+	return consent
+}
+
+// validateRetentionDays validates and normalizes retention days
+func validateRetentionDays(days int) int {
+	if days < 1 {
+		return 30 // Default to 30 if invalid
+	}
+	if days > 31 {
+		return 31 // Cap to maximum
+	}
+	return days
 }
 
 // createOrFindGuardian deduplicates guardians by email
@@ -384,36 +482,84 @@ func (c *StudentImportConfig) createOrFindGuardian(ctx context.Context, data imp
 			}
 		} else if existing != nil {
 			// Guardian found - reuse it (deduplication)
+			// But still add any new phone numbers from the import data
+			if err := c.createGuardianPhoneNumbers(ctx, existing.ID, data.PhoneNumbers); err != nil {
+				// Log but don't fail - phone numbers are additive
+				// Duplicates will be handled gracefully
+				return existing.ID, fmt.Errorf("add phone numbers to existing guardian: %w", err)
+			}
 			return existing.ID, nil
 		}
 		// Guardian not found - will create new one below
 	}
 
-	// Create new guardian
+	// Create new guardian (phone numbers are added via createGuardianPhoneNumbers below)
 	guardian := &users.GuardianProfile{
-		FirstName:   strings.TrimSpace(data.FirstName),
-		LastName:    strings.TrimSpace(data.LastName),
-		Email:       stringPtr(data.Email),
-		Phone:       stringPtr(data.Phone),
-		MobilePhone: stringPtr(data.MobilePhone),
+		FirstName: strings.TrimSpace(data.FirstName),
+		LastName:  strings.TrimSpace(data.LastName),
+		Email:     stringPtr(data.Email),
 	}
 
 	if err := c.guardianRepo.Create(ctx, guardian); err != nil {
 		return 0, err
 	}
 
+	// Create phone numbers from PhoneNumbers array (flexible phone support)
+	if err := c.createGuardianPhoneNumbers(ctx, guardian.ID, data.PhoneNumbers); err != nil {
+		return 0, fmt.Errorf("create phone numbers: %w", err)
+	}
+
 	return guardian.ID, nil
 }
 
-// Update updates an existing student (not implemented for MVP - Phase 1)
-// Current behavior: Import mode is set to Create-only, so this method will not be called
-// during normal operation. If called, it returns an error.
-// Phase 2 TODO: Implement update logic to support:
-//   - Updating student basic info (name, class, group assignment)
-//   - Updating/merging guardian relationships
-//   - Preserving privacy consent history
-//   - Audit logging for updates
-func (c *StudentImportConfig) Update(ctx context.Context, id int64, row importModels.StudentImportRow) error {
+// createGuardianPhoneNumbers creates phone numbers for a guardian from import data
+func (c *StudentImportConfig) createGuardianPhoneNumbers(ctx context.Context, guardianID int64, phones []importModels.PhoneImportData) error {
+	for i, phoneData := range phones {
+		if phoneData.PhoneNumber == "" {
+			continue // Skip empty phone numbers
+		}
+
+		// Map phone type string to enum
+		phoneType := mapPhoneType(phoneData.PhoneType)
+
+		// Set label pointer (nil if empty)
+		var label *string
+		if phoneData.Label != "" {
+			label = &phoneData.Label
+		}
+
+		phone := &users.GuardianPhoneNumber{
+			GuardianProfileID: guardianID,
+			PhoneNumber:       phoneData.PhoneNumber,
+			PhoneType:         phoneType,
+			Label:             label,
+			IsPrimary:         phoneData.IsPrimary,
+			Priority:          i + 1, // Priority based on order in import
+		}
+
+		if err := c.guardianPhoneRepo.Create(ctx, phone); err != nil {
+			return fmt.Errorf("phone %d: %w", i+1, err)
+		}
+	}
+	return nil
+}
+
+// mapPhoneType converts import phone type string to users.PhoneType enum
+func mapPhoneType(importType string) users.PhoneType {
+	switch strings.ToLower(importType) {
+	case "mobile":
+		return users.PhoneTypeMobile
+	case "home":
+		return users.PhoneTypeHome
+	case "work":
+		return users.PhoneTypeWork
+	default:
+		return users.PhoneTypeOther
+	}
+}
+
+// Update updates an existing student (not implemented for MVP - see #556 for Phase 2)
+func (c *StudentImportConfig) Update(_ context.Context, _ int64, _ importModels.StudentImportRow) error {
 	return fmt.Errorf("update mode not supported in MVP - use create-only mode or manually update students")
 }
 

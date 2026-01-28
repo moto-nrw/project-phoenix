@@ -41,6 +41,15 @@ var (
 	// ErrRateLimitExceeded returned when password reset attempts exceed rate limit
 	ErrRateLimitExceeded = errors.New("too many password reset requests")
 
+	// ErrPermissionNotFound returned when permission doesn't exist
+	ErrPermissionNotFound = errors.New("permission not found")
+
+	// ErrRoleNotFound returned when role doesn't exist
+	ErrRoleNotFound = errors.New("role not found")
+
+	// ErrParentAccountNotFound returned when parent account doesn't exist
+	ErrParentAccountNotFound = errors.New("parent account not found")
+
 	// Invitation errors
 	ErrInvitationNotFound     = errors.New("invitation not found")
 	ErrInvitationExpired      = errors.New("invitation has expired")

@@ -15,22 +15,20 @@ import {
   formatStaffNotes,
   sortStaff,
 } from "~/lib/staff-helpers";
+import { useSWRAuth } from "~/lib/swr";
 
 import { Loading } from "~/components/ui/loading";
 function StaffPageContent() {
-  const { data: session, status } = useSession({
+  const { status } = useSession({
     required: true,
     onUnauthenticated() {
       redirect("/");
     },
   });
 
-  // State variables
-  const [staff, setStaff] = useState<Staff[]>([]);
+  // State variables for filters
   const [searchTerm, setSearchTerm] = useState("");
   const [locationFilter, setLocationFilter] = useState("all");
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [isMobile, setIsMobile] = useState(false);
 
   // Handle mobile detection
@@ -43,29 +41,45 @@ function StaffPageContent() {
     return () => window.removeEventListener("resize", checkMobile);
   }, []);
 
-  // Fetch staff data once on mount
-  useEffect(() => {
-    const fetchStaffData = async () => {
-      try {
-        setIsLoading(true);
+  // Fetch staff data with SWR (automatic caching, deduplication, revalidation)
+  // Global SSE in AuthWrapper handles cache invalidation automatically
+  const {
+    data: staffData,
+    isLoading,
+    error: staffError,
+  } = useSWRAuth<Staff[]>(
+    "staff-list",
+    async () => {
+      const staffData = await staffService.getAllStaff({});
+      return sortStaff(staffData);
+    },
+    {
+      keepPreviousData: true,
+      revalidateOnFocus: false,
+    },
+  );
 
-        // Load all staff without search filter (client-side filtering below)
-        const staffData = await staffService.getAllStaff({});
-        const sortedStaff = sortStaff(staffData);
-        setStaff(sortedStaff);
-        setError(null);
-      } catch (err) {
-        console.error("Error fetching staff data:", err);
-        setError("Fehler beim Laden der Personaldaten.");
-      } finally {
-        setIsLoading(false);
-      }
-    };
+  const staff = staffData ?? [];
+  const error = staffError ? "Fehler beim Laden der Personaldaten." : null;
 
-    if (session?.user?.token) {
-      void fetchStaffData();
+  // Helper to check if location matches filter
+  const matchesLocationFilter = (location: string, filter: string): boolean => {
+    if (filter === "all") return true;
+    if (filter === "zuhause") return location === "Zuhause";
+    if (filter === "anwesend") return location === "Anwesend";
+    if (filter === "schulhof") return location === "Schulhof";
+    if (filter === "unterwegs") return location === "Unterwegs";
+    if (filter === "im_raum") {
+      // Staff actively supervising in a room (not Zuhause, Anwesend, Schulhof, or Unterwegs)
+      return (
+        location !== "Zuhause" &&
+        location !== "Anwesend" &&
+        location !== "Schulhof" &&
+        location !== "Unterwegs"
+      );
     }
-  }, [session?.user?.token]); // Only fetch once on mount
+    return true;
+  };
 
   // Apply client-side filters
   const filteredStaff = staff.filter((staffMember) => {
@@ -81,32 +95,8 @@ function StaffPageContent() {
     }
 
     // Location filter
-    if (locationFilter !== "all") {
-      const location = staffMember.currentLocation ?? "Zuhause";
-
-      switch (locationFilter) {
-        case "zuhause":
-          if (location !== "Zuhause") return false;
-          break;
-        case "im_raum":
-          if (
-            !location ||
-            location === "Zuhause" ||
-            location === "Schulhof" ||
-            location === "Unterwegs"
-          )
-            return false;
-          break;
-        case "schulhof":
-          if (location !== "Schulhof") return false;
-          break;
-        case "unterwegs":
-          if (location !== "Unterwegs") return false;
-          break;
-      }
-    }
-
-    return true;
+    const location = staffMember.currentLocation ?? "Zuhause";
+    return matchesLocationFilter(location, locationFilter);
   });
 
   // Prepare filter configurations for PageHeaderWithSearch
@@ -124,6 +114,11 @@ function StaffPageContent() {
             value: "zuhause",
             label: "Zuhause",
             icon: "M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6",
+          },
+          {
+            value: "anwesend",
+            label: "Anwesend",
+            icon: "M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z",
           },
           {
             value: "im_raum",
@@ -161,6 +156,7 @@ function StaffPageContent() {
     if (locationFilter !== "all") {
       const locationLabels: Record<string, string> = {
         zuhause: "Zuhause",
+        anwesend: "Anwesend",
         im_raum: "Im Raum",
         schulhof: "Schulhof",
         unterwegs: "Unterwegs",
@@ -310,9 +306,9 @@ function StaffPageContent() {
                       {/* Additional Info */}
                       {cardInfo.length > 0 && (
                         <div className="mb-2 flex flex-wrap gap-2">
-                          {cardInfo.map((info, idx) => (
+                          {cardInfo.map((info) => (
                             <span
-                              key={idx}
+                              key={info}
                               className="inline-flex items-center rounded bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700"
                             >
                               {info}

@@ -6,9 +6,9 @@ import { usePathname } from "next/navigation";
 import { Modal } from "./modal";
 
 interface HelpButtonProps {
-  title: string;
-  content: string | React.ReactNode;
-  buttonClassName?: string;
+  readonly title: string;
+  readonly content: string | React.ReactNode;
+  readonly buttonClassName?: string;
 }
 
 export function HelpButton({

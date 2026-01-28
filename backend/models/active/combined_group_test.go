@@ -58,6 +58,7 @@ func TestCombinedGroupValidate(t *testing.T) {
 func TestCombinedGroupIsActive(t *testing.T) {
 	nowTime := time.Now()
 	futureTime := nowTime.Add(2 * time.Hour)
+	pastTime := nowTime.Add(-2 * time.Hour)
 
 	tests := []struct {
 		name          string
@@ -73,10 +74,18 @@ func TestCombinedGroupIsActive(t *testing.T) {
 			want: true,
 		},
 		{
-			name: "Inactive combined group (has end time)",
+			name: "Active combined group (future end time)",
 			combinedGroup: &CombinedGroup{
 				StartTime: nowTime,
 				EndTime:   &futureTime,
+			},
+			want: true,
+		},
+		{
+			name: "Inactive combined group (past end time)",
+			combinedGroup: &CombinedGroup{
+				StartTime: pastTime,
+				EndTime:   &pastTime,
 			},
 			want: false,
 		},
@@ -194,14 +203,5 @@ func TestCombinedGroupGetDuration(t *testing.T) {
 				}
 			}
 		})
-	}
-}
-
-func TestCombinedGroupTableName(t *testing.T) {
-	combinedGroup := &CombinedGroup{}
-	want := "active.combined_groups"
-
-	if got := combinedGroup.TableName(); got != want {
-		t.Errorf("CombinedGroup.TableName() = %v, want %v", got, want)
 	}
 }

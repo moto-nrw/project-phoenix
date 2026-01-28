@@ -3,8 +3,6 @@ package audit
 import (
 	"errors"
 	"time"
-
-	"github.com/uptrace/bun"
 )
 
 // AuthEvent represents an authentication event for security auditing
@@ -29,19 +27,6 @@ const (
 	EventTypePasswordReset = "password_reset"
 	EventTypeAccountLocked = "account_locked"
 )
-
-// BeforeAppendModel sets the correct table expression
-func (ae *AuthEvent) BeforeAppendModel(query any) error {
-	switch q := query.(type) {
-	case *bun.SelectQuery:
-		q.ModelTableExpr(`audit.auth_events AS "auth_event"`)
-	case *bun.UpdateQuery:
-		q.ModelTableExpr("audit.auth_events")
-	case *bun.DeleteQuery:
-		q.ModelTableExpr("audit.auth_events")
-	}
-	return nil
-}
 
 // TableName returns the database table name
 func (ae *AuthEvent) TableName() string {

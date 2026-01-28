@@ -94,7 +94,7 @@ export const POST = createPostHandler(
           body: JSON.stringify({
             first_name: body.first_name,
             last_name: body.last_name,
-            account_id: parseInt(account.id, 10),
+            account_id: Number.parseInt(account.id, 10),
             tag_id: body.tag_id ?? undefined,
           }),
         },

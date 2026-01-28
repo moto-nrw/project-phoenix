@@ -1,30 +1,37 @@
 name: Build and Push Docker Images
 
 on:
+  # Production: Build and deploy on push to main
   push:
     branches:
       - main
-      - development
-    # Build when backend/frontend code changes, but exclude docs
-    # Note: Cannot use paths + paths-ignore together, must use ! prefix
     paths:
       - 'backend/**'
       - 'frontend/**'
       - '.github/workflows/build.yml'
-      # Exclude documentation from triggering builds
       - '!**.md'
       - '!docs/**'
       - '!bruno/**'
       - '!.vscode/**'
 
-  # Allow manual trigger
+  # Staging: Build and deploy when PR with 'deploy-staging' label is merged
+  pull_request:
+    types: [closed]
+    branches:
+      - development
+
+  # Manual trigger for emergencies
   workflow_dispatch:
     inputs:
-      skip_tests:
-        description: 'Skip tests before building'
-        required: false
-        default: 'false'
-        type: boolean
+      environment:
+        description: 'Target environment'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - demo
+          - production
 
   # Build on release for version tags
   release:
@@ -36,22 +43,78 @@ env:
   FRONTEND_IMAGE: ghcr.io/moto-nrw/phoenix-frontend
 
 jobs:
-  # Run existing test workflow first (unless skipped)
-  test:
-    if: ${{ github.event.inputs.skip_tests != 'true' }}
-    uses: ./.github/workflows/test.yml
+  # Determine target environment and whether to proceed
+  check-environment:
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    outputs:
+      should_deploy: ${{ steps.check.outputs.should_deploy }}
+      is_staging: ${{ steps.check.outputs.is_staging }}
+      is_demo: ${{ steps.check.outputs.is_demo }}
+    steps:
+      - name: Determine environment
+        id: check
+        run: |
+          # Production: Push to main
+          if [[ "${{ github.event_name }}" == "push" ]]; then
+            echo "should_deploy=true" >> $GITHUB_OUTPUT
+            echo "is_staging=false" >> $GITHUB_OUTPUT
+            echo "is_demo=false" >> $GITHUB_OUTPUT
+            echo "✅ Push to main - will build and deploy to production"
 
-  # Run existing lint workflow first (unless skipped)
-  lint:
-    if: ${{ github.event.inputs.skip_tests != 'true' }}
-    uses: ./.github/workflows/lint.yml
+          # Staging/Demo: PR merged with 'deploy-staging' or 'deploy-demo' label
+          elif [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            if [[ "${{ github.event.pull_request.merged }}" == "true" ]]; then
+              if [[ "${{ contains(github.event.pull_request.labels.*.name, 'deploy-staging') }}" == "true" ]]; then
+                echo "should_deploy=true" >> $GITHUB_OUTPUT
+                echo "is_staging=true" >> $GITHUB_OUTPUT
+                echo "is_demo=false" >> $GITHUB_OUTPUT
+                echo "✅ PR #${{ github.event.pull_request.number }} merged with 'deploy-staging' label - will build and deploy to staging"
+              elif [[ "${{ contains(github.event.pull_request.labels.*.name, 'deploy-demo') }}" == "true" ]]; then
+                echo "should_deploy=true" >> $GITHUB_OUTPUT
+                echo "is_staging=false" >> $GITHUB_OUTPUT
+                echo "is_demo=true" >> $GITHUB_OUTPUT
+                echo "✅ PR #${{ github.event.pull_request.number }} merged with 'deploy-demo' label - will build and deploy to demo"
+              else
+                echo "should_deploy=false" >> $GITHUB_OUTPUT
+                echo "is_staging=false" >> $GITHUB_OUTPUT
+                echo "is_demo=false" >> $GITHUB_OUTPUT
+                echo "⏭️ PR #${{ github.event.pull_request.number }} merged without deploy label - skipping deployment"
+              fi
+            else
+              echo "should_deploy=false" >> $GITHUB_OUTPUT
+              echo "is_staging=false" >> $GITHUB_OUTPUT
+              echo "is_demo=false" >> $GITHUB_OUTPUT
+              echo "⏭️ PR #${{ github.event.pull_request.number }} closed without merge - skipping"
+            fi
+
+          # Manual dispatch
+          elif [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "should_deploy=true" >> $GITHUB_OUTPUT
+            if [[ "${{ github.event.inputs.environment }}" == "staging" ]]; then
+              echo "is_staging=true" >> $GITHUB_OUTPUT
+              echo "is_demo=false" >> $GITHUB_OUTPUT
+            elif [[ "${{ github.event.inputs.environment }}" == "demo" ]]; then
+              echo "is_staging=false" >> $GITHUB_OUTPUT
+              echo "is_demo=true" >> $GITHUB_OUTPUT
+            else
+              echo "is_staging=false" >> $GITHUB_OUTPUT
+              echo "is_demo=false" >> $GITHUB_OUTPUT
+            fi
+            echo "✅ Manual trigger for ${{ github.event.inputs.environment }}"
+
+          # Release: Deploy to production
+          elif [[ "${{ github.event_name }}" == "release" ]]; then
+            echo "should_deploy=true" >> $GITHUB_OUTPUT
+            echo "is_staging=false" >> $GITHUB_OUTPUT
+            echo "is_demo=false" >> $GITHUB_OUTPUT
+            echo "✅ Release - will build and deploy to production"
+          fi
 
   # Build and push backend image
   build-backend:
-    runs-on: ubuntu-latest
-    needs: [test, lint]
-    # Run even if tests were skipped (workflow_dispatch)
-    if: ${{ !cancelled() && (needs.test.result == 'success' || needs.test.result == 'skipped') && (needs.lint.result == 'success' || needs.lint.result == 'skipped') }}
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    needs: [check-environment]
+    if: needs.check-environment.outputs.should_deploy == 'true'
     permissions:
       contents: read
       packages: write
@@ -59,9 +122,12 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          # For merged PRs, checkout the merge commit on development
+          ref: ${{ github.event_name == 'pull_request' && 'development' || github.ref }}
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+      - name: Setup Blacksmith Builder
+        uses: useblacksmith/setup-docker-builder@v1
 
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
@@ -76,18 +142,22 @@ jobs:
         with:
           images: ${{ env.BACKEND_IMAGE }}
           tags: |
-            # Branch name (development, main)
+            # Branch name (main for production)
             type=ref,event=branch
             # Short SHA for traceability
             type=sha,prefix=,format=short
-            # latest tag only on main branch
+            # 'staging' tag for staging deployments (merged PRs with label)
+            type=raw,value=staging,enable=${{ needs.check-environment.outputs.is_staging == 'true' }}
+            # 'demo' tag for demo deployments (merged PRs with label)
+            type=raw,value=demo,enable=${{ needs.check-environment.outputs.is_demo == 'true' }}
+            # 'latest' tag for production (main branch)
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
             # Semantic version from release tags
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
 
       - name: Build and push backend
-        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+        uses: useblacksmith/build-push-action@v2
         with:
           context: ./backend
           file: ./backend/Dockerfile
@@ -96,8 +166,6 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           platforms: linux/amd64
           # Use separate cache scope to prevent frontend overwriting backend cache
-          cache-from: type=gha,scope=backend
-          cache-to: type=gha,mode=max,scope=backend
           provenance: false
 
       - name: Image digest
@@ -105,10 +173,9 @@ jobs:
 
   # Build and push frontend image
   build-frontend:
-    runs-on: ubuntu-latest
-    needs: [test, lint]
-    # Run even if tests were skipped (workflow_dispatch)
-    if: ${{ !cancelled() && (needs.test.result == 'success' || needs.test.result == 'skipped') && (needs.lint.result == 'success' || needs.lint.result == 'skipped') }}
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    needs: [check-environment]
+    if: needs.check-environment.outputs.should_deploy == 'true'
     permissions:
       contents: read
       packages: write
@@ -116,9 +183,12 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          # For merged PRs, checkout the merge commit on development
+          ref: ${{ github.event_name == 'pull_request' && 'development' || github.ref }}
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+      - name: Setup Blacksmith Builder
+        uses: useblacksmith/setup-docker-builder@v1
 
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
@@ -133,11 +203,15 @@ jobs:
         with:
           images: ${{ env.FRONTEND_IMAGE }}
           tags: |
-            # Branch name (development, main)
+            # Branch name (main for production)
             type=ref,event=branch
             # Short SHA for traceability
             type=sha,prefix=,format=short
-            # latest tag only on main branch
+            # 'staging' tag for staging deployments (merged PRs with label)
+            type=raw,value=staging,enable=${{ needs.check-environment.outputs.is_staging == 'true' }}
+            # 'demo' tag for demo deployments (merged PRs with label)
+            type=raw,value=demo,enable=${{ needs.check-environment.outputs.is_demo == 'true' }}
+            # 'latest' tag for production (main branch)
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
             # Semantic version from release tags
             type=semver,pattern={{version}}
@@ -146,15 +220,16 @@ jobs:
       - name: Determine API URL
         id: api_url
         run: |
-          if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
-            echo "url=https://api.moto-app.de" >> $GITHUB_OUTPUT
-          else
-            # Development branch uses staging API
+          if [[ "${{ needs.check-environment.outputs.is_staging }}" == "true" ]]; then
             echo "url=https://api-staging.moto-app.de" >> $GITHUB_OUTPUT
+          elif [[ "${{ needs.check-environment.outputs.is_demo }}" == "true" ]]; then
+            echo "url=https://api-demo.moto-app.de" >> $GITHUB_OUTPUT
+          else
+            echo "url=https://api.moto-app.de" >> $GITHUB_OUTPUT
           fi
 
       - name: Build and push frontend
-        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+        uses: useblacksmith/build-push-action@v2
         with:
           context: ./frontend
           file: ./frontend/Dockerfile.prod
@@ -165,20 +240,18 @@ jobs:
           build-args: |
             NEXT_PUBLIC_API_URL=${{ steps.api_url.outputs.url }}
           # Use separate cache scope to prevent backend overwriting frontend cache
-          cache-from: type=gha,scope=frontend
-          cache-to: type=gha,mode=max,scope=frontend
           provenance: false
 
       - name: Image digest
         run: echo "Frontend image pushed with digest ${{ steps.meta.outputs.digest }}"
 
-  # Deploy to staging (development branch)
+  # Deploy to staging (merged PR with label or manual dispatch)
   # Note: Currently staging runs on same server as production (different ports/dirs)
   # Using separate secrets allows easy migration to dedicated staging server later
   deploy-staging:
-    if: github.ref == 'refs/heads/development'
-    needs: [build-backend, build-frontend]
-    runs-on: ubuntu-latest
+    needs: [check-environment, build-backend, build-frontend]
+    if: needs.check-environment.outputs.should_deploy == 'true' && needs.check-environment.outputs.is_staging == 'true'
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     steps:
       - name: Deploy to staging
         env:
@@ -196,11 +269,33 @@ jobs:
           '
           rm ~/.ssh/deploy_key
 
-  # Deploy to production (main branch)
+  # Deploy to demo (merged PR with 'deploy-demo' label or manual dispatch)
+  deploy-demo:
+    needs: [check-environment, build-backend, build-frontend]
+    if: needs.check-environment.outputs.should_deploy == 'true' && needs.check-environment.outputs.is_demo == 'true'
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    steps:
+      - name: Deploy to demo
+        env:
+          SSH_KEY: ${{ secrets.DEMO_SSH_KEY }}
+          SSH_HOST: ${{ secrets.DEMO_HOST }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/deploy_key root@$SSH_HOST '
+            cd ~/demo
+            docker compose pull
+            docker compose up -d
+            echo "✅ Demo deployment complete"
+          '
+          rm ~/.ssh/deploy_key
+
+  # Deploy to production (push to main, release, or manual dispatch to production)
   deploy-production:
-    if: github.ref == 'refs/heads/main'
-    needs: [build-backend, build-frontend]
-    runs-on: ubuntu-latest
+    needs: [check-environment, build-backend, build-frontend]
+    if: needs.check-environment.outputs.should_deploy == 'true' && needs.check-environment.outputs.is_staging == 'false' && needs.check-environment.outputs.is_demo == 'false'
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     steps:
       - name: Deploy to production
         env:
@@ -211,7 +306,7 @@ jobs:
           echo "$SSH_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           ssh -o StrictHostKeyChecking=no -i ~/.ssh/deploy_key root@$SSH_HOST '
-            cd ~
+            cd ~/production
             docker compose pull
             docker compose up -d
             echo "✅ Production deployment complete"
@@ -220,9 +315,9 @@ jobs:
 
   # Summary job for branch protection
   build-status:
-    runs-on: ubuntu-latest
-    needs: [build-backend, build-frontend]
-    if: always()
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    needs: [check-environment, build-backend, build-frontend]
+    if: always() && needs.check-environment.outputs.should_deploy == 'true'
     steps:
       - name: Check build status
         run: |

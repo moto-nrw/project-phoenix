@@ -1,11 +1,11 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from "react";
-import type { FilterConfig } from "./types";
+import { normalizeFilterValues, type FilterConfig } from "./types";
 
 interface DesktopFiltersProps {
-  filters: FilterConfig[];
-  className?: string;
+  readonly filters: ReadonlyArray<FilterConfig>;
+  readonly className?: string;
 }
 
 export function DesktopFilters({
@@ -24,11 +24,7 @@ export function DesktopFilters({
 function FilterControl({ filter }: Readonly<{ filter: FilterConfig }>) {
   if (filter.type === "buttons") {
     const isMulti = !!filter.multiSelect;
-    const selectedValues = Array.isArray(filter.value)
-      ? filter.value
-      : filter.value
-        ? [filter.value]
-        : [];
+    const selectedValues = normalizeFilterValues(filter.value);
     return (
       <div className="flex h-10 rounded-xl bg-white p-1 shadow-sm">
         {filter.options.map((option) => (
@@ -84,11 +80,7 @@ function DropdownFilter({
   const dropdownRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const isMulti = !!filter.multiSelect;
-  const selectedValues = Array.isArray(filter.value)
-    ? filter.value
-    : filter.value
-      ? [filter.value]
-      : [];
+  const selectedValues = normalizeFilterValues(filter.value);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -131,7 +123,7 @@ function DropdownFilter({
         ref={buttonRef}
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className={`flex h-10 items-center gap-2 rounded-xl bg-white px-3 py-2 text-sm font-medium whitespace-nowrap shadow-sm transition-all ${filter.value !== filter.options[0]?.value ? "ring-2 ring-blue-500 ring-offset-1" : ""} ${isOpen ? "bg-gray-50" : "hover:bg-gray-50"} `}
+        className={`flex h-10 items-center gap-2 rounded-xl bg-white px-3 py-2 text-sm font-medium whitespace-nowrap shadow-sm transition-all ${filter.value === filter.options[0]?.value ? "" : "ring-2 ring-blue-500 ring-offset-1"} ${isOpen ? "bg-gray-50" : "hover:bg-gray-50"} `}
       >
         {showIcons && selectedOption?.icon && (
           <svg

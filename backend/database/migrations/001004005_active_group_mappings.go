@@ -55,6 +55,7 @@ func createActiveGroupMappingsTable(ctx context.Context, db *bun.DB) error {
 			active_combined_group_id BIGINT NOT NULL,
 			active_group_id BIGINT NOT NULL,
 			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
 			-- Foreign key constraints
 			CONSTRAINT fk_active_group_mappings_active_combined_group FOREIGN KEY (active_combined_group_id)

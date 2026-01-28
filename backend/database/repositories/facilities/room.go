@@ -12,6 +12,12 @@ import (
 	"github.com/uptrace/bun"
 )
 
+// Table name constants (S1192 - avoid duplicate string literals)
+const (
+	tableFacilitiesRooms           = "facilities.rooms"
+	tableExprFacilitiesRoomsAsRoom = "facilities.rooms AS room"
+)
+
 // RoomRepository implements facilities.RoomRepository interface
 type RoomRepository struct {
 	*base.Repository[*facilities.Room]
@@ -21,7 +27,7 @@ type RoomRepository struct {
 // NewRoomRepository creates a new RoomRepository
 func NewRoomRepository(db *bun.DB) facilities.RoomRepository {
 	return &RoomRepository{
-		Repository: base.NewRepository[*facilities.Room](db, "facilities.rooms", "Room"),
+		Repository: base.NewRepository[*facilities.Room](db, tableFacilitiesRooms, "Room"),
 		db:         db,
 	}
 }
@@ -56,7 +62,7 @@ func (r *RoomRepository) Update(ctx context.Context, room *facilities.Room) erro
 	query := r.db.NewUpdate().
 		Model(room).
 		Where("id = ?", room.ID).
-		ModelTableExpr("facilities.rooms AS room")
+		ModelTableExpr(tableExprFacilitiesRoomsAsRoom)
 
 	// Extract transaction from context if it exists
 	if tx, ok := ctx.Value("tx").(*bun.Tx); ok && tx != nil {
@@ -64,7 +70,7 @@ func (r *RoomRepository) Update(ctx context.Context, room *facilities.Room) erro
 		query = tx.NewUpdate().
 			Model(room).
 			Where("id = ?", room.ID).
-			ModelTableExpr("facilities.rooms AS room")
+			ModelTableExpr(tableExprFacilitiesRoomsAsRoom)
 	}
 
 	// Execute the query
@@ -83,7 +89,7 @@ func (r *RoomRepository) Update(ctx context.Context, room *facilities.Room) erro
 func (r *RoomRepository) FindByName(ctx context.Context, name string) (*facilities.Room, error) {
 	room := new(facilities.Room)
 	err := r.db.NewSelect().
-		ModelTableExpr("facilities.rooms AS room").
+		ModelTableExpr(tableExprFacilitiesRoomsAsRoom).
 		Where("LOWER(name) = LOWER(?)", name).
 		Scan(ctx, room)
 
@@ -102,7 +108,7 @@ func (r *RoomRepository) FindByBuilding(ctx context.Context, building string) ([
 	var rooms []*facilities.Room
 	err := r.db.NewSelect().
 		Model(&rooms).
-		ModelTableExpr("facilities.rooms AS room").
+		ModelTableExpr(tableExprFacilitiesRoomsAsRoom).
 		Where("LOWER(building) = LOWER(?)", building).
 		Scan(ctx)
 
@@ -121,7 +127,7 @@ func (r *RoomRepository) FindByCategory(ctx context.Context, category string) ([
 	var rooms []*facilities.Room
 	err := r.db.NewSelect().
 		Model(&rooms).
-		ModelTableExpr("facilities.rooms AS room").
+		ModelTableExpr(tableExprFacilitiesRoomsAsRoom).
 		Where("LOWER(category) = LOWER(?)", category).
 		Scan(ctx)
 
@@ -140,7 +146,7 @@ func (r *RoomRepository) FindByFloor(ctx context.Context, building string, floor
 	var rooms []*facilities.Room
 	query := r.db.NewSelect().
 		Model(&rooms).
-		ModelTableExpr("facilities.rooms AS room")
+		ModelTableExpr(tableExprFacilitiesRoomsAsRoom)
 
 	if building != "" {
 		query = query.Where("LOWER(building) = LOWER(?)", building)
@@ -166,51 +172,12 @@ func (r *RoomRepository) List(ctx context.Context, filters map[string]interface{
 	var rooms []*facilities.Room
 	query := r.db.NewSelect().
 		Model(&rooms).
-		ModelTableExpr("facilities.rooms AS room") // Use proper table alias
+		ModelTableExpr(tableExprFacilitiesRoomsAsRoom)
 
 	// Apply filters
 	for field, value := range filters {
 		if value != nil {
-			switch field {
-			case "name":
-				// Case-insensitive name search
-				if strValue, ok := value.(string); ok {
-					query = query.Where("LOWER(name) = LOWER(?)", strValue)
-				} else {
-					query = query.Where("name = ?", value)
-				}
-			case "name_like":
-				// Case-insensitive name pattern search
-				if strValue, ok := value.(string); ok {
-					query = query.Where("LOWER(name) LIKE LOWER(?)", "%"+strValue+"%")
-				}
-			case "building":
-				// Case-insensitive building search
-				if strValue, ok := value.(string); ok {
-					query = query.Where("LOWER(building) = LOWER(?)", strValue)
-				} else {
-					query = query.Where("building = ?", value)
-				}
-			case "building_like":
-				// Case-insensitive building pattern search
-				if strValue, ok := value.(string); ok {
-					query = query.Where("LOWER(building) LIKE LOWER(?)", "%"+strValue+"%")
-				}
-			case "category":
-				// Case-insensitive category search
-				if strValue, ok := value.(string); ok {
-					query = query.Where("LOWER(category) = LOWER(?)", strValue)
-				} else {
-					query = query.Where("category = ?", value)
-				}
-			case "min_capacity":
-				query = query.Where("capacity >= ?", value)
-			case "max_capacity":
-				query = query.Where("capacity <= ?", value)
-			default:
-				// Default to exact match for other fields
-				query = query.Where("? = ?", bun.Ident(field), value)
-			}
+			query = applyRoomFilter(query, field, value)
 		}
 	}
 
@@ -225,12 +192,50 @@ func (r *RoomRepository) List(ctx context.Context, filters map[string]interface{
 	return rooms, nil
 }
 
+// applyRoomFilter applies a single filter to the query based on field name
+func applyRoomFilter(query *bun.SelectQuery, field string, value interface{}) *bun.SelectQuery {
+	switch field {
+	case "name":
+		return applyCaseInsensitiveExactMatch(query, "name", value)
+	case "name_like":
+		return applyCaseInsensitiveLikeMatch(query, "name", value)
+	case "building":
+		return applyCaseInsensitiveExactMatch(query, "building", value)
+	case "building_like":
+		return applyCaseInsensitiveLikeMatch(query, "building", value)
+	case "category":
+		return applyCaseInsensitiveExactMatch(query, "category", value)
+	case "min_capacity":
+		return query.Where("capacity >= ?", value)
+	case "max_capacity":
+		return query.Where("capacity <= ?", value)
+	default:
+		return query.Where("? = ?", bun.Ident(field), value)
+	}
+}
+
+// applyCaseInsensitiveExactMatch applies case-insensitive exact match filter
+func applyCaseInsensitiveExactMatch(query *bun.SelectQuery, column string, value interface{}) *bun.SelectQuery {
+	if strValue, ok := value.(string); ok {
+		return query.Where("LOWER("+column+") = LOWER(?)", strValue)
+	}
+	return query.Where(column+" = ?", value)
+}
+
+// applyCaseInsensitiveLikeMatch applies case-insensitive LIKE filter
+func applyCaseInsensitiveLikeMatch(query *bun.SelectQuery, column string, value interface{}) *bun.SelectQuery {
+	if strValue, ok := value.(string); ok {
+		return query.Where("LOWER("+column+") LIKE LOWER(?)", "%"+strValue+"%")
+	}
+	return query
+}
+
 // ListWithOptions retrieves rooms with the new type-safe query options system
 func (r *RoomRepository) ListWithOptions(ctx context.Context, options *modelBase.QueryOptions) ([]*facilities.Room, error) {
 	var rooms []*facilities.Room
 	query := r.db.NewSelect().
 		Model(&rooms).
-		ModelTableExpr("facilities.rooms AS room") // Use proper table alias
+		ModelTableExpr(tableExprFacilitiesRoomsAsRoom) // Use proper table alias
 
 	// Apply query options
 	if options != nil {
@@ -253,7 +258,7 @@ func (r *RoomRepository) FindWithCapacity(ctx context.Context, minCapacity int) 
 	var rooms []*facilities.Room
 	err := r.db.NewSelect().
 		Model(&rooms).
-		ModelTableExpr("facilities.rooms AS room").
+		ModelTableExpr(tableExprFacilitiesRoomsAsRoom).
 		Where("capacity >= ?", minCapacity).
 		Scan(ctx)
 
@@ -278,7 +283,7 @@ func (r *RoomRepository) SearchByText(ctx context.Context, searchText string) ([
 
 	err := r.db.NewSelect().
 		Model(&rooms).
-		ModelTableExpr("facilities.rooms AS room").
+		ModelTableExpr(tableExprFacilitiesRoomsAsRoom).
 		Where("LOWER(name) LIKE ? OR LOWER(building) LIKE ? OR LOWER(category) LIKE ?",
 			searchPattern, searchPattern, searchPattern).
 		Scan(ctx)

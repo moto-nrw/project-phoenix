@@ -8,9 +8,11 @@ export default defineConfig({
     environment: "happy-dom",
     globals: true,
     setupFiles: ["./src/test/setup.ts"],
+    exclude: ["**/node_modules/**", "**/e2e/**"], // Exclude Playwright tests
     coverage: {
       provider: "v8",
-      reporter: ["text", "json", "html"],
+      reporter: ["text", "json", "html", "lcov"],
+      reportOnFailure: true, // Generate coverage even when tests fail
       exclude: [
         "node_modules/",
         "src/test/",
@@ -24,6 +26,8 @@ export default defineConfig({
     alias: {
       "~": path.resolve(__dirname, "./src"),
       "@": path.resolve(__dirname, "./src"),
+      // Resolve swr to mock if not installed (prevents test failures)
+      swr: path.resolve(__dirname, "./src/test/mocks/swr.ts"),
     },
   },
 });

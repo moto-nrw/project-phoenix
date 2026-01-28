@@ -100,7 +100,9 @@ export const groupTransferService = {
               "Content-Type": "application/json",
             }
           : undefined,
-        body: JSON.stringify({ target_user_id: Number.parseInt(targetPersonId, 10) }),
+        body: JSON.stringify({
+          target_user_id: Number.parseInt(targetPersonId, 10),
+        }),
       });
 
       if (!response.ok) {
@@ -125,14 +127,24 @@ export const groupTransferService = {
   },
 
   // Get all active transfers for a group (from substitutions)
-  async getActiveTransfersForGroup(groupId: string): Promise<GroupTransfer[]> {
+  // Pass token to skip redundant getSession() call (saves ~600ms)
+  async getActiveTransfersForGroup(
+    groupId: string,
+    token?: string,
+  ): Promise<GroupTransfer[]> {
     try {
-      const session = await getSession();
+      // Use provided token or fall back to getSession()
+      let authToken = token;
+      if (!authToken) {
+        const session = await getSession();
+        authToken = session?.user?.token;
+      }
+
       const response = await fetch(`/api/groups/${groupId}/substitutions`, {
         credentials: "include",
-        headers: session?.user?.token
+        headers: authToken
           ? {
-              Authorization: `Bearer ${session.user.token}`,
+              Authorization: `Bearer ${authToken}`,
               "Content-Type": "application/json",
             }
           : undefined,

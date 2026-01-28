@@ -474,4 +474,4 @@ describe("GroupList", () => {
 - Pages in `app/(auth)/{page}/`
 - API routes in `app/api/{domain}/route.ts`
 - Use `createGetHandler`/`createPostHandler` for route handlers
-- Always run `npm run check` before committing
+- Always run `pnpm run check` before committing

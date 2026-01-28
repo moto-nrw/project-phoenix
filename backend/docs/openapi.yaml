@@ -492,6 +492,32 @@ paths:
       summary: PUT /api/active/groups/{id}
       tags:
       - Active
+  /api/active/groups/{id}/claim:
+    post:
+      description: Generated from routes
+      parameters:
+      - description: id parameter
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: POST /api/active/groups/{id}/claim
+      tags:
+      - Active
   /api/active/groups/{id}/end:
     post:
       description: Generated from routes
@@ -570,6 +596,32 @@ paths:
       summary: GET /api/active/groups/{id}/visits
       tags:
       - Active
+  /api/active/groups/{id}/visits/display:
+    get:
+      description: Generated from routes
+      parameters:
+      - description: id parameter
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: GET /api/active/groups/{id}/visits/display
+      tags:
+      - Active
   /api/active/groups/group/{groupId}:
     get:
       description: Generated from routes
@@ -620,6 +672,25 @@ paths:
       security:
       - bearerAuth: []
       summary: GET /api/active/groups/room/{roomId}
+      tags:
+      - Active
+  /api/active/groups/unclaimed:
+    get:
+      description: Generated from routes
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: GET /api/active/groups/unclaimed
       tags:
       - Active
   /api/active/mappings/add:
@@ -1118,6 +1189,58 @@ paths:
       security:
       - bearerAuth: []
       summary: GET /api/active/visits/student/{studentId}
+      tags:
+      - Active
+  /api/active/visits/student/{studentId}/checkin:
+    post:
+      description: Generated from routes
+      parameters:
+      - description: studentId parameter
+        in: path
+        name: studentId
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: POST /api/active/visits/student/{studentId}/checkin
+      tags:
+      - Active
+  /api/active/visits/student/{studentId}/checkout:
+    post:
+      description: Generated from routes
+      parameters:
+      - description: studentId parameter
+        in: path
+        name: studentId
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: POST /api/active/visits/student/{studentId}/checkout
       tags:
       - Active
   /api/active/visits/student/{studentId}/current:
@@ -1649,6 +1772,25 @@ paths:
       security:
       - bearerAuth: []
       summary: GET /api/activities/categories
+      tags:
+      - Activities
+  /api/activities/quick-create:
+    post:
+      description: Generated from routes
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: POST /api/activities/quick-create
       tags:
       - Activities
   /api/activities/schedules/available:
@@ -2534,6 +2676,504 @@ paths:
       summary: GET /api/groups/{id}/supervisors
       tags:
       - Groups
+  /api/groups/{id}/transfer:
+    post:
+      description: Generated from routes
+      parameters:
+      - description: id parameter
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: POST /api/groups/{id}/transfer
+      tags:
+      - Groups
+  /api/groups/{id}/transfer/{substitutionId}:
+    delete:
+      description: Generated from routes
+      parameters:
+      - description: id parameter
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      - description: substitutionId parameter
+        in: path
+        name: substitutionId
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: DELETE /api/groups/{id}/transfer/{substitutionId}
+      tags:
+      - Groups
+  /api/guardians:
+    get:
+      description: Generated from routes
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: GET /api/guardians
+      tags:
+      - Guardians
+    post:
+      description: Generated from routes
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: POST /api/guardians
+      tags:
+      - Guardians
+  /api/guardians/{id}:
+    delete:
+      description: Generated from routes
+      parameters:
+      - description: id parameter
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: DELETE /api/guardians/{id}
+      tags:
+      - Guardians
+    get:
+      description: Generated from routes
+      parameters:
+      - description: id parameter
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: GET /api/guardians/{id}
+      tags:
+      - Guardians
+    put:
+      description: Generated from routes
+      parameters:
+      - description: id parameter
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: PUT /api/guardians/{id}
+      tags:
+      - Guardians
+  /api/guardians/{id}/invite:
+    post:
+      description: Generated from routes
+      parameters:
+      - description: id parameter
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: POST /api/guardians/{id}/invite
+      tags:
+      - Guardians
+  /api/guardians/{id}/students:
+    get:
+      description: Generated from routes
+      parameters:
+      - description: id parameter
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: GET /api/guardians/{id}/students
+      tags:
+      - Guardians
+  /api/guardians/invitable:
+    get:
+      description: Generated from routes
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: GET /api/guardians/invitable
+      tags:
+      - Guardians
+  /api/guardians/invitations/{token}:
+    get:
+      description: Generated from routes
+      parameters:
+      - description: token parameter
+        in: path
+        name: token
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: GET /api/guardians/invitations/{token}
+      tags:
+      - Guardians
+  /api/guardians/invitations/{token}/accept:
+    post:
+      description: Generated from routes
+      parameters:
+      - description: token parameter
+        in: path
+        name: token
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: POST /api/guardians/invitations/{token}/accept
+      tags:
+      - Guardians
+  /api/guardians/invitations/pending:
+    get:
+      description: Generated from routes
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: GET /api/guardians/invitations/pending
+      tags:
+      - Guardians
+  /api/guardians/relationships/{relationshipId}:
+    put:
+      description: Generated from routes
+      parameters:
+      - description: relationshipId parameter
+        in: path
+        name: relationshipId
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: PUT /api/guardians/relationships/{relationshipId}
+      tags:
+      - Guardians
+  /api/guardians/students/{studentId}/guardians:
+    get:
+      description: Generated from routes
+      parameters:
+      - description: studentId parameter
+        in: path
+        name: studentId
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: GET /api/guardians/students/{studentId}/guardians
+      tags:
+      - Guardians
+    post:
+      description: Generated from routes
+      parameters:
+      - description: studentId parameter
+        in: path
+        name: studentId
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: POST /api/guardians/students/{studentId}/guardians
+      tags:
+      - Guardians
+  /api/guardians/students/{studentId}/guardians/{guardianId}:
+    delete:
+      description: Generated from routes
+      parameters:
+      - description: studentId parameter
+        in: path
+        name: studentId
+        required: true
+        schema:
+          type: string
+      - description: guardianId parameter
+        in: path
+        name: guardianId
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: DELETE /api/guardians/students/{studentId}/guardians/{guardianId}
+      tags:
+      - Guardians
+  /api/guardians/without-account:
+    get:
+      description: Generated from routes
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: GET /api/guardians/without-account
+      tags:
+      - Guardians
+  /api/import/students/import:
+    post:
+      description: Generated from routes
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: POST /api/import/students/import
+      tags:
+      - Import
+  /api/import/students/preview:
+    post:
+      description: Generated from routes
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: POST /api/import/students/preview
+      tags:
+      - Import
+  /api/import/students/template:
+    get:
+      description: Generated from routes
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: GET /api/import/students/template
+      tags:
+      - Import
   /api/iot:
     get:
       description: Generated from routes
@@ -2718,6 +3358,89 @@ paths:
       summary: GET /api/iot/active
       tags:
       - Iot
+  /api/iot/activities:
+    get:
+      description: Generated from routes
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: GET /api/iot/activities
+      tags:
+      - Iot
+  /api/iot/attendance/status/{rfid}:
+    get:
+      description: Generated from routes
+      parameters:
+      - description: rfid parameter
+        in: path
+        name: rfid
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: GET /api/iot/attendance/status/{rfid}
+      tags:
+      - Iot
+  /api/iot/attendance/toggle:
+    post:
+      description: Generated from routes
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: POST /api/iot/attendance/toggle
+      tags:
+      - Iot
+  /api/iot/checkin:
+    post:
+      description: Generated from routes
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: POST /api/iot/checkin
+      tags:
+      - Iot
   /api/iot/detect-new:
     post:
       description: Generated from routes
@@ -2763,6 +3486,25 @@ paths:
       summary: GET /api/iot/device/{deviceId}
       tags:
       - Iot
+  /api/iot/feedback:
+    post:
+      description: Generated from routes
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: POST /api/iot/feedback
+      tags:
+      - Iot
   /api/iot/maintenance:
     get:
       description: Generated from routes
@@ -2801,6 +3543,25 @@ paths:
       summary: GET /api/iot/offline
       tags:
       - Iot
+  /api/iot/ping:
+    post:
+      description: Generated from routes
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: POST /api/iot/ping
+      tags:
+      - Iot
   /api/iot/registered-by/{personId}:
     get:
       description: Generated from routes
@@ -2827,6 +3588,51 @@ paths:
       summary: GET /api/iot/registered-by/{personId}
       tags:
       - Iot
+  /api/iot/rfid/{tagId}:
+    get:
+      description: Generated from routes
+      parameters:
+      - description: tagId parameter
+        in: path
+        name: tagId
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: GET /api/iot/rfid/{tagId}
+      tags:
+      - Iot
+  /api/iot/rooms/available:
+    get:
+      description: Generated from routes
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: GET /api/iot/rooms/available
+      tags:
+      - Iot
   /api/iot/scan-network:
     post:
       description: Generated from routes
@@ -2846,6 +3652,254 @@ paths:
       summary: POST /api/iot/scan-network
       tags:
       - Iot
+  /api/iot/session/{sessionId}/supervisors:
+    put:
+      description: Generated from routes
+      parameters:
+      - description: sessionId parameter
+        in: path
+        name: sessionId
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: PUT /api/iot/session/{sessionId}/supervisors
+      tags:
+      - Iot
+  /api/iot/session/activity:
+    post:
+      description: Generated from routes
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: POST /api/iot/session/activity
+      tags:
+      - Iot
+  /api/iot/session/check-conflict:
+    post:
+      description: Generated from routes
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: POST /api/iot/session/check-conflict
+      tags:
+      - Iot
+  /api/iot/session/current:
+    get:
+      description: Generated from routes
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: GET /api/iot/session/current
+      tags:
+      - Iot
+  /api/iot/session/end:
+    post:
+      description: Generated from routes
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: POST /api/iot/session/end
+      tags:
+      - Iot
+  /api/iot/session/start:
+    post:
+      description: Generated from routes
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: POST /api/iot/session/start
+      tags:
+      - Iot
+  /api/iot/session/timeout:
+    post:
+      description: Generated from routes
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: POST /api/iot/session/timeout
+      tags:
+      - Iot
+  /api/iot/session/timeout-config:
+    get:
+      description: Generated from routes
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: GET /api/iot/session/timeout-config
+      tags:
+      - Iot
+  /api/iot/session/timeout-info:
+    get:
+      description: Generated from routes
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: GET /api/iot/session/timeout-info
+      tags:
+      - Iot
+  /api/iot/session/validate-timeout:
+    post:
+      description: Generated from routes
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: POST /api/iot/session/validate-timeout
+      tags:
+      - Iot
+  /api/iot/staff/{staffId}/rfid:
+    delete:
+      description: Generated from routes
+      parameters:
+      - description: staffId parameter
+        in: path
+        name: staffId
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: DELETE /api/iot/staff/{staffId}/rfid
+      tags:
+      - Iot
+    post:
+      description: Generated from routes
+      parameters:
+      - description: staffId parameter
+        in: path
+        name: staffId
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: POST /api/iot/staff/{staffId}/rfid
+      tags:
+      - Iot
   /api/iot/statistics:
     get:
       description: Generated from routes
@@ -2863,6 +3917,25 @@ paths:
       security:
       - bearerAuth: []
       summary: GET /api/iot/statistics
+      tags:
+      - Iot
+  /api/iot/status:
+    get:
+      description: Generated from routes
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: GET /api/iot/status
       tags:
       - Iot
   /api/iot/status/{status}:
@@ -2889,6 +3962,44 @@ paths:
       security:
       - bearerAuth: []
       summary: GET /api/iot/status/{status}
+      tags:
+      - Iot
+  /api/iot/students:
+    get:
+      description: Generated from routes
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: GET /api/iot/students
+      tags:
+      - Iot
+  /api/iot/teachers:
+    get:
+      description: Generated from routes
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: GET /api/iot/teachers
       tags:
       - Iot
   /api/iot/type/{type}:
@@ -3953,6 +5064,25 @@ paths:
       summary: GET /api/schedules/timeframes/by-range
       tags:
       - Schedules
+  /api/sse/events:
+    get:
+      description: Generated from routes
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: GET /api/sse/events
+      tags:
+      - Sse
   /api/staff:
     get:
       description: Generated from routes
@@ -4156,6 +5286,62 @@ paths:
       summary: GET /api/staff/available-for-substitution
       tags:
       - Staff
+  /api/staff/by-role:
+    get:
+      description: Generated from routes
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: GET /api/staff/by-role
+      tags:
+      - Staff
+  /api/staff/pin:
+    get:
+      description: Generated from routes
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: GET /api/staff/pin
+      tags:
+      - Staff
+    put:
+      description: Generated from routes
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: PUT /api/staff/pin
+      tags:
+      - Staff
   /api/students:
     get:
       description: Generated from routes
@@ -4269,6 +5455,58 @@ paths:
       summary: PUT /api/students/{id}
       tags:
       - Students
+  /api/students/{id}/current-location:
+    get:
+      description: Generated from routes
+      parameters:
+      - description: id parameter
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: GET /api/students/{id}/current-location
+      tags:
+      - Students
+  /api/students/{id}/current-visit:
+    get:
+      description: Generated from routes
+      parameters:
+      - description: id parameter
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: GET /api/students/{id}/current-visit
+      tags:
+      - Students
   /api/students/{id}/in-group-room:
     get:
       description: Generated from routes
@@ -4344,6 +5582,83 @@ paths:
       security:
       - bearerAuth: []
       summary: PUT /api/students/{id}/privacy-consent
+      tags:
+      - Students
+  /api/students/{id}/rfid:
+    delete:
+      description: Generated from routes
+      parameters:
+      - description: id parameter
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: DELETE /api/students/{id}/rfid
+      tags:
+      - Students
+    post:
+      description: Generated from routes
+      parameters:
+      - description: id parameter
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: POST /api/students/{id}/rfid
+      tags:
+      - Students
+  /api/students/{id}/visit-history:
+    get:
+      description: Generated from routes
+      parameters:
+      - description: id parameter
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: GET /api/students/{id}/visit-history
       tags:
       - Students
   /api/substitutions:
@@ -5237,6 +6552,147 @@ paths:
       security:
       - bearerAuth: []
       summary: GET /auth/accounts/by-role/{roleName}
+      tags:
+      - Auth
+  /auth/invitations:
+    get:
+      description: Generated from routes
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: GET /auth/invitations
+      tags:
+      - Auth
+    post:
+      description: Generated from routes
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: POST /auth/invitations
+      tags:
+      - Auth
+  /auth/invitations/{id}:
+    delete:
+      description: Generated from routes
+      parameters:
+      - description: id parameter
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: DELETE /auth/invitations/{id}
+      tags:
+      - Auth
+  /auth/invitations/{id}/resend:
+    post:
+      description: Generated from routes
+      parameters:
+      - description: id parameter
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: POST /auth/invitations/{id}/resend
+      tags:
+      - Auth
+  /auth/invitations/{token}:
+    get:
+      description: Generated from routes
+      parameters:
+      - description: token parameter
+        in: path
+        name: token
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: GET /auth/invitations/{token}
+      tags:
+      - Auth
+  /auth/invitations/{token}/accept:
+    post:
+      description: Generated from routes
+      parameters:
+      - description: token parameter
+        in: path
+        name: token
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: Successful operation
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+        "500":
+          description: Internal server error
+      security:
+      - bearerAuth: []
+      summary: POST /auth/invitations/{token}/accept
       tags:
       - Auth
   /auth/login:

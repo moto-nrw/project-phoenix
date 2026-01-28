@@ -11,6 +11,12 @@ import (
 	"github.com/uptrace/bun"
 )
 
+// Table name constants (S1192 - avoid duplicate string literals)
+const (
+	tableActivitiesCategories          = "activities.categories"
+	tableExprActivitiesCategoriesAsCat = `activities.categories AS "category"`
+)
+
 // CategoryRepository implements activities.CategoryRepository interface
 type CategoryRepository struct {
 	*base.Repository[*activities.Category]
@@ -20,7 +26,7 @@ type CategoryRepository struct {
 // NewCategoryRepository creates a new CategoryRepository
 func NewCategoryRepository(db *bun.DB) activities.CategoryRepository {
 	return &CategoryRepository{
-		Repository: base.NewRepository[*activities.Category](db, "activities.categories", "Category"),
+		Repository: base.NewRepository[*activities.Category](db, tableActivitiesCategories, "Category"),
 		db:         db,
 	}
 }
@@ -30,7 +36,7 @@ func (r *CategoryRepository) FindByName(ctx context.Context, name string) (*acti
 	category := new(activities.Category)
 	err := r.db.NewSelect().
 		Model(category).
-		ModelTableExpr(`activities.categories AS "category"`).
+		ModelTableExpr(tableExprActivitiesCategoriesAsCat).
 		Where("LOWER(name) = LOWER(?)", name).
 		Scan(ctx)
 
@@ -49,7 +55,7 @@ func (r *CategoryRepository) ListAll(ctx context.Context) ([]*activities.Categor
 	var categories []*activities.Category
 	err := r.db.NewSelect().
 		Model(&categories).
-		ModelTableExpr(`activities.categories AS "category"`).
+		ModelTableExpr(tableExprActivitiesCategoriesAsCat).
 		Order("name ASC").
 		Scan(ctx)
 
@@ -93,7 +99,7 @@ func (r *CategoryRepository) Update(ctx context.Context, category *activities.Ca
 	query := r.db.NewUpdate().
 		Model(category).
 		Where("id = ?", category.ID).
-		ModelTableExpr("activities.categories")
+		ModelTableExpr(tableActivitiesCategories)
 
 	// Extract transaction from context if it exists
 	if tx, ok := ctx.Value("tx").(*bun.Tx); ok && tx != nil {
@@ -101,7 +107,7 @@ func (r *CategoryRepository) Update(ctx context.Context, category *activities.Ca
 		query = tx.NewUpdate().
 			Model(category).
 			Where("id = ?", category.ID).
-			ModelTableExpr("activities.categories")
+			ModelTableExpr(tableActivitiesCategories)
 	}
 
 	// Execute the query

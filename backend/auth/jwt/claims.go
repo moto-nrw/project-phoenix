@@ -2,6 +2,7 @@ package jwt
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/lestrrat-go/jwx/v2/jwt"
 )
@@ -26,70 +27,136 @@ type AppClaims struct {
 	CommonClaims
 }
 
+// Error format for missing claims
+const errMissingClaim = "missing required claim: %s"
+
+// Helper functions for safe claim extraction
+
+func getRequiredInt(claims map[string]any, key string) (int, error) {
+	val, ok := claims[key]
+	if !ok {
+		return 0, fmt.Errorf(errMissingClaim, key)
+	}
+	f, ok := val.(float64)
+	if !ok {
+		return 0, fmt.Errorf("claim %s is not a number", key)
+	}
+	return int(f), nil
+}
+
+func getRequiredString(claims map[string]any, key string) (string, error) {
+	val, ok := claims[key]
+	if !ok {
+		return "", fmt.Errorf(errMissingClaim, key)
+	}
+	s, ok := val.(string)
+	if !ok {
+		return "", fmt.Errorf("claim %s is not a string", key)
+	}
+	return s, nil
+}
+
+func getOptionalString(claims map[string]any, key string) string {
+	val, ok := claims[key]
+	if !ok || val == nil {
+		return ""
+	}
+	s, _ := val.(string)
+	return s
+}
+
+func getOptionalBool(claims map[string]any, key string) bool {
+	val, ok := claims[key]
+	if !ok || val == nil {
+		return false
+	}
+	b, _ := val.(bool)
+	return b
+}
+
+func getRequiredStringSlice(claims map[string]any, key string) ([]string, error) {
+	val, ok := claims[key]
+	if !ok {
+		return nil, fmt.Errorf(errMissingClaim, key)
+	}
+	// Use strict validation for required claims - reject malformed arrays
+	result, err := toStringSliceStrict(val)
+	if err != nil {
+		return nil, fmt.Errorf("claim %s: %w", key, err)
+	}
+	return result, nil
+}
+
+func getOptionalStringSlice(claims map[string]any, key string) []string {
+	val, ok := claims[key]
+	if !ok || val == nil {
+		return []string{}
+	}
+	// Use lenient parsing for optional claims - skip invalid elements gracefully
+	return toStringSliceLenient(val)
+}
+
+// toStringSliceStrict converts an interface slice to string slice.
+// Returns an error if any element is not a string (for required claims).
+func toStringSliceStrict(val any) ([]string, error) {
+	slice, ok := val.([]any)
+	if !ok {
+		return nil, errors.New("value is not an array")
+	}
+	result := make([]string, 0, len(slice))
+	for i, v := range slice {
+		s, ok := v.(string)
+		if !ok {
+			return nil, fmt.Errorf("element %d is not a string", i)
+		}
+		result = append(result, s)
+	}
+	return result, nil
+}
+
+// toStringSliceLenient converts an interface slice to string slice.
+// Silently skips non-string elements (for optional claims).
+func toStringSliceLenient(val any) []string {
+	slice, ok := val.([]any)
+	if !ok {
+		return []string{}
+	}
+	result := make([]string, 0, len(slice))
+	for _, v := range slice {
+		if s, ok := v.(string); ok {
+			result = append(result, s)
+		}
+	}
+	return result
+}
+
 // ParseClaims parses JWT claims into AppClaims.
+// Uses safe type assertions to prevent panics from malformed tokens.
 func (c *AppClaims) ParseClaims(claims map[string]any) error {
-	id, ok := claims["id"]
-	if !ok {
-		return errors.New("could not parse claim id")
-	}
-	c.ID = int(id.(float64))
+	var err error
 
-	sub, ok := claims[jwt.SubjectKey]
-	if !ok {
-		return errors.New("could not parse claim sub")
-	}
-	c.Sub = sub.(string)
-
-	username, ok := claims["username"]
-	if ok && username != nil {
-		c.Username = username.(string)
+	c.ID, err = getRequiredInt(claims, "id")
+	if err != nil {
+		return err
 	}
 
-	firstName, ok := claims["first_name"]
-	if ok && firstName != nil {
-		c.FirstName = firstName.(string)
+	c.Sub, err = getRequiredString(claims, jwt.SubjectKey)
+	if err != nil {
+		return err
 	}
 
-	lastName, ok := claims["last_name"]
-	if ok && lastName != nil {
-		c.LastName = lastName.(string)
+	c.Username = getOptionalString(claims, "username")
+	c.FirstName = getOptionalString(claims, "first_name")
+	c.LastName = getOptionalString(claims, "last_name")
+
+	c.Roles, err = getRequiredStringSlice(claims, "roles")
+	if err != nil {
+		return err
 	}
 
-	rl, ok := claims["roles"]
-	if !ok {
-		return errors.New("could not parse claims roles")
-	}
-
-	var roles []string
-	if rl != nil {
-		for _, v := range rl.([]any) {
-			roles = append(roles, v.(string))
-		}
-	}
-	c.Roles = roles
-
-	// Parse permissions if they exist
-	perms, ok := claims["permissions"]
-	if ok && perms != nil {
-		var permissions []string
-		for _, v := range perms.([]any) {
-			permissions = append(permissions, v.(string))
-		}
-		c.Permissions = permissions
-	} else {
-		c.Permissions = []string{} // Initialize as empty array if not present
-	}
-
-	// Parse static role flags
-	isAdmin, ok := claims["is_admin"]
-	if ok && isAdmin != nil {
-		c.IsAdmin = isAdmin.(bool)
-	}
-
-	isTeacher, ok := claims["is_teacher"]
-	if ok && isTeacher != nil {
-		c.IsTeacher = isTeacher.(bool)
-	}
+	c.Permissions = getOptionalStringSlice(claims, "permissions")
+	c.IsAdmin = getOptionalBool(claims, "is_admin")
+	c.IsTeacher = getOptionalBool(claims, "is_teacher")
 
 	return nil
 }

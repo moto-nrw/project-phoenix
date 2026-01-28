@@ -2,7 +2,6 @@ package feedback
 
 import (
 	"errors"
-	"log"
 	"net/http"
 	"strconv"
 	"time"
@@ -15,6 +14,11 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/models/feedback"
 	feedbackSvc "github.com/moto-nrw/project-phoenix/services/feedback"
+)
+
+// Constants for date formats (S1192 - avoid duplicate string literals)
+const (
+	dateFormatYMD = "2006-01-02"
 )
 
 // Resource defines the feedback API resource
@@ -90,7 +94,7 @@ type FeedbackRequest struct {
 }
 
 // Bind validates the feedback request
-func (req *FeedbackRequest) Bind(r *http.Request) error {
+func (req *FeedbackRequest) Bind(_ *http.Request) error {
 	if req.Value == "" {
 		return errors.New("feedback value is required")
 	}
@@ -105,7 +109,7 @@ func (req *FeedbackRequest) Bind(r *http.Request) error {
 	}
 
 	// Validate date format
-	_, err := time.Parse("2006-01-02", req.Day)
+	_, err := time.Parse(dateFormatYMD, req.Day)
 	if err != nil {
 		return errors.New("day must be in YYYY-MM-DD format")
 	}
@@ -168,7 +172,7 @@ func newFeedbackResponse(entry *feedback.Entry) FeedbackResponse {
 // requestToModel converts a request to a model
 func requestToModel(req *FeedbackRequest) (*feedback.Entry, error) {
 	// Parse day
-	day, err := time.Parse("2006-01-02", req.Day)
+	day, err := time.Parse(dateFormatYMD, req.Day)
 	if err != nil {
 		return nil, errors.New("invalid day format, expected YYYY-MM-DD")
 	}
@@ -179,10 +183,15 @@ func requestToModel(req *FeedbackRequest) (*feedback.Entry, error) {
 		return nil, errors.New("invalid time format, expected HH:MM:SS")
 	}
 
+	// Normalize time to use a valid base date (1970-01-01) for PostgreSQL compatibility
+	// time.Parse with "15:04:05" creates year=0 which PostgreSQL rejects
+	hour, min, sec := timeValue.Clock()
+	normalizedTime := time.Date(1970, 1, 1, hour, min, sec, 0, time.UTC)
+
 	return &feedback.Entry{
 		Value:           req.Value,
 		Day:             day,
-		Time:            timeValue,
+		Time:            normalizedTime,
 		StudentID:       req.StudentID,
 		IsMensaFeedback: req.IsMensaFeedback,
 	}, nil
@@ -207,7 +216,7 @@ func (rs *Resource) listFeedback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if dateStr != "" {
-		date, err := time.Parse("2006-01-02", dateStr)
+		date, err := time.Parse(dateFormatYMD, dateStr)
 		if err == nil {
 			filters["day"] = date
 		}
@@ -221,9 +230,7 @@ func (rs *Resource) listFeedback(w http.ResponseWriter, r *http.Request) {
 	// Get feedback entries
 	entries, err := rs.FeedbackService.ListEntries(r.Context(), filters)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInternalServer(err)); err != nil {
-			log.Printf("Error rendering response: %v", err)
-		}
+		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
@@ -241,18 +248,14 @@ func (rs *Resource) getFeedback(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid feedback ID"))); err != nil {
-			log.Printf("Error rendering response: %v", err)
-		}
+		common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid feedback ID")))
 		return
 	}
 
 	// Get feedback entry
 	entry, err := rs.FeedbackService.GetEntryByID(r.Context(), id)
 	if err != nil {
-		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Error rendering response: %v", err)
-		}
+		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
 
@@ -267,18 +270,14 @@ func (rs *Resource) getStudentFeedback(w http.ResponseWriter, r *http.Request) {
 	// Parse student ID from URL
 	studentID, err := common.ParseID(r)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid student ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, ErrorInvalidRequest(errors.New(common.MsgInvalidStudentID)))
 		return
 	}
 
 	// Get feedback entries for student
 	entries, err := rs.FeedbackService.GetEntriesByStudent(r.Context(), studentID)
 	if err != nil {
-		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
 
@@ -295,20 +294,16 @@ func (rs *Resource) getStudentFeedback(w http.ResponseWriter, r *http.Request) {
 func (rs *Resource) getDateFeedback(w http.ResponseWriter, r *http.Request) {
 	// Parse date from URL
 	dateStr := chi.URLParam(r, "date")
-	day, err := time.Parse("2006-01-02", dateStr)
+	day, err := time.Parse(dateFormatYMD, dateStr)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid date format, expected YYYY-MM-DD"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid date format, expected YYYY-MM-DD")))
 		return
 	}
 
 	// Get feedback entries for date
 	entries, err := rs.FeedbackService.GetEntriesByDay(r.Context(), day)
 	if err != nil {
-		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
 
@@ -330,9 +325,7 @@ func (rs *Resource) getMensaFeedback(w http.ResponseWriter, r *http.Request) {
 	// Get mensa feedback entries
 	entries, err := rs.FeedbackService.GetMensaFeedback(r.Context(), isMensa)
 	if err != nil {
-		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
 
@@ -353,20 +346,16 @@ func (rs *Resource) getDateRangeFeedback(w http.ResponseWriter, r *http.Request)
 	studentIDStr := r.URL.Query().Get("student_id")
 
 	// Parse start date
-	startDate, err := time.Parse("2006-01-02", startDateStr)
+	startDate, err := time.Parse(dateFormatYMD, startDateStr)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid start date format, expected YYYY-MM-DD"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid start date format, expected YYYY-MM-DD")))
 		return
 	}
 
 	// Parse end date
-	endDate, err := time.Parse("2006-01-02", endDateStr)
+	endDate, err := time.Parse(dateFormatYMD, endDateStr)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid end date format, expected YYYY-MM-DD"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid end date format, expected YYYY-MM-DD")))
 		return
 	}
 
@@ -375,27 +364,21 @@ func (rs *Resource) getDateRangeFeedback(w http.ResponseWriter, r *http.Request)
 	if studentIDStr != "" {
 		studentID, err := strconv.ParseInt(studentIDStr, 10, 64)
 		if err != nil {
-			if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid student ID"))); err != nil {
-				log.Printf("Error rendering error response: %v", err)
-			}
+			common.RenderError(w, r, ErrorInvalidRequest(errors.New(common.MsgInvalidStudentID)))
 			return
 		}
 
 		// Get feedback entries for student within date range
 		entries, err = rs.FeedbackService.GetEntriesByStudentAndDateRange(r.Context(), studentID, startDate, endDate)
 		if err != nil {
-			if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-				log.Printf("Error rendering error response: %v", err)
-			}
+			common.RenderError(w, r, ErrorRenderer(err))
 			return
 		}
 	} else {
 		// Get feedback entries for all students within date range
 		entries, err = rs.FeedbackService.GetEntriesByDateRange(r.Context(), startDate, endDate)
 		if err != nil {
-			if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-				log.Printf("Error rendering error response: %v", err)
-			}
+			common.RenderError(w, r, ErrorRenderer(err))
 			return
 		}
 	}
@@ -414,26 +397,20 @@ func (rs *Resource) createFeedback(w http.ResponseWriter, r *http.Request) {
 	// Parse request
 	req := &FeedbackRequest{}
 	if err := render.Bind(r, req); err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
-			log.Printf("Render error: %v", err)
-		}
+		common.RenderError(w, r, ErrorInvalidRequest(err))
 		return
 	}
 
 	// Convert request to model
 	entry, err := requestToModel(req)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, ErrorInvalidRequest(err))
 		return
 	}
 
 	// Create feedback entry
 	if err := rs.FeedbackService.CreateEntry(r.Context(), entry); err != nil {
-		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Render error: %v", err)
-		}
+		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
 
@@ -448,9 +425,7 @@ func (rs *Resource) createBatchFeedback(w http.ResponseWriter, r *http.Request) 
 	// Parse request
 	req := &BatchFeedbackRequest{}
 	if err := render.Bind(r, req); err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
-			log.Printf("Render error: %v", err)
-		}
+		common.RenderError(w, r, ErrorInvalidRequest(err))
 		return
 	}
 
@@ -459,9 +434,7 @@ func (rs *Resource) createBatchFeedback(w http.ResponseWriter, r *http.Request) 
 	for _, entryReq := range req.Entries {
 		entry, err := requestToModel(&entryReq)
 		if err != nil {
-			if err := render.Render(w, r, ErrorInvalidRequest(err)); err != nil {
-				log.Printf("Error rendering error response: %v", err)
-			}
+			common.RenderError(w, r, ErrorInvalidRequest(err))
 			return
 		}
 		entries = append(entries, entry)
@@ -482,9 +455,7 @@ func (rs *Resource) createBatchFeedback(w http.ResponseWriter, r *http.Request) 
 			return
 		}
 
-		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
 
@@ -498,19 +469,46 @@ func (rs *Resource) deleteFeedback(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
-		if err := render.Render(w, r, ErrorInvalidRequest(errors.New("invalid feedback ID"))); err != nil {
-			log.Printf("Error rendering error response: %v", err)
-		}
+		common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid feedback ID")))
 		return
 	}
 
 	// Delete feedback entry
 	if err := rs.FeedbackService.DeleteEntry(r.Context(), id); err != nil {
-		if err := render.Render(w, r, ErrorRenderer(err)); err != nil {
-			log.Printf("Render error: %v", err)
-		}
+		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
 
 	common.Respond(w, r, http.StatusOK, nil, "Feedback entry deleted successfully")
 }
+
+// =============================================================================
+// EXPORTED HANDLERS FOR TESTING
+// =============================================================================
+
+// ListFeedbackHandler returns the listFeedback handler for testing.
+func (rs *Resource) ListFeedbackHandler() http.HandlerFunc { return rs.listFeedback }
+
+// GetFeedbackHandler returns the getFeedback handler for testing.
+func (rs *Resource) GetFeedbackHandler() http.HandlerFunc { return rs.getFeedback }
+
+// GetStudentFeedbackHandler returns the getStudentFeedback handler for testing.
+func (rs *Resource) GetStudentFeedbackHandler() http.HandlerFunc { return rs.getStudentFeedback }
+
+// GetDateFeedbackHandler returns the getDateFeedback handler for testing.
+func (rs *Resource) GetDateFeedbackHandler() http.HandlerFunc { return rs.getDateFeedback }
+
+// GetMensaFeedbackHandler returns the getMensaFeedback handler for testing.
+func (rs *Resource) GetMensaFeedbackHandler() http.HandlerFunc { return rs.getMensaFeedback }
+
+// GetDateRangeFeedbackHandler returns the getDateRangeFeedback handler for testing.
+func (rs *Resource) GetDateRangeFeedbackHandler() http.HandlerFunc { return rs.getDateRangeFeedback }
+
+// CreateFeedbackHandler returns the createFeedback handler for testing.
+func (rs *Resource) CreateFeedbackHandler() http.HandlerFunc { return rs.createFeedback }
+
+// CreateBatchFeedbackHandler returns the createBatchFeedback handler for testing.
+func (rs *Resource) CreateBatchFeedbackHandler() http.HandlerFunc { return rs.createBatchFeedback }
+
+// DeleteFeedbackHandler returns the deleteFeedback handler for testing.
+func (rs *Resource) DeleteFeedbackHandler() http.HandlerFunc { return rs.deleteFeedback }

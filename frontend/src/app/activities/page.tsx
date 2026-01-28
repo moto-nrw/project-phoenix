@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { ResponsiveLayout } from "~/components/dashboard";
 import { PageHeaderWithSearch } from "~/components/ui/page-header";
 import type {
@@ -20,12 +20,19 @@ import { userContextService } from "~/lib/usercontext-api";
 import type { Staff } from "~/lib/usercontext-helpers";
 import { useToast } from "~/contexts/ToastContext";
 import { Loading } from "~/components/ui/loading";
+import { useSWRAuth } from "~/lib/swr";
+
+// SWR cache key for activities page data
+const ACTIVITIES_PAGE_KEY = "activities-page";
+
+// Define interface for the combined page data
+interface ActivitiesPageData {
+  activities: Activity[];
+  categories: ActivityCategory[];
+  currentStaff: Staff | null;
+}
 
 export default function ActivitiesPage() {
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [activities, setActivities] = useState<Activity[]>([]);
-  const [categories, setCategories] = useState<ActivityCategory[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [myActivitiesFilter, setMyActivitiesFilter] = useState(false);
@@ -35,9 +42,49 @@ export default function ActivitiesPage() {
   );
   const [isManagementModalOpen, setIsManagementModalOpen] = useState(false);
   const [isQuickCreateOpen, setIsQuickCreateOpen] = useState(false);
-  const [currentStaff, setCurrentStaff] = useState<Staff | null>(null);
   const { success: toastSuccess } = useToast();
   const [isMobile, setIsMobile] = useState(false);
+
+  // Fetch activities, categories, and current staff with SWR
+  const {
+    data: pageData,
+    isLoading,
+    error: fetchError,
+    mutate: mutatePageData,
+  } = useSWRAuth<ActivitiesPageData>(
+    ACTIVITIES_PAGE_KEY,
+    async () => {
+      const [activitiesData, categoriesData, staffData] = await Promise.all([
+        fetchActivities(),
+        getCategories(),
+        userContextService.getCurrentStaff().catch(() => null),
+      ]);
+      return {
+        activities: activitiesData,
+        categories: categoriesData,
+        currentStaff: staffData,
+      };
+    },
+    {
+      keepPreviousData: true,
+      revalidateOnFocus: false,
+    },
+  );
+
+  // Extract data with defaults (memoized to prevent dependency issues)
+  const activities = useMemo(
+    () => pageData?.activities ?? [],
+    [pageData?.activities],
+  );
+  const categories = useMemo(
+    () => pageData?.categories ?? [],
+    [pageData?.categories],
+  );
+  const currentStaff = useMemo(
+    () => pageData?.currentStaff ?? null,
+    [pageData?.currentStaff],
+  );
+  const error = fetchError ? "Fehler beim Laden der Aktivitäten" : null;
 
   // Handle mobile detection
   useEffect(() => {
@@ -47,34 +94,6 @@ export default function ActivitiesPage() {
     checkMobile();
     window.addEventListener("resize", checkMobile);
     return () => window.removeEventListener("resize", checkMobile);
-  }, []);
-
-  // Load activities, categories and current user on mount
-  useEffect(() => {
-    const loadData = async () => {
-      try {
-        setLoading(true);
-        // Load activities, categories and current user in parallel
-        const [activitiesData, categoriesData, staffData] = await Promise.all([
-          fetchActivities(),
-          getCategories(),
-          userContextService.getCurrentStaff().catch(() => null), // Fail silently if not a staff member
-        ]);
-        setActivities(activitiesData);
-        setCategories(categoriesData);
-        // Note: Don't set filteredActivities here - the filter useEffect will handle it
-        // when activities state updates, avoiding a double render
-        setCurrentStaff(staffData);
-        setError(null);
-      } catch (err) {
-        setError("Fehler beim Laden der Aktivitäten");
-        console.error("Error loading activities:", err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    void loadData();
   }, []);
 
   // Apply filters
@@ -129,28 +148,19 @@ export default function ActivitiesPage() {
     setIsManagementModalOpen(true);
   };
 
-  // Handle edit button click - same as selecting activity
-  const handleEditActivity = (e: React.MouseEvent, activity: Activity) => {
-    e.stopPropagation(); // Prevent duplicate modal opening
-    handleSelectActivity(activity);
-  };
-
   // Handle successful management actions (edit/delete)
-  const handleManagementSuccess = async (message?: string) => {
-    // Show success toast if provided
-    if (message) {
-      toastSuccess(message);
-    }
+  const handleManagementSuccess = useCallback(
+    async (message?: string) => {
+      // Show success toast if provided
+      if (message) {
+        toastSuccess(message);
+      }
 
-    // Reload activities to show updated data
-    // Note: Only set activities - the filter useEffect will update filteredActivities
-    try {
-      const activitiesData = await fetchActivities();
-      setActivities(activitiesData);
-    } catch (err) {
-      console.error("Error reloading activities:", err);
-    }
-  };
+      // Trigger SWR refetch to update the cache
+      await mutatePageData();
+    },
+    [mutatePageData, toastSuccess],
+  );
 
   // Prepare filters for PageHeaderWithSearch
   const filters: FilterConfig[] = useMemo(() => {
@@ -225,7 +235,7 @@ export default function ActivitiesPage() {
     return filters;
   }, [searchTerm, categoryFilter, myActivitiesFilter, categories]);
 
-  if (loading) {
+  if (isLoading) {
     return (
       <ResponsiveLayout>
         <Loading fullPage={false} />
@@ -306,10 +316,10 @@ export default function ActivitiesPage() {
           />
         </div>
 
-        {/* Mobile FAB Create Button */}
+        {/* Mobile FAB Create Button - z-40 to appear below drawer modal (z-50) */}
         <button
           onClick={() => setIsQuickCreateOpen(true)}
-          className="group fixed right-4 bottom-24 z-[9999] flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-[#FF3130] to-[#e02020] text-white shadow-[0_8px_30px_rgb(0,0,0,0.12)] transition-all duration-300 hover:shadow-[0_8px_40px_rgb(255,49,48,0.3)] active:scale-95 md:hidden"
+          className="group fixed right-4 bottom-24 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-[#FF3130] to-[#e02020] text-white shadow-[0_8px_30px_rgb(0,0,0,0.12)] transition-all duration-300 hover:shadow-[0_8px_40px_rgb(255,49,48,0.3)] active:scale-95 md:hidden"
           style={{
             background:
               "linear-gradient(135deg, rgb(255, 49, 48) 0%, rgb(224, 32, 32) 100%)",
@@ -347,11 +357,13 @@ export default function ActivitiesPage() {
         {filteredActivities.length > 0 ? (
           <div className="space-y-3">
             {filteredActivities.map((activity, index) => {
+              const handleClick = () => handleSelectActivity(activity);
               return (
-                <div
+                <button
+                  type="button"
                   key={activity.id}
-                  onClick={() => handleSelectActivity(activity)}
-                  className="group relative cursor-pointer overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-500 active:scale-[0.99] md:hover:-translate-y-1 md:hover:scale-[1.01] md:hover:border-red-200/50 md:hover:bg-white md:hover:shadow-[0_20px_50px_rgb(0,0,0,0.15)]"
+                  onClick={handleClick}
+                  className="group relative w-full cursor-pointer overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 text-left shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-500 active:scale-[0.99] md:hover:-translate-y-1 md:hover:scale-[1.01] md:hover:border-red-200/50 md:hover:bg-white md:hover:shadow-[0_20px_50px_rgb(0,0,0,0.15)]"
                   style={{
                     animationName: "fadeInUp",
                     animationDuration: "0.5s",
@@ -393,12 +405,8 @@ export default function ActivitiesPage() {
                         Bearbeiten
                       </span>
 
-                      {/* Edit icon button */}
-                      <button
-                        onClick={(e) => handleEditActivity(e, activity)}
-                        className="relative"
-                        aria-label="Aktivität bearbeiten"
-                      >
+                      {/* Edit icon indicator (visual only - parent button handles click) */}
+                      <span className="relative" aria-hidden="true">
                         <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-100 transition-all duration-200 md:group-hover:scale-110 md:group-hover:bg-red-100">
                           <svg
                             className="h-5 w-5 text-gray-600 transition-colors md:group-hover:text-red-600"
@@ -417,29 +425,15 @@ export default function ActivitiesPage() {
 
                         {/* Ripple effect on hover */}
                         <div className="absolute inset-0 scale-0 rounded-full bg-red-200/20 transition-transform duration-300 md:group-hover:scale-100"></div>
-                      </button>
+                      </span>
                     </div>
                   </div>
 
                   {/* Glowing border effect */}
                   <div className="pointer-events-none absolute inset-0 rounded-3xl bg-gradient-to-r from-transparent via-red-100/30 to-transparent opacity-0 transition-opacity duration-300 md:group-hover:opacity-100"></div>
-                </div>
+                </button>
               );
             })}
-
-            {/* Add fadeInUp animation */}
-            <style jsx>{`
-              @keyframes fadeInUp {
-                from {
-                  opacity: 0;
-                  transform: translateY(20px);
-                }
-                to {
-                  opacity: 1;
-                  transform: translateY(0);
-                }
-              }
-            `}</style>
           </div>
         ) : (
           <div className="flex min-h-[300px] items-center justify-center">

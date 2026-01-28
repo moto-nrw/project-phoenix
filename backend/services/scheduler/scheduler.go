@@ -12,6 +12,11 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/active"
 )
 
+// Log format constants to avoid string duplication
+const (
+	fmtAndMoreErrors = "  ... and %d more errors"
+)
+
 // AuthCleanup exposes the cleanup routines required from the auth service.
 type AuthCleanup interface {
 	CleanupExpiredTokens(ctx context.Context) (int, error)
@@ -19,8 +24,8 @@ type AuthCleanup interface {
 	CleanupExpiredRateLimits(ctx context.Context) (int, error)
 }
 
-// InvitationCleanup exposes the cleanup routine required from the invitation service.
-type InvitationCleanup interface {
+// InvitationCleaner exposes the cleanup routine required from the invitation service.
+type InvitationCleaner interface {
 	CleanupExpiredInvitations(ctx context.Context) (int, error)
 }
 
@@ -35,13 +40,13 @@ type Scheduler struct {
 	activeService     active.Service
 	cleanupService    active.CleanupService
 	authCleanup       AuthCleanup
-	invitationCleanup InvitationCleanup
+	invitationCleanup InvitationCleaner
 	cleanupJobs       []CleanupJob
 	tasks             map[string]*ScheduledTask
 	mu                sync.RWMutex
-	ctx               context.Context
-	cancel            context.CancelFunc
-	wg                sync.WaitGroup
+	// done signals goroutines to stop when closed (replaces stored context)
+	done chan struct{}
+	wg   sync.WaitGroup
 
 	// Session cleanup configuration (parsed once during initialization)
 	sessionCleanupIntervalMinutes    int
@@ -59,8 +64,7 @@ type ScheduledTask struct {
 }
 
 // NewScheduler creates a new scheduler
-func NewScheduler(activeService active.Service, cleanupService active.CleanupService, authService AuthCleanup, invitationService InvitationCleanup) *Scheduler {
-	ctx, cancel := context.WithCancel(context.Background())
+func NewScheduler(activeService active.Service, cleanupService active.CleanupService, authService AuthCleanup, invitationService InvitationCleaner) *Scheduler {
 	return &Scheduler{
 		activeService:     activeService,
 		cleanupService:    cleanupService,
@@ -68,8 +72,7 @@ func NewScheduler(activeService active.Service, cleanupService active.CleanupSer
 		invitationCleanup: invitationService,
 		cleanupJobs:       buildCleanupJobs(authService, invitationService),
 		tasks:             make(map[string]*ScheduledTask),
-		ctx:               ctx,
-		cancel:            cancel,
+		done:              make(chan struct{}),
 	}
 }
 
@@ -86,9 +89,6 @@ func (s *Scheduler) Start() {
 	// Schedule token cleanup every hour
 	s.scheduleTokenCleanupTask()
 
-	// Schedule checkout processing every minute
-	s.scheduleCheckoutProcessingTask()
-
 	// Schedule abandoned session cleanup
 	s.scheduleSessionCleanupTask()
 }
@@ -96,7 +96,7 @@ func (s *Scheduler) Start() {
 // Stop gracefully stops the scheduler
 func (s *Scheduler) Stop() {
 	log.Println("Stopping scheduler service...")
-	s.cancel()
+	close(s.done)
 	s.wg.Wait()
 	log.Println("Scheduler service stopped")
 }
@@ -104,7 +104,7 @@ func (s *Scheduler) Stop() {
 // scheduleCleanupTask schedules the daily cleanup task
 func (s *Scheduler) scheduleCleanupTask() {
 	// Check if cleanup is enabled
-	if enabled := os.Getenv("CLEANUP_SCHEDULER_ENABLED"); enabled != "true" {
+	if os.Getenv("CLEANUP_SCHEDULER_ENABLED") != "true" {
 		log.Println("Cleanup scheduler is disabled (set CLEANUP_SCHEDULER_ENABLED=true to enable)")
 		return
 	}
@@ -167,7 +167,7 @@ func (s *Scheduler) runCleanupTask(task *ScheduledTask) {
 	case <-time.After(initialWait):
 		// Run immediately at scheduled time
 		s.executeCleanup(task)
-	case <-s.ctx.Done():
+	case <-s.done:
 		return
 	}
 
@@ -179,7 +179,7 @@ func (s *Scheduler) runCleanupTask(task *ScheduledTask) {
 		select {
 		case <-ticker.C:
 			s.executeCleanup(task)
-		case <-s.ctx.Done():
+		case <-s.done:
 			return
 		}
 	}
@@ -240,7 +240,7 @@ func (s *Scheduler) executeCleanup(task *ScheduledTask) {
 			}
 		}
 		if len(result.Errors) > 10 {
-			log.Printf("  ... and %d more errors", len(result.Errors)-10)
+			log.Printf(fmtAndMoreErrors, len(result.Errors)-10)
 		}
 	}
 }
@@ -277,7 +277,7 @@ func (s *Scheduler) runTokenCleanupTask(task *ScheduledTask) {
 		select {
 		case <-ticker.C:
 			s.executeTokenCleanup(task)
-		case <-s.ctx.Done():
+		case <-s.done:
 			return
 		}
 	}
@@ -345,7 +345,7 @@ func (s *Scheduler) RunCleanupJobs() error {
 }
 
 // buildCleanupJobs constructs the set of cleanup jobs so other runners can reuse the same registry.
-func buildCleanupJobs(authService AuthCleanup, invitationService InvitationCleanup) []CleanupJob {
+func buildCleanupJobs(authService AuthCleanup, invitationService InvitationCleaner) []CleanupJob {
 	var jobs []CleanupJob
 
 	if authService != nil {
@@ -386,7 +386,7 @@ func buildCleanupJobs(authService AuthCleanup, invitationService InvitationClean
 // scheduleSessionEndTask schedules the daily session end task
 func (s *Scheduler) scheduleSessionEndTask() {
 	// Check if session end is enabled (default enabled)
-	if enabled := os.Getenv("SESSION_END_SCHEDULER_ENABLED"); enabled == "false" {
+	if os.Getenv("SESSION_END_SCHEDULER_ENABLED") == "false" {
 		log.Println("Session end scheduler is disabled (set SESSION_END_SCHEDULER_ENABLED=true to enable)")
 		return
 	}
@@ -449,7 +449,7 @@ func (s *Scheduler) runSessionEndTask(task *ScheduledTask) {
 	case <-time.After(initialWait):
 		// Run immediately at scheduled time
 		s.executeSessionEnd(task)
-	case <-s.ctx.Done():
+	case <-s.done:
 		return
 	}
 
@@ -461,7 +461,7 @@ func (s *Scheduler) runSessionEndTask(task *ScheduledTask) {
 		select {
 		case <-ticker.C:
 			s.executeSessionEnd(task)
-		case <-s.ctx.Done():
+		case <-s.done:
 			return
 		}
 	}
@@ -524,98 +524,7 @@ func (s *Scheduler) executeSessionEnd(task *ScheduledTask) {
 			}
 		}
 		if len(result.Errors) > 10 {
-			log.Printf("  ... and %d more errors", len(result.Errors)-10)
-		}
-	}
-}
-
-// scheduleCheckoutProcessingTask schedules the scheduled checkout processing task
-func (s *Scheduler) scheduleCheckoutProcessingTask() {
-	// Check if scheduled checkout processing is enabled (default enabled)
-	if enabled := os.Getenv("SCHEDULED_CHECKOUT_ENABLED"); enabled == "false" {
-		log.Println("Scheduled checkout processing is disabled (set SCHEDULED_CHECKOUT_ENABLED=true to enable)")
-		return
-	}
-
-	task := &ScheduledTask{
-		Name:     "scheduled-checkout-processing",
-		Schedule: "1m", // Run every minute
-	}
-
-	s.mu.Lock()
-	s.tasks[task.Name] = task
-	s.mu.Unlock()
-
-	s.wg.Add(1)
-	go s.runCheckoutProcessingTask(task)
-}
-
-// runCheckoutProcessingTask runs the checkout processing task every minute
-func (s *Scheduler) runCheckoutProcessingTask(task *ScheduledTask) {
-	defer s.wg.Done()
-
-	log.Println("Scheduled checkout processing task scheduled to run every minute")
-
-	// Run immediately on startup
-	s.executeCheckoutProcessing(task)
-
-	// Then run every minute
-	ticker := time.NewTicker(time.Minute)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ticker.C:
-			s.executeCheckoutProcessing(task)
-		case <-s.ctx.Done():
-			return
-		}
-	}
-}
-
-// executeCheckoutProcessing executes the checkout processing task
-func (s *Scheduler) executeCheckoutProcessing(task *ScheduledTask) {
-	task.mu.Lock()
-	if task.Running {
-		task.mu.Unlock()
-		return
-	}
-	task.Running = true
-	task.LastRun = time.Now()
-	task.mu.Unlock()
-
-	defer func() {
-		task.mu.Lock()
-		task.Running = false
-		task.NextRun = time.Now().Add(time.Minute)
-		task.mu.Unlock()
-	}()
-
-	ctx := context.Background()
-
-	// Process due scheduled checkouts
-	result, err := s.activeService.ProcessDueScheduledCheckouts(ctx)
-	if err != nil {
-		log.Printf("ERROR: Scheduled checkout processing failed: %v", err)
-		return
-	}
-
-	// Only log if there were checkouts to process
-	if result.CheckoutsExecuted > 0 {
-		if result.Success {
-			log.Printf("Scheduled checkout processing: processed %d checkouts (%d visits ended, %d attendance updated)",
-				result.CheckoutsExecuted, result.VisitsEnded, result.AttendanceUpdated)
-		} else {
-			log.Printf("Scheduled checkout processing: partial success - processed %d checkouts with %d errors",
-				result.CheckoutsExecuted, len(result.Errors))
-			for i, errMsg := range result.Errors {
-				if i < 5 { // Log first 5 errors
-					log.Printf("  - Error: %s", errMsg)
-				}
-			}
-			if len(result.Errors) > 5 {
-				log.Printf("  ... and %d more errors", len(result.Errors)-5)
-			}
+			log.Printf(fmtAndMoreErrors, len(result.Errors)-10)
 		}
 	}
 }
@@ -681,7 +590,7 @@ func (s *Scheduler) runSessionCleanupTask(task *ScheduledTask, intervalMinutes, 
 		select {
 		case <-ticker.C:
 			s.executeSessionCleanup(task, intervalMinutes, thresholdMinutes)
-		case <-s.ctx.Done():
+		case <-s.done:
 			return
 		}
 	}
