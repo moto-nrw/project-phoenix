@@ -1811,6 +1811,19 @@ describe("OGSGroupPage clear all filters includes sort reset", () => {
 
 describe("OGSGroupPage rendered pickup urgency", () => {
   const mockMutate = vi.fn();
+  // Freeze time to 14:00 on 2026-01-28 to make tests deterministic
+  const FROZEN_TIME = new Date(2026, 0, 28, 14, 0, 0);
+
+  beforeEach(() => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(FROZEN_TIME);
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
 
   function setupWithStudentsAndPickupTimes(
     pickupMap: Map<
@@ -1822,6 +1835,8 @@ describe("OGSGroupPage rendered pickup urgency", () => {
     },
   ) {
     vi.clearAllMocks();
+    // Re-freeze time after clearAllMocks since it may reset fake timers state
+    vi.setSystemTime(FROZEN_TIME);
     global.fetch = vi.fn();
 
     // Setup location mocks
@@ -1893,13 +1908,8 @@ describe("OGSGroupPage rendered pickup urgency", () => {
       } as never);
   }
 
-  afterEach(() => {
-    cleanup();
-    vi.restoreAllMocks();
-  });
-
   it("renders pickup time with default gray icon when no urgency", async () => {
-    // Pickup far in the future (normal urgency)
+    // Pickup far in the future (normal urgency) — frozen time is 14:00
     const pickupMap = new Map([
       ["1", { pickupTime: "23:59", isException: false }],
     ]);
@@ -1921,14 +1931,9 @@ describe("OGSGroupPage rendered pickup urgency", () => {
   });
 
   it("renders pulsing orange clock when pickup is within 30 minutes", async () => {
-    // Set pickup time to be within 30 minutes of now
-    const now = new Date();
-    const soonMinutes = now.getMinutes() + 15;
-    const soonHours = now.getHours() + (soonMinutes >= 60 ? 1 : 0);
-    const soonTime = `${String(soonHours % 24).padStart(2, "0")}:${String(soonMinutes % 60).padStart(2, "0")}`;
-
+    // Frozen time is 14:00, so 14:15 is 15 minutes away → "soon"
     const pickupMap = new Map([
-      ["1", { pickupTime: soonTime, isException: false }],
+      ["1", { pickupTime: "14:15", isException: false }],
     ]);
     setupWithStudentsAndPickupTimes(pickupMap);
 
@@ -1945,9 +1950,9 @@ describe("OGSGroupPage rendered pickup urgency", () => {
   });
 
   it("renders red alert triangle when pickup is overdue", async () => {
-    // Set pickup time to past
+    // Frozen time is 14:00, so 13:00 is 1 hour in the past → "overdue"
     const pickupMap = new Map([
-      ["1", { pickupTime: "00:01", isException: false }],
+      ["1", { pickupTime: "13:00", isException: false }],
     ]);
     setupWithStudentsAndPickupTimes(pickupMap);
 

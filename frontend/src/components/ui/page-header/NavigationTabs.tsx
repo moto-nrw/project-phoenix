@@ -40,14 +40,21 @@ export function NavigationTabs({
   }, []);
 
   // Update sliding indicator position when active tab changes
-  useEffect(() => {
+  const updateIndicator = useCallback(() => {
     const activeTabElement = tabRefs.current[activeIndex];
 
-    if (activeTabElement) {
+    if (activeTabElement && activeTabElement.offsetWidth > 0) {
       const { offsetLeft, offsetWidth } = activeTabElement;
       setIndicatorStyle({ left: offsetLeft, width: offsetWidth });
+    }
+  }, [activeIndex]);
 
-      // Scroll active tab into view on mobile
+  useEffect(() => {
+    updateIndicator();
+
+    // Scroll active tab into view on mobile
+    const activeTabElement = tabRefs.current[activeIndex];
+    if (activeTabElement) {
       const container = scrollRef.current;
       if (container) {
         const tabLeft = activeTabElement.offsetLeft;
@@ -65,21 +72,25 @@ export function NavigationTabs({
         }
       }
     }
-  }, [activeIndex]);
+  }, [activeIndex, updateIndicator]);
 
-  // Monitor scroll state on mount and resize
+  // Monitor scroll state and indicator on mount, resize, and tab changes
   useEffect(() => {
     updateScrollState();
+    updateIndicator();
     const el = scrollRef.current;
     if (!el) return;
     el.addEventListener("scroll", updateScrollState, { passive: true });
-    const observer = new ResizeObserver(updateScrollState);
+    const observer = new ResizeObserver(() => {
+      updateScrollState();
+      updateIndicator();
+    });
     observer.observe(el);
     return () => {
       el.removeEventListener("scroll", updateScrollState);
       observer.disconnect();
     };
-  }, [updateScrollState]);
+  }, [updateScrollState, updateIndicator, items]);
 
   return (
     <div className={`ml-3 md:ml-6 ${className}`}>
