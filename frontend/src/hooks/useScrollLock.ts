@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 
 /**
  * Custom hook to lock body scroll when a modal/popup is open
- * Uses event prevention instead of CSS to avoid layout shifts
+ * Uses position: fixed technique to prevent scroll jump on lock/unlock
  */
 export function useScrollLock(isLocked: boolean) {
   const scrollPosition = useRef(0);
@@ -13,10 +13,14 @@ export function useScrollLock(isLocked: boolean) {
 
     if (isLocked) {
       // Save current scroll position
-      scrollPosition.current = globalThis.pageYOffset;
+      scrollPosition.current = globalThis.scrollY;
 
-      // Block scrollbar dragging via CSS (events don't catch this)
-      // Note: Must set on documentElement (html) because globals.css sets overflow-y: scroll on html
+      // Freeze body in place to prevent scroll jump
+      // This technique keeps content visually in the same position
+      document.body.style.position = "fixed";
+      document.body.style.top = `-${scrollPosition.current}px`;
+      document.body.style.left = "0";
+      document.body.style.right = "0";
       document.documentElement.style.overflow = "hidden";
 
       // Cache modal content elements for performance
@@ -86,7 +90,16 @@ export function useScrollLock(isLocked: boolean) {
 
       // Cleanup function
       return () => {
+        // Restore body positioning
+        document.body.style.position = "";
+        document.body.style.top = "";
+        document.body.style.left = "";
+        document.body.style.right = "";
         document.documentElement.style.overflow = "";
+
+        // Restore scroll position
+        globalThis.scrollTo(0, scrollPosition.current);
+
         document.removeEventListener("wheel", preventBackgroundScroll);
         document.removeEventListener("touchmove", preventBackgroundScroll);
         document.removeEventListener("keydown", handleKeyDown);
