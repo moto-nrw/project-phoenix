@@ -28,7 +28,7 @@
     "browser-image-compression": "^2.0.2",
     "clsx": "^2.1.1",
     "lucide-react": "^0.562.0",
-    "next": "^15.5.9",
+    "next": "^16.1.5",
     "next-auth": "^5.0.0-beta.30",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
