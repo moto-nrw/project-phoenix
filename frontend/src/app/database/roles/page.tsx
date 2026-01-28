@@ -332,7 +332,7 @@ export default function RolesPage() {
                 type="button"
                 key={role.id}
                 onClick={handleClick}
-                className="group relative w-full cursor-pointer overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 text-left shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-500 active:scale-[0.99] md:hover:-translate-y-1 md:hover:scale-[1.01] md:hover:border-purple-300/60 md:hover:bg-white md:hover:shadow-[0_20px_50px_rgb(0,0,0,0.15)]"
+                className="group relative w-full cursor-pointer overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 text-left shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-150 active:scale-[0.98] md:hover:-translate-y-0.5 md:hover:border-purple-400/60 md:hover:bg-white md:hover:shadow-[0_12px_40px_rgb(0,0,0,0.18)]"
                 style={{
                   animationName: "fadeInUp",
                   animationDuration: "0.5s",
@@ -349,8 +349,9 @@ export default function RolesPage() {
                 <div className="relative flex items-center gap-4 p-5">
                   <div className="flex-shrink-0">
                     <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-purple-500 to-purple-600 font-semibold text-white shadow-md transition-transform duration-300 md:group-hover:scale-110">
-                      {getRoleDisplayName(role.name)?.charAt(0)?.toUpperCase() ??
-                        "R"}
+                      {getRoleDisplayName(role.name)
+                        ?.charAt(0)
+                        ?.toUpperCase() ?? "R"}
                     </div>
                   </div>
                   <div className="min-w-0 flex-1">

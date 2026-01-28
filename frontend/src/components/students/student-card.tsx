@@ -39,7 +39,7 @@ export function StudentCard({
       type="button"
       onClick={onClick}
       aria-label={`${firstName} ${lastName} - Tippen für mehr Infos`}
-      className="group relative w-full cursor-pointer overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 text-left shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-150 focus:ring-2 focus:ring-blue-500/50 focus:outline-none active:scale-[0.97] md:hover:-translate-y-3 md:hover:scale-[1.03] md:hover:border-[#5080D8]/30 md:hover:bg-white md:hover:shadow-[0_20px_50px_rgb(0,0,0,0.15)]"
+      className="group relative w-full cursor-pointer overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 text-left shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-150 focus:ring-2 focus:ring-blue-500/50 focus:outline-none active:scale-[0.98] md:hover:-translate-y-0.5 md:hover:border-[#5080D8]/40 md:hover:bg-white md:hover:shadow-[0_12px_40px_rgb(0,0,0,0.18)]"
     >
       {/* Modern gradient overlay */}
       <div
@@ -61,7 +61,7 @@ export function StudentCard({
               </h3>
               {/* Subtle integrated arrow */}
               <svg
-                className="h-4 w-4 flex-shrink-0 text-gray-300 transition-all duration-150 md:group-hover:translate-x-1 md:group-hover:text-blue-500"
+                className="h-4 w-4 flex-shrink-0 text-gray-300 transition-colors duration-150 md:group-hover:text-blue-500"
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
