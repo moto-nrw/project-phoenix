@@ -42,10 +42,53 @@ vi.mock("~/components/ui/loading", () => ({
   Loading: () => <div data-testid="loading">Loading...</div>,
 }));
 
-// Mock PageHeaderWithSearch
+// Mock PageHeaderWithSearch — renders filters and activeFilters to exercise those code paths
 vi.mock("~/components/ui/page-header", () => ({
-  PageHeaderWithSearch: ({ title }: { title: string }) => (
-    <div data-testid="page-header">{title}</div>
+  PageHeaderWithSearch: ({
+    title,
+    filters,
+    activeFilters,
+    onClearAllFilters,
+  }: {
+    title: string;
+    filters?: Array<{
+      id: string;
+      label: string;
+      value: string | string[];
+      options: Array<{ value: string; label: string }>;
+      onChange: (value: string | string[]) => void;
+    }>;
+    activeFilters?: Array<{ id: string; label: string; onRemove: () => void }>;
+    onClearAllFilters?: () => void;
+  }) => (
+    <div data-testid="page-header">
+      {title}
+      {filters?.map((f) => (
+        <div key={f.id} data-testid={`filter-${f.id}`} data-value={f.value}>
+          {f.options.map((opt) => (
+            <button
+              key={opt.value}
+              data-testid={`filter-${f.id}-${opt.value}`}
+              onClick={() => f.onChange(opt.value)}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      ))}
+      {activeFilters?.map((af) => (
+        <span key={af.id} data-testid={`active-filter-${af.id}`}>
+          {af.label}
+          <button
+            data-testid={`remove-filter-${af.id}`}
+            onClick={af.onRemove}
+          />
+        </span>
+      ))}
+      {onClearAllFilters && (
+        <button data-testid="clear-all-filters" onClick={onClearAllFilters} />
+      )}
+    </div>
   ),
 }));
 
@@ -112,18 +155,64 @@ vi.mock("~/components/ui/empty-student-results", () => ({
   EmptyStudentResults: () => <div data-testid="empty-results">No results</div>,
 }));
 
-// Mock StudentCard
+// Mock StudentCard — renders extraContent to exercise urgency icon rendering
 vi.mock("~/components/students/student-card", () => ({
   StudentCard: ({
     firstName,
     lastName,
+    extraContent,
   }: {
     firstName: string;
     lastName: string;
+    extraContent?: React.ReactNode;
   }) => (
     <div data-testid="student-card">
       {firstName} {lastName}
+      {extraContent && <div data-testid="extra-content">{extraContent}</div>}
     </div>
+  ),
+  StudentInfoRow: ({
+    children,
+    icon,
+  }: {
+    children: React.ReactNode;
+    icon: React.ReactNode;
+  }) => (
+    <div data-testid="student-info-row">
+      <span data-testid="info-row-icon">{icon}</span>
+      {children}
+    </div>
+  ),
+  PickupTimeIcon: () => <span data-testid="pickup-time-icon">clock-gray</span>,
+  ExceptionIcon: () => <span data-testid="exception-icon">exception</span>,
+}));
+
+// Mock pickup schedule API
+const mockFetchBulkPickupTimes = vi.fn(() =>
+  Promise.resolve(
+    new Map<
+      string,
+      { pickupTime: string; isException: boolean; reason?: string }
+    >(),
+  ),
+);
+vi.mock("~/lib/pickup-schedule-api", () => ({
+  fetchBulkPickupTimes: (
+    ...args: Parameters<typeof mockFetchBulkPickupTimes>
+  ) => mockFetchBulkPickupTimes(...args),
+}));
+
+// Mock lucide-react icons
+vi.mock("lucide-react", () => ({
+  Clock: ({ className }: { className?: string }) => (
+    <span data-testid="lucide-clock" className={className}>
+      clock
+    </span>
+  ),
+  AlertTriangle: ({ className }: { className?: string }) => (
+    <span data-testid="lucide-alert-triangle" className={className}>
+      alert
+    </span>
   ),
 }));
 
@@ -133,6 +222,7 @@ vi.mock("~/lib/swr", () => ({
 }));
 
 import { useSWRAuth } from "~/lib/swr";
+import { isHomeLocation } from "~/lib/location-helper";
 import OGSGroupPage from "./page";
 
 describe("OGSGroupPage", () => {
@@ -1717,5 +1807,369 @@ describe("OGSGroupPage clear all filters includes sort reset", () => {
     expect(selectedYear).toBe("all");
     expect(attendanceFilter).toBe("all");
     expect(sortMode).toBe("default");
+  });
+});
+
+// ===== RENDER TESTS that exercise actual source code lines =====
+// These tests render the component with pickup time data to cover
+// getPickupUrgency, renderPickupIcon, sortedStudents, and filter configs.
+
+describe("OGSGroupPage rendered pickup urgency", () => {
+  const mockMutate = vi.fn();
+
+  function setupWithStudentsAndPickupTimes(
+    pickupMap: Map<
+      string,
+      { pickupTime: string; isException: boolean; reason?: string }
+    >,
+    locationMocks?: {
+      isHome?: (loc: string | null | undefined) => boolean;
+    },
+  ) {
+    vi.clearAllMocks();
+    global.fetch = vi.fn();
+
+    // Setup location mocks
+    if (locationMocks?.isHome) {
+      vi.mocked(isHomeLocation).mockImplementation(locationMocks.isHome);
+    } else {
+      vi.mocked(isHomeLocation).mockReturnValue(false);
+    }
+
+    // Return pickup times when fetched
+    mockFetchBulkPickupTimes.mockResolvedValue(pickupMap);
+
+    // Two SWR calls: dashboard (first) and students (second)
+    vi.mocked(useSWRAuth)
+      .mockReturnValueOnce({
+        data: {
+          groups: [
+            {
+              id: 1,
+              name: "OGS Gruppe A",
+              room_id: 10,
+              room: { id: 10, name: "Raum 101" },
+            },
+          ],
+          students: [
+            {
+              id: "1",
+              name: "Anna Becker",
+              first_name: "Anna",
+              second_name: "Becker",
+              current_location: "Raum 101",
+            },
+            {
+              id: "2",
+              name: "Max Zeller",
+              first_name: "Max",
+              second_name: "Zeller",
+              current_location: "Raum 101",
+            },
+            {
+              id: "3",
+              name: "Lena Mueller",
+              first_name: "Lena",
+              second_name: "Mueller",
+              current_location: "Zuhause",
+            },
+          ],
+          roomStatus: {
+            student_room_status: {
+              "1": { in_group_room: true },
+              "2": { in_group_room: true },
+              "3": { in_group_room: false },
+            },
+          },
+          substitutions: [],
+          firstGroupId: "1",
+        },
+        isLoading: false,
+        error: null,
+        mutate: mockMutate,
+        isValidating: false,
+      } as never)
+      .mockReturnValue({
+        data: null,
+        isLoading: false,
+        error: null,
+        mutate: mockMutate,
+        isValidating: false,
+      } as never);
+  }
+
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+  });
+
+  it("renders pickup time with default gray icon when no urgency", async () => {
+    // Pickup far in the future (normal urgency)
+    const pickupMap = new Map([
+      ["1", { pickupTime: "23:59", isException: false }],
+    ]);
+    setupWithStudentsAndPickupTimes(pickupMap);
+
+    render(<OGSGroupPage />);
+
+    await waitFor(() => {
+      expect(screen.getAllByTestId("student-card")).toHaveLength(3);
+    });
+
+    // Should render pickup time text
+    await waitFor(() => {
+      expect(screen.getByText(/23:59 Uhr/)).toBeInTheDocument();
+    });
+
+    // Should render default pickup time icon (gray clock from mock)
+    expect(screen.getByTestId("pickup-time-icon")).toBeInTheDocument();
+  });
+
+  it("renders pulsing orange clock when pickup is within 30 minutes", async () => {
+    // Set pickup time to be within 30 minutes of now
+    const now = new Date();
+    const soonMinutes = now.getMinutes() + 15;
+    const soonHours = now.getHours() + (soonMinutes >= 60 ? 1 : 0);
+    const soonTime = `${String(soonHours % 24).padStart(2, "0")}:${String(soonMinutes % 60).padStart(2, "0")}`;
+
+    const pickupMap = new Map([
+      ["1", { pickupTime: soonTime, isException: false }],
+    ]);
+    setupWithStudentsAndPickupTimes(pickupMap);
+
+    render(<OGSGroupPage />);
+
+    await waitFor(() => {
+      expect(screen.getAllByTestId("student-card")).toHaveLength(3);
+    });
+
+    // Should render lucide Clock icon (from mock)
+    await waitFor(() => {
+      expect(screen.getByTestId("lucide-clock")).toBeInTheDocument();
+    });
+  });
+
+  it("renders red alert triangle when pickup is overdue", async () => {
+    // Set pickup time to past
+    const pickupMap = new Map([
+      ["1", { pickupTime: "00:01", isException: false }],
+    ]);
+    setupWithStudentsAndPickupTimes(pickupMap);
+
+    render(<OGSGroupPage />);
+
+    await waitFor(() => {
+      expect(screen.getAllByTestId("student-card")).toHaveLength(3);
+    });
+
+    // Should render lucide AlertTriangle icon (from mock)
+    await waitFor(() => {
+      expect(screen.getByTestId("lucide-alert-triangle")).toBeInTheDocument();
+    });
+  });
+
+  it("renders exception icon when student has pickup exception", async () => {
+    const pickupMap = new Map([
+      [
+        "1",
+        {
+          pickupTime: "00:01",
+          isException: true,
+          reason: "Arzttermin",
+        },
+      ],
+    ]);
+    setupWithStudentsAndPickupTimes(pickupMap);
+
+    render(<OGSGroupPage />);
+
+    await waitFor(() => {
+      expect(screen.getAllByTestId("student-card")).toHaveLength(3);
+    });
+
+    // Exception icon should be used instead of urgency icon
+    await waitFor(() => {
+      expect(screen.getByTestId("exception-icon")).toBeInTheDocument();
+    });
+
+    // Exception reason should be displayed
+    expect(screen.getByText("(Arzttermin)")).toBeInTheDocument();
+  });
+
+  it("does not show urgency icon for at-home students", async () => {
+    // Student 3 is "Zuhause" — should get no urgency even with overdue time
+    const pickupMap = new Map([
+      ["3", { pickupTime: "00:01", isException: false }],
+    ]);
+    setupWithStudentsAndPickupTimes(pickupMap, {
+      isHome: (loc) => loc === "Zuhause",
+    });
+
+    render(<OGSGroupPage />);
+
+    await waitFor(() => {
+      expect(screen.getAllByTestId("student-card")).toHaveLength(3);
+    });
+
+    // At-home student with overdue time should get default gray icon, not alert triangle
+    await waitFor(() => {
+      expect(screen.getByText(/00:01 Uhr/)).toBeInTheDocument();
+    });
+    // Should use PickupTimeIcon (default gray), not AlertTriangle
+    expect(screen.getByTestId("pickup-time-icon")).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("lucide-alert-triangle"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("renders sort filter with Alphabetisch and Nächste Abholung options", async () => {
+    setupWithStudentsAndPickupTimes(new Map());
+
+    render(<OGSGroupPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("filter-sort")).toBeInTheDocument();
+    });
+
+    // Sort filter should have both options
+    expect(screen.getByTestId("filter-sort-default")).toBeInTheDocument();
+    expect(screen.getByTestId("filter-sort-pickup")).toBeInTheDocument();
+
+    // Labels should match
+    expect(screen.getByText("Alphabetisch")).toBeInTheDocument();
+    expect(screen.getByText("Nächste Abholung")).toBeInTheDocument();
+  });
+
+  it("renders students in alphabetical order by default", async () => {
+    setupWithStudentsAndPickupTimes(new Map());
+
+    render(<OGSGroupPage />);
+
+    await waitFor(() => {
+      const cards = screen.getAllByTestId("student-card");
+      expect(cards).toHaveLength(3);
+    });
+
+    // Default sort is alphabetical by last name
+    const cards = screen.getAllByTestId("student-card");
+    expect(cards[0]?.textContent).toContain("Anna Becker");
+    expect(cards[1]?.textContent).toContain("Lena Mueller");
+    expect(cards[2]?.textContent).toContain("Max Zeller");
+  });
+
+  it("shows sort active filter chip when pickup sort is active", async () => {
+    setupWithStudentsAndPickupTimes(new Map());
+
+    render(<OGSGroupPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("filter-sort")).toBeInTheDocument();
+    });
+
+    // Click "Nächste Abholung" sort button
+    const pickupSortBtn = screen.getByTestId("filter-sort-pickup");
+    pickupSortBtn.click();
+
+    // Active filter chip should appear
+    await waitFor(() => {
+      expect(screen.getByTestId("active-filter-sort")).toBeInTheDocument();
+      expect(
+        screen.getByText("Sortiert: Nächste Abholung"),
+      ).toBeInTheDocument();
+    });
+  });
+
+  it("sorts by pickup time when pickup sort is activated", async () => {
+    const pickupMap = new Map([
+      ["1", { pickupTime: "16:00", isException: false }],
+      ["2", { pickupTime: "14:00", isException: false }],
+    ]);
+    setupWithStudentsAndPickupTimes(pickupMap, {
+      isHome: (loc) => loc === "Zuhause",
+    });
+
+    render(<OGSGroupPage />);
+
+    await waitFor(() => {
+      expect(screen.getAllByTestId("student-card")).toHaveLength(3);
+    });
+
+    // Activate pickup sort
+    const pickupSortBtn = screen.getByTestId("filter-sort-pickup");
+    pickupSortBtn.click();
+
+    // After sort: 14:00 (Zeller) → 16:00 (Becker) → no time at home (Mueller)
+    await waitFor(() => {
+      const cards = screen.getAllByTestId("student-card");
+      expect(cards[0]?.textContent).toContain("Max Zeller"); // 14:00
+      expect(cards[1]?.textContent).toContain("Anna Becker"); // 16:00
+      expect(cards[2]?.textContent).toContain("Lena Mueller"); // at home, no time
+    });
+  });
+
+  it("removes sort active filter when chip is dismissed", async () => {
+    setupWithStudentsAndPickupTimes(new Map());
+
+    render(<OGSGroupPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("filter-sort")).toBeInTheDocument();
+    });
+
+    // Activate pickup sort
+    screen.getByTestId("filter-sort-pickup").click();
+
+    await waitFor(() => {
+      expect(screen.getByTestId("active-filter-sort")).toBeInTheDocument();
+    });
+
+    // Remove the filter
+    screen.getByTestId("remove-filter-sort").click();
+
+    await waitFor(() => {
+      expect(
+        screen.queryByTestId("active-filter-sort"),
+      ).not.toBeInTheDocument();
+    });
+  });
+
+  it("clears sort mode when clear all filters is clicked", async () => {
+    setupWithStudentsAndPickupTimes(new Map());
+
+    render(<OGSGroupPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("filter-sort")).toBeInTheDocument();
+    });
+
+    // Activate pickup sort
+    screen.getByTestId("filter-sort-pickup").click();
+
+    await waitFor(() => {
+      expect(screen.getByTestId("active-filter-sort")).toBeInTheDocument();
+    });
+
+    // Clear all filters
+    screen.getByTestId("clear-all-filters").click();
+
+    await waitFor(() => {
+      expect(
+        screen.queryByTestId("active-filter-sort"),
+      ).not.toBeInTheDocument();
+    });
+  });
+
+  it("renders students without pickup time (no extra content)", async () => {
+    // No pickup times at all
+    setupWithStudentsAndPickupTimes(new Map());
+
+    render(<OGSGroupPage />);
+
+    await waitFor(() => {
+      expect(screen.getAllByTestId("student-card")).toHaveLength(3);
+    });
+
+    // No extra-content should be rendered (no pickup times)
+    expect(screen.queryByTestId("extra-content")).not.toBeInTheDocument();
   });
 });
