@@ -1792,16 +1792,11 @@ describe("OGSGroupPage sort filter config", () => {
 
 describe("OGSGroupPage clear all filters includes sort reset", () => {
   it("resets sort mode along with other filters", () => {
-    let searchTerm = "Max";
-    let selectedYear = "2";
-    let attendanceFilter = "in_room";
-    let sortMode = "pickup";
-
-    // Simulate onClearAllFilters
-    searchTerm = "";
-    selectedYear = "all";
-    attendanceFilter = "all";
-    sortMode = "default";
+    // Values after onClearAllFilters runs
+    const searchTerm = "";
+    const selectedYear = "all";
+    const attendanceFilter = "all";
+    const sortMode = "default";
 
     expect(searchTerm).toBe("");
     expect(selectedYear).toBe("all");
