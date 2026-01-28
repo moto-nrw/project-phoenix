@@ -393,7 +393,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
 
       {/* Modern Pill-Style Bottom Navigation (shadcn-inspired) */}
       <nav
-        className={`fixed right-0 bottom-0 left-0 z-30 translate-y-0 transition-transform duration-300 ease-in-out lg:hidden ${className} `}
+        className={`fixed right-0 bottom-0 left-0 z-30 translate-y-0 transition-transform duration-150 ease-in-out lg:hidden ${className} `}
       >
         {/* Pill container with margins */}
         <div className="px-4 pb-4">
@@ -405,7 +405,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
                   className={`absolute top-0 h-full rounded-full bg-gray-900 shadow-md ${
                     isInitialMount.current
                       ? ""
-                      : "transition-all duration-300 ease-out"
+                      : "transition-all duration-150 ease-out"
                   }`}
                   style={{
                     left: `${indicatorStyle.left}px`,

@@ -959,7 +959,7 @@ function MeinRaumPageContent() {
             isSchulhof ? (
               <button
                 onClick={() => setShowReleaseModal(true)}
-                className="group relative flex h-10 items-center gap-2 rounded-full bg-gradient-to-br from-amber-400 to-yellow-500 px-4 text-white shadow-lg transition-all duration-300 hover:scale-105 hover:shadow-xl hover:shadow-amber-400/30 active:scale-95"
+                className="group relative flex h-10 items-center gap-2 rounded-full bg-gradient-to-br from-amber-400 to-yellow-500 px-4 text-white shadow-lg transition-all duration-150 hover:scale-105 hover:shadow-xl hover:shadow-amber-400/30 active:scale-95"
                 aria-label="Aufsicht abgeben"
               >
                 <div className="pointer-events-none absolute inset-[2px] rounded-full bg-gradient-to-br from-white/20 to-white/0 opacity-0 transition-opacity duration-300 group-hover:opacity-100"></div>
@@ -986,7 +986,7 @@ function MeinRaumPageContent() {
             isSchulhof ? (
               <button
                 onClick={() => setShowReleaseModal(true)}
-                className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-amber-400 to-yellow-500 text-white shadow-md transition-all duration-200 active:scale-90"
+                className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-amber-400 to-yellow-500 text-white shadow-md transition-all duration-150 active:scale-90"
                 aria-label="Aufsicht abgeben"
               >
                 <svg

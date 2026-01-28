@@ -23,11 +23,10 @@ export function BackgroundWrapper({ children }: BackgroundWrapperProps) {
       <div className="relative">{children}</div>
 
       {/* Global modal blur overlay - z-50 above header (z-40), below modal (z-[9999]) */}
+      {/* Always keep backdrop-blur active to prevent layout shift from stacking context change */}
       <div
-        className={`pointer-events-none fixed inset-0 z-50 transition-all duration-300 ${
-          isModalOpen
-            ? "bg-black/5 backdrop-blur-sm"
-            : "bg-transparent backdrop-blur-none"
+        className={`pointer-events-none fixed inset-0 z-50 backdrop-blur-sm transition-opacity duration-200 ${
+          isModalOpen ? "bg-black/5 opacity-100" : "opacity-0"
         }`}
         aria-hidden="true"
       />

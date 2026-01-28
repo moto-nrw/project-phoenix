@@ -37,7 +37,7 @@ const StatCard: React.FC<StatCardProps> = ({
   colorClass,
   overlayClass,
 }) => (
-  <div className="relative overflow-hidden rounded-2xl border border-gray-100/50 bg-white/90 shadow-[0_4px_20px_rgb(0,0,0,0.08)] backdrop-blur-md transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_8px_30px_rgb(0,0,0,0.12)]">
+  <div className="relative overflow-hidden rounded-2xl border border-gray-100/50 bg-white/90 shadow-[0_4px_20px_rgb(0,0,0,0.08)] backdrop-blur-md transition-all duration-150 hover:-translate-y-0.5 hover:shadow-[0_8px_30px_rgb(0,0,0,0.12)]">
     <div
       className={`pointer-events-none absolute inset-0 bg-gradient-to-br ${overlayClass} rounded-2xl opacity-[0.03]`}
     />

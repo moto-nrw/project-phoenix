@@ -267,7 +267,7 @@ export default function RoomsPage() {
             !isMobile && (
               <button
                 onClick={() => setShowCreateModal(true)}
-                className="group relative flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-indigo-600 text-white shadow-lg transition-all duration-300 hover:scale-110 hover:shadow-xl active:scale-95"
+                className="group relative flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-indigo-600 text-white shadow-lg transition-all duration-150 hover:scale-105 hover:shadow-xl active:scale-95"
                 style={{
                   background:
                     "linear-gradient(135deg, rgb(99, 102, 241) 0%, rgb(79, 70, 229) 100%)",
@@ -277,9 +277,9 @@ export default function RoomsPage() {
                 }}
                 aria-label="Raum erstellen"
               >
-                <div className="pointer-events-none absolute inset-[2px] rounded-full bg-gradient-to-br from-white/20 to-white/0 opacity-0 transition-opacity duration-300 group-hover:opacity-100"></div>
+                <div className="pointer-events-none absolute inset-[2px] rounded-full bg-gradient-to-br from-white/20 to-white/0 opacity-0 transition-opacity duration-150 group-hover:opacity-100"></div>
                 <svg
-                  className="relative h-5 w-5 transition-transform duration-300 group-active:rotate-90"
+                  className="relative h-5 w-5 transition-transform duration-150 group-active:rotate-90"
                   fill="none"
                   viewBox="0 0 24 24"
                   stroke="currentColor"
@@ -291,7 +291,7 @@ export default function RoomsPage() {
                     d="M12 4.5v15m7.5-7.5h-15"
                   />
                 </svg>
-                <div className="pointer-events-none absolute inset-0 scale-0 rounded-full bg-white/20 opacity-0 transition-transform duration-500 group-hover:scale-100 group-hover:opacity-100"></div>
+                <div className="pointer-events-none absolute inset-0 scale-0 rounded-full bg-white/20 opacity-0 transition-transform duration-200 group-hover:scale-100 group-hover:opacity-100"></div>
               </button>
             )
           }
@@ -311,9 +311,9 @@ export default function RoomsPage() {
         }}
         aria-label="Raum erstellen"
       >
-        <div className="pointer-events-none absolute inset-[2px] rounded-full bg-gradient-to-br from-white/20 to-white/0 opacity-0 transition-opacity duration-300 group-hover:opacity-100"></div>
+        <div className="pointer-events-none absolute inset-[2px] rounded-full bg-gradient-to-br from-white/20 to-white/0 opacity-0 transition-opacity duration-150 group-hover:opacity-100"></div>
         <svg
-          className="pointer-events-none relative h-6 w-6 transition-transform duration-300 group-active:rotate-90"
+          className="pointer-events-none relative h-6 w-6 transition-transform duration-150 group-active:rotate-90"
           fill="none"
           viewBox="0 0 24 24"
           stroke="currentColor"
@@ -325,7 +325,7 @@ export default function RoomsPage() {
             d="M12 4.5v15m7.5-7.5h-15"
           />
         </svg>
-        <div className="pointer-events-none absolute inset-0 scale-0 rounded-full bg-white/20 opacity-0 transition-transform duration-500 group-hover:scale-100 group-hover:opacity-100"></div>
+        <div className="pointer-events-none absolute inset-0 scale-0 rounded-full bg-white/20 opacity-0 transition-transform duration-200 group-hover:scale-100 group-hover:opacity-100"></div>
       </button>
 
       {/* Error */}
@@ -375,7 +375,7 @@ export default function RoomsPage() {
                 type="button"
                 key={room.id}
                 onClick={handleClick}
-                className="group relative w-full cursor-pointer overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 text-left shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-500 active:scale-[0.99] md:hover:-translate-y-1 md:hover:scale-[1.01] md:hover:border-indigo-200/50 md:hover:bg-white md:hover:shadow-[0_20px_50px_rgb(0,0,0,0.15)]"
+                className="group relative w-full cursor-pointer overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 text-left shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-150 active:scale-[0.98] md:hover:-translate-y-0.5 md:hover:border-indigo-300/50 md:hover:bg-white md:hover:shadow-[0_12px_40px_rgb(0,0,0,0.18)]"
                 style={{
                   animationName: "fadeInUp",
                   animationDuration: "0.5s",
@@ -391,7 +391,7 @@ export default function RoomsPage() {
 
                 <div className="relative flex items-center gap-4 p-5">
                   <div className="flex-shrink-0">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-indigo-600 font-semibold text-white shadow-md transition-transform duration-300 md:group-hover:scale-110">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-indigo-600 font-semibold text-white shadow-md transition-transform duration-150 md:group-hover:scale-105">
                       {initial}
                     </div>
                   </div>

@@ -100,7 +100,7 @@ export function MobileTabsActionArea(
   if (!actionButton && !statusIndicator && !badge) return null;
 
   return (
-    <div className="mr-2 flex flex-shrink-0 items-center gap-2 pb-3 md:hidden md:gap-3">
+    <div className="mr-2 flex flex-shrink-0 items-center gap-2 md:hidden md:gap-3">
       <TabsActionArea {...props} variant="mobile" />
     </div>
   );
