@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useLayoutEffect, useRef } from "react";
 
 /**
  * Custom hook to lock body scroll when a modal/popup is open
@@ -8,7 +8,7 @@ export function useScrollLock(isLocked: boolean) {
   const scrollPosition = useRef(0);
   const modalContentElements = useRef<WeakSet<Element>>(new WeakSet());
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (typeof globalThis === "undefined") return;
 
     if (isLocked) {
