@@ -285,7 +285,7 @@ export default function ActivitiesPage() {
               !isMobile && (
                 <button
                   onClick={() => setIsQuickCreateOpen(true)}
-                  className="group flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-[#FF3130] to-[#e02020] text-white shadow-lg transition-all duration-300 hover:scale-110 hover:shadow-xl active:scale-95"
+                  className="group flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-[#FF3130] to-[#e02020] text-white shadow-lg transition-all duration-150 hover:scale-105 hover:shadow-xl active:scale-95"
                   style={{
                     background:
                       "linear-gradient(135deg, rgb(255, 49, 48) 0%, rgb(224, 32, 32) 100%)",
@@ -295,9 +295,9 @@ export default function ActivitiesPage() {
                   }}
                   aria-label="Aktivität erstellen"
                 >
-                  <div className="absolute inset-[2px] rounded-full bg-gradient-to-br from-white/20 to-white/0 opacity-0 transition-opacity duration-300 group-hover:opacity-100"></div>
+                  <div className="absolute inset-[2px] rounded-full bg-gradient-to-br from-white/20 to-white/0 opacity-0 transition-opacity duration-150 group-hover:opacity-100"></div>
                   <svg
-                    className="relative h-5 w-5 transition-transform duration-300 group-active:rotate-90"
+                    className="relative h-5 w-5 transition-transform duration-150 group-active:rotate-90"
                     fill="none"
                     viewBox="0 0 24 24"
                     stroke="currentColor"
@@ -309,7 +309,7 @@ export default function ActivitiesPage() {
                       d="M12 4.5v15m7.5-7.5h-15"
                     />
                   </svg>
-                  <div className="absolute inset-0 scale-0 rounded-full bg-white/20 opacity-0 transition-transform duration-500 group-hover:scale-100 group-hover:opacity-100"></div>
+                  <div className="absolute inset-0 scale-0 rounded-full bg-white/20 opacity-0 transition-transform duration-200 group-hover:scale-100 group-hover:opacity-100"></div>
                 </button>
               )
             }
@@ -319,7 +319,7 @@ export default function ActivitiesPage() {
         {/* Mobile FAB Create Button - z-40 to appear below drawer modal (z-50) */}
         <button
           onClick={() => setIsQuickCreateOpen(true)}
-          className="group fixed right-4 bottom-24 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-[#FF3130] to-[#e02020] text-white shadow-[0_8px_30px_rgb(0,0,0,0.12)] transition-all duration-300 hover:shadow-[0_8px_40px_rgb(255,49,48,0.3)] active:scale-95 md:hidden"
+          className="group fixed right-4 bottom-24 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-[#FF3130] to-[#e02020] text-white shadow-[0_8px_30px_rgb(0,0,0,0.12)] transition-all duration-150 hover:shadow-[0_8px_40px_rgb(255,49,48,0.3)] active:scale-95 md:hidden"
           style={{
             background:
               "linear-gradient(135deg, rgb(255, 49, 48) 0%, rgb(224, 32, 32) 100%)",
@@ -329,9 +329,9 @@ export default function ActivitiesPage() {
           }}
           aria-label="Aktivität erstellen"
         >
-          <div className="absolute inset-[2px] rounded-full bg-gradient-to-br from-white/20 to-white/0 opacity-0 transition-opacity duration-300 group-hover:opacity-100"></div>
+          <div className="absolute inset-[2px] rounded-full bg-gradient-to-br from-white/20 to-white/0 opacity-0 transition-opacity duration-150 group-hover:opacity-100"></div>
           <svg
-            className="relative h-6 w-6 transition-transform duration-300 group-active:rotate-90"
+            className="relative h-6 w-6 transition-transform duration-150 group-active:rotate-90"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -343,7 +343,7 @@ export default function ActivitiesPage() {
               d="M12 4.5v15m7.5-7.5h-15"
             />
           </svg>
-          <div className="absolute inset-0 scale-0 rounded-full bg-white/20 opacity-0 transition-transform duration-500 group-hover:scale-100 group-hover:opacity-100"></div>
+          <div className="absolute inset-0 scale-0 rounded-full bg-white/20 opacity-0 transition-transform duration-200 group-hover:scale-100 group-hover:opacity-100"></div>
         </button>
 
         {/* Error Alert */}
