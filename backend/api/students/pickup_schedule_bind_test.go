@@ -795,6 +795,21 @@ func TestHandlerAccessorMethods(t *testing.T) {
 		handler := rs.GetBulkPickupTimesHandler()
 		assert.NotNil(t, handler, "Handler should not be nil")
 	})
+
+	t.Run("CreateStudentPickupNoteHandler returns handler", func(t *testing.T) {
+		handler := rs.CreateStudentPickupNoteHandler()
+		assert.NotNil(t, handler, "Handler should not be nil")
+	})
+
+	t.Run("UpdateStudentPickupNoteHandler returns handler", func(t *testing.T) {
+		handler := rs.UpdateStudentPickupNoteHandler()
+		assert.NotNil(t, handler, "Handler should not be nil")
+	})
+
+	t.Run("DeleteStudentPickupNoteHandler returns handler", func(t *testing.T) {
+		handler := rs.DeleteStudentPickupNoteHandler()
+		assert.NotNil(t, handler, "Handler should not be nil")
+	})
 }
 
 // =============================================================================

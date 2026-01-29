@@ -2,6 +2,7 @@ package schedule_test
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -831,5 +832,282 @@ func TestPickupScheduleService_GetBulkEffectivePickupTimesForDate(t *testing.T) 
 		assert.NotNil(t, results[student.ID].PickupTime)
 		assert.Equal(t, "Picked up by aunt", results[student.ID].Notes)
 		assert.False(t, results[student.ID].IsException)
+	})
+}
+
+// =============================================================================
+// Note Operations Tests
+// =============================================================================
+
+func TestPickupScheduleService_CreateStudentPickupNote(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupPickupScheduleService(t, db)
+	ctx := context.Background()
+
+	t.Run("creates note successfully", func(t *testing.T) {
+		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
+		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
+
+		note := &scheduleModels.StudentPickupNote{
+			StudentID: student.ID,
+			NoteDate:  time.Date(2024, 3, 15, 12, 0, 0, 0, timezone.Berlin),
+			Content:   "Please call before pickup",
+			CreatedBy: 1,
+		}
+
+		err := service.CreateStudentPickupNote(ctx, note)
+
+		require.NoError(t, err)
+		assert.Greater(t, note.ID, int64(0))
+	})
+
+	t.Run("fails validation for invalid note", func(t *testing.T) {
+		note := &scheduleModels.StudentPickupNote{
+			StudentID: 0, // Invalid
+			NoteDate:  time.Date(2024, 3, 15, 12, 0, 0, 0, timezone.Berlin),
+			Content:   "Test",
+			CreatedBy: 1,
+		}
+
+		err := service.CreateStudentPickupNote(ctx, note)
+
+		require.Error(t, err)
+	})
+
+	t.Run("fails validation for empty content", func(t *testing.T) {
+		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
+		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
+
+		note := &scheduleModels.StudentPickupNote{
+			StudentID: student.ID,
+			NoteDate:  time.Date(2024, 3, 15, 12, 0, 0, 0, timezone.Berlin),
+			Content:   "",
+			CreatedBy: 1,
+		}
+
+		err := service.CreateStudentPickupNote(ctx, note)
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "content is required")
+	})
+}
+
+func TestPickupScheduleService_GetStudentPickupNoteByID(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupPickupScheduleService(t, db)
+	ctx := context.Background()
+
+	t.Run("returns note by ID", func(t *testing.T) {
+		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
+		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
+
+		note := &scheduleModels.StudentPickupNote{
+			StudentID: student.ID,
+			NoteDate:  time.Date(2024, 3, 16, 12, 0, 0, 0, timezone.Berlin),
+			Content:   "Test note",
+			CreatedBy: 1,
+		}
+		err := service.CreateStudentPickupNote(ctx, note)
+		require.NoError(t, err)
+
+		result, err := service.GetStudentPickupNoteByID(ctx, note.ID)
+
+		require.NoError(t, err)
+		assert.NotNil(t, result)
+		assert.Equal(t, note.ID, result.ID)
+		assert.Equal(t, "Test note", result.Content)
+	})
+}
+
+func TestPickupScheduleService_GetStudentPickupNotes(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupPickupScheduleService(t, db)
+	ctx := context.Background()
+
+	t.Run("returns all notes for student", func(t *testing.T) {
+		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
+		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
+
+		baseDate := timezone.Today()
+		for i := 0; i < 3; i++ {
+			note := &scheduleModels.StudentPickupNote{
+				StudentID: student.ID,
+				NoteDate:  baseDate.AddDate(0, 0, i),
+				Content:   "Note content",
+				CreatedBy: 1,
+			}
+			err := service.CreateStudentPickupNote(ctx, note)
+			require.NoError(t, err)
+		}
+
+		results, err := service.GetStudentPickupNotes(ctx, student.ID)
+
+		require.NoError(t, err)
+		assert.Len(t, results, 3)
+	})
+
+	t.Run("returns empty slice when no notes", func(t *testing.T) {
+		results, err := service.GetStudentPickupNotes(ctx, int64(99999999))
+
+		require.NoError(t, err)
+		assert.Empty(t, results)
+	})
+}
+
+func TestPickupScheduleService_GetStudentPickupNotesForDate(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupPickupScheduleService(t, db)
+	ctx := context.Background()
+
+	t.Run("returns notes for specific date", func(t *testing.T) {
+		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
+		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
+
+		targetDate := time.Date(2024, 3, 20, 12, 0, 0, 0, timezone.Berlin)
+
+		// Create notes for target date
+		for i := 0; i < 2; i++ {
+			note := &scheduleModels.StudentPickupNote{
+				StudentID: student.ID,
+				NoteDate:  targetDate,
+				Content:   fmt.Sprintf("Note %d", i),
+				CreatedBy: 1,
+			}
+			err := service.CreateStudentPickupNote(ctx, note)
+			require.NoError(t, err)
+		}
+
+		// Create note for different date
+		differentDate := targetDate.AddDate(0, 0, 1)
+		note := &scheduleModels.StudentPickupNote{
+			StudentID: student.ID,
+			NoteDate:  differentDate,
+			Content:   "Different date note",
+			CreatedBy: 1,
+		}
+		err := service.CreateStudentPickupNote(ctx, note)
+		require.NoError(t, err)
+
+		results, err := service.GetStudentPickupNotesForDate(ctx, student.ID, targetDate)
+
+		require.NoError(t, err)
+		assert.Len(t, results, 2)
+	})
+}
+
+func TestPickupScheduleService_UpdateStudentPickupNote(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupPickupScheduleService(t, db)
+	ctx := context.Background()
+
+	t.Run("updates note successfully", func(t *testing.T) {
+		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
+		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
+
+		note := &scheduleModels.StudentPickupNote{
+			StudentID: student.ID,
+			NoteDate:  time.Date(2024, 4, 1, 0, 0, 0, 0, time.UTC),
+			Content:   "Original content",
+			CreatedBy: 1,
+		}
+		err := service.CreateStudentPickupNote(ctx, note)
+		require.NoError(t, err)
+
+		note.Content = "Updated content"
+
+		err = service.UpdateStudentPickupNote(ctx, note)
+
+		require.NoError(t, err)
+
+		notes, err := service.GetStudentPickupNotes(ctx, student.ID)
+		require.NoError(t, err)
+		assert.Len(t, notes, 1)
+		assert.Equal(t, "Updated content", notes[0].Content)
+	})
+
+	t.Run("fails validation on invalid note", func(t *testing.T) {
+		note := &scheduleModels.StudentPickupNote{
+			StudentID: 0, // Invalid
+			NoteDate:  time.Date(2024, 4, 1, 0, 0, 0, 0, time.UTC),
+			Content:   "Test",
+			CreatedBy: 1,
+		}
+
+		err := service.UpdateStudentPickupNote(ctx, note)
+
+		require.Error(t, err)
+	})
+}
+
+func TestPickupScheduleService_DeleteStudentPickupNote(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupPickupScheduleService(t, db)
+	ctx := context.Background()
+
+	t.Run("deletes note by ID", func(t *testing.T) {
+		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
+		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
+
+		note := &scheduleModels.StudentPickupNote{
+			StudentID: student.ID,
+			NoteDate:  time.Date(2024, 5, 1, 0, 0, 0, 0, time.UTC),
+			Content:   "Test",
+			CreatedBy: 1,
+		}
+		err := service.CreateStudentPickupNote(ctx, note)
+		require.NoError(t, err)
+
+		err = service.DeleteStudentPickupNote(ctx, note.ID)
+
+		require.NoError(t, err)
+
+		results, err := service.GetStudentPickupNotes(ctx, student.ID)
+		require.NoError(t, err)
+		assert.Empty(t, results)
+	})
+}
+
+func TestPickupScheduleService_DeleteAllStudentPickupNotes(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupPickupScheduleService(t, db)
+	ctx := context.Background()
+
+	t.Run("deletes all notes for student", func(t *testing.T) {
+		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
+		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
+
+		baseDate := timezone.Today()
+		for i := 1; i <= 5; i++ {
+			note := &scheduleModels.StudentPickupNote{
+				StudentID: student.ID,
+				NoteDate:  baseDate.AddDate(0, 0, i),
+				Content:   "Note",
+				CreatedBy: 1,
+			}
+			err := service.CreateStudentPickupNote(ctx, note)
+			require.NoError(t, err)
+		}
+
+		err := service.DeleteAllStudentPickupNotes(ctx, student.ID)
+
+		require.NoError(t, err)
+
+		results, err := service.GetStudentPickupNotes(ctx, student.ID)
+		require.NoError(t, err)
+		assert.Empty(t, results)
 	})
 }
