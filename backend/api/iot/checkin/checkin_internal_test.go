@@ -420,91 +420,49 @@ func TestShouldUpgradeToDailyCheckout_NilActiveGroup(t *testing.T) {
 }
 
 // =============================================================================
-// isPendingDailyCheckoutScenario TESTS
+// buildCheckinResponse DailyCheckoutAvailable TESTS
 // =============================================================================
 
-func TestIsPendingDailyCheckoutScenario_NilGroupID(t *testing.T) {
-	rs := &Resource{}
-	student := &users.Student{Model: base.Model{ID: 1}}
-	visit := &active.Visit{ActiveGroup: &active.Group{RoomID: 1}}
-	result := rs.isPendingDailyCheckoutScenario(context.Background(), student, visit)
-	assert.False(t, result)
-}
-
-func TestIsPendingDailyCheckoutScenario_NilVisit(t *testing.T) {
-	rs := &Resource{}
-	groupID := int64(1)
-	student := &users.Student{Model: base.Model{ID: 1}, GroupID: &groupID}
-	result := rs.isPendingDailyCheckoutScenario(context.Background(), student, nil)
-	assert.False(t, result)
-}
-
-func TestIsPendingDailyCheckoutScenario_NilActiveGroup(t *testing.T) {
-	rs := &Resource{}
-	groupID := int64(1)
-	student := &users.Student{Model: base.Model{ID: 1}, GroupID: &groupID}
-	visit := &active.Visit{}
-	result := rs.isPendingDailyCheckoutScenario(context.Background(), student, visit)
-	assert.False(t, result)
-}
-
-// =============================================================================
-// handlePendingDailyCheckoutResponse TESTS
-// =============================================================================
-
-func TestHandlePendingDailyCheckoutResponse_Basic(t *testing.T) {
-	w := httptest.NewRecorder()
-	r := httptest.NewRequest("POST", "/checkin", nil)
-
-	student := &users.Student{Model: base.Model{ID: 123}}
-	person := &users.Person{FirstName: "Anna", LastName: "Schmidt"}
-	currentVisit := &active.Visit{
-		Model: base.Model{ID: 456},
-		ActiveGroup: &active.Group{
-			Room: &facilities.Room{Name: "Klassenraum 1a"},
-		},
+func TestBuildCheckinResponse_DailyCheckoutAvailable(t *testing.T) {
+	now := time.Now()
+	visitID := int64(100)
+	student := &users.Student{
+		Model:  base.Model{ID: 1},
+		Person: &users.Person{FirstName: "Max", LastName: "Test"},
+	}
+	result := &checkinResult{
+		Action:                 "checked_out",
+		VisitID:                &visitID,
+		RoomName:               "Klassenraum 1a",
+		GreetingMsg:            "Tschüss Max!",
+		DailyCheckoutAvailable: true,
 	}
 
-	handlePendingDailyCheckoutResponse(w, r, student, person, currentVisit)
+	response := buildCheckinResponse(student, result, now)
 
-	assert.Equal(t, http.StatusOK, w.Code)
-
-	// Response is wrapped in common.Respond structure
-	var response map[string]interface{}
-	err := json.Unmarshal(w.Body.Bytes(), &response)
-	require.NoError(t, err)
-
-	assert.Equal(t, "success", response["status"])
-	// Data is nested under "data" field
-	data, ok := response["data"].(map[string]interface{})
-	require.True(t, ok, "data field should be a map")
-	assert.Equal(t, float64(123), data["student_id"])
-	assert.Equal(t, "Anna Schmidt", data["student_name"])
-	assert.Equal(t, "pending_daily_checkout", data["action"])
+	assert.Equal(t, true, response["daily_checkout_available"])
+	assert.Equal(t, "checked_out", response["action"])
 }
 
-func TestHandlePendingDailyCheckoutResponse_NoRoom(t *testing.T) {
-	w := httptest.NewRecorder()
-	r := httptest.NewRequest("POST", "/checkin", nil)
-
-	student := &users.Student{Model: base.Model{ID: 123}}
-	person := &users.Person{FirstName: "Max", LastName: "Muster"}
-	currentVisit := &active.Visit{
-		Model:       base.Model{ID: 789},
-		ActiveGroup: &active.Group{}, // No room
+func TestBuildCheckinResponse_DailyCheckoutNotAvailable(t *testing.T) {
+	now := time.Now()
+	visitID := int64(200)
+	student := &users.Student{
+		Model:  base.Model{ID: 2},
+		Person: &users.Person{FirstName: "Anna", LastName: "Test"},
+	}
+	result := &checkinResult{
+		Action:      "checked_in",
+		VisitID:     &visitID,
+		RoomName:    "Library",
+		GreetingMsg: "Hallo Anna!",
+		// DailyCheckoutAvailable defaults to false
 	}
 
-	handlePendingDailyCheckoutResponse(w, r, student, person, currentVisit)
+	response := buildCheckinResponse(student, result, now)
 
-	assert.Equal(t, http.StatusOK, w.Code)
-
-	var response map[string]interface{}
-	err := json.Unmarshal(w.Body.Bytes(), &response)
-	require.NoError(t, err)
-
-	data, ok := response["data"].(map[string]interface{})
-	require.True(t, ok, "data field should be a map")
-	assert.Equal(t, "", data["room_name"])
+	assert.Equal(t, false, response["daily_checkout_available"])
+	assert.Equal(t, "checked_in", response["action"])
 }
 
 // =============================================================================

@@ -3,8 +3,6 @@ package checkin
 import (
 	"context"
 	"fmt"
-	"log"
-	"net/http"
 	"os"
 	"strconv"
 	"strings"
@@ -79,51 +77,4 @@ func (rs *Resource) shouldShowDailyCheckoutWithGroup(ctx context.Context, studen
 	}
 
 	return currentVisit.ActiveGroup.RoomID == *educationGroup.RoomID
-}
-
-// isPendingDailyCheckoutScenario checks if this scan should trigger a pending daily checkout
-// (deferred checkout that waits for user confirmation before processing).
-// This is called BEFORE processCheckout() to determine if we should return early.
-func (rs *Resource) isPendingDailyCheckoutScenario(ctx context.Context, student *users.Student, currentVisit *active.Visit) bool {
-	// Check prerequisites
-	if student.GroupID == nil || currentVisit == nil || currentVisit.ActiveGroup == nil {
-		return false
-	}
-
-	// Check if time has passed daily checkout threshold
-	checkoutTime, err := getStudentDailyCheckoutTime()
-	if err != nil || !time.Now().After(checkoutTime) {
-		return false
-	}
-
-	// Check if student's room matches education group room
-	educationGroup, err := rs.EducationService.GetGroup(ctx, *student.GroupID)
-	if err != nil || educationGroup == nil || educationGroup.RoomID == nil {
-		return false
-	}
-
-	return currentVisit.ActiveGroup.RoomID == *educationGroup.RoomID
-}
-
-// handlePendingDailyCheckoutResponse sends the pending daily checkout response and returns true if handled.
-// This helper reduces cognitive complexity in deviceCheckin by extracting the response building logic.
-func handlePendingDailyCheckoutResponse(w http.ResponseWriter, r *http.Request, student *users.Student, person *users.Person, currentVisit *active.Visit) {
-	log.Printf("[CHECKIN] Pending daily checkout for student %s %s (ID: %d) - awaiting confirmation",
-		person.FirstName, person.LastName, student.ID)
-
-	// Get room name for response
-	roomName := getRoomNameFromVisit(currentVisit)
-
-	// Build and send pending response
-	response := map[string]interface{}{
-		"student_id":   student.ID,
-		"student_name": person.FirstName + " " + person.LastName,
-		"action":       "pending_daily_checkout",
-		"visit_id":     currentVisit.ID,
-		"room_name":    roomName,
-		"processed_at": time.Now(),
-		"message":      "Gehst du nach Hause?",
-		"status":       "success",
-	}
-	sendCheckinResponse(w, r, response, "pending_daily_checkout")
 }

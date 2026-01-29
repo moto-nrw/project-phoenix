@@ -9,6 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	iotCommon "github.com/moto-nrw/project-phoenix/api/iot/common"
 	"github.com/moto-nrw/project-phoenix/auth/device"
+	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 )
 
 // devicePing handles ping requests from RFID devices
@@ -127,14 +128,13 @@ func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 	var previousRoomName string
 	var checkedOut bool
 
-	// Step 6: Check for pending daily checkout (must check BEFORE processing checkout)
-	if currentVisit != nil && rs.isPendingDailyCheckoutScenario(ctx, student, currentVisit) {
-		handlePendingDailyCheckoutResponse(w, r, student, person, currentVisit)
-		return
-	}
-
 	// Step 6b: Process checkout if student has active visit
+	// If this will be a daily checkout, enable attendance auto-sync so EndVisit
+	// also sets active.attendance.check_out_time (student goes "Zuhause").
 	if currentVisit != nil {
+		if rs.shouldShowDailyCheckoutWithGroup(ctx, student, currentVisit) {
+			ctx = activeSvc.WithAttendanceAutoSync(ctx)
+		}
 		var err error
 		checkoutVisitID, previousRoomName, err = rs.processCheckout(ctx, w, r, student, person, currentVisit)
 		if err != nil {
@@ -183,6 +183,11 @@ func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 	// Step 10: Check daily checkout with education group
 	if rs.shouldUpgradeToDailyCheckout(ctx, result.Action, student, currentVisit) {
 		result.Action = "checked_out_daily"
+	}
+
+	// Compute daily_checkout_available flag for frontend "nach Hause" button
+	if currentVisit != nil && (result.Action == "checked_out" || result.Action == "checked_out_daily") {
+		result.DailyCheckoutAvailable = rs.shouldShowDailyCheckoutWithGroup(ctx, student, currentVisit)
 	}
 
 	// Step 11: Update session activity for device monitoring
