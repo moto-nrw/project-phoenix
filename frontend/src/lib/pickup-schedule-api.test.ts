@@ -617,8 +617,8 @@ describe("pickup-schedule-api", () => {
         weekdayName: "Montag",
         pickupTime: "15:30",
         isException: false,
+        dayNotes: [],
         notes: "Regular schedule",
-        reason: undefined,
       });
 
       const student456 = result.get("456");
@@ -628,8 +628,7 @@ describe("pickup-schedule-api", () => {
         weekdayName: "Montag",
         pickupTime: "16:00",
         isException: true,
-        reason: "Arzttermin",
-        notes: undefined,
+        dayNotes: [],
       });
     });
 
@@ -740,7 +739,7 @@ describe("pickup-schedule-api", () => {
         weekdayName: "Montag",
         pickupTime: undefined,
         isException: false,
-        reason: undefined,
+        dayNotes: [],
         notes: undefined,
       });
     });
