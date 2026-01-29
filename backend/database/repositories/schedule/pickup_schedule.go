@@ -21,6 +21,17 @@ const (
 	tablePickupNotes      = "schedule.student_pickup_notes"
 )
 
+// Common database operation names to avoid string duplication.
+const (
+	opFindByStudentID   = "find by student id"
+	opDeleteByStudentID = "delete by student id"
+	opFindByID          = "find by id"
+	orderCreatedAtASC   = "created_at ASC"
+)
+
+// Common query clauses to avoid string duplication.
+const whereStudentID = "student_id = ?"
+
 // errScheduleNil is returned when a nil schedule is passed to a repository method.
 var errScheduleNil = fmt.Errorf("schedule cannot be nil")
 
@@ -50,7 +61,7 @@ func (r *StudentPickupScheduleRepository) FindByStudentID(ctx context.Context, s
 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
-			Op:  "find by student id",
+			Op:  opFindByStudentID,
 			Err: err,
 		}
 	}
@@ -140,12 +151,12 @@ func (r *StudentPickupScheduleRepository) DeleteByStudentID(ctx context.Context,
 	_, err := r.db.NewDelete().
 		Model((*schedule.StudentPickupSchedule)(nil)).
 		ModelTableExpr(tablePickupSchedules).
-		Where("student_id = ?", studentID).
+		Where(whereStudentID, studentID).
 		Exec(ctx)
 
 	if err != nil {
 		return &modelBase.DatabaseError{
-			Op:  "delete by student id",
+			Op:  opDeleteByStudentID,
 			Err: err,
 		}
 	}
@@ -212,7 +223,7 @@ func (r *StudentPickupScheduleRepository) FindByID(ctx context.Context, id any) 
 		Scan(ctx)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
-			Op:  "find by id",
+			Op:  opFindByID,
 			Err: err,
 		}
 	}
@@ -246,7 +257,7 @@ func (r *StudentPickupExceptionRepository) FindByStudentID(ctx context.Context, 
 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
-			Op:  "find by student id",
+			Op:  opFindByStudentID,
 			Err: err,
 		}
 	}
@@ -333,12 +344,12 @@ func (r *StudentPickupExceptionRepository) DeleteByStudentID(ctx context.Context
 	_, err := r.db.NewDelete().
 		Model((*schedule.StudentPickupException)(nil)).
 		ModelTableExpr(tablePickupExceptions).
-		Where("student_id = ?", studentID).
+		Where(whereStudentID, studentID).
 		Exec(ctx)
 
 	if err != nil {
 		return &modelBase.DatabaseError{
-			Op:  "delete by student id",
+			Op:  opDeleteByStudentID,
 			Err: err,
 		}
 	}
@@ -428,7 +439,7 @@ func (r *StudentPickupExceptionRepository) FindByID(ctx context.Context, id any)
 		Scan(ctx)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
-			Op:  "find by id",
+			Op:  opFindByID,
 			Err: err,
 		}
 	}
@@ -457,12 +468,12 @@ func (r *StudentPickupNoteRepository) FindByStudentID(ctx context.Context, stude
 		Model(&notes).
 		ModelTableExpr(`schedule.student_pickup_notes AS "student_pickup_note"`).
 		Where(`"student_pickup_note".student_id = ?`, studentID).
-		Order("note_date ASC", "created_at ASC").
+		Order("note_date ASC", orderCreatedAtASC).
 		Scan(ctx)
 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
-			Op:  "find by student id",
+			Op:  opFindByStudentID,
 			Err: err,
 		}
 	}
@@ -480,7 +491,7 @@ func (r *StudentPickupNoteRepository) FindByStudentIDAndDate(ctx context.Context
 		ModelTableExpr(`schedule.student_pickup_notes AS "student_pickup_note"`).
 		Where(`"student_pickup_note".student_id = ?`, studentID).
 		Where(`"student_pickup_note".note_date = ?`, dateOnly).
-		Order("created_at ASC").
+		Order(orderCreatedAtASC).
 		Scan(ctx)
 
 	if err != nil {
@@ -507,7 +518,7 @@ func (r *StudentPickupNoteRepository) FindByStudentIDsAndDate(ctx context.Contex
 		ModelTableExpr(`schedule.student_pickup_notes AS "student_pickup_note"`).
 		Where(`"student_pickup_note".student_id IN (?)`, bun.In(studentIDs)).
 		Where(`"student_pickup_note".note_date = ?`, dateOnly).
-		Order("created_at ASC").
+		Order(orderCreatedAtASC).
 		Scan(ctx)
 
 	if err != nil {
@@ -525,12 +536,12 @@ func (r *StudentPickupNoteRepository) DeleteByStudentID(ctx context.Context, stu
 	_, err := r.db.NewDelete().
 		Model((*schedule.StudentPickupNote)(nil)).
 		ModelTableExpr(tablePickupNotes).
-		Where("student_id = ?", studentID).
+		Where(whereStudentID, studentID).
 		Exec(ctx)
 
 	if err != nil {
 		return &modelBase.DatabaseError{
-			Op:  "delete by student id",
+			Op:  opDeleteByStudentID,
 			Err: err,
 		}
 	}
@@ -620,7 +631,7 @@ func (r *StudentPickupNoteRepository) FindByID(ctx context.Context, id any) (*sc
 		Scan(ctx)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
-			Op:  "find by id",
+			Op:  opFindByID,
 			Err: err,
 		}
 	}

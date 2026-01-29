@@ -78,7 +78,6 @@ describe("PickupDayEditModal", () => {
 
   const defaultProps = {
     onClose: mockOnClose,
-    studentId: "123",
     onSaveException: mockOnSaveException,
     onDeleteException: mockOnDeleteException,
     onCreateNote: mockOnCreateNote,

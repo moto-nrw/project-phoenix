@@ -151,7 +151,7 @@ export function StudentInfoRow({
 }>) {
   return (
     <div className="mt-1 flex items-center gap-1.5">
-      {icon}
+      <span className="flex-shrink-0">{icon}</span>
       <span className="overflow-hidden text-xs font-medium text-ellipsis whitespace-nowrap text-gray-500">
         {children}
       </span>

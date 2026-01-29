@@ -74,6 +74,9 @@ const (
 	opCreateStudentPickupException     = "create student pickup exception"
 	opUpdateStudentPickupException     = "update student pickup exception"
 	opUpsertBulkStudentPickupSchedules = "upsert bulk student pickup schedules"
+	opGetStudentPickupData             = "get student pickup data"
+	opGetEffectivePickupTime           = "get effective pickup time"
+	opGetBulkEffectivePickupTimes      = "get bulk effective pickup times"
 )
 
 // pickupScheduleService implements PickupScheduleService
@@ -351,17 +354,17 @@ func (s *pickupScheduleService) DeleteAllStudentPickupNotes(ctx context.Context,
 func (s *pickupScheduleService) GetStudentPickupData(ctx context.Context, studentID int64) (*StudentPickupData, error) {
 	schedules, err := s.scheduleRepo.FindByStudentID(ctx, studentID)
 	if err != nil {
-		return nil, &ScheduleError{Op: "get student pickup data", Err: err}
+		return nil, &ScheduleError{Op: opGetStudentPickupData, Err: err}
 	}
 
 	exceptions, err := s.exceptionRepo.FindByStudentID(ctx, studentID)
 	if err != nil {
-		return nil, &ScheduleError{Op: "get student pickup data", Err: err}
+		return nil, &ScheduleError{Op: opGetStudentPickupData, Err: err}
 	}
 
 	notes, err := s.noteRepo.FindByStudentID(ctx, studentID)
 	if err != nil {
-		return nil, &ScheduleError{Op: "get student pickup data", Err: err}
+		return nil, &ScheduleError{Op: opGetStudentPickupData, Err: err}
 	}
 
 	return &StudentPickupData{
@@ -394,7 +397,7 @@ func (s *pickupScheduleService) GetEffectivePickupTimeForDate(ctx context.Contex
 	// Check for exception on this date first
 	exception, err := s.exceptionRepo.FindByStudentIDAndDate(ctx, studentID, dateOnly)
 	if err != nil {
-		return nil, &ScheduleError{Op: "get effective pickup time", Err: err}
+		return nil, &ScheduleError{Op: opGetEffectivePickupTime, Err: err}
 	}
 
 	if exception != nil {
@@ -404,7 +407,7 @@ func (s *pickupScheduleService) GetEffectivePickupTimeForDate(ctx context.Contex
 		// Fall back to regular schedule
 		sched, err := s.scheduleRepo.FindByStudentIDAndWeekday(ctx, studentID, weekday)
 		if err != nil {
-			return nil, &ScheduleError{Op: "get effective pickup time", Err: err}
+			return nil, &ScheduleError{Op: opGetEffectivePickupTime, Err: err}
 		}
 
 		if sched != nil {
@@ -418,7 +421,7 @@ func (s *pickupScheduleService) GetEffectivePickupTimeForDate(ctx context.Contex
 	// Load day notes
 	dayNotes, err := s.noteRepo.FindByStudentIDAndDate(ctx, studentID, dateOnly)
 	if err != nil {
-		return nil, &ScheduleError{Op: "get effective pickup time", Err: err}
+		return nil, &ScheduleError{Op: opGetEffectivePickupTime, Err: err}
 	}
 	for _, n := range dayNotes {
 		result.DayNotes = append(result.DayNotes, NoteData{ID: n.ID, Content: n.Content})
@@ -460,7 +463,7 @@ func (s *pickupScheduleService) GetBulkEffectivePickupTimesForDate(ctx context.C
 	// Bulk fetch all exceptions for the given date (single query)
 	exceptions, err := s.exceptionRepo.FindByStudentIDsAndDate(ctx, studentIDs, dateOnly)
 	if err != nil {
-		return nil, &ScheduleError{Op: "get bulk effective pickup times", Err: err}
+		return nil, &ScheduleError{Op: opGetBulkEffectivePickupTimes, Err: err}
 	}
 
 	// Build exception map for O(1) lookup
@@ -472,7 +475,7 @@ func (s *pickupScheduleService) GetBulkEffectivePickupTimesForDate(ctx context.C
 	// Bulk fetch all schedules for the given weekday (single query)
 	schedules, err := s.scheduleRepo.FindByStudentIDsAndWeekday(ctx, studentIDs, weekday)
 	if err != nil {
-		return nil, &ScheduleError{Op: "get bulk effective pickup times", Err: err}
+		return nil, &ScheduleError{Op: opGetBulkEffectivePickupTimes, Err: err}
 	}
 
 	// Build schedule map for O(1) lookup
@@ -484,7 +487,7 @@ func (s *pickupScheduleService) GetBulkEffectivePickupTimesForDate(ctx context.C
 	// Bulk fetch all notes for the given date (single query)
 	notes, err := s.noteRepo.FindByStudentIDsAndDate(ctx, studentIDs, dateOnly)
 	if err != nil {
-		return nil, &ScheduleError{Op: "get bulk effective pickup times", Err: err}
+		return nil, &ScheduleError{Op: opGetBulkEffectivePickupTimes, Err: err}
 	}
 
 	// Build notes map for grouping by student

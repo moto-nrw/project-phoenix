@@ -331,7 +331,6 @@ export default function PickupScheduleManager({
         isOpen={editingDay !== null}
         onClose={handleCloseDayEdit}
         day={currentEditingDay}
-        studentId={studentId}
         onSaveException={handleSaveException}
         onDeleteException={handleDeleteException}
         onCreateNote={handleCreateNote}

@@ -9,6 +9,12 @@ import (
 	"github.com/uptrace/bun"
 )
 
+// Common validation error messages for pickup schedule models.
+const (
+	errMsgStudentIDRequired = "student_id is required"
+	errMsgCreatedByRequired = "created_by is required"
+)
+
 // Weekday constants (ISO 8601: Monday = 1, Friday = 5)
 const (
 	WeekdayMonday    = 1
@@ -67,7 +73,7 @@ func (s *StudentPickupSchedule) TableName() string {
 // Validate ensures pickup schedule data is valid
 func (s *StudentPickupSchedule) Validate() error {
 	if s.StudentID <= 0 {
-		return errors.New("student_id is required")
+		return errors.New(errMsgStudentIDRequired)
 	}
 	if s.Weekday < WeekdayMonday || s.Weekday > WeekdayFriday {
 		return errors.New("weekday must be between 1 (Monday) and 5 (Friday)")
@@ -76,7 +82,7 @@ func (s *StudentPickupSchedule) Validate() error {
 		return errors.New("pickup_time is required")
 	}
 	if s.CreatedBy <= 0 {
-		return errors.New("created_by is required")
+		return errors.New(errMsgCreatedByRequired)
 	}
 	if s.Notes != nil && len(*s.Notes) > 500 {
 		return errors.New("notes cannot exceed 500 characters")
@@ -139,7 +145,7 @@ func (e *StudentPickupException) TableName() string {
 // Validate ensures pickup exception data is valid
 func (e *StudentPickupException) Validate() error {
 	if e.StudentID <= 0 {
-		return errors.New("student_id is required")
+		return errors.New(errMsgStudentIDRequired)
 	}
 	if e.ExceptionDate.IsZero() {
 		return errors.New("exception_date is required")
@@ -148,7 +154,7 @@ func (e *StudentPickupException) Validate() error {
 		return errors.New("reason cannot exceed 255 characters")
 	}
 	if e.CreatedBy <= 0 {
-		return errors.New("created_by is required")
+		return errors.New(errMsgCreatedByRequired)
 	}
 	return nil
 }
@@ -247,7 +253,7 @@ func (n *StudentPickupNote) TableName() string {
 // Validate ensures pickup note data is valid
 func (n *StudentPickupNote) Validate() error {
 	if n.StudentID <= 0 {
-		return errors.New("student_id is required")
+		return errors.New(errMsgStudentIDRequired)
 	}
 	if n.NoteDate.IsZero() {
 		return errors.New("note_date is required")
@@ -259,7 +265,7 @@ func (n *StudentPickupNote) Validate() error {
 		return errors.New("content cannot exceed 500 characters")
 	}
 	if n.CreatedBy <= 0 {
-		return errors.New("created_by is required")
+		return errors.New(errMsgCreatedByRequired)
 	}
 	return nil
 }

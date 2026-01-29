@@ -14,7 +14,6 @@ interface PickupDayEditModalProps {
   readonly isOpen: boolean;
   readonly onClose: () => void;
   readonly day: DayData | null;
-  readonly studentId: string;
   readonly onSaveException: (data: {
     pickupTime?: string;
     reason?: string;
@@ -378,7 +377,7 @@ export function PickupDayEditModal({
               ))}
             </div>
           ) : (
-            !isAddingNote && (
+            isAddingNote || (
               <p className="text-sm text-gray-400">
                 Keine Notizen für diesen Tag.
               </p>
