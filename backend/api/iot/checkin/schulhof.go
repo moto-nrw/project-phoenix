@@ -80,10 +80,10 @@ func (rs *Resource) ensureSchulhofCategory(ctx context.Context) (*activities.Cat
 // infrastructure (room, category, activity) on first use if not found.
 func (rs *Resource) schulhofActivityGroup(ctx context.Context) (*activities.Group, error) {
 	// Build filter for Schulhof activity using constant
-	// Use qualified column name to avoid ambiguity with category.name
+	// WithTableAlias("group") is applied in the repository, so use unqualified field name
 	options := base.NewQueryOptions()
 	filter := base.NewFilter()
-	filter.Equal("group.name", constants.SchulhofActivityName)
+	filter.Equal("name", constants.SchulhofActivityName)
 	options.Filter = filter
 
 	// Query activities service
