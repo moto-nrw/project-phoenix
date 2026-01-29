@@ -31,19 +31,6 @@ func cleanupGroup(service activities.ActivityService, ctx context.Context, group
 	_ = service.DeleteGroup(ctx, groupID, 0, true) // 0 staff ID, true = admin permission
 }
 
-// createTestGroupWithCreator is a test helper to create a group with a creator
-func createTestGroupWithCreator(tb testing.TB, db *bun.DB, name string, categoryID int64) (*activitiesModels.Group, int64) {
-	tb.Helper()
-	staff := testpkg.CreateTestStaff(tb, db, "Creator", name)
-	return &activitiesModels.Group{
-		Name:            name,
-		MaxParticipants: 20,
-		IsOpen:          true,
-		CategoryID:      categoryID,
-		CreatedBy:       staff.ID,
-	}, staff.ID
-}
-
 // =============================================================================
 // Category Operations Tests
 // =============================================================================
