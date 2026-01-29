@@ -21,11 +21,12 @@ import (
 
 // checkinResult holds the result of processing a checkin request
 type checkinResult struct {
-	Action           string
-	VisitID          *int64
-	RoomName         string
-	PreviousRoomName string
-	GreetingMsg      string
+	Action                 string
+	VisitID                *int64
+	RoomName               string
+	PreviousRoomName       string
+	GreetingMsg            string
+	DailyCheckoutAvailable bool
 }
 
 // checkinResultInput holds the input parameters for building a checkin result.
@@ -252,7 +253,7 @@ func (rs *Resource) processCheckout(ctx context.Context, w http.ResponseWriter, 
 
 	// End current room visit WITHOUT attendance sync - leaving a room doesn't mean leaving the building.
 	// The student should become "Unterwegs" (in transit), not "Zuhause" (at home).
-	// Daily attendance checkout is handled separately via isPendingDailyCheckoutScenario/manual checkout.
+	// Daily attendance checkout is handled via the confirm_daily_checkout action from the frontend.
 	if err := rs.ActiveService.EndVisit(ctx, currentVisit.ID); err != nil {
 		log.Printf("[CHECKIN] ERROR: Failed to end visit %d for student %d: %v",
 			currentVisit.ID, student.ID, err)
@@ -628,14 +629,15 @@ func buildCheckinResponse(student *users.Student, result *checkinResult, now tim
 	studentName := student.Person.FirstName + " " + student.Person.LastName
 
 	response := map[string]interface{}{
-		"student_id":   student.ID,
-		"student_name": studentName,
-		"action":       result.Action,
-		"visit_id":     result.VisitID,
-		"room_name":    result.RoomName,
-		"processed_at": now,
-		"message":      result.GreetingMsg,
-		"status":       "success",
+		"student_id":               student.ID,
+		"student_name":             studentName,
+		"action":                   result.Action,
+		"visit_id":                 result.VisitID,
+		"room_name":                result.RoomName,
+		"processed_at":             now,
+		"message":                  result.GreetingMsg,
+		"status":                   "success",
+		"daily_checkout_available": result.DailyCheckoutAvailable,
 	}
 
 	if result.Action == "transferred" && result.PreviousRoomName != "" {

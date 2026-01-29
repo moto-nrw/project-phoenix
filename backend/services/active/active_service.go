@@ -597,9 +597,6 @@ func (s *service) FindVisitsByTimeRange(ctx context.Context, start, end time.Tim
 }
 
 func (s *service) EndVisit(ctx context.Context, id int64) error {
-	autoSyncAttendance := shouldAutoSyncAttendance(ctx)
-	deviceID, staffID := s.extractContextIDsIfAutoSync(ctx, autoSyncAttendance)
-
 	var endedVisit *active.Visit
 	err := s.txHandler.RunInTx(ctx, func(txCtx context.Context, tx bun.Tx) error {
 		txService := s.WithTx(tx).(*service)
@@ -609,12 +606,7 @@ func (s *service) EndVisit(ctx context.Context, id int64) error {
 			return err
 		}
 		endedVisit = visit
-
-		if visit.ExitTime == nil || !autoSyncAttendance {
-			return nil
-		}
-
-		return txService.syncAttendanceOnVisitEnd(txCtx, visit, deviceID, staffID)
+		return nil
 	})
 
 	if err != nil {
@@ -626,14 +618,6 @@ func (s *service) EndVisit(ctx context.Context, id int64) error {
 
 	s.broadcastVisitCheckout(ctx, endedVisit)
 	return nil
-}
-
-// extractContextIDsIfAutoSync extracts device and staff IDs from context when auto-sync is enabled
-func (s *service) extractContextIDsIfAutoSync(ctx context.Context, autoSyncAttendance bool) (deviceID, staffID int64) {
-	if !autoSyncAttendance {
-		return 0, 0
-	}
-	return s.extractContextIDs(ctx)
 }
 
 // endVisitRecord ends the visit record and returns the updated visit
@@ -653,67 +637,6 @@ func (s *service) endVisitRecord(ctx context.Context, id int64) (*active.Visit, 
 	}
 
 	return visit, nil
-}
-
-// syncAttendanceOnVisitEnd synchronizes attendance record when a visit ends
-func (s *service) syncAttendanceOnVisitEnd(ctx context.Context, visit *active.Visit, deviceID, staffID int64) error {
-	// Only auto-check the student out if no other active visits remain
-	activeVisits, err := s.visitRepo.FindActiveByStudentID(ctx, visit.StudentID)
-	if err != nil {
-		return &ActiveError{Op: "EndVisit", Err: ErrDatabaseOperation}
-	}
-	if len(activeVisits) > 0 {
-		return nil
-	}
-
-	attendance, err := s.getStudentAttendanceOrIgnoreMissing(ctx, visit.StudentID)
-	if err != nil {
-		return err
-	}
-	if attendance == nil || attendance.CheckOutTime != nil {
-		return nil
-	}
-
-	return s.updateAttendanceCheckout(ctx, attendance, visit, deviceID, staffID)
-}
-
-// getStudentAttendanceOrIgnoreMissing retrieves attendance or returns nil if not found
-func (s *service) getStudentAttendanceOrIgnoreMissing(ctx context.Context, studentID int64) (*active.Attendance, error) {
-	attendance, err := s.attendanceRepo.GetStudentCurrentStatus(ctx, studentID)
-	if err == nil {
-		return attendance, nil
-	}
-
-	// Ignore missing attendance – nothing to sync
-	var dbErr *base.DatabaseError
-	if errors.As(err, &dbErr) && errors.Is(dbErr.Err, sql.ErrNoRows) {
-		return nil, nil
-	}
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil, nil
-	}
-	return nil, &ActiveError{Op: "EndVisit", Err: err}
-}
-
-// updateAttendanceCheckout updates attendance with checkout information
-func (s *service) updateAttendanceCheckout(ctx context.Context, attendance *active.Attendance, visit *active.Visit, deviceID, staffID int64) error {
-	resolvedStaffID := staffID
-	if resolvedStaffID == 0 && deviceID > 0 {
-		if supervisorID, err := s.getDeviceSupervisorID(ctx, deviceID); err == nil {
-			resolvedStaffID = supervisorID
-		}
-	}
-
-	checkoutTime := *visit.ExitTime
-	attendance.CheckOutTime = &checkoutTime
-	if resolvedStaffID > 0 {
-		attendance.CheckedOutBy = &resolvedStaffID
-	}
-
-	if err := s.attendanceRepo.Update(ctx, attendance); err != nil {
-		return &ActiveError{Op: "EndVisit", Err: err}
-	}
-	return nil
 }
 
 // broadcastVisitCheckout broadcasts SSE event for visit checkout
