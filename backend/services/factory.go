@@ -44,6 +44,7 @@ type Factory struct {
 	Feedback                 feedback.Service
 	IoT                      iot.Service
 	Config                   config.Service
+	HierarchicalSettings     config.HierarchicalSettingsService
 	Schedule                 schedule.Service
 	PickupSchedule           schedule.PickupScheduleService
 	Users                    users.PersonService
@@ -197,6 +198,15 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 		db,
 	)
 
+	// Initialize hierarchical settings service
+	hierarchicalSettingsService := config.NewHierarchicalSettingsService(
+		repos.SettingDefinition,
+		repos.SettingValue,
+		repos.SettingAudit,
+		repos.SettingTab,
+		db,
+	)
+
 	// Initialize activities service
 	activitiesService, err := activities.NewService(
 		repos.ActivityCategory,
@@ -337,6 +347,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 		Feedback:                 feedbackService,
 		IoT:                      iotService,
 		Config:                   configService,
+		HierarchicalSettings:     hierarchicalSettingsService,
 		Schedule:                 scheduleService,
 		PickupSchedule:           pickupScheduleService,
 		Users:                    usersService,

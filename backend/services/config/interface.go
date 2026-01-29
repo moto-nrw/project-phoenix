@@ -45,3 +45,7 @@ type Service interface {
 	// Transaction support
 	// WithTx is already defined in base.TransactionalService
 }
+
+// HierarchicalSettingsService is defined in hierarchical_settings_service.go
+// Re-export it here for easier discovery
+type HierarchicalSettings = HierarchicalSettingsService

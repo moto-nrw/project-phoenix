@@ -22,6 +22,7 @@ import (
 	guardiansAPI "github.com/moto-nrw/project-phoenix/api/guardians"
 	importAPI "github.com/moto-nrw/project-phoenix/api/import"
 	iotAPI "github.com/moto-nrw/project-phoenix/api/iot"
+	settingsAPI "github.com/moto-nrw/project-phoenix/api/settings"
 	roomsAPI "github.com/moto-nrw/project-phoenix/api/rooms"
 	schedulesAPI "github.com/moto-nrw/project-phoenix/api/schedules"
 	sseAPI "github.com/moto-nrw/project-phoenix/api/sse"
@@ -61,6 +62,7 @@ type API struct {
 	Substitutions    *substitutionsAPI.Resource
 	Database         *databaseAPI.Resource
 	GradeTransitions *adminAPI.GradeTransitionResource
+	Settings         *settingsAPI.Resource
 }
 
 // New creates a new API instance
@@ -221,6 +223,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.Substitutions = substitutionsAPI.NewResource(api.Services.Education)
 	api.Database = databaseAPI.NewResource(api.Services.Database)
 	api.GradeTransitions = adminAPI.NewGradeTransitionResource(api.Services.GradeTransition)
+	api.Settings = settingsAPI.NewResource(api.Services.HierarchicalSettings)
 }
 
 // ServeHTTP implements the http.Handler interface for the API
@@ -332,6 +335,9 @@ func (a *API) registerRoutesWithRateLimiting() {
 
 		// Mount admin resources
 		r.Mount("/admin/grade-transitions", a.GradeTransitions.Router())
+
+		// Mount settings resources (hierarchical settings)
+		r.Mount("/settings", a.Settings.Router())
 
 		// Add other resource routes here as they are implemented
 	})
