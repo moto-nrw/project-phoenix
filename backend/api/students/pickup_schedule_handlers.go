@@ -431,11 +431,15 @@ func (rs *Resource) updateStudentPickupException(w http.ResponseWriter, r *http.
 	exception := &schedule.StudentPickupException{
 		StudentID:     student.ID,
 		ExceptionDate: exceptionDate,
-		Reason:        req.Reason,
-		CreatedBy:     existingException.CreatedBy, // Preserve original creator
+		Reason:        existingException.Reason, // Preserve existing reason by default
+		CreatedBy:     existingException.CreatedBy,
 	}
 	exception.ID = exceptionID
 	exception.CreatedAt = existingException.CreatedAt // Preserve original creation timestamp
+
+	if req.Reason != nil {
+		exception.Reason = req.Reason
+	}
 
 	if req.PickupTime != nil && *req.PickupTime != "" {
 		pickupTime, _ := parseTimeOnly(*req.PickupTime)

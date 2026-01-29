@@ -54,6 +54,10 @@ const errorTranslations: Record<string, string> = {
     "Ungültiges Datumsformat (erwartet JJJJ-MM-TT)",
   "content is required": "Inhalt ist erforderlich",
   "content too long": "Notiz darf maximal 500 Zeichen lang sein",
+  "content cannot exceed 500 characters":
+    "Notiz darf maximal 500 Zeichen lang sein",
+  "notes cannot exceed 500 characters":
+    "Notizen dürfen maximal 500 Zeichen lang sein",
   "reason is required": "Grund ist erforderlich",
   "exception already exists":
     "Für dieses Datum existiert bereits eine Ausnahme",
