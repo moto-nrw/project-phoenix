@@ -43,6 +43,7 @@ const mockBackendException: BackendPickupException = {
 const mockBackendPickupData: BackendPickupData = {
   schedules: [mockBackendSchedule],
   exceptions: [mockBackendException],
+  notes: [],
 };
 
 // Helper to create mock fetch response
@@ -578,7 +579,7 @@ describe("pickup-schedule-api", () => {
         weekday_name: "Montag",
         pickup_time: "16:00",
         is_exception: true,
-        reason: "Arzttermin",
+        day_notes: [],
       },
     ];
 

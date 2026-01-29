@@ -212,11 +212,12 @@ func (s *Seeder) createException(ctx context.Context, rng *rand.Rand, studentID 
 		return false, fmt.Errorf("failed to parse exception time: %w", err)
 	}
 
+	reason := exceptionReasons[rng.Intn(len(exceptionReasons))]
 	exception := &schedule.StudentPickupException{
 		StudentID:     studentID,
 		ExceptionDate: exceptionDate,
 		PickupTime:    &exceptionTime,
-		Reason:        exceptionReasons[rng.Intn(len(exceptionReasons))],
+		Reason:        &reason,
 		CreatedBy:     createdBy,
 	}
 	exception.CreatedAt = time.Now()

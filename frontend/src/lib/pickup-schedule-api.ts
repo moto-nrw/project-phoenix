@@ -6,14 +6,19 @@ import type {
   BulkPickupScheduleFormData,
   PickupExceptionFormData,
   PickupException,
+  PickupNoteFormData,
+  PickupNote,
   BackendPickupData,
   BackendPickupException,
+  BackendPickupNote,
 } from "./pickup-schedule-helpers";
 import {
   mapPickupDataResponse,
   mapPickupExceptionResponse,
+  mapPickupNoteResponse,
   mapBulkPickupScheduleFormToBackend,
   mapPickupExceptionFormToBackend,
+  mapPickupNoteFormToBackend,
 } from "./pickup-schedule-helpers";
 
 // API Response Types
@@ -47,7 +52,8 @@ const errorTranslations: Record<string, string> = {
   "exception_date is required": "Datum ist erforderlich",
   "invalid exception_date format":
     "Ungültiges Datumsformat (erwartet JJJJ-MM-TT)",
-  "reason is required": "Grund ist erforderlich",
+  "content is required": "Inhalt ist erforderlich",
+  "content too long": "Notiz darf maximal 500 Zeichen lang sein",
   "exception already exists":
     "Für dieses Datum existiert bereits eine Ausnahme",
   "student not found": "Schüler/in nicht gefunden",
@@ -100,7 +106,7 @@ export async function fetchStudentPickupData(
   }
 
   return mapPickupDataResponse(
-    result.data ?? { schedules: [], exceptions: [] },
+    result.data ?? { schedules: [], exceptions: [], notes: [] },
   );
 }
 
@@ -270,8 +276,153 @@ export async function deleteStudentPickupException(
 }
 
 // =============================================================================
+// PICKUP NOTES API
+// =============================================================================
+
+/**
+ * Create a pickup note for a student
+ */
+export async function createStudentPickupNote(
+  studentId: string,
+  data: PickupNoteFormData,
+): Promise<PickupNote> {
+  const backendData = mapPickupNoteFormToBackend(data);
+
+  const response = await fetch(`/api/students/${studentId}/pickup-notes`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(backendData),
+  });
+
+  if (!response.ok) {
+    const error: unknown = await response
+      .json()
+      .catch(() => ({ error: "Failed to create pickup note" }));
+    const errorMessage = isErrorResponse(error)
+      ? translateApiError(error.error)
+      : translateApiError(
+          `Failed to create pickup note: ${response.statusText}`,
+        );
+    throw new Error(errorMessage);
+  }
+
+  const result = (await response.json()) as ApiResponse<BackendPickupNote>;
+
+  if (result.status === "error" || !result.data) {
+    throw new Error(
+      translateApiError(result.error ?? "Failed to create pickup note"),
+    );
+  }
+
+  return mapPickupNoteResponse(result.data);
+}
+
+/**
+ * Update a pickup note
+ */
+export async function updateStudentPickupNote(
+  studentId: string,
+  noteId: string,
+  data: PickupNoteFormData,
+): Promise<PickupNote> {
+  const backendData = mapPickupNoteFormToBackend(data);
+
+  const response = await fetch(
+    `/api/students/${studentId}/pickup-notes/${noteId}`,
+    {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(backendData),
+    },
+  );
+
+  if (!response.ok) {
+    const error: unknown = await response
+      .json()
+      .catch(() => ({ error: "Failed to update pickup note" }));
+    const errorMessage = isErrorResponse(error)
+      ? translateApiError(error.error)
+      : translateApiError(
+          `Failed to update pickup note: ${response.statusText}`,
+        );
+    throw new Error(errorMessage);
+  }
+
+  const result = (await response.json()) as ApiResponse<BackendPickupNote>;
+
+  if (result.status === "error" || !result.data) {
+    throw new Error(
+      translateApiError(result.error ?? "Failed to update pickup note"),
+    );
+  }
+
+  return mapPickupNoteResponse(result.data);
+}
+
+/**
+ * Delete a pickup note
+ */
+export async function deleteStudentPickupNote(
+  studentId: string,
+  noteId: string,
+): Promise<void> {
+  const response = await fetch(
+    `/api/students/${studentId}/pickup-notes/${noteId}`,
+    {
+      method: "DELETE",
+    },
+  );
+
+  if (!response.ok) {
+    const error: unknown = await response
+      .json()
+      .catch(() => ({ error: "Failed to delete pickup note" }));
+    const errorMessage = isErrorResponse(error)
+      ? translateApiError(error.error)
+      : translateApiError(
+          `Failed to delete pickup note: ${response.statusText}`,
+        );
+    throw new Error(errorMessage);
+  }
+
+  // 204 No Content means successful deletion
+  if (response.status === 204) {
+    return;
+  }
+
+  // If there's a response body, parse it
+  const result = (await response.json()) as ApiResponse<null>;
+
+  if (result.status === "error") {
+    throw new Error(
+      translateApiError(result.error ?? "Failed to delete pickup note"),
+    );
+  }
+}
+
+// =============================================================================
 // BULK PICKUP TIMES API (for OGS dashboard)
 // =============================================================================
+
+/**
+ * Backend day note in bulk response
+ */
+interface BulkDayNoteResponse {
+  id: number;
+  content: string;
+}
+
+/**
+ * Frontend day note in bulk response
+ */
+export interface BulkDayNote {
+  id: string;
+  content: string;
+}
 
 /**
  * Bulk pickup time response from backend
@@ -282,7 +433,7 @@ export interface BulkPickupTimeResponse {
   weekday_name: string;
   pickup_time?: string;
   is_exception: boolean;
-  reason?: string;
+  day_notes?: BulkDayNoteResponse[];
   notes?: string;
 }
 
@@ -295,7 +446,7 @@ export interface BulkPickupTime {
   weekdayName: string;
   pickupTime?: string;
   isException: boolean;
-  reason?: string;
+  dayNotes: BulkDayNote[];
   notes?: string;
 }
 
@@ -311,7 +462,10 @@ function mapBulkPickupTimeResponse(
     weekdayName: data.weekday_name,
     pickupTime: data.pickup_time,
     isException: data.is_exception,
-    reason: data.reason,
+    dayNotes: (data.day_notes ?? []).map((n) => ({
+      id: n.id.toString(),
+      content: n.content,
+    })),
     notes: data.notes,
   };
 }

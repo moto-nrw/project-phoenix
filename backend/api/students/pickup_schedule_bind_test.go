@@ -12,6 +12,15 @@ import (
 )
 
 // =============================================================================
+// Test Helpers
+// =============================================================================
+
+// strPtr returns a pointer to the given string
+func strPtr(s string) *string {
+	return &s
+}
+
+// =============================================================================
 // PickupScheduleRequest Bind Tests
 // =============================================================================
 
@@ -177,7 +186,7 @@ func TestPickupExceptionRequest_Bind(t *testing.T) {
 		r := &PickupExceptionRequest{
 			ExceptionDate: "2026-02-15",
 			PickupTime:    &pickupTime,
-			Reason:        "Doctor appointment",
+			Reason:        strPtr("Doctor appointment"),
 		}
 		err := r.Bind(req)
 		require.NoError(t, err)
@@ -188,7 +197,7 @@ func TestPickupExceptionRequest_Bind(t *testing.T) {
 		r := &PickupExceptionRequest{
 			ExceptionDate: "",
 			PickupTime:    &pickupTime,
-			Reason:        "Test reason",
+			Reason:        strPtr("Test reason"),
 		}
 		err := r.Bind(req)
 		require.Error(t, err)
@@ -200,7 +209,7 @@ func TestPickupExceptionRequest_Bind(t *testing.T) {
 		r := &PickupExceptionRequest{
 			ExceptionDate: "15-02-2026",
 			PickupTime:    &pickupTime,
-			Reason:        "Test reason",
+			Reason:        strPtr("Test reason"),
 		}
 		err := r.Bind(req)
 		require.Error(t, err)
@@ -211,7 +220,7 @@ func TestPickupExceptionRequest_Bind(t *testing.T) {
 		r := &PickupExceptionRequest{
 			ExceptionDate: "2026-02-15",
 			PickupTime:    nil,
-			Reason:        "Student is sick",
+			Reason:        strPtr("Student is sick"),
 		}
 		err := r.Bind(req)
 		require.NoError(t, err, "nil pickup_time should be valid for absent students")
@@ -222,7 +231,7 @@ func TestPickupExceptionRequest_Bind(t *testing.T) {
 		r := &PickupExceptionRequest{
 			ExceptionDate: "2026-02-15",
 			PickupTime:    &emptyTime,
-			Reason:        "Student is sick",
+			Reason:        strPtr("Student is sick"),
 		}
 		err := r.Bind(req)
 		require.NoError(t, err, "empty pickup_time should be valid for absent students")
@@ -233,31 +242,31 @@ func TestPickupExceptionRequest_Bind(t *testing.T) {
 		r := &PickupExceptionRequest{
 			ExceptionDate: "2026-02-15",
 			PickupTime:    &invalidTime,
-			Reason:        "Test reason",
+			Reason:        strPtr("Test reason"),
 		}
 		err := r.Bind(req)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "invalid pickup_time format")
 	})
 
-	t.Run("missing reason", func(t *testing.T) {
+	t.Run("empty reason is valid (reason is optional)", func(t *testing.T) {
 		pickupTime := "12:00"
 		r := &PickupExceptionRequest{
 			ExceptionDate: "2026-02-15",
 			PickupTime:    &pickupTime,
-			Reason:        "",
+			Reason:        nil,
 		}
 		err := r.Bind(req)
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "reason is required")
+		require.NoError(t, err, "empty reason should be valid as reason is now optional")
 	})
 
 	t.Run("reason too long", func(t *testing.T) {
 		pickupTime := "12:00"
+		longReason := string(make([]byte, 256))
 		r := &PickupExceptionRequest{
 			ExceptionDate: "2026-02-15",
 			PickupTime:    &pickupTime,
-			Reason:        string(make([]byte, 256)),
+			Reason:        &longReason,
 		}
 		err := r.Bind(req)
 		require.Error(t, err)
@@ -397,7 +406,8 @@ func TestMapExceptionToResponse(t *testing.T) {
 		assert.Equal(t, "2026-02-15", resp.ExceptionDate)
 		assert.NotNil(t, resp.PickupTime)
 		assert.Equal(t, "12:00", *resp.PickupTime)
-		assert.Equal(t, "Doctor appointment", resp.Reason)
+		require.NotNil(t, resp.Reason)
+		assert.Equal(t, "Doctor appointment", *resp.Reason)
 	})
 
 	t.Run("maps exception without pickup time (absent)", func(t *testing.T) {
@@ -406,7 +416,8 @@ func TestMapExceptionToResponse(t *testing.T) {
 
 		assert.Equal(t, "2026-02-15", resp.ExceptionDate)
 		assert.Nil(t, resp.PickupTime)
-		assert.Equal(t, "Student is sick", resp.Reason)
+		require.NotNil(t, resp.Reason)
+		assert.Equal(t, "Student is sick", *resp.Reason)
 	})
 }
 
@@ -432,7 +443,7 @@ func createTestExceptionModel(studentID int64, date, pickupTime, reason string) 
 		StudentID:     studentID,
 		ExceptionDate: parsedDate,
 		PickupTime:    &parsedTime,
-		Reason:        reason,
+		Reason:        &reason,
 		CreatedBy:     1,
 	}
 }
@@ -443,7 +454,7 @@ func createTestExceptionModelAbsent(studentID int64, date, reason string) *sched
 		StudentID:     studentID,
 		ExceptionDate: parsedDate,
 		PickupTime:    nil,
-		Reason:        reason,
+		Reason:        &reason,
 		CreatedBy:     1,
 	}
 }
@@ -563,7 +574,7 @@ func TestPickupExceptionRequest_Bind_EdgeCases(t *testing.T) {
 		r := &PickupExceptionRequest{
 			ExceptionDate: "2026-02-15",
 			PickupTime:    &pickupTime,
-			Reason:        exactReason,
+			Reason:        &exactReason,
 		}
 		err := r.Bind(req)
 		require.NoError(t, err, "255 characters should be allowed")
@@ -582,7 +593,7 @@ func TestPickupExceptionRequest_Bind_EdgeCases(t *testing.T) {
 			r := &PickupExceptionRequest{
 				ExceptionDate: date,
 				PickupTime:    &pickupTime,
-				Reason:        "Test",
+				Reason:        strPtr("Test"),
 			}
 			err := r.Bind(req)
 			assert.Error(t, err, "Date %s should be invalid", date)
@@ -694,11 +705,12 @@ func TestMapExceptionToResponse_ResponseFormat(t *testing.T) {
 		createdBy := int64(67890)
 		excID := int64(42)
 		pickupTime := time.Date(2000, 1, 1, 12, 0, 0, 0, time.UTC)
+		reason := "Test"
 		exc := &schedule.StudentPickupException{
 			StudentID:     studentID,
 			ExceptionDate: time.Date(2026, 2, 15, 0, 0, 0, 0, time.UTC),
 			PickupTime:    &pickupTime,
-			Reason:        "Test",
+			Reason:        &reason,
 			CreatedBy:     createdBy,
 		}
 		exc.ID = excID
@@ -861,7 +873,7 @@ func TestPickupDataResponse_Structure(t *testing.T) {
 			ID:            1,
 			StudentID:     100,
 			ExceptionDate: "2026-01-29",
-			Reason:        "Doctor",
+			Reason:        strPtr("Doctor"),
 			CreatedBy:     5,
 			CreatedAt:     "2026-01-27T10:00:00Z",
 			UpdatedAt:     "2026-01-27T10:00:00Z",
@@ -906,12 +918,12 @@ func TestBulkPickupTimeResponse_Structure(t *testing.T) {
 			WeekdayName: "Montag",
 			PickupTime:  nil,
 			IsException: true,
-			Reason:      "Student is sick",
+			Notes:       "Student is sick",
 		}
 		assert.Equal(t, int64(100), resp.StudentID)
 		assert.Nil(t, resp.PickupTime)
 		assert.True(t, resp.IsException)
-		assert.Equal(t, "Student is sick", resp.Reason)
+		assert.Equal(t, "Student is sick", resp.Notes)
 	})
 }
 
@@ -925,11 +937,12 @@ func TestMapExceptionToResponse_NilPickupTime(t *testing.T) {
 		studentID := int64(12345)
 		createdBy := int64(67890)
 		excID := int64(42)
+		reason := "Student is absent"
 		exc := &schedule.StudentPickupException{
 			StudentID:     studentID,
 			ExceptionDate: time.Date(2026, 2, 15, 0, 0, 0, 0, time.UTC),
 			PickupTime:    nil, // Explicitly nil
-			Reason:        "Student is absent",
+			Reason:        &reason,
 			CreatedBy:     createdBy,
 		}
 		exc.ID = excID
@@ -942,7 +955,8 @@ func TestMapExceptionToResponse_NilPickupTime(t *testing.T) {
 		assert.Equal(t, studentID, resp.StudentID)
 		assert.Equal(t, "2026-02-15", resp.ExceptionDate)
 		assert.Nil(t, resp.PickupTime, "PickupTime should be nil when exception has no pickup time")
-		assert.Equal(t, "Student is absent", resp.Reason)
+		require.NotNil(t, resp.Reason)
+		assert.Equal(t, "Student is absent", *resp.Reason)
 	})
 }
 
@@ -967,7 +981,7 @@ func TestPickupExceptionRequest_Bind_AdditionalCases(t *testing.T) {
 		r := &PickupExceptionRequest{
 			ExceptionDate: "2026-02-15",
 			PickupTime:    nil,
-			Reason:        "Krank",
+			Reason:        strPtr("Krank"),
 		}
 		err := r.Bind(req)
 		require.NoError(t, err)
@@ -978,7 +992,7 @@ func TestPickupExceptionRequest_Bind_AdditionalCases(t *testing.T) {
 		r := &PickupExceptionRequest{
 			ExceptionDate: "2026-02-15",
 			PickupTime:    &emptyTime,
-			Reason:        "Krank",
+			Reason:        strPtr("Krank"),
 		}
 		err := r.Bind(req)
 		require.NoError(t, err, "empty string pickup time should be valid for absent students")
@@ -989,7 +1003,7 @@ func TestPickupExceptionRequest_Bind_AdditionalCases(t *testing.T) {
 		r := &PickupExceptionRequest{
 			ExceptionDate: "2026-02-15",
 			PickupTime:    nil,
-			Reason:        maxReason,
+			Reason:        &maxReason,
 		}
 		err := r.Bind(req)
 		require.NoError(t, err, "reason at exactly 255 chars should be valid")

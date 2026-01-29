@@ -126,6 +126,7 @@ export default function StudentDetailPage() {
           data.schedules,
           data.exceptions,
           student?.sick ?? false,
+          data.notes,
         );
 
         if (dayData.effectiveTime) {

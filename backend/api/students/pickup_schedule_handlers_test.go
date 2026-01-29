@@ -70,11 +70,12 @@ func TestGetStudentPickupSchedules(t *testing.T) {
 		// Insert a pickup exception directly into the database
 		exceptionDate := time.Date(2026, 2, 15, 12, 0, 0, 0, timezone.Berlin) // Use noon to avoid day boundary issues
 		exceptionTime := time.Date(2000, 1, 1, 12, 0, 0, 0, time.UTC)
+		arztterminReason := "Arzttermin"
 		exception := &scheduleModel.StudentPickupException{
 			StudentID:     studentWithData.ID,
 			ExceptionDate: exceptionDate,
 			PickupTime:    &exceptionTime,
-			Reason:        "Arzttermin",
+			Reason:        &arztterminReason,
 			CreatedBy:     1,
 		}
 		_, err = tc.db.NewInsert().Model(exception).
@@ -383,7 +384,10 @@ func TestCreateStudentPickupException(t *testing.T) {
 		testutil.AssertBadRequest(t, rr)
 	})
 
-	t.Run("bad_request_missing_reason", func(t *testing.T) {
+	t.Run("valid_request_without_reason", func(t *testing.T) {
+		// Reason is now optional — omitting it should not cause a bad request.
+		// Full creation still requires a valid account+person setup, so we only
+		// verify the bind step doesn't reject the payload.
 		student := testpkg.CreateTestStudent(t, tc.db, "ExceptionNoReason", "Test", "ENR1")
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
@@ -394,7 +398,10 @@ func TestCreateStudentPickupException(t *testing.T) {
 		req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d", student.ID), body)
 		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
-		testutil.AssertBadRequest(t, rr)
+		// Should NOT be a bad request (reason is optional). The actual status
+		// depends on account setup, but it must not be 400.
+		assert.NotEqual(t, http.StatusBadRequest, rr.Code,
+			"Omitting reason should not cause bad request. Body: %s", rr.Body.String())
 	})
 
 	t.Run("bad_request_reason_too_long", func(t *testing.T) {
@@ -453,11 +460,12 @@ func TestUpdateStudentPickupException(t *testing.T) {
 		// Create an exception to update
 		exceptionDate := time.Date(2026, 4, 15, 12, 0, 0, 0, timezone.Berlin) // Use noon to avoid day boundary issues
 		exceptionTime := time.Date(2000, 1, 1, 14, 0, 0, 0, time.UTC)
+		originalReason := "Original reason"
 		exception := &scheduleModel.StudentPickupException{
 			StudentID:     student.ID,
 			ExceptionDate: exceptionDate,
 			PickupTime:    &exceptionTime,
-			Reason:        "Original reason",
+			Reason:        &originalReason,
 			CreatedBy:     1,
 		}
 		_, err := tc.db.NewInsert().Model(exception).
@@ -495,10 +503,11 @@ func TestUpdateStudentPickupException(t *testing.T) {
 
 		// Create exception for student2
 		exceptionDate := time.Date(2026, 5, 15, 12, 0, 0, 0, timezone.Berlin) // Use noon to avoid day boundary issues
+		testReason := "Test reason"
 		exception := &scheduleModel.StudentPickupException{
 			StudentID:     student2.ID, // Belongs to student2
 			ExceptionDate: exceptionDate,
-			Reason:        "Test reason",
+			Reason:        &testReason,
 			CreatedBy:     1,
 		}
 		_, err := tc.db.NewInsert().Model(exception).
@@ -595,10 +604,11 @@ func TestDeleteStudentPickupException(t *testing.T) {
 
 		// Create exception to delete
 		exceptionDate := time.Date(2026, 6, 15, 12, 0, 0, 0, timezone.Berlin) // Use noon to avoid day boundary issues
+		deleteReason := "To be deleted"
 		exception := &scheduleModel.StudentPickupException{
 			StudentID:     student.ID,
 			ExceptionDate: exceptionDate,
-			Reason:        "To be deleted",
+			Reason:        &deleteReason,
 			CreatedBy:     1,
 		}
 		_, err := tc.db.NewInsert().Model(exception).
@@ -624,10 +634,11 @@ func TestDeleteStudentPickupException(t *testing.T) {
 
 		// Create exception for student2
 		exceptionDate := time.Date(2026, 7, 15, 12, 0, 0, 0, timezone.Berlin) // Use noon to avoid day boundary issues
+		deleteTestReason := "Test reason"
 		exception := &scheduleModel.StudentPickupException{
 			StudentID:     student2.ID, // Belongs to student2
 			ExceptionDate: exceptionDate,
-			Reason:        "Test reason",
+			Reason:        &deleteTestReason,
 			CreatedBy:     1,
 		}
 		_, err := tc.db.NewInsert().Model(exception).
@@ -865,11 +876,12 @@ func TestGetBulkPickupTimes(t *testing.T) {
 		// Insert exception for specific date
 		exceptionDate := time.Date(2026, 1, 26, 12, 0, 0, 0, timezone.Berlin) // Monday, noon to avoid day boundary issues
 		exceptionTime := time.Date(2000, 1, 1, 12, 0, 0, 0, time.UTC)
+		earlyPickupReason := "Early pickup"
 		exception := &scheduleModel.StudentPickupException{
 			StudentID:     student.ID,
 			ExceptionDate: exceptionDate,
 			PickupTime:    &exceptionTime,
-			Reason:        "Early pickup",
+			Reason:        &earlyPickupReason,
 			CreatedBy:     1,
 		}
 		_, err = tc.db.NewInsert().Model(exception).

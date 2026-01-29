@@ -196,6 +196,7 @@ const mockPickupExceptions: PickupException[] = [
 const mockPickupData: PickupData = {
   schedules: mockPickupSchedules,
   exceptions: mockPickupExceptions,
+  notes: [],
 };
 
 describe("PickupScheduleManager", () => {
