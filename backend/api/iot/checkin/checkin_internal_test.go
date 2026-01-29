@@ -420,6 +420,48 @@ func TestShouldUpgradeToDailyCheckout_NilActiveGroup(t *testing.T) {
 }
 
 // =============================================================================
+// shouldShowDailyCheckoutWithGroup TESTS (direct calls to test defensive guards)
+// =============================================================================
+
+func TestShouldShowDailyCheckoutWithGroup_NilGroupID(t *testing.T) {
+	rs := &Resource{}
+	student := &users.Student{Model: base.Model{ID: 1}} // GroupID is nil
+	visit := &active.Visit{ActiveGroup: &active.Group{RoomID: 1}}
+	result := rs.shouldShowDailyCheckoutWithGroup(context.Background(), student, visit)
+	assert.False(t, result)
+}
+
+func TestShouldShowDailyCheckoutWithGroup_NilCurrentVisit(t *testing.T) {
+	rs := &Resource{}
+	groupID := int64(1)
+	student := &users.Student{Model: base.Model{ID: 1}, GroupID: &groupID}
+	result := rs.shouldShowDailyCheckoutWithGroup(context.Background(), student, nil)
+	assert.False(t, result)
+}
+
+func TestShouldShowDailyCheckoutWithGroup_NilActiveGroup(t *testing.T) {
+	rs := &Resource{}
+	groupID := int64(1)
+	student := &users.Student{Model: base.Model{ID: 1}, GroupID: &groupID}
+	visit := &active.Visit{} // ActiveGroup is nil
+	result := rs.shouldShowDailyCheckoutWithGroup(context.Background(), student, visit)
+	assert.False(t, result)
+}
+
+func TestShouldShowDailyCheckoutWithGroup_BeforeCheckoutTime(t *testing.T) {
+	// Set checkout time far in the future so we're always before it
+	require.NoError(t, os.Setenv("STUDENT_DAILY_CHECKOUT_TIME", "23:59"))
+	defer func() { _ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME") }()
+
+	rs := &Resource{}
+	groupID := int64(1)
+	student := &users.Student{Model: base.Model{ID: 1}, GroupID: &groupID}
+	visit := &active.Visit{ActiveGroup: &active.Group{RoomID: 1}}
+	result := rs.shouldShowDailyCheckoutWithGroup(context.Background(), student, visit)
+	assert.False(t, result, "Should return false before daily checkout time")
+}
+
+// =============================================================================
 // buildCheckinResponse DailyCheckoutAvailable TESTS
 // =============================================================================
 
