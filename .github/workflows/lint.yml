@@ -7,6 +7,10 @@ on:
       run-frontend:
         type: boolean
         default: true
+
+permissions:
+  contents: read
+
 defaults:
   run:
     shell: bash

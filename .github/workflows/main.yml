@@ -12,6 +12,8 @@ on:
       - master
       - develop
       - development
+permissions: {}
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref && github.ref || github.run_id }}
   cancel-in-progress: true
@@ -22,6 +24,8 @@ defaults:
 
 jobs:
   detect-changes:
+    permissions:
+      contents: read
     runs-on: ubuntu-latest
     outputs:
       run-backend: ${{ steps.filter.outputs.backend == 'true' || steps.filter.outputs.ci == 'true' }}
@@ -41,6 +45,8 @@ jobs:
               - 'sonar-project.properties'
 
   lint:
+    permissions:
+      contents: read
     needs: detect-changes
     uses: ./.github/workflows/lint.yml
     with:
@@ -48,6 +54,8 @@ jobs:
       run-frontend: ${{ needs.detect-changes.outputs.run-frontend == 'true' }}
 
   test:
+    permissions:
+      contents: read
     needs: detect-changes
     uses: ./.github/workflows/test.yml
     with:

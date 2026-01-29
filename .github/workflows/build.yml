@@ -37,6 +37,8 @@ on:
   release:
     types: [published]
 
+permissions: {}
+
 env:
   REGISTRY: ghcr.io
   BACKEND_IMAGE: ghcr.io/moto-nrw/phoenix-server
