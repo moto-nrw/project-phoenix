@@ -215,16 +215,7 @@ export function PickupDayEditModal({
             </p>
           )}
 
-          {!hasTimeOverride ? (
-            <button
-              type="button"
-              onClick={() => setHasTimeOverride(true)}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-dashed border-gray-300 px-3 py-2 text-sm text-gray-600 transition-colors hover:border-gray-400 hover:bg-gray-50"
-            >
-              <Pencil className="h-3.5 w-3.5" />
-              Abweichende Zeit eintragen
-            </button>
-          ) : (
+          {hasTimeOverride ? (
             <div className="flex items-center gap-2">
               <input
                 type="time"
@@ -272,6 +263,15 @@ export function PickupDayEditModal({
                 </button>
               )}
             </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setHasTimeOverride(true)}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-dashed border-gray-300 px-3 py-2 text-sm text-gray-600 transition-colors hover:border-gray-400 hover:bg-gray-50"
+            >
+              <Pencil className="h-3.5 w-3.5" />
+              Abweichende Zeit eintragen
+            </button>
           )}
         </div>
 
@@ -377,7 +377,7 @@ export function PickupDayEditModal({
               ))}
             </div>
           ) : (
-            isAddingNote || (
+            !isAddingNote && (
               <p className="text-sm text-gray-400">
                 Keine Notizen für diesen Tag.
               </p>
