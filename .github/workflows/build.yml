@@ -1,4 +1,5 @@
 name: Build and Push Docker Images
+run-name: Build ${{ github.event_name == 'release' && github.event.release.tag_name || github.sha }}
 
 on:
   # Production: Build and deploy on push to main
