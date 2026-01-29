@@ -2,20 +2,31 @@ name: Test & Coverage
 
 on:
   workflow_call:
+    inputs:
+      run-backend:
+        type: boolean
+        default: true
+      run-frontend:
+        type: boolean
+        default: true
     secrets:
       SONAR_TOKEN:
         description: "SonarCloud authentication token"
         required: true
+
+permissions:
+  contents: read
+  checks: write
 
 defaults:
   run:
     shell: bash
 
 jobs:
-  test-and-coverage:
+  test-backend:
+    if: ${{ inputs.run-backend }}
     runs-on: blacksmith-4vcpu-ubuntu-2404
 
-    # PostgreSQL service for integration tests
     services:
       postgres:
         image: postgres:17
@@ -33,20 +44,17 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
-        with:
-          fetch-depth: 0 # Required for SonarCloud
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
 
-      # Go Setup & Tests
       - name: Setup Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c # v6
         with:
           go-version-file: backend/go.mod
           cache: true
           cache-dependency-path: backend/go.sum
 
-      - name: Install Go dependencies
-        run: cd backend && go mod tidy
+      - name: Install gotestsum
+        run: go install gotest.tools/gotestsum@latest
 
       - name: Run database migrations
         working-directory: backend
@@ -58,7 +66,16 @@ jobs:
         working-directory: backend
         env:
           TEST_DB_DSN: postgres://postgres:postgres@localhost:5432/phoenix_test?sslmode=disable
-        run: go test -v -coverprofile=coverage.out -covermode=atomic ./...
+        run: |
+          gotestsum \
+            --format pkgname-and-test-fails \
+            --junitfile junit.xml \
+            --rerun-fails \
+            --rerun-fails-max-failures=5 \
+            -- \
+            -coverprofile=coverage.out \
+            -covermode=atomic \
+            ./...
 
       - name: Fix Go coverage paths for SonarCloud
         run: |
@@ -66,12 +83,38 @@ jobs:
           # From: github.com/moto-nrw/project-phoenix/... → backend/...
           sed -i 's|github.com/moto-nrw/project-phoenix/|backend/|g' backend/coverage.out
 
-      # Node Setup & Tests
+      - name: Upload backend coverage
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: coverage-backend
+          path: |
+            backend/coverage.out
+            backend/junit.xml
+          retention-days: 7
+        if: always()
+
+      - name: Publish backend test results
+        uses: mikepenz/action-junit-report@a294a61c909bd8a4b563024a2faa28897fd53ebc # v6.1.0
+        if: always()
+        with:
+          report_paths: backend/junit.xml
+          check_name: Backend Test Results
+          include_passed: false
+          detailed_summary: true
+
+  test-frontend:
+    if: ${{ inputs.run-frontend }}
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
+
       - name: Enable corepack
         run: corepack enable
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@395ad3262231945c25e8478fd5baf05154b1d79f # v6
         with:
           node-version: "20"
           cache: "pnpm"
@@ -85,18 +128,39 @@ jobs:
         working-directory: frontend
         run: pnpm run test:run --coverage
 
-      # Upload coverage artifacts for debugging
-      - name: Upload coverage artifacts
-        uses: actions/upload-artifact@v6
+      - name: Upload frontend coverage
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
-          name: coverage-reports
-          path: |
-            backend/coverage.out
-            frontend/coverage/lcov.info
+          name: coverage-frontend
+          path: frontend/coverage/lcov.info
           retention-days: 7
         if: always()
 
-      # SonarCloud Scan
+  sonarcloud:
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    needs: [test-backend, test-frontend]
+    if: always()
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
+        with:
+          fetch-depth: 0 # Required for SonarCloud PR analysis and SCM blame
+
+      - name: Download backend coverage
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
+        with:
+          name: coverage-backend
+          path: backend/
+        continue-on-error: true
+
+      - name: Download frontend coverage
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
+        with:
+          name: coverage-frontend
+          path: frontend/coverage/
+        continue-on-error: true
+
       - name: SonarCloud Scan
         uses: SonarSource/sonarqube-scan-action@a31c9398be7ace6bbfaf30c0bd5d415f843d45e9 # v7.0.0
         env:

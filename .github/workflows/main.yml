@@ -1,5 +1,5 @@
 run-name: main workflow
-on: 
+on:
   push:
     branches:
       - main
@@ -12,14 +12,64 @@ on:
       - master
       - develop
       - development
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref && github.ref || github.run_id }}
+  cancel-in-progress: true
+
 defaults:
   run:
     shell: bash
 
 jobs:
+  detect-changes:
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    outputs:
+      run-backend: ${{ steps.filter.outputs.backend == 'true' || steps.filter.outputs.ci == 'true' }}
+      run-frontend: ${{ steps.filter.outputs.frontend == 'true' || steps.filter.outputs.ci == 'true' }}
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
+      - uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+        id: filter
+        with:
+          filters: |
+            backend:
+              - 'backend/**'
+            frontend:
+              - 'frontend/**'
+            ci:
+              - '.github/**'
+              - 'sonar-project.properties'
+
   lint:
+    permissions:
+      contents: read
+    needs: detect-changes
     uses: ./.github/workflows/lint.yml
+    with:
+      run-backend: ${{ needs.detect-changes.outputs.run-backend == 'true' }}
+      run-frontend: ${{ needs.detect-changes.outputs.run-frontend == 'true' }}
+
   test:
+    permissions:
+      contents: read
+      checks: write
+    needs: detect-changes
     uses: ./.github/workflows/test.yml
+    with:
+      run-backend: ${{ needs.detect-changes.outputs.run-backend == 'true' }}
+      run-frontend: ${{ needs.detect-changes.outputs.run-frontend == 'true' }}
     secrets:
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+  ci-gate:
+    if: always()
+    needs: [lint, test]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: re-actors/alls-green@05ac9388f0aebcb5727afa17fcccfecd6f8ec5fe # release/v1
+        with:
+          jobs: ${{ toJSON(needs) }}
