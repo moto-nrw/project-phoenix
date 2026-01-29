@@ -192,7 +192,11 @@ const mockFetchBulkPickupTimes = vi.fn(() =>
   Promise.resolve(
     new Map<
       string,
-      { pickupTime: string; isException: boolean; reason?: string }
+      {
+        pickupTime: string;
+        isException: boolean;
+        dayNotes?: { id: string; content: string }[];
+      }
     >(),
   ),
 );
@@ -1828,7 +1832,11 @@ describe("OGSGroupPage rendered pickup urgency", () => {
   function setupWithStudentsAndPickupTimes(
     pickupMap: Map<
       string,
-      { pickupTime: string; isException: boolean; reason?: string }
+      {
+        pickupTime: string;
+        isException: boolean;
+        dayNotes?: { id: string; content: string }[];
+      }
     >,
     locationMocks?: {
       isHome?: (loc: string | null | undefined) => boolean;
@@ -1975,7 +1983,7 @@ describe("OGSGroupPage rendered pickup urgency", () => {
         {
           pickupTime: "00:01",
           isException: true,
-          reason: "Arzttermin",
+          dayNotes: [{ id: "1", content: "Arzttermin" }],
         },
       ],
     ]);
@@ -1992,8 +2000,8 @@ describe("OGSGroupPage rendered pickup urgency", () => {
       expect(screen.getByTestId("exception-icon")).toBeInTheDocument();
     });
 
-    // Exception reason should be displayed
-    expect(screen.getByText("(Arzttermin)")).toBeInTheDocument();
+    // Day note should be displayed
+    expect(screen.getByText(/Arzttermin/)).toBeInTheDocument();
   });
 
   it("does not show urgency icon for at-home students", async () => {

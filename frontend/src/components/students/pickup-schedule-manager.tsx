@@ -358,7 +358,7 @@ function DayRow({ day, readOnly, onEditDay }: DayComponentProps) {
     ? formatPickupTime(day.effectiveTime)
     : null;
 
-  const hasNotes = !!(day.baseSchedule?.notes ?? day.notes.length > 0);
+  const hasNotes = !!day.baseSchedule?.notes || day.notes.length > 0;
 
   return (
     <div
