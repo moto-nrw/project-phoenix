@@ -263,11 +263,14 @@ jobs:
         env:
           SSH_KEY: ${{ secrets.STAGING_SSH_KEY }}
           SSH_HOST: ${{ secrets.STAGING_HOST }}
+          SSH_KNOWN_HOSTS: ${{ secrets.STAGING_SSH_KNOWN_HOSTS }}
         run: |
           mkdir -p ~/.ssh
+          echo "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
           echo "$SSH_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          ssh -o StrictHostKeyChecking=no -i ~/.ssh/deploy_key root@$SSH_HOST '
+          ssh -i ~/.ssh/deploy_key root@$SSH_HOST '
             cd ~/staging
             docker compose pull
             docker compose up -d
@@ -285,11 +288,14 @@ jobs:
         env:
           SSH_KEY: ${{ secrets.DEMO_SSH_KEY }}
           SSH_HOST: ${{ secrets.DEMO_HOST }}
+          SSH_KNOWN_HOSTS: ${{ secrets.DEMO_SSH_KNOWN_HOSTS }}
         run: |
           mkdir -p ~/.ssh
+          echo "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
           echo "$SSH_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          ssh -o StrictHostKeyChecking=no -i ~/.ssh/deploy_key root@$SSH_HOST '
+          ssh -i ~/.ssh/deploy_key root@$SSH_HOST '
             cd ~/demo
             docker compose pull
             docker compose up -d
@@ -307,11 +313,14 @@ jobs:
         env:
           SSH_KEY: ${{ secrets.PRODUCTION_SSH_KEY }}
           SSH_HOST: ${{ secrets.PRODUCTION_HOST }}
+          SSH_KNOWN_HOSTS: ${{ secrets.PRODUCTION_SSH_KNOWN_HOSTS }}
         run: |
           mkdir -p ~/.ssh
+          echo "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
           echo "$SSH_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          ssh -o StrictHostKeyChecking=no -i ~/.ssh/deploy_key root@$SSH_HOST '
+          ssh -i ~/.ssh/deploy_key root@$SSH_HOST '
             cd ~/production
             docker compose pull
             docker compose up -d
