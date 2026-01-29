@@ -24,7 +24,6 @@ import {
   isTransitLocation,
   parseLocation,
 } from "~/lib/location-helper";
-import { SCHOOL_YEAR_FILTER_OPTIONS } from "~/lib/student-helpers";
 import { SSEErrorBoundary } from "~/components/sse/SSEErrorBoundary";
 import { GroupTransferModal } from "~/components/groups/group-transfer-modal";
 import { groupTransferService } from "~/lib/group-transfer-api";
@@ -168,20 +167,6 @@ function matchesSearchFilter(student: Student, searchTerm: string): boolean {
   );
 }
 
-function matchesYearFilter(student: Student, selectedYear: string): boolean {
-  if (selectedYear === "all") return true;
-
-  const studentYear = extractStudentYear(student.school_class);
-  return studentYear === selectedYear;
-}
-
-function extractStudentYear(schoolClass?: string): string | null {
-  if (!schoolClass) return null;
-
-  const yearMatch = /^(\d)/.exec(schoolClass);
-  return yearMatch?.[1] ?? null;
-}
-
 function matchesAttendanceFilter(
   student: Student,
   attendanceFilter: string,
@@ -239,7 +224,6 @@ function OGSGroupPageContent() {
   const [selectedGroupIndex, setSelectedGroupIndex] = useState(0);
   const [students, setStudents] = useState<Student[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedYear, setSelectedYear] = useState("all");
   const [attendanceFilter, setAttendanceFilter] = useState("all");
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -740,7 +724,6 @@ function OGSGroupPageContent() {
   const filteredStudents = (Array.isArray(students) ? students : []).filter(
     (student) =>
       matchesSearchFilter(student, searchTerm) &&
-      matchesYearFilter(student, selectedYear) &&
       matchesAttendanceFilter(student, attendanceFilter, roomStatus),
   );
 
@@ -829,14 +812,6 @@ function OGSGroupPageContent() {
         ],
       },
       {
-        id: "year",
-        label: "Klassenstufe",
-        type: "buttons",
-        value: selectedYear,
-        onChange: (value) => setSelectedYear(value as string),
-        options: [...SCHOOL_YEAR_FILTER_OPTIONS],
-      },
-      {
         id: "location",
         label: "Aufenthaltsort",
         type: "grid",
@@ -872,7 +847,7 @@ function OGSGroupPageContent() {
         ],
       },
     ],
-    [sortMode, selectedYear, attendanceFilter],
+    [sortMode, attendanceFilter],
   );
 
   // Prepare active filters for display
@@ -895,14 +870,6 @@ function OGSGroupPageContent() {
       });
     }
 
-    if (selectedYear !== "all") {
-      filters.push({
-        id: "year",
-        label: `Jahr ${selectedYear}`,
-        onRemove: () => setSelectedYear("all"),
-      });
-    }
-
     if (attendanceFilter !== "all") {
       const locationLabels: Record<string, string> = {
         in_room: "Gruppenraum",
@@ -919,7 +886,7 @@ function OGSGroupPageContent() {
     }
 
     return filters;
-  }, [sortMode, searchTerm, selectedYear, attendanceFilter]);
+  }, [sortMode, searchTerm, attendanceFilter]);
 
   if (status === "loading" || isLoading || hasAccess === null) {
     return (
@@ -1227,7 +1194,6 @@ function OGSGroupPageContent() {
           activeFilters={activeFilters}
           onClearAllFilters={() => {
             setSearchTerm("");
-            setSelectedYear("all");
             setAttendanceFilter("all");
             setSortMode("default");
           }}
