@@ -48,7 +48,7 @@ env:
 jobs:
   # Determine target environment and whether to proceed
   check-environment:
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     outputs:
       should_deploy: ${{ steps.check.outputs.should_deploy }}
       is_staging: ${{ steps.check.outputs.is_staging }}
@@ -258,7 +258,7 @@ jobs:
   deploy-staging:
     needs: [check-environment, build-backend, build-frontend]
     if: needs.check-environment.outputs.should_deploy == 'true' && needs.check-environment.outputs.is_staging == 'true'
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     steps:
       - name: Deploy to staging
         env:
@@ -283,7 +283,7 @@ jobs:
   deploy-demo:
     needs: [check-environment, build-backend, build-frontend]
     if: needs.check-environment.outputs.should_deploy == 'true' && needs.check-environment.outputs.is_demo == 'true'
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     steps:
       - name: Deploy to demo
         env:
@@ -308,7 +308,7 @@ jobs:
   deploy-production:
     needs: [check-environment, build-backend, build-frontend]
     if: needs.check-environment.outputs.should_deploy == 'true' && needs.check-environment.outputs.is_staging == 'false' && needs.check-environment.outputs.is_demo == 'false'
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     steps:
       - name: Deploy to production
         env:
@@ -331,7 +331,7 @@ jobs:
 
   # Summary job for branch protection
   build-status:
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     needs: [check-environment, build-backend, build-frontend]
     if: always() && needs.check-environment.outputs.should_deploy == 'true'
     steps:
