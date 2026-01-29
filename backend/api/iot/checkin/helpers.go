@@ -65,6 +65,9 @@ func (rs *Resource) shouldShowDailyCheckoutWithGroup(ctx context.Context, studen
 	if student.GroupID == nil {
 		return false
 	}
+	if currentVisit == nil || currentVisit.ActiveGroup == nil {
+		return false
+	}
 
 	checkoutTime, err := getStudentDailyCheckoutTime()
 	if err != nil || !time.Now().After(checkoutTime) {

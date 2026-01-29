@@ -9,7 +9,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	iotCommon "github.com/moto-nrw/project-phoenix/api/iot/common"
 	"github.com/moto-nrw/project-phoenix/auth/device"
-	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 )
 
 // devicePing handles ping requests from RFID devices
@@ -128,13 +127,11 @@ func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 	var previousRoomName string
 	var checkedOut bool
 
-	// Step 6b: Process checkout if student has active visit
-	// If this will be a daily checkout, enable attendance auto-sync so EndVisit
-	// also sets active.attendance.check_out_time (student goes "Zuhause").
+	// Step 6b: Process checkout if student has active visit.
+	// Checkout always produces "unterwegs" state — attendance is NOT synced here.
+	// Daily attendance checkout is confirmed separately via confirm_daily_checkout
+	// when the student selects "nach Hause" on the device.
 	if currentVisit != nil {
-		if rs.shouldShowDailyCheckoutWithGroup(ctx, student, currentVisit) {
-			ctx = activeSvc.WithAttendanceAutoSync(ctx)
-		}
 		var err error
 		checkoutVisitID, previousRoomName, err = rs.processCheckout(ctx, w, r, student, person, currentVisit)
 		if err != nil {
