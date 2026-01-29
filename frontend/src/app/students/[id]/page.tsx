@@ -431,6 +431,8 @@ function LimitedAccessView({
       <SupervisorsCard supervisors={supervisors} studentName={student.name} />
 
       <PersonalInfoReadOnly student={student} />
+
+      <StudentGuardianManager studentId={student.id} readOnly={true} />
     </div>
   );
 }

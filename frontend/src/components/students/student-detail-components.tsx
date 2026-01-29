@@ -501,11 +501,21 @@ export function PersonalInfoReadOnly({
           label="Abholstatus"
           value={student.pickup_status ?? "Nicht gesetzt"}
         />
+        <InfoItem
+          label="Krankheitsstatus"
+          value={<SicknessStatus student={student} />}
+        />
         {student.health_info && (
           <InfoItem
             label="Gesundheitsinformationen"
             value={student.health_info}
           />
+        )}
+        {student.supervisor_notes && (
+          <InfoItem label="Betreuernotizen" value={student.supervisor_notes} />
+        )}
+        {student.extra_info && (
+          <InfoItem label="Elternnotizen" value={student.extra_info} />
         )}
       </div>
     </div>
