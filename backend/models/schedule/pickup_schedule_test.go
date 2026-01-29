@@ -8,6 +8,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// strPtr returns a pointer to the given string
+func strPtr(s string) *string {
+	return &s
+}
+
 // =============================================================================
 // StudentPickupSchedule Validation Tests
 // =============================================================================
@@ -228,7 +233,7 @@ func TestStudentPickupException_Validate(t *testing.T) {
 					StudentID:     1,
 					ExceptionDate: validDate,
 					PickupTime:    &validTime,
-					Reason:        "Doctor appointment",
+					Reason:        strPtr("Doctor appointment"),
 					CreatedBy:     1,
 				}
 			},
@@ -241,7 +246,7 @@ func TestStudentPickupException_Validate(t *testing.T) {
 					StudentID:     1,
 					ExceptionDate: validDate,
 					PickupTime:    nil,
-					Reason:        "Student is sick",
+					Reason:        strPtr("Student is sick"),
 					CreatedBy:     1,
 				}
 			},
@@ -253,7 +258,7 @@ func TestStudentPickupException_Validate(t *testing.T) {
 				return &StudentPickupException{
 					StudentID:     0,
 					ExceptionDate: validDate,
-					Reason:        "Test reason",
+					Reason:        strPtr("Test reason"),
 					CreatedBy:     1,
 				}
 			},
@@ -266,7 +271,7 @@ func TestStudentPickupException_Validate(t *testing.T) {
 				return &StudentPickupException{
 					StudentID:     -1,
 					ExceptionDate: validDate,
-					Reason:        "Test reason",
+					Reason:        strPtr("Test reason"),
 					CreatedBy:     1,
 				}
 			},
@@ -278,7 +283,7 @@ func TestStudentPickupException_Validate(t *testing.T) {
 			setup: func() *StudentPickupException {
 				return &StudentPickupException{
 					StudentID: 1,
-					Reason:    "Test reason",
+					Reason:    strPtr("Test reason"),
 					CreatedBy: 1,
 				}
 			},
@@ -291,12 +296,11 @@ func TestStudentPickupException_Validate(t *testing.T) {
 				return &StudentPickupException{
 					StudentID:     1,
 					ExceptionDate: validDate,
-					Reason:        "",
+					Reason:        nil,
 					CreatedBy:     1,
 				}
 			},
-			wantErr: true,
-			errMsg:  "reason is required",
+			wantErr: false, // Reason is optional (nullable field)
 		},
 		{
 			name: "reason too long",
@@ -304,7 +308,7 @@ func TestStudentPickupException_Validate(t *testing.T) {
 				return &StudentPickupException{
 					StudentID:     1,
 					ExceptionDate: validDate,
-					Reason:        string(make([]byte, 256)),
+					Reason:        strPtr(string(make([]byte, 256))),
 					CreatedBy:     1,
 				}
 			},
@@ -317,7 +321,7 @@ func TestStudentPickupException_Validate(t *testing.T) {
 				return &StudentPickupException{
 					StudentID:     1,
 					ExceptionDate: validDate,
-					Reason:        "Test reason",
+					Reason:        strPtr("Test reason"),
 					CreatedBy:     0,
 				}
 			},
@@ -357,7 +361,7 @@ func TestStudentPickupException_IsAbsent(t *testing.T) {
 					StudentID:     1,
 					ExceptionDate: validDate,
 					PickupTime:    &validTime,
-					Reason:        "Early pickup",
+					Reason:        strPtr("Early pickup"),
 					CreatedBy:     1,
 				}
 			},
@@ -370,7 +374,7 @@ func TestStudentPickupException_IsAbsent(t *testing.T) {
 					StudentID:     1,
 					ExceptionDate: validDate,
 					PickupTime:    nil,
-					Reason:        "Student is sick",
+					Reason:        strPtr("Student is sick"),
 					CreatedBy:     1,
 				}
 			},
