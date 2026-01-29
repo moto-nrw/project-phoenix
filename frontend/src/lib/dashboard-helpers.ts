@@ -159,7 +159,11 @@ export function formatRecentActivityTime(timestamp: Date | string): string {
   const diffHours = Math.floor(diffMinutes / 60);
   if (diffHours < 24) return `vor ${diffHours} Std.`;
 
-  return timestampDate.toLocaleDateString("de-DE");
+  return timestampDate.toLocaleDateString("de-DE", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
 }
 
 export function getActivityTypeIcon(type: RecentActivity["type"]): string {

@@ -458,7 +458,11 @@ export function PersonalInfoReadOnly({
   onEditClick,
 }: Readonly<PersonalInfoReadOnlyProps>) {
   const birthdayDisplay = student.birthday
-    ? new Date(student.birthday).toLocaleDateString("de-DE")
+    ? new Date(student.birthday).toLocaleDateString("de-DE", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+      })
     : "Nicht angegeben";
 
   return (
@@ -522,7 +526,11 @@ export function FullAccessPersonalInfoReadOnly({
   onEditClick,
 }: Readonly<FullAccessPersonalInfoReadOnlyProps>) {
   const birthdayDisplay = student.birthday
-    ? new Date(student.birthday).toLocaleDateString("de-DE")
+    ? new Date(student.birthday).toLocaleDateString("de-DE", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+      })
     : "Nicht angegeben";
 
   return (
@@ -599,7 +607,12 @@ function SicknessStatus({ student }: Readonly<{ student: ExtendedStudent }>) {
       </span>
       {student.sick_since && (
         <span className="text-sm text-gray-500">
-          seit {new Date(student.sick_since).toLocaleDateString("de-DE")}
+          seit{" "}
+          {new Date(student.sick_since).toLocaleDateString("de-DE", {
+            day: "2-digit",
+            month: "2-digit",
+            year: "numeric",
+          })}
         </span>
       )}
     </div>
