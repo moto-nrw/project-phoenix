@@ -166,6 +166,8 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           platforms: linux/amd64
           # Use separate cache scope to prevent frontend overwriting backend cache
+          cache-from: type=gha,scope=backend
+          cache-to: type=gha,mode=max,scope=backend
           provenance: false
 
       - name: Image digest
@@ -240,6 +242,8 @@ jobs:
           build-args: |
             NEXT_PUBLIC_API_URL=${{ steps.api_url.outputs.url }}
           # Use separate cache scope to prevent backend overwriting frontend cache
+          cache-from: type=gha,scope=frontend
+          cache-to: type=gha,mode=max,scope=frontend
           provenance: false
 
       - name: Image digest
