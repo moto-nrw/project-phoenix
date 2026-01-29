@@ -183,18 +183,27 @@ func (rs *Resource) handleDailyCheckout(w http.ResponseWriter, r *http.Request, 
 	log.Printf("[DAILY_CHECKOUT] Confirming daily checkout for student %s %s (ID: %d), destination: %s",
 		person.FirstName, person.LastName, student.ID, *req.Destination)
 
+	// Verify the student has an attendance record for today.
+	// Without one, daily checkout makes no sense — the student was never checked in.
+	currentStatus, err := rs.ActiveService.GetStudentAttendanceStatus(r.Context(), student.ID)
+	if err != nil {
+		log.Printf("[DAILY_CHECKOUT] ERROR: Failed to get attendance status for student %d: %v", student.ID, err)
+		iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(err))
+		return
+	}
+	if currentStatus.Status != "checked_in" && currentStatus.Status != "checked_out" {
+		log.Printf("[DAILY_CHECKOUT] ERROR: Student %d has no attendance record for today (status: %s) — cannot perform daily checkout",
+			student.ID, currentStatus.Status)
+		iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(
+			errors.New("student has no attendance record for today")))
+		return
+	}
+
 	// Only update attendance when student is going home ("zuhause").
 	// "unterwegs" means they stay in transit — no attendance change needed.
 	if *req.Destination == "zuhause" {
-		// Verify the student is currently "checked_in" before toggling.
-		// This guards against a race where attendance was already changed
+		// Guard against a race where attendance was already changed
 		// (e.g., teacher manually checked out) between scan and "nach Hause" click.
-		currentStatus, err := rs.ActiveService.GetStudentAttendanceStatus(r.Context(), student.ID)
-		if err != nil {
-			log.Printf("[DAILY_CHECKOUT] ERROR: Failed to get attendance status for student %d: %v", student.ID, err)
-			iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(err))
-			return
-		}
 		switch currentStatus.Status {
 		case "checked_out":
 			log.Printf("[DAILY_CHECKOUT] Student %d already checked out — skipping attendance toggle", student.ID)
@@ -217,9 +226,6 @@ func (rs *Resource) handleDailyCheckout(w http.ResponseWriter, r *http.Request, 
 				iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(err))
 				return
 			}
-		default:
-			log.Printf("[DAILY_CHECKOUT] WARNING: Student %d has unexpected attendance status '%s' — skipping toggle",
-				student.ID, currentStatus.Status)
 		}
 	}
 
