@@ -264,6 +264,11 @@ function MeinRaumPageContent() {
   // Get current selected room
   const currentRoom = allRooms[selectedRoomIndex] ?? null;
 
+  // Set breadcrumb so header shows current room name
+  useSetBreadcrumb({
+    activeSupervisionName: currentRoom?.room_name,
+  });
+
   // Check if current room is Schulhof (special release supervision feature)
   const isSchulhof = currentRoom?.room_name === SCHULHOF_ROOM_NAME;
 
