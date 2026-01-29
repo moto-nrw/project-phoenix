@@ -241,7 +241,7 @@ export default function PickupScheduleManager({
             <Calendar className="h-5 w-5" />
           </div>
           <h2 className="truncate text-base font-semibold text-gray-900 sm:text-lg">
-            Abholplan
+            Abholplan und Notizen
           </h2>
         </div>
         {!readOnly && (
@@ -358,87 +358,96 @@ function DayRow({ day, readOnly, onEditDay }: DayComponentProps) {
     ? formatPickupTime(day.effectiveTime)
     : null;
 
+  const hasNotes = !!(day.baseSchedule?.notes ?? day.notes.length > 0);
+
   return (
     <div
-      className={`flex items-center gap-3 rounded-lg border px-3 py-2 ${
+      className={`rounded-lg border px-3 py-2 ${
         day.isToday
           ? "border-[#F78C10] bg-[#F78C10]/5"
           : "border-gray-200 bg-white"
       }`}
     >
-      {/* Weekday + Date */}
-      <div className="w-16 flex-shrink-0">
-        <div
-          className={`text-sm font-medium ${
-            day.isToday ? "text-[#F78C10]" : "text-gray-700"
-          }`}
-        >
-          {weekdayInfo?.shortLabel} {formatShortDate(day.date)}
+      {/* Top row: weekday, time, indicators, edit */}
+      <div className="flex items-center gap-3">
+        {/* Weekday + Date */}
+        <div className="w-16 flex-shrink-0">
+          <div
+            className={`text-sm font-medium ${
+              day.isToday ? "text-[#F78C10]" : "text-gray-700"
+            }`}
+          >
+            {weekdayInfo?.shortLabel} {formatShortDate(day.date)}
+          </div>
+          {day.isToday && (
+            <div className="text-[10px] text-[#F78C10]">heute</div>
+          )}
         </div>
-        {day.isToday && <div className="text-[10px] text-[#F78C10]">heute</div>}
+
+        {/* Content */}
+        {day.showSick ? (
+          <div
+            className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium text-white"
+            style={{ backgroundColor: "#EAB308" }}
+          >
+            <span className="h-1.5 w-1.5 rounded-full bg-white/80" />
+            <span>Krank</span>
+          </div>
+        ) : (
+          <>
+            {/* Time */}
+            <div className="w-12 flex-shrink-0 text-sm font-semibold text-gray-900">
+              {effectiveTime ?? "—"}
+            </div>
+
+            {/* Exception indicator */}
+            <div className="min-w-0 flex-1">
+              {day.isException && (
+                <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-orange-100 text-orange-600">
+                  <svg
+                    className="h-3 w-3"
+                    viewBox="0 0 20 20"
+                    fill="currentColor"
+                  >
+                    <circle cx="10" cy="10" r="5" />
+                  </svg>
+                </span>
+              )}
+            </div>
+
+            {/* Edit button */}
+            {!readOnly && (
+              <button
+                onClick={() => onEditDay(day)}
+                className="flex-shrink-0 rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+                title="Tag bearbeiten"
+              >
+                <SquarePen className="h-4 w-4" />
+              </button>
+            )}
+          </>
+        )}
       </div>
 
-      {/* Content */}
-      {day.showSick ? (
-        <div
-          className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium text-white"
-          style={{ backgroundColor: "#EAB308" }}
-        >
-          <span className="h-1.5 w-1.5 rounded-full bg-white/80" />
-          <span>Krank</span>
-        </div>
-      ) : (
-        <>
-          {/* Time */}
-          <div className="w-12 flex-shrink-0 text-sm font-semibold text-gray-900">
-            {effectiveTime ?? "—"}
-          </div>
-
-          {/* Exception indicator + notes */}
-          <div className="flex min-w-0 flex-1 items-center gap-1.5">
-            {day.isException && (
-              <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-orange-100 text-orange-600">
-                <svg
-                  className="h-3 w-3"
-                  viewBox="0 0 20 20"
-                  fill="currentColor"
-                >
-                  <circle cx="10" cy="10" r="5" />
-                </svg>
-              </span>
-            )}
-            {(day.baseSchedule?.notes ?? day.notes.length > 0) && (
-              <div className="flex min-w-0 flex-col gap-0.5">
-                {day.baseSchedule?.notes && (
-                  <span className="flex items-center gap-1 text-sm text-gray-400 italic">
-                    <StickyNote className="h-3.5 w-3.5 flex-shrink-0" />
-                    <span className="truncate">{day.baseSchedule.notes}</span>
-                  </span>
-                )}
-                {day.notes.map((note) => (
-                  <span
-                    key={note.id}
-                    className="flex items-center gap-1 text-sm text-gray-500"
-                  >
-                    <StickyNote className="h-3.5 w-3.5 flex-shrink-0 text-gray-400" />
-                    <span className="truncate">{note.content}</span>
-                  </span>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Edit button — always visible */}
-          {!readOnly && (
-            <button
-              onClick={() => onEditDay(day)}
-              className="flex-shrink-0 rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
-              title="Tag bearbeiten"
-            >
-              <SquarePen className="h-4 w-4" />
-            </button>
+      {/* Notes below (full width) */}
+      {!day.showSick && hasNotes && (
+        <div className="mt-1.5 space-y-0.5 pl-[76px]">
+          {day.baseSchedule?.notes && (
+            <div className="flex items-start gap-1 text-xs text-gray-400 italic">
+              <StickyNote className="mt-0.5 h-3 w-3 flex-shrink-0" />
+              <span>{day.baseSchedule.notes}</span>
+            </div>
           )}
-        </>
+          {day.notes.map((note) => (
+            <div
+              key={note.id}
+              className="flex items-start gap-1 text-xs text-gray-500"
+            >
+              <StickyNote className="mt-0.5 h-3 w-3 flex-shrink-0 text-gray-400" />
+              <span>{note.content}</span>
+            </div>
+          ))}
+        </div>
       )}
     </div>
   );
