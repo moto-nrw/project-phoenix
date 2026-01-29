@@ -466,8 +466,8 @@ func TestToggleAttendance_DailyCheckoutNoActiveVisit(t *testing.T) {
 	router := chi.NewRouter()
 	router.Post("/toggle", ctx.resource.ToggleAttendanceHandler())
 
-	// Daily checkout when student has no active visit
-	// The service returns an error when visit not found, which results in 500
+	// Daily checkout when student has no attendance record
+	// The handler returns 404 when the student was never checked in today
 	dest := "zuhause"
 	body := map[string]interface{}{
 		"rfid":        rfidCard.ID,
@@ -481,9 +481,9 @@ func TestToggleAttendance_DailyCheckoutNoActiveVisit(t *testing.T) {
 
 	rr := testutil.ExecuteRequest(router, req)
 
-	// Service returns error when visit not found, handler returns 500
+	// Student has no attendance record, handler returns 404
 	// This tests the error handling path in handleDailyCheckout
-	testutil.AssertErrorResponse(t, rr, http.StatusInternalServerError)
+	testutil.AssertErrorResponse(t, rr, http.StatusNotFound)
 }
 
 func TestToggleAttendance_NormalToggleValidStudent(t *testing.T) {
@@ -561,7 +561,7 @@ func TestToggleAttendance_DailyCheckoutUnterwegs(t *testing.T) {
 	router := chi.NewRouter()
 	router.Post("/toggle", ctx.resource.ToggleAttendanceHandler())
 
-	// Daily checkout with "unterwegs" destination - tests the other destination branch
+	// Daily checkout with "unterwegs" destination — student has no attendance record
 	dest := "unterwegs"
 	body := map[string]interface{}{
 		"rfid":        rfidCard.ID,
@@ -575,8 +575,8 @@ func TestToggleAttendance_DailyCheckoutUnterwegs(t *testing.T) {
 
 	rr := testutil.ExecuteRequest(router, req)
 
-	// Will fail at GetStudentCurrentVisit since no active visit
-	testutil.AssertErrorResponse(t, rr, http.StatusInternalServerError)
+	// Student has no attendance record, handler returns 404
+	testutil.AssertErrorResponse(t, rr, http.StatusNotFound)
 }
 
 func TestRouter_ReturnsValidRouter(t *testing.T) {
