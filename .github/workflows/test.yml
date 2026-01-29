@@ -2,6 +2,13 @@ name: Test & Coverage
 
 on:
   workflow_call:
+    inputs:
+      run-backend:
+        type: boolean
+        default: true
+      run-frontend:
+        type: boolean
+        default: true
     secrets:
       SONAR_TOKEN:
         description: "SonarCloud authentication token"
@@ -13,6 +20,7 @@ defaults:
 
 jobs:
   test-backend:
+    if: ${{ inputs.run-backend }}
     runs-on: blacksmith-4vcpu-ubuntu-2404
 
     services:
@@ -71,6 +79,7 @@ jobs:
         if: always()
 
   test-frontend:
+    if: ${{ inputs.run-frontend }}
     runs-on: blacksmith-4vcpu-ubuntu-2404
 
     steps:
@@ -106,6 +115,7 @@ jobs:
   sonarcloud:
     runs-on: blacksmith-4vcpu-ubuntu-2404
     needs: [test-backend, test-frontend]
+    if: always()
 
     steps:
       - name: Checkout code
@@ -118,12 +128,14 @@ jobs:
         with:
           name: coverage-backend
           path: backend/
+        continue-on-error: true
 
       - name: Download frontend coverage
         uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
         with:
           name: coverage-frontend
           path: frontend/coverage/
+        continue-on-error: true
 
       - name: SonarCloud Scan
         uses: SonarSource/sonarqube-scan-action@a31c9398be7ace6bbfaf30c0bd5d415f843d45e9 # v7.0.0

@@ -1,10 +1,19 @@
-on: [workflow_call]
+on:
+  workflow_call:
+    inputs:
+      run-backend:
+        type: boolean
+        default: true
+      run-frontend:
+        type: boolean
+        default: true
 defaults:
   run:
     shell: bash
 
 jobs:
   backend-deadcode:
+    if: ${{ inputs.run-backend }}
     runs-on: blacksmith-4vcpu-ubuntu-2404
     steps:
       - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
@@ -66,6 +75,7 @@ jobs:
           fi
 
   backend-lint:
+    if: ${{ inputs.run-backend }}
     runs-on: blacksmith-4vcpu-ubuntu-2404
     steps:
       - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
@@ -83,6 +93,7 @@ jobs:
           working-directory: backend
 
   frontend-lint:
+    if: ${{ inputs.run-frontend }}
     runs-on: blacksmith-4vcpu-ubuntu-2404
     env:
       NEXT_PUBLIC_API_URL: "http://localhost:8080" # Default API URL for linting
