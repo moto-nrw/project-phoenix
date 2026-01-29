@@ -65,6 +65,22 @@ jobs:
             echo "No dead code detected"
           fi
 
+  backend-vulncheck:
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
+      - name: Setup Go with cache
+        uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c # v6
+        with:
+          go-version-file: backend/go.mod
+          cache: true
+          cache-dependency-path: backend/go.sum
+      - name: Install govulncheck
+        run: go install golang.org/x/vuln/cmd/govulncheck@latest
+      - name: Run vulnerability check
+        working-directory: backend
+        run: govulncheck ./...
+
   backend-lint:
     runs-on: blacksmith-4vcpu-ubuntu-2404
     steps:
