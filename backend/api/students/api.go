@@ -117,6 +117,11 @@ func (rs *Resource) Router() chi.Router {
 		r.With(authorize.RequiresPermission(permissions.UsersUpdate)).Put("/{id}/pickup-exceptions/{exceptionId}", rs.updateStudentPickupException)
 		r.With(authorize.RequiresPermission(permissions.UsersUpdate)).Delete("/{id}/pickup-exceptions/{exceptionId}", rs.deleteStudentPickupException)
 
+		// Pickup note routes (full access required - checked in handlers)
+		r.With(authorize.RequiresPermission(permissions.UsersUpdate)).Post("/{id}/pickup-notes", rs.createStudentPickupNote)
+		r.With(authorize.RequiresPermission(permissions.UsersUpdate)).Put("/{id}/pickup-notes/{noteId}", rs.updateStudentPickupNote)
+		r.With(authorize.RequiresPermission(permissions.UsersUpdate)).Delete("/{id}/pickup-notes/{noteId}", rs.deleteStudentPickupNote)
+
 		// Bulk pickup times endpoint (returns pickup times for multiple students)
 		r.With(authorize.RequiresPermission(permissions.UsersRead)).Post("/pickup-times/bulk", rs.getBulkPickupTimes)
 	})

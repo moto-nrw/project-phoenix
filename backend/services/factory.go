@@ -229,6 +229,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 	pickupScheduleService := schedule.NewPickupScheduleService(
 		repos.StudentPickupSchedule,
 		repos.StudentPickupException,
+		repos.StudentPickupNote,
 		db,
 	)
 

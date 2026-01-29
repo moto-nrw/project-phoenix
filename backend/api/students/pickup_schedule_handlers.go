@@ -12,6 +12,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/models/users"
+	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 )
 
 // dateFormatISO is the standard date format (YYYY-MM-DD) used for pickup schedules.
@@ -42,16 +44,28 @@ type PickupExceptionResponse struct {
 	StudentID     int64   `json:"student_id"`
 	ExceptionDate string  `json:"exception_date"` // YYYY-MM-DD format
 	PickupTime    *string `json:"pickup_time,omitempty"`
-	Reason        string  `json:"reason"`
+	Reason        *string `json:"reason,omitempty"`
 	CreatedBy     int64   `json:"created_by"`
 	CreatedAt     string  `json:"created_at"`
 	UpdatedAt     string  `json:"updated_at"`
+}
+
+// PickupNoteResponse represents a pickup note in API responses
+type PickupNoteResponse struct {
+	ID        int64  `json:"id"`
+	StudentID int64  `json:"student_id"`
+	NoteDate  string `json:"note_date"` // YYYY-MM-DD format
+	Content   string `json:"content"`
+	CreatedBy int64  `json:"created_by"`
+	CreatedAt string `json:"created_at"`
+	UpdatedAt string `json:"updated_at"`
 }
 
 // PickupDataResponse represents combined pickup data
 type PickupDataResponse struct {
 	Schedules  []PickupScheduleResponse  `json:"schedules"`
 	Exceptions []PickupExceptionResponse `json:"exceptions"`
+	Notes      []PickupNoteResponse      `json:"notes"`
 }
 
 // PickupScheduleRequest represents a request to create/update a pickup schedule
@@ -70,7 +84,30 @@ type BulkPickupScheduleRequest struct {
 type PickupExceptionRequest struct {
 	ExceptionDate string  `json:"exception_date"` // YYYY-MM-DD format
 	PickupTime    *string `json:"pickup_time,omitempty"`
-	Reason        string  `json:"reason"`
+	Reason        *string `json:"reason,omitempty"`
+}
+
+// PickupNoteRequest represents a request to create/update a pickup note
+type PickupNoteRequest struct {
+	NoteDate string `json:"note_date"` // YYYY-MM-DD format
+	Content  string `json:"content"`
+}
+
+// Bind implements render.Binder
+func (r *PickupNoteRequest) Bind(_ *http.Request) error {
+	if r.NoteDate == "" {
+		return errors.New("note_date is required")
+	}
+	if _, err := time.Parse(dateFormatISO, r.NoteDate); err != nil {
+		return errors.New("invalid note_date format, expected YYYY-MM-DD")
+	}
+	if r.Content == "" {
+		return errors.New("content is required")
+	}
+	if len(r.Content) > 500 {
+		return errors.New("content cannot exceed 500 characters")
+	}
+	return nil
 }
 
 // Bind implements render.Binder
@@ -132,10 +169,7 @@ func (r *PickupExceptionRequest) Bind(_ *http.Request) error {
 			return errors.New("invalid pickup_time format, expected HH:MM")
 		}
 	}
-	if r.Reason == "" {
-		return errors.New("reason is required")
-	}
-	if len(r.Reason) > 255 {
+	if r.Reason != nil && len(*r.Reason) > 255 {
 		return errors.New("reason cannot exceed 255 characters")
 	}
 	return nil
@@ -174,6 +208,19 @@ func mapExceptionToResponse(e *schedule.StudentPickupException) PickupExceptionR
 	return resp
 }
 
+// mapNoteToResponse converts a note model to API response
+func mapNoteToResponse(n *schedule.StudentPickupNote) PickupNoteResponse {
+	return PickupNoteResponse{
+		ID:        n.ID,
+		StudentID: n.StudentID,
+		NoteDate:  n.NoteDate.Format(dateFormatISO),
+		Content:   n.Content,
+		CreatedBy: n.CreatedBy,
+		CreatedAt: n.CreatedAt.Format(time.RFC3339),
+		UpdatedAt: n.UpdatedAt.Format(time.RFC3339),
+	}
+}
+
 // getStaffIDFromJWT extracts the staff ID from JWT claims by looking up the person and staff
 func (rs *Resource) getStaffIDFromJWT(r *http.Request) (int64, error) {
 	claims := jwt.ClaimsFromCtx(r.Context())
@@ -196,17 +243,36 @@ func (rs *Resource) getStaffIDFromJWT(r *http.Request) (int64, error) {
 	return staff.ID, nil
 }
 
-// getStudentPickupSchedules handles GET /students/{id}/pickup-schedules
-func (rs *Resource) getStudentPickupSchedules(w http.ResponseWriter, r *http.Request) {
+// requirePickupAccess parses the student from URL params and verifies full access.
+// Returns the student on success or writes an error response and returns nil.
+func (rs *Resource) requirePickupAccess(w http.ResponseWriter, r *http.Request, action string) *users.Student {
 	student, ok := rs.parseAndGetStudent(w, r)
 	if !ok {
-		return
+		return nil
 	}
+	if !rs.checkStudentFullAccess(r, student) {
+		renderError(w, r, ErrorForbidden(fmt.Errorf("full access required to %s", action)))
+		return nil
+	}
+	return student
+}
 
-	// Check if user has full access (admin or supervises this student's group)
-	hasFullAccess := rs.checkStudentFullAccess(r, student)
-	if !hasFullAccess {
-		renderError(w, r, ErrorForbidden(errors.New("full access required to view pickup schedules")))
+// parseEntityID extracts a numeric ID from a URL parameter.
+// Returns 0 and writes an error response on failure.
+func parseEntityID(w http.ResponseWriter, r *http.Request, param string, label string) (int64, bool) {
+	idStr := chi.URLParam(r, param)
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		renderError(w, r, ErrorInvalidRequest(fmt.Errorf("invalid %s ID", label)))
+		return 0, false
+	}
+	return id, true
+}
+
+// getStudentPickupSchedules handles GET /students/{id}/pickup-schedules
+func (rs *Resource) getStudentPickupSchedules(w http.ResponseWriter, r *http.Request) {
+	student := rs.requirePickupAccess(w, r, "view pickup schedules")
+	if student == nil {
 		return
 	}
 
@@ -216,9 +282,17 @@ func (rs *Resource) getStudentPickupSchedules(w http.ResponseWriter, r *http.Req
 		return
 	}
 
+	response := buildPickupDataResponse(data)
+
+	common.Respond(w, r, http.StatusOK, response, "Pickup schedules retrieved successfully")
+}
+
+// buildPickupDataResponse converts service pickup data to API response
+func buildPickupDataResponse(data *scheduleService.StudentPickupData) PickupDataResponse {
 	response := PickupDataResponse{
 		Schedules:  make([]PickupScheduleResponse, 0, len(data.Schedules)),
 		Exceptions: make([]PickupExceptionResponse, 0, len(data.Exceptions)),
+		Notes:      make([]PickupNoteResponse, 0, len(data.Notes)),
 	}
 
 	for _, s := range data.Schedules {
@@ -227,20 +301,17 @@ func (rs *Resource) getStudentPickupSchedules(w http.ResponseWriter, r *http.Req
 	for _, e := range data.Exceptions {
 		response.Exceptions = append(response.Exceptions, mapExceptionToResponse(e))
 	}
+	for _, n := range data.Notes {
+		response.Notes = append(response.Notes, mapNoteToResponse(n))
+	}
 
-	common.Respond(w, r, http.StatusOK, response, "Pickup schedules retrieved successfully")
+	return response
 }
 
 // updateStudentPickupSchedules handles PUT /students/{id}/pickup-schedules
 func (rs *Resource) updateStudentPickupSchedules(w http.ResponseWriter, r *http.Request) {
-	student, ok := rs.parseAndGetStudent(w, r)
-	if !ok {
-		return
-	}
-
-	hasFullAccess := rs.checkStudentFullAccess(r, student)
-	if !hasFullAccess {
-		renderError(w, r, ErrorForbidden(errors.New("full access required to update pickup schedules")))
+	student := rs.requirePickupAccess(w, r, "update pickup schedules")
+	if student == nil {
 		return
 	}
 
@@ -282,30 +353,15 @@ func (rs *Resource) updateStudentPickupSchedules(w http.ResponseWriter, r *http.
 		return
 	}
 
-	response := PickupDataResponse{
-		Schedules:  make([]PickupScheduleResponse, 0, len(data.Schedules)),
-		Exceptions: make([]PickupExceptionResponse, 0, len(data.Exceptions)),
-	}
-	for _, s := range data.Schedules {
-		response.Schedules = append(response.Schedules, mapScheduleToResponse(s))
-	}
-	for _, e := range data.Exceptions {
-		response.Exceptions = append(response.Exceptions, mapExceptionToResponse(e))
-	}
+	response := buildPickupDataResponse(data)
 
 	common.Respond(w, r, http.StatusOK, response, "Pickup schedules updated successfully")
 }
 
 // createStudentPickupException handles POST /students/{id}/pickup-exceptions
 func (rs *Resource) createStudentPickupException(w http.ResponseWriter, r *http.Request) {
-	student, ok := rs.parseAndGetStudent(w, r)
-	if !ok {
-		return
-	}
-
-	hasFullAccess := rs.checkStudentFullAccess(r, student)
-	if !hasFullAccess {
-		renderError(w, r, ErrorForbidden(errors.New("full access required to create pickup exceptions")))
+	student := rs.requirePickupAccess(w, r, "create pickup exceptions")
+	if student == nil {
 		return
 	}
 
@@ -344,21 +400,13 @@ func (rs *Resource) createStudentPickupException(w http.ResponseWriter, r *http.
 
 // updateStudentPickupException handles PUT /students/{id}/pickup-exceptions/{exceptionId}
 func (rs *Resource) updateStudentPickupException(w http.ResponseWriter, r *http.Request) {
-	student, ok := rs.parseAndGetStudent(w, r)
+	student := rs.requirePickupAccess(w, r, "update pickup exceptions")
+	if student == nil {
+		return
+	}
+
+	exceptionID, ok := parseEntityID(w, r, "exceptionId", "exception")
 	if !ok {
-		return
-	}
-
-	hasFullAccess := rs.checkStudentFullAccess(r, student)
-	if !hasFullAccess {
-		renderError(w, r, ErrorForbidden(errors.New("full access required to update pickup exceptions")))
-		return
-	}
-
-	exceptionIDStr := chi.URLParam(r, "exceptionId")
-	exceptionID, err := strconv.ParseInt(exceptionIDStr, 10, 64)
-	if err != nil {
-		renderError(w, r, ErrorInvalidRequest(errors.New("invalid exception ID")))
 		return
 	}
 
@@ -383,11 +431,15 @@ func (rs *Resource) updateStudentPickupException(w http.ResponseWriter, r *http.
 	exception := &schedule.StudentPickupException{
 		StudentID:     student.ID,
 		ExceptionDate: exceptionDate,
-		Reason:        req.Reason,
-		CreatedBy:     existingException.CreatedBy, // Preserve original creator
+		Reason:        existingException.Reason, // Preserve existing reason by default
+		CreatedBy:     existingException.CreatedBy,
 	}
 	exception.ID = exceptionID
 	exception.CreatedAt = existingException.CreatedAt // Preserve original creation timestamp
+
+	if req.Reason != nil {
+		exception.Reason = req.Reason
+	}
 
 	if req.PickupTime != nil && *req.PickupTime != "" {
 		pickupTime, _ := parseTimeOnly(*req.PickupTime)
@@ -404,21 +456,13 @@ func (rs *Resource) updateStudentPickupException(w http.ResponseWriter, r *http.
 
 // deleteStudentPickupException handles DELETE /students/{id}/pickup-exceptions/{exceptionId}
 func (rs *Resource) deleteStudentPickupException(w http.ResponseWriter, r *http.Request) {
-	student, ok := rs.parseAndGetStudent(w, r)
+	student := rs.requirePickupAccess(w, r, "delete pickup exceptions")
+	if student == nil {
+		return
+	}
+
+	exceptionID, ok := parseEntityID(w, r, "exceptionId", "exception")
 	if !ok {
-		return
-	}
-
-	hasFullAccess := rs.checkStudentFullAccess(r, student)
-	if !hasFullAccess {
-		renderError(w, r, ErrorForbidden(errors.New("full access required to delete pickup exceptions")))
-		return
-	}
-
-	exceptionIDStr := chi.URLParam(r, "exceptionId")
-	exceptionID, err := strconv.ParseInt(exceptionIDStr, 10, 64)
-	if err != nil {
-		renderError(w, r, ErrorInvalidRequest(errors.New("invalid exception ID")))
 		return
 	}
 
@@ -439,6 +483,119 @@ func (rs *Resource) deleteStudentPickupException(w http.ResponseWriter, r *http.
 	}
 
 	common.Respond(w, r, http.StatusOK, nil, "Pickup exception deleted successfully")
+}
+
+// createStudentPickupNote handles POST /students/{id}/pickup-notes
+func (rs *Resource) createStudentPickupNote(w http.ResponseWriter, r *http.Request) {
+	student := rs.requirePickupAccess(w, r, "create pickup notes")
+	if student == nil {
+		return
+	}
+
+	req := &PickupNoteRequest{}
+	if err := render.Bind(r, req); err != nil {
+		renderError(w, r, ErrorInvalidRequest(err))
+		return
+	}
+
+	staffID, err := rs.getStaffIDFromJWT(r)
+	if err != nil {
+		renderError(w, r, ErrorForbidden(err))
+		return
+	}
+
+	noteDate, _ := time.Parse(dateFormatISO, req.NoteDate)
+	note := &schedule.StudentPickupNote{
+		StudentID: student.ID,
+		NoteDate:  noteDate,
+		Content:   req.Content,
+		CreatedBy: staffID,
+	}
+
+	if err := rs.PickupScheduleService.CreateStudentPickupNote(r.Context(), note); err != nil {
+		renderError(w, r, ErrorInternalServer(err))
+		return
+	}
+
+	common.Respond(w, r, http.StatusCreated, mapNoteToResponse(note), "Pickup note created successfully")
+}
+
+// updateStudentPickupNote handles PUT /students/{id}/pickup-notes/{noteId}
+func (rs *Resource) updateStudentPickupNote(w http.ResponseWriter, r *http.Request) {
+	student := rs.requirePickupAccess(w, r, "update pickup notes")
+	if student == nil {
+		return
+	}
+
+	noteID, ok := parseEntityID(w, r, "noteId", "note")
+	if !ok {
+		return
+	}
+
+	// Verify note exists and belongs to this student (ownership check)
+	existingNote, err := rs.PickupScheduleService.GetStudentPickupNoteByID(r.Context(), noteID)
+	if err != nil || existingNote == nil {
+		renderError(w, r, ErrorNotFound(errors.New("pickup note not found")))
+		return
+	}
+	if existingNote.StudentID != student.ID {
+		renderError(w, r, ErrorForbidden(errors.New("note does not belong to this student")))
+		return
+	}
+
+	req := &PickupNoteRequest{}
+	if err := render.Bind(r, req); err != nil {
+		renderError(w, r, ErrorInvalidRequest(err))
+		return
+	}
+
+	noteDate, _ := time.Parse(dateFormatISO, req.NoteDate)
+	note := &schedule.StudentPickupNote{
+		StudentID: student.ID,
+		NoteDate:  noteDate,
+		Content:   req.Content,
+		CreatedBy: existingNote.CreatedBy, // Preserve original creator
+	}
+	note.ID = noteID
+	note.CreatedAt = existingNote.CreatedAt // Preserve original creation timestamp
+
+	if err := rs.PickupScheduleService.UpdateStudentPickupNote(r.Context(), note); err != nil {
+		renderError(w, r, ErrorInternalServer(err))
+		return
+	}
+
+	common.Respond(w, r, http.StatusOK, mapNoteToResponse(note), "Pickup note updated successfully")
+}
+
+// deleteStudentPickupNote handles DELETE /students/{id}/pickup-notes/{noteId}
+func (rs *Resource) deleteStudentPickupNote(w http.ResponseWriter, r *http.Request) {
+	student := rs.requirePickupAccess(w, r, "delete pickup notes")
+	if student == nil {
+		return
+	}
+
+	noteID, ok := parseEntityID(w, r, "noteId", "note")
+	if !ok {
+		return
+	}
+
+	// Verify note exists and belongs to this student (ownership check)
+	existingNote, err := rs.PickupScheduleService.GetStudentPickupNoteByID(r.Context(), noteID)
+	if err != nil || existingNote == nil {
+		renderError(w, r, ErrorNotFound(errors.New("pickup note not found")))
+		return
+	}
+	if existingNote.StudentID != student.ID {
+		renderError(w, r, ErrorForbidden(errors.New("note does not belong to this student")))
+		return
+	}
+
+	if err := rs.PickupScheduleService.DeleteStudentPickupNote(r.Context(), noteID); err != nil {
+		renderError(w, r, ErrorInternalServer(err))
+		return
+	}
+
+	common.Respond(w, r, http.StatusOK, nil, "Pickup note deleted successfully")
 }
 
 // BulkPickupTimeRequest represents a request to get pickup times for multiple students
@@ -463,15 +620,21 @@ func (r *BulkPickupTimeRequest) Bind(_ *http.Request) error {
 	return nil
 }
 
+// BulkDayNoteResponse represents a single day note in bulk pickup time responses
+type BulkDayNoteResponse struct {
+	ID      int64  `json:"id"`
+	Content string `json:"content"`
+}
+
 // BulkPickupTimeResponse represents pickup time data for a single student
 type BulkPickupTimeResponse struct {
-	StudentID   int64   `json:"student_id"`
-	Date        string  `json:"date"`
-	WeekdayName string  `json:"weekday_name"`
-	PickupTime  *string `json:"pickup_time,omitempty"` // HH:MM format or null
-	IsException bool    `json:"is_exception"`
-	Reason      string  `json:"reason,omitempty"`
-	Notes       string  `json:"notes,omitempty"`
+	StudentID   int64                 `json:"student_id"`
+	Date        string                `json:"date"`
+	WeekdayName string                `json:"weekday_name"`
+	PickupTime  *string               `json:"pickup_time,omitempty"` // HH:MM format or null
+	IsException bool                  `json:"is_exception"`
+	Notes       string                `json:"notes,omitempty"`
+	DayNotes    []BulkDayNoteResponse `json:"day_notes,omitempty"`
 }
 
 // getBulkPickupTimes handles POST /students/pickup-times/bulk
@@ -518,12 +681,20 @@ func (rs *Resource) getBulkPickupTimes(w http.ResponseWriter, r *http.Request) {
 			Date:        ept.Date.Format(dateFormatISO),
 			WeekdayName: ept.WeekdayName,
 			IsException: ept.IsException,
-			Reason:      ept.Reason,
 			Notes:       ept.Notes,
 		}
 		if ept.PickupTime != nil {
 			formatted := ept.PickupTime.Format("15:04")
 			resp.PickupTime = &formatted
+		}
+		if len(ept.DayNotes) > 0 {
+			resp.DayNotes = make([]BulkDayNoteResponse, 0, len(ept.DayNotes))
+			for _, note := range ept.DayNotes {
+				resp.DayNotes = append(resp.DayNotes, BulkDayNoteResponse{
+					ID:      note.ID,
+					Content: note.Content,
+				})
+			}
 		}
 		responses = append(responses, resp)
 	}
@@ -561,6 +732,21 @@ func (rs *Resource) DeleteStudentPickupExceptionHandler() http.HandlerFunc {
 // GetBulkPickupTimesHandler returns the handler for getting bulk pickup times
 func (rs *Resource) GetBulkPickupTimesHandler() http.HandlerFunc {
 	return rs.getBulkPickupTimes
+}
+
+// CreateStudentPickupNoteHandler returns the handler for creating pickup notes
+func (rs *Resource) CreateStudentPickupNoteHandler() http.HandlerFunc {
+	return rs.createStudentPickupNote
+}
+
+// UpdateStudentPickupNoteHandler returns the handler for updating pickup notes
+func (rs *Resource) UpdateStudentPickupNoteHandler() http.HandlerFunc {
+	return rs.updateStudentPickupNote
+}
+
+// DeleteStudentPickupNoteHandler returns the handler for deleting pickup notes
+func (rs *Resource) DeleteStudentPickupNoteHandler() http.HandlerFunc {
+	return rs.deleteStudentPickupNote
 }
 
 // filterAuthorizedStudentIDs filters the requested student IDs to only those

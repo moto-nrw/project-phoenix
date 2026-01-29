@@ -208,7 +208,11 @@ export default function StudentMensaHistoryPage() {
   // Group mensa history by date
   const groupedMensaHistory = filteredMensaHistory.reduce(
     (groups, entry) => {
-      const date = new Date(entry.date).toLocaleDateString("de-DE");
+      const date = new Date(entry.date).toLocaleDateString("de-DE", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+      });
       groups[date] ??= [];
       groups[date].push(entry);
       return groups;

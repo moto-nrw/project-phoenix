@@ -1160,9 +1160,13 @@ function OGSGroupPageContent() {
                         }
                       >
                         Abholung: {studentPickup.pickupTime} Uhr
-                        {studentPickup.isException && studentPickup.reason && (
-                          <span className="ml-1 text-orange-500">
-                            ({studentPickup.reason})
+                        {studentPickup.dayNotes?.length > 0 && (
+                          <span className="ml-1 text-gray-500">
+                            (
+                            {studentPickup.dayNotes
+                              .map((n) => n.content)
+                              .join(", ")}
+                            )
                           </span>
                         )}
                       </StudentInfoRow>

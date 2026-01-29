@@ -17,7 +17,11 @@ export function groupByDate<T extends Record<string, unknown>>(
   items.forEach((item) => {
     const timestamp = item[timestampKey];
     if (typeof timestamp === "string") {
-      const date = new Date(timestamp).toLocaleDateString("de-DE");
+      const date = new Date(timestamp).toLocaleDateString("de-DE", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+      });
       groups[date] ??= [];
       groups[date].push(item);
     }
@@ -54,7 +58,11 @@ export function formatDate(dateString: string, includeWeekday = false): string {
       day: "numeric",
     });
   }
-  return date.toLocaleDateString("de-DE");
+  return date.toLocaleDateString("de-DE", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
 }
 
 /**
