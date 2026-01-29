@@ -195,9 +195,10 @@ func (rs *Resource) handleDailyCheckout(w http.ResponseWriter, r *http.Request, 
 			iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(err))
 			return
 		}
-		if currentStatus.Status == "checked_out" {
+		switch currentStatus.Status {
+		case "checked_out":
 			log.Printf("[DAILY_CHECKOUT] Student %d already checked out — skipping attendance toggle", student.ID)
-		} else if currentStatus.Status == "checked_in" {
+		case "checked_in":
 			deviceCtx := device.DeviceFromCtx(r.Context())
 			staffID := int64(0)
 			deviceID := int64(0)
@@ -216,7 +217,7 @@ func (rs *Resource) handleDailyCheckout(w http.ResponseWriter, r *http.Request, 
 				iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(err))
 				return
 			}
-		} else {
+		default:
 			log.Printf("[DAILY_CHECKOUT] WARNING: Student %d has unexpected attendance status '%s' — skipping toggle",
 				student.ID, currentStatus.Status)
 		}
