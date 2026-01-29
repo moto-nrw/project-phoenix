@@ -12,6 +12,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/models/users"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 )
 
@@ -242,17 +243,36 @@ func (rs *Resource) getStaffIDFromJWT(r *http.Request) (int64, error) {
 	return staff.ID, nil
 }
 
-// getStudentPickupSchedules handles GET /students/{id}/pickup-schedules
-func (rs *Resource) getStudentPickupSchedules(w http.ResponseWriter, r *http.Request) {
+// requirePickupAccess parses the student from URL params and verifies full access.
+// Returns the student on success or writes an error response and returns nil.
+func (rs *Resource) requirePickupAccess(w http.ResponseWriter, r *http.Request, action string) *users.Student {
 	student, ok := rs.parseAndGetStudent(w, r)
 	if !ok {
-		return
+		return nil
 	}
+	if !rs.checkStudentFullAccess(r, student) {
+		renderError(w, r, ErrorForbidden(fmt.Errorf("full access required to %s", action)))
+		return nil
+	}
+	return student
+}
 
-	// Check if user has full access (admin or supervises this student's group)
-	hasFullAccess := rs.checkStudentFullAccess(r, student)
-	if !hasFullAccess {
-		renderError(w, r, ErrorForbidden(errors.New("full access required to view pickup schedules")))
+// parseEntityID extracts a numeric ID from a URL parameter.
+// Returns 0 and writes an error response on failure.
+func parseEntityID(w http.ResponseWriter, r *http.Request, param string, label string) (int64, bool) {
+	idStr := chi.URLParam(r, param)
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		renderError(w, r, ErrorInvalidRequest(fmt.Errorf("invalid %s ID", label)))
+		return 0, false
+	}
+	return id, true
+}
+
+// getStudentPickupSchedules handles GET /students/{id}/pickup-schedules
+func (rs *Resource) getStudentPickupSchedules(w http.ResponseWriter, r *http.Request) {
+	student := rs.requirePickupAccess(w, r, "view pickup schedules")
+	if student == nil {
 		return
 	}
 
@@ -290,14 +310,8 @@ func buildPickupDataResponse(data *scheduleService.StudentPickupData) PickupData
 
 // updateStudentPickupSchedules handles PUT /students/{id}/pickup-schedules
 func (rs *Resource) updateStudentPickupSchedules(w http.ResponseWriter, r *http.Request) {
-	student, ok := rs.parseAndGetStudent(w, r)
-	if !ok {
-		return
-	}
-
-	hasFullAccess := rs.checkStudentFullAccess(r, student)
-	if !hasFullAccess {
-		renderError(w, r, ErrorForbidden(errors.New("full access required to update pickup schedules")))
+	student := rs.requirePickupAccess(w, r, "update pickup schedules")
+	if student == nil {
 		return
 	}
 
@@ -346,14 +360,8 @@ func (rs *Resource) updateStudentPickupSchedules(w http.ResponseWriter, r *http.
 
 // createStudentPickupException handles POST /students/{id}/pickup-exceptions
 func (rs *Resource) createStudentPickupException(w http.ResponseWriter, r *http.Request) {
-	student, ok := rs.parseAndGetStudent(w, r)
-	if !ok {
-		return
-	}
-
-	hasFullAccess := rs.checkStudentFullAccess(r, student)
-	if !hasFullAccess {
-		renderError(w, r, ErrorForbidden(errors.New("full access required to create pickup exceptions")))
+	student := rs.requirePickupAccess(w, r, "create pickup exceptions")
+	if student == nil {
 		return
 	}
 
@@ -392,21 +400,13 @@ func (rs *Resource) createStudentPickupException(w http.ResponseWriter, r *http.
 
 // updateStudentPickupException handles PUT /students/{id}/pickup-exceptions/{exceptionId}
 func (rs *Resource) updateStudentPickupException(w http.ResponseWriter, r *http.Request) {
-	student, ok := rs.parseAndGetStudent(w, r)
+	student := rs.requirePickupAccess(w, r, "update pickup exceptions")
+	if student == nil {
+		return
+	}
+
+	exceptionID, ok := parseEntityID(w, r, "exceptionId", "exception")
 	if !ok {
-		return
-	}
-
-	hasFullAccess := rs.checkStudentFullAccess(r, student)
-	if !hasFullAccess {
-		renderError(w, r, ErrorForbidden(errors.New("full access required to update pickup exceptions")))
-		return
-	}
-
-	exceptionIDStr := chi.URLParam(r, "exceptionId")
-	exceptionID, err := strconv.ParseInt(exceptionIDStr, 10, 64)
-	if err != nil {
-		renderError(w, r, ErrorInvalidRequest(errors.New("invalid exception ID")))
 		return
 	}
 
@@ -452,21 +452,13 @@ func (rs *Resource) updateStudentPickupException(w http.ResponseWriter, r *http.
 
 // deleteStudentPickupException handles DELETE /students/{id}/pickup-exceptions/{exceptionId}
 func (rs *Resource) deleteStudentPickupException(w http.ResponseWriter, r *http.Request) {
-	student, ok := rs.parseAndGetStudent(w, r)
+	student := rs.requirePickupAccess(w, r, "delete pickup exceptions")
+	if student == nil {
+		return
+	}
+
+	exceptionID, ok := parseEntityID(w, r, "exceptionId", "exception")
 	if !ok {
-		return
-	}
-
-	hasFullAccess := rs.checkStudentFullAccess(r, student)
-	if !hasFullAccess {
-		renderError(w, r, ErrorForbidden(errors.New("full access required to delete pickup exceptions")))
-		return
-	}
-
-	exceptionIDStr := chi.URLParam(r, "exceptionId")
-	exceptionID, err := strconv.ParseInt(exceptionIDStr, 10, 64)
-	if err != nil {
-		renderError(w, r, ErrorInvalidRequest(errors.New("invalid exception ID")))
 		return
 	}
 
@@ -491,14 +483,8 @@ func (rs *Resource) deleteStudentPickupException(w http.ResponseWriter, r *http.
 
 // createStudentPickupNote handles POST /students/{id}/pickup-notes
 func (rs *Resource) createStudentPickupNote(w http.ResponseWriter, r *http.Request) {
-	student, ok := rs.parseAndGetStudent(w, r)
-	if !ok {
-		return
-	}
-
-	hasFullAccess := rs.checkStudentFullAccess(r, student)
-	if !hasFullAccess {
-		renderError(w, r, ErrorForbidden(errors.New("full access required to create pickup notes")))
+	student := rs.requirePickupAccess(w, r, "create pickup notes")
+	if student == nil {
 		return
 	}
 
@@ -532,21 +518,13 @@ func (rs *Resource) createStudentPickupNote(w http.ResponseWriter, r *http.Reque
 
 // updateStudentPickupNote handles PUT /students/{id}/pickup-notes/{noteId}
 func (rs *Resource) updateStudentPickupNote(w http.ResponseWriter, r *http.Request) {
-	student, ok := rs.parseAndGetStudent(w, r)
+	student := rs.requirePickupAccess(w, r, "update pickup notes")
+	if student == nil {
+		return
+	}
+
+	noteID, ok := parseEntityID(w, r, "noteId", "note")
 	if !ok {
-		return
-	}
-
-	hasFullAccess := rs.checkStudentFullAccess(r, student)
-	if !hasFullAccess {
-		renderError(w, r, ErrorForbidden(errors.New("full access required to update pickup notes")))
-		return
-	}
-
-	noteIDStr := chi.URLParam(r, "noteId")
-	noteID, err := strconv.ParseInt(noteIDStr, 10, 64)
-	if err != nil {
-		renderError(w, r, ErrorInvalidRequest(errors.New("invalid note ID")))
 		return
 	}
 
@@ -587,21 +565,13 @@ func (rs *Resource) updateStudentPickupNote(w http.ResponseWriter, r *http.Reque
 
 // deleteStudentPickupNote handles DELETE /students/{id}/pickup-notes/{noteId}
 func (rs *Resource) deleteStudentPickupNote(w http.ResponseWriter, r *http.Request) {
-	student, ok := rs.parseAndGetStudent(w, r)
+	student := rs.requirePickupAccess(w, r, "delete pickup notes")
+	if student == nil {
+		return
+	}
+
+	noteID, ok := parseEntityID(w, r, "noteId", "note")
 	if !ok {
-		return
-	}
-
-	hasFullAccess := rs.checkStudentFullAccess(r, student)
-	if !hasFullAccess {
-		renderError(w, r, ErrorForbidden(errors.New("full access required to delete pickup notes")))
-		return
-	}
-
-	noteIDStr := chi.URLParam(r, "noteId")
-	noteID, err := strconv.ParseInt(noteIDStr, 10, 64)
-	if err != nil {
-		renderError(w, r, ErrorInvalidRequest(errors.New("invalid note ID")))
 		return
 	}
 
