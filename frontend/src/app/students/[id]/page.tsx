@@ -284,8 +284,8 @@ export default function StudentDetailPage() {
     if (activeGroups.length === 0) {
       return (
         <p className="text-sm text-amber-600">
-          Keine aktiven Räume verfügbar. Bitte starten Sie zuerst eine
-          Gruppensitzung.
+          Keine aktiven Räume verfügbar. Bitte starten Sie zuerst eine aktive
+          Aufsicht in einem Raum über ein NFC-Tablet.
         </p>
       );
     }
