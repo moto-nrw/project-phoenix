@@ -349,7 +349,7 @@ export function PickupDayEditModal({
                       <p className="min-w-0 flex-1 text-sm text-gray-700">
                         {note.content}
                       </p>
-                      <div className="flex flex-shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                      <div className="flex flex-shrink-0 items-center gap-1">
                         <button
                           type="button"
                           onClick={() => startEditNote(note)}
