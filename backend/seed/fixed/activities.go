@@ -125,8 +125,16 @@ func (s *Seeder) seedActivities(ctx context.Context) error {
 		categoryMap[cat.Name] = cat.ID
 	}
 
+	// Get default creator (first staff member) for activities
+	var defaultCreatorID int64
+	if len(s.result.Staff) > 0 {
+		defaultCreatorID = s.result.Staff[0].ID
+	} else {
+		return fmt.Errorf("no staff available to set as activity creator")
+	}
+
 	// Create activity groups
-	for _, data := range activityGroups {
+	for i, data := range activityGroups {
 		// Find room
 		var roomID *int64
 		for _, room := range s.result.Rooms {
@@ -135,6 +143,9 @@ func (s *Seeder) seedActivities(ctx context.Context) error {
 				break
 			}
 		}
+
+		// Rotate creator among staff members for variety
+		creatorID := s.result.Staff[i%len(s.result.Staff)].ID
 
 		existing := new(activities.Group)
 		err := s.tx.NewSelect().Model(existing).
@@ -150,10 +161,14 @@ func (s *Seeder) seedActivities(ctx context.Context) error {
 			existing.PlannedRoomID = roomID
 			existing.IsOpen = true
 			existing.UpdatedAt = time.Now()
+			// Update created_by if it's 0 (legacy data)
+			if existing.CreatedBy == 0 {
+				existing.CreatedBy = defaultCreatorID
+			}
 
 			if _, err := s.tx.NewUpdate().Model(existing).
 				ModelTableExpr(`activities.groups AS "group"`).
-				Column("category_id", "max_participants", "planned_room_id", "is_open", "updated_at").
+				Column("category_id", "max_participants", "planned_room_id", "is_open", "updated_at", "created_by").
 				WherePK().
 				Exec(ctx); err != nil {
 				return fmt.Errorf("failed to update activity group %s: %w", data.name, err)
@@ -169,6 +184,7 @@ func (s *Seeder) seedActivities(ctx context.Context) error {
 				MaxParticipants: data.maxParticipants,
 				PlannedRoomID:   roomID,
 				IsOpen:          true,
+				CreatedBy:       creatorID,
 			}
 			group.CreatedAt = time.Now()
 			group.UpdatedAt = group.CreatedAt

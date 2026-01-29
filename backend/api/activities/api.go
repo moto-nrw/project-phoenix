@@ -321,15 +321,18 @@ func newActivityResponse(group *activities.Group, enrollmentCount int) ActivityR
 // HELPER METHODS - Reduce code duplication for common parsing/validation
 // =============================================================================
 
-// getStaffIDAndManagePermission extracts the current staff ID and checks for manage permission.
-// Returns (staffID, hasManagePermission, error). If user is not staff, returns (0, hasManagePermission, error).
+// getStaffIDAndManagePermission extracts the current staff ID and checks for admin-level permission.
+// Returns (staffID, hasAdminPermission, error). If user is not staff, returns (0, hasAdminPermission, error).
+// Note: Only AdminWildcard and FullAccess bypass ownership checks, NOT ActivitiesManage.
+// ActivitiesManage allows creating/editing activities, but ownership rules still apply.
 func (rs *Resource) getStaffIDAndManagePermission(r *http.Request) (int64, bool, error) {
-	// Check if user has ActivitiesManage permission
+	// Check if user has admin-level permission that bypasses ownership checks
+	// Note: ActivitiesManage does NOT bypass ownership - only true admin permissions do
 	perms := jwt.PermissionsFromCtx(r.Context())
-	hasManagePermission := false
+	hasAdminPermission := false
 	for _, p := range perms {
-		if p == permissions.ActivitiesManage || p == permissions.AdminWildcard || p == permissions.FullAccess {
-			hasManagePermission = true
+		if p == permissions.AdminWildcard || p == permissions.FullAccess {
+			hasAdminPermission = true
 			break
 		}
 	}
@@ -338,10 +341,10 @@ func (rs *Resource) getStaffIDAndManagePermission(r *http.Request) (int64, bool,
 	staff, err := rs.UserContextService.GetCurrentStaff(r.Context())
 	if err != nil {
 		// User is not staff - they can only have manage permission if admin
-		return 0, hasManagePermission, err
+		return 0, hasAdminPermission, err
 	}
 
-	return staff.ID, hasManagePermission, nil
+	return staff.ID, hasAdminPermission, nil
 }
 
 // parseAndGetActivity parses activity ID from URL and returns the activity if it exists.
