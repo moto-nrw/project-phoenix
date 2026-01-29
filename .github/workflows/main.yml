@@ -56,6 +56,7 @@ jobs:
   test:
     permissions:
       contents: read
+      checks: write
     needs: detect-changes
     uses: ./.github/workflows/test.yml
     with:

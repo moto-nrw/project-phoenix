@@ -16,6 +16,7 @@ on:
 
 permissions:
   contents: read
+  checks: write
 
 defaults:
   run:
@@ -91,6 +92,15 @@ jobs:
             backend/junit.xml
           retention-days: 7
         if: always()
+
+      - name: Publish backend test results
+        uses: mikepenz/action-junit-report@a294a61c909bd8a4b563024a2faa28897fd53ebc # v6.1.0
+        if: always()
+        with:
+          report_paths: backend/junit.xml
+          check_name: Backend Test Results
+          include_passed: false
+          detailed_summary: true
 
   test-frontend:
     if: ${{ inputs.run-frontend }}
