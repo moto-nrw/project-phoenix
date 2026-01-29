@@ -37,7 +37,7 @@ function getBackdropStyle(
     right: 0,
     bottom: 0,
     animation:
-      isAnimating && !isExiting ? "backdropEnter 400ms ease-out" : undefined,
+      isAnimating && !isExiting ? "backdropEnter 200ms ease-out" : undefined,
   };
 }
 
@@ -292,7 +292,7 @@ function renderBackdropButton({
       type="button"
       onClick={onClose}
       aria-label={ariaLabel}
-      className={`absolute inset-0 cursor-default border-none bg-transparent p-0 transition-all duration-400 ease-out ${bgClass}`}
+      className={`absolute inset-0 cursor-default border-none bg-transparent p-0 transition-all duration-200 ease-out ${bgClass}`}
       style={getBackdropStyle(isAnimating, isExiting)}
     />
   );

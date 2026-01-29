@@ -244,14 +244,16 @@ function SickToggle({ isSick, onChange }: SickToggleProps) {
   return (
     <div
       className={`rounded-lg border p-4 transition-colors ${
-        isSick ? "border-pink-200 bg-pink-50" : "border-gray-200 bg-gray-50"
+        isSick ? "border-amber-200 bg-amber-50" : "border-gray-200 bg-gray-50"
       }`}
     >
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div
             className={`flex h-9 w-9 items-center justify-center rounded-lg ${
-              isSick ? "bg-pink-100 text-pink-600" : "bg-gray-200 text-gray-500"
+              isSick
+                ? "bg-amber-100 text-amber-600"
+                : "bg-gray-200 text-gray-500"
             }`}
           >
             <WarningIcon />
@@ -259,7 +261,7 @@ function SickToggle({ isSick, onChange }: SickToggleProps) {
           <div>
             <p
               className={`text-sm font-medium ${
-                isSick ? "text-pink-900" : "text-gray-700"
+                isSick ? "text-amber-900" : "text-gray-700"
               }`}
             >
               Kind krankmelden
@@ -274,8 +276,8 @@ function SickToggle({ isSick, onChange }: SickToggleProps) {
           role="switch"
           aria-checked={isSick}
           onClick={() => onChange(!isSick)}
-          className={`relative inline-flex h-7 w-12 flex-shrink-0 items-center rounded-full transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-pink-500 focus-visible:ring-offset-2 ${
-            isSick ? "bg-pink-500" : "bg-gray-300"
+          className={`relative inline-flex h-7 w-12 flex-shrink-0 items-center rounded-full transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 ${
+            isSick ? "bg-amber-500" : "bg-gray-300"
           }`}
         >
           <span

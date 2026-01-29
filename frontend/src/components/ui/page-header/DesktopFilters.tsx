@@ -41,7 +41,7 @@ function FilterControl({ filter }: Readonly<{ filter: FilterConfig }>) {
                 filter.onChange(option.value);
               }
             }}
-            className={`rounded-lg px-3 text-sm font-medium transition-all ${
+            className={`rounded-lg px-3 text-sm font-medium whitespace-nowrap transition-all ${
               selectedValues.includes(option.value)
                 ? "bg-gray-900 text-white"
                 : "text-gray-600 hover:text-gray-900"

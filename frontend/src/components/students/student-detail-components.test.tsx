@@ -513,7 +513,7 @@ describe("FullAccessPersonalInfoReadOnly", () => {
     expect(screen.getByText("Nicht krankgemeldet")).toBeInTheDocument();
   });
 
-  it("shows 'Krank gemeldet' when student is sick", () => {
+  it("shows 'Krank' when student is sick", () => {
     const sickStudent = {
       ...mockStudent,
       sick: true,
@@ -525,7 +525,7 @@ describe("FullAccessPersonalInfoReadOnly", () => {
         onEditClick={vi.fn()}
       />,
     );
-    expect(screen.getByText("Krank gemeldet")).toBeInTheDocument();
+    expect(screen.getByText("Krank")).toBeInTheDocument();
   });
 
   it("shows sick since date when student is sick", () => {

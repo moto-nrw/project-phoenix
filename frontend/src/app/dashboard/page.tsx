@@ -116,7 +116,7 @@ const StatCard: React.FC<StatCardProps> = ({
   const theme = getColorTheme(color);
 
   const cardContent = (
-    <div className="relative overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-300 group-hover:-translate-y-0.5 group-hover:shadow-[0_16px_40px_rgb(0,0,0,0.14)]">
+    <div className="relative overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-150 group-hover:-translate-y-0.5 group-hover:shadow-[0_16px_40px_rgb(0,0,0,0.14)]">
       <div
         className={`absolute inset-0 bg-gradient-to-br ${theme.overlay} pointer-events-none rounded-3xl opacity-[0.03]`}
       ></div>
@@ -180,7 +180,7 @@ const InfoCard: React.FC<InfoCardProps> = ({
   linkText,
 }) => {
   const cardContent = (
-    <div className="relative h-full overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-300 group-hover:-translate-y-0.5 group-hover:shadow-[0_16px_40px_rgb(0,0,0,0.14)]">
+    <div className="relative h-full overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-150 group-hover:-translate-y-0.5 group-hover:shadow-[0_16px_40px_rgb(0,0,0,0.14)]">
       <div className="pointer-events-none absolute inset-0 rounded-3xl bg-gradient-to-br from-gray-50/80 to-slate-100/80 opacity-[0.03]"></div>
       <div className="pointer-events-none absolute inset-px rounded-3xl bg-gradient-to-br from-white/80 to-white/20"></div>
       <div className="pointer-events-none absolute inset-0 rounded-3xl ring-1 ring-white/20"></div>
