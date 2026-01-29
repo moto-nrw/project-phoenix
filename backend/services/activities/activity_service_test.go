@@ -26,6 +26,24 @@ func setupActivityService(t *testing.T, db *bun.DB) activities.ActivityService {
 	return serviceFactory.Activities
 }
 
+// cleanupGroup is a test helper to delete a group with admin permission (for cleanup purposes)
+func cleanupGroup(service activities.ActivityService, ctx context.Context, groupID int64) {
+	_ = service.DeleteGroup(ctx, groupID, 0, true) // 0 staff ID, true = admin permission
+}
+
+// createTestGroupWithCreator is a test helper to create a group with a creator
+func createTestGroupWithCreator(tb testing.TB, db *bun.DB, name string, categoryID int64) (*activitiesModels.Group, int64) {
+	tb.Helper()
+	staff := testpkg.CreateTestStaff(tb, db, "Creator", name)
+	return &activitiesModels.Group{
+		Name:            name,
+		MaxParticipants: 20,
+		IsOpen:          true,
+		CategoryID:      categoryID,
+		CreatedBy:       staff.ID,
+	}, staff.ID
+}
+
 // =============================================================================
 // Category Operations Tests
 // =============================================================================
@@ -254,8 +272,8 @@ func TestActivityService_UpdateGroup(t *testing.T) {
 		group.Name = "Updated Group Name"
 		group.MaxParticipants = 50
 
-		// ACT
-		result, err := service.UpdateGroup(ctx, group)
+		// ACT - use creator's staff ID and give manage permission for test
+		result, err := service.UpdateGroup(ctx, group, group.CreatedBy, true)
 
 		// ASSERT
 		require.NoError(t, err)
@@ -275,8 +293,8 @@ func TestActivityService_DeleteGroup(t *testing.T) {
 		// ARRANGE
 		group := testpkg.CreateTestActivityGroup(t, db, "to-delete-grp")
 
-		// ACT
-		err := service.DeleteGroup(ctx, group.ID)
+		// ACT - use creator's staff ID and give manage permission for test
+		err := service.DeleteGroup(ctx, group.ID, group.CreatedBy, true)
 
 		// ASSERT
 		require.NoError(t, err)
@@ -806,7 +824,7 @@ func TestActivityService_CreateGroup(t *testing.T) {
 		assert.Equal(t, group.Name, result.Name)
 
 		// Cleanup
-		_ = service.DeleteGroup(ctx, result.ID)
+		cleanupGroup(service, ctx, result.ID)
 	})
 
 	t.Run("creates group with supervisors", func(t *testing.T) {
@@ -835,7 +853,7 @@ func TestActivityService_CreateGroup(t *testing.T) {
 		assert.GreaterOrEqual(t, len(supervisors), 1)
 
 		// Cleanup
-		_ = service.DeleteGroup(ctx, result.ID)
+		cleanupGroup(service, ctx, result.ID)
 	})
 
 	t.Run("returns error for invalid category", func(t *testing.T) {
@@ -1296,7 +1314,7 @@ func TestActivityService_CreateGroup_WithSchedules(t *testing.T) {
 		assert.GreaterOrEqual(t, len(groupSchedules), 2)
 
 		// Cleanup
-		_ = service.DeleteGroup(ctx, result.ID)
+		cleanupGroup(service, ctx, result.ID)
 	})
 }
 
@@ -1445,8 +1463,8 @@ func TestActivityService_DeleteGroup_WithEnrollments(t *testing.T) {
 		err := service.EnrollStudent(ctx, group.ID, student.ID)
 		require.NoError(t, err)
 
-		// ACT - delete group
-		err = service.DeleteGroup(ctx, group.ID)
+		// ACT - delete group (using creator's staff ID with manage permission for test)
+		err = service.DeleteGroup(ctx, group.ID, group.CreatedBy, true)
 
 		// ASSERT
 		require.NoError(t, err)
@@ -1472,7 +1490,7 @@ func TestActivityService_UpdateAttendanceStatus(t *testing.T) {
 		group := testpkg.CreateTestActivityGroup(t, db, "attend-status")
 		student := testpkg.CreateTestStudent(t, db, "Attendance", "Student", "1a")
 		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
-		defer func() { _ = service.DeleteGroup(ctx, group.ID) }()
+		defer func() { cleanupGroup(service, ctx, group.ID) }()
 
 		// Enroll student
 		err := service.EnrollStudent(ctx, group.ID, student.ID)
@@ -1531,7 +1549,7 @@ func TestActivityService_UpdateSupervisor_SetPrimary(t *testing.T) {
 		staff1 := testpkg.CreateTestStaff(t, db, "First", "Supervisor")
 		staff2 := testpkg.CreateTestStaff(t, db, "Second", "Supervisor")
 		defer testpkg.CleanupActivityFixtures(t, db, staff1.ID, staff2.ID)
-		defer func() { _ = service.DeleteGroup(ctx, group.ID) }()
+		defer func() { cleanupGroup(service, ctx, group.ID) }()
 
 		// Add first supervisor as primary
 		sup1, err := service.AddSupervisor(ctx, group.ID, staff1.ID, true)
@@ -1591,7 +1609,7 @@ func TestActivityService_DeleteCategory_InUse(t *testing.T) {
 	t.Run("returns error when category is in use", func(t *testing.T) {
 		// ARRANGE - CreateTestActivityGroup creates both category and group
 		group := testpkg.CreateTestActivityGroup(t, db, "cat-in-use")
-		defer func() { _ = service.DeleteGroup(ctx, group.ID) }()
+		defer func() { cleanupGroup(service, ctx, group.ID) }()
 
 		// ACT - try to delete the category while group exists
 		err := service.DeleteCategory(ctx, group.CategoryID)
@@ -1651,7 +1669,7 @@ func TestActivityService_SetPrimarySupervisor_ExistingSupervisor(t *testing.T) {
 		staff1 := testpkg.CreateTestStaff(t, db, "Primary", "Staff")
 		staff2 := testpkg.CreateTestStaff(t, db, "Secondary", "Staff")
 		defer testpkg.CleanupActivityFixtures(t, db, staff1.ID, staff2.ID)
-		defer func() { _ = service.DeleteGroup(ctx, group.ID) }()
+		defer func() { cleanupGroup(service, ctx, group.ID) }()
 
 		// Add both supervisors
 		sup1, err := service.AddSupervisor(ctx, group.ID, staff1.ID, true) // primary
@@ -1693,7 +1711,7 @@ func TestActivityService_UpdateGroupEnrollments_AddAndRemove(t *testing.T) {
 		student2 := testpkg.CreateTestStudent(t, db, "Student", "Two", "1a")
 		student3 := testpkg.CreateTestStudent(t, db, "Student", "Three", "1a")
 		defer testpkg.CleanupActivityFixtures(t, db, student1.ID, student2.ID, student3.ID)
-		defer func() { _ = service.DeleteGroup(ctx, group.ID) }()
+		defer func() { cleanupGroup(service, ctx, group.ID) }()
 
 		// Initial enrollment: student1 and student2
 		err := service.UpdateGroupEnrollments(ctx, group.ID, []int64{student1.ID, student2.ID})
@@ -1737,7 +1755,7 @@ func TestActivityService_UpdateGroupSupervisors_AddAndRemove(t *testing.T) {
 		staff2 := testpkg.CreateTestStaff(t, db, "Staff", "Two")
 		staff3 := testpkg.CreateTestStaff(t, db, "Staff", "Three")
 		defer testpkg.CleanupActivityFixtures(t, db, staff1.ID, staff2.ID, staff3.ID)
-		defer func() { _ = service.DeleteGroup(ctx, group.ID) }()
+		defer func() { cleanupGroup(service, ctx, group.ID) }()
 
 		// Initial supervisors: staff1 and staff2
 		err := service.UpdateGroupSupervisors(ctx, group.ID, []int64{staff1.ID, staff2.ID})
@@ -1772,7 +1790,7 @@ func TestActivityService_UpdateGroupSupervisors_AddAndRemove(t *testing.T) {
 		staff1 := testpkg.CreateTestStaff(t, db, "Primary", "Staff")
 		staff2 := testpkg.CreateTestStaff(t, db, "New", "Staff")
 		defer testpkg.CleanupActivityFixtures(t, db, staff1.ID, staff2.ID)
-		defer func() { _ = service.DeleteGroup(ctx, group.ID) }()
+		defer func() { cleanupGroup(service, ctx, group.ID) }()
 
 		// Set staff1 as primary
 		_, err := service.AddSupervisor(ctx, group.ID, staff1.ID, true)
@@ -1855,7 +1873,7 @@ func TestActivityService_GetEnrollmentHistory_NoData(t *testing.T) {
 		group := testpkg.CreateTestActivityGroup(t, db, "history-group")
 		student := testpkg.CreateTestStudent(t, db, "With", "History", "1a")
 		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
-		defer func() { _ = service.DeleteGroup(ctx, group.ID) }()
+		defer func() { cleanupGroup(service, ctx, group.ID) }()
 
 		// Enroll student
 		err := service.EnrollStudent(ctx, group.ID, student.ID)
@@ -2089,14 +2107,14 @@ func TestActivityService_UpdateCategory_ValidationError(t *testing.T) {
 
 	t.Run("returns error for invalid category update", func(t *testing.T) {
 		// ARRANGE
-		category := testpkg.CreateTestActivityGroup(t, db, "update-cat-val")
+		activityGroup := testpkg.CreateTestActivityGroup(t, db, "update-cat-val")
 		defer func() {
 			// Cleanup - delete the group first, then the category
-			_ = service.DeleteGroup(ctx, category.ID)
+			cleanupGroup(service, ctx, activityGroup.ID)
 		}()
 
 		// Get the category and make it invalid
-		cat, err := service.GetCategory(ctx, category.CategoryID)
+		cat, err := service.GetCategory(ctx, activityGroup.CategoryID)
 		require.NoError(t, err)
 
 		cat.Name = "" // Invalid: empty name
@@ -2144,7 +2162,7 @@ func TestActivityService_UpdateGroup_ValidationError(t *testing.T) {
 	t.Run("returns error for invalid group update", func(t *testing.T) {
 		// ARRANGE
 		group := testpkg.CreateTestActivityGroup(t, db, "update-grp-val")
-		defer func() { _ = service.DeleteGroup(ctx, group.ID) }()
+		defer func() { cleanupGroup(service, ctx, group.ID) }()
 
 		// Get the group and make it invalid
 		grp, err := service.GetGroup(ctx, group.ID)
@@ -2153,7 +2171,7 @@ func TestActivityService_UpdateGroup_ValidationError(t *testing.T) {
 		grp.Name = "" // Invalid: empty name
 
 		// ACT
-		result, err := service.UpdateGroup(ctx, grp)
+		result, err := service.UpdateGroup(ctx, grp, grp.CreatedBy, true)
 
 		// ASSERT
 		require.Error(t, err)
@@ -2245,7 +2263,7 @@ func TestActivityService_GetGroupSchedules_Empty(t *testing.T) {
 	t.Run("returns empty list for group with no schedules", func(t *testing.T) {
 		// ARRANGE
 		group := testpkg.CreateTestActivityGroup(t, db, "no-schedules")
-		defer func() { _ = service.DeleteGroup(ctx, group.ID) }()
+		defer func() { cleanupGroup(service, ctx, group.ID) }()
 
 		// ACT
 		schedules, err := service.GetGroupSchedules(ctx, group.ID)
@@ -2266,7 +2284,7 @@ func TestActivityService_GetGroupSupervisors_Empty(t *testing.T) {
 	t.Run("returns empty list for group with no supervisors", func(t *testing.T) {
 		// ARRANGE
 		group := testpkg.CreateTestActivityGroup(t, db, "no-supervisors")
-		defer func() { _ = service.DeleteGroup(ctx, group.ID) }()
+		defer func() { cleanupGroup(service, ctx, group.ID) }()
 
 		// ACT
 		supervisors, err := service.GetGroupSupervisors(ctx, group.ID)
@@ -2287,7 +2305,7 @@ func TestActivityService_GetEnrolledStudents_Empty(t *testing.T) {
 	t.Run("returns empty list for group with no enrollments", func(t *testing.T) {
 		// ARRANGE
 		group := testpkg.CreateTestActivityGroup(t, db, "no-enrollments")
-		defer func() { _ = service.DeleteGroup(ctx, group.ID) }()
+		defer func() { cleanupGroup(service, ctx, group.ID) }()
 
 		// ACT
 		students, err := service.GetEnrolledStudents(ctx, group.ID)
@@ -2378,8 +2396,8 @@ func TestActivityService_DeleteGroup_CascadesSupervisors(t *testing.T) {
 		require.NoError(t, err)
 		supervisorID := supervisor.ID
 
-		// ACT - delete group
-		err = service.DeleteGroup(ctx, group.ID)
+		// ACT - delete group (using creator's staff ID with manage permission)
+		err = service.DeleteGroup(ctx, group.ID, group.CreatedBy, true)
 
 		// ASSERT
 		require.NoError(t, err)
@@ -2409,8 +2427,8 @@ func TestActivityService_DeleteGroup_CascadesSchedules(t *testing.T) {
 		require.NoError(t, err)
 		scheduleID := created.ID
 
-		// ACT - delete group
-		err = service.DeleteGroup(ctx, group.ID)
+		// ACT - delete group (using creator's staff ID with manage permission)
+		err = service.DeleteGroup(ctx, group.ID, group.CreatedBy, true)
 
 		// ASSERT
 		require.NoError(t, err)
@@ -2506,8 +2524,8 @@ func TestActivityService_UpdateGroup_Success(t *testing.T) {
 
 		group.Name = "Updated Group Name"
 
-		// ACT
-		result, err := service.UpdateGroup(ctx, group)
+		// ACT (using creator's staff ID with manage permission)
+		result, err := service.UpdateGroup(ctx, group, group.CreatedBy, true)
 
 		// ASSERT
 		require.NoError(t, err)

@@ -289,10 +289,20 @@ func (s *Service) GetGroup(ctx context.Context, id int64) (*activities.Group, er
 	return group, nil
 }
 
-// UpdateGroup updates an activity group
-func (s *Service) UpdateGroup(ctx context.Context, group *activities.Group) (*activities.Group, error) {
+// UpdateGroup updates an activity group with ownership verification
+// Only the creator, supervisors, or users with manage permission can update
+func (s *Service) UpdateGroup(ctx context.Context, group *activities.Group, requestingStaffID int64, hasManagePermission bool) (*activities.Group, error) {
 	if err := group.Validate(); err != nil {
 		return nil, &ActivityError{Op: "validate group", Err: err}
+	}
+
+	// Check if user can modify this activity
+	canModify, err := s.CanModifyActivity(ctx, group.ID, requestingStaffID, hasManagePermission)
+	if err != nil {
+		return nil, &ActivityError{Op: "check permissions", Err: err}
+	}
+	if !canModify {
+		return nil, &ActivityError{Op: "update group", Err: ErrNotOwner}
 	}
 
 	if err := s.groupRepo.Update(ctx, group); err != nil {
@@ -302,9 +312,19 @@ func (s *Service) UpdateGroup(ctx context.Context, group *activities.Group) (*ac
 	return group, nil
 }
 
-// DeleteGroup deletes an activity group and all related records
-func (s *Service) DeleteGroup(ctx context.Context, id int64) error {
-	err := s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
+// DeleteGroup deletes an activity group and all related records with ownership verification
+// Only the creator, supervisors, or users with manage permission can delete
+func (s *Service) DeleteGroup(ctx context.Context, id int64, requestingStaffID int64, hasManagePermission bool) error {
+	// Check if user can modify this activity before starting transaction
+	canModify, err := s.CanModifyActivity(ctx, id, requestingStaffID, hasManagePermission)
+	if err != nil {
+		return &ActivityError{Op: "check permissions", Err: err}
+	}
+	if !canModify {
+		return &ActivityError{Op: "delete group", Err: ErrNotOwner}
+	}
+
+	err = s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
 		txService := s.WithTx(tx).(*Service)
 
 		// Delete all related records
@@ -464,6 +484,47 @@ func (s *Service) GetGroupWithDetails(ctx context.Context, id int64) (*activitie
 func (s *Service) GetGroupsWithEnrollmentCounts(ctx context.Context) ([]*activities.Group, map[int64]int, error) {
 	// Use the repository method that does this
 	return s.groupRepo.FindWithEnrollmentCounts(ctx)
+}
+
+// CanModifyActivity checks if a user can modify (edit/delete) an activity
+// Returns true if:
+// 1. User has manage permission (admin)
+// 2. User created the activity (group.CreatedBy == staffID)
+// 3. User is a supervisor of the activity
+func (s *Service) CanModifyActivity(ctx context.Context, groupID int64, staffID int64, hasManagePermission bool) (bool, error) {
+	// Admins with manage permission can always modify
+	if hasManagePermission {
+		return true, nil
+	}
+
+	// Get the group with supervisors
+	group, err := s.groupRepo.FindByID(ctx, groupID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return false, &ActivityError{Op: "check permissions", Err: ErrGroupNotFound}
+		}
+		return false, &ActivityError{Op: "check permissions", Err: err}
+	}
+
+	// Check if user is the creator
+	if group.CreatedBy == staffID {
+		return true, nil
+	}
+
+	// Check if user is a supervisor
+	supervisors, err := s.supervisorRepo.FindByGroupID(ctx, groupID)
+	if err != nil {
+		log.Printf("Warning: Failed to load supervisors for permission check: %v", err)
+		// Continue without supervisor check if we can't load them
+	} else {
+		for _, supervisor := range supervisors {
+			if supervisor != nil && supervisor.StaffID == staffID {
+				return true, nil
+			}
+		}
+	}
+
+	return false, nil
 }
 
 // validateGroupExists checks if a group exists

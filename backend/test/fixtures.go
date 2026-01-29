@@ -75,7 +75,7 @@ func CreateTestActivityCategory(tb testing.TB, db *bun.DB, name string) *activit
 }
 
 // CreateTestActivityGroup creates a real activity group in the database
-// Activity groups require a category, so this helper creates one automatically
+// Activity groups require a category and creator, so this helper creates them automatically
 func CreateTestActivityGroup(tb testing.TB, db *bun.DB, name string) *activities.Group {
 	tb.Helper()
 
@@ -85,12 +85,16 @@ func CreateTestActivityGroup(tb testing.TB, db *bun.DB, name string) *activities
 	// First create a category (activities.groups.category_id is required)
 	category := CreateTestActivityCategory(tb, db, fmt.Sprintf("Category-%s-%d", name, time.Now().UnixNano()))
 
+	// Create a staff member as the creator (activities.groups.created_by is required)
+	staff := CreateTestStaff(tb, db, "Creator", name)
+
 	// Create the activity group
 	group := &activities.Group{
 		Name:            name,
 		MaxParticipants: 20,
 		IsOpen:          true,
 		CategoryID:      category.ID,
+		CreatedBy:       staff.ID,
 	}
 
 	err := db.NewInsert().

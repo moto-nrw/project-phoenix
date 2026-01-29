@@ -44,6 +44,12 @@ var (
 
 	// ErrStaffNotFound returned when a staff member doesn't exist
 	ErrStaffNotFound = errors.New("staff not found")
+
+	// ErrNotOwner returned when user is not the owner of the activity
+	ErrNotOwner = errors.New("you can only modify activities that you created or supervise")
+
+	// ErrUnauthorized returned when user doesn't have permission to perform the action
+	ErrUnauthorized = errors.New("you are not authorized to perform this action")
 )
 
 // ActivityError represents an activity-related error

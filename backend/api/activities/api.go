@@ -13,6 +13,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/activities"
@@ -126,6 +127,8 @@ type ActivityResponse struct {
 	IsOpen          bool                 `json:"is_open"`
 	CategoryID      int64                `json:"category_id"`
 	PlannedRoomID   *int64               `json:"planned_room_id,omitempty"`
+	CreatedBy       int64                `json:"created_by"`
+	CreatedByName   string               `json:"created_by_name,omitempty"`
 	Category        *CategoryResponse    `json:"category,omitempty"`
 	SupervisorID    *int64               `json:"supervisor_id,omitempty"`  // Primary supervisor
 	SupervisorIDs   []int64              `json:"supervisor_ids,omitempty"` // All supervisors
@@ -273,10 +276,16 @@ func newActivityResponse(group *activities.Group, enrollmentCount int) ActivityR
 		MaxParticipants: group.MaxParticipants,
 		IsOpen:          group.IsOpen,
 		CategoryID:      group.CategoryID,
+		CreatedBy:       group.CreatedBy,
 		EnrollmentCount: enrollmentCount,
 		CreatedAt:       group.CreatedAt,
 		UpdatedAt:       group.UpdatedAt,
 		Schedules:       []ScheduleResponse{},
+	}
+
+	// Add creator name if available
+	if group.CreatedByStaff != nil && group.CreatedByStaff.Person != nil {
+		response.CreatedByName = group.CreatedByStaff.Person.FirstName + " " + group.CreatedByStaff.Person.LastName
 	}
 
 	// Safely add optional fields with nil checks
@@ -311,6 +320,29 @@ func newActivityResponse(group *activities.Group, enrollmentCount int) ActivityR
 // =============================================================================
 // HELPER METHODS - Reduce code duplication for common parsing/validation
 // =============================================================================
+
+// getStaffIDAndManagePermission extracts the current staff ID and checks for manage permission.
+// Returns (staffID, hasManagePermission, error). If user is not staff, returns (0, hasManagePermission, error).
+func (rs *Resource) getStaffIDAndManagePermission(r *http.Request) (int64, bool, error) {
+	// Check if user has ActivitiesManage permission
+	perms := jwt.PermissionsFromCtx(r.Context())
+	hasManagePermission := false
+	for _, p := range perms {
+		if p == permissions.ActivitiesManage || p == permissions.AdminWildcard || p == permissions.FullAccess {
+			hasManagePermission = true
+			break
+		}
+	}
+
+	// Get current staff
+	staff, err := rs.UserContextService.GetCurrentStaff(r.Context())
+	if err != nil {
+		// User is not staff - they can only have manage permission if admin
+		return 0, hasManagePermission, err
+	}
+
+	return staff.ID, hasManagePermission, nil
+}
 
 // parseAndGetActivity parses activity ID from URL and returns the activity if it exists.
 // Returns nil and false if parsing fails or activity doesn't exist (error already rendered).
@@ -477,18 +509,26 @@ func (rs *Resource) ensureCategoryLoaded(ctx context.Context, group *activities.
 
 // buildBaseActivityResponse creates the base activity response structure.
 func buildBaseActivityResponse(group *activities.Group, enrollmentCount int) ActivityResponse {
-	return ActivityResponse{
+	response := ActivityResponse{
 		ID:              group.ID,
 		Name:            group.Name,
 		MaxParticipants: group.MaxParticipants,
 		IsOpen:          group.IsOpen,
 		CategoryID:      group.CategoryID,
 		PlannedRoomID:   group.PlannedRoomID,
+		CreatedBy:       group.CreatedBy,
 		EnrollmentCount: enrollmentCount,
 		CreatedAt:       group.CreatedAt,
 		UpdatedAt:       group.UpdatedAt,
 		Schedules:       []ScheduleResponse{},
 	}
+
+	// Add creator name if available
+	if group.CreatedByStaff != nil && group.CreatedByStaff.Person != nil {
+		response.CreatedByName = group.CreatedByStaff.Person.FirstName + " " + group.CreatedByStaff.Person.LastName
+	}
+
+	return response
 }
 
 // addCategoryToResponse adds category details to the response if available.
@@ -844,17 +884,24 @@ func (rs *Resource) createActivity(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Create activity group
+	// Get current staff ID - required for created_by
+	staffID, _, err := rs.getStaffIDAndManagePermission(r)
+	if err != nil {
+		common.RenderError(w, r, ErrorForbidden(errors.New("only staff members can create activities")))
+		return
+	}
+
+	// Create activity group with creator
 	group := &activities.Group{
 		Name:            req.Name,
 		MaxParticipants: req.MaxParticipants,
 		IsOpen:          req.IsOpen,
 		CategoryID:      req.CategoryID,
 		PlannedRoomID:   req.PlannedRoomID,
+		CreatedBy:       staffID,
 	}
 
 	// Prepare schedules
-
 	schedules := make([]*activities.Schedule, 0, len(req.Schedules))
 	for _, s := range req.Schedules {
 		schedules = append(schedules, &activities.Schedule{
@@ -891,6 +938,7 @@ func (rs *Resource) createActivity(w http.ResponseWriter, r *http.Request) {
 		IsOpen:          createdGroup.IsOpen,
 		CategoryID:      createdGroup.CategoryID,
 		PlannedRoomID:   createdGroup.PlannedRoomID,
+		CreatedBy:       createdGroup.CreatedBy,
 		CreatedAt:       createdGroup.CreatedAt,
 		UpdatedAt:       createdGroup.UpdatedAt,
 		EnrollmentCount: 0,
@@ -909,26 +957,25 @@ func (rs *Resource) quickCreateActivity(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	// Verify user is authenticated (JWT middleware already ensures this)
-	// We just need to make sure we can get staff info if available
+	// Get current staff - required for created_by
+	staff, err := rs.UserContextService.GetCurrentStaff(r.Context())
+	if err != nil || staff == nil {
+		common.RenderError(w, r, ErrorForbidden(errors.New("only staff members can create activities")))
+		return
+	}
 
-	// Create activity group with smart defaults
+	// Create activity group with smart defaults and creator
 	group := &activities.Group{
 		Name:            req.Name,
 		MaxParticipants: req.MaxParticipants,
 		IsOpen:          true, // Default to true for quick-create
 		CategoryID:      req.CategoryID,
 		PlannedRoomID:   req.RoomID,
+		CreatedBy:       staff.ID,
 	}
 
-	// Try to get staff info to auto-assign as supervisor
-	var supervisorIDs []int64
-	staff, err := rs.UserContextService.GetCurrentStaff(r.Context())
-	if err == nil && staff != nil {
-		// If user is staff, auto-assign as primary supervisor
-		supervisorIDs = []int64{staff.ID}
-	}
-	// If user is not staff, create activity without supervisor (can be assigned later)
+	// Auto-assign creator as primary supervisor
+	supervisorIDs := []int64{staff.ID}
 
 	// Create the activity group with auto-assigned teacher supervision
 	createdGroup, err := rs.ActivityService.CreateGroup(r.Context(), group, supervisorIDs, nil)
@@ -981,6 +1028,13 @@ func (rs *Resource) updateActivity(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Get staff ID and check for manage permission
+	staffID, hasManagePermission, err := rs.getStaffIDAndManagePermission(r)
+	if err != nil && !hasManagePermission {
+		common.RenderError(w, r, ErrorForbidden(errors.New("only staff members can update activities")))
+		return
+	}
+
 	// Parse request
 	req := &ActivityRequest{}
 	if err := render.Bind(r, req); err != nil {
@@ -997,8 +1051,14 @@ func (rs *Resource) updateActivity(w http.ResponseWriter, r *http.Request) {
 
 	updateGroupFields(existingGroup, req)
 
-	updatedGroup, err := rs.ActivityService.UpdateGroup(r.Context(), existingGroup)
+	// Pass staff ID and permission flag for ownership check
+	updatedGroup, err := rs.ActivityService.UpdateGroup(r.Context(), existingGroup, staffID, hasManagePermission)
 	if err != nil {
+		// Check for ownership error
+		if errors.Is(err, activitiesSvc.ErrNotOwner) {
+			common.RenderError(w, r, ErrorForbidden(err))
+			return
+		}
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
@@ -1034,8 +1094,20 @@ func (rs *Resource) deleteActivity(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Delete the activity
-	if err := rs.ActivityService.DeleteGroup(r.Context(), id); err != nil {
+	// Get staff ID and check for manage permission
+	staffID, hasManagePermission, err := rs.getStaffIDAndManagePermission(r)
+	if err != nil && !hasManagePermission {
+		common.RenderError(w, r, ErrorForbidden(errors.New("only staff members can delete activities")))
+		return
+	}
+
+	// Delete the activity with ownership check
+	if err := rs.ActivityService.DeleteGroup(r.Context(), id, staffID, hasManagePermission); err != nil {
+		// Check for ownership error
+		if errors.Is(err, activitiesSvc.ErrNotOwner) {
+			common.RenderError(w, r, ErrorForbidden(err))
+			return
+		}
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
