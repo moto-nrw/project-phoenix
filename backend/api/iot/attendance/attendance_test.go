@@ -762,8 +762,8 @@ func TestToggleAttendance_DailyCheckoutNotCheckedIn(t *testing.T) {
 	// ACT
 	rr := testutil.ExecuteRequest(router, req)
 
-	// ASSERT: Should return 500 — student has no attendance record
-	testutil.AssertErrorResponse(t, rr, http.StatusInternalServerError)
+	// ASSERT: Should return 404 — student has no attendance record
+	testutil.AssertErrorResponse(t, rr, http.StatusNotFound)
 }
 
 // TestToggleAttendance_NormalToggleSuccess tests the full success path for normal toggle

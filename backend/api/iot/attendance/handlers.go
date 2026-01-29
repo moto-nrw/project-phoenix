@@ -194,7 +194,7 @@ func (rs *Resource) handleDailyCheckout(w http.ResponseWriter, r *http.Request, 
 	if currentStatus.Status != "checked_in" && currentStatus.Status != "checked_out" {
 		log.Printf("[DAILY_CHECKOUT] ERROR: Student %d has no attendance record for today (status: %s) — cannot perform daily checkout",
 			student.ID, currentStatus.Status)
-		iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(
+		iotCommon.RenderError(w, r, iotCommon.ErrorNotFound(
 			errors.New("student has no attendance record for today")))
 		return
 	}
