@@ -16,9 +16,20 @@ interface SuccessResponse {
   };
 }
 
-// Mock fetch
-const mockFetch = vi.fn();
-global.fetch = mockFetch;
+// Mock apiPost from api-helpers
+const mockApiPost = vi.fn();
+vi.mock("~/lib/api-helpers", () => ({
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+  apiPost: (...args: unknown[]) => mockApiPost(...args),
+  handleApiError: (error: unknown) => {
+    const message =
+      error instanceof Error ? error.message : "Internal server error";
+    return new Response(JSON.stringify({ error: message }), {
+      status: 500,
+      headers: { "Content-Type": "application/json" },
+    });
+  },
+}));
 
 // Create typed mock for auth
 const mockAuth = vi.fn<() => Promise<Session | null>>();
@@ -115,10 +126,7 @@ describe("POST /api/active/visits/student/[studentId]/checkin", () => {
   });
 
   it("returns error when backend fetch fails", async () => {
-    mockFetch.mockResolvedValue({
-      ok: false,
-      text: async () => "Backend error",
-    });
+    mockApiPost.mockRejectedValue(new Error("Backend error"));
 
     const request = new NextRequest(
       "http://localhost:3000/api/active/visits/student/123/checkin",
@@ -141,17 +149,14 @@ describe("POST /api/active/visits/student/[studentId]/checkin", () => {
   });
 
   it("returns success with visit data on successful checkin", async () => {
-    mockFetch.mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        status: "success",
-        message: "Student checked in successfully",
-        data: {
-          visit_id: 789,
-          student_id: 123,
-          action: "checked_in",
-        },
-      }),
+    mockApiPost.mockResolvedValue({
+      status: "success",
+      message: "Student checked in successfully",
+      data: {
+        visit_id: 789,
+        student_id: 123,
+        action: "checked_in",
+      },
     });
 
     const request = new NextRequest(
@@ -178,28 +183,19 @@ describe("POST /api/active/visits/student/[studentId]/checkin", () => {
       action: "checked_in",
     });
 
-    // Verify fetch was called correctly
-    expect(mockFetch).toHaveBeenCalledWith(
-      expect.stringContaining("/api/active/visits/student/123/checkin"),
-      expect.objectContaining({
-        method: "POST",
-        headers: expect.objectContaining({
-          Authorization: `Bearer ${mockToken}`,
-          "Content-Type": "application/json",
-        }) as Record<string, string>,
-        body: JSON.stringify({ active_group_id: 456 }),
-      }),
+    // Verify apiPost was called with correct endpoint, token, and body
+    expect(mockApiPost).toHaveBeenCalledWith(
+      "/api/active/visits/student/123/checkin",
+      mockToken,
+      { active_group_id: 456 },
     );
   });
 
   it("passes through correct student ID from params", async () => {
-    mockFetch.mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        status: "success",
-        message: "Student checked in",
-        data: { visit_id: 1, student_id: 999, action: "checked_in" },
-      }),
+    mockApiPost.mockResolvedValue({
+      status: "success",
+      message: "Student checked in",
+      data: { visit_id: 1, student_id: 999, action: "checked_in" },
     });
 
     const request = new NextRequest(
@@ -217,20 +213,18 @@ describe("POST /api/active/visits/student/[studentId]/checkin", () => {
 
     await POST(request, context);
 
-    expect(mockFetch).toHaveBeenCalledWith(
-      expect.stringContaining("/api/active/visits/student/999/checkin"),
-      expect.anything(),
+    expect(mockApiPost).toHaveBeenCalledWith(
+      "/api/active/visits/student/999/checkin",
+      mockToken,
+      { active_group_id: 100 },
     );
   });
 
   it("passes through correct active_group_id in request body", async () => {
-    mockFetch.mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        status: "success",
-        message: "Student checked in",
-        data: { visit_id: 1, student_id: 123, action: "checked_in" },
-      }),
+    mockApiPost.mockResolvedValue({
+      status: "success",
+      message: "Student checked in",
+      data: { visit_id: 1, student_id: 123, action: "checked_in" },
     });
 
     const request = new NextRequest(
@@ -248,11 +242,10 @@ describe("POST /api/active/visits/student/[studentId]/checkin", () => {
 
     await POST(request, context);
 
-    expect(mockFetch).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({
-        body: JSON.stringify({ active_group_id: 9999 }),
-      }),
+    expect(mockApiPost).toHaveBeenCalledWith(
+      "/api/active/visits/student/123/checkin",
+      mockToken,
+      { active_group_id: 9999 },
     );
   });
 });
