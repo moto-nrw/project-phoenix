@@ -521,18 +521,19 @@ function OGSGroupPageContent() {
   }, [session?.user?.token]);
 
   // Load available users for transfer dropdown
-  // Query both "teacher" and "staff" roles, as existing deployments may have
-  // staff accounts with different role assignments
+  // Query "teacher", "staff", and "user" roles to cover all deployment configurations
+  // Most production accounts use the "user" role (Nutzer)
   const loadAvailableUsers = useCallback(async () => {
     try {
-      // Fetch both teacher and staff roles in parallel
-      const [teachers, staffMembers] = await Promise.all([
+      // Fetch all relevant roles in parallel
+      const [teachers, staffMembers, users] = await Promise.all([
         groupTransferService.getStaffByRole("teacher").catch(() => []),
         groupTransferService.getStaffByRole("staff").catch(() => []),
+        groupTransferService.getStaffByRole("user").catch(() => []),
       ]);
       // Merge and deduplicate by staff ID
       const uniqueUsers = new Map<string, (typeof teachers)[0]>();
-      for (const user of [...teachers, ...staffMembers]) {
+      for (const user of [...teachers, ...staffMembers, ...users]) {
         if (!uniqueUsers.has(user.id)) {
           uniqueUsers.set(user.id, user);
         }
