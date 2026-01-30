@@ -430,6 +430,12 @@ function LimitedAccessView({
 
       <SupervisorsCard supervisors={supervisors} studentName={student.name} />
 
+      <PickupScheduleManager
+        studentId={student.id}
+        readOnly={true}
+        isSick={student.sick}
+      />
+
       <PersonalInfoReadOnly student={student} />
 
       <StudentGuardianManager studentId={student.id} readOnly={true} />
