@@ -7,6 +7,11 @@ vi.mock("next/navigation", () => ({
   useSearchParams: vi.fn(() => ({
     get: vi.fn(),
   })),
+  useRouter: vi.fn(() => ({
+    push: vi.fn(),
+    replace: vi.fn(),
+    back: vi.fn(),
+  })),
 }));
 
 vi.mock("next-auth/react", () => ({
@@ -266,26 +271,34 @@ describe("Sidebar", () => {
   describe("student detail page active link detection", () => {
     it("highlights ogs-groups when coming from ogs-groups page", () => {
       mockUsePathname.mockReturnValue("/students/123");
-      const mockGet = vi.fn().mockReturnValue("/ogs-groups/5");
+      const mockGet = vi.fn((key: string) =>
+        key === "from" ? "/ogs-groups" : null,
+      );
       mockUseSearchParams.mockReturnValue(createMockSearchParams(mockGet));
 
       render(<Sidebar />);
 
-      const groupLink = screen.getByText("Meine Gruppe").closest("a");
-      expect(groupLink).toHaveClass("bg-gray-100");
+      // Accordion headers are div[role=button], not <a> links
+      const groupHeader = screen
+        .getByText("Meine Gruppe")
+        .closest('[role="button"]');
+      expect(groupHeader).toHaveClass("bg-gray-100");
     });
 
     it("highlights active-supervisions when coming from supervisions page", () => {
       mockUsePathname.mockReturnValue("/students/456");
-      const mockGet = vi.fn().mockReturnValue("/active-supervisions/1");
+      const mockGet = vi.fn((key: string) =>
+        key === "from" ? "/active-supervisions" : null,
+      );
       mockUseSearchParams.mockReturnValue(createMockSearchParams(mockGet));
 
       render(<Sidebar />);
 
-      const supervisionLink = screen
+      // Accordion headers are div[role=button], not <a> links
+      const supervisionHeader = screen
         .getByText("Aktuelle Aufsicht")
-        .closest("a");
-      expect(supervisionLink).toHaveClass("bg-gray-100");
+        .closest('[role="button"]');
+      expect(supervisionHeader).toHaveClass("bg-gray-100");
     });
 
     it("highlights student search when coming from search page", () => {
@@ -425,7 +438,9 @@ describe("Sidebar", () => {
     it("icons have correct styling", () => {
       render(<Sidebar />);
 
-      const svgs = document.querySelectorAll("nav svg");
+      // Filter to nav-item icon SVGs (h-5 w-5), excluding accordion chevrons (h-4 w-4)
+      const svgs = document.querySelectorAll("nav svg.h-5");
+      expect(svgs.length).toBeGreaterThan(0);
       svgs.forEach((svg) => {
         expect(svg).toHaveClass("h-5");
         expect(svg).toHaveClass("w-5");

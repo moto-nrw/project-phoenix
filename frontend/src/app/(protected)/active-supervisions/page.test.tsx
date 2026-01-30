@@ -17,6 +17,7 @@ vi.mock("next-auth/react", () => ({
 const mockPush = vi.fn();
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: mockPush }),
+  useSearchParams: () => ({ get: () => null }),
 }));
 
 // Mock breadcrumb context
