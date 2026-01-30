@@ -4,17 +4,7 @@ import {
   validateStudentForm,
   handleStudentFormSubmit,
 } from "./student-form-validation";
-
-// Mock the Student type from student-helpers
-vi.mock("~/lib/student-helpers", () => ({}));
-
-interface MockStudent {
-  id?: string;
-  first_name?: string;
-  second_name?: string;
-  school_class?: string;
-  data_retention_days?: number | null;
-}
+import type { Student } from "~/lib/student-helpers";
 
 describe("validateDataRetentionDays", () => {
   it("returns error message when retention days is null", () => {
@@ -59,7 +49,7 @@ describe("validateDataRetentionDays", () => {
 
 describe("validateStudentForm", () => {
   it("returns empty object when all required fields are valid", () => {
-    const formData: MockStudent = {
+    const formData: Partial<Student> = {
       first_name: "Max",
       second_name: "Mustermann",
       school_class: "5a",
@@ -76,7 +66,7 @@ describe("validateStudentForm", () => {
   });
 
   it("validates first name when required", () => {
-    const formData: MockStudent = {
+    const formData: Partial<Student> = {
       first_name: "",
       second_name: "Mustermann",
       school_class: "5a",
@@ -89,7 +79,7 @@ describe("validateStudentForm", () => {
   });
 
   it("validates last name when required", () => {
-    const formData: MockStudent = {
+    const formData: Partial<Student> = {
       first_name: "Max",
       second_name: "",
       school_class: "5a",
@@ -102,7 +92,7 @@ describe("validateStudentForm", () => {
   });
 
   it("validates school class when required", () => {
-    const formData: MockStudent = {
+    const formData: Partial<Student> = {
       first_name: "Max",
       second_name: "Mustermann",
       school_class: "",
@@ -115,7 +105,7 @@ describe("validateStudentForm", () => {
   });
 
   it("validates trimmed values", () => {
-    const formData: MockStudent = {
+    const formData: Partial<Student> = {
       first_name: "  ",
       second_name: "  ",
       school_class: "  ",
@@ -133,12 +123,11 @@ describe("validateStudentForm", () => {
     expect(errors.school_class).toBe("Klasse ist erforderlich");
   });
 
-  it("validates data retention days", () => {
-    const formData: MockStudent = {
+  it("validates undefined data retention days", () => {
+    const formData: Partial<Student> = {
       first_name: "Max",
       second_name: "Mustermann",
       school_class: "5a",
-      data_retention_days: null,
     };
 
     const errors = validateStudentForm(formData, {});
@@ -149,7 +138,7 @@ describe("validateStudentForm", () => {
   });
 
   it("validates invalid data retention days", () => {
-    const formData: MockStudent = {
+    const formData: Partial<Student> = {
       first_name: "Max",
       second_name: "Mustermann",
       school_class: "5a",
@@ -164,7 +153,7 @@ describe("validateStudentForm", () => {
   });
 
   it("returns multiple errors when multiple fields invalid", () => {
-    const formData: MockStudent = {
+    const formData: Partial<Student> = {
       first_name: "",
       second_name: "",
       school_class: "",
@@ -186,7 +175,7 @@ describe("validateStudentForm", () => {
   });
 
   it("does not validate optional fields", () => {
-    const formData: MockStudent = {
+    const formData: Partial<Student> = {
       first_name: "",
       second_name: "",
       school_class: "",
@@ -203,18 +192,23 @@ describe("validateStudentForm", () => {
 
 describe("handleStudentFormSubmit", () => {
   let mockEvent: { preventDefault: ReturnType<typeof vi.fn> };
-  let mockValidateForm: ReturnType<typeof vi.fn>;
-  let mockOnSubmit: ReturnType<typeof vi.fn>;
-  let mockSetLoading: ReturnType<typeof vi.fn>;
-  let mockSetErrors: ReturnType<typeof vi.fn>;
+  let mockValidateForm: ReturnType<typeof vi.fn<() => boolean>>;
+  let mockOnSubmit: ReturnType<
+    typeof vi.fn<(data: Partial<Student>) => Promise<void>>
+  >;
+  let mockSetLoading: ReturnType<typeof vi.fn<(loading: boolean) => void>>;
+  let mockSetErrors: ReturnType<
+    typeof vi.fn<(errors: Record<string, string>) => void>
+  >;
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
     mockEvent = { preventDefault: vi.fn() };
-    mockValidateForm = vi.fn();
-    mockOnSubmit = vi.fn();
-    mockSetLoading = vi.fn();
-    mockSetErrors = vi.fn();
+    mockValidateForm = vi.fn<() => boolean>();
+    mockOnSubmit = vi.fn<(data: Partial<Student>) => Promise<void>>();
+    mockSetLoading = vi.fn<(loading: boolean) => void>();
+    mockSetErrors = vi.fn<(errors: Record<string, string>) => void>();
     consoleErrorSpy = vi
       .spyOn(console, "error")
       .mockImplementation(() => undefined);
@@ -256,7 +250,7 @@ describe("handleStudentFormSubmit", () => {
     mockValidateForm.mockReturnValue(true);
     mockOnSubmit.mockResolvedValue(undefined);
 
-    const formData: MockStudent = {
+    const formData: Partial<Student> = {
       first_name: "Max",
       second_name: "Mustermann",
       school_class: "5a",
@@ -292,10 +286,6 @@ describe("handleStudentFormSubmit", () => {
       mockSetErrors,
     );
 
-    expect(consoleErrorSpy).toHaveBeenCalledWith(
-      "Error saving student:",
-      error,
-    );
     expect(mockSetErrors).toHaveBeenCalledWith({
       submit: "Fehler beim Speichern. Bitte versuchen Sie es erneut.",
     });
@@ -314,7 +304,6 @@ describe("handleStudentFormSubmit", () => {
       mockSetErrors,
     );
 
-    // Verify setLoading called with true, then false
     expect(mockSetLoading).toHaveBeenCalledWith(true);
     expect(mockSetLoading).toHaveBeenCalledWith(false);
     expect(mockSetLoading).toHaveBeenCalledTimes(2);

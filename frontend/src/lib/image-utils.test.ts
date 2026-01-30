@@ -17,8 +17,10 @@ describe("compressAvatar", () => {
   });
 
   it("successfully compresses image and returns File with .jpg extension", async () => {
-    const mockBlob = new Blob(["compressed"], { type: "image/jpeg" });
-    vi.mocked(imageCompression).mockResolvedValue(mockBlob);
+    const mockFile = new File(["compressed"], "compressed.jpg", {
+      type: "image/jpeg",
+    });
+    vi.mocked(imageCompression).mockResolvedValue(mockFile as never);
 
     const originalFile = new File(["original"], "avatar.png", {
       type: "image/png",
@@ -39,8 +41,10 @@ describe("compressAvatar", () => {
   });
 
   it("handles files with multiple dots in filename", async () => {
-    const mockBlob = new Blob(["compressed"], { type: "image/jpeg" });
-    vi.mocked(imageCompression).mockResolvedValue(mockBlob);
+    const mockFile = new File(["compressed"], "c.jpg", {
+      type: "image/jpeg",
+    });
+    vi.mocked(imageCompression).mockResolvedValue(mockFile as never);
 
     const originalFile = new File(["original"], "my.avatar.image.png", {
       type: "image/png",
@@ -52,8 +56,10 @@ describe("compressAvatar", () => {
   });
 
   it("handles files without extension", async () => {
-    const mockBlob = new Blob(["compressed"], { type: "image/jpeg" });
-    vi.mocked(imageCompression).mockResolvedValue(mockBlob);
+    const mockFile = new File(["compressed"], "c.jpg", {
+      type: "image/jpeg",
+    });
+    vi.mocked(imageCompression).mockResolvedValue(mockFile as never);
 
     const originalFile = new File(["original"], "avatar", {
       type: "image/png",
@@ -82,8 +88,10 @@ describe("compressAvatar", () => {
   });
 
   it("creates File with correct lastModified timestamp", async () => {
-    const mockBlob = new Blob(["compressed"], { type: "image/jpeg" });
-    vi.mocked(imageCompression).mockResolvedValue(mockBlob);
+    const mockFile = new File(["compressed"], "c.jpg", {
+      type: "image/jpeg",
+    });
+    vi.mocked(imageCompression).mockResolvedValue(mockFile as never);
 
     const originalFile = new File(["original"], "avatar.png", {
       type: "image/png",
@@ -98,8 +106,10 @@ describe("compressAvatar", () => {
   });
 
   it("preserves filename without extension correctly", async () => {
-    const mockBlob = new Blob(["compressed"], { type: "image/jpeg" });
-    vi.mocked(imageCompression).mockResolvedValue(mockBlob);
+    const mockFile = new File(["compressed"], "c.jpg", {
+      type: "image/jpeg",
+    });
+    vi.mocked(imageCompression).mockResolvedValue(mockFile as never);
 
     const testCases = [
       { input: "photo.jpg", expected: "photo.jpg" },
@@ -116,8 +126,10 @@ describe("compressAvatar", () => {
   });
 
   it("verifies compression options are correct", async () => {
-    const mockBlob = new Blob(["compressed"], { type: "image/jpeg" });
-    vi.mocked(imageCompression).mockResolvedValue(mockBlob);
+    const mockFile = new File(["compressed"], "c.jpg", {
+      type: "image/jpeg",
+    });
+    vi.mocked(imageCompression).mockResolvedValue(mockFile as never);
 
     const originalFile = new File(["original"], "avatar.png", {
       type: "image/png",
