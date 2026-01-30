@@ -3,7 +3,7 @@
  * Tests the rendering and logout functionality
  */
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { LogoutModal } from "./logout-modal";
 
 // Mock next-auth/react
@@ -45,8 +45,14 @@ describe("LogoutModal", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.useFakeTimers({ shouldAdvanceTime: true });
     mockSignOut.mockResolvedValue(undefined);
     Element.prototype.animate = mockAnimate;
+  });
+
+  afterEach(() => {
+    vi.runOnlyPendingTimers();
+    vi.useRealTimers();
   });
 
   it("renders nothing when closed", () => {
