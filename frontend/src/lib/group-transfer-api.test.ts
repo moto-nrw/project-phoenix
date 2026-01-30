@@ -36,6 +36,211 @@ describe("groupTransferService", () => {
     fetchMock.mockRestore();
   });
 
+  describe("getAllAvailableStaff", () => {
+    it("fetches and merges staff from teacher, staff, and user roles", async () => {
+      // Mock three sequential calls for each role
+      fetchMock
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              data: [
+                {
+                  id: 1,
+                  person_id: 10,
+                  first_name: "Teacher",
+                  last_name: "One",
+                  full_name: "Teacher One",
+                  account_id: 100,
+                  email: "teacher1@example.com",
+                },
+              ],
+            }),
+        } as Response)
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              data: [
+                {
+                  id: 2,
+                  person_id: 20,
+                  first_name: "Staff",
+                  last_name: "Member",
+                  full_name: "Staff Member",
+                  account_id: 200,
+                  email: "staff@example.com",
+                },
+              ],
+            }),
+        } as Response)
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              data: [
+                {
+                  id: 3,
+                  person_id: 30,
+                  first_name: "User",
+                  last_name: "Account",
+                  full_name: "User Account",
+                  account_id: 300,
+                  email: "user@example.com",
+                },
+              ],
+            }),
+        } as Response);
+
+      const result = await groupTransferService.getAllAvailableStaff();
+
+      expect(result).toHaveLength(3);
+      expect(result.map((s) => s.id)).toEqual(["1", "2", "3"]);
+
+      // Verify all three roles were queried
+      expect(fetchMock).toHaveBeenCalledTimes(3);
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/staff/by-role?role=teacher",
+        expect.anything(),
+      );
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/staff/by-role?role=staff",
+        expect.anything(),
+      );
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/staff/by-role?role=user",
+        expect.anything(),
+      );
+    });
+
+    it("deduplicates staff by ID when same person has multiple roles", async () => {
+      // Same person (id: 1) appears in both teacher and user roles
+      fetchMock
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              data: [
+                {
+                  id: 1,
+                  person_id: 10,
+                  first_name: "Multi",
+                  last_name: "Role",
+                  full_name: "Multi Role",
+                  account_id: 100,
+                  email: "multi@example.com",
+                },
+              ],
+            }),
+        } as Response)
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve({ data: [] }),
+        } as Response)
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              data: [
+                {
+                  id: 1, // Same ID - should be deduplicated
+                  person_id: 10,
+                  first_name: "Multi",
+                  last_name: "Role",
+                  full_name: "Multi Role",
+                  account_id: 100,
+                  email: "multi@example.com",
+                },
+                {
+                  id: 2,
+                  person_id: 20,
+                  first_name: "Unique",
+                  last_name: "User",
+                  full_name: "Unique User",
+                  account_id: 200,
+                  email: "unique@example.com",
+                },
+              ],
+            }),
+        } as Response);
+
+      const result = await groupTransferService.getAllAvailableStaff();
+
+      // Should only have 2 users (id 1 is deduplicated)
+      expect(result).toHaveLength(2);
+      expect(result.map((s) => s.id)).toEqual(["1", "2"]);
+    });
+
+    it("handles errors gracefully and continues with available results", async () => {
+      // Teacher role fails, but staff and user roles succeed
+      fetchMock
+        .mockResolvedValueOnce({
+          ok: false,
+          status: 500,
+        } as Response)
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              data: [
+                {
+                  id: 1,
+                  person_id: 10,
+                  first_name: "Staff",
+                  last_name: "Only",
+                  full_name: "Staff Only",
+                  account_id: 100,
+                  email: "staff@example.com",
+                },
+              ],
+            }),
+        } as Response)
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              data: [
+                {
+                  id: 2,
+                  person_id: 20,
+                  first_name: "User",
+                  last_name: "Only",
+                  full_name: "User Only",
+                  account_id: 200,
+                  email: "user@example.com",
+                },
+              ],
+            }),
+        } as Response);
+
+      const result = await groupTransferService.getAllAvailableStaff();
+
+      // Should have results from staff and user roles only
+      expect(result).toHaveLength(2);
+      expect(result.map((s) => s.id)).toEqual(["1", "2"]);
+    });
+
+    it("returns empty array when all role queries fail", async () => {
+      fetchMock
+        .mockResolvedValueOnce({
+          ok: false,
+          status: 500,
+        } as Response)
+        .mockResolvedValueOnce({
+          ok: false,
+          status: 500,
+        } as Response)
+        .mockResolvedValueOnce({
+          ok: false,
+          status: 500,
+        } as Response);
+
+      const result = await groupTransferService.getAllAvailableStaff();
+
+      expect(result).toEqual([]);
+    });
+  });
+
   describe("getStaffByRole", () => {
     it("returns mapped staff list on success", async () => {
       const backendData = [

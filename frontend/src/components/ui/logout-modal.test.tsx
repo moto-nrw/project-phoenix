@@ -45,7 +45,7 @@ describe("LogoutModal", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.useFakeTimers();
+    vi.useFakeTimers({ shouldAdvanceTime: true });
     mockSignOut.mockResolvedValue(undefined);
     Element.prototype.animate = mockAnimate;
   });

@@ -221,6 +221,36 @@ func mapNoteToResponse(n *schedule.StudentPickupNote) PickupNoteResponse {
 	}
 }
 
+// verifyExceptionOwnership checks that an exception exists and belongs to the given student.
+// Returns the exception if valid, or writes an error response and returns nil.
+func (rs *Resource) verifyExceptionOwnership(w http.ResponseWriter, r *http.Request, exceptionID, studentID int64) *schedule.StudentPickupException {
+	exception, err := rs.PickupScheduleService.GetStudentPickupExceptionByID(r.Context(), exceptionID)
+	if err != nil || exception == nil {
+		renderError(w, r, ErrorNotFound(errors.New("pickup exception not found")))
+		return nil
+	}
+	if exception.StudentID != studentID {
+		renderError(w, r, ErrorForbidden(errors.New("exception does not belong to this student")))
+		return nil
+	}
+	return exception
+}
+
+// verifyNoteOwnership checks that a note exists and belongs to the given student.
+// Returns the note if valid, or writes an error response and returns nil.
+func (rs *Resource) verifyNoteOwnership(w http.ResponseWriter, r *http.Request, noteID, studentID int64) *schedule.StudentPickupNote {
+	note, err := rs.PickupScheduleService.GetStudentPickupNoteByID(r.Context(), noteID)
+	if err != nil || note == nil {
+		renderError(w, r, ErrorNotFound(errors.New("pickup note not found")))
+		return nil
+	}
+	if note.StudentID != studentID {
+		renderError(w, r, ErrorForbidden(errors.New("note does not belong to this student")))
+		return nil
+	}
+	return note
+}
+
 // getStaffIDFromJWT extracts the staff ID from JWT claims by looking up the person and staff
 func (rs *Resource) getStaffIDFromJWT(r *http.Request) (int64, error) {
 	claims := jwt.ClaimsFromCtx(r.Context())
@@ -243,9 +273,21 @@ func (rs *Resource) getStaffIDFromJWT(r *http.Request) (int64, error) {
 	return staff.ID, nil
 }
 
-// requirePickupAccess parses the student from URL params and verifies full access.
+// requirePickupReadAccess parses the student from URL params without checking full access.
+// Used for read-only operations that should be visible to all authenticated staff.
 // Returns the student on success or writes an error response and returns nil.
-func (rs *Resource) requirePickupAccess(w http.ResponseWriter, r *http.Request, action string) *users.Student {
+func (rs *Resource) requirePickupReadAccess(w http.ResponseWriter, r *http.Request) *users.Student {
+	student, ok := rs.parseAndGetStudent(w, r)
+	if !ok {
+		return nil
+	}
+	return student
+}
+
+// requirePickupWriteAccess parses the student from URL params and verifies full access.
+// Used for write operations (create, update, delete) that require supervisor/admin access.
+// Returns the student on success or writes an error response and returns nil.
+func (rs *Resource) requirePickupWriteAccess(w http.ResponseWriter, r *http.Request, action string) *users.Student {
 	student, ok := rs.parseAndGetStudent(w, r)
 	if !ok {
 		return nil
@@ -270,8 +312,9 @@ func parseEntityID(w http.ResponseWriter, r *http.Request, param string, label s
 }
 
 // getStudentPickupSchedules handles GET /students/{id}/pickup-schedules
+// This endpoint is accessible to all authenticated staff (read-only)
 func (rs *Resource) getStudentPickupSchedules(w http.ResponseWriter, r *http.Request) {
-	student := rs.requirePickupAccess(w, r, "view pickup schedules")
+	student := rs.requirePickupReadAccess(w, r)
 	if student == nil {
 		return
 	}
@@ -310,7 +353,7 @@ func buildPickupDataResponse(data *scheduleService.StudentPickupData) PickupData
 
 // updateStudentPickupSchedules handles PUT /students/{id}/pickup-schedules
 func (rs *Resource) updateStudentPickupSchedules(w http.ResponseWriter, r *http.Request) {
-	student := rs.requirePickupAccess(w, r, "update pickup schedules")
+	student := rs.requirePickupWriteAccess(w, r, "update pickup schedules")
 	if student == nil {
 		return
 	}
@@ -360,7 +403,7 @@ func (rs *Resource) updateStudentPickupSchedules(w http.ResponseWriter, r *http.
 
 // createStudentPickupException handles POST /students/{id}/pickup-exceptions
 func (rs *Resource) createStudentPickupException(w http.ResponseWriter, r *http.Request) {
-	student := rs.requirePickupAccess(w, r, "create pickup exceptions")
+	student := rs.requirePickupWriteAccess(w, r, "create pickup exceptions")
 	if student == nil {
 		return
 	}
@@ -400,7 +443,7 @@ func (rs *Resource) createStudentPickupException(w http.ResponseWriter, r *http.
 
 // updateStudentPickupException handles PUT /students/{id}/pickup-exceptions/{exceptionId}
 func (rs *Resource) updateStudentPickupException(w http.ResponseWriter, r *http.Request) {
-	student := rs.requirePickupAccess(w, r, "update pickup exceptions")
+	student := rs.requirePickupWriteAccess(w, r, "update pickup exceptions")
 	if student == nil {
 		return
 	}
@@ -410,14 +453,8 @@ func (rs *Resource) updateStudentPickupException(w http.ResponseWriter, r *http.
 		return
 	}
 
-	// Verify exception exists and belongs to this student (ownership check)
-	existingException, err := rs.PickupScheduleService.GetStudentPickupExceptionByID(r.Context(), exceptionID)
-	if err != nil || existingException == nil {
-		renderError(w, r, ErrorNotFound(errors.New("pickup exception not found")))
-		return
-	}
-	if existingException.StudentID != student.ID {
-		renderError(w, r, ErrorForbidden(errors.New("exception does not belong to this student")))
+	existingException := rs.verifyExceptionOwnership(w, r, exceptionID, student.ID)
+	if existingException == nil {
 		return
 	}
 
@@ -456,7 +493,7 @@ func (rs *Resource) updateStudentPickupException(w http.ResponseWriter, r *http.
 
 // deleteStudentPickupException handles DELETE /students/{id}/pickup-exceptions/{exceptionId}
 func (rs *Resource) deleteStudentPickupException(w http.ResponseWriter, r *http.Request) {
-	student := rs.requirePickupAccess(w, r, "delete pickup exceptions")
+	student := rs.requirePickupWriteAccess(w, r, "delete pickup exceptions")
 	if student == nil {
 		return
 	}
@@ -466,14 +503,7 @@ func (rs *Resource) deleteStudentPickupException(w http.ResponseWriter, r *http.
 		return
 	}
 
-	// Verify exception exists and belongs to this student (ownership check)
-	existingException, err := rs.PickupScheduleService.GetStudentPickupExceptionByID(r.Context(), exceptionID)
-	if err != nil || existingException == nil {
-		renderError(w, r, ErrorNotFound(errors.New("pickup exception not found")))
-		return
-	}
-	if existingException.StudentID != student.ID {
-		renderError(w, r, ErrorForbidden(errors.New("exception does not belong to this student")))
+	if rs.verifyExceptionOwnership(w, r, exceptionID, student.ID) == nil {
 		return
 	}
 
@@ -487,7 +517,7 @@ func (rs *Resource) deleteStudentPickupException(w http.ResponseWriter, r *http.
 
 // createStudentPickupNote handles POST /students/{id}/pickup-notes
 func (rs *Resource) createStudentPickupNote(w http.ResponseWriter, r *http.Request) {
-	student := rs.requirePickupAccess(w, r, "create pickup notes")
+	student := rs.requirePickupWriteAccess(w, r, "create pickup notes")
 	if student == nil {
 		return
 	}
@@ -522,7 +552,7 @@ func (rs *Resource) createStudentPickupNote(w http.ResponseWriter, r *http.Reque
 
 // updateStudentPickupNote handles PUT /students/{id}/pickup-notes/{noteId}
 func (rs *Resource) updateStudentPickupNote(w http.ResponseWriter, r *http.Request) {
-	student := rs.requirePickupAccess(w, r, "update pickup notes")
+	student := rs.requirePickupWriteAccess(w, r, "update pickup notes")
 	if student == nil {
 		return
 	}
@@ -532,14 +562,8 @@ func (rs *Resource) updateStudentPickupNote(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	// Verify note exists and belongs to this student (ownership check)
-	existingNote, err := rs.PickupScheduleService.GetStudentPickupNoteByID(r.Context(), noteID)
-	if err != nil || existingNote == nil {
-		renderError(w, r, ErrorNotFound(errors.New("pickup note not found")))
-		return
-	}
-	if existingNote.StudentID != student.ID {
-		renderError(w, r, ErrorForbidden(errors.New("note does not belong to this student")))
+	existingNote := rs.verifyNoteOwnership(w, r, noteID, student.ID)
+	if existingNote == nil {
 		return
 	}
 
@@ -569,7 +593,7 @@ func (rs *Resource) updateStudentPickupNote(w http.ResponseWriter, r *http.Reque
 
 // deleteStudentPickupNote handles DELETE /students/{id}/pickup-notes/{noteId}
 func (rs *Resource) deleteStudentPickupNote(w http.ResponseWriter, r *http.Request) {
-	student := rs.requirePickupAccess(w, r, "delete pickup notes")
+	student := rs.requirePickupWriteAccess(w, r, "delete pickup notes")
 	if student == nil {
 		return
 	}
@@ -579,14 +603,8 @@ func (rs *Resource) deleteStudentPickupNote(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	// Verify note exists and belongs to this student (ownership check)
-	existingNote, err := rs.PickupScheduleService.GetStudentPickupNoteByID(r.Context(), noteID)
-	if err != nil || existingNote == nil {
-		renderError(w, r, ErrorNotFound(errors.New("pickup note not found")))
-		return
-	}
-	if existingNote.StudentID != student.ID {
-		renderError(w, r, ErrorForbidden(errors.New("note does not belong to this student")))
+	existingNote := rs.verifyNoteOwnership(w, r, noteID, student.ID)
+	if existingNote == nil {
 		return
 	}
 

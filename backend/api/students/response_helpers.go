@@ -43,15 +43,13 @@ func populatePersonAndGuardianData(response *StudentResponse, person *users.Pers
 		}
 	}
 
-	// Only include guardian email and phone for users with full access
-	if hasFullAccess {
-		if student.GuardianEmail != nil {
-			response.GuardianEmail = *student.GuardianEmail
-		}
+	// Guardian email and phone are visible to all authenticated staff
+	if student.GuardianEmail != nil {
+		response.GuardianEmail = *student.GuardianEmail
+	}
 
-		if student.GuardianPhone != nil {
-			response.GuardianPhone = *student.GuardianPhone
-		}
+	if student.GuardianPhone != nil {
+		response.GuardianPhone = *student.GuardianPhone
 	}
 
 	if student.GroupID != nil {
@@ -193,8 +191,8 @@ func newStudentResponseWithOpts(ctx context.Context, opts StudentResponseOpts, s
 		response.GuardianName = *student.GuardianName
 	}
 
-	// Only include guardian contact info for users with full access
-	if hasFullAccess && student.GuardianContact != nil {
+	// Guardian contact info is visible to all authenticated staff
+	if student.GuardianContact != nil {
 		response.GuardianContact = *student.GuardianContact
 	}
 
@@ -210,9 +208,8 @@ func newStudentResponseWithOpts(ctx context.Context, opts StudentResponseOpts, s
 	populatePersonAndGuardianData(&response, person, student, group, hasFullAccess)
 	populatePublicStudentFields(&response, student)
 
-	if hasFullAccess {
-		populateSensitiveStudentFields(&response, student)
-	}
+	// Sensitive student fields (notes, sickness) are now visible to all authenticated staff
+	populateSensitiveStudentFields(&response, student)
 
 	return response
 }
@@ -232,7 +229,8 @@ func newStudentResponseFromSnapshot(_ context.Context, student *users.Student, p
 		response.GuardianName = *student.GuardianName
 	}
 
-	if hasFullAccess && student.GuardianContact != nil {
+	// Guardian contact info is visible to all authenticated staff
+	if student.GuardianContact != nil {
 		response.GuardianContact = *student.GuardianContact
 	}
 
@@ -243,9 +241,8 @@ func newStudentResponseFromSnapshot(_ context.Context, student *users.Student, p
 	populatePersonAndGuardianData(&response, person, student, group, hasFullAccess)
 	populateSnapshotPublicFields(&response, student)
 
-	if hasFullAccess {
-		populateSnapshotSensitiveFields(&response, student)
-	}
+	// Sensitive student fields (notes, sickness) are now visible to all authenticated staff
+	populateSnapshotSensitiveFields(&response, student)
 
 	return response
 }
