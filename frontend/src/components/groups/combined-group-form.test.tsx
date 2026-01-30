@@ -125,7 +125,8 @@ describe("CombinedGroupForm", () => {
     );
 
     await waitFor(() => {
-      const nameInput = screen.getByLabelText(/Name der Kombination/);
+      const nameInput =
+        screen.getByLabelText<HTMLInputElement>(/Name der Kombination/);
       expect(nameInput.value).toBe("Test Group");
     });
   });

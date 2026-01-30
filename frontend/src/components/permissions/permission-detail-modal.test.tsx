@@ -71,6 +71,8 @@ describe("PermissionDetailModal", () => {
     action: "read",
     name: "Read Users",
     description: "Allows reading user data",
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
   };
 
   const mockOnClose = vi.fn();

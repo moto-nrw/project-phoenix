@@ -330,7 +330,7 @@ describe("StudentCreateModal", () => {
       });
     });
 
-    expect(screen.getByTestId("first-name-input").value).toBe("John");
+    expect(screen.getByTestId("first-name-input")).toHaveValue("John");
   });
 
   it("resets form data when modal opens", async () => {
@@ -352,7 +352,7 @@ describe("StudentCreateModal", () => {
 
     await waitFor(() => {
       const firstNameInput = screen.getByTestId("first-name-input");
-      expect(firstNameInput.value).toBe("");
+      expect(firstNameInput).toHaveValue("");
     });
   });
 

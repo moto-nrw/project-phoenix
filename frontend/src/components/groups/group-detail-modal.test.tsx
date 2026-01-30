@@ -151,7 +151,7 @@ describe("GroupDetailModal", () => {
   it("displays default text when no room assigned", async () => {
     const groupWithoutRoom: Group = {
       ...mockGroup,
-      room_name: null,
+      room_name: undefined,
     };
 
     render(
