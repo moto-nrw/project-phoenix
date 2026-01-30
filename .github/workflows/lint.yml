@@ -18,6 +18,34 @@ defaults:
     shell: bash
 
 jobs:
+  backend-format:
+    if: ${{ inputs.run-backend }}
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
+      - name: Setup Go with cache
+        uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c # v6
+        with:
+          go-version-file: backend/go.mod
+          cache: true
+          cache-dependency-path: backend/go.sum
+      - name: Check Go formatting
+        working-directory: backend
+        run: |
+          UNFORMATTED=$(gofmt -l . 2>&1 || true)
+          if [[ -n "$UNFORMATTED" ]]; then
+            echo "❌ The following files are not formatted with gofmt:"
+            echo ""
+            echo "$UNFORMATTED" | while IFS= read -r file; do
+              echo "  $file"
+            done
+            echo ""
+            echo "Run 'gofmt -w .' or 'go fmt ./...' to fix."
+            exit 1
+          else
+            echo "All Go files are properly formatted"
+          fi
+
   backend-deadcode:
     if: ${{ inputs.run-backend }}
     runs-on: blacksmith-4vcpu-ubuntu-2404
@@ -98,6 +126,71 @@ jobs:
           args: --timeout 10m
           working-directory: backend
 
+  backend-migration-validate:
+    if: ${{ inputs.run-backend }}
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: phoenix_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
+      - name: Setup Go with cache
+        uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c # v6
+        with:
+          go-version-file: backend/go.mod
+          cache: true
+          cache-dependency-path: backend/go.sum
+      - name: Validate migration dependencies
+        working-directory: backend
+        env:
+          DB_DSN: postgres://postgres:postgres@localhost:5432/phoenix_test?sslmode=disable
+        run: go run main.go migrate validate
+
+  backend-licenses:
+    if: ${{ inputs.run-backend }}
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
+      - name: Setup Go with cache
+        uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c # v6
+        with:
+          go-version-file: backend/go.mod
+          cache: true
+          cache-dependency-path: backend/go.sum
+      - name: Install go-licenses
+        run: go install github.com/google/go-licenses@latest
+      - name: Check Go dependency licenses
+        working-directory: backend
+        run: |
+          echo "🔍 Checking Go dependency licenses..."
+
+          # Disallowed licenses for an Apache-2.0 project (copyleft / network-copyleft)
+          DISALLOWED="AGPL-3.0,GPL-3.0,LGPL-3.0,SSPL-1.0,EUPL-1.2"
+
+          # go-licenses check exits non-zero if disallowed licenses are found
+          go-licenses check ./... --disallowed_types=restricted,reciprocal 2>&1 || {
+            echo ""
+            echo "❌ Disallowed licenses found in Go dependencies."
+            echo "GDPR/Apache-2.0 project cannot use restricted or reciprocal licenses."
+            echo "Review the output above and replace the offending dependency."
+            exit 1
+          }
+
+          echo "All Go dependency licenses are compatible"
+
   frontend-lint:
     if: ${{ inputs.run-frontend }}
     runs-on: blacksmith-4vcpu-ubuntu-2404
@@ -132,3 +225,60 @@ jobs:
       - name: Check for unused code with knip
         working-directory: frontend
         run: pnpm knip
+
+  frontend-build:
+    if: ${{ inputs.run-frontend }}
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    env:
+      NEXT_PUBLIC_API_URL: "http://localhost:8080"
+      SKIP_ENV_VALIDATION: "true"
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
+
+      - name: Enable corepack
+        run: corepack enable
+
+      - name: Setup Node.js
+        uses: actions/setup-node@395ad3262231945c25e8478fd5baf05154b1d79f # v6
+        with:
+          node-version: "20"
+          cache: "pnpm"
+          cache-dependency-path: "frontend/pnpm-lock.yaml"
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile
+
+      - name: Build frontend
+        working-directory: frontend
+        run: pnpm run build
+
+  docker-build-smoke:
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2 # v3.10.0
+
+      - name: Build backend Docker image (no push)
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          push: false
+          platforms: linux/amd64
+          cache-from: type=gha,scope=backend-smoke
+          cache-to: type=gha,mode=max,scope=backend-smoke
+
+      - name: Build frontend Docker image (no push)
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile.prod
+          push: false
+          platforms: linux/amd64
+          build-args: |
+            NEXT_PUBLIC_API_URL=http://localhost:8080
+          cache-from: type=gha,scope=frontend-smoke
+          cache-to: type=gha,mode=max,scope=frontend-smoke
