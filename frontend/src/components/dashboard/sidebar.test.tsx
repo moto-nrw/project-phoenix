@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
+
+const mockRouterPush = vi.fn();
 
 // Mock dependencies before importing component
 vi.mock("next/navigation", () => ({
@@ -8,7 +10,7 @@ vi.mock("next/navigation", () => ({
     get: vi.fn(),
   })),
   useRouter: vi.fn(() => ({
-    push: vi.fn(),
+    push: mockRouterPush,
     replace: vi.fn(),
     back: vi.fn(),
   })),
@@ -445,6 +447,369 @@ describe("Sidebar", () => {
         expect(svg).toHaveClass("h-5");
         expect(svg).toHaveClass("w-5");
       });
+    });
+  });
+
+  describe("accordion sub-items", () => {
+    it("renders group sub-items when groups are available", () => {
+      mockUseSupervision.mockReturnValue({
+        hasGroups: true,
+        isSupervising: false,
+        isLoadingGroups: false,
+        isLoadingSupervision: false,
+        supervisedRooms: [],
+        groups: [
+          { id: 1, name: "Eulen" },
+          { id: 2, name: "Adler" },
+        ],
+        refresh: vi.fn(),
+      });
+      mockUsePathname.mockReturnValue("/ogs-groups");
+      mockUseSearchParams.mockReturnValue(
+        createMockSearchParams((key: string) => (key === "group" ? "1" : null)),
+      );
+
+      render(<Sidebar />);
+
+      expect(screen.getByText("Eulen")).toBeInTheDocument();
+      expect(screen.getByText("Adler")).toBeInTheDocument();
+    });
+
+    it("renders supervised room sub-items", () => {
+      mockUseSupervision.mockReturnValue({
+        hasGroups: true,
+        isSupervising: true,
+        isLoadingGroups: false,
+        isLoadingSupervision: false,
+        supervisedRooms: [
+          { id: "10", name: "Raum A", groupId: "1" },
+          { id: "20", name: "Raum B", groupId: "2" },
+        ],
+        groups: [],
+        refresh: vi.fn(),
+      });
+      mockUsePathname.mockReturnValue("/active-supervisions");
+
+      render(<Sidebar />);
+
+      expect(screen.getByText("Raum A")).toBeInTheDocument();
+      expect(screen.getByText("Raum B")).toBeInTheDocument();
+    });
+
+    it("renders database sub-pages for admin", () => {
+      mockIsAdmin.mockReturnValue(true);
+      mockUseSession.mockReturnValue(createMockSession(true));
+      mockUsePathname.mockReturnValue("/database");
+
+      render(<Sidebar />);
+
+      expect(screen.getByText("Datenverwaltung")).toBeInTheDocument();
+      expect(screen.getByText("Kinder")).toBeInTheDocument();
+      expect(screen.getByText("Betreuer")).toBeInTheDocument();
+      expect(screen.getByText("Gruppen")).toBeInTheDocument();
+    });
+  });
+
+  describe("accordion toggle navigation", () => {
+    beforeEach(() => {
+      mockRouterPush.mockClear();
+      // Mock localStorage
+      vi.spyOn(Storage.prototype, "getItem").mockReturnValue(null);
+      vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+        // no-op
+      });
+    });
+
+    it("navigates to ogs-groups when groups toggle clicked from another page", () => {
+      mockUsePathname.mockReturnValue("/activities");
+      mockUseSupervision.mockReturnValue({
+        hasGroups: true,
+        isSupervising: false,
+        isLoadingGroups: false,
+        isLoadingSupervision: false,
+        supervisedRooms: [],
+        groups: [{ id: 1, name: "Eulen" }],
+        refresh: vi.fn(),
+      });
+
+      render(<Sidebar />);
+
+      const groupHeader = screen.getByText("Meine Gruppe");
+      fireEvent.click(groupHeader);
+
+      expect(mockRouterPush).toHaveBeenCalledWith("/ogs-groups?group=1");
+    });
+
+    it("navigates to ogs-groups without group param when no groups", () => {
+      mockUsePathname.mockReturnValue("/activities");
+      mockUseSupervision.mockReturnValue({
+        hasGroups: false,
+        isSupervising: false,
+        isLoadingGroups: false,
+        isLoadingSupervision: false,
+        supervisedRooms: [],
+        groups: [],
+        refresh: vi.fn(),
+      });
+
+      render(<Sidebar />);
+
+      const groupHeader = screen.getByText("Meine Gruppe");
+      fireEvent.click(groupHeader);
+
+      expect(mockRouterPush).toHaveBeenCalledWith("/ogs-groups");
+    });
+
+    it("navigates to active-supervisions when supervisions toggle clicked from another page", () => {
+      mockUsePathname.mockReturnValue("/activities");
+      mockUseSupervision.mockReturnValue({
+        hasGroups: true,
+        isSupervising: true,
+        isLoadingGroups: false,
+        isLoadingSupervision: false,
+        supervisedRooms: [{ id: "10", name: "Raum A", groupId: "1" }],
+        groups: [],
+        refresh: vi.fn(),
+      });
+
+      render(<Sidebar />);
+
+      const supervisionHeader = screen.getByText("Aktuelle Aufsicht");
+      fireEvent.click(supervisionHeader);
+
+      expect(mockRouterPush).toHaveBeenCalledWith(
+        "/active-supervisions?room=10",
+      );
+    });
+
+    it("navigates to active-supervisions without room param when no rooms", () => {
+      mockUsePathname.mockReturnValue("/activities");
+      mockUseSupervision.mockReturnValue({
+        hasGroups: false,
+        isSupervising: false,
+        isLoadingGroups: false,
+        isLoadingSupervision: false,
+        supervisedRooms: [],
+        groups: [],
+        refresh: vi.fn(),
+      });
+
+      render(<Sidebar />);
+
+      const supervisionHeader = screen.getByText("Aktuelle Aufsicht");
+      fireEvent.click(supervisionHeader);
+
+      expect(mockRouterPush).toHaveBeenCalledWith("/active-supervisions");
+    });
+
+    it("navigates to database hub when database toggle clicked from another page", () => {
+      mockIsAdmin.mockReturnValue(true);
+      mockUseSession.mockReturnValue(createMockSession(true));
+      mockUsePathname.mockReturnValue("/activities");
+
+      render(<Sidebar />);
+
+      const databaseHeader = screen.getByText("Datenverwaltung");
+      fireEvent.click(databaseHeader);
+
+      expect(mockRouterPush).toHaveBeenCalledWith("/database");
+    });
+
+    it("navigates back to database hub when on a database sub-page", () => {
+      mockIsAdmin.mockReturnValue(true);
+      mockUseSession.mockReturnValue(createMockSession(true));
+      mockUsePathname.mockReturnValue("/database/students");
+
+      render(<Sidebar />);
+
+      const databaseHeader = screen.getByText("Datenverwaltung");
+      fireEvent.click(databaseHeader);
+
+      expect(mockRouterPush).toHaveBeenCalledWith("/database");
+    });
+
+    it("does not navigate when toggling database on hub page", () => {
+      mockIsAdmin.mockReturnValue(true);
+      mockUseSession.mockReturnValue(createMockSession(true));
+      mockUsePathname.mockReturnValue("/database");
+
+      render(<Sidebar />);
+
+      const databaseHeader = screen.getByText("Datenverwaltung");
+      fireEvent.click(databaseHeader);
+
+      // On /database hub, toggling should not navigate
+      expect(mockRouterPush).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("bottom pinned items", () => {
+    it("renders feedback and settings at the bottom", () => {
+      render(<Sidebar />);
+
+      expect(screen.getByText("Feedback")).toBeInTheDocument();
+      expect(screen.getByText("Einstellungen")).toBeInTheDocument();
+    });
+
+    it("highlights active icon color for active links", () => {
+      mockUsePathname.mockReturnValue("/activities");
+
+      render(<Sidebar />);
+
+      const activitiesLink = screen.getByText("Aktivitäten").closest("a");
+      const svg = activitiesLink?.querySelector("svg");
+      expect(svg?.getAttribute("class")).toContain("text-[#FF3130]");
+    });
+  });
+
+  describe("hideForAdmin items", () => {
+    it("shows Erinnerungen for non-admin users", () => {
+      mockIsAdmin.mockReturnValue(false);
+      render(<Sidebar />);
+
+      expect(screen.getByText("Erinnerungen")).toBeInTheDocument();
+    });
+
+    it("hides Erinnerungen for admin users", () => {
+      mockIsAdmin.mockReturnValue(true);
+      mockUseSession.mockReturnValue(createMockSession(true));
+      render(<Sidebar />);
+
+      expect(screen.queryByText("Erinnerungen")).not.toBeInTheDocument();
+    });
+  });
+
+  describe("groups label pluralization", () => {
+    it("shows 'Meine Gruppe' for single group", () => {
+      mockUseSupervision.mockReturnValue({
+        hasGroups: true,
+        isSupervising: false,
+        isLoadingGroups: false,
+        isLoadingSupervision: false,
+        supervisedRooms: [],
+        groups: [{ id: 1, name: "Eulen" }],
+        refresh: vi.fn(),
+      });
+
+      render(<Sidebar />);
+
+      expect(screen.getByText("Meine Gruppe")).toBeInTheDocument();
+    });
+
+    it("shows 'Meine Gruppen' for multiple groups", () => {
+      mockUseSupervision.mockReturnValue({
+        hasGroups: true,
+        isSupervising: false,
+        isLoadingGroups: false,
+        isLoadingSupervision: false,
+        supervisedRooms: [],
+        groups: [
+          { id: 1, name: "Eulen" },
+          { id: 2, name: "Adler" },
+        ],
+        refresh: vi.fn(),
+      });
+
+      render(<Sidebar />);
+
+      expect(screen.getByText("Meine Gruppen")).toBeInTheDocument();
+    });
+
+    it("shows 'Aktuelle Aufsicht' for single room", () => {
+      mockUseSupervision.mockReturnValue({
+        hasGroups: true,
+        isSupervising: true,
+        isLoadingGroups: false,
+        isLoadingSupervision: false,
+        supervisedRooms: [{ id: "10", name: "Raum A", groupId: "1" }],
+        groups: [],
+        refresh: vi.fn(),
+      });
+
+      render(<Sidebar />);
+
+      expect(screen.getByText("Aktuelle Aufsicht")).toBeInTheDocument();
+    });
+
+    it("shows 'Aktuelle Aufsichten' for multiple rooms", () => {
+      mockUseSupervision.mockReturnValue({
+        hasGroups: true,
+        isSupervising: true,
+        isLoadingGroups: false,
+        isLoadingSupervision: false,
+        supervisedRooms: [
+          { id: "10", name: "Raum A", groupId: "1" },
+          { id: "20", name: "Raum B", groupId: "2" },
+        ],
+        groups: [],
+        refresh: vi.fn(),
+      });
+
+      render(<Sidebar />);
+
+      expect(screen.getByText("Aktuelle Aufsichten")).toBeInTheDocument();
+    });
+  });
+
+  describe("child page highlight persistence", () => {
+    it("highlights group sub-item on student detail from ogs-groups", () => {
+      vi.spyOn(Storage.prototype, "getItem").mockImplementation(
+        (key: string) => {
+          if (key === "sidebar-last-group") return "1";
+          return null;
+        },
+      );
+      mockUsePathname.mockReturnValue("/students/123");
+      mockUseSearchParams.mockReturnValue(
+        createMockSearchParams((key: string) =>
+          key === "from" ? "/ogs-groups" : null,
+        ),
+      );
+      mockUseSupervision.mockReturnValue({
+        hasGroups: true,
+        isSupervising: false,
+        isLoadingGroups: false,
+        isLoadingSupervision: false,
+        supervisedRooms: [],
+        groups: [
+          { id: 1, name: "Eulen" },
+          { id: 2, name: "Adler" },
+        ],
+        refresh: vi.fn(),
+      });
+
+      render(<Sidebar />);
+
+      // "Eulen" should be active sub-item (matching childGroupId "1")
+      const eulenLink = screen.getByText("Eulen").closest("a");
+      expect(eulenLink).toHaveClass("bg-gray-100");
+    });
+
+    it("renders rooms in sidebar on student detail from active-supervisions", () => {
+      mockUsePathname.mockReturnValue("/students/456");
+      mockUseSearchParams.mockReturnValue(
+        createMockSearchParams((key: string) =>
+          key === "from" ? "/active-supervisions" : null,
+        ),
+      );
+      mockUseSupervision.mockReturnValue({
+        hasGroups: true,
+        isSupervising: true,
+        isLoadingGroups: false,
+        isLoadingSupervision: false,
+        supervisedRooms: [
+          { id: "10", name: "Raum A", groupId: "1" },
+          { id: "20", name: "Raum B", groupId: "2" },
+        ],
+        groups: [],
+        refresh: vi.fn(),
+      });
+
+      render(<Sidebar />);
+
+      // Both rooms should be rendered in the accordion
+      expect(screen.getByText("Raum A")).toBeInTheDocument();
+      expect(screen.getByText("Raum B")).toBeInTheDocument();
     });
   });
 });
