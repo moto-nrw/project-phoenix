@@ -7,7 +7,6 @@ import {
   StudentDetailHeader,
   SupervisorsCard,
   PersonalInfoReadOnly,
-  FullAccessPersonalInfoReadOnly,
   StudentHistorySection,
 } from "./student-detail-components";
 import type { ExtendedStudent } from "~/lib/hooks/use-student-data";
@@ -428,10 +427,10 @@ describe("PersonalInfoReadOnly", () => {
 });
 
 // =============================================================================
-// FullAccessPersonalInfoReadOnly Tests
+// PersonalInfoReadOnly with Edit Button Tests
 // =============================================================================
 
-describe("FullAccessPersonalInfoReadOnly", () => {
+describe("PersonalInfoReadOnly with showEditButton", () => {
   const mockStudent: ExtendedStudent = {
     id: "1",
     first_name: "Max",
@@ -455,18 +454,20 @@ describe("FullAccessPersonalInfoReadOnly", () => {
 
   it("renders section title", () => {
     render(
-      <FullAccessPersonalInfoReadOnly
+      <PersonalInfoReadOnly
         student={mockStudent}
+        showEditButton={true}
         onEditClick={vi.fn()}
       />,
     );
     expect(screen.getByText("Persönliche Informationen")).toBeInTheDocument();
   });
 
-  it("renders edit button", () => {
+  it("renders edit button when showEditButton is true", () => {
     render(
-      <FullAccessPersonalInfoReadOnly
+      <PersonalInfoReadOnly
         student={mockStudent}
+        showEditButton={true}
         onEditClick={vi.fn()}
       />,
     );
@@ -476,8 +477,9 @@ describe("FullAccessPersonalInfoReadOnly", () => {
   it("calls onEditClick when edit button is clicked", () => {
     const onEditClick = vi.fn();
     render(
-      <FullAccessPersonalInfoReadOnly
+      <PersonalInfoReadOnly
         student={mockStudent}
+        showEditButton={true}
         onEditClick={onEditClick}
       />,
     );
@@ -487,8 +489,9 @@ describe("FullAccessPersonalInfoReadOnly", () => {
 
   it("renders supervisor notes when present", () => {
     render(
-      <FullAccessPersonalInfoReadOnly
+      <PersonalInfoReadOnly
         student={mockStudent}
+        showEditButton={true}
         onEditClick={vi.fn()}
       />,
     );
@@ -499,8 +502,9 @@ describe("FullAccessPersonalInfoReadOnly", () => {
 
   it("renders extra info (parent notes) when present", () => {
     render(
-      <FullAccessPersonalInfoReadOnly
+      <PersonalInfoReadOnly
         student={mockStudent}
+        showEditButton={true}
         onEditClick={vi.fn()}
       />,
     );
@@ -509,8 +513,9 @@ describe("FullAccessPersonalInfoReadOnly", () => {
 
   it("shows 'Nicht krankgemeldet' when student is not sick", () => {
     render(
-      <FullAccessPersonalInfoReadOnly
+      <PersonalInfoReadOnly
         student={mockStudent}
+        showEditButton={true}
         onEditClick={vi.fn()}
       />,
     );
@@ -524,8 +529,9 @@ describe("FullAccessPersonalInfoReadOnly", () => {
       sick_since: "2024-01-10",
     };
     render(
-      <FullAccessPersonalInfoReadOnly
+      <PersonalInfoReadOnly
         student={sickStudent}
+        showEditButton={true}
         onEditClick={vi.fn()}
       />,
     );
@@ -540,8 +546,9 @@ describe("FullAccessPersonalInfoReadOnly", () => {
       sick_since: sickSinceDate,
     };
     render(
-      <FullAccessPersonalInfoReadOnly
+      <PersonalInfoReadOnly
         student={sickStudent}
+        showEditButton={true}
         onEditClick={vi.fn()}
       />,
     );

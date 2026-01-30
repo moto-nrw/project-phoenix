@@ -21,7 +21,6 @@ import {
   StudentDetailHeader,
   SupervisorsCard,
   PersonalInfoReadOnly,
-  FullAccessPersonalInfoReadOnly,
   StudentHistorySection,
 } from "~/components/students/student-detail-components";
 import { PersonalInfoFormModal } from "~/components/students/personal-info-form-modal";
@@ -489,8 +488,9 @@ function FullAccessView({
           isSick={student.sick}
         />
 
-        <FullAccessPersonalInfoReadOnly
+        <PersonalInfoReadOnly
           student={student}
+          showEditButton={true}
           onEditClick={onOpenPersonalInfoModal}
         />
 

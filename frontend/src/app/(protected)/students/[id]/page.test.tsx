@@ -126,26 +126,27 @@ vi.mock("~/components/students/student-detail-components", () => ({
   ),
   PersonalInfoReadOnly: ({
     student,
-  }: {
-    student: { name: string; school_class: string };
-  }) => (
-    <div data-testid="personal-info-readonly">
-      <span data-testid="readonly-name">{student.name}</span>
-      <span data-testid="readonly-class">{student.school_class}</span>
-    </div>
-  ),
-  FullAccessPersonalInfoReadOnly: ({
-    student,
+    showEditButton,
     onEditClick,
   }: {
-    student: { name: string };
-    onEditClick: () => void;
+    student: { name: string; school_class: string };
+    showEditButton?: boolean;
+    onEditClick?: () => void;
   }) => (
-    <div data-testid="full-access-personal-info">
-      <span data-testid="fullaccess-name">{student.name}</span>
-      <button data-testid="edit-personal-info" onClick={onEditClick}>
-        Bearbeiten
-      </button>
+    <div
+      data-testid={
+        showEditButton ? "full-access-personal-info" : "personal-info-readonly"
+      }
+    >
+      <span data-testid={showEditButton ? "fullaccess-name" : "readonly-name"}>
+        {student.name}
+      </span>
+      <span data-testid="readonly-class">{student.school_class}</span>
+      {showEditButton && onEditClick && (
+        <button data-testid="edit-personal-info" onClick={onEditClick}>
+          Bearbeiten
+        </button>
+      )}
     </div>
   ),
   StudentHistorySection: () => (
