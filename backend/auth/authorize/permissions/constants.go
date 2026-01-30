@@ -124,6 +124,18 @@ const (
 	SubstitutionsManage = ResourceSubstitutions + ":" + ActionManage
 )
 
+// Suggestions permissions
+const (
+	ResourceSuggestions = "suggestions"
+
+	SuggestionsCreate = ResourceSuggestions + ":" + ActionCreate
+	SuggestionsRead   = ResourceSuggestions + ":" + ActionRead
+	SuggestionsUpdate = ResourceSuggestions + ":" + ActionUpdate
+	SuggestionsDelete = ResourceSuggestions + ":" + ActionDelete
+	SuggestionsList   = ResourceSuggestions + ":" + ActionList
+	SuggestionsManage = ResourceSuggestions + ":" + ActionManage
+)
+
 // Visit permissions
 const (
 	VisitsCreate = "visits:create"
