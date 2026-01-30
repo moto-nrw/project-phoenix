@@ -57,8 +57,18 @@ export function SuggestionCard({
   onVoteChange,
 }: SuggestionCardProps) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+  const [isClamped, setIsClamped] = useState(false);
+  const descRef = useRef<HTMLParagraphElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const isOwner = suggestion.authorId === currentAccountId;
+
+  useEffect(() => {
+    const el = descRef.current;
+    if (el) {
+      setIsClamped(el.scrollHeight > el.clientHeight);
+    }
+  }, [suggestion.description]);
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -135,9 +145,21 @@ export function SuggestionCard({
               )}
             </div>
           </div>
-          <p className="mt-1 line-clamp-2 text-sm text-gray-600">
+          <p
+            ref={descRef}
+            className={`mt-1 text-sm text-gray-600 ${expanded ? "" : "line-clamp-2"}`}
+          >
             {suggestion.description}
           </p>
+          {(isClamped || expanded) && (
+            <button
+              type="button"
+              onClick={() => setExpanded((prev) => !prev)}
+              className="mt-1 text-xs font-medium text-gray-500 transition-colors hover:text-gray-700"
+            >
+              {expanded ? "Weniger anzeigen" : "Mehr anzeigen"}
+            </button>
+          )}
 
           {/* Meta row + mobile vote */}
           <div className="mt-3 flex items-center justify-between">
