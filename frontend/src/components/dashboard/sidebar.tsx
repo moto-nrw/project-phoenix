@@ -402,16 +402,16 @@ function SidebarContent({ className = "" }: SidebarProps) {
   }, [toggle, pathname, supervisedRooms, router]);
 
   const handleDatabaseToggle = useCallback(() => {
-    toggle("database");
     if (!pathname.startsWith("/database")) {
-      const savedPath = localStorage.getItem("sidebar-last-database");
-      const targetPath =
-        savedPath && DATABASE_SUB_PAGES.some((p) => p.href === savedPath)
-          ? savedPath
-          : DATABASE_SUB_PAGES[0]?.href;
-      if (targetPath) {
-        router.push(targetPath);
-      }
+      // Not on any database page → expand accordion + navigate to hub
+      toggle("database");
+      router.push("/database");
+    } else if (pathname === "/database") {
+      // On hub page → just toggle (collapse/expand)
+      toggle("database");
+    } else {
+      // On a sub-page like /database/rooms → navigate back to hub (accordion stays open)
+      router.push("/database");
     }
   }, [toggle, pathname, router]);
 
