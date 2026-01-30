@@ -20,6 +20,13 @@ interface BackendEducationalGroup {
   };
 }
 
+interface SupervisedRoom {
+  id: string;
+  name: string;
+  groupId: string;
+  groupName?: string;
+}
+
 interface SupervisionState {
   // Group supervision
   hasGroups: boolean;
@@ -30,6 +37,7 @@ interface SupervisionState {
   isSupervising: boolean;
   supervisedRoomId?: string;
   supervisedRoomName?: string;
+  supervisedRooms: SupervisedRoom[];
   isLoadingSupervision: boolean;
 }
 
@@ -59,6 +67,7 @@ export function SupervisionProvider({
     isSupervising: false,
     supervisedRoomId: undefined,
     supervisedRoomName: undefined,
+    supervisedRooms: [],
     isLoadingSupervision: true,
   });
 
@@ -98,10 +107,12 @@ export function SupervisionProvider({
       });
 
       if (response.ok) {
-        const data = (await response.json()) as {
+        const json = (await response.json()) as {
+          data?: { groups?: BackendEducationalGroup[] };
           groups?: BackendEducationalGroup[];
         };
-        const groupList = data?.groups ?? [];
+        // Route wrapper wraps response as { success, data: { groups } }
+        const groupList = json.data?.groups ?? json.groups ?? [];
         const newHasGroups = groupList.length > 0;
         setState((prev) => {
           // Only update if value actually changed
@@ -169,6 +180,7 @@ export function SupervisionProvider({
         isSupervising: false,
         supervisedRoomId: undefined,
         supervisedRoomName: undefined,
+        supervisedRooms: [],
         isLoadingSupervision: false,
       }));
       return;
@@ -213,12 +225,23 @@ export function SupervisionProvider({
             firstGroup.room?.name ??
             (firstGroup.room_id ? `Room ${firstGroup.room_id}` : undefined);
 
+          // Map all supervised groups to rooms
+          const newSupervisedRooms: SupervisedRoom[] = supervisedGroups
+            .filter((g) => g.room_id && g.room)
+            .map((g) => ({
+              id: g.room_id!.toString(),
+              name: g.room?.name ?? `Room ${g.room_id}`,
+              groupId: g.id.toString(),
+              groupName: g.actual_group?.name,
+            }));
+
           setState((prev) => {
             // Only update if values actually changed
             if (
               prev.isSupervising &&
               prev.supervisedRoomId === newRoomId &&
               prev.supervisedRoomName === newRoomName &&
+              prev.supervisedRooms.length === newSupervisedRooms.length &&
               !prev.isLoadingSupervision
             ) {
               return prev;
@@ -228,6 +251,7 @@ export function SupervisionProvider({
               isSupervising: true,
               supervisedRoomId: newRoomId,
               supervisedRoomName: newRoomName,
+              supervisedRooms: newSupervisedRooms,
               isLoadingSupervision: false,
             };
           });
@@ -238,6 +262,7 @@ export function SupervisionProvider({
               !prev.isSupervising &&
               prev.supervisedRoomId === undefined &&
               prev.supervisedRoomName === undefined &&
+              prev.supervisedRooms.length === 0 &&
               !prev.isLoadingSupervision
             ) {
               return prev;
@@ -247,6 +272,7 @@ export function SupervisionProvider({
               isSupervising: false,
               supervisedRoomId: undefined,
               supervisedRoomName: undefined,
+              supervisedRooms: [],
               isLoadingSupervision: false,
             };
           });
@@ -258,6 +284,7 @@ export function SupervisionProvider({
             !prev.isSupervising &&
             prev.supervisedRoomId === undefined &&
             prev.supervisedRoomName === undefined &&
+            prev.supervisedRooms.length === 0 &&
             !prev.isLoadingSupervision
           ) {
             return prev;
@@ -267,6 +294,7 @@ export function SupervisionProvider({
             isSupervising: false,
             supervisedRoomId: undefined,
             supervisedRoomName: undefined,
+            supervisedRooms: [],
             isLoadingSupervision: false,
           };
         });
@@ -278,6 +306,7 @@ export function SupervisionProvider({
           !prev.isSupervising &&
           prev.supervisedRoomId === undefined &&
           prev.supervisedRoomName === undefined &&
+          prev.supervisedRooms.length === 0 &&
           !prev.isLoadingSupervision
         ) {
           return prev;
@@ -287,6 +316,7 @@ export function SupervisionProvider({
           isSupervising: false,
           supervisedRoomId: undefined,
           supervisedRoomName: undefined,
+          supervisedRooms: [],
           isLoadingSupervision: false,
         };
       });
@@ -340,6 +370,7 @@ export function SupervisionProvider({
         isSupervising: false,
         supervisedRoomId: undefined,
         supervisedRoomName: undefined,
+        supervisedRooms: [],
         isLoadingSupervision: false,
       });
     }

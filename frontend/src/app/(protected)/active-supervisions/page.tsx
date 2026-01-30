@@ -9,7 +9,7 @@ import {
   useRef,
 } from "react";
 import { useSession } from "next-auth/react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { Alert } from "~/components/ui/alert";
 import { PageHeaderWithSearch } from "~/components/ui/page-header";
@@ -220,6 +220,7 @@ function EmptyRoomsView({
 
 function MeinRaumPageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { data: session, status } = useSession({
     required: true,
     onUnauthenticated() {
@@ -233,6 +234,9 @@ function MeinRaumPageContent() {
   // State variables for multiple rooms
   const [allRooms, setAllRooms] = useState<ActiveRoom[]>([]);
   const [selectedRoomIndex, setSelectedRoomIndex] = useState(0);
+
+  // Pre-select room from URL param (?room=<id>)
+  const roomParam = searchParams.get("room");
   const [students, setStudents] = useState<StudentWithVisit[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [groupFilter, setGroupFilter] = useState("all");
@@ -250,6 +254,15 @@ function MeinRaumPageContent() {
   const [groupNameToIdMap, setGroupNameToIdMap] = useState<Map<string, string>>(
     new Map(),
   );
+
+  // Desktop detection — sidebar handles room switching at lg+
+  const [isDesktop, setIsDesktop] = useState(false);
+  useEffect(() => {
+    const check = () => setIsDesktop(window.innerWidth >= 1024);
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, []);
 
   // State for Schulhof release supervision modal
   const [showReleaseModal, setShowReleaseModal] = useState(false);
@@ -532,6 +545,19 @@ function MeinRaumPageContent() {
     setError(null);
     setIsLoading(false);
   }, [dashboardData, updateRoomStudentCount, selectedRoomIndex]);
+
+  // Sync selected room with URL param (?room=<id>)
+  // Runs on initial load AND when the user clicks a different sidebar sub-item
+  useEffect(() => {
+    if (!roomParam || allRooms.length === 0) return;
+
+    // Match by room_id (the URL param is the room ID, not the active group ID)
+    const targetIndex = allRooms.findIndex((r) => r.room_id === roomParam);
+    if (targetIndex !== -1 && targetIndex !== selectedRoomIndex) {
+      void switchToRoom(targetIndex);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allRooms, roomParam]);
 
   // SWR-based per-room visit subscription for real-time updates.
   // When global SSE invalidates "visit*" or "supervision*" caches, this triggers a refetch.
@@ -931,7 +957,7 @@ function MeinRaumPageContent() {
           label: "Schüler",
         }}
         tabs={
-          allRooms.length > 1 && allRooms.length <= 4
+          allRooms.length > 1 && allRooms.length <= 4 && !isDesktop
             ? {
                 items: allRooms.map((room) => ({
                   id: room.id,

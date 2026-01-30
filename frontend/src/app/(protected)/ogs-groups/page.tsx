@@ -10,7 +10,7 @@ import {
   type JSX,
 } from "react";
 import { useSession } from "next-auth/react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { Alert } from "~/components/ui/alert";
 import { PageHeaderWithSearch } from "~/components/ui/page-header";
@@ -207,6 +207,7 @@ function matchesForeignRoomFilter(studentRoomStatus?: {
 
 function OGSGroupPageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { data: session, status } = useSession({
     required: true,
     onUnauthenticated() {
@@ -222,6 +223,9 @@ function OGSGroupPageContent() {
   // State variables for multiple groups
   const [allGroups, setAllGroups] = useState<OGSGroup[]>([]);
   const [selectedGroupIndex, setSelectedGroupIndex] = useState(0);
+
+  // Pre-select group from URL param (?group=<id>)
+  const groupParam = searchParams.get("group");
   const [students, setStudents] = useState<Student[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [attendanceFilter, setAttendanceFilter] = useState("all");
@@ -240,8 +244,9 @@ function OGSGroupPageContent() {
     >
   >({});
 
-  // State for mobile detection
+  // State for mobile/desktop detection
   const [isMobile, setIsMobile] = useState(false);
+  const [isDesktop, setIsDesktop] = useState(false);
 
   // State for pickup times (bulk fetched for all students)
   const [pickupTimes, setPickupTimes] = useState<Map<string, BulkPickupTime>>(
@@ -371,6 +376,18 @@ function OGSGroupPageContent() {
     setError(null);
     setIsLoading(false);
   }, [dashboardData, selectedGroupIndex]);
+
+  // Sync selected group with URL param (?group=<id>)
+  // Runs on initial load AND when the user clicks a different sidebar sub-item
+  useEffect(() => {
+    if (!groupParam || allGroups.length === 0) return;
+
+    const targetIndex = allGroups.findIndex((g) => g.id === groupParam);
+    if (targetIndex !== -1 && targetIndex !== selectedGroupIndex) {
+      void switchToGroup(targetIndex);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allGroups, groupParam]);
 
   // Handle dashboard error
   useEffect(() => {
@@ -674,6 +691,7 @@ function OGSGroupPageContent() {
   useEffect(() => {
     const checkMobile = () => {
       setIsMobile(window.innerWidth < 768);
+      setIsDesktop(window.innerWidth >= 1024);
     };
     checkMobile();
     window.addEventListener("resize", checkMobile);
@@ -1164,7 +1182,7 @@ function OGSGroupPageContent() {
           actionButton={renderDesktopActionButton()}
           mobileActionButton={renderMobileActionButton()}
           tabs={
-            allGroups.length > 1
+            allGroups.length > 1 && !isDesktop
               ? {
                   items: allGroups.map((group) => ({
                     id: group.id,

@@ -85,6 +85,7 @@ describe("Sidebar", () => {
       isSupervising: false,
       isLoadingGroups: false,
       isLoadingSupervision: false,
+      supervisedRooms: [],
       groups: [],
       refresh: vi.fn(),
     });
@@ -156,6 +157,7 @@ describe("Sidebar", () => {
         isSupervising: false,
         isLoadingGroups: false,
         isLoadingSupervision: false,
+        supervisedRooms: [],
         groups: [],
         refresh: vi.fn(),
       });
@@ -183,6 +185,7 @@ describe("Sidebar", () => {
         isSupervising: false,
         isLoadingGroups: false,
         isLoadingSupervision: false,
+        supervisedRooms: [],
         groups: [],
         refresh: vi.fn(),
       });
@@ -198,6 +201,7 @@ describe("Sidebar", () => {
         isSupervising: true,
         isLoadingGroups: false,
         isLoadingSupervision: false,
+        supervisedRooms: [],
         groups: [],
         refresh: vi.fn(),
       });
@@ -213,6 +217,7 @@ describe("Sidebar", () => {
         isSupervising: false,
         isLoadingGroups: false,
         isLoadingSupervision: false,
+        supervisedRooms: [],
         groups: [],
         refresh: vi.fn(),
       });
@@ -379,6 +384,7 @@ describe("Sidebar", () => {
         isSupervising: false,
         isLoadingGroups: true,
         isLoadingSupervision: false,
+        supervisedRooms: [],
         groups: [],
         refresh: vi.fn(),
       });
@@ -395,6 +401,7 @@ describe("Sidebar", () => {
         isSupervising: false,
         isLoadingGroups: false,
         isLoadingSupervision: true,
+        supervisedRooms: [],
         groups: [],
         refresh: vi.fn(),
       });
