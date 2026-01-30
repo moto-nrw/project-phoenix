@@ -32,6 +32,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | Database | PostgreSQL 17+ (multi-schema, SSL) |
 | Auth | JWT (15min access, 1hr refresh) |
 | Testing | Go tests + Bruno API tests |
+| License | Source-Available (see [LICENSE](LICENSE)) |
 
 ---
 
@@ -209,10 +210,14 @@ devbox add <tool>@latest    # Add to devbox.json
 
 ### Test Database (port 5433)
 ```bash
-docker compose --profile test up -d postgres-test  # Start test DB
+docker compose --profile test up -d postgres-test  # Start test DB (isolated network)
+docker compose --profile test down                 # Stop test DB (required: plain `down` won't stop it)
 APP_ENV=test go run main.go migrate reset          # Setup test DB
 go test ./...                                       # Run tests
 ```
+> **Note:** The test DB runs on an isolated `test` network to prevent
+> "network still in use" errors when running `docker compose down`.
+> Always use `--profile test` to start/stop it.
 
 ---
 
@@ -285,17 +290,19 @@ docker compose exec server ./main migrate  # Run migrations
 
 ### Test Database (Integration Tests - Detailed)
 ```bash
-# Start test DB (port 5433)
+# Start test DB (port 5433, isolated network)
 docker compose --profile test up -d postgres-test
+
+# Stop test DB (plain `docker compose down` won't stop it — use --profile)
+docker compose --profile test down
 
 # Run migrations on test DB
 docker compose run --rm \
   -e DB_DSN="postgres://postgres:postgres@postgres-test:5432/phoenix_test?sslmode=disable" \
   server ./main migrate
 
-# Run tests
-TEST_DB_DSN="postgres://postgres:postgres@localhost:5433/phoenix_test?sslmode=disable" \
-  go test ./services/active/... -v
+# Run tests (APP_ENV=test is auto-set by SetupTestDB)
+go test ./services/active/... -v
 ```
 
 ---

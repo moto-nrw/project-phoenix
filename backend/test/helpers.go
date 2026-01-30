@@ -80,6 +80,11 @@ func LoadTestEnv(t *testing.T) {
 func SetupTestDB(t *testing.T) *bun.DB {
 	t.Helper()
 
+	// Force test environment so database config always resolves to the test DB,
+	// regardless of how `go test` was invoked (with or without APP_ENV=test).
+	// t.Setenv automatically restores the original value when the test finishes.
+	t.Setenv("APP_ENV", "test")
+
 	// Load .env from project root (contains TEST_DB_DSN)
 	LoadTestEnv(t)
 

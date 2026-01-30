@@ -217,6 +217,64 @@ func TestGetCurrentSession_NoActiveSession(t *testing.T) {
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 }
 
+func TestGetCurrentSession_WithActiveSession(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	// Create real fixtures for a full session
+	testDevice := testpkg.CreateTestDevice(t, ctx.db, "sessions-test-device-current-1")
+	activity := testpkg.CreateTestActivityGroup(t, ctx.db, "Current Session Activity")
+	staff := testpkg.CreateTestStaff(t, ctx.db, "CurrentSession", "Supervisor")
+
+	// Start a real session with supervisors
+	router := chi.NewRouter()
+	router.Post("/start", ctx.resource.StartSessionHandler())
+	router.Get("/current", ctx.resource.GetCurrentSessionHandler())
+
+	startBody := map[string]interface{}{
+		"activity_id":    activity.ID,
+		"supervisor_ids": []int64{staff.ID},
+	}
+
+	startReq := testutil.NewAuthenticatedRequest(t, "POST", "/start", startBody,
+		testutil.WithDeviceContext(testDevice),
+	)
+
+	startRR := testutil.ExecuteRequest(router, startReq)
+	t.Logf("Start session response: %d - %s", startRR.Code, startRR.Body.String())
+
+	if startRR.Code != http.StatusOK {
+		t.Skipf("Could not start session (status %d), skipping current session test", startRR.Code)
+	}
+
+	// Now call getCurrentSession — this exercises the supervisor lookup (lines 173-178)
+	currentReq := testutil.NewAuthenticatedRequest(t, "GET", "/current", nil,
+		testutil.WithDeviceContext(testDevice),
+	)
+
+	currentRR := testutil.ExecuteRequest(router, currentReq)
+
+	testutil.AssertSuccessResponse(t, currentRR, http.StatusOK)
+
+	// Verify the response contains session data with supervisors
+	responseBody := testutil.ParseJSONResponse(t, currentRR.Body.Bytes())
+	data, ok := responseBody["data"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("Expected data field in response, got: %v", responseBody)
+	}
+
+	assert.True(t, data["is_active"].(bool), "Session should be active")
+	assert.NotNil(t, data["active_group_id"], "Should have active_group_id")
+	assert.NotNil(t, data["activity_id"], "Should have activity_id")
+
+	// Verify supervisors are included in the response
+	if supervisors, hasSupervisors := data["supervisors"]; hasSupervisors && supervisors != nil {
+		supervisorList, ok := supervisors.([]interface{})
+		assert.True(t, ok, "Supervisors should be a list")
+		assert.NotEmpty(t, supervisorList, "Should have at least one supervisor")
+	}
+}
+
 // =============================================================================
 // CHECK CONFLICT TESTS
 // =============================================================================

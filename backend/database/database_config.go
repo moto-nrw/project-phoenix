@@ -32,7 +32,8 @@ func GetDatabaseDSN() string {
 		return "postgres://postgres:postgres@localhost:5433/phoenix_test?sslmode=disable"
 	case "development":
 		// Development database with SSL (sslmode=require for GDPR compliance)
-		return "postgres://postgres:postgres@localhost:5432/phoenix?sslmode=require"
+		// Database name "postgres" matches Docker Compose default (no POSTGRES_DB override)
+		return "postgres://postgres:postgres@localhost:5432/postgres?sslmode=require"
 	case "production":
 		// Production requires explicit DB_DSN (fail fast if missing)
 		log.Fatal("APP_ENV=production requires explicit DB_DSN environment variable")
@@ -45,5 +46,5 @@ func GetDatabaseDSN() string {
 
 	// 4. Fallback to development default
 	// This allows: go run main.go serve (without setting APP_ENV explicitly)
-	return "postgres://postgres:postgres@localhost:5432/phoenix?sslmode=require"
+	return "postgres://postgres:postgres@localhost:5432/postgres?sslmode=require"
 }
