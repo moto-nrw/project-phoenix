@@ -6,6 +6,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { Session } from "next-auth";
 import { NextRequest } from "next/server";
 import { GET } from "./route";
+import { mockSessionData } from "~/test/mocks/next-auth";
 
 interface ExtendedSession extends Session {
   user: Session["user"] & { token?: string };
@@ -50,10 +51,7 @@ function createMockContext(
   return { params: Promise.resolve(params) };
 }
 
-const defaultSession: ExtendedSession = {
-  user: { id: "1", token: "test-token", name: "Test User" },
-  expires: "2099-01-01",
-};
+const defaultSession = mockSessionData() as ExtendedSession;
 
 interface ApiResponse<T> {
   success: boolean;

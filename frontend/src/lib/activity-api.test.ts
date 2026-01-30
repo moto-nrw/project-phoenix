@@ -4,8 +4,6 @@
 /* eslint-disable @typescript-eslint/unbound-method */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type {
-  BackendActivity,
-  BackendActivityCategory,
   BackendActivitySchedule,
   BackendTimeframe,
   BackendSupervisor,
@@ -14,6 +12,7 @@ import type {
   CreateActivityRequest,
   UpdateActivityRequest,
 } from "./activity-helpers";
+import { buildBackendActivity, buildBackendCategory } from "~/test/fixtures";
 
 // Mock dependencies
 vi.mock("next-auth/react", () => ({
@@ -33,12 +32,6 @@ vi.mock("./auth-api", () => ({
   handleAuthFailure: vi.fn(),
 }));
 
-vi.mock("~/env", () => ({
-  env: {
-    NEXT_PUBLIC_API_URL: "http://localhost:8080",
-  },
-}));
-
 // Import after mocks
 import { getSession } from "next-auth/react";
 import api from "./api";
@@ -53,7 +46,7 @@ const mockedApiDelete = vi.mocked(api.delete);
 const mockedHandleAuthFailure = vi.mocked(handleAuthFailure);
 
 // Sample test data
-const sampleBackendActivity: BackendActivity = {
+const sampleBackendActivity = buildBackendActivity({
   id: 1,
   name: "Basketball AG",
   max_participants: 20,
@@ -61,18 +54,14 @@ const sampleBackendActivity: BackendActivity = {
   category_id: 1,
   supervisor_id: 10,
   enrollment_count: 15,
-  created_at: "2024-01-01T00:00:00Z",
-  updated_at: "2024-01-01T00:00:00Z",
-};
+});
 
-const sampleBackendCategory: BackendActivityCategory = {
+const sampleBackendCategory = buildBackendCategory({
   id: 1,
   name: "Sport",
   description: "Sports activities",
   color: "#3b82f6",
-  created_at: "2024-01-01T00:00:00Z",
-  updated_at: "2024-01-01T00:00:00Z",
-};
+});
 
 const sampleBackendSchedule: BackendActivitySchedule = {
   id: 1,

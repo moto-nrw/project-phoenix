@@ -5,6 +5,7 @@ import { ProfileProvider, useProfile } from "./profile-context";
 import type { Profile } from "./profile-helpers";
 import * as profileApi from "./profile-api";
 import * as nextAuthReact from "next-auth/react";
+import { mockSessionData } from "~/test/mocks/next-auth";
 
 // Mock the API module
 vi.mock("./profile-api");
@@ -39,14 +40,13 @@ describe("ProfileContext", () => {
     },
   };
 
-  const mockSession = {
+  const mockSession = mockSessionData({
     user: {
       token: "mock-token",
-      id: "1",
       email: "john.doe@example.com",
     },
     expires: "2025-01-01T00:00:00Z",
-  };
+  });
 
   beforeEach(() => {
     vi.clearAllMocks();

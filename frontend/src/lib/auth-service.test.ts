@@ -36,12 +36,6 @@ vi.mock("./api", () => ({
   },
 }));
 
-vi.mock("~/env", () => ({
-  env: {
-    NEXT_PUBLIC_API_URL: "http://localhost:8080",
-  },
-}));
-
 // Import after mocks
 import { getSession } from "next-auth/react";
 import api from "./api";

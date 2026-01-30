@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { Session } from "next-auth";
 import { NextRequest } from "next/server";
+import { mockSessionData } from "~/test/mocks/next-auth";
 
 // ============================================================================
 // Mocks
@@ -52,10 +53,7 @@ function createMockRequest(
 }
 
 function mockValidSession(): void {
-  mockAuth.mockResolvedValue({
-    user: { token: "test-token" },
-    expires: new Date(Date.now() + 3600000).toISOString(),
-  } as ExtendedSession);
+  mockAuth.mockResolvedValue(mockSessionData() as ExtendedSession);
 }
 
 // ============================================================================

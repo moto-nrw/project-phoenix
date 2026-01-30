@@ -3,6 +3,8 @@ import { fetchRooms, type RoomsApiResponse } from "./rooms-api";
 import * as apiClientModule from "./api-client";
 import type { BackendRoom } from "./rooms-helpers";
 import type { AxiosResponse } from "axios";
+import { suppressConsole } from "~/test/helpers/console";
+import { createAxiosResponse } from "~/test/helpers/axios";
 
 // Mock the api-client module
 vi.mock("./api-client", () => ({
@@ -22,29 +24,16 @@ const sampleBackendRoom: BackendRoom = {
   updated_at: "2024-01-15T12:00:00Z",
 };
 
-// Helper to create mock AxiosResponse
-function createAxiosResponse<T>(data: T): AxiosResponse<T> {
-  return {
-    data,
-    status: 200,
-    statusText: "OK",
-    headers: {},
-    config: {} as AxiosResponse["config"],
-  };
-}
-
 // Type for mocked fetch function
 type MockedFetch = ReturnType<typeof vi.fn<typeof fetch>>;
 
 describe("fetchRooms", () => {
+  const consoleSpies = suppressConsole("error");
   let originalWindow: typeof globalThis.window;
-  let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
   const mockedApiGet = vi.mocked(apiClientModule.apiGet);
 
   beforeEach(() => {
     originalWindow = globalThis.window;
-    // eslint-disable-next-line @typescript-eslint/no-empty-function
-    consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     vi.clearAllMocks();
   });
 
@@ -56,8 +45,6 @@ describe("fetchRooms", () => {
     } else {
       globalThis.window = originalWindow;
     }
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
-    consoleErrorSpy.mockRestore();
   });
 
   describe("server-side (SSR)", () => {
@@ -99,7 +86,7 @@ describe("fetchRooms", () => {
 
       expect(result).toEqual([]);
       // When response is null, response?.data is undefined
-      expect(consoleErrorSpy).toHaveBeenCalledWith(
+      expect(consoleSpies.error).toHaveBeenCalledWith(
         "Failed to fetch rooms:",
         undefined,
       );
@@ -117,7 +104,7 @@ describe("fetchRooms", () => {
       const result = await fetchRooms("test-token");
 
       expect(result).toEqual([]);
-      expect(consoleErrorSpy).toHaveBeenCalled();
+      expect(consoleSpies.error).toHaveBeenCalled();
     });
 
     it("returns empty array when apiGet throws an error", async () => {
@@ -126,7 +113,7 @@ describe("fetchRooms", () => {
       const result = await fetchRooms("test-token");
 
       expect(result).toEqual([]);
-      expect(consoleErrorSpy).toHaveBeenCalledWith(
+      expect(consoleSpies.error).toHaveBeenCalledWith(
         "Error fetching rooms:",
         expect.any(Error),
       );
@@ -194,7 +181,7 @@ describe("fetchRooms", () => {
       const result = await fetchRooms("test-token");
 
       expect(result).toEqual([]);
-      expect(consoleErrorSpy).toHaveBeenCalledWith(
+      expect(consoleSpies.error).toHaveBeenCalledWith(
         "Failed to fetch rooms:",
         500,
       );
@@ -209,7 +196,7 @@ describe("fetchRooms", () => {
       const result = await fetchRooms("test-token");
 
       expect(result).toEqual([]);
-      expect(consoleErrorSpy).toHaveBeenCalledWith(
+      expect(consoleSpies.error).toHaveBeenCalledWith(
         "Invalid rooms response:",
         expect.anything(),
       );
@@ -240,7 +227,7 @@ describe("fetchRooms", () => {
       const result = await fetchRooms("test-token");
 
       expect(result).toEqual([]);
-      expect(consoleErrorSpy).toHaveBeenCalledWith(
+      expect(consoleSpies.error).toHaveBeenCalledWith(
         "Error fetching rooms:",
         expect.any(Error),
       );

@@ -8,6 +8,7 @@ import {
   useHasEducationalGroups,
 } from "./usercontext-context";
 import type { BackendEducationalGroup } from "./usercontext-helpers";
+import { mockSessionData } from "~/test/mocks/next-auth";
 
 // Mock dependencies
 vi.mock("next-auth/react", () => ({
@@ -33,15 +34,12 @@ import { useSupervision } from "./supervision-context";
 import { mapEducationalGroupResponse } from "./usercontext-helpers";
 
 describe("UserContextProvider", () => {
-  const mockSession: Session = {
+  const mockSession: Session = mockSessionData({
     user: {
-      id: "1",
-      email: "test@example.com",
-      name: "Test User",
       token: "mock-token",
     },
     expires: new Date(Date.now() + 1000 * 60 * 60).toISOString(),
-  };
+  });
 
   const mockBackendGroups: BackendEducationalGroup[] = [
     {

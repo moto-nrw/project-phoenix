@@ -1,9 +1,8 @@
-/* eslint-disable @typescript-eslint/no-empty-function */
-/* eslint-disable @typescript-eslint/no-unsafe-call */
-/* eslint-disable @typescript-eslint/no-unsafe-member-access */
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { Teacher } from "./teacher-api";
+import { suppressConsole } from "~/test/helpers/console";
+import { mockSessionData } from "~/test/mocks/next-auth";
 
 // Mock next-auth/react before importing the module
 vi.mock("next-auth/react", () => ({
@@ -46,27 +45,19 @@ const sampleTeacherMinimal: Teacher = {
 };
 
 describe("teacher-api", () => {
-  let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
-  let consoleWarnSpy: ReturnType<typeof vi.spyOn>;
+  const consoleSpies = suppressConsole("error", "warn");
   let originalFetch: typeof fetch;
 
   beforeEach(() => {
     vi.clearAllMocks();
-    consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-    consoleWarnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     originalFetch = globalThis.fetch;
     globalThis.fetch = vi.fn();
 
     // Default session mock
-    mockedGetSession.mockResolvedValue({
-      user: { id: "1", token: "test-token" },
-      expires: "2099-01-01",
-    });
+    mockedGetSession.mockResolvedValue(mockSessionData());
   });
 
   afterEach(() => {
-    consoleErrorSpy.mockRestore();
-    consoleWarnSpy.mockRestore();
     globalThis.fetch = originalFetch;
   });
 
@@ -129,7 +120,7 @@ describe("teacher-api", () => {
       const result = await teacherService.getTeachers();
 
       expect(result).toEqual([]);
-      expect(consoleErrorSpy).toHaveBeenCalledWith(
+      expect(consoleSpies.error).toHaveBeenCalledWith(
         "Unexpected response format:",
         expect.anything(),
       );
@@ -154,7 +145,7 @@ describe("teacher-api", () => {
       await expect(teacherService.getTeachers()).rejects.toThrow(
         "Network error",
       );
-      expect(consoleErrorSpy).toHaveBeenCalledWith(
+      expect(consoleSpies.error).toHaveBeenCalledWith(
         "Error fetching teachers:",
         expect.any(Error),
       );
@@ -224,7 +215,7 @@ describe("teacher-api", () => {
       mockFetch.mockRejectedValueOnce(new Error("Network error"));
 
       await expect(teacherService.getTeacher("1")).rejects.toThrow();
-      expect(consoleErrorSpy).toHaveBeenCalledWith(
+      expect(consoleSpies.error).toHaveBeenCalledWith(
         "Error fetching teacher with ID 1:",
         expect.any(Error),
       );
@@ -415,7 +406,7 @@ describe("teacher-api", () => {
           role_id: 1,
         }),
       ).rejects.toThrow("Failed to get account ID from response");
-      expect(consoleErrorSpy).toHaveBeenCalledWith(
+      expect(consoleSpies.error).toHaveBeenCalledWith(
         "Failed to get account ID from response:",
         expect.anything(),
       );
@@ -659,7 +650,7 @@ describe("teacher-api", () => {
       mockFetch.mockRejectedValueOnce(new Error("Network error"));
 
       await expect(teacherService.deleteTeacher("1")).rejects.toThrow();
-      expect(consoleErrorSpy).toHaveBeenCalledWith(
+      expect(consoleSpies.error).toHaveBeenCalledWith(
         "Error deleting teacher with ID 1:",
         expect.any(Error),
       );
@@ -671,7 +662,7 @@ describe("teacher-api", () => {
       const result = await teacherService.getTeacherActivities("1");
 
       expect(result).toEqual([]);
-      expect(consoleWarnSpy).toHaveBeenCalledWith(
+      expect(consoleSpies.warn).toHaveBeenCalledWith(
         "Activities endpoint not implemented for staff/teachers",
       );
     });

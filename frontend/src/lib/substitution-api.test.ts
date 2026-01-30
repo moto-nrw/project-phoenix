@@ -7,9 +7,9 @@ import type {
   BackendStaffWithSubstitutionStatus,
   BackendPerson,
   BackendStaff,
-  BackendGroup,
   BackendSubstitutionInfo,
 } from "./substitution-helpers";
+import { buildBackendGroup } from "~/test/fixtures";
 
 // Mock dependencies
 vi.mock("next-auth/react", () => ({
@@ -38,12 +38,12 @@ const sampleBackendStaff: BackendStaff = {
   staff_notes: "Test notes",
 };
 
-const sampleBackendGroup: BackendGroup = {
+const sampleBackendGroup = buildBackendGroup({
   id: 5,
   name: "Group A",
   room_id: 101,
   representative_id: 10,
-};
+});
 
 const sampleBackendSubstitution: BackendSubstitution = {
   id: 1,
