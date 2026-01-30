@@ -233,8 +233,8 @@ describe("Sidebar", () => {
       render(<Sidebar />);
 
       const dashboardLink = screen.getByText("Home").closest("a");
-      expect(dashboardLink).toHaveClass("bg-blue-50");
-      expect(dashboardLink).toHaveClass("text-blue-600");
+      expect(dashboardLink).toHaveClass("bg-gray-100");
+      expect(dashboardLink).toHaveClass("text-gray-900");
     });
 
     it("highlights link when path starts with href", () => {
@@ -243,7 +243,7 @@ describe("Sidebar", () => {
       render(<Sidebar />);
 
       const activitiesLink = screen.getByText("Aktivitäten").closest("a");
-      expect(activitiesLink).toHaveClass("bg-blue-50");
+      expect(activitiesLink).toHaveClass("bg-gray-100");
     });
 
     it("does not highlight dashboard for non-dashboard paths", () => {
@@ -254,7 +254,7 @@ describe("Sidebar", () => {
       render(<Sidebar />);
 
       const dashboardLink = screen.getByText("Home").closest("a");
-      expect(dashboardLink).not.toHaveClass("bg-blue-50");
+      expect(dashboardLink).not.toHaveClass("bg-gray-100");
     });
   });
 
@@ -267,7 +267,7 @@ describe("Sidebar", () => {
       render(<Sidebar />);
 
       const groupLink = screen.getByText("Meine Gruppe").closest("a");
-      expect(groupLink).toHaveClass("bg-blue-50");
+      expect(groupLink).toHaveClass("bg-gray-100");
     });
 
     it("highlights active-supervisions when coming from supervisions page", () => {
@@ -280,7 +280,7 @@ describe("Sidebar", () => {
       const supervisionLink = screen
         .getByText("Aktuelle Aufsicht")
         .closest("a");
-      expect(supervisionLink).toHaveClass("bg-blue-50");
+      expect(supervisionLink).toHaveClass("bg-gray-100");
     });
 
     it("highlights student search when coming from search page", () => {
@@ -291,7 +291,7 @@ describe("Sidebar", () => {
       render(<Sidebar />);
 
       const searchLink = screen.getByText("Kindersuche").closest("a");
-      expect(searchLink).toHaveClass("bg-blue-50");
+      expect(searchLink).toHaveClass("bg-gray-100");
     });
 
     it("defaults to student search when no from param", () => {
@@ -302,7 +302,7 @@ describe("Sidebar", () => {
 
       // Should default to Kindersuche when no from param
       const searchLink = screen.getByText("Kindersuche").closest("a");
-      expect(searchLink).toHaveClass("bg-blue-50");
+      expect(searchLink).toHaveClass("bg-gray-100");
     });
   });
 
@@ -420,8 +420,8 @@ describe("Sidebar", () => {
 
       const svgs = document.querySelectorAll("nav svg");
       svgs.forEach((svg) => {
-        expect(svg).toHaveClass("h-6");
-        expect(svg).toHaveClass("w-6");
+        expect(svg).toHaveClass("h-5");
+        expect(svg).toHaveClass("w-5");
       });
     });
   });
