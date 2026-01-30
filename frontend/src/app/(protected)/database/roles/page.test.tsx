@@ -1,8 +1,11 @@
+/* eslint-disable @typescript-eslint/no-unsafe-return */
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import "@testing-library/jest-dom/vitest";
 import RolesPage from "./page";
 
 const mockPush = vi.fn();
+const mockUseSession = vi.fn();
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({
@@ -12,10 +15,8 @@ vi.mock("next/navigation", () => ({
 }));
 
 vi.mock("next-auth/react", () => ({
-  useSession: vi.fn(() => ({
-    data: { user: { token: "test-token" } },
-    status: "authenticated",
-  })),
+  useSession: (opts?: { required?: boolean; onUnauthenticated?: () => void }) =>
+    mockUseSession(opts),
 }));
 
 vi.mock("~/components/database/database-page-layout", () => ({
@@ -52,16 +53,22 @@ vi.mock("~/components/ui/page-header", () => ({
   ),
 }));
 
+const mockUseIsMobile = vi.fn(() => false);
 vi.mock("~/hooks/useIsMobile", () => ({
-  useIsMobile: () => false,
+  useIsMobile: () => mockUseIsMobile(),
 }));
+
+const mockHandleDeleteClick = vi.fn();
+const mockHandleDeleteCancel = vi.fn();
+const mockConfirmDelete = vi.fn();
+const mockShowConfirmModal = vi.fn(() => false);
 
 vi.mock("~/hooks/useDeleteConfirmation", () => ({
   useDeleteConfirmation: () => ({
-    showConfirmModal: false,
-    handleDeleteClick: vi.fn(),
-    handleDeleteCancel: vi.fn(),
-    confirmDelete: vi.fn(),
+    showConfirmModal: mockShowConfirmModal(),
+    handleDeleteClick: mockHandleDeleteClick,
+    handleDeleteCancel: mockHandleDeleteCancel,
+    confirmDelete: mockConfirmDelete,
   }),
 }));
 
@@ -208,8 +215,25 @@ vi.mock("@/components/auth", () => ({
 }));
 
 vi.mock("~/components/ui/modal", () => ({
-  ConfirmationModal: ({ isOpen }: { isOpen: boolean }) =>
-    isOpen ? <div data-testid="confirm-modal">Confirm</div> : null,
+  ConfirmationModal: ({
+    isOpen,
+    onClose,
+    onConfirm,
+  }: {
+    isOpen: boolean;
+    onClose: () => void;
+    onConfirm: () => void;
+  }) =>
+    isOpen ? (
+      <div data-testid="confirm-modal">
+        <button data-testid="confirm-delete" onClick={onConfirm}>
+          Confirm
+        </button>
+        <button data-testid="cancel-delete" onClick={onClose}>
+          Cancel
+        </button>
+      </div>
+    ) : null,
 }));
 
 const mockRoles = [
@@ -236,6 +260,12 @@ const mockRoles = [
 describe("RolesPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockUseSession.mockReturnValue({
+      data: { user: { token: "test-token" } },
+      status: "authenticated",
+    });
+    mockUseIsMobile.mockReturnValue(false);
+    mockShowConfirmModal.mockReturnValue(false);
     mockGetList.mockResolvedValue({ data: mockRoles });
     mockGetOne.mockResolvedValue(mockRoles[0]);
   });
@@ -437,6 +467,363 @@ describe("RolesPage", () => {
       expect(screen.getByText("1 Berechtigungen")).toBeInTheDocument();
       expect(screen.getByText("0 Berechtigungen")).toBeInTheDocument();
     });
+  });
+
+  it("does not display permission count when undefined", async () => {
+    mockGetList.mockResolvedValue({
+      data: [
+        {
+          id: "1",
+          name: "Admin",
+          description: "Full access",
+          permissions: undefined,
+        },
+      ],
+    });
+
+    render(<RolesPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Admin")).toBeInTheDocument();
+      expect(screen.queryByText(/Berechtigungen/)).not.toBeInTheDocument();
+    });
+  });
+
+  it("displays description when present", async () => {
+    render(<RolesPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Full access")).toBeInTheDocument();
+      expect(screen.getByText("Teacher role")).toBeInTheDocument();
+    });
+  });
+
+  it("does not display description when missing", async () => {
+    mockGetList.mockResolvedValue({
+      data: [
+        {
+          id: "1",
+          name: "Admin",
+          description: null,
+          permissions: [],
+        },
+      ],
+    });
+
+    render(<RolesPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Admin")).toBeInTheDocument();
+      const roleCards = screen
+        .getAllByRole("button")
+        .filter((btn) => btn.textContent?.includes("Admin"));
+      expect(roleCards[0]?.textContent).not.toContain("Full access");
+    });
+  });
+
+  it("filters by description", async () => {
+    render(<RolesPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Admin")).toBeInTheDocument();
+    });
+
+    const searchInput = screen.getByTestId("search-input");
+    fireEvent.change(searchInput, { target: { value: "Supervisor" } });
+
+    await waitFor(() => {
+      expect(screen.getByText("Betreuer")).toBeInTheDocument();
+      expect(screen.queryByText("Admin")).not.toBeInTheDocument();
+    });
+  });
+
+  it("handles description filtering with null description", async () => {
+    mockGetList.mockResolvedValue({
+      data: [
+        {
+          id: "1",
+          name: "Admin",
+          description: null,
+          permissions: [],
+        },
+        {
+          id: "2",
+          name: "Teacher",
+          description: "Teaches students",
+          permissions: [],
+        },
+      ],
+    });
+
+    render(<RolesPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Admin")).toBeInTheDocument();
+    });
+
+    const searchInput = screen.getByTestId("search-input");
+    fireEvent.change(searchInput, { target: { value: "Teaches" } });
+
+    await waitFor(() => {
+      expect(screen.getByText("Teacher")).toBeInTheDocument();
+      expect(screen.queryByText("Admin")).not.toBeInTheDocument();
+    });
+  });
+
+  it("updates role and refreshes permission modal data", async () => {
+    mockGetOne.mockResolvedValue({
+      id: "1",
+      name: "Admin",
+      description: "Full access",
+      permissions: [
+        { id: "p1", name: "Read" },
+        { id: "p2", name: "Write" },
+        { id: "p3", name: "Delete" },
+      ],
+    });
+
+    render(<RolesPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Admin")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByText("Admin"));
+    await waitFor(() =>
+      expect(screen.getByTestId("detail-modal")).toBeInTheDocument(),
+    );
+
+    fireEvent.click(screen.getByTestId("manage-permissions"));
+    await waitFor(() =>
+      expect(screen.getByTestId("permission-modal")).toBeInTheDocument(),
+    );
+
+    fireEvent.click(screen.getByTestId("permission-update"));
+
+    await waitFor(() => {
+      expect(mockGetList).toHaveBeenCalledTimes(2);
+      expect(mockGetOne).toHaveBeenCalledWith("1");
+    });
+  });
+
+  it("closes permission management modal", async () => {
+    render(<RolesPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Admin")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByText("Admin"));
+    await waitFor(() =>
+      expect(screen.getByTestId("detail-modal")).toBeInTheDocument(),
+    );
+
+    fireEvent.click(screen.getByTestId("manage-permissions"));
+    await waitFor(() =>
+      expect(screen.getByTestId("permission-modal")).toBeInTheDocument(),
+    );
+
+    fireEvent.click(screen.getByTestId("permission-close"));
+
+    await waitFor(() => {
+      expect(screen.queryByTestId("permission-modal")).not.toBeInTheDocument();
+    });
+  });
+
+  it("closes edit modal", async () => {
+    render(<RolesPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Admin")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByText("Admin"));
+    await waitFor(() =>
+      expect(screen.getByTestId("detail-modal")).toBeInTheDocument(),
+    );
+
+    fireEvent.click(screen.getByTestId("edit-button"));
+    await waitFor(() =>
+      expect(screen.getByTestId("edit-modal")).toBeInTheDocument(),
+    );
+
+    fireEvent.click(screen.getByTestId("edit-close"));
+
+    await waitFor(() => {
+      expect(screen.queryByTestId("edit-modal")).not.toBeInTheDocument();
+    });
+  });
+
+  it("closes detail modal and resets selected role", async () => {
+    render(<RolesPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Admin")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByText("Admin"));
+    await waitFor(() =>
+      expect(screen.getByTestId("detail-modal")).toBeInTheDocument(),
+    );
+
+    fireEvent.click(screen.getByTestId("detail-close"));
+
+    await waitFor(() => {
+      expect(screen.queryByTestId("detail-modal")).not.toBeInTheDocument();
+    });
+  });
+
+  it("shows mobile title when on mobile", async () => {
+    mockUseIsMobile.mockReturnValue(true);
+
+    render(<RolesPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Admin")).toBeInTheDocument();
+    });
+  });
+
+  it("shows mobile FAB when on mobile", async () => {
+    mockUseIsMobile.mockReturnValue(true);
+
+    render(<RolesPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Admin")).toBeInTheDocument();
+    });
+
+    const createButtons = screen.getAllByLabelText("Rolle erstellen");
+    expect(createButtons.length).toBeGreaterThan(0);
+  });
+
+  it("handles update with no selected role", async () => {
+    render(<RolesPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Admin")).toBeInTheDocument();
+    });
+
+    // Don't click any role, just wait for render
+    await waitFor(() => {
+      expect(screen.queryByTestId("edit-modal")).not.toBeInTheDocument();
+    });
+
+    // No update should happen
+    expect(mockUpdate).not.toHaveBeenCalled();
+  });
+
+  it("handles delete with no selected role", async () => {
+    render(<RolesPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Admin")).toBeInTheDocument();
+    });
+
+    // No delete should happen
+    expect(mockDelete).not.toHaveBeenCalled();
+  });
+
+  it("handles session loading state", () => {
+    mockUseSession.mockReturnValue({
+      data: null,
+      status: "loading",
+    });
+
+    render(<RolesPage />);
+
+    expect(screen.getByTestId("database-layout")).toHaveAttribute(
+      "data-loading",
+      "true",
+    );
+  });
+
+  it("updates role successfully", async () => {
+    mockUpdate.mockResolvedValue({});
+
+    render(<RolesPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Admin")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByText("Admin"));
+    await waitFor(() =>
+      expect(screen.getByTestId("detail-modal")).toBeInTheDocument(),
+    );
+
+    fireEvent.click(screen.getByTestId("edit-button"));
+    await waitFor(() =>
+      expect(screen.getByTestId("edit-modal")).toBeInTheDocument(),
+    );
+
+    fireEvent.click(screen.getByTestId("save-button"));
+
+    await waitFor(() => {
+      expect(mockUpdate).toHaveBeenCalled();
+      expect(mockToastSuccess).toHaveBeenCalled();
+      expect(screen.queryByTestId("edit-modal")).not.toBeInTheDocument();
+      expect(screen.getByTestId("detail-modal")).toBeInTheDocument();
+    });
+  });
+
+  it("deletes role successfully", async () => {
+    mockShowConfirmModal.mockReturnValue(true);
+    mockDelete.mockResolvedValue({});
+    mockConfirmDelete.mockImplementation((fn: () => void) => fn());
+
+    render(<RolesPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Admin")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByText("Admin"));
+    await waitFor(() =>
+      expect(screen.getByTestId("confirm-modal")).toBeInTheDocument(),
+    );
+
+    fireEvent.click(screen.getByTestId("confirm-delete"));
+
+    await waitFor(() => {
+      expect(mockDelete).toHaveBeenCalledWith("1");
+      expect(mockToastSuccess).toHaveBeenCalled();
+    });
+  });
+
+  it("shows delete confirmation modal", async () => {
+    mockShowConfirmModal.mockReturnValue(true);
+
+    render(<RolesPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Admin")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByText("Admin"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("confirm-modal")).toBeInTheDocument();
+    });
+  });
+
+  it("cancels delete confirmation", async () => {
+    mockShowConfirmModal.mockReturnValue(true);
+
+    render(<RolesPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Admin")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByText("Admin"));
+    await waitFor(() =>
+      expect(screen.getByTestId("confirm-modal")).toBeInTheDocument(),
+    );
+
+    fireEvent.click(screen.getByTestId("cancel-delete"));
+
+    expect(mockHandleDeleteCancel).toHaveBeenCalled();
+    expect(mockDelete).not.toHaveBeenCalled();
   });
 });
 

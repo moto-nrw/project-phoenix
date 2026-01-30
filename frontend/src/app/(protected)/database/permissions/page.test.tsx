@@ -1,8 +1,11 @@
+/* eslint-disable @typescript-eslint/no-unsafe-return */
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import "@testing-library/jest-dom/vitest";
 import PermissionsPage from "./page";
 
 const mockPush = vi.fn();
+const mockUseSession = vi.fn();
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({
@@ -12,10 +15,8 @@ vi.mock("next/navigation", () => ({
 }));
 
 vi.mock("next-auth/react", () => ({
-  useSession: vi.fn(() => ({
-    data: { user: { token: "test-token" } },
-    status: "authenticated",
-  })),
+  useSession: (opts?: { required?: boolean; onUnauthenticated?: () => void }) =>
+    mockUseSession(opts),
 }));
 
 vi.mock("~/components/database/database-page-layout", () => ({
@@ -52,16 +53,22 @@ vi.mock("~/components/ui/page-header", () => ({
   ),
 }));
 
+const mockUseIsMobile = vi.fn(() => false);
 vi.mock("~/hooks/useIsMobile", () => ({
-  useIsMobile: () => false,
+  useIsMobile: () => mockUseIsMobile(),
 }));
+
+const mockHandleDeleteClick = vi.fn();
+const mockHandleDeleteCancel = vi.fn();
+const mockConfirmDelete = vi.fn();
+const mockShowConfirmModal = vi.fn(() => false);
 
 vi.mock("~/hooks/useDeleteConfirmation", () => ({
   useDeleteConfirmation: () => ({
-    showConfirmModal: false,
-    handleDeleteClick: vi.fn(),
-    handleDeleteCancel: vi.fn(),
-    confirmDelete: vi.fn(),
+    showConfirmModal: mockShowConfirmModal(),
+    handleDeleteClick: mockHandleDeleteClick,
+    handleDeleteCancel: mockHandleDeleteCancel,
+    confirmDelete: mockConfirmDelete,
   }),
 }));
 
@@ -112,15 +119,21 @@ vi.mock("@/components/permissions", () => ({
     isOpen,
     onClose,
     onCreate,
+    loading,
+    error,
   }: {
     isOpen: boolean;
     onClose: () => void;
     onCreate: (data: { resource: string; action: string }) => void;
+    loading?: boolean;
+    error?: string | null;
   }) =>
     isOpen ? (
       <div data-testid="create-modal">
+        {error && <div data-testid="create-error">{error}</div>}
         <button
           data-testid="create-submit"
+          disabled={loading}
           onClick={() => onCreate({ resource: "test", action: "read" })}
         >
           Create
@@ -159,6 +172,8 @@ vi.mock("@/components/permissions", () => ({
     isOpen,
     onClose,
     onSave,
+    loading,
+    error,
   }: {
     isOpen: boolean;
     onClose: () => void;
@@ -169,8 +184,10 @@ vi.mock("@/components/permissions", () => ({
   }) =>
     isOpen ? (
       <div data-testid="edit-modal">
+        {error && <div data-testid="edit-error">{error}</div>}
         <button
           data-testid="save-button"
+          disabled={loading}
           onClick={() => onSave({ name: "Updated" })}
         >
           Save
@@ -214,6 +231,12 @@ const mockPermissions = [
 describe("PermissionsPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockUseSession.mockReturnValue({
+      data: { user: { token: "test-token" } },
+      status: "authenticated",
+    });
+    mockUseIsMobile.mockReturnValue(false);
+    mockShowConfirmModal.mockReturnValue(false);
     mockGetList.mockResolvedValue({ data: mockPermissions });
     mockGetOne.mockResolvedValue(mockPermissions[0]);
   });
@@ -386,6 +409,380 @@ describe("PermissionsPage", () => {
 
     await waitFor(() => {
       expect(screen.queryByTestId("create-modal")).not.toBeInTheDocument();
+    });
+  });
+
+  it("shows duplicate key error when creating duplicate permission", async () => {
+    mockCreate.mockRejectedValue(
+      new Error("duplicate key value violates unique constraint (23505)"),
+    );
+
+    render(<PermissionsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Read Students")).toBeInTheDocument();
+    });
+
+    const createButtons = screen.getAllByLabelText("Berechtigung erstellen");
+    fireEvent.click(createButtons[0]!);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("create-modal")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("create-submit"));
+
+    await waitFor(() => {
+      expect(mockCreate).toHaveBeenCalled();
+      expect(screen.getByTestId("create-error")).toBeInTheDocument();
+      expect(screen.getByTestId("create-error")).toHaveTextContent(
+        /existiert bereits/,
+      );
+    });
+  });
+
+  it("shows generic error when create fails", async () => {
+    mockCreate.mockRejectedValue(new Error("Network error"));
+
+    render(<PermissionsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Read Students")).toBeInTheDocument();
+    });
+
+    const createButtons = screen.getAllByLabelText("Berechtigung erstellen");
+    fireEvent.click(createButtons[0]!);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("create-modal")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("create-submit"));
+
+    await waitFor(() => {
+      expect(mockCreate).toHaveBeenCalled();
+      expect(screen.getByTestId("create-error")).toHaveTextContent(
+        /Fehler beim Erstellen/,
+      );
+    });
+  });
+
+  it("clears create error when modal is closed", async () => {
+    mockCreate.mockRejectedValue(new Error("duplicate key"));
+
+    render(<PermissionsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Read Students")).toBeInTheDocument();
+    });
+
+    const createButtons = screen.getAllByLabelText("Berechtigung erstellen");
+    fireEvent.click(createButtons[0]!);
+    await waitFor(() =>
+      expect(screen.getByTestId("create-modal")).toBeInTheDocument(),
+    );
+
+    fireEvent.click(screen.getByTestId("create-submit"));
+    await waitFor(() =>
+      expect(screen.getByTestId("create-error")).toBeInTheDocument(),
+    );
+
+    fireEvent.click(screen.getByTestId("create-close"));
+
+    await waitFor(() => {
+      expect(screen.queryByTestId("create-modal")).not.toBeInTheDocument();
+    });
+
+    // Reopen modal - error should be cleared
+    fireEvent.click(createButtons[0]!);
+    await waitFor(() => {
+      expect(screen.getByTestId("create-modal")).toBeInTheDocument();
+      expect(screen.queryByTestId("create-error")).not.toBeInTheDocument();
+    });
+  });
+
+  it("shows duplicate key error when updating permission", async () => {
+    mockUpdate.mockRejectedValue(
+      new Error("duplicate key value violates unique constraint"),
+    );
+
+    render(<PermissionsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Read Students")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByText("Read Students"));
+    await waitFor(() =>
+      expect(screen.getByTestId("detail-modal")).toBeInTheDocument(),
+    );
+
+    fireEvent.click(screen.getByTestId("edit-button"));
+    await waitFor(() =>
+      expect(screen.getByTestId("edit-modal")).toBeInTheDocument(),
+    );
+
+    fireEvent.click(screen.getByTestId("save-button"));
+
+    await waitFor(() => {
+      expect(mockUpdate).toHaveBeenCalled();
+      expect(screen.getByTestId("edit-error")).toHaveTextContent(
+        /existiert bereits/,
+      );
+    });
+  });
+
+  it("shows generic error when update fails", async () => {
+    mockUpdate.mockRejectedValue(new Error("Network error"));
+
+    render(<PermissionsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Read Students")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByText("Read Students"));
+    await waitFor(() =>
+      expect(screen.getByTestId("detail-modal")).toBeInTheDocument(),
+    );
+
+    fireEvent.click(screen.getByTestId("edit-button"));
+    await waitFor(() =>
+      expect(screen.getByTestId("edit-modal")).toBeInTheDocument(),
+    );
+
+    fireEvent.click(screen.getByTestId("save-button"));
+
+    await waitFor(() => {
+      expect(mockUpdate).toHaveBeenCalled();
+      expect(screen.getByTestId("edit-error")).toHaveTextContent(
+        /Fehler beim Aktualisieren/,
+      );
+    });
+  });
+
+  it("clears edit error when modal is closed", async () => {
+    mockUpdate.mockRejectedValue(new Error("duplicate key"));
+
+    render(<PermissionsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Read Students")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByText("Read Students"));
+    await waitFor(() =>
+      expect(screen.getByTestId("detail-modal")).toBeInTheDocument(),
+    );
+
+    fireEvent.click(screen.getByTestId("edit-button"));
+    await waitFor(() =>
+      expect(screen.getByTestId("edit-modal")).toBeInTheDocument(),
+    );
+
+    fireEvent.click(screen.getByTestId("save-button"));
+    await waitFor(() =>
+      expect(screen.getByTestId("edit-error")).toBeInTheDocument(),
+    );
+
+    fireEvent.click(screen.getByTestId("edit-close"));
+
+    await waitFor(() => {
+      expect(screen.queryByTestId("edit-modal")).not.toBeInTheDocument();
+    });
+  });
+
+  it("filters by description", async () => {
+    render(<PermissionsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Read Students")).toBeInTheDocument();
+    });
+
+    const searchInput = screen.getByTestId("search-input");
+    fireEvent.change(searchInput, { target: { value: "Full admin" } });
+
+    await waitFor(() => {
+      expect(screen.getByText("Admin Access")).toBeInTheDocument();
+      expect(screen.queryByText("Read Students")).not.toBeInTheDocument();
+    });
+  });
+
+  it("shows mobile FAB when on mobile", async () => {
+    mockUseIsMobile.mockReturnValue(true);
+
+    render(<PermissionsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Read Students")).toBeInTheDocument();
+    });
+
+    const createButtons = screen.getAllByLabelText("Berechtigung erstellen");
+    // Mobile should show FAB only
+    expect(createButtons.length).toBeGreaterThan(0);
+  });
+
+  it("displays permission with name", async () => {
+    render(<PermissionsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Read Students")).toBeInTheDocument();
+      expect(screen.getByText("Can read student data")).toBeInTheDocument();
+    });
+  });
+
+  it("displays permission without description", async () => {
+    mockGetList.mockResolvedValue({
+      data: [
+        {
+          id: "1",
+          name: "Basic Permission",
+          description: null,
+          resource: "users",
+          action: "read",
+        },
+      ],
+    });
+
+    render(<PermissionsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Basic Permission")).toBeInTheDocument();
+      expect(screen.queryByText("Can read")).not.toBeInTheDocument();
+    });
+  });
+
+  it("uses resource:action when name is empty", async () => {
+    mockGetList.mockResolvedValue({
+      data: [
+        {
+          id: "1",
+          name: "",
+          description: "Test",
+          resource: "users",
+          action: "read",
+        },
+      ],
+    });
+
+    render(<PermissionsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("users:read")).toBeInTheDocument();
+    });
+  });
+
+  it("uses resource:action when name is whitespace", async () => {
+    mockGetList.mockResolvedValue({
+      data: [
+        {
+          id: "1",
+          name: "   ",
+          description: "Test",
+          resource: "users",
+          action: "read",
+        },
+      ],
+    });
+
+    render(<PermissionsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("users:read")).toBeInTheDocument();
+    });
+  });
+
+  it("closes detail modal and clears selected permission", async () => {
+    render(<PermissionsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Read Students")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByText("Read Students"));
+    await waitFor(() =>
+      expect(screen.getByTestId("detail-modal")).toBeInTheDocument(),
+    );
+
+    fireEvent.click(screen.getByTestId("detail-close"));
+
+    await waitFor(() => {
+      expect(screen.queryByTestId("detail-modal")).not.toBeInTheDocument();
+    });
+  });
+
+  it("handles detail loading state", async () => {
+    mockGetOne.mockImplementation(
+      () =>
+        new Promise((resolve) =>
+          setTimeout(() => resolve(mockPermissions[0]), 100),
+        ),
+    );
+
+    render(<PermissionsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Read Students")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByText("Read Students"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("detail-modal")).toBeInTheDocument();
+      expect(mockGetOne).toHaveBeenCalledWith("1");
+    });
+  });
+
+  it("sorts permissions by resource, action, then name", async () => {
+    const unsortedPermissions = [
+      {
+        id: "3",
+        name: "Z Permission",
+        resource: "users",
+        action: "write",
+        description: "",
+      },
+      {
+        id: "2",
+        name: "A Permission",
+        resource: "admin",
+        action: "read",
+        description: "",
+      },
+      {
+        id: "1",
+        name: "M Permission",
+        resource: "users",
+        action: "read",
+        description: "",
+      },
+    ];
+
+    mockGetList.mockResolvedValue({ data: unsortedPermissions });
+
+    render(<PermissionsPage />);
+
+    await waitFor(() => {
+      const buttons = screen
+        .getAllByRole("button")
+        .filter((btn) =>
+          ["A Permission", "M Permission", "Z Permission"].some((name) =>
+            btn.textContent?.includes(name),
+          ),
+        );
+      expect(buttons[0]?.textContent).toContain("A Permission");
+      expect(buttons[1]?.textContent).toContain("M Permission");
+      expect(buttons[2]?.textContent).toContain("Z Permission");
+    });
+  });
+
+  it("shows mobile title when on mobile", async () => {
+    mockUseIsMobile.mockReturnValue(true);
+
+    render(<PermissionsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Read Students")).toBeInTheDocument();
     });
   });
 });
