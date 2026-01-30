@@ -10,9 +10,6 @@ on:
         type: boolean
         default: true
 
-permissions:
-  contents: read
-
 defaults:
   run:
     shell: bash
@@ -21,6 +18,8 @@ jobs:
   backend-format:
     if: ${{ inputs.run-backend }}
     runs-on: blacksmith-4vcpu-ubuntu-2404
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
       - name: Setup Go with cache
@@ -49,6 +48,8 @@ jobs:
   backend-deadcode:
     if: ${{ inputs.run-backend }}
     runs-on: blacksmith-4vcpu-ubuntu-2404
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
       - name: Setup Go with cache
@@ -111,6 +112,8 @@ jobs:
   backend-lint:
     if: ${{ inputs.run-backend }}
     runs-on: blacksmith-4vcpu-ubuntu-2404
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
       - name: Setup Go with cache
@@ -129,6 +132,8 @@ jobs:
   backend-migration-validate:
     if: ${{ inputs.run-backend }}
     runs-on: blacksmith-4vcpu-ubuntu-2404
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
       - name: Setup Go with cache
@@ -144,6 +149,8 @@ jobs:
   backend-licenses:
     if: ${{ inputs.run-backend }}
     runs-on: blacksmith-4vcpu-ubuntu-2404
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
       - name: Setup Go with cache
@@ -176,6 +183,8 @@ jobs:
   frontend-lint:
     if: ${{ inputs.run-frontend }}
     runs-on: blacksmith-4vcpu-ubuntu-2404
+    permissions:
+      contents: read
     env:
       NEXT_PUBLIC_API_URL: "http://localhost:8080" # Default API URL for linting
       SKIP_ENV_VALIDATION: "true" # Skip validation during linting
@@ -203,6 +212,8 @@ jobs:
   frontend-typecheck:
     if: ${{ inputs.run-frontend }}
     runs-on: blacksmith-4vcpu-ubuntu-2404
+    permissions:
+      contents: read
     env:
       NEXT_PUBLIC_API_URL: "http://localhost:8080" # Default API URL for linting
       SKIP_ENV_VALIDATION: "true" # Skip validation during linting
@@ -230,6 +241,8 @@ jobs:
   frontend-knip:
     if: ${{ inputs.run-frontend }}
     runs-on: blacksmith-4vcpu-ubuntu-2404
+    permissions:
+      contents: read
     env:
       NEXT_PUBLIC_API_URL: "http://localhost:8080" # Default API URL for linting
       SKIP_ENV_VALIDATION: "true" # Skip validation during linting
@@ -257,6 +270,8 @@ jobs:
   frontend-build:
     if: ${{ inputs.run-frontend }}
     runs-on: blacksmith-4vcpu-ubuntu-2404
+    permissions:
+      contents: read
     env:
       NEXT_PUBLIC_API_URL: "http://localhost:8080"
       SKIP_ENV_VALIDATION: "true"
@@ -284,6 +299,8 @@ jobs:
   docker-build-backend-smoke:
     if: ${{ inputs.run-backend }}
     runs-on: blacksmith-4vcpu-ubuntu-2404
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
 
@@ -303,6 +320,8 @@ jobs:
   docker-build-frontend-smoke:
     if: ${{ inputs.run-frontend }}
     runs-on: blacksmith-4vcpu-ubuntu-2404
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
 

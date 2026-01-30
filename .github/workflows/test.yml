@@ -14,10 +14,6 @@ on:
         description: "SonarCloud authentication token"
         required: true
 
-permissions:
-  contents: read
-  checks: write
-
 defaults:
   run:
     shell: bash
@@ -26,6 +22,9 @@ jobs:
   test-backend:
     if: ${{ inputs.run-backend }}
     runs-on: blacksmith-4vcpu-ubuntu-2404
+    permissions:
+      contents: read
+      checks: write
 
     services:
       postgres:
@@ -105,6 +104,8 @@ jobs:
   test-frontend:
     if: ${{ inputs.run-frontend }}
     runs-on: blacksmith-4vcpu-ubuntu-2404
+    permissions:
+      contents: read
 
     steps:
       - name: Checkout code
@@ -138,6 +139,8 @@ jobs:
 
   sonarcloud:
     runs-on: blacksmith-4vcpu-ubuntu-2404
+    permissions:
+      contents: read
     needs: [test-backend, test-frontend]
     if: always()
 
