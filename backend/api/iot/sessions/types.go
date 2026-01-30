@@ -123,16 +123,17 @@ type SessionTimeoutInfoResponse struct {
 
 // SessionCurrentResponse represents the current session information
 type SessionCurrentResponse struct {
-	ActiveGroupID  *int64     `json:"active_group_id,omitempty"`
-	ActivityID     *int64     `json:"activity_id,omitempty"`
-	ActivityName   *string    `json:"activity_name,omitempty"`
-	RoomID         *int64     `json:"room_id,omitempty"`
-	RoomName       *string    `json:"room_name,omitempty"`
-	DeviceID       int64      `json:"device_id"`
-	StartTime      *time.Time `json:"start_time,omitempty"`
-	Duration       *string    `json:"duration,omitempty"`
-	IsActive       bool       `json:"is_active"`
-	ActiveStudents *int       `json:"active_students,omitempty"`
+	ActiveGroupID  *int64           `json:"active_group_id,omitempty"`
+	ActivityID     *int64           `json:"activity_id,omitempty"`
+	ActivityName   *string          `json:"activity_name,omitempty"`
+	RoomID         *int64           `json:"room_id,omitempty"`
+	RoomName       *string          `json:"room_name,omitempty"`
+	DeviceID       int64            `json:"device_id"`
+	StartTime      *time.Time       `json:"start_time,omitempty"`
+	Duration       *string          `json:"duration,omitempty"`
+	IsActive       bool             `json:"is_active"`
+	ActiveStudents *int             `json:"active_students,omitempty"`
+	Supervisors    []SupervisorInfo `json:"supervisors,omitempty"`
 }
 
 // UpdateSupervisorsRequest represents a request to update supervisors for an active session
