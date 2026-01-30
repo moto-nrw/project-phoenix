@@ -426,25 +426,6 @@ func (s *cleanupService) CleanupStaleAttendance(ctx context.Context) (*Attendanc
 	result.OldestRecordDate = oldestRecord
 	result.CompletedAt = time.Now()
 
-	// Create audit log entry
-	if result.RecordsClosed > 0 {
-		deletion := audit.NewDataDeletion(
-			0, // No specific student (affects multiple)
-			"attendance_cleanup",
-			result.RecordsClosed,
-			"system",
-		)
-		deletion.DeletionReason = fmt.Sprintf("Automated cleanup of stale attendance records from before %s", today.Format("2006-01-02"))
-		deletion.SetMetadata("students_affected", result.StudentsAffected)
-		deletion.SetMetadata("oldest_record", oldestRecord)
-
-		if err := s.dataDeletionRepo.Create(ctx, deletion); err != nil {
-			// Log error but don't fail the cleanup
-			errMsg := fmt.Sprintf("Failed to create audit record: %v", err)
-			result.Errors = append(result.Errors, errMsg)
-		}
-	}
-
 	return result, nil
 }
 
@@ -573,25 +554,6 @@ func (s *cleanupService) CleanupStaleSupervisors(ctx context.Context) (*Supervis
 	result.StaffAffected = len(staffAffected)
 	result.OldestRecordDate = oldestRecord
 	result.CompletedAt = time.Now()
-
-	// Create audit log entry
-	if result.RecordsClosed > 0 {
-		deletion := audit.NewDataDeletion(
-			0, // No specific student (affects staff supervisors)
-			"supervisor_cleanup",
-			result.RecordsClosed,
-			"system",
-		)
-		deletion.DeletionReason = fmt.Sprintf("Automated cleanup of stale supervisor records from before %s", today.Format("2006-01-02"))
-		deletion.SetMetadata("staff_affected", result.StaffAffected)
-		deletion.SetMetadata("oldest_record", oldestRecord)
-
-		if err := s.dataDeletionRepo.Create(ctx, deletion); err != nil {
-			// Log error but don't fail the cleanup
-			errMsg := fmt.Sprintf("Failed to create audit record: %v", err)
-			result.Errors = append(result.Errors, errMsg)
-		}
-	}
 
 	return result, nil
 }

@@ -204,7 +204,7 @@ func (s *Scheduler) executeCleanup(task *ScheduledTask) {
 		task.mu.Unlock()
 	}()
 
-	log.Println("Starting scheduled cleanup (visits + attendance + supervisors)...")
+	log.Println("Starting scheduled cleanup (visits + supervisors)...")
 	startTime := time.Now()
 
 	// Get timeout from env or default to 30 minutes
