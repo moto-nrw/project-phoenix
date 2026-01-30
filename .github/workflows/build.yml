@@ -276,10 +276,33 @@ jobs:
           echo "$SSH_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           ssh -i ~/.ssh/deploy_key root@$SSH_HOST '
+            set -e
+            echo "Starting staging deployment..."
             cd ~/staging
+
+            # Backup
+            mkdir -p ~/backups/staging
+            BACKUP_FILE=~/backups/staging/backup-$(date +%Y%m%d-%H%M%S).dump
+            docker compose exec -T postgres pg_dump -U postgres -d postgres -Fc > "$BACKUP_FILE"
+            [ -s "$BACKUP_FILE" ] || { echo "Backup failed or empty"; exit 1; }
+            echo "Backup created: $(basename $BACKUP_FILE) ($(du -h $BACKUP_FILE | cut -f1))"
+
+            # Deploy
             docker compose pull
             docker compose up -d
-            echo "✅ Staging deployment complete"
+
+            # Migrate
+            docker compose exec -T server ./main migrate
+
+            # Health check
+            sleep 5
+            docker compose ps server | grep -q "Up" || { echo "Server not running"; exit 1; }
+            echo "Server is running"
+
+            # Cleanup (keep 3)
+            ls -t ~/backups/staging/backup-*.dump 2>/dev/null | tail -n +4 | xargs -r rm -v
+
+            echo "Staging deployment complete"
           '
           rm ~/.ssh/deploy_key
 
@@ -301,10 +324,22 @@ jobs:
           echo "$SSH_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           ssh -i ~/.ssh/deploy_key root@$SSH_HOST '
+            set -e
+            echo "Starting demo deployment..."
             cd ~/demo
+
+            # Deploy (no backup for demo)
             docker compose pull
             docker compose up -d
-            echo "✅ Demo deployment complete"
+
+            # Migrate
+            docker compose exec -T server ./main migrate
+
+            # Health check
+            sleep 5
+            docker compose ps server | grep -q "Up" || { echo "Server not running"; exit 1; }
+
+            echo "Demo deployment complete"
           '
           rm ~/.ssh/deploy_key
 
@@ -326,10 +361,33 @@ jobs:
           echo "$SSH_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           ssh -i ~/.ssh/deploy_key root@$SSH_HOST '
+            set -e
+            echo "Starting production deployment..."
             cd ~/production
+
+            # Backup
+            mkdir -p ~/backups/production
+            BACKUP_FILE=~/backups/production/backup-$(date +%Y%m%d-%H%M%S).dump
+            docker compose exec -T postgres pg_dump -U postgres -d postgres -Fc > "$BACKUP_FILE"
+            [ -s "$BACKUP_FILE" ] || { echo "Backup failed or empty"; exit 1; }
+            echo "Backup created: $(basename $BACKUP_FILE) ($(du -h $BACKUP_FILE | cut -f1))"
+
+            # Deploy
             docker compose pull
             docker compose up -d
-            echo "✅ Production deployment complete"
+
+            # Migrate
+            docker compose exec -T server ./main migrate
+
+            # Health check
+            sleep 5
+            docker compose ps server | grep -q "Up" || { echo "Server not running"; exit 1; }
+            echo "Server is running"
+
+            # Cleanup (keep 7)
+            ls -t ~/backups/production/backup-*.dump 2>/dev/null | tail -n +8 | xargs -r rm -v
+
+            echo "Production deployment complete"
           '
           rm ~/.ssh/deploy_key
 
