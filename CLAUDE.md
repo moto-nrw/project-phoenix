@@ -32,6 +32,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | Database | PostgreSQL 17+ (multi-schema, SSL) |
 | Auth | JWT (15min access, 1hr refresh) |
 | Testing | Go tests + Bruno API tests |
+| License | Source-Available (see [LICENSE](LICENSE)) |
 
 ---
 
