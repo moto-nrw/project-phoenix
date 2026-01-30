@@ -1,7 +1,6 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { ResponsiveLayout } from "~/components/dashboard";
 import { Loading } from "~/components/ui/loading";
 import { MobileBackButton } from "~/components/ui/mobile-back-button";
 
@@ -29,19 +28,13 @@ export function DatabasePageLayout({
   className = "w-full",
 }: Readonly<DatabasePageLayoutProps>) {
   if (sessionLoading || loading) {
-    return (
-      <ResponsiveLayout>
-        <Loading fullPage={false} />
-      </ResponsiveLayout>
-    );
+    return <Loading fullPage={false} />;
   }
 
   return (
-    <ResponsiveLayout>
-      <div className={className}>
-        <MobileBackButton />
-        {children}
-      </div>
-    </ResponsiveLayout>
+    <div className={className}>
+      <MobileBackButton />
+      {children}
+    </div>
   );
 }
