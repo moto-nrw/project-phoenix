@@ -277,7 +277,8 @@ export function ActivityManagementModal({
         }
       }, 100);
     } catch (err) {
-      console.error("Error updating activity:", err);
+      // Don't console.error for expected errors (403 permission denied, etc.)
+      // The error is shown to the user via the UI
       setError(
         getApiErrorMessage(
           err,
@@ -315,7 +316,8 @@ export function ActivityManagementModal({
         }
       }, 100);
     } catch (err) {
-      console.error("Error deleting activity:", err);
+      // Don't console.error for expected errors (403 permission denied, etc.)
+      // The error is shown to the user via the UI
       setError(getDeleteErrorMessage(err));
       setShowDeleteConfirm(false);
     } finally {
