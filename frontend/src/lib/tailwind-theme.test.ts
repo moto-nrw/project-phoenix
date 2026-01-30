@@ -22,9 +22,9 @@ describe("getThemeColorsTailwind", () => {
     expect(colors.primary).toHaveProperty("600");
     expect(colors.primary).toHaveProperty("800");
 
-    expect(colors.primary[500]).toBe("#14b8a6");
-    expect(colors.primary[600]).toBe("#0d9488");
-    expect(colors.primary[800]).toBe("#115e59");
+    expect(colors.primary![500]).toBe("#14b8a6");
+    expect(colors.primary![600]).toBe("#0d9488");
+    expect(colors.primary![800]).toBe("#115e59");
   });
 
   it("returns secondary colors with correct shades", () => {
@@ -34,9 +34,9 @@ describe("getThemeColorsTailwind", () => {
     expect(colors.secondary).toHaveProperty("600");
     expect(colors.secondary).toHaveProperty("700");
 
-    expect(colors.secondary[500]).toBe("#3b82f6");
-    expect(colors.secondary[600]).toBe("#2563eb");
-    expect(colors.secondary[700]).toBe("#1d4ed8");
+    expect(colors.secondary![500]).toBe("#3b82f6");
+    expect(colors.secondary![600]).toBe("#2563eb");
+    expect(colors.secondary![700]).toBe("#1d4ed8");
   });
 
   it("returns gray colors with all expected shades", () => {
@@ -52,8 +52,8 @@ describe("getThemeColorsTailwind", () => {
     expect(colors.gray).toHaveProperty("800");
     expect(colors.gray).toHaveProperty("900");
 
-    expect(colors.gray[50]).toBe("#f9fafb");
-    expect(colors.gray[900]).toBe("#111827");
+    expect(colors.gray![50]).toBe("#f9fafb");
+    expect(colors.gray![900]).toBe("#111827");
   });
 
   it("returns success colors", () => {
