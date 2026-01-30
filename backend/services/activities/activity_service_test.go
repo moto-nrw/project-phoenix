@@ -792,13 +792,15 @@ func TestActivityService_CreateGroup(t *testing.T) {
 	t.Run("creates group successfully", func(t *testing.T) {
 		// ARRANGE
 		category := testpkg.CreateTestActivityCategory(t, db, "create-grp-cat")
-		defer testpkg.CleanupActivityFixtures(t, db, category.ID)
+		staff := testpkg.CreateTestStaff(t, db, "Creator", "Staff")
+		defer testpkg.CleanupActivityFixtures(t, db, category.ID, staff.ID)
 
 		group := &activitiesModels.Group{
 			Name:            fmt.Sprintf("Test Group %d", time.Now().UnixNano()),
 			MaxParticipants: 20,
 			IsOpen:          true,
 			CategoryID:      category.ID,
+			CreatedBy:       staff.ID,
 		}
 
 		// ACT
@@ -825,6 +827,7 @@ func TestActivityService_CreateGroup(t *testing.T) {
 			MaxParticipants: 15,
 			IsOpen:          false,
 			CategoryID:      category.ID,
+			CreatedBy:       staff.ID,
 		}
 
 		// ACT
@@ -844,11 +847,15 @@ func TestActivityService_CreateGroup(t *testing.T) {
 	})
 
 	t.Run("returns error for invalid category", func(t *testing.T) {
-		// ARRANGE
+		// ARRANGE - still need a valid staff ID for CreatedBy even though category is invalid
+		staff := testpkg.CreateTestStaff(t, db, "Creator", "InvalidCat")
+		defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
+
 		group := &activitiesModels.Group{
 			Name:            "Invalid Category Group",
 			MaxParticipants: 10,
 			CategoryID:      99999999, // nonexistent
+			CreatedBy:       staff.ID,
 		}
 
 		// ACT
@@ -1274,13 +1281,15 @@ func TestActivityService_CreateGroup_WithSchedules(t *testing.T) {
 	t.Run("creates group with schedules", func(t *testing.T) {
 		// ARRANGE
 		category := testpkg.CreateTestActivityCategory(t, db, "grp-with-sched")
-		defer testpkg.CleanupActivityFixtures(t, db, category.ID)
+		staff := testpkg.CreateTestStaff(t, db, "Creator", "Schedules")
+		defer testpkg.CleanupActivityFixtures(t, db, category.ID, staff.ID)
 
 		group := &activitiesModels.Group{
 			Name:            fmt.Sprintf("Group With Schedules %d", time.Now().UnixNano()),
 			MaxParticipants: 25,
 			IsOpen:          true,
 			CategoryID:      category.ID,
+			CreatedBy:       staff.ID,
 		}
 
 		schedules := []*activitiesModels.Schedule{
@@ -1887,10 +1896,14 @@ func TestActivityService_CreateGroup_WithCategoryValidation(t *testing.T) {
 
 	t.Run("returns error for nonexistent category", func(t *testing.T) {
 		// ARRANGE
+		staff := testpkg.CreateTestStaff(t, db, "CatVal", "Staff")
+		defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID, 0, 0, 0)
+
 		group := &activitiesModels.Group{
 			Name:            "Test Group",
 			CategoryID:      99999999, // nonexistent
 			MaxParticipants: 10,
+			CreatedBy:       staff.ID,
 		}
 
 		// ACT
@@ -2124,10 +2137,14 @@ func TestActivityService_CreateGroup_ValidationError(t *testing.T) {
 
 	t.Run("returns error for invalid group", func(t *testing.T) {
 		// ARRANGE - empty name should fail validation
+		staff := testpkg.CreateTestStaff(t, db, "ValErr", "Staff")
+		defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID, 0, 0, 0)
+
 		group := &activitiesModels.Group{
 			Name:            "", // Invalid: empty
 			CategoryID:      1,
 			MaxParticipants: 10,
+			CreatedBy:       staff.ID,
 		}
 
 		// ACT
@@ -2317,12 +2334,14 @@ func TestActivityService_CreateGroup_InvalidSupervisor(t *testing.T) {
 	t.Run("returns error when supervisor does not exist", func(t *testing.T) {
 		// ARRANGE
 		category := testpkg.CreateTestActivityCategory(t, db, "invalid-sup-cat")
-		defer testpkg.CleanupActivityFixtures(t, db, category.ID)
+		staff := testpkg.CreateTestStaff(t, db, "InvSup", "Staff")
+		defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID, 0, category.ID, 0)
 
 		group := &activitiesModels.Group{
 			Name:            "Test Group Invalid Sup",
 			CategoryID:      category.ID,
 			MaxParticipants: 20,
+			CreatedBy:       staff.ID,
 		}
 
 		// ACT - non-existent staff ID
@@ -2344,12 +2363,14 @@ func TestActivityService_CreateGroup_InvalidScheduleWeekday(t *testing.T) {
 	t.Run("returns error for invalid schedule weekday", func(t *testing.T) {
 		// ARRANGE
 		category := testpkg.CreateTestActivityCategory(t, db, "invalid-sched-cat")
-		defer testpkg.CleanupActivityFixtures(t, db, category.ID)
+		staff := testpkg.CreateTestStaff(t, db, "InvSched", "Staff")
+		defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID, 0, category.ID, 0)
 
 		group := &activitiesModels.Group{
 			Name:            "Test Group Invalid Sched",
 			CategoryID:      category.ID,
 			MaxParticipants: 20,
+			CreatedBy:       staff.ID,
 		}
 
 		// Invalid weekday (should be 0-6)
@@ -2529,10 +2550,14 @@ func TestActivityService_CreateGroup_InvalidCategoryID(t *testing.T) {
 
 	t.Run("returns error for non-existent category", func(t *testing.T) {
 		// ARRANGE
+		staff := testpkg.CreateTestStaff(t, db, "InvCat", "Staff")
+		defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID, 0, 0, 0)
+
 		group := &activitiesModels.Group{
 			Name:            "Test Group Invalid Cat",
 			CategoryID:      99999999, // Non-existent
 			MaxParticipants: 20,
+			CreatedBy:       staff.ID,
 		}
 
 		// ACT
