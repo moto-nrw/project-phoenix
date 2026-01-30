@@ -118,14 +118,14 @@ export function SuggestionCard({
                     </svg>
                   </button>
                   {menuOpen && (
-                    <div className="absolute right-0 z-10 mt-1 w-36 rounded-lg border border-gray-200 bg-white py-1 shadow-lg">
+                    <div className="absolute right-0 z-10 mt-1 w-36 rounded-lg border border-gray-200 bg-white p-1 shadow-lg">
                       <button
                         type="button"
                         onClick={() => {
                           setMenuOpen(false);
                           onEdit(suggestion);
                         }}
-                        className="flex w-full items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                        className="flex w-full items-center rounded-md px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-100"
                       >
                         Bearbeiten
                       </button>
@@ -135,7 +135,7 @@ export function SuggestionCard({
                           setMenuOpen(false);
                           onDelete(suggestion);
                         }}
-                        className="flex w-full items-center px-4 py-2 text-sm text-red-600 hover:bg-red-50"
+                        className="flex w-full items-center rounded-md px-3 py-1.5 text-sm text-red-600 hover:bg-red-50"
                       >
                         Löschen
                       </button>
