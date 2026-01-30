@@ -49,14 +49,14 @@ var migrateValidateCmd = &cobra.Command{
 	Use:   "validate",
 	Short: "validate migration dependencies",
 	Long:  `Check all migration dependencies for correctness and ordering`,
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		if err := migrations.ValidateMigrations(); err != nil {
-			fmt.Printf("Migration validation failed: %v\n", err)
-			return
+			return fmt.Errorf("migration validation failed: %w", err)
 		}
 
 		fmt.Println("All migrations validated successfully!")
 		migrations.PrintMigrationPlan()
+		return nil
 	},
 }
 
