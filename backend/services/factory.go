@@ -198,13 +198,15 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 		db,
 	)
 
-	// Initialize hierarchical settings service
+	// Initialize hierarchical settings service with ObjectRef resolver
+	objectRefResolver := config.NewDefaultObjectRefResolver(db)
 	hierarchicalSettingsService := config.NewHierarchicalSettingsService(
 		repos.SettingDefinition,
 		repos.SettingValue,
 		repos.SettingAudit,
 		repos.SettingTab,
 		db,
+		config.WithObjectRefResolver(objectRefResolver),
 	)
 
 	// Initialize activities service

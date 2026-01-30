@@ -1,7 +1,11 @@
 package settings
 
 import (
+	"encoding/json"
 	"errors"
+	"fmt"
+	"strconv"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/config"
 )
@@ -99,6 +103,87 @@ func (d *Definition) Validate() error {
 	if d.Type == config.ValueTypeObjectRef && d.ObjectRefType == "" {
 		return errors.New("object_ref_type required for object_ref type")
 	}
+
+	// Validate that the default value matches the type
+	if d.Default != "" {
+		if err := d.validateValue(d.Default); err != nil {
+			return fmt.Errorf("invalid default value for %q: %w", d.Key, err)
+		}
+	}
+
+	return nil
+}
+
+// validateValue validates a value against this definition's type
+func (d *Definition) validateValue(value string) error {
+	if value == "" {
+		return nil
+	}
+
+	switch d.Type {
+	case config.ValueTypeInt:
+		v, err := strconv.ParseInt(value, 10, 64)
+		if err != nil {
+			return errors.New("value must be an integer")
+		}
+		// Check validation schema constraints
+		if d.Validation != nil {
+			if d.Validation.Min != nil && v < *d.Validation.Min {
+				return fmt.Errorf("value must be at least %d", *d.Validation.Min)
+			}
+			if d.Validation.Max != nil && v > *d.Validation.Max {
+				return fmt.Errorf("value must be at most %d", *d.Validation.Max)
+			}
+		}
+	case config.ValueTypeFloat:
+		if _, err := strconv.ParseFloat(value, 64); err != nil {
+			return errors.New("value must be a number")
+		}
+	case config.ValueTypeBool:
+		if value != "true" && value != "false" {
+			return errors.New("value must be 'true' or 'false'")
+		}
+	case config.ValueTypeEnum:
+		found := false
+		for _, ev := range d.EnumValues {
+			if ev == value {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return fmt.Errorf("value must be one of: %v", d.EnumValues)
+		}
+	case config.ValueTypeTime:
+		if _, err := time.Parse("15:04:05", value); err != nil {
+			if _, err := time.Parse("15:04", value); err != nil {
+				return errors.New("value must be a valid time (HH:MM or HH:MM:SS)")
+			}
+		}
+	case config.ValueTypeDuration:
+		if _, err := time.ParseDuration(value); err != nil {
+			return errors.New("value must be a valid duration (e.g., 30m, 1h)")
+		}
+	case config.ValueTypeObjectRef:
+		if _, err := strconv.ParseInt(value, 10, 64); err != nil {
+			return errors.New("value must be a valid entity ID (integer)")
+		}
+	case config.ValueTypeJSON:
+		if !json.Valid([]byte(value)) {
+			return errors.New("value must be valid JSON")
+		}
+	case config.ValueTypeString:
+		// Check validation schema constraints for strings
+		if d.Validation != nil {
+			if d.Validation.MinLength != nil && len(value) < *d.Validation.MinLength {
+				return fmt.Errorf("value must be at least %d characters", *d.Validation.MinLength)
+			}
+			if d.Validation.MaxLength != nil && len(value) > *d.Validation.MaxLength {
+				return fmt.Errorf("value must be at most %d characters", *d.Validation.MaxLength)
+			}
+		}
+	}
+
 	return nil
 }
 

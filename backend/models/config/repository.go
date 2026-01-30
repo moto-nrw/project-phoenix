@@ -80,6 +80,9 @@ type SettingValueRepository interface {
 	// Returns the value, the scope it came from, and any error
 	FindEffectiveValue(ctx context.Context, defID int64, scopeCtx *ScopeContext) (*SettingValue, Scope, error)
 
+	// FindEffectiveValuesForDefinitions returns effective values for multiple definitions (bulk operation)
+	FindEffectiveValuesForDefinitions(ctx context.Context, defIDs []int64, scopeCtx *ScopeContext) ([]*SettingValue, error)
+
 	// FindByScopeType retrieves all values for a scope type
 	FindByScopeType(ctx context.Context, scopeType Scope) ([]*SettingValue, error)
 

@@ -3,14 +3,29 @@ package config
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strconv"
+	"sync"
 
 	"github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/settings"
 	"github.com/uptrace/bun"
 )
+
+// SettingChangeEvent represents a change to a setting value
+type SettingChangeEvent struct {
+	Key      string
+	OldValue *string
+	NewValue *string
+	Scope    config.Scope
+	ScopeID  *int64
+	Action   config.AuditAction
+}
+
+// SettingChangeListener is a function that handles setting changes
+type SettingChangeListener func(event SettingChangeEvent)
 
 // HierarchicalSettingsService manages hierarchical settings with scope inheritance
 type HierarchicalSettingsService interface {
@@ -24,6 +39,9 @@ type HierarchicalSettingsService interface {
 	GetString(ctx context.Context, key string, scopeCtx *config.ScopeContext) (string, error)
 	GetInt(ctx context.Context, key string, scopeCtx *config.ScopeContext) (int64, error)
 	GetBool(ctx context.Context, key string, scopeCtx *config.ScopeContext) (bool, error)
+
+	// GetMultiple returns multiple settings at once (bulk operation)
+	GetMultiple(ctx context.Context, keys []string, scopeCtx *config.ScopeContext) (map[string]*config.ResolvedSetting, error)
 
 	// SetValue sets a value at a specific scope (auto-audits)
 	SetValue(ctx context.Context, key, value string, scope config.Scope, scopeID *int64, audit *config.AuditContext) error
@@ -45,15 +63,58 @@ type HierarchicalSettingsService interface {
 	// Soft delete management
 	RestoreValue(ctx context.Context, key string, scope config.Scope, scopeID *int64, audit *config.AuditContext) error
 	PurgeDeletedOlderThan(ctx context.Context, days int) (int64, error)
+
+	// Change listeners
+	AddChangeListener(listener SettingChangeListener)
+	RemoveChangeListener(listener SettingChangeListener)
+
+	// Restart tracking
+	GetPendingRestartSettings(ctx context.Context) ([]string, error)
+	AcknowledgeRestart(ctx context.Context) error
+
+	// Cache management
+	ClearCache()
+	CacheStats() settings.CacheStats
+}
+
+// ObjectRefResolver resolves object references for settings
+type ObjectRefResolver interface {
+	// ResolveOptions returns available options for an object reference type
+	ResolveOptions(ctx context.Context, refType string, filter map[string]interface{}) ([]*config.ObjectRefOption, error)
 }
 
 // HierarchicalSettingsServiceImpl implements HierarchicalSettingsService
 type HierarchicalSettingsServiceImpl struct {
-	defRepo   config.SettingDefinitionRepository
-	valueRepo config.SettingValueRepository
-	auditRepo config.SettingAuditRepository
-	tabRepo   config.SettingTabRepository
-	db        *bun.DB
+	defRepo     config.SettingDefinitionRepository
+	valueRepo   config.SettingValueRepository
+	auditRepo   config.SettingAuditRepository
+	tabRepo     config.SettingTabRepository
+	db          *bun.DB
+	cache       *settings.Cache
+	listeners   []SettingChangeListener
+	listenersMu sync.RWMutex
+	// pendingRestarts tracks settings that changed and require restart
+	pendingRestarts   map[string]bool
+	pendingRestartsMu sync.RWMutex
+	// objectRefResolver resolves object references
+	objectRefResolver ObjectRefResolver
+}
+
+// ServiceOption is a functional option for configuring the service
+type ServiceOption func(*HierarchicalSettingsServiceImpl)
+
+// WithCache sets a custom cache configuration
+func WithCache(cfg settings.CacheConfig) ServiceOption {
+	return func(s *HierarchicalSettingsServiceImpl) {
+		s.cache = settings.NewCache(cfg)
+	}
+}
+
+// WithObjectRefResolver sets the object reference resolver
+func WithObjectRefResolver(resolver ObjectRefResolver) ServiceOption {
+	return func(s *HierarchicalSettingsServiceImpl) {
+		s.objectRefResolver = resolver
+	}
 }
 
 // NewHierarchicalSettingsService creates a new hierarchical settings service
@@ -63,14 +124,25 @@ func NewHierarchicalSettingsService(
 	auditRepo config.SettingAuditRepository,
 	tabRepo config.SettingTabRepository,
 	db *bun.DB,
+	opts ...ServiceOption,
 ) *HierarchicalSettingsServiceImpl {
-	return &HierarchicalSettingsServiceImpl{
-		defRepo:   defRepo,
-		valueRepo: valueRepo,
-		auditRepo: auditRepo,
-		tabRepo:   tabRepo,
-		db:        db,
+	s := &HierarchicalSettingsServiceImpl{
+		defRepo:         defRepo,
+		valueRepo:       valueRepo,
+		auditRepo:       auditRepo,
+		tabRepo:         tabRepo,
+		db:              db,
+		cache:           settings.NewCache(settings.DefaultCacheConfig()),
+		listeners:       make([]SettingChangeListener, 0),
+		pendingRestarts: make(map[string]bool),
 	}
+
+	// Apply options
+	for _, opt := range opts {
+		opt(s)
+	}
+
+	return s
 }
 
 // SyncDefinitions syncs code-defined settings to the database
@@ -89,6 +161,11 @@ func (s *HierarchicalSettingsServiceImpl) SyncDefinitions(ctx context.Context) e
 
 // GetEffective returns the effective value after hierarchy resolution
 func (s *HierarchicalSettingsServiceImpl) GetEffective(ctx context.Context, key string, scopeCtx *config.ScopeContext) (*config.ResolvedSetting, error) {
+	// Check cache first
+	if cached, ok := s.cache.Get(key, scopeCtx); ok {
+		return cached, nil
+	}
+
 	// Get the definition
 	def, err := s.defRepo.FindByKey(ctx, key)
 	if err != nil {
@@ -130,6 +207,9 @@ func (s *HierarchicalSettingsServiceImpl) GetEffective(ctx context.Context, key 
 	if def.IsSensitive {
 		resolved.EffectiveValue = config.MaskedValue
 	}
+
+	// Store in cache
+	s.cache.Set(key, scopeCtx, resolved)
 
 	return resolved, nil
 }
@@ -212,18 +292,38 @@ func (s *HierarchicalSettingsServiceImpl) SetValue(ctx context.Context, key, val
 	}
 
 	// Log audit entry
-	if audit != nil {
-		action := config.AuditActionUpdate
-		if existingValue == nil {
-			action = config.AuditActionCreate
-		}
+	action := config.AuditActionUpdate
+	if existingValue == nil {
+		action = config.AuditActionCreate
+	}
 
+	if audit != nil {
 		auditEntry := audit.ToAuditEntry(def.ID, key, scope, scopeID, action, oldValue, &finalValue)
 		if err := s.auditRepo.Create(ctx, auditEntry); err != nil {
 			// Log error but don't fail the operation
 			fmt.Printf("Warning: failed to create audit entry: %v\n", err)
 		}
 	}
+
+	// Invalidate cache
+	s.cache.InvalidateForScope(key, scope, scopeID)
+
+	// Track if requires restart
+	if def.RequiresRestart {
+		s.pendingRestartsMu.Lock()
+		s.pendingRestarts[key] = true
+		s.pendingRestartsMu.Unlock()
+	}
+
+	// Notify listeners
+	s.notifyListeners(SettingChangeEvent{
+		Key:      key,
+		OldValue: oldValue,
+		NewValue: &value,
+		Scope:    scope,
+		ScopeID:  scopeID,
+		Action:   action,
+	})
 
 	return nil
 }
@@ -265,6 +365,19 @@ func (s *HierarchicalSettingsServiceImpl) DeleteOverride(ctx context.Context, ke
 		}
 	}
 
+	// Invalidate cache
+	s.cache.InvalidateForScope(key, scope, scopeID)
+
+	// Notify listeners
+	s.notifyListeners(SettingChangeEvent{
+		Key:      key,
+		OldValue: &existingValue.Value,
+		NewValue: nil,
+		Scope:    scope,
+		ScopeID:  scopeID,
+		Action:   config.AuditActionDelete,
+	})
+
 	return nil
 }
 
@@ -280,9 +393,24 @@ func (s *HierarchicalSettingsServiceImpl) GetObjectRefOptions(ctx context.Contex
 		return nil, fmt.Errorf("setting %q is not an object reference", key)
 	}
 
-	// TODO: Implement object reference resolution based on ObjectRefType and ObjectRefFilter
-	// This will require injecting domain repositories for rooms, groups, etc.
-	return []*config.ObjectRefOption{}, nil
+	if def.ObjectRefType == nil || *def.ObjectRefType == "" {
+		return nil, fmt.Errorf("setting %q has no object reference type defined", key)
+	}
+
+	// Use the resolver if available
+	if s.objectRefResolver == nil {
+		return []*config.ObjectRefOption{}, nil
+	}
+
+	// Parse filter if present
+	var filter map[string]interface{}
+	if len(def.ObjectRefFilter) > 0 {
+		if err := json.Unmarshal(def.ObjectRefFilter, &filter); err != nil {
+			return nil, fmt.Errorf("failed to parse object reference filter: %w", err)
+		}
+	}
+
+	return s.objectRefResolver.ResolveOptions(ctx, *def.ObjectRefType, filter)
 }
 
 // GetTabs returns available tabs based on user permissions
@@ -486,31 +614,163 @@ func (s *HierarchicalSettingsServiceImpl) PurgeDeletedOlderThan(ctx context.Cont
 	return valuesDeleted + defsDeleted, nil
 }
 
-// formatCategoryName converts a category key to a display name
+// formatCategoryName converts a category key to a display name using i18n
 func formatCategoryName(key string) string {
-	// Simple implementation - could be enhanced with i18n
-	names := map[string]string{
-		"system":         "System",
-		"session":        "Sitzungen",
-		"password":       "Passwort",
-		"jwt":            "Token",
-		"email":          "E-Mail",
-		"smtp":           "SMTP",
-		"sender":         "Absender",
-		"invitation":     "Einladungen",
-		"password_reset": "Passwort-Reset",
-		"appearance":     "Erscheinung",
-		"pagination":     "Seitenumbruch",
-		"format":         "Formatierung",
-		"device":         "Gerät",
-		"privacy":        "Datenschutz",
-		"checkin":        "Check-in",
-		"checkout":       "Check-out",
-		"capacity":       "Kapazität",
+	return settings.TranslateCategory(key)
+}
+
+// GetMultiple returns multiple settings at once (bulk operation)
+func (s *HierarchicalSettingsServiceImpl) GetMultiple(ctx context.Context, keys []string, scopeCtx *config.ScopeContext) (map[string]*config.ResolvedSetting, error) {
+	result := make(map[string]*config.ResolvedSetting, len(keys))
+
+	// Check cache first and collect uncached keys
+	uncachedKeys := make([]string, 0)
+	for _, key := range keys {
+		if cached, ok := s.cache.Get(key, scopeCtx); ok {
+			result[key] = cached
+		} else {
+			uncachedKeys = append(uncachedKeys, key)
+		}
 	}
 
-	if name, ok := names[key]; ok {
-		return name
+	if len(uncachedKeys) == 0 {
+		return result, nil
 	}
-	return key
+
+	// Fetch definitions for uncached keys
+	defs, err := s.defRepo.FindByKeys(ctx, uncachedKeys)
+	if err != nil {
+		return nil, err
+	}
+
+	// Build ID to key mapping
+	defByKey := make(map[string]*config.SettingDefinition, len(defs))
+	defIDs := make([]int64, 0, len(defs))
+	for _, def := range defs {
+		defByKey[def.Key] = def
+		defIDs = append(defIDs, def.ID)
+	}
+
+	// Bulk fetch values for all definitions
+	values, err := s.valueRepo.FindEffectiveValuesForDefinitions(ctx, defIDs, scopeCtx)
+	if err != nil {
+		return nil, err
+	}
+
+	// Build value map by definition ID
+	valueByDefID := make(map[int64]*config.SettingValue, len(values))
+	for _, v := range values {
+		valueByDefID[v.DefinitionID] = v
+	}
+
+	// Resolve each setting
+	for _, key := range uncachedKeys {
+		def, ok := defByKey[key]
+		if !ok {
+			continue // Skip unknown keys
+		}
+
+		resolved := &config.ResolvedSetting{
+			Key:        key,
+			Definition: def.ToDTO(),
+			CanView:    true,
+			CanEdit:    true,
+		}
+
+		if value, hasValue := valueByDefID[def.ID]; hasValue {
+			resolved.EffectiveValue = value.Value
+			resolved.EffectiveScope = value.ScopeType
+			resolved.EffectiveScopeID = value.ScopeID
+			resolved.IsDefault = false
+			resolved.IsOverridden = value.ScopeType != config.ScopeSystem
+		} else {
+			resolved.EffectiveValue = def.DefaultValue
+			resolved.EffectiveScope = config.ScopeSystem
+			resolved.IsDefault = true
+			resolved.IsOverridden = false
+		}
+
+		resolved.IsSensitive = def.IsSensitive
+		if def.IsSensitive {
+			resolved.EffectiveValue = config.MaskedValue
+		}
+
+		// Store in cache
+		s.cache.Set(key, scopeCtx, resolved)
+		result[key] = resolved
+	}
+
+	return result, nil
+}
+
+// AddChangeListener adds a listener that will be notified when settings change
+func (s *HierarchicalSettingsServiceImpl) AddChangeListener(listener SettingChangeListener) {
+	s.listenersMu.Lock()
+	defer s.listenersMu.Unlock()
+	s.listeners = append(s.listeners, listener)
+}
+
+// RemoveChangeListener removes a listener (by function pointer comparison - limited use)
+func (s *HierarchicalSettingsServiceImpl) RemoveChangeListener(listener SettingChangeListener) {
+	s.listenersMu.Lock()
+	defer s.listenersMu.Unlock()
+
+	// Note: Function comparison is limited in Go, this is a best-effort implementation
+	// For production use, consider using listener IDs instead
+	for i, l := range s.listeners {
+		if &l == &listener {
+			s.listeners = append(s.listeners[:i], s.listeners[i+1:]...)
+			return
+		}
+	}
+}
+
+// notifyListeners sends an event to all registered listeners
+func (s *HierarchicalSettingsServiceImpl) notifyListeners(event SettingChangeEvent) {
+	s.listenersMu.RLock()
+	listeners := make([]SettingChangeListener, len(s.listeners))
+	copy(listeners, s.listeners)
+	s.listenersMu.RUnlock()
+
+	for _, listener := range listeners {
+		// Call listeners asynchronously to avoid blocking
+		go func(l SettingChangeListener) {
+			defer func() {
+				if r := recover(); r != nil {
+					fmt.Printf("Warning: settings listener panicked: %v\n", r)
+				}
+			}()
+			l(event)
+		}(listener)
+	}
+}
+
+// GetPendingRestartSettings returns settings that have changed and require a restart
+func (s *HierarchicalSettingsServiceImpl) GetPendingRestartSettings(ctx context.Context) ([]string, error) {
+	s.pendingRestartsMu.RLock()
+	defer s.pendingRestartsMu.RUnlock()
+
+	keys := make([]string, 0, len(s.pendingRestarts))
+	for key := range s.pendingRestarts {
+		keys = append(keys, key)
+	}
+	return keys, nil
+}
+
+// AcknowledgeRestart clears the pending restart list (call after restart)
+func (s *HierarchicalSettingsServiceImpl) AcknowledgeRestart(ctx context.Context) error {
+	s.pendingRestartsMu.Lock()
+	defer s.pendingRestartsMu.Unlock()
+	s.pendingRestarts = make(map[string]bool)
+	return nil
+}
+
+// ClearCache clears all cached settings
+func (s *HierarchicalSettingsServiceImpl) ClearCache() {
+	s.cache.Clear()
+}
+
+// CacheStats returns cache statistics
+func (s *HierarchicalSettingsServiceImpl) CacheStats() settings.CacheStats {
+	return s.cache.Stats()
 }

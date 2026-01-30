@@ -140,6 +140,78 @@ func (r *SettingValueRepository) FindEffectiveValue(ctx context.Context, defID i
 	return nil, "", sql.ErrNoRows
 }
 
+// FindEffectiveValuesForDefinitions returns effective values for multiple definitions (bulk operation)
+// For each definition, it returns the highest-priority value based on the scope context
+func (r *SettingValueRepository) FindEffectiveValuesForDefinitions(ctx context.Context, defIDs []int64, scopeCtx *config.ScopeContext) ([]*config.SettingValue, error) {
+	if len(defIDs) == 0 {
+		return []*config.SettingValue{}, nil
+	}
+
+	// Build a single query that ranks values by scope priority and picks the top one per definition
+	// Priority: device (3) > user (2) > system (1)
+
+	// Build scope conditions
+	var scopeConditions []string
+	var scopeArgs []interface{}
+
+	// Always include system scope (no scope_id filter)
+	scopeConditions = append(scopeConditions, `(scope_type = 'system' AND scope_id IS NULL)`)
+
+	// Add user scope if context has account ID
+	if scopeCtx != nil && scopeCtx.AccountID != nil {
+		scopeConditions = append(scopeConditions, `(scope_type = 'user' AND scope_id = ?)`)
+		scopeArgs = append(scopeArgs, *scopeCtx.AccountID)
+	}
+
+	// Add device scope if context has device ID
+	if scopeCtx != nil && scopeCtx.DeviceID != nil {
+		scopeConditions = append(scopeConditions, `(scope_type = 'device' AND scope_id = ?)`)
+		scopeArgs = append(scopeArgs, *scopeCtx.DeviceID)
+	}
+
+	// Use window function to rank by scope priority and pick the highest
+	var values []*config.SettingValue
+
+	// Build the raw query with DISTINCT ON
+	sql := `
+		SELECT DISTINCT ON (definition_id) *
+		FROM config.setting_values
+		WHERE definition_id IN (?)
+		  AND deleted_at IS NULL
+		  AND (` + join(scopeConditions, " OR ") + `)
+		ORDER BY definition_id,
+			CASE scope_type
+				WHEN 'device' THEN 3
+				WHEN 'user' THEN 2
+				WHEN 'system' THEN 1
+				ELSE 0
+			END DESC
+	`
+
+	// Build args
+	args := []interface{}{bun.In(defIDs)}
+	args = append(args, scopeArgs...)
+
+	_, err := r.db.NewRaw(sql, args...).Exec(ctx, &values)
+	if err != nil {
+		return nil, err
+	}
+
+	return values, nil
+}
+
+// join helper for building SQL conditions
+func join(parts []string, sep string) string {
+	if len(parts) == 0 {
+		return ""
+	}
+	result := parts[0]
+	for i := 1; i < len(parts); i++ {
+		result += sep + parts[i]
+	}
+	return result
+}
+
 // FindByScopeType retrieves all values for a scope type
 func (r *SettingValueRepository) FindByScopeType(ctx context.Context, scopeType config.Scope) ([]*config.SettingValue, error) {
 	var values []*config.SettingValue
