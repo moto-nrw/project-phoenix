@@ -243,9 +243,21 @@ func (rs *Resource) getStaffIDFromJWT(r *http.Request) (int64, error) {
 	return staff.ID, nil
 }
 
-// requirePickupAccess parses the student from URL params and verifies full access.
+// requirePickupReadAccess parses the student from URL params without checking full access.
+// Used for read-only operations that should be visible to all authenticated staff.
 // Returns the student on success or writes an error response and returns nil.
-func (rs *Resource) requirePickupAccess(w http.ResponseWriter, r *http.Request, action string) *users.Student {
+func (rs *Resource) requirePickupReadAccess(w http.ResponseWriter, r *http.Request) *users.Student {
+	student, ok := rs.parseAndGetStudent(w, r)
+	if !ok {
+		return nil
+	}
+	return student
+}
+
+// requirePickupWriteAccess parses the student from URL params and verifies full access.
+// Used for write operations (create, update, delete) that require supervisor/admin access.
+// Returns the student on success or writes an error response and returns nil.
+func (rs *Resource) requirePickupWriteAccess(w http.ResponseWriter, r *http.Request, action string) *users.Student {
 	student, ok := rs.parseAndGetStudent(w, r)
 	if !ok {
 		return nil
@@ -270,8 +282,9 @@ func parseEntityID(w http.ResponseWriter, r *http.Request, param string, label s
 }
 
 // getStudentPickupSchedules handles GET /students/{id}/pickup-schedules
+// This endpoint is accessible to all authenticated staff (read-only)
 func (rs *Resource) getStudentPickupSchedules(w http.ResponseWriter, r *http.Request) {
-	student := rs.requirePickupAccess(w, r, "view pickup schedules")
+	student := rs.requirePickupReadAccess(w, r)
 	if student == nil {
 		return
 	}
@@ -310,7 +323,7 @@ func buildPickupDataResponse(data *scheduleService.StudentPickupData) PickupData
 
 // updateStudentPickupSchedules handles PUT /students/{id}/pickup-schedules
 func (rs *Resource) updateStudentPickupSchedules(w http.ResponseWriter, r *http.Request) {
-	student := rs.requirePickupAccess(w, r, "update pickup schedules")
+	student := rs.requirePickupWriteAccess(w, r, "update pickup schedules")
 	if student == nil {
 		return
 	}
@@ -360,7 +373,7 @@ func (rs *Resource) updateStudentPickupSchedules(w http.ResponseWriter, r *http.
 
 // createStudentPickupException handles POST /students/{id}/pickup-exceptions
 func (rs *Resource) createStudentPickupException(w http.ResponseWriter, r *http.Request) {
-	student := rs.requirePickupAccess(w, r, "create pickup exceptions")
+	student := rs.requirePickupWriteAccess(w, r, "create pickup exceptions")
 	if student == nil {
 		return
 	}
@@ -400,7 +413,7 @@ func (rs *Resource) createStudentPickupException(w http.ResponseWriter, r *http.
 
 // updateStudentPickupException handles PUT /students/{id}/pickup-exceptions/{exceptionId}
 func (rs *Resource) updateStudentPickupException(w http.ResponseWriter, r *http.Request) {
-	student := rs.requirePickupAccess(w, r, "update pickup exceptions")
+	student := rs.requirePickupWriteAccess(w, r, "update pickup exceptions")
 	if student == nil {
 		return
 	}
@@ -456,7 +469,7 @@ func (rs *Resource) updateStudentPickupException(w http.ResponseWriter, r *http.
 
 // deleteStudentPickupException handles DELETE /students/{id}/pickup-exceptions/{exceptionId}
 func (rs *Resource) deleteStudentPickupException(w http.ResponseWriter, r *http.Request) {
-	student := rs.requirePickupAccess(w, r, "delete pickup exceptions")
+	student := rs.requirePickupWriteAccess(w, r, "delete pickup exceptions")
 	if student == nil {
 		return
 	}
@@ -487,7 +500,7 @@ func (rs *Resource) deleteStudentPickupException(w http.ResponseWriter, r *http.
 
 // createStudentPickupNote handles POST /students/{id}/pickup-notes
 func (rs *Resource) createStudentPickupNote(w http.ResponseWriter, r *http.Request) {
-	student := rs.requirePickupAccess(w, r, "create pickup notes")
+	student := rs.requirePickupWriteAccess(w, r, "create pickup notes")
 	if student == nil {
 		return
 	}
@@ -522,7 +535,7 @@ func (rs *Resource) createStudentPickupNote(w http.ResponseWriter, r *http.Reque
 
 // updateStudentPickupNote handles PUT /students/{id}/pickup-notes/{noteId}
 func (rs *Resource) updateStudentPickupNote(w http.ResponseWriter, r *http.Request) {
-	student := rs.requirePickupAccess(w, r, "update pickup notes")
+	student := rs.requirePickupWriteAccess(w, r, "update pickup notes")
 	if student == nil {
 		return
 	}
@@ -569,7 +582,7 @@ func (rs *Resource) updateStudentPickupNote(w http.ResponseWriter, r *http.Reque
 
 // deleteStudentPickupNote handles DELETE /students/{id}/pickup-notes/{noteId}
 func (rs *Resource) deleteStudentPickupNote(w http.ResponseWriter, r *http.Request) {
-	student := rs.requirePickupAccess(w, r, "delete pickup notes")
+	student := rs.requirePickupWriteAccess(w, r, "delete pickup notes")
 	if student == nil {
 		return
 	}
