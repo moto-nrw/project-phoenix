@@ -33,7 +33,7 @@ interface ActivityManagementModalProps {
 }
 
 /** Maps delete error to user-friendly German message */
-function getDeleteErrorMessage(err: unknown): string {
+export function getDeleteErrorMessage(err: unknown): string {
   if (!(err instanceof Error)) {
     return "Fehler beim Löschen der Aktivität";
   }

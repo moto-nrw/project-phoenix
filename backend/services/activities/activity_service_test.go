@@ -2864,3 +2864,220 @@ func TestActivityService_ListGroups_DatabaseError(t *testing.T) {
 	// ASSERT
 	require.Error(t, err)
 }
+
+// =============================================================================
+// CanModifyActivity Ownership Tests
+// =============================================================================
+
+// TestActivityService_CanModifyActivity_AdminBypassesOwnership tests that admins can modify any activity
+func TestActivityService_CanModifyActivity_AdminBypassesOwnership(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupActivityService(t, db)
+	ctx := context.Background()
+
+	// ARRANGE: Create staff and activity
+	staff := testpkg.CreateTestStaff(t, db, "Creator", "Staff")
+	category := testpkg.CreateTestActivityCategory(t, db, "admin-test")
+	defer testpkg.CleanupActivityFixtures(t, db, staff.ID, category.ID)
+
+	group := &activitiesModels.Group{
+		Name:            "Admin Test Activity",
+		MaxParticipants: 10,
+		CategoryID:      category.ID,
+		CreatedBy:       staff.ID,
+	}
+	created, err := service.CreateGroup(ctx, group, []int64{staff.ID}, nil)
+	require.NoError(t, err)
+	defer cleanupGroup(service, ctx, created.ID)
+
+	// ACT: Check if a different staff with admin permission can modify
+	otherStaffID := int64(99999) // Non-existent staff ID
+	canModify, err := service.CanModifyActivity(ctx, created.ID, otherStaffID, true)
+
+	// ASSERT: Admin permission should bypass ownership check
+	require.NoError(t, err)
+	assert.True(t, canModify, "Admin should be able to modify any activity")
+}
+
+// TestActivityService_CanModifyActivity_CreatorCanModify tests that the creator can modify their activity
+func TestActivityService_CanModifyActivity_CreatorCanModify(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupActivityService(t, db)
+	ctx := context.Background()
+
+	// ARRANGE: Create staff and activity
+	staff := testpkg.CreateTestStaff(t, db, "Creator", "Staff")
+	category := testpkg.CreateTestActivityCategory(t, db, "creator-test")
+	defer testpkg.CleanupActivityFixtures(t, db, staff.ID, category.ID)
+
+	group := &activitiesModels.Group{
+		Name:            "Creator Test Activity",
+		MaxParticipants: 10,
+		CategoryID:      category.ID,
+		CreatedBy:       staff.ID,
+	}
+	created, err := service.CreateGroup(ctx, group, []int64{staff.ID}, nil)
+	require.NoError(t, err)
+	defer cleanupGroup(service, ctx, created.ID)
+
+	// ACT: Check if creator can modify (without admin permission)
+	canModify, err := service.CanModifyActivity(ctx, created.ID, staff.ID, false)
+
+	// ASSERT: Creator should be able to modify their own activity
+	require.NoError(t, err)
+	assert.True(t, canModify, "Creator should be able to modify their own activity")
+}
+
+// TestActivityService_CanModifyActivity_SupervisorCanModify tests that supervisors can modify the activity
+func TestActivityService_CanModifyActivity_SupervisorCanModify(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupActivityService(t, db)
+	ctx := context.Background()
+
+	// ARRANGE: Create two staff members
+	creator := testpkg.CreateTestStaff(t, db, "Creator", "Staff")
+	supervisor := testpkg.CreateTestStaff(t, db, "Supervisor", "Staff")
+	category := testpkg.CreateTestActivityCategory(t, db, "supervisor-test")
+	defer testpkg.CleanupActivityFixtures(t, db, creator.ID, supervisor.ID, category.ID)
+
+	// Create activity with supervisor as an assigned supervisor
+	group := &activitiesModels.Group{
+		Name:            "Supervisor Test Activity",
+		MaxParticipants: 10,
+		CategoryID:      category.ID,
+		CreatedBy:       creator.ID,
+	}
+	created, err := service.CreateGroup(ctx, group, []int64{creator.ID, supervisor.ID}, nil)
+	require.NoError(t, err)
+	defer cleanupGroup(service, ctx, created.ID)
+
+	// ACT: Check if supervisor can modify (without admin permission)
+	canModify, err := service.CanModifyActivity(ctx, created.ID, supervisor.ID, false)
+
+	// ASSERT: Supervisor should be able to modify the activity
+	require.NoError(t, err)
+	assert.True(t, canModify, "Supervisor should be able to modify the activity")
+}
+
+// TestActivityService_CanModifyActivity_NonOwnerCannotModify tests that non-owners cannot modify
+func TestActivityService_CanModifyActivity_NonOwnerCannotModify(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupActivityService(t, db)
+	ctx := context.Background()
+
+	// ARRANGE: Create staff and activity
+	creator := testpkg.CreateTestStaff(t, db, "Creator", "Staff")
+	otherStaff := testpkg.CreateTestStaff(t, db, "Other", "Staff")
+	category := testpkg.CreateTestActivityCategory(t, db, "nonowner-test")
+	defer testpkg.CleanupActivityFixtures(t, db, creator.ID, otherStaff.ID, category.ID)
+
+	group := &activitiesModels.Group{
+		Name:            "Non-Owner Test Activity",
+		MaxParticipants: 10,
+		CategoryID:      category.ID,
+		CreatedBy:       creator.ID,
+	}
+	created, err := service.CreateGroup(ctx, group, []int64{creator.ID}, nil)
+	require.NoError(t, err)
+	defer cleanupGroup(service, ctx, created.ID)
+
+	// ACT: Check if other staff (not creator, not supervisor) can modify
+	canModify, err := service.CanModifyActivity(ctx, created.ID, otherStaff.ID, false)
+
+	// ASSERT: Non-owner should NOT be able to modify
+	require.NoError(t, err)
+	assert.False(t, canModify, "Non-owner should not be able to modify activity")
+}
+
+// TestActivityService_CanModifyActivity_GroupNotFound tests error when group doesn't exist
+func TestActivityService_CanModifyActivity_GroupNotFound(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupActivityService(t, db)
+	ctx := context.Background()
+
+	// ACT: Check permissions for non-existent group
+	canModify, err := service.CanModifyActivity(ctx, 999999, 1, false)
+
+	// ASSERT: Should return error for non-existent group
+	require.Error(t, err)
+	assert.False(t, canModify)
+	assert.True(t, errors.Is(err, activities.ErrGroupNotFound) || err.Error() == "check permissions: activity group not found")
+}
+
+// TestActivityService_UpdateGroup_OwnershipEnforced tests that UpdateGroup enforces ownership
+func TestActivityService_UpdateGroup_OwnershipEnforced(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupActivityService(t, db)
+	ctx := context.Background()
+
+	// ARRANGE: Create two staff members and an activity
+	creator := testpkg.CreateTestStaff(t, db, "Creator", "Staff")
+	otherStaff := testpkg.CreateTestStaff(t, db, "Other", "Staff")
+	category := testpkg.CreateTestActivityCategory(t, db, "update-owner-test")
+	defer testpkg.CleanupActivityFixtures(t, db, creator.ID, otherStaff.ID, category.ID)
+
+	group := &activitiesModels.Group{
+		Name:            "Update Owner Test",
+		MaxParticipants: 10,
+		CategoryID:      category.ID,
+		CreatedBy:       creator.ID,
+	}
+	created, err := service.CreateGroup(ctx, group, []int64{creator.ID}, nil)
+	require.NoError(t, err)
+	defer cleanupGroup(service, ctx, created.ID)
+
+	// ACT: Non-owner tries to update without admin permission
+	created.Name = "Modified Name"
+	_, err = service.UpdateGroup(ctx, created, otherStaff.ID, false)
+
+	// ASSERT: Should return ownership error
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, activities.ErrNotOwner) || err.Error() == "update group: you can only modify activities you created or supervise")
+}
+
+// TestActivityService_DeleteGroup_OwnershipEnforced tests that DeleteGroup enforces ownership
+func TestActivityService_DeleteGroup_OwnershipEnforced(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupActivityService(t, db)
+	ctx := context.Background()
+
+	// ARRANGE: Create two staff members and an activity
+	creator := testpkg.CreateTestStaff(t, db, "Creator", "Staff")
+	otherStaff := testpkg.CreateTestStaff(t, db, "Other", "Staff")
+	category := testpkg.CreateTestActivityCategory(t, db, "delete-owner-test")
+	defer testpkg.CleanupActivityFixtures(t, db, creator.ID, otherStaff.ID, category.ID)
+
+	group := &activitiesModels.Group{
+		Name:            "Delete Owner Test",
+		MaxParticipants: 10,
+		CategoryID:      category.ID,
+		CreatedBy:       creator.ID,
+	}
+	created, err := service.CreateGroup(ctx, group, []int64{creator.ID}, nil)
+	require.NoError(t, err)
+	// Note: No cleanup needed as the test expects deletion to fail
+
+	// ACT: Non-owner tries to delete without admin permission
+	err = service.DeleteGroup(ctx, created.ID, otherStaff.ID, false)
+
+	// ASSERT: Should return ownership error
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, activities.ErrNotOwner) || err.Error() == "delete group: you can only modify activities you created or supervise")
+
+	// Cleanup: Delete with admin permission
+	cleanupGroup(service, ctx, created.ID)
+}
