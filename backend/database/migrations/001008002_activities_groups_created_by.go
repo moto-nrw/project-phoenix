@@ -34,7 +34,7 @@ func migrateActivitiesGroupsCreatedBy(ctx context.Context, db *bun.DB) error {
 
 	// Add created_by column with NOT NULL constraint
 	fmt.Println("  Adding created_by column...")
-	_, err = db.ExecContext(ctx, `
+	_, err := db.ExecContext(ctx, `
 		ALTER TABLE activities.groups
 		ADD COLUMN created_by BIGINT NOT NULL
 	`)
