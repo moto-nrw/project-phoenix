@@ -219,6 +219,12 @@ type CleanupService interface {
 
 	// PreviewAttendanceCleanup shows what attendance records would be cleaned
 	PreviewAttendanceCleanup(ctx context.Context) (*AttendanceCleanupPreview, error)
+
+	// CleanupStaleSupervisors closes supervisor records from previous days that lack end_date
+	CleanupStaleSupervisors(ctx context.Context) (*SupervisorCleanupResult, error)
+
+	// PreviewSupervisorCleanup shows what supervisor records would be cleaned
+	PreviewSupervisorCleanup(ctx context.Context) (*SupervisorCleanupPreview, error)
 }
 
 // CleanupResult represents the result of a cleanup operation
@@ -299,4 +305,23 @@ type AttendanceCleanupPreview struct {
 	StudentRecords map[int64]int  `json:"student_records"` // studentID -> count
 	OldestRecord   *time.Time     `json:"oldest_record,omitempty"`
 	RecordsByDate  map[string]int `json:"records_by_date"` // date -> count
+}
+
+// SupervisorCleanupResult represents the result of cleaning stale supervisor records
+type SupervisorCleanupResult struct {
+	StartedAt        time.Time  `json:"started_at"`
+	CompletedAt      time.Time  `json:"completed_at"`
+	RecordsClosed    int        `json:"records_closed"`
+	StaffAffected    int        `json:"staff_affected"`
+	OldestRecordDate *time.Time `json:"oldest_record_date,omitempty"`
+	Success          bool       `json:"success"`
+	Errors           []string   `json:"errors,omitempty"`
+}
+
+// SupervisorCleanupPreview shows what supervisor records would be cleaned
+type SupervisorCleanupPreview struct {
+	TotalRecords  int            `json:"total_records"`
+	StaffRecords  map[int64]int  `json:"staff_records"` // staffID -> count
+	OldestRecord  *time.Time     `json:"oldest_record,omitempty"`
+	RecordsByDate map[string]int `json:"records_by_date"` // date -> count
 }

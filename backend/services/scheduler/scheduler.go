@@ -204,7 +204,7 @@ func (s *Scheduler) executeCleanup(task *ScheduledTask) {
 		task.mu.Unlock()
 	}()
 
-	log.Println("Starting scheduled visit cleanup...")
+	log.Println("Starting scheduled cleanup (visits + supervisors)...")
 	startTime := time.Now()
 
 	// Get timeout from env or default to 30 minutes
@@ -242,6 +242,18 @@ func (s *Scheduler) executeCleanup(task *ScheduledTask) {
 		if len(result.Errors) > 10 {
 			log.Printf(fmtAndMoreErrors, len(result.Errors)-10)
 		}
+	}
+
+	// Clean up stale supervisor records from previous days
+	supervisorResult, err := s.cleanupService.CleanupStaleSupervisors(ctx)
+	if err != nil {
+		log.Printf("ERROR: Scheduled supervisor cleanup failed: %v", err)
+	} else {
+		log.Printf("Supervisor cleanup completed: closed %d records, %d staff affected, success: %v",
+			supervisorResult.RecordsClosed,
+			supervisorResult.StaffAffected,
+			supervisorResult.Success,
+		)
 	}
 }
 
