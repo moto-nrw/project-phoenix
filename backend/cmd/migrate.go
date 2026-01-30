@@ -7,13 +7,20 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// Migration function variables for testability (overridden in tests).
+var (
+	migrateFn       = migrations.Migrate
+	migrateResetFn  = migrations.Reset
+	migrateStatusFn = migrations.MigrateStatus
+)
+
 // migrateCmd represents the migrate command
 var migrateCmd = &cobra.Command{
 	Use:   "migrate",
 	Short: "use bun migration tool",
 	Long:  `run bun migrations`,
 	Run: func(cmd *cobra.Command, args []string) {
-		migrations.Migrate()
+		migrateFn()
 	},
 }
 
@@ -23,7 +30,7 @@ var migrateResetCmd = &cobra.Command{
 	Short: "reset database and run all migrations",
 	Long:  `WARNING: This will delete all data in the database and run all migrations from scratch`,
 	Run: func(cmd *cobra.Command, args []string) {
-		migrations.Reset()
+		migrateResetFn()
 	},
 }
 
@@ -33,7 +40,7 @@ var migrateStatusCmd = &cobra.Command{
 	Short: "show migration status",
 	Long:  `Display the status of all migrations, showing which ones have been applied`,
 	Run: func(cmd *cobra.Command, args []string) {
-		migrations.MigrateStatus()
+		migrateStatusFn()
 	},
 }
 
