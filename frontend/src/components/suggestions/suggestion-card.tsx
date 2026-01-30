@@ -13,30 +13,30 @@ interface SuggestionCardProps {
   readonly onVoteChange: (updated: Suggestion) => void;
 }
 
-function getRelativeTime(dateStr: string): string {
-  const now = Date.now();
-  const date = new Date(dateStr).getTime();
-  const diff = now - date;
+function formatUnit(value: number, singular: string, plural: string): string {
+  return `vor ${value} ${value === 1 ? singular : plural}`;
+}
 
+function getRelativeTime(dateStr: string): string {
+  const diff = Date.now() - new Date(dateStr).getTime();
   const minutes = Math.floor(diff / 60000);
   if (minutes < 1) return "gerade eben";
-  if (minutes < 60)
-    return `vor ${minutes} ${minutes === 1 ? "Minute" : "Minuten"}`;
+  if (minutes < 60) return formatUnit(minutes, "Minute", "Minuten");
 
   const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `vor ${hours} ${hours === 1 ? "Stunde" : "Stunden"}`;
+  if (hours < 24) return formatUnit(hours, "Stunde", "Stunden");
 
   const days = Math.floor(hours / 24);
-  if (days < 7) return `vor ${days} ${days === 1 ? "Tag" : "Tagen"}`;
+  if (days < 7) return formatUnit(days, "Tag", "Tagen");
 
   const weeks = Math.floor(days / 7);
-  if (weeks < 5) return `vor ${weeks} ${weeks === 1 ? "Woche" : "Wochen"}`;
+  if (weeks < 5) return formatUnit(weeks, "Woche", "Wochen");
 
   const months = Math.floor(days / 30);
-  if (months < 12) return `vor ${months} ${months === 1 ? "Monat" : "Monaten"}`;
+  if (months < 12) return formatUnit(months, "Monat", "Monaten");
 
   const years = Math.floor(days / 365);
-  return `vor ${years} ${years === 1 ? "Jahr" : "Jahren"}`;
+  return formatUnit(years, "Jahr", "Jahren");
 }
 
 function getInitials(name: string): string {
@@ -45,7 +45,7 @@ function getInitials(name: string): string {
   if (parts.length === 1) return (parts[0]?.[0] ?? "?").toUpperCase();
   return (
     (parts[0]?.[0] ?? "").toUpperCase() +
-    (parts[parts.length - 1]?.[0] ?? "").toUpperCase()
+    (parts.at(-1)?.[0] ?? "").toUpperCase()
   );
 }
 

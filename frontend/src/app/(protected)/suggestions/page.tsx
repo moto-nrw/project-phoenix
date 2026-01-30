@@ -66,7 +66,7 @@ function SuggestionsPageContent() {
 
   const handleVoteChange = useCallback(
     (updated: Suggestion) => {
-      void mutate(
+      mutate(
         (current) => {
           if (!current) return current;
           const next = current.map((s) => (s.id === updated.id ? updated : s));
@@ -84,7 +84,7 @@ function SuggestionsPageContent() {
           return next;
         },
         { revalidate: false },
-      );
+      ).catch(() => undefined);
     },
     [mutate, sortBy],
   );
@@ -100,7 +100,7 @@ function SuggestionsPageContent() {
   }, []);
 
   const handleFormSuccess = useCallback(() => {
-    void mutate();
+    mutate().catch(() => undefined);
   }, [mutate]);
 
   const handleDelete = useCallback(async () => {
@@ -110,7 +110,7 @@ function SuggestionsPageContent() {
       await deleteSuggestion(deleteTarget.id);
       toastSuccess("Beitrag wurde gelöscht.");
       setDeleteTarget(null);
-      void mutate();
+      mutate().catch(() => undefined);
     } catch {
       toastError("Fehler beim Löschen des Beitrags.");
     } finally {
@@ -201,14 +201,14 @@ function SuggestionsPageContent() {
         }
       />
 
-      {isLoading ? (
-        <Loading message="Laden..." fullPage={false} />
-      ) : filteredSuggestions.length === 0 ? (
+      {isLoading && <Loading message="Laden..." fullPage={false} />}
+      {!isLoading && filteredSuggestions.length === 0 && (
         <EmptyState
           hasSearch={searchTerm.trim().length > 0}
           onCreateClick={() => setFormOpen(true)}
         />
-      ) : (
+      )}
+      {!isLoading && filteredSuggestions.length > 0 && (
         <LayoutGroup>
           <div className="mt-4 space-y-4">
             <AnimatePresence>
@@ -242,7 +242,9 @@ function SuggestionsPageContent() {
       <ConfirmationModal
         isOpen={!!deleteTarget}
         onClose={() => setDeleteTarget(null)}
-        onConfirm={() => void handleDelete()}
+        onConfirm={() => {
+          handleDelete().catch(() => undefined);
+        }}
         title="Beitrag löschen?"
         confirmText="Löschen"
         confirmButtonClass="bg-red-500 hover:bg-red-600"

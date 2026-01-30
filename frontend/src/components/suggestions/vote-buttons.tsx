@@ -102,7 +102,9 @@ export function VoteButtons({ suggestion, onVoteChange }: VoteButtonsProps) {
     <div className="flex items-center gap-3 md:w-16 md:flex-col md:gap-2">
       <button
         type="button"
-        onClick={() => void handleVote("up")}
+        onClick={() => {
+          handleVote("up").catch(() => undefined);
+        }}
         aria-pressed={userVote === "up"}
         aria-label="Positiv bewerten"
         className={`flex items-center gap-1 rounded-lg p-1 transition-colors ${upClasses}`}
@@ -119,7 +121,9 @@ export function VoteButtons({ suggestion, onVoteChange }: VoteButtonsProps) {
       </button>
       <button
         type="button"
-        onClick={() => void handleVote("down")}
+        onClick={() => {
+          handleVote("down").catch(() => undefined);
+        }}
         aria-pressed={userVote === "down"}
         aria-label="Negativ bewerten"
         className={`flex items-center gap-1 rounded-lg p-1 transition-colors ${downClasses}`}
