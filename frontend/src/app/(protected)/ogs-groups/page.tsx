@@ -394,11 +394,22 @@ function OGSGroupPageContent() {
         void switchToGroup(targetIndex);
       }
     } else {
-      // No ?group= param (e.g. after login) — persist default selection
-      const firstGroup = allGroups[0];
-      if (firstGroup) {
-        localStorage.setItem("sidebar-last-group", firstGroup.id);
+      // No ?group= param (e.g. after login or browser back) — restore from
+      // localStorage so the user returns to their previously selected group.
+      const savedGroupId = localStorage.getItem("sidebar-last-group");
+      const savedIndex = savedGroupId
+        ? allGroups.findIndex((g) => g.id === savedGroupId)
+        : -1;
+      if (savedIndex !== -1 && savedIndex !== selectedGroupIndex) {
+        void switchToGroup(savedIndex);
+      } else if (savedIndex === -1) {
+        // Nothing saved or saved group no longer exists — persist first group
+        const firstGroup = allGroups[0];
+        if (firstGroup) {
+          localStorage.setItem("sidebar-last-group", firstGroup.id);
+        }
       }
+      // When savedIndex === selectedGroupIndex, do nothing — already in sync
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allGroups, groupParam]);
@@ -1206,7 +1217,17 @@ function OGSGroupPageContent() {
                   activeTab: currentGroup?.id ?? "",
                   onTabChange: (tabId) => {
                     const index = allGroups.findIndex((g) => g.id === tabId);
-                    if (index !== -1) void switchToGroup(index);
+                    if (index !== -1) {
+                      localStorage.setItem("sidebar-last-group", tabId);
+                      const groupName = allGroups[index]?.name;
+                      if (groupName) {
+                        localStorage.setItem(
+                          "sidebar-last-group-name",
+                          groupName,
+                        );
+                      }
+                      void switchToGroup(index);
+                    }
                   },
                 }
               : undefined

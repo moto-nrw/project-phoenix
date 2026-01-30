@@ -564,11 +564,22 @@ function MeinRaumPageContent() {
         void switchToRoom(targetIndex);
       }
     } else {
-      // No ?room= param (e.g. after login) — persist default selection
-      const firstRoom = allRooms[0];
-      if (firstRoom?.room_id) {
-        localStorage.setItem("sidebar-last-room", firstRoom.room_id);
+      // No ?room= param (e.g. after login or browser back) — restore from
+      // localStorage so the user returns to their previously selected room.
+      const savedRoomId = localStorage.getItem("sidebar-last-room");
+      const savedIndex = savedRoomId
+        ? allRooms.findIndex((r) => r.room_id === savedRoomId)
+        : -1;
+      if (savedIndex !== -1 && savedIndex !== selectedRoomIndex) {
+        void switchToRoom(savedIndex);
+      } else if (savedIndex === -1) {
+        // Nothing saved or saved room no longer exists — persist first room
+        const firstRoom = allRooms[0];
+        if (firstRoom?.room_id) {
+          localStorage.setItem("sidebar-last-room", firstRoom.room_id);
+        }
       }
+      // When savedIndex === selectedRoomIndex, do nothing — already in sync
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allRooms, roomParam]);
@@ -980,7 +991,17 @@ function MeinRaumPageContent() {
                 activeTab: currentRoom?.id ?? "",
                 onTabChange: (tabId) => {
                   const index = allRooms.findIndex((r) => r.id === tabId);
-                  if (index !== -1) void switchToRoom(index);
+                  if (index !== -1) {
+                    const room = allRooms[index];
+                    if (room?.room_id) {
+                      localStorage.setItem("sidebar-last-room", room.room_id);
+                    }
+                    const roomName = room?.room_name;
+                    if (roomName) {
+                      localStorage.setItem("sidebar-last-room-name", roomName);
+                    }
+                    void switchToRoom(index);
+                  }
                 },
               }
             : undefined
