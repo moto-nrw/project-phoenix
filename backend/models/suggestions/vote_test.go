@@ -138,6 +138,7 @@ func TestVote_GetUpdatedAt(t *testing.T) {
 }
 
 func TestVote_BeforeAppendModel(t *testing.T) {
+	// mock DB with nil driver — no real database connection
 	db := bun.NewDB(nil, pgdialect.New())
 	v := &Vote{}
 

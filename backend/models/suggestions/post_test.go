@@ -229,6 +229,7 @@ func TestPost_GetUpdatedAt(t *testing.T) {
 }
 
 func TestPost_BeforeAppendModel(t *testing.T) {
+	// mock DB with nil driver — no real database connection
 	db := bun.NewDB(nil, pgdialect.New())
 	p := &Post{}
 
