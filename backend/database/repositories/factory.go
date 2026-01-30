@@ -11,6 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories/feedback"
 	"github.com/moto-nrw/project-phoenix/database/repositories/iot"
 	"github.com/moto-nrw/project-phoenix/database/repositories/schedule"
+	suggestionsRepo "github.com/moto-nrw/project-phoenix/database/repositories/suggestions"
 	"github.com/moto-nrw/project-phoenix/database/repositories/users"
 
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
@@ -23,6 +24,7 @@ import (
 	feedbackModels "github.com/moto-nrw/project-phoenix/models/feedback"
 	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	suggestionsModels "github.com/moto-nrw/project-phoenix/models/suggestions"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 
 	"github.com/uptrace/bun"
@@ -98,6 +100,10 @@ type Factory struct {
 
 	// Config domain
 	Setting configModels.SettingRepository
+
+	// Suggestions domain
+	SuggestionPost suggestionsModels.PostRepository
+	SuggestionVote suggestionsModels.VoteRepository
 
 	// Audit domain
 	DataDeletion auditModels.DataDeletionRepository
@@ -176,6 +182,10 @@ func NewFactory(db *bun.DB) *Factory {
 
 		// Config repositories
 		Setting: config.NewSettingRepository(db),
+
+		// Suggestions repositories
+		SuggestionPost: suggestionsRepo.NewPostRepository(db),
+		SuggestionVote: suggestionsRepo.NewVoteRepository(db),
 
 		// Audit repositories
 		DataDeletion: audit.NewDataDeletionRepository(db),

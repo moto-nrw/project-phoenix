@@ -27,6 +27,7 @@ import (
 	importService "github.com/moto-nrw/project-phoenix/services/import"
 	"github.com/moto-nrw/project-phoenix/services/iot"
 	"github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/services/suggestions"
 	"github.com/moto-nrw/project-phoenix/services/usercontext"
 	"github.com/moto-nrw/project-phoenix/services/users"
 )
@@ -42,6 +43,7 @@ type Factory struct {
 	Facilities               facilities.Service
 	Invitation               auth.InvitationService
 	Feedback                 feedback.Service
+	Suggestions              suggestions.Service
 	IoT                      iot.Service
 	Config                   config.Service
 	Schedule                 schedule.Service
@@ -182,6 +184,13 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 	// Initialize feedback service
 	feedbackService := feedback.NewService(
 		repos.FeedbackEntry,
+		db,
+	)
+
+	// Initialize suggestions service
+	suggestionsService := suggestions.NewService(
+		repos.SuggestionPost,
+		repos.SuggestionVote,
 		db,
 	)
 
@@ -336,6 +345,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 		GradeTransition:          gradeTransitionService,
 		Facilities:               facilitiesService,
 		Feedback:                 feedbackService,
+		Suggestions:              suggestionsService,
 		IoT:                      iotService,
 		Config:                   configService,
 		Schedule:                 scheduleService,
