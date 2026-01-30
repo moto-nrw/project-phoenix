@@ -27,14 +27,38 @@ var ActivitiesGroupsCreatedByDependencies = []string{
 }
 
 // migrateActivitiesGroupsCreatedBy adds created_by column to activities.groups
-// NOTE: This migration assumes activities.groups is empty. If you have existing data,
-// manually run: TRUNCATE TABLE activities.groups CASCADE; before applying.
+// WARNING: This migration truncates activities.groups and all dependent tables (CASCADE)
+// to add a NOT NULL created_by column. Deploy during off-hours when no active sessions exist.
+// Affected tables: activities.groups, activities.supervisors, activities.schedules,
+// activities.student_enrollments, active.groups, active.visits, active.group_supervisors,
+// active.group_mappings
 func migrateActivitiesGroupsCreatedBy(ctx context.Context, db *bun.DB) error {
 	fmt.Println("Migration 1.8.2: Adding created_by column to activities.groups...")
 
-	// Add created_by column with NOT NULL constraint
+	// Step 1: Check for existing data and log what will be deleted
+	var count int
+	err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM activities.groups`).Scan(&count)
+	if err != nil {
+		return fmt.Errorf("error checking activities.groups count: %w", err)
+	}
+
+	if count > 0 {
+		fmt.Printf("  WARNING: Found %d existing activity groups - will be deleted (CASCADE)\n", count)
+		fmt.Println("  Cascading tables: activities.supervisors, activities.schedules,")
+		fmt.Println("                    activities.student_enrollments, active.groups,")
+		fmt.Println("                    active.visits, active.group_supervisors, active.group_mappings")
+	}
+
+	// Step 2: Truncate table with CASCADE to clear dependent data
+	fmt.Println("  Truncating activities.groups (CASCADE)...")
+	_, err = db.ExecContext(ctx, `TRUNCATE TABLE activities.groups CASCADE`)
+	if err != nil {
+		return fmt.Errorf("error truncating activities.groups: %w", err)
+	}
+
+	// Step 3: Add created_by column with NOT NULL constraint
 	fmt.Println("  Adding created_by column...")
-	_, err := db.ExecContext(ctx, `
+	_, err = db.ExecContext(ctx, `
 		ALTER TABLE activities.groups
 		ADD COLUMN created_by BIGINT NOT NULL
 	`)
@@ -42,7 +66,7 @@ func migrateActivitiesGroupsCreatedBy(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error adding created_by column: %w", err)
 	}
 
-	// Step 3: Add foreign key constraint
+	// Step 4: Add foreign key constraint
 	fmt.Println("  Adding foreign key constraint...")
 	_, err = db.ExecContext(ctx, `
 		ALTER TABLE activities.groups
@@ -53,7 +77,7 @@ func migrateActivitiesGroupsCreatedBy(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error adding foreign key constraint: %w", err)
 	}
 
-	// Step 4: Add index for performance
+	// Step 5: Add index for performance
 	fmt.Println("  Creating index on created_by...")
 	_, err = db.ExecContext(ctx, `
 		CREATE INDEX IF NOT EXISTS idx_activity_groups_created_by
