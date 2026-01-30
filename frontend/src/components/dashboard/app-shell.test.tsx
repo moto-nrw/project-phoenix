@@ -1,6 +1,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { AppShell } from "./app-shell";
+import { mockSessionData } from "~/test/mocks/next-auth";
 
 const mockPush = vi.fn();
 
@@ -13,15 +14,7 @@ vi.mock("next/navigation", () => ({
 
 vi.mock("next-auth/react", () => ({
   useSession: vi.fn(() => ({
-    data: {
-      user: {
-        id: "1",
-        name: "Test User",
-        email: "test@example.com",
-        token: "valid-token",
-        roles: ["admin"],
-      },
-    },
+    data: mockSessionData(),
     status: "authenticated",
   })),
 }));

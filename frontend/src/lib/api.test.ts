@@ -9,12 +9,6 @@ vi.mock("next-auth/react", () => ({
   getSession: vi.fn(() => Promise.resolve({ user: { token: "test-token" } })),
 }));
 
-vi.mock("~/env", () => ({
-  env: {
-    NEXT_PUBLIC_API_URL: "http://localhost:8080",
-  },
-}));
-
 vi.mock("./auth-api", () => ({
   handleAuthFailure: vi.fn(() => Promise.resolve(true)),
 }));

@@ -21,12 +21,6 @@ vi.mock("next-auth/react", () => ({
   ),
 }));
 
-vi.mock("~/env", () => ({
-  env: {
-    NEXT_PUBLIC_API_URL: "http://localhost:8080",
-  },
-}));
-
 vi.mock("./api", () => ({
   default: {
     get: vi.fn(),

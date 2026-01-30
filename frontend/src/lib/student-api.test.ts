@@ -1,7 +1,12 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import type { BackendStudent, Student } from "./student-helpers";
-import type { BackendGroup } from "./group-helpers";
-import type { AxiosResponse } from "axios";
+import { suppressConsole } from "~/test/helpers/console";
+import { createAxiosResponse } from "~/test/helpers/axios";
+import { mockSessionData } from "~/test/mocks/next-auth";
+import {
+  buildBackendStudent,
+  buildStudent,
+  buildBackendGroup,
+} from "~/test/fixtures";
 
 // Mock dependencies before importing the module
 vi.mock("next-auth/react", () => ({
@@ -22,12 +27,6 @@ vi.mock("./api", () => ({
     post: vi.fn(),
     put: vi.fn(),
     delete: vi.fn(),
-  },
-}));
-
-vi.mock("~/env", () => ({
-  env: {
-    NEXT_PUBLIC_API_URL: "http://localhost:8080",
   },
 }));
 
@@ -52,7 +51,7 @@ import {
 } from "./student-api";
 
 // Sample data matching actual type definitions
-const sampleBackendStudent: BackendStudent = {
+const sampleBackendStudent = buildBackendStudent({
   id: 1,
   person_id: 100,
   first_name: "Max",
@@ -61,12 +60,10 @@ const sampleBackendStudent: BackendStudent = {
   current_location: "Schule",
   group_id: 10,
   tag_id: "TAG001",
-  created_at: "2024-01-01T00:00:00Z",
-  updated_at: "2024-01-15T12:00:00Z",
-};
+});
 
 // Sample mapped student (frontend type)
-const sampleStudent: Student = {
+const sampleStudent = buildStudent({
   id: "1",
   name: "Max Mustermann",
   first_name: "Max",
@@ -74,15 +71,13 @@ const sampleStudent: Student = {
   school_class: "3a",
   current_location: "Schule",
   group_id: "10",
-};
+});
 
-const sampleBackendGroup: BackendGroup = {
+const sampleBackendGroup = buildBackendGroup({
   id: 1,
   name: "Class 3A",
   room_id: 10,
-  created_at: "2024-01-01T00:00:00Z",
-  updated_at: "2024-01-15T12:00:00Z",
-};
+});
 
 // Type for mocked functions
 const mockedIsBrowserContext = vi.mocked(isBrowserContext);
@@ -90,33 +85,12 @@ const mockedAuthFetch = vi.mocked(authFetch);
 const mockedGetSession = vi.mocked(getSession);
 const mockedHandleDomainApiError = vi.mocked(handleDomainApiError);
 
-// Helper to create mock AxiosResponse
-function createAxiosResponse<T>(data: T): AxiosResponse<T> {
-  return {
-    data,
-    status: 200,
-    statusText: "OK",
-    headers: {},
-    config: {} as AxiosResponse["config"],
-  };
-}
-
 describe("student-api", () => {
-  let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
+  const consoleSpies = suppressConsole("error");
 
   beforeEach(() => {
     vi.clearAllMocks();
-    // eslint-disable-next-line @typescript-eslint/no-empty-function
-    consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-    mockedGetSession.mockResolvedValue({
-      user: { id: "1", token: "test-token" },
-      expires: "2099-01-01",
-    });
-  });
-
-  afterEach(() => {
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
-    consoleErrorSpy.mockRestore();
+    mockedGetSession.mockResolvedValue(mockSessionData());
   });
 
   describe("fetchStudents", () => {
@@ -378,7 +352,7 @@ describe("student-api", () => {
         const result = await fetchGroups();
 
         expect(result).toEqual([]);
-        expect(consoleErrorSpy).toHaveBeenCalledWith(
+        expect(consoleSpies.error).toHaveBeenCalledWith(
           "Error fetching groups:",
           expect.any(Error),
         );
@@ -472,7 +446,7 @@ describe("student-api", () => {
       const result = await fetchStudentPrivacyConsent("123");
 
       expect(result).toBeNull();
-      expect(consoleErrorSpy).toHaveBeenCalledWith(
+      expect(consoleSpies.error).toHaveBeenCalledWith(
         "Error fetching privacy consent:",
         expect.any(Error),
       );

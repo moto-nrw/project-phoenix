@@ -1,16 +1,9 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import DatabasePage from "./page";
+import { mockSessionData } from "~/test/mocks/next-auth";
 
-const mockSession = {
-  user: {
-    id: "1",
-    name: "Test User",
-    email: "test@test.com",
-    token: "test-token",
-  },
-  expires: "2099-12-31",
-};
+const mockSession = mockSessionData();
 
 vi.mock("next-auth/react", () => ({
   useSession: vi.fn(() => ({

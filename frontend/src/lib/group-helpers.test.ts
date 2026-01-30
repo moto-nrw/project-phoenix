@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect } from "vitest";
 import type {
   BackendGroup,
   BackendCombinedGroup,
@@ -21,9 +21,11 @@ import {
   formatCombinedGroupValidity,
   getAccessPolicyName,
 } from "./group-helpers";
+import { suppressConsole } from "~/test/helpers/console";
+import { buildBackendGroup } from "~/test/fixtures";
 
 // Sample backend group for testing
-const sampleBackendGroup: BackendGroup = {
+const sampleBackendGroup = buildBackendGroup({
   id: 1,
   name: "Klasse 3a",
   room_id: 10,
@@ -72,9 +74,7 @@ const sampleBackendGroup: BackendGroup = {
     },
     { id: 2, name: "Anna Schmidt", school_class: "3a", current_location: null },
   ],
-  created_at: "2024-01-01T00:00:00Z",
-  updated_at: "2024-01-15T12:00:00Z",
-};
+});
 
 const sampleBackendCombinedGroup: BackendCombinedGroup = {
   id: 100,
@@ -205,17 +205,7 @@ describe("mapGroupResponse", () => {
 });
 
 describe("mapGroupsResponse", () => {
-  let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
-
-  beforeEach(() => {
-    // eslint-disable-next-line @typescript-eslint/no-empty-function
-    consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-  });
-
-  afterEach(() => {
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
-    consoleErrorSpy.mockRestore();
-  });
+  const consoleSpies = suppressConsole("error");
 
   it("maps array of backend groups", () => {
     const groups = [sampleBackendGroup, { ...sampleBackendGroup, id: 2 }];
@@ -237,7 +227,7 @@ describe("mapGroupsResponse", () => {
     const result = mapGroupsResponse("invalid" as unknown as BackendGroup[]);
 
     expect(result).toEqual([]);
-    expect(consoleErrorSpy).toHaveBeenCalledWith(
+    expect(consoleSpies.error).toHaveBeenCalledWith(
       "Expected array for backendGroups, got:",
       "invalid",
     );
