@@ -238,8 +238,9 @@ function HeaderBreadcrumb({
     return <RoomBreadcrumb roomName={roomName} />;
   }
 
-  // Student history sub-page (3 levels)
+  // Student history sub-page (3 or 4 levels depending on context)
   if (pageTypeInfo.isStudentHistoryPage && studentName) {
+    const subSectionName = ogsGroupName ?? activeSupervisionName;
     return (
       <StudentHistoryBreadcrumb
         referrer={referrer}
@@ -248,18 +249,23 @@ function HeaderBreadcrumb({
         studentName={studentName}
         historyType={historyType}
         isScrolled={isScrolled}
+        subSectionName={subSectionName}
       />
     );
   }
 
-  // Student detail page (2 levels)
+  // Student detail page (2 or 3 levels depending on context)
   if (pageTypeInfo.isStudentDetailPage && studentName) {
+    // When navigating from an accordion section, show the sub-section name
+    // e.g. "Meine Gruppe > 1a > Mia Fischer" instead of "Meine Gruppe > Mia Fischer"
+    const subSectionName = ogsGroupName ?? activeSupervisionName;
     return (
       <StudentDetailBreadcrumb
         referrer={referrer}
         breadcrumbLabel={breadcrumbLabel}
         studentName={studentName}
         isScrolled={isScrolled}
+        subSectionName={subSectionName}
       />
     );
   }

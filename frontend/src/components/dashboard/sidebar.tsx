@@ -1,9 +1,9 @@
 // components/dashboard/sidebar.tsx
 "use client";
 
-import { Suspense } from "react";
+import { Suspense, useCallback, useEffect } from "react";
 import Link from "next/link";
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useSupervision } from "~/lib/supervision-context";
 import { isAdmin } from "~/lib/auth-utils";
@@ -151,14 +151,17 @@ interface SidebarProps {
 function SidebarContent({ className = "" }: SidebarProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const router = useRouter();
   const { data: session } = useSession();
 
   // Get supervision state
   const { isLoadingGroups, isLoadingSupervision, groups, supervisedRooms } =
     useSupervision();
 
-  // Accordion state
-  const { expanded, toggle } = useSidebarAccordion(pathname);
+  // Accordion state — pass `from` param so child pages (e.g. student detail)
+  // keep the originating accordion section open
+  const fromParam = searchParams.get("from");
+  const { expanded, toggle } = useSidebarAccordion(pathname, fromParam);
 
   const userIsAdmin = isAdmin(session);
 
@@ -201,7 +204,9 @@ function SidebarContent({ className = "" }: SidebarProps) {
       pathname.startsWith("/students/") && pathname !== "/students/search";
     if (isStudentDetailPage) {
       const from = searchParams.get("from");
-      return getStudentDetailActiveHref(from) === parentHref;
+      if (getStudentDetailActiveHref(from) !== parentHref) return false;
+      // If a sub-item is highlighted on the child page, don't highlight the parent
+      return !hasSubItemSelected;
     }
     if (!pathname.startsWith(parentHref)) return false;
     // If a sub-item is selected, don't highlight the parent
@@ -311,6 +316,105 @@ function SidebarContent({ className = "" }: SidebarProps) {
   const currentGroupParam = searchParams.get("group");
   const currentRoomParam = searchParams.get("room");
 
+  // On child pages (e.g. student detail with ?from=/ogs-groups), determine
+  // which sub-item should stay highlighted using the last selection from localStorage.
+  const isChildOfAccordion =
+    pathname.startsWith("/students/") && pathname !== "/students/search";
+  const childFromParam = isChildOfAccordion ? fromParam : null;
+  const childGroupId = childFromParam?.startsWith("/ogs-groups")
+    ? typeof window !== "undefined"
+      ? localStorage.getItem("sidebar-last-group")
+      : null
+    : null;
+  const childRoomId = childFromParam?.startsWith("/active-supervisions")
+    ? typeof window !== "undefined"
+      ? localStorage.getItem("sidebar-last-room")
+      : null
+    : null;
+
+  // Persist last selected sub-item per accordion section to localStorage.
+  // Pages read this on mount to restore the user's last selection.
+  useEffect(() => {
+    if (pathname.startsWith("/ogs-groups") && currentGroupParam) {
+      localStorage.setItem("sidebar-last-group", currentGroupParam);
+      const groupName = groups.find(
+        (g) => g.id.toString() === currentGroupParam,
+      )?.name;
+      if (groupName) {
+        localStorage.setItem("sidebar-last-group-name", groupName);
+      }
+    }
+  }, [pathname, currentGroupParam, groups]);
+
+  useEffect(() => {
+    if (pathname.startsWith("/active-supervisions") && currentRoomParam) {
+      localStorage.setItem("sidebar-last-room", currentRoomParam);
+      const roomName = supervisedRooms.find(
+        (r) => r.id === currentRoomParam,
+      )?.name;
+      if (roomName) {
+        localStorage.setItem("sidebar-last-room-name", roomName);
+      }
+    }
+  }, [pathname, currentRoomParam, supervisedRooms]);
+
+  useEffect(() => {
+    if (
+      pathname.startsWith("/database/") &&
+      DATABASE_SUB_PAGES.some((p) => pathname === p.href)
+    ) {
+      localStorage.setItem("sidebar-last-database", pathname);
+    }
+  }, [pathname]);
+
+  // Toggle accordion AND navigate to the correct URL (with last-selected sub-item).
+  // Reads localStorage at click-time so the page loads with the right param immediately.
+  const handleGroupsToggle = useCallback(() => {
+    toggle("groups");
+    if (!pathname.startsWith("/ogs-groups")) {
+      const savedGroupId = localStorage.getItem("sidebar-last-group");
+      const targetGroup = savedGroupId
+        ? groups.find((g) => g.id.toString() === savedGroupId)
+        : groups[0];
+      const groupId = targetGroup?.id ?? groups[0]?.id;
+      if (groupId) {
+        router.push(`/ogs-groups?group=${groupId}`);
+      } else {
+        router.push("/ogs-groups");
+      }
+    }
+  }, [toggle, pathname, groups, router]);
+
+  const handleSupervisionsToggle = useCallback(() => {
+    toggle("supervisions");
+    if (!pathname.startsWith("/active-supervisions")) {
+      const savedRoomId = localStorage.getItem("sidebar-last-room");
+      const targetRoom = savedRoomId
+        ? supervisedRooms.find((r) => r.id === savedRoomId)
+        : supervisedRooms[0];
+      const roomId = targetRoom?.id ?? supervisedRooms[0]?.id;
+      if (roomId) {
+        router.push(`/active-supervisions?room=${roomId}`);
+      } else {
+        router.push("/active-supervisions");
+      }
+    }
+  }, [toggle, pathname, supervisedRooms, router]);
+
+  const handleDatabaseToggle = useCallback(() => {
+    toggle("database");
+    if (!pathname.startsWith("/database")) {
+      const savedPath = localStorage.getItem("sidebar-last-database");
+      const targetPath =
+        savedPath && DATABASE_SUB_PAGES.some((p) => p.href === savedPath)
+          ? savedPath
+          : DATABASE_SUB_PAGES[0]?.href;
+      if (targetPath) {
+        router.push(targetPath);
+      }
+    }
+  }, [toggle, pathname, router]);
+
   // Show staff-only accordions (groups + supervisions) only for non-admin
   const showStaffAccordions = !userIsAdmin;
 
@@ -332,15 +436,18 @@ function SidebarContent({ className = "" }: SidebarProps) {
               <SidebarAccordionSection
                 icon="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
                 label={groups.length > 1 ? "Meine Gruppen" : "Meine Gruppe"}
-                href="/ogs-groups"
                 activeColor="text-[#83CD2D]"
                 isExpanded={expanded === "groups"}
-                onToggle={() => toggle("groups")}
+                onToggle={handleGroupsToggle}
                 isActive={isAccordionSectionActive(
                   "/ogs-groups",
-                  Boolean(currentGroupParam) || groups.length > 0,
+                  Boolean(currentGroupParam) ||
+                    Boolean(childGroupId) ||
+                    groups.length > 0,
                 )}
-                isIconActive={pathname.startsWith("/ogs-groups")}
+                isIconActive={
+                  pathname.startsWith("/ogs-groups") || Boolean(childGroupId)
+                }
                 isLoading={isLoadingGroups}
                 emptyText="Keine Gruppen zugeordnet"
                 hasChildren={groups.length > 0}
@@ -351,10 +458,12 @@ function SidebarContent({ className = "" }: SidebarProps) {
                     href={`/ogs-groups?group=${group.id}`}
                     label={group.name}
                     isActive={
-                      pathname.startsWith("/ogs-groups") &&
-                      (currentGroupParam
-                        ? currentGroupParam === group.id.toString()
-                        : index === 0)
+                      childGroupId
+                        ? childGroupId === group.id.toString()
+                        : pathname.startsWith("/ogs-groups") &&
+                          (currentGroupParam
+                            ? currentGroupParam === group.id.toString()
+                            : index === 0)
                     }
                   />
                 ))}
@@ -370,15 +479,19 @@ function SidebarContent({ className = "" }: SidebarProps) {
                     ? "Aktuelle Aufsichten"
                     : "Aktuelle Aufsicht"
                 }
-                href="/active-supervisions"
                 activeColor="text-violet-500"
                 isExpanded={expanded === "supervisions"}
-                onToggle={() => toggle("supervisions")}
+                onToggle={handleSupervisionsToggle}
                 isActive={isAccordionSectionActive(
                   "/active-supervisions",
-                  Boolean(currentRoomParam) || supervisedRooms.length > 0,
+                  Boolean(currentRoomParam) ||
+                    Boolean(childRoomId) ||
+                    supervisedRooms.length > 0,
                 )}
-                isIconActive={pathname.startsWith("/active-supervisions")}
+                isIconActive={
+                  pathname.startsWith("/active-supervisions") ||
+                  Boolean(childRoomId)
+                }
                 isLoading={isLoadingSupervision}
                 emptyText="Keine aktive Aufsicht"
                 hasChildren={supervisedRooms.length > 0}
@@ -389,10 +502,12 @@ function SidebarContent({ className = "" }: SidebarProps) {
                     href={`/active-supervisions?room=${room.id}`}
                     label={room.name}
                     isActive={
-                      pathname.startsWith("/active-supervisions") &&
-                      (currentRoomParam
-                        ? currentRoomParam === room.id
-                        : index === 0)
+                      childRoomId
+                        ? childRoomId === room.id
+                        : pathname.startsWith("/active-supervisions") &&
+                          (currentRoomParam
+                            ? currentRoomParam === room.id
+                            : index === 0)
                     }
                   />
                 ))}
@@ -415,10 +530,9 @@ function SidebarContent({ className = "" }: SidebarProps) {
               <SidebarAccordionSection
                 icon="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"
                 label="Datenverwaltung"
-                href="/database"
                 activeColor="text-gray-500"
                 isExpanded={expanded === "database"}
-                onToggle={() => toggle("database")}
+                onToggle={handleDatabaseToggle}
                 isActive={isAccordionSectionActive(
                   "/database",
                   DATABASE_SUB_PAGES.some((p) => pathname === p.href),

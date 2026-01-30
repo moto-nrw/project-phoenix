@@ -1,12 +1,10 @@
 "use client";
 
-import Link from "next/link";
 import type { ReactNode } from "react";
 
 interface SidebarAccordionSectionProps {
   readonly icon: string;
   readonly label: string;
-  readonly href: string;
   readonly activeColor?: string;
   readonly isExpanded: boolean;
   readonly onToggle: () => void;
@@ -21,7 +19,6 @@ interface SidebarAccordionSectionProps {
 export function SidebarAccordionSection({
   icon,
   label,
-  href,
   activeColor,
   isExpanded,
   onToggle,
@@ -46,10 +43,20 @@ export function SidebarAccordionSection({
   return (
     <div>
       {/* Header row — single box with icon, label, and chevron */}
-      <Link
-        href={href}
+      {/* Uses div[role=button] instead of <button> to avoid browser-specific
+          button rendering quirks (-webkit-appearance: button) that cause
+          subtle spacing differences compared to <a> elements. */}
+      <div
+        role="button"
+        tabIndex={0}
         onClick={onToggle}
-        className={`${headerBase} ${isActive ? headerActive : headerInactive} w-full`}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            onToggle();
+          }
+        }}
+        className={`${headerBase} ${isActive ? headerActive : headerInactive} w-full cursor-pointer`}
         aria-expanded={isExpanded}
       >
         <svg
@@ -79,7 +86,7 @@ export function SidebarAccordionSection({
             d="M19 9l-7 7-7-7"
           />
         </svg>
-      </Link>
+      </div>
 
       {/* Expandable body — CSS Grid transition */}
       <div

@@ -328,18 +328,20 @@ function OGSGroupPageContent() {
 
     setHasAccess(true);
 
-    // Convert groups to OGSGroup format
-    const ogsGroups: OGSGroup[] = groups.map((group) => ({
-      id: group.id.toString(),
-      name: group.name,
-      room_name: group.room?.name,
-      room_id: group.room_id?.toString(),
-      student_count: undefined,
-      supervisor_name: undefined,
-      viaSubstitution: group.via_substitution,
-    }));
+    // Convert groups to OGSGroup format, sorted alphabetically by name
+    const ogsGroups: OGSGroup[] = groups
+      .map((group) => ({
+        id: group.id.toString(),
+        name: group.name,
+        room_name: group.room?.name,
+        room_id: group.room_id?.toString(),
+        student_count: undefined,
+        supervisor_name: undefined,
+        viaSubstitution: group.via_substitution,
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name, "de"));
 
-    // Update student count on first group (metadata only)
+    // Update student count on the first sorted group (BFF pre-loads data for it)
     if (ogsGroups[0]) {
       ogsGroups[0].student_count = studentsData.length;
     }
@@ -347,6 +349,7 @@ function OGSGroupPageContent() {
     setAllGroups(ogsGroups);
 
     // IMPORTANT: Only apply first group's students/roomStatus when first group is selected.
+    // The BFF sorts groups alphabetically, so groups[0] matches ogsGroups[0].
     // When SSE triggers revalidation while user views another group, we must NOT
     // overwrite their current view with the first group's data.
     if (selectedGroupIndex === 0) {
@@ -377,14 +380,25 @@ function OGSGroupPageContent() {
     setIsLoading(false);
   }, [dashboardData, selectedGroupIndex]);
 
-  // Sync selected group with URL param (?group=<id>)
-  // Runs on initial load AND when the user clicks a different sidebar sub-item
+  // Sync selected group with URL param.
+  // The sidebar navigates with the correct ?group= param at click-time,
+  // so this effect only needs to react to URL changes.
+  // When no param is present (e.g. fresh login), persist the default (first group)
+  // so localStorage stays in sync and the sidebar picks it up on next click.
   useEffect(() => {
-    if (!groupParam || allGroups.length === 0) return;
+    if (allGroups.length === 0) return;
 
-    const targetIndex = allGroups.findIndex((g) => g.id === groupParam);
-    if (targetIndex !== -1 && targetIndex !== selectedGroupIndex) {
-      void switchToGroup(targetIndex);
+    if (groupParam) {
+      const targetIndex = allGroups.findIndex((g) => g.id === groupParam);
+      if (targetIndex !== -1 && targetIndex !== selectedGroupIndex) {
+        void switchToGroup(targetIndex);
+      }
+    } else {
+      // No ?group= param (e.g. after login) — persist default selection
+      const firstGroup = allGroups[0];
+      if (firstGroup) {
+        localStorage.setItem("sidebar-last-group", firstGroup.id);
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allGroups, groupParam]);

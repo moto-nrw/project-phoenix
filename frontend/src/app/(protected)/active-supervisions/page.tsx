@@ -487,15 +487,19 @@ function MeinRaumPageContent() {
     // Track if supervision was gained
     hasSupervisionRef.current = data.supervisedGroups.length > 0;
 
-    // Convert supervised groups to ActiveRoom format
-    const activeRooms: ActiveRoom[] = data.supervisedGroups.map((group) => ({
-      id: group.id,
-      name: group.name,
-      room_name: group.room?.name,
-      room_id: group.room_id,
-      student_count: undefined,
-      supervisor_name: undefined,
-    }));
+    // Convert supervised groups to ActiveRoom format, sorted by room name
+    const activeRooms: ActiveRoom[] = data.supervisedGroups
+      .map((group) => ({
+        id: group.id,
+        name: group.name,
+        room_name: group.room?.name,
+        room_id: group.room_id,
+        student_count: undefined,
+        supervisor_name: undefined,
+      }))
+      .sort((a, b) =>
+        (a.room_name ?? a.name).localeCompare(b.room_name ?? b.name, "de"),
+      );
 
     setAllRooms(activeRooms);
 
@@ -546,15 +550,25 @@ function MeinRaumPageContent() {
     setIsLoading(false);
   }, [dashboardData, updateRoomStudentCount, selectedRoomIndex]);
 
-  // Sync selected room with URL param (?room=<id>)
-  // Runs on initial load AND when the user clicks a different sidebar sub-item
+  // Sync selected room with URL param.
+  // The sidebar navigates with the correct ?room= param at click-time,
+  // so this effect only needs to react to URL changes.
+  // When no param is present (e.g. fresh login), persist the default (first room)
+  // so localStorage stays in sync and the sidebar picks it up on next click.
   useEffect(() => {
-    if (!roomParam || allRooms.length === 0) return;
+    if (allRooms.length === 0) return;
 
-    // Match by room_id (the URL param is the room ID, not the active group ID)
-    const targetIndex = allRooms.findIndex((r) => r.room_id === roomParam);
-    if (targetIndex !== -1 && targetIndex !== selectedRoomIndex) {
-      void switchToRoom(targetIndex);
+    if (roomParam) {
+      const targetIndex = allRooms.findIndex((r) => r.room_id === roomParam);
+      if (targetIndex !== -1 && targetIndex !== selectedRoomIndex) {
+        void switchToRoom(targetIndex);
+      }
+    } else {
+      // No ?room= param (e.g. after login) — persist default selection
+      const firstRoom = allRooms[0];
+      if (firstRoom?.room_id) {
+        localStorage.setItem("sidebar-last-room", firstRoom.room_id);
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allRooms, roomParam]);

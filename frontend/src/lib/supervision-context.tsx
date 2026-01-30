@@ -112,7 +112,9 @@ export function SupervisionProvider({
           groups?: BackendEducationalGroup[];
         };
         // Route wrapper wraps response as { success, data: { groups } }
-        const groupList = json.data?.groups ?? json.groups ?? [];
+        const groupList = (json.data?.groups ?? json.groups ?? []).sort(
+          (a, b) => a.name.localeCompare(b.name, "de"),
+        );
         const newHasGroups = groupList.length > 0;
         setState((prev) => {
           // Only update if value actually changed
@@ -225,7 +227,7 @@ export function SupervisionProvider({
             firstGroup.room?.name ??
             (firstGroup.room_id ? `Room ${firstGroup.room_id}` : undefined);
 
-          // Map all supervised groups to rooms
+          // Map all supervised groups to rooms, sorted by name
           const newSupervisedRooms: SupervisedRoom[] = supervisedGroups
             .filter((g) => g.room_id && g.room)
             .map((g) => ({
@@ -233,7 +235,8 @@ export function SupervisionProvider({
               name: g.room?.name ?? `Room ${g.room_id}`,
               groupId: g.id.toString(),
               groupName: g.actual_group?.name,
-            }));
+            }))
+            .sort((a, b) => a.name.localeCompare(b.name, "de"));
 
           setState((prev) => {
             // Only update if values actually changed

@@ -53,7 +53,21 @@ export default function StudentRoomHistoryPage() {
   const [timeRange, setTimeRange] = useState<string>("7days"); // Default to last 7 days
 
   // Set breadcrumb for persistent header
-  useSetBreadcrumb({ studentName: student?.name, referrerPage: referrer });
+  const breadcrumbGroupName =
+    referrer.startsWith("/ogs-groups") && typeof window !== "undefined"
+      ? localStorage.getItem("sidebar-last-group-name")
+      : undefined;
+  const breadcrumbRoomName =
+    referrer.startsWith("/active-supervisions") && typeof window !== "undefined"
+      ? localStorage.getItem("sidebar-last-room-name")
+      : undefined;
+
+  useSetBreadcrumb({
+    studentName: student?.name,
+    referrerPage: referrer,
+    ogsGroupName: breadcrumbGroupName ?? undefined,
+    activeSupervisionName: breadcrumbRoomName ?? undefined,
+  });
 
   // Fetch student data and room history
   useEffect(() => {

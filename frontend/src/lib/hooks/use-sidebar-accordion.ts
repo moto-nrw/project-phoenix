@@ -8,11 +8,24 @@ const STORAGE_KEY = "sidebar-accordion-expanded";
 
 /**
  * Derives which accordion section should be expanded based on the current pathname.
+ * Also considers the `from` query param for child pages (e.g. student detail)
+ * so the accordion stays open when drilling down from an accordion section.
  */
-function sectionFromPathname(pathname: string): AccordionSection {
+function sectionFromPathname(
+  pathname: string,
+  fromParam?: string | null,
+): AccordionSection {
   if (pathname.startsWith("/ogs-groups")) return "groups";
   if (pathname.startsWith("/active-supervisions")) return "supervisions";
   if (pathname.startsWith("/database")) return "database";
+
+  // Child pages: keep the originating accordion section open
+  if (fromParam) {
+    if (fromParam.startsWith("/ogs-groups")) return "groups";
+    if (fromParam.startsWith("/active-supervisions")) return "supervisions";
+    if (fromParam.startsWith("/database")) return "database";
+  }
+
   return null;
 }
 
@@ -21,11 +34,17 @@ function sectionFromPathname(pathname: string): AccordionSection {
  * Only one section can be open at a time.
  * Persists the expanded section to localStorage.
  * Auto-expands from pathname when navigating to a sub-page.
+ *
+ * @param pathname - Current route pathname
+ * @param fromParam - Value of the `from` search param (for child page navigation)
  */
-export function useSidebarAccordion(pathname: string) {
+export function useSidebarAccordion(
+  pathname: string,
+  fromParam?: string | null,
+) {
   const [expanded, setExpanded] = useState<AccordionSection>(() => {
     // Pathname takes priority over localStorage on initial render
-    const fromPath = sectionFromPathname(pathname);
+    const fromPath = sectionFromPathname(pathname, fromParam);
     if (fromPath) return fromPath;
 
     // Fall back to localStorage
@@ -44,15 +63,16 @@ export function useSidebarAccordion(pathname: string) {
 
   // Auto-expand/collapse when navigating:
   // - Navigate to accordion page → expand that section
-  // - Navigate to non-accordion page → collapse all
+  // - Navigate to child page with ?from= → keep that section open
+  // - Navigate to unrelated page → collapse all
   useEffect(() => {
-    const fromPath = sectionFromPathname(pathname);
+    const fromPath = sectionFromPathname(pathname, fromParam);
     if (fromPath !== expanded) {
       setExpanded(fromPath);
     }
-    // Only react to pathname changes, not expanded changes
+    // Only react to pathname/fromParam changes, not expanded changes
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pathname]);
+  }, [pathname, fromParam]);
 
   // Persist to localStorage whenever expanded changes
   useEffect(() => {
