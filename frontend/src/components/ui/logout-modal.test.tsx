@@ -2,8 +2,8 @@
  * Tests for LogoutModal Component
  * Tests the rendering and logout functionality
  */
-import { render, screen, waitFor, fireEvent } from "@testing-library/react";
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { render, screen, fireEvent, act } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { LogoutModal } from "./logout-modal";
 
 // Mock next-auth/react
@@ -45,8 +45,16 @@ describe("LogoutModal", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.useFakeTimers();
     mockSignOut.mockResolvedValue(undefined);
     Element.prototype.animate = mockAnimate;
+  });
+
+  afterEach(() => {
+    // Clear all pending timers to prevent "document is not defined" errors
+    // from confetti setTimeout callbacks firing after test teardown
+    vi.clearAllTimers();
+    vi.useRealTimers();
   });
 
   it("renders nothing when closed", () => {
@@ -99,9 +107,12 @@ describe("LogoutModal", () => {
     const logoutButton = screen.getByRole("button", { name: /Abmelden/i });
     fireEvent.click(logoutButton);
 
-    await waitFor(() => {
-      expect(mockSignOut).toHaveBeenCalledTimes(1);
+    // Flush all timers and microtasks
+    await act(async () => {
+      await vi.runAllTimersAsync();
     });
+
+    expect(mockSignOut).toHaveBeenCalledTimes(1);
   });
 
   it("shows loading state after logout is triggered", async () => {
@@ -112,14 +123,17 @@ describe("LogoutModal", () => {
     render(<LogoutModal isOpen={true} onClose={mockOnClose} />);
 
     const logoutButton = screen.getByRole("button", { name: /Abmelden/i });
-    fireEvent.click(logoutButton);
 
-    await waitFor(() => {
-      expect(screen.getByText("Abmelden...")).toBeInTheDocument();
-      expect(
-        screen.getByText(/Sie werden zur Anmeldeseite weitergeleitet/),
-      ).toBeInTheDocument();
+    await act(async () => {
+      fireEvent.click(logoutButton);
+      // Advance a bit to trigger the loading state
+      await vi.advanceTimersByTimeAsync(100);
     });
+
+    expect(screen.getByText("Abmelden...")).toBeInTheDocument();
+    expect(
+      screen.getByText(/Sie werden zur Anmeldeseite weitergeleitet/),
+    ).toBeInTheDocument();
   });
 
   it("disables close during logout", async () => {
@@ -130,13 +144,15 @@ describe("LogoutModal", () => {
     render(<LogoutModal isOpen={true} onClose={mockOnClose} />);
 
     const logoutButton = screen.getByRole("button", { name: /Abmelden/i });
-    fireEvent.click(logoutButton);
 
-    await waitFor(() => {
-      const closeButton = screen.getByTestId("modal-close");
-      fireEvent.click(closeButton);
-      expect(mockOnClose).not.toHaveBeenCalled();
+    await act(async () => {
+      fireEvent.click(logoutButton);
+      await vi.advanceTimersByTimeAsync(100);
     });
+
+    const closeButton = screen.getByTestId("modal-close");
+    fireEvent.click(closeButton);
+    expect(mockOnClose).not.toHaveBeenCalled();
   });
 
   it("launches confetti animation on logout", async () => {
@@ -145,9 +161,12 @@ describe("LogoutModal", () => {
     const logoutButton = screen.getByRole("button", { name: /Abmelden/i });
     fireEvent.click(logoutButton);
 
-    await waitFor(() => {
-      expect(mockAnimate).toHaveBeenCalled();
+    // Run all confetti timers
+    await act(async () => {
+      await vi.runAllTimersAsync();
     });
+
+    expect(mockAnimate).toHaveBeenCalled();
   });
 
   it("creates confetti container in body", async () => {
@@ -156,12 +175,15 @@ describe("LogoutModal", () => {
     const logoutButton = screen.getByRole("button", { name: /Abmelden/i });
     fireEvent.click(logoutButton);
 
-    await waitFor(() => {
-      const confettiContainer = document.querySelector(
-        "div[style*='position: fixed']",
-      );
-      expect(confettiContainer).toBeTruthy();
+    // Run confetti creation timers
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(500);
     });
+
+    const confettiContainer = document.querySelector(
+      "div[style*='position: fixed']",
+    );
+    expect(confettiContainer).toBeTruthy();
   });
 
   it("handles signOut errors gracefully", async () => {
@@ -177,12 +199,15 @@ describe("LogoutModal", () => {
     const logoutButton = screen.getByRole("button", { name: /Abmelden/i });
     fireEvent.click(logoutButton);
 
-    await waitFor(() => {
-      expect(consoleErrorSpy).toHaveBeenCalledWith(
-        "Failed to sign out:",
-        expect.any(Error),
-      );
+    // Flush all timers and handle the rejection
+    await act(async () => {
+      await vi.runAllTimersAsync();
     });
+
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      "Failed to sign out:",
+      expect.any(Error),
+    );
 
     consoleErrorSpy.mockRestore();
   });
