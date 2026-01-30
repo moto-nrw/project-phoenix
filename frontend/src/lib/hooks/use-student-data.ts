@@ -192,22 +192,17 @@ export function useStudentData(studentId: string): UseStudentDataResult {
 
 /**
  * Determines if checkout section should be shown for a student
+ * Any authenticated staff member can checkout any checked-in student
  */
 export function shouldShowCheckoutSection(
   student: ExtendedStudent,
-  myGroups: string[],
-  mySupervisedRooms: string[],
+  _myGroups: string[],
+  _mySupervisedRooms: string[],
 ): boolean {
-  const isInMyGroup = Boolean(
-    student.group_id && myGroups.includes(student.group_id),
-  );
-  const isInMySupervisedRoom = Boolean(
-    student.current_location &&
-    mySupervisedRooms.some((room) => student.current_location?.includes(room)),
-  );
+  // Show checkout button for any checked-in student (not at home)
   const isCheckedIn = Boolean(
     student.current_location && !student.current_location.startsWith("Zuhause"),
   );
 
-  return (isInMyGroup || isInMySupervisedRoom) && isCheckedIn;
+  return isCheckedIn;
 }

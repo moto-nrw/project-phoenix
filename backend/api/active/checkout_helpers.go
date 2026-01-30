@@ -68,10 +68,11 @@ func (rs *Resource) getCheckoutContext(ctx context.Context, studentID int64) (*c
 
 // authorizeStudentCheckout verifies the user can checkout this student
 // Returns the staff record if authorized, error otherwise
+// Note: Any authenticated staff member can checkout any checked-in student
 func (rs *Resource) authorizeStudentCheckout(
 	ctx context.Context,
 	userClaims jwt.AppClaims,
-	checkoutCtx *checkoutContext,
+	_ *checkoutContext,
 ) (*users.Staff, error) {
 	// Get person from account
 	person, err := rs.PersonService.FindByAccountID(ctx, int64(userClaims.ID))
@@ -79,54 +80,13 @@ func (rs *Resource) authorizeStudentCheckout(
 		return nil, ErrStaffNotFound
 	}
 
-	// Get staff record
+	// Get staff record - any staff member can checkout any student
 	staff, err := rs.PersonService.StaffRepository().FindByPersonID(ctx, person.ID)
 	if err != nil || staff == nil {
 		return nil, ErrStaffNotFound
 	}
 
-	// Check authorization via room supervision first
-	if rs.isRoomSupervisor(ctx, staff.ID, checkoutCtx.CurrentVisit) {
-		return staff, nil
-	}
-
-	// Fallback: check educational group access
-	if rs.hasEducationalGroupAccess(ctx, staff.ID, checkoutCtx.StudentID) {
-		return staff, nil
-	}
-
-	return nil, ErrNotAuthorized
-}
-
-// isRoomSupervisor checks if staff is supervising the student's current room
-func (rs *Resource) isRoomSupervisor(ctx context.Context, staffID int64, currentVisit *active.Visit) bool {
-	if currentVisit == nil || currentVisit.ActiveGroupID <= 0 {
-		return false
-	}
-
-	activeGroup, err := rs.ActiveService.GetActiveGroup(ctx, currentVisit.ActiveGroupID)
-	if err != nil || activeGroup == nil || !activeGroup.IsActive() {
-		return false
-	}
-
-	supervisors, err := rs.ActiveService.FindSupervisorsByActiveGroupID(ctx, activeGroup.ID)
-	if err != nil {
-		return false
-	}
-
-	for _, supervisor := range supervisors {
-		if supervisor.StaffID == staffID && supervisor.EndDate == nil {
-			return true
-		}
-	}
-
-	return false
-}
-
-// hasEducationalGroupAccess checks if staff has access via educational group assignment
-func (rs *Resource) hasEducationalGroupAccess(ctx context.Context, staffID, studentID int64) bool {
-	hasAccess, err := rs.ActiveService.CheckTeacherStudentAccess(ctx, staffID, studentID)
-	return err == nil && hasAccess
+	return staff, nil
 }
 
 // executeStudentCheckout performs the actual checkout operation

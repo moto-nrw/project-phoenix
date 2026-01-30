@@ -276,10 +276,34 @@ jobs:
           echo "$SSH_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           ssh -i ~/.ssh/deploy_key root@$SSH_HOST '
+            set -e
+            echo "Starting staging deployment..."
             cd ~/staging
+
+            # Pull new images first (needed for backup and migrate)
             docker compose pull
-            docker compose up -d
-            echo "✅ Staging deployment complete"
+
+            # Backup
+            mkdir -p ~/backups/staging
+            BACKUP_FILE=~/backups/staging/backup-$(date +%Y%m%d-%H%M%S).dump
+            docker compose exec -T postgres pg_dump -U postgres -d postgres -Fc > "$BACKUP_FILE"
+            [ -s "$BACKUP_FILE" ] || { echo "Backup failed or empty"; exit 1; }
+            echo "Backup created: $(basename $BACKUP_FILE) ($(du -h $BACKUP_FILE | cut -f1))"
+
+            # Stop old server before schema changes (prevents mixed-version window)
+            docker compose stop server
+
+            # Migrate before starting services (avoids deadlock if new server needs new schema)
+            docker compose run --rm server ./main migrate
+
+            # Deploy (--wait blocks until healthcheck passes)
+            docker compose up -d --wait
+            echo "Server is healthy"
+
+            # Cleanup (keep 3)
+            ls -t ~/backups/staging/backup-*.dump 2>/dev/null | tail -n +4 | xargs -r rm -v
+
+            echo "Staging deployment complete"
           '
           rm ~/.ssh/deploy_key
 
@@ -301,10 +325,23 @@ jobs:
           echo "$SSH_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           ssh -i ~/.ssh/deploy_key root@$SSH_HOST '
+            set -e
+            echo "Starting demo deployment..."
             cd ~/demo
+
+            # Deploy (no backup for demo)
             docker compose pull
-            docker compose up -d
-            echo "✅ Demo deployment complete"
+
+            # Stop old server before schema changes (prevents mixed-version window)
+            docker compose stop server
+
+            # Migrate before starting services (avoids deadlock if new server needs new schema)
+            docker compose run --rm server ./main migrate
+
+            # Deploy (--wait blocks until healthcheck passes)
+            docker compose up -d --wait
+
+            echo "Demo deployment complete"
           '
           rm ~/.ssh/deploy_key
 
@@ -326,10 +363,34 @@ jobs:
           echo "$SSH_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           ssh -i ~/.ssh/deploy_key root@$SSH_HOST '
+            set -e
+            echo "Starting production deployment..."
             cd ~/production
+
+            # Pull new images first (needed for backup and migrate)
             docker compose pull
-            docker compose up -d
-            echo "✅ Production deployment complete"
+
+            # Backup
+            mkdir -p ~/backups/production
+            BACKUP_FILE=~/backups/production/backup-$(date +%Y%m%d-%H%M%S).dump
+            docker compose exec -T postgres pg_dump -U postgres -d postgres -Fc > "$BACKUP_FILE"
+            [ -s "$BACKUP_FILE" ] || { echo "Backup failed or empty"; exit 1; }
+            echo "Backup created: $(basename $BACKUP_FILE) ($(du -h $BACKUP_FILE | cut -f1))"
+
+            # Stop old server before schema changes (prevents mixed-version window)
+            docker compose stop server
+
+            # Migrate before starting services (avoids deadlock if new server needs new schema)
+            docker compose run --rm server ./main migrate
+
+            # Deploy (--wait blocks until healthcheck passes)
+            docker compose up -d --wait
+            echo "Server is healthy"
+
+            # Cleanup (keep 7)
+            ls -t ~/backups/production/backup-*.dump 2>/dev/null | tail -n +8 | xargs -r rm -v
+
+            echo "Production deployment complete"
           '
           rm ~/.ssh/deploy_key
 
