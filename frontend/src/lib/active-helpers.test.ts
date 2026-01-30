@@ -22,9 +22,14 @@ import {
   type Supervisor,
   type CombinedGroup,
 } from "./active-helpers";
+import {
+  buildBackendActiveSession,
+  buildBackendVisit,
+  buildBackendSupervisor,
+} from "~/test/fixtures";
 
 // Sample backend data matching actual API responses
-const sampleBackendActiveGroup: BackendActiveGroup = {
+const sampleBackendActiveGroup = buildBackendActiveSession({
   id: 1,
   group_id: 10,
   room_id: 5,
@@ -36,11 +41,9 @@ const sampleBackendActiveGroup: BackendActiveGroup = {
   supervisor_count: 2,
   room: { id: 5, name: "Room A", category: "classroom" },
   actual_group: { id: 10, name: "Class 3A" },
-  created_at: "2024-01-01T00:00:00Z",
-  updated_at: "2024-01-15T08:00:00Z",
-};
+});
 
-const sampleBackendVisit: BackendVisit = {
+const sampleBackendVisit = buildBackendVisit({
   id: 100,
   student_id: 50,
   active_group_id: 1,
@@ -52,11 +55,9 @@ const sampleBackendVisit: BackendVisit = {
   school_class: "3a",
   group_name: "OGS Group A",
   active_group_name: "Morning Session",
-  created_at: "2024-01-15T08:30:00Z",
-  updated_at: "2024-01-15T11:45:00Z",
-};
+});
 
-const sampleBackendSupervisor: BackendSupervisor = {
+const sampleBackendSupervisor = buildBackendSupervisor({
   id: 200,
   staff_id: 30,
   active_group_id: 1,
@@ -66,9 +67,7 @@ const sampleBackendSupervisor: BackendSupervisor = {
   notes: "Primary supervisor",
   staff_name: "Frau Schmidt",
   active_group_name: "Morning Session",
-  created_at: "2024-01-15T08:00:00Z",
-  updated_at: "2024-01-15T08:00:00Z",
-};
+});
 
 const sampleBackendCombinedGroup: BackendCombinedGroup = {
   id: 300,

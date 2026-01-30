@@ -16,6 +16,7 @@ import {
   apiDelete,
   checkAuth,
 } from "./api-helpers";
+import { suppressConsole } from "~/test/helpers/console";
 
 // Helper to create mock NextRequest
 function createMockNextRequest(
@@ -80,22 +81,7 @@ describe("extractParams", () => {
 });
 
 describe("handleApiError", () => {
-  let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
-  let consoleWarnSpy: ReturnType<typeof vi.spyOn>;
-
-  beforeEach(() => {
-    // eslint-disable-next-line @typescript-eslint/no-empty-function
-    consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-    // eslint-disable-next-line @typescript-eslint/no-empty-function
-    consoleWarnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-  });
-
-  afterEach(() => {
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
-    consoleErrorSpy.mockRestore();
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
-    consoleWarnSpy.mockRestore();
-  });
+  const consoleSpies = suppressConsole("error", "warn");
 
   it("extracts status code from 'API error (XXX):' format", async () => {
     const error = new Error("API error (404): Not found");
@@ -120,8 +106,8 @@ describe("handleApiError", () => {
 
     handleApiError(error);
 
-    expect(consoleErrorSpy).toHaveBeenCalled();
-    expect(consoleWarnSpy).not.toHaveBeenCalled();
+    expect(consoleSpies.error).toHaveBeenCalled();
+    expect(consoleSpies.warn).not.toHaveBeenCalled();
   });
 
   it("logs warning for 4xx status codes", () => {
@@ -129,7 +115,7 @@ describe("handleApiError", () => {
 
     handleApiError(error);
 
-    expect(consoleWarnSpy).toHaveBeenCalled();
+    expect(consoleSpies.warn).toHaveBeenCalled();
     // consoleError not called for 4xx
   });
 
@@ -465,27 +451,18 @@ describe("authFetch", () => {
 });
 
 describe("fetchWithRetry", () => {
+  const consoleSpies = suppressConsole("error", "warn");
   let originalFetch: typeof fetch;
   let mockFetchRetry: MockedFetch;
-  let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
-  let consoleWarnSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
     originalFetch = globalThis.fetch;
     mockFetchRetry = vi.fn();
     globalThis.fetch = mockFetchRetry;
-    // eslint-disable-next-line @typescript-eslint/no-empty-function
-    consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-    // eslint-disable-next-line @typescript-eslint/no-empty-function
-    consoleWarnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
   });
 
   afterEach(() => {
     globalThis.fetch = originalFetch;
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
-    consoleErrorSpy.mockRestore();
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
-    consoleWarnSpy.mockRestore();
   });
 
   it("returns response and data on success", async () => {
@@ -570,7 +547,7 @@ describe("fetchWithRetry", () => {
 
     expect(result.response).toBeNull();
     expect(result.data).toBeNull();
-    expect(consoleWarnSpy).toHaveBeenCalled();
+    expect(consoleSpies.warn).toHaveBeenCalled();
   });
 
   it("throws error for non-access-denied errors (4xx bugs)", async () => {
