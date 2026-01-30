@@ -41,7 +41,7 @@ func TestMigrateValidateCmd_Metadata(t *testing.T) {
 	assert.Equal(t, "validate", migrateValidateCmd.Use)
 	assert.Equal(t, "validate migration dependencies", migrateValidateCmd.Short)
 	assert.Contains(t, migrateValidateCmd.Long, "dependencies")
-	assert.NotNil(t, migrateValidateCmd.Run)
+	assert.NotNil(t, migrateValidateCmd.RunE)
 }
 
 // =============================================================================
@@ -131,10 +131,12 @@ func TestMigrateStatusCmd_Run_CallsStatus(t *testing.T) {
 func TestMigrateValidateCmd_Run_Success(t *testing.T) {
 	// ValidateMigrations() and PrintMigrationPlan() are pure in-memory checks
 	// that operate on the global MigrationRegistry — no database needed.
+	var runErr error
 	output := captureStdout(t, func() {
-		migrateValidateCmd.Run(migrateValidateCmd, []string{})
+		runErr = migrateValidateCmd.RunE(migrateValidateCmd, []string{})
 	})
 
+	assert.NoError(t, runErr)
 	assert.Contains(t, output, "All migrations validated successfully!")
 	assert.Contains(t, output, "Migration Plan:")
 }
@@ -148,11 +150,13 @@ func TestMigrateValidateCmd_Run_ValidationError(t *testing.T) {
 	}
 	defer delete(migrations.MigrationRegistry, "test_broken_dep")
 
+	var runErr error
 	output := captureStdout(t, func() {
-		migrateValidateCmd.Run(migrateValidateCmd, []string{})
+		runErr = migrateValidateCmd.RunE(migrateValidateCmd, []string{})
 	})
 
-	assert.Contains(t, output, "Migration validation failed")
+	assert.Error(t, runErr)
+	assert.Contains(t, runErr.Error(), "migration validation failed")
 	assert.NotContains(t, output, "All migrations validated successfully!")
 }
 
