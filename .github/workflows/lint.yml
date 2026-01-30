@@ -166,19 +166,58 @@ jobs:
         run: |
           echo "🔍 Checking Go dependency licenses..."
 
-          # Disallowed licenses for an Apache-2.0 project (copyleft / network-copyleft)
+          # Disallowed licenses for a source-available project (copyleft / network-copyleft)
           DISALLOWED="AGPL-3.0,GPL-3.0,LGPL-3.0,SSPL-1.0,EUPL-1.2"
 
           # go-licenses check exits non-zero if disallowed licenses are found
           go-licenses check ./... --disallowed_types=restricted,reciprocal 2>&1 || {
             echo ""
             echo "❌ Disallowed licenses found in Go dependencies."
-            echo "GDPR/Apache-2.0 project cannot use restricted or reciprocal licenses."
+            echo "Source-available project cannot use restricted or reciprocal licenses."
             echo "Review the output above and replace the offending dependency."
             exit 1
           }
 
           echo "All Go dependency licenses are compatible"
+
+  frontend-licenses:
+    if: ${{ inputs.run-frontend }}
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
+
+      - name: Enable corepack
+        run: corepack enable
+
+      - name: Setup Node.js
+        uses: actions/setup-node@395ad3262231945c25e8478fd5baf05154b1d79f # v6
+        with:
+          node-version: "20"
+          cache: "pnpm"
+          cache-dependency-path: "frontend/pnpm-lock.yaml"
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile
+
+      - name: Check npm dependency licenses
+        working-directory: frontend
+        run: |
+          echo "🔍 Checking npm dependency licenses..."
+
+          npx license-checker --production --failOn \
+            "AGPL-1.0-only;AGPL-1.0-or-later;AGPL-3.0-only;AGPL-3.0-or-later;GPL-2.0-only;GPL-2.0-or-later;GPL-3.0-only;GPL-3.0-or-later;LGPL-2.0-only;LGPL-2.0-or-later;LGPL-2.1-only;LGPL-2.1-or-later;LGPL-3.0-only;LGPL-3.0-or-later;SSPL-1.0;EUPL-1.2" \
+            --summary || {
+            echo ""
+            echo "❌ Disallowed licenses found in npm dependencies."
+            echo "Source-available project cannot use restricted or reciprocal licenses."
+            echo "Review the output above and replace the offending dependency."
+            exit 1
+          }
+
+          echo "All npm dependency licenses are compatible"
 
   frontend-lint:
     if: ${{ inputs.run-frontend }}
