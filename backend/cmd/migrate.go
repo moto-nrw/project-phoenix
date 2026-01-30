@@ -1,13 +1,17 @@
 package cmd
 
 import (
-	"context"
 	"fmt"
-	"log"
 
-	"github.com/moto-nrw/project-phoenix/database"
 	"github.com/moto-nrw/project-phoenix/database/migrations"
 	"github.com/spf13/cobra"
+)
+
+// Migration function variables for testability (overridden in tests).
+var (
+	migrateFn       = migrations.Migrate
+	migrateResetFn  = migrations.Reset
+	migrateStatusFn = migrations.MigrateStatus
 )
 
 // migrateCmd represents the migrate command
@@ -16,7 +20,7 @@ var migrateCmd = &cobra.Command{
 	Short: "use bun migration tool",
 	Long:  `run bun migrations`,
 	Run: func(cmd *cobra.Command, args []string) {
-		migrations.Migrate()
+		migrateFn()
 	},
 }
 
@@ -26,7 +30,7 @@ var migrateResetCmd = &cobra.Command{
 	Short: "reset database and run all migrations",
 	Long:  `WARNING: This will delete all data in the database and run all migrations from scratch`,
 	Run: func(cmd *cobra.Command, args []string) {
-		migrations.Reset()
+		migrateResetFn()
 	},
 }
 
@@ -36,7 +40,7 @@ var migrateStatusCmd = &cobra.Command{
 	Short: "show migration status",
 	Long:  `Display the status of all migrations, showing which ones have been applied`,
 	Run: func(cmd *cobra.Command, args []string) {
-		migrations.MigrateStatus()
+		migrateStatusFn()
 	},
 }
 
@@ -45,24 +49,14 @@ var migrateValidateCmd = &cobra.Command{
 	Use:   "validate",
 	Short: "validate migration dependencies",
 	Long:  `Check all migration dependencies for correctness and ordering`,
-	Run: func(cmd *cobra.Command, args []string) {
-		// Connect to database
-		db, err := database.DBConn()
-		if err != nil {
-			log.Fatal(err)
-		}
-		defer func() { _ = db.Close() }()
-
-		// Validate migrations
-		ctx := context.Background()
-		err = migrations.ValidateMigrations(ctx, db)
-		if err != nil {
-			fmt.Printf("Migration validation failed: %v\n", err)
-			return
+	RunE: func(cmd *cobra.Command, args []string) error {
+		if err := migrations.ValidateMigrations(); err != nil {
+			return fmt.Errorf("migration validation failed: %w", err)
 		}
 
 		fmt.Println("All migrations validated successfully!")
 		migrations.PrintMigrationPlan()
+		return nil
 	},
 }
 
