@@ -290,16 +290,15 @@ jobs:
             [ -s "$BACKUP_FILE" ] || { echo "Backup failed or empty"; exit 1; }
             echo "Backup created: $(basename $BACKUP_FILE) ($(du -h $BACKUP_FILE | cut -f1))"
 
+            # Stop old server before schema changes (prevents mixed-version window)
+            docker compose stop server
+
             # Migrate before starting services (avoids deadlock if new server needs new schema)
             docker compose run --rm server ./main migrate
 
-            # Deploy
-            docker compose up -d
-
-            # Health check
-            sleep 5
-            docker compose ps server | grep -q "Up" || { echo "Server not running"; exit 1; }
-            echo "Server is running"
+            # Deploy (--wait blocks until healthcheck passes)
+            docker compose up -d --wait
+            echo "Server is healthy"
 
             # Cleanup (keep 3)
             ls -t ~/backups/staging/backup-*.dump 2>/dev/null | tail -n +4 | xargs -r rm -v
@@ -333,14 +332,14 @@ jobs:
             # Deploy (no backup for demo)
             docker compose pull
 
+            # Stop old server before schema changes (prevents mixed-version window)
+            docker compose stop server
+
             # Migrate before starting services (avoids deadlock if new server needs new schema)
             docker compose run --rm server ./main migrate
 
-            docker compose up -d
-
-            # Health check
-            sleep 5
-            docker compose ps server | grep -q "Up" || { echo "Server not running"; exit 1; }
+            # Deploy (--wait blocks until healthcheck passes)
+            docker compose up -d --wait
 
             echo "Demo deployment complete"
           '
@@ -378,16 +377,15 @@ jobs:
             [ -s "$BACKUP_FILE" ] || { echo "Backup failed or empty"; exit 1; }
             echo "Backup created: $(basename $BACKUP_FILE) ($(du -h $BACKUP_FILE | cut -f1))"
 
+            # Stop old server before schema changes (prevents mixed-version window)
+            docker compose stop server
+
             # Migrate before starting services (avoids deadlock if new server needs new schema)
             docker compose run --rm server ./main migrate
 
-            # Deploy
-            docker compose up -d
-
-            # Health check
-            sleep 5
-            docker compose ps server | grep -q "Up" || { echo "Server not running"; exit 1; }
-            echo "Server is running"
+            # Deploy (--wait blocks until healthcheck passes)
+            docker compose up -d --wait
+            echo "Server is healthy"
 
             # Cleanup (keep 7)
             ls -t ~/backups/production/backup-*.dump 2>/dev/null | tail -n +8 | xargs -r rm -v
