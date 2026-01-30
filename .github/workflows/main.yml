@@ -28,8 +28,10 @@ jobs:
       contents: read
     runs-on: ubuntu-latest
     outputs:
-      run-backend: ${{ steps.filter.outputs.backend == 'true' || steps.filter.outputs.ci == 'true' }}
-      run-frontend: ${{ steps.filter.outputs.frontend == 'true' || steps.filter.outputs.ci == 'true' }}
+      # On push to main/development: always run everything (full coverage for SonarCloud)
+      # On PRs: only run what changed (path filtering saves CI minutes)
+      run-backend: ${{ github.event_name == 'push' || steps.filter.outputs.backend == 'true' || steps.filter.outputs.ci == 'true' }}
+      run-frontend: ${{ github.event_name == 'push' || steps.filter.outputs.frontend == 'true' || steps.filter.outputs.ci == 'true' }}
     steps:
       - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
       - uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2

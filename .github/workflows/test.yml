@@ -72,10 +72,10 @@ jobs:
             --junitfile junit.xml \
             --rerun-fails \
             --rerun-fails-max-failures=5 \
+            --packages="./..." \
             -- \
             -coverprofile=coverage.out \
-            -covermode=atomic \
-            ./...
+            -covermode=atomic
 
       - name: Fix Go coverage paths for SonarCloud
         run: |
