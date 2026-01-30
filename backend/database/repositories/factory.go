@@ -73,6 +73,7 @@ type Factory struct {
 	RecurrenceRule         scheduleModels.RecurrenceRuleRepository
 	StudentPickupSchedule  scheduleModels.StudentPickupScheduleRepository
 	StudentPickupException scheduleModels.StudentPickupExceptionRepository
+	StudentPickupNote      scheduleModels.StudentPickupNoteRepository
 
 	// Activities domain
 	ActivityGroup      activitiesModels.GroupRepository
@@ -150,6 +151,7 @@ func NewFactory(db *bun.DB) *Factory {
 		RecurrenceRule:         schedule.NewRecurrenceRuleRepository(db),
 		StudentPickupSchedule:  schedule.NewStudentPickupScheduleRepository(db),
 		StudentPickupException: schedule.NewStudentPickupExceptionRepository(db),
+		StudentPickupNote:      schedule.NewStudentPickupNoteRepository(db),
 
 		// Activities repositories
 		ActivityGroup:      activities.NewGroupRepository(db),

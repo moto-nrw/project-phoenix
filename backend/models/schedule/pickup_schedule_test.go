@@ -8,6 +8,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// strPtr returns a pointer to the given string
+func strPtr(s string) *string {
+	return &s
+}
+
 // =============================================================================
 // StudentPickupSchedule Validation Tests
 // =============================================================================
@@ -228,7 +233,7 @@ func TestStudentPickupException_Validate(t *testing.T) {
 					StudentID:     1,
 					ExceptionDate: validDate,
 					PickupTime:    &validTime,
-					Reason:        "Doctor appointment",
+					Reason:        strPtr("Doctor appointment"),
 					CreatedBy:     1,
 				}
 			},
@@ -241,7 +246,7 @@ func TestStudentPickupException_Validate(t *testing.T) {
 					StudentID:     1,
 					ExceptionDate: validDate,
 					PickupTime:    nil,
-					Reason:        "Student is sick",
+					Reason:        strPtr("Student is sick"),
 					CreatedBy:     1,
 				}
 			},
@@ -253,7 +258,7 @@ func TestStudentPickupException_Validate(t *testing.T) {
 				return &StudentPickupException{
 					StudentID:     0,
 					ExceptionDate: validDate,
-					Reason:        "Test reason",
+					Reason:        strPtr("Test reason"),
 					CreatedBy:     1,
 				}
 			},
@@ -266,7 +271,7 @@ func TestStudentPickupException_Validate(t *testing.T) {
 				return &StudentPickupException{
 					StudentID:     -1,
 					ExceptionDate: validDate,
-					Reason:        "Test reason",
+					Reason:        strPtr("Test reason"),
 					CreatedBy:     1,
 				}
 			},
@@ -278,7 +283,7 @@ func TestStudentPickupException_Validate(t *testing.T) {
 			setup: func() *StudentPickupException {
 				return &StudentPickupException{
 					StudentID: 1,
-					Reason:    "Test reason",
+					Reason:    strPtr("Test reason"),
 					CreatedBy: 1,
 				}
 			},
@@ -291,12 +296,11 @@ func TestStudentPickupException_Validate(t *testing.T) {
 				return &StudentPickupException{
 					StudentID:     1,
 					ExceptionDate: validDate,
-					Reason:        "",
+					Reason:        nil,
 					CreatedBy:     1,
 				}
 			},
-			wantErr: true,
-			errMsg:  "reason is required",
+			wantErr: false, // Reason is optional (nullable field)
 		},
 		{
 			name: "reason too long",
@@ -304,7 +308,7 @@ func TestStudentPickupException_Validate(t *testing.T) {
 				return &StudentPickupException{
 					StudentID:     1,
 					ExceptionDate: validDate,
-					Reason:        string(make([]byte, 256)),
+					Reason:        strPtr(string(make([]byte, 256))),
 					CreatedBy:     1,
 				}
 			},
@@ -317,7 +321,7 @@ func TestStudentPickupException_Validate(t *testing.T) {
 				return &StudentPickupException{
 					StudentID:     1,
 					ExceptionDate: validDate,
-					Reason:        "Test reason",
+					Reason:        strPtr("Test reason"),
 					CreatedBy:     0,
 				}
 			},
@@ -357,7 +361,7 @@ func TestStudentPickupException_IsAbsent(t *testing.T) {
 					StudentID:     1,
 					ExceptionDate: validDate,
 					PickupTime:    &validTime,
-					Reason:        "Early pickup",
+					Reason:        strPtr("Early pickup"),
 					CreatedBy:     1,
 				}
 			},
@@ -370,7 +374,7 @@ func TestStudentPickupException_IsAbsent(t *testing.T) {
 					StudentID:     1,
 					ExceptionDate: validDate,
 					PickupTime:    nil,
-					Reason:        "Student is sick",
+					Reason:        strPtr("Student is sick"),
 					CreatedBy:     1,
 				}
 			},
@@ -434,4 +438,173 @@ func TestWeekdayNames(t *testing.T) {
 	assert.Equal(t, "Freitag", WeekdayNames[WeekdayFriday])
 	assert.Equal(t, "Samstag", WeekdayNames[WeekdaySaturday])
 	assert.Equal(t, "Sonntag", WeekdayNames[WeekdaySunday])
+}
+
+// =============================================================================
+// StudentPickupNote Validation Tests
+// =============================================================================
+
+func TestStudentPickupNote_Validate(t *testing.T) {
+	validDate := time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC)
+
+	tests := []struct {
+		name    string
+		setup   func() *StudentPickupNote
+		wantErr bool
+		errMsg  string
+	}{
+		{
+			name: "valid note",
+			setup: func() *StudentPickupNote {
+				return &StudentPickupNote{
+					StudentID: 1,
+					NoteDate:  validDate,
+					Content:   "Please call before pickup",
+					CreatedBy: 1,
+				}
+			},
+			wantErr: false,
+		},
+		{
+			name: "missing student_id",
+			setup: func() *StudentPickupNote {
+				return &StudentPickupNote{
+					StudentID: 0,
+					NoteDate:  validDate,
+					Content:   "Test note",
+					CreatedBy: 1,
+				}
+			},
+			wantErr: true,
+			errMsg:  "student_id is required",
+		},
+		{
+			name: "negative student_id",
+			setup: func() *StudentPickupNote {
+				return &StudentPickupNote{
+					StudentID: -1,
+					NoteDate:  validDate,
+					Content:   "Test note",
+					CreatedBy: 1,
+				}
+			},
+			wantErr: true,
+			errMsg:  "student_id is required",
+		},
+		{
+			name: "missing note_date",
+			setup: func() *StudentPickupNote {
+				return &StudentPickupNote{
+					StudentID: 1,
+					Content:   "Test note",
+					CreatedBy: 1,
+				}
+			},
+			wantErr: true,
+			errMsg:  "note_date is required",
+		},
+		{
+			name: "missing content",
+			setup: func() *StudentPickupNote {
+				return &StudentPickupNote{
+					StudentID: 1,
+					NoteDate:  validDate,
+					Content:   "",
+					CreatedBy: 1,
+				}
+			},
+			wantErr: true,
+			errMsg:  "content is required",
+		},
+		{
+			name: "content too long",
+			setup: func() *StudentPickupNote {
+				return &StudentPickupNote{
+					StudentID: 1,
+					NoteDate:  validDate,
+					Content:   string(make([]byte, 501)),
+					CreatedBy: 1,
+				}
+			},
+			wantErr: true,
+			errMsg:  "content cannot exceed 500 characters",
+		},
+		{
+			name: "content exactly 500 characters",
+			setup: func() *StudentPickupNote {
+				return &StudentPickupNote{
+					StudentID: 1,
+					NoteDate:  validDate,
+					Content:   string(make([]byte, 500)),
+					CreatedBy: 1,
+				}
+			},
+			wantErr: false,
+		},
+		{
+			name: "missing created_by",
+			setup: func() *StudentPickupNote {
+				return &StudentPickupNote{
+					StudentID: 1,
+					NoteDate:  validDate,
+					Content:   "Test note",
+					CreatedBy: 0,
+				}
+			},
+			wantErr: true,
+			errMsg:  "created_by is required",
+		},
+		{
+			name: "negative created_by",
+			setup: func() *StudentPickupNote {
+				return &StudentPickupNote{
+					StudentID: 1,
+					NoteDate:  validDate,
+					Content:   "Test note",
+					CreatedBy: -1,
+				}
+			},
+			wantErr: true,
+			errMsg:  "created_by is required",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			note := tt.setup()
+			err := note.Validate()
+
+			if tt.wantErr {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.errMsg)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestStudentPickupNote_TableName(t *testing.T) {
+	note := &StudentPickupNote{}
+	assert.Equal(t, "schedule.student_pickup_notes", note.TableName())
+}
+
+func TestStudentPickupNote_GetID(t *testing.T) {
+	note := &StudentPickupNote{}
+	note.ID = 42
+	assert.Equal(t, int64(42), note.GetID())
+}
+
+func TestStudentPickupNote_GetCreatedAt(t *testing.T) {
+	now := time.Now()
+	note := &StudentPickupNote{}
+	note.CreatedAt = now
+	assert.Equal(t, now, note.GetCreatedAt())
+}
+
+func TestStudentPickupNote_GetUpdatedAt(t *testing.T) {
+	now := time.Now()
+	note := &StudentPickupNote{}
+	note.UpdatedAt = now
+	assert.Equal(t, now, note.GetUpdatedAt())
 }

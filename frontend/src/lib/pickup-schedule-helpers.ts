@@ -32,7 +32,7 @@ export interface PickupException {
   studentId: string;
   exceptionDate: string; // YYYY-MM-DD format
   pickupTime?: string; // HH:MM format, null = no pickup (absent)
-  reason: string;
+  reason?: string;
   createdBy: string;
   createdAt: string;
   updatedAt: string;
@@ -44,22 +44,46 @@ export interface BackendPickupException {
   student_id: number;
   exception_date: string; // YYYY-MM-DD format
   pickup_time?: string; // HH:MM format
-  reason: string;
+  reason?: string;
   created_by: number;
   created_at: string;
   updated_at: string;
 }
 
-// Combined Pickup Data (schedules + exceptions)
+// Frontend Pickup Note Type
+export interface PickupNote {
+  id: string;
+  studentId: string;
+  noteDate: string; // YYYY-MM-DD format
+  content: string;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Backend Pickup Note Response
+export interface BackendPickupNote {
+  id: number;
+  student_id: number;
+  note_date: string; // YYYY-MM-DD format
+  content: string;
+  created_by: number;
+  created_at: string;
+  updated_at: string;
+}
+
+// Combined Pickup Data (schedules + exceptions + notes)
 export interface PickupData {
   schedules: PickupSchedule[];
   exceptions: PickupException[];
+  notes: PickupNote[];
 }
 
 // Backend Combined Pickup Data Response
 export interface BackendPickupData {
   schedules: BackendPickupSchedule[];
   exceptions: BackendPickupException[];
+  notes: BackendPickupNote[];
 }
 
 // Request types for creating/updating schedules
@@ -90,14 +114,26 @@ export interface BackendBulkPickupScheduleRequest {
 export interface PickupExceptionFormData {
   exceptionDate: string; // YYYY-MM-DD format
   pickupTime?: string; // HH:MM format, undefined = no pickup
-  reason: string;
+  reason?: string;
 }
 
 // Backend exception request
 export interface BackendPickupExceptionRequest {
   exception_date: string;
   pickup_time?: string;
-  reason: string;
+  reason?: string;
+}
+
+// Request types for creating/updating notes
+export interface PickupNoteFormData {
+  noteDate: string; // YYYY-MM-DD format
+  content: string; // max 500 chars
+}
+
+// Backend note request
+export interface BackendPickupNoteRequest {
+  note_date: string;
+  content: string;
 }
 
 // Mapping Functions
@@ -133,10 +169,23 @@ export function mapPickupExceptionResponse(
   };
 }
 
+export function mapPickupNoteResponse(data: BackendPickupNote): PickupNote {
+  return {
+    id: data.id.toString(),
+    studentId: data.student_id.toString(),
+    noteDate: data.note_date,
+    content: data.content,
+    createdBy: data.created_by.toString(),
+    createdAt: data.created_at,
+    updatedAt: data.updated_at,
+  };
+}
+
 export function mapPickupDataResponse(data: BackendPickupData): PickupData {
   return {
     schedules: (data.schedules ?? []).map(mapPickupScheduleResponse),
     exceptions: (data.exceptions ?? []).map(mapPickupExceptionResponse),
+    notes: (data.notes ?? []).map(mapPickupNoteResponse),
   };
 }
 
@@ -165,6 +214,15 @@ export function mapPickupExceptionFormToBackend(
     exception_date: data.exceptionDate,
     pickup_time: data.pickupTime,
     reason: data.reason,
+  };
+}
+
+export function mapPickupNoteFormToBackend(
+  data: PickupNoteFormData,
+): BackendPickupNoteRequest {
+  return {
+    note_date: data.noteDate,
+    content: data.content,
   };
 }
 
@@ -390,6 +448,7 @@ export interface DayData {
   effectiveTime: string | undefined;
   effectiveNotes: string | undefined;
   isException: boolean;
+  notes: PickupNote[]; // Day-specific notes
 }
 
 /**
@@ -400,6 +459,7 @@ export function getDayData(
   schedules: PickupSchedule[],
   exceptions: PickupException[],
   isSickToday: boolean,
+  notes: PickupNote[] = [],
 ): DayData {
   const weekday = getWeekdayFromDate(date);
   const dateStr = formatDateISO(date);
@@ -417,6 +477,7 @@ export function getDayData(
       effectiveTime: undefined,
       effectiveNotes: undefined,
       isException: false,
+      notes: [],
     };
   }
 
@@ -443,6 +504,9 @@ export function getDayData(
     effectiveTime = baseSchedule?.pickupTime;
   }
 
+  // Filter notes for this specific date
+  const dayNotes = notes.filter((n) => n.noteDate === dateStr);
+
   return {
     date,
     weekday,
@@ -453,5 +517,6 @@ export function getDayData(
     effectiveTime,
     effectiveNotes: exception?.reason ?? baseSchedule?.notes,
     isException: !!exception,
+    notes: dayNotes,
   };
 }

@@ -62,13 +62,21 @@ export function PrivacyConsentSection({
           {consent.acceptedAt && (
             <div className="text-gray-600">
               Erteilt am:{" "}
-              {new Date(consent.acceptedAt).toLocaleDateString("de-DE")}
+              {new Date(consent.acceptedAt).toLocaleDateString("de-DE", {
+                day: "2-digit",
+                month: "2-digit",
+                year: "numeric",
+              })}
             </div>
           )}
           {consent.expiresAt && (
             <div className="text-gray-600">
               Gültig bis:{" "}
-              {new Date(consent.expiresAt).toLocaleDateString("de-DE")}
+              {new Date(consent.expiresAt).toLocaleDateString("de-DE", {
+                day: "2-digit",
+                month: "2-digit",
+                year: "numeric",
+              })}
             </div>
           )}
           {consent.renewalRequired && (

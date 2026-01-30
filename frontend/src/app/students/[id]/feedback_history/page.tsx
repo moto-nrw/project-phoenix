@@ -211,7 +211,11 @@ export default function StudentFeedbackHistoryPage() {
   // Group feedback history by date
   const groupedFeedbackHistory = filteredFeedbackHistory.reduce(
     (groups, entry) => {
-      const date = new Date(entry.timestamp).toLocaleDateString("de-DE");
+      const date = new Date(entry.timestamp).toLocaleDateString("de-DE", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+      });
       groups[date] ??= [];
       groups[date].push(entry);
       return groups;

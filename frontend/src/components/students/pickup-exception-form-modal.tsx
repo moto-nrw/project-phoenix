@@ -42,7 +42,7 @@ export function PickupExceptionFormModal({
             ? formatPickupTime(initialData.pickupTime)
             : "",
         );
-        setReason(initialData.reason);
+        setReason(initialData.reason ?? "");
       } else {
         // Use defaultDate if provided, otherwise default to tomorrow
         if (defaultDate) {

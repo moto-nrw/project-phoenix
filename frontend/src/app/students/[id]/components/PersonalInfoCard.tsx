@@ -81,7 +81,11 @@ function PersonalInfoDisplay({
         label="Geburtsdatum"
         value={
           student.birthday
-            ? new Date(student.birthday).toLocaleDateString("de-DE")
+            ? new Date(student.birthday).toLocaleDateString("de-DE", {
+                day: "2-digit",
+                month: "2-digit",
+                year: "numeric",
+              })
             : "Nicht angegeben"
         }
       />
@@ -132,7 +136,12 @@ function SickBadge({ sickSince }: Readonly<{ sickSince?: string }>) {
       </span>
       {sickSince && (
         <span className="text-sm text-gray-500">
-          seit {new Date(sickSince).toLocaleDateString("de-DE")}
+          seit{" "}
+          {new Date(sickSince).toLocaleDateString("de-DE", {
+            day: "2-digit",
+            month: "2-digit",
+            year: "numeric",
+          })}
         </span>
       )}
     </div>
