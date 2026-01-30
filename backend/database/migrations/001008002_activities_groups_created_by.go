@@ -55,7 +55,7 @@ func migrateActivitiesGroupsCreatedBy(ctx context.Context, db *bun.DB) error {
 
 	// Step 1: Check for existing data and log what will be deleted
 	var count int
-	err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM activities.groups`).Scan(&count)
+	err = db.QueryRowContext(ctx, `SELECT COUNT(*) FROM activities.groups`).Scan(&count)
 	if err != nil {
 		return fmt.Errorf("error checking activities.groups count: %w", err)
 	}
