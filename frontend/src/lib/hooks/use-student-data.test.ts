@@ -549,7 +549,7 @@ describe("shouldShowCheckoutSection", () => {
       expect(result).toBe(true);
     });
 
-    it("should return false when student is not in user's group", () => {
+    it("should return true when student is checked in, regardless of group", () => {
       const student = {
         ...baseStudent,
         group_id: "999",
@@ -558,10 +558,11 @@ describe("shouldShowCheckoutSection", () => {
 
       const result = shouldShowCheckoutSection(student, ["100", "101"], []);
 
-      expect(result).toBe(false);
+      // New behavior: any checked-in student can be checked out
+      expect(result).toBe(true);
     });
 
-    it("should handle missing group_id", () => {
+    it("should return true when student is checked in without group_id", () => {
       const student = {
         ...baseStudent,
         group_id: undefined,
@@ -570,7 +571,8 @@ describe("shouldShowCheckoutSection", () => {
 
       const result = shouldShowCheckoutSection(student, ["100", "101"], []);
 
-      expect(result).toBe(false);
+      // New behavior: any checked-in student can be checked out
+      expect(result).toBe(true);
     });
   });
 
@@ -587,7 +589,7 @@ describe("shouldShowCheckoutSection", () => {
       expect(result).toBe(true);
     });
 
-    it("should return false when student is not in supervised room", () => {
+    it("should return true when student is checked in regardless of supervised room", () => {
       const student = {
         ...baseStudent,
         group_id: "999",
@@ -596,7 +598,8 @@ describe("shouldShowCheckoutSection", () => {
 
       const result = shouldShowCheckoutSection(student, [], ["Room C"]);
 
-      expect(result).toBe(false);
+      // New behavior: any checked-in student can be checked out
+      expect(result).toBe(true);
     });
 
     it("should match partial room names in supervised rooms", () => {
@@ -662,7 +665,7 @@ describe("shouldShowCheckoutSection", () => {
       expect(result).toBe(true);
     });
 
-    it("should return false when checked in but not in group or supervised room", () => {
+    it("should return true when checked in regardless of group or room", () => {
       const student = {
         ...baseStudent,
         group_id: "999",
@@ -675,7 +678,8 @@ describe("shouldShowCheckoutSection", () => {
         ["Room A", "Room B"],
       );
 
-      expect(result).toBe(false);
+      // New behavior: any checked-in student can be checked out
+      expect(result).toBe(true);
     });
 
     it("should return false when in group but not checked in", () => {
@@ -692,7 +696,7 @@ describe("shouldShowCheckoutSection", () => {
   });
 
   describe("edge cases", () => {
-    it("should handle empty arrays", () => {
+    it("should return true when checked in with empty arrays", () => {
       const student = {
         ...baseStudent,
         group_id: "100",
@@ -701,7 +705,8 @@ describe("shouldShowCheckoutSection", () => {
 
       const result = shouldShowCheckoutSection(student, [], []);
 
-      expect(result).toBe(false);
+      // New behavior: any checked-in student can be checked out
+      expect(result).toBe(true);
     });
 
     it("should handle null/undefined location gracefully", () => {

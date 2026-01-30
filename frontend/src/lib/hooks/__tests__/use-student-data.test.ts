@@ -205,7 +205,8 @@ describe("shouldShowCheckoutSection", () => {
     ).toBe(false);
   });
 
-  it("returns false when student is not in user's group or supervised room", () => {
+  it("returns true when student is checked in, regardless of group", () => {
+    // Any authenticated staff can checkout any checked-in student
     const student = createStudent({
       group_id: "other-group",
       current_location: "Anwesend - Other Room",
@@ -215,10 +216,11 @@ describe("shouldShowCheckoutSection", () => {
 
     expect(
       shouldShowCheckoutSection(student, myGroups, mySupervisedRooms),
-    ).toBe(false);
+    ).toBe(true);
   });
 
-  it("returns false when student has no group_id", () => {
+  it("returns true when student is checked in without group_id", () => {
+    // Any authenticated staff can checkout any checked-in student
     const student = createStudent({
       group_id: undefined,
       current_location: "Anwesend - Raum 101",
@@ -228,7 +230,7 @@ describe("shouldShowCheckoutSection", () => {
 
     expect(
       shouldShowCheckoutSection(student, myGroups, mySupervisedRooms),
-    ).toBe(false);
+    ).toBe(true);
   });
 
   it("returns false when student has no current_location", () => {
