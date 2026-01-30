@@ -4,8 +4,12 @@ package attendance
 
 import (
 	"context"
+	"net/http"
+	"net/http/httptest"
 	"testing"
+	"time"
 
+	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -103,4 +107,84 @@ func TestAttendanceStudentInfo_NilGroup(t *testing.T) {
 	}
 
 	assert.Nil(t, info.Group)
+}
+
+// =============================================================================
+// getStudentGroupInfo TESTS
+// =============================================================================
+
+func TestGetStudentGroupInfo_NilGroupID(t *testing.T) {
+	rs := &Resource{}
+	student := &users.Student{} // GroupID is nil
+	result := rs.getStudentGroupInfo(context.Background(), student)
+	assert.Nil(t, result, "Expected nil when student has no group")
+}
+
+// =============================================================================
+// handleCancelAction TESTS
+// =============================================================================
+
+func TestHandleCancelAction_Response(t *testing.T) {
+	rs := &Resource{}
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest("POST", "/toggle", nil)
+
+	rs.handleCancelAction(w, r)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+}
+
+// =============================================================================
+// AttendanceToggleResponse TESTS
+// =============================================================================
+
+func TestAttendanceToggleResponse_Fields(t *testing.T) {
+	resp := AttendanceToggleResponse{
+		Action:  "checked_out_daily",
+		Message: "Tschüss Max!",
+		Student: AttendanceStudentInfo{
+			ID:        123,
+			FirstName: "Max",
+			LastName:  "Muster",
+		},
+	}
+
+	assert.Equal(t, "checked_out_daily", resp.Action)
+	assert.Equal(t, "Tschüss Max!", resp.Message)
+	assert.Equal(t, int64(123), resp.Student.ID)
+}
+
+func TestAttendanceInfo_Fields(t *testing.T) {
+	now := time.Now()
+	later := now.Add(1 * time.Hour)
+	info := AttendanceInfo{
+		Status:       "checked_out",
+		Date:         now,
+		CheckInTime:  &now,
+		CheckOutTime: &later,
+		CheckedInBy:  "Staff A",
+		CheckedOutBy: "Staff B",
+	}
+
+	assert.Equal(t, "checked_out", info.Status)
+	assert.NotNil(t, info.CheckInTime)
+	assert.NotNil(t, info.CheckOutTime)
+	assert.Equal(t, "Staff A", info.CheckedInBy)
+	assert.Equal(t, "Staff B", info.CheckedOutBy)
+}
+
+func TestAttendanceStatusResponse_Fields(t *testing.T) {
+	resp := AttendanceStatusResponse{
+		Student: AttendanceStudentInfo{
+			ID:        456,
+			FirstName: "Anna",
+			LastName:  "Test",
+		},
+		Attendance: AttendanceInfo{
+			Status: "checked_in",
+		},
+	}
+
+	assert.Equal(t, int64(456), resp.Student.ID)
+	assert.Equal(t, "checked_in", resp.Attendance.Status)
 }

@@ -246,10 +246,12 @@ func (s *service) performCheckOut(ctx context.Context, studentID, staffID int64,
 	}
 
 	attendance.CheckOutTime = &now
-	attendance.CheckedOutBy = &staffID
+	if staffID > 0 {
+		attendance.CheckedOutBy = &staffID
+	}
 
 	if err := s.attendanceRepo.Update(ctx, attendance); err != nil {
-		return nil, &ActiveError{Op: "ToggleStudentAttendance", Err: err}
+		return nil, &ActiveError{Op: "ToggleStudentAttendance", Err: fmt.Errorf("database error during update: %w", err)}
 	}
 
 	return &AttendanceResult{
