@@ -294,9 +294,8 @@ docker compose run --rm \
   -e DB_DSN="postgres://postgres:postgres@postgres-test:5432/phoenix_test?sslmode=disable" \
   server ./main migrate
 
-# Run tests
-TEST_DB_DSN="postgres://postgres:postgres@localhost:5433/phoenix_test?sslmode=disable" \
-  go test ./services/active/... -v
+# Run tests (APP_ENV=test is auto-set by SetupTestDB)
+go test ./services/active/... -v
 ```
 
 ---
