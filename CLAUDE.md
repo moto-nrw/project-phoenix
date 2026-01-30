@@ -210,10 +210,14 @@ devbox add <tool>@latest    # Add to devbox.json
 
 ### Test Database (port 5433)
 ```bash
-docker compose --profile test up -d postgres-test  # Start test DB
+docker compose --profile test up -d postgres-test  # Start test DB (isolated network)
+docker compose --profile test down                 # Stop test DB (required: plain `down` won't stop it)
 APP_ENV=test go run main.go migrate reset          # Setup test DB
 go test ./...                                       # Run tests
 ```
+> **Note:** The test DB runs on an isolated `test` network to prevent
+> "network still in use" errors when running `docker compose down`.
+> Always use `--profile test` to start/stop it.
 
 ---
 
@@ -286,8 +290,11 @@ docker compose exec server ./main migrate  # Run migrations
 
 ### Test Database (Integration Tests - Detailed)
 ```bash
-# Start test DB (port 5433)
+# Start test DB (port 5433, isolated network)
 docker compose --profile test up -d postgres-test
+
+# Stop test DB (plain `docker compose down` won't stop it — use --profile)
+docker compose --profile test down
 
 # Run migrations on test DB
 docker compose run --rm \
