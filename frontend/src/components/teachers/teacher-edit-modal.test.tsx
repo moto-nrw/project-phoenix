@@ -184,7 +184,7 @@ describe("TeacherEditModal", () => {
         screen.getByTestId("initial-data").textContent ?? "";
       const initialData = JSON.parse(initialDataText) as Teacher;
       expect(initialData).toHaveProperty("id", "1");
-      expect(initialData).toHaveProperty("firstName", "John");
+      expect(initialData).toHaveProperty("first_name", "John");
       expect(initialData).toHaveProperty("email", "john.doe@example.com");
     });
   });
