@@ -165,35 +165,39 @@ function SuggestionsPageContent() {
           placeholder: "Feedback durchsuchen...",
         }}
         actionButton={
-          <button
-            type="button"
-            onClick={() => setFormOpen(true)}
-            className="rounded-full bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-700"
-          >
-            Neuer Beitrag
-          </button>
+          suggestions && suggestions.length > 0 ? (
+            <button
+              type="button"
+              onClick={() => setFormOpen(true)}
+              className="rounded-full bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-700"
+            >
+              Neuer Beitrag
+            </button>
+          ) : undefined
         }
         mobileActionButton={
-          <button
-            type="button"
-            onClick={() => setFormOpen(true)}
-            className="rounded-full bg-gray-900 p-2 text-white transition-colors hover:bg-gray-700"
-            aria-label="Neuer Beitrag"
-          >
-            <svg
-              className="h-5 w-5"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={2}
+          suggestions && suggestions.length > 0 ? (
+            <button
+              type="button"
+              onClick={() => setFormOpen(true)}
+              className="rounded-full bg-gray-900 p-2 text-white transition-colors hover:bg-gray-700"
+              aria-label="Neuer Beitrag"
             >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M12 4v16m8-8H4"
-              />
-            </svg>
-          </button>
+              <svg
+                className="h-5 w-5"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2}
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M12 4v16m8-8H4"
+                />
+              </svg>
+            </button>
+          ) : undefined
         }
       />
 
