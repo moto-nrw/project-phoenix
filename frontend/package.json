@@ -91,7 +91,9 @@
       "src/lib/swr/index.ts",
       "src/server/auth/token-refresh.ts",
       "src/**/*.test.{ts,tsx}",
-      "src/test/mocks/*.ts"
+      "src/test/mocks/*.ts",
+      "src/test/fixtures/*.ts",
+      "src/test/helpers/*.ts"
     ],
     "project": [
       "src/**/*.{ts,tsx,js}"

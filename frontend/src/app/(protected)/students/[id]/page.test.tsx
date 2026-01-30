@@ -126,26 +126,27 @@ vi.mock("~/components/students/student-detail-components", () => ({
   ),
   PersonalInfoReadOnly: ({
     student,
-  }: {
-    student: { name: string; school_class: string };
-  }) => (
-    <div data-testid="personal-info-readonly">
-      <span data-testid="readonly-name">{student.name}</span>
-      <span data-testid="readonly-class">{student.school_class}</span>
-    </div>
-  ),
-  FullAccessPersonalInfoReadOnly: ({
-    student,
+    showEditButton,
     onEditClick,
   }: {
-    student: { name: string };
-    onEditClick: () => void;
+    student: { name: string; school_class: string };
+    showEditButton?: boolean;
+    onEditClick?: () => void;
   }) => (
-    <div data-testid="full-access-personal-info">
-      <span data-testid="fullaccess-name">{student.name}</span>
-      <button data-testid="edit-personal-info" onClick={onEditClick}>
-        Bearbeiten
-      </button>
+    <div
+      data-testid={
+        showEditButton ? "full-access-personal-info" : "personal-info-readonly"
+      }
+    >
+      <span data-testid={showEditButton ? "fullaccess-name" : "readonly-name"}>
+        {student.name}
+      </span>
+      <span data-testid="readonly-class">{student.school_class}</span>
+      {showEditButton && onEditClick && (
+        <button data-testid="edit-personal-info" onClick={onEditClick}>
+          Bearbeiten
+        </button>
+      )}
     </div>
   ),
   StudentHistorySection: () => (
@@ -566,10 +567,11 @@ describe("StudentDetailPage", () => {
       expect(screen.getByTestId("personal-info-readonly")).toBeInTheDocument();
     });
 
-    it("does not render guardian manager in limited view", () => {
+    it("renders guardian manager in read-only mode in limited view", () => {
+      // All staff can view guardian info (read-only), only supervisors can edit
       render(<StudentDetailPage />);
 
-      expect(screen.queryByTestId("guardian-manager")).not.toBeInTheDocument();
+      expect(screen.getByTestId("guardian-manager")).toBeInTheDocument();
     });
   });
 

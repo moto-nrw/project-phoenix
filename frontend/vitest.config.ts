@@ -19,6 +19,7 @@ export default defineConfig({
         "**/*.config.*",
         "**/types.ts",
         "**/*.d.ts",
+        "src/env.js",
       ],
     },
   },

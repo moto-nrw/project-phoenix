@@ -1,5 +1,9 @@
+/**
+ * Tests for Breadcrumb Components
+ * Tests rendering and navigation breadcrumb patterns
+ */
+import { render, screen, fireEvent } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
 import {
   PageTitleDisplay,
   DatabaseBreadcrumb,
@@ -15,13 +19,13 @@ import {
 // Mock next/link
 vi.mock("next/link", () => ({
   default: ({
-    href,
     children,
+    href,
     onClick,
     className,
   }: {
-    href: string;
     children: React.ReactNode;
+    href: string;
     onClick?: () => void;
     className?: string;
   }) => (
@@ -32,9 +36,10 @@ vi.mock("next/link", () => ({
 }));
 
 describe("PageTitleDisplay", () => {
-  it("renders title text", () => {
-    render(<PageTitleDisplay title="Dashboard" />);
-    expect(screen.getByText("Dashboard")).toBeInTheDocument();
+  it("renders page title", () => {
+    render(<PageTitleDisplay title="Test Page" />);
+
+    expect(screen.getByText("Test Page")).toBeInTheDocument();
   });
 
   it("uses text-base when not scrolled", () => {
@@ -43,15 +48,23 @@ describe("PageTitleDisplay", () => {
     expect(el.className).toContain("text-base");
   });
 
-  it("uses text-sm when scrolled", () => {
-    render(<PageTitleDisplay title="Dashboard" isScrolled={true} />);
-    const el = screen.getByText("Dashboard");
-    expect(el.className).toContain("text-sm");
+  it("applies smaller text when scrolled", () => {
+    render(<PageTitleDisplay title="Test Page" isScrolled={true} />);
+
+    const title = screen.getByText("Test Page");
+    expect(title).toHaveClass("text-sm");
+  });
+
+  it("is hidden on mobile", () => {
+    render(<PageTitleDisplay title="Test Page" />);
+
+    const title = screen.getByText("Test Page");
+    expect(title).toHaveClass("hidden");
   });
 });
 
 describe("DatabaseBreadcrumb", () => {
-  it("renders simple breadcrumb when not deep page", () => {
+  it("renders database breadcrumb with page title", () => {
     render(
       <DatabaseBreadcrumb
         pathname="/database/students"
@@ -60,11 +73,12 @@ describe("DatabaseBreadcrumb", () => {
         isDeepPage={false}
       />,
     );
+
     expect(screen.getByText("Datenbank")).toBeInTheDocument();
     expect(screen.getByText("Schüler")).toBeInTheDocument();
   });
 
-  it("renders deep breadcrumb with sub-page", () => {
+  it("renders deep page with three levels", () => {
     render(
       <DatabaseBreadcrumb
         pathname="/database/students/123"
@@ -73,60 +87,106 @@ describe("DatabaseBreadcrumb", () => {
         isDeepPage={true}
       />,
     );
+
     expect(screen.getByText("Datenbank")).toBeInTheDocument();
     expect(screen.getByText("Schüler")).toBeInTheDocument();
     expect(screen.getByText("Details")).toBeInTheDocument();
   });
+
+  it("links correctly", () => {
+    render(
+      <DatabaseBreadcrumb
+        pathname="/database/students"
+        pageTitle="Schüler"
+        subPageLabel=""
+        isDeepPage={false}
+      />,
+    );
+
+    const databaseLink = screen.getByRole("link", { name: "Datenbank" });
+    expect(databaseLink).toHaveAttribute("href", "/database");
+  });
 });
 
 describe("OgsGroupsBreadcrumb", () => {
-  it("shows breadcrumb trail when groupName is provided", () => {
-    render(<OgsGroupsBreadcrumb groupName="Eulen" />);
+  it("renders simple title when no group name", () => {
+    render(<OgsGroupsBreadcrumb />);
+
     expect(screen.getByText("Meine Gruppe")).toBeInTheDocument();
-    expect(screen.getByText("Eulen")).toBeInTheDocument();
   });
 
-  it("shows simple title when no groupName", () => {
-    render(<OgsGroupsBreadcrumb />);
+  it("renders breadcrumb with group name", () => {
+    render(<OgsGroupsBreadcrumb groupName="Eulen" />);
+
     expect(screen.getByText("Meine Gruppe")).toBeInTheDocument();
+    expect(screen.getByText("Eulen")).toBeInTheDocument();
   });
 });
 
 describe("ActiveSupervisionsBreadcrumb", () => {
-  it("shows breadcrumb trail when supervisionName is provided", () => {
-    render(<ActiveSupervisionsBreadcrumb supervisionName="Raum 1.2" />);
+  it("renders simple title when no supervision name", () => {
+    render(<ActiveSupervisionsBreadcrumb />);
+
     expect(screen.getByText("Aktuelle Aufsicht")).toBeInTheDocument();
-    expect(screen.getByText("Raum 1.2")).toBeInTheDocument();
   });
 
-  it("shows simple title when no supervisionName", () => {
-    render(<ActiveSupervisionsBreadcrumb />);
+  it("renders breadcrumb with supervision name", () => {
+    render(<ActiveSupervisionsBreadcrumb supervisionName="Raum 1.2" />);
+
     expect(screen.getByText("Aktuelle Aufsicht")).toBeInTheDocument();
+    expect(screen.getByText("Raum 1.2")).toBeInTheDocument();
   });
 });
 
 describe("InvitationsBreadcrumb", () => {
   it("renders three-level breadcrumb", () => {
     render(<InvitationsBreadcrumb />);
+
     expect(screen.getByText("Datenverwaltung")).toBeInTheDocument();
     expect(screen.getByText("Betreuer")).toBeInTheDocument();
     expect(screen.getByText("Einladungen")).toBeInTheDocument();
+  });
+
+  it("links correctly", () => {
+    render(<InvitationsBreadcrumb />);
+
+    const databaseLink = screen.getByRole("link", { name: "Datenverwaltung" });
+    expect(databaseLink).toHaveAttribute("href", "/database");
+
+    const teachersLink = screen.getByRole("link", { name: "Betreuer" });
+    expect(teachersLink).toHaveAttribute("href", "/database/teachers");
   });
 });
 
 describe("ActivityBreadcrumb", () => {
   it("renders activity breadcrumb", () => {
     render(<ActivityBreadcrumb activityName="Fußball AG" />);
+
     expect(screen.getByText("Aktivitäten")).toBeInTheDocument();
     expect(screen.getByText("Fußball AG")).toBeInTheDocument();
+  });
+
+  it("links to activities page", () => {
+    render(<ActivityBreadcrumb activityName="Fußball" />);
+
+    const activitiesLink = screen.getByRole("link", { name: "Aktivitäten" });
+    expect(activitiesLink).toHaveAttribute("href", "/activities");
   });
 });
 
 describe("RoomBreadcrumb", () => {
   it("renders room breadcrumb", () => {
     render(<RoomBreadcrumb roomName="Sporthalle" />);
+
     expect(screen.getByText("Räume")).toBeInTheDocument();
     expect(screen.getByText("Sporthalle")).toBeInTheDocument();
+  });
+
+  it("links to rooms page", () => {
+    render(<RoomBreadcrumb roomName="Sporthalle" />);
+
+    const roomsLink = screen.getByRole("link", { name: "Räume" });
+    expect(roomsLink).toHaveAttribute("href", "/rooms");
   });
 });
 
@@ -161,6 +221,21 @@ describe("StudentHistoryBreadcrumb", () => {
     expect(screen.getByText("Max")).toBeInTheDocument();
     expect(screen.getByText("Raumverlauf")).toBeInTheDocument();
   });
+
+  it("links correctly", () => {
+    render(
+      <StudentHistoryBreadcrumb
+        referrer="/database/students"
+        breadcrumbLabel="Schüler"
+        pathname="/database/students/123/history"
+        studentName="Max Mustermann"
+        historyType="Verlauf"
+      />,
+    );
+
+    const referrerLink = screen.getByRole("link", { name: "Schüler" });
+    expect(referrerLink).toHaveAttribute("href", "/database/students");
+  });
 });
 
 describe("StudentDetailBreadcrumb", () => {
@@ -189,16 +264,32 @@ describe("StudentDetailBreadcrumb", () => {
     expect(screen.getByText("Max")).toBeInTheDocument();
   });
 
-  it("applies scrolled text size", () => {
-    render(
+  it("applies smaller text when scrolled", () => {
+    const { container } = render(
       <StudentDetailBreadcrumb
-        referrer="/students/search"
-        breadcrumbLabel="Suche"
-        studentName="Emma"
+        referrer="/database/students"
+        breadcrumbLabel="Schüler"
+        studentName="Max Mustermann"
         isScrolled={true}
       />,
     );
-    const nav = document.querySelector("nav");
-    expect(nav?.className).toContain("text-sm");
+
+    const nav = container.querySelector("nav");
+    expect(nav).toHaveClass("text-sm");
+  });
+
+  it("handles onClick for links", () => {
+    const { container } = render(
+      <StudentDetailBreadcrumb
+        referrer="/database/students"
+        breadcrumbLabel="Schüler"
+        studentName="Max Mustermann"
+      />,
+    );
+
+    const link = screen.getByRole("link", { name: "Schüler" });
+    fireEvent.click(link);
+    // Just verify it doesn't crash
+    expect(container).toBeInTheDocument();
   });
 });

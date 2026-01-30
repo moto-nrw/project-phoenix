@@ -111,7 +111,8 @@ func TestGetStudentPickupSchedules(t *testing.T) {
 		testutil.AssertNotFound(t, rr)
 	})
 
-	t.Run("forbidden_without_full_access", func(t *testing.T) {
+	t.Run("success_any_staff_can_read_schedules", func(t *testing.T) {
+		// Any authenticated staff can read pickup schedules (read-only access)
 		staff, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "NoAccess", "Staff")
 		defer testpkg.CleanupActivityFixtures(t, tc.db, staff.ID)
 
@@ -119,7 +120,7 @@ func TestGetStudentPickupSchedules(t *testing.T) {
 		claims := testutil.TeacherTestClaims(int(account.ID))
 		rr := executeWithAuth(router, req, claims, []string{"students:read"})
 
-		testutil.AssertForbidden(t, rr)
+		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK - any staff can read pickup schedules. Body: %s", rr.Body.String())
 	})
 }
 

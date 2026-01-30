@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect } from "vitest";
 import type { BackendRoom, Room } from "./room-helpers";
 import {
   mapRoomResponse,
@@ -12,9 +12,11 @@ import {
   getRoomUtilization,
   getRoomStatusColor,
 } from "./room-helpers";
+import { suppressConsole } from "~/test/helpers/console";
+import { buildBackendRoom } from "~/test/fixtures";
 
 // Sample backend room for testing
-const sampleBackendRoom: BackendRoom = {
+const sampleBackendRoom = buildBackendRoom({
   id: 1,
   name: "Room 101",
   building: "Building A",
@@ -28,9 +30,7 @@ const sampleBackendRoom: BackendRoom = {
   group_name: "Class 3A",
   supervisor_name: "John Smith",
   student_count: 25,
-  created_at: "2024-01-15T10:00:00Z",
-  updated_at: "2024-01-15T12:00:00Z",
-};
+});
 
 describe("mapRoomResponse", () => {
   it("maps backend room to frontend room structure", () => {
@@ -90,23 +90,7 @@ describe("mapRoomResponse", () => {
 });
 
 describe("mapRoomsResponse", () => {
-  // Capture console warnings for testing
-  let consoleWarnSpy: ReturnType<typeof vi.spyOn>;
-  let consoleLogSpy: ReturnType<typeof vi.spyOn>;
-
-  beforeEach(() => {
-    // eslint-disable-next-line @typescript-eslint/no-empty-function
-    consoleWarnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-    // eslint-disable-next-line @typescript-eslint/no-empty-function
-    consoleLogSpy = vi.spyOn(console, "log").mockImplementation(() => {});
-  });
-
-  afterEach(() => {
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
-    consoleWarnSpy.mockRestore();
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
-    consoleLogSpy.mockRestore();
-  });
+  const consoleSpies = suppressConsole("warn", "log");
 
   it("maps array of backend rooms", () => {
     const backendRooms = [sampleBackendRoom, { ...sampleBackendRoom, id: 2 }];
@@ -126,7 +110,7 @@ describe("mapRoomsResponse", () => {
     const result = mapRoomsResponse(nestedResponse);
 
     expect(result).toHaveLength(2);
-    expect(consoleLogSpy).toHaveBeenCalledWith(
+    expect(consoleSpies.log).toHaveBeenCalledWith(
       "Handling nested API response for rooms",
     );
   });
@@ -135,7 +119,7 @@ describe("mapRoomsResponse", () => {
     const result = mapRoomsResponse(null);
 
     expect(result).toEqual([]);
-    expect(consoleWarnSpy).toHaveBeenCalledWith(
+    expect(consoleSpies.warn).toHaveBeenCalledWith(
       "Received invalid response format for rooms:",
       null,
     );
@@ -156,7 +140,7 @@ describe("mapRoomsResponse", () => {
     );
 
     expect(result).toEqual([]);
-    expect(consoleWarnSpy).toHaveBeenCalled();
+    expect(consoleSpies.warn).toHaveBeenCalled();
   });
 
   it("handles empty array", () => {

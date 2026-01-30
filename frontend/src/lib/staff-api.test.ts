@@ -1,9 +1,8 @@
-/* eslint-disable @typescript-eslint/no-empty-function */
-/* eslint-disable @typescript-eslint/no-unsafe-call */
-/* eslint-disable @typescript-eslint/no-unsafe-member-access */
 /* eslint-disable @typescript-eslint/no-misused-promises */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { BackendStaffResponse, StaffFilters } from "./staff-api";
+import { suppressConsole } from "~/test/helpers/console";
+import { mockSessionData } from "~/test/mocks/next-auth";
 
 // Mock next-auth/react before importing the module
 vi.mock("next-auth/react", () => ({
@@ -69,27 +68,19 @@ const sampleActiveGroups = [
 ];
 
 describe("staff-api", () => {
-  let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
-  let consoleWarnSpy: ReturnType<typeof vi.spyOn>;
+  const consoleSpies = suppressConsole("error", "warn");
   let originalFetch: typeof fetch;
 
   beforeEach(() => {
     vi.clearAllMocks();
-    consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-    consoleWarnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     originalFetch = globalThis.fetch;
     globalThis.fetch = vi.fn();
 
     // Default session mock
-    mockedGetSession.mockResolvedValue({
-      user: { id: "1", token: "test-token" },
-      expires: "2099-01-01",
-    });
+    mockedGetSession.mockResolvedValue(mockSessionData());
   });
 
   afterEach(() => {
-    consoleErrorSpy.mockRestore();
-    consoleWarnSpy.mockRestore();
     globalThis.fetch = originalFetch;
   });
 
@@ -609,7 +600,7 @@ describe("staff-api", () => {
       const result = await staffService.getStaffSupervisions("1");
 
       expect(result).toEqual([]);
-      expect(consoleErrorSpy).toHaveBeenCalledWith(
+      expect(consoleSpies.error).toHaveBeenCalledWith(
         expect.stringContaining("Error fetching supervisions for staff 1"),
         expect.any(Error),
       );
@@ -622,7 +613,7 @@ describe("staff-api", () => {
       const result = await staffService.getStaffSupervisions("1");
 
       expect(result).toEqual([]);
-      expect(consoleErrorSpy).toHaveBeenCalledWith(
+      expect(consoleSpies.error).toHaveBeenCalledWith(
         expect.stringContaining("Error fetching supervisions for staff 1"),
         expect.any(Error),
       );
@@ -639,7 +630,7 @@ describe("staff-api", () => {
       const result = await staffService.getStaffSupervisions("1");
 
       expect(result).toEqual([]);
-      expect(consoleErrorSpy).toHaveBeenCalledWith(
+      expect(consoleSpies.error).toHaveBeenCalledWith(
         expect.stringContaining("Error fetching supervisions for staff 1"),
         expect.any(Error),
       );

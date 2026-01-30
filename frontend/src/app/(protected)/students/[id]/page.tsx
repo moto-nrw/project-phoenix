@@ -21,7 +21,6 @@ import {
   StudentDetailHeader,
   SupervisorsCard,
   PersonalInfoReadOnly,
-  FullAccessPersonalInfoReadOnly,
   StudentHistorySection,
 } from "~/components/students/student-detail-components";
 import { PersonalInfoFormModal } from "~/components/students/personal-info-form-modal";
@@ -442,7 +441,15 @@ function LimitedAccessView({
 
       <SupervisorsCard supervisors={supervisors} studentName={student.name} />
 
+      <PickupScheduleManager
+        studentId={student.id}
+        readOnly={true}
+        isSick={student.sick}
+      />
+
       <PersonalInfoReadOnly student={student} />
+
+      <StudentGuardianManager studentId={student.id} readOnly={true} />
     </div>
   );
 }
@@ -493,8 +500,9 @@ function FullAccessView({
           isSick={student.sick}
         />
 
-        <FullAccessPersonalInfoReadOnly
+        <PersonalInfoReadOnly
           student={student}
+          showEditButton={true}
           onEditClick={onOpenPersonalInfoModal}
         />
 
