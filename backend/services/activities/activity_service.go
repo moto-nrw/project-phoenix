@@ -57,6 +57,7 @@ const (
 	opFindGroupSupervisors = "find group supervisors"
 	opUpdateSupervisor     = "update supervisor"
 	opDeleteSupervisor     = "delete supervisor"
+	opCheckPermissions     = "check permissions"
 )
 
 // WithTx returns a new service that uses the provided transaction
@@ -299,7 +300,7 @@ func (s *Service) UpdateGroup(ctx context.Context, group *activities.Group, requ
 	// Check if user can modify this activity
 	canModify, err := s.CanModifyActivity(ctx, group.ID, requestingStaffID, hasManagePermission)
 	if err != nil {
-		return nil, &ActivityError{Op: "check permissions", Err: err}
+		return nil, &ActivityError{Op: opCheckPermissions, Err: err}
 	}
 	if !canModify {
 		return nil, &ActivityError{Op: "update group", Err: ErrNotOwner}
@@ -318,7 +319,7 @@ func (s *Service) DeleteGroup(ctx context.Context, id int64, requestingStaffID i
 	// Check if user can modify this activity before starting transaction
 	canModify, err := s.CanModifyActivity(ctx, id, requestingStaffID, hasManagePermission)
 	if err != nil {
-		return &ActivityError{Op: "check permissions", Err: err}
+		return &ActivityError{Op: opCheckPermissions, Err: err}
 	}
 	if !canModify {
 		return &ActivityError{Op: "delete group", Err: ErrNotOwner}
@@ -501,9 +502,9 @@ func (s *Service) CanModifyActivity(ctx context.Context, groupID int64, staffID 
 	group, err := s.groupRepo.FindByID(ctx, groupID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return false, &ActivityError{Op: "check permissions", Err: ErrGroupNotFound}
+			return false, &ActivityError{Op: opCheckPermissions, Err: ErrGroupNotFound}
 		}
-		return false, &ActivityError{Op: "check permissions", Err: err}
+		return false, &ActivityError{Op: opCheckPermissions, Err: err}
 	}
 
 	// Check if user is the creator
