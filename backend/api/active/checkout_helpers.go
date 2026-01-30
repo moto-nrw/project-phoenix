@@ -89,37 +89,6 @@ func (rs *Resource) authorizeStudentCheckout(
 	return staff, nil
 }
 
-// isRoomSupervisor checks if staff is supervising the student's current room
-func (rs *Resource) isRoomSupervisor(ctx context.Context, staffID int64, currentVisit *active.Visit) bool {
-	if currentVisit == nil || currentVisit.ActiveGroupID <= 0 {
-		return false
-	}
-
-	activeGroup, err := rs.ActiveService.GetActiveGroup(ctx, currentVisit.ActiveGroupID)
-	if err != nil || activeGroup == nil || !activeGroup.IsActive() {
-		return false
-	}
-
-	supervisors, err := rs.ActiveService.FindSupervisorsByActiveGroupID(ctx, activeGroup.ID)
-	if err != nil {
-		return false
-	}
-
-	for _, supervisor := range supervisors {
-		if supervisor.StaffID == staffID && supervisor.EndDate == nil {
-			return true
-		}
-	}
-
-	return false
-}
-
-// hasEducationalGroupAccess checks if staff has access via educational group assignment
-func (rs *Resource) hasEducationalGroupAccess(ctx context.Context, staffID, studentID int64) bool {
-	hasAccess, err := rs.ActiveService.CheckTeacherStudentAccess(ctx, staffID, studentID)
-	return err == nil && hasAccess
-}
-
 // executeStudentCheckout performs the actual checkout operation
 func (rs *Resource) executeStudentCheckout(
 	ctx context.Context,

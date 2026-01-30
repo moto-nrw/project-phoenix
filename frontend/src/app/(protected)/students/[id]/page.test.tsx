@@ -566,10 +566,11 @@ describe("StudentDetailPage", () => {
       expect(screen.getByTestId("personal-info-readonly")).toBeInTheDocument();
     });
 
-    it("does not render guardian manager in limited view", () => {
+    it("renders guardian manager in read-only mode in limited view", () => {
+      // All staff can view guardian info (read-only), only supervisors can edit
       render(<StudentDetailPage />);
 
-      expect(screen.queryByTestId("guardian-manager")).not.toBeInTheDocument();
+      expect(screen.getByTestId("guardian-manager")).toBeInTheDocument();
     });
   });
 
