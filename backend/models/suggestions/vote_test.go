@@ -6,6 +6,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
+	"github.com/uptrace/bun/dialect/pgdialect"
 )
 
 func TestVote_Validate_Success(t *testing.T) {
@@ -133,4 +135,37 @@ func TestVote_GetUpdatedAt(t *testing.T) {
 	vote := &Vote{}
 	vote.UpdatedAt = now
 	assert.Equal(t, now, vote.GetUpdatedAt())
+}
+
+func TestVote_BeforeAppendModel(t *testing.T) {
+	db := bun.NewDB(nil, pgdialect.New())
+	v := &Vote{}
+
+	t.Run("handles SelectQuery", func(t *testing.T) {
+		q := db.NewSelect().Model(v)
+		err := v.BeforeAppendModel(q)
+		require.NoError(t, err)
+	})
+
+	t.Run("handles UpdateQuery", func(t *testing.T) {
+		q := db.NewUpdate().Model(v)
+		err := v.BeforeAppendModel(q)
+		require.NoError(t, err)
+	})
+
+	t.Run("handles DeleteQuery", func(t *testing.T) {
+		q := db.NewDelete().Model(v)
+		err := v.BeforeAppendModel(q)
+		require.NoError(t, err)
+	})
+
+	t.Run("ignores unknown query type", func(t *testing.T) {
+		err := v.BeforeAppendModel("not a query")
+		require.NoError(t, err)
+	})
+
+	t.Run("handles nil query", func(t *testing.T) {
+		err := v.BeforeAppendModel(nil)
+		require.NoError(t, err)
+	})
 }
