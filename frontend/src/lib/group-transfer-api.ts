@@ -48,6 +48,26 @@ function mapStaffWithRole(data: BackendStaffWithRole): StaffWithRole {
 }
 
 export const groupTransferService = {
+  // Get all staff members available for group transfer
+  // Fetches from teacher, staff, and user roles and deduplicates by ID
+  async getAllAvailableStaff(): Promise<StaffWithRole[]> {
+    const [teachers, staffMembers, users] = await Promise.all([
+      this.getStaffByRole("teacher").catch(() => []),
+      this.getStaffByRole("staff").catch(() => []),
+      this.getStaffByRole("user").catch(() => []),
+    ]);
+
+    // Merge and deduplicate by staff ID
+    const uniqueUsers = new Map<string, StaffWithRole>();
+    for (const user of [...teachers, ...staffMembers, ...users]) {
+      if (!uniqueUsers.has(user.id)) {
+        uniqueUsers.set(user.id, user);
+      }
+    }
+
+    return Array.from(uniqueUsers.values());
+  },
+
   // Get staff members with a specific role (for dropdown)
   async getStaffByRole(role: string): Promise<StaffWithRole[]> {
     try {
