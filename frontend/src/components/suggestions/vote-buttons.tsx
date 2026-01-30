@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import { ThumbsUp, ThumbsDown } from "lucide-react";
 import type { Suggestion } from "~/lib/suggestions-helpers";
 import { voteSuggestion, removeVote } from "~/lib/suggestions-api";
 
@@ -99,62 +100,40 @@ export function VoteButtons({ suggestion, onVoteChange }: VoteButtonsProps) {
 
   return (
     <div className="flex items-center gap-3 md:w-16 md:flex-col md:gap-2">
-      <div className="flex items-center gap-0.5">
-        <button
-          type="button"
-          onClick={() => void handleVote("up")}
-          aria-pressed={userVote === "up"}
-          aria-label="Positiv bewerten"
-          className={`rounded-lg p-1 transition-colors ${upClasses}`}
-        >
-          <svg
-            className="h-5 w-5 md:h-6 md:w-6"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={2}
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M5 15l7-7 7 7"
-            />
-          </svg>
-        </button>
+      <button
+        type="button"
+        onClick={() => void handleVote("up")}
+        aria-pressed={userVote === "up"}
+        aria-label="Positiv bewerten"
+        className={`flex items-center gap-1 rounded-lg p-1 transition-colors ${upClasses}`}
+      >
+        <ThumbsUp
+          className="h-4.5 w-4.5 md:h-5 md:w-5"
+          fill={userVote === "up" ? "currentColor" : "none"}
+        />
         <span
           className={`min-w-[2ch] text-center text-sm font-bold ${userVote === "up" ? "text-[#83CD2D]" : "text-gray-500"}`}
         >
           {upvotes}
         </span>
-      </div>
-      <div className="flex items-center gap-0.5">
-        <button
-          type="button"
-          onClick={() => void handleVote("down")}
-          aria-pressed={userVote === "down"}
-          aria-label="Negativ bewerten"
-          className={`rounded-lg p-1 transition-colors ${downClasses}`}
-        >
-          <svg
-            className="h-5 w-5 md:h-6 md:w-6"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={2}
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M19 9l-7 7-7-7"
-            />
-          </svg>
-        </button>
+      </button>
+      <button
+        type="button"
+        onClick={() => void handleVote("down")}
+        aria-pressed={userVote === "down"}
+        aria-label="Negativ bewerten"
+        className={`flex items-center gap-1 rounded-lg p-1 transition-colors ${downClasses}`}
+      >
+        <ThumbsDown
+          className="h-4.5 w-4.5 md:h-5 md:w-5"
+          fill={userVote === "down" ? "currentColor" : "none"}
+        />
         <span
           className={`min-w-[2ch] text-center text-sm font-bold ${userVote === "down" ? "text-red-500" : "text-gray-500"}`}
         >
           {downvotes}
         </span>
-      </div>
+      </button>
     </div>
   );
 }

@@ -3,6 +3,7 @@
 import { useState, useMemo, useCallback, Suspense } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
+import { AnimatePresence, LayoutGroup, motion } from "framer-motion";
 import {
   PageHeaderWithSearch,
   type FilterConfig,
@@ -66,11 +67,26 @@ function SuggestionsPageContent() {
   const handleVoteChange = useCallback(
     (updated: Suggestion) => {
       void mutate(
-        (current) => current?.map((s) => (s.id === updated.id ? updated : s)),
+        (current) => {
+          if (!current) return current;
+          const next = current.map((s) => (s.id === updated.id ? updated : s));
+          // Re-sort client-side to match the current sort order
+          if (sortBy === "score") {
+            next.sort((a, b) => {
+              const scoreDiff = b.score - a.score;
+              if (scoreDiff !== 0) return scoreDiff;
+              return (
+                new Date(b.createdAt).getTime() -
+                new Date(a.createdAt).getTime()
+              );
+            });
+          }
+          return next;
+        },
         { revalidate: false },
       );
     },
-    [mutate],
+    [mutate, sortBy],
   );
 
   const handleEdit = useCallback((s: Suggestion) => {
@@ -189,18 +205,27 @@ function SuggestionsPageContent() {
           onCreateClick={() => setFormOpen(true)}
         />
       ) : (
-        <div className="mt-4 space-y-4">
-          {filteredSuggestions.map((suggestion) => (
-            <SuggestionCard
-              key={suggestion.id}
-              suggestion={suggestion}
-              currentAccountId={accountId}
-              onEdit={handleEdit}
-              onDelete={setDeleteTarget}
-              onVoteChange={handleVoteChange}
-            />
-          ))}
-        </div>
+        <LayoutGroup>
+          <div className="mt-4 space-y-4">
+            <AnimatePresence>
+              {filteredSuggestions.map((suggestion) => (
+                <motion.div
+                  key={suggestion.id}
+                  layout
+                  transition={{ type: "spring", stiffness: 500, damping: 35 }}
+                >
+                  <SuggestionCard
+                    suggestion={suggestion}
+                    currentAccountId={accountId}
+                    onEdit={handleEdit}
+                    onDelete={setDeleteTarget}
+                    onVoteChange={handleVoteChange}
+                  />
+                </motion.div>
+              ))}
+            </AnimatePresence>
+          </div>
+        </LayoutGroup>
       )}
 
       <SuggestionForm
