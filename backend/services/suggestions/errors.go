@@ -7,7 +7,6 @@ var (
 	ErrPostNotFound = errors.New("suggestion post not found")
 	ErrForbidden    = errors.New("forbidden: you can only modify your own suggestions")
 	ErrInvalidData  = errors.New("invalid suggestion data")
-	ErrVoteOwnPost  = errors.New("you cannot vote on your own suggestion")
 )
 
 // PostNotFoundError wraps post-not-found with additional context

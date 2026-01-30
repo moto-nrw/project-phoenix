@@ -42,9 +42,6 @@ func ErrorRenderer(err error) render.Renderer {
 	case errors.Is(err, suggestionsSvc.ErrInvalidData):
 		renderer.HTTPStatusCode = http.StatusBadRequest
 		renderer.StatusText = "Bad Request"
-	case errors.Is(err, suggestionsSvc.ErrVoteOwnPost):
-		renderer.HTTPStatusCode = http.StatusBadRequest
-		renderer.StatusText = "Bad Request"
 	}
 
 	return renderer

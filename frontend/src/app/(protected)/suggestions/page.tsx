@@ -8,6 +8,7 @@ import {
   type FilterConfig,
 } from "~/components/ui/page-header";
 import { ConfirmationModal } from "~/components/ui/modal";
+import { Loading } from "~/components/ui/loading";
 import { SuggestionCard } from "~/components/suggestions/suggestion-card";
 import { SuggestionForm } from "~/components/suggestions/suggestion-form";
 import { useSWRAuth } from "~/lib/swr";
@@ -18,7 +19,7 @@ import type { Suggestion, SortOption } from "~/lib/suggestions-helpers";
 
 function SuggestionsPageContent() {
   const router = useRouter();
-  const { data: session, status: sessionStatus } = useSession({
+  const { data: session } = useSession({
     required: true,
     onUnauthenticated() {
       router.push("/");
@@ -101,10 +102,6 @@ function SuggestionsPageContent() {
     }
   }, [deleteTarget, mutate, toastSuccess, toastError]);
 
-  if (sessionStatus === "loading") {
-    return <LoadingSkeleton />;
-  }
-
   const filterConfigs: FilterConfig[] = [
     {
       id: "sort",
@@ -185,7 +182,7 @@ function SuggestionsPageContent() {
       />
 
       {isLoading ? (
-        <LoadingSkeleton />
+        <Loading message="Laden..." fullPage={false} />
       ) : filteredSuggestions.length === 0 ? (
         <EmptyState
           hasSearch={searchTerm.trim().length > 0}
@@ -293,42 +290,9 @@ function EmptyState({
   );
 }
 
-function LoadingSkeleton() {
-  return (
-    <div className="mt-4 space-y-4">
-      {[1, 2, 3].map((i) => (
-        <div
-          key={i}
-          className="animate-pulse rounded-3xl border border-gray-100/50 bg-white/90 p-5"
-        >
-          <div className="flex gap-4">
-            <div className="hidden w-12 flex-col items-center gap-2 md:flex">
-              <div className="h-6 w-6 rounded bg-gray-200" />
-              <div className="h-5 w-8 rounded bg-gray-200" />
-              <div className="h-6 w-6 rounded bg-gray-200" />
-            </div>
-            <div className="flex-1 space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="h-5 w-48 rounded bg-gray-200" />
-                <div className="h-5 w-16 rounded-full bg-gray-200" />
-              </div>
-              <div className="h-4 w-full rounded bg-gray-200" />
-              <div className="h-4 w-2/3 rounded bg-gray-200" />
-              <div className="flex items-center gap-2">
-                <div className="h-5 w-5 rounded-full bg-gray-200" />
-                <div className="h-3 w-24 rounded bg-gray-200" />
-              </div>
-            </div>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
 export default function SuggestionsPage() {
   return (
-    <Suspense fallback={<LoadingSkeleton />}>
+    <Suspense fallback={<Loading message="Laden..." fullPage={false} />}>
       <SuggestionsPageContent />
     </Suspense>
   );

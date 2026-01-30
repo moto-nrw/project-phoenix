@@ -31,6 +31,8 @@ type Post struct {
 
 	// Resolved at query time, not stored
 	AuthorName string `bun:"author_name,scanonly" json:"author_name,omitempty"`
+	Upvotes    int    `bun:"upvotes,scanonly" json:"upvotes"`
+	Downvotes  int    `bun:"downvotes,scanonly" json:"downvotes"`
 	// Per-user vote direction, resolved at query time
 	UserVote *string `bun:"user_vote,scanonly" json:"user_vote"`
 }

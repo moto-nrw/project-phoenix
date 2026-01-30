@@ -9,6 +9,8 @@ export interface BackendSuggestion {
   author_name: string;
   status: "open" | "planned" | "done" | "rejected";
   score: number;
+  upvotes: number;
+  downvotes: number;
   user_vote: "up" | "down" | null;
   created_at: string;
   updated_at: string;
@@ -22,6 +24,8 @@ export interface Suggestion {
   authorName: string;
   status: "open" | "planned" | "done" | "rejected";
   score: number;
+  upvotes: number;
+  downvotes: number;
   userVote: "up" | "down" | null;
   createdAt: string;
   updatedAt: string;
@@ -50,6 +54,8 @@ export function mapSuggestionResponse(data: BackendSuggestion): Suggestion {
     authorName: data.author_name,
     status: data.status,
     score: data.score,
+    upvotes: data.upvotes,
+    downvotes: data.downvotes,
     userVote: data.user_vote,
     createdAt: data.created_at,
     updatedAt: data.updated_at,

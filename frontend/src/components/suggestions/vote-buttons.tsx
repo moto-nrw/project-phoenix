@@ -11,51 +11,85 @@ interface VoteButtonsProps {
 
 export function VoteButtons({ suggestion, onVoteChange }: VoteButtonsProps) {
   const [optimistic, setOptimistic] = useState<{
-    score: number;
+    upvotes: number;
+    downvotes: number;
     userVote: "up" | "down" | null;
   } | null>(null);
 
-  const score = optimistic?.score ?? suggestion.score;
+  const upvotes = optimistic?.upvotes ?? suggestion.upvotes;
+  const downvotes = optimistic?.downvotes ?? suggestion.downvotes;
   const userVote = optimistic?.userVote ?? suggestion.userVote;
 
   const handleVote = useCallback(
     async (direction: "up" | "down") => {
-      const isToggleOff = userVote === direction;
-
-      // Optimistic update
-      const prevScore = score;
+      const prevUpvotes = upvotes;
+      const prevDownvotes = downvotes;
       const prevVote = userVote;
 
-      let newScore = suggestion.score;
-      if (isToggleOff) {
-        // Removing vote
-        newScore = suggestion.score - (direction === "up" ? 1 : -1);
-        setOptimistic({ score: newScore, userVote: null });
-      } else {
-        // Adding or changing vote
-        const delta = direction === "up" ? 1 : -1;
-        const prevDelta = prevVote === "up" ? 1 : prevVote === "down" ? -1 : 0;
-        newScore = suggestion.score - prevDelta + delta;
-        setOptimistic({ score: newScore, userVote: direction });
+      // Toggle off: clicking active vote removes it
+      if (userVote === direction) {
+        const newUpvotes =
+          direction === "up" ? suggestion.upvotes - 1 : suggestion.upvotes;
+        const newDownvotes =
+          direction === "down"
+            ? suggestion.downvotes - 1
+            : suggestion.downvotes;
+        setOptimistic({
+          upvotes: newUpvotes,
+          downvotes: newDownvotes,
+          userVote: null,
+        });
+
+        try {
+          const updated = await removeVote(suggestion.id);
+          setOptimistic(null);
+          onVoteChange(updated);
+        } catch {
+          setOptimistic({
+            upvotes: prevUpvotes,
+            downvotes: prevDownvotes,
+            userVote: prevVote,
+          });
+        }
+        return;
       }
 
+      // New vote or changing direction
+      let newUpvotes = suggestion.upvotes;
+      let newDownvotes = suggestion.downvotes;
+
+      // Remove previous vote count
+      if (prevVote === "up") newUpvotes--;
+      if (prevVote === "down") newDownvotes--;
+
+      // Add new vote count
+      if (direction === "up") newUpvotes++;
+      if (direction === "down") newDownvotes++;
+
+      setOptimistic({
+        upvotes: newUpvotes,
+        downvotes: newDownvotes,
+        userVote: direction,
+      });
+
       try {
-        const updated = isToggleOff
-          ? await removeVote(suggestion.id)
-          : await voteSuggestion(suggestion.id, direction);
+        const updated = await voteSuggestion(suggestion.id, direction);
         setOptimistic(null);
         onVoteChange(updated);
       } catch {
-        // Revert on error
-        setOptimistic({ score: prevScore, userVote: prevVote });
+        setOptimistic({
+          upvotes: prevUpvotes,
+          downvotes: prevDownvotes,
+          userVote: prevVote,
+        });
       }
     },
-    [suggestion, score, userVote, onVoteChange],
+    [suggestion, upvotes, downvotes, userVote, onVoteChange],
   );
 
   const upClasses =
     userVote === "up"
-      ? "text-blue-600 hover:text-blue-700"
+      ? "text-[#83CD2D] hover:text-[#70b525]"
       : "text-gray-400 hover:text-gray-600";
 
   const downClasses =
@@ -63,62 +97,64 @@ export function VoteButtons({ suggestion, onVoteChange }: VoteButtonsProps) {
       ? "text-red-500 hover:text-red-600"
       : "text-gray-400 hover:text-gray-600";
 
-  const scoreClasses =
-    userVote === "up"
-      ? "text-blue-600"
-      : userVote === "down"
-        ? "text-red-500"
-        : "text-gray-700";
-
   return (
-    <div className="flex items-center gap-1 md:w-12 md:flex-col md:gap-0">
-      <button
-        type="button"
-        onClick={() => void handleVote("up")}
-        aria-pressed={userVote === "up"}
-        aria-label="Positiv bewerten"
-        className={`rounded-lg p-1 transition-colors ${upClasses}`}
-      >
-        <svg
-          className="h-5 w-5 md:h-6 md:w-6"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-          strokeWidth={2}
+    <div className="flex items-center gap-3 md:w-16 md:flex-col md:gap-2">
+      <div className="flex items-center gap-0.5">
+        <button
+          type="button"
+          onClick={() => void handleVote("up")}
+          aria-pressed={userVote === "up"}
+          aria-label="Positiv bewerten"
+          className={`rounded-lg p-1 transition-colors ${upClasses}`}
         >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            d="M5 15l7-7 7 7"
-          />
-        </svg>
-      </button>
-      <span
-        className={`min-w-[2ch] text-center text-base font-bold md:text-lg ${scoreClasses}`}
-      >
-        {score}
-      </span>
-      <button
-        type="button"
-        onClick={() => void handleVote("down")}
-        aria-pressed={userVote === "down"}
-        aria-label="Negativ bewerten"
-        className={`rounded-lg p-1 transition-colors ${downClasses}`}
-      >
-        <svg
-          className="h-5 w-5 md:h-6 md:w-6"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-          strokeWidth={2}
+          <svg
+            className="h-5 w-5 md:h-6 md:w-6"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2}
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M5 15l7-7 7 7"
+            />
+          </svg>
+        </button>
+        <span
+          className={`min-w-[2ch] text-center text-sm font-bold ${userVote === "up" ? "text-[#83CD2D]" : "text-gray-500"}`}
         >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            d="M19 9l-7 7-7-7"
-          />
-        </svg>
-      </button>
+          {upvotes}
+        </span>
+      </div>
+      <div className="flex items-center gap-0.5">
+        <button
+          type="button"
+          onClick={() => void handleVote("down")}
+          aria-pressed={userVote === "down"}
+          aria-label="Negativ bewerten"
+          className={`rounded-lg p-1 transition-colors ${downClasses}`}
+        >
+          <svg
+            className="h-5 w-5 md:h-6 md:w-6"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2}
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M19 9l-7 7-7-7"
+            />
+          </svg>
+        </button>
+        <span
+          className={`min-w-[2ch] text-center text-sm font-bold ${userVote === "down" ? "text-red-500" : "text-gray-500"}`}
+        >
+          {downvotes}
+        </span>
+      </div>
     </div>
   );
 }
