@@ -115,10 +115,10 @@ func (rs *Resource) schulhofActivityGroup(ctx context.Context) (*activities.Grou
 	}
 
 	// Step 3: Create the Schulhof activity group
-	// Get staff ID from device authentication context
-	var staffID int64
-	if staffCtx := device.StaffFromCtx(ctx); staffCtx != nil {
-		staffID = staffCtx.ID
+	// Get staff ID from device authentication context - required for created_by FK
+	staffCtx := device.StaffFromCtx(ctx)
+	if staffCtx == nil {
+		return nil, fmt.Errorf("schulhof activity auto-create requires staff context (scan staff RFID first)")
 	}
 
 	newActivity := &activities.Group{
@@ -127,7 +127,7 @@ func (rs *Resource) schulhofActivityGroup(ctx context.Context) (*activities.Grou
 		IsOpen:          true, // Open activity - anyone can join
 		CategoryID:      category.ID,
 		PlannedRoomID:   &room.ID,
-		CreatedBy:       staffID,
+		CreatedBy:       staffCtx.ID,
 	}
 
 	// CreateGroup requires supervisorIDs and schedules - pass empty slices for auto-created activity

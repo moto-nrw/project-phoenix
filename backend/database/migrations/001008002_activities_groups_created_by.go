@@ -18,7 +18,7 @@ func init() {
 
 const (
 	ActivitiesGroupsCreatedByVersion     = "1.8.2"
-	ActivitiesGroupsCreatedByDescription = "Add created_by column to activities.groups with table truncation"
+	ActivitiesGroupsCreatedByDescription = "Add created_by column to activities.groups"
 )
 
 var ActivitiesGroupsCreatedByDependencies = []string{
@@ -26,23 +26,13 @@ var ActivitiesGroupsCreatedByDependencies = []string{
 	"1.2.2", // users.staff table
 }
 
-// migrateActivitiesGroupsCreatedBy truncates the activities.groups table and adds created_by column
+// migrateActivitiesGroupsCreatedBy adds created_by column to activities.groups
+// NOTE: This migration assumes activities.groups is empty. If you have existing data,
+// manually run: TRUNCATE TABLE activities.groups CASCADE; before applying.
 func migrateActivitiesGroupsCreatedBy(ctx context.Context, db *bun.DB) error {
 	fmt.Println("Migration 1.8.2: Adding created_by column to activities.groups...")
 
-	// Step 1: Truncate activities.groups with cascade
-	// This removes all activity data and cascades to related tables:
-	// - activities.supervisors_planned
-	// - activities.schedules
-	// - activities.student_enrollments
-	// - active.groups
-	fmt.Println("  Truncating activities.groups with cascade...")
-	_, err := db.ExecContext(ctx, `TRUNCATE TABLE activities.groups CASCADE`)
-	if err != nil {
-		return fmt.Errorf("error truncating activities.groups: %w", err)
-	}
-
-	// Step 2: Add created_by column with NOT NULL constraint
+	// Add created_by column with NOT NULL constraint
 	fmt.Println("  Adding created_by column...")
 	_, err = db.ExecContext(ctx, `
 		ALTER TABLE activities.groups
