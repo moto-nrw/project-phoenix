@@ -29,12 +29,9 @@ export function VoteButtons({ suggestion, onVoteChange }: VoteButtonsProps) {
 
       // Toggle off: clicking active vote removes it
       if (userVote === direction) {
-        const newUpvotes =
-          direction === "up" ? suggestion.upvotes - 1 : suggestion.upvotes;
+        const newUpvotes = direction === "up" ? prevUpvotes - 1 : prevUpvotes;
         const newDownvotes =
-          direction === "down"
-            ? suggestion.downvotes - 1
-            : suggestion.downvotes;
+          direction === "down" ? prevDownvotes - 1 : prevDownvotes;
         setOptimistic({
           upvotes: newUpvotes,
           downvotes: newDownvotes,
@@ -56,8 +53,8 @@ export function VoteButtons({ suggestion, onVoteChange }: VoteButtonsProps) {
       }
 
       // New vote or changing direction
-      let newUpvotes = suggestion.upvotes;
-      let newDownvotes = suggestion.downvotes;
+      let newUpvotes = prevUpvotes;
+      let newDownvotes = prevDownvotes;
 
       // Remove previous vote count
       if (prevVote === "up") newUpvotes--;

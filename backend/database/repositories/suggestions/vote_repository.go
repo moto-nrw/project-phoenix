@@ -21,6 +21,14 @@ func NewVoteRepository(db *bun.DB) suggestions.VoteRepository {
 	return &VoteRepository{db: db}
 }
 
+// conn returns the transaction from context if present, otherwise the base DB.
+func (r *VoteRepository) conn(ctx context.Context) bun.IDB {
+	if tx, ok := modelBase.TxFromContext(ctx); ok && tx != nil {
+		return tx
+	}
+	return r.db
+}
+
 // Upsert creates or updates a vote using ON CONFLICT
 func (r *VoteRepository) Upsert(ctx context.Context, vote *suggestions.Vote) error {
 	if vote == nil {
@@ -30,7 +38,7 @@ func (r *VoteRepository) Upsert(ctx context.Context, vote *suggestions.Vote) err
 		return err
 	}
 
-	_, err := r.db.NewInsert().
+	_, err := r.conn(ctx).NewInsert().
 		Model(vote).
 		ModelTableExpr(tableVotes).
 		On("CONFLICT (post_id, voter_id) DO UPDATE").
@@ -46,7 +54,7 @@ func (r *VoteRepository) Upsert(ctx context.Context, vote *suggestions.Vote) err
 
 // DeleteByPostAndVoter removes a vote
 func (r *VoteRepository) DeleteByPostAndVoter(ctx context.Context, postID, voterID int64) error {
-	_, err := r.db.NewDelete().
+	_, err := r.conn(ctx).NewDelete().
 		TableExpr(tableVotes).
 		Where("post_id = ? AND voter_id = ?", postID, voterID).
 		Exec(ctx)
@@ -59,7 +67,7 @@ func (r *VoteRepository) DeleteByPostAndVoter(ctx context.Context, postID, voter
 // FindByPostAndVoter returns the vote for a given post and voter, or nil
 func (r *VoteRepository) FindByPostAndVoter(ctx context.Context, postID, voterID int64) (*suggestions.Vote, error) {
 	vote := new(suggestions.Vote)
-	err := r.db.NewSelect().
+	err := r.conn(ctx).NewSelect().
 		Model(vote).
 		ModelTableExpr(`suggestions.votes AS "vote"`).
 		Where(`"vote".post_id = ? AND "vote".voter_id = ?`, postID, voterID).

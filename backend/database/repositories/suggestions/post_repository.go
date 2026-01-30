@@ -28,6 +28,14 @@ func NewPostRepository(db *bun.DB) suggestions.PostRepository {
 	return &PostRepository{db: db}
 }
 
+// conn returns the transaction from context if present, otherwise the base DB.
+func (r *PostRepository) conn(ctx context.Context) bun.IDB {
+	if tx, ok := modelBase.TxFromContext(ctx); ok && tx != nil {
+		return tx
+	}
+	return r.db
+}
+
 // Create inserts a new suggestion post
 func (r *PostRepository) Create(ctx context.Context, post *suggestions.Post) error {
 	if post == nil {
@@ -159,7 +167,7 @@ func (r *PostRepository) FindByIDWithVote(ctx context.Context, id int64, account
 
 // RecalculateScore updates the denormalized score on a post.
 func (r *PostRepository) RecalculateScore(ctx context.Context, postID int64) error {
-	_, err := r.db.NewUpdate().
+	_, err := r.conn(ctx).NewUpdate().
 		TableExpr(tablePosts).
 		Set(`score = (
 			SELECT COALESCE(SUM(CASE WHEN direction = 'up' THEN 1 WHEN direction = 'down' THEN -1 ELSE 0 END), 0)

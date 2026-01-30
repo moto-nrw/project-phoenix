@@ -2,26 +2,25 @@ package suggestions
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
-	"log"
 
+	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/suggestions"
 	"github.com/uptrace/bun"
 )
 
 type suggestionsService struct {
-	postRepo suggestions.PostRepository
-	voteRepo suggestions.VoteRepository
-	db       *bun.DB
+	postRepo  suggestions.PostRepository
+	voteRepo  suggestions.VoteRepository
+	txHandler *base.TxHandler
 }
 
 // NewService creates a new suggestions service
 func NewService(postRepo suggestions.PostRepository, voteRepo suggestions.VoteRepository, db *bun.DB) Service {
 	return &suggestionsService{
-		postRepo: postRepo,
-		voteRepo: voteRepo,
-		db:       db,
+		postRepo:  postRepo,
+		voteRepo:  voteRepo,
+		txHandler: base.NewTxHandler(db),
 	}
 }
 
@@ -122,36 +121,24 @@ func (s *suggestionsService) Vote(ctx context.Context, postID int64, accountID i
 		return nil, &PostNotFoundError{PostID: postID}
 	}
 
-	// Run vote + score recalculation in a transaction
-	tx, err := s.db.BeginTx(ctx, &sql.TxOptions{})
-	if err != nil {
-		return nil, fmt.Errorf("failed to begin transaction: %w", err)
-	}
-	defer func() {
-		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+	// Run vote upsert + score recalculation atomically
+	if err := s.txHandler.RunInTx(ctx, func(txCtx context.Context, _ bun.Tx) error {
+		vote := &suggestions.Vote{
+			PostID:    postID,
+			VoterID:   int64(accountID),
+			Direction: direction,
 		}
-	}()
 
-	vote := &suggestions.Vote{
-		PostID:    postID,
-		VoterID:   int64(accountID),
-		Direction: direction,
-	}
+		if err := s.voteRepo.Upsert(txCtx, vote); err != nil {
+			return err
+		}
 
-	if err := s.voteRepo.Upsert(ctx, vote); err != nil {
+		return s.postRepo.RecalculateScore(txCtx, postID)
+	}); err != nil {
 		return nil, err
 	}
 
-	if err := s.postRepo.RecalculateScore(ctx, postID); err != nil {
-		return nil, err
-	}
-
-	if err := tx.Commit(); err != nil {
-		return nil, fmt.Errorf("failed to commit transaction: %w", err)
-	}
-
-	// Return updated post
+	// Return updated post (outside transaction — read-only)
 	return s.postRepo.FindByIDWithVote(ctx, postID, accountID)
 }
 
@@ -166,29 +153,17 @@ func (s *suggestionsService) RemoveVote(ctx context.Context, postID int64, accou
 		return nil, &PostNotFoundError{PostID: postID}
 	}
 
-	// Run delete + score recalculation in a transaction
-	tx, err := s.db.BeginTx(ctx, &sql.TxOptions{})
-	if err != nil {
-		return nil, fmt.Errorf("failed to begin transaction: %w", err)
-	}
-	defer func() {
-		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+	// Run vote deletion + score recalculation atomically
+	if err := s.txHandler.RunInTx(ctx, func(txCtx context.Context, _ bun.Tx) error {
+		if err := s.voteRepo.DeleteByPostAndVoter(txCtx, postID, int64(accountID)); err != nil {
+			return err
 		}
-	}()
 
-	if err := s.voteRepo.DeleteByPostAndVoter(ctx, postID, int64(accountID)); err != nil {
+		return s.postRepo.RecalculateScore(txCtx, postID)
+	}); err != nil {
 		return nil, err
 	}
 
-	if err := s.postRepo.RecalculateScore(ctx, postID); err != nil {
-		return nil, err
-	}
-
-	if err := tx.Commit(); err != nil {
-		return nil, fmt.Errorf("failed to commit transaction: %w", err)
-	}
-
-	// Return updated post
+	// Return updated post (outside transaction — read-only)
 	return s.postRepo.FindByIDWithVote(ctx, postID, accountID)
 }
