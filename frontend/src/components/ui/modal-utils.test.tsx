@@ -134,7 +134,7 @@ describe("getApiErrorMessage", () => {
     );
   });
 
-  it("returns access denied message for 403 error", () => {
+  it("returns permission denied message for generic 403 error", () => {
     const error = new Error("Forbidden 403");
     const result = getApiErrorMessage(
       error,
@@ -142,7 +142,22 @@ describe("getApiErrorMessage", () => {
       entityType,
       defaultMessage,
     );
-    expect(result).toBe("Zugriff verweigert. Bitte melden Sie sich erneut an.");
+    expect(result).toBe(
+      "Sie haben keine Berechtigung, diese Aktivitäten zu erstellen.",
+    );
+  });
+
+  it("returns ownership error message for 403 with ownership context", () => {
+    const error = new Error("403 you can only modify your own activities");
+    const result = getApiErrorMessage(
+      error,
+      "bearbeiten",
+      "Aktivitäten",
+      defaultMessage,
+    );
+    expect(result).toBe(
+      "Sie können diese Aktivitäten nicht bearbeiten, da Sie sie nicht erstellt haben und kein Betreuer sind.",
+    );
   });
 
   it("returns invalid input message for 400 error", () => {
