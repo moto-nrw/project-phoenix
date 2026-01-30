@@ -161,7 +161,9 @@ func (rs *Resource) handleCancelAction(w http.ResponseWriter, r *http.Request) {
 	common.Respond(w, r, http.StatusOK, response, "Attendance tracking cancelled")
 }
 
-// handleDailyCheckout handles the "confirm_daily_checkout" action
+// handleDailyCheckout handles the "confirm_daily_checkout" action.
+// The student's visit was already ended by the checkin handler (student is "unterwegs").
+// This endpoint only updates the attendance record when the student confirms "nach Hause".
 func (rs *Resource) handleDailyCheckout(w http.ResponseWriter, r *http.Request, normalizedRFID string, req *AttendanceToggleRequest) {
 	// Find person by RFID tag
 	person, err := rs.UsersService.FindByTagID(r.Context(), normalizedRFID)
@@ -178,31 +180,53 @@ func (rs *Resource) handleDailyCheckout(w http.ResponseWriter, r *http.Request, 
 		return
 	}
 
-	// Find the student's active visit
-	currentVisit, err := rs.ActiveService.GetStudentCurrentVisit(r.Context(), student.ID)
-	if err != nil {
-		log.Printf("[DAILY_CHECKOUT] ERROR: Failed to get current visit for student %d: %v", student.ID, err)
-		iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(err))
-		return
-	}
-	if currentVisit == nil {
-		iotCommon.RenderError(w, r, iotCommon.ErrorNotFound(errors.New("no active visit found for student")))
-		return
-	}
-
 	log.Printf("[DAILY_CHECKOUT] Confirming daily checkout for student %s %s (ID: %d), destination: %s",
 		person.FirstName, person.LastName, student.ID, *req.Destination)
 
-	// End the visit - only sync attendance if student is going home ("zuhause")
-	ctx := r.Context()
-	if *req.Destination == "zuhause" {
-		ctx = activeSvc.WithAttendanceAutoSync(ctx)
-	}
-
-	if err := rs.ActiveService.EndVisit(ctx, currentVisit.ID); err != nil {
-		log.Printf("[DAILY_CHECKOUT] ERROR: Failed to end visit %d: %v", currentVisit.ID, err)
+	// Verify the student has an attendance record for today.
+	// Without one, daily checkout makes no sense — the student was never checked in.
+	currentStatus, err := rs.ActiveService.GetStudentAttendanceStatus(r.Context(), student.ID)
+	if err != nil {
+		log.Printf("[DAILY_CHECKOUT] ERROR: Failed to get attendance status for student %d: %v", student.ID, err)
 		iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(err))
 		return
+	}
+	if currentStatus.Status != "checked_in" && currentStatus.Status != "checked_out" {
+		log.Printf("[DAILY_CHECKOUT] ERROR: Student %d has no attendance record for today (status: %s) — cannot perform daily checkout",
+			student.ID, currentStatus.Status)
+		iotCommon.RenderError(w, r, iotCommon.ErrorNotFound(
+			errors.New("student has no attendance record for today")))
+		return
+	}
+
+	// Only update attendance when student is going home ("zuhause").
+	// "unterwegs" means they stay in transit — no attendance change needed.
+	if *req.Destination == "zuhause" {
+		// Guard against a race where attendance was already changed
+		// (e.g., teacher manually checked out) between scan and "nach Hause" click.
+		switch currentStatus.Status {
+		case "checked_out":
+			log.Printf("[DAILY_CHECKOUT] Student %d already checked out — skipping attendance toggle", student.ID)
+		case "checked_in":
+			deviceCtx := device.DeviceFromCtx(r.Context())
+			staffID := int64(0)
+			deviceID := int64(0)
+			if deviceCtx != nil {
+				deviceID = deviceCtx.ID
+			}
+			if staffCtx := device.StaffFromCtx(r.Context()); staffCtx != nil {
+				staffID = staffCtx.ID
+			}
+
+			// Set attendance to "checked_out" — sets check_out_time on today's record.
+			// skipAuthCheck=true because the IoT device already authenticated this request.
+			_, err := rs.ActiveService.ToggleStudentAttendance(r.Context(), student.ID, staffID, deviceID, true)
+			if err != nil {
+				log.Printf("[DAILY_CHECKOUT] ERROR: Failed to update attendance for student %d: %v", student.ID, err)
+				iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(err))
+				return
+			}
+		}
 	}
 
 	// Determine action and message based on destination
@@ -213,7 +237,7 @@ func (rs *Resource) handleDailyCheckout(w http.ResponseWriter, r *http.Request, 
 		message = "Viel Spaß!"
 	}
 
-	log.Printf("[DAILY_CHECKOUT] SUCCESS: Student %s %s checked out, action=%s, destination=%s",
+	log.Printf("[DAILY_CHECKOUT] SUCCESS: Student %s %s daily checkout confirmed, action=%s, destination=%s",
 		person.FirstName, person.LastName, action, *req.Destination)
 
 	response := AttendanceToggleResponse{

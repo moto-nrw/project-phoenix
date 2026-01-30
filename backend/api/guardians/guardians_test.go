@@ -59,6 +59,12 @@ func cleanupGuardian(t *testing.T, db *bun.DB, guardianID int64) {
 	t.Helper()
 	ctx := context.Background()
 
+	// Delete phone numbers
+	_, _ = db.NewDelete().
+		TableExpr("users.guardian_phone_numbers").
+		Where("guardian_profile_id = ?", guardianID).
+		Exec(ctx)
+
 	// Delete student-guardian relationships (column is guardian_profile_id, not guardian_id)
 	_, _ = db.NewDelete().
 		TableExpr("users.students_guardians").
@@ -229,7 +235,7 @@ func TestCreateGuardian_Success_MissingFirstName(t *testing.T) {
 
 	body := map[string]any{
 		"last_name":                "Test",
-		"email":                    "test-no-firstname@test.com",
+		"email":                    fmt.Sprintf("no-firstname-%d@test.com", time.Now().UnixNano()),
 		"preferred_contact_method": "email",
 		"language_preference":      "de",
 	}
@@ -244,6 +250,14 @@ func TestCreateGuardian_Success_MissingFirstName(t *testing.T) {
 	rr := testutil.ExecuteRequest(router, req)
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusCreated)
+
+	// Cleanup created guardian
+	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+	if data, ok := response["data"].(map[string]any); ok {
+		if id, ok := data["id"].(float64); ok {
+			cleanupGuardian(t, ctx.db, int64(id))
+		}
+	}
 }
 
 func TestCreateGuardian_Success_MissingLastName(t *testing.T) {
@@ -255,7 +269,7 @@ func TestCreateGuardian_Success_MissingLastName(t *testing.T) {
 
 	body := map[string]any{
 		"first_name":               "Test",
-		"email":                    "test-no-lastname@test.com",
+		"email":                    fmt.Sprintf("no-lastname-%d@test.com", time.Now().UnixNano()),
 		"preferred_contact_method": "email",
 		"language_preference":      "de",
 	}
@@ -270,6 +284,14 @@ func TestCreateGuardian_Success_MissingLastName(t *testing.T) {
 	rr := testutil.ExecuteRequest(router, req)
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusCreated)
+
+	// Cleanup created guardian
+	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+	if data, ok := response["data"].(map[string]any); ok {
+		if id, ok := data["id"].(float64); ok {
+			cleanupGuardian(t, ctx.db, int64(id))
+		}
+	}
 }
 
 func TestCreateGuardian_Success_WithoutContactMethod(t *testing.T) {
@@ -282,7 +304,7 @@ func TestCreateGuardian_Success_WithoutContactMethod(t *testing.T) {
 	router.Post("/guardians", ctx.resource.CreateGuardianHandler())
 
 	body := map[string]any{
-		"first_name":               "Test",
+		"first_name":               fmt.Sprintf("NoContact-%d", time.Now().UnixNano()),
 		"last_name":                "Guardian",
 		"preferred_contact_method": "email",
 		"language_preference":      "de",
@@ -299,6 +321,14 @@ func TestCreateGuardian_Success_WithoutContactMethod(t *testing.T) {
 
 	// Should succeed - phone numbers can be added separately
 	testutil.AssertSuccessResponse(t, rr, http.StatusCreated)
+
+	// Cleanup created guardian
+	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+	if data, ok := response["data"].(map[string]any); ok {
+		if id, ok := data["id"].(float64); ok {
+			cleanupGuardian(t, ctx.db, int64(id))
+		}
+	}
 }
 
 // =============================================================================

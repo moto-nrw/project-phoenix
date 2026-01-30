@@ -143,6 +143,7 @@ describe("mapPickupDataResponse", () => {
     const backendData: BackendPickupData = {
       schedules: [sampleBackendSchedule],
       exceptions: [sampleBackendException],
+      notes: [],
     };
 
     const result = mapPickupDataResponse(backendData);
@@ -157,6 +158,7 @@ describe("mapPickupDataResponse", () => {
     const backendData: BackendPickupData = {
       schedules: [],
       exceptions: [],
+      notes: [],
     };
 
     const result = mapPickupDataResponse(backendData);

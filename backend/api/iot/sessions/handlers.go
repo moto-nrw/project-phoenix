@@ -170,6 +170,14 @@ func (rs *Resource) getCurrentSession(w http.ResponseWriter, r *http.Request) {
 		response.ActiveStudents = &activeCount
 	}
 
+	// Get supervisors for this session
+	supervisors, err := rs.ActiveService.FindSupervisorsByActiveGroupID(r.Context(), currentSession.ID)
+	if err != nil {
+		log.Printf("Warning: Failed to get supervisors for session %d: %v", currentSession.ID, err)
+	} else if len(supervisors) > 0 {
+		response.Supervisors = rs.buildSupervisorInfos(r.Context(), supervisors)
+	}
+
 	common.Respond(w, r, http.StatusOK, response, "Current session retrieved successfully")
 }
 

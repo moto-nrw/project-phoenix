@@ -25,10 +25,10 @@ func Migrate() {
 	}
 
 	// Validate migrations before running
-	ctx := context.Background()
-	if err := ValidateMigrations(ctx, db); err != nil {
+	if err := ValidateMigrations(); err != nil {
 		log.Fatalf("Migration validation failed: %v", err)
 	}
+	ctx := context.Background()
 
 	// Print migration plan
 	PrintMigrationPlan()

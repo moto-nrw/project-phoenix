@@ -1,10 +1,13 @@
 name: Build and Push Docker Images
+run-name: Build ${{ github.event_name == 'release' && github.event.release.tag_name || github.sha }}
 
 on:
   # Production: Build and deploy on push to main
+  # Staging: Build and deploy on push to development
   push:
     branches:
       - main
+      - development
     paths:
       - 'backend/**'
       - 'frontend/**'
@@ -14,7 +17,7 @@ on:
       - '!bruno/**'
       - '!.vscode/**'
 
-  # Staging: Build and deploy when PR with 'deploy-staging' label is merged
+  # Demo: Build and deploy when PR with 'deploy-demo' label is merged
   pull_request:
     types: [closed]
     branches:
@@ -37,6 +40,8 @@ on:
   release:
     types: [published]
 
+permissions: {}
+
 env:
   REGISTRY: ghcr.io
   BACKEND_IMAGE: ghcr.io/moto-nrw/phoenix-server
@@ -45,7 +50,7 @@ env:
 jobs:
   # Determine target environment and whether to proceed
   check-environment:
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     outputs:
       should_deploy: ${{ steps.check.outputs.should_deploy }}
       is_staging: ${{ steps.check.outputs.is_staging }}
@@ -55,21 +60,23 @@ jobs:
         id: check
         run: |
           # Production: Push to main
-          if [[ "${{ github.event_name }}" == "push" ]]; then
+          if [[ "${{ github.event_name }}" == "push" && "${{ github.ref }}" == "refs/heads/main" ]]; then
             echo "should_deploy=true" >> $GITHUB_OUTPUT
             echo "is_staging=false" >> $GITHUB_OUTPUT
             echo "is_demo=false" >> $GITHUB_OUTPUT
             echo "✅ Push to main - will build and deploy to production"
 
-          # Staging/Demo: PR merged with 'deploy-staging' or 'deploy-demo' label
+          # Staging: Push to development
+          elif [[ "${{ github.event_name }}" == "push" && "${{ github.ref }}" == "refs/heads/development" ]]; then
+            echo "should_deploy=true" >> $GITHUB_OUTPUT
+            echo "is_staging=true" >> $GITHUB_OUTPUT
+            echo "is_demo=false" >> $GITHUB_OUTPUT
+            echo "✅ Push to development - will build and deploy to staging"
+
+          # Demo: PR merged with 'deploy-demo' label
           elif [[ "${{ github.event_name }}" == "pull_request" ]]; then
             if [[ "${{ github.event.pull_request.merged }}" == "true" ]]; then
-              if [[ "${{ contains(github.event.pull_request.labels.*.name, 'deploy-staging') }}" == "true" ]]; then
-                echo "should_deploy=true" >> $GITHUB_OUTPUT
-                echo "is_staging=true" >> $GITHUB_OUTPUT
-                echo "is_demo=false" >> $GITHUB_OUTPUT
-                echo "✅ PR #${{ github.event.pull_request.number }} merged with 'deploy-staging' label - will build and deploy to staging"
-              elif [[ "${{ contains(github.event.pull_request.labels.*.name, 'deploy-demo') }}" == "true" ]]; then
+              if [[ "${{ contains(github.event.pull_request.labels.*.name, 'deploy-demo') }}" == "true" ]]; then
                 echo "should_deploy=true" >> $GITHUB_OUTPUT
                 echo "is_staging=false" >> $GITHUB_OUTPUT
                 echo "is_demo=true" >> $GITHUB_OUTPUT
@@ -166,6 +173,8 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           platforms: linux/amd64
           # Use separate cache scope to prevent frontend overwriting backend cache
+          cache-from: type=gha,scope=backend
+          cache-to: type=gha,mode=max,scope=backend
           provenance: false
 
       - name: Image digest
@@ -240,6 +249,8 @@ jobs:
           build-args: |
             NEXT_PUBLIC_API_URL=${{ steps.api_url.outputs.url }}
           # Use separate cache scope to prevent backend overwriting frontend cache
+          cache-from: type=gha,scope=frontend
+          cache-to: type=gha,mode=max,scope=frontend
           provenance: false
 
       - name: Image digest
@@ -251,17 +262,20 @@ jobs:
   deploy-staging:
     needs: [check-environment, build-backend, build-frontend]
     if: needs.check-environment.outputs.should_deploy == 'true' && needs.check-environment.outputs.is_staging == 'true'
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     steps:
       - name: Deploy to staging
         env:
           SSH_KEY: ${{ secrets.STAGING_SSH_KEY }}
           SSH_HOST: ${{ secrets.STAGING_HOST }}
+          SSH_KNOWN_HOSTS: ${{ secrets.STAGING_SSH_KNOWN_HOSTS }}
         run: |
           mkdir -p ~/.ssh
+          echo "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
           echo "$SSH_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          ssh -o StrictHostKeyChecking=no -i ~/.ssh/deploy_key root@$SSH_HOST '
+          ssh -i ~/.ssh/deploy_key root@$SSH_HOST '
             cd ~/staging
             docker compose pull
             docker compose up -d
@@ -273,17 +287,20 @@ jobs:
   deploy-demo:
     needs: [check-environment, build-backend, build-frontend]
     if: needs.check-environment.outputs.should_deploy == 'true' && needs.check-environment.outputs.is_demo == 'true'
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     steps:
       - name: Deploy to demo
         env:
           SSH_KEY: ${{ secrets.DEMO_SSH_KEY }}
           SSH_HOST: ${{ secrets.DEMO_HOST }}
+          SSH_KNOWN_HOSTS: ${{ secrets.DEMO_SSH_KNOWN_HOSTS }}
         run: |
           mkdir -p ~/.ssh
+          echo "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
           echo "$SSH_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          ssh -o StrictHostKeyChecking=no -i ~/.ssh/deploy_key root@$SSH_HOST '
+          ssh -i ~/.ssh/deploy_key root@$SSH_HOST '
             cd ~/demo
             docker compose pull
             docker compose up -d
@@ -295,17 +312,20 @@ jobs:
   deploy-production:
     needs: [check-environment, build-backend, build-frontend]
     if: needs.check-environment.outputs.should_deploy == 'true' && needs.check-environment.outputs.is_staging == 'false' && needs.check-environment.outputs.is_demo == 'false'
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     steps:
       - name: Deploy to production
         env:
           SSH_KEY: ${{ secrets.PRODUCTION_SSH_KEY }}
           SSH_HOST: ${{ secrets.PRODUCTION_HOST }}
+          SSH_KNOWN_HOSTS: ${{ secrets.PRODUCTION_SSH_KNOWN_HOSTS }}
         run: |
           mkdir -p ~/.ssh
+          echo "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
           echo "$SSH_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          ssh -o StrictHostKeyChecking=no -i ~/.ssh/deploy_key root@$SSH_HOST '
+          ssh -i ~/.ssh/deploy_key root@$SSH_HOST '
             cd ~/production
             docker compose pull
             docker compose up -d
@@ -315,7 +335,7 @@ jobs:
 
   # Summary job for branch protection
   build-status:
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     needs: [check-environment, build-backend, build-frontend]
     if: always() && needs.check-environment.outputs.should_deploy == 'true'
     steps:

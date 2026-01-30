@@ -99,12 +99,20 @@ export const rolesConfig = defineEntityConfig<Role>({
           {
             label: "Erstellt am",
             value: (role: Role) =>
-              new Date(role.createdAt).toLocaleDateString("de-DE"),
+              new Date(role.createdAt).toLocaleDateString("de-DE", {
+                day: "2-digit",
+                month: "2-digit",
+                year: "numeric",
+              }),
           },
           {
             label: "Aktualisiert am",
             value: (role: Role) =>
-              new Date(role.updatedAt).toLocaleDateString("de-DE"),
+              new Date(role.updatedAt).toLocaleDateString("de-DE", {
+                day: "2-digit",
+                month: "2-digit",
+                year: "numeric",
+              }),
           },
         ],
       },

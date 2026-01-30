@@ -9,6 +9,7 @@ import { HelpButton } from "@/components/ui/help_button";
 import { getHelpContent } from "@/lib/help-content";
 import { LogoutModal } from "~/components/ui/logout-modal";
 import { useProfile } from "~/lib/profile-context";
+import { useBreadcrumb } from "~/lib/breadcrumb-context";
 
 // Import extracted components
 import { BrandLink, BreadcrumbDivider } from "./header/brand-link";
@@ -33,31 +34,17 @@ import {
   getPageTypeInfo,
 } from "./header/breadcrumb-utils";
 
-interface HeaderProps {
-  readonly userName?: string;
-  readonly userEmail?: string;
-  readonly userRole?: string;
-  readonly customPageTitle?: string;
-  readonly studentName?: string;
-  readonly roomName?: string;
-  readonly activityName?: string;
-  readonly referrerPage?: string;
-  readonly activeSupervisionName?: string;
-  readonly ogsGroupName?: string;
-}
-
-export function Header({
-  userName = "Benutzer",
-  userEmail = "",
-  userRole = "",
-  customPageTitle,
-  studentName,
-  roomName,
-  activityName,
-  referrerPage,
-  activeSupervisionName,
-  ogsGroupName,
-}: HeaderProps) {
+export function Header() {
+  const { breadcrumb } = useBreadcrumb();
+  const {
+    studentName,
+    roomName,
+    activityName,
+    referrerPage,
+    activeSupervisionName,
+    ogsGroupName,
+    pageTitle: customPageTitle,
+  } = breadcrumb;
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
@@ -66,6 +53,13 @@ export function Header({
   const pageTitle = customPageTitle ?? getPageTitle(pathname);
   const { data: session } = useSession();
   const { profile } = useProfile();
+
+  // Derive user info from session (previously passed as props from ResponsiveLayout)
+  // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing -- intentionally using || to treat empty strings as falsy
+  const userName = session?.user?.name?.trim() || "Benutzer";
+  const userEmail = session?.user?.email ?? "";
+  const userRoles = session?.user?.roles ?? [];
+  const userRole = userRoles.includes("admin") ? "Admin" : "Betreuer";
 
   // Scroll effect for header shrinking
   useEffect(() => {
@@ -83,7 +77,7 @@ export function Header({
   const historyType = getHistoryType(pathname);
   const subPageLabel = getSubPageLabel(pathname);
 
-  // Profile data from context or props
+  // Profile data from context or session
   const displayName = profile
     ? `${profile.firstName ?? ""} ${profile.lastName ?? ""}`.trim() || userName
     : userName;

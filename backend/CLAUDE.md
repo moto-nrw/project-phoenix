@@ -42,7 +42,7 @@ go run main.go migrate reset    # WARNING: Reset database and run all migrations
 # Server Operations (Test Database)
 APP_ENV=test go run main.go migrate reset  # Reset test database (uses :5433)
 APP_ENV=test go run main.go seed           # Seed test database
-APP_ENV=test go test ./...                 # Run integration tests against test DB
+go test ./...                              # Run tests (APP_ENV=test is auto-set by SetupTestDB)
 
 # Development Data
 go run main.go seed             # Populate database with test data

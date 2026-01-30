@@ -18,7 +18,11 @@ import type { SupervisorContact } from "~/lib/student-helpers";
  * This ensures tests are timezone-stable by using the same formatting logic.
  */
 function formatDateLikeComponent(dateString: string): string {
-  return new Date(dateString).toLocaleDateString("de-DE");
+  return new Date(dateString).toLocaleDateString("de-DE", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
 }
 
 // =============================================================================

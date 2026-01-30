@@ -118,6 +118,10 @@ export function PickupScheduleFormModal({
       mobilePosition="center"
     >
       <form id="pickup-schedule-form" onSubmit={handleSubmit}>
+        <p className="mb-4 text-sm text-gray-500">
+          Zeiten und Notizen gelten wöchentlich wiederkehrend für jeden
+          Wochentag.
+        </p>
         {error && (
           <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
             {error}

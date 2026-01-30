@@ -5,6 +5,9 @@ import {
   createStudentPickupException,
   updateStudentPickupException,
   deleteStudentPickupException,
+  createStudentPickupNote,
+  updateStudentPickupNote,
+  deleteStudentPickupNote,
   fetchBulkPickupTimes,
   type BulkPickupTimeResponse,
 } from "./pickup-schedule-api";
@@ -12,8 +15,10 @@ import type {
   BackendPickupData,
   BulkPickupScheduleFormData,
   PickupExceptionFormData,
+  PickupNoteFormData,
   BackendPickupException,
   BackendPickupSchedule,
+  BackendPickupNote,
 } from "./pickup-schedule-helpers";
 
 // Mock data
@@ -43,6 +48,7 @@ const mockBackendException: BackendPickupException = {
 const mockBackendPickupData: BackendPickupData = {
   schedules: [mockBackendSchedule],
   exceptions: [mockBackendException],
+  notes: [],
 };
 
 // Helper to create mock fetch response
@@ -578,7 +584,7 @@ describe("pickup-schedule-api", () => {
         weekday_name: "Montag",
         pickup_time: "16:00",
         is_exception: true,
-        reason: "Arzttermin",
+        day_notes: [],
       },
     ];
 
@@ -616,8 +622,8 @@ describe("pickup-schedule-api", () => {
         weekdayName: "Montag",
         pickupTime: "15:30",
         isException: false,
+        dayNotes: [],
         notes: "Regular schedule",
-        reason: undefined,
       });
 
       const student456 = result.get("456");
@@ -627,8 +633,7 @@ describe("pickup-schedule-api", () => {
         weekdayName: "Montag",
         pickupTime: "16:00",
         isException: true,
-        reason: "Arzttermin",
-        notes: undefined,
+        dayNotes: [],
       });
     });
 
@@ -739,9 +744,240 @@ describe("pickup-schedule-api", () => {
         weekdayName: "Montag",
         pickupTime: undefined,
         isException: false,
-        reason: undefined,
+        dayNotes: [],
         notes: undefined,
       });
+    });
+  });
+
+  // ===========================================================================
+  // Note CRUD API Tests
+  // ===========================================================================
+
+  const mockBackendNote: BackendPickupNote = {
+    id: 10,
+    student_id: 123,
+    note_date: "2024-01-22",
+    content: "Doctor appointment pickup",
+    created_by: 1,
+    created_at: "2024-01-22T08:00:00Z",
+    updated_at: "2024-01-22T08:00:00Z",
+  };
+
+  describe("createStudentPickupNote", () => {
+    const noteData: PickupNoteFormData = {
+      noteDate: "2024-01-22",
+      content: "Doctor appointment pickup",
+    };
+
+    it("creates pickup note and returns mapped result", async () => {
+      global.fetch = vi.fn().mockResolvedValue(
+        createMockResponse(true, 201, {
+          status: "success",
+          data: mockBackendNote,
+        }),
+      );
+
+      const result = await createStudentPickupNote("123", noteData);
+
+      expect(global.fetch).toHaveBeenCalledWith(
+        "/api/students/123/pickup-notes",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            note_date: "2024-01-22",
+            content: "Doctor appointment pickup",
+          }),
+        },
+      );
+      expect(result.id).toBe("10");
+      expect(result.studentId).toBe("123");
+      expect(result.noteDate).toBe("2024-01-22");
+      expect(result.content).toBe("Doctor appointment pickup");
+    });
+
+    it("throws translated error on non-ok response", async () => {
+      global.fetch = vi
+        .fn()
+        .mockResolvedValue(
+          createMockResponse(false, 400, { error: "content is required" }),
+        );
+
+      await expect(createStudentPickupNote("123", noteData)).rejects.toThrow(
+        "Inhalt ist erforderlich",
+      );
+    });
+
+    it("throws translated error when JSON parse fails", async () => {
+      global.fetch = vi
+        .fn()
+        .mockResolvedValue(createMockResponse(false, 500, undefined, true));
+
+      await expect(createStudentPickupNote("123", noteData)).rejects.toThrow();
+    });
+
+    it("throws error when response status is error", async () => {
+      global.fetch = vi.fn().mockResolvedValue(
+        createMockResponse(true, 200, {
+          status: "error",
+          error: "unauthorized",
+        }),
+      );
+
+      await expect(createStudentPickupNote("123", noteData)).rejects.toThrow(
+        "Keine Berechtigung",
+      );
+    });
+
+    it("throws error when data is missing", async () => {
+      global.fetch = vi.fn().mockResolvedValue(
+        createMockResponse(true, 200, {
+          status: "success",
+          data: null,
+        }),
+      );
+
+      await expect(createStudentPickupNote("123", noteData)).rejects.toThrow();
+    });
+  });
+
+  describe("updateStudentPickupNote", () => {
+    const noteData: PickupNoteFormData = {
+      noteDate: "2024-01-22",
+      content: "Updated note content",
+    };
+
+    it("updates pickup note and returns mapped result", async () => {
+      global.fetch = vi.fn().mockResolvedValue(
+        createMockResponse(true, 200, {
+          status: "success",
+          data: { ...mockBackendNote, content: "Updated note content" },
+        }),
+      );
+
+      const result = await updateStudentPickupNote("123", "10", noteData);
+
+      expect(global.fetch).toHaveBeenCalledWith(
+        "/api/students/123/pickup-notes/10",
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            note_date: "2024-01-22",
+            content: "Updated note content",
+          }),
+        },
+      );
+      expect(result.content).toBe("Updated note content");
+    });
+
+    it("throws translated error on non-ok response", async () => {
+      global.fetch = vi
+        .fn()
+        .mockResolvedValue(
+          createMockResponse(false, 404, { error: "student not found" }),
+        );
+
+      await expect(
+        updateStudentPickupNote("999", "10", noteData),
+      ).rejects.toThrow("Schüler/in nicht gefunden");
+    });
+
+    it("throws translated error when JSON parse fails", async () => {
+      global.fetch = vi
+        .fn()
+        .mockResolvedValue(createMockResponse(false, 500, undefined, true));
+
+      await expect(
+        updateStudentPickupNote("123", "10", noteData),
+      ).rejects.toThrow();
+    });
+
+    it("throws error when response status is error", async () => {
+      global.fetch = vi.fn().mockResolvedValue(
+        createMockResponse(true, 200, {
+          status: "error",
+          error: "full access required",
+        }),
+      );
+
+      await expect(
+        updateStudentPickupNote("123", "10", noteData),
+      ).rejects.toThrow("Vollzugriff erforderlich");
+    });
+
+    it("throws error when data is missing", async () => {
+      global.fetch = vi.fn().mockResolvedValue(
+        createMockResponse(true, 200, {
+          status: "success",
+          data: null,
+        }),
+      );
+
+      await expect(
+        updateStudentPickupNote("123", "10", noteData),
+      ).rejects.toThrow();
+    });
+  });
+
+  describe("deleteStudentPickupNote", () => {
+    it("deletes note with 204 No Content response", async () => {
+      global.fetch = vi.fn().mockResolvedValue(createMockResponse(true, 204));
+
+      await expect(
+        deleteStudentPickupNote("123", "10"),
+      ).resolves.toBeUndefined();
+
+      expect(global.fetch).toHaveBeenCalledWith(
+        "/api/students/123/pickup-notes/10",
+        { method: "DELETE" },
+      );
+    });
+
+    it("deletes note with JSON success response", async () => {
+      global.fetch = vi
+        .fn()
+        .mockResolvedValue(
+          createMockResponse(true, 200, { status: "success" }),
+        );
+
+      await expect(
+        deleteStudentPickupNote("123", "10"),
+      ).resolves.toBeUndefined();
+    });
+
+    it("throws translated error on non-ok response", async () => {
+      global.fetch = vi
+        .fn()
+        .mockResolvedValue(
+          createMockResponse(false, 404, { error: "student not found" }),
+        );
+
+      await expect(deleteStudentPickupNote("999", "10")).rejects.toThrow(
+        "Schüler/in nicht gefunden",
+      );
+    });
+
+    it("throws translated error when JSON parse fails", async () => {
+      global.fetch = vi
+        .fn()
+        .mockResolvedValue(createMockResponse(false, 500, undefined, true));
+
+      await expect(deleteStudentPickupNote("123", "10")).rejects.toThrow();
+    });
+
+    it("throws error when response status is error", async () => {
+      global.fetch = vi.fn().mockResolvedValue(
+        createMockResponse(true, 200, {
+          status: "error",
+          error: "forbidden",
+        }),
+      );
+
+      await expect(deleteStudentPickupNote("123", "10")).rejects.toThrow(
+        "Zugriff verweigert",
+      );
     });
   });
 });

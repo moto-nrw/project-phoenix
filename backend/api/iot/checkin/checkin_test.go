@@ -6,12 +6,16 @@ import (
 	"testing"
 	"time"
 
+	"context"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
 	checkinAPI "github.com/moto-nrw/project-phoenix/api/iot/checkin"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/models/iot"
 	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -1040,4 +1044,194 @@ func TestDeviceCheckin_CheckoutWithoutActiveVisit(t *testing.T) {
 
 	// Checkout without active visit should fail - no room_id provided and nothing to checkout
 	testutil.AssertBadRequest(t, rr)
+}
+
+// =============================================================================
+// SCHULHOF AUTO-CREATE TESTS
+// =============================================================================
+
+// cleanupSchulhofInfrastructure removes any pre-existing Schulhof auto-created
+// data so tests start from a clean state. Uses individual statements in FK order.
+func cleanupSchulhofInfrastructure(t *testing.T, db *bun.DB) {
+	t.Helper()
+
+	dbCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// Delete in FK-safe order: child tables first, then parents
+	stmts := []string{
+		`DELETE FROM active.attendance WHERE visit_id IN (SELECT v.id FROM active.visits v JOIN active.groups ag ON ag.id = v.active_group_id JOIN facilities.rooms r ON r.id = ag.room_id WHERE r.name = 'Schulhof')`,
+		`DELETE FROM active.visits WHERE active_group_id IN (SELECT ag.id FROM active.groups ag JOIN facilities.rooms r ON r.id = ag.room_id WHERE r.name = 'Schulhof')`,
+		`DELETE FROM active.group_supervisors WHERE active_group_id IN (SELECT ag.id FROM active.groups ag JOIN facilities.rooms r ON r.id = ag.room_id WHERE r.name = 'Schulhof')`,
+		`DELETE FROM active.groups WHERE room_id IN (SELECT id FROM facilities.rooms WHERE name = 'Schulhof')`,
+		`DELETE FROM activities.schedules WHERE group_id IN (SELECT id FROM activities.groups WHERE name = 'Schulhof Freispiel')`,
+		`DELETE FROM activities.student_enrollments WHERE group_id IN (SELECT id FROM activities.groups WHERE name = 'Schulhof Freispiel')`,
+		`DELETE FROM activities.groups WHERE name = 'Schulhof Freispiel'`,
+		`DELETE FROM activities.categories WHERE name = 'Schulhof'`,
+		`DELETE FROM facilities.rooms WHERE name = 'Schulhof'`,
+	}
+	for _, stmt := range stmts {
+		_, _ = db.ExecContext(dbCtx, stmt)
+	}
+}
+
+// createSchulhofRoom creates a room with the exact name "Schulhof" (no timestamp
+// suffix) so the auto-create path in createSchulhofActiveGroupIfNeeded recognizes it.
+func createSchulhofRoom(t *testing.T, db *bun.DB) *facilities.Room {
+	t.Helper()
+
+	cleanupSchulhofInfrastructure(t, db)
+
+	dbCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	room := &facilities.Room{
+		Name:     "Schulhof",
+		Building: "Test Building",
+	}
+
+	err := db.NewInsert().
+		Model(room).
+		ModelTableExpr("facilities.rooms").
+		Scan(dbCtx)
+	require.NoError(t, err, "Failed to create Schulhof room")
+
+	return room
+}
+
+// TestDeviceCheckin_SchulhofAutoCreate verifies that checking a student into a
+// room named "Schulhof" with no existing active group triggers automatic
+// infrastructure creation (category, activity group, and active group).
+// This is the code path fixed by the double-qualification bug where
+// filter.Equal("group.name", ...) was incorrectly double-qualified by the
+// repository's WithTableAlias("group").
+func TestDeviceCheckin_SchulhofAutoCreate(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	// Create test device
+	device := testpkg.CreateTestDevice(t, ctx.db, "schulhof-auto")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
+
+	// Create staff for attendance tracking
+	staff := testpkg.CreateTestStaff(t, ctx.db, "Schulhof", "Staff")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, staff.ID)
+
+	// Create student with RFID
+	student := testpkg.CreateTestStudent(t, ctx.db, "Schulhof", "Student", "1a")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
+
+	tagID := fmt.Sprintf("SCHULHOF%d", time.Now().UnixNano())
+	card := testpkg.CreateTestRFIDCard(t, ctx.db, tagID)
+	defer testpkg.CleanupRFIDCards(t, ctx.db, card.ID)
+	testpkg.LinkRFIDToStudent(t, ctx.db, student.PersonID, card.ID)
+
+	// Create a room named exactly "Schulhof" (no suffix) so the auto-create
+	// path in createSchulhofActiveGroupIfNeeded recognizes it
+	room := createSchulhofRoom(t, ctx.db)
+	// Clean up all auto-created Schulhof infrastructure on teardown
+	defer cleanupSchulhofInfrastructure(t, ctx.db)
+
+	router := chi.NewRouter()
+	router.Post("/checkin/checkin", ctx.resource.DeviceCheckinHandler())
+
+	body := map[string]interface{}{
+		"student_rfid": card.ID,
+		"action":       "checkin",
+		"room_id":      room.ID,
+	}
+
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/checkin", body,
+		testutil.WithDeviceContext(createTestDeviceContext(device)),
+		testutil.WithStaffContext(staff),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	// The Schulhof auto-create flow should succeed:
+	// 1. No active group in room → detect room name is "Schulhof"
+	// 2. schulhofActivityGroup() queries with filter.Equal("name", ...) (the fix)
+	// 3. Activity not found → auto-create category, activity group, active group
+	// 4. Student is checked in to the auto-created active group
+	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+
+	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+	data, ok := response["data"].(map[string]interface{})
+	assert.True(t, ok, "Response should have data field")
+	assert.Equal(t, "checked_in", data["action"])
+	assert.Equal(t, "Schulhof", data["room_name"])
+}
+
+// TestDeviceCheckin_SchulhofAutoCreateIdempotent verifies that the Schulhof
+// auto-create flow is idempotent: a second checkin reuses the already-created
+// activity group instead of failing or creating duplicates.
+func TestDeviceCheckin_SchulhofAutoCreateIdempotent(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	device := testpkg.CreateTestDevice(t, ctx.db, "schulhof-idem")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
+
+	staff := testpkg.CreateTestStaff(t, ctx.db, "Idem", "Staff")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, staff.ID)
+
+	// First student
+	student1 := testpkg.CreateTestStudent(t, ctx.db, "First", "Schulhof", "1a")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, student1.ID)
+
+	tag1 := fmt.Sprintf("SH1%d", time.Now().UnixNano())
+	card1 := testpkg.CreateTestRFIDCard(t, ctx.db, tag1)
+	defer testpkg.CleanupRFIDCards(t, ctx.db, card1.ID)
+	testpkg.LinkRFIDToStudent(t, ctx.db, student1.PersonID, card1.ID)
+
+	// Second student
+	student2 := testpkg.CreateTestStudent(t, ctx.db, "Second", "Schulhof", "1b")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, student2.ID)
+
+	tag2 := fmt.Sprintf("SH2%d", time.Now().UnixNano())
+	card2 := testpkg.CreateTestRFIDCard(t, ctx.db, tag2)
+	defer testpkg.CleanupRFIDCards(t, ctx.db, card2.ID)
+	testpkg.LinkRFIDToStudent(t, ctx.db, student2.PersonID, card2.ID)
+
+	room := createSchulhofRoom(t, ctx.db)
+	defer cleanupSchulhofInfrastructure(t, ctx.db)
+
+	router := chi.NewRouter()
+	router.Post("/checkin/checkin", ctx.resource.DeviceCheckinHandler())
+
+	// First checkin - triggers auto-create
+	body1 := map[string]interface{}{
+		"student_rfid": card1.ID,
+		"action":       "checkin",
+		"room_id":      room.ID,
+	}
+
+	req1 := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/checkin", body1,
+		testutil.WithDeviceContext(createTestDeviceContext(device)),
+		testutil.WithStaffContext(staff),
+	)
+
+	rr1 := testutil.ExecuteRequest(router, req1)
+	testutil.AssertSuccessResponse(t, rr1, http.StatusOK)
+
+	// Second checkin - should reuse the existing active group (not fail)
+	body2 := map[string]interface{}{
+		"student_rfid": card2.ID,
+		"action":       "checkin",
+		"room_id":      room.ID,
+	}
+
+	req2 := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/checkin", body2,
+		testutil.WithDeviceContext(createTestDeviceContext(device)),
+		testutil.WithStaffContext(staff),
+	)
+
+	rr2 := testutil.ExecuteRequest(router, req2)
+	testutil.AssertSuccessResponse(t, rr2, http.StatusOK)
+
+	response := testutil.ParseJSONResponse(t, rr2.Body.Bytes())
+	data, ok := response["data"].(map[string]interface{})
+	assert.True(t, ok, "Response should have data field")
+	assert.Equal(t, "checked_in", data["action"])
+	assert.Equal(t, "Schulhof", data["room_name"])
 }
