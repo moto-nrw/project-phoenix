@@ -961,7 +961,11 @@ function MeinRaumPageContent() {
       {/* Modern Header with PageHeaderWithSearch component */}
       {/* No title - breadcrumb menu handles page identification */}
       <PageHeaderWithSearch
-        title=""
+        title={
+          !isDesktop && allRooms.length === 1
+            ? (currentRoom?.room_name ?? "Aktuelle Aufsicht")
+            : ""
+        }
         badge={{
           icon: (
             <svg
@@ -982,7 +986,7 @@ function MeinRaumPageContent() {
           label: "Schüler",
         }}
         tabs={
-          allRooms.length > 1 && allRooms.length <= 4 && !isDesktop
+          allRooms.length > 1 && !isDesktop
             ? {
                 items: allRooms.map((room) => ({
                   id: room.id,
