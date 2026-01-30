@@ -12,6 +12,7 @@ import {
   createProxyPutHandler,
   createProxyDeleteHandler,
 } from "./route-wrapper";
+import { mockSessionData } from "~/test/mocks/next-auth";
 
 // ============================================================================
 // Types
@@ -130,10 +131,7 @@ interface ApiErrorResponse {
 /**
  * Default authenticated session mock
  */
-const defaultSession: ExtendedSession = {
-  user: { id: "1", token: "test-token", name: "Test User" },
-  expires: "2099-01-01",
-};
+const defaultSession = mockSessionData() as ExtendedSession;
 
 // ============================================================================
 // Tests: isStringParam (pure function)

@@ -2,7 +2,7 @@
   "name": "phoenix-frontend",
   "version": "0.1.0",
   "private": true,
-  "license": "Apache-2.0",
+  "license": "SEE LICENSE IN LICENSE",
   "type": "module",
   "scripts": {
     "build": "next build",
@@ -27,6 +27,7 @@
     "axios": "^1.13.2",
     "browser-image-compression": "^2.0.2",
     "clsx": "^2.1.1",
+    "framer-motion": "^12.29.2",
     "lucide-react": "^0.562.0",
     "next": "^15.5.9",
     "next-auth": "^5.0.0-beta.30",
@@ -51,7 +52,7 @@
     "eslint": "^9.39.2",
     "eslint-config-next": "^15.2.3",
     "happy-dom": "^20.1.0",
-        "jsdom": "^27.4.0",
+    "jsdom": "^27.4.0",
     "knip": "^5.80.2",
     "lint-staged": "^16.2.7",
     "postcss": "^8.5.3",
@@ -90,7 +91,9 @@
       "src/lib/swr/index.ts",
       "src/server/auth/token-refresh.ts",
       "src/**/*.test.{ts,tsx}",
-      "src/test/mocks/*.ts"
+      "src/test/mocks/*.ts",
+      "src/test/fixtures/*.ts",
+      "src/test/helpers/*.ts"
     ],
     "project": [
       "src/**/*.{ts,tsx,js}"

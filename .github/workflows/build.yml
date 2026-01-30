@@ -3,9 +3,11 @@ run-name: Build ${{ github.event_name == 'release' && github.event.release.tag_n
 
 on:
   # Production: Build and deploy on push to main
+  # Staging: Build and deploy on push to development
   push:
     branches:
       - main
+      - development
     paths:
       - 'backend/**'
       - 'frontend/**'
@@ -15,7 +17,7 @@ on:
       - '!bruno/**'
       - '!.vscode/**'
 
-  # Staging: Build and deploy when PR with 'deploy-staging' label is merged
+  # Demo: Build and deploy when PR with 'deploy-demo' label is merged
   pull_request:
     types: [closed]
     branches:
@@ -58,21 +60,23 @@ jobs:
         id: check
         run: |
           # Production: Push to main
-          if [[ "${{ github.event_name }}" == "push" ]]; then
+          if [[ "${{ github.event_name }}" == "push" && "${{ github.ref }}" == "refs/heads/main" ]]; then
             echo "should_deploy=true" >> $GITHUB_OUTPUT
             echo "is_staging=false" >> $GITHUB_OUTPUT
             echo "is_demo=false" >> $GITHUB_OUTPUT
             echo "✅ Push to main - will build and deploy to production"
 
-          # Staging/Demo: PR merged with 'deploy-staging' or 'deploy-demo' label
+          # Staging: Push to development
+          elif [[ "${{ github.event_name }}" == "push" && "${{ github.ref }}" == "refs/heads/development" ]]; then
+            echo "should_deploy=true" >> $GITHUB_OUTPUT
+            echo "is_staging=true" >> $GITHUB_OUTPUT
+            echo "is_demo=false" >> $GITHUB_OUTPUT
+            echo "✅ Push to development - will build and deploy to staging"
+
+          # Demo: PR merged with 'deploy-demo' label
           elif [[ "${{ github.event_name }}" == "pull_request" ]]; then
             if [[ "${{ github.event.pull_request.merged }}" == "true" ]]; then
-              if [[ "${{ contains(github.event.pull_request.labels.*.name, 'deploy-staging') }}" == "true" ]]; then
-                echo "should_deploy=true" >> $GITHUB_OUTPUT
-                echo "is_staging=true" >> $GITHUB_OUTPUT
-                echo "is_demo=false" >> $GITHUB_OUTPUT
-                echo "✅ PR #${{ github.event.pull_request.number }} merged with 'deploy-staging' label - will build and deploy to staging"
-              elif [[ "${{ contains(github.event.pull_request.labels.*.name, 'deploy-demo') }}" == "true" ]]; then
+              if [[ "${{ contains(github.event.pull_request.labels.*.name, 'deploy-demo') }}" == "true" ]]; then
                 echo "should_deploy=true" >> $GITHUB_OUTPUT
                 echo "is_staging=false" >> $GITHUB_OUTPUT
                 echo "is_demo=true" >> $GITHUB_OUTPUT

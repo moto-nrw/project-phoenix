@@ -9,12 +9,6 @@ vi.mock("next-auth/react", () => ({
   getSession: vi.fn(() => Promise.resolve({ user: { token: "test-token" } })),
 }));
 
-vi.mock("~/env", () => ({
-  env: {
-    NEXT_PUBLIC_API_URL: "http://localhost:8080",
-  },
-}));
-
 vi.mock("./auth-api", () => ({
   handleAuthFailure: vi.fn(() => Promise.resolve(true)),
 }));
@@ -703,7 +697,9 @@ describe("api.ts helper functions", () => {
 
       const restore = setupBrowserEnv();
       try {
-        const result = await studentService.getStudents({ token: "test-token" });
+        const result = await studentService.getStudents({
+          token: "test-token",
+        });
         expect(result.students).toEqual([]);
       } finally {
         restore();
@@ -721,7 +717,9 @@ describe("api.ts helper functions", () => {
 
       const restore = setupBrowserEnv();
       try {
-        const result = await studentService.getStudents({ token: "test-token" });
+        const result = await studentService.getStudents({
+          token: "test-token",
+        });
         expect(result.students).toEqual([]);
       } finally {
         restore();
@@ -940,7 +938,9 @@ describe("api.ts helper functions", () => {
 
       const restore = setupBrowserEnv();
       try {
-        await expect(combinedGroupService.getCombinedGroups()).rejects.toThrow("API error");
+        await expect(combinedGroupService.getCombinedGroups()).rejects.toThrow(
+          "API error",
+        );
       } finally {
         restore();
       }
@@ -990,7 +990,9 @@ describe("api.ts helper functions", () => {
 
       const restore = setupBrowserEnv();
       try {
-        await expect(combinedGroupService.getCombinedGroup("1")).rejects.toThrow("API error");
+        await expect(
+          combinedGroupService.getCombinedGroup("1"),
+        ).rejects.toThrow("API error");
       } finally {
         restore();
       }
@@ -1213,6 +1215,697 @@ describe("api.ts helper functions", () => {
       } finally {
         restore();
       }
+    });
+  });
+
+  describe("groupService.getGroupStudents", () => {
+    it("fetches students for a group successfully", async () => {
+      const mockStudents = [
+        { id: 1, first_name: "John", last_name: "Doe" },
+        { id: 2, first_name: "Jane", last_name: "Smith" },
+      ];
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ data: mockStudents }),
+      });
+
+      const { getSession } = await import("next-auth/react");
+      vi.mocked(getSession).mockResolvedValue({
+        user: { token: "test-token" },
+      } as never);
+
+      const { groupService } = await import("./api");
+
+      const restore = setupBrowserEnv();
+      try {
+        const result = await groupService.getGroupStudents("123");
+        expect(global.fetch).toHaveBeenCalledWith(
+          expect.stringContaining("/api/groups/123/students"),
+          expect.any(Object),
+        );
+        expect(result).toEqual(mockStudents);
+      } finally {
+        restore();
+      }
+    });
+
+    it("handles direct array response format", async () => {
+      const mockStudents = [{ id: 1, first_name: "Test", last_name: "User" }];
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve(mockStudents),
+      });
+
+      const { getSession } = await import("next-auth/react");
+      vi.mocked(getSession).mockResolvedValue({
+        user: { token: "test-token" },
+      } as never);
+
+      const { groupService } = await import("./api");
+
+      const restore = setupBrowserEnv();
+      try {
+        const result = await groupService.getGroupStudents("123");
+        expect(result).toEqual(mockStudents);
+      } finally {
+        restore();
+      }
+    });
+
+    it("throws error on API failure", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        status: 404,
+        text: () => Promise.resolve("Not Found"),
+      });
+
+      const { getSession } = await import("next-auth/react");
+      vi.mocked(getSession).mockResolvedValue({
+        user: { token: "test-token" },
+      } as never);
+
+      const { groupService } = await import("./api");
+
+      const restore = setupBrowserEnv();
+      try {
+        await expect(groupService.getGroupStudents("999")).rejects.toThrow();
+      } finally {
+        restore();
+      }
+    });
+  });
+
+  describe("groupService.addSupervisor", () => {
+    it("adds supervisor to group successfully", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({}),
+      });
+
+      const { getSession } = await import("next-auth/react");
+      vi.mocked(getSession).mockResolvedValue({
+        user: { token: "test-token" },
+      } as never);
+
+      const { groupService } = await import("./api");
+
+      const restore = setupBrowserEnv();
+      try {
+        await groupService.addSupervisor("123", "456");
+        expect(global.fetch).toHaveBeenCalledWith(
+          expect.stringContaining("/api/groups/123/supervisors"),
+          expect.objectContaining({
+            method: "POST",
+            body: JSON.stringify({ supervisor_id: 456 }),
+          }),
+        );
+      } finally {
+        restore();
+      }
+    });
+
+    it("throws error on API failure", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        status: 400,
+        text: () => Promise.resolve("Bad Request"),
+      });
+
+      const { getSession } = await import("next-auth/react");
+      vi.mocked(getSession).mockResolvedValue({
+        user: { token: "test-token" },
+      } as never);
+
+      const { groupService } = await import("./api");
+
+      const restore = setupBrowserEnv();
+      try {
+        await expect(groupService.addSupervisor("123", "456")).rejects.toThrow(
+          "API error: 400",
+        );
+      } finally {
+        restore();
+      }
+    });
+  });
+
+  describe("groupService.removeSupervisor", () => {
+    it("removes supervisor from group successfully", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({}),
+      });
+
+      const { getSession } = await import("next-auth/react");
+      vi.mocked(getSession).mockResolvedValue({
+        user: { token: "test-token" },
+      } as never);
+
+      const { groupService } = await import("./api");
+
+      const restore = setupBrowserEnv();
+      try {
+        await groupService.removeSupervisor("123", "456");
+        expect(global.fetch).toHaveBeenCalledWith(
+          expect.stringContaining("/api/groups/123/supervisors/456"),
+          expect.objectContaining({ method: "DELETE" }),
+        );
+      } finally {
+        restore();
+      }
+    });
+
+    it("throws error on API failure", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        status: 404,
+        text: () => Promise.resolve("Not Found"),
+      });
+
+      const { getSession } = await import("next-auth/react");
+      vi.mocked(getSession).mockResolvedValue({
+        user: { token: "test-token" },
+      } as never);
+
+      const { groupService } = await import("./api");
+
+      const restore = setupBrowserEnv();
+      try {
+        await expect(
+          groupService.removeSupervisor("123", "456"),
+        ).rejects.toThrow("API error: 404");
+      } finally {
+        restore();
+      }
+    });
+  });
+
+  describe("groupService.setRepresentative", () => {
+    it("sets representative for group successfully", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({}),
+      });
+
+      const { getSession } = await import("next-auth/react");
+      vi.mocked(getSession).mockResolvedValue({
+        user: { token: "test-token" },
+      } as never);
+
+      const { groupService } = await import("./api");
+
+      const restore = setupBrowserEnv();
+      try {
+        await groupService.setRepresentative("123", "789");
+        expect(global.fetch).toHaveBeenCalledWith(
+          expect.stringContaining("/api/groups/123/representative"),
+          expect.objectContaining({
+            method: "PUT",
+            body: JSON.stringify({ representative_id: 789 }),
+          }),
+        );
+      } finally {
+        restore();
+      }
+    });
+
+    it("throws error on API failure", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        status: 403,
+        text: () => Promise.resolve("Forbidden"),
+      });
+
+      const { getSession } = await import("next-auth/react");
+      vi.mocked(getSession).mockResolvedValue({
+        user: { token: "test-token" },
+      } as never);
+
+      const { groupService } = await import("./api");
+
+      const restore = setupBrowserEnv();
+      try {
+        await expect(
+          groupService.setRepresentative("123", "789"),
+        ).rejects.toThrow("API error: 403");
+      } finally {
+        restore();
+      }
+    });
+  });
+
+  describe("roomService.getRoomsByCategory", () => {
+    it("fetches rooms grouped by category successfully", async () => {
+      const mockData = {
+        classroom: [{ id: 1, name: "Room A" }],
+        lab: [{ id: 2, name: "Lab B" }],
+      };
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve(mockData),
+      });
+
+      const { getSession } = await import("next-auth/react");
+      vi.mocked(getSession).mockResolvedValue({
+        user: { token: "test-token" },
+      } as never);
+
+      const { roomService } = await import("./api");
+
+      const restore = setupBrowserEnv();
+      try {
+        const result = await roomService.getRoomsByCategory();
+        expect(global.fetch).toHaveBeenCalledWith(
+          expect.stringContaining("/api/rooms/by-category"),
+          expect.any(Object),
+        );
+        expect(result).toBeDefined();
+        expect(Object.keys(result)).toContain("classroom");
+        expect(Object.keys(result)).toContain("lab");
+      } finally {
+        restore();
+      }
+    });
+
+    it("transforms each category's room array", async () => {
+      const mockData = {
+        classroom: [
+          { id: 1, name: "Room 1", capacity: 30 },
+          { id: 2, name: "Room 2", capacity: 25 },
+        ],
+      };
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve(mockData),
+      });
+
+      const { getSession } = await import("next-auth/react");
+      vi.mocked(getSession).mockResolvedValue({
+        user: { token: "test-token" },
+      } as never);
+
+      const { roomService } = await import("./api");
+      const { mapRoomsResponse } = await import("./room-helpers");
+
+      const restore = setupBrowserEnv();
+      try {
+        await roomService.getRoomsByCategory();
+        expect(mapRoomsResponse).toHaveBeenCalledWith(mockData.classroom);
+      } finally {
+        restore();
+      }
+    });
+
+    it("throws error on API failure", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        status: 500,
+        text: () => Promise.resolve("Server Error"),
+      });
+
+      const { getSession } = await import("next-auth/react");
+      vi.mocked(getSession).mockResolvedValue({
+        user: { token: "test-token" },
+      } as never);
+
+      const { roomService } = await import("./api");
+
+      const restore = setupBrowserEnv();
+      try {
+        await expect(roomService.getRoomsByCategory()).rejects.toThrow();
+      } finally {
+        restore();
+      }
+    });
+  });
+
+  describe("combinedGroupService.addGroupToCombined", () => {
+    it("adds group to combined group successfully", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({}),
+      });
+
+      const { getSession } = await import("next-auth/react");
+      vi.mocked(getSession).mockResolvedValue({
+        user: { token: "test-token" },
+      } as never);
+
+      const { combinedGroupService } = await import("./api");
+
+      const restore = setupBrowserEnv();
+      try {
+        await combinedGroupService.addGroupToCombined("100", "200");
+        expect(global.fetch).toHaveBeenCalledWith(
+          expect.stringContaining("/api/groups/combined/100/groups"),
+          expect.objectContaining({
+            method: "POST",
+            body: JSON.stringify({ group_id: 200 }),
+          }),
+        );
+      } finally {
+        restore();
+      }
+    });
+
+    it("throws error on API failure", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        status: 409,
+        text: () => Promise.resolve("Conflict"),
+      });
+
+      const { getSession } = await import("next-auth/react");
+      vi.mocked(getSession).mockResolvedValue({
+        user: { token: "test-token" },
+      } as never);
+
+      const { combinedGroupService } = await import("./api");
+
+      const restore = setupBrowserEnv();
+      try {
+        await expect(
+          combinedGroupService.addGroupToCombined("100", "200"),
+        ).rejects.toThrow("API error: 409");
+      } finally {
+        restore();
+      }
+    });
+  });
+
+  describe("combinedGroupService.removeGroupFromCombined", () => {
+    it("removes group from combined group successfully", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({}),
+      });
+
+      const { getSession } = await import("next-auth/react");
+      vi.mocked(getSession).mockResolvedValue({
+        user: { token: "test-token" },
+      } as never);
+
+      const { combinedGroupService } = await import("./api");
+
+      const restore = setupBrowserEnv();
+      try {
+        await combinedGroupService.removeGroupFromCombined("100", "200");
+        expect(global.fetch).toHaveBeenCalledWith(
+          expect.stringContaining("/api/groups/combined/100/groups/200"),
+          expect.objectContaining({ method: "DELETE" }),
+        );
+      } finally {
+        restore();
+      }
+    });
+
+    it("throws error on API failure", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        status: 404,
+        text: () => Promise.resolve("Not Found"),
+      });
+
+      const { getSession } = await import("next-auth/react");
+      vi.mocked(getSession).mockResolvedValue({
+        user: { token: "test-token" },
+      } as never);
+
+      const { combinedGroupService } = await import("./api");
+
+      const restore = setupBrowserEnv();
+      try {
+        await expect(
+          combinedGroupService.removeGroupFromCombined("100", "200"),
+        ).rejects.toThrow("API error: 404");
+      } finally {
+        restore();
+      }
+    });
+  });
+
+  describe("error handling utilities", () => {
+    it("handleApiError wraps errors with context", async () => {
+      const error = new Error("Network failure");
+      await import("./api");
+
+      // Trigger an error through studentService
+      global.fetch = vi.fn().mockRejectedValue(error);
+
+      const { getSession } = await import("next-auth/react");
+      vi.mocked(getSession).mockResolvedValue({
+        user: { token: "test-token" },
+      } as never);
+
+      const { studentService } = await import("./api");
+
+      const restore = setupBrowserEnv();
+      try {
+        await expect(
+          studentService.getStudents({ token: "test" }),
+        ).rejects.toThrow("Error fetching students");
+      } finally {
+        restore();
+      }
+    });
+
+    it("parseApiErrorMessage extracts error from JSON", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        status: 400,
+        text: () => Promise.resolve('{"error":"Validation failed"}'),
+      });
+
+      const { getSession } = await import("next-auth/react");
+      vi.mocked(getSession).mockResolvedValue({
+        user: { token: "test-token" },
+      } as never);
+
+      const { studentService } = await import("./api");
+
+      const restore = setupBrowserEnv();
+      try {
+        await expect(
+          studentService.createStudent({
+            first_name: "Test",
+            second_name: "User",
+            school_class: "1a",
+            name: "Test User",
+            current_location: "",
+          }),
+        ).rejects.toThrow("Validation failed");
+      } finally {
+        restore();
+      }
+    });
+
+    it("extractApiError falls back to pattern matching", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        text: () => Promise.resolve("Error: cannot delete group with students"),
+      });
+
+      const { getSession } = await import("next-auth/react");
+      vi.mocked(getSession).mockResolvedValue({
+        user: { token: "test" },
+      } as never);
+
+      const { groupService } = await import("./api");
+
+      const restore = setupBrowserEnv();
+      try {
+        await expect(groupService.deleteGroup("1")).rejects.toThrow(
+          "cannot delete group with students",
+        );
+      } finally {
+        restore();
+      }
+    });
+  });
+
+  describe("query parameter builders", () => {
+    it("buildStudentQueryParams includes all filters", async () => {
+      const { fetchWithRetry } = await import("./api-helpers");
+      vi.mocked(fetchWithRetry).mockResolvedValue({
+        data: { data: [], pagination: {} },
+        response: new Response(),
+      });
+
+      const { studentService } = await import("./api");
+
+      const restore = setupBrowserEnv();
+      try {
+        await studentService.getStudents({
+          search: "test search",
+          inHouse: true,
+          groupId: "42",
+          page: 5,
+          pageSize: 10,
+          token: "test-token",
+        });
+
+        const url = vi.mocked(fetchWithRetry).mock.calls[0]?.[0] ?? "";
+        expect(url).toContain("search=test+search");
+        expect(url).toContain("in_house=true");
+        expect(url).toContain("group_id=42");
+        expect(url).toContain("page=5");
+        expect(url).toContain("page_size=10");
+      } finally {
+        restore();
+      }
+    });
+
+    it("buildRoomQueryParams includes all filters", async () => {
+      const { fetchWithRetry } = await import("./api-helpers");
+      vi.mocked(fetchWithRetry).mockResolvedValue({
+        data: [],
+        response: new Response(),
+      });
+
+      const { roomService } = await import("./api");
+
+      const restore = setupBrowserEnv();
+      try {
+        await roomService.getRooms({
+          building: "Main Building",
+          floor: 3,
+          category: "lab",
+          occupied: false,
+          search: "chemistry",
+        });
+
+        const url = vi.mocked(fetchWithRetry).mock.calls[0]?.[0] ?? "";
+        expect(url).toContain("building=Main+Building");
+        expect(url).toContain("floor=3");
+        expect(url).toContain("category=lab");
+        expect(url).toContain("occupied=false");
+        expect(url).toContain("search=chemistry");
+      } finally {
+        restore();
+      }
+    });
+  });
+
+  describe("response parsing edge cases", () => {
+    it("parseRoomsResponse returns empty array for null", async () => {
+      const { fetchWithRetry } = await import("./api-helpers");
+      vi.mocked(fetchWithRetry).mockResolvedValue({
+        data: null,
+        response: new Response(),
+      });
+
+      const { roomService } = await import("./api");
+
+      const restore = setupBrowserEnv();
+      try {
+        const result = await roomService.getRooms();
+        expect(result).toEqual([]);
+      } finally {
+        restore();
+      }
+    });
+
+    it("extractBackendRoom throws for invalid response", async () => {
+      const { fetchWithRetry } = await import("./api-helpers");
+      vi.mocked(fetchWithRetry).mockResolvedValue({
+        data: { invalid: "structure" },
+        response: new Response(),
+      });
+
+      const { roomService } = await import("./api");
+
+      const restore = setupBrowserEnv();
+      try {
+        await expect(roomService.getRoom("1")).rejects.toThrow(
+          "Unexpected room response format",
+        );
+      } finally {
+        restore();
+      }
+    });
+
+    it("parseSingleStudentResponse handles wrapped format", async () => {
+      const { fetchWithRetry } = await import("./api-helpers");
+      const mockStudent = {
+        data: { id: 1, first_name: "Test", last_name: "Student" },
+      };
+      vi.mocked(fetchWithRetry).mockResolvedValue({
+        data: mockStudent,
+        response: new Response(),
+      });
+
+      const { studentService } = await import("./api");
+
+      const restore = setupBrowserEnv();
+      try {
+        const result = await studentService.getStudent("1");
+        expect(result).toBeDefined();
+      } finally {
+        restore();
+      }
+    });
+  });
+
+  describe("validation functions", () => {
+    it("validateRoomForCreation checks all required fields", async () => {
+      const { roomService } = await import("./api");
+
+      await expect(
+        roomService.createRoom({
+          name: "",
+          capacity: 0,
+          category: "",
+        }),
+      ).rejects.toThrow("Missing required field: name");
+    });
+
+    it("validateRoomForCreation checks capacity > 0", async () => {
+      const { roomService } = await import("./api");
+
+      await expect(
+        roomService.createRoom({
+          name: "Test Room",
+          capacity: -5,
+          category: "classroom",
+        }),
+      ).rejects.toThrow("capacity must be greater than 0");
+    });
+
+    it("validateStudentForCreation checks all required fields", async () => {
+      const { studentService } = await import("./api");
+
+      // Test missing first_name
+      await expect(
+        studentService.createStudent({
+          first_name: "",
+          second_name: "Last",
+          school_class: "1a",
+          name: "Test",
+          current_location: "",
+        }),
+      ).rejects.toThrow("First name is required");
+
+      // Test missing second_name
+      await expect(
+        studentService.createStudent({
+          first_name: "First",
+          second_name: "",
+          school_class: "1a",
+          name: "Test",
+          current_location: "",
+        }),
+      ).rejects.toThrow("Last name is required");
+
+      // Test missing school_class
+      await expect(
+        studentService.createStudent({
+          first_name: "First",
+          second_name: "Last",
+          school_class: "",
+          name: "Test",
+          current_location: "",
+        }),
+      ).rejects.toThrow("School class is required");
     });
   });
 });

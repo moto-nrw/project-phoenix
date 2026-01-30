@@ -1,17 +1,18 @@
 /* eslint-disable @typescript-eslint/unbound-method */
-/* eslint-disable @typescript-eslint/no-empty-function */
-/* eslint-disable @typescript-eslint/no-unsafe-call */
-/* eslint-disable @typescript-eslint/no-unsafe-member-access */
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type {
-  BackendActiveGroup,
-  BackendVisit,
-  BackendSupervisor,
   BackendCombinedGroup,
   BackendGroupMapping,
   BackendAnalytics,
 } from "./active-helpers";
+import { suppressConsole } from "~/test/helpers/console";
+import { mockSessionData } from "~/test/mocks/next-auth";
+import {
+  buildBackendActiveSession,
+  buildBackendVisit,
+  buildBackendSupervisor,
+} from "~/test/fixtures";
 
 // Mock dependencies before importing the module
 vi.mock("next-auth/react", () => ({
@@ -24,12 +25,6 @@ vi.mock("./api", () => ({
     post: vi.fn(),
     put: vi.fn(),
     delete: vi.fn(),
-  },
-}));
-
-vi.mock("~/env", () => ({
-  env: {
-    NEXT_PUBLIC_API_URL: "http://localhost:8080",
   },
 }));
 
@@ -46,7 +41,7 @@ const mockedApiPut = vi.mocked(api.put);
 const mockedApiDelete = vi.mocked(api.delete);
 
 // Sample backend data
-const sampleBackendActiveGroup: BackendActiveGroup = {
+const sampleBackendActiveGroup = buildBackendActiveSession({
   id: 1,
   group_id: 10,
   room_id: 5,
@@ -58,11 +53,9 @@ const sampleBackendActiveGroup: BackendActiveGroup = {
   supervisor_count: 2,
   room: { id: 5, name: "Room A", category: "classroom" },
   actual_group: { id: 10, name: "Class 3A" },
-  created_at: "2024-01-01T00:00:00Z",
-  updated_at: "2024-01-15T08:00:00Z",
-};
+});
 
-const sampleBackendVisit: BackendVisit = {
+const sampleBackendVisit = buildBackendVisit({
   id: 100,
   student_id: 50,
   active_group_id: 1,
@@ -74,11 +67,9 @@ const sampleBackendVisit: BackendVisit = {
   school_class: "3a",
   group_name: "OGS Group A",
   active_group_name: "Morning Session",
-  created_at: "2024-01-15T08:30:00Z",
-  updated_at: "2024-01-15T11:45:00Z",
-};
+});
 
-const sampleBackendSupervisor: BackendSupervisor = {
+const sampleBackendSupervisor = buildBackendSupervisor({
   id: 200,
   staff_id: 30,
   active_group_id: 1,
@@ -88,9 +79,7 @@ const sampleBackendSupervisor: BackendSupervisor = {
   notes: "Primary supervisor",
   staff_name: "Frau Schmidt",
   active_group_name: "Morning Session",
-  created_at: "2024-01-15T08:00:00Z",
-  updated_at: "2024-01-15T08:00:00Z",
-};
+});
 
 const sampleBackendCombinedGroup: BackendCombinedGroup = {
   id: 300,
@@ -120,24 +109,18 @@ const sampleBackendAnalytics: BackendAnalytics = {
 };
 
 describe("active-service", () => {
-  let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
-  let consoleWarnSpy: ReturnType<typeof vi.spyOn>;
+  const consoleSpies = suppressConsole("error", "warn");
   let originalFetch: typeof fetch;
   let originalWindow: typeof globalThis.window;
 
   beforeEach(() => {
     vi.clearAllMocks();
-    consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-    consoleWarnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     originalFetch = globalThis.fetch;
     originalWindow = globalThis.window;
     globalThis.fetch = vi.fn();
 
     // Default session mock
-    mockedGetSession.mockResolvedValue({
-      user: { id: "1", token: "test-token" },
-      expires: "2099-01-01",
-    });
+    mockedGetSession.mockResolvedValue(mockSessionData());
 
     // Default: simulate browser context
     // @ts-expect-error - mocking window
@@ -145,8 +128,6 @@ describe("active-service", () => {
   });
 
   afterEach(() => {
-    consoleErrorSpy.mockRestore();
-    consoleWarnSpy.mockRestore();
     globalThis.fetch = originalFetch;
     globalThis.window = originalWindow;
   });
@@ -953,7 +934,7 @@ describe("active-service", () => {
         const result = await activeService.getUnclaimedGroups();
 
         expect(result).toEqual([]);
-        expect(consoleWarnSpy).toHaveBeenCalledWith(
+        expect(consoleSpies.warn).toHaveBeenCalledWith(
           expect.stringContaining("Unexpected unclaimed groups response shape"),
           expect.anything(),
         );

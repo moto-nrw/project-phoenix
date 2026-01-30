@@ -282,7 +282,7 @@ function DesktopSearchSection({
   }
 
   const searchBarClass =
-    hasFilters || hasActionContent ? "w-64 lg:w-96" : "flex-1";
+    hasFilters || hasActionContent ? "min-w-48 max-w-96 flex-1" : "flex-1";
 
   return (
     <div className="mb-6 hidden lg:block">
