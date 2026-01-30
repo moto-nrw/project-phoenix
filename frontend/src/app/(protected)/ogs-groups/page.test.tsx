@@ -2374,3 +2374,9 @@ describe("OGSGroupPage loadAvailableUsers", () => {
     expect(result).toHaveLength(3);
   });
 });
+
+// Note: Integration tests for the transfer modal are complex due to React state management.
+// The getAllAvailableStaff function is tested in group-transfer-api.test.ts which covers:
+// - Fetching all three roles (teacher, staff, user)
+// - Deduplication by staff ID
+// - Error handling when some roles fail to load
