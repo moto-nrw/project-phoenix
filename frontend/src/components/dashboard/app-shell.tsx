@@ -7,29 +7,16 @@ import { Header } from "./header";
 import { Sidebar } from "./sidebar";
 import { MobileBottomNav } from "./mobile-bottom-nav";
 
-interface ResponsiveLayoutProps {
+interface AppShellProps {
   readonly children: React.ReactNode;
-  /** @deprecated Breadcrumb props are now set via useSetBreadcrumb() */
-  readonly pageTitle?: string;
-  /** @deprecated Breadcrumb props are now set via useSetBreadcrumb() */
-  readonly studentName?: string;
-  /** @deprecated Breadcrumb props are now set via useSetBreadcrumb() */
-  readonly roomName?: string;
-  /** @deprecated Breadcrumb props are now set via useSetBreadcrumb() */
-  readonly activityName?: string;
-  /** @deprecated Breadcrumb props are now set via useSetBreadcrumb() */
-  readonly referrerPage?: string;
-  /** @deprecated Breadcrumb props are now set via useSetBreadcrumb() */
-  readonly activeSupervisionName?: string;
-  /** @deprecated Breadcrumb props are now set via useSetBreadcrumb() */
-  readonly ogsGroupName?: string;
 }
 
 /**
- * @deprecated Use AppShell via (protected)/layout.tsx instead.
- * This component is kept for backward compatibility with tests.
+ * Persistent application shell rendered once in the (protected) layout.
+ * Header, Sidebar, and MobileBottomNav stay mounted across navigations —
+ * only the children (page content) swap.
  */
-export default function ResponsiveLayout({ children }: ResponsiveLayoutProps) {
+export function AppShell({ children }: AppShellProps) {
   const { data: session, status } = useSession();
   const router = useRouter();
 
@@ -52,7 +39,7 @@ export default function ResponsiveLayout({ children }: ResponsiveLayoutProps) {
 
       {/* Main content */}
       <div className="flex">
-        {/* Desktop sidebar - only visible on md+ screens */}
+        {/* Desktop sidebar - only visible on lg+ screens */}
         <Sidebar className="hidden lg:block" />
 
         {/* Main content with bottom padding on mobile for bottom navigation */}

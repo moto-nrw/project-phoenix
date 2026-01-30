@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import ResponsiveLayout from "./responsive-layout";
+import { AppShell } from "./app-shell";
 
 const mockPush = vi.fn();
 
@@ -50,52 +50,54 @@ vi.mock("~/lib/profile-context", () => ({
   }),
 }));
 
+vi.mock("~/lib/breadcrumb-context", () => ({
+  useBreadcrumb: vi.fn(() => ({ breadcrumb: {}, setBreadcrumb: vi.fn() })),
+  useSetBreadcrumb: vi.fn(),
+  BreadcrumbProvider: ({ children }: { children: React.ReactNode }) => (
+    <>{children}</>
+  ),
+}));
+
 import { useSession } from "next-auth/react";
 
-describe("ResponsiveLayout", () => {
+describe("AppShell", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
   it("renders children content", () => {
     render(
-      <ResponsiveLayout>
+      <AppShell>
         <div data-testid="child-content">Page Content</div>
-      </ResponsiveLayout>,
+      </AppShell>,
     );
 
     expect(screen.getByTestId("child-content")).toBeInTheDocument();
     expect(screen.getByText("Page Content")).toBeInTheDocument();
   });
 
-  it("renders header component", () => {
+  it("renders header, sidebar, and mobile nav", () => {
     render(
-      <ResponsiveLayout>
+      <AppShell>
         <div>Content</div>
-      </ResponsiveLayout>,
+      </AppShell>,
     );
 
     expect(screen.getByTestId("header")).toBeInTheDocument();
-  });
-
-  it("renders sidebar component", () => {
-    render(
-      <ResponsiveLayout>
-        <div>Content</div>
-      </ResponsiveLayout>,
-    );
-
     expect(screen.getByTestId("sidebar")).toBeInTheDocument();
+    expect(screen.getByTestId("mobile-nav")).toBeInTheDocument();
   });
 
-  it("renders mobile navigation", () => {
+  it("hides sidebar on mobile via CSS class", () => {
     render(
-      <ResponsiveLayout>
+      <AppShell>
         <div>Content</div>
-      </ResponsiveLayout>,
+      </AppShell>,
     );
 
-    expect(screen.getByTestId("mobile-nav")).toBeInTheDocument();
+    const sidebar = screen.getByTestId("sidebar");
+    expect(sidebar.className).toContain("hidden");
+    expect(sidebar.className).toContain("lg:block");
   });
 
   it("redirects to login when session has no token", async () => {
@@ -115,9 +117,9 @@ describe("ResponsiveLayout", () => {
     });
 
     render(
-      <ResponsiveLayout>
+      <AppShell>
         <div>Content</div>
-      </ResponsiveLayout>,
+      </AppShell>,
     );
 
     await waitFor(() => {
@@ -133,23 +135,34 @@ describe("ResponsiveLayout", () => {
     });
 
     render(
-      <ResponsiveLayout>
+      <AppShell>
         <div>Content</div>
-      </ResponsiveLayout>,
+      </AppShell>,
     );
 
     expect(mockPush).not.toHaveBeenCalled();
   });
 
-  it("hides sidebar on mobile (using class)", () => {
+  it("does not redirect when session has valid token", () => {
     render(
-      <ResponsiveLayout>
+      <AppShell>
         <div>Content</div>
-      </ResponsiveLayout>,
+      </AppShell>,
     );
 
-    const sidebar = screen.getByTestId("sidebar");
-    expect(sidebar.className).toContain("hidden");
-    expect(sidebar.className).toContain("lg:block");
+    expect(mockPush).not.toHaveBeenCalled();
+  });
+
+  it("renders main content area with correct classes", () => {
+    render(
+      <AppShell>
+        <div data-testid="page">Page</div>
+      </AppShell>,
+    );
+
+    const main = screen.getByRole("main");
+    expect(main).toBeInTheDocument();
+    expect(main.className).toContain("flex-1");
+    expect(main.className).toContain("pb-24");
   });
 });
