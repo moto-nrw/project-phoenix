@@ -424,6 +424,27 @@ describe("PersonalInfoReadOnly", () => {
     fireEvent.click(screen.getByTitle("Bearbeiten"));
     expect(onEditClick).toHaveBeenCalledTimes(1);
   });
+
+  it("does not show edit button when showEditButton is true but onEditClick is undefined", () => {
+    render(
+      <PersonalInfoReadOnly student={mockStudent} showEditButton={true} />,
+    );
+    // Edit button should not be rendered when onEditClick is not provided
+    expect(screen.queryByTitle("Bearbeiten")).not.toBeInTheDocument();
+    // Should still show the "Nur Ansicht" badge
+    expect(screen.getByText("Nur Ansicht")).toBeInTheDocument();
+  });
+
+  it("does not show edit button when showEditButton is false", () => {
+    render(
+      <PersonalInfoReadOnly
+        student={mockStudent}
+        showEditButton={false}
+        onEditClick={vi.fn()}
+      />,
+    );
+    expect(screen.queryByTitle("Bearbeiten")).not.toBeInTheDocument();
+  });
 });
 
 // =============================================================================
