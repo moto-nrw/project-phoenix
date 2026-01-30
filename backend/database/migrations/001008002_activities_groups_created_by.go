@@ -35,6 +35,24 @@ var ActivitiesGroupsCreatedByDependencies = []string{
 func migrateActivitiesGroupsCreatedBy(ctx context.Context, db *bun.DB) error {
 	fmt.Println("Migration 1.8.2: Adding created_by column to activities.groups...")
 
+	// Step 0: Check if column already exists (idempotency guard)
+	var columnExists bool
+	err := db.QueryRowContext(ctx, `
+		SELECT EXISTS (
+			SELECT 1 FROM information_schema.columns
+			WHERE table_schema = 'activities'
+			AND table_name = 'groups'
+			AND column_name = 'created_by'
+		)
+	`).Scan(&columnExists)
+	if err != nil {
+		return fmt.Errorf("error checking if created_by column exists: %w", err)
+	}
+	if columnExists {
+		fmt.Println("  Column created_by already exists - skipping migration")
+		return nil
+	}
+
 	// Step 1: Check for existing data and log what will be deleted
 	var count int
 	err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM activities.groups`).Scan(&count)
