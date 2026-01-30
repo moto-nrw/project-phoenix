@@ -1,11 +1,8 @@
 package cmd
 
 import (
-	"context"
 	"fmt"
-	"log"
 
-	"github.com/moto-nrw/project-phoenix/database"
 	"github.com/moto-nrw/project-phoenix/database/migrations"
 	"github.com/spf13/cobra"
 )
@@ -46,17 +43,7 @@ var migrateValidateCmd = &cobra.Command{
 	Short: "validate migration dependencies",
 	Long:  `Check all migration dependencies for correctness and ordering`,
 	Run: func(cmd *cobra.Command, args []string) {
-		// Connect to database
-		db, err := database.DBConn()
-		if err != nil {
-			log.Fatal(err)
-		}
-		defer func() { _ = db.Close() }()
-
-		// Validate migrations
-		ctx := context.Background()
-		err = migrations.ValidateMigrations(ctx, db)
-		if err != nil {
+		if err := migrations.ValidateMigrations(); err != nil {
 			fmt.Printf("Migration validation failed: %v\n", err)
 			return
 		}

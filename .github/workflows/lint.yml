@@ -129,22 +129,6 @@ jobs:
   backend-migration-validate:
     if: ${{ inputs.run-backend }}
     runs-on: blacksmith-4vcpu-ubuntu-2404
-
-    services:
-      postgres:
-        image: postgres:17
-        env:
-          POSTGRES_DB: phoenix_test
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U postgres"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
     steps:
       - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
       - name: Setup Go with cache
@@ -155,8 +139,6 @@ jobs:
           cache-dependency-path: backend/go.sum
       - name: Validate migration dependencies
         working-directory: backend
-        env:
-          DB_DSN: postgres://postgres:postgres@localhost:5432/phoenix_test?sslmode=disable
         run: go run main.go migrate validate
 
   backend-licenses:
