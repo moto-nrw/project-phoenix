@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"os"
+	"text/tabwriter"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/services/active"
@@ -31,7 +33,7 @@ var cleanupCmd = &cobra.Command{
 	Long: `Clean up expired data based on retention policies configured in privacy consents.
 This command will delete visit records that are older than the configured retention period for each student.
 
-Available subcommands: visits, preview, stats, tokens, invitations, rate-limits, attendance, sessions.`,
+Available subcommands: visits, preview, stats, tokens, invitations, rate-limits, attendance, sessions, supervisors.`,
 }
 
 // cleanupVisitsCmd represents the visits subcommand
@@ -107,6 +109,16 @@ It can clean up sessions that have exceeded their timeout or end all active sess
 	RunE: runCleanupSessions,
 }
 
+// cleanupSupervisorsCmd represents the supervisors subcommand
+var cleanupSupervisorsCmd = &cobra.Command{
+	Use:   "supervisors",
+	Short: "Clean up stale supervisor records from previous days",
+	Long: `Clean up supervisor records from previous days that don't have end_date set.
+This fixes supervisors showing as "Anwesend" after midnight by closing records that should have ended.
+All cleanup actions are logged in the audit.data_deletions table for compliance.`,
+	RunE: runCleanupSupervisors,
+}
+
 func init() {
 	RootCmd.AddCommand(cleanupCmd)
 	cleanupCmd.AddCommand(cleanupVisitsCmd)
@@ -117,6 +129,7 @@ func init() {
 	cleanupCmd.AddCommand(cleanupRateLimitsCmd)
 	cleanupCmd.AddCommand(cleanupAttendanceCmd)
 	cleanupCmd.AddCommand(cleanupSessionsCmd)
+	cleanupCmd.AddCommand(cleanupSupervisorsCmd)
 
 	// Flags for cleanup visits command
 	cleanupVisitsCmd.Flags().BoolVar(&dryRun, flagDryRun, false, "Show what would be deleted without deleting")
@@ -139,6 +152,10 @@ func init() {
 	cleanupSessionsCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, flagDescShowDetails)
 	cleanupSessionsCmd.Flags().String("mode", "abandoned", "Cleanup mode: 'abandoned' (timeout-based) or 'daily' (end all sessions)")
 	cleanupSessionsCmd.Flags().Duration("threshold", 2*time.Hour, "Threshold for abandoned session cleanup (only used with --mode=abandoned)")
+
+	// Flags for supervisors command
+	cleanupSupervisorsCmd.Flags().BoolVar(&dryRun, flagDryRun, false, "Show what would be cleaned without cleaning")
+	cleanupSupervisorsCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, flagDescShowDetails)
 }
 
 func runCleanupVisits(_ *cobra.Command, _ []string) error {
@@ -541,6 +558,97 @@ func printDailySessionSummary(result *active.DailySessionCleanupResult) {
 	fmt.Printf("\nDaily Session Cleanup Summary:\n")
 	fmt.Printf("Sessions ended: %d\n", result.SessionsEnded)
 	fmt.Printf("Visits ended: %d\n", result.VisitsEnded)
+	fmt.Printf("Supervisors ended: %d\n", result.SupervisorsEnded)
 	fmt.Printf(fmtStatus, getStatusString(result.Success))
 	printErrorList(result.Errors)
+}
+
+func runCleanupSupervisors(_ *cobra.Command, _ []string) error {
+	ctx, err := newCleanupContextWithCleanupService()
+	if err != nil {
+		return err
+	}
+	defer ctx.Close()
+
+	if dryRun {
+		return runSupervisorsDryRun(ctx)
+	}
+
+	return runSupervisorsCleanup(ctx)
+}
+
+func runSupervisorsDryRun(ctx *cleanupContext) error {
+	fmt.Println("DRY RUN MODE - No data will be modified")
+
+	preview, err := ctx.CleanupService.PreviewSupervisorCleanup(context.Background())
+	if err != nil {
+		return fmt.Errorf("failed to preview supervisor cleanup: %w", err)
+	}
+
+	printSupervisorPreviewHeader(preview)
+
+	if verbose {
+		printStaffBreakdown("Per-staff breakdown", "Stale Records", preview.StaffRecords)
+		printDateBreakdown(preview.RecordsByDate)
+	}
+
+	return nil
+}
+
+func printSupervisorPreviewHeader(preview *active.SupervisorCleanupPreview) {
+	fmt.Println("\nSupervisor Cleanup Preview:")
+	fmt.Printf("Total stale records: %d\n", preview.TotalRecords)
+
+	if preview.OldestRecord != nil {
+		daysAgo := time.Since(*preview.OldestRecord).Hours() / 24
+		fmt.Printf("Oldest record: %s (%.0f days ago)\n",
+			preview.OldestRecord.Format(dateFormat), daysAgo)
+	}
+
+	fmt.Printf("Staff affected: %d\n", len(preview.StaffRecords))
+}
+
+func runSupervisorsCleanup(ctx *cleanupContext) error {
+	result, err := ctx.CleanupService.CleanupStaleSupervisors(context.Background())
+	if err != nil {
+		return fmt.Errorf("supervisor cleanup failed: %w", err)
+	}
+
+	printSupervisorCleanupSummary(result)
+	return nil
+}
+
+func printSupervisorCleanupSummary(result *active.SupervisorCleanupResult) {
+	duration := result.CompletedAt.Sub(result.StartedAt)
+
+	fmt.Println("\nSupervisor Cleanup Summary:")
+	fmt.Printf("Duration: %s\n", duration)
+	fmt.Printf("Records closed: %d\n", result.RecordsClosed)
+	fmt.Printf("Staff affected: %d\n", result.StaffAffected)
+
+	if result.OldestRecordDate != nil {
+		fmt.Printf("Oldest record: %s\n", result.OldestRecordDate.Format(dateFormat))
+	}
+
+	fmt.Printf(fmtStatus, getStatusString(result.Success))
+	printErrorList(result.Errors)
+}
+
+// printStaffBreakdown prints a table of staff IDs and their counts.
+func printStaffBreakdown(header string, countHeader string, data map[int64]int) {
+	if len(data) == 0 {
+		return
+	}
+
+	fmt.Printf("\n%s:\n", header)
+	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+	_, _ = fmt.Fprintf(w, "Staff ID\t%s\n", countHeader)
+
+	for staffID, count := range data {
+		_, _ = fmt.Fprintf(w, "%d\t%d\n", staffID, count)
+	}
+
+	if err := w.Flush(); err != nil {
+		log.Printf(errFlushWriter, err)
+	}
 }

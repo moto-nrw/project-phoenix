@@ -988,6 +988,14 @@ func (m *mockCleanupService) PreviewAttendanceCleanup(_ context.Context) (*activ
 	return nil, m.attendancePreviewErr
 }
 
+func (m *mockCleanupService) CleanupStaleSupervisors(_ context.Context) (*activeService.SupervisorCleanupResult, error) {
+	return &activeService.SupervisorCleanupResult{Success: true}, nil
+}
+
+func (m *mockCleanupService) PreviewSupervisorCleanup(_ context.Context) (*activeService.SupervisorCleanupPreview, error) {
+	return &activeService.SupervisorCleanupPreview{}, nil
+}
+
 // =============================================================================
 // Execute Tests
 // =============================================================================
