@@ -24,14 +24,14 @@ const (
 var ActivitiesGroupsCreatedByDependencies = []string{
 	"1.3.2", // activities.groups table
 	"1.2.2", // users.staff table
+	"1.4.3", // activities.group_supervisors table (for backfill query)
 }
 
 // migrateActivitiesGroupsCreatedBy adds created_by column to activities.groups
-// WARNING: This migration truncates activities.groups and all dependent tables (CASCADE)
-// to add a NOT NULL created_by column. Deploy during off-hours when no active sessions exist.
-// Affected tables: activities.groups, activities.supervisors, activities.schedules,
-// activities.student_enrollments, active.groups, active.visits, active.group_supervisors,
-// active.group_mappings
+// This migration preserves all existing data by:
+// 1. Adding the column as NULLABLE
+// 2. Backfilling existing rows with their first supervisor (or fallback staff)
+// 3. Setting NOT NULL constraint
 func migrateActivitiesGroupsCreatedBy(ctx context.Context, db *bun.DB) error {
 	fmt.Println("Migration 1.8.2: Adding created_by column to activities.groups...")
 
@@ -53,38 +53,85 @@ func migrateActivitiesGroupsCreatedBy(ctx context.Context, db *bun.DB) error {
 		return nil
 	}
 
-	// Step 1: Check for existing data and log what will be deleted
-	var count int
-	err = db.QueryRowContext(ctx, `SELECT COUNT(*) FROM activities.groups`).Scan(&count)
-	if err != nil {
-		return fmt.Errorf("error checking activities.groups count: %w", err)
-	}
-
-	if count > 0 {
-		fmt.Printf("  WARNING: Found %d existing activity groups - will be deleted (CASCADE)\n", count)
-		fmt.Println("  Cascading tables: activities.supervisors, activities.schedules,")
-		fmt.Println("                    activities.student_enrollments, active.groups,")
-		fmt.Println("                    active.visits, active.group_supervisors, active.group_mappings")
-	}
-
-	// Step 2: Truncate table with CASCADE to clear dependent data
-	fmt.Println("  Truncating activities.groups (CASCADE)...")
-	_, err = db.ExecContext(ctx, `TRUNCATE TABLE activities.groups CASCADE`)
-	if err != nil {
-		return fmt.Errorf("error truncating activities.groups: %w", err)
-	}
-
-	// Step 3: Add created_by column with NOT NULL constraint
-	fmt.Println("  Adding created_by column...")
+	// Step 1: Add created_by column as NULLABLE first
+	fmt.Println("  Adding created_by column (nullable)...")
 	_, err = db.ExecContext(ctx, `
 		ALTER TABLE activities.groups
-		ADD COLUMN created_by BIGINT NOT NULL
+		ADD COLUMN created_by BIGINT
 	`)
 	if err != nil {
 		return fmt.Errorf("error adding created_by column: %w", err)
 	}
 
-	// Step 4: Add foreign key constraint
+	// Step 2: Backfill existing rows with first assigned supervisor
+	fmt.Println("  Backfilling existing groups with first supervisor...")
+	result, err := db.ExecContext(ctx, `
+		UPDATE activities.groups g
+		SET created_by = (
+			SELECT gs.staff_id
+			FROM activities.group_supervisors gs
+			WHERE gs.group_id = g.id
+			ORDER BY gs.id
+			LIMIT 1
+		)
+		WHERE created_by IS NULL
+	`)
+	if err != nil {
+		return fmt.Errorf("error backfilling created_by from supervisors: %w", err)
+	}
+	rowsUpdated, _ := result.RowsAffected()
+	fmt.Printf("  Updated %d groups with their first supervisor\n", rowsUpdated)
+
+	// Step 3: Handle any remaining NULL values (groups without supervisors)
+	// Use the first active staff member as fallback
+	var remainingNulls int
+	err = db.QueryRowContext(ctx, `
+		SELECT COUNT(*) FROM activities.groups WHERE created_by IS NULL
+	`).Scan(&remainingNulls)
+	if err != nil {
+		return fmt.Errorf("error checking remaining nulls: %w", err)
+	}
+
+	if remainingNulls > 0 {
+		fmt.Printf("  Found %d groups without supervisors - using fallback staff...\n", remainingNulls)
+		_, err = db.ExecContext(ctx, `
+			UPDATE activities.groups
+			SET created_by = (
+				SELECT s.id FROM users.staff s
+				WHERE s.is_active = true
+				ORDER BY s.id
+				LIMIT 1
+			)
+			WHERE created_by IS NULL
+		`)
+		if err != nil {
+			return fmt.Errorf("error backfilling created_by with fallback staff: %w", err)
+		}
+	}
+
+	// Step 4: Verify no NULLs remain before adding constraint
+	var stillNull int
+	err = db.QueryRowContext(ctx, `
+		SELECT COUNT(*) FROM activities.groups WHERE created_by IS NULL
+	`).Scan(&stillNull)
+	if err != nil {
+		return fmt.Errorf("error verifying no nulls: %w", err)
+	}
+	if stillNull > 0 {
+		return fmt.Errorf("cannot add NOT NULL constraint: %d groups still have NULL created_by (no staff found)", stillNull)
+	}
+
+	// Step 5: Set NOT NULL constraint
+	fmt.Println("  Setting NOT NULL constraint...")
+	_, err = db.ExecContext(ctx, `
+		ALTER TABLE activities.groups
+		ALTER COLUMN created_by SET NOT NULL
+	`)
+	if err != nil {
+		return fmt.Errorf("error setting NOT NULL constraint: %w", err)
+	}
+
+	// Step 6: Add foreign key constraint
 	fmt.Println("  Adding foreign key constraint...")
 	_, err = db.ExecContext(ctx, `
 		ALTER TABLE activities.groups
@@ -95,7 +142,7 @@ func migrateActivitiesGroupsCreatedBy(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error adding foreign key constraint: %w", err)
 	}
 
-	// Step 5: Add index for performance
+	// Step 7: Add index for performance
 	fmt.Println("  Creating index on created_by...")
 	_, err = db.ExecContext(ctx, `
 		CREATE INDEX IF NOT EXISTS idx_activity_groups_created_by
@@ -105,7 +152,7 @@ func migrateActivitiesGroupsCreatedBy(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error creating index: %w", err)
 	}
 
-	fmt.Println("Migration 1.8.2 completed successfully")
+	fmt.Println("Migration 1.8.2 completed successfully (zero data loss)")
 	return nil
 }
 
