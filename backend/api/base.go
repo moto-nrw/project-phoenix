@@ -29,6 +29,7 @@ import (
 	studentsAPI "github.com/moto-nrw/project-phoenix/api/students"
 	substitutionsAPI "github.com/moto-nrw/project-phoenix/api/substitutions"
 	suggestionsAPI "github.com/moto-nrw/project-phoenix/api/suggestions"
+	timeTrackingAPI "github.com/moto-nrw/project-phoenix/api/time-tracking"
 	usercontextAPI "github.com/moto-nrw/project-phoenix/api/usercontext"
 	usersAPI "github.com/moto-nrw/project-phoenix/api/users"
 	"github.com/moto-nrw/project-phoenix/database"
@@ -63,6 +64,7 @@ type API struct {
 	Substitutions    *substitutionsAPI.Resource
 	Database         *databaseAPI.Resource
 	GradeTransitions *adminAPI.GradeTransitionResource
+	TimeTracking     *timeTrackingAPI.Resource
 }
 
 // New creates a new API instance
@@ -224,6 +226,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.Substitutions = substitutionsAPI.NewResource(api.Services.Education)
 	api.Database = databaseAPI.NewResource(api.Services.Database)
 	api.GradeTransitions = adminAPI.NewGradeTransitionResource(api.Services.GradeTransition)
+	api.TimeTracking = timeTrackingAPI.NewResource(api.Services.WorkSession, api.Services.Users)
 }
 
 // ServeHTTP implements the http.Handler interface for the API
@@ -335,6 +338,9 @@ func (a *API) registerRoutesWithRateLimiting() {
 
 		// Mount SSE resources (Server-Sent Events for real-time updates)
 		r.Mount("/sse", a.SSE.Router())
+
+		// Mount time-tracking resources
+		r.Mount("/time-tracking", a.TimeTracking.Router())
 
 		// Mount admin resources
 		r.Mount("/admin/grade-transitions", a.GradeTransitions.Router())

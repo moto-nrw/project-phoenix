@@ -91,6 +91,7 @@ type Factory struct {
 	CombinedGroup   activeModels.CombinedGroupRepository
 	GroupMapping    activeModels.GroupMappingRepository
 	Attendance      activeModels.AttendanceRepository
+	WorkSession     activeModels.WorkSessionRepository
 
 	// Feedback domain
 	FeedbackEntry feedbackModels.EntryRepository
@@ -173,6 +174,7 @@ func NewFactory(db *bun.DB) *Factory {
 		CombinedGroup:   active.NewCombinedGroupRepository(db),
 		GroupMapping:    active.NewGroupMappingRepository(db),
 		Attendance:      active.NewAttendanceRepository(db),
+		WorkSession:     active.NewWorkSessionRepository(db),
 
 		// Feedback repositories
 		FeedbackEntry: feedback.NewEntryRepository(db),

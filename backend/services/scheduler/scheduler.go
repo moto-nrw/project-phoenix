@@ -35,15 +35,21 @@ type CleanupJob struct {
 	Run         func(context.Context) (int, error)
 }
 
+// WorkSessionCleaner exposes the cleanup routine for stale work sessions.
+type WorkSessionCleaner interface {
+	CleanupOpenSessions(ctx context.Context) (int, error)
+}
+
 // Scheduler manages scheduled tasks
 type Scheduler struct {
-	activeService     active.Service
-	cleanupService    active.CleanupService
-	authCleanup       AuthCleanup
-	invitationCleanup InvitationCleaner
-	cleanupJobs       []CleanupJob
-	tasks             map[string]*ScheduledTask
-	mu                sync.RWMutex
+	activeService      active.Service
+	cleanupService     active.CleanupService
+	authCleanup        AuthCleanup
+	invitationCleanup  InvitationCleaner
+	workSessionCleanup WorkSessionCleaner
+	cleanupJobs        []CleanupJob
+	tasks              map[string]*ScheduledTask
+	mu                 sync.RWMutex
 	// done signals goroutines to stop when closed (replaces stored context)
 	done chan struct{}
 	wg   sync.WaitGroup
@@ -74,6 +80,11 @@ func NewScheduler(activeService active.Service, cleanupService active.CleanupSer
 		tasks:             make(map[string]*ScheduledTask),
 		done:              make(chan struct{}),
 	}
+}
+
+// SetWorkSessionCleaner sets the work session cleanup service (optional).
+func (s *Scheduler) SetWorkSessionCleaner(wsc WorkSessionCleaner) {
+	s.workSessionCleanup = wsc
 }
 
 // Start begins the scheduler
@@ -254,6 +265,16 @@ func (s *Scheduler) executeCleanup(task *ScheduledTask) {
 			supervisorResult.StaffAffected,
 			supervisorResult.Success,
 		)
+	}
+
+	// Clean up open work sessions from previous days (auto-checkout at end of day)
+	if s.workSessionCleanup != nil {
+		closedCount, wsErr := s.workSessionCleanup.CleanupOpenSessions(ctx)
+		if wsErr != nil {
+			log.Printf("ERROR: Work session cleanup failed: %v", wsErr)
+		} else if closedCount > 0 {
+			log.Printf("Work session cleanup completed: auto-closed %d open sessions", closedCount)
+		}
 	}
 }
 

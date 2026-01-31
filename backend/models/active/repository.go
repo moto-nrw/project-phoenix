@@ -155,3 +155,28 @@ type GroupMappingRepository interface {
 	// FindWithRelations retrieves a mapping with its associated CombinedGroup and ActiveGroup relations
 	FindWithRelations(ctx context.Context, id int64) (*GroupMapping, error)
 }
+
+// AttendanceRepository is already defined above
+
+// WorkSessionRepository defines operations for managing staff work sessions
+type WorkSessionRepository interface {
+	base.Repository[*WorkSession]
+
+	// GetByStaffAndDate returns the work session for a staff member on a given date
+	GetByStaffAndDate(ctx context.Context, staffID int64, date time.Time) (*WorkSession, error)
+
+	// GetCurrentByStaffID returns the active (not checked out) session for a staff member
+	GetCurrentByStaffID(ctx context.Context, staffID int64) (*WorkSession, error)
+
+	// GetHistoryByStaffID returns work sessions for a staff member in a date range
+	GetHistoryByStaffID(ctx context.Context, staffID int64, from, to time.Time) ([]*WorkSession, error)
+
+	// GetOpenSessions returns all sessions without check-out before a given date
+	GetOpenSessions(ctx context.Context, beforeDate time.Time) ([]*WorkSession, error)
+
+	// GetTodayPresenceMap returns a map of staff IDs to their work status for today
+	GetTodayPresenceMap(ctx context.Context) (map[int64]string, error)
+
+	// CloseSession sets the check-out time and auto_checked_out flag
+	CloseSession(ctx context.Context, id int64, checkOutTime time.Time, autoCheckedOut bool) error
+}
