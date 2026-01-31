@@ -59,9 +59,16 @@ vi.mock("~/contexts/ToastContext", () => ({
   }),
 }));
 
-vi.mock("~/components/ui/loading", () => ({
-  Loading: ({ message }: { message?: string; fullPage?: boolean }) => (
-    <div data-testid="loading">{message}</div>
+vi.mock("~/components/ui/skeleton", () => ({
+  Skeleton: ({
+    className,
+    ...props
+  }: { className?: string } & Record<string, unknown>) => (
+    <div
+      data-testid="skeleton"
+      className={className}
+      {...(props as React.HTMLAttributes<HTMLDivElement>)}
+    />
   ),
 }));
 
@@ -254,7 +261,7 @@ describe("SuggestionsPage", () => {
     });
   });
 
-  it("shows loading state", async () => {
+  it("shows skeleton loading state", async () => {
     mockUseSWRAuth.mockReturnValue({
       data: undefined,
       isLoading: true,
@@ -266,7 +273,8 @@ describe("SuggestionsPage", () => {
     render(<SuggestionsPage />);
 
     await waitFor(() => {
-      expect(screen.getByTestId("loading")).toBeInTheDocument();
+      const skeletons = screen.getAllByTestId("skeleton");
+      expect(skeletons.length).toBeGreaterThan(0);
     });
   });
 
