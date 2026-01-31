@@ -197,16 +197,9 @@ func TestCreateSubstitution_Success(t *testing.T) {
 	staff := testpkg.CreateTestStaff(t, ctx.db, "Substitute", "Teacher")
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, staff.ID)
 
-	// Get a group ID from the database
-	var groupID int64
-	err := ctx.db.NewSelect().
-		TableExpr("education.groups").
-		Column("id").
-		Limit(1).
-		Scan(context.Background(), &groupID)
-	if err != nil || groupID == 0 {
-		t.Skip("No groups found in database")
-	}
+	// Create a group fixture
+	group := testpkg.CreateTestEducationGroup(t, ctx.db, "SubstitutionCreate")
+	defer testpkg.CleanupTableRecords(t, ctx.db, "education.groups", group.ID)
 
 	router := chi.NewRouter()
 	router.Post("/substitutions", ctx.resource.CreateHandler())
@@ -216,7 +209,7 @@ func TestCreateSubstitution_Success(t *testing.T) {
 	endDate := time.Now().AddDate(0, 0, 7).Format("2006-01-02")
 
 	body := map[string]interface{}{
-		"group_id":            groupID,
+		"group_id":            group.ID,
 		"substitute_staff_id": staff.ID,
 		"start_date":          startDate,
 		"end_date":            endDate,
@@ -515,16 +508,9 @@ func TestSubstitutionCRUDWorkflow(t *testing.T) {
 	staff := testpkg.CreateTestStaff(t, ctx.db, "CRUD", "Test")
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, staff.ID)
 
-	// Get a group ID from the database
-	var groupID int64
-	err := ctx.db.NewSelect().
-		TableExpr("education.groups").
-		Column("id").
-		Limit(1).
-		Scan(context.Background(), &groupID)
-	if err != nil || groupID == 0 {
-		t.Skip("No groups found in database")
-	}
+	// Create a group fixture
+	group := testpkg.CreateTestEducationGroup(t, ctx.db, "SubstitutionCRUD")
+	defer testpkg.CleanupTableRecords(t, ctx.db, "education.groups", group.ID)
 
 	router := chi.NewRouter()
 	router.Post("/substitutions", ctx.resource.CreateHandler())
@@ -536,7 +522,7 @@ func TestSubstitutionCRUDWorkflow(t *testing.T) {
 	endDate := time.Now().AddDate(0, 0, 7).Format("2006-01-02")
 
 	createBody := map[string]interface{}{
-		"group_id":            groupID,
+		"group_id":            group.ID,
 		"substitute_staff_id": staff.ID,
 		"start_date":          startDate,
 		"end_date":            endDate,
@@ -566,7 +552,7 @@ func TestSubstitutionCRUDWorkflow(t *testing.T) {
 	getData, ok := getResponse["data"].(map[string]interface{})
 	require.True(t, ok)
 	assert.Equal(t, float64(subID), getData["id"])
-	assert.Equal(t, float64(groupID), getData["group_id"])
+	assert.Equal(t, float64(group.ID), getData["group_id"])
 	assert.Equal(t, float64(staff.ID), getData["substitute_staff_id"])
 
 	// Step 3: Delete

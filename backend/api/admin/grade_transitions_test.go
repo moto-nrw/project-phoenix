@@ -914,11 +914,9 @@ func TestToTransitionResponse(t *testing.T) {
 		response := testutil.ParseJSONResponse(t, getRR.Body.Bytes())
 		data := response["data"].(map[string]interface{})
 
-		// Mappings might be nil if the service doesn't load relations
 		mappingsRaw, hasMappings := data["mappings"]
-		if !hasMappings || mappingsRaw == nil {
-			t.Skip("Service does not load mappings relation on GetByID")
-		}
+		require.True(t, hasMappings, "Response should include 'mappings' field")
+		require.NotNil(t, mappingsRaw, "Mappings should not be nil")
 
 		mappings, ok := mappingsRaw.([]interface{})
 		require.True(t, ok, "mappings should be an array")

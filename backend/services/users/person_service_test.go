@@ -1055,10 +1055,8 @@ func TestPersonService_FindByGuardianID(t *testing.T) {
 		// ACT
 		persons, err := service.FindByGuardianID(ctx, 99999999)
 
-		// ASSERT - may return error if table doesn't exist in test DB
-		if err != nil {
-			t.Skipf("Skipping due to schema issue: %v", err)
-		}
+		// ASSERT
+		require.NoError(t, err)
 		assert.Empty(t, persons)
 	})
 
@@ -1074,9 +1072,7 @@ func TestPersonService_FindByGuardianID(t *testing.T) {
 		persons, err := service.FindByGuardianID(ctx, parentAccount.ID)
 
 		// ASSERT
-		if err != nil {
-			t.Skipf("Skipping due to schema issue: %v", err)
-		}
+		require.NoError(t, err)
 		require.NotEmpty(t, persons, "Should return persons linked to guardian")
 		// Find our specific person in the results
 		found := false

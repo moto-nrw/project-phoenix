@@ -1617,9 +1617,6 @@ func TestInvitationService_ListPendingInvitations(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	invitationService := setupInvitationService(t, db)
-	if invitationService == nil {
-		t.Skip("Invitation service not available")
-	}
 	ctx := context.Background()
 
 	t.Run("returns list without error", func(t *testing.T) {
@@ -1638,9 +1635,6 @@ func TestInvitationService_CleanupExpiredInvitations(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	invitationService := setupInvitationService(t, db)
-	if invitationService == nil {
-		t.Skip("Invitation service not available")
-	}
 	ctx := context.Background()
 
 	t.Run("cleans up expired invitations without error", func(t *testing.T) {
@@ -1658,9 +1652,6 @@ func TestInvitationService_CreateInvitation(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	invitationService := setupInvitationService(t, db)
-	if invitationService == nil {
-		t.Skip("Invitation service not available")
-	}
 	authService := setupAuthService(t, db)
 	ctx := context.Background()
 
@@ -1733,9 +1724,6 @@ func TestInvitationService_ValidateInvitation(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	invitationService := setupInvitationService(t, db)
-	if invitationService == nil {
-		t.Skip("Invitation service not available")
-	}
 	authService := setupAuthService(t, db)
 	ctx := context.Background()
 
@@ -1805,9 +1793,6 @@ func TestInvitationService_AcceptInvitation(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	invitationService := setupInvitationService(t, db)
-	if invitationService == nil {
-		t.Skip("Invitation service not available")
-	}
 	authService := setupAuthService(t, db)
 	ctx := context.Background()
 
@@ -1917,9 +1902,6 @@ func TestInvitationService_RevokeInvitation(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	invitationService := setupInvitationService(t, db)
-	if invitationService == nil {
-		t.Skip("Invitation service not available")
-	}
 	authService := setupAuthService(t, db)
 	ctx := context.Background()
 
