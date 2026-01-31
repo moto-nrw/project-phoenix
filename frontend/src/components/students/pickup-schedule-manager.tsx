@@ -241,7 +241,7 @@ export default function PickupScheduleManager({
             <Calendar className="h-5 w-5" />
           </div>
           <h2 className="truncate text-base font-semibold text-gray-900 sm:text-lg">
-            Abholplan und Notizen
+            Abholplan & Notizen
           </h2>
         </div>
         {!readOnly && (

@@ -177,4 +177,65 @@ describe("GET /api/ogs-dashboard", () => {
     expect(json.data.substitutions).toEqual([]);
     expect(json.data.firstGroupId).toBe("5");
   });
+
+  it("sorts groups alphabetically and uses first group", async () => {
+    const groups = [
+      { id: 20, name: "Zebra" },
+      { id: 10, name: "Adler" },
+    ];
+
+    mockApiGet
+      .mockResolvedValueOnce({ data: groups })
+      .mockResolvedValueOnce({ data: [] })
+      .mockResolvedValueOnce({ data: null })
+      .mockResolvedValueOnce({ data: [] });
+
+    const request = createMockRequest("/api/ogs-dashboard");
+    const response = await GET(request, createMockContext());
+
+    // After sorting, "Adler" (id=10) should be first
+    expect(mockApiGet).toHaveBeenNthCalledWith(
+      2,
+      "/api/students?group_id=10",
+      "test-token",
+    );
+
+    const json = await parseJsonResponse<
+      ApiResponse<{
+        groups: typeof groups;
+        firstGroupId: string | null;
+      }>
+    >(response);
+
+    expect(json.data.firstGroupId).toBe("10");
+    // Groups should be sorted alphabetically
+    expect(json.data.groups).toHaveLength(2);
+    expect(json.data.groups.at(0)?.name).toBe("Adler");
+    expect(json.data.groups.at(1)?.name).toBe("Zebra");
+  });
+
+  it("handles null data arrays gracefully", async () => {
+    const groups = [{ id: 1, name: "Group" }];
+
+    mockApiGet
+      .mockResolvedValueOnce({ data: groups })
+      .mockResolvedValueOnce({ data: null }) // students null
+      .mockResolvedValueOnce({ data: null }) // roomStatus null
+      .mockResolvedValueOnce({ data: null }); // substitutions null
+
+    const request = createMockRequest("/api/ogs-dashboard");
+    const response = await GET(request, createMockContext());
+
+    const json = await parseJsonResponse<
+      ApiResponse<{
+        students: unknown[];
+        roomStatus: unknown;
+        substitutions: unknown[];
+      }>
+    >(response);
+
+    expect(json.data.students).toEqual([]);
+    expect(json.data.roomStatus).toBeNull();
+    expect(json.data.substitutions).toEqual([]);
+  });
 });

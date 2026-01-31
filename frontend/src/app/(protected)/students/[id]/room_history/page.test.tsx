@@ -27,6 +27,7 @@ vi.mock("next-auth/react", () => ({
 }));
 
 vi.mock("~/lib/breadcrumb-context", () => ({
+  useStudentHistoryBreadcrumb: vi.fn(),
   useSetBreadcrumb: vi.fn(),
   useBreadcrumb: vi.fn(() => ({ breadcrumb: {}, setBreadcrumb: vi.fn() })),
   BreadcrumbProvider: ({ children }: { children: React.ReactNode }) => (

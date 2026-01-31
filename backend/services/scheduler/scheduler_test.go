@@ -2210,6 +2210,9 @@ func TestRunTokenCleanupTask_TickerRepeat(t *testing.T) {
 		// In synctest, this will advance fake time and fire the ticker
 		time.Sleep(2 * time.Hour)
 
+		// Yield to let the token cleanup goroutine execute after its ticker fires
+		time.Sleep(1 * time.Second)
+
 		// Verify second call happened
 		auth.mu.Lock()
 		secondCallCount := auth.tokenCalls

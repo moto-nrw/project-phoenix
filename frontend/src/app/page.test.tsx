@@ -2,7 +2,13 @@
  * Tests for Login Page (Root Page)
  * Tests the rendering and functionality of the main login form
  */
-import { render, screen, waitFor, fireEvent, act } from "@testing-library/react";
+import {
+  render,
+  screen,
+  waitFor,
+  fireEvent,
+  act,
+} from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 // Mock next-auth/react
@@ -37,9 +43,11 @@ vi.mock("~/lib/auth-api", () => ({
 
 // Mock SmartRedirect
 vi.mock("~/components/auth/smart-redirect", () => ({
-  SmartRedirect: ({ onRedirect: _onRedirect }: { onRedirect: (path: string) => void }) => (
-    <div data-testid="smart-redirect" />
-  ),
+  SmartRedirect: ({
+    onRedirect: _onRedirect,
+  }: {
+    onRedirect: (path: string) => void;
+  }) => <div data-testid="smart-redirect" />,
 }));
 
 // Mock PasswordResetModal

@@ -78,9 +78,8 @@ async function serverFetchWithRetry<T>(
   let response = await executeRequest(token);
 
   if (response.status === 401) {
-    const { refreshSessionTokensOnServer } = await import(
-      "~/server/auth/token-refresh"
-    );
+    const { refreshSessionTokensOnServer } =
+      await import("~/server/auth/token-refresh");
     const refreshed = await refreshSessionTokensOnServer();
     if (refreshed?.accessToken) {
       response = await executeRequest(refreshed.accessToken);

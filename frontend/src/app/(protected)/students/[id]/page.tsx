@@ -60,10 +60,23 @@ export default function StudentDetailPage() {
     refreshData,
   } = useStudentData(studentId);
 
-  // Set breadcrumb data
+  // Set breadcrumb data — include group/room name for 3-level breadcrumb
+  // when navigating from an accordion section (e.g. Meine Gruppe > 1a > Mia Fischer)
+  const breadcrumbGroupName =
+    referrer.startsWith("/ogs-groups") && globalThis.window !== undefined
+      ? localStorage.getItem("sidebar-last-group-name")
+      : undefined;
+  const breadcrumbRoomName =
+    referrer.startsWith("/active-supervisions") &&
+    globalThis.window !== undefined
+      ? localStorage.getItem("sidebar-last-room-name")
+      : undefined;
+
   useSetBreadcrumb({
     studentName: student?.name,
     referrerPage: referrer,
+    ogsGroupName: breadcrumbGroupName ?? undefined,
+    activeSupervisionName: breadcrumbRoomName ?? undefined,
   });
 
   // Personal info modal state

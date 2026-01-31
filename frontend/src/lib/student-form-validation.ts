@@ -48,7 +48,9 @@ export function validateStudentForm(
     errors.school_class = "Klasse ist erforderlich";
   }
 
-  const retentionError = validateDataRetentionDays(formData.data_retention_days);
+  const retentionError = validateDataRetentionDays(
+    formData.data_retention_days,
+  );
   if (retentionError) {
     errors.data_retention_days = retentionError;
   }

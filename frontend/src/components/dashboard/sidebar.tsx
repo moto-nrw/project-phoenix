@@ -1,12 +1,15 @@
 // components/dashboard/sidebar.tsx
 "use client";
 
-import { Suspense } from "react";
+import { Suspense, useCallback, useEffect } from "react";
 import Link from "next/link";
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useSupervision } from "~/lib/supervision-context";
 import { isAdmin } from "~/lib/auth-utils";
+import { useSidebarAccordion } from "~/lib/hooks/use-sidebar-accordion";
+import { SidebarAccordionSection } from "~/components/dashboard/sidebar-accordion-section";
+import { SidebarSubItem } from "~/components/dashboard/sidebar-sub-item";
 
 // Type für Navigation Items
 interface NavItem {
@@ -14,17 +17,14 @@ interface NavItem {
   label: string;
   icon: string;
   requiresAdmin?: boolean;
-  requiresSupervision?: boolean;
   alwaysShow?: boolean;
-  hideForAdmin?: boolean; // Hide from admin users (e.g., tabs for teacher-specific features)
-  labelMultiple?: string;
-  comingSoon?: boolean; // Show as grayed out "coming soon" feature
-  separator?: boolean; // Show a divider line above this item
-  bottomPinned?: boolean; // Pin to bottom of sidebar viewport
-  activeColor?: string; // Tailwind text color class for icon when active
+  hideForAdmin?: boolean;
+  comingSoon?: boolean;
+  bottomPinned?: boolean;
+  activeColor?: string;
 }
 
-// Navigation Items
+// Flat navigation items (excludes accordion sections: ogs-groups, active-supervisions, database)
 const NAV_ITEMS: NavItem[] = [
   {
     href: "/dashboard",
@@ -34,29 +34,11 @@ const NAV_ITEMS: NavItem[] = [
     requiresAdmin: true,
   },
   {
-    href: "/ogs-groups",
-    label: "Meine Gruppe",
-    icon: "M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z",
-    activeColor: "text-[#83CD2D]",
-    alwaysShow: true, // Always show, empty state handled on page
-    hideForAdmin: true, // Admins don't have assigned groups (#608)
-    labelMultiple: "Meine Gruppen",
-  },
-  {
-    href: "/active-supervisions",
-    label: "Aktuelle Aufsicht",
-    icon: "M15 12a3 3 0 11-6 0 3 3 0 016 0z M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z",
-    activeColor: "text-violet-500",
-    alwaysShow: true, // Always show, empty state handled on page
-    hideForAdmin: true, // Admins don't perform supervision duties (#608)
-    labelMultiple: "Aktuelle Aufsichten",
-  },
-  {
     href: "/students/search",
     label: "Kindersuche",
     icon: "M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z",
     activeColor: "text-[#5080D8]",
-    requiresSupervision: true,
+    alwaysShow: true,
   },
   {
     href: "/activities",
@@ -79,25 +61,11 @@ const NAV_ITEMS: NavItem[] = [
     activeColor: "text-[#F78C10]",
     alwaysShow: true,
   },
-  // Temporarily disabled - not ready yet
-  // {
-  //     href: "/statistics",
-  //     label: "Statistiken",
-  //     icon: "M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z",
-  //     requiresAdmin: true
-  // },
   {
     href: "/substitutions",
     label: "Vertretungen",
     icon: "M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15",
     activeColor: "text-pink-500",
-    requiresAdmin: true, // See #559 for granular permissions
-  },
-  {
-    href: "/database",
-    label: "Datenverwaltung",
-    icon: "M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4",
-    activeColor: "text-gray-500",
     requiresAdmin: true,
   },
   // Coming soon features - shown to all users
@@ -164,83 +132,74 @@ const NAV_ITEMS: NavItem[] = [
   },
 ];
 
+// Static sub-pages for Datenverwaltung accordion
+const DATABASE_SUB_PAGES = [
+  { href: "/database/students", label: "Kinder" },
+  { href: "/database/teachers", label: "Betreuer" },
+  { href: "/database/rooms", label: "Räume" },
+  { href: "/database/activities", label: "Aktivitäten" },
+  { href: "/database/groups", label: "Gruppen" },
+  { href: "/database/roles", label: "Rollen" },
+  { href: "/database/devices", label: "Geräte" },
+  { href: "/database/permissions", label: "Berechtigungen" },
+];
+
+/** Determine if a group sub-item should be highlighted as active */
+function isGroupSubItemActive(
+  childGroupId: string | null,
+  groupId: string,
+  pathname: string,
+  currentGroupParam: string | null,
+  index: number,
+): boolean {
+  if (childGroupId) return childGroupId === groupId;
+  if (!pathname.startsWith("/ogs-groups")) return false;
+  if (currentGroupParam) return currentGroupParam === groupId;
+  return index === 0;
+}
+
+/** Determine if a room sub-item should be highlighted as active */
+function isRoomSubItemActive(
+  childRoomId: string | null,
+  roomId: string,
+  pathname: string,
+  currentRoomParam: string | null,
+  index: number,
+): boolean {
+  if (childRoomId) return childRoomId === roomId;
+  if (!pathname.startsWith("/active-supervisions")) return false;
+  if (currentRoomParam) return currentRoomParam === roomId;
+  return index === 0;
+}
+
 interface SidebarProps {
   readonly className?: string;
 }
 
 function SidebarContent({ className = "" }: SidebarProps) {
-  // Aktuelle Route ermitteln
   const pathname = usePathname();
   const searchParams = useSearchParams();
-
-  // Quick create activity modal state
-
-  // Get session for role checking
+  const router = useRouter();
   const { data: session } = useSession();
 
   // Get supervision state
-  const { hasGroups, isSupervising, isLoadingGroups, isLoadingSupervision } =
+  const { isLoadingGroups, isLoadingSupervision, groups, supervisedRooms } =
     useSupervision();
 
-  // Check if user has educational groups (keeping existing hook for compatibility)
-  // const { hasEducationalGroups, isLoading } = useHasEducationalGroups();
+  // Accordion state — pass `from` param so child pages (e.g. student detail)
+  // keep the originating accordion section open
+  const fromParam = searchParams.get("from");
+  const { expanded, toggle } = useSidebarAccordion(pathname, fromParam);
 
-  // Check if user has any supervision (groups or active room)
-  const hasAnySupervision =
-    (!isLoadingGroups && hasGroups) || (!isLoadingSupervision && isSupervising);
+  const userIsAdmin = isAdmin(session);
 
-  // Filter navigation items based on permissions
-  const baseFilteredNavItems = NAV_ITEMS.filter((item) => {
-    // Hide items marked as hideForAdmin for admin users
-    if (item.hideForAdmin && isAdmin(session)) {
-      return false;
-    }
-
-    // Always show items marked as alwaysShow
-    if (item.alwaysShow) {
-      return true;
-    }
-
-    // Check admin requirement
-    if (item.requiresAdmin && !isAdmin(session)) {
-      return false;
-    }
-
-    // Check supervision requirement (for student search - groups OR room supervision)
-    if (item.requiresSupervision) {
-      // Admins always see student search
-      if (isAdmin(session)) return true;
-
-      // Other users only see it if they have supervision
-      const hasGroupSupervision = !isLoadingGroups && hasGroups;
-      const hasRoomSupervision = !isLoadingSupervision && isSupervising;
-      return hasGroupSupervision || hasRoomSupervision;
-    }
-
+  // Filter flat navigation items based on permissions
+  const filteredNavItems = NAV_ITEMS.filter((item) => {
+    if (item.hideForAdmin && userIsAdmin) return false;
+    if (item.alwaysShow) return true;
+    if (item.requiresAdmin && !userIsAdmin) return false;
     return true;
   });
-
-  // If user has no supervision and is not admin, add student search at correct position
-  let filteredNavItems = baseFilteredNavItems;
-  if (!hasAnySupervision && !isAdmin(session)) {
-    // Find the index of "Aktuelle Aufsicht" to insert Kindersuche right after it
-    const meinRaumIndex = baseFilteredNavItems.findIndex(
-      (item) => item.href === "/active-supervisions",
-    );
-    const insertIndex =
-      meinRaumIndex >= 0 ? meinRaumIndex + 1 : baseFilteredNavItems.length;
-
-    filteredNavItems = [
-      ...baseFilteredNavItems.slice(0, insertIndex),
-      {
-        href: "/students/search",
-        label: "Kindersuche",
-        icon: "M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z",
-        alwaysShow: true,
-      },
-      ...baseFilteredNavItems.slice(insertIndex),
-    ];
-  }
 
   // Helper to determine active href for student detail pages based on referrer
   const getStudentDetailActiveHref = (from: string | null): string => {
@@ -253,19 +212,33 @@ function SidebarContent({ className = "" }: SidebarProps) {
 
   // Check if a navigation link should be highlighted as active
   const isActiveLink = (href: string) => {
-    // Special handling for student detail pages
     const isStudentDetailPage =
       pathname.startsWith("/students/") && pathname !== "/students/search";
     if (isStudentDetailPage) {
       const from = searchParams.get("from");
       return getStudentDetailActiveHref(from) === href;
     }
-
-    // Exact match for Dashboard
     if (href === "/dashboard") return pathname === "/dashboard";
-
-    // For other routes, check if current path starts with link path
     return pathname.startsWith(href);
+  };
+
+  // Check if a section's parent header should be highlighted
+  // Parent highlights only when on the section page WITHOUT a sub-item selected
+  const isAccordionSectionActive = (
+    parentHref: string,
+    hasSubItemSelected: boolean,
+  ) => {
+    const isStudentDetailPage =
+      pathname.startsWith("/students/") && pathname !== "/students/search";
+    if (isStudentDetailPage) {
+      const from = searchParams.get("from");
+      if (getStudentDetailActiveHref(from) !== parentHref) return false;
+      // If a sub-item is highlighted on the child page, don't highlight the parent
+      return !hasSubItemSelected;
+    }
+    if (!pathname.startsWith(parentHref)) return false;
+    // If a sub-item is selected, don't highlight the parent
+    return !hasSubItemSelected;
   };
 
   const getLinkClasses = (href: string, comingSoon?: boolean) => {
@@ -298,7 +271,6 @@ function SidebarContent({ className = "" }: SidebarProps) {
 
   const renderNavItem = (item: NavItem) => (
     <div key={item.comingSoon ? item.label : item.href}>
-      {item.separator && <div className="mx-3 my-2 border-t border-gray-200" />}
       {item.comingSoon ? (
         <div
           className={`group ${getLinkClasses(item.href, true)}`}
@@ -343,27 +315,278 @@ function SidebarContent({ className = "" }: SidebarProps) {
     </div>
   );
 
-  return (
-    <>
-      {/* Desktop sidebar */}
-      <aside
-        className={`min-h-screen w-64 border-r border-gray-200 bg-white ${className}`}
-      >
-        <div className="sticky top-[73px] flex h-[calc(100vh-73px)] flex-col">
-          {/* Main navigation — scrollable */}
-          <nav className="flex-1 space-y-1 overflow-y-auto p-3 lg:p-4 xl:p-3">
-            {mainNavItems.map(renderNavItem)}
-          </nav>
+  // Determine which flat items come before / after the accordion insertion points
+  // Order: Home (admin) → [Groups accordion] → [Supervisions accordion] → Kindersuche → Aktivitaten → Raume → Mitarbeiter → Vertretungen (admin) → [Database accordion] → coming soon → bottom pinned
+  const beforeAccordionItems = mainNavItems.filter(
+    (item) =>
+      item.href === "/dashboard" ||
+      (item.href === "/students/search" && !item.comingSoon),
+  );
 
-          {/* Bottom pinned items */}
-          {bottomNavItems.length > 0 && (
-            <nav className="space-y-1 border-t border-gray-200 p-3 lg:p-4 xl:p-3">
-              {bottomNavItems.map(renderNavItem)}
-            </nav>
+  // Items between Kindersuche and Database accordion
+  const middleItems = mainNavItems.filter(
+    (item) =>
+      !item.comingSoon &&
+      item.href !== "/dashboard" &&
+      item.href !== "/students/search" &&
+      item.href !== "/substitutions",
+  );
+
+  // Vertretungen (admin only, flat)
+  const substitutionsItem = mainNavItems.find(
+    (item) => item.href === "/substitutions",
+  );
+
+  // Coming soon items
+  const comingSoonItems = mainNavItems.filter((item) => item.comingSoon);
+
+  // Get current search params for group/room selection
+  const currentGroupParam = searchParams.get("group");
+  const currentRoomParam = searchParams.get("room");
+
+  // On child pages (e.g. student detail with ?from=/ogs-groups), determine
+  // which sub-item should stay highlighted using the last selection from localStorage.
+  const isChildOfAccordion =
+    pathname.startsWith("/students/") && pathname !== "/students/search";
+  const childFromParam = isChildOfAccordion ? fromParam : null;
+  const childGroupId =
+    childFromParam?.startsWith("/ogs-groups") && globalThis.window !== undefined
+      ? localStorage.getItem("sidebar-last-group")
+      : null;
+  const childRoomId =
+    childFromParam?.startsWith("/active-supervisions") &&
+    globalThis.window !== undefined
+      ? localStorage.getItem("sidebar-last-room")
+      : null;
+
+  // Persist last selected sub-item per accordion section to localStorage.
+  // Pages read this on mount to restore the user's last selection.
+  useEffect(() => {
+    if (pathname.startsWith("/ogs-groups") && currentGroupParam) {
+      localStorage.setItem("sidebar-last-group", currentGroupParam);
+      const groupName = groups.find(
+        (g) => g.id.toString() === currentGroupParam,
+      )?.name;
+      if (groupName) {
+        localStorage.setItem("sidebar-last-group-name", groupName);
+      }
+    }
+  }, [pathname, currentGroupParam, groups]);
+
+  useEffect(() => {
+    if (pathname.startsWith("/active-supervisions") && currentRoomParam) {
+      localStorage.setItem("sidebar-last-room", currentRoomParam);
+      const roomName = supervisedRooms.find(
+        (r) => r.id === currentRoomParam,
+      )?.name;
+      if (roomName) {
+        localStorage.setItem("sidebar-last-room-name", roomName);
+      }
+    }
+  }, [pathname, currentRoomParam, supervisedRooms]);
+
+  useEffect(() => {
+    if (
+      pathname.startsWith("/database/") &&
+      DATABASE_SUB_PAGES.some((p) => pathname === p.href)
+    ) {
+      localStorage.setItem("sidebar-last-database", pathname);
+    }
+  }, [pathname]);
+
+  // Toggle accordion AND navigate to the correct URL (with last-selected sub-item).
+  // Reads localStorage at click-time so the page loads with the right param immediately.
+  const handleGroupsToggle = useCallback(() => {
+    toggle("groups");
+    if (!pathname.startsWith("/ogs-groups")) {
+      const savedGroupId = localStorage.getItem("sidebar-last-group");
+      const targetGroup = savedGroupId
+        ? groups.find((g) => g.id.toString() === savedGroupId)
+        : groups[0];
+      const groupId = targetGroup?.id ?? groups[0]?.id;
+      if (groupId) {
+        router.push(`/ogs-groups?group=${groupId}`);
+      } else {
+        router.push("/ogs-groups");
+      }
+    }
+  }, [toggle, pathname, groups, router]);
+
+  const handleSupervisionsToggle = useCallback(() => {
+    toggle("supervisions");
+    if (!pathname.startsWith("/active-supervisions")) {
+      const savedRoomId = localStorage.getItem("sidebar-last-room");
+      const targetRoom = savedRoomId
+        ? supervisedRooms.find((r) => r.id === savedRoomId)
+        : supervisedRooms[0];
+      const roomId = targetRoom?.id ?? supervisedRooms[0]?.id;
+      if (roomId) {
+        router.push(`/active-supervisions?room=${roomId}`);
+      } else {
+        router.push("/active-supervisions");
+      }
+    }
+  }, [toggle, pathname, supervisedRooms, router]);
+
+  const handleDatabaseToggle = useCallback(() => {
+    if (!pathname.startsWith("/database")) {
+      // Not on any database page → expand accordion + navigate to hub
+      toggle("database");
+      router.push("/database");
+    } else if (pathname === "/database") {
+      // On hub page → just toggle (collapse/expand)
+      toggle("database");
+    } else {
+      // On a sub-page like /database/rooms → navigate back to hub (accordion stays open)
+      router.push("/database");
+    }
+  }, [toggle, pathname, router]);
+
+  // Show staff-only accordions (groups + supervisions) only for non-admin
+  const showStaffAccordions = !userIsAdmin;
+
+  return (
+    <aside
+      className={`min-h-screen w-64 border-r border-gray-200 bg-white ${className}`}
+    >
+      <div className="sticky top-[73px] flex h-[calc(100vh-73px)] flex-col">
+        {/* Main navigation — scrollable */}
+        <nav className="flex-1 space-y-1 overflow-y-auto p-3 lg:p-4 xl:p-3">
+          {/* Home (admin only) */}
+          {beforeAccordionItems
+            .filter((item) => item.href === "/dashboard")
+            .map(renderNavItem)}
+
+          {/* Meine Gruppen accordion (staff only) */}
+          {showStaffAccordions && (
+            <SidebarAccordionSection
+              icon="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+              label={groups.length > 1 ? "Meine Gruppen" : "Meine Gruppe"}
+              activeColor="text-[#83CD2D]"
+              isExpanded={expanded === "groups"}
+              onToggle={handleGroupsToggle}
+              isActive={isAccordionSectionActive(
+                "/ogs-groups",
+                Boolean(currentGroupParam) ||
+                  Boolean(childGroupId) ||
+                  groups.length > 0,
+              )}
+              isIconActive={
+                pathname.startsWith("/ogs-groups") || Boolean(childGroupId)
+              }
+              isLoading={isLoadingGroups}
+              emptyText="Keine Gruppen zugeordnet"
+              hasChildren={groups.length > 0}
+            >
+              {groups.map((group, index) => (
+                <SidebarSubItem
+                  key={group.id}
+                  href={`/ogs-groups?group=${group.id}`}
+                  label={group.name}
+                  isActive={isGroupSubItemActive(
+                    childGroupId,
+                    group.id.toString(),
+                    pathname,
+                    currentGroupParam,
+                    index,
+                  )}
+                />
+              ))}
+            </SidebarAccordionSection>
           )}
-        </div>
-      </aside>
-    </>
+
+          {/* Aktuelle Aufsicht accordion (staff only) */}
+          {showStaffAccordions && (
+            <SidebarAccordionSection
+              icon="M15 12a3 3 0 11-6 0 3 3 0 016 0z M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+              label={
+                supervisedRooms.length > 1
+                  ? "Aktuelle Aufsichten"
+                  : "Aktuelle Aufsicht"
+              }
+              activeColor="text-violet-500"
+              isExpanded={expanded === "supervisions"}
+              onToggle={handleSupervisionsToggle}
+              isActive={isAccordionSectionActive(
+                "/active-supervisions",
+                Boolean(currentRoomParam) ||
+                  Boolean(childRoomId) ||
+                  supervisedRooms.length > 0,
+              )}
+              isIconActive={
+                pathname.startsWith("/active-supervisions") ||
+                Boolean(childRoomId)
+              }
+              isLoading={isLoadingSupervision}
+              emptyText="Keine aktive Aufsicht"
+              hasChildren={supervisedRooms.length > 0}
+            >
+              {supervisedRooms.map((room, index) => (
+                <SidebarSubItem
+                  key={room.id}
+                  href={`/active-supervisions?room=${room.id}`}
+                  label={room.name}
+                  isActive={isRoomSubItemActive(
+                    childRoomId,
+                    room.id,
+                    pathname,
+                    currentRoomParam,
+                    index,
+                  )}
+                />
+              ))}
+            </SidebarAccordionSection>
+          )}
+
+          {/* Kindersuche (flat) */}
+          {beforeAccordionItems
+            .filter((item) => item.href === "/students/search")
+            .map(renderNavItem)}
+
+          {/* Flat middle items: Aktivitaten, Raume, Mitarbeiter */}
+          {middleItems.map(renderNavItem)}
+
+          {/* Vertretungen (admin, flat) */}
+          {substitutionsItem && renderNavItem(substitutionsItem)}
+
+          {/* Datenverwaltung accordion (admin only) */}
+          {userIsAdmin && (
+            <SidebarAccordionSection
+              icon="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"
+              label="Datenverwaltung"
+              activeColor="text-gray-500"
+              isExpanded={expanded === "database"}
+              onToggle={handleDatabaseToggle}
+              isActive={isAccordionSectionActive(
+                "/database",
+                DATABASE_SUB_PAGES.some((p) => pathname === p.href),
+              )}
+              isIconActive={pathname.startsWith("/database")}
+              hasChildren={DATABASE_SUB_PAGES.length > 0}
+            >
+              {DATABASE_SUB_PAGES.map((page) => (
+                <SidebarSubItem
+                  key={page.href}
+                  href={page.href}
+                  label={page.label}
+                  isActive={pathname === page.href}
+                />
+              ))}
+            </SidebarAccordionSection>
+          )}
+
+          {/* Coming soon items */}
+          {comingSoonItems.map(renderNavItem)}
+        </nav>
+
+        {/* Bottom pinned items */}
+        {bottomNavItems.length > 0 && (
+          <nav className="space-y-1 border-t border-gray-200 p-3 lg:p-4 xl:p-3">
+            {bottomNavItems.map(renderNavItem)}
+          </nav>
+        )}
+      </div>
+    </aside>
   );
 }
 

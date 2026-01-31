@@ -10,7 +10,7 @@ import {
   type JSX,
 } from "react";
 import { useSession } from "next-auth/react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { Alert } from "~/components/ui/alert";
 import { PageHeaderWithSearch } from "~/components/ui/page-header";
@@ -24,6 +24,13 @@ import {
   isTransitLocation,
   parseLocation,
 } from "~/lib/location-helper";
+import {
+  getPickupUrgency,
+  isStudentInGroupRoom,
+  matchesSearchFilter,
+  matchesAttendanceFilter,
+} from "./ogs-group-helpers";
+import type { OGSGroup, PickupUrgency } from "./ogs-group-helpers";
 import { SSEErrorBoundary } from "~/components/sse/SSEErrorBoundary";
 import { GroupTransferModal } from "~/components/groups/group-transfer-modal";
 import { groupTransferService } from "~/lib/group-transfer-api";
@@ -43,18 +50,6 @@ import {
 import { fetchBulkPickupTimes } from "~/lib/pickup-schedule-api";
 import type { BulkPickupTime } from "~/lib/pickup-schedule-api";
 import { Clock, AlertTriangle } from "lucide-react";
-
-// Define OGSGroup type based on EducationalGroup with additional fields
-interface OGSGroup {
-  id: string;
-  name: string;
-  room_name?: string;
-  room_id?: string;
-  student_count?: number;
-  supervisor_name?: string;
-  students?: Student[];
-  viaSubstitution?: boolean; // True if this group was assigned via temporary transfer
-}
 
 // BFF response type for dashboard data
 interface OGSDashboardBFFResponse {
@@ -94,29 +89,6 @@ interface OGSDashboardBFFResponse {
   firstGroupId: string | null;
 }
 
-// Pickup urgency constants and helper
-const PICKUP_URGENCY_SOON_MINUTES = 30;
-
-type PickupUrgency = "overdue" | "soon" | "normal" | "none";
-
-function getPickupUrgency(
-  pickupTimeStr: string | undefined,
-  now: Date,
-): PickupUrgency {
-  if (!pickupTimeStr) return "none";
-
-  const [hours, minutes] = pickupTimeStr.split(":").map(Number);
-  const pickupDate = new Date(now);
-  pickupDate.setHours(hours ?? 0, minutes ?? 0, 0, 0);
-
-  const diffMs = pickupDate.getTime() - now.getTime();
-  const diffMinutes = diffMs / 60000;
-
-  if (diffMinutes < 0) return "overdue";
-  if (diffMinutes <= PICKUP_URGENCY_SOON_MINUTES) return "soon";
-  return "normal";
-}
-
 function renderPickupIcon(urgency: PickupUrgency): JSX.Element {
   if (urgency === "overdue") {
     return <AlertTriangle className="h-3.5 w-3.5 text-red-500" />;
@@ -128,85 +100,9 @@ function renderPickupIcon(urgency: PickupUrgency): JSX.Element {
   return <PickupTimeIcon />;
 }
 
-function isStudentInGroupRoom(
-  student: Student,
-  currentGroup?: OGSGroup | null,
-): boolean {
-  if (!student?.current_location || !currentGroup?.room_name) {
-    return false;
-  }
-
-  const parsed = parseLocation(student.current_location);
-  if (parsed.room) {
-    const normalizedStudentRoom = parsed.room.trim().toLowerCase();
-    const normalizedGroupRoom = currentGroup.room_name.trim().toLowerCase();
-    if (normalizedStudentRoom === normalizedGroupRoom) {
-      return true;
-    }
-  }
-
-  if (currentGroup.room_id) {
-    const normalizedLocation = student.current_location.toLowerCase();
-    return normalizedLocation.includes(currentGroup.room_id.toString());
-  }
-
-  return false;
-}
-
-// Helper functions for student filtering
-
-function matchesSearchFilter(student: Student, searchTerm: string): boolean {
-  if (!searchTerm) return true;
-
-  const searchLower = searchTerm.toLowerCase();
-  return (
-    (student.name?.toLowerCase().includes(searchLower) ?? false) ||
-    (student.first_name?.toLowerCase().includes(searchLower) ?? false) ||
-    (student.second_name?.toLowerCase().includes(searchLower) ?? false) ||
-    (student.school_class?.toLowerCase().includes(searchLower) ?? false)
-  );
-}
-
-function matchesAttendanceFilter(
-  student: Student,
-  attendanceFilter: string,
-  roomStatus: Record<
-    string,
-    { in_group_room?: boolean; current_room_id?: number }
-  >,
-): boolean {
-  if (attendanceFilter === "all") return true;
-
-  const studentRoomStatus = roomStatus[student.id.toString()];
-
-  switch (attendanceFilter) {
-    case "in_room":
-      return studentRoomStatus?.in_group_room ?? false;
-    case "foreign_room":
-      return matchesForeignRoomFilter(studentRoomStatus);
-    case "transit":
-      return isTransitLocation(student.current_location);
-    case "schoolyard":
-      return isSchoolyardLocation(student.current_location);
-    case "at_home":
-      return isHomeLocation(student.current_location);
-    default:
-      return true;
-  }
-}
-
-function matchesForeignRoomFilter(studentRoomStatus?: {
-  in_group_room?: boolean;
-  current_room_id?: number;
-}): boolean {
-  return (
-    !!studentRoomStatus?.current_room_id &&
-    studentRoomStatus.in_group_room === false
-  );
-}
-
 function OGSGroupPageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { data: session, status } = useSession({
     required: true,
     onUnauthenticated() {
@@ -222,6 +118,9 @@ function OGSGroupPageContent() {
   // State variables for multiple groups
   const [allGroups, setAllGroups] = useState<OGSGroup[]>([]);
   const [selectedGroupIndex, setSelectedGroupIndex] = useState(0);
+
+  // Pre-select group from URL param (?group=<id>)
+  const groupParam = searchParams.get("group");
   const [students, setStudents] = useState<Student[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [attendanceFilter, setAttendanceFilter] = useState("all");
@@ -240,8 +139,9 @@ function OGSGroupPageContent() {
     >
   >({});
 
-  // State for mobile detection
+  // State for mobile/desktop detection
   const [isMobile, setIsMobile] = useState(false);
+  const [isDesktop, setIsDesktop] = useState(false);
 
   // State for pickup times (bulk fetched for all students)
   const [pickupTimes, setPickupTimes] = useState<Map<string, BulkPickupTime>>(
@@ -323,18 +223,20 @@ function OGSGroupPageContent() {
 
     setHasAccess(true);
 
-    // Convert groups to OGSGroup format
-    const ogsGroups: OGSGroup[] = groups.map((group) => ({
-      id: group.id.toString(),
-      name: group.name,
-      room_name: group.room?.name,
-      room_id: group.room_id?.toString(),
-      student_count: undefined,
-      supervisor_name: undefined,
-      viaSubstitution: group.via_substitution,
-    }));
+    // Convert groups to OGSGroup format, sorted alphabetically by name
+    const ogsGroups: OGSGroup[] = groups
+      .map((group) => ({
+        id: group.id.toString(),
+        name: group.name,
+        room_name: group.room?.name,
+        room_id: group.room_id?.toString(),
+        student_count: undefined,
+        supervisor_name: undefined,
+        viaSubstitution: group.via_substitution,
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name, "de"));
 
-    // Update student count on first group (metadata only)
+    // Update student count on the first sorted group (BFF pre-loads data for it)
     if (ogsGroups[0]) {
       ogsGroups[0].student_count = studentsData.length;
     }
@@ -342,6 +244,7 @@ function OGSGroupPageContent() {
     setAllGroups(ogsGroups);
 
     // IMPORTANT: Only apply first group's students/roomStatus when first group is selected.
+    // The BFF sorts groups alphabetically, so groups[0] matches ogsGroups[0].
     // When SSE triggers revalidation while user views another group, we must NOT
     // overwrite their current view with the first group's data.
     if (selectedGroupIndex === 0) {
@@ -371,6 +274,40 @@ function OGSGroupPageContent() {
     setError(null);
     setIsLoading(false);
   }, [dashboardData, selectedGroupIndex]);
+
+  // Sync selected group with URL param.
+  // The sidebar navigates with the correct ?group= param at click-time,
+  // so this effect only needs to react to URL changes.
+  // When no param is present (e.g. fresh login), persist the default (first group)
+  // so localStorage stays in sync and the sidebar picks it up on next click.
+  useEffect(() => {
+    if (allGroups.length === 0) return;
+
+    if (groupParam) {
+      const targetIndex = allGroups.findIndex((g) => g.id === groupParam);
+      if (targetIndex !== -1 && targetIndex !== selectedGroupIndex) {
+        void switchToGroup(targetIndex);
+      }
+    } else {
+      // No ?group= param (e.g. after login or browser back) — restore from
+      // localStorage so the user returns to their previously selected group.
+      const savedGroupId = localStorage.getItem("sidebar-last-group");
+      const savedIndex = savedGroupId
+        ? allGroups.findIndex((g) => g.id === savedGroupId)
+        : -1;
+      if (savedIndex !== -1 && savedIndex !== selectedGroupIndex) {
+        void switchToGroup(savedIndex);
+      } else if (savedIndex === -1) {
+        // Nothing saved or saved group no longer exists — persist first group
+        const firstGroup = allGroups[0];
+        if (firstGroup) {
+          localStorage.setItem("sidebar-last-group", firstGroup.id);
+        }
+      }
+      // When savedIndex === selectedGroupIndex, do nothing — already in sync
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allGroups, groupParam]);
 
   // Handle dashboard error
   useEffect(() => {
@@ -663,6 +600,7 @@ function OGSGroupPageContent() {
   useEffect(() => {
     const checkMobile = () => {
       setIsMobile(window.innerWidth < 768);
+      setIsDesktop(window.innerWidth >= 1024);
     };
     checkMobile();
     window.addEventListener("resize", checkMobile);
@@ -1153,7 +1091,7 @@ function OGSGroupPageContent() {
           actionButton={renderDesktopActionButton()}
           mobileActionButton={renderMobileActionButton()}
           tabs={
-            allGroups.length > 1
+            allGroups.length > 1 && !isDesktop
               ? {
                   items: allGroups.map((group) => ({
                     id: group.id,
@@ -1163,7 +1101,17 @@ function OGSGroupPageContent() {
                   activeTab: currentGroup?.id ?? "",
                   onTabChange: (tabId) => {
                     const index = allGroups.findIndex((g) => g.id === tabId);
-                    if (index !== -1) void switchToGroup(index);
+                    if (index !== -1) {
+                      localStorage.setItem("sidebar-last-group", tabId);
+                      const groupName = allGroups[index]?.name;
+                      if (groupName) {
+                        localStorage.setItem(
+                          "sidebar-last-group-name",
+                          groupName,
+                        );
+                      }
+                      void switchToGroup(index);
+                    }
                   },
                 }
               : undefined

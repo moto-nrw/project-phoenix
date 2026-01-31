@@ -92,9 +92,8 @@ export async function handleAuthFailure(): Promise<boolean> {
   // Check if we're in a server context
   if (globalThis.window === undefined) {
     try {
-      const { refreshSessionTokensOnServer } = await import(
-        "~/server/auth/token-refresh"
-      );
+      const { refreshSessionTokensOnServer } =
+        await import("~/server/auth/token-refresh");
       const refreshed = await refreshSessionTokensOnServer();
       return Boolean(refreshed?.accessToken);
     } catch (serverError) {

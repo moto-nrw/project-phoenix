@@ -23,6 +23,7 @@
   },
   "dependencies": {
     "@fontsource/geist-sans": "^5.2.5",
+    "@radix-ui/react-tabs": "^1.1.13",
     "@t3-oss/env-nextjs": "^0.13.10",
     "axios": "^1.13.2",
     "browser-image-compression": "^2.0.2",

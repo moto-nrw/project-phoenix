@@ -196,7 +196,10 @@ export const PUT = createPutHandler<
             "PUT Student",
           );
         } catch (consentError) {
-          console.error("[PUT Student] Error updating privacy consent:", consentError);
+          console.error(
+            "[PUT Student] Error updating privacy consent:",
+            consentError,
+          );
           throw new Error(
             "Datenschutzeinstellungen konnten nicht aktualisiert werden.",
           );

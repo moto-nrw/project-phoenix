@@ -8,7 +8,6 @@ vi.mock("./api-helpers", () => ({
 }));
 
 vi.mock("./dashboard-helpers", () => ({
-   
   mapDashboardAnalyticsResponse: vi.fn((data: unknown) => ({
     ...(data as Record<string, unknown>),
     mapped: true,

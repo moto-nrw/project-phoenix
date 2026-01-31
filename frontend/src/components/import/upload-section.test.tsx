@@ -40,9 +40,7 @@ describe("UploadSection", () => {
     render(<UploadSection {...defaultProps} isLoading={true} />);
 
     expect(screen.getByText("Datei wird analysiert...")).toBeInTheDocument();
-    expect(
-      screen.queryByText("Datei hierher ziehen"),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByText("Datei hierher ziehen")).not.toBeInTheDocument();
   });
 
   it("displays uploaded file name when file is provided", () => {
