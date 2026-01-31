@@ -51,20 +51,4 @@ function TabsTrigger({
 }
 TabsTrigger.displayName = TabsPrimitive.Trigger.displayName;
 
-function TabsContent({
-  className,
-  ...props
-}: React.ComponentPropsWithoutRef<typeof TabsPrimitive.Content>) {
-  return (
-    <TabsPrimitive.Content
-      className={cn(
-        "ring-offset-background focus-visible:ring-ring mt-2 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none",
-        className,
-      )}
-      {...props}
-    />
-  );
-}
-TabsContent.displayName = TabsPrimitive.Content.displayName;
-
-export { Tabs, TabsList, TabsTrigger, TabsContent };
+export { Tabs, TabsList, TabsTrigger };
