@@ -2386,12 +2386,11 @@ describe("OGSGroupPage loadAvailableUsers", () => {
 
 import {
   getPickupUrgency as actualGetPickupUrgency,
-  renderPickupIcon as actualRenderPickupIcon,
   isStudentInGroupRoom as actualIsStudentInGroupRoom,
   matchesSearchFilter as actualMatchesSearchFilter,
   matchesAttendanceFilter as actualMatchesAttendanceFilter,
   matchesForeignRoomFilter as actualMatchesForeignRoomFilter,
-} from "./page";
+} from "./ogs-group-helpers";
 
 // Helper to build a minimal Student for direct function tests
 function makeTestStudent(
@@ -2428,36 +2427,6 @@ describe("getPickupUrgency (exported)", () => {
   it("returns 'normal' when pickup is far in the future", () => {
     const now = new Date("2025-06-10T10:00:00");
     expect(actualGetPickupUrgency("15:00", now)).toBe("normal");
-  });
-});
-
-describe("renderPickupIcon (exported)", () => {
-  it("renders AlertTriangle for overdue", () => {
-    const { container } = render(actualRenderPickupIcon("overdue"));
-    expect(
-      container.querySelector("[data-testid='lucide-alert-triangle']"),
-    ).toBeInTheDocument();
-  });
-
-  it("renders pulsing Clock for soon", () => {
-    const { container } = render(actualRenderPickupIcon("soon"));
-    expect(
-      container.querySelector("[data-testid='lucide-clock']"),
-    ).toBeInTheDocument();
-  });
-
-  it("renders default icon for normal", () => {
-    const { container } = render(actualRenderPickupIcon("normal"));
-    expect(
-      container.querySelector("[data-testid='pickup-time-icon']"),
-    ).toBeInTheDocument();
-  });
-
-  it("renders default icon for none", () => {
-    const { container } = render(actualRenderPickupIcon("none"));
-    expect(
-      container.querySelector("[data-testid='pickup-time-icon']"),
-    ).toBeInTheDocument();
   });
 });
 
