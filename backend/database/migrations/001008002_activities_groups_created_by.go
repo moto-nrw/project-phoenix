@@ -24,7 +24,7 @@ const (
 var ActivitiesGroupsCreatedByDependencies = []string{
 	"1.3.2", // activities.groups table
 	"1.2.2", // users.staff table
-	"1.4.3", // activities.group_supervisors table (for backfill query)
+	"1.3.4", // activities.supervisors table (for backfill query)
 }
 
 // migrateActivitiesGroupsCreatedBy adds created_by column to activities.groups
@@ -63,15 +63,15 @@ func migrateActivitiesGroupsCreatedBy(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error adding created_by column: %w", err)
 	}
 
-	// Step 2: Backfill existing rows with first assigned supervisor
+	// Step 2: Backfill existing rows with first assigned supervisor (prefer primary)
 	fmt.Println("  Backfilling existing groups with first supervisor...")
 	result, err := db.ExecContext(ctx, `
 		UPDATE activities.groups g
 		SET created_by = (
-			SELECT gs.staff_id
-			FROM activities.group_supervisors gs
-			WHERE gs.group_id = g.id
-			ORDER BY gs.id
+			SELECT s.staff_id
+			FROM activities.supervisors s
+			WHERE s.group_id = g.id
+			ORDER BY s.is_primary DESC, s.id
 			LIMIT 1
 		)
 		WHERE created_by IS NULL
