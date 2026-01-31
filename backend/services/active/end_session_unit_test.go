@@ -322,7 +322,7 @@ func TestEndActivitySession_EndSupervisionError(t *testing.T) {
 	// Create a mock DB and transaction using sqlmock
 	mockDB, mock, err := sqlmock.New()
 	require.NoError(t, err)
-	defer mockDB.Close()
+	defer func() { _ = mockDB.Close() }()
 
 	bunDB := bun.NewDB(mockDB, pgdialect.New())
 
