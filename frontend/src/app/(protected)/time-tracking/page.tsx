@@ -332,7 +332,7 @@ function ClockInCard({
                 ? "Pause"
                 : currentSession.status === "home_office"
                   ? "Homeoffice"
-                  : "Anwesend"}
+                  : "In der OGS"}
             </span>
           )}
         </div>
@@ -350,7 +350,7 @@ function ClockInCard({
                     : "bg-gray-100 text-gray-500 hover:bg-gray-200"
                 }`}
               >
-                Anwesend
+                In der OGS
               </button>
               <button
                 onClick={() => setMode("home_office")}
@@ -852,9 +852,9 @@ function WeekChart({
   return (
     <div className="relative flex h-full flex-col overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)]">
       <div className="relative flex min-h-0 flex-1 flex-col p-6 sm:p-8">
-        <h3 className="mb-4 text-sm font-semibold text-gray-700">
+        <h2 className="mb-4 text-lg font-bold text-gray-900">
           Wochenübersicht
-        </h3>
+        </h2>
         <ChartContainer config={weekChartConfig} className="min-h-0 flex-1">
           <BarChart
             accessibilityLayer
@@ -1007,8 +1007,8 @@ function WeekTable({
             />
           </svg>
         </button>
-        <span className="text-sm font-semibold text-gray-700">
-          KW {weekNum}: {mondayDate ? formatDateShort(mondayDate) : ""} –{" "}
+        <span className="text-lg font-bold text-gray-900">
+          KW {weekNum}: {mondayDate ? formatDateGerman(mondayDate) : ""} –{" "}
           {sundayDate ? formatDateGerman(sundayDate) : ""}
         </span>
         <button
@@ -1043,7 +1043,7 @@ function WeekTable({
               <th className="px-4 py-3">Ende</th>
               <th className="px-4 py-3">Pause</th>
               <th className="px-4 py-3">Netto</th>
-              <th className="px-4 py-3">Status</th>
+              <th className="px-4 py-3 text-center">Ort</th>
             </tr>
           </thead>
           <tbody>
@@ -1122,26 +1122,22 @@ function WeekTable({
                       </span>
                     )}
                   </td>
-                  <td className="px-4 py-3">
+                  <td className="px-4 py-3 text-center">
                     {session ? (
                       <span
                         className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
                           isActive
                             ? "bg-green-100 text-green-700"
-                            : session.autoCheckedOut
-                              ? "bg-orange-100 text-orange-700"
-                              : session.status === "home_office"
-                                ? "bg-amber-100 text-amber-700"
-                                : "bg-gray-100 text-gray-600"
+                            : session.status === "home_office"
+                              ? "bg-amber-100 text-amber-700"
+                              : "bg-gray-100 text-gray-600"
                         }`}
                       >
                         {isActive
                           ? "aktiv"
-                          : session.autoCheckedOut
-                            ? "Auto"
-                            : session.status === "home_office"
-                              ? "HO"
-                              : "Schule"}
+                          : session.status === "home_office"
+                            ? "Homeoffice"
+                            : "In der OGS"}
                       </span>
                     ) : isFuture ? null : (
                       <span className="text-gray-300">—</span>
@@ -1359,7 +1355,7 @@ function EditSessionModal({
               }
               className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-blue-400 focus:ring-1 focus:ring-blue-400 focus:outline-none"
             >
-              <option value="present">Anwesend</option>
+              <option value="present">In der OGS</option>
               <option value="home_office">Homeoffice</option>
             </select>
           </div>
