@@ -55,6 +55,33 @@ export function useBreadcrumb(): BreadcrumbContextValue {
  * Sets breadcrumb data on mount and clears it on unmount.
  * Pages call this to communicate breadcrumb info to the persistent Header.
  */
+/**
+ * Convenience hook for student history pages.
+ * Reads the group/room name from localStorage based on the referrer
+ * and sets the breadcrumb accordingly.
+ */
+export function useStudentHistoryBreadcrumb(opts: {
+  studentName?: string;
+  referrer: string;
+}): void {
+  const breadcrumbGroupName =
+    opts.referrer.startsWith("/ogs-groups") && typeof window !== "undefined"
+      ? localStorage.getItem("sidebar-last-group-name")
+      : undefined;
+  const breadcrumbRoomName =
+    opts.referrer.startsWith("/active-supervisions") &&
+    typeof window !== "undefined"
+      ? localStorage.getItem("sidebar-last-room-name")
+      : undefined;
+
+  useSetBreadcrumb({
+    studentName: opts.studentName,
+    referrerPage: opts.referrer,
+    ogsGroupName: breadcrumbGroupName ?? undefined,
+    activeSupervisionName: breadcrumbRoomName ?? undefined,
+  });
+}
+
 export function useSetBreadcrumb(data: BreadcrumbData): void {
   const { setBreadcrumb } = useBreadcrumb();
 

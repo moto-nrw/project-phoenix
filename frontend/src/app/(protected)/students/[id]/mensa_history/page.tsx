@@ -5,7 +5,7 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Alert } from "~/components/ui/alert";
 import { useSession } from "next-auth/react";
 import { getStartDateForTimeRange } from "~/lib/date-helpers";
-import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
+import { useStudentHistoryBreadcrumb } from "~/lib/breadcrumb-context";
 
 import { Loading } from "~/components/ui/loading";
 // Student type (reused from student page)
@@ -53,22 +53,7 @@ export default function StudentMensaHistoryPage() {
   const [error, setError] = useState<string | null>(null);
   const [timeRange, setTimeRange] = useState<string>("7days"); // Default to last 7 days
 
-  // Set breadcrumb for persistent header — include group/room name for deeper trail
-  const breadcrumbGroupName =
-    referrer.startsWith("/ogs-groups") && typeof window !== "undefined"
-      ? localStorage.getItem("sidebar-last-group-name")
-      : undefined;
-  const breadcrumbRoomName =
-    referrer.startsWith("/active-supervisions") && typeof window !== "undefined"
-      ? localStorage.getItem("sidebar-last-room-name")
-      : undefined;
-
-  useSetBreadcrumb({
-    studentName: student?.name,
-    referrerPage: referrer,
-    ogsGroupName: breadcrumbGroupName ?? undefined,
-    activeSupervisionName: breadcrumbRoomName ?? undefined,
-  });
+  useStudentHistoryBreadcrumb({ studentName: student?.name, referrer });
 
   // Fetch student data and mensa history
   useEffect(() => {
