@@ -209,6 +209,10 @@ func TestCreateActivity_Success(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
+	// Create a staff member with account for authentication
+	_, account := testpkg.CreateTestStaffWithAccount(t, ctx.db, "Create", "Staff")
+	defer testpkg.CleanupAuthFixtures(t, ctx.db, account.ID)
+
 	category := testpkg.CreateTestActivityCategory(t, ctx.db, fmt.Sprintf("CreateTest-%d", time.Now().UnixNano()))
 	defer cleanupCategory(t, ctx.db, category.ID)
 
@@ -223,7 +227,7 @@ func TestCreateActivity_Success(t *testing.T) {
 	}
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/activities", body,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithClaims(testutil.TeacherTestClaims(int(account.ID))),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -318,6 +322,8 @@ func TestUpdateActivity_Success(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
+	// Note: CreateTestActivityGroup creates its own staff member as the creator.
+	// We use admin permissions to bypass the ownership check.
 	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("TestUpdate-%d", time.Now().UnixNano()))
 	defer cleanupActivity(t, ctx.db, activity.ID)
 	defer cleanupCategory(t, ctx.db, activity.CategoryID)
@@ -332,8 +338,10 @@ func TestUpdateActivity_Success(t *testing.T) {
 		"category_id":      activity.CategoryID,
 	}
 
+	// Use admin claims + permissions which have full access and bypass ownership checks
 	req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/activities/%d", activity.ID), body,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithPermissions("admin:*"),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -344,6 +352,10 @@ func TestUpdateActivity_Success(t *testing.T) {
 func TestUpdateActivity_NotFound(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
+
+	// Create a staff member with account for authentication
+	_, account := testpkg.CreateTestStaffWithAccount(t, ctx.db, "UpdateNF", "Staff")
+	defer testpkg.CleanupAuthFixtures(t, ctx.db, account.ID)
 
 	category := testpkg.CreateTestActivityCategory(t, ctx.db, fmt.Sprintf("NotFound-%d", time.Now().UnixNano()))
 	defer cleanupCategory(t, ctx.db, category.ID)
@@ -359,7 +371,7 @@ func TestUpdateActivity_NotFound(t *testing.T) {
 	}
 
 	req := testutil.NewAuthenticatedRequest(t, "PUT", "/activities/99999", body,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithClaims(testutil.TeacherTestClaims(int(account.ID))),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -371,6 +383,8 @@ func TestDeleteActivity_Success(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
+	// Note: CreateTestActivityGroup creates its own staff member as the creator.
+	// We use admin permissions to bypass the ownership check.
 	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("ToDelete-%d", time.Now().UnixNano()))
 	categoryID := activity.CategoryID
 	defer cleanupCategory(t, ctx.db, categoryID)
@@ -378,8 +392,10 @@ func TestDeleteActivity_Success(t *testing.T) {
 	router := chi.NewRouter()
 	router.Delete("/activities/{id}", ctx.resource.DeleteActivityHandler())
 
+	// Use admin claims + permissions which have full access and bypass ownership checks
 	req := testutil.NewAuthenticatedRequest(t, "DELETE", fmt.Sprintf("/activities/%d", activity.ID), nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithPermissions("admin:*"),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -388,21 +404,24 @@ func TestDeleteActivity_Success(t *testing.T) {
 }
 
 func TestDeleteActivity_NonExistent_ReturnsSuccess(t *testing.T) {
-	// Note: The API uses an idempotent delete pattern - it returns success
-	// even if the activity doesn't exist. This is a valid design choice.
+	// Note: With admin permissions, the API allows idempotent deletes - returns success
+	// even if the activity doesn't exist. This prevents information disclosure about
+	// which activity IDs exist.
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
 	router := chi.NewRouter()
 	router.Delete("/activities/{id}", ctx.resource.DeleteActivityHandler())
 
+	// Use admin claims + permissions
 	req := testutil.NewAuthenticatedRequest(t, "DELETE", "/activities/99999", nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithPermissions("admin:*"),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
 
-	// API uses idempotent delete - returns success even for non-existent
+	// With admin permissions, delete is idempotent - returns success even for non-existent
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 }
 
@@ -902,6 +921,10 @@ func TestQuickCreateActivity_Success(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
+	// Create a staff member with account for authentication
+	_, account := testpkg.CreateTestStaffWithAccount(t, ctx.db, "Quick", "Staff")
+	defer testpkg.CleanupAuthFixtures(t, ctx.db, account.ID)
+
 	category := testpkg.CreateTestActivityCategory(t, ctx.db, fmt.Sprintf("QuickCreate-%d", time.Now().UnixNano()))
 	defer cleanupCategory(t, ctx.db, category.ID)
 
@@ -915,7 +938,7 @@ func TestQuickCreateActivity_Success(t *testing.T) {
 	}
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/activities/quick-create", body,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithClaims(testutil.TeacherTestClaims(int(account.ID))),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)

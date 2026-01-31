@@ -26,6 +26,11 @@ func setupActivityService(t *testing.T, db *bun.DB) activities.ActivityService {
 	return serviceFactory.Activities
 }
 
+// cleanupGroup is a test helper to delete a group with admin permission (for cleanup purposes)
+func cleanupGroup(service activities.ActivityService, ctx context.Context, groupID int64) {
+	_ = service.DeleteGroup(ctx, groupID, 0, true) // 0 staff ID, true = admin permission
+}
+
 // =============================================================================
 // Category Operations Tests
 // =============================================================================
@@ -254,8 +259,8 @@ func TestActivityService_UpdateGroup(t *testing.T) {
 		group.Name = "Updated Group Name"
 		group.MaxParticipants = 50
 
-		// ACT
-		result, err := service.UpdateGroup(ctx, group)
+		// ACT - use creator's staff ID and give manage permission for test
+		result, err := service.UpdateGroup(ctx, group, group.CreatedBy, true)
 
 		// ASSERT
 		require.NoError(t, err)
@@ -275,8 +280,8 @@ func TestActivityService_DeleteGroup(t *testing.T) {
 		// ARRANGE
 		group := testpkg.CreateTestActivityGroup(t, db, "to-delete-grp")
 
-		// ACT
-		err := service.DeleteGroup(ctx, group.ID)
+		// ACT - use creator's staff ID and give manage permission for test
+		err := service.DeleteGroup(ctx, group.ID, group.CreatedBy, true)
 
 		// ASSERT
 		require.NoError(t, err)
@@ -787,13 +792,15 @@ func TestActivityService_CreateGroup(t *testing.T) {
 	t.Run("creates group successfully", func(t *testing.T) {
 		// ARRANGE
 		category := testpkg.CreateTestActivityCategory(t, db, "create-grp-cat")
-		defer testpkg.CleanupActivityFixtures(t, db, category.ID)
+		staff := testpkg.CreateTestStaff(t, db, "Creator", "Staff")
+		defer testpkg.CleanupActivityFixtures(t, db, category.ID, staff.ID)
 
 		group := &activitiesModels.Group{
 			Name:            fmt.Sprintf("Test Group %d", time.Now().UnixNano()),
 			MaxParticipants: 20,
 			IsOpen:          true,
 			CategoryID:      category.ID,
+			CreatedBy:       staff.ID,
 		}
 
 		// ACT
@@ -806,7 +813,7 @@ func TestActivityService_CreateGroup(t *testing.T) {
 		assert.Equal(t, group.Name, result.Name)
 
 		// Cleanup
-		_ = service.DeleteGroup(ctx, result.ID)
+		cleanupGroup(service, ctx, result.ID)
 	})
 
 	t.Run("creates group with supervisors", func(t *testing.T) {
@@ -820,6 +827,7 @@ func TestActivityService_CreateGroup(t *testing.T) {
 			MaxParticipants: 15,
 			IsOpen:          false,
 			CategoryID:      category.ID,
+			CreatedBy:       staff.ID,
 		}
 
 		// ACT
@@ -835,15 +843,19 @@ func TestActivityService_CreateGroup(t *testing.T) {
 		assert.GreaterOrEqual(t, len(supervisors), 1)
 
 		// Cleanup
-		_ = service.DeleteGroup(ctx, result.ID)
+		cleanupGroup(service, ctx, result.ID)
 	})
 
 	t.Run("returns error for invalid category", func(t *testing.T) {
-		// ARRANGE
+		// ARRANGE - still need a valid staff ID for CreatedBy even though category is invalid
+		staff := testpkg.CreateTestStaff(t, db, "Creator", "InvalidCat")
+		defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
+
 		group := &activitiesModels.Group{
 			Name:            "Invalid Category Group",
 			MaxParticipants: 10,
 			CategoryID:      99999999, // nonexistent
+			CreatedBy:       staff.ID,
 		}
 
 		// ACT
@@ -1269,13 +1281,15 @@ func TestActivityService_CreateGroup_WithSchedules(t *testing.T) {
 	t.Run("creates group with schedules", func(t *testing.T) {
 		// ARRANGE
 		category := testpkg.CreateTestActivityCategory(t, db, "grp-with-sched")
-		defer testpkg.CleanupActivityFixtures(t, db, category.ID)
+		staff := testpkg.CreateTestStaff(t, db, "Creator", "Schedules")
+		defer testpkg.CleanupActivityFixtures(t, db, category.ID, staff.ID)
 
 		group := &activitiesModels.Group{
 			Name:            fmt.Sprintf("Group With Schedules %d", time.Now().UnixNano()),
 			MaxParticipants: 25,
 			IsOpen:          true,
 			CategoryID:      category.ID,
+			CreatedBy:       staff.ID,
 		}
 
 		schedules := []*activitiesModels.Schedule{
@@ -1296,7 +1310,7 @@ func TestActivityService_CreateGroup_WithSchedules(t *testing.T) {
 		assert.GreaterOrEqual(t, len(groupSchedules), 2)
 
 		// Cleanup
-		_ = service.DeleteGroup(ctx, result.ID)
+		cleanupGroup(service, ctx, result.ID)
 	})
 }
 
@@ -1445,8 +1459,8 @@ func TestActivityService_DeleteGroup_WithEnrollments(t *testing.T) {
 		err := service.EnrollStudent(ctx, group.ID, student.ID)
 		require.NoError(t, err)
 
-		// ACT - delete group
-		err = service.DeleteGroup(ctx, group.ID)
+		// ACT - delete group (using creator's staff ID with manage permission for test)
+		err = service.DeleteGroup(ctx, group.ID, group.CreatedBy, true)
 
 		// ASSERT
 		require.NoError(t, err)
@@ -1472,7 +1486,7 @@ func TestActivityService_UpdateAttendanceStatus(t *testing.T) {
 		group := testpkg.CreateTestActivityGroup(t, db, "attend-status")
 		student := testpkg.CreateTestStudent(t, db, "Attendance", "Student", "1a")
 		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
-		defer func() { _ = service.DeleteGroup(ctx, group.ID) }()
+		defer func() { cleanupGroup(service, ctx, group.ID) }()
 
 		// Enroll student
 		err := service.EnrollStudent(ctx, group.ID, student.ID)
@@ -1531,7 +1545,7 @@ func TestActivityService_UpdateSupervisor_SetPrimary(t *testing.T) {
 		staff1 := testpkg.CreateTestStaff(t, db, "First", "Supervisor")
 		staff2 := testpkg.CreateTestStaff(t, db, "Second", "Supervisor")
 		defer testpkg.CleanupActivityFixtures(t, db, staff1.ID, staff2.ID)
-		defer func() { _ = service.DeleteGroup(ctx, group.ID) }()
+		defer func() { cleanupGroup(service, ctx, group.ID) }()
 
 		// Add first supervisor as primary
 		sup1, err := service.AddSupervisor(ctx, group.ID, staff1.ID, true)
@@ -1591,7 +1605,7 @@ func TestActivityService_DeleteCategory_InUse(t *testing.T) {
 	t.Run("returns error when category is in use", func(t *testing.T) {
 		// ARRANGE - CreateTestActivityGroup creates both category and group
 		group := testpkg.CreateTestActivityGroup(t, db, "cat-in-use")
-		defer func() { _ = service.DeleteGroup(ctx, group.ID) }()
+		defer func() { cleanupGroup(service, ctx, group.ID) }()
 
 		// ACT - try to delete the category while group exists
 		err := service.DeleteCategory(ctx, group.CategoryID)
@@ -1651,7 +1665,7 @@ func TestActivityService_SetPrimarySupervisor_ExistingSupervisor(t *testing.T) {
 		staff1 := testpkg.CreateTestStaff(t, db, "Primary", "Staff")
 		staff2 := testpkg.CreateTestStaff(t, db, "Secondary", "Staff")
 		defer testpkg.CleanupActivityFixtures(t, db, staff1.ID, staff2.ID)
-		defer func() { _ = service.DeleteGroup(ctx, group.ID) }()
+		defer func() { cleanupGroup(service, ctx, group.ID) }()
 
 		// Add both supervisors
 		sup1, err := service.AddSupervisor(ctx, group.ID, staff1.ID, true) // primary
@@ -1693,7 +1707,7 @@ func TestActivityService_UpdateGroupEnrollments_AddAndRemove(t *testing.T) {
 		student2 := testpkg.CreateTestStudent(t, db, "Student", "Two", "1a")
 		student3 := testpkg.CreateTestStudent(t, db, "Student", "Three", "1a")
 		defer testpkg.CleanupActivityFixtures(t, db, student1.ID, student2.ID, student3.ID)
-		defer func() { _ = service.DeleteGroup(ctx, group.ID) }()
+		defer func() { cleanupGroup(service, ctx, group.ID) }()
 
 		// Initial enrollment: student1 and student2
 		err := service.UpdateGroupEnrollments(ctx, group.ID, []int64{student1.ID, student2.ID})
@@ -1737,7 +1751,7 @@ func TestActivityService_UpdateGroupSupervisors_AddAndRemove(t *testing.T) {
 		staff2 := testpkg.CreateTestStaff(t, db, "Staff", "Two")
 		staff3 := testpkg.CreateTestStaff(t, db, "Staff", "Three")
 		defer testpkg.CleanupActivityFixtures(t, db, staff1.ID, staff2.ID, staff3.ID)
-		defer func() { _ = service.DeleteGroup(ctx, group.ID) }()
+		defer func() { cleanupGroup(service, ctx, group.ID) }()
 
 		// Initial supervisors: staff1 and staff2
 		err := service.UpdateGroupSupervisors(ctx, group.ID, []int64{staff1.ID, staff2.ID})
@@ -1772,7 +1786,7 @@ func TestActivityService_UpdateGroupSupervisors_AddAndRemove(t *testing.T) {
 		staff1 := testpkg.CreateTestStaff(t, db, "Primary", "Staff")
 		staff2 := testpkg.CreateTestStaff(t, db, "New", "Staff")
 		defer testpkg.CleanupActivityFixtures(t, db, staff1.ID, staff2.ID)
-		defer func() { _ = service.DeleteGroup(ctx, group.ID) }()
+		defer func() { cleanupGroup(service, ctx, group.ID) }()
 
 		// Set staff1 as primary
 		_, err := service.AddSupervisor(ctx, group.ID, staff1.ID, true)
@@ -1855,7 +1869,7 @@ func TestActivityService_GetEnrollmentHistory_NoData(t *testing.T) {
 		group := testpkg.CreateTestActivityGroup(t, db, "history-group")
 		student := testpkg.CreateTestStudent(t, db, "With", "History", "1a")
 		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
-		defer func() { _ = service.DeleteGroup(ctx, group.ID) }()
+		defer func() { cleanupGroup(service, ctx, group.ID) }()
 
 		// Enroll student
 		err := service.EnrollStudent(ctx, group.ID, student.ID)
@@ -1882,10 +1896,14 @@ func TestActivityService_CreateGroup_WithCategoryValidation(t *testing.T) {
 
 	t.Run("returns error for nonexistent category", func(t *testing.T) {
 		// ARRANGE
+		staff := testpkg.CreateTestStaff(t, db, "CatVal", "Staff")
+		defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID, 0, 0, 0)
+
 		group := &activitiesModels.Group{
 			Name:            "Test Group",
 			CategoryID:      99999999, // nonexistent
 			MaxParticipants: 10,
+			CreatedBy:       staff.ID,
 		}
 
 		// ACT
@@ -2089,14 +2107,14 @@ func TestActivityService_UpdateCategory_ValidationError(t *testing.T) {
 
 	t.Run("returns error for invalid category update", func(t *testing.T) {
 		// ARRANGE
-		category := testpkg.CreateTestActivityGroup(t, db, "update-cat-val")
+		activityGroup := testpkg.CreateTestActivityGroup(t, db, "update-cat-val")
 		defer func() {
 			// Cleanup - delete the group first, then the category
-			_ = service.DeleteGroup(ctx, category.ID)
+			cleanupGroup(service, ctx, activityGroup.ID)
 		}()
 
 		// Get the category and make it invalid
-		cat, err := service.GetCategory(ctx, category.CategoryID)
+		cat, err := service.GetCategory(ctx, activityGroup.CategoryID)
 		require.NoError(t, err)
 
 		cat.Name = "" // Invalid: empty name
@@ -2119,10 +2137,14 @@ func TestActivityService_CreateGroup_ValidationError(t *testing.T) {
 
 	t.Run("returns error for invalid group", func(t *testing.T) {
 		// ARRANGE - empty name should fail validation
+		staff := testpkg.CreateTestStaff(t, db, "ValErr", "Staff")
+		defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID, 0, 0, 0)
+
 		group := &activitiesModels.Group{
 			Name:            "", // Invalid: empty
 			CategoryID:      1,
 			MaxParticipants: 10,
+			CreatedBy:       staff.ID,
 		}
 
 		// ACT
@@ -2144,7 +2166,7 @@ func TestActivityService_UpdateGroup_ValidationError(t *testing.T) {
 	t.Run("returns error for invalid group update", func(t *testing.T) {
 		// ARRANGE
 		group := testpkg.CreateTestActivityGroup(t, db, "update-grp-val")
-		defer func() { _ = service.DeleteGroup(ctx, group.ID) }()
+		defer func() { cleanupGroup(service, ctx, group.ID) }()
 
 		// Get the group and make it invalid
 		grp, err := service.GetGroup(ctx, group.ID)
@@ -2153,7 +2175,7 @@ func TestActivityService_UpdateGroup_ValidationError(t *testing.T) {
 		grp.Name = "" // Invalid: empty name
 
 		// ACT
-		result, err := service.UpdateGroup(ctx, grp)
+		result, err := service.UpdateGroup(ctx, grp, grp.CreatedBy, true)
 
 		// ASSERT
 		require.Error(t, err)
@@ -2245,7 +2267,7 @@ func TestActivityService_GetGroupSchedules_Empty(t *testing.T) {
 	t.Run("returns empty list for group with no schedules", func(t *testing.T) {
 		// ARRANGE
 		group := testpkg.CreateTestActivityGroup(t, db, "no-schedules")
-		defer func() { _ = service.DeleteGroup(ctx, group.ID) }()
+		defer func() { cleanupGroup(service, ctx, group.ID) }()
 
 		// ACT
 		schedules, err := service.GetGroupSchedules(ctx, group.ID)
@@ -2266,7 +2288,7 @@ func TestActivityService_GetGroupSupervisors_Empty(t *testing.T) {
 	t.Run("returns empty list for group with no supervisors", func(t *testing.T) {
 		// ARRANGE
 		group := testpkg.CreateTestActivityGroup(t, db, "no-supervisors")
-		defer func() { _ = service.DeleteGroup(ctx, group.ID) }()
+		defer func() { cleanupGroup(service, ctx, group.ID) }()
 
 		// ACT
 		supervisors, err := service.GetGroupSupervisors(ctx, group.ID)
@@ -2287,7 +2309,7 @@ func TestActivityService_GetEnrolledStudents_Empty(t *testing.T) {
 	t.Run("returns empty list for group with no enrollments", func(t *testing.T) {
 		// ARRANGE
 		group := testpkg.CreateTestActivityGroup(t, db, "no-enrollments")
-		defer func() { _ = service.DeleteGroup(ctx, group.ID) }()
+		defer func() { cleanupGroup(service, ctx, group.ID) }()
 
 		// ACT
 		students, err := service.GetEnrolledStudents(ctx, group.ID)
@@ -2312,12 +2334,14 @@ func TestActivityService_CreateGroup_InvalidSupervisor(t *testing.T) {
 	t.Run("returns error when supervisor does not exist", func(t *testing.T) {
 		// ARRANGE
 		category := testpkg.CreateTestActivityCategory(t, db, "invalid-sup-cat")
-		defer testpkg.CleanupActivityFixtures(t, db, category.ID)
+		staff := testpkg.CreateTestStaff(t, db, "InvSup", "Staff")
+		defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID, 0, category.ID, 0)
 
 		group := &activitiesModels.Group{
 			Name:            "Test Group Invalid Sup",
 			CategoryID:      category.ID,
 			MaxParticipants: 20,
+			CreatedBy:       staff.ID,
 		}
 
 		// ACT - non-existent staff ID
@@ -2339,12 +2363,14 @@ func TestActivityService_CreateGroup_InvalidScheduleWeekday(t *testing.T) {
 	t.Run("returns error for invalid schedule weekday", func(t *testing.T) {
 		// ARRANGE
 		category := testpkg.CreateTestActivityCategory(t, db, "invalid-sched-cat")
-		defer testpkg.CleanupActivityFixtures(t, db, category.ID)
+		staff := testpkg.CreateTestStaff(t, db, "InvSched", "Staff")
+		defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID, 0, category.ID, 0)
 
 		group := &activitiesModels.Group{
 			Name:            "Test Group Invalid Sched",
 			CategoryID:      category.ID,
 			MaxParticipants: 20,
+			CreatedBy:       staff.ID,
 		}
 
 		// Invalid weekday (should be 0-6)
@@ -2378,8 +2404,8 @@ func TestActivityService_DeleteGroup_CascadesSupervisors(t *testing.T) {
 		require.NoError(t, err)
 		supervisorID := supervisor.ID
 
-		// ACT - delete group
-		err = service.DeleteGroup(ctx, group.ID)
+		// ACT - delete group (using creator's staff ID with manage permission)
+		err = service.DeleteGroup(ctx, group.ID, group.CreatedBy, true)
 
 		// ASSERT
 		require.NoError(t, err)
@@ -2409,8 +2435,8 @@ func TestActivityService_DeleteGroup_CascadesSchedules(t *testing.T) {
 		require.NoError(t, err)
 		scheduleID := created.ID
 
-		// ACT - delete group
-		err = service.DeleteGroup(ctx, group.ID)
+		// ACT - delete group (using creator's staff ID with manage permission)
+		err = service.DeleteGroup(ctx, group.ID, group.CreatedBy, true)
 
 		// ASSERT
 		require.NoError(t, err)
@@ -2506,8 +2532,8 @@ func TestActivityService_UpdateGroup_Success(t *testing.T) {
 
 		group.Name = "Updated Group Name"
 
-		// ACT
-		result, err := service.UpdateGroup(ctx, group)
+		// ACT (using creator's staff ID with manage permission)
+		result, err := service.UpdateGroup(ctx, group, group.CreatedBy, true)
 
 		// ASSERT
 		require.NoError(t, err)
@@ -2524,10 +2550,14 @@ func TestActivityService_CreateGroup_InvalidCategoryID(t *testing.T) {
 
 	t.Run("returns error for non-existent category", func(t *testing.T) {
 		// ARRANGE
+		staff := testpkg.CreateTestStaff(t, db, "InvCat", "Staff")
+		defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID, 0, 0, 0)
+
 		group := &activitiesModels.Group{
 			Name:            "Test Group Invalid Cat",
 			CategoryID:      99999999, // Non-existent
 			MaxParticipants: 20,
+			CreatedBy:       staff.ID,
 		}
 
 		// ACT
@@ -2858,4 +2888,221 @@ func TestActivityService_ListGroups_DatabaseError(t *testing.T) {
 
 	// ASSERT
 	require.Error(t, err)
+}
+
+// =============================================================================
+// CanModifyActivity Ownership Tests
+// =============================================================================
+
+// TestActivityService_CanModifyActivity_AdminBypassesOwnership tests that admins can modify any activity
+func TestActivityService_CanModifyActivity_AdminBypassesOwnership(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupActivityService(t, db)
+	ctx := context.Background()
+
+	// ARRANGE: Create staff and activity
+	staff := testpkg.CreateTestStaff(t, db, "Creator", "Staff")
+	category := testpkg.CreateTestActivityCategory(t, db, "admin-test")
+	defer testpkg.CleanupActivityFixtures(t, db, staff.ID, category.ID)
+
+	group := &activitiesModels.Group{
+		Name:            "Admin Test Activity",
+		MaxParticipants: 10,
+		CategoryID:      category.ID,
+		CreatedBy:       staff.ID,
+	}
+	created, err := service.CreateGroup(ctx, group, []int64{staff.ID}, nil)
+	require.NoError(t, err)
+	defer cleanupGroup(service, ctx, created.ID)
+
+	// ACT: Check if a different staff with admin permission can modify
+	otherStaffID := int64(99999) // Non-existent staff ID
+	canModify, err := service.CanModifyActivity(ctx, created.ID, otherStaffID, true)
+
+	// ASSERT: Admin permission should bypass ownership check
+	require.NoError(t, err)
+	assert.True(t, canModify, "Admin should be able to modify any activity")
+}
+
+// TestActivityService_CanModifyActivity_CreatorCanModify tests that the creator can modify their activity
+func TestActivityService_CanModifyActivity_CreatorCanModify(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupActivityService(t, db)
+	ctx := context.Background()
+
+	// ARRANGE: Create staff and activity
+	staff := testpkg.CreateTestStaff(t, db, "Creator", "Staff")
+	category := testpkg.CreateTestActivityCategory(t, db, "creator-test")
+	defer testpkg.CleanupActivityFixtures(t, db, staff.ID, category.ID)
+
+	group := &activitiesModels.Group{
+		Name:            "Creator Test Activity",
+		MaxParticipants: 10,
+		CategoryID:      category.ID,
+		CreatedBy:       staff.ID,
+	}
+	created, err := service.CreateGroup(ctx, group, []int64{staff.ID}, nil)
+	require.NoError(t, err)
+	defer cleanupGroup(service, ctx, created.ID)
+
+	// ACT: Check if creator can modify (without admin permission)
+	canModify, err := service.CanModifyActivity(ctx, created.ID, staff.ID, false)
+
+	// ASSERT: Creator should be able to modify their own activity
+	require.NoError(t, err)
+	assert.True(t, canModify, "Creator should be able to modify their own activity")
+}
+
+// TestActivityService_CanModifyActivity_SupervisorCanModify tests that supervisors can modify the activity
+func TestActivityService_CanModifyActivity_SupervisorCanModify(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupActivityService(t, db)
+	ctx := context.Background()
+
+	// ARRANGE: Create two staff members
+	creator := testpkg.CreateTestStaff(t, db, "Creator", "Staff")
+	supervisor := testpkg.CreateTestStaff(t, db, "Supervisor", "Staff")
+	category := testpkg.CreateTestActivityCategory(t, db, "supervisor-test")
+	defer testpkg.CleanupActivityFixtures(t, db, creator.ID, supervisor.ID, category.ID)
+
+	// Create activity with supervisor as an assigned supervisor
+	group := &activitiesModels.Group{
+		Name:            "Supervisor Test Activity",
+		MaxParticipants: 10,
+		CategoryID:      category.ID,
+		CreatedBy:       creator.ID,
+	}
+	created, err := service.CreateGroup(ctx, group, []int64{creator.ID, supervisor.ID}, nil)
+	require.NoError(t, err)
+	defer cleanupGroup(service, ctx, created.ID)
+
+	// ACT: Check if supervisor can modify (without admin permission)
+	canModify, err := service.CanModifyActivity(ctx, created.ID, supervisor.ID, false)
+
+	// ASSERT: Supervisor should be able to modify the activity
+	require.NoError(t, err)
+	assert.True(t, canModify, "Supervisor should be able to modify the activity")
+}
+
+// TestActivityService_CanModifyActivity_NonOwnerCannotModify tests that non-owners cannot modify
+func TestActivityService_CanModifyActivity_NonOwnerCannotModify(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupActivityService(t, db)
+	ctx := context.Background()
+
+	// ARRANGE: Create staff and activity
+	creator := testpkg.CreateTestStaff(t, db, "Creator", "Staff")
+	otherStaff := testpkg.CreateTestStaff(t, db, "Other", "Staff")
+	category := testpkg.CreateTestActivityCategory(t, db, "nonowner-test")
+	defer testpkg.CleanupActivityFixtures(t, db, creator.ID, otherStaff.ID, category.ID)
+
+	group := &activitiesModels.Group{
+		Name:            "Non-Owner Test Activity",
+		MaxParticipants: 10,
+		CategoryID:      category.ID,
+		CreatedBy:       creator.ID,
+	}
+	created, err := service.CreateGroup(ctx, group, []int64{creator.ID}, nil)
+	require.NoError(t, err)
+	defer cleanupGroup(service, ctx, created.ID)
+
+	// ACT: Check if other staff (not creator, not supervisor) can modify
+	canModify, err := service.CanModifyActivity(ctx, created.ID, otherStaff.ID, false)
+
+	// ASSERT: Non-owner should NOT be able to modify
+	require.NoError(t, err)
+	assert.False(t, canModify, "Non-owner should not be able to modify activity")
+}
+
+// TestActivityService_CanModifyActivity_GroupNotFound tests error when group doesn't exist
+func TestActivityService_CanModifyActivity_GroupNotFound(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupActivityService(t, db)
+	ctx := context.Background()
+
+	// ACT: Check permissions for non-existent group
+	canModify, err := service.CanModifyActivity(ctx, 999999, 1, false)
+
+	// ASSERT: Should return error for non-existent group
+	require.Error(t, err)
+	assert.False(t, canModify)
+	assert.True(t, errors.Is(err, activities.ErrGroupNotFound) || err.Error() == "check permissions: activity group not found")
+}
+
+// TestActivityService_UpdateGroup_OwnershipEnforced tests that UpdateGroup enforces ownership
+func TestActivityService_UpdateGroup_OwnershipEnforced(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupActivityService(t, db)
+	ctx := context.Background()
+
+	// ARRANGE: Create two staff members and an activity
+	creator := testpkg.CreateTestStaff(t, db, "Creator", "Staff")
+	otherStaff := testpkg.CreateTestStaff(t, db, "Other", "Staff")
+	category := testpkg.CreateTestActivityCategory(t, db, "update-owner-test")
+	defer testpkg.CleanupActivityFixtures(t, db, creator.ID, otherStaff.ID, category.ID)
+
+	group := &activitiesModels.Group{
+		Name:            "Update Owner Test",
+		MaxParticipants: 10,
+		CategoryID:      category.ID,
+		CreatedBy:       creator.ID,
+	}
+	created, err := service.CreateGroup(ctx, group, []int64{creator.ID}, nil)
+	require.NoError(t, err)
+	defer cleanupGroup(service, ctx, created.ID)
+
+	// ACT: Non-owner tries to update without admin permission
+	created.Name = "Modified Name"
+	_, err = service.UpdateGroup(ctx, created, otherStaff.ID, false)
+
+	// ASSERT: Should return ownership error
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, activities.ErrNotOwner) || err.Error() == "update group: you can only modify activities you created or supervise")
+}
+
+// TestActivityService_DeleteGroup_OwnershipEnforced tests that DeleteGroup enforces ownership
+func TestActivityService_DeleteGroup_OwnershipEnforced(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupActivityService(t, db)
+	ctx := context.Background()
+
+	// ARRANGE: Create two staff members and an activity
+	creator := testpkg.CreateTestStaff(t, db, "Creator", "Staff")
+	otherStaff := testpkg.CreateTestStaff(t, db, "Other", "Staff")
+	category := testpkg.CreateTestActivityCategory(t, db, "delete-owner-test")
+	defer testpkg.CleanupActivityFixtures(t, db, creator.ID, otherStaff.ID, category.ID)
+
+	group := &activitiesModels.Group{
+		Name:            "Delete Owner Test",
+		MaxParticipants: 10,
+		CategoryID:      category.ID,
+		CreatedBy:       creator.ID,
+	}
+	created, err := service.CreateGroup(ctx, group, []int64{creator.ID}, nil)
+	require.NoError(t, err)
+	// Note: No cleanup needed as the test expects deletion to fail
+
+	// ACT: Non-owner tries to delete without admin permission
+	err = service.DeleteGroup(ctx, created.ID, otherStaff.ID, false)
+
+	// ASSERT: Should return ownership error
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, activities.ErrNotOwner) || err.Error() == "delete group: you can only modify activities you created or supervise")
+
+	// Cleanup: Delete with admin permission
+	cleanupGroup(service, ctx, created.ID)
 }

@@ -49,7 +49,14 @@ var exceptionReasons = []string{
 // seedPickupSchedules creates weekly pickup schedules and exceptions for students
 func (s *Seeder) seedPickupSchedules(ctx context.Context) error {
 	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
-	createdBy := s.result.AdminAccount.ID
+
+	// Use first staff member as creator (FK references users.staff, not auth.accounts)
+	var createdBy int64
+	if len(s.result.Staff) > 0 {
+		createdBy = s.result.Staff[0].ID
+	} else {
+		return fmt.Errorf("no staff members available for pickup schedule creation")
+	}
 
 	scheduleCount := 0
 	exceptionCount := 0
