@@ -9,8 +9,8 @@ import {
   type FilterConfig,
 } from "~/components/ui/page-header";
 import { ConfirmationModal } from "~/components/ui/modal";
-import { Loading } from "~/components/ui/loading";
 import { SuggestionCard } from "~/components/suggestions/suggestion-card";
+import { Skeleton } from "~/components/ui/skeleton";
 import { SuggestionForm } from "~/components/suggestions/suggestion-form";
 import { useSWRAuth } from "~/lib/swr";
 import { fetchSuggestions, deleteSuggestion } from "~/lib/suggestions-api";
@@ -201,7 +201,7 @@ function SuggestionsPageContent() {
         }
       />
 
-      {isLoading && <Loading message="Laden..." fullPage={false} />}
+      {isLoading && <SuggestionSkeletons />}
       {!isLoading && filteredSuggestions.length === 0 && (
         <EmptyState
           hasSearch={searchTerm.trim().length > 0}
@@ -321,9 +321,47 @@ function EmptyState({
   );
 }
 
+function SuggestionSkeletons() {
+  return (
+    <div className="mt-4 space-y-4">
+      {Array.from({ length: 3 }, (_, i) => (
+        <div
+          key={i}
+          className="rounded-3xl border border-gray-100/50 bg-white/90 p-5 shadow-[0_8px_30px_rgb(0,0,0,0.12)]"
+        >
+          <div className="flex flex-col gap-3 md:flex-row md:gap-4">
+            <div className="hidden md:flex md:items-start md:pt-1">
+              <Skeleton className="h-20 w-10 rounded-xl" />
+            </div>
+            <div className="min-w-0 flex-1 space-y-3">
+              <div className="flex items-start justify-between gap-2">
+                <Skeleton className="h-5 w-3/5 rounded" />
+                <Skeleton className="h-5 w-16 rounded-full" />
+              </div>
+              <Skeleton className="h-4 w-full rounded" />
+              <Skeleton className="h-4 w-4/5 rounded" />
+              <div className="flex items-center gap-2 pt-1">
+                <Skeleton className="h-5 w-5 rounded-full" />
+                <Skeleton className="h-3 w-24 rounded" />
+                <Skeleton className="h-3 w-20 rounded" />
+              </div>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function SuggestionsPage() {
   return (
-    <Suspense fallback={<Loading message="Laden..." fullPage={false} />}>
+    <Suspense
+      fallback={
+        <div className="-mt-1.5 w-full">
+          <SuggestionSkeletons />
+        </div>
+      }
+    >
       <SuggestionsPageContent />
     </Suspense>
   );
