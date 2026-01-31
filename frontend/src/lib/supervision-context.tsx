@@ -239,12 +239,14 @@ export function SupervisionProvider({
             .sort((a, b) => a.name.localeCompare(b.name, "de"));
 
           setState((prev) => {
-            // Only update if values actually changed
+            // Only update if values actually changed (compare room IDs, not just length)
+            const prevRoomIds = prev.supervisedRooms.map((r) => r.id).join(",");
+            const newRoomIds = newSupervisedRooms.map((r) => r.id).join(",");
             if (
               prev.isSupervising &&
               prev.supervisedRoomId === newRoomId &&
               prev.supervisedRoomName === newRoomName &&
-              prev.supervisedRooms.length === newSupervisedRooms.length &&
+              prevRoomIds === newRoomIds &&
               !prev.isLoadingSupervision
             ) {
               return prev;
