@@ -322,7 +322,7 @@ func (s *schulhofService) findSchulhofActivity(ctx context.Context) (*activityMo
 	}
 
 	if len(groups) == 0 {
-		return nil, fmt.Errorf("Schulhof activity not found")
+		return nil, fmt.Errorf("schulhof activity not found")
 	}
 
 	return groups[0], nil

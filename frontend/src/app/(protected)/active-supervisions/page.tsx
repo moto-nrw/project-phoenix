@@ -388,17 +388,30 @@ function MeinRaumPageContent() {
   const [currentStaffId, setCurrentStaffId] = useState<string | undefined>();
 
   // Get current selected room (null if Schulhof tab is selected but user isn't supervising)
-  const currentRoom = isSchulhofTabSelected
-    ? schulhofStatus?.isUserSupervising && schulhofStatus?.activeGroupId
-      ? {
-          id: schulhofStatus.activeGroupId,
-          name: SCHULHOF_ROOM_NAME,
-          room_name: SCHULHOF_ROOM_NAME,
-          room_id: schulhofStatus.roomId ?? undefined,
-          student_count: schulhofStatus.studentCount,
-        }
-      : null
-    : (allRooms[selectedRoomIndex] ?? null);
+  // Wrapped in useMemo to prevent dependency changes on every render
+  const currentRoom = useMemo(
+    () =>
+      isSchulhofTabSelected
+        ? schulhofStatus?.isUserSupervising && schulhofStatus?.activeGroupId
+          ? {
+              id: schulhofStatus.activeGroupId,
+              name: SCHULHOF_ROOM_NAME,
+              room_name: SCHULHOF_ROOM_NAME,
+              room_id: schulhofStatus.roomId ?? undefined,
+              student_count: schulhofStatus.studentCount,
+            }
+          : null
+        : (allRooms[selectedRoomIndex] ?? null),
+    [
+      isSchulhofTabSelected,
+      schulhofStatus?.isUserSupervising,
+      schulhofStatus?.activeGroupId,
+      schulhofStatus?.roomId,
+      schulhofStatus?.studentCount,
+      allRooms,
+      selectedRoomIndex,
+    ],
+  );
 
   // Set breadcrumb so header shows current room name
   useSetBreadcrumb({
