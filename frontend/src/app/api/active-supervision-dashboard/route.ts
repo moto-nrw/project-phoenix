@@ -153,10 +153,15 @@ export const GET = createGetHandler<ActiveSupervisionDashboardResponse>(
         ).catch(() => ({ data: [] as BackendEducationalGroup[] })),
       ]);
 
-    // Extract data with null safety
-    const supervisedGroups = Array.isArray(supervisedResult.data)
-      ? supervisedResult.data
-      : [];
+    // Extract data with null safety, sorted by room name for deterministic order
+    const supervisedGroups = (
+      Array.isArray(supervisedResult.data) ? supervisedResult.data : []
+    ).sort((a, b) =>
+      (a.room?.name ?? a.name ?? "").localeCompare(
+        b.room?.name ?? b.name ?? "",
+        "de",
+      ),
+    );
     const unclaimedGroups = Array.isArray(unclaimedResult.data)
       ? unclaimedResult.data
       : [];

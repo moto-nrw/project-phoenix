@@ -94,6 +94,7 @@ describe("UserContextProvider", () => {
       supervisedRoomId: undefined,
       supervisedRoomName: undefined,
       isLoadingSupervision: false,
+      supervisedRooms: [],
       refresh: vi.fn(),
     });
 
@@ -268,6 +269,7 @@ describe("UserContextProvider", () => {
         supervisedRoomId: undefined,
         supervisedRoomName: undefined,
         isLoadingSupervision: false,
+        supervisedRooms: [],
         refresh: vi.fn(),
       });
 
@@ -319,6 +321,7 @@ describe("UserContextProvider", () => {
         supervisedRoomId: undefined,
         supervisedRoomName: undefined,
         isLoadingSupervision: false,
+        supervisedRooms: [],
         refresh: mockRefresh,
       });
 
@@ -351,6 +354,7 @@ describe("UserContextProvider", () => {
         supervisedRoomId: undefined,
         supervisedRoomName: undefined,
         isLoadingSupervision: false,
+        supervisedRooms: [],
         refresh: mockRefresh,
       });
 
@@ -409,6 +413,7 @@ describe("UserContextProvider", () => {
         supervisedRoomId: undefined,
         supervisedRoomName: undefined,
         isLoadingSupervision: false,
+        supervisedRooms: [],
         refresh: vi.fn(),
       });
 
@@ -432,6 +437,7 @@ describe("UserContextProvider", () => {
         supervisedRoomId: undefined,
         supervisedRoomName: undefined,
         isLoadingSupervision: false,
+        supervisedRooms: [],
         refresh: vi.fn(),
       });
 
@@ -455,6 +461,7 @@ describe("UserContextProvider", () => {
         supervisedRoomId: undefined,
         supervisedRoomName: undefined,
         isLoadingSupervision: false,
+        supervisedRooms: [],
         refresh: vi.fn(),
       });
 
@@ -484,6 +491,7 @@ describe("UserContextProvider", () => {
         supervisedRoomId: undefined,
         supervisedRoomName: undefined,
         isLoadingSupervision: false,
+        supervisedRooms: [],
         refresh: vi.fn(),
       });
 
@@ -566,6 +574,7 @@ describe("UserContextProvider", () => {
         supervisedRoomId: undefined,
         supervisedRoomName: undefined,
         isLoadingSupervision: false,
+        supervisedRooms: [],
         refresh: vi.fn(),
       });
 

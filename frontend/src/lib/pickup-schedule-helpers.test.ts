@@ -741,32 +741,44 @@ describe("getDayData", () => {
   });
 
   it("returns sick status when student is sick today", () => {
-    // Fix system time to a known weekday to avoid flaky failures on weekends
-    const wednesday = new Date("2025-01-15T12:00:00"); // A Wednesday
+    // Use a fixed weekday (Monday) so the test doesn't fail on weekends
     vi.useFakeTimers();
-    vi.setSystemTime(wednesday);
+    vi.setSystemTime(new Date("2024-01-15T12:00:00")); // Monday
+    try {
+      const today = new Date();
+      const result = getDayData(today, schedules, [], true);
 
-    const result = getDayData(new Date(), schedules, [], true);
-
-    expect(result.showSick).toBe(true);
-    expect(result.effectiveTime).toBeUndefined();
-
-    vi.useRealTimers();
+      expect(result.showSick).toBe(true);
+      expect(result.effectiveTime).toBeUndefined();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("does not show sick status for past days", () => {
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
-    const result = getDayData(yesterday, schedules, [], true);
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2024-01-16T12:00:00")); // Tuesday
+    try {
+      const yesterday = new Date("2024-01-15T12:00:00"); // Monday
+      const result = getDayData(yesterday, schedules, [], true);
 
-    expect(result.showSick).toBe(false);
+      expect(result.showSick).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("marks today correctly", () => {
-    const today = new Date();
-    const result = getDayData(today, schedules, [], false);
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2024-01-15T12:00:00")); // Monday
+    try {
+      const today = new Date();
+      const result = getDayData(today, schedules, [], false);
 
-    expect(result.isToday).toBe(true);
+      expect(result.isToday).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("handles no schedule for weekday", () => {

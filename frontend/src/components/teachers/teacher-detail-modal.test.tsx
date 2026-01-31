@@ -73,11 +73,7 @@ vi.mock("~/components/ui/detail-modal-components", () => ({
   }) => (
     <div data-testid={`field-${label.toLowerCase().replace(/\s/g, "-")}`}>
       <span data-testid="label">{label}</span>
-      <span
-        data-testid="value"
-        data-fullwidth={fullWidth}
-        data-mono={mono}
-      >
+      <span data-testid="value" data-fullwidth={fullWidth} data-mono={mono}>
         {children}
       </span>
     </div>
@@ -169,9 +165,7 @@ describe("TeacherDetailModal", () => {
   it("displays personal information section", () => {
     render(<TeacherDetailModal {...defaultProps} />);
 
-    expect(
-      screen.getByTestId("section-persönliche-daten"),
-    ).toBeInTheDocument();
+    expect(screen.getByTestId("section-persönliche-daten")).toBeInTheDocument();
   });
 
   it("displays first and last name fields", () => {

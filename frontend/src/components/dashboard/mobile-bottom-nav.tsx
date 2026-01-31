@@ -126,6 +126,12 @@ const additionalNavItems: AdditionalNavItem[] = [
     iconKey: "settings",
     alwaysShow: true,
   },
+  {
+    href: "/suggestions",
+    label: "Feedback",
+    iconKey: "feedback",
+    alwaysShow: true,
+  },
   // Coming soon features - shown to all users
   {
     href: "#",

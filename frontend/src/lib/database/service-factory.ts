@@ -32,9 +32,7 @@ function mapDataArray<T>(
 /**
  * Type guard to check if object is a paginated response
  */
-function isPaginatedResponse(
-  obj: unknown,
-): obj is {
+function isPaginatedResponse(obj: unknown): obj is {
   data: unknown[];
   pagination: PaginatedResponse<unknown>["pagination"];
 } {
@@ -49,9 +47,7 @@ function isPaginatedResponse(
 /**
  * Type guard to check if object has a data array
  */
-function hasDataArray(
-  obj: unknown,
-): obj is {
+function hasDataArray(obj: unknown): obj is {
   data: unknown[];
   pagination?: PaginatedResponse<unknown>["pagination"];
 } {

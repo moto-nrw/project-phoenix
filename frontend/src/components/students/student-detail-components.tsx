@@ -473,7 +473,8 @@ export function PersonalInfoReadOnly({
             <PersonIcon />
           </div>
           <h2 className="truncate text-base font-semibold text-gray-900 sm:text-lg">
-            Persönliche Informationen
+            <span className="sm:hidden">Persönliche Infos</span>
+            <span className="hidden sm:inline">Persönliche Informationen</span>
           </h2>
         </div>
         {showEditButton && onEditClick ? (

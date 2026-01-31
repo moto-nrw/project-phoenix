@@ -40,8 +40,9 @@ describe("NavigationTabs — tab rendering", () => {
       <NavigationTabs items={twoItems} activeTab="a" onTabChange={onChange} />,
     );
 
-    expect(screen.getByText("Alpha")).toBeInTheDocument();
-    expect(screen.getByText("Beta")).toBeInTheDocument();
+    // With 2+ items, labels appear in both dropdown and hidden tabs
+    expect(screen.getAllByText("Alpha").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText("Beta").length).toBeGreaterThanOrEqual(1);
   });
 
   it("highlights active tab with correct styling", () => {
@@ -50,9 +51,16 @@ describe("NavigationTabs — tab rendering", () => {
       <NavigationTabs items={twoItems} activeTab="b" onTabChange={onChange} />,
     );
 
-    const betaButton = screen.getByText("Beta").closest("button");
-    expect(betaButton?.className).toContain("font-semibold");
-    expect(betaButton?.className).toContain("text-gray-900");
+    // Find the tab button (not the dropdown trigger) — look for button inside scrollable container
+    const betaButtons = screen.getAllByText("Beta");
+    const betaTabButton = betaButtons
+      .map((el) => el.closest("button"))
+      .find(
+        (btn) =>
+          btn && !btn.closest(".md\\:hidden") && btn.className.includes("pb-3"),
+      );
+    expect(betaTabButton?.className).toContain("font-semibold");
+    expect(betaTabButton?.className).toContain("text-gray-900");
   });
 
   it("calls onTabChange when a tab is clicked", () => {
@@ -81,28 +89,30 @@ describe("NavigationTabs — tab rendering", () => {
   });
 });
 
-describe("NavigationTabs — fewer than 3 items (no mobile dropdown)", () => {
-  it("does not render a dropdown trigger for 2 items", () => {
+describe("NavigationTabs — 2+ items (mobile dropdown)", () => {
+  it("renders dropdown trigger for 2 items", () => {
     const onChange = vi.fn();
     render(
       <NavigationTabs items={twoItems} activeTab="a" onTabChange={onChange} />,
     );
 
-    // Tabs should be visible, no dropdown trigger (no SVG chevron outside tab area)
+    // 2 tab buttons + 1 dropdown trigger button = 3 buttons
     const buttons = screen.getAllByRole("button");
-    // Only 2 tab buttons, no dropdown
-    expect(buttons).toHaveLength(2);
+    expect(buttons.length).toBeGreaterThanOrEqual(3);
   });
 
-  it("tabs container is not hidden on any viewport for <3 items", () => {
+  it("hides tabs container on mobile for 2 items (adds hidden md:block class)", () => {
     const onChange = vi.fn();
     const { container } = render(
       <NavigationTabs items={twoItems} activeTab="a" onTabChange={onChange} />,
     );
 
-    // The tabs wrapper should NOT contain the "hidden" class
-    const tabsWrapper = container.querySelector(".relative");
-    expect(tabsWrapper?.className).not.toContain("hidden");
+    // The tabs wrapper should contain the "hidden" class for mobile
+    const divs = container.querySelectorAll("div.relative");
+    const hiddenDiv = Array.from(divs).find((d) =>
+      d.className.includes("hidden md:block"),
+    );
+    expect(hiddenDiv).toBeTruthy();
   });
 });
 
@@ -419,7 +429,8 @@ describe("NavigationTabs — edge cases", () => {
       />,
     );
 
-    expect(screen.getByText("Alpha")).toBeInTheDocument();
-    expect(screen.getByText("Beta")).toBeInTheDocument();
+    // With 2+ items, labels appear in both dropdown and hidden tabs
+    expect(screen.getAllByText("Alpha").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText("Beta").length).toBeGreaterThanOrEqual(1);
   });
 });

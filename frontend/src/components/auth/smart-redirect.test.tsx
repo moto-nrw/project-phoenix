@@ -27,6 +27,7 @@ vi.mock("~/lib/supervision-context", () => ({
     isLoadingGroups: false,
     isSupervising: false,
     isLoadingSupervision: false,
+    supervisedRooms: [],
     groups: [],
     refresh: vi.fn(),
   })),
@@ -142,6 +143,7 @@ describe("SmartRedirect", () => {
       isLoadingGroups: false,
       isSupervising: true,
       isLoadingSupervision: false,
+      supervisedRooms: [],
       groups: [],
       refresh: vi.fn(),
     });

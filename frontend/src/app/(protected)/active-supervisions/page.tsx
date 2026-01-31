@@ -9,7 +9,7 @@ import {
   useRef,
 } from "react";
 import { useSession } from "next-auth/react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { Alert } from "~/components/ui/alert";
 import { PageHeaderWithSearch } from "~/components/ui/page-header";
@@ -88,6 +88,86 @@ interface BFFDashboardResponse {
 }
 
 const GROUP_CARD_GRADIENT = "from-blue-50/80 to-cyan-100/80";
+
+/** Check if a student matches the current search and group filters */
+function matchesStudentFilters(
+  student: StudentWithVisit,
+  searchTerm: string,
+  groupFilter: string,
+): boolean {
+  if (searchTerm) {
+    const searchLower = searchTerm.toLowerCase();
+    const matchesSearch =
+      (student.name?.toLowerCase().includes(searchLower) ?? false) ||
+      (student.first_name?.toLowerCase().includes(searchLower) ?? false) ||
+      (student.second_name?.toLowerCase().includes(searchLower) ?? false);
+    if (!matchesSearch) return false;
+  }
+  if (groupFilter !== "all") {
+    const studentGroupName = student.group_name ?? "Unbekannt";
+    if (studentGroupName !== groupFilter) return false;
+  }
+  return true;
+}
+
+/** Schulhof release supervision button (desktop) */
+function ReleaseSupervisionButton({
+  isReleasing,
+  onClick,
+}: Readonly<{ isReleasing: boolean; onClick: () => void }>) {
+  return (
+    <button
+      onClick={onClick}
+      className="group relative flex h-10 items-center gap-2 rounded-full bg-gradient-to-br from-amber-400 to-yellow-500 px-4 text-white shadow-lg transition-all duration-150 hover:scale-105 hover:shadow-xl hover:shadow-amber-400/30 active:scale-95"
+      aria-label="Aufsicht abgeben"
+    >
+      <div className="pointer-events-none absolute inset-[2px] rounded-full bg-gradient-to-br from-white/20 to-white/0 opacity-0 transition-opacity duration-300 group-hover:opacity-100"></div>
+      <svg
+        className="relative h-5 w-5 transition-transform duration-300"
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+        strokeWidth={2.5}
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
+        />
+      </svg>
+      <span className="relative text-sm font-semibold">
+        {isReleasing ? "Wird abgegeben..." : "Aufsicht abgeben"}
+      </span>
+    </button>
+  );
+}
+
+/** Schulhof release supervision button (mobile) */
+function MobileReleaseSupervisionButton({
+  onClick,
+}: Readonly<{ onClick: () => void }>) {
+  return (
+    <button
+      onClick={onClick}
+      className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-amber-400 to-yellow-500 text-white shadow-md transition-all duration-150 active:scale-90"
+      aria-label="Aufsicht abgeben"
+    >
+      <svg
+        className="h-4 w-4"
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+        strokeWidth={2.5}
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
+        />
+      </svg>
+    </button>
+  );
+}
 
 /** Loading state view */
 function LoadingView() {
@@ -220,6 +300,7 @@ function EmptyRoomsView({
 
 function MeinRaumPageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { data: session, status } = useSession({
     required: true,
     onUnauthenticated() {
@@ -233,6 +314,9 @@ function MeinRaumPageContent() {
   // State variables for multiple rooms
   const [allRooms, setAllRooms] = useState<ActiveRoom[]>([]);
   const [selectedRoomIndex, setSelectedRoomIndex] = useState(0);
+
+  // Pre-select room from URL param (?room=<id>)
+  const roomParam = searchParams.get("room");
   const [students, setStudents] = useState<StudentWithVisit[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [groupFilter, setGroupFilter] = useState("all");
@@ -250,6 +334,15 @@ function MeinRaumPageContent() {
   const [groupNameToIdMap, setGroupNameToIdMap] = useState<Map<string, string>>(
     new Map(),
   );
+
+  // Desktop detection — sidebar handles room switching at lg+
+  const [isDesktop, setIsDesktop] = useState(false);
+  useEffect(() => {
+    const check = () => setIsDesktop(window.innerWidth >= 1024);
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, []);
 
   // State for Schulhof release supervision modal
   const [showReleaseModal, setShowReleaseModal] = useState(false);
@@ -474,15 +567,19 @@ function MeinRaumPageContent() {
     // Track if supervision was gained
     hasSupervisionRef.current = data.supervisedGroups.length > 0;
 
-    // Convert supervised groups to ActiveRoom format
-    const activeRooms: ActiveRoom[] = data.supervisedGroups.map((group) => ({
-      id: group.id,
-      name: group.name,
-      room_name: group.room?.name,
-      room_id: group.room_id,
-      student_count: undefined,
-      supervisor_name: undefined,
-    }));
+    // Convert supervised groups to ActiveRoom format, sorted by room name
+    const activeRooms: ActiveRoom[] = data.supervisedGroups
+      .map((group) => ({
+        id: group.id,
+        name: group.name,
+        room_name: group.room?.name,
+        room_id: group.room_id,
+        student_count: undefined,
+        supervisor_name: undefined,
+      }))
+      .sort((a, b) =>
+        (a.room_name ?? a.name).localeCompare(b.room_name ?? b.name, "de"),
+      );
 
     setAllRooms(activeRooms);
 
@@ -532,6 +629,40 @@ function MeinRaumPageContent() {
     setError(null);
     setIsLoading(false);
   }, [dashboardData, updateRoomStudentCount, selectedRoomIndex]);
+
+  // Sync selected room with URL param.
+  // The sidebar navigates with the correct ?room= param at click-time,
+  // so this effect only needs to react to URL changes.
+  // When no param is present (e.g. fresh login), persist the default (first room)
+  // so localStorage stays in sync and the sidebar picks it up on next click.
+  useEffect(() => {
+    if (allRooms.length === 0) return;
+
+    if (roomParam) {
+      const targetIndex = allRooms.findIndex((r) => r.room_id === roomParam);
+      if (targetIndex !== -1 && targetIndex !== selectedRoomIndex) {
+        void switchToRoom(targetIndex);
+      }
+    } else {
+      // No ?room= param (e.g. after login or browser back) — restore from
+      // localStorage so the user returns to their previously selected room.
+      const savedRoomId = localStorage.getItem("sidebar-last-room");
+      const savedIndex = savedRoomId
+        ? allRooms.findIndex((r) => r.room_id === savedRoomId)
+        : -1;
+      if (savedIndex !== -1 && savedIndex !== selectedRoomIndex) {
+        void switchToRoom(savedIndex);
+      } else if (savedIndex === -1) {
+        // Nothing saved or saved room no longer exists — persist first room
+        const firstRoom = allRooms[0];
+        if (firstRoom?.room_id) {
+          localStorage.setItem("sidebar-last-room", firstRoom.room_id);
+        }
+      }
+      // When savedIndex === selectedRoomIndex, do nothing — already in sync
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allRooms, roomParam]);
 
   // SWR-based per-room visit subscription for real-time updates.
   // When global SSE invalidates "visit*" or "supervision*" caches, this triggers a refetch.
@@ -704,32 +835,7 @@ function MeinRaumPageContent() {
 
   // Apply filters to students (ensure students is an array)
   const filteredStudents = (Array.isArray(students) ? students : []).filter(
-    (student) => {
-      // Apply search filter - search in multiple fields
-      if (searchTerm) {
-        const searchLower = searchTerm.toLowerCase();
-        const matchesSearch =
-          (student.name?.toLowerCase().includes(searchLower) ?? false) ||
-          (student.first_name?.toLowerCase().includes(searchLower) ?? false) ||
-          (student.second_name?.toLowerCase().includes(searchLower) ?? false);
-
-        if (!matchesSearch) return false;
-      }
-
-      // Apply year filter (skip since we don't have school_class in visits)
-      // Year filtering would require additional student data lookup
-
-      // Apply group filter
-      if (groupFilter !== "all") {
-        const studentGroupName = student.group_name ?? "Unbekannt";
-
-        if (studentGroupName !== groupFilter) {
-          return false;
-        }
-      }
-
-      return true;
-    },
+    (student) => matchesStudentFilters(student, searchTerm, groupFilter),
   );
 
   // Prepare filter configurations for PageHeaderWithSearch
@@ -794,7 +900,7 @@ function MeinRaumPageContent() {
   }
 
   // Show unclaimed rooms banner when user has no supervised groups but there are rooms to claim
-  if (allRooms.length === 0 && hasAccess) {
+  if (allRooms.length === 0) {
     return (
       <EmptyRoomsView
         onClaimed={handleRoomClaimed}
@@ -910,7 +1016,11 @@ function MeinRaumPageContent() {
       {/* Modern Header with PageHeaderWithSearch component */}
       {/* No title - breadcrumb menu handles page identification */}
       <PageHeaderWithSearch
-        title=""
+        title={
+          !isDesktop && allRooms.length === 1
+            ? (currentRoom?.room_name ?? "Aktuelle Aufsicht")
+            : ""
+        }
         badge={{
           icon: (
             <svg
@@ -931,7 +1041,7 @@ function MeinRaumPageContent() {
           label: "Schüler",
         }}
         tabs={
-          allRooms.length > 1 && allRooms.length <= 4
+          allRooms.length > 1 && !isDesktop
             ? {
                 items: allRooms.map((room) => ({
                   id: room.id,
@@ -940,7 +1050,17 @@ function MeinRaumPageContent() {
                 activeTab: currentRoom?.id ?? "",
                 onTabChange: (tabId) => {
                   const index = allRooms.findIndex((r) => r.id === tabId);
-                  if (index !== -1) void switchToRoom(index);
+                  if (index !== -1) {
+                    const room = allRooms[index];
+                    if (room?.room_id) {
+                      localStorage.setItem("sidebar-last-room", room.room_id);
+                    }
+                    const roomName = room?.room_name;
+                    if (roomName) {
+                      localStorage.setItem("sidebar-last-room-name", roomName);
+                    }
+                    void switchToRoom(index);
+                  }
                 },
               }
             : undefined
@@ -958,52 +1078,17 @@ function MeinRaumPageContent() {
         }}
         actionButton={
           isSchulhof ? (
-            <button
+            <ReleaseSupervisionButton
+              isReleasing={isReleasingSupervision}
               onClick={() => setShowReleaseModal(true)}
-              className="group relative flex h-10 items-center gap-2 rounded-full bg-gradient-to-br from-amber-400 to-yellow-500 px-4 text-white shadow-lg transition-all duration-150 hover:scale-105 hover:shadow-xl hover:shadow-amber-400/30 active:scale-95"
-              aria-label="Aufsicht abgeben"
-            >
-              <div className="pointer-events-none absolute inset-[2px] rounded-full bg-gradient-to-br from-white/20 to-white/0 opacity-0 transition-opacity duration-300 group-hover:opacity-100"></div>
-              <svg
-                className="relative h-5 w-5 transition-transform duration-300"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={2.5}
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
-                />
-              </svg>
-              <span className="relative text-sm font-semibold">
-                Aufsicht abgeben
-              </span>
-            </button>
+            />
           ) : undefined
         }
         mobileActionButton={
           isSchulhof ? (
-            <button
+            <MobileReleaseSupervisionButton
               onClick={() => setShowReleaseModal(true)}
-              className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-amber-400 to-yellow-500 text-white shadow-md transition-all duration-150 active:scale-90"
-              aria-label="Aufsicht abgeben"
-            >
-              <svg
-                className="h-4 w-4"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={2.5}
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
-                />
-              </svg>
-            </button>
+            />
           ) : undefined
         }
       />
@@ -1068,32 +1153,9 @@ function MeinRaumPageContent() {
               disabled={isReleasingSupervision}
               className="flex-1 rounded-lg bg-gradient-to-br from-amber-400 to-yellow-500 px-4 py-2.5 text-sm font-medium text-white shadow-md transition-all duration-200 hover:scale-105 hover:shadow-lg hover:shadow-amber-400/30 active:scale-100 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100 md:hover:scale-105"
             >
-              {isReleasingSupervision ? (
-                <span className="flex items-center justify-center gap-2">
-                  <svg
-                    className="h-4 w-4 animate-spin text-white"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                  >
-                    <circle
-                      className="opacity-25"
-                      cx="12"
-                      cy="12"
-                      r="10"
-                      stroke="currentColor"
-                      strokeWidth="4"
-                    ></circle>
-                    <path
-                      className="opacity-75"
-                      fill="currentColor"
-                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                    ></path>
-                  </svg>
-                  Wird abgegeben...
-                </span>
-              ) : (
-                "Aufsicht abgeben"
-              )}
+              {isReleasingSupervision
+                ? "Wird abgegeben..."
+                : "Aufsicht abgeben"}
             </button>
           </div>
         </div>

@@ -134,7 +134,10 @@ describe("ActivityDetailModal", () => {
   });
 
   it("hides supervisor section when supervisor name is missing", () => {
-    const activityNoSupervisor = { ...mockActivity, supervisor_name: undefined };
+    const activityNoSupervisor = {
+      ...mockActivity,
+      supervisor_name: undefined,
+    };
     render(
       <ActivityDetailModal {...defaultProps} activity={activityNoSupervisor} />,
     );
@@ -170,7 +173,10 @@ describe("ActivityDetailModal", () => {
   });
 
   it("uses AG as fallback initials when name is undefined", () => {
-    const activityNoName = { ...mockActivity, name: undefined as unknown as string };
+    const activityNoName = {
+      ...mockActivity,
+      name: undefined as unknown as string,
+    };
     render(<ActivityDetailModal {...defaultProps} activity={activityNoName} />);
 
     expect(screen.getByText("AG")).toBeInTheDocument();

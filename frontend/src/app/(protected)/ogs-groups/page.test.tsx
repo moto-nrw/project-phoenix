@@ -17,6 +17,7 @@ vi.mock("next-auth/react", () => ({
 const mockPush = vi.fn();
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: mockPush }),
+  useSearchParams: () => ({ get: () => null }),
 }));
 
 // Mock ToastContext
@@ -2380,3 +2381,222 @@ describe("OGSGroupPage loadAvailableUsers", () => {
 // - Fetching all three roles (teacher, staff, user)
 // - Deduplication by staff ID
 // - Error handling when some roles fail to load
+
+// ===== Tests for exported helper functions (direct coverage) =====
+
+import {
+  getPickupUrgency as actualGetPickupUrgency,
+  isStudentInGroupRoom as actualIsStudentInGroupRoom,
+  matchesSearchFilter as actualMatchesSearchFilter,
+  matchesAttendanceFilter as actualMatchesAttendanceFilter,
+  matchesForeignRoomFilter as actualMatchesForeignRoomFilter,
+} from "./ogs-group-helpers";
+
+// Helper to build a minimal Student for direct function tests
+function makeTestStudent(
+  overrides: Record<string, unknown> = {},
+): Parameters<typeof actualMatchesSearchFilter>[0] {
+  return {
+    id: "1",
+    name: "Max Mustermann",
+    first_name: "Max",
+    second_name: "Mustermann",
+    school_class: "3a",
+    current_location: "Anwesend - Raum 1",
+    group_name: "Eulen",
+    group_id: "10",
+    ...overrides,
+  } as Parameters<typeof actualMatchesSearchFilter>[0];
+}
+
+describe("getPickupUrgency (exported)", () => {
+  it("returns 'none' for undefined pickup time", () => {
+    expect(actualGetPickupUrgency(undefined, new Date())).toBe("none");
+  });
+
+  it("returns 'overdue' when pickup is in the past", () => {
+    const now = new Date("2025-06-10T15:00:00");
+    expect(actualGetPickupUrgency("14:00", now)).toBe("overdue");
+  });
+
+  it("returns 'soon' when pickup is within 30 minutes", () => {
+    const now = new Date("2025-06-10T14:45:00");
+    expect(actualGetPickupUrgency("15:00", now)).toBe("soon");
+  });
+
+  it("returns 'normal' when pickup is far in the future", () => {
+    const now = new Date("2025-06-10T10:00:00");
+    expect(actualGetPickupUrgency("15:00", now)).toBe("normal");
+  });
+});
+
+describe("isStudentInGroupRoom (exported)", () => {
+  it("returns false when student has no location", () => {
+    const student = makeTestStudent({ current_location: undefined });
+    expect(
+      actualIsStudentInGroupRoom(student, {
+        id: "1",
+        name: "G",
+        room_name: "R",
+      }),
+    ).toBe(false);
+  });
+
+  it("returns false when group has no room name", () => {
+    const student = makeTestStudent();
+    expect(actualIsStudentInGroupRoom(student, { id: "1", name: "G" })).toBe(
+      false,
+    );
+  });
+
+  it("returns true when room name matches (case-insensitive)", () => {
+    // parseLocation is mocked to always return { room: "Room 1" }
+    const student = makeTestStudent({ current_location: "Anwesend - Room 1" });
+    expect(
+      actualIsStudentInGroupRoom(student, {
+        id: "1",
+        name: "G",
+        room_name: "ROOM 1",
+      }),
+    ).toBe(true);
+  });
+
+  it("returns false when room does not match", () => {
+    // parseLocation is mocked to always return { room: "Room 1" }
+    const student = makeTestStudent({ current_location: "Anwesend - Raum 2" });
+    expect(
+      actualIsStudentInGroupRoom(student, {
+        id: "1",
+        name: "G",
+        room_name: "Raum 99",
+      }),
+    ).toBe(false);
+  });
+
+  it("returns false for null group", () => {
+    expect(actualIsStudentInGroupRoom(makeTestStudent(), null)).toBe(false);
+  });
+
+  it("matches by room_id when room name does not match", () => {
+    const student = makeTestStudent({ current_location: "42" });
+    expect(
+      actualIsStudentInGroupRoom(student, {
+        id: "1",
+        name: "G",
+        room_name: "X",
+        room_id: "42",
+      }),
+    ).toBe(true);
+  });
+});
+
+describe("matchesSearchFilter (exported)", () => {
+  it("returns true for empty search term", () => {
+    expect(actualMatchesSearchFilter(makeTestStudent(), "")).toBe(true);
+  });
+
+  it("matches by name", () => {
+    expect(actualMatchesSearchFilter(makeTestStudent(), "Max")).toBe(true);
+  });
+
+  it("matches by school class", () => {
+    expect(
+      actualMatchesSearchFilter(makeTestStudent({ school_class: "3a" }), "3a"),
+    ).toBe(true);
+  });
+
+  it("returns false when nothing matches", () => {
+    expect(actualMatchesSearchFilter(makeTestStudent(), "xyz")).toBe(false);
+  });
+});
+
+describe("matchesAttendanceFilter (exported)", () => {
+  const rs = {
+    "1": { in_group_room: true, current_room_id: 10 },
+    "2": { in_group_room: false, current_room_id: 20 },
+  };
+
+  it("returns true for 'all'", () => {
+    expect(actualMatchesAttendanceFilter(makeTestStudent(), "all", rs)).toBe(
+      true,
+    );
+  });
+
+  it("returns true for 'in_room' when student is in group room", () => {
+    expect(
+      actualMatchesAttendanceFilter(
+        makeTestStudent({ id: "1" }),
+        "in_room",
+        rs,
+      ),
+    ).toBe(true);
+  });
+
+  it("returns false for 'in_room' when student is not", () => {
+    expect(
+      actualMatchesAttendanceFilter(
+        makeTestStudent({ id: "2" }),
+        "in_room",
+        rs,
+      ),
+    ).toBe(false);
+  });
+
+  it("returns true for 'foreign_room' correctly", () => {
+    expect(
+      actualMatchesAttendanceFilter(
+        makeTestStudent({ id: "2" }),
+        "foreign_room",
+        rs,
+      ),
+    ).toBe(true);
+  });
+
+  it("returns true for 'at_home' when at home", () => {
+    vi.mocked(isHomeLocation).mockReturnValue(true);
+    expect(
+      actualMatchesAttendanceFilter(
+        makeTestStudent({ current_location: "Zuhause" }),
+        "at_home",
+        rs,
+      ),
+    ).toBe(true);
+    vi.mocked(isHomeLocation).mockReturnValue(false);
+  });
+
+  it("returns true for unknown filter", () => {
+    expect(
+      actualMatchesAttendanceFilter(makeTestStudent(), "unknown_value", rs),
+    ).toBe(true);
+  });
+});
+
+describe("matchesForeignRoomFilter (exported)", () => {
+  it("returns true when in foreign room", () => {
+    expect(
+      actualMatchesForeignRoomFilter({
+        in_group_room: false,
+        current_room_id: 20,
+      }),
+    ).toBe(true);
+  });
+
+  it("returns false when in group room", () => {
+    expect(
+      actualMatchesForeignRoomFilter({
+        in_group_room: true,
+        current_room_id: 10,
+      }),
+    ).toBe(false);
+  });
+
+  it("returns false when no room ID", () => {
+    expect(actualMatchesForeignRoomFilter({ in_group_room: false })).toBe(
+      false,
+    );
+  });
+
+  it("returns false for undefined", () => {
+    expect(actualMatchesForeignRoomFilter(undefined)).toBe(false);
+  });
+});

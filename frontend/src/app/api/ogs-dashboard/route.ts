@@ -84,7 +84,10 @@ export const GET = createGetHandler<OGSDashboardResponse>(
       "/api/me/groups",
       token,
     );
-    const groups = groupsResponse.data ?? [];
+    // Sort groups alphabetically so the first group is deterministic
+    const groups = (groupsResponse.data ?? []).sort((a, b) =>
+      a.name.localeCompare(b.name, "de"),
+    );
 
     // If no groups, return early with empty data
     if (groups.length === 0) {

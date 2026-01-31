@@ -42,6 +42,12 @@ describe("PageTitleDisplay", () => {
     expect(screen.getByText("Test Page")).toBeInTheDocument();
   });
 
+  it("uses text-base when not scrolled", () => {
+    render(<PageTitleDisplay title="Dashboard" isScrolled={false} />);
+    const el = screen.getByText("Dashboard");
+    expect(el.className).toContain("text-base");
+  });
+
   it("applies smaller text when scrolled", () => {
     render(<PageTitleDisplay title="Test Page" isScrolled={true} />);
 
@@ -110,10 +116,10 @@ describe("OgsGroupsBreadcrumb", () => {
   });
 
   it("renders breadcrumb with group name", () => {
-    render(<OgsGroupsBreadcrumb groupName="Test Group" />);
+    render(<OgsGroupsBreadcrumb groupName="Eulen" />);
 
     expect(screen.getByText("Meine Gruppe")).toBeInTheDocument();
-    expect(screen.getByText("Test Group")).toBeInTheDocument();
+    expect(screen.getByText("Eulen")).toBeInTheDocument();
   });
 });
 
@@ -125,10 +131,10 @@ describe("ActiveSupervisionsBreadcrumb", () => {
   });
 
   it("renders breadcrumb with supervision name", () => {
-    render(<ActiveSupervisionsBreadcrumb supervisionName="Room 101" />);
+    render(<ActiveSupervisionsBreadcrumb supervisionName="Raum 1.2" />);
 
     expect(screen.getByText("Aktuelle Aufsicht")).toBeInTheDocument();
-    expect(screen.getByText("Room 101")).toBeInTheDocument();
+    expect(screen.getByText("Raum 1.2")).toBeInTheDocument();
   });
 });
 
@@ -154,10 +160,10 @@ describe("InvitationsBreadcrumb", () => {
 
 describe("ActivityBreadcrumb", () => {
   it("renders activity breadcrumb", () => {
-    render(<ActivityBreadcrumb activityName="Fußball" />);
+    render(<ActivityBreadcrumb activityName="Fußball AG" />);
 
     expect(screen.getByText("Aktivitäten")).toBeInTheDocument();
-    expect(screen.getByText("Fußball")).toBeInTheDocument();
+    expect(screen.getByText("Fußball AG")).toBeInTheDocument();
   });
 
   it("links to activities page", () => {
@@ -170,14 +176,14 @@ describe("ActivityBreadcrumb", () => {
 
 describe("RoomBreadcrumb", () => {
   it("renders room breadcrumb", () => {
-    render(<RoomBreadcrumb roomName="Room 101" />);
+    render(<RoomBreadcrumb roomName="Sporthalle" />);
 
     expect(screen.getByText("Räume")).toBeInTheDocument();
-    expect(screen.getByText("Room 101")).toBeInTheDocument();
+    expect(screen.getByText("Sporthalle")).toBeInTheDocument();
   });
 
   it("links to rooms page", () => {
-    render(<RoomBreadcrumb roomName="Room 101" />);
+    render(<RoomBreadcrumb roomName="Sporthalle" />);
 
     const roomsLink = screen.getByRole("link", { name: "Räume" });
     expect(roomsLink).toHaveAttribute("href", "/rooms");
@@ -185,20 +191,35 @@ describe("RoomBreadcrumb", () => {
 });
 
 describe("StudentHistoryBreadcrumb", () => {
-  it("renders three-level breadcrumb", () => {
+  it("renders history breadcrumb without sub-section", () => {
     render(
       <StudentHistoryBreadcrumb
-        referrer="/database/students"
-        breadcrumbLabel="Schüler"
-        pathname="/database/students/123/history"
-        studentName="Max Mustermann"
-        historyType="Verlauf"
+        referrer="/students/search"
+        breadcrumbLabel="Suche"
+        pathname="/students/123/feedback_history"
+        studentName="Emma Müller"
+        historyType="Feedbackhistorie"
       />,
     );
+    expect(screen.getByText("Suche")).toBeInTheDocument();
+    expect(screen.getByText("Emma Müller")).toBeInTheDocument();
+    expect(screen.getByText("Feedbackhistorie")).toBeInTheDocument();
+  });
 
-    expect(screen.getByText("Schüler")).toBeInTheDocument();
-    expect(screen.getByText("Max Mustermann")).toBeInTheDocument();
-    expect(screen.getByText("Verlauf")).toBeInTheDocument();
+  it("renders history breadcrumb with sub-section name", () => {
+    render(
+      <StudentHistoryBreadcrumb
+        referrer="/ogs-groups"
+        breadcrumbLabel="Meine Gruppe"
+        pathname="/students/123/room_history"
+        studentName="Max"
+        historyType="Raumverlauf"
+        subSectionName="Eulen"
+      />,
+    );
+    expect(screen.getByText("Eulen")).toBeInTheDocument();
+    expect(screen.getByText("Max")).toBeInTheDocument();
+    expect(screen.getByText("Raumverlauf")).toBeInTheDocument();
   });
 
   it("links correctly", () => {
@@ -218,17 +239,29 @@ describe("StudentHistoryBreadcrumb", () => {
 });
 
 describe("StudentDetailBreadcrumb", () => {
-  it("renders two-level breadcrumb", () => {
+  it("renders detail breadcrumb without sub-section", () => {
     render(
       <StudentDetailBreadcrumb
-        referrer="/database/students"
-        breadcrumbLabel="Schüler"
-        studentName="Max Mustermann"
+        referrer="/students/search"
+        breadcrumbLabel="Suche"
+        studentName="Emma Müller"
       />,
     );
+    expect(screen.getByText("Suche")).toBeInTheDocument();
+    expect(screen.getByText("Emma Müller")).toBeInTheDocument();
+  });
 
-    expect(screen.getByText("Schüler")).toBeInTheDocument();
-    expect(screen.getByText("Max Mustermann")).toBeInTheDocument();
+  it("renders detail breadcrumb with sub-section name", () => {
+    render(
+      <StudentDetailBreadcrumb
+        referrer="/ogs-groups"
+        breadcrumbLabel="Meine Gruppe"
+        studentName="Max"
+        subSectionName="Eulen"
+      />,
+    );
+    expect(screen.getByText("Eulen")).toBeInTheDocument();
+    expect(screen.getByText("Max")).toBeInTheDocument();
   });
 
   it("applies smaller text when scrolled", () => {
