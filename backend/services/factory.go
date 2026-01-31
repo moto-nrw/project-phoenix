@@ -160,7 +160,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 	})
 
 	// Initialize work session service (before active service - needed for NFC auto-check-in)
-	workSessionService := active.NewWorkSessionService(repos.WorkSession)
+	workSessionService := active.NewWorkSessionService(repos.WorkSession, repos.WorkSessionBreak)
 
 	// Initialize active service with SSE broadcaster
 	activeService := active.NewService(active.ServiceDependencies{

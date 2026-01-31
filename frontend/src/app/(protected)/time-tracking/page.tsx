@@ -3,11 +3,13 @@
 import { useState, useEffect, useCallback, useMemo, Suspense } from "react";
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
-import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
+import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import { Loading } from "~/components/ui/loading";
 import {
   type ChartConfig,
   ChartContainer,
+  ChartLegend,
+  ChartLegendContent,
   ChartTooltip,
   ChartTooltipContent,
 } from "~/components/ui/chart";
@@ -17,6 +19,7 @@ import { useSWRAuth } from "~/lib/swr";
 import { timeTrackingService } from "~/lib/time-tracking-api";
 import type {
   WorkSession,
+  WorkSessionBreak,
   WorkSessionHistory,
 } from "~/lib/time-tracking-helpers";
 import {
@@ -75,13 +78,13 @@ function friendlyError(err: unknown, fallback: string): string {
 
   const map: Record<string, string> = {
     "already checked in": "Du bist bereits eingestempelt.",
-    "already checked out today": "Du hast heute bereits gearbeitet.", // kept for backwards compat
+    "already checked out today": "Du hast heute bereits gearbeitet.",
     "no active session found": "Kein aktiver Eintrag vorhanden.",
     "no session found for today": "Kein Eintrag für heute vorhanden.",
     "session not found": "Eintrag nicht gefunden.",
     "can only update own sessions": "Du kannst nur eigene Einträge bearbeiten.",
-    "break minutes cannot be negative":
-      "Pausenminuten dürfen nicht negativ sein.",
+    "break already active": "Eine Pause läuft bereits.",
+    "no active break found": "Keine aktive Pause vorhanden.",
   };
 
   return map[code] ?? fallback;
@@ -120,92 +123,71 @@ function formatTimeFromDate(date: Date): string {
   return `${date.getHours().toString().padStart(2, "0")}:${date.getMinutes().toString().padStart(2, "0")}`;
 }
 
+const BREAK_OPTIONS = [15, 30, 45, 60] as const;
+
 function ClockInCard({
   currentSession,
+  breaks,
   onCheckIn,
   onCheckOut,
-  onBreakUpdate,
+  onStartBreak,
+  onEndBreak,
   weeklyMinutes,
 }: {
   readonly currentSession: WorkSession | null;
+  readonly breaks: WorkSessionBreak[];
   readonly onCheckIn: (status: "present" | "home_office") => Promise<void>;
   readonly onCheckOut: () => Promise<void>;
-  readonly onBreakUpdate: (minutes: number) => Promise<void>;
+  readonly onStartBreak: () => Promise<void>;
+  readonly onEndBreak: () => Promise<void>;
   readonly weeklyMinutes: number;
 }) {
   const [mode, setMode] = useState<"present" | "home_office">("present");
   const [actionLoading, setActionLoading] = useState(false);
   const [tick, setTick] = useState(0); // forces re-render for live times
-  const [showBreakInput, setShowBreakInput] = useState(false);
-  const [pauseStartedAt, setPauseStartedAt] = useState<Date | null>(null);
+  const [breakMenuOpen, setBreakMenuOpen] = useState(false);
+  const [plannedBreakMinutes, setPlannedBreakMinutes] = useState<number | null>(
+    null,
+  );
 
   const isCheckedIn =
     currentSession !== null && currentSession.checkOutTime === null;
   const isCheckedOut =
     currentSession !== null && currentSession.checkOutTime !== null;
 
-  // Reset pause state when session changes (check-out, new session, etc.)
-  useEffect(() => {
-    if (!isCheckedIn) setPauseStartedAt(null);
-  }, [isCheckedIn]);
+  // Derive active break from breaks array
+  const activeBreak = breaks.find((b) => !b.endedAt) ?? null;
+  const isOnBreak = activeBreak !== null;
 
-  // Tick every 30s for live updates (timer, countdown, segment durations)
+  // Tick every second during break (for countdown), every 30s otherwise
   useEffect(() => {
     if (!isCheckedIn) return;
-    const interval = setInterval(() => setTick((t) => t + 1), 30000);
+    const interval = setInterval(
+      () => setTick((t) => t + 1),
+      isOnBreak ? 1000 : 30000,
+    );
     return () => clearInterval(interval);
-  }, [isCheckedIn]);
-
-  // ── Derived pause state ──
-  const breakMins = currentSession?.breakMinutes ?? 0;
-  const pauseEndAt =
-    pauseStartedAt && breakMins > 0
-      ? new Date(pauseStartedAt.getTime() + breakMins * 60000)
-      : null;
+  }, [isCheckedIn, isOnBreak]);
 
   // Use `tick` to make `now` reactive
   const now = new Date();
   void tick; // suppress unused warning — tick triggers re-render
 
-  const isOnBreak = pauseEndAt !== null && now < pauseEndAt;
+  const breakMins = currentSession?.breakMinutes ?? 0;
 
-  // Minutes worked before the pause started
-  const workBeforeBreak =
-    pauseStartedAt && currentSession
-      ? Math.max(
-          0,
-          Math.floor(
-            (pauseStartedAt.getTime() -
-              new Date(currentSession.checkInTime).getTime()) /
-              60000,
-          ),
-        )
-      : 0;
-
-  // ── Timer display value ──
-  const displayMinutes = (() => {
-    if (!isCheckedIn || !currentSession) return 0;
-    if (isOnBreak) return workBeforeBreak; // frozen during break
-    if (pauseEndAt && now >= pauseEndAt) {
-      // Break over: work before + time since break ended
-      const afterBreak = Math.max(
-        0,
-        Math.floor((now.getTime() - pauseEndAt.getTime()) / 60000),
-      );
-      return workBeforeBreak + afterBreak;
-    }
-    // No break taken: gross elapsed
-    const checkIn = new Date(currentSession.checkInTime);
-    return Math.max(0, Math.floor((now.getTime() - checkIn.getTime()) / 60000));
+  // Total break time including live active break
+  const liveBreakMins = (() => {
+    if (!activeBreak) return breakMins;
+    const activeBreakMins = Math.max(
+      0,
+      Math.floor(
+        (now.getTime() - new Date(activeBreak.startedAt).getTime()) / 60000,
+      ),
+    );
+    return breakMins + activeBreakMins;
   })();
 
-  // Break countdown remaining
-  const breakRemainingMins =
-    isOnBreak && pauseEndAt
-      ? Math.max(0, Math.ceil((pauseEndAt.getTime() - now.getTime()) / 60000))
-      : 0;
-
-  // Net minutes (for footer — always correct regardless of pause tracking)
+  // Gross elapsed since check-in
   const grossMinutes =
     isCheckedIn && currentSession
       ? Math.max(
@@ -216,14 +198,60 @@ function ClockInCard({
           ),
         )
       : 0;
-  const netMinutes = Math.max(0, grossMinutes - breakMins);
+  const netMinutes = Math.max(0, grossMinutes - liveBreakMins);
+
+  // Timer display: net working time (freeze during break by subtracting active break time)
+  const displayMinutes = isCheckedIn ? netMinutes : 0;
+
+  // Active break: elapsed seconds for countdown precision
+  const activeBreakElapsedSecs = activeBreak
+    ? Math.max(
+        0,
+        Math.floor(
+          (now.getTime() - new Date(activeBreak.startedAt).getTime()) / 1000,
+        ),
+      )
+    : 0;
+
+  // Countdown remaining in seconds (null if no planned duration)
+  const countdownRemainingSecs =
+    isOnBreak && plannedBreakMinutes !== null
+      ? Math.max(0, plannedBreakMinutes * 60 - activeBreakElapsedSecs)
+      : null;
+
+  // Auto-end break when countdown reaches 0
+  useEffect(() => {
+    if (
+      countdownRemainingSecs !== null &&
+      countdownRemainingSecs <= 0 &&
+      isOnBreak &&
+      !actionLoading
+    ) {
+      void (async () => {
+        setActionLoading(true);
+        try {
+          await onEndBreak();
+          setPlannedBreakMinutes(null);
+        } finally {
+          setActionLoading(false);
+        }
+      })();
+    }
+  }, [countdownRemainingSecs, isOnBreak, actionLoading, onEndBreak]);
+
+  // Clear planned break when break ends externally
+  useEffect(() => {
+    if (!isOnBreak) {
+      setPlannedBreakMinutes(null);
+    }
+  }, [isOnBreak]);
 
   // Break compliance warning
   const breakWarning = (() => {
     if (!isCheckedIn || !currentSession) return null;
-    if (netMinutes > 540 && breakMins < 45)
+    if (netMinutes > 540 && liveBreakMins < 45)
       return "45 Min Pause ab 9h nötig (§4 ArbZG)";
-    if (netMinutes > 360 && breakMins < 30)
+    if (netMinutes > 360 && liveBreakMins < 30)
       return "30 Min Pause ab 6h nötig (§4 ArbZG)";
     return null;
   })();
@@ -256,10 +284,32 @@ function ClockInCard({
     }
   };
 
-  const handleStartBreak = (mins: number) => {
-    setPauseStartedAt(new Date());
-    void onBreakUpdate(mins);
-    setShowBreakInput(false);
+  const handleSelectBreakDuration = async (minutes: number) => {
+    setBreakMenuOpen(false);
+    setPlannedBreakMinutes(minutes);
+    setActionLoading(true);
+    try {
+      await onStartBreak();
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleEndBreakEarly = async () => {
+    setActionLoading(true);
+    try {
+      await onEndBreak();
+      setPlannedBreakMinutes(null);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // Format countdown as MM:SS
+  const formatCountdown = (totalSecs: number): string => {
+    const m = Math.floor(totalSecs / 60);
+    const s = totalSecs % 60;
+    return `${m}:${s.toString().padStart(2, "0")}`;
   };
 
   return (
@@ -267,7 +317,7 @@ function ClockInCard({
       <div className="relative p-6 sm:p-8">
         {/* Title + status badge */}
         <div className="mb-5 flex items-center justify-between">
-          <h2 className="text-lg font-bold text-gray-900">Zeiterfassung</h2>
+          <h2 className="text-lg font-bold text-gray-900">Stempeluhr</h2>
           {isCheckedIn && currentSession && (
             <span
               className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
@@ -347,65 +397,99 @@ function ClockInCard({
           <>
             {/* Control row: pause | timer | stop */}
             <div className="mb-5 flex items-center justify-between">
-              {/* Pause button */}
+              {/* Pause button (opens menu) or End Break button */}
               <div className="relative">
-                <button
-                  onClick={() => setShowBreakInput((v) => !v)}
-                  disabled={isOnBreak}
-                  className={`flex h-12 w-12 items-center justify-center rounded-full border-2 transition-all active:scale-95 disabled:opacity-60 ${
-                    isOnBreak
-                      ? "animate-pulse border-amber-400 text-amber-500"
-                      : breakMins > 0
+                {isOnBreak ? (
+                  <button
+                    onClick={handleEndBreakEarly}
+                    disabled={actionLoading}
+                    className="flex h-12 w-12 items-center justify-center rounded-full border-2 border-amber-400 text-amber-500 transition-all active:scale-95 disabled:opacity-60"
+                    aria-label="Pause beenden"
+                  >
+                    <svg
+                      className="h-5 w-5"
+                      fill="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path d="M8 5v14l11-7z" />
+                    </svg>
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => setBreakMenuOpen(!breakMenuOpen)}
+                    disabled={actionLoading}
+                    className={`flex h-12 w-12 items-center justify-center rounded-full border-2 transition-all active:scale-95 disabled:opacity-60 ${
+                      breakMins > 0
                         ? "border-amber-400 text-amber-500 hover:bg-amber-50"
                         : "border-gray-200 text-gray-400 hover:border-gray-300 hover:text-gray-500"
-                  }`}
-                  aria-label="Pause starten"
-                >
-                  <svg
-                    className="h-5 w-5"
-                    fill="currentColor"
-                    viewBox="0 0 24 24"
+                    }`}
+                    aria-label="Pause starten"
                   >
-                    <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
-                  </svg>
-                </button>
+                    <svg
+                      className="h-5 w-5"
+                      fill="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
+                    </svg>
+                  </button>
+                )}
 
-                {/* Break quick-select popover */}
-                {showBreakInput && !isOnBreak && (
-                  <div className="absolute top-14 left-0 z-10 w-44 rounded-xl border border-gray-200 bg-white p-2 shadow-lg">
-                    <div className="grid grid-cols-2 gap-1.5">
-                      {[15, 30, 45, 60].map((mins) => (
+                {/* Break duration menu */}
+                {breakMenuOpen && !isOnBreak && (
+                  <>
+                    {/* Backdrop to close menu */}
+                    <div
+                      className="fixed inset-0 z-10"
+                      onClick={() => setBreakMenuOpen(false)}
+                    />
+                    <div className="absolute top-full left-0 z-20 mt-2 flex gap-1.5 rounded-xl border border-gray-200 bg-white p-2 shadow-lg">
+                      {BREAK_OPTIONS.map((mins) => (
                         <button
                           key={mins}
-                          onClick={() => handleStartBreak(mins)}
-                          className="rounded-lg bg-gray-50 px-3 py-2 text-center text-sm font-medium whitespace-nowrap text-gray-600 transition-all hover:bg-gray-100"
+                          onClick={() => handleSelectBreakDuration(mins)}
+                          disabled={actionLoading}
+                          className="rounded-lg bg-amber-50 px-3 py-1.5 text-sm font-medium text-amber-700 transition-all hover:bg-amber-100 active:scale-95 disabled:opacity-50"
                         >
-                          {mins} Min
+                          {mins}m
                         </button>
                       ))}
                     </div>
-                    {breakWarning && (
-                      <p className="mt-1.5 px-1 text-xs font-medium text-amber-600">
-                        {breakWarning}
-                      </p>
-                    )}
-                  </div>
+                  </>
                 )}
               </div>
 
               {/* Timer display */}
               <div className="flex flex-col items-center">
-                <span
-                  className={`text-4xl font-light tabular-nums ${isOnBreak ? "text-amber-500" : "text-gray-900"}`}
-                >
-                  {isOnBreak
-                    ? `-${breakRemainingMins}`
-                    : formatHMM(displayMinutes)}
-                </span>
-                {isOnBreak && (
-                  <span className="mt-0.5 text-xs font-medium text-amber-500">
-                    Pause noch {breakRemainingMins} Min
-                  </span>
+                {isOnBreak && countdownRemainingSecs !== null ? (
+                  <>
+                    <span className="text-4xl font-light text-amber-500 tabular-nums">
+                      {formatCountdown(countdownRemainingSecs)}
+                    </span>
+                    <span className="mt-0.5 text-xs font-medium text-amber-500">
+                      Pause ({plannedBreakMinutes} Min)
+                    </span>
+                  </>
+                ) : isOnBreak ? (
+                  <>
+                    <span className="text-4xl font-light text-amber-500 tabular-nums">
+                      {formatCountdown(activeBreakElapsedSecs)}
+                    </span>
+                    <span className="mt-0.5 text-xs font-medium text-amber-500">
+                      Pause läuft
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <span className="text-4xl font-light text-gray-900 tabular-nums">
+                      {formatHMM(displayMinutes)}
+                    </span>
+                    {breakWarning && (
+                      <span className="mt-0.5 text-xs font-medium text-amber-600">
+                        {breakWarning}
+                      </span>
+                    )}
+                  </>
                 )}
               </div>
 
@@ -432,90 +516,12 @@ function ClockInCard({
 
             {/* ── Activity log rows ── */}
             <div className="border-t border-gray-100">
-              {pauseStartedAt ? (
-                <>
-                  {/* First work block: checkIn → pauseStart */}
-                  <div className="flex items-center justify-between py-2.5 text-sm">
-                    <span className="w-14 font-medium text-gray-600">
-                      Arbeit
-                    </span>
-                    <span className="text-gray-600 tabular-nums">
-                      {formatTime(currentSession?.checkInTime)}
-                    </span>
-                    <span className="text-gray-300">&rarr;</span>
-                    <span className="text-gray-600 tabular-nums">
-                      {formatTimeFromDate(pauseStartedAt)}
-                    </span>
-                    <span className="w-20 text-right font-medium text-gray-700 tabular-nums">
-                      {formatDuration(workBeforeBreak)}
-                    </span>
-                  </div>
-
-                  {/* Pause block */}
-                  <div
-                    className={`flex items-center justify-between border-t border-gray-50 py-2.5 text-sm ${isOnBreak ? "text-amber-600" : "text-gray-500"}`}
-                  >
-                    <span className="w-14 font-medium">Pause</span>
-                    <span className="tabular-nums">
-                      {formatTimeFromDate(pauseStartedAt)}
-                    </span>
-                    <span
-                      className={isOnBreak ? "text-amber-300" : "text-gray-300"}
-                    >
-                      &rarr;
-                    </span>
-                    <span className="tabular-nums">
-                      {isOnBreak
-                        ? "···"
-                        : pauseEndAt
-                          ? formatTimeFromDate(pauseEndAt)
-                          : ""}
-                    </span>
-                    <span className="w-20 text-right tabular-nums">
-                      {formatDuration(breakMins)}
-                    </span>
-                  </div>
-
-                  {/* Second work block (only after break is over) */}
-                  {!isOnBreak && pauseEndAt && (
-                    <div className="flex items-center justify-between border-t border-gray-50 py-2.5 text-sm">
-                      <span className="w-14 font-medium text-[#83CD2D]">
-                        Arbeit
-                      </span>
-                      <span className="text-[#70b525] tabular-nums">
-                        {formatTimeFromDate(pauseEndAt)}
-                      </span>
-                      <span className="text-gray-300">&rarr;</span>
-                      <span className="text-gray-400 tabular-nums">···</span>
-                      <span className="w-20 text-right font-medium text-gray-700 tabular-nums">
-                        {formatDuration(
-                          Math.max(
-                            0,
-                            Math.floor(
-                              (now.getTime() - pauseEndAt.getTime()) / 60000,
-                            ),
-                          ),
-                        )}
-                      </span>
-                    </div>
-                  )}
-                </>
-              ) : (
-                /* No pause taken yet — single work row */
-                <div className="flex items-center justify-between py-2.5 text-sm">
-                  <span className="w-14 font-medium text-[#83CD2D]">
-                    Arbeit
-                  </span>
-                  <span className="text-[#70b525] tabular-nums">
-                    {formatTime(currentSession?.checkInTime)}
-                  </span>
-                  <span className="text-gray-300">&rarr;</span>
-                  <span className="text-gray-400 tabular-nums">···</span>
-                  <span className="w-20 text-right font-medium text-gray-700 tabular-nums">
-                    {formatDuration(displayMinutes)}
-                  </span>
-                </div>
-              )}
+              <BreakActivityLog
+                checkInTime={currentSession?.checkInTime ?? ""}
+                breaks={breaks}
+                isCheckedIn={isCheckedIn}
+                plannedBreakMinutes={plannedBreakMinutes}
+              />
             </div>
           </>
         )}
@@ -524,26 +530,30 @@ function ClockInCard({
         {isCheckedOut && currentSession && (
           <div className="border-t border-gray-100">
             <div className="flex items-center justify-between py-2.5 text-sm">
-              <span className="w-14 font-medium text-gray-700">Arbeit</span>
-              <span className="text-gray-600 tabular-nums">
+              <span className="w-14 shrink-0 font-medium text-gray-700">
+                Arbeit
+              </span>
+              <span className="w-12 shrink-0 text-center text-gray-600 tabular-nums">
                 {formatTime(currentSession.checkInTime)}
               </span>
-              <span className="text-gray-300">&rarr;</span>
-              <span className="text-gray-600 tabular-nums">
+              <span className="shrink-0 text-gray-300">&rarr;</span>
+              <span className="w-12 shrink-0 text-center text-gray-600 tabular-nums">
                 {formatTime(currentSession.checkOutTime)}
               </span>
-              <span className="w-20 text-right font-medium text-gray-700 tabular-nums">
+              <span className="w-16 shrink-0 text-right font-medium text-gray-700 tabular-nums">
                 {checkedOutNet !== null ? formatDuration(checkedOutNet) : "--"}
               </span>
             </div>
 
             {currentSession.breakMinutes > 0 && (
               <div className="flex items-center justify-between border-t border-gray-50 py-2.5 text-sm">
-                <span className="w-14 font-medium text-gray-500">Pause</span>
-                <span className="text-gray-500 tabular-nums" />
-                <span />
-                <span />
-                <span className="w-20 text-right text-gray-500 tabular-nums">
+                <span className="w-14 shrink-0 font-medium text-gray-500">
+                  Pause
+                </span>
+                <span className="w-12 shrink-0" />
+                <span className="shrink-0 opacity-0">&rarr;</span>
+                <span className="w-12 shrink-0" />
+                <span className="w-16 shrink-0 text-right text-gray-500 tabular-nums">
                   {formatDuration(currentSession.breakMinutes)}
                 </span>
               </div>
@@ -575,11 +585,202 @@ function ClockInCard({
   );
 }
 
+// ─── BreakActivityLog ────────────────────────────────────────────────────────
+
+function BreakActivityLog({
+  checkInTime,
+  breaks,
+  isCheckedIn,
+  plannedBreakMinutes,
+}: {
+  readonly checkInTime: string;
+  readonly breaks: WorkSessionBreak[];
+  readonly isCheckedIn: boolean;
+  readonly plannedBreakMinutes?: number | null;
+}) {
+  const now = new Date();
+
+  // Build timeline segments: work → break → work → break → work...
+  const segments: Array<{
+    type: "work" | "break";
+    start: Date;
+    end: Date | null;
+    durationMinutes: number;
+    isActive: boolean;
+  }> = [];
+
+  const checkIn = new Date(checkInTime);
+  let cursor = checkIn;
+
+  for (const brk of breaks) {
+    const breakStart = new Date(brk.startedAt);
+    const breakEnd = brk.endedAt ? new Date(brk.endedAt) : null;
+
+    // Work segment before this break
+    if (breakStart > cursor) {
+      const workDuration = Math.max(
+        0,
+        Math.floor((breakStart.getTime() - cursor.getTime()) / 60000),
+      );
+      segments.push({
+        type: "work",
+        start: cursor,
+        end: breakStart,
+        durationMinutes: workDuration,
+        isActive: false,
+      });
+    }
+
+    // Break segment
+    const isActiveBreak = !breakEnd;
+    const breakDuration = breakEnd
+      ? brk.durationMinutes
+      : isActiveBreak && plannedBreakMinutes
+        ? plannedBreakMinutes
+        : Math.max(
+            0,
+            Math.floor((now.getTime() - breakStart.getTime()) / 60000),
+          );
+    segments.push({
+      type: "break",
+      start: breakStart,
+      end: breakEnd,
+      durationMinutes: breakDuration,
+      isActive: isActiveBreak,
+    });
+
+    cursor = breakEnd ?? now;
+  }
+
+  // Final work segment after last break (if checked in and not on active break)
+  const lastBreak = breaks[breaks.length - 1];
+  const hasActiveBreak = lastBreak && !lastBreak.endedAt;
+  if (isCheckedIn && !hasActiveBreak) {
+    const workDuration = Math.max(
+      0,
+      Math.floor((now.getTime() - cursor.getTime()) / 60000),
+    );
+    segments.push({
+      type: "work",
+      start: cursor,
+      end: null,
+      durationMinutes: workDuration,
+      isActive: true,
+    });
+  }
+
+  // If no breaks at all, show single work row
+  if (segments.length === 0 && isCheckedIn) {
+    const workDuration = Math.max(
+      0,
+      Math.floor((now.getTime() - checkIn.getTime()) / 60000),
+    );
+    segments.push({
+      type: "work",
+      start: checkIn,
+      end: null,
+      durationMinutes: workDuration,
+      isActive: true,
+    });
+  }
+
+  const MAX_VISIBLE = 3;
+  const [expanded, setExpanded] = useState(false);
+  const hasHidden = segments.length > MAX_VISIBLE;
+  const hiddenSegments = hasHidden ? segments.slice(0, -MAX_VISIBLE) : [];
+  const visibleSegments = hasHidden ? segments.slice(-MAX_VISIBLE) : segments;
+
+  const renderRow = (
+    seg: (typeof segments)[number],
+    index: number,
+    showBorder: boolean,
+  ) => (
+    <div
+      key={`${seg.type}-${index}`}
+      className={`flex items-center justify-between py-2.5 text-sm ${
+        showBorder ? "border-t border-gray-50" : ""
+      } ${seg.type === "break" && seg.isActive ? "text-amber-600" : seg.type === "break" ? "text-gray-500" : ""}`}
+    >
+      <span
+        className={`w-14 shrink-0 font-medium ${
+          seg.type === "work" && seg.isActive
+            ? "text-[#83CD2D]"
+            : seg.type === "work"
+              ? "text-gray-600"
+              : ""
+        }`}
+      >
+        {seg.type === "work" ? "Arbeit" : "Pause"}
+      </span>
+      <span
+        className={`w-12 shrink-0 text-center tabular-nums ${
+          seg.type === "work" && seg.isActive
+            ? "text-[#70b525]"
+            : seg.type === "work"
+              ? "text-gray-600"
+              : ""
+        }`}
+      >
+        {formatTimeFromDate(seg.start)}
+      </span>
+      <span
+        className={`shrink-0 ${seg.type === "break" && seg.isActive ? "text-amber-300" : "text-gray-300"}`}
+      >
+        &rarr;
+      </span>
+      <span className="w-12 shrink-0 text-center tabular-nums">
+        {seg.end ? formatTimeFromDate(seg.end) : "···"}
+      </span>
+      <span
+        className={`w-16 shrink-0 text-right tabular-nums ${
+          seg.type === "work" ? "font-medium text-gray-700" : ""
+        }`}
+      >
+        {formatDuration(seg.durationMinutes)}
+      </span>
+    </div>
+  );
+
+  return (
+    <>
+      {/* Collapsible older segments */}
+      {hasHidden && (
+        <div
+          className="grid transition-[grid-template-rows] duration-300 ease-in-out"
+          style={{
+            gridTemplateRows: expanded ? "1fr" : "0fr",
+          }}
+        >
+          <div className="overflow-hidden">
+            {hiddenSegments.map((seg, i) => renderRow(seg, i, i > 0))}
+          </div>
+        </div>
+      )}
+      {/* Always-visible recent segments */}
+      {visibleSegments.map((seg, i) => {
+        const globalIndex = hiddenSegments.length + i;
+        return renderRow(seg, globalIndex, i > 0 || hasHidden);
+      })}
+      {/* Toggle button at the bottom */}
+      {hasHidden && (
+        <button
+          onClick={() => setExpanded(!expanded)}
+          className="w-full border-t border-gray-50 py-1.5 text-center text-xs font-medium text-gray-400 transition-colors hover:text-gray-600"
+        >
+          {expanded
+            ? "Weniger anzeigen"
+            : `${hiddenSegments.length} weitere anzeigen`}
+        </button>
+      )}
+    </>
+  );
+}
+
 // ─── WeekChart ───────────────────────────────────────────────────────────────
 
 const weekChartConfig = {
-  arbeitszeit: { label: "Arbeitszeit", color: "#0ea5e9" }, // sky-500 — matches sidebar icon
-  pause: { label: "Pause", color: "#94a3b8" }, // slate-400 — muted secondary
+  netMinutes: { label: "Arbeitszeit", color: "#0ea5e9" }, // sky-500 — matches sidebar icon
+  breakMinutes: { label: "Pause", color: "#94a3b8" }, // slate-400 — muted secondary
 } satisfies ChartConfig;
 
 function WeekChart({
@@ -594,27 +795,37 @@ function WeekChart({
   const today = new Date();
 
   const chartData = useMemo(() => {
+    // Build 2 weeks of workdays (Mon-Fri): previous week + current week
     const referenceDate = new Date(today);
     referenceDate.setDate(referenceDate.getDate() + weekOffset * 7);
-    const weekDays = getWeekDays(referenceDate);
+    const currentWeek = getWeekDays(referenceDate);
+    const prevRef = new Date(referenceDate);
+    prevRef.setDate(prevRef.getDate() - 7);
+    const prevWeek = getWeekDays(prevRef);
+
+    // Combine both weeks, filter weekends (Sat=5, Sun=6)
+    const allDays = [...prevWeek, ...currentWeek].filter(
+      (d) => d && d.getDay() !== 0 && d.getDay() !== 6,
+    );
 
     const sessionMap = new Map<string, WorkSessionHistory>();
     for (const session of history) {
       sessionMap.set(session.date, session);
     }
 
-    return weekDays.map((day, i) => {
-      if (!day) return { day: DAY_NAMES[i] ?? "", arbeitszeit: 0, pause: 0 };
+    return allDays.map((day) => {
+      if (!day) return { day: "", label: "", netMinutes: 0, breakMinutes: 0 };
 
       const dateKey = toISODate(day);
       const session = sessionMap.get(dateKey);
+      const dayIndex = (day.getDay() + 6) % 7; // Mon=0..Sun=6
 
-      let netHours = 0;
-      let breakHours = 0;
+      let netMins = 0;
+      let breakMins = 0;
 
       if (session) {
         if (session.checkOutTime) {
-          netHours = session.netMinutes / 60;
+          netMins = session.netMinutes;
         } else if (
           isSameDay(day, today) &&
           currentSession &&
@@ -623,56 +834,66 @@ function WeekChart({
           const elapsed = Math.floor(
             (Date.now() - new Date(session.checkInTime).getTime()) / 60000,
           );
-          netHours = Math.max(0, elapsed - session.breakMinutes) / 60;
+          netMins = Math.max(0, elapsed - session.breakMinutes);
         }
-        breakHours = session.breakMinutes / 60;
+        breakMins = session.breakMinutes;
       }
 
       return {
-        day: DAY_NAMES[i] ?? "",
-        arbeitszeit: +netHours.toFixed(1),
-        pause: +breakHours.toFixed(1),
+        day: DAY_NAMES[dayIndex] ?? "",
+        label: `${DAY_NAMES[dayIndex] ?? ""} ${formatDateShort(day)}`,
+        netMinutes: netMins,
+        breakMinutes: breakMins,
       };
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [history, currentSession, weekOffset]);
 
   return (
-    <div className="relative overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)]">
-      <div className="relative p-6 sm:p-8">
+    <div className="relative flex h-full flex-col overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)]">
+      <div className="relative flex min-h-0 flex-1 flex-col p-6 sm:p-8">
         <h3 className="mb-4 text-sm font-semibold text-gray-700">
           Wochenübersicht
         </h3>
-        <ChartContainer config={weekChartConfig} className="h-[180px] w-full">
-          <AreaChart
+        <ChartContainer config={weekChartConfig} className="min-h-0 flex-1">
+          <BarChart
+            accessibilityLayer
             data={chartData}
             margin={{ top: 4, right: 4, bottom: 0, left: -20 }}
           >
-            <CartesianGrid vertical={false} strokeDasharray="3 3" />
+            <CartesianGrid vertical={false} />
             <XAxis
               dataKey="day"
               tickLine={false}
               axisLine={false}
               tickMargin={8}
-              fontSize={12}
+              fontSize={11}
+              interval={0}
             />
             <YAxis
               tickLine={false}
               axisLine={false}
               tickMargin={4}
               fontSize={12}
-              tickFormatter={(v: number) => `${v}h`}
+              tickFormatter={(v: number) => `${Math.round(v / 60)}h`}
               domain={[0, "auto"]}
             />
             <ChartTooltip
               content={
                 <ChartTooltipContent
+                  labelFormatter={(_value, payload) => {
+                    const item = payload[0]?.payload as
+                      | { label?: string }
+                      | undefined;
+                    return item?.label ?? "";
+                  }}
                   formatter={(value, name) => {
-                    const hours = Math.floor(value as number);
-                    const mins = Math.round(((value as number) - hours) * 60);
+                    const totalMins = value as number;
+                    const hours = Math.floor(totalMins / 60);
+                    const mins = totalMins % 60;
                     return (
                       <span>
-                        {name === "arbeitszeit" ? "Arbeitszeit" : "Pause"}:{" "}
+                        {name === "netMinutes" ? "Arbeitszeit" : "Pause"}:{" "}
                         {hours}h {mins}min
                       </span>
                     );
@@ -680,23 +901,20 @@ function WeekChart({
                 />
               }
             />
-            <Area
-              type="monotone"
-              dataKey="pause"
-              stroke="var(--color-pause)"
-              fill="var(--color-pause)"
-              fillOpacity={0.1}
-              strokeWidth={1.5}
+            <ChartLegend content={<ChartLegendContent />} />
+            <Bar
+              dataKey="breakMinutes"
+              stackId="a"
+              fill="var(--color-breakMinutes)"
+              radius={[0, 0, 4, 4]}
             />
-            <Area
-              type="monotone"
-              dataKey="arbeitszeit"
-              stroke="var(--color-arbeitszeit)"
-              fill="var(--color-arbeitszeit)"
-              fillOpacity={0.15}
-              strokeWidth={2}
+            <Bar
+              dataKey="netMinutes"
+              stackId="a"
+              fill="var(--color-netMinutes)"
+              radius={[4, 4, 0, 0]}
             />
-          </AreaChart>
+          </BarChart>
         </ChartContainer>
       </div>
     </div>
@@ -712,6 +930,7 @@ function WeekTable({
   isLoading,
   onEditDay,
   currentSession,
+  currentBreaks,
 }: {
   readonly weekOffset: number;
   readonly onWeekChange: (offset: number) => void;
@@ -719,6 +938,7 @@ function WeekTable({
   readonly isLoading: boolean;
   readonly onEditDay: (date: Date, session: WorkSessionHistory) => void;
   readonly currentSession: WorkSession | null;
+  readonly currentBreaks: WorkSessionBreak[];
 }) {
   const today = new Date();
   const referenceDate = new Date(today);
@@ -734,15 +954,30 @@ function WeekTable({
     sessionMap.set(session.date, session);
   }
 
+  // Live break minutes for active session (cached + active break elapsed)
+  const activeBreak = currentBreaks.find((b) => !b.endedAt);
+  const liveBreakMins = (() => {
+    if (!currentSession || currentSession.checkOutTime) return 0;
+    const cached = currentSession.breakMinutes;
+    if (!activeBreak) return cached;
+    const elapsed = Math.max(
+      0,
+      Math.floor(
+        (Date.now() - new Date(activeBreak.startedAt).getTime()) / 60000,
+      ),
+    );
+    return cached + elapsed;
+  })();
+
   // Calculate weekly total
   const weeklyNetMinutes = history.reduce((sum, s) => {
     if (s.checkOutTime) return sum + s.netMinutes;
-    // For active session, calculate live
+    // For active session, calculate live with real break time
     if (currentSession && !currentSession.checkOutTime) {
       const live = calculateNetMinutes(
         s.checkInTime,
         new Date().toISOString(),
-        s.breakMinutes,
+        liveBreakMins,
       );
       return sum + (live ?? 0);
     }
@@ -827,7 +1062,7 @@ function WeekTable({
               const canEdit =
                 session !== undefined && (isPast || (isToday && !isActive));
 
-              // Calculate net for active session live
+              // Calculate net for active session live (with real break time)
               let netDisplay = "--";
               if (session) {
                 if (session.checkOutTime) {
@@ -836,7 +1071,7 @@ function WeekTable({
                   const live = calculateNetMinutes(
                     session.checkInTime,
                     new Date().toISOString(),
-                    session.breakMinutes,
+                    liveBreakMins,
                   );
                   netDisplay = live !== null ? formatDuration(live) : "--";
                 }
@@ -1177,15 +1412,20 @@ function TimeTrackingContent() {
     date: Date;
     session: WorkSessionHistory;
   } | null>(null);
+  const [currentBreaks, setCurrentBreaks] = useState<WorkSessionBreak[]>([]);
 
-  // Calculate week date range for history fetch (stable across renders)
-  const { fromDate, toDate } = (() => {
+  // Calculate date range: current week + previous week (for chart and table)
+  const { toDate, chartFromDate } = (() => {
     const ref = new Date();
     ref.setDate(ref.getDate() + weekOffset * 7);
     const days = getWeekDays(ref);
+    // Chart needs 2 weeks: go back 1 extra week
+    const prevRef = new Date(ref);
+    prevRef.setDate(prevRef.getDate() - 7);
+    const prevDays = getWeekDays(prevRef);
     return {
-      fromDate: days[0] ? toISODate(days[0]) : "",
       toDate: days[6] ? toISODate(days[6]) : "",
+      chartFromDate: prevDays[0] ? toISODate(prevDays[0]) : "",
     };
   })();
 
@@ -1197,18 +1437,40 @@ function TimeTrackingContent() {
       { keepPreviousData: true, revalidateOnFocus: false, errorRetryCount: 1 },
     );
 
-  // Fetch week history
+  // Fetch history covering 2 weeks (chart needs prev + current week)
   const {
     data: historyData,
     isLoading: historyLoading,
     mutate: mutateHistory,
   } = useSWRAuth<WorkSessionHistory[]>(
-    fromDate && toDate ? `time-tracking-history-${fromDate}-${toDate}` : null,
-    () => timeTrackingService.getHistory(fromDate, toDate),
+    chartFromDate && toDate
+      ? `time-tracking-history-${chartFromDate}-${toDate}`
+      : null,
+    () => timeTrackingService.getHistory(chartFromDate, toDate),
     { keepPreviousData: true, revalidateOnFocus: false, errorRetryCount: 1 },
   );
 
   const history = historyData ?? [];
+
+  // Fetch breaks for current session
+  const fetchBreaks = useCallback(async () => {
+    if (!currentSession?.id || currentSession.checkOutTime) {
+      setCurrentBreaks([]);
+      return;
+    }
+    try {
+      const breaks = await timeTrackingService.getSessionBreaks(
+        currentSession.id,
+      );
+      setCurrentBreaks(breaks);
+    } catch {
+      // Silently handle — breaks will show empty
+    }
+  }, [currentSession?.id, currentSession?.checkOutTime]);
+
+  useEffect(() => {
+    void fetchBreaks();
+  }, [fetchBreaks]);
 
   // Calculate weekly minutes from history (for completed sessions only)
   const weeklyCompletedMinutes = history.reduce((sum, s) => {
@@ -1232,6 +1494,7 @@ function TimeTrackingContent() {
   const handleCheckOut = useCallback(async () => {
     try {
       await timeTrackingService.checkOut();
+      setCurrentBreaks([]);
       await Promise.all([mutateCurrentSession(), mutateHistory()]);
       toast.success("Erfolgreich ausgestempelt");
     } catch (err) {
@@ -1239,17 +1502,23 @@ function TimeTrackingContent() {
     }
   }, [mutateCurrentSession, mutateHistory, toast]);
 
-  const handleBreakUpdate = useCallback(
-    async (minutes: number) => {
-      try {
-        await timeTrackingService.updateBreak(minutes);
-        await mutateCurrentSession();
-      } catch (err) {
-        toast.error(friendlyError(err, "Fehler beim Aktualisieren der Pause"));
-      }
-    },
-    [mutateCurrentSession, toast],
-  );
+  const handleStartBreak = useCallback(async () => {
+    try {
+      await timeTrackingService.startBreak();
+      await fetchBreaks();
+    } catch (err) {
+      toast.error(friendlyError(err, "Fehler beim Starten der Pause"));
+    }
+  }, [fetchBreaks, toast]);
+
+  const handleEndBreak = useCallback(async () => {
+    try {
+      await timeTrackingService.endBreak();
+      await Promise.all([mutateCurrentSession(), fetchBreaks()]);
+    } catch (err) {
+      toast.error(friendlyError(err, "Fehler beim Beenden der Pause"));
+    }
+  }, [mutateCurrentSession, fetchBreaks, toast]);
 
   const handleEditSave = useCallback(
     async (
@@ -1294,9 +1563,11 @@ function TimeTrackingContent() {
       <div className="mb-6 grid grid-cols-1 gap-6 md:grid-cols-2">
         <ClockInCard
           currentSession={currentSession ?? null}
+          breaks={currentBreaks}
           onCheckIn={handleCheckIn}
           onCheckOut={handleCheckOut}
-          onBreakUpdate={handleBreakUpdate}
+          onStartBreak={handleStartBreak}
+          onEndBreak={handleEndBreak}
           weeklyMinutes={weeklyCompletedMinutes}
         />
         <WeekChart
@@ -1314,6 +1585,7 @@ function TimeTrackingContent() {
         isLoading={historyLoading}
         onEditDay={(date, session) => setEditModal({ date, session })}
         currentSession={currentSession ?? null}
+        currentBreaks={currentBreaks}
       />
 
       {/* Edit modal */}

@@ -192,6 +192,25 @@ func (r *WorkSessionRepository) List(ctx context.Context, options *modelBase.Que
 	return sessions, nil
 }
 
+// UpdateBreakMinutes sets the break_minutes cache field on a session
+func (r *WorkSessionRepository) UpdateBreakMinutes(ctx context.Context, id int64, breakMinutes int) error {
+	_, err := r.db.NewUpdate().
+		Table(tableActiveWorkSessions).
+		Set("break_minutes = ?", breakMinutes).
+		Set("updated_at = ?", time.Now()).
+		Where("id = ?", id).
+		Exec(ctx)
+
+	if err != nil {
+		return &modelBase.DatabaseError{
+			Op:  "update break minutes",
+			Err: err,
+		}
+	}
+
+	return nil
+}
+
 // CloseSession sets the check-out time and auto_checked_out flag
 func (r *WorkSessionRepository) CloseSession(ctx context.Context, id int64, checkOutTime time.Time, autoCheckedOut bool) error {
 	_, err := r.db.NewUpdate().

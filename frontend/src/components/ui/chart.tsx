@@ -300,4 +300,68 @@ function getPayloadConfigFromPayload(
   return configLabelKey in config ? config[configLabelKey] : config[key];
 }
 
-export { ChartContainer, ChartTooltip, ChartTooltipContent };
+const ChartLegend = RechartsPrimitive.Legend;
+
+const ChartLegendContent = React.forwardRef<
+  HTMLDivElement,
+  React.ComponentProps<"div"> &
+    Pick<RechartsPrimitive.LegendProps, "payload" | "verticalAlign"> & {
+      hideIcon?: boolean;
+      nameKey?: string;
+    }
+>(
+  (
+    { className, hideIcon = false, payload, verticalAlign = "bottom", nameKey },
+    ref,
+  ) => {
+    const { config } = useChart();
+
+    if (!payload?.length) {
+      return null;
+    }
+
+    return (
+      <div
+        ref={ref}
+        className={cn(
+          "flex items-center justify-center gap-4",
+          verticalAlign === "top" ? "pb-3" : "pt-3",
+          className,
+        )}
+      >
+        {payload.map((item) => {
+          const key = String(nameKey || item.dataKey || "value");
+          const itemConfig = config[key];
+
+          return (
+            <div
+              key={item.value}
+              className="[&>svg]:text-muted-foreground flex items-center gap-1.5 [&>svg]:h-3 [&>svg]:w-3"
+            >
+              {itemConfig?.icon && !hideIcon ? (
+                <itemConfig.icon />
+              ) : (
+                <div
+                  className="h-2 w-2 shrink-0 rounded-[2px]"
+                  style={{
+                    backgroundColor: item.color,
+                  }}
+                />
+              )}
+              <span className="text-muted-foreground">{itemConfig?.label}</span>
+            </div>
+          );
+        })}
+      </div>
+    );
+  },
+);
+ChartLegendContent.displayName = "ChartLegend";
+
+export {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  ChartLegend,
+  ChartLegendContent,
+};

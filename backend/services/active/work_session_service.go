@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"math"
 	"time"
 
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
@@ -22,16 +23,19 @@ type SessionUpdateRequest struct {
 // SessionResponse wraps a work session with calculated fields
 type SessionResponse struct {
 	*activeModels.WorkSession
-	NetMinutes       int  `json:"net_minutes"`
-	IsOvertime       bool `json:"is_overtime"`
-	IsBreakCompliant bool `json:"is_break_compliant"`
+	NetMinutes       int                              `json:"net_minutes"`
+	IsOvertime       bool                             `json:"is_overtime"`
+	IsBreakCompliant bool                             `json:"is_break_compliant"`
+	Breaks           []*activeModels.WorkSessionBreak `json:"breaks"`
 }
 
 // WorkSessionService defines operations for staff time tracking
 type WorkSessionService interface {
 	CheckIn(ctx context.Context, staffID int64, status string) (*activeModels.WorkSession, error)
 	CheckOut(ctx context.Context, staffID int64) (*activeModels.WorkSession, error)
-	UpdateBreakMinutes(ctx context.Context, staffID int64, minutes int) (*activeModels.WorkSession, error)
+	StartBreak(ctx context.Context, staffID int64) (*activeModels.WorkSessionBreak, error)
+	EndBreak(ctx context.Context, staffID int64) (*activeModels.WorkSession, error)
+	GetSessionBreaks(ctx context.Context, sessionID int64) ([]*activeModels.WorkSessionBreak, error)
 	UpdateSession(ctx context.Context, staffID int64, sessionID int64, updates SessionUpdateRequest) (*activeModels.WorkSession, error)
 	GetCurrentSession(ctx context.Context, staffID int64) (*activeModels.WorkSession, error)
 	GetHistory(ctx context.Context, staffID int64, from, to time.Time) ([]*SessionResponse, error)
@@ -42,12 +46,13 @@ type WorkSessionService interface {
 
 // workSessionService implements WorkSessionService
 type workSessionService struct {
-	repo activeModels.WorkSessionRepository
+	repo      activeModels.WorkSessionRepository
+	breakRepo activeModels.WorkSessionBreakRepository
 }
 
 // NewWorkSessionService creates a new work session service
-func NewWorkSessionService(repo activeModels.WorkSessionRepository) WorkSessionService {
-	return &workSessionService{repo: repo}
+func NewWorkSessionService(repo activeModels.WorkSessionRepository, breakRepo activeModels.WorkSessionBreakRepository) WorkSessionService {
+	return &workSessionService{repo: repo, breakRepo: breakRepo}
 }
 
 // CheckIn creates a new work session for the staff member
@@ -135,6 +140,23 @@ func (s *workSessionService) CheckOut(ctx context.Context, staffID int64) (*acti
 		return nil, fmt.Errorf("no active session found")
 	}
 
+	// End any active break before checkout
+	activeBreak, err := s.breakRepo.GetActiveBySessionID(ctx, session.ID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to check active break: %w", err)
+	}
+	if activeBreak != nil {
+		now := time.Now()
+		duration := int(math.Round(now.Sub(activeBreak.StartedAt).Minutes()))
+		if err := s.breakRepo.EndBreak(ctx, activeBreak.ID, now, duration); err != nil {
+			return nil, fmt.Errorf("failed to end active break: %w", err)
+		}
+		// Recalculate break_minutes cache
+		if err := s.recalcBreakMinutes(ctx, session.ID); err != nil {
+			return nil, fmt.Errorf("failed to update break minutes: %w", err)
+		}
+	}
+
 	// Close the session using repository method
 	now := time.Now()
 	if err := s.repo.CloseSession(ctx, session.ID, now, false); err != nil {
@@ -150,39 +172,116 @@ func (s *workSessionService) CheckOut(ctx context.Context, staffID int64) (*acti
 	return updatedSession, nil
 }
 
-// UpdateBreakMinutes updates the break minutes for the current session
-func (s *workSessionService) UpdateBreakMinutes(ctx context.Context, staffID int64, minutes int) (*activeModels.WorkSession, error) {
-	if minutes < 0 {
-		return nil, fmt.Errorf("break minutes cannot be negative")
-	}
-
-	// Get today's session
-	today := time.Now().Truncate(24 * time.Hour)
-	session, err := s.repo.GetByStaffAndDate(ctx, staffID, today)
+// StartBreak starts a new break for the current session
+func (s *workSessionService) StartBreak(ctx context.Context, staffID int64) (*activeModels.WorkSessionBreak, error) {
+	// Get today's active session
+	session, err := s.repo.GetCurrentByStaffID(ctx, staffID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, fmt.Errorf("no session found for today")
+			return nil, fmt.Errorf("no active session found")
 		}
-		return nil, fmt.Errorf("failed to get session: %w", err)
+		return nil, fmt.Errorf("failed to get current session: %w", err)
 	}
-
 	if session == nil {
-		return nil, fmt.Errorf("no session found for today")
+		return nil, fmt.Errorf("no active session found")
 	}
 
-	// Update break minutes
-	session.BreakMinutes = minutes
-	session.UpdatedBy = &staffID
-
-	if err := session.Validate(); err != nil {
-		return nil, fmt.Errorf("invalid session data: %w", err)
+	// Check no active break exists
+	activeBreak, err := s.breakRepo.GetActiveBySessionID(ctx, session.ID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to check active break: %w", err)
+	}
+	if activeBreak != nil {
+		return nil, fmt.Errorf("break already active")
 	}
 
-	if err := s.repo.Update(ctx, session); err != nil {
+	// Create a new break
+	now := time.Now()
+	brk := &activeModels.WorkSessionBreak{
+		SessionID: session.ID,
+		StartedAt: now,
+	}
+	brk.CreatedAt = now
+	brk.UpdatedAt = now
+
+	if err := s.breakRepo.Create(ctx, brk); err != nil {
+		return nil, fmt.Errorf("failed to create break: %w", err)
+	}
+
+	return brk, nil
+}
+
+// EndBreak ends the current active break for the staff member's session
+func (s *workSessionService) EndBreak(ctx context.Context, staffID int64) (*activeModels.WorkSession, error) {
+	// Get today's active session
+	session, err := s.repo.GetCurrentByStaffID(ctx, staffID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, fmt.Errorf("no active session found")
+		}
+		return nil, fmt.Errorf("failed to get current session: %w", err)
+	}
+	if session == nil {
+		return nil, fmt.Errorf("no active session found")
+	}
+
+	// Find active break
+	activeBreak, err := s.breakRepo.GetActiveBySessionID(ctx, session.ID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get active break: %w", err)
+	}
+	if activeBreak == nil {
+		return nil, fmt.Errorf("no active break found")
+	}
+
+	// End the break
+	now := time.Now()
+	duration := int(math.Round(now.Sub(activeBreak.StartedAt).Minutes()))
+	if err := s.breakRepo.EndBreak(ctx, activeBreak.ID, now, duration); err != nil {
+		return nil, fmt.Errorf("failed to end break: %w", err)
+	}
+
+	// Recalculate break_minutes cache on session
+	if err := s.recalcBreakMinutes(ctx, session.ID); err != nil {
 		return nil, fmt.Errorf("failed to update break minutes: %w", err)
 	}
 
-	return session, nil
+	// Re-fetch updated session
+	updatedSession, err := s.repo.FindByID(ctx, session.ID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve updated session: %w", err)
+	}
+
+	return updatedSession, nil
+}
+
+// GetSessionBreaks returns all breaks for a given session
+func (s *workSessionService) GetSessionBreaks(ctx context.Context, sessionID int64) ([]*activeModels.WorkSessionBreak, error) {
+	breaks, err := s.breakRepo.GetBySessionID(ctx, sessionID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get session breaks: %w", err)
+	}
+	return breaks, nil
+}
+
+// recalcBreakMinutes sums all break durations for a session and updates the cache
+func (s *workSessionService) recalcBreakMinutes(ctx context.Context, sessionID int64) error {
+	breaks, err := s.breakRepo.GetBySessionID(ctx, sessionID)
+	if err != nil {
+		return fmt.Errorf("failed to get breaks for recalc: %w", err)
+	}
+
+	totalMinutes := 0
+	for _, brk := range breaks {
+		if brk.EndedAt != nil {
+			totalMinutes += brk.DurationMinutes
+		} else {
+			// Active break: compute live duration
+			totalMinutes += int(math.Round(time.Since(brk.StartedAt).Minutes()))
+		}
+	}
+
+	return s.repo.UpdateBreakMinutes(ctx, sessionID, totalMinutes)
 }
 
 // UpdateSession updates a work session with the provided fields
@@ -253,14 +352,20 @@ func (s *workSessionService) GetHistory(ctx context.Context, staffID int64, from
 		return nil, fmt.Errorf("failed to get session history: %w", err)
 	}
 
-	// Wrap each session in SessionResponse with calculated fields
+	// Wrap each session in SessionResponse with calculated fields and breaks
 	responses := make([]*SessionResponse, len(sessions))
 	for i, session := range sessions {
+		breaks, err := s.breakRepo.GetBySessionID(ctx, session.ID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get breaks for session %d: %w", session.ID, err)
+		}
+
 		responses[i] = &SessionResponse{
 			WorkSession:      session,
 			NetMinutes:       session.NetMinutes(),
 			IsOvertime:       session.IsOvertime(),
 			IsBreakCompliant: session.IsBreakCompliant(),
+			Breaks:           breaks,
 		}
 	}
 

@@ -179,4 +179,21 @@ type WorkSessionRepository interface {
 
 	// CloseSession sets the check-out time and auto_checked_out flag
 	CloseSession(ctx context.Context, id int64, checkOutTime time.Time, autoCheckedOut bool) error
+
+	// UpdateBreakMinutes sets the break_minutes cache field on a session
+	UpdateBreakMinutes(ctx context.Context, id int64, breakMinutes int) error
+}
+
+// WorkSessionBreakRepository defines operations for managing work session breaks
+type WorkSessionBreakRepository interface {
+	base.Repository[*WorkSessionBreak]
+
+	// GetBySessionID returns all breaks for a given session ordered by started_at
+	GetBySessionID(ctx context.Context, sessionID int64) ([]*WorkSessionBreak, error)
+
+	// GetActiveBySessionID returns the currently active (no ended_at) break for a session, or nil
+	GetActiveBySessionID(ctx context.Context, sessionID int64) (*WorkSessionBreak, error)
+
+	// EndBreak sets ended_at and duration_minutes on a break
+	EndBreak(ctx context.Context, id int64, endedAt time.Time, durationMinutes int) error
 }

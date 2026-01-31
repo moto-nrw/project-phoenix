@@ -46,7 +46,8 @@ type Result struct {
 	DevicesByRoom map[int64]*iot.Device // room_id -> device
 
 	// Time tracking
-	WorkSessions []*active.WorkSession
+	WorkSessions      []*active.WorkSession
+	WorkSessionBreaks []*active.WorkSessionBreak
 
 	// Lookup maps for relationships
 	PersonByID        map[int64]*users.Person

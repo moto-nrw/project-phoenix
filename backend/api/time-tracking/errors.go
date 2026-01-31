@@ -13,12 +13,14 @@ func classifyServiceError(err error) render.Renderer {
 
 	switch {
 	case msg == "already checked in",
-		msg == "already checked out today":
+		msg == "already checked out today",
+		msg == "break already active":
 		return ErrorConflict(err)
 
 	case msg == "no active session found",
 		msg == "no session found for today",
-		msg == "session not found":
+		msg == "session not found",
+		msg == "no active break found":
 		return ErrorNotFound(err)
 
 	case msg == "can only update own sessions":

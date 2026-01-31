@@ -1,9 +1,14 @@
 // Time tracking API service for check-in/out and history management
 
 import { getSession } from "next-auth/react";
-import type { WorkSession, WorkSessionHistory } from "./time-tracking-helpers";
+import type {
+  WorkSession,
+  WorkSessionBreak,
+  WorkSessionHistory,
+} from "./time-tracking-helpers";
 import {
   mapWorkSessionResponse,
+  mapWorkSessionBreakResponse,
   mapWorkSessionHistoryResponse,
 } from "./time-tracking-helpers";
 
@@ -40,13 +45,6 @@ export interface UpdateSessionRequest {
   checkOutTime?: string;
   breakMinutes?: number;
   notes?: string;
-}
-
-/**
- * Update break request body
- */
-export interface UpdateBreakRequest {
-  minutes: number;
 }
 
 /**
@@ -194,28 +192,72 @@ class TimeTrackingService {
   }
 
   /**
-   * Update break duration for current session
-   * @param minutes - Break duration in minutes
-   * @returns Updated work session
+   * Start a new break for the current session
+   * @returns Created break
    */
-  async updateBreak(minutes: number): Promise<WorkSession> {
+  async startBreak(): Promise<WorkSessionBreak> {
     const token = await this.getToken();
-    const response = await fetch(`${this.baseUrl}/break`, {
+    const response = await fetch(`${this.baseUrl}/break/start`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         ...(token && { Authorization: `Bearer ${token}` }),
       },
-      body: JSON.stringify({ minutes }),
     });
 
     if (!response.ok) {
       const error = (await response.json()) as ErrorResponse;
-      throw new Error(error.error ?? error.message ?? "Failed to update break");
+      throw new Error(error.error ?? error.message ?? "Failed to start break");
+    }
+
+    const result = (await response.json()) as ApiResponse<WorkSessionBreak>;
+    return mapWorkSessionBreakResponse(result.data as never);
+  }
+
+  /**
+   * End the current active break
+   * @returns Updated work session
+   */
+  async endBreak(): Promise<WorkSession> {
+    const token = await this.getToken();
+    const response = await fetch(`${this.baseUrl}/break/end`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token && { Authorization: `Bearer ${token}` }),
+      },
+    });
+
+    if (!response.ok) {
+      const error = (await response.json()) as ErrorResponse;
+      throw new Error(error.error ?? error.message ?? "Failed to end break");
     }
 
     const result = (await response.json()) as ApiResponse<WorkSession>;
     return mapWorkSessionResponse(result.data as never);
+  }
+
+  /**
+   * Get breaks for a specific session
+   * @param sessionId - Session ID
+   * @returns Array of breaks
+   */
+  async getSessionBreaks(sessionId: string): Promise<WorkSessionBreak[]> {
+    const token = await this.getToken();
+    const response = await fetch(`${this.baseUrl}/breaks/${sessionId}`, {
+      method: "GET",
+      headers: {
+        ...(token && { Authorization: `Bearer ${token}` }),
+      },
+    });
+
+    if (!response.ok) {
+      const error = (await response.json()) as ErrorResponse;
+      throw new Error(error.error ?? error.message ?? "Failed to get breaks");
+    }
+
+    const result = (await response.json()) as ApiResponse<WorkSessionBreak[]>;
+    return result.data.map((brk) => mapWorkSessionBreakResponse(brk as never));
   }
 }
 

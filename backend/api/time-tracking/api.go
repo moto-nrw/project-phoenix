@@ -45,13 +45,16 @@ func (rs *Resource) Router() chi.Router {
 		r.Use(jwt.Authenticator)
 
 		// All time-tracking endpoints require TimeTrackingOwn permission
-		// NOTE: permissions.TimeTrackingOwn constant needs to be added to auth/authorize/permissions/constants.go
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn)).Post("/check-in", rs.checkIn)
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn)).Post("/check-out", rs.checkOut)
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn)).Get("/current", rs.getCurrent)
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn)).Get("/history", rs.getHistory)
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn)).Put("/{id}", rs.updateSession)
-		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn)).Patch("/break", rs.updateBreak)
+
+		// Break management
+		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn)).Post("/break/start", rs.startBreak)
+		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn)).Post("/break/end", rs.endBreak)
+		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn)).Get("/breaks/{sessionId}", rs.getBreaks)
 
 		// Presence map - for internal use by staff page
 		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/presence-map", rs.getPresenceMap)
@@ -69,19 +72,6 @@ type CheckInRequest struct {
 func (req *CheckInRequest) Bind(_ *http.Request) error {
 	if req.Status != "present" && req.Status != "home_office" {
 		return errors.New("status must be 'present' or 'home_office'")
-	}
-	return nil
-}
-
-// BreakUpdateRequest represents a break update request
-type BreakUpdateRequest struct {
-	Minutes int `json:"minutes"`
-}
-
-// Bind validates the break update request
-func (req *BreakUpdateRequest) Bind(_ *http.Request) error {
-	if req.Minutes < 0 {
-		return errors.New("minutes cannot be negative")
 	}
 	return nil
 }
@@ -249,8 +239,8 @@ func (rs *Resource) updateSession(w http.ResponseWriter, r *http.Request) {
 	common.Respond(w, r, http.StatusOK, session, "Session updated successfully")
 }
 
-// updateBreak handles PATCH /api/time-tracking/break
-func (rs *Resource) updateBreak(w http.ResponseWriter, r *http.Request) {
+// startBreak handles POST /api/time-tracking/break/start
+func (rs *Resource) startBreak(w http.ResponseWriter, r *http.Request) {
 	// Get staff ID from JWT claims
 	userClaims := jwt.ClaimsFromCtx(r.Context())
 	staffID, err := rs.getStaffIDFromClaims(r.Context(), userClaims)
@@ -259,21 +249,54 @@ func (rs *Resource) updateBreak(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Parse request
-	req := &BreakUpdateRequest{}
-	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(err))
-		return
-	}
-
-	// Call service to update break minutes
-	session, err := rs.WorkSessionService.UpdateBreakMinutes(r.Context(), staffID, req.Minutes)
+	// Call service to start break
+	brk, err := rs.WorkSessionService.StartBreak(r.Context(), staffID)
 	if err != nil {
 		common.RenderError(w, r, classifyServiceError(err))
 		return
 	}
 
-	common.Respond(w, r, http.StatusOK, session, "Break updated successfully")
+	common.Respond(w, r, http.StatusOK, brk, "Break started")
+}
+
+// endBreak handles POST /api/time-tracking/break/end
+func (rs *Resource) endBreak(w http.ResponseWriter, r *http.Request) {
+	// Get staff ID from JWT claims
+	userClaims := jwt.ClaimsFromCtx(r.Context())
+	staffID, err := rs.getStaffIDFromClaims(r.Context(), userClaims)
+	if err != nil {
+		common.RenderError(w, r, ErrorUnauthorized(err))
+		return
+	}
+
+	// Call service to end break
+	session, err := rs.WorkSessionService.EndBreak(r.Context(), staffID)
+	if err != nil {
+		common.RenderError(w, r, classifyServiceError(err))
+		return
+	}
+
+	common.Respond(w, r, http.StatusOK, session, "Break ended")
+}
+
+// getBreaks handles GET /api/time-tracking/breaks/{sessionId}
+func (rs *Resource) getBreaks(w http.ResponseWriter, r *http.Request) {
+	// Parse session ID from URL
+	idStr := chi.URLParam(r, "sessionId")
+	sessionID, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid session ID")))
+		return
+	}
+
+	// Get breaks
+	breaks, err := rs.WorkSessionService.GetSessionBreaks(r.Context(), sessionID)
+	if err != nil {
+		common.RenderError(w, r, ErrorInternalServer(err))
+		return
+	}
+
+	common.Respond(w, r, http.StatusOK, breaks, "Breaks retrieved successfully")
 }
 
 // getPresenceMap handles GET /api/time-tracking/presence-map

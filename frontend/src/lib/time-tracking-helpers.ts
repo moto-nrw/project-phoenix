@@ -17,10 +17,21 @@ export interface BackendWorkSession {
   updated_at: string;
 }
 
+export interface BackendWorkSessionBreak {
+  id: number;
+  session_id: number;
+  started_at: string;
+  ended_at: string | null;
+  duration_minutes: number;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface BackendWorkSessionHistory extends BackendWorkSession {
   net_minutes: number;
   is_overtime: boolean;
   is_break_compliant: boolean;
+  breaks: BackendWorkSessionBreak[] | null;
 }
 
 // Frontend types (camelCase, string IDs)
@@ -40,10 +51,19 @@ export interface WorkSession {
   updatedAt: string;
 }
 
+export interface WorkSessionBreak {
+  id: string;
+  sessionId: string;
+  startedAt: string;
+  endedAt: string | null;
+  durationMinutes: number;
+}
+
 export interface WorkSessionHistory extends WorkSession {
   netMinutes: number;
   isOvertime: boolean;
   isBreakCompliant: boolean;
+  breaks: WorkSessionBreak[];
 }
 
 /**
@@ -68,6 +88,21 @@ export function mapWorkSessionResponse(data: BackendWorkSession): WorkSession {
 }
 
 /**
+ * Maps backend break response to frontend type
+ */
+export function mapWorkSessionBreakResponse(
+  data: BackendWorkSessionBreak,
+): WorkSessionBreak {
+  return {
+    id: data.id.toString(),
+    sessionId: data.session_id.toString(),
+    startedAt: data.started_at,
+    endedAt: data.ended_at ?? null,
+    durationMinutes: data.duration_minutes,
+  };
+}
+
+/**
  * Maps backend work session history response to frontend type
  */
 export function mapWorkSessionHistoryResponse(
@@ -78,6 +113,7 @@ export function mapWorkSessionHistoryResponse(
     netMinutes: data.net_minutes,
     isOvertime: data.is_overtime,
     isBreakCompliant: data.is_break_compliant,
+    breaks: (data.breaks ?? []).map(mapWorkSessionBreakResponse),
   };
 }
 
