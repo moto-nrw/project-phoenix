@@ -8,7 +8,10 @@ import { createGetHandler } from "~/lib/route-wrapper";
  */
 export const GET = createGetHandler<unknown>(
   async (_request: NextRequest, token: string) => {
-    const response = await apiGet("/api/time-tracking/current", token);
-    return response;
+    const response = await apiGet<{ data: unknown }>(
+      "/api/time-tracking/current",
+      token,
+    );
+    return response.data;
   },
 );

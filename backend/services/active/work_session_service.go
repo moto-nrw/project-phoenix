@@ -75,7 +75,8 @@ func (s *workSessionService) CheckIn(ctx context.Context, staffID int64, status 
 		if existingSession.IsActive() {
 			return nil, fmt.Errorf("already checked in")
 		}
-		return nil, fmt.Errorf("already checked out today")
+		// Re-open the checked-out session (accidental checkout recovery)
+		return s.reopenSession(ctx, existingSession, staffID, status)
 	}
 
 	// Create new session
@@ -96,6 +97,24 @@ func (s *workSessionService) CheckIn(ctx context.Context, staffID int64, status 
 
 	if err := s.repo.Create(ctx, session); err != nil {
 		return nil, fmt.Errorf("failed to create work session: %w", err)
+	}
+
+	return session, nil
+}
+
+// reopenSession clears checkout on an existing session so the staff member can continue working
+func (s *workSessionService) reopenSession(ctx context.Context, session *activeModels.WorkSession, staffID int64, status string) (*activeModels.WorkSession, error) {
+	session.CheckOutTime = nil
+	session.AutoCheckedOut = false
+	session.Status = status
+	session.UpdatedBy = &staffID
+
+	if err := session.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid session data: %w", err)
+	}
+
+	if err := s.repo.Update(ctx, session); err != nil {
+		return nil, fmt.Errorf("failed to reopen session: %w", err)
 	}
 
 	return session, nil

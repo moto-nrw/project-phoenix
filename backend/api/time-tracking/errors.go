@@ -2,9 +2,36 @@ package timetracking
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/go-chi/render"
 )
+
+// classifyServiceError maps known business errors to appropriate HTTP status codes
+func classifyServiceError(err error) render.Renderer {
+	msg := err.Error()
+
+	switch {
+	case msg == "already checked in",
+		msg == "already checked out today":
+		return ErrorConflict(err)
+
+	case msg == "no active session found",
+		msg == "no session found for today",
+		msg == "session not found":
+		return ErrorNotFound(err)
+
+	case msg == "can only update own sessions":
+		return ErrorForbidden(err)
+
+	case strings.HasPrefix(msg, "status must be"),
+		msg == "break minutes cannot be negative":
+		return ErrorInvalidRequest(err)
+
+	default:
+		return ErrorInternalServer(err)
+	}
+}
 
 // ErrorResponse represents an HTTP error response
 type ErrorResponse struct {
@@ -56,6 +83,16 @@ func ErrorNotFound(err error) render.Renderer {
 	return &ErrorResponse{
 		Err:            err,
 		HTTPStatusCode: http.StatusNotFound,
+		Status:         "error",
+		ErrorText:      err.Error(),
+	}
+}
+
+// ErrorConflict returns a 409 Conflict error
+func ErrorConflict(err error) render.Renderer {
+	return &ErrorResponse{
+		Err:            err,
+		HTTPStatusCode: http.StatusConflict,
 		Status:         "error",
 		ErrorText:      err.Error(),
 	}

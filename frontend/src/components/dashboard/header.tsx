@@ -299,6 +299,7 @@ function HeaderBreadcrumb({
     "/staff",
     "/substitutions",
     "/statistics",
+    "/time-tracking",
   ];
 
   if (simpleTitleRoutes.includes(pathname)) {

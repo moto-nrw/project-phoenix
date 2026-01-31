@@ -12,7 +12,11 @@ interface CheckInRequest {
  */
 export const POST = createPostHandler<unknown, CheckInRequest>(
   async (_request: NextRequest, body: CheckInRequest, token: string) => {
-    const response = await apiPost("/api/time-tracking/check-in", token, body);
-    return response;
+    const response = await apiPost<{ data: unknown }>(
+      "/api/time-tracking/check-in",
+      token,
+      body,
+    );
+    return response.data;
   },
 );

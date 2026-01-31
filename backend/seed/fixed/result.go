@@ -1,6 +1,7 @@
 package fixed
 
 import (
+	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/education"
@@ -43,6 +44,9 @@ type Result struct {
 	// IoT entities
 	Devices       []*iot.Device
 	DevicesByRoom map[int64]*iot.Device // room_id -> device
+
+	// Time tracking
+	WorkSessions []*active.WorkSession
 
 	// Lookup maps for relationships
 	PersonByID        map[int64]*users.Person

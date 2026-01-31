@@ -1,9 +1,16 @@
 "use client";
 
-import { useState, useEffect, useCallback, Suspense } from "react";
+import { useState, useEffect, useCallback, useMemo, Suspense } from "react";
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
+import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import { Loading } from "~/components/ui/loading";
+import {
+  type ChartConfig,
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+} from "~/components/ui/chart";
 import { Modal } from "~/components/ui/modal";
 import { useToast } from "~/contexts/ToastContext";
 import { useSWRAuth } from "~/lib/swr";
@@ -57,6 +64,29 @@ function isBeforeDay(a: Date, b: Date): boolean {
   return aDate.getTime() < bDate.getTime();
 }
 
+// Maps backend error messages to user-friendly German messages
+function friendlyError(err: unknown, fallback: string): string {
+  const msg =
+    err instanceof Error ? err.message : typeof err === "string" ? err : "";
+
+  // Extract backend error from nested API error format
+  const match = /"error":"([^"]+)"/.exec(msg);
+  const code = match?.[1] ?? msg;
+
+  const map: Record<string, string> = {
+    "already checked in": "Du bist bereits eingestempelt.",
+    "already checked out today": "Du hast heute bereits gearbeitet.", // kept for backwards compat
+    "no active session found": "Kein aktiver Eintrag vorhanden.",
+    "no session found for today": "Kein Eintrag für heute vorhanden.",
+    "session not found": "Eintrag nicht gefunden.",
+    "can only update own sessions": "Du kannst nur eigene Einträge bearbeiten.",
+    "break minutes cannot be negative":
+      "Pausenminuten dürfen nicht negativ sein.",
+  };
+
+  return map[code] ?? fallback;
+}
+
 const DAY_NAMES = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
 const DAY_NAMES_LONG = [
   "Montag",
@@ -82,14 +112,12 @@ function extractTimeFromISO(isoString: string): string {
 
 function ClockInCard({
   currentSession,
-  isLoading,
   onCheckIn,
   onCheckOut,
   onBreakUpdate,
   weeklyMinutes,
 }: {
   readonly currentSession: WorkSession | null;
-  readonly isLoading: boolean;
   readonly onCheckIn: (status: "present" | "home_office") => Promise<void>;
   readonly onCheckOut: () => Promise<void>;
   readonly onBreakUpdate: (minutes: number) => Promise<void>;
@@ -98,20 +126,12 @@ function ClockInCard({
   const [mode, setMode] = useState<"present" | "home_office">("present");
   const [actionLoading, setActionLoading] = useState(false);
   const [elapsedMinutes, setElapsedMinutes] = useState(0);
-  const [currentTime, setCurrentTime] = useState(() => new Date());
-  const [breakInput, setBreakInput] = useState("");
+  const [showBreakInput, setShowBreakInput] = useState(false);
 
   const isCheckedIn =
     currentSession !== null && currentSession.checkOutTime === null;
   const isCheckedOut =
     currentSession !== null && currentSession.checkOutTime !== null;
-
-  // Sync break input when session changes
-  useEffect(() => {
-    if (currentSession) {
-      setBreakInput(currentSession.breakMinutes.toString());
-    }
-  }, [currentSession]);
 
   // Live timer: update elapsed time every 60s
   useEffect(() => {
@@ -122,20 +142,12 @@ function ClockInCard({
       const now = new Date();
       const totalMin = Math.floor((now.getTime() - checkIn.getTime()) / 60000);
       setElapsedMinutes(Math.max(0, totalMin - currentSession.breakMinutes));
-      setCurrentTime(now);
     };
 
     updateElapsed();
     const interval = setInterval(updateElapsed, 60000);
     return () => clearInterval(interval);
   }, [isCheckedIn, currentSession]);
-
-  // Update current time every 60s for the button display
-  useEffect(() => {
-    if (isCheckedIn) return; // Already handled above
-    const interval = setInterval(() => setCurrentTime(new Date()), 60000);
-    return () => clearInterval(interval);
-  }, [isCheckedIn]);
 
   const handleCheckIn = async () => {
     setActionLoading(true);
@@ -155,23 +167,17 @@ function ClockInCard({
     }
   };
 
-  const handleBreakBlur = async () => {
-    const minutes = parseInt(breakInput, 10);
-    if (
-      Number.isNaN(minutes) ||
-      minutes < 0 ||
-      minutes === currentSession?.breakMinutes
-    )
-      return;
-    await onBreakUpdate(minutes);
-  };
-
-  const timeStr = `${currentTime.getHours().toString().padStart(2, "0")}:${currentTime.getMinutes().toString().padStart(2, "0")}`;
+  // Format elapsed as H:MM
+  const timerDisplay = (() => {
+    const h = Math.floor(elapsedMinutes / 60);
+    const m = elapsedMinutes % 60;
+    return `${h}:${m.toString().padStart(2, "0")}`;
+  })();
 
   // Break compliance warning
   const breakWarning = (() => {
     if (!isCheckedIn || !currentSession) return null;
-    const breakMins = parseInt(breakInput, 10) || 0;
+    const breakMins = currentSession?.breakMinutes ?? 0;
     if (elapsedMinutes > 540 && breakMins < 45) {
       return "45 Min Pause ab 9h nötig (§4 ArbZG)";
     }
@@ -181,45 +187,28 @@ function ClockInCard({
     return null;
   })();
 
-  if (isLoading) {
-    return (
-      <div className="rounded-3xl border border-gray-100/50 bg-white/90 p-8 shadow-[0_8px_30px_rgb(0,0,0,0.12)]">
-        <div className="animate-pulse space-y-4">
-          <div className="h-6 w-48 rounded bg-gray-200" />
-          <div className="h-16 w-full rounded-2xl bg-gray-200" />
-          <div className="h-4 w-32 rounded bg-gray-200" />
-        </div>
-      </div>
-    );
-  }
+  // Computed net minutes for checked-out state
+  const checkedOutNet =
+    isCheckedOut && currentSession
+      ? calculateNetMinutes(
+          currentSession.checkInTime,
+          currentSession.checkOutTime,
+          currentSession.breakMinutes,
+        )
+      : null;
 
   return (
     <div className="relative overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)]">
       <div className="relative p-6 sm:p-8">
-        {/* Status line */}
-        <div className="mb-6 flex items-center gap-3">
-          <div
-            className={`h-3 w-3 rounded-full ${
-              isCheckedIn
-                ? currentSession?.status === "home_office"
-                  ? "bg-amber-500"
-                  : "bg-green-500"
-                : "bg-gray-400"
-            }`}
-          />
-          <span className="text-sm font-medium text-gray-600">
-            {isCheckedIn
-              ? `Eingestempelt seit ${formatTime(currentSession?.checkInTime)}`
-              : isCheckedOut
-                ? `Ausgestempelt um ${formatTime(currentSession?.checkOutTime)}`
-                : "Nicht eingestempelt"}
-          </span>
+        {/* Title + status badge */}
+        <div className="mb-5 flex items-center justify-between">
+          <h2 className="text-lg font-bold text-gray-900">Zeiterfassung</h2>
           {isCheckedIn && currentSession && (
             <span
               className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
                 currentSession.status === "home_office"
                   ? "bg-amber-100 text-amber-700"
-                  : "bg-green-100 text-green-700"
+                  : "bg-[#83CD2D]/10 text-[#70b525]"
               }`}
             >
               {currentSession.status === "home_office"
@@ -229,155 +218,356 @@ function ClockInCard({
           )}
         </div>
 
-        {/* Mode selection (only before check-in) */}
+        {/* ── Not checked in: start controls ── */}
         {!isCheckedIn && !isCheckedOut && (
-          <div className="mb-6 flex gap-3">
-            <button
-              onClick={() => setMode("present")}
-              className={`flex-1 rounded-xl px-4 py-3 text-sm font-medium transition-all ${
-                mode === "present"
-                  ? "bg-green-100 text-green-800 ring-2 ring-green-400"
-                  : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-              }`}
-            >
-              Anwesend
-            </button>
-            <button
-              onClick={() => setMode("home_office")}
-              className={`flex-1 rounded-xl px-4 py-3 text-sm font-medium transition-all ${
-                mode === "home_office"
-                  ? "bg-amber-100 text-amber-800 ring-2 ring-amber-400"
-                  : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-              }`}
-            >
-              Homeoffice
-            </button>
-          </div>
-        )}
-
-        {/* Main action button */}
-        {!isCheckedOut && (
-          <button
-            onClick={isCheckedIn ? handleCheckOut : handleCheckIn}
-            disabled={actionLoading}
-            className={`w-full rounded-2xl px-6 py-5 text-lg font-bold text-white transition-all active:scale-[0.98] disabled:opacity-60 ${
-              isCheckedIn
-                ? "bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700"
-                : mode === "home_office"
-                  ? "bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700"
-                  : "bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700"
-            }`}
-          >
-            <div className="flex flex-col items-center gap-1">
-              <span>
-                {actionLoading
-                  ? "..."
-                  : isCheckedIn
-                    ? "AUSSTEMPELN"
-                    : "EINSTEMPELN"}
-              </span>
-              <span className="text-sm font-normal opacity-80">
-                {isCheckedIn ? formatDuration(elapsedMinutes) : timeStr}
-              </span>
-            </div>
-          </button>
-        )}
-
-        {/* Checked out summary */}
-        {isCheckedOut && currentSession && (
-          <div className="rounded-2xl bg-gray-50 p-5">
-            <div className="grid grid-cols-2 gap-4 text-sm sm:grid-cols-4">
-              <div>
-                <span className="text-gray-500">Start</span>
-                <p className="font-medium text-gray-900">
-                  {formatTime(currentSession.checkInTime)}
-                </p>
-              </div>
-              <div>
-                <span className="text-gray-500">Ende</span>
-                <p className="font-medium text-gray-900">
-                  {formatTime(currentSession.checkOutTime)}
-                </p>
-              </div>
-              <div>
-                <span className="text-gray-500">Pause</span>
-                <p className="font-medium text-gray-900">
-                  {currentSession.breakMinutes} Min
-                </p>
-              </div>
-              <div>
-                <span className="text-gray-500">Netto</span>
-                <p className="font-medium text-gray-900">
-                  {formatDuration(
-                    calculateNetMinutes(
-                      currentSession.checkInTime,
-                      currentSession.checkOutTime,
-                      currentSession.breakMinutes,
-                    ),
-                  )}
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Break input (only when checked in) */}
-        {isCheckedIn && (
-          <div className="mt-5">
-            <div className="flex items-center gap-3">
-              <label
-                htmlFor="break-minutes"
-                className="text-sm font-medium text-gray-600"
+          <div className="flex flex-col items-center gap-5">
+            {/* Mode toggle */}
+            <div className="flex gap-2">
+              <button
+                onClick={() => setMode("present")}
+                className={`rounded-full px-4 py-1.5 text-xs font-medium transition-all ${
+                  mode === "present"
+                    ? "bg-[#83CD2D]/10 text-[#70b525] ring-1 ring-[#83CD2D]/40"
+                    : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+                }`}
               >
-                Pause:
-              </label>
-              <input
-                id="break-minutes"
-                type="number"
-                min={0}
-                max={480}
-                value={breakInput}
-                onChange={(e) => setBreakInput(e.target.value)}
-                onBlur={handleBreakBlur}
-                className="w-20 rounded-lg border border-gray-200 px-3 py-1.5 text-center text-sm focus:border-blue-400 focus:ring-1 focus:ring-blue-400 focus:outline-none"
-              />
-              <span className="text-sm text-gray-500">Min</span>
+                Anwesend
+              </button>
+              <button
+                onClick={() => setMode("home_office")}
+                className={`rounded-full px-4 py-1.5 text-xs font-medium transition-all ${
+                  mode === "home_office"
+                    ? "bg-amber-100 text-amber-800 ring-1 ring-amber-300"
+                    : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+                }`}
+              >
+                Homeoffice
+              </button>
             </div>
-            {breakWarning && (
-              <p className="mt-2 text-xs font-medium text-amber-600">
-                ⚠ {breakWarning}
-              </p>
+
+            {/* Play button */}
+            <button
+              onClick={handleCheckIn}
+              disabled={actionLoading}
+              className={`flex h-16 w-16 items-center justify-center rounded-full border-2 transition-all active:scale-95 disabled:opacity-50 ${
+                mode === "home_office"
+                  ? "border-amber-500 text-amber-500 hover:bg-amber-50"
+                  : "border-[#83CD2D] text-[#83CD2D] hover:bg-[#83CD2D]/5"
+              }`}
+              aria-label="Einstempeln"
+            >
+              {actionLoading ? (
+                <div className="h-5 w-5 animate-spin rounded-full border-2 border-current border-t-transparent" />
+              ) : (
+                <svg
+                  className="ml-0.5 h-7 w-7"
+                  fill="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path d="M8 5v14l11-7z" />
+                </svg>
+              )}
+            </button>
+
+            <span className="text-sm text-gray-400">Einstempeln</span>
+          </div>
+        )}
+
+        {/* ── Checked in: timer controls ── */}
+        {isCheckedIn && (
+          <>
+            {/* Control row: pause | timer | stop */}
+            <div className="mb-5 flex items-center justify-between">
+              {/* Pause button */}
+              <div className="relative">
+                <button
+                  onClick={() => setShowBreakInput((v) => !v)}
+                  className={`flex h-12 w-12 items-center justify-center rounded-full border-2 transition-all active:scale-95 ${
+                    currentSession && currentSession.breakMinutes > 0
+                      ? "border-amber-400 text-amber-500 hover:bg-amber-50"
+                      : "border-gray-200 text-gray-400 hover:border-gray-300 hover:text-gray-500"
+                  }`}
+                  aria-label="Pause bearbeiten"
+                  title={`Pause: ${currentSession?.breakMinutes ?? 0} Min`}
+                >
+                  <svg
+                    className="h-5 w-5"
+                    fill="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
+                  </svg>
+                </button>
+
+                {/* Break quick-select popover */}
+                {showBreakInput && (
+                  <div className="absolute top-14 left-0 z-10 w-44 rounded-xl border border-gray-200 bg-white p-2 shadow-lg">
+                    <div className="grid grid-cols-2 gap-1.5">
+                      {[15, 30, 45, 60].map((mins) => (
+                        <button
+                          key={mins}
+                          onClick={() => {
+                            void onBreakUpdate(mins);
+                            setShowBreakInput(false);
+                          }}
+                          className={`rounded-lg px-3 py-2 text-center text-sm font-medium whitespace-nowrap transition-all ${
+                            currentSession?.breakMinutes === mins
+                              ? "bg-amber-100 text-amber-700"
+                              : "bg-gray-50 text-gray-600 hover:bg-gray-100"
+                          }`}
+                        >
+                          {mins} Min
+                        </button>
+                      ))}
+                    </div>
+                    {breakWarning && (
+                      <p className="mt-1.5 px-1 text-xs font-medium text-amber-600">
+                        {breakWarning}
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Timer display */}
+              <span className="text-4xl font-light text-gray-900 tabular-nums">
+                {timerDisplay}
+              </span>
+
+              {/* Stop / check-out button */}
+              <button
+                onClick={handleCheckOut}
+                disabled={actionLoading}
+                className="flex h-12 w-12 items-center justify-center rounded-full border-2 border-gray-300 text-gray-500 transition-all hover:border-red-400 hover:text-red-500 active:scale-95 disabled:opacity-50"
+                aria-label="Ausstempeln"
+              >
+                {actionLoading ? (
+                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                ) : (
+                  <svg
+                    className="h-4 w-4"
+                    fill="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <rect x="6" y="6" width="12" height="12" rx="1" />
+                  </svg>
+                )}
+              </button>
+            </div>
+
+            {/* Session detail rows */}
+            <div className="border-t border-gray-100">
+              {/* Work row (always visible) */}
+              <div className="flex items-center justify-between py-3 text-sm">
+                <span className="w-16 font-medium text-[#83CD2D]">Arbeit</span>
+                <span className="text-[#70b525] tabular-nums">
+                  {formatTime(currentSession?.checkInTime)}
+                </span>
+                <span className="text-gray-300">&rarr;</span>
+                <span className="text-gray-400 tabular-nums">···</span>
+                <span className="w-20 text-right font-medium text-gray-700 tabular-nums">
+                  {formatDuration(elapsedMinutes)}
+                </span>
+              </div>
+
+              {/* Break row (only when break > 0) */}
+              {currentSession && currentSession.breakMinutes > 0 && (
+                <div className="flex items-center justify-between border-t border-gray-50 py-3 text-sm">
+                  <span className="w-16 font-medium text-gray-500">Pause</span>
+                  <span className="text-gray-500 tabular-nums" />
+                  <span />
+                  <span />
+                  <span className="w-20 text-right text-gray-500 tabular-nums">
+                    {formatDuration(currentSession.breakMinutes)}
+                  </span>
+                </div>
+              )}
+            </div>
+          </>
+        )}
+
+        {/* ── Checked out: summary rows ── */}
+        {isCheckedOut && currentSession && (
+          <div className="space-y-0 border-t border-gray-100">
+            {/* Work row */}
+            <div className="flex items-center justify-between border-b border-gray-50 py-3 text-sm">
+              <span className="w-16 font-medium text-gray-700">Arbeit</span>
+              <span className="text-gray-600 tabular-nums">
+                {formatTime(currentSession.checkInTime)}
+              </span>
+              <span className="text-gray-300">&rarr;</span>
+              <span className="text-gray-600 tabular-nums">
+                {formatTime(currentSession.checkOutTime)}
+              </span>
+              <span className="w-20 text-right font-medium text-gray-700 tabular-nums">
+                {checkedOutNet !== null ? formatDuration(checkedOutNet) : "--"}
+              </span>
+            </div>
+
+            {/* Break row */}
+            {currentSession.breakMinutes > 0 && (
+              <div className="flex items-center justify-between py-3 text-sm">
+                <span className="w-16 font-medium text-gray-500">Pause</span>
+                <span className="text-gray-500 tabular-nums" />
+                <span className="text-gray-300" />
+                <span className="text-gray-500 tabular-nums" />
+                <span className="w-20 text-right text-gray-500 tabular-nums">
+                  {formatDuration(currentSession.breakMinutes)}
+                </span>
+              </div>
             )}
           </div>
         )}
 
-        {/* Today/Week summary */}
-        <div className="mt-5 flex flex-wrap gap-x-6 gap-y-1 text-sm text-gray-500">
+        {/* Today/Week footer */}
+        <div className="mt-4 flex flex-wrap gap-x-6 gap-y-1 text-xs text-gray-400">
           <span>
             Heute:{" "}
-            <span className="font-medium text-gray-700">
+            <span className="font-medium text-gray-600">
               {isCheckedIn
-                ? `${formatDuration(elapsedMinutes)} (läuft)`
-                : isCheckedOut && currentSession
-                  ? formatDuration(
-                      calculateNetMinutes(
-                        currentSession.checkInTime,
-                        currentSession.checkOutTime,
-                        currentSession.breakMinutes,
-                      ),
-                    )
+                ? `${formatDuration(elapsedMinutes)}`
+                : isCheckedOut && checkedOutNet !== null
+                  ? formatDuration(checkedOutNet)
                   : "--"}
             </span>
           </span>
           <span>
-            Diese Woche:{" "}
-            <span className="font-medium text-gray-700">
+            Woche:{" "}
+            <span className="font-medium text-gray-600">
               {formatDuration(
                 weeklyMinutes + (isCheckedIn ? elapsedMinutes : 0),
               )}
             </span>
           </span>
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── WeekChart ───────────────────────────────────────────────────────────────
+
+const weekChartConfig = {
+  arbeitszeit: { label: "Arbeitszeit", color: "#0ea5e9" }, // sky-500 — matches sidebar icon
+  pause: { label: "Pause", color: "#94a3b8" }, // slate-400 — muted secondary
+} satisfies ChartConfig;
+
+function WeekChart({
+  history,
+  currentSession,
+  weekOffset,
+}: {
+  readonly history: WorkSessionHistory[];
+  readonly currentSession: WorkSession | null;
+  readonly weekOffset: number;
+}) {
+  const today = new Date();
+
+  const chartData = useMemo(() => {
+    const referenceDate = new Date(today);
+    referenceDate.setDate(referenceDate.getDate() + weekOffset * 7);
+    const weekDays = getWeekDays(referenceDate);
+
+    const sessionMap = new Map<string, WorkSessionHistory>();
+    for (const session of history) {
+      sessionMap.set(session.date, session);
+    }
+
+    return weekDays.map((day, i) => {
+      if (!day) return { day: DAY_NAMES[i] ?? "", arbeitszeit: 0, pause: 0 };
+
+      const dateKey = toISODate(day);
+      const session = sessionMap.get(dateKey);
+
+      let netHours = 0;
+      let breakHours = 0;
+
+      if (session) {
+        if (session.checkOutTime) {
+          netHours = session.netMinutes / 60;
+        } else if (
+          isSameDay(day, today) &&
+          currentSession &&
+          !currentSession.checkOutTime
+        ) {
+          const elapsed = Math.floor(
+            (Date.now() - new Date(session.checkInTime).getTime()) / 60000,
+          );
+          netHours = Math.max(0, elapsed - session.breakMinutes) / 60;
+        }
+        breakHours = session.breakMinutes / 60;
+      }
+
+      return {
+        day: DAY_NAMES[i] ?? "",
+        arbeitszeit: +netHours.toFixed(1),
+        pause: +breakHours.toFixed(1),
+      };
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [history, currentSession, weekOffset]);
+
+  return (
+    <div className="relative overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)]">
+      <div className="relative p-6 sm:p-8">
+        <h3 className="mb-4 text-sm font-semibold text-gray-700">
+          Wochenübersicht
+        </h3>
+        <ChartContainer config={weekChartConfig} className="h-[180px] w-full">
+          <AreaChart
+            data={chartData}
+            margin={{ top: 4, right: 4, bottom: 0, left: -20 }}
+          >
+            <CartesianGrid vertical={false} strokeDasharray="3 3" />
+            <XAxis
+              dataKey="day"
+              tickLine={false}
+              axisLine={false}
+              tickMargin={8}
+              fontSize={12}
+            />
+            <YAxis
+              tickLine={false}
+              axisLine={false}
+              tickMargin={4}
+              fontSize={12}
+              tickFormatter={(v: number) => `${v}h`}
+              domain={[0, "auto"]}
+            />
+            <ChartTooltip
+              content={
+                <ChartTooltipContent
+                  formatter={(value, name) => {
+                    const hours = Math.floor(value as number);
+                    const mins = Math.round(((value as number) - hours) * 60);
+                    return (
+                      <span>
+                        {name === "arbeitszeit" ? "Arbeitszeit" : "Pause"}:{" "}
+                        {hours}h {mins}min
+                      </span>
+                    );
+                  }}
+                />
+              }
+            />
+            <Area
+              type="monotone"
+              dataKey="pause"
+              stroke="var(--color-pause)"
+              fill="var(--color-pause)"
+              fillOpacity={0.1}
+              strokeWidth={1.5}
+            />
+            <Area
+              type="monotone"
+              dataKey="arbeitszeit"
+              stroke="var(--color-arbeitszeit)"
+              fill="var(--color-arbeitszeit)"
+              fillOpacity={0.15}
+              strokeWidth={2}
+            />
+          </AreaChart>
+        </ChartContainer>
       </div>
     </div>
   );
@@ -870,15 +1060,12 @@ function TimeTrackingContent() {
   })();
 
   // Fetch current session
-  const {
-    data: currentSession,
-    isLoading: currentLoading,
-    mutate: mutateCurrentSession,
-  } = useSWRAuth<WorkSession | null>(
-    "time-tracking-current",
-    () => timeTrackingService.getCurrentSession(),
-    { keepPreviousData: true, revalidateOnFocus: false },
-  );
+  const { data: currentSession, mutate: mutateCurrentSession } =
+    useSWRAuth<WorkSession | null>(
+      "time-tracking-current",
+      () => timeTrackingService.getCurrentSession(),
+      { keepPreviousData: true, revalidateOnFocus: false, errorRetryCount: 1 },
+    );
 
   // Fetch week history
   const {
@@ -888,7 +1075,7 @@ function TimeTrackingContent() {
   } = useSWRAuth<WorkSessionHistory[]>(
     fromDate && toDate ? `time-tracking-history-${fromDate}-${toDate}` : null,
     () => timeTrackingService.getHistory(fromDate, toDate),
-    { keepPreviousData: true },
+    { keepPreviousData: true, revalidateOnFocus: false, errorRetryCount: 1 },
   );
 
   const history = historyData ?? [];
@@ -906,9 +1093,7 @@ function TimeTrackingContent() {
         await Promise.all([mutateCurrentSession(), mutateHistory()]);
         toast.success("Erfolgreich eingestempelt");
       } catch (err) {
-        const message =
-          err instanceof Error ? err.message : "Fehler beim Einstempeln";
-        toast.error(message);
+        toast.error(friendlyError(err, "Fehler beim Einstempeln"));
       }
     },
     [mutateCurrentSession, mutateHistory, toast],
@@ -920,9 +1105,7 @@ function TimeTrackingContent() {
       await Promise.all([mutateCurrentSession(), mutateHistory()]);
       toast.success("Erfolgreich ausgestempelt");
     } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "Fehler beim Ausstempeln";
-      toast.error(message);
+      toast.error(friendlyError(err, "Fehler beim Ausstempeln"));
     }
   }, [mutateCurrentSession, mutateHistory, toast]);
 
@@ -932,11 +1115,7 @@ function TimeTrackingContent() {
         await timeTrackingService.updateBreak(minutes);
         await mutateCurrentSession();
       } catch (err) {
-        const message =
-          err instanceof Error
-            ? err.message
-            : "Fehler beim Aktualisieren der Pause";
-        toast.error(message);
+        toast.error(friendlyError(err, "Fehler beim Aktualisieren der Pause"));
       }
     },
     [mutateCurrentSession, toast],
@@ -964,9 +1143,7 @@ function TimeTrackingContent() {
         await Promise.all([mutateCurrentSession(), mutateHistory()]);
         toast.success("Eintrag gespeichert");
       } catch (err) {
-        const message =
-          err instanceof Error ? err.message : "Fehler beim Speichern";
-        toast.error(message);
+        toast.error(friendlyError(err, "Fehler beim Speichern"));
       }
     },
     [mutateCurrentSession, mutateHistory, toast],
@@ -978,20 +1155,24 @@ function TimeTrackingContent() {
 
   return (
     <div className="-mt-1.5 w-full">
-      {/* Page header */}
-      <div className="mb-6 flex items-center gap-4">
-        <h1 className="text-2xl font-bold text-gray-900">Zeiterfassung</h1>
-      </div>
+      {/* Page header - only visible on mobile where breadcrumbs are hidden */}
+      <h1 className="mb-6 text-2xl font-bold text-gray-900 md:hidden">
+        Zeiterfassung
+      </h1>
 
-      {/* Clock-in card */}
-      <div className="mb-6">
+      {/* Clock-in card + Week chart */}
+      <div className="mb-6 grid grid-cols-1 gap-6 md:grid-cols-2">
         <ClockInCard
           currentSession={currentSession ?? null}
-          isLoading={currentLoading}
           onCheckIn={handleCheckIn}
           onCheckOut={handleCheckOut}
           onBreakUpdate={handleBreakUpdate}
           weeklyMinutes={weeklyCompletedMinutes}
+        />
+        <WeekChart
+          history={history}
+          currentSession={currentSession ?? null}
+          weekOffset={weekOffset}
         />
       </div>
 

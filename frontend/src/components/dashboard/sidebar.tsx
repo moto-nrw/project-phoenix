@@ -72,6 +72,7 @@ const NAV_ITEMS: NavItem[] = [
     href: "/time-tracking",
     label: "Zeiterfassung",
     icon: "M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0Z",
+    activeColor: "text-sky-500",
     alwaysShow: true,
   },
   // Coming soon features - shown to all users

@@ -96,7 +96,7 @@ func (r *WorkSessionRepository) GetHistoryByStaffID(ctx context.Context, staffID
 		Where(`"work_session".staff_id = ?`, staffID).
 		Where(`"work_session".date >= ?`, from.Format("2006-01-02")).
 		Where(`"work_session".date <= ?`, to.Format("2006-01-02")).
-		Order(`"work_session".date ASC`).
+		OrderExpr(`"work_session".date ASC`).
 		Scan(ctx)
 
 	if err != nil {

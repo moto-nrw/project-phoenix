@@ -25,11 +25,11 @@ export const PUT = createPutHandler<unknown, UpdateSessionRequest>(
       throw new Error("Invalid session ID");
     }
 
-    const response = await apiPut(
+    const response = await apiPut<{ data: unknown }>(
       `/api/time-tracking/${params.id}`,
       token,
       body,
     );
-    return response;
+    return response.data;
   },
 );

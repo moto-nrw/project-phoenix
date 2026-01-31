@@ -21,7 +21,7 @@ export const GET = createGetHandler<unknown>(
       ? `/api/time-tracking/history?${queryString}`
       : "/api/time-tracking/history";
 
-    const response = await apiGet(endpoint, token);
-    return response;
+    const response = await apiGet<{ data: unknown }>(endpoint, token);
+    return response.data;
   },
 );

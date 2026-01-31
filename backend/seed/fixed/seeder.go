@@ -111,6 +111,11 @@ func (s *Seeder) SeedAll(ctx context.Context) (*Result, error) {
 		return nil, fmt.Errorf("failed to seed guardian relationships: %w", err)
 	}
 
+	// 17. Work sessions for time tracking
+	if err := s.seedWorkSessions(ctx); err != nil {
+		return nil, fmt.Errorf("failed to seed work sessions: %w", err)
+	}
+
 	if s.verbose {
 		log.Printf("Fixed data seeding completed successfully")
 	}

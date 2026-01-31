@@ -43,8 +43,12 @@ export async function POST(request: NextRequest) {
       throw new Error(`API error (${response.status}): ${errorText}`);
     }
 
-    const data = (await response.json()) as Record<string, unknown>;
-    return NextResponse.json(data);
+    const data = (await response.json()) as { data: unknown };
+    return NextResponse.json({
+      success: true,
+      message: "Success",
+      data: data.data,
+    });
   } catch (error) {
     return handleApiError(error);
   }

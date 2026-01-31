@@ -125,7 +125,7 @@ func (rs *Resource) checkIn(w http.ResponseWriter, r *http.Request) {
 	// Call service to check in
 	session, err := rs.WorkSessionService.CheckIn(r.Context(), staffID, req.Status)
 	if err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, classifyServiceError(err))
 		return
 	}
 
@@ -145,7 +145,7 @@ func (rs *Resource) checkOut(w http.ResponseWriter, r *http.Request) {
 	// Call service to check out
 	session, err := rs.WorkSessionService.CheckOut(r.Context(), staffID)
 	if err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, classifyServiceError(err))
 		return
 	}
 
@@ -242,7 +242,7 @@ func (rs *Resource) updateSession(w http.ResponseWriter, r *http.Request) {
 	// Call service to update session
 	session, err := rs.WorkSessionService.UpdateSession(r.Context(), staffID, sessionID, updates)
 	if err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, classifyServiceError(err))
 		return
 	}
 
@@ -269,7 +269,7 @@ func (rs *Resource) updateBreak(w http.ResponseWriter, r *http.Request) {
 	// Call service to update break minutes
 	session, err := rs.WorkSessionService.UpdateBreakMinutes(r.Context(), staffID, req.Minutes)
 	if err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, classifyServiceError(err))
 		return
 	}
 
