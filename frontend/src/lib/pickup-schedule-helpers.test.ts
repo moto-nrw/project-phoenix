@@ -741,11 +741,17 @@ describe("getDayData", () => {
   });
 
   it("returns sick status when student is sick today", () => {
-    const today = new Date();
-    const result = getDayData(today, schedules, [], true);
+    // Fix system time to a known weekday to avoid flaky failures on weekends
+    const wednesday = new Date("2025-01-15T12:00:00"); // A Wednesday
+    vi.useFakeTimers();
+    vi.setSystemTime(wednesday);
+
+    const result = getDayData(new Date(), schedules, [], true);
 
     expect(result.showSick).toBe(true);
     expect(result.effectiveTime).toBeUndefined();
+
+    vi.useRealTimers();
   });
 
   it("does not show sick status for past days", () => {
