@@ -258,13 +258,21 @@ func (m *mockGroupSupervisorRepository) GetStaffIDsWithSupervisionToday(ctx cont
 }
 
 // TestEndActivitySession_FindByActiveGroupIDError tests the error path when finding supervisors fails.
-// This covers line ~601 in session_service.go:
-//
-//	return &ActiveError{Op: "EndActivitySession", Err: ErrDatabaseOperation}
-//
-// when supervisorRepo.FindByActiveGroupID returns an error BEFORE the transaction starts.
+// This covers the error path inside the transaction when supervisorRepo.FindByActiveGroupID
+// returns an error, causing a transaction rollback.
 func TestEndActivitySession_FindByActiveGroupIDError(t *testing.T) {
 	ctx := context.Background()
+
+	// Create a mock DB and transaction using sqlmock
+	mockDB, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer func() { _ = mockDB.Close() }()
+
+	bunDB := bun.NewDB(mockDB, pgdialect.New())
+
+	// Expect BEGIN and ROLLBACK for the transaction
+	mock.ExpectBegin()
+	mock.ExpectRollback()
 
 	// Create mock repositories
 	groupRepo := &mockGroupRepository{
@@ -283,8 +291,8 @@ func TestEndActivitySession_FindByActiveGroupIDError(t *testing.T) {
 		},
 	}
 
-	// Configure supervisor repository to return error
-	mockError := errors.New("mock error")
+	// Configure supervisor repository to return error inside transaction
+	mockError := errors.New("mock supervisor lookup error")
 	supervisorRepo := &mockGroupSupervisorRepository{
 		findByActiveGroupIDFunc: func(ctx context.Context, activeGroupID int64, activeOnly bool) ([]*active.GroupSupervisor, error) {
 			return nil, mockError
@@ -296,17 +304,21 @@ func TestEndActivitySession_FindByActiveGroupIDError(t *testing.T) {
 		groupRepo:      groupRepo,
 		visitRepo:      visitRepo,
 		supervisorRepo: supervisorRepo,
-		// txHandler is not needed because error happens BEFORE transaction
-		broadcaster: nil,
+		txHandler:      base.NewTxHandler(bunDB),
+		broadcaster:    nil,
 	}
 
 	// ACT
-	err := svc.EndActivitySession(ctx, 1)
+	err = svc.EndActivitySession(ctx, 1)
 
 	// ASSERT
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "database operation failed")
+	assert.Contains(t, err.Error(), "mock supervisor lookup error")
 	assert.Contains(t, err.Error(), "EndActivitySession")
+
+	// Verify all expectations were met
+	err = mock.ExpectationsWereMet()
+	assert.NoError(t, err)
 }
 
 // TestEndActivitySession_EndSupervisionError tests the error path when ending supervision fails inside the transaction.
