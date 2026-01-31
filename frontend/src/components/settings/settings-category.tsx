@@ -5,6 +5,10 @@ import type { SettingCategory, Scope } from "~/lib/settings-helpers";
 import { SettingControl } from "./setting-control";
 import { SettingInheritanceBadge } from "./setting-inheritance-badge";
 import { clientSetSettingValue } from "~/lib/settings-api";
+import { InfoTooltip } from "~/components/ui/info-tooltip";
+
+// Threshold for showing description inline vs tooltip
+const INLINE_DESCRIPTION_MAX_LENGTH = 80;
 
 interface SettingsCategoryProps {
   category: SettingCategory;
@@ -81,14 +85,25 @@ export function SettingsCategory({
             className="px-4 py-4 sm:grid sm:grid-cols-3 sm:gap-4"
           >
             <div className="mb-2 sm:mb-0">
-              <label className="block text-sm font-medium text-gray-900">
-                {setting.definition.label ?? setting.key}
-              </label>
-              {setting.definition.description && (
-                <p className="mt-1 text-sm text-gray-500">
-                  {setting.definition.description}
-                </p>
-              )}
+              <div className="flex items-center gap-1.5">
+                <label className="block text-sm font-medium text-gray-900">
+                  {setting.definition.label ?? setting.key}
+                </label>
+                {/* Show tooltip for long descriptions */}
+                {setting.definition.description &&
+                  setting.definition.description.length >
+                    INLINE_DESCRIPTION_MAX_LENGTH && (
+                    <InfoTooltip content={setting.definition.description} />
+                  )}
+              </div>
+              {/* Show short descriptions inline */}
+              {setting.definition.description &&
+                setting.definition.description.length <=
+                  INLINE_DESCRIPTION_MAX_LENGTH && (
+                  <p className="mt-1 text-sm text-gray-500">
+                    {setting.definition.description}
+                  </p>
+                )}
               <div className="mt-1">
                 <SettingInheritanceBadge
                   scope={setting.effectiveScope}
@@ -106,7 +121,9 @@ export function SettingsCategory({
                 <div className="flex-1">
                   <SettingControl
                     setting={setting}
-                    onChange={(value) => handleSettingChange(setting.key, value)}
+                    onChange={(value) =>
+                      handleSettingChange(setting.key, value)
+                    }
                     deviceId={deviceId}
                   />
                 </div>
