@@ -42,24 +42,26 @@ export function useSidebarAccordion(
   pathname: string,
   fromParam?: string | null,
 ) {
-  const [expanded, setExpanded] = useState<AccordionSection>(() => {
-    // Pathname takes priority over localStorage on initial render
-    const fromPath = sectionFromPathname(pathname, fromParam);
-    if (fromPath) return fromPath;
+  // Initialize from pathname only (safe for SSR — no localStorage during render)
+  const [expanded, setExpanded] = useState<AccordionSection>(() =>
+    sectionFromPathname(pathname, fromParam),
+  );
 
-    // Fall back to localStorage
-    if (globalThis.window !== undefined) {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (
-        stored === "groups" ||
-        stored === "supervisions" ||
-        stored === "database"
-      ) {
-        return stored;
-      }
+  // Restore from localStorage on mount when pathname doesn't determine a section.
+  // This runs client-only after hydration, avoiding SSR/client mismatches.
+  useEffect(() => {
+    if (sectionFromPathname(pathname, fromParam)) return; // pathname already decided
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (
+      stored === "groups" ||
+      stored === "supervisions" ||
+      stored === "database"
+    ) {
+      setExpanded(stored);
     }
-    return null;
-  });
+    // Only run on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Auto-expand/collapse when navigating:
   // - Navigate to accordion page → expand that section
@@ -76,12 +78,10 @@ export function useSidebarAccordion(
 
   // Persist to localStorage whenever expanded changes
   useEffect(() => {
-    if (globalThis.window !== undefined) {
-      if (expanded) {
-        localStorage.setItem(STORAGE_KEY, expanded);
-      } else {
-        localStorage.removeItem(STORAGE_KEY);
-      }
+    if (expanded) {
+      localStorage.setItem(STORAGE_KEY, expanded);
+    } else {
+      localStorage.removeItem(STORAGE_KEY);
     }
   }, [expanded]);
 
