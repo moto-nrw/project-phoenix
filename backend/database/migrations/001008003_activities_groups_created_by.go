@@ -40,7 +40,7 @@ var ActivitiesGroupsCreatedByDependencies = []string{
 func migrateActivitiesGroupsCreatedBy(ctx context.Context, db *bun.DB) error {
 	fmt.Println("Migration 1.8.3: Adding created_by column to activities.groups...")
 
-	// Step 0: Check if column already exists (idempotency guard)
+	// Step 0: Check if column already exists (handles partial application)
 	var columnExists bool
 	err := db.QueryRowContext(ctx, `
 		SELECT EXISTS (
@@ -53,19 +53,36 @@ func migrateActivitiesGroupsCreatedBy(ctx context.Context, db *bun.DB) error {
 	if err != nil {
 		return fmt.Errorf("error checking if created_by column exists: %w", err)
 	}
+
+	// Check if fully applied (column exists AND has NOT NULL constraint)
 	if columnExists {
-		fmt.Println("  Column created_by already exists - skipping migration")
-		return nil
+		var isNullable string
+		err = db.QueryRowContext(ctx, `
+			SELECT is_nullable FROM information_schema.columns
+			WHERE table_schema = 'activities'
+			AND table_name = 'groups'
+			AND column_name = 'created_by'
+		`).Scan(&isNullable)
+		if err != nil {
+			return fmt.Errorf("error checking nullable status: %w", err)
+		}
+		if isNullable == "NO" {
+			fmt.Println("  Column created_by already exists with NOT NULL - skipping migration")
+			return nil
+		}
+		fmt.Println("  Column created_by exists but migration was partially applied - resuming...")
 	}
 
-	// Step 1: Add created_by column as NULLABLE first
-	fmt.Println("  Adding created_by column (nullable)...")
-	_, err = db.ExecContext(ctx, `
-		ALTER TABLE activities.groups
-		ADD COLUMN created_by BIGINT
-	`)
-	if err != nil {
-		return fmt.Errorf("error adding created_by column: %w", err)
+	// Step 1: Add created_by column as NULLABLE first (skip if already exists from partial run)
+	if !columnExists {
+		fmt.Println("  Adding created_by column (nullable)...")
+		_, err = db.ExecContext(ctx, `
+			ALTER TABLE activities.groups
+			ADD COLUMN created_by BIGINT
+		`)
+		if err != nil {
+			return fmt.Errorf("error adding created_by column: %w", err)
+		}
 	}
 
 	// Step 2: Backfill existing rows with first assigned supervisor (prefer primary)
