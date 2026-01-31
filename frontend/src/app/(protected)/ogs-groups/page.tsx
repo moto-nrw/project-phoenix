@@ -99,7 +99,7 @@ const PICKUP_URGENCY_SOON_MINUTES = 30;
 
 type PickupUrgency = "overdue" | "soon" | "normal" | "none";
 
-function getPickupUrgency(
+export function getPickupUrgency(
   pickupTimeStr: string | undefined,
   now: Date,
 ): PickupUrgency {
@@ -117,7 +117,7 @@ function getPickupUrgency(
   return "normal";
 }
 
-function renderPickupIcon(urgency: PickupUrgency): JSX.Element {
+export function renderPickupIcon(urgency: PickupUrgency): JSX.Element {
   if (urgency === "overdue") {
     return <AlertTriangle className="h-3.5 w-3.5 text-red-500" />;
   }
@@ -128,7 +128,7 @@ function renderPickupIcon(urgency: PickupUrgency): JSX.Element {
   return <PickupTimeIcon />;
 }
 
-function isStudentInGroupRoom(
+export function isStudentInGroupRoom(
   student: Student,
   currentGroup?: OGSGroup | null,
 ): boolean {
@@ -155,7 +155,10 @@ function isStudentInGroupRoom(
 
 // Helper functions for student filtering
 
-function matchesSearchFilter(student: Student, searchTerm: string): boolean {
+export function matchesSearchFilter(
+  student: Student,
+  searchTerm: string,
+): boolean {
   if (!searchTerm) return true;
 
   const searchLower = searchTerm.toLowerCase();
@@ -167,7 +170,7 @@ function matchesSearchFilter(student: Student, searchTerm: string): boolean {
   );
 }
 
-function matchesAttendanceFilter(
+export function matchesAttendanceFilter(
   student: Student,
   attendanceFilter: string,
   roomStatus: Record<
@@ -195,7 +198,7 @@ function matchesAttendanceFilter(
   }
 }
 
-function matchesForeignRoomFilter(studentRoomStatus?: {
+export function matchesForeignRoomFilter(studentRoomStatus?: {
   in_group_room?: boolean;
   current_room_id?: number;
 }): boolean {

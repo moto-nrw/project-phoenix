@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 
 const mockRouterPush = vi.fn();
@@ -810,6 +810,380 @@ describe("Sidebar", () => {
       // Both rooms should be rendered in the accordion
       expect(screen.getByText("Raum A")).toBeInTheDocument();
       expect(screen.getByText("Raum B")).toBeInTheDocument();
+    });
+
+    it("highlights room sub-item on student detail from active-supervisions", () => {
+      const mockGetItem = vi.fn((key: string) => {
+        if (key === "sidebar-last-room") return "10";
+        return null;
+      });
+      Object.defineProperty(localStorage, "getItem", {
+        value: mockGetItem,
+        writable: true,
+        configurable: true,
+      });
+      mockUsePathname.mockReturnValue("/students/456");
+      mockUseSearchParams.mockReturnValue(
+        createMockSearchParams((key: string) =>
+          key === "from" ? "/active-supervisions" : null,
+        ),
+      );
+      mockUseSupervision.mockReturnValue({
+        hasGroups: true,
+        isSupervising: true,
+        isLoadingGroups: false,
+        isLoadingSupervision: false,
+        supervisedRooms: [
+          { id: "10", name: "Raum A", groupId: "1" },
+          { id: "20", name: "Raum B", groupId: "2" },
+        ],
+        groups: [],
+        refresh: vi.fn(),
+      });
+
+      render(<Sidebar />);
+
+      const raumALink = screen.getByText("Raum A").closest("a");
+      expect(raumALink).toHaveClass("bg-gray-100");
+    });
+  });
+
+  describe("localStorage persistence", () => {
+    const mockSetItem = vi.fn();
+    let originalSetItem: typeof localStorage.setItem;
+    let originalGetItem: typeof localStorage.getItem;
+    let originalRemoveItem: typeof localStorage.removeItem;
+
+    beforeEach(() => {
+      mockSetItem.mockClear();
+      originalSetItem = localStorage.setItem.bind(localStorage);
+      originalGetItem = localStorage.getItem.bind(localStorage);
+      originalRemoveItem = localStorage.removeItem.bind(localStorage);
+      Object.defineProperty(localStorage, "setItem", {
+        value: mockSetItem,
+        writable: true,
+        configurable: true,
+      });
+      Object.defineProperty(localStorage, "getItem", {
+        value: vi.fn().mockReturnValue(null),
+        writable: true,
+        configurable: true,
+      });
+      Object.defineProperty(localStorage, "removeItem", {
+        value: vi.fn(),
+        writable: true,
+        configurable: true,
+      });
+    });
+
+    afterEach(() => {
+      Object.defineProperty(localStorage, "setItem", {
+        value: originalSetItem,
+        writable: true,
+        configurable: true,
+      });
+      Object.defineProperty(localStorage, "getItem", {
+        value: originalGetItem,
+        writable: true,
+        configurable: true,
+      });
+      Object.defineProperty(localStorage, "removeItem", {
+        value: originalRemoveItem,
+        writable: true,
+        configurable: true,
+      });
+    });
+
+    it("persists selected group and group name to localStorage", () => {
+      mockUsePathname.mockReturnValue("/ogs-groups");
+      mockUseSearchParams.mockReturnValue(
+        createMockSearchParams((key: string) => (key === "group" ? "2" : null)),
+      );
+      mockUseSupervision.mockReturnValue({
+        hasGroups: true,
+        isSupervising: false,
+        isLoadingGroups: false,
+        isLoadingSupervision: false,
+        supervisedRooms: [],
+        groups: [
+          { id: 1, name: "Eulen" },
+          { id: 2, name: "Adler" },
+        ],
+        refresh: vi.fn(),
+      });
+
+      render(<Sidebar />);
+
+      expect(mockSetItem).toHaveBeenCalledWith("sidebar-last-group", "2");
+      expect(mockSetItem).toHaveBeenCalledWith(
+        "sidebar-last-group-name",
+        "Adler",
+      );
+    });
+
+    it("persists selected room and room name to localStorage", () => {
+      mockUsePathname.mockReturnValue("/active-supervisions");
+      mockUseSearchParams.mockReturnValue(
+        createMockSearchParams((key: string) => (key === "room" ? "20" : null)),
+      );
+      mockUseSupervision.mockReturnValue({
+        hasGroups: true,
+        isSupervising: true,
+        isLoadingGroups: false,
+        isLoadingSupervision: false,
+        supervisedRooms: [
+          { id: "10", name: "Raum A", groupId: "1" },
+          { id: "20", name: "Raum B", groupId: "2" },
+        ],
+        groups: [],
+        refresh: vi.fn(),
+      });
+
+      render(<Sidebar />);
+
+      expect(mockSetItem).toHaveBeenCalledWith("sidebar-last-room", "20");
+      expect(mockSetItem).toHaveBeenCalledWith(
+        "sidebar-last-room-name",
+        "Raum B",
+      );
+    });
+
+    it("persists current database sub-page to localStorage", () => {
+      mockIsAdmin.mockReturnValue(true);
+      mockUseSession.mockReturnValue(createMockSession(true));
+      mockUsePathname.mockReturnValue("/database/students");
+
+      render(<Sidebar />);
+
+      expect(mockSetItem).toHaveBeenCalledWith(
+        "sidebar-last-database",
+        "/database/students",
+      );
+    });
+
+    it("does not persist group name when group is not found", () => {
+      mockUsePathname.mockReturnValue("/ogs-groups");
+      mockUseSearchParams.mockReturnValue(
+        createMockSearchParams((key: string) =>
+          key === "group" ? "999" : null,
+        ),
+      );
+      mockUseSupervision.mockReturnValue({
+        hasGroups: true,
+        isSupervising: false,
+        isLoadingGroups: false,
+        isLoadingSupervision: false,
+        supervisedRooms: [],
+        groups: [{ id: 1, name: "Eulen" }],
+        refresh: vi.fn(),
+      });
+
+      render(<Sidebar />);
+
+      expect(mockSetItem).toHaveBeenCalledWith("sidebar-last-group", "999");
+      expect(mockSetItem).not.toHaveBeenCalledWith(
+        "sidebar-last-group-name",
+        expect.any(String),
+      );
+    });
+
+    it("does not persist room name when room is not found", () => {
+      mockUsePathname.mockReturnValue("/active-supervisions");
+      mockUseSearchParams.mockReturnValue(
+        createMockSearchParams((key: string) =>
+          key === "room" ? "999" : null,
+        ),
+      );
+      mockUseSupervision.mockReturnValue({
+        hasGroups: true,
+        isSupervising: true,
+        isLoadingGroups: false,
+        isLoadingSupervision: false,
+        supervisedRooms: [{ id: "10", name: "Raum A", groupId: "1" }],
+        groups: [],
+        refresh: vi.fn(),
+      });
+
+      render(<Sidebar />);
+
+      expect(mockSetItem).toHaveBeenCalledWith("sidebar-last-room", "999");
+      expect(mockSetItem).not.toHaveBeenCalledWith(
+        "sidebar-last-room-name",
+        expect.any(String),
+      );
+    });
+  });
+
+  describe("accordion toggle with saved localStorage", () => {
+    let originalSetItem: typeof localStorage.setItem;
+    let originalGetItem: typeof localStorage.getItem;
+    let originalRemoveItem: typeof localStorage.removeItem;
+
+    beforeEach(() => {
+      mockRouterPush.mockClear();
+      originalSetItem = localStorage.setItem.bind(localStorage);
+      originalGetItem = localStorage.getItem.bind(localStorage);
+      originalRemoveItem = localStorage.removeItem.bind(localStorage);
+      Object.defineProperty(localStorage, "setItem", {
+        value: vi.fn(),
+        writable: true,
+        configurable: true,
+      });
+      Object.defineProperty(localStorage, "removeItem", {
+        value: vi.fn(),
+        writable: true,
+        configurable: true,
+      });
+    });
+
+    afterEach(() => {
+      Object.defineProperty(localStorage, "setItem", {
+        value: originalSetItem,
+        writable: true,
+        configurable: true,
+      });
+      Object.defineProperty(localStorage, "getItem", {
+        value: originalGetItem,
+        writable: true,
+        configurable: true,
+      });
+      Object.defineProperty(localStorage, "removeItem", {
+        value: originalRemoveItem,
+        writable: true,
+        configurable: true,
+      });
+    });
+
+    it("navigates to saved group from localStorage when toggling groups", () => {
+      const mockGetItem = vi.fn((key: string) => {
+        if (key === "sidebar-last-group") return "2";
+        return null;
+      });
+      Object.defineProperty(localStorage, "getItem", {
+        value: mockGetItem,
+        writable: true,
+        configurable: true,
+      });
+      mockUsePathname.mockReturnValue("/activities");
+      mockUseSupervision.mockReturnValue({
+        hasGroups: true,
+        isSupervising: false,
+        isLoadingGroups: false,
+        isLoadingSupervision: false,
+        supervisedRooms: [],
+        groups: [
+          { id: 1, name: "Eulen" },
+          { id: 2, name: "Adler" },
+        ],
+        refresh: vi.fn(),
+      });
+
+      render(<Sidebar />);
+
+      const groupHeader = screen.getByText("Meine Gruppen");
+      fireEvent.click(groupHeader);
+
+      expect(mockRouterPush).toHaveBeenCalledWith("/ogs-groups?group=2");
+    });
+
+    it("navigates to saved room from localStorage when toggling supervisions", () => {
+      const mockGetItem = vi.fn((key: string) => {
+        if (key === "sidebar-last-room") return "20";
+        return null;
+      });
+      Object.defineProperty(localStorage, "getItem", {
+        value: mockGetItem,
+        writable: true,
+        configurable: true,
+      });
+      mockUsePathname.mockReturnValue("/activities");
+      mockUseSupervision.mockReturnValue({
+        hasGroups: true,
+        isSupervising: true,
+        isLoadingGroups: false,
+        isLoadingSupervision: false,
+        supervisedRooms: [
+          { id: "10", name: "Raum A", groupId: "1" },
+          { id: "20", name: "Raum B", groupId: "2" },
+        ],
+        groups: [],
+        refresh: vi.fn(),
+      });
+
+      render(<Sidebar />);
+
+      const supervisionHeader = screen.getByText("Aktuelle Aufsichten");
+      fireEvent.click(supervisionHeader);
+
+      expect(mockRouterPush).toHaveBeenCalledWith(
+        "/active-supervisions?room=20",
+      );
+    });
+
+    it("falls back to first group when saved group not found", () => {
+      const mockGetItem = vi.fn((key: string) => {
+        if (key === "sidebar-last-group") return "999";
+        return null;
+      });
+      Object.defineProperty(localStorage, "getItem", {
+        value: mockGetItem,
+        writable: true,
+        configurable: true,
+      });
+      mockUsePathname.mockReturnValue("/activities");
+      mockUseSupervision.mockReturnValue({
+        hasGroups: true,
+        isSupervising: false,
+        isLoadingGroups: false,
+        isLoadingSupervision: false,
+        supervisedRooms: [],
+        groups: [
+          { id: 1, name: "Eulen" },
+          { id: 2, name: "Adler" },
+        ],
+        refresh: vi.fn(),
+      });
+
+      render(<Sidebar />);
+
+      const groupHeader = screen.getByText("Meine Gruppen");
+      fireEvent.click(groupHeader);
+
+      expect(mockRouterPush).toHaveBeenCalledWith("/ogs-groups?group=1");
+    });
+
+    it("falls back to first room when saved room not found", () => {
+      const mockGetItem = vi.fn((key: string) => {
+        if (key === "sidebar-last-room") return "999";
+        return null;
+      });
+      Object.defineProperty(localStorage, "getItem", {
+        value: mockGetItem,
+        writable: true,
+        configurable: true,
+      });
+      mockUsePathname.mockReturnValue("/activities");
+      mockUseSupervision.mockReturnValue({
+        hasGroups: true,
+        isSupervising: true,
+        isLoadingGroups: false,
+        isLoadingSupervision: false,
+        supervisedRooms: [
+          { id: "10", name: "Raum A", groupId: "1" },
+          { id: "20", name: "Raum B", groupId: "2" },
+        ],
+        groups: [],
+        refresh: vi.fn(),
+      });
+
+      render(<Sidebar />);
+
+      const supervisionHeader = screen.getByText("Aktuelle Aufsichten");
+      fireEvent.click(supervisionHeader);
+
+      expect(mockRouterPush).toHaveBeenCalledWith(
+        "/active-supervisions?room=10",
+      );
     });
   });
 });
