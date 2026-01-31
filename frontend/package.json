@@ -60,7 +60,6 @@
     "postcss": "^8.5.3",
     "prettier": "^3.7.4",
     "prettier-plugin-tailwindcss": "^0.7.2",
-    "shadcn": "^3.8.1",
     "sharp": "^0.34.5",
     "tailwindcss": "^4.0.15",
     "typescript": "^5.9.3",
