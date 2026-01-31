@@ -109,8 +109,9 @@ describe("auth-api", () => {
           status: 401,
         });
 
-        // eslint-disable-next-line @typescript-eslint/no-empty-function
-        const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+        const consoleSpy = vi
+          .spyOn(console, "error")
+          .mockImplementation(/* noop */ () => undefined);
         const result = await refreshToken();
 
         expect(result).toBeNull();
@@ -126,12 +127,16 @@ describe("auth-api", () => {
         const networkError = new Error("Network error");
         global.fetch = vi.fn().mockRejectedValue(networkError);
 
-        // eslint-disable-next-line @typescript-eslint/no-empty-function
-        const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+        const consoleSpy = vi
+          .spyOn(console, "error")
+          .mockImplementation(/* noop */ () => undefined);
         const result = await refreshToken();
 
         expect(result).toBeNull();
-        expect(consoleSpy).toHaveBeenCalledWith("Error refreshing token:", networkError);
+        expect(consoleSpy).toHaveBeenCalledWith(
+          "Error refreshing token:",
+          networkError,
+        );
       } finally {
         restore();
       }
@@ -140,13 +145,14 @@ describe("auth-api", () => {
     it("returns null when called from server context", async () => {
       const restore = setupServerEnv();
       try {
-        // eslint-disable-next-line @typescript-eslint/no-empty-function
-        const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+        const consoleSpy = vi
+          .spyOn(console, "error")
+          .mockImplementation(/* noop */ () => undefined);
         const result = await refreshToken();
 
         expect(result).toBeNull();
         expect(consoleSpy).toHaveBeenCalledWith(
-          "Token refresh attempted from server context"
+          "Token refresh attempted from server context",
         );
       } finally {
         restore();
@@ -197,9 +203,8 @@ describe("auth-api", () => {
     it("handles server context by calling server-side refresh", async () => {
       const restore = setupServerEnv();
       try {
-        const { refreshSessionTokensOnServer } = await import(
-          "~/server/auth/token-refresh"
-        );
+        const { refreshSessionTokensOnServer } =
+          await import("~/server/auth/token-refresh");
         vi.mocked(refreshSessionTokensOnServer).mockResolvedValue({
           accessToken: "new-token",
           refreshToken: "new-refresh",
@@ -217,9 +222,8 @@ describe("auth-api", () => {
     it("returns false when server-side refresh fails", async () => {
       const restore = setupServerEnv();
       try {
-        const { refreshSessionTokensOnServer } = await import(
-          "~/server/auth/token-refresh"
-        );
+        const { refreshSessionTokensOnServer } =
+          await import("~/server/auth/token-refresh");
         vi.mocked(refreshSessionTokensOnServer).mockResolvedValue(null);
 
         const result = await handleAuthFailure();
@@ -233,15 +237,15 @@ describe("auth-api", () => {
     it("returns false when server-side refresh throws", async () => {
       const restore = setupServerEnv();
       try {
-        const { refreshSessionTokensOnServer } = await import(
-          "~/server/auth/token-refresh"
-        );
+        const { refreshSessionTokensOnServer } =
+          await import("~/server/auth/token-refresh");
         vi.mocked(refreshSessionTokensOnServer).mockRejectedValue(
-          new Error("Server error")
+          new Error("Server error"),
         );
 
-        // eslint-disable-next-line @typescript-eslint/no-empty-function
-        const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+        const consoleSpy = vi
+          .spyOn(console, "error")
+          .mockImplementation(/* noop */ () => undefined);
         const result = await handleAuthFailure();
 
         expect(result).toBe(false);
@@ -268,13 +272,14 @@ describe("auth-api", () => {
           configurable: true,
         });
 
-        // eslint-disable-next-line @typescript-eslint/no-empty-function
-        const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+        const consoleSpy = vi
+          .spyOn(console, "log")
+          .mockImplementation(/* noop */ () => undefined);
         const result = await handleAuthFailure();
 
         expect(result).toBe(true);
         expect(consoleSpy).toHaveBeenCalledWith(
-          "Recently refreshed tokens, retrying request..."
+          "Recently refreshed tokens, retrying request...",
         );
       } finally {
         restore();
@@ -308,7 +313,13 @@ describe("auth-api", () => {
         });
 
         const { signIn } = await import("next-auth/react");
-        vi.mocked(signIn).mockResolvedValue({ ok: true, error: undefined, status: 200, url: "", code: undefined });
+        vi.mocked(signIn).mockResolvedValue({
+          ok: true,
+          error: undefined,
+          status: 200,
+          url: "",
+          code: undefined,
+        });
 
         const result = await handleAuthFailure();
 
@@ -342,17 +353,19 @@ describe("auth-api", () => {
         const { signOut } = await import("next-auth/react");
         vi.mocked(signOut).mockResolvedValue({ url: "/" });
 
-        // eslint-disable-next-line @typescript-eslint/no-empty-function
-        const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
-        // eslint-disable-next-line @typescript-eslint/no-empty-function
-        vi.spyOn(console, "error").mockImplementation(() => {});
+        const consoleSpy = vi
+          .spyOn(console, "log")
+          .mockImplementation(/* noop */ () => undefined);
+        vi.spyOn(console, "error").mockImplementation(
+          /* noop */ () => undefined,
+        );
 
         const result = await handleAuthFailure();
 
         expect(result).toBe(false);
         expect(signOut).toHaveBeenCalledWith({ redirect: false });
         expect(consoleSpy).toHaveBeenCalledWith(
-          "Token refresh failed, signing out"
+          "Token refresh failed, signing out",
         );
         expect(globalThis.window.location.href).toBe("/");
       } finally {
@@ -378,8 +391,9 @@ describe("auth-api", () => {
         const { signOut } = await import("next-auth/react");
         vi.mocked(signOut).mockResolvedValue({ url: "/" });
 
-        // eslint-disable-next-line @typescript-eslint/no-empty-function
-        const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+        const consoleSpy = vi
+          .spyOn(console, "error")
+          .mockImplementation(/* noop */ () => undefined);
         const result = await handleAuthFailure();
 
         expect(result).toBe(false);
@@ -400,7 +414,11 @@ describe("auth-api", () => {
 
         // No recent refresh
         Object.defineProperty(globalThis, "sessionStorage", {
-          value: { getItem: vi.fn().mockReturnValue(null), setItem: vi.fn(), clear: vi.fn() },
+          value: {
+            getItem: vi.fn().mockReturnValue(null),
+            setItem: vi.fn(),
+            clear: vi.fn(),
+          },
           writable: true,
         });
 
@@ -418,15 +436,16 @@ describe("auth-api", () => {
           code: undefined,
         });
 
-        // eslint-disable-next-line @typescript-eslint/no-empty-function
-        const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+        const consoleSpy = vi
+          .spyOn(console, "error")
+          .mockImplementation(/* noop */ () => undefined);
         const result = await handleAuthFailure();
 
         // Should still return true to retry, even if session update failed
         expect(result).toBe(true);
         expect(consoleSpy).toHaveBeenCalledWith(
           "Failed to update session with new tokens:",
-          "Session update failed"
+          "Session update failed",
         );
       } finally {
         restore();
@@ -470,7 +489,7 @@ describe("auth-api", () => {
       vi.spyOn(console, "error").mockImplementation(() => {});
 
       await expect(requestPasswordReset("test@example.com")).rejects.toThrow(
-        "Rate limit exceeded"
+        "Rate limit exceeded",
       );
     });
 
@@ -488,7 +507,7 @@ describe("auth-api", () => {
       vi.spyOn(console, "error").mockImplementation(() => {});
 
       await expect(requestPasswordReset("test@example.com")).rejects.toThrow(
-        "Internal server error"
+        "Internal server error",
       );
     });
 
@@ -558,7 +577,7 @@ describe("auth-api", () => {
       vi.spyOn(console, "warn").mockImplementation(() => {});
 
       await expect(requestPasswordReset("test@example.com")).rejects.toThrow(
-        "Fehler beim Senden der Passwort-Zurücksetzen-E-Mail"
+        "Fehler beim Senden der Passwort-Zurücksetzen-E-Mail",
       );
     });
   });
@@ -573,7 +592,7 @@ describe("auth-api", () => {
       const result = await confirmPasswordReset(
         "reset-token",
         "newPassword123",
-        "newPassword123"
+        "newPassword123",
       );
 
       expect(result).toEqual({ message: "Password reset successful" });
@@ -587,14 +606,18 @@ describe("auth-api", () => {
     it("throws error when authService.resetPassword fails", async () => {
       const { authService } = await import("./auth-service");
       vi.mocked(authService.resetPassword).mockRejectedValue(
-        new Error("Invalid token")
+        new Error("Invalid token"),
       );
 
       // eslint-disable-next-line @typescript-eslint/no-empty-function
       vi.spyOn(console, "error").mockImplementation(() => {});
 
       await expect(
-        confirmPasswordReset("invalid-token", "newPassword123", "newPassword123")
+        confirmPasswordReset(
+          "invalid-token",
+          "newPassword123",
+          "newPassword123",
+        ),
       ).rejects.toThrow("Invalid token");
     });
   });
@@ -709,7 +732,7 @@ describe("auth-api", () => {
       vi.spyOn(console, "error").mockImplementation(() => {});
 
       await expect(requestPasswordReset("test@example.com")).rejects.toThrow(
-        "Validation failed"
+        "Validation failed",
       );
     });
 
@@ -727,7 +750,7 @@ describe("auth-api", () => {
       vi.spyOn(console, "error").mockImplementation(() => {});
 
       await expect(requestPasswordReset("test@example.com")).rejects.toThrow(
-        "Email not found"
+        "Email not found",
       );
     });
 
@@ -745,7 +768,7 @@ describe("auth-api", () => {
       vi.spyOn(console, "error").mockImplementation(() => {});
 
       await expect(requestPasswordReset("test@example.com")).rejects.toThrow(
-        "Fehler beim Senden der Passwort-Zurücksetzen-E-Mail"
+        "Fehler beim Senden der Passwort-Zurücksetzen-E-Mail",
       );
     });
 
@@ -763,7 +786,7 @@ describe("auth-api", () => {
       vi.spyOn(console, "error").mockImplementation(() => {});
 
       await expect(requestPasswordReset("test@example.com")).rejects.toThrow(
-        "Fehler beim Senden der Passwort-Zurücksetzen-E-Mail"
+        "Fehler beim Senden der Passwort-Zurücksetzen-E-Mail",
       );
     });
   });
