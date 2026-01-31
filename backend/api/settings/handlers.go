@@ -64,16 +64,17 @@ func (rs *Resource) listDefinitions(w http.ResponseWriter, r *http.Request) {
 	common.Respond(w, r, http.StatusOK, response, "Definitions retrieved successfully")
 }
 
-// syncDefinitions handles syncing code definitions to database
+// syncDefinitions handles syncing code definitions and tabs to database
 func (rs *Resource) syncDefinitions(w http.ResponseWriter, r *http.Request) {
-	if err := rs.SettingsService.SyncDefinitions(r.Context()); err != nil {
+	if err := rs.SettingsService.SyncAll(r.Context()); err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
 	common.Respond(w, r, http.StatusOK, map[string]int{
-		"synced": settings.Count(),
-	}, "Definitions synced successfully")
+		"definitions_synced": settings.Count(),
+		"tabs_synced":        settings.TabCount(),
+	}, "Settings and tabs synced successfully")
 }
 
 // getValue handles getting a setting's effective value

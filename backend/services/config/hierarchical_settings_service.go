@@ -32,6 +32,12 @@ type HierarchicalSettingsService interface {
 	// SyncDefinitions syncs code-defined settings to the database
 	SyncDefinitions(ctx context.Context) error
 
+	// SyncTabs syncs code-defined tabs to the database
+	SyncTabs(ctx context.Context) error
+
+	// SyncAll syncs both definitions and tabs to the database
+	SyncAll(ctx context.Context) error
+
 	// GetEffective returns the effective value after hierarchy resolution
 	GetEffective(ctx context.Context, key string, scopeCtx *config.ScopeContext) (*config.ResolvedSetting, error)
 
@@ -156,6 +162,31 @@ func (s *HierarchicalSettingsServiceImpl) SyncDefinitions(ctx context.Context) e
 		}
 	}
 
+	return nil
+}
+
+// SyncTabs syncs code-defined tabs to the database
+func (s *HierarchicalSettingsServiceImpl) SyncTabs(ctx context.Context) error {
+	tabs := settings.AllTabs()
+
+	for _, tab := range tabs {
+		dbTab := tab.ToSettingTab()
+		if err := s.tabRepo.Upsert(ctx, dbTab); err != nil {
+			return fmt.Errorf("failed to sync tab %q: %w", tab.Key, err)
+		}
+	}
+
+	return nil
+}
+
+// SyncAll syncs both definitions and tabs to the database
+func (s *HierarchicalSettingsServiceImpl) SyncAll(ctx context.Context) error {
+	if err := s.SyncTabs(ctx); err != nil {
+		return fmt.Errorf("failed to sync tabs: %w", err)
+	}
+	if err := s.SyncDefinitions(ctx); err != nil {
+		return fmt.Errorf("failed to sync definitions: %w", err)
+	}
 	return nil
 }
 

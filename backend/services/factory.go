@@ -209,6 +209,20 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 		config.WithObjectRefResolver(objectRefResolver),
 	)
 
+	// Register change listener to log setting changes
+	hierarchicalSettingsService.AddChangeListener(func(event config.SettingChangeEvent) {
+		oldVal := "<nil>"
+		newVal := "<nil>"
+		if event.OldValue != nil {
+			oldVal = *event.OldValue
+		}
+		if event.NewValue != nil {
+			newVal = *event.NewValue
+		}
+		log.Printf("[Settings] %s changed: key=%s scope=%s old=%q new=%q",
+			event.Action, event.Key, event.Scope, oldVal, newVal)
+	})
+
 	// Initialize activities service
 	activitiesService, err := activities.NewService(
 		repos.ActivityCategory,

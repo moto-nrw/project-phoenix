@@ -134,6 +134,14 @@ var categoryTranslations = map[Locale]map[string]string{
 		"security":       "Sicherheit",
 		"notifications":  "Benachrichtigungen",
 		"general":        "Allgemein",
+		// Test categories
+		"basic_types": "Grundlegende Typen",
+		"time_types":  "Zeit-Typen",
+		"references":  "Referenzen",
+		"advanced":    "Erweitert",
+		"performance": "Leistung",
+		"scopes":      "Scope-Hierarchie",
+		"protected":   "Geschützt",
 	},
 	LocaleEN: {
 		"system":         "System",
@@ -156,6 +164,14 @@ var categoryTranslations = map[Locale]map[string]string{
 		"security":       "Security",
 		"notifications":  "Notifications",
 		"general":        "General",
+		// Test categories
+		"basic_types": "Basic Types",
+		"time_types":  "Time Types",
+		"references":  "References",
+		"advanced":    "Advanced",
+		"performance": "Performance",
+		"scopes":      "Scope Hierarchy",
+		"protected":   "Protected",
 	},
 }
 
@@ -187,20 +203,24 @@ func TranslateCategoryL(locale Locale, key string) string {
 // TabTranslations holds translations for tab names
 var tabTranslations = map[Locale]map[string]string{
 	LocaleDE: {
-		"general":  "Allgemein",
-		"display":  "Anzeige",
-		"security": "Sicherheit",
-		"email":    "E-Mail",
-		"rooms":    "Räume",
-		"system":   "System",
+		"general":       "Allgemein",
+		"display":       "Anzeige",
+		"security":      "Sicherheit",
+		"email":         "E-Mail",
+		"rooms":         "Räume",
+		"notifications": "Benachrichtigungen",
+		"system":        "System",
+		"test":          "Test Features",
 	},
 	LocaleEN: {
-		"general":  "General",
-		"display":  "Display",
-		"security": "Security",
-		"email":    "Email",
-		"rooms":    "Rooms",
-		"system":   "System",
+		"general":       "General",
+		"display":       "Display",
+		"security":      "Security",
+		"email":         "Email",
+		"rooms":         "Rooms",
+		"notifications": "Notifications",
+		"system":        "System",
+		"test":          "Test Features",
 	},
 }
 
