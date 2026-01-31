@@ -8,7 +8,12 @@ import (
 )
 
 func init() {
-	// Migration 1.8.2: Add created_by column to activities.groups
+	MigrationRegistry[ActivitiesGroupsCreatedByVersion] = &Migration{
+		Version:     ActivitiesGroupsCreatedByVersion,
+		Description: ActivitiesGroupsCreatedByDescription,
+		DependsOn:   ActivitiesGroupsCreatedByDependencies,
+	}
+
 	Migrations.MustRegister(func(ctx context.Context, db *bun.DB) error {
 		return migrateActivitiesGroupsCreatedBy(ctx, db)
 	}, func(ctx context.Context, db *bun.DB) error {
@@ -17,7 +22,7 @@ func init() {
 }
 
 const (
-	ActivitiesGroupsCreatedByVersion     = "1.8.2"
+	ActivitiesGroupsCreatedByVersion     = "1.8.3"
 	ActivitiesGroupsCreatedByDescription = "Add created_by column to activities.groups"
 )
 
@@ -33,7 +38,7 @@ var ActivitiesGroupsCreatedByDependencies = []string{
 // 2. Backfilling existing rows with their first supervisor (or fallback staff)
 // 3. Setting NOT NULL constraint
 func migrateActivitiesGroupsCreatedBy(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.8.2: Adding created_by column to activities.groups...")
+	fmt.Println("Migration 1.8.3: Adding created_by column to activities.groups...")
 
 	// Step 0: Check if column already exists (idempotency guard)
 	var columnExists bool
@@ -152,13 +157,13 @@ func migrateActivitiesGroupsCreatedBy(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error creating index: %w", err)
 	}
 
-	fmt.Println("Migration 1.8.2 completed successfully (zero data loss)")
+	fmt.Println("Migration 1.8.3 completed successfully (zero data loss)")
 	return nil
 }
 
 // rollbackActivitiesGroupsCreatedBy removes the created_by column
 func rollbackActivitiesGroupsCreatedBy(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.8.2: Removing created_by column from activities.groups...")
+	fmt.Println("Rolling back migration 1.8.3: Removing created_by column from activities.groups...")
 
 	// Drop index
 	_, err := db.ExecContext(ctx, `
@@ -186,6 +191,6 @@ func rollbackActivitiesGroupsCreatedBy(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error dropping created_by column: %w", err)
 	}
 
-	fmt.Println("Rollback 1.8.2 completed successfully")
+	fmt.Println("Rollback 1.8.3 completed successfully")
 	return nil
 }
