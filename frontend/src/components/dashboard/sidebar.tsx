@@ -350,13 +350,12 @@ function SidebarContent({ className = "" }: SidebarProps) {
     pathname.startsWith("/students/") && pathname !== "/students/search";
   const childFromParam = isChildOfAccordion ? fromParam : null;
   const childGroupId =
-    childFromParam?.startsWith("/ogs-groups") &&
-    typeof globalThis.window !== "undefined"
+    childFromParam?.startsWith("/ogs-groups") && globalThis.window !== undefined
       ? localStorage.getItem("sidebar-last-group")
       : null;
   const childRoomId =
     childFromParam?.startsWith("/active-supervisions") &&
-    typeof globalThis.window !== "undefined"
+    globalThis.window !== undefined
       ? localStorage.getItem("sidebar-last-room")
       : null;
 

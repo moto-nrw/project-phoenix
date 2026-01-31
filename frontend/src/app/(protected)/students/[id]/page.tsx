@@ -63,13 +63,12 @@ export default function StudentDetailPage() {
   // Set breadcrumb data — include group/room name for 3-level breadcrumb
   // when navigating from an accordion section (e.g. Meine Gruppe > 1a > Mia Fischer)
   const breadcrumbGroupName =
-    referrer.startsWith("/ogs-groups") &&
-    typeof globalThis.window !== "undefined"
+    referrer.startsWith("/ogs-groups") && globalThis.window !== undefined
       ? localStorage.getItem("sidebar-last-group-name")
       : undefined;
   const breadcrumbRoomName =
     referrer.startsWith("/active-supervisions") &&
-    typeof globalThis.window !== "undefined"
+    globalThis.window !== undefined
       ? localStorage.getItem("sidebar-last-room-name")
       : undefined;
 
