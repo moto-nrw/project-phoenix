@@ -595,6 +595,12 @@ func (s *service) EndActivitySession(ctx context.Context, activeGroupID int64) e
 		return &ActiveError{Op: "EndActivitySession", Err: ErrDatabaseOperation}
 	}
 
+	// Collect active supervisors BEFORE transaction for cleanup
+	activeSupervisors, err := s.supervisorRepo.FindByActiveGroupID(ctx, activeGroupID, true)
+	if err != nil {
+		return &ActiveError{Op: "EndActivitySession", Err: ErrDatabaseOperation}
+	}
+
 	// Use transaction to ensure atomic cleanup
 	err = s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
 		txService := s.WithTx(tx).(*service)
@@ -607,13 +613,9 @@ func (s *service) EndActivitySession(ctx context.Context, activeGroupID int64) e
 		}
 
 		// End all active supervisors
-		activeSupervisors, err := txService.supervisorRepo.FindByActiveGroupID(ctx, activeGroupID, true)
-		if err != nil {
-			return fmt.Errorf("failed to get active supervisors: %w", err)
-		}
 		for _, sup := range activeSupervisors {
 			if err := txService.supervisorRepo.EndSupervision(ctx, sup.ID); err != nil {
-				return fmt.Errorf("failed to end supervisor %d: %w", sup.ID, err)
+				return err
 			}
 		}
 
