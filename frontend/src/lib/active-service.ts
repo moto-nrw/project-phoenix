@@ -9,6 +9,8 @@ import {
   mapCombinedGroupResponse,
   mapGroupMappingResponse,
   mapAnalyticsResponse,
+  mapSchulhofStatusResponse,
+  mapToggleSupervisionResponse,
   prepareActiveGroupForBackend,
   prepareVisitForBackend,
   prepareSupervisorForBackend,
@@ -20,12 +22,16 @@ import {
   type CombinedGroup,
   type GroupMapping,
   type Analytics,
+  type SchulhofStatus,
+  type ToggleSupervisionResponse,
   type BackendActiveGroup,
   type BackendVisit,
   type BackendSupervisor,
   type BackendCombinedGroup,
   type BackendGroupMapping,
   type BackendAnalytics,
+  type BackendSchulhofStatus,
+  type BackendToggleSupervisionResponse,
   type CreateActiveGroupInput,
   type CreateVisitInput,
   type CreateSupervisorInput,
@@ -973,6 +979,36 @@ export const activeService = {
       `${env.NEXT_PUBLIC_API_URL}/active/visits/student/${studentId}/checkout`,
       {},
       "Checkout student",
+    );
+  },
+
+  // Schulhof (Schoolyard) - Permanent Tab Functions
+
+  /**
+   * Get the current Schulhof status including room info, supervisors, and student count.
+   */
+  getSchulhofStatus: async (): Promise<SchulhofStatus> => {
+    return proxyGet<BackendSchulhofStatus, SchulhofStatus>(
+      "/api/active/schulhof/status",
+      `${env.NEXT_PUBLIC_API_URL}/active/schulhof/status`,
+      mapSchulhofStatusResponse,
+      "Get Schulhof status",
+    );
+  },
+
+  /**
+   * Toggle Schulhof supervision for the current user.
+   * @param action - "start" to begin supervising, "stop" to end supervision
+   */
+  toggleSchulhofSupervision: async (
+    action: "start" | "stop",
+  ): Promise<ToggleSupervisionResponse> => {
+    return proxyPost<BackendToggleSupervisionResponse, ToggleSupervisionResponse>(
+      "/api/active/schulhof/supervise",
+      `${env.NEXT_PUBLIC_API_URL}/active/schulhof/supervise`,
+      { action },
+      mapToggleSupervisionResponse,
+      "Toggle Schulhof supervision",
     );
   },
 };

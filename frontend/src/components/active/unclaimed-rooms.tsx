@@ -5,9 +5,14 @@ import { activeService } from "~/lib/active-api";
 import { userContextService } from "~/lib/usercontext-api";
 import type { Supervisor } from "~/lib/active-helpers";
 
-// Only show claiming UI for Schulhof room
+// NOTE: Schulhof is now handled as a permanent tab in active-supervisions page.
+// This banner is disabled and returns null. Keeping the component for future
+// use with other unclaimed rooms if needed.
 const SCHULHOF_ROOM_NAME = "Schulhof";
 const DISMISSED_KEY = "schulhof-banner-dismissed";
+
+// Feature flag: set to true to re-enable the banner (not recommended while permanent tab exists)
+const ENABLE_SCHULHOF_BANNER = false;
 
 /** Minimal interface for groups passed from parent - compatible with both helper types */
 interface MinimalActiveGroup {
@@ -45,6 +50,11 @@ export function UnclaimedRooms({
   const [claiming, setClaiming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dismissed, setDismissed] = useState(false);
+
+  // Schulhof is now handled by the permanent tab in active-supervisions page
+  // This banner is disabled to avoid duplicate UI
+  // Hooks must be called unconditionally, so we return null after them
+  const isDisabled = !ENABLE_SCHULHOF_BANNER;
 
   const loadSchulhofStatus = useCallback(async () => {
     try {
@@ -151,6 +161,11 @@ export function UnclaimedRooms({
   function handleDismiss() {
     setDismissed(true);
     localStorage.setItem(DISMISSED_KEY, "true");
+  }
+
+  // Schulhof banner is disabled - permanent tab handles this now
+  if (isDisabled) {
+    return null;
   }
 
   // Don't show if loading

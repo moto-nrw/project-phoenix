@@ -11,23 +11,29 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize/policy"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
+	"github.com/moto-nrw/project-phoenix/services/facilities"
+	"github.com/moto-nrw/project-phoenix/services/usercontext"
 	userSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/uptrace/bun"
 )
 
 // Resource defines the active API resource
 type Resource struct {
-	ActiveService activeSvc.Service
-	PersonService userSvc.PersonService
-	db            *bun.DB
+	ActiveService      activeSvc.Service
+	PersonService      userSvc.PersonService
+	SchulhofService    facilities.SchulhofService
+	UserContextService usercontext.UserContextService
+	db                 *bun.DB
 }
 
 // NewResource creates a new active resource
-func NewResource(activeService activeSvc.Service, personService userSvc.PersonService, db *bun.DB) *Resource {
+func NewResource(activeService activeSvc.Service, personService userSvc.PersonService, schulhofService facilities.SchulhofService, userContextService usercontext.UserContextService, db *bun.DB) *Resource {
 	return &Resource{
-		ActiveService: activeService,
-		PersonService: personService,
-		db:            db,
+		ActiveService:      activeService,
+		PersonService:      personService,
+		SchulhofService:    schulhofService,
+		UserContextService: userContextService,
+		db:                 db,
 	}
 }
 
@@ -134,6 +140,13 @@ func (rs *Resource) Router() chi.Router {
 			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/room/{roomId}/utilization", rs.getRoomUtilization)
 			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/student/{studentId}/attendance", rs.getStudentAttendance)
 			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/dashboard", rs.getDashboardAnalytics)
+		})
+
+		// Schulhof (schoolyard) - permanent outdoor supervision area
+		r.Route("/schulhof", func(r chi.Router) {
+			schulhofResource := NewSchulhofResource(rs.SchulhofService, rs.UserContextService)
+			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/status", schulhofResource.getSchulhofStatus)
+			r.With(authorize.RequiresPermission(permissions.GroupsAssign)).Post("/supervise", schulhofResource.toggleSchulhofSupervision)
 		})
 
 	})

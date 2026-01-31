@@ -25,7 +25,20 @@ interface SupervisedRoom {
   name: string;
   groupId: string;
   groupName?: string;
+  isSchulhof?: boolean; // Special flag for Schulhof permanent tab
 }
+
+// Schulhof status from API
+interface SchulhofStatus {
+  exists: boolean;
+  room_id?: number;
+  room_name: string;
+  active_group_id?: number;
+  is_user_supervising: boolean;
+}
+
+const SCHULHOF_ROOM_NAME = "Schulhof";
+const SCHULHOF_TAB_ID = "schulhof-permanent";
 
 interface SupervisionState {
   // Group supervision
@@ -173,7 +186,7 @@ export function SupervisionProvider({
     }
   }, []); // No dependencies - uses ref
 
-  // Check if user is supervising an active room
+  // Check if user is supervising an active room (also fetches Schulhof status)
   const checkSupervision = useCallback(async () => {
     const token = tokenRef.current;
     if (!token) {
@@ -189,13 +202,37 @@ export function SupervisionProvider({
     }
 
     try {
-      const response = await fetch("/api/me/groups/supervised", {
-        headers: {
-          "Content-Type": "application/json",
-        },
-        // Add cache control to reduce redundant requests
-        cache: "no-store",
-      });
+      // Fetch supervised groups and Schulhof status in parallel
+      const [response, schulhofResponse] = await Promise.all([
+        fetch("/api/me/groups/supervised", {
+          headers: { "Content-Type": "application/json" },
+          cache: "no-store",
+        }),
+        fetch("/api/active/schulhof/status", {
+          headers: { "Content-Type": "application/json" },
+          cache: "no-store",
+        }).catch(() => null), // Schulhof is optional
+      ]);
+
+      // Parse Schulhof status
+      let schulhofRoom: SupervisedRoom | null = null;
+      if (schulhofResponse?.ok) {
+        // Response is double-wrapped: { success, data: { status, data: SchulhofStatus } }
+        const schulhofJson = (await schulhofResponse.json()) as {
+          data?: { data?: SchulhofStatus };
+        };
+        // Extract the actual Schulhof status from nested structure
+        const schulhofData = schulhofJson.data?.data;
+        if (schulhofData?.exists) {
+          schulhofRoom = {
+            id: SCHULHOF_TAB_ID,
+            name: SCHULHOF_ROOM_NAME,
+            groupId:
+              schulhofData.active_group_id?.toString() ?? SCHULHOF_TAB_ID,
+            isSchulhof: true,
+          };
+        }
+      }
 
       if (response.ok) {
         const response_data = (await response.json()) as {
@@ -228,8 +265,11 @@ export function SupervisionProvider({
             (firstGroup.room_id ? `Room ${firstGroup.room_id}` : undefined);
 
           // Map all supervised groups to rooms, sorted by name
-          const newSupervisedRooms: SupervisedRoom[] = supervisedGroups
-            .filter((g) => g.room_id && g.room)
+          // Filter out Schulhof from regular rooms (it's handled separately)
+          let newSupervisedRooms: SupervisedRoom[] = supervisedGroups
+            .filter(
+              (g) => g.room_id && g.room && g.room.name !== SCHULHOF_ROOM_NAME,
+            )
             .map((g) => ({
               id: g.room_id!.toString(),
               name: g.room?.name ?? `Room ${g.room_id}`,
@@ -237,6 +277,11 @@ export function SupervisionProvider({
               groupName: g.actual_group?.name,
             }))
             .sort((a, b) => a.name.localeCompare(b.name, "de"));
+
+          // Always add Schulhof at the end if it exists
+          if (schulhofRoom) {
+            newSupervisedRooms = [...newSupervisedRooms, schulhofRoom];
+          }
 
           setState((prev) => {
             // Only update if values actually changed (compare room IDs, not just length)
@@ -261,13 +306,18 @@ export function SupervisionProvider({
             };
           });
         } else {
+          // No regular supervision, but still include Schulhof if it exists
+          const roomsWithSchulhof = schulhofRoom ? [schulhofRoom] : [];
+
           setState((prev) => {
+            const prevRoomIds = prev.supervisedRooms.map((r) => r.id).join(",");
+            const newRoomIds = roomsWithSchulhof.map((r) => r.id).join(",");
             // Only update if values actually changed
             if (
               !prev.isSupervising &&
               prev.supervisedRoomId === undefined &&
               prev.supervisedRoomName === undefined &&
-              prev.supervisedRooms.length === 0 &&
+              prevRoomIds === newRoomIds &&
               !prev.isLoadingSupervision
             ) {
               return prev;
@@ -277,19 +327,23 @@ export function SupervisionProvider({
               isSupervising: false,
               supervisedRoomId: undefined,
               supervisedRoomName: undefined,
-              supervisedRooms: [],
+              supervisedRooms: roomsWithSchulhof,
               isLoadingSupervision: false,
             };
           });
         }
       } else {
+        // Response not OK, but still include Schulhof if it exists
+        const roomsOnError = schulhofRoom ? [schulhofRoom] : [];
         setState((prev) => {
+          const prevRoomIds = prev.supervisedRooms.map((r) => r.id).join(",");
+          const newRoomIds = roomsOnError.map((r) => r.id).join(",");
           // Only update if values actually changed
           if (
             !prev.isSupervising &&
             prev.supervisedRoomId === undefined &&
             prev.supervisedRoomName === undefined &&
-            prev.supervisedRooms.length === 0 &&
+            prevRoomIds === newRoomIds &&
             !prev.isLoadingSupervision
           ) {
             return prev;
@@ -299,12 +353,13 @@ export function SupervisionProvider({
             isSupervising: false,
             supervisedRoomId: undefined,
             supervisedRoomName: undefined,
-            supervisedRooms: [],
+            supervisedRooms: roomsOnError,
             isLoadingSupervision: false,
           };
         });
       }
     } catch {
+      // On error, we can't fetch Schulhof either, so just clear
       setState((prev) => {
         // Only update if values actually changed
         if (
@@ -328,6 +383,7 @@ export function SupervisionProvider({
     }
   }, []); // No dependencies - uses ref
 
+  // Check Schulhof status and add to supervised rooms if exists
   // Refresh all supervision states with debouncing
   const refresh = useCallback(
     async (silent = false) => {
@@ -351,6 +407,7 @@ export function SupervisionProvider({
         }));
       }
 
+      // checkSupervision now handles Schulhof internally
       void Promise.all([checkGroups(), checkSupervision()]).finally(() => {
         isRefreshingRef.current = false;
       });

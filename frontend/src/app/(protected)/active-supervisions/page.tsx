@@ -56,6 +56,25 @@ interface ActiveRoom {
   students?: StudentWithVisit[];
 }
 
+// Schulhof status from BFF
+interface SchulhofStatusResponse {
+  exists: boolean;
+  roomId: string | null;
+  roomName: string;
+  activityGroupId: string | null;
+  activeGroupId: string | null;
+  isUserSupervising: boolean;
+  supervisionId: string | null;
+  supervisorCount: number;
+  studentCount: number;
+  supervisors: Array<{
+    id: string;
+    staffId: string;
+    name: string;
+    isCurrentUser: boolean;
+  }>;
+}
+
 // BFF response type for consolidated dashboard data
 interface BFFDashboardResponse {
   supervisedGroups: Array<{
@@ -85,6 +104,7 @@ interface BFFDashboardResponse {
     isActive: boolean;
   }>;
   firstRoomId: string | null;
+  schulhofStatus: SchulhofStatusResponse | null;
 }
 
 const GROUP_CARD_GRADIENT = "from-blue-50/80 to-cyan-100/80";
@@ -348,22 +368,44 @@ function MeinRaumPageContent() {
   const [showReleaseModal, setShowReleaseModal] = useState(false);
   const [isReleasingSupervision, setIsReleasingSupervision] = useState(false);
 
+  // Schulhof permanent tab state
+  const [schulhofStatus, setSchulhofStatus] =
+    useState<SchulhofStatusResponse | null>(null);
+  const [isTogglingSchulhof, setIsTogglingSchulhof] = useState(false);
+  const [isSchulhofTabSelected, setIsSchulhofTabSelected] = useState(false);
+
+  // Ref to always have latest schulhofStatus (prevents stale closure in callbacks)
+  const schulhofStatusRef = useRef<SchulhofStatusResponse | null>(null);
+  schulhofStatusRef.current = schulhofStatus;
+
+  // Schulhof tab ID constant for identifying the permanent tab
+  const SCHULHOF_TAB_ID = "schulhof-permanent";
+
   // Cached active groups for UnclaimedRooms (avoids duplicate API call)
   const [cachedActiveGroups, setCachedActiveGroups] = useState<
     MinimalActiveGroup[]
   >([]);
   const [currentStaffId, setCurrentStaffId] = useState<string | undefined>();
 
-  // Get current selected room
-  const currentRoom = allRooms[selectedRoomIndex] ?? null;
+  // Get current selected room (null if Schulhof tab is selected but user isn't supervising)
+  const currentRoom = isSchulhofTabSelected
+    ? schulhofStatus?.isUserSupervising && schulhofStatus?.activeGroupId
+      ? {
+          id: schulhofStatus.activeGroupId,
+          name: SCHULHOF_ROOM_NAME,
+          room_name: SCHULHOF_ROOM_NAME,
+          room_id: schulhofStatus.roomId ?? undefined,
+          student_count: schulhofStatus.studentCount,
+        }
+      : null
+    : (allRooms[selectedRoomIndex] ?? null);
 
   // Set breadcrumb so header shows current room name
   useSetBreadcrumb({
-    activeSupervisionName: currentRoom?.room_name,
+    activeSupervisionName: isSchulhofTabSelected
+      ? SCHULHOF_ROOM_NAME
+      : currentRoom?.room_name,
   });
-
-  // Check if current room is Schulhof (special release supervision feature)
-  const isSchulhof = currentRoom?.room_name === SCHULHOF_ROOM_NAME;
 
   // Helper function to load visits for a specific room
   const loadRoomVisits = useCallback(
@@ -525,6 +567,11 @@ function MeinRaumPageContent() {
     setGroupNameToIdMap(nameToIdMap);
     groupNameToIdMapRef.current = nameToIdMap;
 
+    // Set Schulhof status for permanent tab
+    if (data.schulhofStatus) {
+      setSchulhofStatus(data.schulhofStatus);
+    }
+
     // Cache active groups for UnclaimedRooms component
     if (data.supervisedGroups.length > 0) {
       const combinedGroups = [
@@ -636,9 +683,32 @@ function MeinRaumPageContent() {
   // When no param is present (e.g. fresh login), persist the default (first room)
   // so localStorage stays in sync and the sidebar picks it up on next click.
   useEffect(() => {
+    // Handle Schulhof param specially
+    if (roomParam === "schulhof" && schulhofStatus?.exists) {
+      if (!isSchulhofTabSelected) {
+        setIsSchulhofTabSelected(true);
+        setSelectedRoomIndex(-1);
+        // Load Schulhof visits if supervising
+        if (schulhofStatus.isUserSupervising && schulhofStatus.activeGroupId) {
+          void loadRoomVisits(
+            schulhofStatus.activeGroupId,
+            SCHULHOF_ROOM_NAME,
+            groupNameToIdMapRef.current,
+          ).then(setStudents);
+        } else {
+          setStudents([]);
+        }
+      }
+      return;
+    }
+
     if (allRooms.length === 0) return;
 
     if (roomParam) {
+      // Switch away from Schulhof if selecting a different room
+      if (isSchulhofTabSelected) {
+        setIsSchulhofTabSelected(false);
+      }
       const targetIndex = allRooms.findIndex((r) => r.room_id === roomParam);
       if (targetIndex !== -1 && targetIndex !== selectedRoomIndex) {
         void switchToRoom(targetIndex);
@@ -662,7 +732,13 @@ function MeinRaumPageContent() {
       // When savedIndex === selectedRoomIndex, do nothing — already in sync
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allRooms, roomParam]);
+  }, [
+    allRooms,
+    roomParam,
+    schulhofStatus?.exists,
+    schulhofStatus?.activeGroupId,
+    schulhofStatus?.isUserSupervising,
+  ]);
 
   // SWR-based per-room visit subscription for real-time updates.
   // When global SSE invalidates "visit*" or "supervision*" caches, this triggers a refetch.
@@ -742,6 +818,17 @@ function MeinRaumPageContent() {
     }
   }, [isDashboardLoading, dashboardData]);
 
+  // Auto-select Schulhof tab when it's the only available option
+  useEffect(() => {
+    if (
+      allRooms.length === 0 &&
+      schulhofStatus?.exists &&
+      !isSchulhofTabSelected
+    ) {
+      setIsSchulhofTabSelected(true);
+    }
+  }, [allRooms.length, schulhofStatus?.exists, isSchulhofTabSelected]);
+
   // Callback when a room is claimed - triggers refresh
   const handleRoomClaimed = useCallback(() => {
     setRefreshKey((prev) => prev + 1);
@@ -781,6 +868,29 @@ function MeinRaumPageContent() {
       setIsReleasingSupervision(false);
     }
   }, [currentRoom, currentStaffId]);
+
+  // Handle toggling Schulhof supervision (start/stop)
+  const handleToggleSchulhof = useCallback(async () => {
+    if (!schulhofStatus) return;
+
+    try {
+      setIsTogglingSchulhof(true);
+      const action = schulhofStatus.isUserSupervising ? "stop" : "start";
+      await activeService.toggleSchulhofSupervision(action);
+
+      // Refresh to get updated status
+      setRefreshKey((prev) => prev + 1);
+    } catch (err) {
+      console.error("Failed to toggle Schulhof supervision:", err);
+      setError(
+        schulhofStatus.isUserSupervising
+          ? "Fehler beim Abgeben der Schulhof-Aufsicht."
+          : "Fehler beim Übernehmen der Schulhof-Aufsicht.",
+      );
+    } finally {
+      setIsTogglingSchulhof(false);
+    }
+  }, [schulhofStatus]);
 
   // Function to switch between rooms
   const switchToRoom = async (roomIndex: number) => {
@@ -899,8 +1009,9 @@ function MeinRaumPageContent() {
     return <NoAccessView />;
   }
 
-  // Show unclaimed rooms banner when user has no supervised groups but there are rooms to claim
-  if (allRooms.length === 0) {
+  // Show unclaimed rooms banner when user has no supervised groups and no Schulhof
+  // If Schulhof exists, we'll show the main view with just the Schulhof tab
+  if (allRooms.length === 0 && !schulhofStatus?.exists) {
     return (
       <EmptyRoomsView
         onClaimed={handleRoomClaimed}
@@ -1017,8 +1128,12 @@ function MeinRaumPageContent() {
       {/* No title - breadcrumb menu handles page identification */}
       <PageHeaderWithSearch
         title={
-          !isDesktop && allRooms.length === 1
-            ? (currentRoom?.room_name ?? "Aktuelle Aufsicht")
+          !isDesktop &&
+          (allRooms.length === 1 ||
+            (allRooms.length === 0 && schulhofStatus?.exists))
+            ? isSchulhofTabSelected
+              ? SCHULHOF_ROOM_NAME
+              : (currentRoom?.room_name ?? "Aktuelle Aufsicht")
             : ""
         }
         badge={{
@@ -1037,29 +1152,78 @@ function MeinRaumPageContent() {
               />
             </svg>
           ),
-          count: currentRoom?.student_count ?? 0,
+          count: isSchulhofTabSelected
+            ? (schulhofStatus?.studentCount ?? 0)
+            : (currentRoom?.student_count ?? 0),
           label: "Schüler",
         }}
         tabs={
-          allRooms.length > 1 && !isDesktop
+          // Show tabs when there are multiple rooms OR Schulhof exists (always show Schulhof tab)
+          (allRooms.length > 1 || schulhofStatus?.exists) && !isDesktop
             ? {
-                items: allRooms.map((room) => ({
-                  id: room.id,
-                  label: room.room_name ?? room.name,
-                })),
-                activeTab: currentRoom?.id ?? "",
+                items: [
+                  // Regular supervised rooms
+                  ...allRooms
+                    .filter((room) => room.room_name !== SCHULHOF_ROOM_NAME)
+                    .map((room) => ({
+                      id: room.id,
+                      label: room.room_name ?? room.name,
+                    })),
+                  // Schulhof permanent tab (always shown if exists)
+                  ...(schulhofStatus?.exists
+                    ? [
+                        {
+                          id: SCHULHOF_TAB_ID,
+                          label: SCHULHOF_ROOM_NAME,
+                        },
+                      ]
+                    : []),
+                ],
+                activeTab: isSchulhofTabSelected
+                  ? SCHULHOF_TAB_ID
+                  : (currentRoom?.id ?? ""),
                 onTabChange: (tabId) => {
-                  const index = allRooms.findIndex((r) => r.id === tabId);
-                  if (index !== -1) {
-                    const room = allRooms[index];
-                    if (room?.room_id) {
-                      localStorage.setItem("sidebar-last-room", room.room_id);
+                  if (tabId === SCHULHOF_TAB_ID) {
+                    // Switch to Schulhof tab
+                    setIsSchulhofTabSelected(true);
+                    setSelectedRoomIndex(-1);
+                    localStorage.setItem("sidebar-last-room", SCHULHOF_TAB_ID);
+                    localStorage.setItem(
+                      "sidebar-last-room-name",
+                      SCHULHOF_ROOM_NAME,
+                    );
+                    // Load Schulhof visits if supervising (use ref to avoid stale closure)
+                    const currentSchulhofStatus = schulhofStatusRef.current;
+                    if (
+                      currentSchulhofStatus?.isUserSupervising &&
+                      currentSchulhofStatus?.activeGroupId
+                    ) {
+                      void loadRoomVisits(
+                        currentSchulhofStatus.activeGroupId,
+                        SCHULHOF_ROOM_NAME,
+                        groupNameToIdMapRef.current,
+                      ).then(setStudents);
+                    } else {
+                      setStudents([]);
                     }
-                    const roomName = room?.room_name;
-                    if (roomName) {
-                      localStorage.setItem("sidebar-last-room-name", roomName);
+                  } else {
+                    // Switch to regular room
+                    setIsSchulhofTabSelected(false);
+                    const index = allRooms.findIndex((r) => r.id === tabId);
+                    if (index !== -1) {
+                      const room = allRooms[index];
+                      if (room?.room_id) {
+                        localStorage.setItem("sidebar-last-room", room.room_id);
+                      }
+                      const roomName = room?.room_name;
+                      if (roomName) {
+                        localStorage.setItem(
+                          "sidebar-last-room-name",
+                          roomName,
+                        );
+                      }
+                      void switchToRoom(index);
                     }
-                    void switchToRoom(index);
                   }
                 },
               }
@@ -1077,18 +1241,66 @@ function MeinRaumPageContent() {
           setGroupFilter("all");
         }}
         actionButton={
-          isSchulhof ? (
-            <ReleaseSupervisionButton
-              isReleasing={isReleasingSupervision}
-              onClick={() => setShowReleaseModal(true)}
-            />
+          isSchulhofTabSelected && schulhofStatus ? (
+            schulhofStatus.isUserSupervising ? (
+              <ReleaseSupervisionButton
+                isReleasing={isReleasingSupervision}
+                onClick={() => setShowReleaseModal(true)}
+              />
+            ) : (
+              <button
+                onClick={() => handleToggleSchulhof().catch(() => undefined)}
+                disabled={isTogglingSchulhof}
+                className="group relative flex h-10 items-center gap-2 rounded-full bg-gradient-to-br from-emerald-500 to-green-600 px-4 text-white shadow-lg transition-all duration-150 hover:scale-105 hover:shadow-xl hover:shadow-emerald-400/30 active:scale-95 disabled:opacity-50"
+              >
+                <svg
+                  className="h-5 w-5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2.5}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                  />
+                </svg>
+                <span className="text-sm font-semibold">
+                  {isTogglingSchulhof ? "Wird übernommen..." : "Beaufsichtigen"}
+                </span>
+              </button>
+            )
           ) : undefined
         }
         mobileActionButton={
-          isSchulhof ? (
-            <MobileReleaseSupervisionButton
-              onClick={() => setShowReleaseModal(true)}
-            />
+          isSchulhofTabSelected && schulhofStatus ? (
+            schulhofStatus.isUserSupervising ? (
+              <MobileReleaseSupervisionButton
+                onClick={() => setShowReleaseModal(true)}
+              />
+            ) : (
+              <button
+                onClick={() => handleToggleSchulhof().catch(() => undefined)}
+                disabled={isTogglingSchulhof}
+                className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-emerald-500 to-green-600 text-white shadow-md transition-all duration-150 active:scale-90 disabled:opacity-50"
+                aria-label="Beaufsichtigen"
+              >
+                <svg
+                  className="h-4 w-4"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2.5}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                  />
+                </svg>
+              </button>
+            )
           ) : undefined
         }
       />
@@ -1168,8 +1380,83 @@ function MeinRaumPageContent() {
         </div>
       )}
 
+      {/* Schulhof Not Supervising View */}
+      {isSchulhofTabSelected &&
+        schulhofStatus &&
+        !schulhofStatus.isUserSupervising && (
+          <div className="mt-8 flex min-h-[30vh] items-center justify-center">
+            <div className="flex max-w-md flex-col items-center gap-6 rounded-xl border border-amber-200 bg-gradient-to-br from-amber-50 to-yellow-50 p-8 text-center shadow-lg">
+              {/* Tree/Yard Icon */}
+              <div className="rounded-full bg-amber-100 p-4">
+                <svg
+                  className="h-10 w-10 text-amber-600"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={1.5}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M12 3v2.25m6.364.386l-1.591 1.591M21 12h-2.25m-.386 6.364l-1.591-1.591M12 18.75V21m-4.773-4.227l-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z"
+                  />
+                </svg>
+              </div>
+
+              <div className="space-y-2">
+                <h3 className="text-lg font-semibold text-gray-900">
+                  Schulhof-Aufsicht verfügbar
+                </h3>
+                <p className="text-sm text-gray-600">
+                  Klicke auf &quot;Beaufsichtigen&quot;, um die
+                  Schulhof-Aufsicht zu übernehmen und Schüler zu sehen.
+                </p>
+              </div>
+
+              {/* Current supervisors info */}
+              {schulhofStatus.supervisorCount > 0 && (
+                <div className="w-full rounded-lg border border-amber-100 bg-white/50 p-3">
+                  <p className="text-xs font-medium text-amber-700">
+                    Aktuelle Aufsicht ({schulhofStatus.supervisorCount}):
+                  </p>
+                  <p className="mt-1 text-sm text-gray-700">
+                    {schulhofStatus.supervisors.map((s) => s.name).join(", ")}
+                  </p>
+                </div>
+              )}
+
+              {schulhofStatus.supervisorCount === 0 && (
+                <div className="rounded-lg border border-red-100 bg-red-50 p-3">
+                  <p className="text-sm font-medium text-red-700">
+                    Aktuell keine Aufsicht
+                  </p>
+                </div>
+              )}
+
+              {/* Student count info */}
+              {schulhofStatus.studentCount > 0 && (
+                <p className="text-xs text-gray-500">
+                  {schulhofStatus.studentCount} Schüler im Schulhof
+                </p>
+              )}
+
+              {/* Claim Button */}
+              <button
+                onClick={() => handleToggleSchulhof().catch(() => undefined)}
+                disabled={isTogglingSchulhof}
+                className="w-full rounded-lg bg-gradient-to-br from-emerald-500 to-green-600 px-6 py-3 text-sm font-semibold text-white shadow-md transition-all duration-150 hover:scale-105 hover:shadow-lg hover:shadow-emerald-400/30 active:scale-100 disabled:opacity-50"
+              >
+                {isTogglingSchulhof
+                  ? "Wird übernommen..."
+                  : "Schulhof beaufsichtigen"}
+              </button>
+            </div>
+          </div>
+        )}
+
       {/* Student Grid - Mobile Optimized */}
-      {renderStudentContent()}
+      {(!isSchulhofTabSelected || schulhofStatus?.isUserSupervising) &&
+        renderStudentContent()}
     </div>
   );
 }
