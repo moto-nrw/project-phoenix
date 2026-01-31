@@ -45,7 +45,6 @@ export function SidebarAccordionSection({
       {/* Header row — single box with icon, label, and chevron */}
       <button
         type="button"
-        role="button"
         onClick={onToggle}
         onKeyDown={(e) => {
           if (e.key === "Enter" || e.key === " ") {

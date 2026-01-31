@@ -171,7 +171,7 @@ export function Header() {
  * when navigating back via breadcrumb link.
  */
 function enrichReferrerWithParam(referrer: string): string {
-  if (typeof window === "undefined") return referrer;
+  if (typeof globalThis.window === "undefined") return referrer;
   if (referrer === "/ogs-groups") {
     const groupId = localStorage.getItem("sidebar-last-group");
     if (groupId) return `/ogs-groups?group=${groupId}`;
