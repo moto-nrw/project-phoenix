@@ -280,10 +280,7 @@ describe("Sidebar", () => {
 
       render(<Sidebar />);
 
-      // Accordion headers are div[role=button], not <a> links
-      const groupHeader = screen
-        .getByText("Meine Gruppe")
-        .closest('[role="button"]');
+      const groupHeader = screen.getByText("Meine Gruppe").closest("button");
       expect(groupHeader).toHaveClass("bg-gray-100");
     });
 
@@ -296,10 +293,9 @@ describe("Sidebar", () => {
 
       render(<Sidebar />);
 
-      // Accordion headers are div[role=button], not <a> links
       const supervisionHeader = screen
         .getByText("Aktuelle Aufsicht")
-        .closest('[role="button"]');
+        .closest("button");
       expect(supervisionHeader).toHaveClass("bg-gray-100");
     });
 
