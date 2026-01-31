@@ -166,6 +166,24 @@ export function Header() {
 }
 
 /**
+ * Enrich a bare referrer URL (e.g. "/ogs-groups") with the last-selected
+ * sub-item param from localStorage so the sidebar highlights the correct item
+ * when navigating back via breadcrumb link.
+ */
+function enrichReferrerWithParam(referrer: string): string {
+  if (typeof window === "undefined") return referrer;
+  if (referrer === "/ogs-groups") {
+    const groupId = localStorage.getItem("sidebar-last-group");
+    if (groupId) return `/ogs-groups?group=${groupId}`;
+  }
+  if (referrer === "/active-supervisions") {
+    const roomId = localStorage.getItem("sidebar-last-room");
+    if (roomId) return `/active-supervisions?room=${roomId}`;
+  }
+  return referrer;
+}
+
+/**
  * Breadcrumb section component - handles routing logic for different page types
  */
 interface HeaderBreadcrumbProps {
@@ -238,15 +256,19 @@ function HeaderBreadcrumb({
     return <RoomBreadcrumb roomName={roomName} />;
   }
 
+  // Enrich referrer with sub-item param so the sidebar highlights the correct
+  // group/room when navigating back (e.g. /ogs-groups?group=5 instead of /ogs-groups).
+  const enrichedReferrer = enrichReferrerWithParam(referrer);
+
   // Student history sub-page (3 or 4 levels depending on context)
-  if (pageTypeInfo.isStudentHistoryPage && studentName) {
+  if (pageTypeInfo.isStudentHistoryPage) {
     const subSectionName = ogsGroupName ?? activeSupervisionName;
     return (
       <StudentHistoryBreadcrumb
-        referrer={referrer}
+        referrer={enrichedReferrer}
         breadcrumbLabel={breadcrumbLabel}
         pathname={pathname}
-        studentName={studentName}
+        studentName={studentName ?? "…"}
         historyType={historyType}
         isScrolled={isScrolled}
         subSectionName={subSectionName}
@@ -255,15 +277,15 @@ function HeaderBreadcrumb({
   }
 
   // Student detail page (2 or 3 levels depending on context)
-  if (pageTypeInfo.isStudentDetailPage && studentName) {
+  if (pageTypeInfo.isStudentDetailPage) {
     // When navigating from an accordion section, show the sub-section name
     // e.g. "Meine Gruppe > 1a > Mia Fischer" instead of "Meine Gruppe > Mia Fischer"
     const subSectionName = ogsGroupName ?? activeSupervisionName;
     return (
       <StudentDetailBreadcrumb
-        referrer={referrer}
+        referrer={enrichedReferrer}
         breadcrumbLabel={breadcrumbLabel}
-        studentName={studentName}
+        studentName={studentName ?? "…"}
         isScrolled={isScrolled}
         subSectionName={subSectionName}
       />
