@@ -144,6 +144,34 @@ const DATABASE_SUB_PAGES = [
   { href: "/database/permissions", label: "Berechtigungen" },
 ];
 
+/** Determine if a group sub-item should be highlighted as active */
+function isGroupSubItemActive(
+  childGroupId: string | null,
+  groupId: string,
+  pathname: string,
+  currentGroupParam: string | null,
+  index: number,
+): boolean {
+  if (childGroupId) return childGroupId === groupId;
+  if (!pathname.startsWith("/ogs-groups")) return false;
+  if (currentGroupParam) return currentGroupParam === groupId;
+  return index === 0;
+}
+
+/** Determine if a room sub-item should be highlighted as active */
+function isRoomSubItemActive(
+  childRoomId: string | null,
+  roomId: string,
+  pathname: string,
+  currentRoomParam: string | null,
+  index: number,
+): boolean {
+  if (childRoomId) return childRoomId === roomId;
+  if (!pathname.startsWith("/active-supervisions")) return false;
+  if (currentRoomParam) return currentRoomParam === roomId;
+  return index === 0;
+}
+
 interface SidebarProps {
   readonly className?: string;
 }
@@ -321,16 +349,16 @@ function SidebarContent({ className = "" }: SidebarProps) {
   const isChildOfAccordion =
     pathname.startsWith("/students/") && pathname !== "/students/search";
   const childFromParam = isChildOfAccordion ? fromParam : null;
-  const childGroupId = childFromParam?.startsWith("/ogs-groups")
-    ? typeof window !== "undefined"
+  const childGroupId =
+    childFromParam?.startsWith("/ogs-groups") &&
+    typeof globalThis.window !== "undefined"
       ? localStorage.getItem("sidebar-last-group")
-      : null
-    : null;
-  const childRoomId = childFromParam?.startsWith("/active-supervisions")
-    ? typeof window !== "undefined"
+      : null;
+  const childRoomId =
+    childFromParam?.startsWith("/active-supervisions") &&
+    typeof globalThis.window !== "undefined"
       ? localStorage.getItem("sidebar-last-room")
-      : null
-    : null;
+      : null;
 
   // Persist last selected sub-item per accordion section to localStorage.
   // Pages read this on mount to restore the user's last selection.
@@ -419,151 +447,147 @@ function SidebarContent({ className = "" }: SidebarProps) {
   const showStaffAccordions = !userIsAdmin;
 
   return (
-    <>
-      <aside
-        className={`min-h-screen w-64 border-r border-gray-200 bg-white ${className}`}
-      >
-        <div className="sticky top-[73px] flex h-[calc(100vh-73px)] flex-col">
-          {/* Main navigation — scrollable */}
-          <nav className="flex-1 space-y-1 overflow-y-auto p-3 lg:p-4 xl:p-3">
-            {/* Home (admin only) */}
-            {beforeAccordionItems
-              .filter((item) => item.href === "/dashboard")
-              .map(renderNavItem)}
+    <aside
+      className={`min-h-screen w-64 border-r border-gray-200 bg-white ${className}`}
+    >
+      <div className="sticky top-[73px] flex h-[calc(100vh-73px)] flex-col">
+        {/* Main navigation — scrollable */}
+        <nav className="flex-1 space-y-1 overflow-y-auto p-3 lg:p-4 xl:p-3">
+          {/* Home (admin only) */}
+          {beforeAccordionItems
+            .filter((item) => item.href === "/dashboard")
+            .map(renderNavItem)}
 
-            {/* Meine Gruppen accordion (staff only) */}
-            {showStaffAccordions && (
-              <SidebarAccordionSection
-                icon="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
-                label={groups.length > 1 ? "Meine Gruppen" : "Meine Gruppe"}
-                activeColor="text-[#83CD2D]"
-                isExpanded={expanded === "groups"}
-                onToggle={handleGroupsToggle}
-                isActive={isAccordionSectionActive(
-                  "/ogs-groups",
-                  Boolean(currentGroupParam) ||
-                    Boolean(childGroupId) ||
-                    groups.length > 0,
-                )}
-                isIconActive={
-                  pathname.startsWith("/ogs-groups") || Boolean(childGroupId)
-                }
-                isLoading={isLoadingGroups}
-                emptyText="Keine Gruppen zugeordnet"
-                hasChildren={groups.length > 0}
-              >
-                {groups.map((group, index) => (
-                  <SidebarSubItem
-                    key={group.id}
-                    href={`/ogs-groups?group=${group.id}`}
-                    label={group.name}
-                    isActive={
-                      childGroupId
-                        ? childGroupId === group.id.toString()
-                        : pathname.startsWith("/ogs-groups") &&
-                          (currentGroupParam
-                            ? currentGroupParam === group.id.toString()
-                            : index === 0)
-                    }
-                  />
-                ))}
-              </SidebarAccordionSection>
-            )}
-
-            {/* Aktuelle Aufsicht accordion (staff only) */}
-            {showStaffAccordions && (
-              <SidebarAccordionSection
-                icon="M15 12a3 3 0 11-6 0 3 3 0 016 0z M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
-                label={
-                  supervisedRooms.length > 1
-                    ? "Aktuelle Aufsichten"
-                    : "Aktuelle Aufsicht"
-                }
-                activeColor="text-violet-500"
-                isExpanded={expanded === "supervisions"}
-                onToggle={handleSupervisionsToggle}
-                isActive={isAccordionSectionActive(
-                  "/active-supervisions",
-                  Boolean(currentRoomParam) ||
-                    Boolean(childRoomId) ||
-                    supervisedRooms.length > 0,
-                )}
-                isIconActive={
-                  pathname.startsWith("/active-supervisions") ||
-                  Boolean(childRoomId)
-                }
-                isLoading={isLoadingSupervision}
-                emptyText="Keine aktive Aufsicht"
-                hasChildren={supervisedRooms.length > 0}
-              >
-                {supervisedRooms.map((room, index) => (
-                  <SidebarSubItem
-                    key={room.id}
-                    href={`/active-supervisions?room=${room.id}`}
-                    label={room.name}
-                    isActive={
-                      childRoomId
-                        ? childRoomId === room.id
-                        : pathname.startsWith("/active-supervisions") &&
-                          (currentRoomParam
-                            ? currentRoomParam === room.id
-                            : index === 0)
-                    }
-                  />
-                ))}
-              </SidebarAccordionSection>
-            )}
-
-            {/* Kindersuche (flat) */}
-            {beforeAccordionItems
-              .filter((item) => item.href === "/students/search")
-              .map(renderNavItem)}
-
-            {/* Flat middle items: Aktivitaten, Raume, Mitarbeiter */}
-            {middleItems.map(renderNavItem)}
-
-            {/* Vertretungen (admin, flat) */}
-            {substitutionsItem && renderNavItem(substitutionsItem)}
-
-            {/* Datenverwaltung accordion (admin only) */}
-            {userIsAdmin && (
-              <SidebarAccordionSection
-                icon="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"
-                label="Datenverwaltung"
-                activeColor="text-gray-500"
-                isExpanded={expanded === "database"}
-                onToggle={handleDatabaseToggle}
-                isActive={isAccordionSectionActive(
-                  "/database",
-                  DATABASE_SUB_PAGES.some((p) => pathname === p.href),
-                )}
-                isIconActive={pathname.startsWith("/database")}
-                hasChildren={DATABASE_SUB_PAGES.length > 0}
-              >
-                {DATABASE_SUB_PAGES.map((page) => (
-                  <SidebarSubItem
-                    key={page.href}
-                    href={page.href}
-                    label={page.label}
-                    isActive={pathname === page.href}
-                  />
-                ))}
-              </SidebarAccordionSection>
-            )}
-
-            {/* Coming soon items */}
-            {comingSoonItems.map(renderNavItem)}
-          </nav>
-
-          {/* Bottom pinned items */}
-          {bottomNavItems.length > 0 && (
-            <nav className="space-y-1 border-t border-gray-200 p-3 lg:p-4 xl:p-3">
-              {bottomNavItems.map(renderNavItem)}
-            </nav>
+          {/* Meine Gruppen accordion (staff only) */}
+          {showStaffAccordions && (
+            <SidebarAccordionSection
+              icon="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+              label={groups.length > 1 ? "Meine Gruppen" : "Meine Gruppe"}
+              activeColor="text-[#83CD2D]"
+              isExpanded={expanded === "groups"}
+              onToggle={handleGroupsToggle}
+              isActive={isAccordionSectionActive(
+                "/ogs-groups",
+                Boolean(currentGroupParam) ||
+                  Boolean(childGroupId) ||
+                  groups.length > 0,
+              )}
+              isIconActive={
+                pathname.startsWith("/ogs-groups") || Boolean(childGroupId)
+              }
+              isLoading={isLoadingGroups}
+              emptyText="Keine Gruppen zugeordnet"
+              hasChildren={groups.length > 0}
+            >
+              {groups.map((group, index) => (
+                <SidebarSubItem
+                  key={group.id}
+                  href={`/ogs-groups?group=${group.id}`}
+                  label={group.name}
+                  isActive={isGroupSubItemActive(
+                    childGroupId,
+                    group.id.toString(),
+                    pathname,
+                    currentGroupParam,
+                    index,
+                  )}
+                />
+              ))}
+            </SidebarAccordionSection>
           )}
-        </div>
-      </aside>
-    </>
+
+          {/* Aktuelle Aufsicht accordion (staff only) */}
+          {showStaffAccordions && (
+            <SidebarAccordionSection
+              icon="M15 12a3 3 0 11-6 0 3 3 0 016 0z M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+              label={
+                supervisedRooms.length > 1
+                  ? "Aktuelle Aufsichten"
+                  : "Aktuelle Aufsicht"
+              }
+              activeColor="text-violet-500"
+              isExpanded={expanded === "supervisions"}
+              onToggle={handleSupervisionsToggle}
+              isActive={isAccordionSectionActive(
+                "/active-supervisions",
+                Boolean(currentRoomParam) ||
+                  Boolean(childRoomId) ||
+                  supervisedRooms.length > 0,
+              )}
+              isIconActive={
+                pathname.startsWith("/active-supervisions") ||
+                Boolean(childRoomId)
+              }
+              isLoading={isLoadingSupervision}
+              emptyText="Keine aktive Aufsicht"
+              hasChildren={supervisedRooms.length > 0}
+            >
+              {supervisedRooms.map((room, index) => (
+                <SidebarSubItem
+                  key={room.id}
+                  href={`/active-supervisions?room=${room.id}`}
+                  label={room.name}
+                  isActive={isRoomSubItemActive(
+                    childRoomId,
+                    room.id,
+                    pathname,
+                    currentRoomParam,
+                    index,
+                  )}
+                />
+              ))}
+            </SidebarAccordionSection>
+          )}
+
+          {/* Kindersuche (flat) */}
+          {beforeAccordionItems
+            .filter((item) => item.href === "/students/search")
+            .map(renderNavItem)}
+
+          {/* Flat middle items: Aktivitaten, Raume, Mitarbeiter */}
+          {middleItems.map(renderNavItem)}
+
+          {/* Vertretungen (admin, flat) */}
+          {substitutionsItem && renderNavItem(substitutionsItem)}
+
+          {/* Datenverwaltung accordion (admin only) */}
+          {userIsAdmin && (
+            <SidebarAccordionSection
+              icon="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"
+              label="Datenverwaltung"
+              activeColor="text-gray-500"
+              isExpanded={expanded === "database"}
+              onToggle={handleDatabaseToggle}
+              isActive={isAccordionSectionActive(
+                "/database",
+                DATABASE_SUB_PAGES.some((p) => pathname === p.href),
+              )}
+              isIconActive={pathname.startsWith("/database")}
+              hasChildren={DATABASE_SUB_PAGES.length > 0}
+            >
+              {DATABASE_SUB_PAGES.map((page) => (
+                <SidebarSubItem
+                  key={page.href}
+                  href={page.href}
+                  label={page.label}
+                  isActive={pathname === page.href}
+                />
+              ))}
+            </SidebarAccordionSection>
+          )}
+
+          {/* Coming soon items */}
+          {comingSoonItems.map(renderNavItem)}
+        </nav>
+
+        {/* Bottom pinned items */}
+        {bottomNavItems.length > 0 && (
+          <nav className="space-y-1 border-t border-gray-200 p-3 lg:p-4 xl:p-3">
+            {bottomNavItems.map(renderNavItem)}
+          </nav>
+        )}
+      </div>
+    </aside>
   );
 }
 

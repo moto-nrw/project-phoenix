@@ -48,7 +48,7 @@ export function useSidebarAccordion(
     if (fromPath) return fromPath;
 
     // Fall back to localStorage
-    if (typeof window !== "undefined") {
+    if (typeof globalThis.window !== "undefined") {
       const stored = localStorage.getItem(STORAGE_KEY);
       if (
         stored === "groups" ||
@@ -76,7 +76,7 @@ export function useSidebarAccordion(
 
   // Persist to localStorage whenever expanded changes
   useEffect(() => {
-    if (typeof window !== "undefined") {
+    if (typeof globalThis.window !== "undefined") {
       if (expanded) {
         localStorage.setItem(STORAGE_KEY, expanded);
       } else {

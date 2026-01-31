@@ -43,20 +43,10 @@ export function SidebarAccordionSection({
   return (
     <div>
       {/* Header row — single box with icon, label, and chevron */}
-      {/* Uses div[role=button] instead of <button> to avoid browser-specific
-          button rendering quirks (-webkit-appearance: button) that cause
-          subtle spacing differences compared to <a> elements. */}
-      <div
-        role="button"
-        tabIndex={0}
+      <button
+        type="button"
         onClick={onToggle}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" || e.key === " ") {
-            e.preventDefault();
-            onToggle();
-          }
-        }}
-        className={`${headerBase} ${isActive ? headerActive : headerInactive} w-full cursor-pointer`}
+        className={`${headerBase} ${isActive ? headerActive : headerInactive} w-full cursor-pointer appearance-none border-0 bg-transparent p-0 text-left`}
         aria-expanded={isExpanded}
       >
         <svg
@@ -86,7 +76,7 @@ export function SidebarAccordionSection({
             d="M19 9l-7 7-7-7"
           />
         </svg>
-      </div>
+      </button>
 
       {/* Expandable body — CSS Grid transition */}
       <div
@@ -96,16 +86,16 @@ export function SidebarAccordionSection({
       >
         <div className="overflow-hidden">
           <div className="py-0.5">
-            {isLoading ? (
+            {isLoading && (
               /* Skeleton shimmer */
               <div className="space-y-1 pr-3 pl-10">
                 <div className="h-7 w-3/4 animate-pulse rounded bg-gray-100" />
                 <div className="h-7 w-2/3 animate-pulse rounded bg-gray-100" />
                 <div className="h-7 w-1/2 animate-pulse rounded bg-gray-100" />
               </div>
-            ) : hasChildren ? (
-              children
-            ) : (
+            )}
+            {!isLoading && hasChildren && children}
+            {!isLoading && !hasChildren && (
               /* Empty state */
               <div className="py-2 pr-3 pl-10 text-xs text-gray-400">
                 {emptyText}

@@ -65,12 +65,13 @@ export function useStudentHistoryBreadcrumb(opts: {
   referrer: string;
 }): void {
   const breadcrumbGroupName =
-    opts.referrer.startsWith("/ogs-groups") && typeof window !== "undefined"
+    opts.referrer.startsWith("/ogs-groups") &&
+    typeof globalThis.window !== "undefined"
       ? localStorage.getItem("sidebar-last-group-name")
       : undefined;
   const breadcrumbRoomName =
     opts.referrer.startsWith("/active-supervisions") &&
-    typeof window !== "undefined"
+    typeof globalThis.window !== "undefined"
       ? localStorage.getItem("sidebar-last-room-name")
       : undefined;
 

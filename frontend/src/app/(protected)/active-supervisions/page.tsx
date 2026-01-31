@@ -89,6 +89,27 @@ interface BFFDashboardResponse {
 
 const GROUP_CARD_GRADIENT = "from-blue-50/80 to-cyan-100/80";
 
+/** Check if a student matches the current search and group filters */
+function matchesStudentFilters(
+  student: StudentWithVisit,
+  searchTerm: string,
+  groupFilter: string,
+): boolean {
+  if (searchTerm) {
+    const searchLower = searchTerm.toLowerCase();
+    const matchesSearch =
+      (student.name?.toLowerCase().includes(searchLower) ?? false) ||
+      (student.first_name?.toLowerCase().includes(searchLower) ?? false) ||
+      (student.second_name?.toLowerCase().includes(searchLower) ?? false);
+    if (!matchesSearch) return false;
+  }
+  if (groupFilter !== "all") {
+    const studentGroupName = student.group_name ?? "Unbekannt";
+    if (studentGroupName !== groupFilter) return false;
+  }
+  return true;
+}
+
 /** Loading state view */
 function LoadingView() {
   return <Loading fullPage={false} />;
@@ -755,32 +776,7 @@ function MeinRaumPageContent() {
 
   // Apply filters to students (ensure students is an array)
   const filteredStudents = (Array.isArray(students) ? students : []).filter(
-    (student) => {
-      // Apply search filter - search in multiple fields
-      if (searchTerm) {
-        const searchLower = searchTerm.toLowerCase();
-        const matchesSearch =
-          (student.name?.toLowerCase().includes(searchLower) ?? false) ||
-          (student.first_name?.toLowerCase().includes(searchLower) ?? false) ||
-          (student.second_name?.toLowerCase().includes(searchLower) ?? false);
-
-        if (!matchesSearch) return false;
-      }
-
-      // Apply year filter (skip since we don't have school_class in visits)
-      // Year filtering would require additional student data lookup
-
-      // Apply group filter
-      if (groupFilter !== "all") {
-        const studentGroupName = student.group_name ?? "Unbekannt";
-
-        if (studentGroupName !== groupFilter) {
-          return false;
-        }
-      }
-
-      return true;
-    },
+    (student) => matchesStudentFilters(student, searchTerm, groupFilter),
   );
 
   // Prepare filter configurations for PageHeaderWithSearch
