@@ -16,9 +16,55 @@ vi.mock("next-auth/react", () => ({
 
 const { useSession } = await import("next-auth/react");
 
-// Mock fetch globally
+// Mock fetch globally with URL-based routing
 const mockFetch = vi.fn();
 global.fetch = mockFetch;
+
+// Default mock responses for the 3 API endpoints
+const defaultMockResponses = {
+  groups: { groups: [] },
+  supervised: { data: [] },
+  schulhof: { data: { data: { exists: false } } }, // Double-wrapped response
+};
+
+// Helper to create URL-based fetch mock
+function setupFetchMock(overrides?: {
+  groups?: object | Error;
+  supervised?: object | Error;
+  schulhof?: object | Error;
+}) {
+  mockFetch.mockImplementation((url: string) => {
+    if (url.includes("/api/groups/context")) {
+      const response = overrides?.groups ?? defaultMockResponses.groups;
+      if (response instanceof Error) return Promise.reject(response);
+      return Promise.resolve({
+        ok: true,
+        json: async () => response,
+      });
+    }
+    if (url.includes("/api/me/groups/supervised")) {
+      const response = overrides?.supervised ?? defaultMockResponses.supervised;
+      if (response instanceof Error) return Promise.reject(response);
+      return Promise.resolve({
+        ok: true,
+        json: async () => response,
+      });
+    }
+    if (url.includes("/api/active/schulhof/status")) {
+      const response = overrides?.schulhof ?? defaultMockResponses.schulhof;
+      if (response instanceof Error) return Promise.reject(response);
+      return Promise.resolve({
+        ok: true,
+        json: async () => response,
+      });
+    }
+    // Default fallback
+    return Promise.resolve({
+      ok: true,
+      json: async () => ({}),
+    });
+  });
+}
 
 // Helper to create wrapper with session
 function createWrapper(token?: string) {
@@ -87,29 +133,24 @@ describe("SupervisionProvider", () => {
   });
 
   it("should fetch groups and supervision on session token", async () => {
-    mockFetch
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          groups: [
-            { id: 1, name: "Group A" },
-            { id: 2, name: "Group B" },
-          ],
-        }),
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          data: [
-            {
-              id: 1,
-              room_id: 5,
-              group_id: 1,
-              room: { id: 5, name: "Room 5" },
-            },
-          ],
-        }),
-      });
+    setupFetchMock({
+      groups: {
+        groups: [
+          { id: 1, name: "Group A" },
+          { id: 2, name: "Group B" },
+        ],
+      },
+      supervised: {
+        data: [
+          {
+            id: 1,
+            room_id: 5,
+            group_id: 1,
+            room: { id: 5, name: "Room 5" },
+          },
+        ],
+      },
+    });
 
     const { result } = renderHook(() => useSupervision(), {
       wrapper: createWrapper("test-token"),
@@ -132,9 +173,11 @@ describe("SupervisionProvider", () => {
   });
 
   it("should handle API errors gracefully", async () => {
-    mockFetch
-      .mockRejectedValueOnce(new Error("Network error"))
-      .mockRejectedValueOnce(new Error("Network error"));
+    setupFetchMock({
+      groups: new Error("Network error"),
+      supervised: new Error("Network error"),
+      schulhof: new Error("Network error"),
+    });
 
     const { result } = renderHook(() => useSupervision(), {
       wrapper: createWrapper("test-token"),
@@ -157,15 +200,7 @@ describe("SupervisionProvider", () => {
     "should refresh data when refresh is called",
     { timeout: 10000 },
     async () => {
-      mockFetch
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({ groups: [] }),
-        })
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({ data: [] }),
-        });
+      setupFetchMock(); // Use defaults (empty)
 
       const { result } = renderHook(() => useSupervision(), {
         wrapper: createWrapper("test-token"),
@@ -178,17 +213,10 @@ describe("SupervisionProvider", () => {
       // Wait more than 5 seconds to bypass debounce
       await new Promise((resolve) => setTimeout(resolve, 5100));
 
-      mockFetch
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({
-            groups: [{ id: 10, name: "New Group" }],
-          }),
-        })
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({ data: [] }),
-        });
+      // Update mock for refresh call
+      setupFetchMock({
+        groups: { groups: [{ id: 10, name: "New Group" }] },
+      });
 
       await act(async () => {
         await result.current.refresh();
@@ -202,10 +230,7 @@ describe("SupervisionProvider", () => {
   );
 
   it("should debounce rapid refresh calls", async () => {
-    mockFetch.mockResolvedValue({
-      ok: true,
-      json: async () => ({ groups: [], data: [] }),
-    });
+    setupFetchMock(); // Use defaults
 
     const { result } = renderHook(() => useSupervision(), {
       wrapper: createWrapper("test-token"),
@@ -232,10 +257,7 @@ describe("SupervisionProvider", () => {
     // Mock setInterval to verify it's called
     const intervalSpy = vi.spyOn(global, "setInterval");
 
-    mockFetch.mockResolvedValue({
-      ok: true,
-      json: async () => ({ groups: [], data: [] }),
-    });
+    setupFetchMock(); // Use defaults
 
     const { unmount } = renderHook(() => useSupervision(), {
       wrapper: createWrapper("test-token"),
@@ -273,24 +295,18 @@ describe("SupervisionProvider", () => {
   });
 
   it("should handle supervision with room name fallback", async () => {
-    mockFetch
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ groups: [] }),
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          data: [
-            {
-              id: 1,
-              room_id: 5,
-              group_id: 1,
-              // No room object, should fallback
-            },
-          ],
-        }),
-      });
+    setupFetchMock({
+      supervised: {
+        data: [
+          {
+            id: 1,
+            room_id: 5,
+            group_id: 1,
+            // No room object, should fallback
+          },
+        ],
+      },
+    });
 
     const { result } = renderHook(() => useSupervision(), {
       wrapper: createWrapper("test-token"),
@@ -369,17 +385,9 @@ describe("useHasGroups", () => {
   });
 
   it("should return true when has groups and not loading", async () => {
-    mockFetch
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          groups: [{ id: 1, name: "Group A" }],
-        }),
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ data: [] }),
-      });
+    setupFetchMock({
+      groups: { groups: [{ id: 1, name: "Group A" }] },
+    });
 
     const { result } = renderHook(() => useHasGroups(), {
       wrapper: createWrapper("test-token"),
@@ -391,15 +399,7 @@ describe("useHasGroups", () => {
   });
 
   it("should return false when no groups", async () => {
-    mockFetch
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ groups: [] }),
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ data: [] }),
-      });
+    setupFetchMock(); // Use defaults (empty groups)
 
     const { result } = renderHook(() => useHasGroups(), {
       wrapper: createWrapper("test-token"),
@@ -441,24 +441,18 @@ describe("useIsSupervising", () => {
   });
 
   it("should return true when supervising and not loading", async () => {
-    mockFetch
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ groups: [] }),
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          data: [
-            {
-              id: 1,
-              room_id: 5,
-              group_id: 1,
-              room: { id: 5, name: "Room 5" },
-            },
-          ],
-        }),
-      });
+    setupFetchMock({
+      supervised: {
+        data: [
+          {
+            id: 1,
+            room_id: 5,
+            group_id: 1,
+            room: { id: 5, name: "Room 5" },
+          },
+        ],
+      },
+    });
 
     const { result } = renderHook(() => useIsSupervising(), {
       wrapper: createWrapper("test-token"),
@@ -470,15 +464,7 @@ describe("useIsSupervising", () => {
   });
 
   it("should return false when not supervising", async () => {
-    mockFetch
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ groups: [] }),
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ data: [] }),
-      });
+    setupFetchMock(); // Use defaults (empty)
 
     const { result } = renderHook(() => useIsSupervising(), {
       wrapper: createWrapper("test-token"),

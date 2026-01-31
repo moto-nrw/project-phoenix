@@ -1,8 +1,11 @@
 /**
  * Tests for UnclaimedRooms Component
- * Tests the rendering and claiming functionality for Schulhof room
+ *
+ * NOTE: The Schulhof banner feature is currently DISABLED (ENABLE_SCHULHOF_BANNER = false)
+ * because Schulhof is now handled as a permanent tab in active-supervisions page.
+ * These tests verify the component returns null when the feature is disabled.
  */
-import { render, screen, waitFor, fireEvent } from "@testing-library/react";
+import { render } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { UnclaimedRooms } from "./unclaimed-rooms";
 
@@ -67,156 +70,31 @@ describe("UnclaimedRooms", () => {
     } as never);
   });
 
-  it("renders nothing while loading", () => {
+  // The Schulhof banner is disabled - all renders should return null
+  // Schulhof is now handled as a permanent tab in active-supervisions page
+  it("renders nothing because Schulhof banner is disabled (permanent tab replaces it)", () => {
     const { container } = render(<UnclaimedRooms onClaimed={mockOnClaimed} />);
 
     expect(container).toBeEmptyDOMElement();
   });
 
-  it("renders banner for Schulhof when user is not supervisor", async () => {
-    render(<UnclaimedRooms onClaimed={mockOnClaimed} />);
-
-    await waitFor(() => {
-      expect(
-        screen.getByText("Schulhof-Aufsicht verfügbar"),
-      ).toBeInTheDocument();
-    });
-  });
-
-  it("displays current supervisors", async () => {
-    render(<UnclaimedRooms onClaimed={mockOnClaimed} />);
-
-    await waitFor(() => {
-      expect(screen.getByText(/Aktuelle Aufsicht:/)).toBeInTheDocument();
-      expect(screen.getByText(/John Doe, Jane Smith/)).toBeInTheDocument();
-    });
-  });
-
-  it("renders claim button", async () => {
-    render(<UnclaimedRooms onClaimed={mockOnClaimed} />);
-
-    await waitFor(() => {
-      expect(screen.getByText("Beaufsichtigen")).toBeInTheDocument();
-    });
-  });
-
-  it("shows no supervisors message when list is empty", async () => {
-    vi.mocked(activeService.getActiveGroupSupervisors).mockResolvedValue(
-      [] as never,
-    );
-
-    render(<UnclaimedRooms onClaimed={mockOnClaimed} />);
-
-    await waitFor(() => {
-      expect(
-        screen.getByText(/Der Schulhof hat derzeit keine Aufsicht/),
-      ).toBeInTheDocument();
-    });
-  });
-
-  it("calls claimActiveGroup when claim button clicked", async () => {
-    render(<UnclaimedRooms onClaimed={mockOnClaimed} />);
-
-    await waitFor(() => {
-      const claimButton = screen.getByText("Beaufsichtigen");
-      fireEvent.click(claimButton);
-    });
-
-    await waitFor(() => {
-      expect(activeService.claimActiveGroup).toHaveBeenCalledWith("1");
-      expect(mockOnClaimed).toHaveBeenCalled();
-    });
-  });
-
-  it("shows loading state during claim", async () => {
-    vi.mocked(activeService.claimActiveGroup).mockImplementation(
-      () => new Promise((resolve) => setTimeout(resolve, 1000)),
-    );
-
-    render(<UnclaimedRooms onClaimed={mockOnClaimed} />);
-
-    await waitFor(() => {
-      const claimButton = screen.getByText("Beaufsichtigen");
-      fireEvent.click(claimButton);
-    });
-
-    await waitFor(() => {
-      expect(screen.getByText("Wird übernommen...")).toBeInTheDocument();
-    });
-  });
-
-  it("renders dismiss button when supervisors exist", async () => {
-    render(<UnclaimedRooms onClaimed={mockOnClaimed} />);
-
-    await waitFor(() => {
-      expect(screen.getByLabelText("Banner schließen")).toBeInTheDocument();
-    });
-  });
-
-  it("hides banner after dismiss button clicked", async () => {
-    render(<UnclaimedRooms onClaimed={mockOnClaimed} />);
-
-    await waitFor(() => {
-      const dismissButton = screen.getByLabelText("Banner schließen");
-      fireEvent.click(dismissButton);
-    });
-
-    await waitFor(() => {
-      expect(
-        screen.queryByText("Schulhof-Aufsicht verfügbar"),
-      ).not.toBeInTheDocument();
-    });
-  });
-
-  it("does not render when user is already a supervisor", async () => {
-    vi.mocked(userContextService.getCurrentStaff).mockResolvedValue({
-      id: "s1",
-    } as never);
-
-    const { container } = render(<UnclaimedRooms onClaimed={mockOnClaimed} />);
-
-    await waitFor(() => {
-      expect(container).toBeEmptyDOMElement();
-    });
-  });
-
-  it("does not render when Schulhof group is not active", async () => {
-    vi.mocked(activeService.getActiveGroups).mockResolvedValue([
-      { id: "2", room: { name: "Raum A" } },
-    ] as never);
-
-    const { container } = render(<UnclaimedRooms onClaimed={mockOnClaimed} />);
-
-    await waitFor(() => {
-      expect(container).toBeEmptyDOMElement();
-    });
-  });
-
-  it("uses provided active groups when available", async () => {
-    render(
+  it("renders nothing even with provided active groups", () => {
+    const { container } = render(
       <UnclaimedRooms onClaimed={mockOnClaimed} activeGroups={mockGroups} />,
     );
 
-    await waitFor(() => {
-      expect(
-        screen.getByText("Schulhof-Aufsicht verfügbar"),
-      ).toBeInTheDocument();
-    });
-
-    // Should not fetch groups again
+    expect(container).toBeEmptyDOMElement();
+    // Should not fetch groups since banner is disabled
     expect(activeService.getActiveGroups).not.toHaveBeenCalled();
   });
 
-  it("uses provided staff ID when available", async () => {
-    render(<UnclaimedRooms onClaimed={mockOnClaimed} currentStaffId="s3" />);
+  it("renders nothing even with provided staff ID", () => {
+    const { container } = render(
+      <UnclaimedRooms onClaimed={mockOnClaimed} currentStaffId="s3" />,
+    );
 
-    await waitFor(() => {
-      expect(
-        screen.getByText("Schulhof-Aufsicht verfügbar"),
-      ).toBeInTheDocument();
-    });
-
-    // Should not fetch staff
+    expect(container).toBeEmptyDOMElement();
+    // Should not fetch staff since banner is disabled
     expect(userContextService.getCurrentStaff).not.toHaveBeenCalled();
   });
 });
