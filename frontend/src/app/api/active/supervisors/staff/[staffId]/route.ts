@@ -21,6 +21,9 @@ export const GET = createGetHandler(
     }
 
     // Fetch supervisions for the staff member from the API
-    return await apiGet(`/api/active/supervisors/staff/${params.staffId}`, token);
+    return await apiGet(
+      `/api/active/supervisors/staff/${params.staffId}`,
+      token,
+    );
   },
 );

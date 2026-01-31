@@ -102,7 +102,9 @@ describe("DetailModalActions", () => {
     fireEvent.click(screen.getByTestId("cancel-btn"));
 
     await waitFor(() => {
-      expect(screen.queryByTestId("confirmation-modal")).not.toBeInTheDocument();
+      expect(
+        screen.queryByTestId("confirmation-modal"),
+      ).not.toBeInTheDocument();
     });
   });
 

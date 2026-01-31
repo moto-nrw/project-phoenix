@@ -45,7 +45,14 @@ export function SidebarAccordionSection({
       {/* Header row — single box with icon, label, and chevron */}
       <button
         type="button"
+        role="button"
         onClick={onToggle}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            onToggle();
+          }
+        }}
         className={`${headerBase} ${isActive ? headerActive : headerInactive} w-full cursor-pointer appearance-none border-0 bg-transparent p-0 text-left`}
         aria-expanded={isExpanded}
       >

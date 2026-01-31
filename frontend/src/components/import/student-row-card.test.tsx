@@ -86,15 +86,15 @@ describe("StudentRowCard", () => {
     };
     render(<StudentRowCard student={student} index={0} />);
 
-    expect(screen.getByText("Missing field, Invalid format")).toBeInTheDocument();
+    expect(
+      screen.getByText("Missing field, Invalid format"),
+    ).toBeInTheDocument();
   });
 
   it("hides errors section when no errors", () => {
     render(<StudentRowCard student={baseStudent} index={0} />);
 
-    expect(
-      screen.queryByText(/Missing field/),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByText(/Missing field/)).not.toBeInTheDocument();
   });
 
   it("hides separator when school_class is empty", () => {
