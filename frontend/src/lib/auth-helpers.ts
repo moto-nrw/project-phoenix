@@ -205,6 +205,18 @@ const SYSTEM_ROLE_TRANSLATIONS: Record<
     name: "Gast",
     description: "Eingeschränkter Zugriff für nicht authentifizierte Benutzer",
   },
+  teacher: {
+    name: "Lehrkraft",
+    description: "Lehrkraft mit Gruppenmanagement-Berechtigungen",
+  },
+  staff: {
+    name: "Betreuer",
+    description: "Pädagogische Fachkraft mit Betreuungsrechten",
+  },
+  guardian: {
+    name: "Erziehungsberechtigter",
+    description: "Eingeschränkter Zugriff auf Daten der eigenen Kinder",
+  },
 };
 
 /**

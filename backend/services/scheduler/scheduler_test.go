@@ -2012,6 +2012,11 @@ func TestRunCleanupTask_ExecutesOnSchedule(t *testing.T) {
 		// In synctest, this will advance fake time past 02:00
 		time.Sleep(2 * time.Hour)
 
+		// Yield to let the cleanup goroutine execute after its timer fires
+		// Both goroutines become runnable at 02:00; this ensures the cleanup
+		// goroutine finishes before we assert.
+		time.Sleep(1 * time.Second)
+
 		// Verify cleanup was called at least once
 		cleanupSvc.mu.Lock()
 		assert.GreaterOrEqual(t, cleanupSvc.cleanupCalls, 1, "Cleanup should execute after scheduled time")
@@ -2094,6 +2099,9 @@ func TestRunSessionEndTask_ExecutesOnSchedule(t *testing.T) {
 		// Sleep for more than 17 hours to trigger the scheduled session end
 		// In synctest, this will advance fake time past 18:00
 		time.Sleep(18 * time.Hour)
+
+		// Yield to let the session-end goroutine execute after its timer fires
+		time.Sleep(1 * time.Second)
 
 		// Verify service was called at least once
 		activeSvc.mu.Lock()
@@ -2203,6 +2211,9 @@ func TestRunTokenCleanupTask_TickerRepeat(t *testing.T) {
 		// Sleep for more than 1 hour to trigger ticker
 		// In synctest, this will advance fake time and fire the ticker
 		time.Sleep(2 * time.Hour)
+
+		// Yield to let the token cleanup goroutine execute after its ticker fires
+		time.Sleep(1 * time.Second)
 
 		// Verify second call happened
 		auth.mu.Lock()
