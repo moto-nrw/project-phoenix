@@ -103,7 +103,6 @@ func migrateActivitiesGroupsCreatedBy(ctx context.Context, db *bun.DB) error {
 			UPDATE activities.groups
 			SET created_by = (
 				SELECT s.id FROM users.staff s
-				WHERE s.is_active = true
 				ORDER BY s.id
 				LIMIT 1
 			)
