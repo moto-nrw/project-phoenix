@@ -501,12 +501,7 @@ func TestActivityService_GetStudentEnrollments(t *testing.T) {
 		result, err := service.GetStudentEnrollments(ctx, student.ID)
 
 		// ASSERT
-		// NOTE: Known repository bug - BUN ORM column ambiguity issue
-		// The repository has a query bug causing "column reference 'id' is ambiguous"
-		if err != nil {
-			t.Skipf("Skipping due to known repository bug: %v", err)
-			return
-		}
+		require.NoError(t, err)
 		assert.NotNil(t, result)
 		assert.GreaterOrEqual(t, len(result), 1)
 	})

@@ -606,6 +606,17 @@ func (s *service) EndActivitySession(ctx context.Context, activeGroupID int64) e
 			}
 		}
 
+		// End all active supervisors
+		activeSupervisors, err := txService.supervisorRepo.FindByActiveGroupID(ctx, activeGroupID, true)
+		if err != nil {
+			return fmt.Errorf("failed to get active supervisors: %w", err)
+		}
+		for _, sup := range activeSupervisors {
+			if err := txService.supervisorRepo.EndSupervision(ctx, sup.ID); err != nil {
+				return fmt.Errorf("failed to end supervisor %d: %w", sup.ID, err)
+			}
+		}
+
 		// End the session
 		if err := txService.groupRepo.EndSession(ctx, activeGroupID); err != nil {
 			return err
