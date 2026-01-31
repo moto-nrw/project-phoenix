@@ -110,6 +110,16 @@ function extractTimeFromISO(isoString: string): string {
 
 // ─── ClockInCard ──────────────────────────────────────────────────────────────
 
+function formatHMM(minutes: number): string {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return `${h}:${m.toString().padStart(2, "0")}`;
+}
+
+function formatTimeFromDate(date: Date): string {
+  return `${date.getHours().toString().padStart(2, "0")}:${date.getMinutes().toString().padStart(2, "0")}`;
+}
+
 function ClockInCard({
   currentSession,
   onCheckIn,
@@ -125,29 +135,108 @@ function ClockInCard({
 }) {
   const [mode, setMode] = useState<"present" | "home_office">("present");
   const [actionLoading, setActionLoading] = useState(false);
-  const [elapsedMinutes, setElapsedMinutes] = useState(0);
+  const [tick, setTick] = useState(0); // forces re-render for live times
   const [showBreakInput, setShowBreakInput] = useState(false);
+  const [pauseStartedAt, setPauseStartedAt] = useState<Date | null>(null);
 
   const isCheckedIn =
     currentSession !== null && currentSession.checkOutTime === null;
   const isCheckedOut =
     currentSession !== null && currentSession.checkOutTime !== null;
 
-  // Live timer: update elapsed time every 60s
+  // Reset pause state when session changes (check-out, new session, etc.)
   useEffect(() => {
-    if (!isCheckedIn || !currentSession) return;
+    if (!isCheckedIn) setPauseStartedAt(null);
+  }, [isCheckedIn]);
 
-    const updateElapsed = () => {
-      const checkIn = new Date(currentSession.checkInTime);
-      const now = new Date();
-      const totalMin = Math.floor((now.getTime() - checkIn.getTime()) / 60000);
-      setElapsedMinutes(Math.max(0, totalMin - currentSession.breakMinutes));
-    };
-
-    updateElapsed();
-    const interval = setInterval(updateElapsed, 60000);
+  // Tick every 30s for live updates (timer, countdown, segment durations)
+  useEffect(() => {
+    if (!isCheckedIn) return;
+    const interval = setInterval(() => setTick((t) => t + 1), 30000);
     return () => clearInterval(interval);
-  }, [isCheckedIn, currentSession]);
+  }, [isCheckedIn]);
+
+  // ── Derived pause state ──
+  const breakMins = currentSession?.breakMinutes ?? 0;
+  const pauseEndAt =
+    pauseStartedAt && breakMins > 0
+      ? new Date(pauseStartedAt.getTime() + breakMins * 60000)
+      : null;
+
+  // Use `tick` to make `now` reactive
+  const now = new Date();
+  void tick; // suppress unused warning — tick triggers re-render
+
+  const isOnBreak = pauseEndAt !== null && now < pauseEndAt;
+
+  // Minutes worked before the pause started
+  const workBeforeBreak =
+    pauseStartedAt && currentSession
+      ? Math.max(
+          0,
+          Math.floor(
+            (pauseStartedAt.getTime() -
+              new Date(currentSession.checkInTime).getTime()) /
+              60000,
+          ),
+        )
+      : 0;
+
+  // ── Timer display value ──
+  const displayMinutes = (() => {
+    if (!isCheckedIn || !currentSession) return 0;
+    if (isOnBreak) return workBeforeBreak; // frozen during break
+    if (pauseEndAt && now >= pauseEndAt) {
+      // Break over: work before + time since break ended
+      const afterBreak = Math.max(
+        0,
+        Math.floor((now.getTime() - pauseEndAt.getTime()) / 60000),
+      );
+      return workBeforeBreak + afterBreak;
+    }
+    // No break taken: gross elapsed
+    const checkIn = new Date(currentSession.checkInTime);
+    return Math.max(0, Math.floor((now.getTime() - checkIn.getTime()) / 60000));
+  })();
+
+  // Break countdown remaining
+  const breakRemainingMins =
+    isOnBreak && pauseEndAt
+      ? Math.max(0, Math.ceil((pauseEndAt.getTime() - now.getTime()) / 60000))
+      : 0;
+
+  // Net minutes (for footer — always correct regardless of pause tracking)
+  const grossMinutes =
+    isCheckedIn && currentSession
+      ? Math.max(
+          0,
+          Math.floor(
+            (now.getTime() - new Date(currentSession.checkInTime).getTime()) /
+              60000,
+          ),
+        )
+      : 0;
+  const netMinutes = Math.max(0, grossMinutes - breakMins);
+
+  // Break compliance warning
+  const breakWarning = (() => {
+    if (!isCheckedIn || !currentSession) return null;
+    if (netMinutes > 540 && breakMins < 45)
+      return "45 Min Pause ab 9h nötig (§4 ArbZG)";
+    if (netMinutes > 360 && breakMins < 30)
+      return "30 Min Pause ab 6h nötig (§4 ArbZG)";
+    return null;
+  })();
+
+  // Checked-out net
+  const checkedOutNet =
+    isCheckedOut && currentSession
+      ? calculateNetMinutes(
+          currentSession.checkInTime,
+          currentSession.checkOutTime,
+          currentSession.breakMinutes,
+        )
+      : null;
 
   const handleCheckIn = async () => {
     setActionLoading(true);
@@ -167,35 +256,11 @@ function ClockInCard({
     }
   };
 
-  // Format elapsed as H:MM
-  const timerDisplay = (() => {
-    const h = Math.floor(elapsedMinutes / 60);
-    const m = elapsedMinutes % 60;
-    return `${h}:${m.toString().padStart(2, "0")}`;
-  })();
-
-  // Break compliance warning
-  const breakWarning = (() => {
-    if (!isCheckedIn || !currentSession) return null;
-    const breakMins = currentSession?.breakMinutes ?? 0;
-    if (elapsedMinutes > 540 && breakMins < 45) {
-      return "45 Min Pause ab 9h nötig (§4 ArbZG)";
-    }
-    if (elapsedMinutes > 360 && breakMins < 30) {
-      return "30 Min Pause ab 6h nötig (§4 ArbZG)";
-    }
-    return null;
-  })();
-
-  // Computed net minutes for checked-out state
-  const checkedOutNet =
-    isCheckedOut && currentSession
-      ? calculateNetMinutes(
-          currentSession.checkInTime,
-          currentSession.checkOutTime,
-          currentSession.breakMinutes,
-        )
-      : null;
+  const handleStartBreak = (mins: number) => {
+    setPauseStartedAt(new Date());
+    void onBreakUpdate(mins);
+    setShowBreakInput(false);
+  };
 
   return (
     <div className="relative overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)]">
@@ -206,14 +271,18 @@ function ClockInCard({
           {isCheckedIn && currentSession && (
             <span
               className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                currentSession.status === "home_office"
+                isOnBreak
                   ? "bg-amber-100 text-amber-700"
-                  : "bg-[#83CD2D]/10 text-[#70b525]"
+                  : currentSession.status === "home_office"
+                    ? "bg-amber-100 text-amber-700"
+                    : "bg-[#83CD2D]/10 text-[#70b525]"
               }`}
             >
-              {currentSession.status === "home_office"
-                ? "Homeoffice"
-                : "Anwesend"}
+              {isOnBreak
+                ? "Pause"
+                : currentSession.status === "home_office"
+                  ? "Homeoffice"
+                  : "Anwesend"}
             </span>
           )}
         </div>
@@ -282,13 +351,15 @@ function ClockInCard({
               <div className="relative">
                 <button
                   onClick={() => setShowBreakInput((v) => !v)}
-                  className={`flex h-12 w-12 items-center justify-center rounded-full border-2 transition-all active:scale-95 ${
-                    currentSession && currentSession.breakMinutes > 0
-                      ? "border-amber-400 text-amber-500 hover:bg-amber-50"
-                      : "border-gray-200 text-gray-400 hover:border-gray-300 hover:text-gray-500"
+                  disabled={isOnBreak}
+                  className={`flex h-12 w-12 items-center justify-center rounded-full border-2 transition-all active:scale-95 disabled:opacity-60 ${
+                    isOnBreak
+                      ? "animate-pulse border-amber-400 text-amber-500"
+                      : breakMins > 0
+                        ? "border-amber-400 text-amber-500 hover:bg-amber-50"
+                        : "border-gray-200 text-gray-400 hover:border-gray-300 hover:text-gray-500"
                   }`}
-                  aria-label="Pause bearbeiten"
-                  title={`Pause: ${currentSession?.breakMinutes ?? 0} Min`}
+                  aria-label="Pause starten"
                 >
                   <svg
                     className="h-5 w-5"
@@ -300,21 +371,14 @@ function ClockInCard({
                 </button>
 
                 {/* Break quick-select popover */}
-                {showBreakInput && (
+                {showBreakInput && !isOnBreak && (
                   <div className="absolute top-14 left-0 z-10 w-44 rounded-xl border border-gray-200 bg-white p-2 shadow-lg">
                     <div className="grid grid-cols-2 gap-1.5">
                       {[15, 30, 45, 60].map((mins) => (
                         <button
                           key={mins}
-                          onClick={() => {
-                            void onBreakUpdate(mins);
-                            setShowBreakInput(false);
-                          }}
-                          className={`rounded-lg px-3 py-2 text-center text-sm font-medium whitespace-nowrap transition-all ${
-                            currentSession?.breakMinutes === mins
-                              ? "bg-amber-100 text-amber-700"
-                              : "bg-gray-50 text-gray-600 hover:bg-gray-100"
-                          }`}
+                          onClick={() => handleStartBreak(mins)}
+                          className="rounded-lg bg-gray-50 px-3 py-2 text-center text-sm font-medium whitespace-nowrap text-gray-600 transition-all hover:bg-gray-100"
                         >
                           {mins} Min
                         </button>
@@ -330,14 +394,25 @@ function ClockInCard({
               </div>
 
               {/* Timer display */}
-              <span className="text-4xl font-light text-gray-900 tabular-nums">
-                {timerDisplay}
-              </span>
+              <div className="flex flex-col items-center">
+                <span
+                  className={`text-4xl font-light tabular-nums ${isOnBreak ? "text-amber-500" : "text-gray-900"}`}
+                >
+                  {isOnBreak
+                    ? `-${breakRemainingMins}`
+                    : formatHMM(displayMinutes)}
+                </span>
+                {isOnBreak && (
+                  <span className="mt-0.5 text-xs font-medium text-amber-500">
+                    Pause noch {breakRemainingMins} Min
+                  </span>
+                )}
+              </div>
 
               {/* Stop / check-out button */}
               <button
                 onClick={handleCheckOut}
-                disabled={actionLoading}
+                disabled={actionLoading || isOnBreak}
                 className="flex h-12 w-12 items-center justify-center rounded-full border-2 border-gray-300 text-gray-500 transition-all hover:border-red-400 hover:text-red-500 active:scale-95 disabled:opacity-50"
                 aria-label="Ausstempeln"
               >
@@ -355,30 +430,89 @@ function ClockInCard({
               </button>
             </div>
 
-            {/* Session detail rows */}
+            {/* ── Activity log rows ── */}
             <div className="border-t border-gray-100">
-              {/* Work row (always visible) */}
-              <div className="flex items-center justify-between py-3 text-sm">
-                <span className="w-16 font-medium text-[#83CD2D]">Arbeit</span>
-                <span className="text-[#70b525] tabular-nums">
-                  {formatTime(currentSession?.checkInTime)}
-                </span>
-                <span className="text-gray-300">&rarr;</span>
-                <span className="text-gray-400 tabular-nums">···</span>
-                <span className="w-20 text-right font-medium text-gray-700 tabular-nums">
-                  {formatDuration(elapsedMinutes)}
-                </span>
-              </div>
+              {pauseStartedAt ? (
+                <>
+                  {/* First work block: checkIn → pauseStart */}
+                  <div className="flex items-center justify-between py-2.5 text-sm">
+                    <span className="w-14 font-medium text-gray-600">
+                      Arbeit
+                    </span>
+                    <span className="text-gray-600 tabular-nums">
+                      {formatTime(currentSession?.checkInTime)}
+                    </span>
+                    <span className="text-gray-300">&rarr;</span>
+                    <span className="text-gray-600 tabular-nums">
+                      {formatTimeFromDate(pauseStartedAt)}
+                    </span>
+                    <span className="w-20 text-right font-medium text-gray-700 tabular-nums">
+                      {formatDuration(workBeforeBreak)}
+                    </span>
+                  </div>
 
-              {/* Break row (only when break > 0) */}
-              {currentSession && currentSession.breakMinutes > 0 && (
-                <div className="flex items-center justify-between border-t border-gray-50 py-3 text-sm">
-                  <span className="w-16 font-medium text-gray-500">Pause</span>
-                  <span className="text-gray-500 tabular-nums" />
-                  <span />
-                  <span />
-                  <span className="w-20 text-right text-gray-500 tabular-nums">
-                    {formatDuration(currentSession.breakMinutes)}
+                  {/* Pause block */}
+                  <div
+                    className={`flex items-center justify-between border-t border-gray-50 py-2.5 text-sm ${isOnBreak ? "text-amber-600" : "text-gray-500"}`}
+                  >
+                    <span className="w-14 font-medium">Pause</span>
+                    <span className="tabular-nums">
+                      {formatTimeFromDate(pauseStartedAt)}
+                    </span>
+                    <span
+                      className={isOnBreak ? "text-amber-300" : "text-gray-300"}
+                    >
+                      &rarr;
+                    </span>
+                    <span className="tabular-nums">
+                      {isOnBreak
+                        ? "···"
+                        : pauseEndAt
+                          ? formatTimeFromDate(pauseEndAt)
+                          : ""}
+                    </span>
+                    <span className="w-20 text-right tabular-nums">
+                      {formatDuration(breakMins)}
+                    </span>
+                  </div>
+
+                  {/* Second work block (only after break is over) */}
+                  {!isOnBreak && pauseEndAt && (
+                    <div className="flex items-center justify-between border-t border-gray-50 py-2.5 text-sm">
+                      <span className="w-14 font-medium text-[#83CD2D]">
+                        Arbeit
+                      </span>
+                      <span className="text-[#70b525] tabular-nums">
+                        {formatTimeFromDate(pauseEndAt)}
+                      </span>
+                      <span className="text-gray-300">&rarr;</span>
+                      <span className="text-gray-400 tabular-nums">···</span>
+                      <span className="w-20 text-right font-medium text-gray-700 tabular-nums">
+                        {formatDuration(
+                          Math.max(
+                            0,
+                            Math.floor(
+                              (now.getTime() - pauseEndAt.getTime()) / 60000,
+                            ),
+                          ),
+                        )}
+                      </span>
+                    </div>
+                  )}
+                </>
+              ) : (
+                /* No pause taken yet — single work row */
+                <div className="flex items-center justify-between py-2.5 text-sm">
+                  <span className="w-14 font-medium text-[#83CD2D]">
+                    Arbeit
+                  </span>
+                  <span className="text-[#70b525] tabular-nums">
+                    {formatTime(currentSession?.checkInTime)}
+                  </span>
+                  <span className="text-gray-300">&rarr;</span>
+                  <span className="text-gray-400 tabular-nums">···</span>
+                  <span className="w-20 text-right font-medium text-gray-700 tabular-nums">
+                    {formatDuration(displayMinutes)}
                   </span>
                 </div>
               )}
@@ -388,10 +522,9 @@ function ClockInCard({
 
         {/* ── Checked out: summary rows ── */}
         {isCheckedOut && currentSession && (
-          <div className="space-y-0 border-t border-gray-100">
-            {/* Work row */}
-            <div className="flex items-center justify-between border-b border-gray-50 py-3 text-sm">
-              <span className="w-16 font-medium text-gray-700">Arbeit</span>
+          <div className="border-t border-gray-100">
+            <div className="flex items-center justify-between py-2.5 text-sm">
+              <span className="w-14 font-medium text-gray-700">Arbeit</span>
               <span className="text-gray-600 tabular-nums">
                 {formatTime(currentSession.checkInTime)}
               </span>
@@ -404,13 +537,12 @@ function ClockInCard({
               </span>
             </div>
 
-            {/* Break row */}
             {currentSession.breakMinutes > 0 && (
-              <div className="flex items-center justify-between py-3 text-sm">
-                <span className="w-16 font-medium text-gray-500">Pause</span>
+              <div className="flex items-center justify-between border-t border-gray-50 py-2.5 text-sm">
+                <span className="w-14 font-medium text-gray-500">Pause</span>
                 <span className="text-gray-500 tabular-nums" />
-                <span className="text-gray-300" />
-                <span className="text-gray-500 tabular-nums" />
+                <span />
+                <span />
                 <span className="w-20 text-right text-gray-500 tabular-nums">
                   {formatDuration(currentSession.breakMinutes)}
                 </span>
@@ -425,7 +557,7 @@ function ClockInCard({
             Heute:{" "}
             <span className="font-medium text-gray-600">
               {isCheckedIn
-                ? `${formatDuration(elapsedMinutes)}`
+                ? formatDuration(netMinutes)
                 : isCheckedOut && checkedOutNet !== null
                   ? formatDuration(checkedOutNet)
                   : "--"}
@@ -434,9 +566,7 @@ function ClockInCard({
           <span>
             Woche:{" "}
             <span className="font-medium text-gray-600">
-              {formatDuration(
-                weeklyMinutes + (isCheckedIn ? elapsedMinutes : 0),
-              )}
+              {formatDuration(weeklyMinutes + (isCheckedIn ? netMinutes : 0))}
             </span>
           </span>
         </div>
