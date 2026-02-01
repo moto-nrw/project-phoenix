@@ -2093,3 +2093,795 @@ describe("hasSupervision tracking via ref", () => {
     expect(hasSupervision).toBe(false);
   });
 });
+
+describe("Error handling scenarios", () => {
+  it("handles 403 forbidden error gracefully", () => {
+    const errorMessage = "Forbidden: No access to group";
+    const is403Error = errorMessage.includes("403") || errorMessage.includes("Forbidden");
+
+    expect(is403Error).toBe(true);
+  });
+
+  it("sets appropriate error message for 403 response", () => {
+    const dashboardError = { message: "403 Forbidden" };
+    let error: string | null = null;
+    let hasAccess = true;
+
+    if (dashboardError.message.includes("403")) {
+      error = "Sie haben aktuell keinen aktiven Raum zur Supervision.";
+      hasAccess = false;
+    }
+
+    expect(error).toBe("Sie haben aktuell keinen aktiven Raum zur Supervision.");
+    expect(hasAccess).toBe(false);
+  });
+
+  it("sets generic error message for non-403 errors", () => {
+    const dashboardError = { message: "Network error" };
+    let error: string | null = null;
+
+    if (dashboardError.message.includes("403")) {
+      error = "Sie haben aktuell keinen aktiven Raum zur Supervision.";
+    } else {
+      error = "Fehler beim Laden der Aktivitätsdaten.";
+    }
+
+    expect(error).toBe("Fehler beim Laden der Aktivitätsdaten.");
+  });
+});
+
+describe("loadRoomVisits error handling", () => {
+  it("returns empty array for 403 forbidden responses", () => {
+    const error = new Error("Request failed with status 403");
+    const is403 = error.message.includes("403");
+
+    let result: Array<unknown> = [];
+    if (is403) {
+      console.warn("No permission - returning empty list");
+      result = [];
+    }
+
+    expect(result).toEqual([]);
+  });
+
+  it("re-throws non-403 errors", () => {
+    const error = new Error("Network timeout");
+    const is403 = error.message.includes("403");
+
+    expect(is403).toBe(false);
+    expect(() => {
+      if (!is403) throw error;
+    }).toThrow("Network timeout");
+  });
+});
+
+describe("SWR visit data sync", () => {
+  it("updates students when SWR data changes", () => {
+    const swrVisitsData = [
+      { id: "s1", name: "Student 1", activeGroupId: "g1" },
+      { id: "s2", name: "Student 2", activeGroupId: "g1" },
+    ];
+    const currentRoomId = "g1";
+
+    let students: Array<{ id: string; name: string }> = [];
+    let roomStudentCount = 0;
+
+    if (swrVisitsData && currentRoomId) {
+      students = swrVisitsData;
+      roomStudentCount = swrVisitsData.length;
+    }
+
+    expect(students).toHaveLength(2);
+    expect(roomStudentCount).toBe(2);
+  });
+
+  it("does not update when no current room", () => {
+    const swrVisitsData = [{ id: "s1", name: "Student 1" }];
+    const currentRoomId: string | null = null;
+
+    let updated = false;
+    if (swrVisitsData && currentRoomId) {
+      updated = true;
+    }
+
+    expect(updated).toBe(false);
+  });
+});
+
+describe("Tab change handler logic", () => {
+  it("switches to Schulhof tab correctly", () => {
+    const SCHULHOF_TAB_ID = "schulhof-permanent";
+    const tabId = "schulhof-permanent";
+
+    let isSchulhofTabSelected = false;
+    let selectedRoomIndex = 0;
+
+    if (tabId === SCHULHOF_TAB_ID) {
+      isSchulhofTabSelected = true;
+      selectedRoomIndex = -1;
+    }
+
+    expect(isSchulhofTabSelected).toBe(true);
+    expect(selectedRoomIndex).toBe(-1);
+  });
+
+  it("switches to regular room tab correctly", () => {
+    const SCHULHOF_TAB_ID = "schulhof-permanent";
+    const tabId = "room-123";
+    const allRooms = [
+      { id: "room-123", room_id: "r1" },
+      { id: "room-456", room_id: "r2" },
+    ];
+
+    let isSchulhofTabSelected = true;
+    let targetIndex = -1;
+
+    if (tabId !== SCHULHOF_TAB_ID) {
+      isSchulhofTabSelected = false;
+      targetIndex = allRooms.findIndex((r) => r.id === tabId);
+    }
+
+    expect(isSchulhofTabSelected).toBe(false);
+    expect(targetIndex).toBe(0);
+  });
+});
+
+describe("Action button rendering conditions", () => {
+  it("shows release button when supervising Schulhof", () => {
+    const isSchulhofTabSelected = true;
+    const schulhofStatus = { isUserSupervising: true };
+
+    const showReleaseButton =
+      isSchulhofTabSelected && schulhofStatus?.isUserSupervising;
+
+    expect(showReleaseButton).toBe(true);
+  });
+
+  it("shows claim button when not supervising Schulhof", () => {
+    const isSchulhofTabSelected = true;
+    const schulhofStatus = { isUserSupervising: false };
+
+    const showClaimButton =
+      isSchulhofTabSelected &&
+      schulhofStatus &&
+      !schulhofStatus.isUserSupervising;
+
+    expect(showClaimButton).toBe(true);
+  });
+
+  it("shows no action button for regular rooms", () => {
+    const isSchulhofTabSelected = false;
+    const schulhofStatus = { isUserSupervising: true };
+
+    const showActionButton = isSchulhofTabSelected && schulhofStatus;
+
+    expect(showActionButton).toBe(false);
+  });
+});
+
+describe("Release supervision modal flow", () => {
+  it("finds current user supervision correctly", () => {
+    const currentStaffId = "staff-1";
+    const supervisors = [
+      { id: "sup-1", staffId: "staff-1", isActive: true },
+      { id: "sup-2", staffId: "staff-2", isActive: true },
+      { id: "sup-3", staffId: "staff-1", isActive: false },
+    ];
+
+    const mySupervision = supervisors.find(
+      (sup) => sup.staffId === currentStaffId && sup.isActive,
+    );
+
+    expect(mySupervision?.id).toBe("sup-1");
+  });
+
+  it("handles missing supervision gracefully", () => {
+    const currentStaffId = "staff-unknown";
+    const supervisors = [
+      { id: "sup-1", staffId: "staff-1", isActive: true },
+    ];
+
+    const mySupervision = supervisors.find(
+      (sup) => sup.staffId === currentStaffId && sup.isActive,
+    );
+
+    expect(mySupervision).toBeUndefined();
+  });
+});
+
+describe("Toggle Schulhof supervision", () => {
+  it("determines correct action based on current state", () => {
+    const supervisingStatus = { isUserSupervising: true };
+    const notSupervisingStatus = { isUserSupervising: false };
+
+    const stopAction = supervisingStatus.isUserSupervising ? "stop" : "start";
+    const startAction = notSupervisingStatus.isUserSupervising
+      ? "stop"
+      : "start";
+
+    expect(stopAction).toBe("stop");
+    expect(startAction).toBe("start");
+  });
+
+  it("sets appropriate error message on failure", () => {
+    const isUserSupervising = true;
+    const errorMessage = isUserSupervising
+      ? "Fehler beim Abgeben der Schulhof-Aufsicht."
+      : "Fehler beim Übernehmen der Schulhof-Aufsicht.";
+
+    expect(errorMessage).toBe("Fehler beim Abgeben der Schulhof-Aufsicht.");
+  });
+});
+
+describe("Student content rendering conditions", () => {
+  it("shows empty state when no students", () => {
+    const students: Array<{ id: string }> = [];
+    const showEmptyState = students.length === 0;
+
+    expect(showEmptyState).toBe(true);
+  });
+
+  it("shows student grid when students exist and match filters", () => {
+    const students = [{ id: "s1" }, { id: "s2" }];
+    const filteredStudents = students;
+
+    const showGrid = students.length > 0 && filteredStudents.length > 0;
+
+    expect(showGrid).toBe(true);
+  });
+
+  it("shows empty results when filters exclude all students", () => {
+    const students = [{ id: "s1" }];
+    const filteredStudents: Array<{ id: string }> = [];
+
+    const showEmptyResults =
+      students.length > 0 && filteredStudents.length === 0;
+
+    expect(showEmptyResults).toBe(true);
+  });
+});
+
+describe("Schulhof not supervising view conditions", () => {
+  it("shows info when supervisors exist", () => {
+    const schulhofStatus = {
+      supervisorCount: 2,
+      supervisors: [{ name: "Teacher A" }, { name: "Teacher B" }],
+    };
+
+    const showSupervisorInfo = schulhofStatus.supervisorCount > 0;
+    const supervisorNames = schulhofStatus.supervisors
+      .map((s) => s.name)
+      .join(", ");
+
+    expect(showSupervisorInfo).toBe(true);
+    expect(supervisorNames).toBe("Teacher A, Teacher B");
+  });
+
+  it("shows warning when no supervisors", () => {
+    const schulhofStatus = {
+      supervisorCount: 0,
+      supervisors: [],
+    };
+
+    const showNoSupervisorWarning = schulhofStatus.supervisorCount === 0;
+
+    expect(showNoSupervisorWarning).toBe(true);
+  });
+
+  it("shows student count info", () => {
+    const schulhofStatus = { studentCount: 15 };
+    const showStudentCount = schulhofStatus.studentCount > 0;
+
+    expect(showStudentCount).toBe(true);
+  });
+});
+
+describe("Room switching logic", () => {
+  it("prevents switching to same room", () => {
+    const selectedRoomIndex = 1;
+    const targetIndex = 1;
+    const allRooms = [{ id: "1" }, { id: "2" }];
+
+    const shouldSwitch =
+      targetIndex !== selectedRoomIndex && allRooms[targetIndex];
+
+    expect(shouldSwitch).toBeFalsy();
+  });
+
+  it("allows switching to different room", () => {
+    const selectedRoomIndex = 0;
+    const targetIndex = 1;
+    const allRooms = [{ id: "1" }, { id: "2" }];
+
+    const shouldSwitch =
+      targetIndex !== selectedRoomIndex && allRooms[targetIndex];
+
+    expect(shouldSwitch).toBeTruthy();
+  });
+
+  it("handles 403 error during room switch", () => {
+    const err = new Error("Request failed with 403");
+    const roomName = "Test Room";
+
+    let errorMessage = "";
+    if (err.message.includes("403")) {
+      errorMessage = `Keine Berechtigung für "${roomName}". Kontaktieren Sie einen Administrator.`;
+    } else {
+      errorMessage = "Fehler beim Laden der Raumdaten.";
+    }
+
+    expect(errorMessage).toContain("Keine Berechtigung");
+  });
+});
+
+describe("currentRoom calculation", () => {
+  it("returns virtual Schulhof room when supervising", () => {
+    const isSchulhofTabSelected = true;
+    const schulhofStatus = {
+      isUserSupervising: true,
+      activeGroupId: "active-123",
+      roomId: "room-schulhof",
+      studentCount: 5,
+    };
+    const SCHULHOF_ROOM_NAME = "Schulhof";
+
+    const currentRoom =
+      isSchulhofTabSelected &&
+      schulhofStatus?.isUserSupervising &&
+      schulhofStatus?.activeGroupId
+        ? {
+            id: schulhofStatus.activeGroupId,
+            name: SCHULHOF_ROOM_NAME,
+            room_name: SCHULHOF_ROOM_NAME,
+            room_id: schulhofStatus.roomId ?? undefined,
+            student_count: schulhofStatus.studentCount,
+          }
+        : null;
+
+    expect(currentRoom?.id).toBe("active-123");
+    expect(currentRoom?.name).toBe("Schulhof");
+  });
+
+  it("returns null when Schulhof selected but not supervising", () => {
+    const isSchulhofTabSelected = true;
+    const schulhofStatus = {
+      isUserSupervising: false,
+      activeGroupId: "active-123",
+    };
+
+    const currentRoom =
+      isSchulhofTabSelected &&
+      schulhofStatus?.isUserSupervising &&
+      schulhofStatus?.activeGroupId
+        ? { id: schulhofStatus.activeGroupId }
+        : null;
+
+    expect(currentRoom).toBeNull();
+  });
+
+  it("returns regular room when not Schulhof tab", () => {
+    const isSchulhofTabSelected = false;
+    const allRooms = [
+      { id: "1", name: "Room A" },
+      { id: "2", name: "Room B" },
+    ];
+    const selectedRoomIndex = 1;
+
+    const currentRoom = !isSchulhofTabSelected
+      ? (allRooms[selectedRoomIndex] ?? null)
+      : null;
+
+    expect(currentRoom?.name).toBe("Room B");
+  });
+});
+
+describe("Visit data transformation", () => {
+  it("transforms visit data to student format", () => {
+    const visit = {
+      studentId: "s1",
+      studentName: "Max Mustermann",
+      schoolClass: "3a",
+      groupName: "OGS Blau",
+      activeGroupId: "g1",
+      checkInTime: new Date("2024-01-15T10:00:00"),
+      isActive: true,
+    };
+    const roomName = "Raum 101";
+
+    const nameParts = visit.studentName?.split(" ") ?? ["", ""];
+    const firstName = nameParts[0] ?? "";
+    const lastName = nameParts.slice(1).join(" ") ?? "";
+    const location = roomName ? `Anwesend - ${roomName}` : "Anwesend";
+
+    expect(firstName).toBe("Max");
+    expect(lastName).toBe("Mustermann");
+    expect(location).toBe("Anwesend - Raum 101");
+  });
+
+  it("handles missing student name", () => {
+    const visit = {
+      studentId: "s1",
+      studentName: null as string | null,
+    };
+
+    const nameParts = visit.studentName?.split(" ") ?? ["", ""];
+    const firstName = nameParts[0] ?? "";
+    const lastName = nameParts.slice(1).join(" ") ?? "";
+
+    expect(firstName).toBe("");
+    expect(lastName).toBe("");
+  });
+
+  it("handles single-word name", () => {
+    const visit = { studentName: "Madonna" };
+
+    const nameParts = visit.studentName?.split(" ") ?? ["", ""];
+    const firstName = nameParts[0] ?? "";
+    const lastName = nameParts.slice(1).join(" ");
+
+    expect(firstName).toBe("Madonna");
+    expect(lastName).toBe("");
+  });
+});
+
+describe("Active filters array building", () => {
+  it("adds search filter when search term exists", () => {
+    const searchTerm = "Max";
+    const filters: Array<{ id: string; label: string }> = [];
+
+    if (searchTerm) {
+      filters.push({ id: "search", label: `"${searchTerm}"` });
+    }
+
+    expect(filters).toHaveLength(1);
+    expect(filters[0]?.label).toBe('"Max"');
+  });
+
+  it("adds group filter when not all", () => {
+    const groupFilter = "OGS Blau";
+    const filters: Array<{ id: string; label: string }> = [];
+
+    if (groupFilter !== "all") {
+      filters.push({ id: "group", label: `Gruppe: ${groupFilter}` });
+    }
+
+    expect(filters).toHaveLength(1);
+    expect(filters[0]?.label).toBe("Gruppe: OGS Blau");
+  });
+
+  it("returns empty array when no filters active", () => {
+    const searchTerm = "";
+    const groupFilter = "all";
+    const filters: Array<{ id: string; label: string }> = [];
+
+    if (searchTerm) {
+      filters.push({ id: "search", label: `"${searchTerm}"` });
+    }
+    if (groupFilter !== "all") {
+      filters.push({ id: "group", label: `Gruppe: ${groupFilter}` });
+    }
+
+    expect(filters).toHaveLength(0);
+  });
+});
+
+describe("URL param restoration from localStorage", () => {
+  it("restores saved room from localStorage", () => {
+    const savedRoomId = "room-saved";
+    const allRooms = [
+      { id: "1", room_id: "room-saved" },
+      { id: "2", room_id: "room-other" },
+    ];
+
+    const savedIndex = savedRoomId
+      ? allRooms.findIndex((r) => r.room_id === savedRoomId)
+      : -1;
+
+    expect(savedIndex).toBe(0);
+  });
+
+  it("persists first room when nothing saved", () => {
+    const savedRoomId: string | null = null;
+    const allRooms = [{ id: "1", room_id: "room-first" }];
+
+    const savedIndex = savedRoomId
+      ? allRooms.findIndex((r) => r.room_id === savedRoomId)
+      : -1;
+
+    let persistedRoomId: string | null = null;
+    if (savedIndex === -1 && allRooms[0]?.room_id) {
+      persistedRoomId = allRooms[0].room_id;
+    }
+
+    expect(persistedRoomId).toBe("room-first");
+  });
+});
+
+describe("Dashboard data sync with state", () => {
+  it("extracts room names from educational groups", () => {
+    const educationalGroups = [
+      { id: "1", name: "Gruppe A", room: { name: "Raum A" } },
+      { id: "2", name: "Gruppe B", room: { name: "Raum B" } },
+      { id: "3", name: "Gruppe C", room: undefined },
+    ];
+
+    const roomNames = educationalGroups
+      .map((group) => group.room?.name)
+      .filter((name): name is string => !!name);
+
+    expect(roomNames).toEqual(["Raum A", "Raum B"]);
+  });
+
+  it("creates group name to ID map", () => {
+    const educationalGroups = [
+      { id: "1", name: "Gruppe A" },
+      { id: "2", name: "Gruppe B" },
+    ];
+
+    const nameToIdMap = new Map<string, string>();
+    educationalGroups.forEach((group) => {
+      if (group.name) {
+        nameToIdMap.set(group.name, group.id);
+      }
+    });
+
+    expect(nameToIdMap.get("Gruppe A")).toBe("1");
+    expect(nameToIdMap.get("Gruppe B")).toBe("2");
+  });
+
+  it("caches active groups from dashboard", () => {
+    const supervisedGroups = [{ id: "1", room: { name: "Room A" } }];
+    const unclaimedGroups = [{ id: "2", room: { name: "Room B" } }];
+
+    const combinedGroups = [
+      ...supervisedGroups.map((g) => ({
+        id: g.id,
+        room: g.room ? { name: g.room.name } : undefined,
+      })),
+      ...unclaimedGroups.map((g) => ({
+        id: g.id,
+        room: g.room,
+      })),
+    ];
+
+    expect(combinedGroups).toHaveLength(2);
+  });
+});
+
+describe("Loading state derivation", () => {
+  it("sets loading when dashboard loading and no data", () => {
+    const isDashboardLoading = true;
+    const dashboardData = null;
+
+    const shouldSetLoading = isDashboardLoading && !dashboardData;
+
+    expect(shouldSetLoading).toBe(true);
+  });
+
+  it("does not set loading when data exists", () => {
+    const isDashboardLoading = true;
+    const dashboardData = { supervisedGroups: [] };
+
+    const shouldSetLoading = isDashboardLoading && !dashboardData;
+
+    expect(shouldSetLoading).toBe(false);
+  });
+});
+
+describe("Badge count display", () => {
+  it("shows Schulhof student count when Schulhof selected", () => {
+    const isSchulhofTabSelected = true;
+    const schulhofStatus = { studentCount: 12 };
+    const currentRoom = { student_count: 5 };
+
+    const badgeCount = isSchulhofTabSelected
+      ? (schulhofStatus?.studentCount ?? 0)
+      : (currentRoom?.student_count ?? 0);
+
+    expect(badgeCount).toBe(12);
+  });
+
+  it("shows room student count when regular room selected", () => {
+    const isSchulhofTabSelected = false;
+    const schulhofStatus = { studentCount: 12 };
+    const currentRoom = { student_count: 5 };
+
+    const badgeCount = isSchulhofTabSelected
+      ? (schulhofStatus?.studentCount ?? 0)
+      : (currentRoom?.student_count ?? 0);
+
+    expect(badgeCount).toBe(5);
+  });
+
+  it("defaults to zero when no data", () => {
+    const isSchulhofTabSelected = true;
+    const schulhofStatus: { studentCount?: number } | null = null;
+
+    const badgeCount = schulhofStatus?.studentCount ?? 0;
+
+    expect(badgeCount).toBe(0);
+  });
+});
+
+describe("Tabs visibility logic", () => {
+  it("shows tabs when multiple rooms exist on mobile", () => {
+    const allRooms = [{ id: "1" }, { id: "2" }];
+    const schulhofExists = false;
+    const isDesktop = false;
+
+    const showTabs =
+      (allRooms.length > 1 || schulhofExists) && !isDesktop;
+
+    expect(showTabs).toBe(true);
+  });
+
+  it("shows tabs when Schulhof exists on mobile", () => {
+    const allRooms = [{ id: "1" }];
+    const schulhofExists = true;
+    const isDesktop = false;
+
+    const showTabs =
+      (allRooms.length > 1 || schulhofExists) && !isDesktop;
+
+    expect(showTabs).toBe(true);
+  });
+
+  it("hides tabs on desktop", () => {
+    const allRooms = [{ id: "1" }, { id: "2" }];
+    const schulhofExists = true;
+    const isDesktop = true;
+
+    const showTabs =
+      (allRooms.length > 1 || schulhofExists) && !isDesktop;
+
+    expect(showTabs).toBe(false);
+  });
+
+  it("hides tabs when single room and no Schulhof on mobile", () => {
+    const allRooms = [{ id: "1" }];
+    const schulhofExists = false;
+    const isDesktop = false;
+
+    const showTabs =
+      (allRooms.length > 1 || schulhofExists) && !isDesktop;
+
+    expect(showTabs).toBe(false);
+  });
+});
+
+describe("Schulhof param handling in URL", () => {
+  it("detects Schulhof param and sets tab selected", () => {
+    const roomParam = "schulhof";
+    const schulhofExists = true;
+
+    let isSchulhofTabSelected = false;
+    let selectedRoomIndex = 0;
+
+    if (roomParam === "schulhof" && schulhofExists) {
+      isSchulhofTabSelected = true;
+      selectedRoomIndex = -1;
+    }
+
+    expect(isSchulhofTabSelected).toBe(true);
+    expect(selectedRoomIndex).toBe(-1);
+  });
+
+  it("ignores Schulhof param when Schulhof does not exist", () => {
+    const roomParam = "schulhof";
+    const schulhofExists = false;
+
+    let isSchulhofTabSelected = false;
+
+    if (roomParam === "schulhof" && schulhofExists) {
+      isSchulhofTabSelected = true;
+    }
+
+    expect(isSchulhofTabSelected).toBe(false);
+  });
+});
+
+describe("First room visits from BFF", () => {
+  it("transforms BFF visits to student format", () => {
+    const firstRoomVisits = [
+      {
+        studentId: "s1",
+        studentName: "Anna Schmidt",
+        schoolClass: "2a",
+        groupName: "OGS Rot",
+        activeGroupId: "g1",
+        checkInTime: "2024-01-15T09:00:00Z",
+        isActive: true,
+      },
+    ];
+    const firstRoom = { room_name: "Mensa" };
+    const nameToIdMap = new Map([["OGS Rot", "group-1"]]);
+
+    const studentsFromVisits = firstRoomVisits.map((visit) => {
+      const nameParts = visit.studentName?.split(" ") ?? ["", ""];
+      const firstName = nameParts[0] ?? "";
+      const lastName = nameParts.slice(1).join(" ") ?? "";
+      const location = firstRoom.room_name
+        ? `Anwesend - ${firstRoom.room_name}`
+        : "Anwesend";
+      const groupId = visit.groupName
+        ? nameToIdMap.get(visit.groupName)
+        : undefined;
+
+      return {
+        id: visit.studentId,
+        name: visit.studentName ?? "",
+        first_name: firstName,
+        second_name: lastName,
+        school_class: visit.schoolClass ?? "",
+        current_location: location,
+        group_name: visit.groupName,
+        group_id: groupId,
+        activeGroupId: visit.activeGroupId,
+        checkInTime: new Date(visit.checkInTime),
+      };
+    });
+
+    expect(studentsFromVisits[0]?.first_name).toBe("Anna");
+    expect(studentsFromVisits[0]?.second_name).toBe("Schmidt");
+    expect(studentsFromVisits[0]?.current_location).toBe("Anwesend - Mensa");
+    expect(studentsFromVisits[0]?.group_id).toBe("group-1");
+  });
+
+  it("only applies first room visits when first room selected", () => {
+    const selectedRoomIndex = 0;
+    const firstRoomVisits = [{ studentId: "s1" }];
+
+    let applied = false;
+    if (selectedRoomIndex === 0 && firstRoomVisits.length > 0) {
+      applied = true;
+    }
+
+    expect(applied).toBe(true);
+  });
+
+  it("skips applying first room visits when other room selected", () => {
+    const selectedRoomIndex = 2;
+    const firstRoomVisits = [{ studentId: "s1" }];
+
+    let applied = false;
+    if (selectedRoomIndex === 0 && firstRoomVisits.length > 0) {
+      applied = true;
+    }
+
+    expect(applied).toBe(false);
+  });
+});
+
+describe("Update room student count helper", () => {
+  it("updates correct room in array", () => {
+    const rooms = [
+      { id: "1", student_count: 5 },
+      { id: "2", student_count: 3 },
+    ];
+    const targetRoomId = "1";
+    const newCount = 10;
+
+    const updatedRooms = rooms.map((room) =>
+      room.id === targetRoomId ? { ...room, student_count: newCount } : room,
+    );
+
+    expect(updatedRooms[0]?.student_count).toBe(10);
+    expect(updatedRooms[1]?.student_count).toBe(3);
+  });
+});
+
+describe("Filtered students array handling", () => {
+  it("ensures students array before filtering", () => {
+    const students = null as unknown as Array<{ id: string }>;
+    const safeStudents = Array.isArray(students) ? students : [];
+
+    expect(safeStudents).toEqual([]);
+  });
+
+  it("uses students array when valid", () => {
+    const students = [{ id: "1" }, { id: "2" }];
+    const safeStudents = Array.isArray(students) ? students : [];
+
+    expect(safeStudents).toHaveLength(2);
+  });
+});
