@@ -65,14 +65,16 @@ type staffResponseBuilder struct {
 	teacher         *users.Teacher
 	isTeacher       bool
 	wasPresentToday bool
+	workStatus      string
+	absenceType     string
 }
 
 // buildResponse returns the appropriate response type based on teacher status
 func (b *staffResponseBuilder) buildResponse() interface{} {
 	if b.isTeacher && b.teacher != nil {
-		return newTeacherResponse(b.staff, b.teacher, b.wasPresentToday)
+		return newTeacherResponse(b.staff, b.teacher, b.wasPresentToday, b.workStatus, b.absenceType)
 	}
-	return newStaffResponse(b.staff, false, b.wasPresentToday)
+	return newStaffResponse(b.staff, false, b.wasPresentToday, b.workStatus, b.absenceType)
 }
 
 // processStaffForListOptimized processes a single staff member using pre-loaded data
@@ -83,6 +85,8 @@ func (rs *Resource) processStaffForListOptimized(
 	staff *users.Staff,
 	teacherMap map[int64]*users.Teacher,
 	presentMap map[int64]bool,
+	workStatusMap map[int64]string,
+	absenceMap map[int64]string,
 	filters listStaffFilters,
 ) (interface{}, bool) {
 	// Person is already loaded via ListAllWithPerson
@@ -115,6 +119,8 @@ func (rs *Resource) processStaffForListOptimized(
 		teacher:         teacher,
 		isTeacher:       isTeacher,
 		wasPresentToday: wasPresentToday,
+		workStatus:      workStatusMap[staff.ID],
+		absenceType:     absenceMap[staff.ID],
 	}
 
 	return builder.buildResponse(), true
@@ -138,10 +144,10 @@ func (rs *Resource) handleTeacherRecordUpdate(
 		existingTeacher.Qualifications = req.Qualifications
 
 		if rs.TeacherRepo.Update(ctx, existingTeacher) != nil {
-			return newStaffResponse(staff, false, false), "Staff member updated successfully, but failed to update teacher record", true
+			return newStaffResponse(staff, false, false, "", ""), "Staff member updated successfully, but failed to update teacher record", true
 		}
 
-		return newTeacherResponse(staff, existingTeacher, false), "Teacher updated successfully", false
+		return newTeacherResponse(staff, existingTeacher, false, "", ""), "Teacher updated successfully", false
 	}
 
 	teacher := &users.Teacher{
@@ -152,8 +158,8 @@ func (rs *Resource) handleTeacherRecordUpdate(
 	}
 
 	if rs.TeacherRepo.Create(ctx, teacher) != nil {
-		return newStaffResponse(staff, false, false), "Staff member updated successfully, but failed to create teacher record", true
+		return newStaffResponse(staff, false, false, "", ""), "Staff member updated successfully, but failed to create teacher record", true
 	}
 
-	return newTeacherResponse(staff, teacher, false), "Teacher updated successfully", false
+	return newTeacherResponse(staff, teacher, false, "", ""), "Teacher updated successfully", false
 }

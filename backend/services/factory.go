@@ -161,7 +161,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 	})
 
 	// Initialize work session service (before active service - needed for NFC auto-check-in)
-	workSessionService := active.NewWorkSessionService(repos.WorkSession, repos.WorkSessionBreak, repos.WorkSessionEdit, repos.StaffAbsence)
+	workSessionService := active.NewWorkSessionService(repos.WorkSession, repos.WorkSessionBreak, repos.WorkSessionEdit, repos.StaffAbsence, repos.GroupSupervisor)
 
 	// Initialize staff absence service
 	staffAbsenceService := active.NewStaffAbsenceService(repos.StaffAbsence, repos.WorkSession)

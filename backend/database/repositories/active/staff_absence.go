@@ -113,6 +113,43 @@ func (r *StaffAbsenceRepository) GetByStaffAndDate(ctx context.Context, staffID 
 	return absence, nil
 }
 
+// GetTodayAbsenceMap returns a map of staff IDs to their absence type for today.
+// Priority order when multiple absences exist: sick > training > vacation > other
+func (r *StaffAbsenceRepository) GetTodayAbsenceMap(ctx context.Context) (map[int64]string, error) {
+	var absences []*active.StaffAbsence
+	err := r.db.NewSelect().
+		Model(&absences).
+		ModelTableExpr(tableExprActiveStaffAbsencesAsStaffAbsence).
+		Where(`"staff_absence".date_start <= CURRENT_DATE`).
+		Where(`"staff_absence".date_end >= CURRENT_DATE`).
+		Scan(ctx)
+
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "get today absence map",
+			Err: err,
+		}
+	}
+
+	// Priority: sick > training > vacation > other
+	priority := map[string]int{
+		active.AbsenceTypeSick:     4,
+		active.AbsenceTypeTraining: 3,
+		active.AbsenceTypeVacation: 2,
+		active.AbsenceTypeOther:    1,
+	}
+
+	result := make(map[int64]string, len(absences))
+	for _, a := range absences {
+		existing, exists := result[a.StaffID]
+		if !exists || priority[a.AbsenceType] > priority[existing] {
+			result[a.StaffID] = a.AbsenceType
+		}
+	}
+
+	return result, nil
+}
+
 // GetByDateRange returns all absences overlapping the given date range
 func (r *StaffAbsenceRepository) GetByDateRange(ctx context.Context, from, to time.Time) ([]*active.StaffAbsence, error) {
 	var absences []*active.StaffAbsence

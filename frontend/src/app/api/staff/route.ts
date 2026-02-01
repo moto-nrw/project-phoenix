@@ -27,6 +27,8 @@ interface BackendStaffResponse {
   created_at: string;
   updated_at: string;
   was_present_today?: boolean;
+  work_status?: string;
+  absence_type?: string;
 }
 
 /**
@@ -119,6 +121,8 @@ export const GET = createGetHandler(
           teacher_id: staff.teacher_id ? String(staff.teacher_id) : undefined,
           person_id: staff.person_id,
           was_present_today: staff.was_present_today,
+          work_status: staff.work_status,
+          absence_type: staff.absence_type,
         }));
 
         return mappedStaff;
@@ -147,6 +151,8 @@ export const GET = createGetHandler(
             teacher_id: staff.teacher_id ? String(staff.teacher_id) : undefined,
             person_id: staff.person_id,
             was_present_today: staff.was_present_today,
+            work_status: staff.work_status,
+            absence_type: staff.absence_type,
           }),
         );
 

@@ -50,6 +50,38 @@ export function getStaffLocationStatus(staff: Staff): LocationStatus {
       customBgColor: "#D946EF",
       customShadow: "0 8px 25px rgba(217, 70, 239, 0.4)",
     };
+  } else if (location === "Homeoffice") {
+    return {
+      label: "Homeoffice",
+      badgeColor: "text-white backdrop-blur-sm",
+      cardGradient: "from-indigo-50/80 to-violet-100/80",
+      customBgColor: "#6366F1",
+      customShadow: "0 8px 25px rgba(99, 102, 241, 0.4)",
+    };
+  } else if (location === "Krank") {
+    return {
+      label: "Krank",
+      badgeColor: "text-white backdrop-blur-sm",
+      cardGradient: "from-amber-50/80 to-yellow-100/80",
+      customBgColor: "#EAB308",
+      customShadow: "0 8px 25px rgba(234, 179, 8, 0.4)",
+    };
+  } else if (location === "Urlaub") {
+    return {
+      label: "Urlaub",
+      badgeColor: "text-white backdrop-blur-sm",
+      cardGradient: "from-cyan-50/80 to-sky-100/80",
+      customBgColor: "#06B6D4",
+      customShadow: "0 8px 25px rgba(6, 182, 212, 0.4)",
+    };
+  } else if (location === "Fortbildung") {
+    return {
+      label: "Fortbildung",
+      badgeColor: "text-white backdrop-blur-sm",
+      cardGradient: "from-violet-50/80 to-purple-100/80",
+      customBgColor: "#8B5CF6",
+      customShadow: "0 8px 25px rgba(139, 92, 246, 0.4)",
+    };
   } else {
     // Specific room - use blue/cyan color
     return {

@@ -18,6 +18,8 @@ export interface BackendStaffResponse {
   staff_id?: string;
   teacher_id?: string;
   was_present_today?: boolean;
+  work_status?: string;
+  absence_type?: string;
 }
 
 export interface ActiveSupervisionResponse {
@@ -57,6 +59,9 @@ export interface Staff {
   currentLocation?: string;
   supervisionRole?: string;
   wasPresentToday?: boolean;
+  // Time-tracking
+  workStatus?: string;
+  absenceType?: string;
 }
 
 export interface StaffFilters {
@@ -154,57 +159,90 @@ function buildStaffGroupsMap(
   return map;
 }
 
+/** Absence type label mapping */
+const absenceLabels: Record<string, string> = {
+  sick: "Krank",
+  vacation: "Urlaub",
+  training: "Fortbildung",
+  other: "Abwesend",
+};
+
 /**
- * Determines location and supervision info for a staff member
- * @param staffId - Staff ID to look up
- * @param staffGroupsMap - Map of staff IDs to their supervised groups
- * @param wasPresentToday - Whether the staff had supervision activity today
+ * Determines location and supervision info for a staff member.
+ *
+ * Priority hierarchy:
+ * 1. Checked out today → "Zuhause" (authoritative, ignores stale supervisions)
+ * 2. Active supervision → Room name (blue) / "N Räume" / "Unterwegs" (magenta)
+ * 3. Active work session → "Anwesend" (present) / "Homeoffice" (home_office)
+ * 4. Absence today → "Krank" / "Urlaub" / "Fortbildung"
+ * 5. Default → "Zuhause"
  */
 function getSupervisionInfo(
   staffId: string | undefined,
   staffGroupsMap: Record<string, SupervisedGroupEntry[]>,
   wasPresentToday?: boolean,
+  workStatus?: string,
+  absenceType?: string,
 ): {
   isSupervising: boolean;
   currentLocation: string;
   supervisionRole?: string;
 } {
-  if (!staffId) {
-    return {
-      isSupervising: false,
-      currentLocation: wasPresentToday ? "Anwesend" : "Zuhause",
-    };
+  // Priority 1: Checked out today → "Zuhause" (overrides everything)
+  if (workStatus === "checked_out") {
+    return { isSupervising: false, currentLocation: "Zuhause" };
   }
 
-  const supervisedGroups = staffGroupsMap[staffId];
-  if (!supervisedGroups) {
-    // Not currently supervising - check if they were present today
-    return {
-      isSupervising: false,
-      currentLocation: wasPresentToday ? "Anwesend" : "Zuhause",
-    };
-  }
+  // Priority 2: Active supervision → room(s)
+  if (staffId) {
+    const supervisedGroups = staffGroupsMap[staffId];
+    if (supervisedGroups) {
+      const supervisedRooms: string[] = [];
+      let supervisionRole: string | undefined;
 
-  const supervisedRooms: string[] = [];
-  let supervisionRole: string | undefined;
+      for (const { group, role } of supervisedGroups) {
+        if (group.room) {
+          supervisedRooms.push(group.room.name);
+        }
+        supervisionRole ??= role;
+      }
 
-  for (const { group, role } of supervisedGroups) {
-    if (group.room) {
-      supervisedRooms.push(group.room.name);
+      let currentLocation: string;
+      if (supervisedRooms.length > 1) {
+        currentLocation = `${supervisedRooms.length} Räume`;
+      } else if (supervisedRooms.length === 1) {
+        currentLocation = supervisedRooms[0] ?? "Unterwegs";
+      } else {
+        currentLocation = "Unterwegs";
+      }
+
+      return { isSupervising: true, currentLocation, supervisionRole };
     }
-    supervisionRole ??= role;
   }
 
-  let currentLocation: string;
-  if (supervisedRooms.length > 1) {
-    currentLocation = `${supervisedRooms.length} Räume`;
-  } else if (supervisedRooms.length === 1) {
-    currentLocation = supervisedRooms[0] ?? "Unterwegs";
-  } else {
-    currentLocation = "Unterwegs";
+  // Priority 3: Active work session → "Anwesend" or "Homeoffice"
+  if (workStatus === "present") {
+    return { isSupervising: false, currentLocation: "Anwesend" };
+  }
+  if (workStatus === "home_office") {
+    return { isSupervising: false, currentLocation: "Homeoffice" };
   }
 
-  return { isSupervising: true, currentLocation, supervisionRole };
+  // Priority 4: Absence today
+  if (absenceType && absenceLabels[absenceType]) {
+    return {
+      isSupervising: false,
+      currentLocation: absenceLabels[absenceType],
+    };
+  }
+
+  // Legacy fallback: wasPresentToday from supervision data (for backward compatibility)
+  if (wasPresentToday) {
+    return { isSupervising: false, currentLocation: "Anwesend" };
+  }
+
+  // Priority 5: Default
+  return { isSupervising: false, currentLocation: "Zuhause" };
 }
 
 /**
@@ -215,7 +253,13 @@ function mapStaffMember(
   staffGroupsMap: Record<string, SupervisedGroupEntry[]>,
 ): Staff {
   const { isSupervising, currentLocation, supervisionRole } =
-    getSupervisionInfo(staff.staff_id, staffGroupsMap, staff.was_present_today);
+    getSupervisionInfo(
+      staff.staff_id,
+      staffGroupsMap,
+      staff.was_present_today,
+      staff.work_status,
+      staff.absence_type,
+    );
 
   return {
     id: staff.id,
@@ -233,6 +277,8 @@ function mapStaffMember(
     currentLocation,
     supervisionRole,
     wasPresentToday: staff.was_present_today,
+    workStatus: staff.work_status,
+    absenceType: staff.absence_type,
   };
 }
 

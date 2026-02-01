@@ -117,6 +117,10 @@ type GroupSupervisorRepository interface {
 
 	// GetStaffIDsWithSupervisionToday returns staff IDs who had any supervision activity today
 	GetStaffIDsWithSupervisionToday(ctx context.Context) ([]int64, error)
+
+	// EndAllActiveByStaffID ends all active supervisions for a staff member (sets end_date = CURRENT_DATE)
+	// Returns the number of supervisions that were ended
+	EndAllActiveByStaffID(ctx context.Context, staffID int64) (int, error)
 }
 
 // CombinedGroupRepository defines operations for managing active combined groups
@@ -196,6 +200,10 @@ type StaffAbsenceRepository interface {
 
 	// GetByDateRange returns all absences overlapping the given date range
 	GetByDateRange(ctx context.Context, from, to time.Time) ([]*StaffAbsence, error)
+
+	// GetTodayAbsenceMap returns a map of staff IDs to their absence type for today
+	// Priority order when multiple absences exist: sick > training > vacation > other
+	GetTodayAbsenceMap(ctx context.Context) (map[int64]string, error)
 }
 
 // WorkSessionBreakRepository defines operations for managing work session breaks

@@ -34,7 +34,7 @@ func setupTestContext(t *testing.T) *testContext {
 
 	// Create repo factory to get GroupSupervisor repository
 	repoFactory := repositories.NewFactory(db)
-	resource := staffAPI.NewResource(svc.Users, svc.Education, svc.Auth, repoFactory.GroupSupervisor)
+	resource := staffAPI.NewResource(svc.Users, svc.Education, svc.Auth, repoFactory.GroupSupervisor, svc.WorkSession, repoFactory.StaffAbsence)
 
 	return &testContext{
 		db:       db,

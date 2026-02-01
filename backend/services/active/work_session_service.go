@@ -7,6 +7,7 @@ import (
 	"encoding/csv"
 	"errors"
 	"fmt"
+	"log"
 	"math"
 	"sort"
 	"strconv"
@@ -62,15 +63,16 @@ type WorkSessionService interface {
 
 // workSessionService implements WorkSessionService
 type workSessionService struct {
-	repo        activeModels.WorkSessionRepository
-	breakRepo   activeModels.WorkSessionBreakRepository
-	auditRepo   auditModels.WorkSessionEditRepository
-	absenceRepo activeModels.StaffAbsenceRepository
+	repo           activeModels.WorkSessionRepository
+	breakRepo      activeModels.WorkSessionBreakRepository
+	auditRepo      auditModels.WorkSessionEditRepository
+	absenceRepo    activeModels.StaffAbsenceRepository
+	supervisorRepo activeModels.GroupSupervisorRepository
 }
 
 // NewWorkSessionService creates a new work session service
-func NewWorkSessionService(repo activeModels.WorkSessionRepository, breakRepo activeModels.WorkSessionBreakRepository, auditRepo auditModels.WorkSessionEditRepository, absenceRepo activeModels.StaffAbsenceRepository) WorkSessionService {
-	return &workSessionService{repo: repo, breakRepo: breakRepo, auditRepo: auditRepo, absenceRepo: absenceRepo}
+func NewWorkSessionService(repo activeModels.WorkSessionRepository, breakRepo activeModels.WorkSessionBreakRepository, auditRepo auditModels.WorkSessionEditRepository, absenceRepo activeModels.StaffAbsenceRepository, supervisorRepo activeModels.GroupSupervisorRepository) WorkSessionService {
+	return &workSessionService{repo: repo, breakRepo: breakRepo, auditRepo: auditRepo, absenceRepo: absenceRepo, supervisorRepo: supervisorRepo}
 }
 
 // CheckIn creates a new work session for the staff member
@@ -179,6 +181,15 @@ func (s *workSessionService) CheckOut(ctx context.Context, staffID int64) (*acti
 	now := time.Now()
 	if err := s.repo.CloseSession(ctx, session.ID, now, false); err != nil {
 		return nil, fmt.Errorf("failed to close session: %w", err)
+	}
+
+	// End all active supervisions for this staff member (fire-and-forget)
+	if s.supervisorRepo != nil {
+		if ended, err := s.supervisorRepo.EndAllActiveByStaffID(ctx, staffID); err != nil {
+			log.Printf("Warning: failed to end active supervisions for staff %d on checkout: %v", staffID, err)
+		} else if ended > 0 {
+			log.Printf("Ended %d active supervision(s) for staff %d on checkout", ended, staffID)
+		}
 	}
 
 	// Re-fetch the updated session
