@@ -117,17 +117,18 @@ func (s *Seeder) seedWorkSessions(ctx context.Context) error {
 }
 
 // buildBreaksForSession generates 1-2 realistic break records for a work session.
-// Morning break: ~10:00 for 15-20 min (not every day)
-// Lunch break: ~12:30 for 30-45 min (§4 ArbZG: ≥30min for >6h, ≥45min for >9h)
+// Morning break: ~10:00 for 15 min (not every day)
+// Lunch break: ~12:30 for 30 or 45 min (§4 ArbZG: ≥30min for >6h, ≥45min for >9h)
+// All durations use multiples of 15 to match the frontend dropdown (0, 15, 30, 45, 60).
 func buildBreaksForSession(checkIn, checkOut time.Time, staffIdx, dayIdx int) []*active.WorkSessionBreak {
 	var breaks []*active.WorkSessionBreak
 	netHours := checkOut.Sub(checkIn).Hours()
 	day := checkIn.Truncate(24 * time.Hour)
 
-	// Morning break: ~10:00-10:20, only some staff/days
+	// Morning break: ~10:00, 15 min, only some staff/days
 	if staffIdx%2 == 0 || dayIdx%3 == 0 {
 		morningStart := day.Add(10*time.Hour + time.Duration(staffIdx*5)*time.Minute)
-		morningDur := 15 + (dayIdx%2)*5 // 15 or 20 min
+		morningDur := 15
 		morningEnd := morningStart.Add(time.Duration(morningDur) * time.Minute)
 
 		breaks = append(breaks, &active.WorkSessionBreak{
@@ -149,8 +150,6 @@ func buildBreaksForSession(checkIn, checkOut time.Time, staffIdx, dayIdx int) []
 		}
 		lunchDur = int(math.Max(float64(45-morningTotal), 30))
 	}
-	// Add some variation
-	lunchDur += (dayIdx * 3) % 7 // +0 to +6 min
 
 	lunchEnd := lunchStart.Add(time.Duration(lunchDur) * time.Minute)
 
