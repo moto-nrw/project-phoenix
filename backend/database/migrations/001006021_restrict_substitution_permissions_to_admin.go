@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	RestrictSubstitutionPermissionsVersion     = "1.7.10"
+	RestrictSubstitutionPermissionsVersion     = "1.7.1.1"
 	RestrictSubstitutionPermissionsDescription = "Restrict substitution write permissions to admin role only"
 )
 
