@@ -551,7 +551,10 @@ describe("SupervisionProvider Schulhof handling", () => {
       expect(result.current.isLoadingSupervision).toBe(false);
     });
 
-    expect(result.current.isSupervising).toBe(false);
+    // isSupervising is true when Schulhof exists, even if the user is not
+    // actively supervising it. The Schulhof tab must be visible to ALL staff
+    // so anyone can opt-in. See supervision-context.tsx lines 226-230.
+    expect(result.current.isSupervising).toBe(true);
     expect(result.current.supervisedRooms).toHaveLength(1);
     expect(result.current.supervisedRooms[0]?.isSchulhof).toBe(true);
   });

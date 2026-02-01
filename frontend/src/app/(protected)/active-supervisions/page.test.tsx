@@ -240,7 +240,8 @@ describe("MeinRaumPage (Active Supervisions)", () => {
     // First call: dashboard data, Second call: per-room visits (return null to skip)
     const dashboardData = {
       supervisedGroups: [
-        { id: "1", name: "Schulhof", room: { id: "10", name: "Schulhof" } },
+        // Use a non-Schulhof room name to avoid triggering Schulhof-specific code path
+        { id: "1", name: "Raum 101", room: { id: "10", name: "Raum 101" } },
       ],
       unclaimedGroups: [],
       currentStaff: { id: "1" },
@@ -366,7 +367,8 @@ describe("MeinRaumPage additional scenarios", () => {
       .mockReturnValueOnce({
         data: {
           supervisedGroups: [
-            { id: "1", name: "Schulhof", room: { id: "10", name: "Schulhof" } },
+            // Use a non-Schulhof room name to avoid triggering Schulhof-specific code path
+            { id: "1", name: "Raum 101", room: { id: "10", name: "Raum 101" } },
           ],
           unclaimedGroups: [],
           currentStaff: { id: "1" },
