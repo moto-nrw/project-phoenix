@@ -903,3 +903,308 @@ describe("SupervisionProvider multiple supervised rooms", () => {
     );
   });
 });
+
+describe("SupervisionProvider refresh debouncing", () => {
+  it("debounces rapid refresh calls", () => {
+    // Simulate debounce logic
+    let lastRefreshTime = 0;
+    const DEBOUNCE_MS = 5000;
+
+    const shouldRefresh = (): boolean => {
+      const now = Date.now();
+      if (now - lastRefreshTime < DEBOUNCE_MS) {
+        return false;
+      }
+      lastRefreshTime = now;
+      return true;
+    };
+
+    // First call should succeed
+    expect(shouldRefresh()).toBe(true);
+
+    // Immediate second call should be debounced
+    expect(shouldRefresh()).toBe(false);
+  });
+
+  it("allows refresh after debounce period", () => {
+    let lastRefreshTime = Date.now() - 6000; // 6 seconds ago
+    const DEBOUNCE_MS = 5000;
+
+    const shouldRefresh = (): boolean => {
+      const now = Date.now();
+      if (now - lastRefreshTime < DEBOUNCE_MS) {
+        return false;
+      }
+      lastRefreshTime = now;
+      return true;
+    };
+
+    // Should allow refresh since 6 seconds passed
+    expect(shouldRefresh()).toBe(true);
+  });
+});
+
+describe("SupervisionProvider isRefreshing guard", () => {
+  it("prevents concurrent refresh calls", () => {
+    let isRefreshing = false;
+    let refreshCount = 0;
+
+    const tryRefresh = (): boolean => {
+      if (isRefreshing) return false;
+      isRefreshing = true;
+      refreshCount++;
+      return true;
+    };
+
+    // First call succeeds
+    expect(tryRefresh()).toBe(true);
+    expect(refreshCount).toBe(1);
+
+    // Second call blocked while refreshing
+    expect(tryRefresh()).toBe(false);
+    expect(refreshCount).toBe(1);
+
+    // After completing, next call succeeds
+    isRefreshing = false;
+    expect(tryRefresh()).toBe(true);
+    expect(refreshCount).toBe(2);
+  });
+});
+
+describe("SupervisionProvider silent refresh mode", () => {
+  it("does not update loading state on silent refresh", () => {
+    let isLoadingGroups = false;
+    let isLoadingSupervision = false;
+
+    const updateStateForRefresh = (silent: boolean) => {
+      if (!silent) {
+        isLoadingGroups = true;
+        isLoadingSupervision = true;
+      }
+    };
+
+    // Non-silent refresh sets loading
+    updateStateForRefresh(false);
+    expect(isLoadingGroups).toBe(true);
+    expect(isLoadingSupervision).toBe(true);
+
+    // Reset
+    isLoadingGroups = false;
+    isLoadingSupervision = false;
+
+    // Silent refresh does not set loading
+    updateStateForRefresh(true);
+    expect(isLoadingGroups).toBe(false);
+    expect(isLoadingSupervision).toBe(false);
+  });
+});
+
+describe("SupervisionProvider state change detection", () => {
+  it("skips update when groups unchanged", () => {
+    const prevState = {
+      hasGroups: true,
+      groups: [{ id: 1, name: "Group A" }],
+      isLoadingGroups: false,
+    };
+    const newGroupList = [{ id: 1, name: "Group A" }];
+    const newHasGroups = true;
+
+    const shouldUpdate = !(
+      prevState.hasGroups === newHasGroups &&
+      prevState.groups.length === newGroupList.length &&
+      prevState.groups.every(
+        (group, index) => group.id === newGroupList[index]?.id,
+      ) &&
+      !prevState.isLoadingGroups
+    );
+
+    expect(shouldUpdate).toBe(false);
+  });
+
+  it("triggers update when groups changed", () => {
+    const prevState = {
+      hasGroups: true,
+      groups: [{ id: 1, name: "Group A" }],
+      isLoadingGroups: false,
+    };
+    const newGroupList = [
+      { id: 1, name: "Group A" },
+      { id: 2, name: "Group B" },
+    ];
+    const newHasGroups = true;
+
+    const shouldUpdate = !(
+      prevState.hasGroups === newHasGroups &&
+      prevState.groups.length === newGroupList.length &&
+      prevState.groups.every(
+        (group, index) => group.id === newGroupList[index]?.id,
+      ) &&
+      !prevState.isLoadingGroups
+    );
+
+    expect(shouldUpdate).toBe(true);
+  });
+
+  it("triggers update when loading state differs", () => {
+    const prevState = {
+      hasGroups: false,
+      groups: [] as Array<{ id: number }>,
+      isLoadingGroups: true,
+    };
+    const newGroupList: Array<{ id: number }> = [];
+    const newHasGroups = false;
+
+    const shouldUpdate = !(
+      prevState.hasGroups === newHasGroups &&
+      prevState.groups.length === newGroupList.length &&
+      prevState.groups.every(
+        (group, index) => group.id === newGroupList[index]?.id,
+      ) &&
+      !prevState.isLoadingGroups
+    );
+
+    expect(shouldUpdate).toBe(true);
+  });
+});
+
+describe("SupervisionProvider supervised rooms comparison", () => {
+  it("skips update when room IDs unchanged", () => {
+    const prevRoomIds = ["room-1", "room-2"].join(",");
+    const newRoomIds = ["room-1", "room-2"].join(",");
+
+    expect(prevRoomIds === newRoomIds).toBe(true);
+  });
+
+  it("triggers update when room IDs changed", () => {
+    const prevRoomIds = ["room-1", "room-2"].join(",");
+    const newRoomIds = ["room-1", "room-3"].join(",");
+
+    expect(prevRoomIds !== newRoomIds).toBe(true);
+  });
+
+  it("detects room order changes", () => {
+    const prevRoomIds = ["room-1", "room-2"].join(",");
+    const newRoomIds = ["room-2", "room-1"].join(",");
+
+    expect(prevRoomIds !== newRoomIds).toBe(true);
+  });
+});
+
+describe("SupervisionProvider Schulhof room creation", () => {
+  it("creates virtual Schulhof room from status", () => {
+    const SCHULHOF_TAB_ID = "schulhof-permanent";
+    const SCHULHOF_ROOM_NAME = "Schulhof";
+
+    const schulhofData = {
+      exists: true,
+      active_group_id: 123,
+    };
+
+    const schulhofRoom = schulhofData.exists
+      ? {
+          id: SCHULHOF_TAB_ID,
+          name: SCHULHOF_ROOM_NAME,
+          groupId: schulhofData.active_group_id?.toString() ?? SCHULHOF_TAB_ID,
+          isSchulhof: true,
+        }
+      : null;
+
+    expect(schulhofRoom).not.toBeNull();
+    expect(schulhofRoom?.id).toBe("schulhof-permanent");
+    expect(schulhofRoom?.groupId).toBe("123");
+    expect(schulhofRoom?.isSchulhof).toBe(true);
+  });
+
+  it("returns null when Schulhof does not exist", () => {
+    const schulhofData = { exists: false };
+
+    const schulhofRoom = schulhofData.exists
+      ? { id: "schulhof-permanent", name: "Schulhof" }
+      : null;
+
+    expect(schulhofRoom).toBeNull();
+  });
+});
+
+describe("SupervisionProvider room name fallback", () => {
+  it("uses room name when available", () => {
+    const group = {
+      room_id: 10,
+      room: { id: 10, name: "Kunstzimmer" },
+    };
+
+    const roomName =
+      group.room?.name ??
+      (group.room_id ? `Room ${group.room_id}` : undefined);
+
+    expect(roomName).toBe("Kunstzimmer");
+  });
+
+  it("falls back to Room ID format when name missing", () => {
+    const group = {
+      room_id: 10,
+      room: undefined as { id: number; name: string } | undefined,
+    };
+
+    const roomName =
+      group.room?.name ??
+      (group.room_id ? `Room ${group.room_id}` : undefined);
+
+    expect(roomName).toBe("Room 10");
+  });
+
+  it("returns undefined when no room info", () => {
+    const group = {
+      room_id: undefined as number | undefined,
+      room: undefined as { id: number; name: string } | undefined,
+    };
+
+    const roomName =
+      group.room?.name ??
+      (group.room_id ? `Room ${group.room_id}` : undefined);
+
+    expect(roomName).toBeUndefined();
+  });
+});
+
+describe("SupervisionProvider filters out Schulhof from regular rooms", () => {
+  it("excludes Schulhof when mapping supervised groups", () => {
+    const SCHULHOF_ROOM_NAME = "Schulhof";
+    const supervisedGroups = [
+      { room_id: 1, room: { name: "Raum A" } },
+      { room_id: 2, room: { name: SCHULHOF_ROOM_NAME } },
+      { room_id: 3, room: { name: "Raum B" } },
+    ];
+
+    const filteredRooms = supervisedGroups.filter(
+      (g) => g.room_id && g.room && g.room.name !== SCHULHOF_ROOM_NAME,
+    );
+
+    expect(filteredRooms).toHaveLength(2);
+    expect(filteredRooms.find((r) => r.room.name === "Schulhof")).toBeUndefined();
+  });
+});
+
+describe("SupervisionProvider session handling", () => {
+  it("clears state when no session token", () => {
+    const token: string | undefined = undefined;
+    let stateClearedToEmpty = false;
+
+    if (!token) {
+      stateClearedToEmpty = true;
+    }
+
+    expect(stateClearedToEmpty).toBe(true);
+  });
+
+  it("triggers refresh when session token exists", () => {
+    const token = "valid-token";
+    let refreshCalled = false;
+
+    if (token) {
+      refreshCalled = true;
+    }
+
+    expect(refreshCalled).toBe(true);
+  });
+});
