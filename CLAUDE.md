@@ -208,6 +208,8 @@ devbox add <tool>@latest    # Add to devbox.json
 | View logs | `docker compose logs -f server` |
 | Run migrations | `docker compose run server ./main migrate` |
 
+**Database names:** Production/dev DB is `postgres` (default), test DB is `phoenix_test` (port 5433). If unsure, check `DB_DSN` in the relevant docker-compose file.
+
 ### Test Database (port 5433)
 ```bash
 docker compose --profile test up -d postgres-test  # Start test DB (isolated network)
