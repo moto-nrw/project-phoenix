@@ -57,6 +57,9 @@ func (rs *Resource) Router() chi.Router {
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn)).Post("/break/end", rs.endBreak)
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn)).Get("/breaks/{sessionId}", rs.getBreaks)
 
+		// Export
+		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn)).Get("/export", rs.exportSessions)
+
 		// Presence map - for internal use by staff page
 		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/presence-map", rs.getPresenceMap)
 	})
@@ -318,6 +321,64 @@ func (rs *Resource) getSessionEdits(w http.ResponseWriter, r *http.Request) {
 	}
 
 	common.Respond(w, r, http.StatusOK, edits, "Session edits retrieved successfully")
+}
+
+// exportSessions handles GET /api/time-tracking/export?from=...&to=...&format=csv|xlsx
+func (rs *Resource) exportSessions(w http.ResponseWriter, r *http.Request) {
+	// Get staff ID from JWT claims
+	userClaims := jwt.ClaimsFromCtx(r.Context())
+	staffID, err := rs.getStaffIDFromClaims(r.Context(), userClaims)
+	if err != nil {
+		common.RenderError(w, r, ErrorUnauthorized(err))
+		return
+	}
+
+	// Parse query params
+	fromStr := r.URL.Query().Get("from")
+	toStr := r.URL.Query().Get("to")
+	format := r.URL.Query().Get("format")
+
+	if fromStr == "" || toStr == "" {
+		common.RenderError(w, r, ErrorInvalidRequest(errors.New("from and to query parameters are required")))
+		return
+	}
+
+	from, err := time.Parse(common.DateFormatISO, fromStr)
+	if err != nil {
+		common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid from date format, expected YYYY-MM-DD")))
+		return
+	}
+
+	to, err := time.Parse(common.DateFormatISO, toStr)
+	if err != nil {
+		common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid to date format, expected YYYY-MM-DD")))
+		return
+	}
+
+	if format != "csv" && format != "xlsx" {
+		format = "csv"
+	}
+
+	fileBytes, filename, err := rs.WorkSessionService.ExportSessions(r.Context(), staffID, from, to, format)
+	if err != nil {
+		common.RenderError(w, r, ErrorInternalServer(err))
+		return
+	}
+
+	// Set response headers for file download
+	switch format {
+	case "xlsx":
+		w.Header().Set("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+	default:
+		w.Header().Set("Content-Type", "text/csv; charset=utf-8")
+	}
+	w.Header().Set("Content-Disposition", "attachment; filename=\""+filename+"\"")
+	w.Header().Set("Content-Length", strconv.Itoa(len(fileBytes)))
+
+	if _, err := w.Write(fileBytes); err != nil {
+		// Response already started, just log
+		return
+	}
 }
 
 // getPresenceMap handles GET /api/time-tracking/presence-map

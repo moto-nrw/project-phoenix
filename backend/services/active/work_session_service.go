@@ -1,8 +1,10 @@
 package active
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
+	"encoding/csv"
 	"errors"
 	"fmt"
 	"math"
@@ -11,6 +13,7 @@ import (
 
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
+	"github.com/xuri/excelize/v2"
 )
 
 // BreakDurationUpdate represents an update to a single break's duration
@@ -53,6 +56,7 @@ type WorkSessionService interface {
 	GetTodayPresenceMap(ctx context.Context) (map[int64]string, error)
 	CleanupOpenSessions(ctx context.Context) (int, error)
 	EnsureCheckedIn(ctx context.Context, staffID int64) (*activeModels.WorkSession, error)
+	ExportSessions(ctx context.Context, staffID int64, from, to time.Time, format string) ([]byte, string, error)
 }
 
 // workSessionService implements WorkSessionService
@@ -565,4 +569,143 @@ func (s *workSessionService) EnsureCheckedIn(ctx context.Context, staffID int64)
 
 	// No session today, create one
 	return s.CheckIn(ctx, staffID, activeModels.WorkSessionStatusPresent)
+}
+
+// German weekday names for export
+var germanWeekdays = [7]string{"Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"}
+
+// ExportSessions generates a CSV or XLSX export of work sessions
+func (s *workSessionService) ExportSessions(ctx context.Context, staffID int64, from, to time.Time, format string) ([]byte, string, error) {
+	sessions, err := s.GetHistory(ctx, staffID, from, to)
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to get sessions for export: %w", err)
+	}
+
+	fromStr := from.Format("2006-01-02")
+	toStr := to.Format("2006-01-02")
+
+	switch format {
+	case "xlsx":
+		data, err := s.exportXLSX(sessions)
+		if err != nil {
+			return nil, "", err
+		}
+		return data, fmt.Sprintf("zeiterfassung_%s_%s.xlsx", fromStr, toStr), nil
+	default:
+		data, err := s.exportCSV(sessions)
+		if err != nil {
+			return nil, "", err
+		}
+		return data, fmt.Sprintf("zeiterfassung_%s_%s.csv", fromStr, toStr), nil
+	}
+}
+
+func (s *workSessionService) exportCSV(sessions []*SessionResponse) ([]byte, error) {
+	var buf bytes.Buffer
+
+	// UTF-8 BOM for Excel compatibility
+	buf.Write([]byte{0xEF, 0xBB, 0xBF})
+
+	w := csv.NewWriter(&buf)
+	w.Comma = ';'
+
+	// Header
+	if err := w.Write([]string{"Datum", "Wochentag", "Start", "Ende", "Pause (Min)", "Netto (Std)", "Ort", "Bemerkungen"}); err != nil {
+		return nil, fmt.Errorf("failed to write CSV header: %w", err)
+	}
+
+	for _, sr := range sessions {
+		row := s.sessionToRow(sr)
+		if err := w.Write(row); err != nil {
+			return nil, fmt.Errorf("failed to write CSV row: %w", err)
+		}
+	}
+
+	w.Flush()
+	if err := w.Error(); err != nil {
+		return nil, fmt.Errorf("CSV write error: %w", err)
+	}
+
+	return buf.Bytes(), nil
+}
+
+func (s *workSessionService) exportXLSX(sessions []*SessionResponse) ([]byte, error) {
+	f := excelize.NewFile()
+	defer func() { _ = f.Close() }()
+
+	sheet := "Zeiterfassung"
+	idx, err := f.NewSheet(sheet)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create sheet: %w", err)
+	}
+	f.SetActiveSheet(idx)
+	// Remove default "Sheet1" if it exists and is different
+	if sheet != "Sheet1" {
+		_ = f.DeleteSheet("Sheet1")
+	}
+
+	headers := []string{"Datum", "Wochentag", "Start", "Ende", "Pause (Min)", "Netto (Std)", "Ort", "Bemerkungen"}
+
+	// Header style
+	headerStyle, _ := f.NewStyle(&excelize.Style{
+		Font: &excelize.Font{Bold: true},
+		Fill: excelize.Fill{Type: "pattern", Color: []string{"#E2E8F0"}, Pattern: 1},
+	})
+
+	for i, h := range headers {
+		cell, _ := excelize.CoordinatesToCellName(i+1, 1)
+		_ = f.SetCellValue(sheet, cell, h)
+		_ = f.SetCellStyle(sheet, cell, cell, headerStyle)
+	}
+
+	// Data rows
+	for rowIdx, sr := range sessions {
+		row := s.sessionToRow(sr)
+		for colIdx, val := range row {
+			cell, _ := excelize.CoordinatesToCellName(colIdx+1, rowIdx+2)
+			_ = f.SetCellValue(sheet, cell, val)
+		}
+	}
+
+	// Auto-width columns
+	for i := range headers {
+		col, _ := excelize.ColumnNumberToName(i + 1)
+		_ = f.SetColWidth(sheet, col, col, 16)
+	}
+
+	var buf bytes.Buffer
+	if err := f.Write(&buf); err != nil {
+		return nil, fmt.Errorf("failed to write XLSX: %w", err)
+	}
+
+	return buf.Bytes(), nil
+}
+
+func (s *workSessionService) sessionToRow(sr *SessionResponse) []string {
+	sess := sr.WorkSession
+
+	datum := sess.Date.Format("02.01.2006")
+	wochentag := germanWeekdays[sess.Date.Weekday()]
+
+	start := sess.CheckInTime.Format("15:04")
+
+	ende := ""
+	if sess.CheckOutTime != nil {
+		ende = sess.CheckOutTime.Format("15:04")
+	}
+
+	pauseMin := strconv.Itoa(sess.BreakMinutes)
+
+	// Net as "Xh YYmin"
+	netMins := sr.NetMinutes
+	h := netMins / 60
+	m := netMins % 60
+	netto := fmt.Sprintf("%dh %02dmin", h, m)
+
+	ort := "In der OGS"
+	if sess.Status == activeModels.WorkSessionStatusHomeOffice {
+		ort = "Homeoffice"
+	}
+
+	return []string{datum, wochentag, start, ende, pauseMin, netto, ort, sess.Notes}
 }
