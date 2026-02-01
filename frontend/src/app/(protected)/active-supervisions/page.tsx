@@ -1203,6 +1203,7 @@ function MeinRaumPageContent() {
                     // Switch to Schulhof tab
                     setIsSchulhofTabSelected(true);
                     setSelectedRoomIndex(-1);
+                    router.push("/active-supervisions?room=schulhof");
                     localStorage.setItem("sidebar-last-room", SCHULHOF_TAB_ID);
                     localStorage.setItem(
                       "sidebar-last-room-name",
@@ -1229,6 +1230,9 @@ function MeinRaumPageContent() {
                     if (index !== -1) {
                       const room = allRooms[index];
                       if (room?.room_id) {
+                        router.push(
+                          `/active-supervisions?room=${room.room_id}`,
+                        );
                         localStorage.setItem("sidebar-last-room", room.room_id);
                       }
                       const roomName = room?.room_name;

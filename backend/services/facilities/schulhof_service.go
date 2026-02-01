@@ -295,6 +295,13 @@ func (s *schulhofService) GetOrCreateActiveGroup(ctx context.Context, createdBy 
 		return activeGroup, nil
 	}
 
+	// End any stale (non-today) active groups for this room before creating a new one.
+	// Without this, CheckRoomConflict in CreateActiveGroup would reject the new group
+	// because a leftover group from a previous day still occupies the room.
+	if err := s.endStaleActiveGroups(ctx, room.ID); err != nil {
+		return nil, fmt.Errorf("failed to end stale active groups: %w", err)
+	}
+
 	// Create a new active group for today
 	now := time.Now()
 	newActiveGroup := &active.Group{
@@ -350,6 +357,32 @@ func (s *schulhofService) findTodayActiveGroup(ctx context.Context, roomID, acti
 	}
 
 	return nil, nil
+}
+
+// endStaleActiveGroups ends any active groups for the given room that are still open
+// (end_time IS NULL) but started before today. This prevents room conflict errors when
+// creating a new daily Schulhof active group.
+func (s *schulhofService) endStaleActiveGroups(ctx context.Context, roomID int64) error {
+	activeGroups, err := s.activeService.FindActiveGroupsByRoomID(ctx, roomID)
+	if err != nil {
+		return fmt.Errorf("failed to find active groups: %w", err)
+	}
+
+	now := time.Now()
+	todayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+
+	for _, ag := range activeGroups {
+		// Only end groups from BEFORE today. Today's groups are safe — this ensures
+		// mid-day supervisor changes don't disrupt the current Schulhof session.
+		if ag.EndTime == nil && !ag.StartTime.After(todayStart) {
+			log.Printf("%s Ending stale active group ID=%d (started %s)", constants.SchulhofLogPrefix, ag.ID, ag.StartTime.Format("2006-01-02"))
+			if err := s.activeService.EndActiveGroupSession(ctx, ag.ID); err != nil {
+				return fmt.Errorf("failed to end stale active group %d: %w", ag.ID, err)
+			}
+		}
+	}
+
+	return nil
 }
 
 // ensureSchulhofRoom finds or creates the Schulhof room.
