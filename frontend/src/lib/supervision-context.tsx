@@ -308,15 +308,22 @@ export function SupervisionProvider({
         } else {
           // No regular supervision, but still include Schulhof if it exists
           const roomsWithSchulhof = schulhofRoom ? [schulhofRoom] : [];
+          const isSchulhofSupervising = schulhofRoom !== null;
 
           setState((prev) => {
             const prevRoomIds = prev.supervisedRooms.map((r) => r.id).join(",");
             const newRoomIds = roomsWithSchulhof.map((r) => r.id).join(",");
+            const newRoomId = isSchulhofSupervising
+              ? SCHULHOF_TAB_ID
+              : undefined;
+            const newRoomName = isSchulhofSupervising
+              ? SCHULHOF_ROOM_NAME
+              : undefined;
             // Only update if values actually changed
             if (
-              !prev.isSupervising &&
-              prev.supervisedRoomId === undefined &&
-              prev.supervisedRoomName === undefined &&
+              prev.isSupervising === isSchulhofSupervising &&
+              prev.supervisedRoomId === newRoomId &&
+              prev.supervisedRoomName === newRoomName &&
               prevRoomIds === newRoomIds &&
               !prev.isLoadingSupervision
             ) {
@@ -324,9 +331,9 @@ export function SupervisionProvider({
             }
             return {
               ...prev,
-              isSupervising: false,
-              supervisedRoomId: undefined,
-              supervisedRoomName: undefined,
+              isSupervising: isSchulhofSupervising,
+              supervisedRoomId: newRoomId,
+              supervisedRoomName: newRoomName,
               supervisedRooms: roomsWithSchulhof,
               isLoadingSupervision: false,
             };
@@ -335,14 +342,19 @@ export function SupervisionProvider({
       } else {
         // Response not OK, but still include Schulhof if it exists
         const roomsOnError = schulhofRoom ? [schulhofRoom] : [];
+        const isSchulhofSupervising = schulhofRoom !== null;
         setState((prev) => {
           const prevRoomIds = prev.supervisedRooms.map((r) => r.id).join(",");
           const newRoomIds = roomsOnError.map((r) => r.id).join(",");
+          const newRoomId = isSchulhofSupervising ? SCHULHOF_TAB_ID : undefined;
+          const newRoomName = isSchulhofSupervising
+            ? SCHULHOF_ROOM_NAME
+            : undefined;
           // Only update if values actually changed
           if (
-            !prev.isSupervising &&
-            prev.supervisedRoomId === undefined &&
-            prev.supervisedRoomName === undefined &&
+            prev.isSupervising === isSchulhofSupervising &&
+            prev.supervisedRoomId === newRoomId &&
+            prev.supervisedRoomName === newRoomName &&
             prevRoomIds === newRoomIds &&
             !prev.isLoadingSupervision
           ) {
@@ -350,9 +362,9 @@ export function SupervisionProvider({
           }
           return {
             ...prev,
-            isSupervising: false,
-            supervisedRoomId: undefined,
-            supervisedRoomName: undefined,
+            isSupervising: isSchulhofSupervising,
+            supervisedRoomId: newRoomId,
+            supervisedRoomName: newRoomName,
             supervisedRooms: roomsOnError,
             isLoadingSupervision: false,
           };
