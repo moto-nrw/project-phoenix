@@ -1211,6 +1211,172 @@ describe("SupervisionProvider session handling", () => {
   });
 });
 
+describe("SupervisionProvider error state change detection", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("should handle fetch throwing on supervised API (catch branch)", async () => {
+    mockFetch.mockImplementation((url: string) => {
+      if (url.includes("/api/groups/context")) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({ groups: [] }),
+        });
+      }
+      if (url.includes("/api/me/groups/supervised")) {
+        return Promise.reject(new Error("Network error"));
+      }
+      if (url.includes("/api/active/schulhof/status")) {
+        return Promise.reject(new Error("Network error"));
+      }
+      return Promise.resolve({ ok: true, json: async () => ({}) });
+    });
+
+    const { result } = renderHook(() => useSupervision(), {
+      wrapper: createWrapper("test-token"),
+    });
+
+    await waitFor(() => {
+      expect(result.current.isLoadingSupervision).toBe(false);
+    });
+
+    // After error, should be not supervising
+    expect(result.current.isSupervising).toBe(false);
+    expect(result.current.supervisedRooms).toHaveLength(0);
+    expect(result.current.supervisedRoomId).toBeUndefined();
+    expect(result.current.supervisedRoomName).toBeUndefined();
+  });
+
+  it("should handle non-OK groups API with unchanged state (optimization guard)", async () => {
+    // First render with non-OK groups API
+    mockFetch.mockImplementation((url: string) => {
+      if (url.includes("/api/groups/context")) {
+        return Promise.resolve({
+          ok: false,
+          status: 500,
+          json: async () => ({}),
+        });
+      }
+      if (url.includes("/api/me/groups/supervised")) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({ data: [] }),
+        });
+      }
+      if (url.includes("/api/active/schulhof/status")) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({ data: { data: { exists: false } } }),
+        });
+      }
+      return Promise.resolve({ ok: true, json: async () => ({}) });
+    });
+
+    const { result } = renderHook(() => useSupervision(), {
+      wrapper: createWrapper("test-token"),
+    });
+
+    await waitFor(() => {
+      expect(result.current.isLoadingGroups).toBe(false);
+    });
+
+    // Groups should be empty after non-OK response
+    expect(result.current.hasGroups).toBe(false);
+    expect(result.current.groups).toHaveLength(0);
+  });
+
+  it("should handle groups API fetch rejection (catch branch for checkGroups)", async () => {
+    mockFetch.mockImplementation((url: string) => {
+      if (url.includes("/api/groups/context")) {
+        return Promise.reject(new Error("Network failure"));
+      }
+      if (url.includes("/api/me/groups/supervised")) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({ data: [] }),
+        });
+      }
+      if (url.includes("/api/active/schulhof/status")) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({ data: { data: { exists: false } } }),
+        });
+      }
+      return Promise.resolve({ ok: true, json: async () => ({}) });
+    });
+
+    const { result } = renderHook(() => useSupervision(), {
+      wrapper: createWrapper("test-token"),
+    });
+
+    await waitFor(() => {
+      expect(result.current.isLoadingGroups).toBe(false);
+    });
+
+    // After error, should have no groups
+    expect(result.current.hasGroups).toBe(false);
+    expect(result.current.groups).toHaveLength(0);
+  });
+
+  it("should handle non-OK supervised response but include Schulhof (response not OK branch)", async () => {
+    mockFetch.mockImplementation((url: string) => {
+      if (url.includes("/api/groups/context")) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({ groups: [] }),
+        });
+      }
+      if (url.includes("/api/me/groups/supervised")) {
+        return Promise.resolve({
+          ok: false,
+          status: 500,
+          json: async () => ({}),
+        });
+      }
+      if (url.includes("/api/active/schulhof/status")) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            data: {
+              data: {
+                exists: true,
+                room_id: 42,
+                room_name: "Schulhof",
+                active_group_id: 99,
+                is_user_supervising: false,
+              },
+            },
+          }),
+        });
+      }
+      return Promise.resolve({ ok: true, json: async () => ({}) });
+    });
+
+    const { result } = renderHook(() => useSupervision(), {
+      wrapper: createWrapper("test-token"),
+    });
+
+    await waitFor(() => {
+      expect(result.current.isLoadingSupervision).toBe(false);
+    });
+
+    // Should include Schulhof even though supervised response was not OK
+    expect(result.current.isSupervising).toBe(true);
+    const schulhofRoom = result.current.supervisedRooms.find(
+      (r) => r.isSchulhof,
+    );
+    expect(schulhofRoom).toBeDefined();
+    expect(schulhofRoom?.name).toBe("Schulhof");
+    expect(result.current.supervisedRoomId).toBe("schulhof-permanent");
+    expect(result.current.supervisedRoomName).toBe("Schulhof");
+  });
+});
+
 describe("SupervisionProvider uncovered condition coverage", () => {
   beforeEach(() => {
     vi.clearAllMocks();

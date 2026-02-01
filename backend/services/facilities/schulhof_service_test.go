@@ -794,3 +794,243 @@ func TestSchulhofService_ToggleSupervision_StopAction(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, status.IsUserSupervising, "User should no longer be supervising")
 }
+
+// ============================================================================
+// endStaleActiveGroups Tests (via GetOrCreateActiveGroup)
+// ============================================================================
+
+// TestSchulhofService_GetOrCreateActiveGroup_EndsStaleGroups verifies that stale
+// active groups from previous days are ended before creating a new one.
+func TestSchulhofService_GetOrCreateActiveGroup_EndsStaleGroups(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupSchulhofService(t, db)
+	ctx := context.Background()
+
+	staff := testpkg.CreateTestStaff(t, db, "Stale", "Tester")
+	defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
+
+	// Ensure infrastructure exists
+	activityGroup, err := service.EnsureInfrastructure(ctx, staff.ID)
+	require.NoError(t, err)
+	defer testpkg.CleanupActivityFixtures(t, db, activityGroup.ID, activityGroup.CategoryID, *activityGroup.PlannedRoomID)
+
+	// Clean up any existing active groups for this room
+	_, err = db.NewUpdate().
+		Model((*active.Group)(nil)).
+		ModelTableExpr(`active.groups AS "group"`).
+		Set("end_time = ?", time.Now()).
+		Where(`"group".room_id = ? AND "group".end_time IS NULL`, *activityGroup.PlannedRoomID).
+		Exec(ctx)
+	require.NoError(t, err)
+
+	// Create a stale active group from "yesterday" that is still open (no EndTime)
+	yesterday := time.Now().Add(-24 * time.Hour)
+	staleGroup := &active.Group{
+		GroupID:   activityGroup.ID,
+		RoomID:    *activityGroup.PlannedRoomID,
+		StartTime: yesterday,
+		// EndTime is nil — this is the stale group
+	}
+
+	repoFactory := repositories.NewFactory(db)
+	educationService := educationSvc.NewService(
+		repoFactory.Group, repoFactory.GroupTeacher, repoFactory.GroupSubstitution,
+		repoFactory.Room, repoFactory.Teacher, repoFactory.Staff, db,
+	)
+	usersService := usersSvc.NewPersonService(usersSvc.PersonServiceDependencies{
+		PersonRepo: repoFactory.Person, RFIDRepo: repoFactory.RFIDCard,
+		AccountRepo: repoFactory.Account, PersonGuardianRepo: repoFactory.PersonGuardian,
+		StudentRepo: repoFactory.Student, StaffRepo: repoFactory.Staff,
+		TeacherRepo: repoFactory.Teacher, DB: db,
+	})
+	activeService := activeSvc.NewService(activeSvc.ServiceDependencies{
+		GroupRepo: repoFactory.ActiveGroup, VisitRepo: repoFactory.ActiveVisit,
+		SupervisorRepo: repoFactory.GroupSupervisor, CombinedGroupRepo: repoFactory.CombinedGroup,
+		GroupMappingRepo: repoFactory.GroupMapping, AttendanceRepo: repoFactory.Attendance,
+		StudentRepo: repoFactory.Student, PersonRepo: repoFactory.Person,
+		TeacherRepo: repoFactory.Teacher, StaffRepo: repoFactory.Staff,
+		RoomRepo: repoFactory.Room, ActivityGroupRepo: repoFactory.ActivityGroup,
+		ActivityCatRepo: repoFactory.ActivityCategory, EducationGroupRepo: repoFactory.Group,
+		DeviceRepo: repoFactory.Device, EducationService: educationService,
+		UsersService: usersService, DB: db, Broadcaster: nil,
+	})
+
+	err = activeService.CreateActiveGroup(ctx, staleGroup)
+	require.NoError(t, err)
+	defer testpkg.CleanupActivityFixtures(t, db, staleGroup.ID)
+
+	// ACT — GetOrCreateActiveGroup should detect and end the stale group, then create a new one
+	newActiveGroup, err := service.GetOrCreateActiveGroup(ctx, staff.ID)
+
+	// ASSERT
+	require.NoError(t, err)
+	require.NotNil(t, newActiveGroup)
+	assert.NotEqual(t, staleGroup.ID, newActiveGroup.ID, "A new active group should be created, not the stale one")
+	assert.Nil(t, newActiveGroup.EndTime, "New active group should be open")
+
+	// Verify the stale group was actually ended
+	var endedGroup active.Group
+	err = db.NewSelect().
+		Model(&endedGroup).
+		ModelTableExpr(`active.groups AS "group"`).
+		Where(`"group".id = ?`, staleGroup.ID).
+		Scan(ctx)
+	require.NoError(t, err)
+	assert.NotNil(t, endedGroup.EndTime, "Stale group should have been ended")
+
+	// Cleanup
+	testpkg.CleanupActivityFixtures(t, db, newActiveGroup.ID)
+}
+
+// TestSchulhofService_GetSchulhofStatus_OtherStaffNotSupervising verifies that status
+// correctly shows IsUserSupervising=false for a staff member who is NOT the supervisor.
+func TestSchulhofService_GetSchulhofStatus_OtherStaffNotSupervising(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupSchulhofService(t, db)
+	ctx := context.Background()
+
+	staff1 := testpkg.CreateTestStaff(t, db, "Actual", "Supervisor")
+	staff2 := testpkg.CreateTestStaff(t, db, "Other", "Staff")
+	defer testpkg.CleanupActivityFixtures(t, db, staff1.ID, staff2.ID)
+
+	// Ensure infrastructure
+	activityGroup, err := service.EnsureInfrastructure(ctx, staff1.ID)
+	require.NoError(t, err)
+	defer testpkg.CleanupActivityFixtures(t, db, activityGroup.ID, activityGroup.CategoryID, *activityGroup.PlannedRoomID)
+
+	// End all existing active groups
+	_, err = db.NewUpdate().
+		Model((*active.Group)(nil)).
+		ModelTableExpr(`active.groups AS "group"`).
+		Set("end_time = ?", time.Now()).
+		Where(`"group".room_id = ? AND "group".end_time IS NULL`, *activityGroup.PlannedRoomID).
+		Exec(ctx)
+	require.NoError(t, err)
+
+	// Create fresh active group
+	activeGroup, err := service.GetOrCreateActiveGroup(ctx, staff1.ID)
+	require.NoError(t, err)
+	defer testpkg.CleanupActivityFixtures(t, db, activeGroup.ID)
+
+	// Add staff1 as supervisor
+	supervisor := testpkg.CreateTestGroupSupervisor(t, db, staff1.ID, activeGroup.ID, "supervisor")
+	defer testpkg.CleanupActivityFixtures(t, db, supervisor.ID)
+
+	// ACT — Check status for staff2 (not the supervisor)
+	status, err := service.GetSchulhofStatus(ctx, staff2.ID)
+
+	// ASSERT
+	require.NoError(t, err)
+	require.NotNil(t, status)
+	assert.True(t, status.Exists)
+	assert.NotNil(t, status.ActiveGroupID)
+	assert.False(t, status.IsUserSupervising, "Other staff should NOT be supervising")
+	assert.Nil(t, status.SupervisionID, "Other staff should have no supervision ID")
+	assert.Equal(t, 1, status.SupervisorCount)
+	assert.Len(t, status.Supervisors, 1)
+	// The supervisor should have IsCurrentUser=false from staff2's perspective
+	assert.False(t, status.Supervisors[0].IsCurrentUser)
+}
+
+// TestSchulhofService_EnsureInfrastructure_ExistingRoomAndCategory verifies that
+// ensureSchulhofRoom and ensureSchulhofCategory reuse existing entities when
+// only the activity group is missing.
+func TestSchulhofService_EnsureInfrastructure_ExistingRoomAndCategory(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupSchulhofService(t, db)
+	ctx := context.Background()
+
+	staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
+	defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
+
+	// First call creates everything
+	activityGroup1, err := service.EnsureInfrastructure(ctx, staff.ID)
+	require.NoError(t, err)
+	require.NotNil(t, activityGroup1)
+
+	roomID := *activityGroup1.PlannedRoomID
+	categoryID := activityGroup1.CategoryID
+
+	// Delete only the activity group to simulate partial infrastructure
+	_, err = db.NewDelete().
+		Model((*active.Group)(nil)).
+		ModelTableExpr(`active.groups AS "group"`).
+		Where(`"group".group_id = ?`, activityGroup1.ID).
+		Exec(ctx)
+	// Ignore error — there might be no active groups yet
+	_ = err
+
+	// Delete the activity group itself
+	_, err = db.NewDelete().
+		TableExpr("activities.groups").
+		Where("id = ?", activityGroup1.ID).
+		Exec(ctx)
+	require.NoError(t, err)
+
+	// ACT — EnsureInfrastructure should reuse existing room and category
+	activityGroup2, err := service.EnsureInfrastructure(ctx, staff.ID)
+
+	// ASSERT
+	require.NoError(t, err)
+	require.NotNil(t, activityGroup2)
+	assert.NotEqual(t, activityGroup1.ID, activityGroup2.ID, "New activity group should have a different ID")
+	assert.Equal(t, roomID, *activityGroup2.PlannedRoomID, "Should reuse existing room")
+	assert.Equal(t, categoryID, activityGroup2.CategoryID, "Should reuse existing category")
+
+	// Cleanup
+	testpkg.CleanupActivityFixtures(t, db, activityGroup2.ID, categoryID, roomID)
+}
+
+// TestSchulhofService_GetSchulhofStatus_WithStudentsAllExited verifies that
+// student count is 0 when all visits have exit times.
+func TestSchulhofService_GetSchulhofStatus_WithStudentsAllExited(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupSchulhofService(t, db)
+	ctx := context.Background()
+
+	staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
+	student1 := testpkg.CreateTestStudent(t, db, "Student", "One", "1a")
+	student2 := testpkg.CreateTestStudent(t, db, "Student", "Two", "1a")
+	defer testpkg.CleanupActivityFixtures(t, db, staff.ID, student1.ID, student2.ID)
+
+	// Ensure infrastructure
+	activityGroup, err := service.EnsureInfrastructure(ctx, staff.ID)
+	require.NoError(t, err)
+	defer testpkg.CleanupActivityFixtures(t, db, activityGroup.ID, activityGroup.CategoryID, *activityGroup.PlannedRoomID)
+
+	// End all existing active groups for this room
+	_, err = db.NewUpdate().
+		Model((*active.Group)(nil)).
+		ModelTableExpr(`active.groups AS "group"`).
+		Set("end_time = ?", time.Now()).
+		Where(`"group".room_id = ? AND "group".end_time IS NULL`, *activityGroup.PlannedRoomID).
+		Exec(ctx)
+	require.NoError(t, err)
+
+	// Create fresh active group
+	activeGroup, err := service.GetOrCreateActiveGroup(ctx, staff.ID)
+	require.NoError(t, err)
+	defer testpkg.CleanupActivityFixtures(t, db, activeGroup.ID)
+
+	// Add visits where ALL have exited (both have exit times)
+	entryTime := time.Now()
+	exitTime := time.Now()
+	visit1 := testpkg.CreateTestVisit(t, db, student1.ID, activeGroup.ID, entryTime, &exitTime)
+	visit2 := testpkg.CreateTestVisit(t, db, student2.ID, activeGroup.ID, entryTime, &exitTime)
+	defer testpkg.CleanupActivityFixtures(t, db, visit1.ID, visit2.ID)
+
+	// ACT
+	status, err := service.GetSchulhofStatus(ctx, staff.ID)
+
+	// ASSERT
+	require.NoError(t, err)
+	assert.Equal(t, 0, status.StudentCount, "All students have exited, count should be 0")
+}
