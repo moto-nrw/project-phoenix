@@ -2160,8 +2160,8 @@ describe("SWR visit data sync", () => {
     const swrVisitsData = [
       { id: "s1", name: "Student 1", activeGroupId: "g1" },
       { id: "s2", name: "Student 2", activeGroupId: "g1" },
-    ];
-    const currentRoomId = "g1";
+    ] as Array<{ id: string; name: string; activeGroupId?: string }> | null;
+    const currentRoomId = "g1" as string | null;
 
     let students: Array<{ id: string; name: string }> = [];
     let roomStudentCount = 0;
@@ -2176,8 +2176,11 @@ describe("SWR visit data sync", () => {
   });
 
   it("does not update when no current room", () => {
-    const swrVisitsData = [{ id: "s1", name: "Student 1" }];
-    const currentRoomId: string | null = null;
+    const swrVisitsData = [{ id: "s1", name: "Student 1" }] as Array<{
+      id: string;
+      name: string;
+    }> | null;
+    const currentRoomId = null as string | null;
 
     let updated = false;
     if (swrVisitsData && currentRoomId) {
@@ -2238,8 +2241,10 @@ describe("Action button rendering conditions", () => {
   });
 
   it("shows claim button when not supervising Schulhof", () => {
-    const isSchulhofTabSelected = true;
-    const schulhofStatus = { isUserSupervising: false };
+    const isSchulhofTabSelected = true as boolean;
+    const schulhofStatus = { isUserSupervising: false } as {
+      isUserSupervising: boolean;
+    } | null;
 
     const showClaimButton =
       isSchulhofTabSelected &&
@@ -2750,8 +2755,8 @@ describe("Tabs visibility logic", () => {
 
 describe("Schulhof param handling in URL", () => {
   it("detects Schulhof param and sets tab selected", () => {
-    const roomParam = "schulhof";
-    const schulhofExists = true;
+    const roomParam = "schulhof" as string;
+    const schulhofExists = true as boolean;
 
     let isSchulhofTabSelected = false;
     let selectedRoomIndex = 0;
@@ -2766,8 +2771,8 @@ describe("Schulhof param handling in URL", () => {
   });
 
   it("ignores Schulhof param when Schulhof does not exist", () => {
-    const roomParam = "schulhof";
-    const schulhofExists = false;
+    const roomParam = "schulhof" as string;
+    const schulhofExists = false as boolean;
 
     let isSchulhofTabSelected = false;
 
