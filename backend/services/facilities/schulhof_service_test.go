@@ -195,18 +195,24 @@ func TestSchulhofService_GetSchulhofStatus_WithSupervisor(t *testing.T) {
 	staff := testpkg.CreateTestStaff(t, db, "Supervisor", "User")
 	defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
 
-	// Create infrastructure and active group
-	activeGroup, err := service.GetOrCreateActiveGroup(ctx, staff.ID)
+	// First ensure infrastructure to get the room ID
+	activityGroup, err := service.EnsureInfrastructure(ctx, staff.ID)
 	require.NoError(t, err)
-	defer testpkg.CleanupActivityFixtures(t, db, activeGroup.ID, activeGroup.GroupID, activeGroup.RoomID)
+	defer testpkg.CleanupActivityFixtures(t, db, activityGroup.ID, activityGroup.CategoryID, *activityGroup.PlannedRoomID)
 
-	// Clean up any existing supervisors from previous test runs
-	_, err = db.NewDelete().
-		Model((*active.GroupSupervisor)(nil)).
-		ModelTableExpr(`active.group_supervisors AS "group_supervisor"`).
-		Where(`"group_supervisor".active_group_id = ?`, activeGroup.ID).
+	// End all existing active groups for this room to get a fresh one
+	_, err = db.NewUpdate().
+		Model((*active.Group)(nil)).
+		ModelTableExpr(`active.groups AS "group"`).
+		Set("end_time = ?", time.Now()).
+		Where(`"group".room_id = ? AND "group".end_time IS NULL`, *activityGroup.PlannedRoomID).
 		Exec(ctx)
 	require.NoError(t, err)
+
+	// Now create fresh active group
+	activeGroup, err := service.GetOrCreateActiveGroup(ctx, staff.ID)
+	require.NoError(t, err)
+	defer testpkg.CleanupActivityFixtures(t, db, activeGroup.ID)
 
 	// Add supervisor
 	supervisor := testpkg.CreateTestGroupSupervisor(t, db, staff.ID, activeGroup.ID, "supervisor")
@@ -238,18 +244,24 @@ func TestSchulhofService_GetSchulhofStatus_WithMultipleSupervisors(t *testing.T)
 	staff2 := testpkg.CreateTestStaff(t, db, "Supervisor", "Two")
 	defer testpkg.CleanupActivityFixtures(t, db, staff1.ID, staff2.ID)
 
-	// Create infrastructure and active group
-	activeGroup, err := service.GetOrCreateActiveGroup(ctx, staff1.ID)
+	// First ensure infrastructure to get the room ID
+	activityGroup, err := service.EnsureInfrastructure(ctx, staff1.ID)
 	require.NoError(t, err)
-	defer testpkg.CleanupActivityFixtures(t, db, activeGroup.ID, activeGroup.GroupID, activeGroup.RoomID)
+	defer testpkg.CleanupActivityFixtures(t, db, activityGroup.ID, activityGroup.CategoryID, *activityGroup.PlannedRoomID)
 
-	// Clean up any existing supervisors from previous test runs
-	_, err = db.NewDelete().
-		Model((*active.GroupSupervisor)(nil)).
-		ModelTableExpr(`active.group_supervisors AS "group_supervisor"`).
-		Where(`"group_supervisor".active_group_id = ?`, activeGroup.ID).
+	// End all existing active groups for this room to get a fresh one
+	_, err = db.NewUpdate().
+		Model((*active.Group)(nil)).
+		ModelTableExpr(`active.groups AS "group"`).
+		Set("end_time = ?", time.Now()).
+		Where(`"group".room_id = ? AND "group".end_time IS NULL`, *activityGroup.PlannedRoomID).
 		Exec(ctx)
 	require.NoError(t, err)
+
+	// Now create fresh active group
+	activeGroup, err := service.GetOrCreateActiveGroup(ctx, staff1.ID)
+	require.NoError(t, err)
+	defer testpkg.CleanupActivityFixtures(t, db, activeGroup.ID)
 
 	// Add two supervisors
 	supervisor1 := testpkg.CreateTestGroupSupervisor(t, db, staff1.ID, activeGroup.ID, "supervisor")
@@ -288,18 +300,24 @@ func TestSchulhofService_GetSchulhofStatus_WithStudents(t *testing.T) {
 	student2 := testpkg.CreateTestStudent(t, db, "Student", "Two", "1a")
 	defer testpkg.CleanupActivityFixtures(t, db, staff.ID, student1.ID, student2.ID)
 
-	// Create infrastructure and active group
-	activeGroup, err := service.GetOrCreateActiveGroup(ctx, staff.ID)
+	// First ensure infrastructure to get the room ID
+	activityGroup, err := service.EnsureInfrastructure(ctx, staff.ID)
 	require.NoError(t, err)
-	defer testpkg.CleanupActivityFixtures(t, db, activeGroup.ID, activeGroup.GroupID, activeGroup.RoomID)
+	defer testpkg.CleanupActivityFixtures(t, db, activityGroup.ID, activityGroup.CategoryID, *activityGroup.PlannedRoomID)
 
-	// Clean up any existing visits from previous test runs
-	_, err = db.NewDelete().
-		Model((*active.Visit)(nil)).
-		ModelTableExpr(`active.visits AS "visit"`).
-		Where(`"visit".active_group_id = ?`, activeGroup.ID).
+	// End all existing active groups for this room to get a fresh one
+	_, err = db.NewUpdate().
+		Model((*active.Group)(nil)).
+		ModelTableExpr(`active.groups AS "group"`).
+		Set("end_time = ?", time.Now()).
+		Where(`"group".room_id = ? AND "group".end_time IS NULL`, *activityGroup.PlannedRoomID).
 		Exec(ctx)
 	require.NoError(t, err)
+
+	// Now create fresh active group
+	activeGroup, err := service.GetOrCreateActiveGroup(ctx, staff.ID)
+	require.NoError(t, err)
+	defer testpkg.CleanupActivityFixtures(t, db, activeGroup.ID)
 
 	// Add visits (one with exit, one without)
 	visit1 := testpkg.CreateTestVisit(t, db, student1.ID, activeGroup.ID, time.Now(), nil)
