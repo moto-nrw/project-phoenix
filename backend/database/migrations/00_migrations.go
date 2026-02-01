@@ -17,6 +17,8 @@ var MigrationRegistry = make(map[string]*Migration)
 // RegisterMigration registers a migration and panics if the version is already registered.
 // This prevents duplicate versions from silently overwriting each other.
 // Use this function in init() instead of directly writing to MigrationRegistry.
+// NOTE: Currently unused - existing migrations use direct map assignment.
+// New migrations should use this function for fail-fast duplicate detection.
 func RegisterMigration(m *Migration) {
 	if existing, exists := MigrationRegistry[m.Version]; exists {
 		panic(fmt.Sprintf(
