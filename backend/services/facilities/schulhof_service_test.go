@@ -200,6 +200,14 @@ func TestSchulhofService_GetSchulhofStatus_WithSupervisor(t *testing.T) {
 	require.NoError(t, err)
 	defer testpkg.CleanupActivityFixtures(t, db, activeGroup.ID, activeGroup.GroupID, activeGroup.RoomID)
 
+	// Clean up any existing supervisors from previous test runs
+	_, err = db.NewDelete().
+		Model((*active.GroupSupervisor)(nil)).
+		ModelTableExpr(`active.group_supervisors AS "group_supervisor"`).
+		Where(`"group_supervisor".active_group_id = ?`, activeGroup.ID).
+		Exec(ctx)
+	require.NoError(t, err)
+
 	// Add supervisor
 	supervisor := testpkg.CreateTestGroupSupervisor(t, db, staff.ID, activeGroup.ID, "supervisor")
 	defer testpkg.CleanupActivityFixtures(t, db, supervisor.ID)
@@ -234,6 +242,14 @@ func TestSchulhofService_GetSchulhofStatus_WithMultipleSupervisors(t *testing.T)
 	activeGroup, err := service.GetOrCreateActiveGroup(ctx, staff1.ID)
 	require.NoError(t, err)
 	defer testpkg.CleanupActivityFixtures(t, db, activeGroup.ID, activeGroup.GroupID, activeGroup.RoomID)
+
+	// Clean up any existing supervisors from previous test runs
+	_, err = db.NewDelete().
+		Model((*active.GroupSupervisor)(nil)).
+		ModelTableExpr(`active.group_supervisors AS "group_supervisor"`).
+		Where(`"group_supervisor".active_group_id = ?`, activeGroup.ID).
+		Exec(ctx)
+	require.NoError(t, err)
 
 	// Add two supervisors
 	supervisor1 := testpkg.CreateTestGroupSupervisor(t, db, staff1.ID, activeGroup.ID, "supervisor")
@@ -276,6 +292,14 @@ func TestSchulhofService_GetSchulhofStatus_WithStudents(t *testing.T) {
 	activeGroup, err := service.GetOrCreateActiveGroup(ctx, staff.ID)
 	require.NoError(t, err)
 	defer testpkg.CleanupActivityFixtures(t, db, activeGroup.ID, activeGroup.GroupID, activeGroup.RoomID)
+
+	// Clean up any existing visits from previous test runs
+	_, err = db.NewDelete().
+		Model((*active.Visit)(nil)).
+		ModelTableExpr(`active.visits AS "visit"`).
+		Where(`"visit".active_group_id = ?`, activeGroup.ID).
+		Exec(ctx)
+	require.NoError(t, err)
 
 	// Add visits (one with exit, one without)
 	visit1 := testpkg.CreateTestVisit(t, db, student1.ID, activeGroup.ID, time.Now(), nil)
