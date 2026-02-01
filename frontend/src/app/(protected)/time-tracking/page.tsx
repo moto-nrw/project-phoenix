@@ -1782,7 +1782,11 @@ function WeekTable({
                     <tr
                       onClick={canEdit || hasEdits ? handleRowClick : undefined}
                       className={`group/row border-b border-gray-50 transition-colors ${
-                        isToday ? "bg-blue-50/50" : ""
+                        isExpanded
+                          ? "bg-gray-50"
+                          : isToday
+                            ? "bg-blue-50/50"
+                            : ""
                       } ${canEdit || hasEdits ? "cursor-pointer hover:bg-gray-50" : ""} ${
                         isFuture ? "opacity-40" : ""
                       }`}
@@ -1891,7 +1895,7 @@ function WeekTable({
                     </tr>
                     {isExpanded && session && (
                       <tr className="border-b border-gray-50 bg-gray-50/50">
-                        <td colSpan={7} className="px-6 py-3">
+                        <td colSpan={7} className="py-3 pr-6 pl-[46px]">
                           <EditHistoryAccordion
                             edits={expandedEdits}
                             isLoading={editsLoading}
@@ -2046,9 +2050,9 @@ function EditHistoryAccordion({
         <button
           type="button"
           onClick={onEdit}
-          className="mt-3 inline-flex items-center gap-1.5 rounded-md border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:text-gray-800"
+          className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-gray-300 py-1.5 text-xs text-gray-400 transition-colors hover:border-gray-400 hover:bg-gray-50 hover:text-gray-600"
         >
-          <SquarePen className="h-3 w-3" />
+          <SquarePen className="h-3.5 w-3.5" />
           Weitere Änderung vornehmen
         </button>
       )}
@@ -2118,10 +2122,18 @@ function EditSessionModal({
   const [absenceSaving, setAbsenceSaving] = useState(false);
   const [absenceDeleting, setAbsenceDeleting] = useState(false);
 
+  const [activeTab, setActiveTab] = useState<"session" | "absence">("session");
+
   const hasIndividualBreaks = (session?.breaks.length ?? 0) > 0;
   const hasSession = session !== null;
   const hasAbsence = absence !== null;
   const hasBoth = hasSession && hasAbsence;
+
+  useEffect(() => {
+    if (isOpen) {
+      setActiveTab("session");
+    }
+  }, [isOpen]);
 
   useEffect(() => {
     if (session && isOpen) {
@@ -2295,32 +2307,9 @@ function EditSessionModal({
       ? "Abwesenheit bearbeiten"
       : "Eintrag bearbeiten";
 
-  // Footer: single-section gets action buttons; dual-section needs no footer (X closes)
-  const footer = hasBoth ? undefined : hasAbsence ? (
-    <div className="flex gap-3">
-      <button
-        onClick={handleAbsenceDelete}
-        disabled={absenceDeleting}
-        className="rounded-lg border border-red-300 px-4 py-2 text-sm font-medium text-red-600 transition-all duration-200 hover:border-red-400 hover:bg-red-50 disabled:opacity-50"
-      >
-        {absenceDeleting ? "Löschen..." : "Löschen"}
-      </button>
-      <button
-        onClick={onClose}
-        className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-all duration-200 hover:border-gray-400 hover:bg-gray-50 disabled:opacity-50"
-      >
-        Abbrechen
-      </button>
-      <button
-        onClick={handleAbsenceSave}
-        disabled={absenceSaving || !absDateStart || !absDateEnd}
-        className="flex-1 rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
-      >
-        {absenceSaving ? "Speichern..." : "Speichern"}
-      </button>
-    </div>
-  ) : (
-    <div className="flex gap-3">
+  // Footer: tab-aware for dual-section, standard for single-section
+  const sessionFooter = (
+    <div className="flex w-full gap-3">
       <button
         onClick={onClose}
         className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-all duration-200 hover:border-gray-400 hover:bg-gray-50 disabled:opacity-50"
@@ -2337,6 +2326,32 @@ function EditSessionModal({
     </div>
   );
 
+  const absenceFooter = (
+    <div className="flex w-full gap-3">
+      <button
+        onClick={onClose}
+        className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-all duration-200 hover:border-gray-400 hover:bg-gray-50 disabled:opacity-50"
+      >
+        Abbrechen
+      </button>
+      <button
+        onClick={handleAbsenceSave}
+        disabled={absenceSaving || !absDateStart || !absDateEnd}
+        className="flex-1 rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        {absenceSaving ? "Speichern..." : "Speichern"}
+      </button>
+    </div>
+  );
+
+  const footer = hasBoth
+    ? activeTab === "session"
+      ? sessionFooter
+      : absenceFooter
+    : hasAbsence
+      ? absenceFooter
+      : sessionFooter;
+
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={modalTitle} footer={footer}>
       <div className="space-y-4">
@@ -2344,14 +2359,37 @@ function EditSessionModal({
           {dayName}, {formatDateGerman(date)}
         </p>
 
+        {/* ── Tabs (only when both session + absence exist) ────────────── */}
+        {hasBoth && (
+          <div className="flex gap-1 rounded-lg bg-gray-100 p-1">
+            <button
+              type="button"
+              onClick={() => setActiveTab("session")}
+              className={`flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition-all ${
+                activeTab === "session"
+                  ? "bg-white text-gray-900 shadow-sm"
+                  : "text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              Arbeitszeit
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab("absence")}
+              className={`flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition-all ${
+                activeTab === "absence"
+                  ? "bg-white text-gray-900 shadow-sm"
+                  : "text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              Abwesenheit
+            </button>
+          </div>
+        )}
+
         {/* ── Session section ──────────────────────────────────────────── */}
-        {hasSession && (
+        {hasSession && (!hasBoth || activeTab === "session") && (
           <>
-            {hasBoth && (
-              <h3 className="text-sm font-semibold text-gray-800">
-                Arbeitszeit
-              </h3>
-            )}
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label
@@ -2567,31 +2605,12 @@ function EditSessionModal({
                 ))}
               </div>
             )}
-
-            {/* Inline save for session when both sections present */}
-            {hasBoth && (
-              <button
-                onClick={handleSave}
-                disabled={saving || !startTime || !notes.trim()}
-                className="w-full rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {saving ? "Arbeitszeit speichern..." : "Arbeitszeit speichern"}
-              </button>
-            )}
           </>
         )}
 
-        {/* ── Divider ──────────────────────────────────────────────────── */}
-        {hasBoth && <hr className="border-gray-200" />}
-
         {/* ── Absence section ──────────────────────────────────────────── */}
-        {hasAbsence && (
+        {hasAbsence && (!hasBoth || activeTab === "absence") && (
           <>
-            {hasBoth && (
-              <h3 className="text-sm font-semibold text-gray-800">
-                Abwesenheit
-              </h3>
-            )}
             {/* Absence type */}
             <div>
               <label
@@ -2703,27 +2722,19 @@ function EditSessionModal({
               />
             </div>
 
-            {/* Inline save/delete for absence when both sections present */}
-            {hasBoth && (
-              <div className="flex gap-3">
-                <button
-                  onClick={handleAbsenceDelete}
-                  disabled={absenceDeleting}
-                  className="rounded-lg border border-red-300 px-4 py-2 text-sm font-medium text-red-600 transition-all duration-200 hover:border-red-400 hover:bg-red-50 disabled:opacity-50"
-                >
-                  {absenceDeleting ? "Löschen..." : "Löschen"}
-                </button>
-                <button
-                  onClick={handleAbsenceSave}
-                  disabled={absenceSaving || !absDateStart || !absDateEnd}
-                  className="flex-1 rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {absenceSaving
-                    ? "Abwesenheit speichern..."
-                    : "Abwesenheit speichern"}
-                </button>
-              </div>
-            )}
+            {/* Destructive action */}
+            <div className="pt-1">
+              <button
+                type="button"
+                onClick={handleAbsenceDelete}
+                disabled={absenceDeleting}
+                className="text-sm font-medium text-red-500 transition-colors hover:text-red-700 disabled:opacity-50"
+              >
+                {absenceDeleting
+                  ? "Abwesenheit wird gelöscht..."
+                  : "Abwesenheit löschen"}
+              </button>
+            </div>
           </>
         )}
       </div>
