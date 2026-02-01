@@ -1134,8 +1134,7 @@ describe("SupervisionProvider room name fallback", () => {
     };
 
     const roomName =
-      group.room?.name ??
-      (group.room_id ? `Room ${group.room_id}` : undefined);
+      group.room?.name ?? (group.room_id ? `Room ${group.room_id}` : undefined);
 
     expect(roomName).toBe("Kunstzimmer");
   });
@@ -1147,8 +1146,7 @@ describe("SupervisionProvider room name fallback", () => {
     };
 
     const roomName =
-      group.room?.name ??
-      (group.room_id ? `Room ${group.room_id}` : undefined);
+      group.room?.name ?? (group.room_id ? `Room ${group.room_id}` : undefined);
 
     expect(roomName).toBe("Room 10");
   });
@@ -1160,8 +1158,7 @@ describe("SupervisionProvider room name fallback", () => {
     };
 
     const roomName =
-      group.room?.name ??
-      (group.room_id ? `Room ${group.room_id}` : undefined);
+      group.room?.name ?? (group.room_id ? `Room ${group.room_id}` : undefined);
 
     expect(roomName).toBeUndefined();
   });
@@ -1181,7 +1178,9 @@ describe("SupervisionProvider filters out Schulhof from regular rooms", () => {
     );
 
     expect(filteredRooms).toHaveLength(2);
-    expect(filteredRooms.find((r) => r.room.name === "Schulhof")).toBeUndefined();
+    expect(
+      filteredRooms.find((r) => r.room.name === "Schulhof"),
+    ).toBeUndefined();
   });
 });
 
@@ -1206,5 +1205,133 @@ describe("SupervisionProvider session handling", () => {
     }
 
     expect(refreshCalled).toBe(true);
+  });
+});
+
+describe("SupervisionProvider uncovered condition coverage", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("should handle Schulhof with null active_group_id (fallback to tab ID)", async () => {
+    setupFetchMock({
+      supervised: { data: [] },
+      schulhof: {
+        data: {
+          data: {
+            exists: true,
+            room_id: 100,
+            room_name: "Schulhof",
+            active_group_id: null, // null - should fallback to SCHULHOF_TAB_ID
+            is_user_supervising: false,
+          },
+        },
+      },
+    });
+
+    const { result } = renderHook(() => useSupervision(), {
+      wrapper: createWrapper("test-token"),
+    });
+
+    await waitFor(() => {
+      expect(result.current.isLoadingSupervision).toBe(false);
+    });
+
+    const schulhofRoom = result.current.supervisedRooms.find(
+      (r) => r.isSchulhof,
+    );
+    expect(schulhofRoom).toBeDefined();
+    // When active_group_id is null, groupId should fallback to SCHULHOF_TAB_ID
+    expect(schulhofRoom?.groupId).toBe("schulhof-permanent");
+  });
+
+  it("should handle supervised group with no room_id (undefined roomName and roomId)", async () => {
+    setupFetchMock({
+      supervised: {
+        data: [
+          {
+            id: 1,
+            group_id: 1,
+            // No room_id and no room object
+          },
+        ],
+      },
+    });
+
+    const { result } = renderHook(() => useSupervision(), {
+      wrapper: createWrapper("test-token"),
+    });
+
+    await waitFor(() => {
+      expect(result.current.isLoadingSupervision).toBe(false);
+    });
+
+    // With no room_id, the supervised rooms list should be empty
+    // (filtered out because g.room_id is falsy)
+    expect(result.current.supervisedRooms).toHaveLength(0);
+    // isSupervising is still true because supervisedGroups was non-empty
+    expect(result.current.isSupervising).toBe(true);
+    // supervisedRoomId should be undefined since firstGroup has no room_id
+    expect(result.current.supervisedRoomId).toBeUndefined();
+    expect(result.current.supervisedRoomName).toBeUndefined();
+  });
+
+  it("should handle Schulhof response that is not OK (null schulhofResponse)", async () => {
+    mockFetch.mockImplementation((url: string) => {
+      if (url.includes("/api/groups/context")) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({ groups: [] }),
+        });
+      }
+      if (url.includes("/api/me/groups/supervised")) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            data: [
+              {
+                id: 1,
+                room_id: 5,
+                group_id: 1,
+                room: { id: 5, name: "Room 5" },
+              },
+            ],
+          }),
+        });
+      }
+      if (url.includes("/api/active/schulhof/status")) {
+        // Return non-OK response
+        return Promise.resolve({
+          ok: false,
+          status: 500,
+          json: async () => ({}),
+        });
+      }
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({}),
+      });
+    });
+
+    const { result } = renderHook(() => useSupervision(), {
+      wrapper: createWrapper("test-token"),
+    });
+
+    await waitFor(() => {
+      expect(result.current.isLoadingSupervision).toBe(false);
+    });
+
+    // Schulhof should not be in the rooms since its response was not OK
+    const schulhofRoom = result.current.supervisedRooms.find(
+      (r) => r.isSchulhof,
+    );
+    expect(schulhofRoom).toBeUndefined();
+    // But regular supervision should still work
+    expect(result.current.isSupervising).toBe(true);
+    expect(result.current.supervisedRoomId).toBe("5");
   });
 });

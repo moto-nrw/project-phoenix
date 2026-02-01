@@ -3864,3 +3864,535 @@ describe("EmptyRoomsView onClearAllFilters coverage", () => {
     expect(clearBtn).toBeInTheDocument();
   });
 });
+
+describe("BFF dashboard data with students and Schulhof", () => {
+  const mockMutate = vi.fn();
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    global.fetch = vi.fn();
+    localStorage.clear();
+  });
+
+  afterEach(() => {
+    cleanup();
+  });
+
+  it("renders supervised room with first room visits from BFF", async () => {
+    const swrNull = {
+      data: null,
+      isLoading: false,
+      error: null,
+      mutate: mockMutate,
+      isValidating: false,
+    } as never;
+
+    vi.mocked(useSWRAuth)
+      .mockReturnValueOnce({
+        data: {
+          supervisedGroups: [
+            {
+              id: "g1",
+              name: "OGS Blau",
+              room_id: "r1",
+              room: { id: "r1", name: "Kunstzimmer" },
+            },
+          ],
+          unclaimedGroups: [],
+          currentStaff: { id: "staff-1" },
+          educationalGroups: [
+            { id: "eg1", name: "OGS Blau", room: { name: "Kunstzimmer" } },
+          ],
+          firstRoomVisits: [
+            {
+              studentId: "s1",
+              studentName: "Max Mustermann",
+              schoolClass: "3a",
+              groupName: "OGS Blau",
+              activeGroupId: "g1",
+              checkInTime: new Date().toISOString(),
+              isActive: true,
+            },
+            {
+              studentId: "s2",
+              studentName: "Erika Muster",
+              schoolClass: "3b",
+              groupName: "OGS Blau",
+              activeGroupId: "g1",
+              checkInTime: new Date().toISOString(),
+              isActive: true,
+            },
+          ],
+          firstRoomId: "r1",
+          schulhofStatus: null,
+        },
+        isLoading: false,
+        error: null,
+        mutate: mockMutate,
+        isValidating: false,
+      } as never)
+      .mockReturnValue(swrNull);
+
+    render(<MeinRaumPage />);
+
+    await waitFor(() => {
+      const cards = screen.getAllByTestId("student-card");
+      expect(cards.length).toBe(2);
+    });
+  });
+
+  it("renders supervised room with no students (empty room message)", async () => {
+    const swrNull = {
+      data: null,
+      isLoading: false,
+      error: null,
+      mutate: mockMutate,
+      isValidating: false,
+    } as never;
+
+    vi.mocked(useSWRAuth)
+      .mockReturnValueOnce({
+        data: {
+          supervisedGroups: [
+            {
+              id: "g1",
+              name: "OGS Blau",
+              room_id: "r1",
+              room: { id: "r1", name: "Kunstzimmer" },
+            },
+          ],
+          unclaimedGroups: [],
+          currentStaff: { id: "staff-1" },
+          educationalGroups: [],
+          firstRoomVisits: [],
+          firstRoomId: "r1",
+          schulhofStatus: null,
+        },
+        isLoading: false,
+        error: null,
+        mutate: mockMutate,
+        isValidating: false,
+      } as never)
+      .mockReturnValue(swrNull);
+
+    render(<MeinRaumPage />);
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("Keine Schüler in diesem Raum"),
+      ).toBeInTheDocument();
+    });
+  });
+
+  it("renders Schulhof status when present in BFF data", async () => {
+    const swrNull = {
+      data: null,
+      isLoading: false,
+      error: null,
+      mutate: mockMutate,
+      isValidating: false,
+    } as never;
+
+    vi.mocked(useSWRAuth)
+      .mockReturnValueOnce({
+        data: {
+          supervisedGroups: [],
+          unclaimedGroups: [],
+          currentStaff: { id: "staff-1" },
+          educationalGroups: [],
+          firstRoomVisits: [],
+          firstRoomId: null,
+          schulhofStatus: {
+            exists: true,
+            roomId: "r100",
+            roomName: "Schulhof",
+            activityGroupId: "ag1",
+            activeGroupId: "g100",
+            isUserSupervising: true,
+            supervisionId: "sup1",
+            supervisorCount: 1,
+            studentCount: 5,
+            supervisors: [
+              {
+                id: "sup1",
+                staffId: "staff-1",
+                name: "Test Teacher",
+                isCurrentUser: true,
+              },
+            ],
+          },
+        },
+        isLoading: false,
+        error: null,
+        mutate: mockMutate,
+        isValidating: false,
+      } as never)
+      .mockReturnValue(swrNull);
+
+    render(<MeinRaumPage />);
+
+    // When Schulhof exists and no regular rooms, it auto-selects Schulhof tab
+    await waitFor(() => {
+      expect(screen.getByTestId("page-header")).toBeInTheDocument();
+    });
+  });
+
+  it("renders multiple supervised rooms and keeps first room selected", async () => {
+    const swrNull = {
+      data: null,
+      isLoading: false,
+      error: null,
+      mutate: mockMutate,
+      isValidating: false,
+    } as never;
+
+    vi.mocked(useSWRAuth)
+      .mockReturnValueOnce({
+        data: {
+          supervisedGroups: [
+            {
+              id: "g1",
+              name: "OGS Blau",
+              room_id: "r1",
+              room: { id: "r1", name: "Atelier" },
+            },
+            {
+              id: "g2",
+              name: "OGS Rot",
+              room_id: "r2",
+              room: { id: "r2", name: "Mensa" },
+            },
+          ],
+          unclaimedGroups: [],
+          currentStaff: { id: "staff-1" },
+          educationalGroups: [
+            { id: "eg1", name: "OGS Blau", room: { name: "Atelier" } },
+          ],
+          firstRoomVisits: [
+            {
+              studentId: "s1",
+              studentName: "Anna Schmidt",
+              schoolClass: "2a",
+              groupName: "OGS Blau",
+              activeGroupId: "g1",
+              checkInTime: new Date().toISOString(),
+              isActive: true,
+            },
+          ],
+          firstRoomId: "r1",
+          schulhofStatus: null,
+        },
+        isLoading: false,
+        error: null,
+        mutate: mockMutate,
+        isValidating: false,
+      } as never)
+      .mockReturnValue(swrNull);
+
+    render(<MeinRaumPage />);
+
+    await waitFor(() => {
+      const cards = screen.getAllByTestId("student-card");
+      expect(cards.length).toBe(1);
+    });
+  });
+
+  it("renders empty rooms view with unclaimed groups and no Schulhof", async () => {
+    const swrNull = {
+      data: null,
+      isLoading: false,
+      error: null,
+      mutate: mockMutate,
+      isValidating: false,
+    } as never;
+
+    vi.mocked(useSWRAuth)
+      .mockReturnValueOnce({
+        data: {
+          supervisedGroups: [],
+          unclaimedGroups: [
+            { id: "u1", name: "Unclaimed Room", room: { name: "Raum C" } },
+          ],
+          currentStaff: { id: "staff-1" },
+          educationalGroups: [],
+          firstRoomVisits: [],
+          firstRoomId: null,
+          schulhofStatus: null,
+        },
+        isLoading: false,
+        error: null,
+        mutate: mockMutate,
+        isValidating: false,
+      } as never)
+      .mockReturnValue(swrNull);
+
+    render(<MeinRaumPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("unclaimed-rooms")).toBeInTheDocument();
+    });
+  });
+});
+
+describe("matchesStudentFilters edge cases", () => {
+  const mockMutate = vi.fn();
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    global.fetch = vi.fn();
+    localStorage.clear();
+
+    // Override PageHeaderWithSearch to expose search and filter
+    const mod = await import("~/components/ui/page-header");
+    vi.mocked(
+      mod.PageHeaderWithSearch as React.FC<Record<string, unknown>>,
+    ).mockImplementation((props: Record<string, unknown>) => {
+      const p = props;
+      const search = p.search as
+        | { value: string; onChange: (v: string) => void }
+        | undefined;
+      const filters = p.filters as
+        | Array<{
+            id: string;
+            value: string;
+            onChange: (v: string) => void;
+            options: Array<{ value: string; label: string }>;
+          }>
+        | undefined;
+
+      return (
+        <div data-testid="page-header">
+          {search && (
+            <input
+              data-testid="search-input"
+              value={search.value}
+              onChange={(e) => search.onChange(e.target.value)}
+            />
+          )}
+          {filters?.map((f) => (
+            <select
+              key={f.id}
+              data-testid={`filter-${f.id}`}
+              value={f.value}
+              onChange={(e) => f.onChange(e.target.value)}
+            >
+              {f.options.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          ))}
+        </div>
+      );
+    });
+  });
+
+  afterEach(() => {
+    cleanup();
+  });
+
+  it("filters students by search term matching first_name", async () => {
+    const swrNull = {
+      data: null,
+      isLoading: false,
+      error: null,
+      mutate: mockMutate,
+      isValidating: false,
+    } as never;
+
+    vi.mocked(useSWRAuth)
+      .mockReturnValueOnce({
+        data: {
+          supervisedGroups: [
+            {
+              id: "g1",
+              name: "OGS",
+              room_id: "r1",
+              room: { id: "r1", name: "Raum A" },
+            },
+          ],
+          unclaimedGroups: [],
+          currentStaff: { id: "staff-1" },
+          educationalGroups: [
+            { id: "eg1", name: "OGS", room: { name: "Raum A" } },
+          ],
+          firstRoomVisits: [
+            {
+              studentId: "s1",
+              studentName: "Max Mustermann",
+              schoolClass: "3a",
+              groupName: "OGS",
+              activeGroupId: "g1",
+              checkInTime: new Date().toISOString(),
+              isActive: true,
+            },
+            {
+              studentId: "s2",
+              studentName: "Erika Muster",
+              schoolClass: "3b",
+              groupName: "OGS",
+              activeGroupId: "g1",
+              checkInTime: new Date().toISOString(),
+              isActive: true,
+            },
+          ],
+          firstRoomId: "r1",
+          schulhofStatus: null,
+        },
+        isLoading: false,
+        error: null,
+        mutate: mockMutate,
+        isValidating: false,
+      } as never)
+      .mockReturnValue(swrNull);
+
+    render(<MeinRaumPage />);
+
+    // Wait for students to render
+    await waitFor(() => {
+      expect(screen.getAllByTestId("student-card").length).toBe(2);
+    });
+
+    // Type search term to filter by name
+    const searchInput = screen.getByTestId("search-input");
+    fireEvent.change(searchInput, { target: { value: "Erika" } });
+
+    // Should only show one student
+    await waitFor(() => {
+      expect(screen.getAllByTestId("student-card").length).toBe(1);
+    });
+  });
+
+  it("filters students by group name", async () => {
+    const swrNull = {
+      data: null,
+      isLoading: false,
+      error: null,
+      mutate: mockMutate,
+      isValidating: false,
+    } as never;
+
+    vi.mocked(useSWRAuth)
+      .mockReturnValueOnce({
+        data: {
+          supervisedGroups: [
+            {
+              id: "g1",
+              name: "OGS",
+              room_id: "r1",
+              room: { id: "r1", name: "Raum A" },
+            },
+          ],
+          unclaimedGroups: [],
+          currentStaff: { id: "staff-1" },
+          educationalGroups: [
+            { id: "eg1", name: "Gruppe A", room: { name: "Raum A" } },
+            { id: "eg2", name: "Gruppe B", room: { name: "Raum B" } },
+          ],
+          firstRoomVisits: [
+            {
+              studentId: "s1",
+              studentName: "Max Mustermann",
+              schoolClass: "3a",
+              groupName: "Gruppe A",
+              activeGroupId: "g1",
+              checkInTime: new Date().toISOString(),
+              isActive: true,
+            },
+            {
+              studentId: "s2",
+              studentName: "Erika Muster",
+              schoolClass: "3b",
+              groupName: "Gruppe B",
+              activeGroupId: "g1",
+              checkInTime: new Date().toISOString(),
+              isActive: true,
+            },
+          ],
+          firstRoomId: "r1",
+          schulhofStatus: null,
+        },
+        isLoading: false,
+        error: null,
+        mutate: mockMutate,
+        isValidating: false,
+      } as never)
+      .mockReturnValue(swrNull);
+
+    render(<MeinRaumPage />);
+
+    await waitFor(() => {
+      expect(screen.getAllByTestId("student-card").length).toBe(2);
+    });
+
+    // Select a specific group filter
+    const groupFilter = screen.getByTestId("filter-group");
+    fireEvent.change(groupFilter, { target: { value: "Gruppe A" } });
+
+    // Should show only students from Gruppe A
+    await waitFor(() => {
+      expect(screen.getAllByTestId("student-card").length).toBe(1);
+    });
+  });
+
+  it("shows EmptyStudentResults when search yields no matches", async () => {
+    const swrNull = {
+      data: null,
+      isLoading: false,
+      error: null,
+      mutate: mockMutate,
+      isValidating: false,
+    } as never;
+
+    vi.mocked(useSWRAuth)
+      .mockReturnValueOnce({
+        data: {
+          supervisedGroups: [
+            {
+              id: "g1",
+              name: "OGS",
+              room_id: "r1",
+              room: { id: "r1", name: "Raum A" },
+            },
+          ],
+          unclaimedGroups: [],
+          currentStaff: { id: "staff-1" },
+          educationalGroups: [],
+          firstRoomVisits: [
+            {
+              studentId: "s1",
+              studentName: "Max Mustermann",
+              schoolClass: "3a",
+              groupName: "OGS",
+              activeGroupId: "g1",
+              checkInTime: new Date().toISOString(),
+              isActive: true,
+            },
+          ],
+          firstRoomId: "r1",
+          schulhofStatus: null,
+        },
+        isLoading: false,
+        error: null,
+        mutate: mockMutate,
+        isValidating: false,
+      } as never)
+      .mockReturnValue(swrNull);
+
+    render(<MeinRaumPage />);
+
+    await waitFor(() => {
+      expect(screen.getAllByTestId("student-card").length).toBe(1);
+    });
+
+    // Search for non-existent student
+    const searchInput = screen.getByTestId("search-input");
+    fireEvent.change(searchInput, { target: { value: "Nonexistent" } });
+
+    // Should show empty results
+    await waitFor(() => {
+      expect(screen.getByTestId("empty-results")).toBeInTheDocument();
+    });
+  });
+});
