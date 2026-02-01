@@ -146,7 +146,7 @@ func (rs *Resource) Router() chi.Router {
 		r.Route("/schulhof", func(r chi.Router) {
 			schulhofResource := NewSchulhofResource(rs.SchulhofService, rs.UserContextService)
 			r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/status", schulhofResource.getSchulhofStatus)
-			r.With(authorize.RequiresPermission(permissions.GroupsAssign)).Post("/supervise", schulhofResource.toggleSchulhofSupervision)
+			r.With(authorize.RequiresPermission(permissions.GroupsUpdate)).Post("/supervise", schulhofResource.toggleSchulhofSupervision)
 		})
 
 	})
