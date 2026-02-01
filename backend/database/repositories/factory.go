@@ -108,9 +108,10 @@ type Factory struct {
 	SuggestionVote suggestionsModels.VoteRepository
 
 	// Audit domain
-	DataDeletion auditModels.DataDeletionRepository
-	AuthEvent    auditModels.AuthEventRepository
-	DataImport   auditModels.DataImportRepository
+	DataDeletion    auditModels.DataDeletionRepository
+	AuthEvent       auditModels.AuthEventRepository
+	DataImport      auditModels.DataImportRepository
+	WorkSessionEdit auditModels.WorkSessionEditRepository
 }
 
 // NewFactory creates a new repository factory with all repositories
@@ -192,8 +193,9 @@ func NewFactory(db *bun.DB) *Factory {
 		SuggestionVote: suggestionsRepo.NewVoteRepository(db),
 
 		// Audit repositories
-		DataDeletion: audit.NewDataDeletionRepository(db),
-		AuthEvent:    audit.NewAuthEventRepository(db),
-		DataImport:   audit.NewDataImportRepository(db),
+		DataDeletion:    audit.NewDataDeletionRepository(db),
+		AuthEvent:       audit.NewAuthEventRepository(db),
+		DataImport:      audit.NewDataImportRepository(db),
+		WorkSessionEdit: audit.NewWorkSessionEditRepository(db),
 	}
 }

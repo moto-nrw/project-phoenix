@@ -32,6 +32,19 @@ export interface BackendWorkSessionHistory extends BackendWorkSession {
   is_overtime: boolean;
   is_break_compliant: boolean;
   breaks: BackendWorkSessionBreak[] | null;
+  edit_count: number;
+}
+
+export interface BackendWorkSessionEdit {
+  id: number;
+  session_id: number;
+  staff_id: number;
+  edited_by: number;
+  field_name: string;
+  old_value: string | null;
+  new_value: string | null;
+  notes: string | null;
+  created_at: string;
 }
 
 // Frontend types (camelCase, string IDs)
@@ -64,6 +77,19 @@ export interface WorkSessionHistory extends WorkSession {
   isOvertime: boolean;
   isBreakCompliant: boolean;
   breaks: WorkSessionBreak[];
+  editCount: number;
+}
+
+export interface WorkSessionEdit {
+  id: string;
+  sessionId: string;
+  staffId: string;
+  editedBy: string;
+  fieldName: string;
+  oldValue: string | null;
+  newValue: string | null;
+  notes: string | null;
+  createdAt: string;
 }
 
 /**
@@ -114,6 +140,26 @@ export function mapWorkSessionHistoryResponse(
     isOvertime: data.is_overtime,
     isBreakCompliant: data.is_break_compliant,
     breaks: (data.breaks ?? []).map(mapWorkSessionBreakResponse),
+    editCount: data.edit_count ?? 0,
+  };
+}
+
+/**
+ * Maps backend work session edit response to frontend type
+ */
+export function mapWorkSessionEditResponse(
+  data: BackendWorkSessionEdit,
+): WorkSessionEdit {
+  return {
+    id: data.id.toString(),
+    sessionId: data.session_id.toString(),
+    staffId: data.staff_id.toString(),
+    editedBy: data.edited_by.toString(),
+    fieldName: data.field_name,
+    oldValue: data.old_value ?? null,
+    newValue: data.new_value ?? null,
+    notes: data.notes ?? null,
+    createdAt: data.created_at,
   };
 }
 

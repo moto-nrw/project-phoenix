@@ -4,11 +4,13 @@ import { getSession } from "next-auth/react";
 import type {
   WorkSession,
   WorkSessionBreak,
+  WorkSessionEdit,
   WorkSessionHistory,
 } from "./time-tracking-helpers";
 import {
   mapWorkSessionResponse,
   mapWorkSessionBreakResponse,
+  mapWorkSessionEditResponse,
   mapWorkSessionHistoryResponse,
 } from "./time-tracking-helpers";
 
@@ -258,6 +260,31 @@ class TimeTrackingService {
 
     const result = (await response.json()) as ApiResponse<WorkSessionBreak[]>;
     return result.data.map((brk) => mapWorkSessionBreakResponse(brk as never));
+  }
+
+  /**
+   * Get edit audit trail for a specific session
+   * @param sessionId - Session ID
+   * @returns Array of edit records
+   */
+  async getSessionEdits(sessionId: string): Promise<WorkSessionEdit[]> {
+    const token = await this.getToken();
+    const response = await fetch(`${this.baseUrl}/${sessionId}/edits`, {
+      method: "GET",
+      headers: {
+        ...(token && { Authorization: `Bearer ${token}` }),
+      },
+    });
+
+    if (!response.ok) {
+      const error = (await response.json()) as ErrorResponse;
+      throw new Error(error.error ?? error.message ?? "Failed to get edits");
+    }
+
+    const result = (await response.json()) as ApiResponse<WorkSessionEdit[]>;
+    return (result.data ?? []).map((edit) =>
+      mapWorkSessionEditResponse(edit as never),
+    );
   }
 }
 

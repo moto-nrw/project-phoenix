@@ -1,9 +1,16 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo, Suspense } from "react";
+import React, {
+  useState,
+  useEffect,
+  useCallback,
+  useMemo,
+  Suspense,
+} from "react";
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
+import { ChevronRight, SquarePen } from "lucide-react";
 import { Loading } from "~/components/ui/loading";
 import {
   type ChartConfig,
@@ -20,6 +27,7 @@ import { timeTrackingService } from "~/lib/time-tracking-api";
 import type {
   WorkSession,
   WorkSessionBreak,
+  WorkSessionEdit,
   WorkSessionHistory,
 } from "~/lib/time-tracking-helpers";
 import {
@@ -44,6 +52,15 @@ function formatDateShort(date: Date): string {
   const day = date.getDate().toString().padStart(2, "0");
   const month = (date.getMonth() + 1).toString().padStart(2, "0");
   return `${day}.${month}`;
+}
+
+function formatDateTime(date: Date): string {
+  const d = date.getDate().toString().padStart(2, "0");
+  const m = (date.getMonth() + 1).toString().padStart(2, "0");
+  const y = date.getFullYear();
+  const h = date.getHours().toString().padStart(2, "0");
+  const min = date.getMinutes().toString().padStart(2, "0");
+  return `${d}.${m}.${y}, ${h}:${min}`;
 }
 
 function toISODate(date: Date): string {
@@ -710,7 +727,7 @@ function BreakActivityLog({
               : ""
         }`}
       >
-        {seg.type === "work" ? "Arbeit" : "Pause"}
+        {seg.type === "work" ? "Arbeitszeit" : "Pause"}
       </span>
       <span
         className={`w-12 shrink-0 text-center tabular-nums ${
@@ -940,6 +957,10 @@ function WeekTable({
   onEditDay,
   currentSession,
   currentBreaks,
+  expandedSessionId,
+  onToggleExpand,
+  expandedEdits,
+  editsLoading,
 }: {
   readonly weekOffset: number;
   readonly onWeekChange: (offset: number) => void;
@@ -948,6 +969,10 @@ function WeekTable({
   readonly onEditDay: (date: Date, session: WorkSessionHistory) => void;
   readonly currentSession: WorkSession | null;
   readonly currentBreaks: WorkSessionBreak[];
+  readonly expandedSessionId: string | null;
+  readonly onToggleExpand: (sessionId: string) => void;
+  readonly expandedEdits: WorkSessionEdit[];
+  readonly editsLoading: boolean;
 }) {
   const today = new Date();
   const referenceDate = new Date(today);
@@ -978,20 +1003,25 @@ function WeekTable({
     return cached + elapsed;
   })();
 
-  // Calculate weekly total
-  const weeklyNetMinutes = history.reduce((sum, s) => {
-    if (s.checkOutTime) return sum + s.netMinutes;
-    // For active session, calculate live with real break time
-    if (currentSession && !currentSession.checkOutTime) {
-      const live = calculateNetMinutes(
-        s.checkInTime,
-        new Date().toISOString(),
-        liveBreakMins,
-      );
-      return sum + (live ?? 0);
-    }
-    return sum;
-  }, 0);
+  // Calculate weekly total (only sessions in the current week)
+  const weekDateKeys = new Set(
+    weekDays.filter(Boolean).map((d) => toISODate(d)),
+  );
+  const weeklyNetMinutes = history
+    .filter((s) => weekDateKeys.has(s.date))
+    .reduce((sum, s) => {
+      if (s.checkOutTime) return sum + s.netMinutes;
+      // For active session, calculate live with real break time
+      if (currentSession && !currentSession.checkOutTime) {
+        const live = calculateNetMinutes(
+          s.checkInTime,
+          new Date().toISOString(),
+          liveBreakMins,
+        );
+        return sum + (live ?? 0);
+      }
+      return sum;
+    }, 0);
 
   return (
     <div className="overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)]">
@@ -1048,11 +1078,12 @@ function WeekTable({
           <thead>
             <tr className="border-b border-gray-100 text-left text-xs font-medium tracking-wide text-gray-400 uppercase">
               <th className="px-6 py-3">Tag</th>
-              <th className="px-4 py-3">Start</th>
-              <th className="px-4 py-3">Ende</th>
-              <th className="px-4 py-3">Pause</th>
-              <th className="px-4 py-3">Netto</th>
+              <th className="px-4 py-3 text-center">Start</th>
+              <th className="px-4 py-3 text-center">Ende</th>
+              <th className="px-4 py-3 text-center">Pause</th>
+              <th className="px-4 py-3 text-center">Netto</th>
               <th className="px-4 py-3 text-center">Ort</th>
+              <th className="px-4 py-3 text-center">Änderung</th>
             </tr>
           </thead>
           <tbody>
@@ -1072,6 +1103,18 @@ function WeekTable({
                 currentSession.checkOutTime === null;
               const canEdit =
                 session !== undefined && (isPast || (isToday && !isActive));
+              const hasEdits = (session?.editCount ?? 0) > 0;
+              const isExpanded = expandedSessionId === session?.id;
+
+              // Row click: if has edits, toggle accordion; else open edit modal
+              const handleRowClick = () => {
+                if (!canEdit && !hasEdits) return;
+                if (hasEdits && session) {
+                  onToggleExpand(session.id);
+                } else if (canEdit && session) {
+                  onEditDay(day, session);
+                }
+              };
 
               // Calculate net for active session live (with real break time)
               let netDisplay = "--";
@@ -1091,70 +1134,118 @@ function WeekTable({
               const warnings = session ? getComplianceWarnings(session) : [];
 
               return (
-                <tr
-                  key={dateKey}
-                  onClick={canEdit ? () => onEditDay(day, session) : undefined}
-                  className={`border-b border-gray-50 transition-colors ${
-                    isToday ? "bg-blue-50/50" : ""
-                  } ${canEdit ? "cursor-pointer hover:bg-gray-50" : ""} ${
-                    isFuture ? "opacity-40" : ""
-                  }`}
-                >
-                  <td className="px-6 py-3 font-medium text-gray-700">
-                    {dayName} {formatDateShort(day)}
-                  </td>
-                  <td className="px-4 py-3 text-gray-600">
-                    {session ? formatTime(session.checkInTime) : "--:--"}
-                  </td>
-                  <td className="px-4 py-3 text-gray-600">
-                    {session
-                      ? session.checkOutTime
-                        ? formatTime(session.checkOutTime)
-                        : isActive
-                          ? "···"
-                          : "--:--"
-                      : "--:--"}
-                  </td>
-                  <td className="px-4 py-3 text-gray-600">
-                    {session && session.breakMinutes > 0
-                      ? `${session.breakMinutes}`
-                      : "--"}
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className="font-medium text-gray-700">
-                      {netDisplay}
-                    </span>
-                    {warnings.length > 0 && (
-                      <span
-                        className="ml-1 cursor-help text-amber-500"
-                        title={warnings.join("\n")}
-                      >
-                        ⚠
+                <React.Fragment key={dateKey}>
+                  <tr
+                    onClick={canEdit || hasEdits ? handleRowClick : undefined}
+                    className={`group/row border-b border-gray-50 transition-colors ${
+                      isToday ? "bg-blue-50/50" : ""
+                    } ${canEdit || hasEdits ? "cursor-pointer hover:bg-gray-50" : ""} ${
+                      isFuture ? "opacity-40" : ""
+                    }`}
+                  >
+                    <td className="px-6 py-3 font-medium text-gray-700">
+                      <div className="flex items-center gap-1.5">
+                        {hasEdits ? (
+                          <ChevronRight
+                            className={`h-4 w-4 shrink-0 text-gray-400 transition-transform ${isExpanded ? "rotate-90" : ""}`}
+                          />
+                        ) : (
+                          <span className="inline-block h-4 w-4 shrink-0" />
+                        )}
+                        {dayName} {formatDateShort(day)}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-center text-gray-600">
+                      {session ? formatTime(session.checkInTime) : "--:--"}
+                    </td>
+                    <td className="px-4 py-3 text-center text-gray-600">
+                      {session
+                        ? session.checkOutTime
+                          ? formatTime(session.checkOutTime)
+                          : isActive
+                            ? "···"
+                            : "--:--"
+                        : "--:--"}
+                    </td>
+                    <td className="px-4 py-3 text-center text-gray-600">
+                      {session && session.breakMinutes > 0
+                        ? `${session.breakMinutes}`
+                        : "--"}
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <span className="font-medium text-gray-700">
+                        {netDisplay}
                       </span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-center">
-                    {session ? (
-                      <span
-                        className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
-                          isActive
-                            ? "bg-green-100 text-green-700"
+                      {warnings.length > 0 && (
+                        <span
+                          className="ml-1 cursor-help text-amber-500"
+                          title={warnings.join("\n")}
+                        >
+                          ⚠
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      {session ? (
+                        <span
+                          className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
+                            isActive
+                              ? "bg-green-100 text-green-700"
+                              : session.status === "home_office"
+                                ? "bg-sky-100 text-sky-700"
+                                : "bg-gray-100 text-gray-600"
+                          }`}
+                        >
+                          {isActive
+                            ? "aktiv"
                             : session.status === "home_office"
-                              ? "bg-sky-100 text-sky-700"
-                              : "bg-gray-100 text-gray-600"
-                        }`}
-                      >
-                        {isActive
-                          ? "aktiv"
-                          : session.status === "home_office"
-                            ? "Homeoffice"
-                            : "In der OGS"}
-                      </span>
-                    ) : isFuture ? null : (
-                      <span className="text-gray-300">—</span>
-                    )}
-                  </td>
-                </tr>
+                              ? "Homeoffice"
+                              : "In der OGS"}
+                        </span>
+                      ) : isFuture ? null : (
+                        <span className="text-gray-300">—</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      {hasEdits && session ? (
+                        <span className="text-xs text-gray-500">
+                          Zuletzt geändert{" "}
+                          {formatDateTime(new Date(session.updatedAt))}
+                        </span>
+                      ) : (
+                        <div className="flex items-center justify-center">
+                          {canEdit && session && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onEditDay(day, session);
+                              }}
+                              className="opacity-0 transition-opacity group-hover/row:opacity-100"
+                              aria-label="Eintrag bearbeiten"
+                            >
+                              <SquarePen className="h-3.5 w-3.5 text-gray-300" />
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                  {/* Accordion row for edit history */}
+                  {isExpanded && session && (
+                    <tr className="border-b border-gray-50 bg-gray-50/50">
+                      <td colSpan={7} className="px-6 py-3">
+                        <EditHistoryAccordion
+                          edits={expandedEdits}
+                          isLoading={editsLoading}
+                          onEdit={
+                            canEdit ? () => onEditDay(day, session) : undefined
+                          }
+                        />
+                      </td>
+                    </tr>
+                  )}
+                </React.Fragment>
               );
             })}
           </tbody>
@@ -1166,14 +1257,140 @@ function WeekTable({
               >
                 Woche gesamt
               </td>
-              <td className="px-4 py-3 text-sm font-bold text-gray-700">
+              <td className="px-4 py-3 text-center text-sm font-bold text-gray-700">
                 {isLoading ? "..." : formatDuration(weeklyNetMinutes)}
               </td>
-              <td />
+              <td colSpan={3} />
             </tr>
           </tfoot>
         </table>
       </div>
+    </div>
+  );
+}
+
+// ─── EditHistoryAccordion ──────────────────────────────────────────────────────
+
+const FIELD_LABELS: Record<string, string> = {
+  check_in_time: "Start",
+  check_out_time: "Ende",
+  break_minutes: "Pause",
+  status: "Ort",
+  notes: "Notiz",
+};
+
+function formatEditValue(fieldName: string, value: string | null): string {
+  if (value === null || value === "") return "–";
+  if (fieldName === "check_in_time" || fieldName === "check_out_time") {
+    return formatTime(value);
+  }
+  if (fieldName === "break_minutes") {
+    return `${value} min`;
+  }
+  if (fieldName === "status") {
+    return value === "home_office" ? "Homeoffice" : "In der OGS";
+  }
+  return value;
+}
+
+function EditHistoryAccordion({
+  edits,
+  isLoading,
+  onEdit,
+}: {
+  readonly edits: WorkSessionEdit[];
+  readonly isLoading: boolean;
+  readonly onEdit?: () => void;
+}) {
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-3">
+        <div className="h-4 w-4 animate-spin rounded-full border-2 border-gray-300 border-t-transparent" />
+        <span className="ml-2 text-xs text-gray-400">Laden...</span>
+      </div>
+    );
+  }
+
+  if (edits.length === 0) {
+    return (
+      <p className="py-2 text-xs text-gray-400">Keine Änderungen vorhanden.</p>
+    );
+  }
+
+  // Group edits by createdAt timestamp (edits from same save action share the same timestamp)
+  const grouped = new Map<string, WorkSessionEdit[]>();
+  for (const edit of edits) {
+    const key = edit.createdAt;
+    const existing = grouped.get(key);
+    if (existing) {
+      existing.push(edit);
+    } else {
+      grouped.set(key, [edit]);
+    }
+  }
+
+  // Flatten into rows: one row per edit group (same timestamp)
+  const rows = Array.from(grouped.entries()).map(([timestamp, group]) => {
+    const date = new Date(timestamp);
+    const dateStr = `${date.getDate().toString().padStart(2, "0")}.${(date.getMonth() + 1).toString().padStart(2, "0")}.${date.getFullYear()}, ${date.getHours().toString().padStart(2, "0")}:${date.getMinutes().toString().padStart(2, "0")}`;
+    const fieldEdits = group.filter((e) => e.fieldName !== "notes");
+    const notes = group[0]?.notes;
+    return { timestamp, dateStr, fieldEdits, notes };
+  });
+
+  return (
+    <div>
+      <table className="w-full text-xs">
+        <thead>
+          <tr className="border-b border-gray-100 text-left text-[10px] font-medium tracking-wide text-gray-400 uppercase">
+            <th className="pr-4 pb-2">Datum</th>
+            <th className="pr-4 pb-2">Feld</th>
+            <th className="pr-4 pb-2">Vorher</th>
+            <th className="pr-4 pb-2" />
+            <th className="pr-4 pb-2">Nachher</th>
+            <th className="pb-2">Grund</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map(({ dateStr, fieldEdits, notes }) =>
+            fieldEdits.map((edit, idx) => (
+              <tr
+                key={edit.id}
+                className="border-b border-gray-50 last:border-b-0"
+              >
+                <td className="py-1.5 pr-4 whitespace-nowrap text-gray-500">
+                  {idx === 0 ? dateStr : ""}
+                </td>
+                <td className="py-1.5 pr-4 whitespace-nowrap text-gray-600">
+                  {FIELD_LABELS[edit.fieldName] ?? edit.fieldName}
+                </td>
+                <td className="py-1.5 pr-4 whitespace-nowrap text-red-400 line-through">
+                  {formatEditValue(edit.fieldName, edit.oldValue)}
+                </td>
+                <td className="py-1.5 pr-4 text-gray-300">&rarr;</td>
+                <td className="py-1.5 pr-4 font-medium whitespace-nowrap text-green-600">
+                  {formatEditValue(edit.fieldName, edit.newValue)}
+                </td>
+                <td className="py-1.5 text-gray-400 italic">
+                  {idx === 0 && notes ? (
+                    <span>&ldquo;{notes}&rdquo;</span>
+                  ) : null}
+                </td>
+              </tr>
+            )),
+          )}
+        </tbody>
+      </table>
+      {onEdit && (
+        <button
+          type="button"
+          onClick={onEdit}
+          className="mt-3 inline-flex items-center gap-1.5 rounded-md border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:text-gray-800"
+        >
+          <SquarePen className="h-3 w-3" />
+          Weitere Änderung vornehmen
+        </button>
+      )}
     </div>
   );
 }
@@ -1217,7 +1434,7 @@ function EditSessionModal({
       );
       setBreakMins(session.breakMinutes.toString());
       setStatus(session.status);
-      setNotes(session.notes ?? "");
+      setNotes("");
     }
   }, [session, isOpen]);
 
@@ -1257,10 +1474,16 @@ function EditSessionModal({
     try {
       const dateStr = toISODate(date);
 
-      // Build ISO timestamps from time inputs + date
+      // Build ISO timestamps from time inputs + date (with local timezone)
+      const tzOffset = -new Date().getTimezoneOffset();
+      const tzSign = tzOffset >= 0 ? "+" : "-";
+      const tzH = String(Math.floor(Math.abs(tzOffset) / 60)).padStart(2, "0");
+      const tzM = String(Math.abs(tzOffset) % 60).padStart(2, "0");
+      const tz = `${tzSign}${tzH}:${tzM}`;
+
       const buildTimestamp = (time: string) => {
         if (!time) return undefined;
-        return `${dateStr}T${time}:00`;
+        return `${dateStr}T${time}:00${tz}`;
       };
 
       await onSave(session.id, {
@@ -1280,19 +1503,19 @@ function EditSessionModal({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={`Eintrag bearbeiten — ${dayName}, ${formatDateGerman(date)}`}
+      title="Eintrag bearbeiten"
       footer={
-        <div className="flex justify-end gap-3">
+        <div className="flex gap-3">
           <button
             onClick={onClose}
-            className="rounded-xl px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100"
+            className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-all duration-200 hover:border-gray-400 hover:bg-gray-50 disabled:opacity-50"
           >
             Abbrechen
           </button>
           <button
             onClick={handleSave}
-            disabled={saving || !startTime}
-            className="rounded-xl bg-blue-600 px-5 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+            disabled={saving || !startTime || !notes.trim()}
+            className="flex-1 rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {saving ? "Speichern..." : "Speichern"}
           </button>
@@ -1300,6 +1523,9 @@ function EditSessionModal({
       }
     >
       <div className="space-y-4">
+        <p className="text-sm font-medium text-gray-500">
+          {dayName}, {formatDateGerman(date)}
+        </p>
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label
@@ -1313,7 +1539,7 @@ function EditSessionModal({
               type="time"
               value={startTime}
               onChange={(e) => setStartTime(e.target.value)}
-              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-blue-400 focus:ring-1 focus:ring-blue-400 focus:outline-none"
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm transition-colors focus:border-gray-900 focus:ring-1 focus:ring-gray-900 focus:outline-none"
             />
           </div>
           <div>
@@ -1328,7 +1554,7 @@ function EditSessionModal({
               type="time"
               value={endTime}
               onChange={(e) => setEndTime(e.target.value)}
-              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-blue-400 focus:ring-1 focus:ring-blue-400 focus:outline-none"
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm transition-colors focus:border-gray-900 focus:ring-1 focus:ring-gray-900 focus:outline-none"
             />
           </div>
         </div>
@@ -1341,34 +1567,67 @@ function EditSessionModal({
             >
               Pause (Min)
             </label>
-            <input
-              id="edit-break"
-              type="number"
-              min={0}
-              max={480}
-              value={breakMins}
-              onChange={(e) => setBreakMins(e.target.value)}
-              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-blue-400 focus:ring-1 focus:ring-blue-400 focus:outline-none"
-            />
+            <div className="relative">
+              <select
+                id="edit-break"
+                value={breakMins}
+                onChange={(e) => setBreakMins(e.target.value)}
+                className="w-full appearance-none rounded-lg border border-gray-300 px-3 py-2 pr-8 text-sm transition-colors focus:border-gray-900 focus:ring-1 focus:ring-gray-900 focus:outline-none"
+              >
+                {[0, 15, 30, 45, 60].map((m) => (
+                  <option key={m} value={m.toString()}>
+                    {m} min
+                  </option>
+                ))}
+              </select>
+              <svg
+                className="pointer-events-none absolute top-1/2 right-2.5 h-4 w-4 -translate-y-1/2 text-gray-400"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M19 9l-7 7-7-7"
+                />
+              </svg>
+            </div>
           </div>
           <div>
             <label
               htmlFor="edit-status"
               className="mb-1 block text-sm font-medium text-gray-700"
             >
-              Status
+              Ort
             </label>
-            <select
-              id="edit-status"
-              value={status}
-              onChange={(e) =>
-                setStatus(e.target.value as "present" | "home_office")
-              }
-              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-blue-400 focus:ring-1 focus:ring-blue-400 focus:outline-none"
-            >
-              <option value="present">In der OGS</option>
-              <option value="home_office">Homeoffice</option>
-            </select>
+            <div className="relative">
+              <select
+                id="edit-status"
+                value={status}
+                onChange={(e) =>
+                  setStatus(e.target.value as "present" | "home_office")
+                }
+                className="w-full appearance-none rounded-lg border border-gray-300 px-3 py-2 pr-8 text-sm transition-colors focus:border-gray-900 focus:ring-1 focus:ring-gray-900 focus:outline-none"
+              >
+                <option value="present">In der OGS</option>
+                <option value="home_office">Homeoffice</option>
+              </select>
+              <svg
+                className="pointer-events-none absolute top-1/2 right-2.5 h-4 w-4 -translate-y-1/2 text-gray-400"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M19 9l-7 7-7-7"
+                />
+              </svg>
+            </div>
           </div>
         </div>
 
@@ -1377,15 +1636,37 @@ function EditSessionModal({
             htmlFor="edit-notes"
             className="mb-1 block text-sm font-medium text-gray-700"
           >
-            Notiz
+            Grund der Änderung <span className="text-red-500">*</span>
           </label>
+          <div className="mb-2 flex flex-wrap gap-1.5">
+            {[
+              "Vergessen auszustempeln",
+              "Vergessen einzustempeln",
+              "Zeitkorrektur",
+              "Krankheit",
+              "Ort-Änderung",
+            ].map((reason) => (
+              <button
+                key={reason}
+                type="button"
+                onClick={() => setNotes(reason)}
+                className={`rounded-full px-3 py-1 text-xs font-medium transition-all ${
+                  notes === reason
+                    ? "bg-gray-900 text-white"
+                    : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                }`}
+              >
+                {reason}
+              </button>
+            ))}
+          </div>
           <textarea
             id="edit-notes"
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             rows={2}
-            className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-blue-400 focus:ring-1 focus:ring-blue-400 focus:outline-none"
-            placeholder="Optional..."
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm transition-colors focus:border-gray-900 focus:ring-1 focus:ring-gray-900 focus:outline-none"
+            placeholder="Oder eigenen Grund eingeben..."
           />
         </div>
 
@@ -1420,6 +1701,11 @@ function TimeTrackingContent() {
     session: WorkSessionHistory;
   } | null>(null);
   const [currentBreaks, setCurrentBreaks] = useState<WorkSessionBreak[]>([]);
+  const [expandedSessionId, setExpandedSessionId] = useState<string | null>(
+    null,
+  );
+  const [expandedEdits, setExpandedEdits] = useState<WorkSessionEdit[]>([]);
+  const [editsLoading, setEditsLoading] = useState(false);
 
   // Calculate date range: current week + previous week (for chart and table)
   const { toDate, chartFromDate } = (() => {
@@ -1547,12 +1833,55 @@ function TimeTrackingContent() {
           notes: updates.notes,
         });
         await Promise.all([mutateCurrentSession(), mutateHistory()]);
+        // Refresh accordion edits if this session is currently expanded
+        if (expandedSessionId === id) {
+          try {
+            const edits = await timeTrackingService.getSessionEdits(id);
+            setExpandedEdits(edits);
+          } catch {
+            // keep stale edits on refresh failure
+          }
+        } else {
+          // Auto-expand to show the new edit
+          setExpandedSessionId(id);
+          setEditsLoading(true);
+          try {
+            const edits = await timeTrackingService.getSessionEdits(id);
+            setExpandedEdits(edits);
+          } catch {
+            setExpandedEdits([]);
+          } finally {
+            setEditsLoading(false);
+          }
+        }
         toast.success("Eintrag gespeichert");
       } catch (err) {
         toast.error(friendlyError(err, "Fehler beim Speichern"));
       }
     },
-    [mutateCurrentSession, mutateHistory, toast],
+    [expandedSessionId, mutateCurrentSession, mutateHistory, toast],
+  );
+
+  const handleToggleExpand = useCallback(
+    async (sessionId: string) => {
+      if (expandedSessionId === sessionId) {
+        setExpandedSessionId(null);
+        setExpandedEdits([]);
+        return;
+      }
+      setExpandedSessionId(sessionId);
+      setExpandedEdits([]);
+      setEditsLoading(true);
+      try {
+        const edits = await timeTrackingService.getSessionEdits(sessionId);
+        setExpandedEdits(edits);
+      } catch {
+        setExpandedEdits([]);
+      } finally {
+        setEditsLoading(false);
+      }
+    },
+    [expandedSessionId],
   );
 
   if (authStatus === "loading") {
@@ -1593,6 +1922,10 @@ function TimeTrackingContent() {
         onEditDay={(date, session) => setEditModal({ date, session })}
         currentSession={currentSession ?? null}
         currentBreaks={currentBreaks}
+        expandedSessionId={expandedSessionId}
+        onToggleExpand={handleToggleExpand}
+        expandedEdits={expandedEdits}
+        editsLoading={editsLoading}
       />
 
       {/* Edit modal */}

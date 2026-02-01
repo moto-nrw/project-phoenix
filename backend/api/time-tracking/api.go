@@ -50,6 +50,7 @@ func (rs *Resource) Router() chi.Router {
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn)).Get("/current", rs.getCurrent)
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn)).Get("/history", rs.getHistory)
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn)).Put("/{id}", rs.updateSession)
+		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn)).Get("/{id}/edits", rs.getSessionEdits)
 
 		// Break management
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn)).Post("/break/start", rs.startBreak)
@@ -297,6 +298,26 @@ func (rs *Resource) getBreaks(w http.ResponseWriter, r *http.Request) {
 	}
 
 	common.Respond(w, r, http.StatusOK, breaks, "Breaks retrieved successfully")
+}
+
+// getSessionEdits handles GET /api/time-tracking/{id}/edits
+func (rs *Resource) getSessionEdits(w http.ResponseWriter, r *http.Request) {
+	// Parse session ID from URL
+	idStr := chi.URLParam(r, "id")
+	sessionID, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid session ID")))
+		return
+	}
+
+	// Get edits
+	edits, err := rs.WorkSessionService.GetSessionEdits(r.Context(), sessionID)
+	if err != nil {
+		common.RenderError(w, r, ErrorInternalServer(err))
+		return
+	}
+
+	common.Respond(w, r, http.StatusOK, edits, "Session edits retrieved successfully")
 }
 
 // getPresenceMap handles GET /api/time-tracking/presence-map

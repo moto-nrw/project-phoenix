@@ -25,10 +25,19 @@ export const PUT = createPutHandler<unknown, UpdateSessionRequest>(
       throw new Error("Invalid session ID");
     }
 
+    // Convert camelCase to snake_case for backend
+    const backendBody = {
+      check_in_time: body.checkInTime,
+      check_out_time: body.checkOutTime,
+      break_minutes: body.breakMinutes,
+      status: body.status,
+      notes: body.notes,
+    };
+
     const response = await apiPut<{ data: unknown }>(
       `/api/time-tracking/${params.id}`,
       token,
-      body,
+      backendBody,
     );
     return response.data;
   },

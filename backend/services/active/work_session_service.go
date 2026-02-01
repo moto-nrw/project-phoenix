@@ -6,9 +6,11 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"strconv"
 	"time"
 
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
+	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 )
 
 // SessionUpdateRequest defines the structure for updating a work session
@@ -27,6 +29,7 @@ type SessionResponse struct {
 	IsOvertime       bool                             `json:"is_overtime"`
 	IsBreakCompliant bool                             `json:"is_break_compliant"`
 	Breaks           []*activeModels.WorkSessionBreak `json:"breaks"`
+	EditCount        int                              `json:"edit_count"`
 }
 
 // WorkSessionService defines operations for staff time tracking
@@ -39,6 +42,7 @@ type WorkSessionService interface {
 	UpdateSession(ctx context.Context, staffID int64, sessionID int64, updates SessionUpdateRequest) (*activeModels.WorkSession, error)
 	GetCurrentSession(ctx context.Context, staffID int64) (*activeModels.WorkSession, error)
 	GetHistory(ctx context.Context, staffID int64, from, to time.Time) ([]*SessionResponse, error)
+	GetSessionEdits(ctx context.Context, sessionID int64) ([]*auditModels.WorkSessionEdit, error)
 	GetTodayPresenceMap(ctx context.Context) (map[int64]string, error)
 	CleanupOpenSessions(ctx context.Context) (int, error)
 	EnsureCheckedIn(ctx context.Context, staffID int64) (*activeModels.WorkSession, error)
@@ -48,11 +52,12 @@ type WorkSessionService interface {
 type workSessionService struct {
 	repo      activeModels.WorkSessionRepository
 	breakRepo activeModels.WorkSessionBreakRepository
+	auditRepo auditModels.WorkSessionEditRepository
 }
 
 // NewWorkSessionService creates a new work session service
-func NewWorkSessionService(repo activeModels.WorkSessionRepository, breakRepo activeModels.WorkSessionBreakRepository) WorkSessionService {
-	return &workSessionService{repo: repo, breakRepo: breakRepo}
+func NewWorkSessionService(repo activeModels.WorkSessionRepository, breakRepo activeModels.WorkSessionBreakRepository, auditRepo auditModels.WorkSessionEditRepository) WorkSessionService {
+	return &workSessionService{repo: repo, breakRepo: breakRepo, auditRepo: auditRepo}
 }
 
 // CheckIn creates a new work session for the staff member
@@ -284,7 +289,7 @@ func (s *workSessionService) recalcBreakMinutes(ctx context.Context, sessionID i
 	return s.repo.UpdateBreakMinutes(ctx, sessionID, totalMinutes)
 }
 
-// UpdateSession updates a work session with the provided fields
+// UpdateSession updates a work session with the provided fields and creates audit entries
 func (s *workSessionService) UpdateSession(ctx context.Context, staffID int64, sessionID int64, updates SessionUpdateRequest) (*activeModels.WorkSession, error) {
 	// Get the session
 	session, err := s.repo.FindByID(ctx, sessionID)
@@ -300,24 +305,67 @@ func (s *workSessionService) UpdateSession(ctx context.Context, staffID int64, s
 		return nil, fmt.Errorf("can only update own sessions")
 	}
 
-	// Apply updates (only non-nil fields)
+	// Snapshot old values before applying updates
+	now := time.Now()
+	var auditEdits []*auditModels.WorkSessionEdit
+
+	makeEdit := func(field string, oldVal, newVal *string) {
+		auditEdits = append(auditEdits, &auditModels.WorkSessionEdit{
+			SessionID: sessionID,
+			StaffID:   session.StaffID,
+			EditedBy:  staffID,
+			FieldName: field,
+			OldValue:  oldVal,
+			NewValue:  newVal,
+			Notes:     updates.Notes,
+			CreatedAt: now,
+		})
+	}
+
+	strPtr := func(s string) *string { return &s }
+
 	if updates.CheckInTime != nil {
+		oldVal := session.CheckInTime.Format(time.RFC3339)
+		newVal := updates.CheckInTime.Format(time.RFC3339)
+		if oldVal != newVal {
+			makeEdit(auditModels.FieldCheckInTime, strPtr(oldVal), strPtr(newVal))
+		}
 		session.CheckInTime = *updates.CheckInTime
 	}
 	if updates.CheckOutTime != nil {
+		var oldVal string
+		if session.CheckOutTime != nil {
+			oldVal = session.CheckOutTime.Format(time.RFC3339)
+		}
+		newVal := updates.CheckOutTime.Format(time.RFC3339)
+		if oldVal != newVal {
+			makeEdit(auditModels.FieldCheckOutTime, strPtr(oldVal), strPtr(newVal))
+		}
 		session.CheckOutTime = updates.CheckOutTime
 	}
 	if updates.BreakMinutes != nil {
+		oldVal := strconv.Itoa(session.BreakMinutes)
+		newVal := strconv.Itoa(*updates.BreakMinutes)
+		if oldVal != newVal {
+			makeEdit(auditModels.FieldBreakMinutes, strPtr(oldVal), strPtr(newVal))
+		}
 		session.BreakMinutes = *updates.BreakMinutes
 	}
 	if updates.Status != nil {
+		if session.Status != *updates.Status {
+			makeEdit(auditModels.FieldStatus, strPtr(session.Status), updates.Status)
+		}
 		session.Status = *updates.Status
 	}
 	if updates.Notes != nil {
+		if session.Notes != *updates.Notes {
+			makeEdit(auditModels.FieldNotes, strPtr(session.Notes), updates.Notes)
+		}
 		session.Notes = *updates.Notes
 	}
 
 	session.UpdatedBy = &staffID
+	session.UpdatedAt = now
 
 	// Validate the updated session
 	if err := session.Validate(); err != nil {
@@ -327,6 +375,13 @@ func (s *workSessionService) UpdateSession(ctx context.Context, staffID int64, s
 	// Update in database
 	if err := s.repo.Update(ctx, session); err != nil {
 		return nil, fmt.Errorf("failed to update session: %w", err)
+	}
+
+	// Create audit entries for changed fields
+	if len(auditEdits) > 0 {
+		if err := s.auditRepo.CreateBatch(ctx, auditEdits); err != nil {
+			return nil, fmt.Errorf("failed to create audit entries: %w", err)
+		}
 	}
 
 	return session, nil
@@ -352,6 +407,18 @@ func (s *workSessionService) GetHistory(ctx context.Context, staffID int64, from
 		return nil, fmt.Errorf("failed to get session history: %w", err)
 	}
 
+	// Collect session IDs for batch edit count query
+	sessionIDs := make([]int64, len(sessions))
+	for i, session := range sessions {
+		sessionIDs[i] = session.ID
+	}
+
+	// Batch fetch edit counts
+	editCounts, err := s.auditRepo.CountBySessionIDs(ctx, sessionIDs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get edit counts: %w", err)
+	}
+
 	// Wrap each session in SessionResponse with calculated fields and breaks
 	responses := make([]*SessionResponse, len(sessions))
 	for i, session := range sessions {
@@ -366,10 +433,20 @@ func (s *workSessionService) GetHistory(ctx context.Context, staffID int64, from
 			IsOvertime:       session.IsOvertime(),
 			IsBreakCompliant: session.IsBreakCompliant(),
 			Breaks:           breaks,
+			EditCount:        editCounts[session.ID],
 		}
 	}
 
 	return responses, nil
+}
+
+// GetSessionEdits returns the audit trail for a work session
+func (s *workSessionService) GetSessionEdits(ctx context.Context, sessionID int64) ([]*auditModels.WorkSessionEdit, error) {
+	edits, err := s.auditRepo.GetBySessionID(ctx, sessionID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get session edits: %w", err)
+	}
+	return edits, nil
 }
 
 // GetTodayPresenceMap returns a map of staff IDs to their work status for today
