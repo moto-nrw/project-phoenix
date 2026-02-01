@@ -138,12 +138,11 @@ function ReleaseSupervisionButton({
   return (
     <button
       onClick={onClick}
-      className="group relative flex h-10 items-center gap-2 rounded-full bg-gradient-to-br from-amber-400 to-yellow-500 px-4 text-white shadow-lg transition-all duration-150 hover:scale-105 hover:shadow-xl hover:shadow-amber-400/30 active:scale-95"
+      className="flex h-10 items-center gap-2 rounded-full bg-red-50 px-4 text-red-600 ring-1 ring-red-300 transition-colors duration-150 hover:bg-red-100 active:bg-red-200"
       aria-label="Aufsicht abgeben"
     >
-      <div className="pointer-events-none absolute inset-[2px] rounded-full bg-gradient-to-br from-white/20 to-white/0 opacity-0 transition-opacity duration-300 group-hover:opacity-100"></div>
       <svg
-        className="relative h-5 w-5 transition-transform duration-300"
+        className="size-5"
         fill="none"
         viewBox="0 0 24 24"
         stroke="currentColor"
@@ -155,7 +154,7 @@ function ReleaseSupervisionButton({
           d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
         />
       </svg>
-      <span className="relative text-sm font-semibold">
+      <span className="text-sm font-semibold">
         {isReleasing ? "Wird abgegeben..." : "Aufsicht abgeben"}
       </span>
     </button>
@@ -169,11 +168,11 @@ function MobileReleaseSupervisionButton({
   return (
     <button
       onClick={onClick}
-      className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-amber-400 to-yellow-500 text-white shadow-md transition-all duration-150 active:scale-90"
+      className="flex size-8 items-center justify-center rounded-full bg-red-50 text-red-600 ring-1 ring-red-300 transition-colors duration-150 active:bg-red-200"
       aria-label="Aufsicht abgeben"
     >
       <svg
-        className="h-4 w-4"
+        className="size-4"
         fill="none"
         viewBox="0 0 24 24"
         stroke="currentColor"
@@ -413,9 +412,14 @@ function MeinRaumPageContent() {
     ],
   );
 
+  // True when Schulhof is the active view — either via the permanent tab flag
+  // or because the sidebar navigated with the room's actual ID (not "schulhof")
+  const isSchulhofActive =
+    isSchulhofTabSelected || currentRoom?.room_name === SCHULHOF_ROOM_NAME;
+
   // Set breadcrumb so header shows current room name
   useSetBreadcrumb({
-    activeSupervisionName: isSchulhofTabSelected
+    activeSupervisionName: isSchulhofActive
       ? SCHULHOF_ROOM_NAME
       : currentRoom?.room_name,
   });
@@ -1144,7 +1148,7 @@ function MeinRaumPageContent() {
           !isDesktop &&
           (allRooms.length === 1 ||
             (allRooms.length === 0 && schulhofStatus?.exists))
-            ? isSchulhofTabSelected
+            ? isSchulhofActive
               ? SCHULHOF_ROOM_NAME
               : (currentRoom?.room_name ?? "Aktuelle Aufsicht")
             : ""
@@ -1165,7 +1169,7 @@ function MeinRaumPageContent() {
               />
             </svg>
           ),
-          count: isSchulhofTabSelected
+          count: isSchulhofActive
             ? (schulhofStatus?.studentCount ?? 0)
             : (currentRoom?.student_count ?? 0),
           label: "Schüler",
@@ -1254,7 +1258,7 @@ function MeinRaumPageContent() {
           setGroupFilter("all");
         }}
         actionButton={
-          isSchulhofTabSelected && schulhofStatus ? (
+          isSchulhofActive && schulhofStatus ? (
             schulhofStatus.isUserSupervising ? (
               <ReleaseSupervisionButton
                 isReleasing={isReleasingSupervision}
@@ -1264,10 +1268,10 @@ function MeinRaumPageContent() {
               <button
                 onClick={() => handleToggleSchulhof().catch(() => undefined)}
                 disabled={isTogglingSchulhof}
-                className="group relative flex h-10 items-center gap-2 rounded-full bg-gradient-to-br from-emerald-500 to-green-600 px-4 text-white shadow-lg transition-all duration-150 hover:scale-105 hover:shadow-xl hover:shadow-emerald-400/30 active:scale-95 disabled:opacity-50"
+                className="flex h-10 items-center gap-2 rounded-full bg-gray-900 px-4 text-white transition-colors duration-150 hover:bg-gray-700 active:bg-gray-800 disabled:opacity-50"
               >
                 <svg
-                  className="h-5 w-5"
+                  className="size-5"
                   fill="none"
                   viewBox="0 0 24 24"
                   stroke="currentColor"
@@ -1287,7 +1291,7 @@ function MeinRaumPageContent() {
           ) : undefined
         }
         mobileActionButton={
-          isSchulhofTabSelected && schulhofStatus ? (
+          isSchulhofActive && schulhofStatus ? (
             schulhofStatus.isUserSupervising ? (
               <MobileReleaseSupervisionButton
                 onClick={() => setShowReleaseModal(true)}
@@ -1296,11 +1300,11 @@ function MeinRaumPageContent() {
               <button
                 onClick={() => handleToggleSchulhof().catch(() => undefined)}
                 disabled={isTogglingSchulhof}
-                className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-emerald-500 to-green-600 text-white shadow-md transition-all duration-150 active:scale-90 disabled:opacity-50"
+                className="flex size-8 items-center justify-center rounded-full bg-gray-900 text-white transition-colors duration-150 hover:bg-gray-700 active:bg-gray-800 disabled:opacity-50"
                 aria-label="Beaufsichtigen"
               >
                 <svg
-                  className="h-4 w-4"
+                  className="size-4"
                   fill="none"
                   viewBox="0 0 24 24"
                   stroke="currentColor"
@@ -1326,10 +1330,10 @@ function MeinRaumPageContent() {
       >
         <div className="space-y-4 md:space-y-5">
           {/* Warning Box */}
-          <div className="rounded-lg border border-amber-200 bg-amber-50/50 p-3 md:p-4">
+          <div className="rounded-lg border border-red-100 bg-red-50/50 p-3 md:p-4">
             <div className="flex items-start gap-3">
               <svg
-                className="mt-0.5 h-5 w-5 flex-shrink-0 text-amber-600"
+                className="mt-0.5 size-5 flex-shrink-0 text-red-500"
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
@@ -1342,10 +1346,10 @@ function MeinRaumPageContent() {
                 />
               </svg>
               <div className="flex-1">
-                <p className="text-sm font-medium text-amber-900">
+                <p className="text-sm font-medium text-gray-900">
                   Du wirst nicht mehr als Aufsicht angezeigt.
                 </p>
-                <p className="mt-1 text-sm text-amber-800">
+                <p className="mt-1 text-sm text-gray-700">
                   Der Schulhof wird dann als &quot;ohne Aufsicht&quot;
                   angezeigt, bis eine andere Lehrkraft die Aufsicht übernimmt.
                 </p>
@@ -1376,7 +1380,7 @@ function MeinRaumPageContent() {
               type="button"
               onClick={() => handleReleaseSupervision().catch(() => undefined)}
               disabled={isReleasingSupervision}
-              className="flex-1 rounded-lg bg-gradient-to-br from-amber-400 to-yellow-500 px-4 py-2.5 text-sm font-medium text-white shadow-md transition-all duration-200 hover:scale-105 hover:shadow-lg hover:shadow-amber-400/30 active:scale-100 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100 md:hover:scale-105"
+              className="flex-1 rounded-lg bg-red-600 px-4 py-2.5 text-sm font-medium text-white transition-colors duration-200 hover:bg-red-700 active:bg-red-800 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {isReleasingSupervision
                 ? "Wird abgegeben..."
@@ -1394,42 +1398,39 @@ function MeinRaumPageContent() {
       )}
 
       {/* Schulhof Not Supervising View */}
-      {isSchulhofTabSelected &&
+      {isSchulhofActive &&
         schulhofStatus &&
         !schulhofStatus.isUserSupervising && (
           <div className="mt-8 flex min-h-[30vh] items-center justify-center">
-            <div className="flex max-w-md flex-col items-center gap-6 rounded-xl border border-amber-200 bg-gradient-to-br from-amber-50 to-yellow-50 p-8 text-center shadow-lg">
-              {/* Tree/Yard Icon */}
-              <div className="rounded-full bg-amber-100 p-4">
-                <svg
-                  className="h-10 w-10 text-amber-600"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  strokeWidth={1.5}
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M12 3v2.25m6.364.386l-1.591 1.591M21 12h-2.25m-.386 6.364l-1.591-1.591M12 18.75V21m-4.773-4.227l-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z"
-                  />
-                </svg>
-              </div>
+            <div className="flex max-w-md flex-col items-center gap-4 text-center">
+              <svg
+                className="size-12 text-gray-400"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={1.5}
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M12 3v2.25m6.364.386l-1.591 1.591M21 12h-2.25m-.386 6.364l-1.591-1.591M12 18.75V21m-4.773-4.227l-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z"
+                />
+              </svg>
 
-              <div className="space-y-2">
-                <h3 className="text-lg font-semibold text-gray-900">
+              <div className="space-y-1">
+                <h3 className="text-lg font-medium text-balance text-gray-900">
                   Schulhof-Aufsicht verfügbar
                 </h3>
-                <p className="text-sm text-gray-600">
+                <p className="text-sm text-pretty text-gray-500">
                   Klicke auf &quot;Beaufsichtigen&quot;, um die
-                  Schulhof-Aufsicht zu übernehmen und Schüler zu sehen.
+                  Schulhof-Aufsicht zu übernehmen.
                 </p>
               </div>
 
               {/* Current supervisors info */}
               {schulhofStatus.supervisorCount > 0 && (
-                <div className="w-full rounded-lg border border-amber-100 bg-white/50 p-3">
-                  <p className="text-xs font-medium text-amber-700">
+                <div className="w-full rounded-lg border border-gray-100 bg-gray-50 p-3">
+                  <p className="text-xs font-medium text-gray-600">
                     Aktuelle Aufsicht ({schulhofStatus.supervisorCount}):
                   </p>
                   <p className="mt-1 text-sm text-gray-700">
@@ -1439,16 +1440,12 @@ function MeinRaumPageContent() {
               )}
 
               {schulhofStatus.supervisorCount === 0 && (
-                <div className="rounded-lg border border-red-100 bg-red-50 p-3">
-                  <p className="text-sm font-medium text-red-700">
-                    Aktuell keine Aufsicht
-                  </p>
-                </div>
+                <p className="text-sm text-gray-500">Aktuell keine Aufsicht</p>
               )}
 
               {/* Student count info */}
               {schulhofStatus.studentCount > 0 && (
-                <p className="text-xs text-gray-500">
+                <p className="text-xs text-gray-400">
                   {schulhofStatus.studentCount} Schüler im Schulhof
                 </p>
               )}
@@ -1457,7 +1454,7 @@ function MeinRaumPageContent() {
               <button
                 onClick={() => handleToggleSchulhof().catch(() => undefined)}
                 disabled={isTogglingSchulhof}
-                className="w-full rounded-lg bg-gradient-to-br from-emerald-500 to-green-600 px-6 py-3 text-sm font-semibold text-white shadow-md transition-all duration-150 hover:scale-105 hover:shadow-lg hover:shadow-emerald-400/30 active:scale-100 disabled:opacity-50"
+                className="w-full rounded-lg bg-gray-900 px-6 py-3 text-sm font-semibold text-white transition-colors duration-150 hover:bg-gray-700 active:bg-gray-800 disabled:opacity-50"
               >
                 {isTogglingSchulhof
                   ? "Wird übernommen..."
@@ -1468,7 +1465,7 @@ function MeinRaumPageContent() {
         )}
 
       {/* Student Grid - Mobile Optimized */}
-      {(!isSchulhofTabSelected || schulhofStatus?.isUserSupervising) &&
+      {(!isSchulhofActive || schulhofStatus?.isUserSupervising) &&
         renderStudentContent()}
     </div>
   );
