@@ -13,13 +13,20 @@ import (
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 )
 
+// BreakDurationUpdate represents an update to a single break's duration
+type BreakDurationUpdate struct {
+	ID              int64 `json:"id"`
+	DurationMinutes int   `json:"duration_minutes"`
+}
+
 // SessionUpdateRequest defines the structure for updating a work session
 type SessionUpdateRequest struct {
-	CheckInTime  *time.Time `json:"check_in_time"`
-	CheckOutTime *time.Time `json:"check_out_time"`
-	BreakMinutes *int       `json:"break_minutes"`
-	Status       *string    `json:"status"`
-	Notes        *string    `json:"notes"`
+	CheckInTime  *time.Time            `json:"check_in_time"`
+	CheckOutTime *time.Time            `json:"check_out_time"`
+	BreakMinutes *int                  `json:"break_minutes"`
+	Status       *string               `json:"status"`
+	Notes        *string               `json:"notes"`
+	Breaks       []BreakDurationUpdate `json:"breaks"`
 }
 
 // SessionResponse wraps a work session with calculated fields
@@ -343,7 +350,55 @@ func (s *workSessionService) UpdateSession(ctx context.Context, staffID int64, s
 		}
 		session.CheckOutTime = updates.CheckOutTime
 	}
-	if updates.BreakMinutes != nil {
+	// If individual break updates are provided, process them instead of BreakMinutes
+	if len(updates.Breaks) > 0 {
+		// Load all breaks for this session
+		sessionBreaks, err := s.breakRepo.GetBySessionID(ctx, sessionID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load session breaks: %w", err)
+		}
+
+		// Build lookup map
+		breakMap := make(map[int64]*activeModels.WorkSessionBreak, len(sessionBreaks))
+		for _, b := range sessionBreaks {
+			breakMap[b.ID] = b
+		}
+
+		for _, bu := range updates.Breaks {
+			brk, ok := breakMap[bu.ID]
+			if !ok {
+				return nil, fmt.Errorf("break %d does not belong to this session", bu.ID)
+			}
+			if brk.EndedAt == nil {
+				return nil, fmt.Errorf("cannot edit duration of an active break")
+			}
+
+			oldDuration := brk.DurationMinutes
+			if oldDuration != bu.DurationMinutes {
+				// Calculate new ended_at from started_at + new duration
+				newEndedAt := brk.StartedAt.Add(time.Duration(bu.DurationMinutes) * time.Minute)
+
+				if err := s.breakRepo.UpdateDuration(ctx, bu.ID, bu.DurationMinutes, newEndedAt); err != nil {
+					return nil, fmt.Errorf("failed to update break %d: %w", bu.ID, err)
+				}
+
+				// Audit entry for this break change
+				oldVal := strconv.Itoa(oldDuration)
+				newVal := strconv.Itoa(bu.DurationMinutes)
+				makeEdit(auditModels.FieldBreakDuration, strPtr(oldVal), strPtr(newVal))
+			}
+		}
+
+		// Recalculate session break_minutes cache from updated breaks
+		if err := s.recalcBreakMinutes(ctx, sessionID); err != nil {
+			return nil, fmt.Errorf("failed to recalculate break minutes: %w", err)
+		}
+		// Re-fetch session to get updated break_minutes
+		session, err = s.repo.FindByID(ctx, sessionID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to re-fetch session: %w", err)
+		}
+	} else if updates.BreakMinutes != nil {
 		oldVal := strconv.Itoa(session.BreakMinutes)
 		newVal := strconv.Itoa(*updates.BreakMinutes)
 		if oldVal != newVal {

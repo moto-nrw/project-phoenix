@@ -128,3 +128,23 @@ func (r *WorkSessionBreakRepository) EndBreak(ctx context.Context, id int64, end
 
 	return nil
 }
+
+// UpdateDuration updates the duration and ended_at of a completed break
+func (r *WorkSessionBreakRepository) UpdateDuration(ctx context.Context, id int64, durationMinutes int, endedAt time.Time) error {
+	_, err := r.db.NewUpdate().
+		Table(tableActiveWorkSessionBreaks).
+		Set("duration_minutes = ?", durationMinutes).
+		Set("ended_at = ?", endedAt).
+		Set("updated_at = ?", time.Now()).
+		Where("id = ?", id).
+		Exec(ctx)
+
+	if err != nil {
+		return &modelBase.DatabaseError{
+			Op:  "update break duration",
+			Err: err,
+		}
+	}
+
+	return nil
+}

@@ -1275,6 +1275,7 @@ const FIELD_LABELS: Record<string, string> = {
   check_in_time: "Start",
   check_out_time: "Ende",
   break_minutes: "Pause",
+  break_duration: "Pausendauer",
   status: "Ort",
   notes: "Notiz",
 };
@@ -1284,7 +1285,7 @@ function formatEditValue(fieldName: string, value: string | null): string {
   if (fieldName === "check_in_time" || fieldName === "check_out_time") {
     return formatTime(value);
   }
-  if (fieldName === "break_minutes") {
+  if (fieldName === "break_minutes" || fieldName === "break_duration") {
     return `${value} min`;
   }
   if (fieldName === "status") {
@@ -1368,7 +1369,7 @@ function EditHistoryAccordion({
                   {formatEditValue(edit.fieldName, edit.oldValue)}
                 </td>
                 <td className="py-1.5 pr-4 text-gray-300">&rarr;</td>
-                <td className="py-1.5 pr-4 font-medium whitespace-nowrap text-green-600">
+                <td className="py-1.5 pr-4 font-medium whitespace-nowrap text-[#83cd2d]">
                   {formatEditValue(edit.fieldName, edit.newValue)}
                 </td>
                 <td className="py-1.5 text-gray-400 italic">
@@ -1397,6 +1398,8 @@ function EditHistoryAccordion({
 
 // ─── EditModal ────────────────────────────────────────────────────────────────
 
+const BREAK_DURATION_OPTIONS = [0, 15, 30, 45, 60] as const;
+
 function EditSessionModal({
   isOpen,
   onClose,
@@ -1416,15 +1419,21 @@ function EditSessionModal({
       breakMinutes?: number;
       status?: "present" | "home_office";
       notes?: string;
+      breaks?: Array<{ id: string; durationMinutes: number }>;
     },
   ) => Promise<void>;
 }) {
   const [startTime, setStartTime] = useState("");
   const [endTime, setEndTime] = useState("");
   const [breakMins, setBreakMins] = useState("0");
+  const [breakDurations, setBreakDurations] = useState<Map<string, number>>(
+    new Map(),
+  );
   const [status, setStatus] = useState<"present" | "home_office">("present");
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
+
+  const hasIndividualBreaks = (session?.breaks.length ?? 0) > 0;
 
   useEffect(() => {
     if (session && isOpen) {
@@ -1435,6 +1444,17 @@ function EditSessionModal({
       setBreakMins(session.breakMinutes.toString());
       setStatus(session.status);
       setNotes("");
+
+      // Initialize per-break durations
+      if (session.breaks.length > 0) {
+        const durations = new Map<string, number>();
+        for (const brk of session.breaks) {
+          durations.set(brk.id, brk.durationMinutes);
+        }
+        setBreakDurations(durations);
+      } else {
+        setBreakDurations(new Map());
+      }
     }
   }, [session, isOpen]);
 
@@ -1443,8 +1463,12 @@ function EditSessionModal({
   const dayIndex = (date.getDay() + 6) % 7;
   const dayName = DAY_NAMES_LONG[dayIndex] ?? "";
 
+  // Calculate total break from individual breaks or fallback dropdown
+  const editedBreak = hasIndividualBreaks
+    ? Array.from(breakDurations.values()).reduce((sum, d) => sum + d, 0)
+    : parseInt(breakMins, 10) || 0;
+
   // Compliance check for the edited values
-  const editedBreak = parseInt(breakMins, 10) || 0;
   const warnings: string[] = [];
   if (startTime && endTime) {
     const [sh, sm] = startTime.split(":").map(Number);
@@ -1468,6 +1492,14 @@ function EditSessionModal({
     }
   }
 
+  const handleBreakDurationChange = (breakId: string, minutes: number) => {
+    setBreakDurations((prev) => {
+      const next = new Map(prev);
+      next.set(breakId, minutes);
+      return next;
+    });
+  };
+
   const handleSave = async () => {
     if (!session) return;
     setSaving(true);
@@ -1486,13 +1518,36 @@ function EditSessionModal({
         return `${dateStr}T${time}:00${tz}`;
       };
 
-      await onSave(session.id, {
-        checkInTime: buildTimestamp(startTime),
-        checkOutTime: buildTimestamp(endTime) ?? undefined,
-        breakMinutes: editedBreak,
-        status,
-        notes: notes || undefined,
-      });
+      if (hasIndividualBreaks) {
+        // Build breaks array with only changed durations
+        const changedBreaks: Array<{ id: string; durationMinutes: number }> =
+          [];
+        for (const brk of session.breaks) {
+          const newDuration = breakDurations.get(brk.id);
+          if (
+            newDuration !== undefined &&
+            newDuration !== brk.durationMinutes
+          ) {
+            changedBreaks.push({ id: brk.id, durationMinutes: newDuration });
+          }
+        }
+
+        await onSave(session.id, {
+          checkInTime: buildTimestamp(startTime),
+          checkOutTime: buildTimestamp(endTime) ?? undefined,
+          status,
+          notes: notes || undefined,
+          breaks: changedBreaks.length > 0 ? changedBreaks : undefined,
+        });
+      } else {
+        await onSave(session.id, {
+          checkInTime: buildTimestamp(startTime),
+          checkOutTime: buildTimestamp(endTime) ?? undefined,
+          breakMinutes: editedBreak,
+          status,
+          notes: notes || undefined,
+        });
+      }
       onClose();
     } finally {
       setSaving(false);
@@ -1560,40 +1615,101 @@ function EditSessionModal({
         </div>
 
         <div className="grid grid-cols-2 gap-4">
+          {/* Break section: per-break dropdowns or fallback single dropdown */}
           <div>
-            <label
-              htmlFor="edit-break"
-              className="mb-1 block text-sm font-medium text-gray-700"
-            >
-              Pause (Min)
-            </label>
-            <div className="relative">
-              <select
-                id="edit-break"
-                value={breakMins}
-                onChange={(e) => setBreakMins(e.target.value)}
-                className="w-full appearance-none rounded-lg border border-gray-300 px-3 py-2 pr-8 text-sm transition-colors focus:border-gray-900 focus:ring-1 focus:ring-gray-900 focus:outline-none"
-              >
-                {[0, 15, 30, 45, 60].map((m) => (
-                  <option key={m} value={m.toString()}>
-                    {m} min
-                  </option>
-                ))}
-              </select>
-              <svg
-                className="pointer-events-none absolute top-1/2 right-2.5 h-4 w-4 -translate-y-1/2 text-gray-400"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M19 9l-7 7-7-7"
-                />
-              </svg>
-            </div>
+            {hasIndividualBreaks ? (
+              <div>
+                <span className="mb-1 block text-sm font-medium text-gray-700">
+                  Pausen
+                </span>
+                <div className="space-y-2">
+                  {session.breaks.map((brk) => (
+                    <div key={brk.id} className="flex items-center gap-2">
+                      <span className="w-12 shrink-0 text-xs text-gray-500 tabular-nums">
+                        {formatTime(brk.startedAt)}
+                      </span>
+                      <div className="relative flex-1">
+                        <select
+                          value={(
+                            breakDurations.get(brk.id) ?? brk.durationMinutes
+                          ).toString()}
+                          onChange={(e) =>
+                            handleBreakDurationChange(
+                              brk.id,
+                              parseInt(e.target.value, 10),
+                            )
+                          }
+                          className="w-full appearance-none rounded-lg border border-gray-300 px-3 py-1.5 pr-8 text-sm transition-colors focus:border-gray-900 focus:ring-1 focus:ring-gray-900 focus:outline-none"
+                        >
+                          {BREAK_DURATION_OPTIONS.map((m) => (
+                            <option key={m} value={m.toString()}>
+                              {m} min
+                            </option>
+                          ))}
+                        </select>
+                        <svg
+                          className="pointer-events-none absolute top-1/2 right-2.5 h-4 w-4 -translate-y-1/2 text-gray-400"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M19 9l-7 7-7-7"
+                          />
+                        </svg>
+                      </div>
+                    </div>
+                  ))}
+                  <div className="flex items-center justify-between border-t border-gray-100 pt-1.5">
+                    <span className="text-xs font-medium text-gray-500">
+                      Gesamt
+                    </span>
+                    <span className="text-sm font-medium text-gray-700 tabular-nums">
+                      {editedBreak} min
+                    </span>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div>
+                <label
+                  htmlFor="edit-break"
+                  className="mb-1 block text-sm font-medium text-gray-700"
+                >
+                  Pause (Min)
+                </label>
+                <div className="relative">
+                  <select
+                    id="edit-break"
+                    value={breakMins}
+                    onChange={(e) => setBreakMins(e.target.value)}
+                    className="w-full appearance-none rounded-lg border border-gray-300 px-3 py-2 pr-8 text-sm transition-colors focus:border-gray-900 focus:ring-1 focus:ring-gray-900 focus:outline-none"
+                  >
+                    {[0, 15, 30, 45, 60].map((m) => (
+                      <option key={m} value={m.toString()}>
+                        {m} min
+                      </option>
+                    ))}
+                  </select>
+                  <svg
+                    className="pointer-events-none absolute top-1/2 right-2.5 h-4 w-4 -translate-y-1/2 text-gray-400"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M19 9l-7 7-7-7"
+                    />
+                  </svg>
+                </div>
+              </div>
+            )}
           </div>
           <div>
             <label
@@ -1822,6 +1938,7 @@ function TimeTrackingContent() {
         breakMinutes?: number;
         status?: "present" | "home_office";
         notes?: string;
+        breaks?: Array<{ id: string; durationMinutes: number }>;
       },
     ) => {
       try {
@@ -1831,6 +1948,7 @@ function TimeTrackingContent() {
           breakMinutes: updates.breakMinutes,
           status: updates.status,
           notes: updates.notes,
+          breaks: updates.breaks,
         });
         await Promise.all([mutateCurrentSession(), mutateHistory()]);
         // Refresh accordion edits if this session is currently expanded

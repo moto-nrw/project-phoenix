@@ -47,6 +47,7 @@ export interface UpdateSessionRequest {
   checkOutTime?: string;
   breakMinutes?: number;
   notes?: string;
+  breaks?: Array<{ id: string; durationMinutes: number }>;
 }
 
 /**

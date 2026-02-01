@@ -196,4 +196,7 @@ type WorkSessionBreakRepository interface {
 
 	// EndBreak sets ended_at and duration_minutes on a break
 	EndBreak(ctx context.Context, id int64, endedAt time.Time, durationMinutes int) error
+
+	// UpdateDuration updates the duration and ended_at of a completed break
+	UpdateDuration(ctx context.Context, id int64, durationMinutes int, endedAt time.Time) error
 }

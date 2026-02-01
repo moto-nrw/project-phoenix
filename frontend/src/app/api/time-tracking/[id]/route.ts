@@ -8,6 +8,7 @@ interface UpdateSessionRequest {
   checkOutTime?: string;
   breakMinutes?: number;
   notes?: string;
+  breaks?: Array<{ id: string; durationMinutes: number }>;
 }
 
 /**
@@ -26,13 +27,21 @@ export const PUT = createPutHandler<unknown, UpdateSessionRequest>(
     }
 
     // Convert camelCase to snake_case for backend
-    const backendBody = {
+    const backendBody: Record<string, unknown> = {
       check_in_time: body.checkInTime,
       check_out_time: body.checkOutTime,
       break_minutes: body.breakMinutes,
       status: body.status,
       notes: body.notes,
     };
+
+    // Convert break IDs from string to int for backend
+    if (body.breaks && body.breaks.length > 0) {
+      backendBody.breaks = body.breaks.map((b) => ({
+        id: parseInt(b.id, 10),
+        duration_minutes: b.durationMinutes,
+      }));
+    }
 
     const response = await apiPut<{ data: unknown }>(
       `/api/time-tracking/${params.id}`,
