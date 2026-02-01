@@ -223,6 +223,11 @@ export function SupervisionProvider({
         };
         // Extract the actual Schulhof status from nested structure
         const schulhofData = schulhofJson.data?.data;
+        // Intentionally check `exists` only, NOT `is_user_supervising`.
+        // The Schulhof tab must be visible to ALL staff so anyone can
+        // opt-in to supervise. Multiple supervisors are expected.
+        // `is_user_supervising` is available for UI hints (e.g. badge)
+        // but must not gate tab visibility.
         if (schulhofData?.exists) {
           schulhofRoom = {
             id: SCHULHOF_TAB_ID,
