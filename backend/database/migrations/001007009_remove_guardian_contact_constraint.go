@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	RemoveGuardianContactConstraintVersion     = "1.7.7"
+	RemoveGuardianContactConstraintVersion     = "1.7.9"
 	RemoveGuardianContactConstraintDescription = "Remove check_contact_method constraint from guardian_profiles (phone numbers now in separate table)"
 )
 
@@ -18,7 +18,7 @@ func init() {
 	MigrationRegistry[RemoveGuardianContactConstraintVersion] = &Migration{
 		Version:     RemoveGuardianContactConstraintVersion,
 		Description: RemoveGuardianContactConstraintDescription,
-		DependsOn:   []string{"1.7.6"}, // Depends on guardian_phone_numbers table
+		DependsOn:   []string{GuardianPhoneNumbersVersion}, // Depends on guardian_phone_numbers table (1.7.8)
 	}
 
 	// Migration 1.7.7: Remove check_contact_method constraint

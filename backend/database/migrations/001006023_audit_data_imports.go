@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	AuditDataImportsVersion     = "1.6.17"
+	AuditDataImportsVersion     = "1.6.23"
 	AuditDataImportsDescription = "Create audit.data_imports table for import history tracking"
 )
 

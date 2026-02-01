@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	GuardianPhoneNumbersVersion     = "1.7.6"
+	GuardianPhoneNumbersVersion     = "1.7.8"
 	GuardianPhoneNumbersDescription = "Create users.guardian_phone_numbers table for flexible phone storage"
 )
 
