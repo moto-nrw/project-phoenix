@@ -359,10 +359,12 @@ function ClockInCard({
 
   return (
     <div className="relative overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)]">
-      <div className="relative p-6 sm:p-8">
+      <div className="relative p-5 sm:p-6 md:p-8">
         {/* Title + status badge */}
         <div className="mb-5 flex items-center justify-between">
-          <h2 className="text-lg font-bold text-gray-900">Stempeluhr</h2>
+          <h2 className="text-base font-bold text-gray-900 sm:text-lg">
+            Stempeluhr
+          </h2>
           {isCheckedIn && currentSession && (
             <span
               className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
@@ -389,7 +391,7 @@ function ClockInCard({
             <div className="flex gap-2">
               <button
                 onClick={() => setMode("present")}
-                className={`rounded-full px-4 py-1.5 text-xs font-medium transition-all ${
+                className={`rounded-full px-3 py-1.5 text-xs font-medium transition-all sm:px-4 ${
                   mode === "present"
                     ? "bg-[#83CD2D]/10 text-[#70b525] ring-1 ring-[#83CD2D]/40"
                     : "bg-gray-100 text-gray-500 hover:bg-gray-200"
@@ -399,7 +401,7 @@ function ClockInCard({
               </button>
               <button
                 onClick={() => setMode("home_office")}
-                className={`rounded-full px-4 py-1.5 text-xs font-medium transition-all ${
+                className={`rounded-full px-3 py-1.5 text-xs font-medium transition-all sm:px-4 ${
                   mode === "home_office"
                     ? "bg-sky-100 text-sky-700 ring-1 ring-sky-300"
                     : "bg-gray-100 text-gray-500 hover:bg-gray-200"
@@ -409,7 +411,7 @@ function ClockInCard({
               </button>
               <button
                 onClick={() => setMode("absent")}
-                className={`rounded-full px-4 py-1.5 text-xs font-medium transition-all ${
+                className={`rounded-full px-3 py-1.5 text-xs font-medium transition-all sm:px-4 ${
                   mode === "absent"
                     ? "bg-red-100 text-red-700 ring-1 ring-red-300"
                     : "bg-gray-100 text-gray-500 hover:bg-gray-200"
@@ -465,7 +467,7 @@ function ClockInCard({
               </button>
             )}
 
-            <span className="text-sm text-gray-400">
+            <span className="text-xs text-gray-400 sm:text-sm">
               {mode === "absent" ? "Abwesenheit melden" : "Einstempeln"}
             </span>
           </div>
@@ -641,7 +643,7 @@ function ClockInCard({
         )}
 
         {/* Today/Week footer */}
-        <div className="mt-4 flex flex-wrap gap-x-6 gap-y-1 text-xs text-gray-400">
+        <div className="mt-4 flex flex-col gap-y-1 text-xs text-gray-400 sm:flex-row sm:flex-wrap sm:gap-x-6">
           <span>
             Heute:{" "}
             <span className="font-medium text-gray-600">
@@ -871,6 +873,14 @@ function WeekChart({
   readonly currentSession: WorkSession | null;
   readonly weekOffset: number;
 }) {
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 768);
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, []);
+
   const today = new Date();
 
   const chartData = useMemo(() => {
@@ -930,11 +940,13 @@ function WeekChart({
 
   return (
     <div className="relative flex h-full flex-col overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)]">
-      <div className="flex min-h-0 flex-1 flex-col p-6 sm:p-8">
-        <div className="mb-4 flex items-baseline justify-between">
-          <h2 className="text-lg font-bold text-gray-900">Wochenübersicht</h2>
+      <div className="flex min-h-0 flex-1 flex-col p-4 sm:p-6 md:p-8">
+        <div className="mb-3 flex items-baseline justify-between sm:mb-4">
+          <h2 className="text-base font-bold text-gray-900 sm:text-lg">
+            Wochenübersicht
+          </h2>
           {chartData.length > 0 && (
-            <span className="text-xs text-gray-400">
+            <span className="text-[10px] text-gray-400 sm:text-xs">
               {chartData[0]?.label?.split(" ")[1] ?? ""} –{" "}
               {chartData[chartData.length - 1]?.label?.split(" ")[1] ?? ""}
             </span>
@@ -947,7 +959,13 @@ function WeekChart({
           <BarChart
             accessibilityLayer
             data={chartData}
-            margin={{ top: 4, right: 4, bottom: 0, left: -20 }}
+            margin={{
+              top: 4,
+              right: 4,
+              bottom: 0,
+              left: isMobile ? -24 : -20,
+            }}
+            barCategoryGap={isMobile ? 2 : 4}
           >
             <CartesianGrid vertical={false} />
             <XAxis
@@ -955,14 +973,14 @@ function WeekChart({
               tickLine={false}
               axisLine={false}
               tickMargin={8}
-              fontSize={11}
+              fontSize={isMobile ? 10 : 11}
               interval={0}
             />
             <YAxis
               tickLine={false}
               axisLine={false}
               tickMargin={4}
-              fontSize={12}
+              fontSize={isMobile ? 10 : 12}
               tickFormatter={(v: number) => `${Math.round(v / 60)}h`}
               domain={[0, "auto"]}
             />
@@ -1333,6 +1351,14 @@ function WeekTable({
   readonly editsLoading: boolean;
   readonly onDeleteAbsence: (id: string) => void;
 }) {
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 768);
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, []);
+
   const today = new Date();
   const referenceDate = new Date(today);
   referenceDate.setDate(referenceDate.getDate() + weekOffset * 7);
@@ -1398,10 +1424,10 @@ function WeekTable({
   return (
     <div className="overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)]">
       {/* Week navigation header */}
-      <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">
+      <div className="flex items-center justify-between border-b border-gray-100 px-4 py-3 sm:px-6 sm:py-4">
         <button
           onClick={() => onWeekChange(weekOffset - 1)}
-          className="rounded-lg p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-700"
+          className="rounded-lg p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-700 sm:p-2"
           aria-label="Vorherige Woche"
         >
           <svg
@@ -1418,7 +1444,7 @@ function WeekTable({
             />
           </svg>
         </button>
-        <span className="text-lg font-bold text-gray-900">
+        <span className="text-sm font-bold text-gray-900 sm:text-base md:text-lg">
           KW {weekNum}: {mondayDate ? formatDateGerman(mondayDate) : ""} –{" "}
           {sundayDate ? formatDateGerman(sundayDate) : ""}
         </span>
@@ -1426,7 +1452,7 @@ function WeekTable({
           <button
             onClick={() => onWeekChange(weekOffset + 1)}
             disabled={weekOffset >= 0}
-            className="rounded-lg p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-30 disabled:hover:bg-transparent"
+            className="rounded-lg p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-30 disabled:hover:bg-transparent sm:p-2"
             aria-label="Nächste Woche"
           >
             <svg
@@ -1447,253 +1473,460 @@ function WeekTable({
         </div>
       </div>
 
-      {/* Table */}
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-gray-100 text-left text-xs font-medium tracking-wide text-gray-400 uppercase">
-              <th className="px-6 py-3">Tag</th>
-              <th className="px-4 py-3 text-center">Start</th>
-              <th className="px-4 py-3 text-center">Ende</th>
-              <th className="px-4 py-3 text-center">Pause</th>
-              <th className="px-4 py-3 text-center">Netto</th>
-              <th className="px-4 py-3 text-center">Ort</th>
-              <th className="px-4 py-3 text-center">Änderung</th>
-            </tr>
-          </thead>
-          <tbody>
-            {weekDays.map((day, index) => {
-              if (!day) return null;
-              // Skip weekends (Sat=6, Sun=0)
-              if (day.getDay() === 0 || day.getDay() === 6) return null;
-              const dateKey = toISODate(day);
-              const session = sessionMap.get(dateKey);
-              const absence = absenceMap.get(dateKey);
-              const isToday = isSameDay(day, today);
-              const isPast = isBeforeDay(day, today);
-              const isFuture = !isToday && !isPast;
-              const dayName = DAY_NAMES[index];
-              const isActive =
-                isToday &&
-                currentSession !== null &&
-                currentSession.checkOutTime === null;
-              const canEdit =
-                session !== undefined && (isPast || (isToday && !isActive));
-              const hasEdits = (session?.editCount ?? 0) > 0;
-              const isExpanded = expandedSessionId === session?.id;
+      {/* Mobile card layout */}
+      {isMobile ? (
+        <div className="divide-y divide-gray-100 px-4 py-2">
+          {weekDays.map((day, index) => {
+            if (!day) return null;
+            if (day.getDay() === 0 || day.getDay() === 6) return null;
+            const dateKey = toISODate(day);
+            const session = sessionMap.get(dateKey);
+            const absence = absenceMap.get(dateKey);
+            const isToday = isSameDay(day, today);
+            const isPast = isBeforeDay(day, today);
+            const isFuture = !isToday && !isPast;
+            const dayName = DAY_NAMES[index];
+            const isActive =
+              isToday &&
+              currentSession !== null &&
+              currentSession.checkOutTime === null;
+            const canEdit =
+              session !== undefined && (isPast || (isToday && !isActive));
+            const hasEdits = (session?.editCount ?? 0) > 0;
 
-              // Row click: if has edits, toggle accordion; else open edit modal
-              const handleRowClick = () => {
-                if (!canEdit && !hasEdits) return;
-                if (hasEdits && session) {
-                  onToggleExpand(session.id);
-                } else if (canEdit && session) {
-                  onEditDay(day, session);
-                }
-              };
-
-              // Calculate net for active session live (with real break time)
-              let netDisplay = "--";
-              if (session) {
-                if (session.checkOutTime) {
-                  netDisplay = formatDuration(session.netMinutes);
-                } else if (isActive) {
-                  const live = calculateNetMinutes(
-                    session.checkInTime,
-                    new Date().toISOString(),
-                    liveBreakMins,
-                  );
-                  netDisplay = live !== null ? formatDuration(live) : "--";
-                }
+            let netDisplay = "--";
+            if (session) {
+              if (session.checkOutTime) {
+                netDisplay = formatDuration(session.netMinutes);
+              } else if (isActive) {
+                const live = calculateNetMinutes(
+                  session.checkInTime,
+                  new Date().toISOString(),
+                  liveBreakMins,
+                );
+                netDisplay = live !== null ? formatDuration(live) : "--";
               }
+            }
 
-              const warnings = session ? getComplianceWarnings(session) : [];
+            const warnings = session ? getComplianceWarnings(session) : [];
 
-              // If absence covers this day and no session, show absence row
-              if (absence && !session) {
-                const colorClass =
-                  absenceTypeColors[absence.absenceType] ??
-                  "bg-gray-100 text-gray-600";
-                return (
-                  <tr
-                    key={dateKey}
-                    className={`group/row border-b border-gray-50 transition-colors ${isToday ? "bg-blue-50/50" : ""}`}
-                  >
-                    <td className="px-6 py-3 font-medium text-gray-700">
-                      <div className="flex items-center gap-1.5">
-                        <span className="inline-block h-4 w-4 shrink-0" />
-                        {dayName} {formatDateShort(day)}
-                      </div>
-                    </td>
-                    <td colSpan={5} className="px-4 py-3 text-center">
+            // Absence-only card
+            if (absence && !session) {
+              const colorClass =
+                absenceTypeColors[absence.absenceType] ??
+                "bg-gray-100 text-gray-600";
+              return (
+                <div
+                  key={dateKey}
+                  className={`py-3 ${isToday ? "rounded-lg bg-blue-50/50" : ""}`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium text-gray-700">
+                      {dayName} {formatDateShort(day)}
+                    </span>
+                    <div className="flex items-center gap-2">
                       <span
-                        className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium ${colorClass}`}
+                        className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${colorClass}`}
                       >
                         {absenceTypeLabels[absence.absenceType]}
-                        {absence.halfDay && " (halber Tag)"}
-                        {absence.note && (
-                          <span
-                            className="cursor-help opacity-60"
-                            title={absence.note}
-                          >
-                            ℹ
-                          </span>
-                        )}
+                        {absence.halfDay && " (½)"}
                       </span>
-                    </td>
-                    <td className="px-4 py-3 text-center">
                       <button
                         type="button"
                         onClick={() => onDeleteAbsence(absence.id)}
-                        className="text-xs text-gray-400 opacity-0 transition-opacity group-hover/row:opacity-100 hover:text-red-500"
+                        className="text-xs text-gray-400 hover:text-red-500"
                         aria-label="Abwesenheit löschen"
                       >
                         ✕
                       </button>
-                    </td>
-                  </tr>
-                );
-              }
+                    </div>
+                  </div>
+                </div>
+              );
+            }
 
-              return (
-                <React.Fragment key={dateKey}>
-                  <tr
-                    onClick={canEdit || hasEdits ? handleRowClick : undefined}
-                    className={`group/row border-b border-gray-50 transition-colors ${
-                      isToday ? "bg-blue-50/50" : ""
-                    } ${canEdit || hasEdits ? "cursor-pointer hover:bg-gray-50" : ""} ${
-                      isFuture ? "opacity-40" : ""
-                    }`}
-                  >
-                    <td className="px-6 py-3 font-medium text-gray-700">
-                      <div className="flex items-center gap-1.5">
-                        {hasEdits ? (
-                          <ChevronRight
-                            className={`h-4 w-4 shrink-0 text-gray-400 transition-transform ${isExpanded ? "rotate-90" : ""}`}
-                          />
-                        ) : (
-                          <span className="inline-block h-4 w-4 shrink-0" />
-                        )}
-                        {dayName} {formatDateShort(day)}
-                        {absence && (
-                          <span
-                            className={`ml-1 inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium ${absenceTypeColors[absence.absenceType] ?? "bg-gray-100 text-gray-600"}`}
-                          >
-                            {absenceTypeLabels[absence.absenceType]}
-                          </span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-center text-gray-600">
-                      {session ? formatTime(session.checkInTime) : "--:--"}
-                    </td>
-                    <td className="px-4 py-3 text-center text-gray-600">
-                      {session
-                        ? session.checkOutTime
+            // Regular day card
+            return (
+              <div
+                key={dateKey}
+                className={`py-3 ${isToday ? "rounded-lg bg-blue-50/50 px-2" : ""} ${isFuture ? "opacity-40" : ""}`}
+              >
+                {/* Header: day name + status badge */}
+                <div className="mb-2 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-gray-700">
+                      {dayName} {formatDateShort(day)}
+                    </span>
+                    {absence && (
+                      <span
+                        className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium ${absenceTypeColors[absence.absenceType] ?? "bg-gray-100 text-gray-600"}`}
+                      >
+                        {absenceTypeLabels[absence.absenceType]}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {session ? (
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                          isActive
+                            ? "bg-green-100 text-green-700"
+                            : session.status === "home_office"
+                              ? "bg-sky-100 text-sky-700"
+                              : "bg-gray-100 text-gray-600"
+                        }`}
+                      >
+                        {isActive
+                          ? "aktiv"
+                          : session.status === "home_office"
+                            ? "HO"
+                            : "OGS"}
+                      </span>
+                    ) : null}
+                    {canEdit && session && (
+                      <button
+                        type="button"
+                        onClick={() => onEditDay(day, session)}
+                        aria-label="Eintrag bearbeiten"
+                      >
+                        <SquarePen className="h-3.5 w-3.5 text-gray-300" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* 2x2 data grid */}
+                {session ? (
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+                    <div>
+                      <span className="text-gray-400">Start</span>
+                      <p className="font-medium text-gray-600 tabular-nums">
+                        {formatTime(session.checkInTime)}
+                      </p>
+                    </div>
+                    <div>
+                      <span className="text-gray-400">Ende</span>
+                      <p className="font-medium text-gray-600 tabular-nums">
+                        {session.checkOutTime
                           ? formatTime(session.checkOutTime)
                           : isActive
                             ? "···"
-                            : "--:--"
-                        : "--:--"}
-                    </td>
-                    <td className="px-4 py-3 text-center text-gray-600">
-                      {session && session.breakMinutes > 0
-                        ? `${session.breakMinutes}`
-                        : "--"}
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      <span className="font-medium text-gray-700">
+                            : "--:--"}
+                      </p>
+                    </div>
+                    <div>
+                      <span className="text-gray-400">Pause</span>
+                      <p className="font-medium text-gray-600 tabular-nums">
+                        {session.breakMinutes > 0
+                          ? `${session.breakMinutes} Min`
+                          : "--"}
+                      </p>
+                    </div>
+                    <div>
+                      <span className="text-gray-400">Netto</span>
+                      <p className="flex items-center gap-1 font-medium text-gray-700 tabular-nums">
                         {netDisplay}
-                      </span>
-                      {warnings.length > 0 && (
-                        <span
-                          className="ml-1 cursor-help text-amber-500"
-                          title={warnings.join("\n")}
-                        >
-                          ⚠
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      {session ? (
-                        <span
-                          className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
-                            isActive
-                              ? "bg-green-100 text-green-700"
-                              : session.status === "home_office"
-                                ? "bg-sky-100 text-sky-700"
-                                : "bg-gray-100 text-gray-600"
-                          }`}
-                        >
-                          {isActive
-                            ? "aktiv"
-                            : session.status === "home_office"
-                              ? "Homeoffice"
-                              : "In der OGS"}
-                        </span>
-                      ) : isFuture ? null : (
-                        <span className="text-gray-300">—</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      {hasEdits && session ? (
-                        <span className="text-xs text-gray-500">
-                          Zuletzt geändert{" "}
-                          {formatDateTime(new Date(session.updatedAt))}
-                        </span>
-                      ) : (
-                        <div className="flex items-center justify-center">
-                          {canEdit && session && (
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                onEditDay(day, session);
-                              }}
-                              className="opacity-0 transition-opacity group-hover/row:opacity-100"
-                              aria-label="Eintrag bearbeiten"
-                            >
-                              <SquarePen className="h-3.5 w-3.5 text-gray-300" />
-                            </button>
-                          )}
+                        {warnings.length > 0 && (
+                          <span
+                            className="cursor-help text-amber-500"
+                            title={warnings.join("\n")}
+                          >
+                            ⚠
+                          </span>
+                        )}
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  !isFuture && (
+                    <p className="text-xs text-gray-300">Kein Eintrag</p>
+                  )
+                )}
+
+                {/* Edit history footer */}
+                {hasEdits && session && (
+                  <button
+                    type="button"
+                    onClick={() => onToggleExpand(session.id)}
+                    className="mt-2 flex w-full items-center gap-1 border-t border-gray-50 pt-2 text-[10px] text-gray-400"
+                  >
+                    <ChevronRight
+                      className={`h-3 w-3 transition-transform ${expandedSessionId === session.id ? "rotate-90" : ""}`}
+                    />
+                    Geändert {formatDateTime(new Date(session.updatedAt))}
+                  </button>
+                )}
+                {expandedSessionId === session?.id && session && (
+                  <div className="mt-2 rounded-lg bg-gray-50 p-3">
+                    <EditHistoryAccordion
+                      edits={expandedEdits}
+                      isLoading={editsLoading}
+                      onEdit={
+                        canEdit ? () => onEditDay(day, session) : undefined
+                      }
+                    />
+                  </div>
+                )}
+              </div>
+            );
+          })}
+
+          {/* Weekly total card */}
+          <div className="flex items-center justify-between py-3">
+            <span className="text-sm font-medium text-gray-500">
+              Woche gesamt
+            </span>
+            <span className="text-sm font-bold text-gray-700">
+              {isLoading ? "..." : formatDuration(weeklyNetMinutes)}
+            </span>
+          </div>
+        </div>
+      ) : (
+        /* Desktop table */
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-gray-100 text-left text-xs font-medium tracking-wide text-gray-400 uppercase">
+                <th className="px-6 py-3">Tag</th>
+                <th className="px-4 py-3 text-center">Start</th>
+                <th className="px-4 py-3 text-center">Ende</th>
+                <th className="px-4 py-3 text-center">Pause</th>
+                <th className="px-4 py-3 text-center">Netto</th>
+                <th className="px-4 py-3 text-center">Ort</th>
+                <th className="px-4 py-3 text-center">Änderung</th>
+              </tr>
+            </thead>
+            <tbody>
+              {weekDays.map((day, index) => {
+                if (!day) return null;
+                if (day.getDay() === 0 || day.getDay() === 6) return null;
+                const dateKey = toISODate(day);
+                const session = sessionMap.get(dateKey);
+                const absence = absenceMap.get(dateKey);
+                const isToday = isSameDay(day, today);
+                const isPast = isBeforeDay(day, today);
+                const isFuture = !isToday && !isPast;
+                const dayName = DAY_NAMES[index];
+                const isActive =
+                  isToday &&
+                  currentSession !== null &&
+                  currentSession.checkOutTime === null;
+                const canEdit =
+                  session !== undefined && (isPast || (isToday && !isActive));
+                const hasEdits = (session?.editCount ?? 0) > 0;
+                const isExpanded = expandedSessionId === session?.id;
+
+                const handleRowClick = () => {
+                  if (!canEdit && !hasEdits) return;
+                  if (hasEdits && session) {
+                    onToggleExpand(session.id);
+                  } else if (canEdit && session) {
+                    onEditDay(day, session);
+                  }
+                };
+
+                let netDisplay = "--";
+                if (session) {
+                  if (session.checkOutTime) {
+                    netDisplay = formatDuration(session.netMinutes);
+                  } else if (isActive) {
+                    const live = calculateNetMinutes(
+                      session.checkInTime,
+                      new Date().toISOString(),
+                      liveBreakMins,
+                    );
+                    netDisplay = live !== null ? formatDuration(live) : "--";
+                  }
+                }
+
+                const warnings = session ? getComplianceWarnings(session) : [];
+
+                if (absence && !session) {
+                  const colorClass =
+                    absenceTypeColors[absence.absenceType] ??
+                    "bg-gray-100 text-gray-600";
+                  return (
+                    <tr
+                      key={dateKey}
+                      className={`group/row border-b border-gray-50 transition-colors ${isToday ? "bg-blue-50/50" : ""}`}
+                    >
+                      <td className="px-6 py-3 font-medium text-gray-700">
+                        <div className="flex items-center gap-1.5">
+                          <span className="inline-block h-4 w-4 shrink-0" />
+                          {dayName} {formatDateShort(day)}
                         </div>
-                      )}
-                    </td>
-                  </tr>
-                  {/* Accordion row for edit history */}
-                  {isExpanded && session && (
-                    <tr className="border-b border-gray-50 bg-gray-50/50">
-                      <td colSpan={7} className="px-6 py-3">
-                        <EditHistoryAccordion
-                          edits={expandedEdits}
-                          isLoading={editsLoading}
-                          onEdit={
-                            canEdit ? () => onEditDay(day, session) : undefined
-                          }
-                        />
+                      </td>
+                      <td colSpan={5} className="px-4 py-3 text-center">
+                        <span
+                          className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium ${colorClass}`}
+                        >
+                          {absenceTypeLabels[absence.absenceType]}
+                          {absence.halfDay && " (halber Tag)"}
+                          {absence.note && (
+                            <span
+                              className="cursor-help opacity-60"
+                              title={absence.note}
+                            >
+                              ℹ
+                            </span>
+                          )}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <button
+                          type="button"
+                          onClick={() => onDeleteAbsence(absence.id)}
+                          className="text-xs text-gray-400 opacity-0 transition-opacity group-hover/row:opacity-100 hover:text-red-500"
+                          aria-label="Abwesenheit löschen"
+                        >
+                          ✕
+                        </button>
                       </td>
                     </tr>
-                  )}
-                </React.Fragment>
-              );
-            })}
-          </tbody>
-          <tfoot>
-            <tr className="border-t border-gray-200 bg-gray-50/50">
-              <td
-                colSpan={4}
-                className="px-6 py-3 text-right text-sm font-medium text-gray-500"
-              >
-                Woche gesamt
-              </td>
-              <td className="px-4 py-3 text-center text-sm font-bold text-gray-700">
-                {isLoading ? "..." : formatDuration(weeklyNetMinutes)}
-              </td>
-              <td colSpan={3} />
-            </tr>
-          </tfoot>
-        </table>
-      </div>
+                  );
+                }
+
+                return (
+                  <React.Fragment key={dateKey}>
+                    <tr
+                      onClick={canEdit || hasEdits ? handleRowClick : undefined}
+                      className={`group/row border-b border-gray-50 transition-colors ${
+                        isToday ? "bg-blue-50/50" : ""
+                      } ${canEdit || hasEdits ? "cursor-pointer hover:bg-gray-50" : ""} ${
+                        isFuture ? "opacity-40" : ""
+                      }`}
+                    >
+                      <td className="px-6 py-3 font-medium text-gray-700">
+                        <div className="flex items-center gap-1.5">
+                          {hasEdits ? (
+                            <ChevronRight
+                              className={`h-4 w-4 shrink-0 text-gray-400 transition-transform ${isExpanded ? "rotate-90" : ""}`}
+                            />
+                          ) : (
+                            <span className="inline-block h-4 w-4 shrink-0" />
+                          )}
+                          {dayName} {formatDateShort(day)}
+                          {absence && (
+                            <span
+                              className={`ml-1 inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium ${absenceTypeColors[absence.absenceType] ?? "bg-gray-100 text-gray-600"}`}
+                            >
+                              {absenceTypeLabels[absence.absenceType]}
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-center text-gray-600">
+                        {session ? formatTime(session.checkInTime) : "--:--"}
+                      </td>
+                      <td className="px-4 py-3 text-center text-gray-600">
+                        {session
+                          ? session.checkOutTime
+                            ? formatTime(session.checkOutTime)
+                            : isActive
+                              ? "···"
+                              : "--:--"
+                          : "--:--"}
+                      </td>
+                      <td className="px-4 py-3 text-center text-gray-600">
+                        {session && session.breakMinutes > 0
+                          ? `${session.breakMinutes}`
+                          : "--"}
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <span className="font-medium text-gray-700">
+                          {netDisplay}
+                        </span>
+                        {warnings.length > 0 && (
+                          <span
+                            className="ml-1 cursor-help text-amber-500"
+                            title={warnings.join("\n")}
+                          >
+                            ⚠
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        {session ? (
+                          <span
+                            className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
+                              isActive
+                                ? "bg-green-100 text-green-700"
+                                : session.status === "home_office"
+                                  ? "bg-sky-100 text-sky-700"
+                                  : "bg-gray-100 text-gray-600"
+                            }`}
+                          >
+                            {isActive
+                              ? "aktiv"
+                              : session.status === "home_office"
+                                ? "Homeoffice"
+                                : "In der OGS"}
+                          </span>
+                        ) : isFuture ? null : (
+                          <span className="text-gray-300">—</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        {hasEdits && session ? (
+                          <span className="text-xs text-gray-500">
+                            Zuletzt geändert{" "}
+                            {formatDateTime(new Date(session.updatedAt))}
+                          </span>
+                        ) : (
+                          <div className="flex items-center justify-center">
+                            {canEdit && session && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onEditDay(day, session);
+                                }}
+                                className="opacity-0 transition-opacity group-hover/row:opacity-100"
+                                aria-label="Eintrag bearbeiten"
+                              >
+                                <SquarePen className="h-3.5 w-3.5 text-gray-300" />
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                    {isExpanded && session && (
+                      <tr className="border-b border-gray-50 bg-gray-50/50">
+                        <td colSpan={7} className="px-6 py-3">
+                          <EditHistoryAccordion
+                            edits={expandedEdits}
+                            isLoading={editsLoading}
+                            onEdit={
+                              canEdit
+                                ? () => onEditDay(day, session)
+                                : undefined
+                            }
+                          />
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
+                );
+              })}
+            </tbody>
+            <tfoot>
+              <tr className="border-t border-gray-200 bg-gray-50/50">
+                <td
+                  colSpan={4}
+                  className="px-6 py-3 text-right text-sm font-medium text-gray-500"
+                >
+                  Woche gesamt
+                </td>
+                <td className="px-4 py-3 text-center text-sm font-bold text-gray-700">
+                  {isLoading ? "..." : formatDuration(weeklyNetMinutes)}
+                </td>
+                <td colSpan={3} />
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      )}
     </div>
   );
 }
@@ -2706,7 +2939,7 @@ function TimeTrackingContent() {
       </h1>
 
       {/* Clock-in card + Week chart */}
-      <div className="mb-6 grid grid-cols-1 gap-6 md:grid-cols-2">
+      <div className="mb-4 grid grid-cols-1 gap-4 md:mb-6 md:grid-cols-2 md:gap-6">
         <ClockInCard
           currentSession={currentSession ?? null}
           breaks={currentBreaks}
