@@ -700,3 +700,101 @@ func TestSchulhofService_GetOrCreateActiveGroup_IgnoresEndedGroups(t *testing.T)
 	// Cleanup
 	testpkg.CleanupActivityFixtures(t, db, activeGroup.ID)
 }
+
+// TestSchulhofService_GetSchulhofStatus_SkipsEndedSupervisions verifies that ended
+// supervisions are excluded from the status response.
+func TestSchulhofService_GetSchulhofStatus_SkipsEndedSupervisions(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupSchulhofService(t, db)
+	ctx := context.Background()
+
+	staff1 := testpkg.CreateTestStaff(t, db, "Active", "Supervisor")
+	staff2 := testpkg.CreateTestStaff(t, db, "Ended", "Supervisor")
+	defer testpkg.CleanupActivityFixtures(t, db, staff1.ID, staff2.ID)
+
+	// Ensure infrastructure
+	activityGroup, err := service.EnsureInfrastructure(ctx, staff1.ID)
+	require.NoError(t, err)
+	defer testpkg.CleanupActivityFixtures(t, db, activityGroup.ID, activityGroup.CategoryID, *activityGroup.PlannedRoomID)
+
+	// End all existing active groups for this room
+	_, err = db.NewUpdate().
+		Model((*active.Group)(nil)).
+		ModelTableExpr(`active.groups AS "group"`).
+		Set("end_time = ?", time.Now()).
+		Where(`"group".room_id = ? AND "group".end_time IS NULL`, *activityGroup.PlannedRoomID).
+		Exec(ctx)
+	require.NoError(t, err)
+
+	// Create fresh active group
+	activeGroup, err := service.GetOrCreateActiveGroup(ctx, staff1.ID)
+	require.NoError(t, err)
+	defer testpkg.CleanupActivityFixtures(t, db, activeGroup.ID)
+
+	// Add active supervisor
+	supervisor1 := testpkg.CreateTestGroupSupervisor(t, db, staff1.ID, activeGroup.ID, "supervisor")
+	defer testpkg.CleanupActivityFixtures(t, db, supervisor1.ID)
+
+	// Add supervisor with end_date (should be excluded)
+	supervisor2 := testpkg.CreateTestGroupSupervisor(t, db, staff2.ID, activeGroup.ID, "supervisor")
+	defer testpkg.CleanupActivityFixtures(t, db, supervisor2.ID)
+
+	// Set end_date on supervisor2 to mark it as ended
+	endTime := time.Now()
+	_, err = db.NewUpdate().
+		Model((*active.GroupSupervisor)(nil)).
+		ModelTableExpr(`active.group_supervisors AS "supervisor"`).
+		Set("end_date = ?", endTime).
+		Where(`"supervisor".id = ?`, supervisor2.ID).
+		Exec(ctx)
+	require.NoError(t, err)
+
+	// ACT
+	status, err := service.GetSchulhofStatus(ctx, staff1.ID)
+
+	// ASSERT
+	require.NoError(t, err)
+	require.NotNil(t, status)
+	// Should only count the active supervisor (staff1), not the ended one (staff2)
+	assert.Equal(t, 1, status.SupervisorCount, "Ended supervisors should be excluded from count")
+	assert.Len(t, status.Supervisors, 1, "Ended supervisors should be excluded from list")
+	assert.Equal(t, staff1.ID, status.Supervisors[0].StaffID)
+}
+
+// TestSchulhofService_ToggleSupervision_StopAction verifies that stopping
+// supervision correctly ends the user's supervision record.
+func TestSchulhofService_ToggleSupervision_StopAction(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupSchulhofService(t, db)
+	ctx := context.Background()
+
+	staff := testpkg.CreateTestStaff(t, db, "Stop", "Supervisor")
+	defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
+
+	// First, start supervision
+	startResult, err := service.ToggleSupervision(ctx, staff.ID, "start")
+	require.NoError(t, err)
+	require.NotNil(t, startResult)
+	assert.True(t, startResult.IsSupervising)
+	assert.NotNil(t, startResult.SupervisionID)
+	supervisionID := *startResult.SupervisionID
+
+	// Now stop supervision
+	stopResult, err := service.ToggleSupervision(ctx, staff.ID, "stop")
+	require.NoError(t, err)
+	require.NotNil(t, stopResult)
+	assert.False(t, stopResult.IsSupervising)
+
+	// Verify the supervision was actually ended in the database
+	var supervision active.GroupSupervisor
+	err = db.NewSelect().
+		Model(&supervision).
+		Where("id = ?", supervisionID).
+		Scan(ctx)
+	require.NoError(t, err)
+	assert.NotNil(t, supervision.EndDate, "Supervision should have end_date set")
+}
