@@ -324,7 +324,7 @@ function ClockInCard({
                 isOnBreak
                   ? "bg-amber-100 text-amber-700"
                   : currentSession.status === "home_office"
-                    ? "bg-amber-100 text-amber-700"
+                    ? "bg-sky-100 text-sky-700"
                     : "bg-[#83CD2D]/10 text-[#70b525]"
               }`}
             >
@@ -356,7 +356,7 @@ function ClockInCard({
                 onClick={() => setMode("home_office")}
                 className={`rounded-full px-4 py-1.5 text-xs font-medium transition-all ${
                   mode === "home_office"
-                    ? "bg-amber-100 text-amber-800 ring-1 ring-amber-300"
+                    ? "bg-sky-100 text-sky-700 ring-1 ring-sky-300"
                     : "bg-gray-100 text-gray-500 hover:bg-gray-200"
                 }`}
               >
@@ -370,7 +370,7 @@ function ClockInCard({
               disabled={actionLoading}
               className={`flex h-16 w-16 items-center justify-center rounded-full border-2 transition-all active:scale-95 disabled:opacity-50 ${
                 mode === "home_office"
-                  ? "border-amber-500 text-amber-500 hover:bg-amber-50"
+                  ? "border-sky-500 text-sky-500 hover:bg-sky-50"
                   : "border-[#83CD2D] text-[#83CD2D] hover:bg-[#83CD2D]/5"
               }`}
               aria-label="Einstempeln"
@@ -851,11 +851,20 @@ function WeekChart({
 
   return (
     <div className="relative flex h-full flex-col overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)]">
-      <div className="relative flex min-h-0 flex-1 flex-col p-6 sm:p-8">
-        <h2 className="mb-4 text-lg font-bold text-gray-900">
-          Wochenübersicht
-        </h2>
-        <ChartContainer config={weekChartConfig} className="min-h-0 flex-1">
+      <div className="flex min-h-0 flex-1 flex-col p-6 sm:p-8">
+        <div className="mb-4 flex items-baseline justify-between">
+          <h2 className="text-lg font-bold text-gray-900">Wochenübersicht</h2>
+          {chartData.length > 0 && (
+            <span className="text-xs text-gray-400">
+              {chartData[0]?.label?.split(" ")[1] ?? ""} –{" "}
+              {chartData[chartData.length - 1]?.label?.split(" ")[1] ?? ""}
+            </span>
+          )}
+        </div>
+        <ChartContainer
+          config={weekChartConfig}
+          className="!aspect-auto min-h-0 flex-1"
+        >
           <BarChart
             accessibilityLayer
             data={chartData}
@@ -1049,6 +1058,8 @@ function WeekTable({
           <tbody>
             {weekDays.map((day, index) => {
               if (!day) return null;
+              // Skip weekends (Sat=6, Sun=0)
+              if (day.getDay() === 0 || day.getDay() === 6) return null;
               const dateKey = toISODate(day);
               const session = sessionMap.get(dateKey);
               const isToday = isSameDay(day, today);
@@ -1129,7 +1140,7 @@ function WeekTable({
                           isActive
                             ? "bg-green-100 text-green-700"
                             : session.status === "home_office"
-                              ? "bg-amber-100 text-amber-700"
+                              ? "bg-sky-100 text-sky-700"
                               : "bg-gray-100 text-gray-600"
                         }`}
                       >
