@@ -2964,7 +2964,7 @@ describe("Location string construction", () => {
   });
 
   it("uses default when room name is empty", () => {
-    const roomName = "";
+    const roomName = "" as string;
     const location = roomName ? `Anwesend - ${roomName}` : "Anwesend";
 
     expect(location).toBe("Anwesend");
@@ -3078,7 +3078,6 @@ describe("Page header title logic", () => {
   it("shows empty string on desktop", () => {
     const isDesktop = true;
     const allRooms = [{ room_name: "Mensa" }];
-    const schulhofStatus = { exists: false };
 
     const title =
       !isDesktop && allRooms.length === 1 ? allRooms[0]?.room_name ?? "" : "";
@@ -3255,7 +3254,7 @@ describe("First room visits application guard", () => {
   });
 
   it("does not apply first room visits for other rooms", () => {
-    const selectedRoomIndex = 1;
+    const selectedRoomIndex = 1 as number;
     const firstRoomVisits = [{ id: "v1" }];
 
     const shouldApplyFirstRoomVisits =
