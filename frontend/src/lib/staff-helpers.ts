@@ -54,33 +54,23 @@ export function getStaffLocationStatus(staff: Staff): LocationStatus {
     return {
       label: "Homeoffice",
       badgeColor: "text-white backdrop-blur-sm",
-      cardGradient: "from-indigo-50/80 to-violet-100/80",
-      customBgColor: "#6366F1",
-      customShadow: "0 8px 25px rgba(99, 102, 241, 0.4)",
+      cardGradient: "from-sky-50/80 to-sky-100/80",
+      customBgColor: "#0EA5E9",
+      customShadow: "0 8px 25px rgba(14, 165, 233, 0.4)",
     };
-  } else if (location === "Krank") {
+  } else if (
+    location === "Krank" ||
+    location === "Urlaub" ||
+    location === "Fortbildung" ||
+    location === "Abwesend"
+  ) {
+    // All absence types use a unified gray badge (text label differentiates)
     return {
-      label: "Krank",
+      label: location,
       badgeColor: "text-white backdrop-blur-sm",
-      cardGradient: "from-amber-50/80 to-yellow-100/80",
-      customBgColor: "#EAB308",
-      customShadow: "0 8px 25px rgba(234, 179, 8, 0.4)",
-    };
-  } else if (location === "Urlaub") {
-    return {
-      label: "Urlaub",
-      badgeColor: "text-white backdrop-blur-sm",
-      cardGradient: "from-cyan-50/80 to-sky-100/80",
-      customBgColor: "#06B6D4",
-      customShadow: "0 8px 25px rgba(6, 182, 212, 0.4)",
-    };
-  } else if (location === "Fortbildung") {
-    return {
-      label: "Fortbildung",
-      badgeColor: "text-white backdrop-blur-sm",
-      cardGradient: "from-violet-50/80 to-purple-100/80",
-      customBgColor: "#8B5CF6",
-      customShadow: "0 8px 25px rgba(139, 92, 246, 0.4)",
+      cardGradient: "from-gray-50/80 to-slate-100/80",
+      customBgColor: "#6B7280",
+      customShadow: "0 8px 25px rgba(107, 114, 128, 0.4)",
     };
   } else {
     // Specific room - use blue/cyan color

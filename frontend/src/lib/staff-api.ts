@@ -171,10 +171,10 @@ const absenceLabels: Record<string, string> = {
  * Determines location and supervision info for a staff member.
  *
  * Priority hierarchy:
- * 1. Checked out today → "Zuhause" (authoritative, ignores stale supervisions)
- * 2. Active supervision → Room name (blue) / "N Räume" / "Unterwegs" (magenta)
- * 3. Active work session → "Anwesend" (present) / "Homeoffice" (home_office)
- * 4. Absence today → "Krank" / "Urlaub" / "Fortbildung"
+ * 1. Absence today → "Krank" / "Urlaub" / "Fortbildung" / "Abwesend" (overrides everything)
+ * 2. Checked out → "Zuhause" (overrides supervision — staff left)
+ * 3. Active supervision → Room name / "N Räume" / "Unterwegs" (more precise than "Anwesend")
+ * 4. Time clock (present/home_office) → "Anwesend" / "Homeoffice"
  * 5. Default → "Zuhause"
  */
 function getSupervisionInfo(
@@ -188,12 +188,20 @@ function getSupervisionInfo(
   currentLocation: string;
   supervisionRole?: string;
 } {
-  // Priority 1: Checked out today → "Zuhause" (overrides everything)
+  // Priority 1: Absence today → overrides everything
+  if (absenceType && absenceLabels[absenceType]) {
+    return {
+      isSupervising: false,
+      currentLocation: absenceLabels[absenceType],
+    };
+  }
+
+  // Priority 2: Checked out → "Zuhause" (staff left, overrides stale supervision)
   if (workStatus === "checked_out") {
     return { isSupervising: false, currentLocation: "Zuhause" };
   }
 
-  // Priority 2: Active supervision → room(s)
+  // Priority 3: Active supervision → room(s) (more precise than generic "Anwesend")
   if (staffId) {
     const supervisedGroups = staffGroupsMap[staffId];
     if (supervisedGroups) {
@@ -220,20 +228,12 @@ function getSupervisionInfo(
     }
   }
 
-  // Priority 3: Active work session → "Anwesend" or "Homeoffice"
+  // Priority 4: Time clock → "Anwesend" or "Homeoffice"
   if (workStatus === "present") {
     return { isSupervising: false, currentLocation: "Anwesend" };
   }
   if (workStatus === "home_office") {
     return { isSupervising: false, currentLocation: "Homeoffice" };
-  }
-
-  // Priority 4: Absence today
-  if (absenceType && absenceLabels[absenceType]) {
-    return {
-      isSupervising: false,
-      currentLocation: absenceLabels[absenceType],
-    };
   }
 
   // Legacy fallback: wasPresentToday from supervision data (for backward compatibility)
