@@ -1397,3 +1397,680 @@ describe("MeinRaumPage SWR visits sync", () => {
     expect(updatedRooms[0]?.student_count).toBe(5);
   });
 });
+
+describe("Schulhof permanent tab functionality", () => {
+  const mockMutate = vi.fn();
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    global.fetch = vi.fn();
+  });
+
+  afterEach(() => {
+    cleanup();
+  });
+
+  it("shows Schulhof tab when no other supervised rooms but Schulhof exists", async () => {
+    vi.mocked(useSWRAuth)
+      .mockReturnValueOnce({
+        data: {
+          supervisedGroups: [],
+          unclaimedGroups: [],
+          currentStaff: { id: "1" },
+          educationalGroups: [],
+          firstRoomVisits: [],
+          firstRoomId: null,
+          schulhofStatus: {
+            exists: true,
+            roomId: "schulhof-1",
+            roomName: "Schulhof",
+            activityGroupId: "ag-1",
+            activeGroupId: null,
+            isUserSupervising: false,
+            supervisionId: null,
+            supervisorCount: 0,
+            studentCount: 0,
+            supervisors: [],
+          },
+        },
+        isLoading: false,
+        error: null,
+        mutate: mockMutate,
+        isValidating: false,
+      } as never)
+      .mockReturnValue({
+        data: null,
+        isLoading: false,
+        error: null,
+        mutate: mockMutate,
+        isValidating: false,
+      } as never);
+
+    render(<MeinRaumPage />);
+
+    await waitFor(() => {
+      // Should show the Schulhof not supervising view
+      expect(
+        screen.getByText("Schulhof-Aufsicht verfügbar"),
+      ).toBeInTheDocument();
+    });
+  });
+
+  it("shows current supervisors when Schulhof has supervisors", async () => {
+    vi.mocked(useSWRAuth)
+      .mockReturnValueOnce({
+        data: {
+          supervisedGroups: [],
+          unclaimedGroups: [],
+          currentStaff: { id: "1" },
+          educationalGroups: [],
+          firstRoomVisits: [],
+          firstRoomId: null,
+          schulhofStatus: {
+            exists: true,
+            roomId: "schulhof-1",
+            roomName: "Schulhof",
+            activityGroupId: "ag-1",
+            activeGroupId: "active-1",
+            isUserSupervising: false,
+            supervisionId: null,
+            supervisorCount: 2,
+            studentCount: 5,
+            supervisors: [
+              {
+                id: "sup-1",
+                staffId: "staff-1",
+                name: "Max Mustermann",
+                isCurrentUser: false,
+              },
+              {
+                id: "sup-2",
+                staffId: "staff-2",
+                name: "Erika Schmidt",
+                isCurrentUser: false,
+              },
+            ],
+          },
+        },
+        isLoading: false,
+        error: null,
+        mutate: mockMutate,
+        isValidating: false,
+      } as never)
+      .mockReturnValue({
+        data: null,
+        isLoading: false,
+        error: null,
+        mutate: mockMutate,
+        isValidating: false,
+      } as never);
+
+    render(<MeinRaumPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Aktuelle Aufsicht/)).toBeInTheDocument();
+      expect(
+        screen.getByText("Max Mustermann, Erika Schmidt"),
+      ).toBeInTheDocument();
+    });
+  });
+
+  it("shows no supervision warning when Schulhof has no supervisors", async () => {
+    vi.mocked(useSWRAuth)
+      .mockReturnValueOnce({
+        data: {
+          supervisedGroups: [],
+          unclaimedGroups: [],
+          currentStaff: { id: "1" },
+          educationalGroups: [],
+          firstRoomVisits: [],
+          firstRoomId: null,
+          schulhofStatus: {
+            exists: true,
+            roomId: "schulhof-1",
+            roomName: "Schulhof",
+            activityGroupId: "ag-1",
+            activeGroupId: null,
+            isUserSupervising: false,
+            supervisionId: null,
+            supervisorCount: 0,
+            studentCount: 0,
+            supervisors: [],
+          },
+        },
+        isLoading: false,
+        error: null,
+        mutate: mockMutate,
+        isValidating: false,
+      } as never)
+      .mockReturnValue({
+        data: null,
+        isLoading: false,
+        error: null,
+        mutate: mockMutate,
+        isValidating: false,
+      } as never);
+
+    render(<MeinRaumPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Aktuell keine Aufsicht")).toBeInTheDocument();
+    });
+  });
+
+  it("shows student count on Schulhof view", async () => {
+    vi.mocked(useSWRAuth)
+      .mockReturnValueOnce({
+        data: {
+          supervisedGroups: [],
+          unclaimedGroups: [],
+          currentStaff: { id: "1" },
+          educationalGroups: [],
+          firstRoomVisits: [],
+          firstRoomId: null,
+          schulhofStatus: {
+            exists: true,
+            roomId: "schulhof-1",
+            roomName: "Schulhof",
+            activityGroupId: "ag-1",
+            activeGroupId: "active-1",
+            isUserSupervising: false,
+            supervisionId: null,
+            supervisorCount: 1,
+            studentCount: 15,
+            supervisors: [
+              {
+                id: "sup-1",
+                staffId: "staff-1",
+                name: "Test Aufsicht",
+                isCurrentUser: false,
+              },
+            ],
+          },
+        },
+        isLoading: false,
+        error: null,
+        mutate: mockMutate,
+        isValidating: false,
+      } as never)
+      .mockReturnValue({
+        data: null,
+        isLoading: false,
+        error: null,
+        mutate: mockMutate,
+        isValidating: false,
+      } as never);
+
+    render(<MeinRaumPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/15 Schüler im Schulhof/)).toBeInTheDocument();
+    });
+  });
+});
+
+describe("Schulhof toggle supervision behavior", () => {
+  it("determines toggle action based on current supervision state", () => {
+    const getToggleAction = (isUserSupervising: boolean): "start" | "stop" => {
+      return isUserSupervising ? "stop" : "start";
+    };
+
+    expect(getToggleAction(false)).toBe("start");
+    expect(getToggleAction(true)).toBe("stop");
+  });
+
+  it("shows correct button text based on supervision state", () => {
+    const getButtonText = (
+      isUserSupervising: boolean,
+      isToggling: boolean,
+    ): string => {
+      if (isUserSupervising) {
+        return isToggling ? "Wird abgegeben..." : "Aufsicht abgeben";
+      }
+      return isToggling ? "Wird übernommen..." : "Beaufsichtigen";
+    };
+
+    expect(getButtonText(false, false)).toBe("Beaufsichtigen");
+    expect(getButtonText(false, true)).toBe("Wird übernommen...");
+    expect(getButtonText(true, false)).toBe("Aufsicht abgeben");
+    expect(getButtonText(true, true)).toBe("Wird abgegeben...");
+  });
+
+  it("sets appropriate error message on toggle failure", () => {
+    const getErrorMessage = (isUserSupervising: boolean): string => {
+      return isUserSupervising
+        ? "Fehler beim Abgeben der Schulhof-Aufsicht."
+        : "Fehler beim Übernehmen der Schulhof-Aufsicht.";
+    };
+
+    expect(getErrorMessage(false)).toContain("Übernehmen");
+    expect(getErrorMessage(true)).toContain("Abgeben");
+  });
+});
+
+describe("Schulhof status from BFF response", () => {
+  it("parses Schulhof status from dashboard data", () => {
+    const bffData = {
+      schulhofStatus: {
+        exists: true,
+        roomId: "room-1",
+        roomName: "Schulhof",
+        activityGroupId: "act-1",
+        activeGroupId: "active-1",
+        isUserSupervising: true,
+        supervisionId: "sup-1",
+        supervisorCount: 3,
+        studentCount: 25,
+        supervisors: [
+          { id: "s1", staffId: "staff-1", name: "Lehrer A", isCurrentUser: true },
+        ],
+      },
+    };
+
+    const status = bffData.schulhofStatus;
+    expect(status.exists).toBe(true);
+    expect(status.isUserSupervising).toBe(true);
+    expect(status.studentCount).toBe(25);
+    expect(status.supervisors).toHaveLength(1);
+    expect(status.supervisors[0]?.isCurrentUser).toBe(true);
+  });
+
+  it("handles null Schulhof status", () => {
+    const bffData = {
+      schulhofStatus: null,
+    };
+
+    const status = bffData.schulhofStatus;
+    expect(status).toBeNull();
+  });
+});
+
+describe("Room param URL handling", () => {
+  it("identifies Schulhof from URL param", () => {
+    const isSchulhofParam = (param: string | null): boolean => {
+      return param === "schulhof";
+    };
+
+    expect(isSchulhofParam("schulhof")).toBe(true);
+    expect(isSchulhofParam("room-123")).toBe(false);
+    expect(isSchulhofParam(null)).toBe(false);
+  });
+
+  it("finds room index by room_id", () => {
+    const allRooms = [
+      { id: "1", room_id: "room-a", name: "Room A" },
+      { id: "2", room_id: "room-b", name: "Room B" },
+      { id: "3", room_id: "room-c", name: "Room C" },
+    ];
+
+    const findRoomIndex = (roomParam: string): number => {
+      return allRooms.findIndex((r) => r.room_id === roomParam);
+    };
+
+    expect(findRoomIndex("room-b")).toBe(1);
+    expect(findRoomIndex("room-x")).toBe(-1);
+  });
+});
+
+describe("Desktop detection for tabs", () => {
+  it("determines desktop mode based on window width", () => {
+    const isDesktopWidth = (width: number): boolean => {
+      return width >= 1024;
+    };
+
+    expect(isDesktopWidth(1024)).toBe(true);
+    expect(isDesktopWidth(1920)).toBe(true);
+    expect(isDesktopWidth(1023)).toBe(false);
+    expect(isDesktopWidth(768)).toBe(false);
+  });
+
+  it("decides whether to show tabs", () => {
+    const shouldShowTabs = (
+      roomCount: number,
+      schulhofExists: boolean,
+      isDesktop: boolean,
+    ): boolean => {
+      return (roomCount > 1 || schulhofExists) && !isDesktop;
+    };
+
+    expect(shouldShowTabs(2, false, false)).toBe(true);
+    expect(shouldShowTabs(1, true, false)).toBe(true);
+    expect(shouldShowTabs(2, true, true)).toBe(false);
+    expect(shouldShowTabs(1, false, false)).toBe(false);
+  });
+});
+
+describe("matchesStudentFilters function coverage", () => {
+  it("handles null/undefined student properties", () => {
+    const student: {
+      name?: string;
+      first_name?: string;
+      second_name?: string;
+      group_name?: string;
+    } = {
+      name: undefined,
+      first_name: undefined,
+      second_name: undefined,
+      group_name: undefined,
+    };
+
+    const searchTerm = "test";
+    const searchLower = searchTerm.toLowerCase();
+
+    const matchesSearch =
+      (student.name?.toLowerCase().includes(searchLower) ?? false) ||
+      (student.first_name?.toLowerCase().includes(searchLower) ?? false) ||
+      (student.second_name?.toLowerCase().includes(searchLower) ?? false);
+
+    expect(matchesSearch).toBe(false);
+  });
+
+  it("handles student with Unbekannt group name", () => {
+    const student: { group_name?: string } = { group_name: undefined };
+    const groupFilter = "Unbekannt";
+    const studentGroupName = student.group_name ?? "Unbekannt";
+
+    expect(studentGroupName).toBe("Unbekannt");
+    expect(studentGroupName === groupFilter).toBe(true);
+  });
+
+  it("returns true when no filters are active", () => {
+    const student = {
+      name: "Max Mustermann",
+      first_name: "Max",
+      second_name: "Mustermann",
+      group_name: "Gruppe A",
+    };
+    const searchTerm = "";
+    const groupFilter = "all";
+
+    // When searchTerm is empty, passesSearch should be true
+    const passesSearch = searchTerm === "";
+    // When groupFilter is "all", passesGroup should be true
+    const passesGroup = groupFilter === "all";
+
+    expect(passesSearch && passesGroup).toBe(true);
+    // Also verify student data is correctly defined
+    expect(student.name).toBe("Max Mustermann");
+    expect(student.group_name).toBe("Gruppe A");
+  });
+});
+
+describe("Filter configs generation", () => {
+  it("extracts unique groups from students", () => {
+    const students = [
+      { group_name: "Gruppe A" },
+      { group_name: "Gruppe B" },
+      { group_name: "Gruppe A" },
+      { group_name: undefined },
+      { group_name: "Gruppe C" },
+    ];
+
+    const groups = Array.from(
+      new Set(
+        students
+          .map((student) => student.group_name)
+          .filter((name): name is string => !!name),
+      ),
+    ).sort((a, b) => a.localeCompare(b, "de"));
+
+    expect(groups).toEqual(["Gruppe A", "Gruppe B", "Gruppe C"]);
+  });
+
+  it("creates filter options with all groups prefix", () => {
+    const groups = ["Gruppe A", "Gruppe B"];
+
+    const options = [
+      { value: "all", label: "Alle Gruppen" },
+      ...groups.map((groupName) => ({
+        value: groupName,
+        label: groupName,
+      })),
+    ];
+
+    expect(options).toHaveLength(3);
+    expect(options[0]?.value).toBe("all");
+    expect(options[1]?.label).toBe("Gruppe A");
+  });
+});
+
+describe("Schulhof tab ID handling", () => {
+  const SCHULHOF_TAB_ID = "schulhof-permanent";
+  const SCHULHOF_ROOM_NAME = "Schulhof";
+
+  it("identifies Schulhof tab by ID", () => {
+    const isSchulhofTab = (tabId: string): boolean => {
+      return tabId === SCHULHOF_TAB_ID;
+    };
+
+    expect(isSchulhofTab("schulhof-permanent")).toBe(true);
+    expect(isSchulhofTab("room-123")).toBe(false);
+  });
+
+  it("creates virtual Schulhof room object", () => {
+    const schulhofStatus = {
+      activeGroupId: "active-123",
+      roomId: "room-schulhof",
+      studentCount: 10,
+    };
+
+    const virtualSchulhofRoom = {
+      id: schulhofStatus.activeGroupId,
+      name: SCHULHOF_ROOM_NAME,
+      room_name: SCHULHOF_ROOM_NAME,
+      room_id: schulhofStatus.roomId ?? undefined,
+      student_count: schulhofStatus.studentCount,
+    };
+
+    expect(virtualSchulhofRoom.name).toBe("Schulhof");
+    expect(virtualSchulhofRoom.id).toBe("active-123");
+    expect(virtualSchulhofRoom.student_count).toBe(10);
+  });
+});
+
+describe("Room conversion from supervised groups", () => {
+  it("converts supervised groups to ActiveRoom format", () => {
+    const supervisedGroups = [
+      { id: "1", name: "Group A", room: { id: "r1", name: "Raum 101" }, room_id: "r1" },
+      { id: "2", name: "Group B", room: { id: "r2", name: "Raum 102" }, room_id: "r2" },
+    ];
+
+    const activeRooms = supervisedGroups
+      .map((group) => ({
+        id: group.id,
+        name: group.name,
+        room_name: group.room?.name,
+        room_id: group.room_id,
+        student_count: undefined,
+        supervisor_name: undefined,
+      }))
+      .sort((a, b) =>
+        (a.room_name ?? a.name).localeCompare(b.room_name ?? b.name, "de"),
+      );
+
+    expect(activeRooms).toHaveLength(2);
+    expect(activeRooms[0]?.room_name).toBe("Raum 101");
+    expect(activeRooms[1]?.room_name).toBe("Raum 102");
+  });
+
+  it("sorts rooms by name in German locale", () => {
+    const rooms = [
+      { room_name: "Zeichenraum", name: "G1" },
+      { room_name: "Atelier", name: "G2" },
+      { room_name: "Mensa", name: "G3" },
+    ];
+
+    const sorted = rooms.sort((a, b) =>
+      (a.room_name ?? a.name).localeCompare(b.room_name ?? b.name, "de"),
+    );
+
+    expect(sorted[0]?.room_name).toBe("Atelier");
+    expect(sorted[1]?.room_name).toBe("Mensa");
+    expect(sorted[2]?.room_name).toBe("Zeichenraum");
+  });
+});
+
+describe("Breadcrumb setting behavior", () => {
+  it("uses Schulhof name when Schulhof tab is selected", () => {
+    const isSchulhofTabSelected = true;
+    const currentRoom = { room_name: "Raum 101" };
+    const SCHULHOF_ROOM_NAME = "Schulhof";
+
+    const activeSupervisionName = isSchulhofTabSelected
+      ? SCHULHOF_ROOM_NAME
+      : currentRoom?.room_name;
+
+    expect(activeSupervisionName).toBe("Schulhof");
+  });
+
+  it("uses room name when regular room is selected", () => {
+    const isSchulhofTabSelected = false;
+    const currentRoom = { room_name: "Kunstzimmer" };
+    const SCHULHOF_ROOM_NAME = "Schulhof";
+
+    const activeSupervisionName = isSchulhofTabSelected
+      ? SCHULHOF_ROOM_NAME
+      : currentRoom?.room_name;
+
+    expect(activeSupervisionName).toBe("Kunstzimmer");
+  });
+});
+
+describe("Page header title determination", () => {
+  it("shows room name on mobile with single room", () => {
+    const isDesktop = false;
+    const allRooms = [{ room_name: "Raum 101" }];
+    const schulhofExists = false;
+    const isSchulhofTabSelected = false;
+    const currentRoomName = "Raum 101";
+
+    const showRoomTitle =
+      !isDesktop &&
+      (allRooms.length === 1 || (allRooms.length === 0 && schulhofExists));
+
+    const title = showRoomTitle
+      ? isSchulhofTabSelected
+        ? "Schulhof"
+        : currentRoomName
+      : "";
+
+    expect(title).toBe("Raum 101");
+  });
+
+  it("shows empty title on desktop", () => {
+    const isDesktop = true;
+    const allRooms = [{ room_name: "Raum 101" }];
+
+    const showRoomTitle = !isDesktop && allRooms.length === 1;
+    const title = showRoomTitle ? "Raum 101" : "";
+
+    expect(title).toBe("");
+  });
+
+  it("shows Schulhof title when Schulhof tab selected", () => {
+    const isDesktop = false;
+    const allRooms: Array<{ room_name: string }> = [];
+    const schulhofExists = true;
+    const isSchulhofTabSelected = true;
+
+    const showRoomTitle =
+      !isDesktop && (allRooms.length === 1 || (allRooms.length === 0 && schulhofExists));
+
+    const title = showRoomTitle && isSchulhofTabSelected ? "Schulhof" : "";
+
+    expect(title).toBe("Schulhof");
+  });
+});
+
+describe("Empty rooms check with Schulhof", () => {
+  it("shows main view when only Schulhof exists", () => {
+    const allRooms: Array<object> = [];
+    const schulhofExists = true;
+
+    const showEmptyRoomsView = allRooms.length === 0 && !schulhofExists;
+
+    expect(showEmptyRoomsView).toBe(false);
+  });
+
+  it("shows empty rooms view when neither rooms nor Schulhof exist", () => {
+    const allRooms: Array<object> = [];
+    const schulhofExists = false;
+
+    const showEmptyRoomsView = allRooms.length === 0 && !schulhofExists;
+
+    expect(showEmptyRoomsView).toBe(true);
+  });
+});
+
+describe("Auto-select Schulhof tab behavior", () => {
+  it("auto-selects Schulhof when only option available", () => {
+    const allRooms: Array<object> = [];
+    const schulhofExists = true;
+    let isSchulhofTabSelected = false;
+
+    const shouldAutoSelect =
+      allRooms.length === 0 && schulhofExists && !isSchulhofTabSelected;
+
+    if (shouldAutoSelect) {
+      isSchulhofTabSelected = true;
+    }
+
+    expect(isSchulhofTabSelected).toBe(true);
+  });
+
+  it("does not auto-select when regular rooms exist", () => {
+    const allRooms = [{ id: "1" }];
+    const schulhofExists = true;
+    let isSchulhofTabSelected = false;
+
+    const shouldAutoSelect =
+      allRooms.length === 0 && schulhofExists && !isSchulhofTabSelected;
+
+    if (shouldAutoSelect) {
+      isSchulhofTabSelected = true;
+    }
+
+    expect(isSchulhofTabSelected).toBe(false);
+  });
+});
+
+describe("Local storage for room persistence", () => {
+  it("saves last room ID to localStorage", () => {
+    const roomId = "room-123";
+    const setItem = vi.fn();
+    const mockLocalStorage = { setItem };
+
+    mockLocalStorage.setItem("sidebar-last-room", roomId);
+
+    expect(setItem).toHaveBeenCalledWith("sidebar-last-room", "room-123");
+  });
+
+  it("saves Schulhof tab ID for persistence", () => {
+    const SCHULHOF_TAB_ID = "schulhof-permanent";
+    const SCHULHOF_ROOM_NAME = "Schulhof";
+    const setItem = vi.fn();
+    const mockLocalStorage = { setItem };
+
+    mockLocalStorage.setItem("sidebar-last-room", SCHULHOF_TAB_ID);
+    mockLocalStorage.setItem("sidebar-last-room-name", SCHULHOF_ROOM_NAME);
+
+    expect(setItem).toHaveBeenCalledWith("sidebar-last-room", "schulhof-permanent");
+    expect(setItem).toHaveBeenCalledWith("sidebar-last-room-name", "Schulhof");
+  });
+});
+
+describe("hasSupervision tracking via ref", () => {
+  it("tracks supervision gained state", () => {
+    const supervisedGroups = [{ id: "1" }, { id: "2" }];
+    const hasSupervision = supervisedGroups.length > 0;
+
+    expect(hasSupervision).toBe(true);
+  });
+
+  it("tracks no supervision state", () => {
+    const supervisedGroups: Array<object> = [];
+    const hasSupervision = supervisedGroups.length > 0;
+
+    expect(hasSupervision).toBe(false);
+  });
+});

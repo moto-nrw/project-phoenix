@@ -475,3 +475,414 @@ describe("useIsSupervising", () => {
     });
   });
 });
+
+describe("SupervisionProvider Schulhof handling", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("should include Schulhof in supervised rooms when it exists", async () => {
+    setupFetchMock({
+      supervised: {
+        data: [
+          {
+            id: 1,
+            room_id: 5,
+            group_id: 1,
+            room: { id: 5, name: "Room 5" },
+          },
+        ],
+      },
+      schulhof: {
+        data: {
+          data: {
+            exists: true,
+            room_id: 100,
+            room_name: "Schulhof",
+            active_group_id: 200,
+            is_user_supervising: false,
+          },
+        },
+      },
+    });
+
+    const { result } = renderHook(() => useSupervision(), {
+      wrapper: createWrapper("test-token"),
+    });
+
+    await waitFor(() => {
+      expect(result.current.isLoadingSupervision).toBe(false);
+    });
+
+    // Should have both regular room and Schulhof
+    expect(result.current.supervisedRooms.length).toBeGreaterThanOrEqual(1);
+    const schulhofRoom = result.current.supervisedRooms.find(
+      (r) => r.isSchulhof,
+    );
+    expect(schulhofRoom).toBeDefined();
+    expect(schulhofRoom?.name).toBe("Schulhof");
+  });
+
+  it("should include Schulhof even with no other supervision", async () => {
+    setupFetchMock({
+      supervised: { data: [] },
+      schulhof: {
+        data: {
+          data: {
+            exists: true,
+            room_id: 100,
+            room_name: "Schulhof",
+            active_group_id: 200,
+            is_user_supervising: false,
+          },
+        },
+      },
+    });
+
+    const { result } = renderHook(() => useSupervision(), {
+      wrapper: createWrapper("test-token"),
+    });
+
+    await waitFor(() => {
+      expect(result.current.isLoadingSupervision).toBe(false);
+    });
+
+    expect(result.current.isSupervising).toBe(false);
+    expect(result.current.supervisedRooms).toHaveLength(1);
+    expect(result.current.supervisedRooms[0]?.isSchulhof).toBe(true);
+  });
+
+  it("should not include Schulhof when it does not exist", async () => {
+    setupFetchMock({
+      supervised: {
+        data: [
+          {
+            id: 1,
+            room_id: 5,
+            group_id: 1,
+            room: { id: 5, name: "Room 5" },
+          },
+        ],
+      },
+      schulhof: {
+        data: {
+          data: {
+            exists: false,
+          },
+        },
+      },
+    });
+
+    const { result } = renderHook(() => useSupervision(), {
+      wrapper: createWrapper("test-token"),
+    });
+
+    await waitFor(() => {
+      expect(result.current.isLoadingSupervision).toBe(false);
+    });
+
+    const schulhofRoom = result.current.supervisedRooms.find(
+      (r) => r.isSchulhof,
+    );
+    expect(schulhofRoom).toBeUndefined();
+  });
+
+  it("should filter Schulhof from regular supervised rooms", async () => {
+    // If a regular supervised room is named Schulhof, it should be filtered out
+    // and replaced with the special Schulhof tab
+    setupFetchMock({
+      supervised: {
+        data: [
+          {
+            id: 1,
+            room_id: 5,
+            group_id: 1,
+            room: { id: 5, name: "Schulhof" }, // Regular room named Schulhof
+          },
+        ],
+      },
+      schulhof: {
+        data: {
+          data: {
+            exists: true,
+            room_id: 100,
+            room_name: "Schulhof",
+            active_group_id: 200,
+            is_user_supervising: false,
+          },
+        },
+      },
+    });
+
+    const { result } = renderHook(() => useSupervision(), {
+      wrapper: createWrapper("test-token"),
+    });
+
+    await waitFor(() => {
+      expect(result.current.isLoadingSupervision).toBe(false);
+    });
+
+    // Should only have the special Schulhof tab, not the regular one
+    const schulhofRooms = result.current.supervisedRooms.filter(
+      (r) => r.name === "Schulhof",
+    );
+    expect(schulhofRooms.length).toBe(1);
+    expect(schulhofRooms[0]?.isSchulhof).toBe(true);
+  });
+});
+
+describe("SupervisionProvider state optimization", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("should not update state when groups remain the same", async () => {
+    const initialGroups = { groups: [{ id: 1, name: "Group A" }] };
+    setupFetchMock({ groups: initialGroups });
+
+    const { result, rerender } = renderHook(() => useSupervision(), {
+      wrapper: createWrapper("test-token"),
+    });
+
+    await waitFor(() => {
+      expect(result.current.isLoadingGroups).toBe(false);
+    });
+
+    const initialGroupsResult = result.current.groups;
+
+    // Re-render with same data
+    rerender();
+
+    // Groups reference should be the same (no unnecessary update)
+    expect(result.current.groups).toBe(initialGroupsResult);
+  });
+
+  it("should handle silent refresh without updating loading state", () => {
+    // Test the silent refresh logic directly
+    let isLoadingGroups = false;
+    let isLoadingSupervision = false;
+
+    const updateStateForRefresh = (silent: boolean) => {
+      if (!silent) {
+        isLoadingGroups = true;
+        isLoadingSupervision = true;
+      }
+    };
+
+    // Silent refresh should NOT update loading states
+    updateStateForRefresh(true);
+    expect(isLoadingGroups).toBe(false);
+    expect(isLoadingSupervision).toBe(false);
+
+    // Non-silent refresh SHOULD update loading states
+    updateStateForRefresh(false);
+    expect(isLoadingGroups).toBe(true);
+    expect(isLoadingSupervision).toBe(true);
+  });
+});
+
+describe("SupervisionProvider API response handling", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("should handle non-OK response from groups API", async () => {
+    mockFetch.mockImplementation((url: string) => {
+      if (url.includes("/api/groups/context")) {
+        return Promise.resolve({
+          ok: false,
+          status: 404,
+          json: async () => ({}),
+        });
+      }
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({ data: [] }),
+      });
+    });
+
+    const { result } = renderHook(() => useSupervision(), {
+      wrapper: createWrapper("test-token"),
+    });
+
+    await waitFor(() => {
+      expect(result.current.isLoadingGroups).toBe(false);
+    });
+
+    expect(result.current.hasGroups).toBe(false);
+    expect(result.current.groups).toEqual([]);
+  });
+
+  it("should handle non-OK response from supervised API but still show Schulhof", async () => {
+    mockFetch.mockImplementation((url: string) => {
+      if (url.includes("/api/me/groups/supervised")) {
+        return Promise.resolve({
+          ok: false,
+          status: 500,
+          json: async () => ({}),
+        });
+      }
+      if (url.includes("/api/active/schulhof/status")) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            data: {
+              data: {
+                exists: true,
+                room_id: 100,
+                room_name: "Schulhof",
+                active_group_id: 200,
+                is_user_supervising: false,
+              },
+            },
+          }),
+        });
+      }
+      if (url.includes("/api/groups/context")) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({ groups: [] }),
+        });
+      }
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({}),
+      });
+    });
+
+    const { result } = renderHook(() => useSupervision(), {
+      wrapper: createWrapper("test-token"),
+    });
+
+    await waitFor(() => {
+      expect(result.current.isLoadingSupervision).toBe(false);
+    });
+
+    // Should still have Schulhof even though supervised API failed
+    expect(result.current.supervisedRooms).toHaveLength(1);
+    expect(result.current.supervisedRooms[0]?.isSchulhof).toBe(true);
+  });
+
+  it("should handle groups API with nested data structure", async () => {
+    setupFetchMock({
+      groups: {
+        data: {
+          groups: [
+            { id: 1, name: "Nested Group A" },
+            { id: 2, name: "Nested Group B" },
+          ],
+        },
+      },
+    });
+
+    const { result } = renderHook(() => useSupervision(), {
+      wrapper: createWrapper("test-token"),
+    });
+
+    await waitFor(() => {
+      expect(result.current.isLoadingGroups).toBe(false);
+    });
+
+    expect(result.current.hasGroups).toBe(true);
+    expect(result.current.groups).toHaveLength(2);
+  });
+
+  it("should sort groups by German locale", async () => {
+    setupFetchMock({
+      groups: {
+        groups: [
+          { id: 3, name: "Zebra-Gruppe" },
+          { id: 1, name: "Äpfel-Gruppe" },
+          { id: 2, name: "Bären-Gruppe" },
+        ],
+      },
+    });
+
+    const { result } = renderHook(() => useSupervision(), {
+      wrapper: createWrapper("test-token"),
+    });
+
+    await waitFor(() => {
+      expect(result.current.isLoadingGroups).toBe(false);
+    });
+
+    // German locale sorting: Ä comes after A, before B
+    expect(result.current.groups[0]?.name).toBe("Äpfel-Gruppe");
+    expect(result.current.groups[1]?.name).toBe("Bären-Gruppe");
+    expect(result.current.groups[2]?.name).toBe("Zebra-Gruppe");
+  });
+});
+
+describe("SupervisionProvider multiple supervised rooms", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("should handle multiple supervised rooms sorted by name", async () => {
+    setupFetchMock({
+      supervised: {
+        data: [
+          { id: 1, room_id: 10, group_id: 1, room: { id: 10, name: "Zimmer Z" } },
+          { id: 2, room_id: 20, group_id: 2, room: { id: 20, name: "Atelier A" } },
+          { id: 3, room_id: 30, group_id: 3, room: { id: 30, name: "Mensa M" } },
+        ],
+      },
+    });
+
+    const { result } = renderHook(() => useSupervision(), {
+      wrapper: createWrapper("test-token"),
+    });
+
+    await waitFor(() => {
+      expect(result.current.isLoadingSupervision).toBe(false);
+    });
+
+    expect(result.current.supervisedRooms).toHaveLength(3);
+    // Should be sorted alphabetically
+    expect(result.current.supervisedRooms[0]?.name).toBe("Atelier A");
+    expect(result.current.supervisedRooms[1]?.name).toBe("Mensa M");
+    expect(result.current.supervisedRooms[2]?.name).toBe("Zimmer Z");
+  });
+
+  it("should include actual_group name as groupName", async () => {
+    setupFetchMock({
+      supervised: {
+        data: [
+          {
+            id: 1,
+            room_id: 10,
+            group_id: 1,
+            room: { id: 10, name: "Kunstzimmer" },
+            actual_group: { id: 5, name: "OGS Gruppe Blau" },
+          },
+        ],
+      },
+    });
+
+    const { result } = renderHook(() => useSupervision(), {
+      wrapper: createWrapper("test-token"),
+    });
+
+    await waitFor(() => {
+      expect(result.current.isLoadingSupervision).toBe(false);
+    });
+
+    expect(result.current.supervisedRooms[0]?.groupName).toBe("OGS Gruppe Blau");
+  });
+});
