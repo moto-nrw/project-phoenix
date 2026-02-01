@@ -70,10 +70,8 @@ jobs:
 
           # Define exclusion patterns (false positives)
           # cmd/root.go:Execute is the Cobra CLI entry point called by main()
-          # RegisterMigration is for new migrations; existing ones use direct map assignment
           EXCLUSIONS=(
             "cmd/root.go:.*Execute"
-            "database/migrations/00_migrations.go:.*RegisterMigration"
           )
 
           # Build grep exclusion pattern
