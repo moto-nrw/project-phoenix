@@ -2224,7 +2224,6 @@ func TestCheckoutStudent_AuthorizedAsGroupTeacher(t *testing.T) {
 	teacherClaims := jwt.AppClaims{
 		ID:          int(teacherAccount.ID),
 		Sub:         "teacher@example.com",
-		IsTeacher:   true,
 		Permissions: []string{permissions.VisitsUpdate},
 	}
 

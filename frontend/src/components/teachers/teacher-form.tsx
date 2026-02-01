@@ -68,6 +68,7 @@ export function TeacherForm({
         if (cancelled) return;
 
         const options = roleList
+          .filter((role) => role.name !== "guardian")
           .map<RoleOption>((role) => ({
             id: Number(role.id),
             name: role.name

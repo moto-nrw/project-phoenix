@@ -159,7 +159,6 @@ type accountMetadata struct {
 	firstName      string
 	lastName       string
 	isAdmin        bool
-	isTeacher      bool
 }
 
 // loadAccountMetadata loads roles, permissions, and person information
@@ -173,7 +172,7 @@ func (s *Service) loadAccountMetadata(ctx context.Context, account *auth.Account
 
 	username := s.extractUsername(account)
 	firstName, lastName := s.loadPersonNames(ctx, account.ID)
-	isAdmin, isTeacher := s.checkRoleFlags(roleNames)
+	isAdmin := s.checkRoleFlags(roleNames)
 
 	return &accountMetadata{
 		roleNames:      roleNames,
@@ -182,7 +181,6 @@ func (s *Service) loadAccountMetadata(ctx context.Context, account *auth.Account
 		firstName:      firstName,
 		lastName:       lastName,
 		isAdmin:        isAdmin,
-		isTeacher:      isTeacher,
 	}
 }
 
@@ -265,21 +263,14 @@ func (s *Service) loadPersonNames(ctx context.Context, accountID int64) (string,
 	return person.FirstName, person.LastName
 }
 
-// checkRoleFlags determines if account has admin or teacher roles
-func (s *Service) checkRoleFlags(roleNames []string) (bool, bool) {
-	isAdmin := false
-	isTeacher := false
-
+// checkRoleFlags determines if account has admin role
+func (s *Service) checkRoleFlags(roleNames []string) bool {
 	for _, roleName := range roleNames {
 		if roleName == "admin" {
-			isAdmin = true
-		}
-		if roleName == "teacher" {
-			isTeacher = true
+			return true
 		}
 	}
-
-	return isAdmin, isTeacher
+	return false
 }
 
 // buildJWTClaims constructs JWT claims from account and metadata
@@ -298,7 +289,6 @@ func (s *Service) buildJWTClaims(
 		Roles:       metadata.roleNames,
 		Permissions: metadata.permissionStrs,
 		IsAdmin:     metadata.isAdmin,
-		IsTeacher:   metadata.isTeacher,
 	}
 
 	refreshClaims := jwt.RefreshClaims{

@@ -407,10 +407,12 @@ func TestTranslateRoleNameToGerman(t *testing.T) {
 		{"admin", "Administrator"},
 		{"Admin", "Administrator"},
 		{"ADMIN", "Administrator"},
-		{"user", "Nutzer"},
-		{"User", "Nutzer"},
+		{"user", "Betreuer"},
+		{"User", "Betreuer"},
 		{"guest", "Gast"},
 		{"Guest", "Gast"},
+		{"guardian", "Erziehungsberechtigter"},
+		{"Guardian", "Erziehungsberechtigter"},
 		{"teacher", "teacher"},         // Not a system role, returns as-is
 		{"custom_role", "custom_role"}, // Unknown role, returns as-is
 		{"", ""},                       // Empty string

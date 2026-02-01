@@ -263,23 +263,12 @@ func (s *Seeder) seedPersonsWithAccounts(ctx context.Context) error {
 			s.result.Accounts = append(s.result.Accounts, account)
 			s.result.StaffWithPINs[email] = pin
 
-			// Assign appropriate role
+			// Assign appropriate role — all staff get user role (Betreuer)
 			var roleID int64
-			if i < 20 {
-				// Teachers get teacher role
-				for _, role := range s.result.Roles {
-					if role.Name == "teacher" {
-						roleID = role.ID
-						break
-					}
-				}
-			} else {
-				// Other staff get staff role
-				for _, role := range s.result.Roles {
-					if role.Name == "staff" {
-						roleID = role.ID
-						break
-					}
+			for _, role := range s.result.Roles {
+				if role.Name == "user" {
+					roleID = role.ID
+					break
 				}
 			}
 
