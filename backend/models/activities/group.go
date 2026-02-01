@@ -83,6 +83,21 @@ func (g *Group) Validate() error {
 	return nil
 }
 
+// IsOwnedBy checks if the group was created by the given staff member
+func (g *Group) IsOwnedBy(staffID int64) bool {
+	return g.CreatedBy == staffID
+}
+
+// IsSupervisedBy checks if the given staff member is a supervisor of this group
+func (g *Group) IsSupervisedBy(staffID int64) bool {
+	for _, supervisor := range g.Supervisors {
+		if supervisor != nil && supervisor.StaffID == staffID {
+			return true
+		}
+	}
+	return false
+}
+
 // HasAvailableSpots checks if the group has available spots based on current enrollment count
 func (g *Group) HasAvailableSpots(currentEnrollmentCount int) bool {
 	return g.MaxParticipants > currentEnrollmentCount

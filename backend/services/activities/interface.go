@@ -23,12 +23,16 @@ type ActivityService interface {
 	// Activity Group operations
 	CreateGroup(ctx context.Context, group *activities.Group, supervisorIDs []int64, schedules []*activities.Schedule) (*activities.Group, error)
 	GetGroup(ctx context.Context, id int64) (*activities.Group, error)
-	UpdateGroup(ctx context.Context, group *activities.Group) (*activities.Group, error)
-	DeleteGroup(ctx context.Context, id int64) error
+	UpdateGroup(ctx context.Context, group *activities.Group, requestingStaffID int64, hasManagePermission bool) (*activities.Group, error)
+	DeleteGroup(ctx context.Context, id int64, requestingStaffID int64, hasManagePermission bool) error
 	ListGroups(ctx context.Context, queryOptions *base.QueryOptions) ([]*activities.Group, error)
 	GetGroupWithDetails(ctx context.Context, id int64) (*activities.Group, []*activities.SupervisorPlanned, []*activities.Schedule, error)
 	GetGroupsWithEnrollmentCounts(ctx context.Context) ([]*activities.Group, map[int64]int, error)
 	FindByCategory(ctx context.Context, categoryID int64) ([]*activities.Group, error)
+
+	// Permission check - returns true if user can modify (edit/delete) the activity
+	// User can modify if: they created it, they are a supervisor, or they have manage permission
+	CanModifyActivity(ctx context.Context, groupID int64, staffID int64, hasManagePermission bool) (bool, error)
 
 	// Schedule operations
 	AddSchedule(ctx context.Context, groupID int64, schedule *activities.Schedule) (*activities.Schedule, error)

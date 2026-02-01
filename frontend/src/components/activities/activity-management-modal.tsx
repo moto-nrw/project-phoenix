@@ -33,7 +33,7 @@ interface ActivityManagementModalProps {
 }
 
 /** Maps delete error to user-friendly German message */
-function getDeleteErrorMessage(err: unknown): string {
+export function getDeleteErrorMessage(err: unknown): string {
   if (!(err instanceof Error)) {
     return "Fehler beim Löschen der Aktivität";
   }
@@ -41,8 +41,20 @@ function getDeleteErrorMessage(err: unknown): string {
   if (message.includes("students enrolled")) {
     return "Diese Aktivität kann nicht gelöscht werden, da noch Schüler eingeschrieben sind. Bitte entfernen Sie zuerst alle Schüler aus der Aktivität.";
   }
-  if (message.includes("401") || message.includes("403")) {
+  // Check for ownership/permission error (403 with specific message)
+  if (
+    message.includes("403") &&
+    (message.includes("you can only modify") ||
+      message.includes("created or supervise"))
+  ) {
+    return "Sie können diese Aktivität nicht löschen, da Sie sie nicht erstellt haben und kein Betreuer sind.";
+  }
+  if (message.includes("401")) {
     return "Ihre Sitzung ist abgelaufen. Bitte melden Sie sich erneut an.";
+  }
+  // Generic 403 - could be other permission issues
+  if (message.includes("403")) {
+    return "Sie haben keine Berechtigung, diese Aktivität zu löschen.";
   }
   return message;
 }
@@ -265,7 +277,8 @@ export function ActivityManagementModal({
         }
       }, 100);
     } catch (err) {
-      console.error("Error updating activity:", err);
+      // Don't console.error for expected errors (403 permission denied, etc.)
+      // The error is shown to the user via the UI
       setError(
         getApiErrorMessage(
           err,
@@ -303,7 +316,8 @@ export function ActivityManagementModal({
         }
       }, 100);
     } catch (err) {
-      console.error("Error deleting activity:", err);
+      // Don't console.error for expected errors (403 permission denied, etc.)
+      // The error is shown to the user via the UI
       setError(getDeleteErrorMessage(err));
       setShowDeleteConfirm(false);
     } finally {

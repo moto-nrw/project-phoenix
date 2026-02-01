@@ -115,8 +115,17 @@ export function getApiErrorMessage(
   if (message.includes("401")) {
     return "Ihre Sitzung ist abgelaufen. Bitte melden Sie sich erneut an.";
   }
+  // Check for ownership/permission error (403 with specific message)
+  if (
+    message.includes("403") &&
+    (message.includes("you can only modify") ||
+      message.includes("created or supervise"))
+  ) {
+    return `Sie können diese ${entityType} nicht ${action}, da Sie sie nicht erstellt haben und kein Betreuer sind.`;
+  }
+  // Generic 403 - could be other permission issues
   if (message.includes("403")) {
-    return "Zugriff verweigert. Bitte melden Sie sich erneut an.";
+    return `Sie haben keine Berechtigung, diese ${entityType} zu ${action}.`;
   }
   if (message.includes("400")) {
     return "Ungültige Eingabedaten. Bitte überprüfen Sie Ihre Eingaben.";
