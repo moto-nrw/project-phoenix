@@ -575,6 +575,18 @@ func TestSchulhofService_GetOrCreateActiveGroup_IgnoresEndedGroups(t *testing.T)
 	require.NoError(t, err)
 	defer testpkg.CleanupActivityFixtures(t, db, activityGroup.ID, activityGroup.CategoryID, *activityGroup.PlannedRoomID)
 
+	repoFactory := repositories.NewFactory(db)
+
+	// Clean up any existing active groups for this room from previous test runs
+	// This handles test pollution when tests run in parallel or don't clean up properly
+	_, err = db.NewUpdate().
+		Model((*active.Group)(nil)).
+		ModelTableExpr(`active.groups AS "group"`).
+		Set("end_time = ?", time.Now()).
+		Where(`"group".room_id = ? AND "group".end_time IS NULL`, *activityGroup.PlannedRoomID).
+		Exec(ctx)
+	require.NoError(t, err)
+
 	// Create an ended active group from today
 	endedTime := time.Now()
 	endedGroup := &active.Group{
@@ -583,7 +595,6 @@ func TestSchulhofService_GetOrCreateActiveGroup_IgnoresEndedGroups(t *testing.T)
 		StartTime: time.Now().Add(-2 * time.Hour),
 		EndTime:   &endedTime,
 	}
-	repoFactory := repositories.NewFactory(db)
 
 	// Create minimal dependencies for active service
 	educationService := educationSvc.NewService(
