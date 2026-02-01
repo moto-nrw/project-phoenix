@@ -2182,10 +2182,7 @@ describe("SWR visit data sync", () => {
     }> | null;
     const currentRoomId = null as string | null;
 
-    let updated = false;
-    if (swrVisitsData && currentRoomId) {
-      updated = true;
-    }
+    const updated = Boolean(swrVisitsData && currentRoomId);
 
     expect(updated).toBe(false);
   });
