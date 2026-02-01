@@ -64,9 +64,9 @@ describe("RoleDetailModal", () => {
       />,
     );
 
-    // Check that translated description appears
+    // Check that translated description appears (user role now maps to Betreuer)
     expect(
-      screen.getAllByText("Standardbenutzer mit grundlegenden Berechtigungen")
+      screen.getAllByText("Pädagogische Fachkraft mit Betreuungsrechten")
         .length,
     ).toBeGreaterThan(0);
   });
