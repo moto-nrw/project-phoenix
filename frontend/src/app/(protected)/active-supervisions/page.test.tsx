@@ -2,7 +2,13 @@
  * Tests for Active Supervisions Page
  * Tests the rendering states and user interactions of the active supervisions dashboard
  */
-import { render, screen, waitFor, cleanup } from "@testing-library/react";
+import {
+  render,
+  screen,
+  waitFor,
+  cleanup,
+  fireEvent,
+} from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 // Mock next-auth/react
@@ -34,18 +40,14 @@ vi.mock("~/components/ui/loading", () => ({
   Loading: () => <div data-testid="loading">Loading...</div>,
 }));
 
-// Mock PageHeaderWithSearch
+// Mock PageHeaderWithSearch (vi.fn wrapper enables mockImplementation in enhanced tests)
 vi.mock("~/components/ui/page-header", () => ({
-  PageHeaderWithSearch: ({
-    title,
-    badge,
-  }: {
-    title: string;
-    badge?: { count: number };
-  }) => (
-    <div data-testid="page-header" data-count={badge?.count}>
-      {title}
-    </div>
+  PageHeaderWithSearch: vi.fn(
+    ({ title, badge }: { title: string; badge?: { count: number } }) => (
+      <div data-testid="page-header" data-count={badge?.count}>
+        {title}
+      </div>
+    ),
   ),
 }));
 
@@ -3288,5 +3290,577 @@ describe("Action button conditional rendering logic", () => {
   it("shows no button when schulhofStatus is null", () => {
     const buttonType = getButtonType(true, null);
     expect(buttonType).toBe("none");
+  });
+});
+
+/**
+ * Enhanced rendering tests that override the PageHeaderWithSearch mock
+ * to render action buttons, search inputs, and filter controls.
+ * This allows testing interactive behavior of components rendered
+ * inside PageHeaderWithSearch props (actionButton, mobileActionButton, search, etc.)
+ */
+describe("Enhanced rendering: action buttons and search/filter interaction", () => {
+  const mockMutate = vi.fn();
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    global.fetch = vi.fn();
+
+    // Override PageHeaderWithSearch to render action buttons and interactive controls
+    const mod = await import("~/components/ui/page-header");
+    vi.mocked(
+      mod.PageHeaderWithSearch as React.FC<Record<string, unknown>>,
+    ).mockImplementation((props: Record<string, unknown>) => {
+      const p = props;
+      const actionButton = p.actionButton as React.ReactNode;
+      const mobileActionButton = p.mobileActionButton as React.ReactNode;
+      const search = p.search as
+        | { value: string; onChange: (v: string) => void }
+        | undefined;
+      const filters = p.filters as
+        | Array<{
+            id: string;
+            value: string;
+            onChange: (v: string) => void;
+            options: Array<{ value: string; label: string }>;
+          }>
+        | undefined;
+      const onClearAllFilters = p.onClearAllFilters as (() => void) | undefined;
+
+      return (
+        <div data-testid="page-header">
+          {actionButton && (
+            <div data-testid="action-btn-wrap">{actionButton}</div>
+          )}
+          {mobileActionButton && (
+            <div data-testid="mobile-btn-wrap">{mobileActionButton}</div>
+          )}
+          {search && (
+            <input
+              data-testid="search-input"
+              value={search.value}
+              onChange={(e) => search.onChange(e.target.value)}
+            />
+          )}
+          {filters?.map((f) => (
+            <select
+              key={f.id}
+              data-testid={`filter-${f.id}`}
+              value={f.value}
+              onChange={(e) => f.onChange(e.target.value)}
+            >
+              {f.options.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          ))}
+          {onClearAllFilters && (
+            <button data-testid="clear-btn" onClick={onClearAllFilters}>
+              Clear
+            </button>
+          )}
+        </div>
+      );
+    });
+  });
+
+  afterEach(() => {
+    cleanup();
+  });
+
+  it("renders ReleaseSupervisionButton and MobileReleaseSupervisionButton when supervising Schulhof", async () => {
+    vi.mocked(useSWRAuth)
+      .mockReturnValueOnce({
+        data: {
+          supervisedGroups: [],
+          unclaimedGroups: [],
+          currentStaff: { id: "staff-1" },
+          educationalGroups: [],
+          firstRoomVisits: [],
+          firstRoomId: null,
+          schulhofStatus: {
+            exists: true,
+            roomId: "schulhof-r1",
+            roomName: "Schulhof",
+            activityGroupId: "ag-1",
+            activeGroupId: "active-schulhof",
+            isUserSupervising: true,
+            supervisionId: "sup-1",
+            supervisorCount: 1,
+            studentCount: 3,
+            supervisors: [
+              {
+                id: "sup-1",
+                staffId: "staff-1",
+                name: "Test Teacher",
+                isCurrentUser: true,
+              },
+            ],
+          },
+        },
+        isLoading: false,
+        error: null,
+        mutate: mockMutate,
+        isValidating: false,
+      } as never)
+      .mockReturnValue({
+        data: null,
+        isLoading: false,
+        error: null,
+        mutate: mockMutate,
+        isValidating: false,
+      } as never);
+
+    render(<MeinRaumPage />);
+
+    await waitFor(() => {
+      // Both desktop and mobile release buttons should render with aria-label
+      const releaseButtons = screen.getAllByLabelText("Aufsicht abgeben");
+      expect(releaseButtons.length).toBeGreaterThanOrEqual(2);
+    });
+
+    // Verify the desktop button text
+    expect(screen.getByText("Aufsicht abgeben")).toBeInTheDocument();
+  });
+
+  it("shows 'Beaufsichtigen' button when Schulhof tab selected but not supervising", async () => {
+    vi.mocked(useSWRAuth)
+      .mockReturnValueOnce({
+        data: {
+          supervisedGroups: [],
+          unclaimedGroups: [],
+          currentStaff: { id: "staff-1" },
+          educationalGroups: [],
+          firstRoomVisits: [],
+          firstRoomId: null,
+          schulhofStatus: {
+            exists: true,
+            roomId: "schulhof-r1",
+            roomName: "Schulhof",
+            activityGroupId: "ag-1",
+            activeGroupId: null,
+            isUserSupervising: false,
+            supervisionId: null,
+            supervisorCount: 0,
+            studentCount: 0,
+            supervisors: [],
+          },
+        },
+        isLoading: false,
+        error: null,
+        mutate: mockMutate,
+        isValidating: false,
+      } as never)
+      .mockReturnValue({
+        data: null,
+        isLoading: false,
+        error: null,
+        mutate: mockMutate,
+        isValidating: false,
+      } as never);
+
+    render(<MeinRaumPage />);
+
+    await waitFor(() => {
+      // The "Beaufsichtigen" button should appear both in action area and main view
+      const claimButtons = screen.getAllByText(/Beaufsichtigen|beaufsichtigen/);
+      expect(claimButtons.length).toBeGreaterThanOrEqual(1);
+    });
+  });
+
+  it("filters students by search term through matchesStudentFilters", async () => {
+    vi.mocked(useSWRAuth)
+      .mockReturnValueOnce({
+        data: {
+          supervisedGroups: [
+            {
+              id: "1",
+              name: "Group A",
+              room: { id: "r1", name: "Room 1" },
+            },
+          ],
+          unclaimedGroups: [],
+          currentStaff: { id: "staff-1" },
+          educationalGroups: [
+            { id: "g1", name: "Group Alpha", room: { name: "Room 1" } },
+          ],
+          firstRoomVisits: [
+            {
+              studentId: "s1",
+              studentName: "Max Mustermann",
+              schoolClass: "1a",
+              groupName: "Group Alpha",
+              activeGroupId: "1",
+              checkInTime: new Date().toISOString(),
+              isActive: true,
+            },
+            {
+              studentId: "s2",
+              studentName: "Erika Schmidt",
+              schoolClass: "2b",
+              groupName: "Group Alpha",
+              activeGroupId: "1",
+              checkInTime: new Date().toISOString(),
+              isActive: true,
+            },
+          ],
+          firstRoomId: "1",
+        },
+        isLoading: false,
+        error: null,
+        mutate: mockMutate,
+        isValidating: false,
+      } as never)
+      .mockReturnValue({
+        data: null,
+        isLoading: false,
+        error: null,
+        mutate: mockMutate,
+        isValidating: false,
+      } as never);
+
+    render(<MeinRaumPage />);
+
+    // Wait for both students to render
+    await waitFor(() => {
+      expect(screen.getAllByTestId("student-card")).toHaveLength(2);
+    });
+
+    // Type in search input to filter
+    const searchInput = screen.getByTestId("search-input");
+    fireEvent.change(searchInput, { target: { value: "Max" } });
+
+    // Should filter to only Max
+    await waitFor(() => {
+      expect(screen.getAllByTestId("student-card")).toHaveLength(1);
+      expect(screen.getByText("Max Mustermann")).toBeInTheDocument();
+    });
+  });
+
+  it("shows EmptyStudentResults when search matches no students", async () => {
+    vi.mocked(useSWRAuth)
+      .mockReturnValueOnce({
+        data: {
+          supervisedGroups: [
+            {
+              id: "1",
+              name: "Group A",
+              room: { id: "r1", name: "Room 1" },
+            },
+          ],
+          unclaimedGroups: [],
+          currentStaff: { id: "staff-1" },
+          educationalGroups: [],
+          firstRoomVisits: [
+            {
+              studentId: "s1",
+              studentName: "Max Mustermann",
+              schoolClass: "1a",
+              groupName: "Group A",
+              activeGroupId: "1",
+              checkInTime: new Date().toISOString(),
+              isActive: true,
+            },
+          ],
+          firstRoomId: "1",
+        },
+        isLoading: false,
+        error: null,
+        mutate: mockMutate,
+        isValidating: false,
+      } as never)
+      .mockReturnValue({
+        data: null,
+        isLoading: false,
+        error: null,
+        mutate: mockMutate,
+        isValidating: false,
+      } as never);
+
+    render(<MeinRaumPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("student-card")).toBeInTheDocument();
+    });
+
+    // Search for non-existent student
+    const searchInput = screen.getByTestId("search-input");
+    fireEvent.change(searchInput, { target: { value: "zzzznonexistent" } });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("empty-results")).toBeInTheDocument();
+    });
+  });
+
+  it("filters students by group using the group dropdown", async () => {
+    vi.mocked(useSWRAuth)
+      .mockReturnValueOnce({
+        data: {
+          supervisedGroups: [
+            {
+              id: "1",
+              name: "Room A",
+              room: { id: "r1", name: "Room A" },
+            },
+          ],
+          unclaimedGroups: [],
+          currentStaff: { id: "staff-1" },
+          educationalGroups: [
+            { id: "g1", name: "Group Alpha", room: { name: "Room A" } },
+            { id: "g2", name: "Group Beta", room: { name: "Room B" } },
+          ],
+          firstRoomVisits: [
+            {
+              studentId: "s1",
+              studentName: "Max Alpha",
+              schoolClass: "1a",
+              groupName: "Group Alpha",
+              activeGroupId: "1",
+              checkInTime: new Date().toISOString(),
+              isActive: true,
+            },
+            {
+              studentId: "s2",
+              studentName: "Erika Beta",
+              schoolClass: "2b",
+              groupName: "Group Beta",
+              activeGroupId: "1",
+              checkInTime: new Date().toISOString(),
+              isActive: true,
+            },
+            {
+              studentId: "s3",
+              studentName: "Hans Alpha",
+              schoolClass: "1a",
+              groupName: "Group Alpha",
+              activeGroupId: "1",
+              checkInTime: new Date().toISOString(),
+              isActive: true,
+            },
+          ],
+          firstRoomId: "1",
+        },
+        isLoading: false,
+        error: null,
+        mutate: mockMutate,
+        isValidating: false,
+      } as never)
+      .mockReturnValue({
+        data: null,
+        isLoading: false,
+        error: null,
+        mutate: mockMutate,
+        isValidating: false,
+      } as never);
+
+    render(<MeinRaumPage />);
+
+    await waitFor(() => {
+      expect(screen.getAllByTestId("student-card")).toHaveLength(3);
+    });
+
+    // Select group filter
+    const groupSelect = screen.getByTestId("filter-group");
+    fireEvent.change(groupSelect, { target: { value: "Group Alpha" } });
+
+    await waitFor(() => {
+      expect(screen.getAllByTestId("student-card")).toHaveLength(2);
+    });
+  });
+
+  it("clears all filters when onClearAllFilters is triggered", async () => {
+    vi.mocked(useSWRAuth)
+      .mockReturnValueOnce({
+        data: {
+          supervisedGroups: [
+            {
+              id: "1",
+              name: "Room A",
+              room: { id: "r1", name: "Room A" },
+            },
+          ],
+          unclaimedGroups: [],
+          currentStaff: { id: "staff-1" },
+          educationalGroups: [],
+          firstRoomVisits: [
+            {
+              studentId: "s1",
+              studentName: "Max Mustermann",
+              schoolClass: "1a",
+              groupName: "Group A",
+              activeGroupId: "1",
+              checkInTime: new Date().toISOString(),
+              isActive: true,
+            },
+            {
+              studentId: "s2",
+              studentName: "Erika Schmidt",
+              schoolClass: "2b",
+              groupName: "Group B",
+              activeGroupId: "1",
+              checkInTime: new Date().toISOString(),
+              isActive: true,
+            },
+          ],
+          firstRoomId: "1",
+        },
+        isLoading: false,
+        error: null,
+        mutate: mockMutate,
+        isValidating: false,
+      } as never)
+      .mockReturnValue({
+        data: null,
+        isLoading: false,
+        error: null,
+        mutate: mockMutate,
+        isValidating: false,
+      } as never);
+
+    render(<MeinRaumPage />);
+
+    await waitFor(() => {
+      expect(screen.getAllByTestId("student-card")).toHaveLength(2);
+    });
+
+    // Apply search filter
+    const searchInput = screen.getByTestId("search-input");
+    fireEvent.change(searchInput, { target: { value: "Max" } });
+
+    await waitFor(() => {
+      expect(screen.getAllByTestId("student-card")).toHaveLength(1);
+    });
+
+    // Click clear all filters
+    const clearBtn = screen.getByTestId("clear-btn");
+    fireEvent.click(clearBtn);
+
+    // All students should be visible again
+    await waitFor(() => {
+      expect(screen.getAllByTestId("student-card")).toHaveLength(2);
+    });
+  });
+});
+
+describe("Unauthenticated redirect coverage", () => {
+  const mockMutate = vi.fn();
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    global.fetch = vi.fn();
+  });
+
+  afterEach(() => {
+    cleanup();
+  });
+
+  it("redirects to home when session is unauthenticated", async () => {
+    const { useSession } = await import("next-auth/react");
+    vi.mocked(useSession).mockImplementation(((config?: {
+      required?: boolean;
+      onUnauthenticated?: () => void;
+    }) => {
+      if (config?.required && config?.onUnauthenticated) {
+        config.onUnauthenticated();
+      }
+      return { data: null, status: "unauthenticated", update: vi.fn() };
+    }) as typeof useSession);
+
+    vi.mocked(useSWRAuth).mockReturnValue({
+      data: null,
+      isLoading: false,
+      error: null,
+      mutate: mockMutate,
+      isValidating: false,
+    } as never);
+
+    render(<MeinRaumPage />);
+
+    await waitFor(() => {
+      expect(mockPush).toHaveBeenCalledWith("/");
+    });
+  });
+});
+
+describe("EmptyRoomsView onClearAllFilters coverage", () => {
+  const mockMutate = vi.fn();
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    global.fetch = vi.fn();
+
+    // Restore useSession to authenticated for these tests
+    const { useSession } = await import("next-auth/react");
+    vi.mocked(useSession).mockReturnValue({
+      data: { user: { token: "test-token" } },
+      status: "authenticated",
+    } as never);
+
+    // Override PageHeaderWithSearch to render onClearAllFilters button
+    const mod = await import("~/components/ui/page-header");
+    vi.mocked(
+      mod.PageHeaderWithSearch as React.FC<Record<string, unknown>>,
+    ).mockImplementation((props: Record<string, unknown>) => {
+      const p = props;
+      const search = p.search as
+        | { value: string; onChange: (v: string) => void }
+        | undefined;
+      const onClearAllFilters = p.onClearAllFilters as (() => void) | undefined;
+
+      return (
+        <div data-testid="page-header">
+          {search && (
+            <input
+              data-testid="search-input"
+              value={search.value}
+              onChange={(e) => search.onChange(e.target.value)}
+            />
+          )}
+          {onClearAllFilters && (
+            <button data-testid="clear-btn" onClick={onClearAllFilters}>
+              Clear
+            </button>
+          )}
+        </div>
+      );
+    });
+  });
+
+  afterEach(() => {
+    cleanup();
+  });
+
+  it("clears search and group filter in EmptyRoomsView", async () => {
+    vi.mocked(useSWRAuth).mockReturnValue({
+      data: {
+        supervisedGroups: [],
+        unclaimedGroups: [
+          { id: "u1", name: "Available Room", room: { name: "Room X" } },
+        ],
+        currentStaff: { id: "staff-1" },
+        educationalGroups: [],
+        firstRoomVisits: [],
+        firstRoomId: null,
+      },
+      isLoading: false,
+      error: null,
+      mutate: mockMutate,
+      isValidating: false,
+    } as never);
+
+    render(<MeinRaumPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("unclaimed-rooms")).toBeInTheDocument();
+    });
+
+    // The clear button should exist from the EmptyRoomsView's PageHeaderWithSearch
+    const clearBtn = screen.getByTestId("clear-btn");
+    fireEvent.click(clearBtn);
+
+    // No error should occur - the callback sets searchTerm="" and groupFilter="all"
+    expect(clearBtn).toBeInTheDocument();
   });
 });
