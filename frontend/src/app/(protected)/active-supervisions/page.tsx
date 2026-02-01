@@ -514,7 +514,7 @@ function MeinRaumPageContent() {
   // Calling it again would create a duplicate SSE connection.
 
   // Get current room ID for per-room SWR subscription
-  const currentRoomId = allRooms[selectedRoomIndex]?.id;
+  const currentRoomId = currentRoom?.id;
 
   // SWR-based BFF data fetching with caching
   // Cache key "active-supervision-dashboard" will be invalidated by global SSE on relevant events
@@ -763,8 +763,7 @@ function MeinRaumPageContent() {
   const { data: swrVisitsData } = useSWRAuth<StudentWithVisit[]>(
     hasAccess && currentRoomId ? `supervision-visits-${currentRoomId}` : null,
     async () => {
-      const room = allRooms.find((r) => r.id === currentRoomId);
-      if (!room) return [];
+      if (!currentRoom) return [];
 
       const visits = await activeService.getActiveGroupVisitsWithDisplay(
         currentRoomId!,
@@ -777,8 +776,8 @@ function MeinRaumPageContent() {
         const nameParts = visit.studentName?.split(" ") ?? ["", ""];
         const firstName = nameParts[0] ?? "";
         const lastName = nameParts.slice(1).join(" ") ?? "";
-        const location = room.room_name
-          ? `Anwesend - ${room.room_name}`
+        const location = currentRoom?.room_name
+          ? `Anwesend - ${currentRoom.room_name}`
           : "Anwesend";
 
         const groupId =
