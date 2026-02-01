@@ -136,7 +136,7 @@ func TestSchulhofService_GetSchulhofStatus_WithInfrastructureNoSession(t *testin
 	defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
 
 	// Create infrastructure
-	activityGroup, err := service.EnsureInfrastructure(ctx)
+	activityGroup, err := service.EnsureInfrastructure(ctx, staff.ID)
 	require.NoError(t, err)
 	defer testpkg.CleanupActivityFixtures(t, db, activityGroup.ID, activityGroup.CategoryID, *activityGroup.PlannedRoomID)
 
@@ -167,7 +167,7 @@ func TestSchulhofService_GetSchulhofStatus_WithActiveSessionNoSupervisor(t *test
 	defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
 
 	// Create infrastructure and active group
-	activeGroup, err := service.GetOrCreateActiveGroup(ctx)
+	activeGroup, err := service.GetOrCreateActiveGroup(ctx, staff.ID)
 	require.NoError(t, err)
 	defer testpkg.CleanupActivityFixtures(t, db, activeGroup.ID, activeGroup.GroupID, activeGroup.RoomID)
 
@@ -196,7 +196,7 @@ func TestSchulhofService_GetSchulhofStatus_WithSupervisor(t *testing.T) {
 	defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
 
 	// Create infrastructure and active group
-	activeGroup, err := service.GetOrCreateActiveGroup(ctx)
+	activeGroup, err := service.GetOrCreateActiveGroup(ctx, staff.ID)
 	require.NoError(t, err)
 	defer testpkg.CleanupActivityFixtures(t, db, activeGroup.ID, activeGroup.GroupID, activeGroup.RoomID)
 
@@ -231,7 +231,7 @@ func TestSchulhofService_GetSchulhofStatus_WithMultipleSupervisors(t *testing.T)
 	defer testpkg.CleanupActivityFixtures(t, db, staff1.ID, staff2.ID)
 
 	// Create infrastructure and active group
-	activeGroup, err := service.GetOrCreateActiveGroup(ctx)
+	activeGroup, err := service.GetOrCreateActiveGroup(ctx, staff1.ID)
 	require.NoError(t, err)
 	defer testpkg.CleanupActivityFixtures(t, db, activeGroup.ID, activeGroup.GroupID, activeGroup.RoomID)
 
@@ -273,7 +273,7 @@ func TestSchulhofService_GetSchulhofStatus_WithStudents(t *testing.T) {
 	defer testpkg.CleanupActivityFixtures(t, db, staff.ID, student1.ID, student2.ID)
 
 	// Create infrastructure and active group
-	activeGroup, err := service.GetOrCreateActiveGroup(ctx)
+	activeGroup, err := service.GetOrCreateActiveGroup(ctx, staff.ID)
 	require.NoError(t, err)
 	defer testpkg.CleanupActivityFixtures(t, db, activeGroup.ID, activeGroup.GroupID, activeGroup.RoomID)
 
@@ -393,7 +393,7 @@ func TestSchulhofService_ToggleSupervision_StopNotSupervising(t *testing.T) {
 	defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
 
 	// Create infrastructure and active group (but don't add as supervisor)
-	activeGroup, err := service.GetOrCreateActiveGroup(ctx)
+	activeGroup, err := service.GetOrCreateActiveGroup(ctx, staff.ID)
 	require.NoError(t, err)
 	defer testpkg.CleanupActivityFixtures(t, db, activeGroup.ID, activeGroup.GroupID, activeGroup.RoomID)
 
@@ -436,8 +436,11 @@ func TestSchulhofService_EnsureInfrastructure_CreatesAll(t *testing.T) {
 	service := setupSchulhofService(t, db)
 	ctx := context.Background()
 
+	staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
+	defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
+
 	// ACT
-	activityGroup, err := service.EnsureInfrastructure(ctx)
+	activityGroup, err := service.EnsureInfrastructure(ctx, staff.ID)
 
 	// ASSERT
 	require.NoError(t, err)
@@ -459,13 +462,16 @@ func TestSchulhofService_EnsureInfrastructure_Idempotent(t *testing.T) {
 	service := setupSchulhofService(t, db)
 	ctx := context.Background()
 
+	staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
+	defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
+
 	// Create infrastructure first time
-	activityGroup1, err := service.EnsureInfrastructure(ctx)
+	activityGroup1, err := service.EnsureInfrastructure(ctx, staff.ID)
 	require.NoError(t, err)
 	defer testpkg.CleanupActivityFixtures(t, db, activityGroup1.ID, activityGroup1.CategoryID, *activityGroup1.PlannedRoomID)
 
 	// ACT - Call again (should return existing)
-	activityGroup2, err := service.EnsureInfrastructure(ctx)
+	activityGroup2, err := service.EnsureInfrastructure(ctx, staff.ID)
 
 	// ASSERT
 	require.NoError(t, err)
@@ -486,8 +492,11 @@ func TestSchulhofService_GetOrCreateActiveGroup_Creates(t *testing.T) {
 	service := setupSchulhofService(t, db)
 	ctx := context.Background()
 
+	staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
+	defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
+
 	// ACT
-	activeGroup, err := service.GetOrCreateActiveGroup(ctx)
+	activeGroup, err := service.GetOrCreateActiveGroup(ctx, staff.ID)
 
 	// ASSERT
 	require.NoError(t, err)
@@ -520,13 +529,16 @@ func TestSchulhofService_GetOrCreateActiveGroup_ReturnsExisting(t *testing.T) {
 	service := setupSchulhofService(t, db)
 	ctx := context.Background()
 
+	staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
+	defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
+
 	// Create first time
-	activeGroup1, err := service.GetOrCreateActiveGroup(ctx)
+	activeGroup1, err := service.GetOrCreateActiveGroup(ctx, staff.ID)
 	require.NoError(t, err)
 	defer testpkg.CleanupActivityFixtures(t, db, activeGroup1.ID, activeGroup1.GroupID, activeGroup1.RoomID)
 
 	// ACT - Call again (should return same group)
-	activeGroup2, err := service.GetOrCreateActiveGroup(ctx)
+	activeGroup2, err := service.GetOrCreateActiveGroup(ctx, staff.ID)
 
 	// ASSERT
 	require.NoError(t, err)
@@ -555,8 +567,11 @@ func TestSchulhofService_GetOrCreateActiveGroup_IgnoresEndedGroups(t *testing.T)
 	service := setupSchulhofService(t, db)
 	ctx := context.Background()
 
+	staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
+	defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
+
 	// Ensure infrastructure exists
-	activityGroup, err := service.EnsureInfrastructure(ctx)
+	activityGroup, err := service.EnsureInfrastructure(ctx, staff.ID)
 	require.NoError(t, err)
 	defer testpkg.CleanupActivityFixtures(t, db, activityGroup.ID, activityGroup.CategoryID, *activityGroup.PlannedRoomID)
 
@@ -618,7 +633,7 @@ func TestSchulhofService_GetOrCreateActiveGroup_IgnoresEndedGroups(t *testing.T)
 	defer testpkg.CleanupActivityFixtures(t, db, endedGroup.ID)
 
 	// ACT - Should create a new one, not return the ended one
-	activeGroup, err := service.GetOrCreateActiveGroup(ctx)
+	activeGroup, err := service.GetOrCreateActiveGroup(ctx, staff.ID)
 
 	// ASSERT
 	require.NoError(t, err)

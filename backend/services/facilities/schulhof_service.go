@@ -33,12 +33,14 @@ type SchulhofService interface {
 	ToggleSupervision(ctx context.Context, staffID int64, action string) (*SupervisionResult, error)
 
 	// EnsureInfrastructure ensures the Schulhof room, category, and activity group exist.
-	// Returns the activity group ID.
-	EnsureInfrastructure(ctx context.Context) (*activityModels.Group, error)
+	// createdBy is the staff ID to use when creating new infrastructure.
+	// Returns the activity group.
+	EnsureInfrastructure(ctx context.Context, createdBy int64) (*activityModels.Group, error)
 
 	// GetOrCreateActiveGroup returns the active Schulhof group for today,
 	// creating one if it doesn't exist.
-	GetOrCreateActiveGroup(ctx context.Context) (*active.Group, error)
+	// createdBy is the staff ID to use when creating new infrastructure.
+	GetOrCreateActiveGroup(ctx context.Context, createdBy int64) (*active.Group, error)
 }
 
 // SchulhofStatus represents the current state of the Schulhof area.
@@ -176,14 +178,14 @@ func (s *schulhofService) ToggleSupervision(ctx context.Context, staffID int64, 
 		return nil, fmt.Errorf("invalid action: %s (must be 'start' or 'stop')", action)
 	}
 
-	// Ensure infrastructure exists
-	_, err := s.EnsureInfrastructure(ctx)
+	// Ensure infrastructure exists (use staffID as creator if infrastructure needs to be created)
+	_, err := s.EnsureInfrastructure(ctx, staffID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to ensure Schulhof infrastructure: %w", err)
 	}
 
 	// Get or create active group for today
-	activeGroup, err := s.GetOrCreateActiveGroup(ctx)
+	activeGroup, err := s.GetOrCreateActiveGroup(ctx, staffID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get/create active group: %w", err)
 	}
@@ -231,7 +233,7 @@ func (s *schulhofService) ToggleSupervision(ctx context.Context, staffID int64, 
 }
 
 // EnsureInfrastructure ensures the Schulhof room, category, and activity group exist.
-func (s *schulhofService) EnsureInfrastructure(ctx context.Context) (*activityModels.Group, error) {
+func (s *schulhofService) EnsureInfrastructure(ctx context.Context, createdBy int64) (*activityModels.Group, error) {
 	// Check if activity already exists
 	activityGroup, err := s.findSchulhofActivity(ctx)
 	if err == nil && activityGroup != nil {
@@ -259,6 +261,7 @@ func (s *schulhofService) EnsureInfrastructure(ctx context.Context) (*activityMo
 		IsOpen:          true, // Open activity - anyone can join
 		CategoryID:      category.ID,
 		PlannedRoomID:   &room.ID,
+		CreatedBy:       createdBy,
 	}
 
 	createdActivity, err := s.activityService.CreateGroup(ctx, newActivity, []int64{}, []*activityModels.Schedule{})
@@ -273,9 +276,9 @@ func (s *schulhofService) EnsureInfrastructure(ctx context.Context) (*activityMo
 }
 
 // GetOrCreateActiveGroup returns the active Schulhof group for today.
-func (s *schulhofService) GetOrCreateActiveGroup(ctx context.Context) (*active.Group, error) {
+func (s *schulhofService) GetOrCreateActiveGroup(ctx context.Context, createdBy int64) (*active.Group, error) {
 	// Ensure infrastructure exists
-	activityGroup, err := s.EnsureInfrastructure(ctx)
+	activityGroup, err := s.EnsureInfrastructure(ctx, createdBy)
 	if err != nil {
 		return nil, err
 	}
