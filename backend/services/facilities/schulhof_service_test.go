@@ -320,9 +320,12 @@ func TestSchulhofService_GetSchulhofStatus_WithStudents(t *testing.T) {
 	defer testpkg.CleanupActivityFixtures(t, db, activeGroup.ID)
 
 	// Add visits (one with exit, one without)
-	visit1 := testpkg.CreateTestVisit(t, db, student1.ID, activeGroup.ID, time.Now(), nil)
+	// Note: entry_time must be captured BEFORE exit_time to satisfy the
+	// chk_entry_before_exit constraint (entry_time <= exit_time)
+	entryTime := time.Now()
+	visit1 := testpkg.CreateTestVisit(t, db, student1.ID, activeGroup.ID, entryTime, nil)
 	exitTime := time.Now()
-	visit2 := testpkg.CreateTestVisit(t, db, student2.ID, activeGroup.ID, time.Now(), &exitTime)
+	visit2 := testpkg.CreateTestVisit(t, db, student2.ID, activeGroup.ID, entryTime, &exitTime)
 	defer testpkg.CleanupActivityFixtures(t, db, visit1.ID, visit2.ID)
 
 	// ACT

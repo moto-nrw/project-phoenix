@@ -1662,7 +1662,12 @@ describe("Schulhof status from BFF response", () => {
         supervisorCount: 3,
         studentCount: 25,
         supervisors: [
-          { id: "s1", staffId: "staff-1", name: "Lehrer A", isCurrentUser: true },
+          {
+            id: "s1",
+            staffId: "staff-1",
+            name: "Lehrer A",
+            isCurrentUser: true,
+          },
         ],
       },
     };
@@ -1871,8 +1876,18 @@ describe("Schulhof tab ID handling", () => {
 describe("Room conversion from supervised groups", () => {
   it("converts supervised groups to ActiveRoom format", () => {
     const supervisedGroups = [
-      { id: "1", name: "Group A", room: { id: "r1", name: "Raum 101" }, room_id: "r1" },
-      { id: "2", name: "Group B", room: { id: "r2", name: "Raum 102" }, room_id: "r2" },
+      {
+        id: "1",
+        name: "Group A",
+        room: { id: "r1", name: "Raum 101" },
+        room_id: "r1",
+      },
+      {
+        id: "2",
+        name: "Group B",
+        room: { id: "r2", name: "Raum 102" },
+        room_id: "r2",
+      },
     ];
 
     const activeRooms = supervisedGroups
@@ -1974,7 +1989,8 @@ describe("Page header title determination", () => {
     const isSchulhofTabSelected = true;
 
     const showRoomTitle =
-      !isDesktop && (allRooms.length === 1 || (allRooms.length === 0 && schulhofExists));
+      !isDesktop &&
+      (allRooms.length === 1 || (allRooms.length === 0 && schulhofExists));
 
     const title = showRoomTitle && isSchulhofTabSelected ? "Schulhof" : "";
 
@@ -2054,7 +2070,10 @@ describe("Local storage for room persistence", () => {
     mockLocalStorage.setItem("sidebar-last-room", SCHULHOF_TAB_ID);
     mockLocalStorage.setItem("sidebar-last-room-name", SCHULHOF_ROOM_NAME);
 
-    expect(setItem).toHaveBeenCalledWith("sidebar-last-room", "schulhof-permanent");
+    expect(setItem).toHaveBeenCalledWith(
+      "sidebar-last-room",
+      "schulhof-permanent",
+    );
     expect(setItem).toHaveBeenCalledWith("sidebar-last-room-name", "Schulhof");
   });
 });

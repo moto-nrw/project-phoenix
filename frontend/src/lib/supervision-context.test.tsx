@@ -838,9 +838,24 @@ describe("SupervisionProvider multiple supervised rooms", () => {
     setupFetchMock({
       supervised: {
         data: [
-          { id: 1, room_id: 10, group_id: 1, room: { id: 10, name: "Zimmer Z" } },
-          { id: 2, room_id: 20, group_id: 2, room: { id: 20, name: "Atelier A" } },
-          { id: 3, room_id: 30, group_id: 3, room: { id: 30, name: "Mensa M" } },
+          {
+            id: 1,
+            room_id: 10,
+            group_id: 1,
+            room: { id: 10, name: "Zimmer Z" },
+          },
+          {
+            id: 2,
+            room_id: 20,
+            group_id: 2,
+            room: { id: 20, name: "Atelier A" },
+          },
+          {
+            id: 3,
+            room_id: 30,
+            group_id: 3,
+            room: { id: 30, name: "Mensa M" },
+          },
         ],
       },
     });
@@ -883,6 +898,8 @@ describe("SupervisionProvider multiple supervised rooms", () => {
       expect(result.current.isLoadingSupervision).toBe(false);
     });
 
-    expect(result.current.supervisedRooms[0]?.groupName).toBe("OGS Gruppe Blau");
+    expect(result.current.supervisedRooms[0]?.groupName).toBe(
+      "OGS Gruppe Blau",
+    );
   });
 });
