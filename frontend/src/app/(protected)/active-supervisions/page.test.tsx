@@ -2839,13 +2839,20 @@ describe("First room visits from BFF", () => {
   });
 
   it("skips applying first room visits when other room selected", () => {
+    const applyFirstRoomVisits = (
+      selectedRoomIndex: number,
+      firstRoomVisits: Array<{ studentId: string }>,
+    ): boolean => {
+      if (selectedRoomIndex === 0 && firstRoomVisits.length > 0) {
+        return true;
+      }
+      return false;
+    };
+
     const selectedRoomIndex = 2 as number;
     const firstRoomVisits = [{ studentId: "s1" }];
 
-    let applied = false;
-    if (selectedRoomIndex === 0 && firstRoomVisits.length > 0) {
-      applied = true;
-    }
+    const applied = applyFirstRoomVisits(selectedRoomIndex, firstRoomVisits);
 
     expect(applied).toBe(false);
   });
