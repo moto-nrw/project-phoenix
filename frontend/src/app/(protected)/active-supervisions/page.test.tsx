@@ -2097,7 +2097,8 @@ describe("hasSupervision tracking via ref", () => {
 describe("Error handling scenarios", () => {
   it("handles 403 forbidden error gracefully", () => {
     const errorMessage = "Forbidden: No access to group";
-    const is403Error = errorMessage.includes("403") || errorMessage.includes("Forbidden");
+    const is403Error =
+      errorMessage.includes("403") || errorMessage.includes("Forbidden");
 
     expect(is403Error).toBe(true);
   });
@@ -2112,7 +2113,9 @@ describe("Error handling scenarios", () => {
       hasAccess = false;
     }
 
-    expect(error).toBe("Sie haben aktuell keinen aktiven Raum zur Supervision.");
+    expect(error).toBe(
+      "Sie haben aktuell keinen aktiven Raum zur Supervision.",
+    );
     expect(hasAccess).toBe(false);
   });
 
@@ -2276,9 +2279,7 @@ describe("Release supervision modal flow", () => {
 
   it("handles missing supervision gracefully", () => {
     const currentStaffId = "staff-unknown";
-    const supervisors = [
-      { id: "sup-1", staffId: "staff-1", isActive: true },
-    ];
+    const supervisors = [{ id: "sup-1", staffId: "staff-1", isActive: true }];
 
     const mySupervision = supervisors.find(
       (sup) => sup.staffId === currentStaffId && sup.isActive,
@@ -2707,8 +2708,7 @@ describe("Tabs visibility logic", () => {
     const schulhofExists = false;
     const isDesktop = false;
 
-    const showTabs =
-      (allRooms.length > 1 || schulhofExists) && !isDesktop;
+    const showTabs = (allRooms.length > 1 || schulhofExists) && !isDesktop;
 
     expect(showTabs).toBe(true);
   });
@@ -2718,8 +2718,7 @@ describe("Tabs visibility logic", () => {
     const schulhofExists = true;
     const isDesktop = false;
 
-    const showTabs =
-      (allRooms.length > 1 || schulhofExists) && !isDesktop;
+    const showTabs = (allRooms.length > 1 || schulhofExists) && !isDesktop;
 
     expect(showTabs).toBe(true);
   });
@@ -2729,8 +2728,7 @@ describe("Tabs visibility logic", () => {
     const schulhofExists = true;
     const isDesktop = true;
 
-    const showTabs =
-      (allRooms.length > 1 || schulhofExists) && !isDesktop;
+    const showTabs = (allRooms.length > 1 || schulhofExists) && !isDesktop;
 
     expect(showTabs).toBe(false);
   });
@@ -2740,8 +2738,7 @@ describe("Tabs visibility logic", () => {
     const schulhofExists = false;
     const isDesktop = false;
 
-    const showTabs =
-      (allRooms.length > 1 || schulhofExists) && !isDesktop;
+    const showTabs = (allRooms.length > 1 || schulhofExists) && !isDesktop;
 
     expect(showTabs).toBe(false);
   });
@@ -3031,7 +3028,7 @@ describe("currentRoom calculation", () => {
 
     const currentRoom = isSchulhofTabSelected
       ? null
-      : allRooms[selectedRoomIndex] ?? null;
+      : (allRooms[selectedRoomIndex] ?? null);
 
     expect(currentRoom).not.toBeNull();
     expect(currentRoom?.name).toBe("Mensa");
@@ -3049,10 +3046,11 @@ describe("Page header title logic", () => {
 
     const title =
       !isDesktop &&
-      (allRooms.length === 1 || (allRooms.length === 0 && schulhofStatus?.exists))
+      (allRooms.length === 1 ||
+        (allRooms.length === 0 && schulhofStatus?.exists))
         ? isSchulhofTabSelected
           ? "Schulhof"
-          : currentRoom?.room_name ?? "Aktuelle Aufsicht"
+          : (currentRoom?.room_name ?? "Aktuelle Aufsicht")
         : "";
 
     expect(title).toBe("Mensa");
@@ -3066,7 +3064,8 @@ describe("Page header title logic", () => {
 
     const title =
       !isDesktop &&
-      (allRooms.length === 1 || (allRooms.length === 0 && schulhofStatus?.exists))
+      (allRooms.length === 1 ||
+        (allRooms.length === 0 && schulhofStatus?.exists))
         ? isSchulhofTabSelected
           ? "Schulhof"
           : "Aktuelle Aufsicht"
@@ -3080,7 +3079,7 @@ describe("Page header title logic", () => {
     const allRooms = [{ room_name: "Mensa" }];
 
     const title =
-      !isDesktop && allRooms.length === 1 ? allRooms[0]?.room_name ?? "" : "";
+      !isDesktop && allRooms.length === 1 ? (allRooms[0]?.room_name ?? "") : "";
 
     expect(title).toBe("");
   });
@@ -3092,8 +3091,7 @@ describe("Tabs visibility logic extended", () => {
     const schulhofExists = true;
     const isDesktop = false;
 
-    const showTabs =
-      (allRooms.length > 1 || schulhofExists) && !isDesktop;
+    const showTabs = (allRooms.length > 1 || schulhofExists) && !isDesktop;
 
     expect(showTabs).toBe(true);
   });
@@ -3103,8 +3101,7 @@ describe("Tabs visibility logic extended", () => {
     const schulhofExists = true;
     const isDesktop = true;
 
-    const showTabs =
-      (allRooms.length > 1 || schulhofExists) && !isDesktop;
+    const showTabs = (allRooms.length > 1 || schulhofExists) && !isDesktop;
 
     expect(showTabs).toBe(false);
   });
@@ -3114,8 +3111,7 @@ describe("Tabs visibility logic extended", () => {
     const schulhofExists = false;
     const isDesktop = false;
 
-    const showTabs =
-      (allRooms.length > 1 || schulhofExists) && !isDesktop;
+    const showTabs = (allRooms.length > 1 || schulhofExists) && !isDesktop;
 
     expect(showTabs).toBe(false);
   });
@@ -3243,77 +3239,54 @@ describe("Visit enrichment edge cases", () => {
 });
 
 describe("First room visits application guard", () => {
+  // Helper function that encapsulates the first room visits logic
+  function shouldApplyFirstRoomVisits(
+    selectedRoomIndex: number,
+    firstRoomVisits: Array<{ id: string }>,
+  ): boolean {
+    return selectedRoomIndex === 0 && firstRoomVisits.length > 0;
+  }
+
   it("applies first room visits only when index is 0", () => {
-    const selectedRoomIndex = 0;
-    const firstRoomVisits = [{ id: "v1" }];
-
-    const shouldApplyFirstRoomVisits =
-      selectedRoomIndex === 0 && firstRoomVisits.length > 0;
-
-    expect(shouldApplyFirstRoomVisits).toBe(true);
+    const result = shouldApplyFirstRoomVisits(0, [{ id: "v1" }]);
+    expect(result).toBe(true);
   });
 
   it("does not apply first room visits for other rooms", () => {
-    const selectedRoomIndex = 1 as number;
-    const firstRoomVisits = [{ id: "v1" }];
-
-    const shouldApplyFirstRoomVisits =
-      selectedRoomIndex === 0 && firstRoomVisits.length > 0;
-
-    expect(shouldApplyFirstRoomVisits).toBe(false);
+    const result = shouldApplyFirstRoomVisits(1, [{ id: "v1" }]);
+    expect(result).toBe(false);
   });
 });
 
 describe("Action button conditional rendering logic", () => {
+  // Helper function that encapsulates the button type logic
+  function getButtonType(
+    isSchulhofTabSelected: boolean,
+    schulhofStatus: { isUserSupervising: boolean } | null,
+  ): "release" | "claim" | "none" {
+    if (!isSchulhofTabSelected || !schulhofStatus) {
+      return "none";
+    }
+    return schulhofStatus.isUserSupervising ? "release" : "claim";
+  }
+
   it("shows release button when supervising Schulhof", () => {
-    const isSchulhofTabSelected = true;
-    const schulhofStatus = { isUserSupervising: true };
-
-    const buttonType = isSchulhofTabSelected && schulhofStatus
-      ? schulhofStatus.isUserSupervising
-        ? "release"
-        : "claim"
-      : "none";
-
+    const buttonType = getButtonType(true, { isUserSupervising: true });
     expect(buttonType).toBe("release");
   });
 
   it("shows claim button when not supervising Schulhof", () => {
-    const isSchulhofTabSelected = true;
-    const schulhofStatus = { isUserSupervising: false };
-
-    const buttonType = isSchulhofTabSelected && schulhofStatus
-      ? schulhofStatus.isUserSupervising
-        ? "release"
-        : "claim"
-      : "none";
-
+    const buttonType = getButtonType(true, { isUserSupervising: false });
     expect(buttonType).toBe("claim");
   });
 
   it("shows no button for regular rooms", () => {
-    const isSchulhofTabSelected = false;
-    const schulhofStatus = { isUserSupervising: true };
-
-    const buttonType = isSchulhofTabSelected && schulhofStatus
-      ? schulhofStatus.isUserSupervising
-        ? "release"
-        : "claim"
-      : "none";
-
+    const buttonType = getButtonType(false, { isUserSupervising: true });
     expect(buttonType).toBe("none");
   });
 
   it("shows no button when schulhofStatus is null", () => {
-    const isSchulhofTabSelected = true;
-    const schulhofStatus = null as { isUserSupervising: boolean } | null;
-
-    const buttonType = isSchulhofTabSelected && schulhofStatus
-      ? schulhofStatus.isUserSupervising
-        ? "release"
-        : "claim"
-      : "none";
-
+    const buttonType = getButtonType(true, null);
     expect(buttonType).toBe("none");
   });
 });

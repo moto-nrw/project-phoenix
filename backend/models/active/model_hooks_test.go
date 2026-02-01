@@ -86,34 +86,8 @@ func TestGroupMapping_Validate(t *testing.T) {
 // GroupSupervisor Model Tests
 // ============================================================================
 
-func TestGroupSupervisor_BeforeAppendModel(t *testing.T) {
-	gs := &GroupSupervisor{}
-
-	t.Run("handles SelectQuery", func(t *testing.T) {
-		err := gs.BeforeAppendModel(&bun.SelectQuery{})
-		assert.NoError(t, err)
-	})
-
-	t.Run("handles InsertQuery", func(t *testing.T) {
-		err := gs.BeforeAppendModel(&bun.InsertQuery{})
-		assert.NoError(t, err)
-	})
-
-	t.Run("handles UpdateQuery", func(t *testing.T) {
-		err := gs.BeforeAppendModel(&bun.UpdateQuery{})
-		assert.NoError(t, err)
-	})
-
-	t.Run("handles DeleteQuery", func(t *testing.T) {
-		err := gs.BeforeAppendModel(&bun.DeleteQuery{})
-		assert.NoError(t, err)
-	})
-
-	t.Run("handles unknown query type", func(t *testing.T) {
-		err := gs.BeforeAppendModel("unknown")
-		assert.NoError(t, err)
-	})
-}
+// TestGroupSupervisor_BeforeAppendModel is skipped because the hook is now commented out
+// (the repository controls the table expression directly, following the pattern used by active.Group)
 
 func TestGroupSupervisor_TableName(t *testing.T) {
 	gs := &GroupSupervisor{}

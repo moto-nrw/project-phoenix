@@ -781,7 +781,7 @@ func TestSchulhofService_ToggleSupervision_StopAction(t *testing.T) {
 	require.NotNil(t, startResult)
 	assert.Equal(t, "started", startResult.Action)
 	assert.NotNil(t, startResult.SupervisionID)
-	supervisionID := *startResult.SupervisionID
+	_ = *startResult.SupervisionID // Verify we got a supervision ID
 
 	// Now stop supervision
 	stopResult, err := service.ToggleSupervision(ctx, staff.ID, "stop")
@@ -789,12 +789,8 @@ func TestSchulhofService_ToggleSupervision_StopAction(t *testing.T) {
 	require.NotNil(t, stopResult)
 	assert.Equal(t, "stopped", stopResult.Action)
 
-	// Verify the supervision was actually ended in the database
-	var supervision active.GroupSupervisor
-	err = db.NewSelect().
-		Model(&supervision).
-		Where("id = ?", supervisionID).
-		Scan(ctx)
+	// Verify the supervision was actually ended by checking status
+	status, err := service.GetSchulhofStatus(ctx, staff.ID)
 	require.NoError(t, err)
-	assert.NotNil(t, supervision.EndDate, "Supervision should have end_date set")
+	assert.False(t, status.IsUserSupervising, "User should no longer be supervising")
 }
