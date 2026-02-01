@@ -1003,7 +1003,10 @@ export const activeService = {
   toggleSchulhofSupervision: async (
     action: "start" | "stop",
   ): Promise<ToggleSupervisionResponse> => {
-    return proxyPost<BackendToggleSupervisionResponse, ToggleSupervisionResponse>(
+    return proxyPost<
+      BackendToggleSupervisionResponse,
+      ToggleSupervisionResponse
+    >(
       "/api/active/schulhof/supervise",
       `${env.NEXT_PUBLIC_API_URL}/active/schulhof/supervise`,
       { action },

@@ -5,6 +5,8 @@ import type {
   BackendCombinedGroup,
   BackendGroupMapping,
   BackendAnalytics,
+  BackendSchulhofStatus,
+  BackendToggleSupervisionResponse,
 } from "./active-helpers";
 import { suppressConsole } from "~/test/helpers/console";
 import { mockSessionData } from "~/test/mocks/next-auth";
@@ -1072,26 +1074,25 @@ describe("active-service", () => {
   describe("Schulhof (Schoolyard)", () => {
     describe("getSchulhofStatus", () => {
       it("fetches Schulhof status via proxy in browser context", async () => {
-        const sampleBackendStatus: import("./active-helpers").BackendSchulhofStatus =
-          {
-            exists: true,
-            room_id: 42,
-            room_name: "Schulhof",
-            activity_group_id: 10,
-            active_group_id: 5,
-            is_user_supervising: true,
-            supervision_id: 123,
-            supervisor_count: 2,
-            student_count: 15,
-            supervisors: [
-              {
-                id: 1,
-                staff_id: 100,
-                name: "Frau Schmidt",
-                is_current_user: true,
-              },
-            ],
-          };
+        const sampleBackendStatus: BackendSchulhofStatus = {
+          exists: true,
+          room_id: 42,
+          room_name: "Schulhof",
+          activity_group_id: 10,
+          active_group_id: 5,
+          is_user_supervising: true,
+          supervision_id: 123,
+          supervisor_count: 2,
+          student_count: 15,
+          supervisors: [
+            {
+              id: 1,
+              staff_id: 100,
+              name: "Frau Schmidt",
+              is_current_user: true,
+            },
+          ],
+        };
 
         const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
         mockFetch.mockResolvedValueOnce({
@@ -1119,15 +1120,14 @@ describe("active-service", () => {
       });
 
       it("handles non-existent Schulhof", async () => {
-        const sampleBackendStatus: import("./active-helpers").BackendSchulhofStatus =
-          {
-            exists: false,
-            room_name: "",
-            is_user_supervising: false,
-            supervisor_count: 0,
-            student_count: 0,
-            supervisors: [],
-          };
+        const sampleBackendStatus: BackendSchulhofStatus = {
+          exists: false,
+          room_name: "",
+          is_user_supervising: false,
+          supervisor_count: 0,
+          student_count: 0,
+          supervisors: [],
+        };
 
         const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
         mockFetch.mockResolvedValueOnce({
@@ -1159,15 +1159,14 @@ describe("active-service", () => {
         // @ts-expect-error - simulating server context
         globalThis.window = undefined;
 
-        const sampleBackendStatus: import("./active-helpers").BackendSchulhofStatus =
-          {
-            exists: true,
-            room_name: "Schulhof",
-            is_user_supervising: false,
-            supervisor_count: 0,
-            student_count: 0,
-            supervisors: [],
-          };
+        const sampleBackendStatus: BackendSchulhofStatus = {
+          exists: true,
+          room_name: "Schulhof",
+          is_user_supervising: false,
+          supervisor_count: 0,
+          student_count: 0,
+          supervisors: [],
+        };
 
         mockedApiGet.mockResolvedValueOnce({
           data: { data: sampleBackendStatus },
@@ -1184,12 +1183,11 @@ describe("active-service", () => {
 
     describe("toggleSchulhofSupervision", () => {
       it("starts supervision via proxy in browser context", async () => {
-        const sampleBackendResponse: import("./active-helpers").BackendToggleSupervisionResponse =
-          {
-            action: "started",
-            supervision_id: 456,
-            active_group_id: 789,
-          };
+        const sampleBackendResponse: BackendToggleSupervisionResponse = {
+          action: "started",
+          supervision_id: 456,
+          active_group_id: 789,
+        };
 
         const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
         mockFetch.mockResolvedValueOnce({
@@ -1197,8 +1195,7 @@ describe("active-service", () => {
           json: () => Promise.resolve({ data: sampleBackendResponse }),
         } as Response);
 
-        const result =
-          await activeService.toggleSchulhofSupervision("start");
+        const result = await activeService.toggleSchulhofSupervision("start");
 
         expect(mockFetch).toHaveBeenCalledWith(
           "/api/active/schulhof/supervise",
@@ -1216,11 +1213,10 @@ describe("active-service", () => {
       });
 
       it("stops supervision via proxy in browser context", async () => {
-        const sampleBackendResponse: import("./active-helpers").BackendToggleSupervisionResponse =
-          {
-            action: "stopped",
-            active_group_id: 789,
-          };
+        const sampleBackendResponse: BackendToggleSupervisionResponse = {
+          action: "stopped",
+          active_group_id: 789,
+        };
 
         const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
         mockFetch.mockResolvedValueOnce({
@@ -1258,19 +1254,17 @@ describe("active-service", () => {
         // @ts-expect-error - simulating server context
         globalThis.window = undefined;
 
-        const sampleBackendResponse: import("./active-helpers").BackendToggleSupervisionResponse =
-          {
-            action: "started",
-            supervision_id: 111,
-            active_group_id: 222,
-          };
+        const sampleBackendResponse: BackendToggleSupervisionResponse = {
+          action: "started",
+          supervision_id: 111,
+          active_group_id: 222,
+        };
 
         mockedApiPost.mockResolvedValueOnce({
           data: { data: sampleBackendResponse },
         });
 
-        const result =
-          await activeService.toggleSchulhofSupervision("start");
+        const result = await activeService.toggleSchulhofSupervision("start");
 
         expect(mockedApiPost).toHaveBeenCalledWith(
           "http://localhost:8080/active/schulhof/supervise",
@@ -1283,11 +1277,10 @@ describe("active-service", () => {
         // @ts-expect-error - simulating server context
         globalThis.window = undefined;
 
-        const sampleBackendResponse: import("./active-helpers").BackendToggleSupervisionResponse =
-          {
-            action: "stopped",
-            active_group_id: 222,
-          };
+        const sampleBackendResponse: BackendToggleSupervisionResponse = {
+          action: "stopped",
+          active_group_id: 222,
+        };
 
         mockedApiPost.mockResolvedValueOnce({
           data: { data: sampleBackendResponse },

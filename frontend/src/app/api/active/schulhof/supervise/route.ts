@@ -12,6 +12,7 @@ export const POST = createPostHandler(
     _request: NextRequest,
     body: unknown,
     token: string,
+    _params: Record<string, unknown>,
   ) => {
     // Validate and pass through the action
     const { action } = body as { action?: string };

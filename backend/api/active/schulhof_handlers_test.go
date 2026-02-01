@@ -17,8 +17,8 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	activityModels "github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/active"
+	activityModels "github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/users"

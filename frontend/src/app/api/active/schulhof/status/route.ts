@@ -11,7 +11,11 @@ import { createGetHandler } from "~/lib/route-wrapper";
  * - Whether the current user is supervising
  */
 export const GET = createGetHandler(
-  async (_request: NextRequest, token: string) => {
+  async (
+    _request: NextRequest,
+    token: string,
+    _params: Record<string, unknown>,
+  ) => {
     return await apiGet("/api/active/schulhof/status", token);
   },
 );

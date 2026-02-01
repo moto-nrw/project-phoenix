@@ -7,14 +7,37 @@ vi.mock("~/lib/api-helpers", () => ({
   apiPost: vi.fn(),
 }));
 
+// Route context type matching Next.js 15+
+type MockRouteContext = {
+  params: Promise<Record<string, string | string[] | undefined>>;
+};
+
+// Handler type for the POST route
+type PostHandler = (
+  request: NextRequest,
+  body: unknown,
+  token: string,
+  params: Record<string, unknown>,
+) => Promise<unknown>;
+
+// Response type for JSON parsing
+interface MockResponse {
+  data: {
+    action: string;
+    supervision_id?: number;
+    active_group_id: number;
+  };
+}
+
 // Mock the route-wrapper module
 vi.mock("~/lib/route-wrapper", () => ({
-  createPostHandler: vi.fn((handler) => {
-    return async (request: NextRequest) => {
+  createPostHandler: vi.fn((handler: PostHandler) => {
+    return async (request: NextRequest, _context: MockRouteContext) => {
       // Simulate the wrapper behavior - extract token and body, call handler
       const token = "test-token";
-      const body = await request.json();
-      const result = await handler(request, body, token);
+      const body: unknown = await request.json();
+      const params: Record<string, unknown> = {};
+      const result: unknown = await handler(request, body, token, params);
       return new Response(JSON.stringify({ data: result }), {
         status: 200,
         headers: { "Content-Type": "application/json" },
@@ -26,6 +49,11 @@ vi.mock("~/lib/route-wrapper", () => ({
 import { apiPost } from "~/lib/api-helpers";
 
 const mockedApiPost = vi.mocked(apiPost);
+
+// Helper to create mock context
+const createMockContext = (): MockRouteContext => ({
+  params: Promise.resolve({}),
+});
 
 describe("POST /api/active/schulhof/supervise", () => {
   beforeEach(() => {
@@ -45,7 +73,7 @@ describe("POST /api/active/schulhof/supervise", () => {
       json: () => Promise.resolve({ action: "start" }),
     } as unknown as NextRequest;
 
-    const response = await POST(mockRequest);
+    const response = await POST(mockRequest, createMockContext());
 
     expect(mockedApiPost).toHaveBeenCalledWith(
       "/api/active/schulhof/supervise",
@@ -53,7 +81,7 @@ describe("POST /api/active/schulhof/supervise", () => {
       { action: "start" },
     );
 
-    const responseData = await response.json();
+    const responseData = (await response.json()) as MockResponse;
     expect(responseData.data).toEqual(sampleBackendResponse);
   });
 
@@ -69,7 +97,7 @@ describe("POST /api/active/schulhof/supervise", () => {
       json: () => Promise.resolve({ action: "stop" }),
     } as unknown as NextRequest;
 
-    const response = await POST(mockRequest);
+    const response = await POST(mockRequest, createMockContext());
 
     expect(mockedApiPost).toHaveBeenCalledWith(
       "/api/active/schulhof/supervise",
@@ -77,7 +105,7 @@ describe("POST /api/active/schulhof/supervise", () => {
       { action: "stop" },
     );
 
-    const responseData = await response.json();
+    const responseData = (await response.json()) as MockResponse;
     expect(responseData.data.action).toBe("stopped");
   });
 
@@ -86,7 +114,7 @@ describe("POST /api/active/schulhof/supervise", () => {
       json: () => Promise.resolve({ action: "invalid" }),
     } as unknown as NextRequest;
 
-    await expect(POST(mockRequest)).rejects.toThrow(
+    await expect(POST(mockRequest, createMockContext())).rejects.toThrow(
       "Action must be 'start' or 'stop'",
     );
 
@@ -98,7 +126,7 @@ describe("POST /api/active/schulhof/supervise", () => {
       json: () => Promise.resolve({}),
     } as unknown as NextRequest;
 
-    await expect(POST(mockRequest)).rejects.toThrow(
+    await expect(POST(mockRequest, createMockContext())).rejects.toThrow(
       "Action must be 'start' or 'stop'",
     );
 
@@ -110,7 +138,7 @@ describe("POST /api/active/schulhof/supervise", () => {
       json: () => Promise.resolve({ action: undefined }),
     } as unknown as NextRequest;
 
-    await expect(POST(mockRequest)).rejects.toThrow(
+    await expect(POST(mockRequest, createMockContext())).rejects.toThrow(
       "Action must be 'start' or 'stop'",
     );
 
@@ -124,7 +152,9 @@ describe("POST /api/active/schulhof/supervise", () => {
       json: () => Promise.resolve({ action: "start" }),
     } as unknown as NextRequest;
 
-    await expect(POST(mockRequest)).rejects.toThrow("Backend error");
+    await expect(POST(mockRequest, createMockContext())).rejects.toThrow(
+      "Backend error",
+    );
 
     expect(mockedApiPost).toHaveBeenCalledWith(
       "/api/active/schulhof/supervise",
@@ -138,7 +168,7 @@ describe("POST /api/active/schulhof/supervise", () => {
       json: () => Promise.resolve({ action: "START" }),
     } as unknown as NextRequest;
 
-    await expect(POST(mockRequestUpper)).rejects.toThrow(
+    await expect(POST(mockRequestUpper, createMockContext())).rejects.toThrow(
       "Action must be 'start' or 'stop'",
     );
 
@@ -146,7 +176,7 @@ describe("POST /api/active/schulhof/supervise", () => {
       json: () => Promise.resolve({ action: "Start" }),
     } as unknown as NextRequest;
 
-    await expect(POST(mockRequestMixed)).rejects.toThrow(
+    await expect(POST(mockRequestMixed, createMockContext())).rejects.toThrow(
       "Action must be 'start' or 'stop'",
     );
 
@@ -166,7 +196,7 @@ describe("POST /api/active/schulhof/supervise", () => {
       json: () => Promise.resolve({ action: "start" }),
     } as unknown as NextRequest;
 
-    await POST(mockRequest);
+    await POST(mockRequest, createMockContext());
 
     // Verify the action is passed as-is in the request body
     expect(mockedApiPost).toHaveBeenCalledWith(
@@ -189,9 +219,9 @@ describe("POST /api/active/schulhof/supervise", () => {
       json: () => Promise.resolve({ action: "stop" }),
     } as unknown as NextRequest;
 
-    const response = await POST(mockRequest);
+    const response = await POST(mockRequest, createMockContext());
 
-    const responseData = await response.json();
+    const responseData = (await response.json()) as MockResponse;
     expect(responseData.data.supervision_id).toBeUndefined();
     expect(responseData.data.action).toBe("stopped");
   });
