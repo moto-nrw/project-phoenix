@@ -33,8 +33,8 @@ import (
 type mockSchulhofService struct {
 	getStatusFunc            func(ctx context.Context, staffID int64) (*facilities.SchulhofStatus, error)
 	toggleSupervisionFunc    func(ctx context.Context, staffID int64, action string) (*facilities.SupervisionResult, error)
-	ensureInfrastructureFunc func(ctx context.Context) (*activityModels.Group, error)
-	getOrCreateActiveFunc    func(ctx context.Context) (*active.Group, error)
+	ensureInfrastructureFunc func(ctx context.Context, createdBy int64) (*activityModels.Group, error)
+	getOrCreateActiveFunc    func(ctx context.Context, createdBy int64) (*active.Group, error)
 }
 
 func (m *mockSchulhofService) GetSchulhofStatus(ctx context.Context, staffID int64) (*facilities.SchulhofStatus, error) {
@@ -51,16 +51,16 @@ func (m *mockSchulhofService) ToggleSupervision(ctx context.Context, staffID int
 	return nil, errors.New("not implemented")
 }
 
-func (m *mockSchulhofService) EnsureInfrastructure(ctx context.Context) (*activityModels.Group, error) {
+func (m *mockSchulhofService) EnsureInfrastructure(ctx context.Context, createdBy int64) (*activityModels.Group, error) {
 	if m.ensureInfrastructureFunc != nil {
-		return m.ensureInfrastructureFunc(ctx)
+		return m.ensureInfrastructureFunc(ctx, createdBy)
 	}
 	return nil, errors.New("not implemented")
 }
 
-func (m *mockSchulhofService) GetOrCreateActiveGroup(ctx context.Context) (*active.Group, error) {
+func (m *mockSchulhofService) GetOrCreateActiveGroup(ctx context.Context, createdBy int64) (*active.Group, error) {
 	if m.getOrCreateActiveFunc != nil {
-		return m.getOrCreateActiveFunc(ctx)
+		return m.getOrCreateActiveFunc(ctx, createdBy)
 	}
 	return nil, errors.New("not implemented")
 }
