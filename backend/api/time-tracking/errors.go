@@ -35,6 +35,32 @@ func classifyServiceError(err error) render.Renderer {
 	}
 }
 
+// classifyAbsenceError maps known absence business errors to HTTP status codes
+func classifyAbsenceError(err error) render.Renderer {
+	msg := err.Error()
+
+	switch {
+	case msg == "absence not found":
+		return ErrorNotFound(err)
+
+	case msg == "can only update own absences",
+		msg == "can only delete own absences":
+		return ErrorForbidden(err)
+
+	case strings.HasPrefix(msg, "absence overlaps"),
+		strings.HasPrefix(msg, "updated dates overlap"):
+		return ErrorConflict(err)
+
+	case strings.HasPrefix(msg, "invalid"),
+		msg == "invalid absence type",
+		msg == "invalid absence status":
+		return ErrorInvalidRequest(err)
+
+	default:
+		return ErrorInternalServer(err)
+	}
+}
+
 // ErrorResponse represents an HTTP error response
 type ErrorResponse struct {
 	Err            error `json:"-"`

@@ -47,6 +47,79 @@ export interface BackendWorkSessionEdit {
   created_at: string;
 }
 
+// Backend absence response type (snake_case)
+export interface BackendStaffAbsence {
+  id: number;
+  staff_id: number;
+  absence_type: string;
+  date_start: string;
+  date_end: string;
+  half_day: boolean;
+  note: string;
+  status: string;
+  approved_by: number | null;
+  approved_at: string | null;
+  created_by: number;
+  created_at: string;
+  updated_at: string;
+  duration_days: number;
+}
+
+// Frontend absence type
+export type AbsenceType = "sick" | "vacation" | "training" | "other";
+
+export interface StaffAbsence {
+  id: string;
+  staffId: string;
+  absenceType: AbsenceType;
+  dateStart: string;
+  dateEnd: string;
+  halfDay: boolean;
+  note: string;
+  status: string;
+  approvedBy: string | null;
+  approvedAt: string | null;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+  durationDays: number;
+}
+
+export const absenceTypeLabels: Record<AbsenceType, string> = {
+  sick: "Krank",
+  vacation: "Urlaub",
+  training: "Fortbildung",
+  other: "Sonstige",
+};
+
+export const absenceTypeColors: Record<AbsenceType, string> = {
+  sick: "bg-red-100 text-red-800",
+  vacation: "bg-blue-100 text-blue-800",
+  training: "bg-green-100 text-green-800",
+  other: "bg-purple-100 text-purple-800",
+};
+
+export function mapStaffAbsenceResponse(
+  data: BackendStaffAbsence,
+): StaffAbsence {
+  return {
+    id: data.id.toString(),
+    staffId: data.staff_id.toString(),
+    absenceType: data.absence_type as AbsenceType,
+    dateStart: data.date_start.split("T")[0] ?? data.date_start,
+    dateEnd: data.date_end.split("T")[0] ?? data.date_end,
+    halfDay: data.half_day,
+    note: data.note ?? "",
+    status: data.status,
+    approvedBy: data.approved_by?.toString() ?? null,
+    approvedAt: data.approved_at ?? null,
+    createdBy: data.created_by.toString(),
+    createdAt: data.created_at,
+    updatedAt: data.updated_at,
+    durationDays: data.duration_days,
+  };
+}
+
 // Frontend types (camelCase, string IDs)
 export interface WorkSession {
   id: string;

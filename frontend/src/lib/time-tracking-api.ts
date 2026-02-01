@@ -2,12 +2,14 @@
 
 import { getSession } from "next-auth/react";
 import type {
+  StaffAbsence,
   WorkSession,
   WorkSessionBreak,
   WorkSessionEdit,
   WorkSessionHistory,
 } from "./time-tracking-helpers";
 import {
+  mapStaffAbsenceResponse,
   mapWorkSessionResponse,
   mapWorkSessionBreakResponse,
   mapWorkSessionEditResponse,
@@ -48,6 +50,28 @@ export interface UpdateSessionRequest {
   breakMinutes?: number;
   notes?: string;
   breaks?: Array<{ id: string; durationMinutes: number }>;
+}
+
+/**
+ * Create absence request body
+ */
+export interface CreateAbsenceRequest {
+  absence_type: string;
+  date_start: string;
+  date_end: string;
+  half_day?: boolean;
+  note?: string;
+}
+
+/**
+ * Update absence request body
+ */
+export interface UpdateAbsenceRequest {
+  absence_type?: string;
+  date_start?: string;
+  date_end?: string;
+  half_day?: boolean;
+  note?: string;
 }
 
 /**
@@ -286,6 +310,109 @@ class TimeTrackingService {
     return (result.data ?? []).map((edit) =>
       mapWorkSessionEditResponse(edit as never),
     );
+  }
+  /**
+   * Get absences for a date range
+   * @param from - Start date (YYYY-MM-DD)
+   * @param to - End date (YYYY-MM-DD)
+   * @returns Array of absences
+   */
+  async getAbsences(from: string, to: string): Promise<StaffAbsence[]> {
+    const token = await this.getToken();
+    const params = new URLSearchParams({ from, to });
+    const response = await fetch(`${this.baseUrl}/absences?${params}`, {
+      method: "GET",
+      headers: {
+        ...(token && { Authorization: `Bearer ${token}` }),
+      },
+    });
+
+    if (!response.ok) {
+      const error = (await response.json()) as ErrorResponse;
+      throw new Error(error.error ?? error.message ?? "Failed to get absences");
+    }
+
+    const result = (await response.json()) as ApiResponse<StaffAbsence[]>;
+    return (result.data ?? []).map((a) => mapStaffAbsenceResponse(a as never));
+  }
+
+  /**
+   * Create a new absence
+   * @param req - Absence data
+   * @returns Created absence
+   */
+  async createAbsence(req: CreateAbsenceRequest): Promise<StaffAbsence> {
+    const token = await this.getToken();
+    const response = await fetch(`${this.baseUrl}/absences`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token && { Authorization: `Bearer ${token}` }),
+      },
+      body: JSON.stringify(req),
+    });
+
+    if (!response.ok) {
+      const error = (await response.json()) as ErrorResponse;
+      throw new Error(
+        error.error ?? error.message ?? "Failed to create absence",
+      );
+    }
+
+    const result = (await response.json()) as ApiResponse<StaffAbsence>;
+    return mapStaffAbsenceResponse(result.data as never);
+  }
+
+  /**
+   * Update an absence
+   * @param id - Absence ID
+   * @param req - Fields to update
+   * @returns Updated absence
+   */
+  async updateAbsence(
+    id: string,
+    req: UpdateAbsenceRequest,
+  ): Promise<StaffAbsence> {
+    const token = await this.getToken();
+    const response = await fetch(`${this.baseUrl}/absences/${id}`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token && { Authorization: `Bearer ${token}` }),
+      },
+      body: JSON.stringify(req),
+    });
+
+    if (!response.ok) {
+      const error = (await response.json()) as ErrorResponse;
+      throw new Error(
+        error.error ?? error.message ?? "Failed to update absence",
+      );
+    }
+
+    const result = (await response.json()) as ApiResponse<StaffAbsence>;
+    return mapStaffAbsenceResponse(result.data as never);
+  }
+
+  /**
+   * Delete an absence
+   * @param id - Absence ID
+   */
+  async deleteAbsence(id: string): Promise<void> {
+    const token = await this.getToken();
+    const response = await fetch(`${this.baseUrl}/absences/${id}`, {
+      method: "DELETE",
+      headers: {
+        ...(token && { Authorization: `Bearer ${token}` }),
+      },
+    });
+
+    if (!response.ok) {
+      const error = (await response.json()) as ErrorResponse;
+      throw new Error(
+        error.error ?? error.message ?? "Failed to delete absence",
+      );
+    }
   }
 }
 

@@ -184,6 +184,20 @@ type WorkSessionRepository interface {
 	UpdateBreakMinutes(ctx context.Context, id int64, breakMinutes int) error
 }
 
+// StaffAbsenceRepository defines operations for managing staff absences
+type StaffAbsenceRepository interface {
+	base.Repository[*StaffAbsence]
+
+	// GetByStaffAndDateRange returns absences for a staff member overlapping the given date range
+	GetByStaffAndDateRange(ctx context.Context, staffID int64, from, to time.Time) ([]*StaffAbsence, error)
+
+	// GetByStaffAndDate returns an absence for a staff member on a specific date, or nil
+	GetByStaffAndDate(ctx context.Context, staffID int64, date time.Time) (*StaffAbsence, error)
+
+	// GetByDateRange returns all absences overlapping the given date range
+	GetByDateRange(ctx context.Context, from, to time.Time) ([]*StaffAbsence, error)
+}
+
 // WorkSessionBreakRepository defines operations for managing work session breaks
 type WorkSessionBreakRepository interface {
 	base.Repository[*WorkSessionBreak]

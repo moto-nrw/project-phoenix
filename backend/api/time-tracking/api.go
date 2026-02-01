@@ -19,15 +19,17 @@ import (
 
 // Resource defines the time-tracking API resource
 type Resource struct {
-	WorkSessionService activeSvc.WorkSessionService
-	PersonService      usersSvc.PersonService
+	WorkSessionService  activeSvc.WorkSessionService
+	StaffAbsenceService activeSvc.StaffAbsenceService
+	PersonService       usersSvc.PersonService
 }
 
 // NewResource creates a new time-tracking resource
-func NewResource(workSessionService activeSvc.WorkSessionService, personService usersSvc.PersonService) *Resource {
+func NewResource(workSessionService activeSvc.WorkSessionService, staffAbsenceService activeSvc.StaffAbsenceService, personService usersSvc.PersonService) *Resource {
 	return &Resource{
-		WorkSessionService: workSessionService,
-		PersonService:      personService,
+		WorkSessionService:  workSessionService,
+		StaffAbsenceService: staffAbsenceService,
+		PersonService:       personService,
 	}
 }
 
@@ -59,6 +61,12 @@ func (rs *Resource) Router() chi.Router {
 
 		// Export
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn)).Get("/export", rs.exportSessions)
+
+		// Absence management
+		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn)).Get("/absences", rs.listAbsences)
+		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn)).Post("/absences", rs.createAbsence)
+		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn)).Put("/absences/{id}", rs.updateAbsence)
+		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn)).Delete("/absences/{id}", rs.deleteAbsence)
 
 		// Presence map - for internal use by staff page
 		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/presence-map", rs.getPresenceMap)
@@ -379,6 +387,123 @@ func (rs *Resource) exportSessions(w http.ResponseWriter, r *http.Request) {
 		// Response already started, just log
 		return
 	}
+}
+
+// listAbsences handles GET /api/time-tracking/absences?from=&to=
+func (rs *Resource) listAbsences(w http.ResponseWriter, r *http.Request) {
+	userClaims := jwt.ClaimsFromCtx(r.Context())
+	staffID, err := rs.getStaffIDFromClaims(r.Context(), userClaims)
+	if err != nil {
+		common.RenderError(w, r, ErrorUnauthorized(err))
+		return
+	}
+
+	fromStr := r.URL.Query().Get("from")
+	toStr := r.URL.Query().Get("to")
+
+	if fromStr == "" || toStr == "" {
+		common.RenderError(w, r, ErrorInvalidRequest(errors.New("from and to query parameters are required")))
+		return
+	}
+
+	from, err := time.Parse(common.DateFormatISO, fromStr)
+	if err != nil {
+		common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid from date format, expected YYYY-MM-DD")))
+		return
+	}
+
+	to, err := time.Parse(common.DateFormatISO, toStr)
+	if err != nil {
+		common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid to date format, expected YYYY-MM-DD")))
+		return
+	}
+
+	absences, err := rs.StaffAbsenceService.GetAbsencesForRange(r.Context(), staffID, from, to)
+	if err != nil {
+		common.RenderError(w, r, ErrorInternalServer(err))
+		return
+	}
+
+	common.Respond(w, r, http.StatusOK, absences, "Absences retrieved successfully")
+}
+
+// createAbsence handles POST /api/time-tracking/absences
+func (rs *Resource) createAbsence(w http.ResponseWriter, r *http.Request) {
+	userClaims := jwt.ClaimsFromCtx(r.Context())
+	staffID, err := rs.getStaffIDFromClaims(r.Context(), userClaims)
+	if err != nil {
+		common.RenderError(w, r, ErrorUnauthorized(err))
+		return
+	}
+
+	var req activeSvc.CreateAbsenceRequest
+	if err := render.DecodeJSON(r.Body, &req); err != nil {
+		common.RenderError(w, r, ErrorInvalidRequest(err))
+		return
+	}
+
+	absence, err := rs.StaffAbsenceService.CreateAbsence(r.Context(), staffID, req)
+	if err != nil {
+		common.RenderError(w, r, classifyAbsenceError(err))
+		return
+	}
+
+	common.Respond(w, r, http.StatusCreated, absence, "Absence created successfully")
+}
+
+// updateAbsence handles PUT /api/time-tracking/absences/{id}
+func (rs *Resource) updateAbsence(w http.ResponseWriter, r *http.Request) {
+	userClaims := jwt.ClaimsFromCtx(r.Context())
+	staffID, err := rs.getStaffIDFromClaims(r.Context(), userClaims)
+	if err != nil {
+		common.RenderError(w, r, ErrorUnauthorized(err))
+		return
+	}
+
+	idStr := chi.URLParam(r, "id")
+	absenceID, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid absence ID")))
+		return
+	}
+
+	var req activeSvc.UpdateAbsenceRequest
+	if err := render.DecodeJSON(r.Body, &req); err != nil {
+		common.RenderError(w, r, ErrorInvalidRequest(err))
+		return
+	}
+
+	absence, err := rs.StaffAbsenceService.UpdateAbsence(r.Context(), staffID, absenceID, req)
+	if err != nil {
+		common.RenderError(w, r, classifyAbsenceError(err))
+		return
+	}
+
+	common.Respond(w, r, http.StatusOK, absence, "Absence updated successfully")
+}
+
+// deleteAbsence handles DELETE /api/time-tracking/absences/{id}
+func (rs *Resource) deleteAbsence(w http.ResponseWriter, r *http.Request) {
+	userClaims := jwt.ClaimsFromCtx(r.Context())
+	staffID, err := rs.getStaffIDFromClaims(r.Context(), userClaims)
+	if err != nil {
+		common.RenderError(w, r, ErrorUnauthorized(err))
+		return
+	}
+
+	idStr := chi.URLParam(r, "id")
+	absenceID, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid absence ID")))
+		return
+	}
+
+	if err := rs.StaffAbsenceService.DeleteAbsence(r.Context(), staffID, absenceID); err != nil {
+		common.RenderError(w, r, classifyAbsenceError(err))
+		return
+	}
+
+	common.RespondNoContent(w, r)
 }
 
 // getPresenceMap handles GET /api/time-tracking/presence-map

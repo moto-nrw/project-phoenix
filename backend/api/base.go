@@ -226,7 +226,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.Substitutions = substitutionsAPI.NewResource(api.Services.Education)
 	api.Database = databaseAPI.NewResource(api.Services.Database)
 	api.GradeTransitions = adminAPI.NewGradeTransitionResource(api.Services.GradeTransition)
-	api.TimeTracking = timeTrackingAPI.NewResource(api.Services.WorkSession, api.Services.Users)
+	api.TimeTracking = timeTrackingAPI.NewResource(api.Services.WorkSession, api.Services.StaffAbsence, api.Services.Users)
 }
 
 // ServeHTTP implements the http.Handler interface for the API

@@ -27,12 +27,16 @@ import { useToast } from "~/contexts/ToastContext";
 import { useSWRAuth } from "~/lib/swr";
 import { timeTrackingService } from "~/lib/time-tracking-api";
 import type {
+  StaffAbsence,
   WorkSession,
   WorkSessionBreak,
   WorkSessionEdit,
   WorkSessionHistory,
 } from "~/lib/time-tracking-helpers";
 import {
+  type AbsenceType,
+  absenceTypeLabels,
+  absenceTypeColors,
   formatDuration,
   formatTime,
   getWeekDays,
@@ -104,9 +108,26 @@ function friendlyError(err: unknown, fallback: string): string {
     "can only update own sessions": "Du kannst nur eigene Einträge bearbeiten.",
     "break already active": "Eine Pause läuft bereits.",
     "no active break found": "Keine aktive Pause vorhanden.",
+    "absence not found": "Abwesenheit nicht gefunden.",
+    "can only update own absences":
+      "Du kannst nur eigene Abwesenheiten bearbeiten.",
+    "can only delete own absences":
+      "Du kannst nur eigene Abwesenheiten löschen.",
+    "invalid absence type": "Ungültiger Abwesenheitstyp.",
   };
 
-  return map[code] ?? fallback;
+  // Exact match first
+  if (map[code]) return map[code];
+
+  // Prefix-based matches for messages with dynamic content
+  if (
+    code.startsWith("absence overlaps") ||
+    code.startsWith("updated dates overlap")
+  ) {
+    return "Für diesen Zeitraum ist bereits eine andere Abwesenheitsart eingetragen.";
+  }
+
+  return fallback;
 }
 
 const DAY_NAMES = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
@@ -152,6 +173,7 @@ function ClockInCard({
   onStartBreak,
   onEndBreak,
   weeklyMinutes,
+  onAddAbsence,
 }: {
   readonly currentSession: WorkSession | null;
   readonly breaks: WorkSessionBreak[];
@@ -160,8 +182,11 @@ function ClockInCard({
   readonly onStartBreak: () => Promise<void>;
   readonly onEndBreak: () => Promise<void>;
   readonly weeklyMinutes: number;
+  readonly onAddAbsence: () => void;
 }) {
-  const [mode, setMode] = useState<"present" | "home_office">("present");
+  const [mode, setMode] = useState<"present" | "home_office" | "absent">(
+    "present",
+  );
   const [actionLoading, setActionLoading] = useState(false);
   const [tick, setTick] = useState(0); // forces re-render for live times
   const [breakMenuOpen, setBreakMenuOpen] = useState(false);
@@ -286,6 +311,7 @@ function ClockInCard({
       : null;
 
   const handleCheckIn = async () => {
+    if (mode === "absent") return;
     setActionLoading(true);
     try {
       await onCheckIn(mode);
@@ -381,33 +407,67 @@ function ClockInCard({
               >
                 Homeoffice
               </button>
+              <button
+                onClick={() => setMode("absent")}
+                className={`rounded-full px-4 py-1.5 text-xs font-medium transition-all ${
+                  mode === "absent"
+                    ? "bg-red-100 text-red-700 ring-1 ring-red-300"
+                    : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+                }`}
+              >
+                Abwesend
+              </button>
             </div>
 
-            {/* Play button */}
-            <button
-              onClick={handleCheckIn}
-              disabled={actionLoading}
-              className={`flex h-16 w-16 items-center justify-center rounded-full border-2 transition-all active:scale-95 disabled:opacity-50 ${
-                mode === "home_office"
-                  ? "border-sky-500 text-sky-500 hover:bg-sky-50"
-                  : "border-[#83CD2D] text-[#83CD2D] hover:bg-[#83CD2D]/5"
-              }`}
-              aria-label="Einstempeln"
-            >
-              {actionLoading ? (
-                <div className="h-5 w-5 animate-spin rounded-full border-2 border-current border-t-transparent" />
-              ) : (
+            {/* Action button: play (check-in) or calendar (absence) */}
+            {mode === "absent" ? (
+              <button
+                onClick={onAddAbsence}
+                className="flex h-16 w-16 items-center justify-center rounded-full border-2 border-red-400 text-red-500 transition-all hover:bg-red-50 active:scale-95"
+                aria-label="Abwesenheit melden"
+              >
                 <svg
-                  className="ml-0.5 h-7 w-7"
-                  fill="currentColor"
+                  className="h-7 w-7"
+                  fill="none"
                   viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={1.5}
                 >
-                  <path d="M8 5v14l11-7z" />
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5"
+                  />
                 </svg>
-              )}
-            </button>
+              </button>
+            ) : (
+              <button
+                onClick={handleCheckIn}
+                disabled={actionLoading}
+                className={`flex h-16 w-16 items-center justify-center rounded-full border-2 transition-all active:scale-95 disabled:opacity-50 ${
+                  mode === "home_office"
+                    ? "border-sky-500 text-sky-500 hover:bg-sky-50"
+                    : "border-[#83CD2D] text-[#83CD2D] hover:bg-[#83CD2D]/5"
+                }`}
+                aria-label="Einstempeln"
+              >
+                {actionLoading ? (
+                  <div className="h-5 w-5 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                ) : (
+                  <svg
+                    className="ml-0.5 h-7 w-7"
+                    fill="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path d="M8 5v14l11-7z" />
+                  </svg>
+                )}
+              </button>
+            )}
 
-            <span className="text-sm text-gray-400">Einstempeln</span>
+            <span className="text-sm text-gray-400">
+              {mode === "absent" ? "Abwesenheit melden" : "Einstempeln"}
+            </span>
           </div>
         )}
 
@@ -1248,6 +1308,7 @@ function WeekTable({
   weekOffset,
   onWeekChange,
   history,
+  absences,
   isLoading,
   onEditDay,
   currentSession,
@@ -1256,10 +1317,12 @@ function WeekTable({
   onToggleExpand,
   expandedEdits,
   editsLoading,
+  onDeleteAbsence,
 }: {
   readonly weekOffset: number;
   readonly onWeekChange: (offset: number) => void;
   readonly history: WorkSessionHistory[];
+  readonly absences: StaffAbsence[];
   readonly isLoading: boolean;
   readonly onEditDay: (date: Date, session: WorkSessionHistory) => void;
   readonly currentSession: WorkSession | null;
@@ -1268,6 +1331,7 @@ function WeekTable({
   readonly onToggleExpand: (sessionId: string) => void;
   readonly expandedEdits: WorkSessionEdit[];
   readonly editsLoading: boolean;
+  readonly onDeleteAbsence: (id: string) => void;
 }) {
   const today = new Date();
   const referenceDate = new Date(today);
@@ -1281,6 +1345,19 @@ function WeekTable({
   const sessionMap = new Map<string, WorkSessionHistory>();
   for (const session of history) {
     sessionMap.set(session.date, session);
+  }
+
+  // Build absence map: for each date in the week, check if an absence covers it
+  const absenceMap = new Map<string, StaffAbsence>();
+  for (const day of weekDays) {
+    if (!day) continue;
+    const dateKey = toISODate(day);
+    const absence = absences.find(
+      (a) => a.dateStart <= dateKey && a.dateEnd >= dateKey,
+    );
+    if (absence) {
+      absenceMap.set(dateKey, absence);
+    }
   }
 
   // Live break minutes for active session (cached + active break elapsed)
@@ -1391,6 +1468,7 @@ function WeekTable({
               if (day.getDay() === 0 || day.getDay() === 6) return null;
               const dateKey = toISODate(day);
               const session = sessionMap.get(dateKey);
+              const absence = absenceMap.get(dateKey);
               const isToday = isSameDay(day, today);
               const isPast = isBeforeDay(day, today);
               const isFuture = !isToday && !isPast;
@@ -1431,6 +1509,52 @@ function WeekTable({
 
               const warnings = session ? getComplianceWarnings(session) : [];
 
+              // If absence covers this day and no session, show absence row
+              if (absence && !session) {
+                const colorClass =
+                  absenceTypeColors[absence.absenceType] ??
+                  "bg-gray-100 text-gray-600";
+                return (
+                  <tr
+                    key={dateKey}
+                    className={`group/row border-b border-gray-50 transition-colors ${isToday ? "bg-blue-50/50" : ""}`}
+                  >
+                    <td className="px-6 py-3 font-medium text-gray-700">
+                      <div className="flex items-center gap-1.5">
+                        <span className="inline-block h-4 w-4 shrink-0" />
+                        {dayName} {formatDateShort(day)}
+                      </div>
+                    </td>
+                    <td colSpan={5} className="px-4 py-3 text-center">
+                      <span
+                        className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium ${colorClass}`}
+                      >
+                        {absenceTypeLabels[absence.absenceType]}
+                        {absence.halfDay && " (halber Tag)"}
+                        {absence.note && (
+                          <span
+                            className="cursor-help opacity-60"
+                            title={absence.note}
+                          >
+                            ℹ
+                          </span>
+                        )}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <button
+                        type="button"
+                        onClick={() => onDeleteAbsence(absence.id)}
+                        className="text-xs text-gray-400 opacity-0 transition-opacity group-hover/row:opacity-100 hover:text-red-500"
+                        aria-label="Abwesenheit löschen"
+                      >
+                        ✕
+                      </button>
+                    </td>
+                  </tr>
+                );
+              }
+
               return (
                 <React.Fragment key={dateKey}>
                   <tr
@@ -1451,6 +1575,13 @@ function WeekTable({
                           <span className="inline-block h-4 w-4 shrink-0" />
                         )}
                         {dayName} {formatDateShort(day)}
+                        {absence && (
+                          <span
+                            className={`ml-1 inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium ${absenceTypeColors[absence.absenceType] ?? "bg-gray-100 text-gray-600"}`}
+                          >
+                            {absenceTypeLabels[absence.absenceType]}
+                          </span>
+                        )}
                       </div>
                     </td>
                     <td className="px-4 py-3 text-center text-gray-600">
@@ -2098,6 +2229,193 @@ function EditSessionModal({
   );
 }
 
+// ─── CreateAbsenceModal ───────────────────────────────────────────────────────
+
+const ABSENCE_TYPE_OPTIONS: { value: AbsenceType; label: string }[] = [
+  { value: "sick", label: "Krank" },
+  { value: "vacation", label: "Urlaub" },
+  { value: "training", label: "Fortbildung" },
+  { value: "other", label: "Sonstige" },
+];
+
+function CreateAbsenceModal({
+  isOpen,
+  onClose,
+  onSave,
+}: {
+  readonly isOpen: boolean;
+  readonly onClose: () => void;
+  readonly onSave: (req: {
+    absence_type: string;
+    date_start: string;
+    date_end: string;
+    note?: string;
+  }) => Promise<void>;
+}) {
+  const todayStr = toISODate(new Date());
+  const [absenceType, setAbsenceType] = useState<AbsenceType>("sick");
+  const [dateStart, setDateStart] = useState(todayStr);
+  const [dateEnd, setDateEnd] = useState(todayStr);
+  const [note, setNote] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  // Reset form when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      const today = toISODate(new Date());
+      setAbsenceType("sick");
+      setDateStart(today);
+      setDateEnd(today);
+      setNote("");
+    }
+  }, [isOpen]);
+
+  // When dateStart moves forward past dateEnd, clamp dateEnd
+  const prevDateStartRef = useRef(dateStart);
+  useEffect(() => {
+    if (dateStart !== prevDateStartRef.current) {
+      prevDateStartRef.current = dateStart;
+      if (dateEnd < dateStart) {
+        setDateEnd(dateStart);
+      }
+    }
+  }, [dateStart, dateEnd]);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await onSave({
+        absence_type: absenceType,
+        date_start: dateStart,
+        date_end: dateEnd,
+        note: note.trim() || undefined,
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Abwesenheit melden"
+      footer={
+        <div className="flex gap-3">
+          <button
+            onClick={onClose}
+            className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-all duration-200 hover:border-gray-400 hover:bg-gray-50 disabled:opacity-50"
+          >
+            Abbrechen
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={saving || !dateStart || !dateEnd}
+            className="flex-1 rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {saving ? "Speichern..." : "Speichern"}
+          </button>
+        </div>
+      }
+    >
+      <div className="space-y-4">
+        {/* Absence type */}
+        <div>
+          <label
+            htmlFor="absence-type"
+            className="mb-1 block text-sm font-medium text-gray-700"
+          >
+            Art der Abwesenheit
+          </label>
+          <div className="relative">
+            <select
+              id="absence-type"
+              value={absenceType}
+              onChange={(e) => setAbsenceType(e.target.value as AbsenceType)}
+              className="w-full appearance-none rounded-lg border border-gray-300 px-3 py-2 pr-8 text-sm transition-colors focus:border-gray-900 focus:ring-1 focus:ring-gray-900 focus:outline-none"
+            >
+              {ABSENCE_TYPE_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+            <svg
+              className="pointer-events-none absolute top-1/2 right-2.5 h-4 w-4 -translate-y-1/2 text-gray-400"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M19 9l-7 7-7-7"
+              />
+            </svg>
+          </div>
+        </div>
+
+        {/* Date range */}
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label
+              htmlFor="absence-start"
+              className="mb-1 block text-sm font-medium text-gray-700"
+            >
+              Von
+            </label>
+            <input
+              id="absence-start"
+              type="date"
+              value={dateStart}
+              onChange={(e) => setDateStart(e.target.value)}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm transition-colors focus:border-gray-900 focus:ring-1 focus:ring-gray-900 focus:outline-none"
+              required
+            />
+          </div>
+          <div>
+            <label
+              htmlFor="absence-end"
+              className="mb-1 block text-sm font-medium text-gray-700"
+            >
+              Bis
+            </label>
+            <input
+              id="absence-end"
+              type="date"
+              value={dateEnd}
+              min={dateStart}
+              onChange={(e) => setDateEnd(e.target.value)}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm transition-colors focus:border-gray-900 focus:ring-1 focus:ring-gray-900 focus:outline-none"
+              required
+            />
+          </div>
+        </div>
+
+        {/* Note */}
+        <div>
+          <label
+            htmlFor="absence-note"
+            className="mb-1 block text-sm font-medium text-gray-700"
+          >
+            Bemerkung{" "}
+            <span className="font-normal text-gray-400">(optional)</span>
+          </label>
+          <textarea
+            id="absence-note"
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            rows={2}
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm transition-colors focus:border-gray-900 focus:ring-1 focus:ring-gray-900 focus:outline-none"
+            placeholder="z.B. Arzttermin, Schulung ..."
+          />
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
 // ─── Main Content ─────────────────────────────────────────────────────────────
 
 function TimeTrackingContent() {
@@ -2120,9 +2438,13 @@ function TimeTrackingContent() {
   );
   const [expandedEdits, setExpandedEdits] = useState<WorkSessionEdit[]>([]);
   const [editsLoading, setEditsLoading] = useState(false);
+  const [absenceModalOpen, setAbsenceModalOpen] = useState(false);
+  const [pendingCheckIn, setPendingCheckIn] = useState<
+    "present" | "home_office" | null
+  >(null);
 
   // Calculate date range: current week + previous week (for chart and table)
-  const { toDate, chartFromDate } = (() => {
+  const { toDate, chartFromDate, weekFromDate } = (() => {
     const ref = new Date();
     ref.setDate(ref.getDate() + weekOffset * 7);
     const days = getWeekDays(ref);
@@ -2133,6 +2455,7 @@ function TimeTrackingContent() {
     return {
       toDate: days[6] ? toISODate(days[6]) : "",
       chartFromDate: prevDays[0] ? toISODate(prevDays[0]) : "",
+      weekFromDate: days[0] ? toISODate(days[0]) : "",
     };
   })();
 
@@ -2159,6 +2482,25 @@ function TimeTrackingContent() {
 
   const history = historyData ?? [];
 
+  // Fetch absences for the same date range
+  const { data: absencesData, mutate: mutateAbsences } = useSWRAuth<
+    StaffAbsence[]
+  >(
+    chartFromDate && toDate
+      ? `time-tracking-absences-${chartFromDate}-${toDate}`
+      : null,
+    () => timeTrackingService.getAbsences(chartFromDate, toDate),
+    { keepPreviousData: true, revalidateOnFocus: false, errorRetryCount: 1 },
+  );
+
+  const absences = absencesData ?? [];
+
+  // Check if today has an absence (for check-in warning)
+  const todayISO = toISODate(new Date());
+  const todayAbsence = absences.find(
+    (a) => a.dateStart <= todayISO && a.dateEnd >= todayISO,
+  );
+
   // Fetch breaks for current session
   const fetchBreaks = useCallback(async () => {
     if (!currentSession?.id || currentSession.checkOutTime) {
@@ -2179,13 +2521,15 @@ function TimeTrackingContent() {
     void fetchBreaks();
   }, [fetchBreaks]);
 
-  // Calculate weekly minutes from history (for completed sessions only)
-  const weeklyCompletedMinutes = history.reduce((sum, s) => {
-    if (s.checkOutTime) return sum + s.netMinutes;
-    return sum;
-  }, 0);
+  // Calculate weekly minutes from history (current week only, completed sessions)
+  const weeklyCompletedMinutes = history
+    .filter((s) => s.date >= weekFromDate && s.date <= toDate)
+    .reduce((sum, s) => {
+      if (s.checkOutTime) return sum + s.netMinutes;
+      return sum;
+    }, 0);
 
-  const handleCheckIn = useCallback(
+  const executeCheckIn = useCallback(
     async (status: "present" | "home_office") => {
       try {
         await timeTrackingService.checkIn(status);
@@ -2196,6 +2540,17 @@ function TimeTrackingContent() {
       }
     },
     [mutateCurrentSession, mutateHistory, toast],
+  );
+
+  const handleCheckIn = useCallback(
+    async (status: "present" | "home_office") => {
+      if (todayAbsence) {
+        setPendingCheckIn(status);
+        return;
+      }
+      await executeCheckIn(status);
+    },
+    [todayAbsence, executeCheckIn],
   );
 
   const handleCheckOut = useCallback(async () => {
@@ -2300,6 +2655,45 @@ function TimeTrackingContent() {
     [expandedSessionId],
   );
 
+  const handleCreateAbsence = useCallback(
+    async (req: {
+      absence_type: string;
+      date_start: string;
+      date_end: string;
+      note?: string;
+    }) => {
+      try {
+        await timeTrackingService.createAbsence({
+          absence_type: req.absence_type,
+          date_start: req.date_start,
+          date_end: req.date_end,
+          note: req.note,
+        });
+        await mutateAbsences();
+        toast.success("Abwesenheit eingetragen");
+        setAbsenceModalOpen(false);
+      } catch (err) {
+        toast.error(
+          friendlyError(err, "Fehler beim Eintragen der Abwesenheit"),
+        );
+      }
+    },
+    [mutateAbsences, toast],
+  );
+
+  const handleDeleteAbsence = useCallback(
+    async (id: string) => {
+      try {
+        await timeTrackingService.deleteAbsence(id);
+        await mutateAbsences();
+        toast.success("Abwesenheit gelöscht");
+      } catch (err) {
+        toast.error(friendlyError(err, "Fehler beim Löschen der Abwesenheit"));
+      }
+    },
+    [mutateAbsences, toast],
+  );
+
   if (authStatus === "loading") {
     return <Loading fullPage={false} />;
   }
@@ -2321,6 +2715,7 @@ function TimeTrackingContent() {
           onStartBreak={handleStartBreak}
           onEndBreak={handleEndBreak}
           weeklyMinutes={weeklyCompletedMinutes}
+          onAddAbsence={() => setAbsenceModalOpen(true)}
         />
         <WeekChart
           history={history}
@@ -2334,6 +2729,7 @@ function TimeTrackingContent() {
         weekOffset={weekOffset}
         onWeekChange={setWeekOffset}
         history={history}
+        absences={absences}
         isLoading={historyLoading}
         onEditDay={(date, session) => setEditModal({ date, session })}
         currentSession={currentSession ?? null}
@@ -2342,6 +2738,7 @@ function TimeTrackingContent() {
         onToggleExpand={handleToggleExpand}
         expandedEdits={expandedEdits}
         editsLoading={editsLoading}
+        onDeleteAbsence={handleDeleteAbsence}
       />
 
       {/* Edit modal */}
@@ -2352,6 +2749,68 @@ function TimeTrackingContent() {
         date={editModal?.date ?? null}
         onSave={handleEditSave}
       />
+
+      {/* Create absence modal */}
+      <CreateAbsenceModal
+        isOpen={absenceModalOpen}
+        onClose={() => setAbsenceModalOpen(false)}
+        onSave={handleCreateAbsence}
+      />
+
+      {/* Check-in confirmation when absence exists */}
+      <Modal
+        isOpen={pendingCheckIn !== null}
+        onClose={() => setPendingCheckIn(null)}
+        title=""
+        footer={
+          <div className="flex w-full gap-3">
+            <button
+              onClick={() => setPendingCheckIn(null)}
+              className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-all duration-200 hover:border-gray-400 hover:bg-gray-50"
+            >
+              Abbrechen
+            </button>
+            <button
+              onClick={async () => {
+                const status = pendingCheckIn;
+                setPendingCheckIn(null);
+                if (status) await executeCheckIn(status);
+              }}
+              className="flex-1 rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:bg-gray-700"
+            >
+              Trotzdem einstempeln
+            </button>
+          </div>
+        }
+      >
+        <div className="py-4 text-center">
+          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-amber-100">
+            <svg
+              className="h-6 w-6 text-amber-600"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"
+              />
+            </svg>
+          </div>
+          <h2 className="text-xl font-bold text-gray-800">
+            Abwesenheit eingetragen
+          </h2>
+          <p className="mt-2 text-gray-600">
+            Für heute ist eine Abwesenheit eingetragen
+            {todayAbsence
+              ? ` (${absenceTypeLabels[todayAbsence.absenceType]})`
+              : ""}
+            . Trotzdem einstempeln?
+          </p>
+        </div>
+      </Modal>
     </div>
   );
 }

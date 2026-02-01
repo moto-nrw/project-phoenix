@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"sort"
 	"strconv"
 	"time"
 
@@ -61,14 +62,15 @@ type WorkSessionService interface {
 
 // workSessionService implements WorkSessionService
 type workSessionService struct {
-	repo      activeModels.WorkSessionRepository
-	breakRepo activeModels.WorkSessionBreakRepository
-	auditRepo auditModels.WorkSessionEditRepository
+	repo        activeModels.WorkSessionRepository
+	breakRepo   activeModels.WorkSessionBreakRepository
+	auditRepo   auditModels.WorkSessionEditRepository
+	absenceRepo activeModels.StaffAbsenceRepository
 }
 
 // NewWorkSessionService creates a new work session service
-func NewWorkSessionService(repo activeModels.WorkSessionRepository, breakRepo activeModels.WorkSessionBreakRepository, auditRepo auditModels.WorkSessionEditRepository) WorkSessionService {
-	return &workSessionService{repo: repo, breakRepo: breakRepo, auditRepo: auditRepo}
+func NewWorkSessionService(repo activeModels.WorkSessionRepository, breakRepo activeModels.WorkSessionBreakRepository, auditRepo auditModels.WorkSessionEditRepository, absenceRepo activeModels.StaffAbsenceRepository) WorkSessionService {
+	return &workSessionService{repo: repo, breakRepo: breakRepo, auditRepo: auditRepo, absenceRepo: absenceRepo}
 }
 
 // CheckIn creates a new work session for the staff member
@@ -574,25 +576,51 @@ func (s *workSessionService) EnsureCheckedIn(ctx context.Context, staffID int64)
 // German weekday names for export
 var germanWeekdays = [7]string{"Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"}
 
-// ExportSessions generates a CSV or XLSX export of work sessions
+// German absence type labels for export
+var germanAbsenceTypeLabels = map[string]string{
+	activeModels.AbsenceTypeSick:     "Krank",
+	activeModels.AbsenceTypeVacation: "Urlaub",
+	activeModels.AbsenceTypeTraining: "Fortbildung",
+	activeModels.AbsenceTypeOther:    "Sonstige",
+}
+
+// exportRow represents a single row in the export (either a work session or an absence day)
+type exportRow struct {
+	Date time.Time
+	Row  []string
+}
+
+// ExportSessions generates a CSV or XLSX export of work sessions and absences
 func (s *workSessionService) ExportSessions(ctx context.Context, staffID int64, from, to time.Time, format string) ([]byte, string, error) {
 	sessions, err := s.GetHistory(ctx, staffID, from, to)
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to get sessions for export: %w", err)
 	}
 
+	// Load absences for the same date range
+	var absences []*activeModels.StaffAbsence
+	if s.absenceRepo != nil {
+		absences, err = s.absenceRepo.GetByStaffAndDateRange(ctx, staffID, from, to)
+		if err != nil {
+			return nil, "", fmt.Errorf("failed to get absences for export: %w", err)
+		}
+	}
+
+	// Build merged rows sorted by date
+	rows := s.buildExportRows(sessions, absences)
+
 	fromStr := from.Format("2006-01-02")
 	toStr := to.Format("2006-01-02")
 
 	switch format {
 	case "xlsx":
-		data, err := s.exportXLSX(sessions)
+		data, err := s.exportXLSX(rows)
 		if err != nil {
 			return nil, "", err
 		}
 		return data, fmt.Sprintf("zeiterfassung_%s_%s.xlsx", fromStr, toStr), nil
 	default:
-		data, err := s.exportCSV(sessions)
+		data, err := s.exportCSV(rows)
 		if err != nil {
 			return nil, "", err
 		}
@@ -600,7 +628,46 @@ func (s *workSessionService) ExportSessions(ctx context.Context, staffID int64, 
 	}
 }
 
-func (s *workSessionService) exportCSV(sessions []*SessionResponse) ([]byte, error) {
+// buildExportRows merges session rows and absence rows, sorted by date
+func (s *workSessionService) buildExportRows(sessions []*SessionResponse, absences []*activeModels.StaffAbsence) []exportRow {
+	var rows []exportRow
+
+	// Add session rows
+	for _, sr := range sessions {
+		rows = append(rows, exportRow{
+			Date: sr.Date,
+			Row:  s.sessionToRow(sr),
+		})
+	}
+
+	// Add absence rows (one row per day in the absence range)
+	for _, absence := range absences {
+		label := germanAbsenceTypeLabels[absence.AbsenceType]
+		if label == "" {
+			label = absence.AbsenceType
+		}
+
+		d := absence.DateStart
+		for !d.After(absence.DateEnd) {
+			datum := d.Format("02.01.2006")
+			wochentag := germanWeekdays[d.Weekday()]
+			rows = append(rows, exportRow{
+				Date: d,
+				Row:  []string{datum, wochentag, "--", "--", "--", "--", label, absence.Note},
+			})
+			d = d.AddDate(0, 0, 1)
+		}
+	}
+
+	// Sort by date
+	sort.Slice(rows, func(i, j int) bool {
+		return rows[i].Date.Before(rows[j].Date)
+	})
+
+	return rows
+}
+
+func (s *workSessionService) exportCSV(rows []exportRow) ([]byte, error) {
 	var buf bytes.Buffer
 
 	// UTF-8 BOM for Excel compatibility
@@ -614,9 +681,8 @@ func (s *workSessionService) exportCSV(sessions []*SessionResponse) ([]byte, err
 		return nil, fmt.Errorf("failed to write CSV header: %w", err)
 	}
 
-	for _, sr := range sessions {
-		row := s.sessionToRow(sr)
-		if err := w.Write(row); err != nil {
+	for _, er := range rows {
+		if err := w.Write(er.Row); err != nil {
 			return nil, fmt.Errorf("failed to write CSV row: %w", err)
 		}
 	}
@@ -629,7 +695,7 @@ func (s *workSessionService) exportCSV(sessions []*SessionResponse) ([]byte, err
 	return buf.Bytes(), nil
 }
 
-func (s *workSessionService) exportXLSX(sessions []*SessionResponse) ([]byte, error) {
+func (s *workSessionService) exportXLSX(rows []exportRow) ([]byte, error) {
 	f := excelize.NewFile()
 	defer func() { _ = f.Close() }()
 
@@ -659,9 +725,8 @@ func (s *workSessionService) exportXLSX(sessions []*SessionResponse) ([]byte, er
 	}
 
 	// Data rows
-	for rowIdx, sr := range sessions {
-		row := s.sessionToRow(sr)
-		for colIdx, val := range row {
+	for rowIdx, er := range rows {
+		for colIdx, val := range er.Row {
 			cell, _ := excelize.CoordinatesToCellName(colIdx+1, rowIdx+2)
 			_ = f.SetCellValue(sheet, cell, val)
 		}

@@ -93,6 +93,7 @@ type Factory struct {
 	Attendance       activeModels.AttendanceRepository
 	WorkSession      activeModels.WorkSessionRepository
 	WorkSessionBreak activeModels.WorkSessionBreakRepository
+	StaffAbsence     activeModels.StaffAbsenceRepository
 
 	// Feedback domain
 	FeedbackEntry feedbackModels.EntryRepository
@@ -178,6 +179,7 @@ func NewFactory(db *bun.DB) *Factory {
 		Attendance:       active.NewAttendanceRepository(db),
 		WorkSession:      active.NewWorkSessionRepository(db),
 		WorkSessionBreak: active.NewWorkSessionBreakRepository(db),
+		StaffAbsence:     active.NewStaffAbsenceRepository(db),
 
 		// Feedback repositories
 		FeedbackEntry: feedback.NewEntryRepository(db),
