@@ -80,339 +80,189 @@ export interface UpdateAbsenceRequest {
 class TimeTrackingService {
   private readonly baseUrl = "/api/time-tracking";
 
-  /**
-   * Get authentication token from session
-   */
   private async getToken(): Promise<string | undefined> {
     const session = await getSession();
     return session?.user?.token;
   }
 
-  /**
-   * Check in for work
-   * @param status - Work status (present or home_office)
-   * @returns Created work session
-   */
+  private buildHeaders(
+    token: string | undefined,
+    withBody: boolean,
+  ): HeadersInit {
+    return {
+      ...(withBody && { "Content-Type": "application/json" }),
+      ...(token && { Authorization: `Bearer ${token}` }),
+    };
+  }
+
+  private async request<T>(
+    path: string,
+    method: string,
+    errorMessage: string,
+    body?: unknown,
+  ): Promise<ApiResponse<T>> {
+    const token = await this.getToken();
+    const response = await fetch(`${this.baseUrl}${path}`, {
+      method,
+      headers: this.buildHeaders(token, body !== undefined),
+      ...(body !== undefined && { body: JSON.stringify(body) }),
+    });
+
+    if (!response.ok) {
+      const error = (await response.json()) as ErrorResponse;
+      throw new Error(error.error ?? error.message ?? errorMessage);
+    }
+
+    return (await response.json()) as ApiResponse<T>;
+  }
+
+  private async requestVoid(
+    path: string,
+    method: string,
+    errorMessage: string,
+  ): Promise<void> {
+    const token = await this.getToken();
+    const response = await fetch(`${this.baseUrl}${path}`, {
+      method,
+      headers: this.buildHeaders(token, false),
+    });
+
+    if (!response.ok) {
+      const error = (await response.json()) as ErrorResponse;
+      throw new Error(error.error ?? error.message ?? errorMessage);
+    }
+  }
+
   async checkIn(status: "present" | "home_office"): Promise<WorkSession> {
-    const token = await this.getToken();
-    const response = await fetch(`${this.baseUrl}/check-in`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(token && { Authorization: `Bearer ${token}` }),
-      },
-      body: JSON.stringify({ status }),
-    });
-
-    if (!response.ok) {
-      const error = (await response.json()) as ErrorResponse;
-      throw new Error(error.error ?? error.message ?? "Failed to check in");
-    }
-
-    const result = (await response.json()) as ApiResponse<WorkSession>;
+    const result = await this.request<WorkSession>(
+      "/check-in",
+      "POST",
+      "Failed to check in",
+      { status },
+    );
     return mapWorkSessionResponse(result.data as never);
   }
 
-  /**
-   * Check out from work
-   * @returns Updated work session
-   */
   async checkOut(): Promise<WorkSession> {
-    const token = await this.getToken();
-    const response = await fetch(`${this.baseUrl}/check-out`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(token && { Authorization: `Bearer ${token}` }),
-      },
-    });
-
-    if (!response.ok) {
-      const error = (await response.json()) as ErrorResponse;
-      throw new Error(error.error ?? error.message ?? "Failed to check out");
-    }
-
-    const result = (await response.json()) as ApiResponse<WorkSession>;
+    const result = await this.request<WorkSession>(
+      "/check-out",
+      "POST",
+      "Failed to check out",
+    );
     return mapWorkSessionResponse(result.data as never);
   }
 
-  /**
-   * Get current active work session
-   * @returns Current session or null if not checked in
-   */
   async getCurrentSession(): Promise<WorkSession | null> {
-    const token = await this.getToken();
-    const response = await fetch(`${this.baseUrl}/current`, {
-      method: "GET",
-      headers: {
-        ...(token && { Authorization: `Bearer ${token}` }),
-      },
-    });
-
-    if (!response.ok) {
-      const error = (await response.json()) as ErrorResponse;
-      throw new Error(
-        error.error ?? error.message ?? "Failed to get current session",
-      );
-    }
-
-    const result = (await response.json()) as ApiResponse<WorkSession | null>;
+    const result = await this.request<WorkSession | null>(
+      "/current",
+      "GET",
+      "Failed to get current session",
+    );
     return result.data ? mapWorkSessionResponse(result.data as never) : null;
   }
 
-  /**
-   * Get work session history
-   * @param from - Start date (YYYY-MM-DD)
-   * @param to - End date (YYYY-MM-DD)
-   * @returns Array of work sessions with calculated fields
-   */
   async getHistory(from: string, to: string): Promise<WorkSessionHistory[]> {
-    const token = await this.getToken();
     const params = new URLSearchParams({ from, to });
-    const response = await fetch(`${this.baseUrl}/history?${params}`, {
-      method: "GET",
-      headers: {
-        ...(token && { Authorization: `Bearer ${token}` }),
-      },
-    });
-
-    if (!response.ok) {
-      const error = (await response.json()) as ErrorResponse;
-      throw new Error(error.error ?? error.message ?? "Failed to get history");
-    }
-
-    const result = (await response.json()) as ApiResponse<WorkSessionHistory[]>;
+    const result = await this.request<WorkSessionHistory[]>(
+      `/history?${params}`,
+      "GET",
+      "Failed to get history",
+    );
     return result.data.map((session) =>
       mapWorkSessionHistoryResponse(session as never),
     );
   }
 
-  /**
-   * Update a work session
-   * @param id - Session ID
-   * @param updates - Fields to update
-   * @returns Updated work session
-   */
   async updateSession(
     id: string,
     updates: UpdateSessionRequest,
   ): Promise<WorkSession> {
-    const token = await this.getToken();
-    const response = await fetch(`${this.baseUrl}/${id}`, {
-      method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-        ...(token && { Authorization: `Bearer ${token}` }),
-      },
-      body: JSON.stringify(updates),
-    });
-
-    if (!response.ok) {
-      const error = (await response.json()) as ErrorResponse;
-      throw new Error(
-        error.error ?? error.message ?? "Failed to update session",
-      );
-    }
-
-    const result = (await response.json()) as ApiResponse<WorkSession>;
+    const result = await this.request<WorkSession>(
+      `/${id}`,
+      "PUT",
+      "Failed to update session",
+      updates,
+    );
     return mapWorkSessionResponse(result.data as never);
   }
 
-  /**
-   * Start a new break for the current session
-   * @returns Created break
-   */
   async startBreak(): Promise<WorkSessionBreak> {
-    const token = await this.getToken();
-    const response = await fetch(`${this.baseUrl}/break/start`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(token && { Authorization: `Bearer ${token}` }),
-      },
-    });
-
-    if (!response.ok) {
-      const error = (await response.json()) as ErrorResponse;
-      throw new Error(error.error ?? error.message ?? "Failed to start break");
-    }
-
-    const result = (await response.json()) as ApiResponse<WorkSessionBreak>;
+    const result = await this.request<WorkSessionBreak>(
+      "/break/start",
+      "POST",
+      "Failed to start break",
+    );
     return mapWorkSessionBreakResponse(result.data as never);
   }
 
-  /**
-   * End the current active break
-   * @returns Updated work session
-   */
   async endBreak(): Promise<WorkSession> {
-    const token = await this.getToken();
-    const response = await fetch(`${this.baseUrl}/break/end`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(token && { Authorization: `Bearer ${token}` }),
-      },
-    });
-
-    if (!response.ok) {
-      const error = (await response.json()) as ErrorResponse;
-      throw new Error(error.error ?? error.message ?? "Failed to end break");
-    }
-
-    const result = (await response.json()) as ApiResponse<WorkSession>;
+    const result = await this.request<WorkSession>(
+      "/break/end",
+      "POST",
+      "Failed to end break",
+    );
     return mapWorkSessionResponse(result.data as never);
   }
 
-  /**
-   * Get breaks for a specific session
-   * @param sessionId - Session ID
-   * @returns Array of breaks
-   */
   async getSessionBreaks(sessionId: string): Promise<WorkSessionBreak[]> {
-    const token = await this.getToken();
-    const response = await fetch(`${this.baseUrl}/breaks/${sessionId}`, {
-      method: "GET",
-      headers: {
-        ...(token && { Authorization: `Bearer ${token}` }),
-      },
-    });
-
-    if (!response.ok) {
-      const error = (await response.json()) as ErrorResponse;
-      throw new Error(error.error ?? error.message ?? "Failed to get breaks");
-    }
-
-    const result = (await response.json()) as ApiResponse<WorkSessionBreak[]>;
+    const result = await this.request<WorkSessionBreak[]>(
+      `/breaks/${sessionId}`,
+      "GET",
+      "Failed to get breaks",
+    );
     return result.data.map((brk) => mapWorkSessionBreakResponse(brk as never));
   }
 
-  /**
-   * Get edit audit trail for a specific session
-   * @param sessionId - Session ID
-   * @returns Array of edit records
-   */
   async getSessionEdits(sessionId: string): Promise<WorkSessionEdit[]> {
-    const token = await this.getToken();
-    const response = await fetch(`${this.baseUrl}/${sessionId}/edits`, {
-      method: "GET",
-      headers: {
-        ...(token && { Authorization: `Bearer ${token}` }),
-      },
-    });
-
-    if (!response.ok) {
-      const error = (await response.json()) as ErrorResponse;
-      throw new Error(error.error ?? error.message ?? "Failed to get edits");
-    }
-
-    const result = (await response.json()) as ApiResponse<WorkSessionEdit[]>;
+    const result = await this.request<WorkSessionEdit[]>(
+      `/${sessionId}/edits`,
+      "GET",
+      "Failed to get edits",
+    );
     return (result.data ?? []).map((edit) =>
       mapWorkSessionEditResponse(edit as never),
     );
   }
-  /**
-   * Get absences for a date range
-   * @param from - Start date (YYYY-MM-DD)
-   * @param to - End date (YYYY-MM-DD)
-   * @returns Array of absences
-   */
+
   async getAbsences(from: string, to: string): Promise<StaffAbsence[]> {
-    const token = await this.getToken();
     const params = new URLSearchParams({ from, to });
-    const response = await fetch(`${this.baseUrl}/absences?${params}`, {
-      method: "GET",
-      headers: {
-        ...(token && { Authorization: `Bearer ${token}` }),
-      },
-    });
-
-    if (!response.ok) {
-      const error = (await response.json()) as ErrorResponse;
-      throw new Error(error.error ?? error.message ?? "Failed to get absences");
-    }
-
-    const result = (await response.json()) as ApiResponse<StaffAbsence[]>;
+    const result = await this.request<StaffAbsence[]>(
+      `/absences?${params}`,
+      "GET",
+      "Failed to get absences",
+    );
     return (result.data ?? []).map((a) => mapStaffAbsenceResponse(a as never));
   }
 
-  /**
-   * Create a new absence
-   * @param req - Absence data
-   * @returns Created absence
-   */
   async createAbsence(req: CreateAbsenceRequest): Promise<StaffAbsence> {
-    const token = await this.getToken();
-    const response = await fetch(`${this.baseUrl}/absences`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(token && { Authorization: `Bearer ${token}` }),
-      },
-      body: JSON.stringify(req),
-    });
-
-    if (!response.ok) {
-      const error = (await response.json()) as ErrorResponse;
-      throw new Error(
-        error.error ?? error.message ?? "Failed to create absence",
-      );
-    }
-
-    const result = (await response.json()) as ApiResponse<StaffAbsence>;
+    const result = await this.request<StaffAbsence>(
+      "/absences",
+      "POST",
+      "Failed to create absence",
+      req,
+    );
     return mapStaffAbsenceResponse(result.data as never);
   }
 
-  /**
-   * Update an absence
-   * @param id - Absence ID
-   * @param req - Fields to update
-   * @returns Updated absence
-   */
   async updateAbsence(
     id: string,
     req: UpdateAbsenceRequest,
   ): Promise<StaffAbsence> {
-    const token = await this.getToken();
-    const response = await fetch(`${this.baseUrl}/absences/${id}`, {
-      method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-        ...(token && { Authorization: `Bearer ${token}` }),
-      },
-      body: JSON.stringify(req),
-    });
-
-    if (!response.ok) {
-      const error = (await response.json()) as ErrorResponse;
-      throw new Error(
-        error.error ?? error.message ?? "Failed to update absence",
-      );
-    }
-
-    const result = (await response.json()) as ApiResponse<StaffAbsence>;
+    const result = await this.request<StaffAbsence>(
+      `/absences/${id}`,
+      "PUT",
+      "Failed to update absence",
+      req,
+    );
     return mapStaffAbsenceResponse(result.data as never);
   }
 
-  /**
-   * Delete an absence
-   * @param id - Absence ID
-   */
   async deleteAbsence(id: string): Promise<void> {
-    const token = await this.getToken();
-    const response = await fetch(`${this.baseUrl}/absences/${id}`, {
-      method: "DELETE",
-      headers: {
-        ...(token && { Authorization: `Bearer ${token}` }),
-      },
-    });
-
-    if (!response.ok) {
-      const error = (await response.json()) as ErrorResponse;
-      throw new Error(
-        error.error ?? error.message ?? "Failed to delete absence",
-      );
-    }
+    await this.requestVoid(
+      `/absences/${id}`,
+      "DELETE",
+      "Failed to delete absence",
+    );
   }
 }
 

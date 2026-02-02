@@ -107,12 +107,38 @@ func (rs *Resource) getStaffIDFromClaims(ctx context.Context, claims jwt.AppClai
 	return staff.ID, nil
 }
 
+// parseDateRange extracts and validates "from" and "to" query parameters as dates.
+// Returns the parsed times or renders an error and returns false.
+func parseDateRange(w http.ResponseWriter, r *http.Request) (from, to time.Time, ok bool) {
+	fromStr := r.URL.Query().Get("from")
+	toStr := r.URL.Query().Get("to")
+
+	if fromStr == "" || toStr == "" {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("from and to query parameters are required")))
+		return time.Time{}, time.Time{}, false
+	}
+
+	from, err := time.Parse(common.DateFormatISO, fromStr)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid from date format, expected YYYY-MM-DD")))
+		return time.Time{}, time.Time{}, false
+	}
+
+	to, err = time.Parse(common.DateFormatISO, toStr)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid to date format, expected YYYY-MM-DD")))
+		return time.Time{}, time.Time{}, false
+	}
+
+	return from, to, true
+}
+
 // checkIn handles POST /api/time-tracking/check-in
 func (rs *Resource) checkIn(w http.ResponseWriter, r *http.Request) {
 	// Parse request
 	req := &CheckInRequest{}
 	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(err))
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
@@ -120,7 +146,7 @@ func (rs *Resource) checkIn(w http.ResponseWriter, r *http.Request) {
 	userClaims := jwt.ClaimsFromCtx(r.Context())
 	staffID, err := rs.getStaffIDFromClaims(r.Context(), userClaims)
 	if err != nil {
-		common.RenderError(w, r, ErrorUnauthorized(err))
+		common.RenderError(w, r, common.ErrorUnauthorized(err))
 		return
 	}
 
@@ -140,7 +166,7 @@ func (rs *Resource) checkOut(w http.ResponseWriter, r *http.Request) {
 	userClaims := jwt.ClaimsFromCtx(r.Context())
 	staffID, err := rs.getStaffIDFromClaims(r.Context(), userClaims)
 	if err != nil {
-		common.RenderError(w, r, ErrorUnauthorized(err))
+		common.RenderError(w, r, common.ErrorUnauthorized(err))
 		return
 	}
 
@@ -160,14 +186,14 @@ func (rs *Resource) getCurrent(w http.ResponseWriter, r *http.Request) {
 	userClaims := jwt.ClaimsFromCtx(r.Context())
 	staffID, err := rs.getStaffIDFromClaims(r.Context(), userClaims)
 	if err != nil {
-		common.RenderError(w, r, ErrorUnauthorized(err))
+		common.RenderError(w, r, common.ErrorUnauthorized(err))
 		return
 	}
 
 	// Get current session
 	session, err := rs.WorkSessionService.GetCurrentSession(r.Context(), staffID)
 	if err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -181,35 +207,19 @@ func (rs *Resource) getHistory(w http.ResponseWriter, r *http.Request) {
 	userClaims := jwt.ClaimsFromCtx(r.Context())
 	staffID, err := rs.getStaffIDFromClaims(r.Context(), userClaims)
 	if err != nil {
-		common.RenderError(w, r, ErrorUnauthorized(err))
+		common.RenderError(w, r, common.ErrorUnauthorized(err))
 		return
 	}
 
-	// Parse date range from query params
-	fromStr := r.URL.Query().Get("from")
-	toStr := r.URL.Query().Get("to")
-
-	if fromStr == "" || toStr == "" {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New("from and to query parameters are required")))
-		return
-	}
-
-	from, err := time.Parse(common.DateFormatISO, fromStr)
-	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid from date format, expected YYYY-MM-DD")))
-		return
-	}
-
-	to, err := time.Parse(common.DateFormatISO, toStr)
-	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid to date format, expected YYYY-MM-DD")))
+	from, to, ok := parseDateRange(w, r)
+	if !ok {
 		return
 	}
 
 	// Get history
 	sessions, err := rs.WorkSessionService.GetHistory(r.Context(), staffID, from, to)
 	if err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -222,7 +232,7 @@ func (rs *Resource) updateSession(w http.ResponseWriter, r *http.Request) {
 	userClaims := jwt.ClaimsFromCtx(r.Context())
 	staffID, err := rs.getStaffIDFromClaims(r.Context(), userClaims)
 	if err != nil {
-		common.RenderError(w, r, ErrorUnauthorized(err))
+		common.RenderError(w, r, common.ErrorUnauthorized(err))
 		return
 	}
 
@@ -230,14 +240,14 @@ func (rs *Resource) updateSession(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "id")
 	sessionID, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid session ID")))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid session ID")))
 		return
 	}
 
 	// Parse update request
 	var updates activeSvc.SessionUpdateRequest
 	if err := render.DecodeJSON(r.Body, &updates); err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(err))
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
@@ -257,7 +267,7 @@ func (rs *Resource) startBreak(w http.ResponseWriter, r *http.Request) {
 	userClaims := jwt.ClaimsFromCtx(r.Context())
 	staffID, err := rs.getStaffIDFromClaims(r.Context(), userClaims)
 	if err != nil {
-		common.RenderError(w, r, ErrorUnauthorized(err))
+		common.RenderError(w, r, common.ErrorUnauthorized(err))
 		return
 	}
 
@@ -277,7 +287,7 @@ func (rs *Resource) endBreak(w http.ResponseWriter, r *http.Request) {
 	userClaims := jwt.ClaimsFromCtx(r.Context())
 	staffID, err := rs.getStaffIDFromClaims(r.Context(), userClaims)
 	if err != nil {
-		common.RenderError(w, r, ErrorUnauthorized(err))
+		common.RenderError(w, r, common.ErrorUnauthorized(err))
 		return
 	}
 
@@ -297,14 +307,14 @@ func (rs *Resource) getBreaks(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "sessionId")
 	sessionID, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid session ID")))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid session ID")))
 		return
 	}
 
 	// Get breaks
 	breaks, err := rs.WorkSessionService.GetSessionBreaks(r.Context(), sessionID)
 	if err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -317,14 +327,14 @@ func (rs *Resource) getSessionEdits(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "id")
 	sessionID, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid session ID")))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid session ID")))
 		return
 	}
 
 	// Get edits
 	edits, err := rs.WorkSessionService.GetSessionEdits(r.Context(), sessionID)
 	if err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -337,39 +347,23 @@ func (rs *Resource) exportSessions(w http.ResponseWriter, r *http.Request) {
 	userClaims := jwt.ClaimsFromCtx(r.Context())
 	staffID, err := rs.getStaffIDFromClaims(r.Context(), userClaims)
 	if err != nil {
-		common.RenderError(w, r, ErrorUnauthorized(err))
+		common.RenderError(w, r, common.ErrorUnauthorized(err))
 		return
 	}
 
-	// Parse query params
-	fromStr := r.URL.Query().Get("from")
-	toStr := r.URL.Query().Get("to")
+	from, to, ok := parseDateRange(w, r)
+	if !ok {
+		return
+	}
+
 	format := r.URL.Query().Get("format")
-
-	if fromStr == "" || toStr == "" {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New("from and to query parameters are required")))
-		return
-	}
-
-	from, err := time.Parse(common.DateFormatISO, fromStr)
-	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid from date format, expected YYYY-MM-DD")))
-		return
-	}
-
-	to, err := time.Parse(common.DateFormatISO, toStr)
-	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid to date format, expected YYYY-MM-DD")))
-		return
-	}
-
 	if format != "csv" && format != "xlsx" {
 		format = "csv"
 	}
 
 	fileBytes, filename, err := rs.WorkSessionService.ExportSessions(r.Context(), staffID, from, to, format)
 	if err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -394,33 +388,18 @@ func (rs *Resource) listAbsences(w http.ResponseWriter, r *http.Request) {
 	userClaims := jwt.ClaimsFromCtx(r.Context())
 	staffID, err := rs.getStaffIDFromClaims(r.Context(), userClaims)
 	if err != nil {
-		common.RenderError(w, r, ErrorUnauthorized(err))
+		common.RenderError(w, r, common.ErrorUnauthorized(err))
 		return
 	}
 
-	fromStr := r.URL.Query().Get("from")
-	toStr := r.URL.Query().Get("to")
-
-	if fromStr == "" || toStr == "" {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New("from and to query parameters are required")))
-		return
-	}
-
-	from, err := time.Parse(common.DateFormatISO, fromStr)
-	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid from date format, expected YYYY-MM-DD")))
-		return
-	}
-
-	to, err := time.Parse(common.DateFormatISO, toStr)
-	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid to date format, expected YYYY-MM-DD")))
+	from, to, ok := parseDateRange(w, r)
+	if !ok {
 		return
 	}
 
 	absences, err := rs.StaffAbsenceService.GetAbsencesForRange(r.Context(), staffID, from, to)
 	if err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -432,13 +411,13 @@ func (rs *Resource) createAbsence(w http.ResponseWriter, r *http.Request) {
 	userClaims := jwt.ClaimsFromCtx(r.Context())
 	staffID, err := rs.getStaffIDFromClaims(r.Context(), userClaims)
 	if err != nil {
-		common.RenderError(w, r, ErrorUnauthorized(err))
+		common.RenderError(w, r, common.ErrorUnauthorized(err))
 		return
 	}
 
 	var req activeSvc.CreateAbsenceRequest
 	if err := render.DecodeJSON(r.Body, &req); err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(err))
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
@@ -456,20 +435,20 @@ func (rs *Resource) updateAbsence(w http.ResponseWriter, r *http.Request) {
 	userClaims := jwt.ClaimsFromCtx(r.Context())
 	staffID, err := rs.getStaffIDFromClaims(r.Context(), userClaims)
 	if err != nil {
-		common.RenderError(w, r, ErrorUnauthorized(err))
+		common.RenderError(w, r, common.ErrorUnauthorized(err))
 		return
 	}
 
 	idStr := chi.URLParam(r, "id")
 	absenceID, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid absence ID")))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid absence ID")))
 		return
 	}
 
 	var req activeSvc.UpdateAbsenceRequest
 	if err := render.DecodeJSON(r.Body, &req); err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(err))
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
@@ -487,14 +466,14 @@ func (rs *Resource) deleteAbsence(w http.ResponseWriter, r *http.Request) {
 	userClaims := jwt.ClaimsFromCtx(r.Context())
 	staffID, err := rs.getStaffIDFromClaims(r.Context(), userClaims)
 	if err != nil {
-		common.RenderError(w, r, ErrorUnauthorized(err))
+		common.RenderError(w, r, common.ErrorUnauthorized(err))
 		return
 	}
 
 	idStr := chi.URLParam(r, "id")
 	absenceID, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid absence ID")))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid absence ID")))
 		return
 	}
 
@@ -511,7 +490,7 @@ func (rs *Resource) getPresenceMap(w http.ResponseWriter, r *http.Request) {
 	// Get today's presence map
 	presenceMap, err := rs.WorkSessionService.GetTodayPresenceMap(r.Context())
 	if err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 

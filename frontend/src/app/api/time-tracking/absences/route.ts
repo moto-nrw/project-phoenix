@@ -1,30 +1,13 @@
 import type { NextRequest } from "next/server";
-import { apiGet, apiPost } from "~/lib/api-helpers";
-import { createGetHandler, createPostHandler } from "~/lib/route-wrapper";
+import { apiPost } from "~/lib/api-helpers";
+import { createPostHandler } from "~/lib/route-wrapper";
+import { createProxyGetDataHandler } from "~/lib/route-wrapper";
 
 /**
  * GET /api/time-tracking/absences?from=YYYY-MM-DD&to=YYYY-MM-DD
  * Get staff absences for date range
  */
-export const GET = createGetHandler<unknown>(
-  async (request: NextRequest, token: string) => {
-    const searchParams = request.nextUrl.searchParams;
-    const from = searchParams.get("from") ?? "";
-    const to = searchParams.get("to") ?? "";
-
-    const params = new URLSearchParams();
-    if (from) params.append("from", from);
-    if (to) params.append("to", to);
-
-    const queryString = params.toString();
-    const endpoint = queryString
-      ? `/api/time-tracking/absences?${queryString}`
-      : "/api/time-tracking/absences";
-
-    const response = await apiGet<{ data: unknown }>(endpoint, token);
-    return response.data;
-  },
-);
+export const GET = createProxyGetDataHandler("/api/time-tracking/absences");
 
 interface CreateAbsenceBody {
   absence_type: string;
