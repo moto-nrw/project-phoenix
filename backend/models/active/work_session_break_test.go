@@ -94,3 +94,27 @@ func TestWorkSessionBreak_Getters(t *testing.T) {
 	assert.Equal(t, now, b.GetCreatedAt())
 	assert.Equal(t, now, b.GetUpdatedAt())
 }
+
+func TestWorkSessionBreak_BeforeAppendModel(t *testing.T) {
+	b := &WorkSessionBreak{}
+
+	t.Run("handles SelectQuery", func(t *testing.T) {
+		err := b.BeforeAppendModel(nil)
+		assert.NoError(t, err)
+	})
+
+	t.Run("handles UpdateQuery", func(t *testing.T) {
+		err := b.BeforeAppendModel(nil)
+		assert.NoError(t, err)
+	})
+
+	t.Run("handles DeleteQuery", func(t *testing.T) {
+		err := b.BeforeAppendModel(nil)
+		assert.NoError(t, err)
+	})
+
+	t.Run("handles InsertQuery", func(t *testing.T) {
+		err := b.BeforeAppendModel(nil)
+		assert.NoError(t, err)
+	})
+}

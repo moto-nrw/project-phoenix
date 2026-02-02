@@ -106,6 +106,54 @@ func TestStaffAbsenceRepository_Create(t *testing.T) {
 		err := repo.Create(ctx, absence)
 		assert.Error(t, err)
 	})
+
+	t.Run("create with invalid status should fail", func(t *testing.T) {
+		today := timezone.DateOfUTC(time.Now())
+		absence := &active.StaffAbsence{
+			StaffID:     staff.ID,
+			AbsenceType: active.AbsenceTypeSick,
+			DateStart:   today,
+			DateEnd:     today,
+			Status:      "invalid_status",
+			CreatedBy:   staff.ID,
+		}
+
+		err := repo.Create(ctx, absence)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid absence status")
+	})
+
+	t.Run("create with missing staff ID should fail", func(t *testing.T) {
+		today := timezone.DateOfUTC(time.Now())
+		absence := &active.StaffAbsence{
+			StaffID:     0, // Invalid
+			AbsenceType: active.AbsenceTypeSick,
+			DateStart:   today,
+			DateEnd:     today,
+			Status:      active.AbsenceStatusReported,
+			CreatedBy:   staff.ID,
+		}
+
+		err := repo.Create(ctx, absence)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "staff ID is required")
+	})
+
+	t.Run("create with date_start after date_end should fail", func(t *testing.T) {
+		today := timezone.DateOfUTC(time.Now())
+		yesterday := today.AddDate(0, 0, -1)
+		absence := &active.StaffAbsence{
+			StaffID:     staff.ID,
+			AbsenceType: active.AbsenceTypeSick,
+			DateStart:   today,
+			DateEnd:     yesterday, // Before start
+			Status:      active.AbsenceStatusReported,
+			CreatedBy:   staff.ID,
+		}
+
+		err := repo.Create(ctx, absence)
+		assert.Error(t, err)
+	})
 }
 
 // ============================================================================

@@ -8,6 +8,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -156,6 +157,39 @@ func TestWorkSessionBreakRepository_Create(t *testing.T) {
 		err := repo.Create(ctx, nil)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "cannot be nil")
+	})
+
+	t.Run("create with invalid break should fail validation", func(t *testing.T) {
+		// Break with missing session ID
+		brk := &active.WorkSessionBreak{
+			SessionID: 0, // Invalid
+			StartedAt: time.Now(),
+		}
+		err := repo.Create(ctx, brk)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "session ID is required")
+	})
+
+	t.Run("create with negative duration should fail", func(t *testing.T) {
+		today := timezone.DateOfUTC(time.Now())
+		session := &active.WorkSession{
+			StaffID:     staff.ID,
+			Date:        today,
+			Status:      active.WorkSessionStatusPresent,
+			CheckInTime: time.Now(),
+			CreatedBy:   staff.ID,
+		}
+		err := sessionRepo.Create(ctx, session)
+		require.NoError(t, err)
+		defer testpkg.CleanupTableRecords(t, db, "active.work_sessions", session.ID)
+
+		brk := &active.WorkSessionBreak{
+			SessionID:       session.ID,
+			StartedAt:       time.Now(),
+			DurationMinutes: -10, // Invalid
+		}
+		err = repo.Create(ctx, brk)
+		assert.Error(t, err)
 	})
 }
 
@@ -313,5 +347,76 @@ func TestWorkSessionBreakRepository_EndBreak(t *testing.T) {
 		require.NoError(t, err)
 		assert.NotNil(t, ended.EndedAt)
 		assert.Equal(t, 30, ended.DurationMinutes)
+	})
+}
+
+func TestWorkSessionBreakRepository_List(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).WorkSessionBreak
+	sessionRepo := repositories.NewFactory(db).WorkSession
+	ctx := context.Background()
+
+	staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
+	defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID)
+
+	t.Run("lists all breaks", func(t *testing.T) {
+		// Create a work session
+		today := timezone.DateOfUTC(time.Now())
+		session := &active.WorkSession{
+			StaffID:     staff.ID,
+			Date:        today,
+			Status:      active.WorkSessionStatusPresent,
+			CheckInTime: time.Now(),
+			CreatedBy:   staff.ID,
+		}
+		err := sessionRepo.Create(ctx, session)
+		require.NoError(t, err)
+		defer testpkg.CleanupTableRecords(t, db, "active.work_sessions", session.ID)
+
+		// Create breaks
+		brk := &active.WorkSessionBreak{
+			SessionID: session.ID,
+			StartedAt: time.Now(),
+		}
+		err = repo.Create(ctx, brk)
+		require.NoError(t, err)
+		defer testpkg.CleanupTableRecords(t, db, "active.work_session_breaks", brk.ID)
+
+		breaks, err := repo.List(ctx, nil)
+		require.NoError(t, err)
+		assert.NotEmpty(t, breaks)
+	})
+
+	t.Run("lists with query options", func(t *testing.T) {
+		// Create a work session
+		today := timezone.DateOfUTC(time.Now())
+		session := &active.WorkSession{
+			StaffID:     staff.ID,
+			Date:        today,
+			Status:      active.WorkSessionStatusPresent,
+			CheckInTime: time.Now(),
+			CreatedBy:   staff.ID,
+		}
+		err := sessionRepo.Create(ctx, session)
+		require.NoError(t, err)
+		defer testpkg.CleanupTableRecords(t, db, "active.work_sessions", session.ID)
+
+		// Create breaks
+		brk := &active.WorkSessionBreak{
+			SessionID: session.ID,
+			StartedAt: time.Now(),
+		}
+		err = repo.Create(ctx, brk)
+		require.NoError(t, err)
+		defer testpkg.CleanupTableRecords(t, db, "active.work_session_breaks", brk.ID)
+
+		options := modelBase.NewQueryOptions()
+		options.WithPagination(1, 10)
+
+		breaks, err := repo.List(ctx, options)
+		require.NoError(t, err)
+		assert.LessOrEqual(t, len(breaks), 10)
 	})
 }

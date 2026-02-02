@@ -101,6 +101,51 @@ func TestWorkSessionEditRepository_CreateBatch(t *testing.T) {
 		assert.Error(t, err)
 	})
 
+	t.Run("validates missing session ID", func(t *testing.T) {
+		edits := []*audit.WorkSessionEdit{
+			{
+				SessionID: 0, // Invalid
+				StaffID:   staff.ID,
+				EditedBy:  staff.ID,
+				FieldName: audit.FieldCheckInTime,
+			},
+		}
+
+		err := repo.CreateBatch(ctx, edits)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "session ID is required")
+	})
+
+	t.Run("validates missing staff ID", func(t *testing.T) {
+		edits := []*audit.WorkSessionEdit{
+			{
+				SessionID: 1,
+				StaffID:   0, // Invalid
+				EditedBy:  staff.ID,
+				FieldName: audit.FieldCheckInTime,
+			},
+		}
+
+		err := repo.CreateBatch(ctx, edits)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "staff ID is required")
+	})
+
+	t.Run("validates missing edited_by", func(t *testing.T) {
+		edits := []*audit.WorkSessionEdit{
+			{
+				SessionID: 1,
+				StaffID:   staff.ID,
+				EditedBy:  0, // Invalid
+				FieldName: audit.FieldCheckInTime,
+			},
+		}
+
+		err := repo.CreateBatch(ctx, edits)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "edited by is required")
+	})
+
 	t.Run("creates batch with multiple fields", func(t *testing.T) {
 		today := timezone.DateOfUTC(time.Now())
 		session := &active.WorkSession{
