@@ -75,7 +75,7 @@ describe("DesktopTabsActionArea", () => {
     expect(screen.getByText("42")).toBeInTheDocument();
   });
 
-  it("prioritizes action button over status and badge", () => {
+  it("renders action button alongside status and badge", () => {
     render(
       <DesktopTabsActionArea
         hasTitle={false}
@@ -86,8 +86,8 @@ describe("DesktopTabsActionArea", () => {
     );
 
     expect(screen.getByTestId("action-btn")).toBeInTheDocument();
-    expect(screen.queryByTestId("status-indicator")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("badge-display")).not.toBeInTheDocument();
+    expect(screen.getByTestId("status-indicator")).toBeInTheDocument();
+    expect(screen.getByTestId("badge-display")).toBeInTheDocument();
   });
 
   it("renders both status and badge when no action button", () => {
@@ -166,7 +166,7 @@ describe("MobileTabsActionArea", () => {
     expect(screen.getByText("99")).toBeInTheDocument();
   });
 
-  it("prioritizes action button over status and badge", () => {
+  it("renders action button alongside status and badge", () => {
     render(
       <MobileTabsActionArea
         hasTitle={false}
@@ -177,10 +177,8 @@ describe("MobileTabsActionArea", () => {
     );
 
     expect(screen.getByTestId("mobile-action-btn")).toBeInTheDocument();
-    expect(screen.queryByTestId("status-indicator")).not.toBeInTheDocument();
-    expect(
-      screen.queryByTestId("badge-display-compact"),
-    ).not.toBeInTheDocument();
+    expect(screen.getByTestId("status-indicator")).toBeInTheDocument();
+    expect(screen.getByTestId("badge-display-compact")).toBeInTheDocument();
   });
 
   it("has mobile visibility classes", () => {
