@@ -151,14 +151,14 @@ jobs:
           fetch-depth: 0 # Required for SonarCloud PR analysis and SCM blame
 
       - name: Download backend coverage
-        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v6
         with:
           name: coverage-backend
           path: backend/
         continue-on-error: true
 
       - name: Download frontend coverage
-        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v6
         with:
           name: coverage-frontend
           path: frontend/coverage/
