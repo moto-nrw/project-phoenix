@@ -378,7 +378,7 @@ function MeinRaumPageContent() {
   schulhofStatusRef.current = schulhofStatus;
 
   // Schulhof tab ID constant for identifying the permanent tab
-  const SCHULHOF_TAB_ID = "schulhof-permanent";
+  const SCHULHOF_TAB_ID = "schulhof";
 
   // Cached active groups for UnclaimedRooms (avoids duplicate API call)
   const [cachedActiveGroups, setCachedActiveGroups] = useState<
@@ -736,7 +736,7 @@ function MeinRaumPageContent() {
       const savedRoomId = localStorage.getItem("sidebar-last-room");
 
       // Handle Schulhof restore from localStorage
-      if (savedRoomId === "schulhof" && schulhofStatus?.exists) {
+      if (savedRoomId === SCHULHOF_TAB_ID && schulhofStatus?.exists) {
         if (!isSchulhofTabSelected) {
           setIsSchulhofTabSelected(true);
           setSelectedRoomIndex(-1);
@@ -1226,7 +1226,7 @@ function MeinRaumPageContent() {
                     setIsSchulhofTabSelected(true);
                     setSelectedRoomIndex(-1);
                     router.push("/active-supervisions?room=schulhof");
-                    localStorage.setItem("sidebar-last-room", "schulhof");
+                    localStorage.setItem("sidebar-last-room", SCHULHOF_TAB_ID);
                     localStorage.setItem(
                       "sidebar-last-room-name",
                       SCHULHOF_ROOM_NAME,

@@ -38,7 +38,7 @@ interface SchulhofStatus {
 }
 
 const SCHULHOF_ROOM_NAME = "Schulhof";
-const SCHULHOF_TAB_ID = "schulhof-permanent";
+const SCHULHOF_TAB_ID = "schulhof";
 
 interface SupervisionState {
   // Group supervision

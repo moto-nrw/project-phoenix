@@ -1372,7 +1372,7 @@ describe("SupervisionProvider error state change detection", () => {
     );
     expect(schulhofRoom).toBeDefined();
     expect(schulhofRoom?.name).toBe("Schulhof");
-    expect(result.current.supervisedRoomId).toBe("schulhof-permanent");
+    expect(result.current.supervisedRoomId).toBe("schulhof");
     expect(result.current.supervisedRoomName).toBe("Schulhof");
   });
 });
@@ -1415,7 +1415,7 @@ describe("SupervisionProvider uncovered condition coverage", () => {
     );
     expect(schulhofRoom).toBeDefined();
     // When active_group_id is null, groupId should fallback to SCHULHOF_TAB_ID
-    expect(schulhofRoom?.groupId).toBe("schulhof-permanent");
+    expect(schulhofRoom?.groupId).toBe("schulhof");
   });
 
   it("should handle supervised group with no room_id (undefined roomName and roomId)", async () => {
