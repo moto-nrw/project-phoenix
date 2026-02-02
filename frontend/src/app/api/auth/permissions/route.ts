@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { auth } from "~/server/auth";
-import { env } from "~/env";
+import { getServerApiUrl } from "~/lib/server-api-url";
 
 // Backend model type (lowercase fields)
 interface BackendPermission {
@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
     const resource = searchParams.get("resource");
     const action = searchParams.get("action");
 
-    const url = new URL(`${env.NEXT_PUBLIC_API_URL}/auth/permissions`);
+    const url = new URL(`${getServerApiUrl()}/auth/permissions`);
     if (resource) url.searchParams.append("resource", resource);
     if (action) url.searchParams.append("action", action);
 
@@ -76,17 +76,14 @@ export async function POST(request: NextRequest) {
     }
 
     const body = (await request.json()) as Partial<BackendPermission>;
-    const response = await fetch(
-      `${env.NEXT_PUBLIC_API_URL}/auth/permissions`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${session.user.token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(body),
+    const response = await fetch(`${getServerApiUrl()}/auth/permissions`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${session.user.token}`,
+        "Content-Type": "application/json",
       },
-    );
+      body: JSON.stringify(body),
+    });
 
     if (!response.ok) {
       const errorText = await response.text();

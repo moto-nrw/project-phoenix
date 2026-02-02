@@ -92,7 +92,8 @@ describe("GET /api/active-supervision-dashboard", () => {
       .mockResolvedValueOnce({ data: [] }) // supervised groups
       .mockResolvedValueOnce({ data: unclaimedGroups }) // unclaimed groups
       .mockResolvedValueOnce({ data: staff }) // staff
-      .mockResolvedValueOnce({ data: educationalGroups }); // educational groups
+      .mockResolvedValueOnce({ data: educationalGroups }) // educational groups
+      .mockResolvedValueOnce({ data: { exists: false } }); // Schulhof status
 
     const request = createMockRequest("/api/active-supervision-dashboard");
     const response = await GET(request, createMockContext());
@@ -166,6 +167,7 @@ describe("GET /api/active-supervision-dashboard", () => {
       .mockResolvedValueOnce({ data: unclaimedGroups })
       .mockResolvedValueOnce({ data: staff })
       .mockResolvedValueOnce({ data: educationalGroups })
+      .mockResolvedValueOnce({ data: { exists: false } }) // Schulhof status
       .mockResolvedValueOnce({ data: visits }); // visits for first group
 
     const request = createMockRequest("/api/active-supervision-dashboard");
@@ -206,6 +208,7 @@ describe("GET /api/active-supervision-dashboard", () => {
       .mockResolvedValueOnce({ data: [] }) // unclaimed
       .mockResolvedValueOnce({ data: null }) // staff (not found)
       .mockResolvedValueOnce({ data: [] }) // educational groups
+      .mockResolvedValueOnce({ data: { exists: false } }) // Schulhof status
       .mockResolvedValueOnce({ data: roomData }) // room fetch
       .mockResolvedValueOnce({ data: [] }); // visits
 
@@ -233,7 +236,8 @@ describe("GET /api/active-supervision-dashboard", () => {
       .mockRejectedValueOnce(new Error("Supervised groups error"))
       .mockRejectedValueOnce(new Error("Unclaimed groups error"))
       .mockRejectedValueOnce(new Error("Staff error"))
-      .mockRejectedValueOnce(new Error("Educational groups error"));
+      .mockRejectedValueOnce(new Error("Educational groups error"))
+      .mockRejectedValueOnce(new Error("Schulhof status error"));
 
     const request = createMockRequest("/api/active-supervision-dashboard");
     const response = await GET(request, createMockContext());
@@ -265,7 +269,8 @@ describe("GET /api/active-supervision-dashboard", () => {
       .mockResolvedValueOnce({ data: null }) // supervised (null instead of array)
       .mockResolvedValueOnce({ data: null }) // unclaimed
       .mockResolvedValueOnce({ data: null }) // staff
-      .mockResolvedValueOnce({ data: null }); // educational groups
+      .mockResolvedValueOnce({ data: null }) // educational groups
+      .mockResolvedValueOnce({ data: null }); // Schulhof status
 
     const request = createMockRequest("/api/active-supervision-dashboard");
     const response = await GET(request, createMockContext());
@@ -295,6 +300,7 @@ describe("GET /api/active-supervision-dashboard", () => {
       .mockResolvedValueOnce({ data: [] })
       .mockResolvedValueOnce({ data: { id: 5 } })
       .mockResolvedValueOnce({ data: [] })
+      .mockResolvedValueOnce({ data: { exists: false } }) // Schulhof status
       .mockRejectedValueOnce(new Error("403 Forbidden")); // visits fetch fails with 403
 
     const request = createMockRequest("/api/active-supervision-dashboard");
@@ -326,6 +332,7 @@ describe("GET /api/active-supervision-dashboard", () => {
       .mockResolvedValueOnce({ data: [] })
       .mockResolvedValueOnce({ data: null })
       .mockResolvedValueOnce({ data: [] })
+      .mockResolvedValueOnce({ data: { exists: false } }) // Schulhof status
       .mockRejectedValueOnce(new Error("Room not found")) // room fetch fails
       .mockResolvedValueOnce({ data: [] }); // visits
 
@@ -361,7 +368,8 @@ describe("GET /api/active-supervision-dashboard", () => {
       .mockResolvedValueOnce({ data: [] })
       .mockResolvedValueOnce({ data: staff })
       .mockResolvedValueOnce({ data: [] })
-      .mockResolvedValueOnce({ data: [] });
+      .mockResolvedValueOnce({ data: { exists: false } }) // Schulhof status
+      .mockResolvedValueOnce({ data: [] }); // visits
 
     const request = createMockRequest("/api/active-supervision-dashboard");
     const response = await GET(request, createMockContext());
@@ -393,6 +401,7 @@ describe("GET /api/active-supervision-dashboard", () => {
       .mockResolvedValueOnce({ data: [] }) // unclaimed
       .mockResolvedValueOnce({ data: null }) // staff
       .mockResolvedValueOnce({ data: [] }) // educational groups
+      .mockResolvedValueOnce({ data: { exists: false } }) // Schulhof status
       .mockResolvedValueOnce({ data: [] }); // visits
 
     const request = createMockRequest("/api/active-supervision-dashboard");
@@ -437,6 +446,7 @@ describe("GET /api/active-supervision-dashboard", () => {
       .mockResolvedValueOnce({ data: [] })
       .mockResolvedValueOnce({ data: null })
       .mockResolvedValueOnce({ data: [] })
+      .mockResolvedValueOnce({ data: { exists: false } }) // Schulhof status
       .mockResolvedValueOnce({ data: visits });
 
     const request = createMockRequest("/api/active-supervision-dashboard");
@@ -470,6 +480,7 @@ describe("GET /api/active-supervision-dashboard", () => {
       .mockResolvedValueOnce({ data: [] })
       .mockResolvedValueOnce({ data: null })
       .mockResolvedValueOnce({ data: [] })
+      .mockResolvedValueOnce({ data: { exists: false } }) // Schulhof status
       .mockResolvedValueOnce({ data: [] }); // visits for first (Aula)
 
     const request = createMockRequest("/api/active-supervision-dashboard");
@@ -497,7 +508,8 @@ describe("GET /api/active-supervision-dashboard", () => {
       .mockResolvedValueOnce({ data: [] }) // no supervised groups
       .mockResolvedValueOnce({ data: unclaimedGroups })
       .mockResolvedValueOnce({ data: null })
-      .mockResolvedValueOnce({ data: [] });
+      .mockResolvedValueOnce({ data: [] })
+      .mockResolvedValueOnce({ data: { exists: false } }); // Schulhof status
 
     const request = createMockRequest("/api/active-supervision-dashboard");
     const response = await GET(request, createMockContext());

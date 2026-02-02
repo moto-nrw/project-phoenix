@@ -524,11 +524,15 @@ function SidebarContent({ className = "" }: SidebarProps) {
               {supervisedRooms.map((room, index) => (
                 <SidebarSubItem
                   key={room.id}
-                  href={`/active-supervisions?room=${room.id}`}
+                  href={
+                    room.isSchulhof
+                      ? `/active-supervisions?room=schulhof`
+                      : `/active-supervisions?room=${room.id}`
+                  }
                   label={room.name}
                   isActive={isRoomSubItemActive(
                     childRoomId,
-                    room.id,
+                    room.isSchulhof ? "schulhof" : room.id,
                     pathname,
                     currentRoomParam,
                     index,

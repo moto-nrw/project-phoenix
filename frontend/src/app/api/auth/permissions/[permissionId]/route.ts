@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { auth } from "~/server/auth";
-import { env } from "~/env";
+import { getServerApiUrl } from "~/lib/server-api-url";
 
 // Backend model type (lowercase fields)
 interface BackendPermission {
@@ -42,7 +42,7 @@ export async function GET(
       });
     }
 
-    const url = `${env.NEXT_PUBLIC_API_URL}/auth/permissions/${permissionId}`;
+    const url = `${getServerApiUrl()}/auth/permissions/${permissionId}`;
     const response = await fetch(url, {
       headers: {
         Authorization: `Bearer ${session.user.token}`,
@@ -89,7 +89,7 @@ export async function PUT(
     }
 
     const body = (await request.json()) as unknown;
-    const url = `${env.NEXT_PUBLIC_API_URL}/auth/permissions/${permissionId}`;
+    const url = `${getServerApiUrl()}/auth/permissions/${permissionId}`;
     const response = await fetch(url, {
       method: "PUT",
       headers: {
@@ -140,7 +140,7 @@ export async function DELETE(
       });
     }
 
-    const url = `${env.NEXT_PUBLIC_API_URL}/auth/permissions/${permissionId}`;
+    const url = `${getServerApiUrl()}/auth/permissions/${permissionId}`;
     const response = await fetch(url, {
       method: "DELETE",
       headers: {

@@ -67,7 +67,9 @@ export function TeacherForm({
         const roleList = await authService.getRoles();
         if (cancelled) return;
 
+        // Filter guardian role — not assignable via Betreuer form (see also invitation-form.tsx)
         const options = roleList
+          .filter((role) => role.name !== "guardian")
           .map<RoleOption>((role) => ({
             id: Number(role.id),
             name: role.name

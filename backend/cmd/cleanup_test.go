@@ -390,6 +390,14 @@ func TestPrintErrorList_Empty(t *testing.T) {
 	assert.Empty(t, output)
 }
 
+func TestPrintErrorList_EmptySlice_Nil(t *testing.T) {
+	output := captureStdout(t, func() {
+		printErrorList(nil)
+	})
+
+	assert.Empty(t, output)
+}
+
 func TestPrintErrorList_NotVerbose(t *testing.T) {
 	oldVerbose := verbose
 	verbose = false
@@ -870,4 +878,204 @@ func TestPrintStaffBreakdown_WithData_AlreadyTested(t *testing.T) {
 	assert.True(t, strings.Contains(output, "1") && strings.Contains(output, "10"))
 	assert.True(t, strings.Contains(output, "2") && strings.Contains(output, "20"))
 	assert.True(t, strings.Contains(output, "3") && strings.Contains(output, "5"))
+}
+
+// =============================================================================
+// Category E: Cobra Command Registration Tests (from test/improve-coverage)
+// =============================================================================
+
+func TestCleanupConstants(t *testing.T) {
+	assert.Equal(t, "dry-run", flagDryRun)
+	assert.Equal(t, "Show detailed information", flagDescShowDetails)
+	assert.Equal(t, "Students affected: %d\n", fmtStudentsAffected)
+	assert.Equal(t, "Status: %s\n", fmtStatus)
+}
+
+func TestCleanupCmd_Metadata(t *testing.T) {
+	assert.Equal(t, "cleanup", cleanupCmd.Use)
+	assert.Contains(t, cleanupCmd.Short, "Clean up expired data")
+	assert.Contains(t, cleanupCmd.Long, "retention policies")
+}
+
+func TestCleanupCmd_IsRegisteredOnRoot(t *testing.T) {
+	found := false
+	for _, cmd := range RootCmd.Commands() {
+		if cmd.Use == "cleanup" {
+			found = true
+			break
+		}
+	}
+	assert.True(t, found, "cleanupCmd should be registered on RootCmd")
+}
+
+func TestCleanupCmd_HasSubcommands(t *testing.T) {
+	subcommands := cleanupCmd.Commands()
+	names := make([]string, 0, len(subcommands))
+	for _, cmd := range subcommands {
+		names = append(names, cmd.Use)
+	}
+
+	assert.Contains(t, names, "visits")
+	assert.Contains(t, names, "preview")
+	assert.Contains(t, names, "stats")
+	assert.Contains(t, names, "tokens")
+	assert.Contains(t, names, "invitations")
+	assert.Contains(t, names, "rate-limits")
+	assert.Contains(t, names, "attendance")
+	assert.Contains(t, names, "sessions")
+	assert.Contains(t, names, "supervisors")
+}
+
+func TestCleanupCmd_SubcommandCount(t *testing.T) {
+	assert.Len(t, cleanupCmd.Commands(), 9, "cleanupCmd should have exactly 9 subcommands")
+}
+
+func TestCleanupVisitsCmd_Metadata(t *testing.T) {
+	assert.Equal(t, "visits", cleanupVisitsCmd.Use)
+	assert.Contains(t, cleanupVisitsCmd.Short, "expired visit records")
+	assert.Contains(t, cleanupVisitsCmd.Long, "GDPR compliance")
+	assert.NotNil(t, cleanupVisitsCmd.RunE)
+}
+
+func TestCleanupPreviewCmd_Metadata(t *testing.T) {
+	assert.Equal(t, "preview", cleanupPreviewCmd.Use)
+	assert.Contains(t, cleanupPreviewCmd.Short, "Preview")
+	assert.NotNil(t, cleanupPreviewCmd.RunE)
+}
+
+func TestCleanupStatsCmd_Metadata(t *testing.T) {
+	assert.Equal(t, "stats", cleanupStatsCmd.Use)
+	assert.Contains(t, cleanupStatsCmd.Short, "retention statistics")
+	assert.NotNil(t, cleanupStatsCmd.RunE)
+}
+
+func TestCleanupTokensCmd_Metadata(t *testing.T) {
+	assert.Equal(t, "tokens", cleanupTokensCmd.Use)
+	assert.Contains(t, cleanupTokensCmd.Short, "expired authentication tokens")
+	assert.NotNil(t, cleanupTokensCmd.RunE)
+}
+
+func TestCleanupInvitationsCmd_Metadata(t *testing.T) {
+	assert.Equal(t, "invitations", cleanupInvitationsCmd.Use)
+	assert.Contains(t, cleanupInvitationsCmd.Short, "invitation tokens")
+	assert.NotNil(t, cleanupInvitationsCmd.RunE)
+}
+
+func TestCleanupRateLimitsCmd_Metadata(t *testing.T) {
+	assert.Equal(t, "rate-limits", cleanupRateLimitsCmd.Use)
+	assert.Contains(t, cleanupRateLimitsCmd.Short, "rate limit")
+	assert.NotNil(t, cleanupRateLimitsCmd.RunE)
+}
+
+func TestCleanupAttendanceCmd_Metadata(t *testing.T) {
+	assert.Equal(t, "attendance", cleanupAttendanceCmd.Use)
+	assert.Contains(t, cleanupAttendanceCmd.Short, "stale attendance")
+	assert.NotNil(t, cleanupAttendanceCmd.RunE)
+}
+
+func TestCleanupSessionsCmd_Metadata(t *testing.T) {
+	assert.Equal(t, "sessions", cleanupSessionsCmd.Use)
+	assert.Contains(t, cleanupSessionsCmd.Short, "abandoned active sessions")
+	assert.NotNil(t, cleanupSessionsCmd.RunE)
+}
+
+func TestCleanupSupervisorsCmd_Metadata(t *testing.T) {
+	assert.Equal(t, "supervisors", cleanupSupervisorsCmd.Use)
+	assert.Contains(t, cleanupSupervisorsCmd.Short, "stale supervisor records")
+	assert.NotNil(t, cleanupSupervisorsCmd.RunE)
+}
+
+// =============================================================================
+// Category F: Flag Registration Tests (from test/improve-coverage)
+// =============================================================================
+
+func TestCleanupVisitsCmd_Flags(t *testing.T) {
+	f := cleanupVisitsCmd.Flags()
+	assert.NotNil(t, f.Lookup("dry-run"))
+	assert.NotNil(t, f.Lookup("verbose"))
+	assert.NotNil(t, f.Lookup("log-file"))
+	assert.NotNil(t, f.Lookup("batch-size"))
+}
+
+func TestCleanupPreviewCmd_Flags(t *testing.T) {
+	f := cleanupPreviewCmd.Flags()
+	assert.NotNil(t, f.Lookup("verbose"))
+}
+
+func TestCleanupStatsCmd_Flags(t *testing.T) {
+	f := cleanupStatsCmd.Flags()
+	assert.NotNil(t, f.Lookup("verbose"))
+}
+
+func TestCleanupAttendanceCmd_Flags(t *testing.T) {
+	f := cleanupAttendanceCmd.Flags()
+	assert.NotNil(t, f.Lookup("dry-run"))
+	assert.NotNil(t, f.Lookup("verbose"))
+}
+
+func TestCleanupSessionsCmd_Flags(t *testing.T) {
+	f := cleanupSessionsCmd.Flags()
+	assert.NotNil(t, f.Lookup("dry-run"))
+	assert.NotNil(t, f.Lookup("verbose"))
+	assert.NotNil(t, f.Lookup("mode"))
+	assert.NotNil(t, f.Lookup("threshold"))
+}
+
+func TestCleanupSupervisorsCmd_Flags(t *testing.T) {
+	f := cleanupSupervisorsCmd.Flags()
+	assert.NotNil(t, f.Lookup("dry-run"))
+	assert.NotNil(t, f.Lookup("verbose"))
+}
+
+// =============================================================================
+// Category G: Parent-Child and Usage Tests (from test/improve-coverage)
+// =============================================================================
+
+func TestCleanupSubcommands_ParentRelationship(t *testing.T) {
+	assert.Equal(t, cleanupCmd, cleanupVisitsCmd.Parent())
+	assert.Equal(t, cleanupCmd, cleanupPreviewCmd.Parent())
+	assert.Equal(t, cleanupCmd, cleanupStatsCmd.Parent())
+	assert.Equal(t, cleanupCmd, cleanupTokensCmd.Parent())
+	assert.Equal(t, cleanupCmd, cleanupInvitationsCmd.Parent())
+	assert.Equal(t, cleanupCmd, cleanupRateLimitsCmd.Parent())
+	assert.Equal(t, cleanupCmd, cleanupAttendanceCmd.Parent())
+	assert.Equal(t, cleanupCmd, cleanupSessionsCmd.Parent())
+	assert.Equal(t, cleanupCmd, cleanupSupervisorsCmd.Parent())
+}
+
+func TestCleanupCmd_UsageOutput(t *testing.T) {
+	buf := new(bytes.Buffer)
+	cleanupCmd.SetOut(buf)
+	cleanupCmd.SetErr(buf)
+
+	err := cleanupCmd.Usage()
+	require.NoError(t, err)
+
+	output := buf.String()
+	assert.Contains(t, output, "cleanup")
+	assert.Contains(t, output, "Available Commands")
+}
+
+func TestCleanupVisitsCmd_UsageOutput(t *testing.T) {
+	buf := new(bytes.Buffer)
+	cleanupVisitsCmd.SetOut(buf)
+	cleanupVisitsCmd.SetErr(buf)
+
+	err := cleanupVisitsCmd.Usage()
+	require.NoError(t, err)
+
+	output := buf.String()
+	assert.Contains(t, output, "visits")
+}
+
+func TestCleanupSessionsCmd_UsageOutput(t *testing.T) {
+	buf := new(bytes.Buffer)
+	cleanupSessionsCmd.SetOut(buf)
+	cleanupSessionsCmd.SetErr(buf)
+
+	err := cleanupSessionsCmd.Usage()
+	require.NoError(t, err)
+
+	output := buf.String()
+	assert.Contains(t, output, "sessions")
 }

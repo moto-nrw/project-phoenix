@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { auth } from "~/server/auth";
-import { env } from "~/env";
+import { getServerApiUrl } from "~/lib/server-api-url";
 
 // Define interface for Role based on backend models
 interface Permission {
@@ -52,7 +52,7 @@ export async function GET(
       });
     }
 
-    const url = `${env.NEXT_PUBLIC_API_URL}/auth/roles/${roleId}`;
+    const url = `${getServerApiUrl()}/auth/roles/${roleId}`;
 
     const response = await fetch(url, {
       headers: {
@@ -102,7 +102,7 @@ export async function PUT(
     }
 
     const body = (await request.json()) as unknown;
-    const url = `${env.NEXT_PUBLIC_API_URL}/auth/roles/${roleId}`;
+    const url = `${getServerApiUrl()}/auth/roles/${roleId}`;
 
     const response = await fetch(url, {
       method: "PUT",
@@ -152,7 +152,7 @@ export async function DELETE(
       });
     }
 
-    const url = `${env.NEXT_PUBLIC_API_URL}/auth/roles/${roleId}`;
+    const url = `${getServerApiUrl()}/auth/roles/${roleId}`;
 
     const response = await fetch(url, {
       method: "DELETE",

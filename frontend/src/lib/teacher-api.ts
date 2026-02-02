@@ -1,6 +1,6 @@
 // This file contains the Teacher API service and related types
 
-import { getSession } from "next-auth/react";
+import { getCachedSession } from "./session-cache";
 import type { Activity } from "./activity-helpers";
 
 /**
@@ -142,7 +142,7 @@ class TeacherService {
         }
       }
 
-      const session = await getSession();
+      const session = await getCachedSession();
       const response = await fetch(url, {
         credentials: "include",
         headers: session?.user?.token
@@ -181,7 +181,7 @@ class TeacherService {
   // Get a single teacher by ID
   async getTeacher(id: string): Promise<Teacher> {
     try {
-      const session = await getSession();
+      const session = await getCachedSession();
       const response = await fetch(`/api/staff/${id}`, {
         credentials: "include",
         headers: session?.user?.token
@@ -235,7 +235,7 @@ class TeacherService {
     const username = `${teacherData.first_name.toLowerCase()}_${teacherData.last_name.toLowerCase()}`;
     const fullName = `${teacherData.first_name} ${teacherData.last_name}`;
 
-    const session = await getSession();
+    const session = await getCachedSession();
     const token = session?.user?.token;
     const headers = buildHeaders(token);
 
@@ -398,7 +398,7 @@ class TeacherService {
     id: string,
     teacherData: Partial<Teacher>,
   ): Promise<Teacher> {
-    const session = await getSession();
+    const session = await getCachedSession();
     const token = session?.user?.token;
     const headers = buildHeaders(token);
 
@@ -573,7 +573,7 @@ class TeacherService {
   // Delete a teacher
   async deleteTeacher(id: string): Promise<void> {
     try {
-      const session = await getSession();
+      const session = await getCachedSession();
       const response = await fetch(`/api/staff/${id}`, {
         method: "DELETE",
         credentials: "include",

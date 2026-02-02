@@ -20,6 +20,7 @@ func TestGroupValidate(t *testing.T) {
 				MaxParticipants: 10,
 				IsOpen:          true,
 				CategoryID:      1,
+				CreatedBy:       1,
 			},
 			wantErr: false,
 		},
@@ -30,6 +31,7 @@ func TestGroupValidate(t *testing.T) {
 				MaxParticipants: 15,
 				IsOpen:          false,
 				CategoryID:      2,
+				CreatedBy:       1,
 				PlannedRoomID:   func() *int64 { id := int64(3); return &id }(),
 			},
 			wantErr: false,
@@ -40,6 +42,7 @@ func TestGroupValidate(t *testing.T) {
 				MaxParticipants: 10,
 				IsOpen:          true,
 				CategoryID:      1,
+				CreatedBy:       1,
 			},
 			wantErr: true,
 		},
@@ -50,6 +53,7 @@ func TestGroupValidate(t *testing.T) {
 				MaxParticipants: 0,
 				IsOpen:          true,
 				CategoryID:      1,
+				CreatedBy:       1,
 			},
 			wantErr: true,
 		},
@@ -60,6 +64,7 @@ func TestGroupValidate(t *testing.T) {
 				MaxParticipants: -5,
 				IsOpen:          true,
 				CategoryID:      1,
+				CreatedBy:       1,
 			},
 			wantErr: true,
 		},
@@ -69,6 +74,7 @@ func TestGroupValidate(t *testing.T) {
 				Name:            "Test Group",
 				MaxParticipants: 10,
 				IsOpen:          true,
+				CreatedBy:       1,
 			},
 			wantErr: true,
 		},
@@ -79,6 +85,7 @@ func TestGroupValidate(t *testing.T) {
 				MaxParticipants: 10,
 				IsOpen:          true,
 				CategoryID:      -1,
+				CreatedBy:       1,
 			},
 			wantErr: true,
 		},
@@ -253,5 +260,179 @@ func TestGroup_GetUpdatedAt(t *testing.T) {
 
 	if got := group.GetUpdatedAt(); !got.Equal(now) {
 		t.Errorf("GetUpdatedAt() = %v, want %v", got, now)
+	}
+}
+
+func TestGroupValidate_CreatedBy(t *testing.T) {
+	tests := []struct {
+		name    string
+		group   *Group
+		wantErr bool
+	}{
+		{
+			name: "Valid group with CreatedBy",
+			group: &Group{
+				Name:            "Test Group",
+				MaxParticipants: 10,
+				IsOpen:          true,
+				CategoryID:      1,
+				CreatedBy:       42,
+			},
+			wantErr: false,
+		},
+		{
+			name: "Missing CreatedBy (zero)",
+			group: &Group{
+				Name:            "Test Group",
+				MaxParticipants: 10,
+				IsOpen:          true,
+				CategoryID:      1,
+				CreatedBy:       0,
+			},
+			wantErr: true,
+		},
+		{
+			name: "Invalid CreatedBy (negative)",
+			group: &Group{
+				Name:            "Test Group",
+				MaxParticipants: 10,
+				IsOpen:          true,
+				CategoryID:      1,
+				CreatedBy:       -1,
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.group.Validate()
+			if (err != nil) != tt.wantErr {
+				t.Errorf("Group.Validate() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestGroup_IsOwnedBy(t *testing.T) {
+	tests := []struct {
+		name    string
+		group   *Group
+		staffID int64
+		want    bool
+	}{
+		{
+			name: "Staff is owner",
+			group: &Group{
+				CreatedBy: 42,
+			},
+			staffID: 42,
+			want:    true,
+		},
+		{
+			name: "Staff is not owner",
+			group: &Group{
+				CreatedBy: 42,
+			},
+			staffID: 99,
+			want:    false,
+		},
+		{
+			name: "Staff ID is zero",
+			group: &Group{
+				CreatedBy: 42,
+			},
+			staffID: 0,
+			want:    false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.group.IsOwnedBy(tt.staffID); got != tt.want {
+				t.Errorf("Group.IsOwnedBy() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestGroup_IsSupervisedBy(t *testing.T) {
+	tests := []struct {
+		name    string
+		group   *Group
+		staffID int64
+		want    bool
+	}{
+		{
+			name: "Staff is a supervisor",
+			group: &Group{
+				Supervisors: []*SupervisorPlanned{
+					{StaffID: 10},
+					{StaffID: 42},
+					{StaffID: 30},
+				},
+			},
+			staffID: 42,
+			want:    true,
+		},
+		{
+			name: "Staff is not a supervisor",
+			group: &Group{
+				Supervisors: []*SupervisorPlanned{
+					{StaffID: 10},
+					{StaffID: 20},
+					{StaffID: 30},
+				},
+			},
+			staffID: 42,
+			want:    false,
+		},
+		{
+			name: "No supervisors",
+			group: &Group{
+				Supervisors: []*SupervisorPlanned{},
+			},
+			staffID: 42,
+			want:    false,
+		},
+		{
+			name: "Nil supervisors slice",
+			group: &Group{
+				Supervisors: nil,
+			},
+			staffID: 42,
+			want:    false,
+		},
+		{
+			name: "Supervisor slice contains nil entry",
+			group: &Group{
+				Supervisors: []*SupervisorPlanned{
+					{StaffID: 10},
+					nil,
+					{StaffID: 42},
+				},
+			},
+			staffID: 42,
+			want:    true,
+		},
+		{
+			name: "Supervisor slice only contains nil entries",
+			group: &Group{
+				Supervisors: []*SupervisorPlanned{
+					nil,
+					nil,
+				},
+			},
+			staffID: 42,
+			want:    false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.group.IsSupervisedBy(tt.staffID); got != tt.want {
+				t.Errorf("Group.IsSupervisedBy() = %v, want %v", got, tt.want)
+			}
+		})
 	}
 }

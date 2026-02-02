@@ -456,3 +456,96 @@ export type CreateCombinedGroupInput = Omit<
 export interface UnclaimedGroup extends ActiveGroup {
   studentCount: number;
 }
+
+// Schulhof (schoolyard) types for permanent tab functionality
+export interface BackendSchulhofStatus {
+  exists: boolean;
+  room_id?: number;
+  room_name: string;
+  activity_group_id?: number;
+  active_group_id?: number;
+  is_user_supervising: boolean;
+  supervision_id?: number;
+  supervisor_count: number;
+  student_count: number;
+  supervisors: BackendSchulhofSupervisor[];
+}
+
+export interface BackendSchulhofSupervisor {
+  id: number;
+  staff_id: number;
+  name: string;
+  is_current_user: boolean;
+}
+
+export interface BackendToggleSupervisionResponse {
+  action: string;
+  supervision_id?: number;
+  active_group_id: number;
+}
+
+export interface SchulhofStatus {
+  exists: boolean;
+  roomId: string | null;
+  roomName: string;
+  activityGroupId: string | null;
+  activeGroupId: string | null;
+  isUserSupervising: boolean;
+  supervisionId: string | null;
+  supervisorCount: number;
+  studentCount: number;
+  supervisors: SchulhofSupervisor[];
+}
+
+export interface SchulhofSupervisor {
+  id: string;
+  staffId: string;
+  name: string;
+  isCurrentUser: boolean;
+}
+
+export interface ToggleSupervisionResponse {
+  action: "started" | "stopped";
+  supervisionId: string | null;
+  activeGroupId: string;
+}
+
+export function mapSchulhofStatusResponse(
+  backend: BackendSchulhofStatus,
+): SchulhofStatus {
+  return {
+    exists: backend.exists,
+    roomId: backend.room_id ? String(backend.room_id) : null,
+    roomName: backend.room_name,
+    activityGroupId: backend.activity_group_id
+      ? String(backend.activity_group_id)
+      : null,
+    activeGroupId: backend.active_group_id
+      ? String(backend.active_group_id)
+      : null,
+    isUserSupervising: backend.is_user_supervising,
+    supervisionId: backend.supervision_id
+      ? String(backend.supervision_id)
+      : null,
+    supervisorCount: backend.supervisor_count,
+    studentCount: backend.student_count,
+    supervisors: backend.supervisors.map((sup) => ({
+      id: String(sup.id),
+      staffId: String(sup.staff_id),
+      name: sup.name,
+      isCurrentUser: sup.is_current_user,
+    })),
+  };
+}
+
+export function mapToggleSupervisionResponse(
+  backend: BackendToggleSupervisionResponse,
+): ToggleSupervisionResponse {
+  return {
+    action: backend.action as "started" | "stopped",
+    supervisionId: backend.supervision_id
+      ? String(backend.supervision_id)
+      : null,
+    activeGroupId: String(backend.active_group_id),
+  };
+}

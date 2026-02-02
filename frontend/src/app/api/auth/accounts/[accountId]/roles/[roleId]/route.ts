@@ -1,7 +1,7 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { auth } from "@/server/auth";
-import { env } from "~/env";
+import { getServerApiUrl } from "~/lib/server-api-url";
 
 // Custom POST handler to handle 204 No Content responses
 export const POST = async (
@@ -23,7 +23,7 @@ export const POST = async (
 
     // Call the API endpoint
     const response = await fetch(
-      `${env.NEXT_PUBLIC_API_URL}/auth/accounts/${accountId}/roles/${roleId}`,
+      `${getServerApiUrl()}/auth/accounts/${accountId}/roles/${roleId}`,
       {
         method: "POST",
         headers: {
@@ -109,7 +109,7 @@ export const DELETE = async (
 
     // Call the API endpoint
     const response = await fetch(
-      `${env.NEXT_PUBLIC_API_URL}/auth/accounts/${accountId}/roles/${roleId}`,
+      `${getServerApiUrl()}/auth/accounts/${accountId}/roles/${roleId}`,
       {
         method: "DELETE",
         headers: {

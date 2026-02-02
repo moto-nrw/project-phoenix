@@ -1,5 +1,5 @@
 // lib/active-service.ts
-import { getSession } from "next-auth/react";
+import { getCachedSession } from "./session-cache";
 import { env } from "~/env";
 import api from "./api";
 import {
@@ -9,6 +9,8 @@ import {
   mapCombinedGroupResponse,
   mapGroupMappingResponse,
   mapAnalyticsResponse,
+  mapSchulhofStatusResponse,
+  mapToggleSupervisionResponse,
   prepareActiveGroupForBackend,
   prepareVisitForBackend,
   prepareSupervisorForBackend,
@@ -20,12 +22,16 @@ import {
   type CombinedGroup,
   type GroupMapping,
   type Analytics,
+  type SchulhofStatus,
+  type ToggleSupervisionResponse,
   type BackendActiveGroup,
   type BackendVisit,
   type BackendSupervisor,
   type BackendCombinedGroup,
   type BackendGroupMapping,
   type BackendAnalytics,
+  type BackendSchulhofStatus,
+  type BackendToggleSupervisionResponse,
   type CreateActiveGroupInput,
   type CreateVisitInput,
   type CreateSupervisorInput,
@@ -79,7 +85,7 @@ async function executeProxyFetch(
   operationName: string,
   body?: unknown,
 ): Promise<Response> {
-  const session = await getSession();
+  const session = await getCachedSession();
   const fetchOptions: RequestInit = {
     method,
     headers: {
@@ -392,7 +398,7 @@ export const activeService = {
 
   // Bulk fetch visits with student display data (optimized for SSE - single query)
   getActiveGroupVisitsWithDisplay: async (id: string): Promise<Visit[]> => {
-    const session = await getSession();
+    const session = await getCachedSession();
     const response = await fetch(`/api/active/groups/${id}/visits/display`, {
       headers: {
         Authorization: `Bearer ${session?.user?.token}`,
@@ -923,7 +929,7 @@ export const activeService = {
 
     try {
       if (useProxyApi) {
-        const session = await getSession();
+        const session = await getCachedSession();
         const response = await fetch(url, {
           headers: {
             Authorization: `Bearer ${session?.user?.token}`,
@@ -973,6 +979,39 @@ export const activeService = {
       `${env.NEXT_PUBLIC_API_URL}/active/visits/student/${studentId}/checkout`,
       {},
       "Checkout student",
+    );
+  },
+
+  // Schulhof (Schoolyard) - Permanent Tab Functions
+
+  /**
+   * Get the current Schulhof status including room info, supervisors, and student count.
+   */
+  getSchulhofStatus: async (): Promise<SchulhofStatus> => {
+    return proxyGet<BackendSchulhofStatus, SchulhofStatus>(
+      "/api/active/schulhof/status",
+      `${env.NEXT_PUBLIC_API_URL}/active/schulhof/status`,
+      mapSchulhofStatusResponse,
+      "Get Schulhof status",
+    );
+  },
+
+  /**
+   * Toggle Schulhof supervision for the current user.
+   * @param action - "start" to begin supervising, "stop" to end supervision
+   */
+  toggleSchulhofSupervision: async (
+    action: "start" | "stop",
+  ): Promise<ToggleSupervisionResponse> => {
+    return proxyPost<
+      BackendToggleSupervisionResponse,
+      ToggleSupervisionResponse
+    >(
+      "/api/active/schulhof/supervise",
+      `${env.NEXT_PUBLIC_API_URL}/active/schulhof/supervise`,
+      { action },
+      mapToggleSupervisionResponse,
+      "Toggle Schulhof supervision",
     );
   },
 };

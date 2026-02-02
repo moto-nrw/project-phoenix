@@ -1182,4 +1182,128 @@ describe("Sidebar", () => {
       );
     });
   });
+
+  describe("Schulhof room handling", () => {
+    it("renders Schulhof room with special styling", () => {
+      mockUseSupervision.mockReturnValue({
+        hasGroups: true,
+        isSupervising: true,
+        isLoadingGroups: false,
+        isLoadingSupervision: false,
+        supervisedRooms: [
+          { id: "10", name: "Raum A", groupId: "1" },
+          {
+            id: "schulhof",
+            name: "Schulhof",
+            groupId: "schulhof",
+            isSchulhof: true,
+          },
+        ],
+        groups: [],
+        refresh: vi.fn(),
+      });
+      mockUsePathname.mockReturnValue("/active-supervisions");
+
+      render(<Sidebar />);
+
+      expect(screen.getByText("Schulhof")).toBeInTheDocument();
+      expect(screen.getByText("Raum A")).toBeInTheDocument();
+    });
+
+    it("navigates to schulhof param when Schulhof room clicked", () => {
+      mockUseSupervision.mockReturnValue({
+        hasGroups: true,
+        isSupervising: true,
+        isLoadingGroups: false,
+        isLoadingSupervision: false,
+        supervisedRooms: [
+          {
+            id: "schulhof",
+            name: "Schulhof",
+            groupId: "schulhof",
+            isSchulhof: true,
+          },
+        ],
+        groups: [],
+        refresh: vi.fn(),
+      });
+      mockUsePathname.mockReturnValue("/active-supervisions");
+
+      render(<Sidebar />);
+
+      const schulhofLink = screen.getByText("Schulhof").closest("a");
+      expect(schulhofLink).toHaveAttribute(
+        "href",
+        "/active-supervisions?room=schulhof",
+      );
+    });
+
+    it("uses schulhof string in navigation for Schulhof rooms", () => {
+      // Test the condition: room.isSchulhof ? "schulhof" : room.id
+      const room = { id: "schulhof", name: "Schulhof", isSchulhof: true };
+      const navParam = room.isSchulhof ? "schulhof" : room.id;
+
+      expect(navParam).toBe("schulhof");
+    });
+
+    it("uses room id in navigation for regular rooms", () => {
+      const room = { id: "10", name: "Raum A", isSchulhof: false };
+      const navParam = room.isSchulhof ? "schulhof" : room.id;
+
+      expect(navParam).toBe("10");
+    });
+
+    it("generates correct href for Schulhof room", () => {
+      const room = { id: "schulhof", name: "Schulhof", isSchulhof: true };
+      const basePath = "/active-supervisions";
+
+      const href = room.isSchulhof
+        ? `${basePath}?room=schulhof`
+        : `${basePath}?room=${room.id}`;
+
+      expect(href).toBe("/active-supervisions?room=schulhof");
+    });
+
+    it("generates correct href for regular room", () => {
+      const room = { id: "20", name: "Raum B", isSchulhof: false };
+      const basePath = "/active-supervisions";
+
+      const href = room.isSchulhof
+        ? `${basePath}?room=schulhof`
+        : `${basePath}?room=${room.id}`;
+
+      expect(href).toBe("/active-supervisions?room=20");
+    });
+
+    it("includes Schulhof in supervised rooms list", () => {
+      mockUseSupervision.mockReturnValue({
+        hasGroups: true,
+        isSupervising: true,
+        isLoadingGroups: false,
+        isLoadingSupervision: false,
+        supervisedRooms: [
+          { id: "10", name: "Raum A", groupId: "1" },
+          {
+            id: "schulhof",
+            name: "Schulhof",
+            groupId: "schulhof",
+            isSchulhof: true,
+          },
+        ],
+        groups: [],
+        refresh: vi.fn(),
+      });
+      mockUsePathname.mockReturnValue("/active-supervisions");
+
+      render(<Sidebar />);
+
+      // Both rooms should be visible
+      const links = screen.getAllByRole("link");
+      const roomLinks = links.filter(
+        (link) =>
+          link.textContent === "Raum A" || link.textContent === "Schulhof",
+      );
+      expect(roomLinks).toHaveLength(2);
+    });
+  });
 });

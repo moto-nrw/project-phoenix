@@ -48,12 +48,27 @@ NEXTAUTH_URL=http://localhost:3000          # Frontend URL for auth
 NEXTAUTH_SECRET=your_secret_here            # Generate with: openssl rand -base64 32
 AUTH_SECRET=your_auth_secret_key            # Legacy - use NEXTAUTH_SECRET
 
-# API Configuration  
-NEXT_PUBLIC_API_URL=http://localhost:8080   # Backend API URL
+# API Configuration
+NEXT_PUBLIC_API_URL=http://localhost:8080   # Client-side (browser) API URL
+API_URL=                                    # Server-side API URL (optional, see below)
 
 # Docker
 SKIP_ENV_VALIDATION=true                    # Set for Docker builds
 ```
+
+### API URL: Server-Side vs Client-Side
+
+| Variable | Context | Purpose |
+|----------|---------|---------|
+| `NEXT_PUBLIC_API_URL` | **Client** (browser Axios) | Must be reachable from the user's browser |
+| `API_URL` | **Server** (API routes, auth, SSE) | Internal Docker network in production |
+
+- **Helper:** `getServerApiUrl()` from `~/lib/server-api-url` → returns `API_URL ?? NEXT_PUBLIC_API_URL`
+- **Server-only files** (API route handlers, auth config, token-refresh, SSE proxy, `api-helpers.ts`) must use `getServerApiUrl()`
+- **Mixed client/server files** (`lib/api.ts`, `lib/active-service.ts`, `lib/activity-api.ts`, `lib/student-api.ts`, `lib/usercontext-api.ts`, `lib/auth-service.ts`) must use `env.NEXT_PUBLIC_API_URL` — importing `getServerApiUrl()` in these files causes t3-env to throw "Attempted to access a server-side environment variable on the client"
+- **Axios `baseURL`** in `lib/api.ts` uses `env.NEXT_PUBLIC_API_URL` (client-side only)
+- **Local dev:** `API_URL` unset → falls back to `NEXT_PUBLIC_API_URL` (localhost:8080)
+- **Docker:** `API_URL=http://server:8080` → server calls stay inside Docker network
 
 ## Code Architecture
 
@@ -301,7 +316,7 @@ export const runtime = "nodejs"; // REQUIRED for streaming
 
 export async function GET(_request: NextRequest) {
   const session = await auth();
-  const backendResponse = await fetch(`${env.NEXT_PUBLIC_API_URL}/api/sse/events`, {
+  const backendResponse = await fetch(`${getServerApiUrl()}/api/sse/events`, {
     headers: { Authorization: `Bearer ${session.user.token}` }
   });
   return new Response(backendResponse.body, {

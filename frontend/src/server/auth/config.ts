@@ -2,6 +2,7 @@ import type { DefaultSession, NextAuthConfig, User } from "next-auth";
 import DiscordProvider from "next-auth/providers/discord";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { env } from "~/env";
+import { getServerApiUrl } from "~/lib/server-api-url";
 
 /**
  * JWT payload structure from backend tokens
@@ -15,7 +16,6 @@ interface JwtPayload {
   email?: string;
   roles?: string[];
   is_admin?: boolean;
-  is_teacher?: boolean;
 }
 
 /**
@@ -84,7 +84,6 @@ function buildAuthUser(
     roles: roles,
     firstName: payload.first_name,
     isAdmin: payload.is_admin ?? false,
-    isTeacher: payload.is_teacher ?? false,
   };
 }
 
@@ -96,7 +95,7 @@ async function performLogin(
   password: string,
   isDev: boolean,
 ): Promise<{ access_token: string; refresh_token: string } | null> {
-  const apiUrl = env.NEXT_PUBLIC_API_URL;
+  const apiUrl = getServerApiUrl();
 
   if (isDev) {
     console.log(`Attempting login with API URL: ${apiUrl}/auth/login`);
@@ -150,7 +149,6 @@ declare module "next-auth" {
       roles?: string[];
       firstName?: string;
       isAdmin?: boolean;
-      isTeacher?: boolean;
     } & DefaultSession["user"];
     error?: "RefreshTokenExpired" | "RefreshTokenError";
   }
@@ -161,7 +159,6 @@ declare module "next-auth" {
     roles?: string[];
     firstName?: string;
     isAdmin?: boolean;
-    isTeacher?: boolean;
   }
 
   interface JWT {
@@ -171,7 +168,6 @@ declare module "next-auth" {
     roles?: string[];
     firstName?: string;
     isAdmin?: boolean;
-    isTeacher?: boolean;
     tokenExpiry?: number;
     refreshTokenExpiry?: number;
     error?: "RefreshTokenExpired" | "RefreshTokenError";
@@ -314,7 +310,6 @@ export const authConfig = {
         token.roles = user.roles;
         token.firstName = user.firstName;
         token.isAdmin = user.isAdmin;
-        token.isTeacher = user.isTeacher;
         // Store token expiry from environment
         token.tokenExpiry = Date.now() + accessTokenExpiry;
         // Store refresh token expiry (matching backend)
@@ -384,7 +379,6 @@ export const authConfig = {
             roles: [],
             firstName: (token.firstName as string) || "",
             isAdmin: false,
-            isTeacher: false,
           },
           error: token.error,
         };
@@ -401,7 +395,6 @@ export const authConfig = {
           roles: token.roles as string[],
           firstName: token.firstName as string,
           isAdmin: (token.isAdmin as boolean) ?? false,
-          isTeacher: (token.isTeacher as boolean) ?? false,
         },
       };
     },

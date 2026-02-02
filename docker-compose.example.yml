@@ -66,7 +66,9 @@ services:
     environment:
       TZ: ${TZ:-Europe/Berlin}
       AUTH_JWT_REFRESH_EXPIRY: ${AUTH_JWT_REFRESH_EXPIRY:-24h}
-      # API URL for both client and server-side calls
+      # Server-side API URL (internal Docker network, never leaves container network)
+      API_URL: "http://server:8080"
+      # Client-side API URL (browser-accessible, must be reachable from user's browser)
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-"http://server:8080"}
       # NextAuth configuration
       NEXTAUTH_URL: ${NEXTAUTH_URL:-"http://localhost:3000"}

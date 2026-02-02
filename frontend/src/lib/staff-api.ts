@@ -1,6 +1,6 @@
 // Staff API service for fetching all staff members and their supervision status
 
-import { getSession } from "next-auth/react";
+import { getCachedSession } from "./session-cache";
 
 // Backend response types (already mapped by the API route handler)
 export interface BackendStaffResponse {
@@ -337,7 +337,7 @@ async function fetchActiveGroups(token: string): Promise<ActiveGroupInfo[]> {
 class StaffService {
   // Get all staff members with their current supervision status
   async getAllStaff(filters?: StaffFilters): Promise<Staff[]> {
-    const session = await getSession();
+    const session = await getCachedSession();
     const token = session?.user?.token;
 
     if (!token) {
@@ -377,7 +377,7 @@ class StaffService {
     staffId: string,
   ): Promise<ActiveSupervisionResponse[]> {
     try {
-      const session = await getSession();
+      const session = await getCachedSession();
       const token = session?.user?.token;
 
       if (!token) {

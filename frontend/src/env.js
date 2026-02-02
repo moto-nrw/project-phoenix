@@ -7,6 +7,7 @@ export const env = createEnv({
    * isn't built with invalid env vars.
    */
   server: {
+    API_URL: z.string().url().optional(),
     // Remove AUTH_SECRET or make it fully optional
     AUTH_SECRET: z.string().optional(),
     AUTH_JWT_EXPIRY: z.string().default("15m"),
@@ -32,6 +33,7 @@ export const env = createEnv({
    * middlewares) or client-side so we need to destruct manually.
    */
   runtimeEnv: {
+    API_URL: process.env.API_URL,
     AUTH_SECRET: process.env.AUTH_SECRET,
     AUTH_JWT_EXPIRY: process.env.AUTH_JWT_EXPIRY,
     AUTH_JWT_REFRESH_EXPIRY: process.env.AUTH_JWT_REFRESH_EXPIRY,

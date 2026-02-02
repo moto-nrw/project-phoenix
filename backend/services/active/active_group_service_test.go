@@ -1346,7 +1346,6 @@ func TestActiveService_EndActivitySession_WithActiveVisits(t *testing.T) {
 	})
 
 	t.Run("ends supervisors when session ends", func(t *testing.T) {
-		t.Skip("Skipped: EndActivitySession doesn't automatically end supervisors - documents expected future behavior")
 
 		// ARRANGE
 		activity := testpkg.CreateTestActivityGroup(t, db, uniqueName("end-supervisors"))

@@ -6,6 +6,8 @@ import {
   mapCombinedGroupResponse,
   mapGroupMappingResponse,
   mapAnalyticsResponse,
+  mapSchulhofStatusResponse,
+  mapToggleSupervisionResponse,
   prepareActiveGroupForBackend,
   prepareVisitForBackend,
   prepareSupervisorForBackend,
@@ -17,6 +19,8 @@ import {
   type BackendCombinedGroup,
   type BackendGroupMapping,
   type BackendAnalytics,
+  type BackendSchulhofStatus,
+  type BackendToggleSupervisionResponse,
   type ActiveGroup,
   type Visit,
   type Supervisor,
@@ -516,6 +520,249 @@ describe("active-helpers", () => {
       expect(typeof result.combined_group_id).toBe("number");
       expect(result.active_group_id).toBe(999);
       expect(result.combined_group_id).toBe(1000);
+    });
+  });
+
+  describe("mapSchulhofStatusResponse", () => {
+    it("maps all fields correctly with complete data", () => {
+      const backendStatus: BackendSchulhofStatus = {
+        exists: true,
+        room_id: 42,
+        room_name: "Schulhof",
+        activity_group_id: 10,
+        active_group_id: 5,
+        is_user_supervising: true,
+        supervision_id: 123,
+        supervisor_count: 3,
+        student_count: 25,
+        supervisors: [
+          {
+            id: 1,
+            staff_id: 100,
+            name: "Frau Schmidt",
+            is_current_user: true,
+          },
+          {
+            id: 2,
+            staff_id: 101,
+            name: "Herr Müller",
+            is_current_user: false,
+          },
+        ],
+      };
+
+      const result = mapSchulhofStatusResponse(backendStatus);
+
+      expect(result.exists).toBe(true);
+      expect(result.roomId).toBe("42");
+      expect(result.roomName).toBe("Schulhof");
+      expect(result.activityGroupId).toBe("10");
+      expect(result.activeGroupId).toBe("5");
+      expect(result.isUserSupervising).toBe(true);
+      expect(result.supervisionId).toBe("123");
+      expect(result.supervisorCount).toBe(3);
+      expect(result.studentCount).toBe(25);
+      expect(result.supervisors).toHaveLength(2);
+      expect(result.supervisors[0]).toEqual({
+        id: "1",
+        staffId: "100",
+        name: "Frau Schmidt",
+        isCurrentUser: true,
+      });
+      expect(result.supervisors[1]).toEqual({
+        id: "2",
+        staffId: "101",
+        name: "Herr Müller",
+        isCurrentUser: false,
+      });
+    });
+
+    it("handles non-existent Schulhof with minimal data", () => {
+      const backendStatus: BackendSchulhofStatus = {
+        exists: false,
+        room_name: "",
+        is_user_supervising: false,
+        supervisor_count: 0,
+        student_count: 0,
+        supervisors: [],
+      };
+
+      const result = mapSchulhofStatusResponse(backendStatus);
+
+      expect(result.exists).toBe(false);
+      expect(result.roomId).toBeNull();
+      expect(result.roomName).toBe("");
+      expect(result.activityGroupId).toBeNull();
+      expect(result.activeGroupId).toBeNull();
+      expect(result.isUserSupervising).toBe(false);
+      expect(result.supervisionId).toBeNull();
+      expect(result.supervisorCount).toBe(0);
+      expect(result.studentCount).toBe(0);
+      expect(result.supervisors).toEqual([]);
+    });
+
+    it("handles undefined optional fields as null", () => {
+      const backendStatus: BackendSchulhofStatus = {
+        exists: true,
+        room_name: "Schulhof",
+        is_user_supervising: false,
+        supervisor_count: 0,
+        student_count: 0,
+        supervisors: [],
+        // room_id, activity_group_id, active_group_id, supervision_id are undefined
+      };
+
+      const result = mapSchulhofStatusResponse(backendStatus);
+
+      expect(result.roomId).toBeNull();
+      expect(result.activityGroupId).toBeNull();
+      expect(result.activeGroupId).toBeNull();
+      expect(result.supervisionId).toBeNull();
+    });
+
+    it("converts numeric IDs to strings", () => {
+      const backendStatus: BackendSchulhofStatus = {
+        exists: true,
+        room_id: 99,
+        room_name: "Test Room",
+        activity_group_id: 88,
+        active_group_id: 77,
+        is_user_supervising: true,
+        supervision_id: 66,
+        supervisor_count: 1,
+        student_count: 10,
+        supervisors: [
+          {
+            id: 999,
+            staff_id: 888,
+            name: "Test",
+            is_current_user: true,
+          },
+        ],
+      };
+
+      const result = mapSchulhofStatusResponse(backendStatus);
+
+      expect(typeof result.roomId).toBe("string");
+      expect(typeof result.activityGroupId).toBe("string");
+      expect(typeof result.activeGroupId).toBe("string");
+      expect(typeof result.supervisionId).toBe("string");
+      expect(typeof result.supervisors[0]!.id).toBe("string");
+      expect(typeof result.supervisors[0]!.staffId).toBe("string");
+    });
+
+    it("maps supervisor array correctly", () => {
+      const backendStatus: BackendSchulhofStatus = {
+        exists: true,
+        room_name: "Schulhof",
+        is_user_supervising: false,
+        supervisor_count: 2,
+        student_count: 0,
+        supervisors: [
+          {
+            id: 1,
+            staff_id: 10,
+            name: "Supervisor One",
+            is_current_user: false,
+          },
+          {
+            id: 2,
+            staff_id: 20,
+            name: "Supervisor Two",
+            is_current_user: true,
+          },
+        ],
+      };
+
+      const result = mapSchulhofStatusResponse(backendStatus);
+
+      expect(result.supervisors).toHaveLength(2);
+      expect(result.supervisors[0]?.isCurrentUser).toBe(false);
+      expect(result.supervisors[1]?.isCurrentUser).toBe(true);
+    });
+
+    it("handles empty supervisors array", () => {
+      const backendStatus: BackendSchulhofStatus = {
+        exists: true,
+        room_name: "Schulhof",
+        is_user_supervising: false,
+        supervisor_count: 0,
+        student_count: 0,
+        supervisors: [],
+      };
+
+      const result = mapSchulhofStatusResponse(backendStatus);
+
+      expect(result.supervisors).toEqual([]);
+      expect(result.supervisorCount).toBe(0);
+    });
+  });
+
+  describe("mapToggleSupervisionResponse", () => {
+    it("maps started action correctly", () => {
+      const backendResponse: BackendToggleSupervisionResponse = {
+        action: "started",
+        supervision_id: 456,
+        active_group_id: 789,
+      };
+
+      const result = mapToggleSupervisionResponse(backendResponse);
+
+      expect(result.action).toBe("started");
+      expect(result.supervisionId).toBe("456");
+      expect(result.activeGroupId).toBe("789");
+    });
+
+    it("maps stopped action correctly", () => {
+      const backendResponse: BackendToggleSupervisionResponse = {
+        action: "stopped",
+        active_group_id: 123,
+      };
+
+      const result = mapToggleSupervisionResponse(backendResponse);
+
+      expect(result.action).toBe("stopped");
+      expect(result.supervisionId).toBeNull();
+      expect(result.activeGroupId).toBe("123");
+    });
+
+    it("handles undefined supervision_id as null", () => {
+      const backendResponse: BackendToggleSupervisionResponse = {
+        action: "stopped",
+        active_group_id: 999,
+        // supervision_id is undefined when stopping
+      };
+
+      const result = mapToggleSupervisionResponse(backendResponse);
+
+      expect(result.supervisionId).toBeNull();
+    });
+
+    it("converts numeric IDs to strings", () => {
+      const backendResponse: BackendToggleSupervisionResponse = {
+        action: "started",
+        supervision_id: 111,
+        active_group_id: 222,
+      };
+
+      const result = mapToggleSupervisionResponse(backendResponse);
+
+      expect(typeof result.supervisionId).toBe("string");
+      expect(typeof result.activeGroupId).toBe("string");
+    });
+
+    it("preserves action as literal type", () => {
+      const backendResponse: BackendToggleSupervisionResponse = {
+        action: "started",
+        supervision_id: 1,
+        active_group_id: 2,
+      };
+
+      const result = mapToggleSupervisionResponse(backendResponse);
+
+      // TypeScript should infer this as "started" | "stopped"
+      const action: "started" | "stopped" = result.action;
+      expect(action).toBe("started");
     });
   });
 });

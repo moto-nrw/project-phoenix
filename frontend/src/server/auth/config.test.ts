@@ -58,7 +58,6 @@ describe("authConfig", () => {
         roles: ["teacher"],
         firstName: "Test",
         isAdmin: false,
-        isTeacher: true,
       };
 
       const token = {};
@@ -82,7 +81,6 @@ describe("authConfig", () => {
       expect(result?.roles).toEqual(["teacher"]);
       expect(result?.firstName).toBe("Test");
       expect(result?.isAdmin).toBe(false);
-      expect(result?.isTeacher).toBe(true);
       expect(result?.tokenExpiry).toBeDefined();
       expect(result?.refreshTokenExpiry).toBeDefined();
     });
@@ -163,7 +161,6 @@ describe("authConfig", () => {
         roles: ["teacher"],
         firstName: "Test",
         isAdmin: false,
-        isTeacher: true,
       };
 
       const result = callSessionCallback({ session, token });
@@ -177,7 +174,6 @@ describe("authConfig", () => {
       expect(user?.roles).toEqual(["teacher"]);
       expect(user?.firstName).toBe("Test");
       expect(user?.isAdmin).toBe(false);
-      expect(user?.isTeacher).toBe(true);
     });
 
     it("should return minimal session when token has error", () => {

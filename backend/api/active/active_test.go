@@ -39,7 +39,7 @@ func setupTestContext(t *testing.T) *testContext {
 	t.Helper()
 
 	db, svc := testutil.SetupAPITest(t)
-	resource := activeAPI.NewResource(svc.Active, svc.Users, db)
+	resource := activeAPI.NewResource(svc.Active, svc.Users, svc.Schulhof, svc.UserContext, db)
 
 	t.Cleanup(func() {
 		if err := db.Close(); err != nil {
@@ -2224,7 +2224,6 @@ func TestCheckoutStudent_AuthorizedAsGroupTeacher(t *testing.T) {
 	teacherClaims := jwt.AppClaims{
 		ID:          int(teacherAccount.ID),
 		Sub:         "teacher@example.com",
-		IsTeacher:   true,
 		Permissions: []string{permissions.VisitsUpdate},
 	}
 

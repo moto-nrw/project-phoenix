@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { env } from "~/env";
+import { getServerApiUrl } from "~/lib/server-api-url";
 
 interface AcceptInvitationBody {
   token?: string;
@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
     };
 
     const response = await fetch(
-      `${env.NEXT_PUBLIC_API_URL}/auth/invitations/${encodeURIComponent(token)}/accept`,
+      `${getServerApiUrl()}/auth/invitations/${encodeURIComponent(token)}/accept`,
       {
         method: "POST",
         headers: {
