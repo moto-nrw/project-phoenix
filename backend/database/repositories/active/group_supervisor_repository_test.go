@@ -804,6 +804,130 @@ func TestGroupSupervisorRepository_EndSupervision_NonExistent(t *testing.T) {
 	})
 }
 
+// ============================================================================
+// EndAllActiveByStaffID Tests
+// ============================================================================
+
+func TestGroupSupervisorRepository_EndAllActiveByStaffID(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).GroupSupervisor
+	ctx := context.Background()
+	data := createSupervisorTestData(t, db)
+	defer cleanupSupervisorTestData(t, db, data)
+
+	t.Run("ends all active supervisions for staff", func(t *testing.T) {
+		today := timezone.DateOfUTC(time.Now())
+		// Create multiple active supervisions for same staff
+		supervisor1 := &active.GroupSupervisor{
+			GroupID:   data.ActiveGroup.ID,
+			StaffID:   data.Staff1.ID,
+			StartDate: today,
+			Role:      "supervisor",
+		}
+		supervisor2 := &active.GroupSupervisor{
+			GroupID:   data.ActiveGroup.ID,
+			StaffID:   data.Staff1.ID,
+			StartDate: today,
+			Role:      "assistant",
+		}
+		err := repo.Create(ctx, supervisor1)
+		require.NoError(t, err)
+		err = repo.Create(ctx, supervisor2)
+		require.NoError(t, err)
+		defer func() {
+			testpkg.CleanupTableRecords(t, db, "active.group_supervisors", supervisor1.ID)
+			testpkg.CleanupTableRecords(t, db, "active.group_supervisors", supervisor2.ID)
+		}()
+
+		// End all active supervisions
+		count, err := repo.EndAllActiveByStaffID(ctx, data.Staff1.ID)
+		require.NoError(t, err)
+		assert.Equal(t, 2, count)
+
+		// Verify both are ended
+		found1, err := repo.FindByID(ctx, supervisor1.ID)
+		require.NoError(t, err)
+		assert.NotNil(t, found1.EndDate)
+
+		found2, err := repo.FindByID(ctx, supervisor2.ID)
+		require.NoError(t, err)
+		assert.NotNil(t, found2.EndDate)
+	})
+
+	t.Run("returns zero for staff with no active supervisions", func(t *testing.T) {
+		count, err := repo.EndAllActiveByStaffID(ctx, data.Staff2.ID)
+		require.NoError(t, err)
+		assert.Equal(t, 0, count)
+	})
+
+	t.Run("does not affect already ended supervisions", func(t *testing.T) {
+		today := timezone.DateOfUTC(time.Now())
+		endDate := today.AddDate(0, 0, -1)
+		supervisor := &active.GroupSupervisor{
+			GroupID:   data.ActiveGroup.ID,
+			StaffID:   data.Staff1.ID,
+			StartDate: today.AddDate(0, 0, -7),
+			EndDate:   &endDate,
+			Role:      "supervisor",
+		}
+		err := repo.Create(ctx, supervisor)
+		require.NoError(t, err)
+		defer testpkg.CleanupTableRecords(t, db, "active.group_supervisors", supervisor.ID)
+
+		// Try to end - should not affect already ended supervision
+		count, err := repo.EndAllActiveByStaffID(ctx, data.Staff1.ID)
+		require.NoError(t, err)
+		assert.Equal(t, 0, count) // Should not count already-ended supervisions
+
+		// Verify end date hasn't changed
+		found, err := repo.FindByID(ctx, supervisor.ID)
+		require.NoError(t, err)
+		assert.WithinDuration(t, endDate, *found.EndDate, time.Second)
+	})
+
+	t.Run("ends only active supervisions for specific staff", func(t *testing.T) {
+		today := timezone.DateOfUTC(time.Now())
+		// Create active supervisions for two different staff members
+		supervisor1 := &active.GroupSupervisor{
+			GroupID:   data.ActiveGroup.ID,
+			StaffID:   data.Staff1.ID,
+			StartDate: today,
+			Role:      "supervisor",
+		}
+		supervisor2 := &active.GroupSupervisor{
+			GroupID:   data.ActiveGroup.ID,
+			StaffID:   data.Staff2.ID,
+			StartDate: today,
+			Role:      "supervisor",
+		}
+		err := repo.Create(ctx, supervisor1)
+		require.NoError(t, err)
+		err = repo.Create(ctx, supervisor2)
+		require.NoError(t, err)
+		defer func() {
+			testpkg.CleanupTableRecords(t, db, "active.group_supervisors", supervisor1.ID)
+			testpkg.CleanupTableRecords(t, db, "active.group_supervisors", supervisor2.ID)
+		}()
+
+		// End only Staff1's supervisions
+		count, err := repo.EndAllActiveByStaffID(ctx, data.Staff1.ID)
+		require.NoError(t, err)
+		assert.Equal(t, 1, count)
+
+		// Verify Staff1's supervision is ended
+		found1, err := repo.FindByID(ctx, supervisor1.ID)
+		require.NoError(t, err)
+		assert.NotNil(t, found1.EndDate)
+
+		// Verify Staff2's supervision is still active
+		found2, err := repo.FindByID(ctx, supervisor2.ID)
+		require.NoError(t, err)
+		assert.Nil(t, found2.EndDate)
+	})
+}
+
 // NOTE: FindWithStaff and FindWithActiveGroup methods exist in implementation
 // but are not exposed in the GroupSupervisorRepository interface, so they
 // cannot be tested through the interface.
