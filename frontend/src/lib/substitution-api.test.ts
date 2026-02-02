@@ -12,16 +12,16 @@ import type {
 import { buildBackendGroup } from "~/test/fixtures";
 
 // Mock dependencies
-vi.mock("next-auth/react", () => ({
-  getSession: vi.fn(),
+vi.mock("./session-cache", () => ({
+  getCachedSession: vi.fn(),
 }));
 
 // Import after mocks
-import { getSession } from "next-auth/react";
+import { getCachedSession } from "./session-cache";
 import { substitutionService } from "./substitution-api";
 
 const mockGetSession = vi.fn();
-vi.mocked(getSession).mockImplementation(mockGetSession);
+vi.mocked(getCachedSession).mockImplementation(mockGetSession);
 
 // Sample test data
 const sampleBackendPerson: BackendPerson = {

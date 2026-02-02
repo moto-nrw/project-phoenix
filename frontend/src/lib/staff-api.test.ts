@@ -4,17 +4,17 @@ import type { BackendStaffResponse, StaffFilters } from "./staff-api";
 import { suppressConsole } from "~/test/helpers/console";
 import { mockSessionData } from "~/test/mocks/next-auth";
 
-// Mock next-auth/react before importing the module
-vi.mock("next-auth/react", () => ({
-  getSession: vi.fn(),
+// Mock session-cache before importing the module
+vi.mock("./session-cache", () => ({
+  getCachedSession: vi.fn(),
 }));
 
 // Import after mocks are set up
-import { getSession } from "next-auth/react";
+import { getCachedSession } from "./session-cache";
 import { staffService } from "./staff-api";
 
 // Type for mocked functions
-const mockedGetSession = vi.mocked(getSession);
+const mockedGetSession = vi.mocked(getCachedSession);
 
 // Sample backend staff data
 const sampleBackendStaff: BackendStaffResponse = {
