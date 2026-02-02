@@ -39,7 +39,7 @@ func TestHubRegister(t *testing.T) {
 			client := &Client{
 				Channel:          make(chan Event, 10),
 				UserID:           123,
-				SubscribedGroups: make(map[string]bool),
+				SubscribedTopics: make(map[string]bool),
 			}
 
 			hub.Register(client, tt.activeGroupIDs)
@@ -56,10 +56,10 @@ func TestHubRegister(t *testing.T) {
 				}
 			}
 
-			// Verify client's subscribed groups
+			// Verify client's subscribed topics
 			for _, groupID := range tt.activeGroupIDs {
-				if !client.SubscribedGroups[groupID] {
-					t.Errorf("Client not subscribed to group %s", groupID)
+				if !client.SubscribedTopics[groupID] {
+					t.Errorf("Client not subscribed to topic %s", groupID)
 				}
 			}
 		})
@@ -74,17 +74,17 @@ func TestHubRegisterMultipleClients(t *testing.T) {
 	client1 := &Client{
 		Channel:          make(chan Event, 10),
 		UserID:           1,
-		SubscribedGroups: make(map[string]bool),
+		SubscribedTopics: make(map[string]bool),
 	}
 	client2 := &Client{
 		Channel:          make(chan Event, 10),
 		UserID:           2,
-		SubscribedGroups: make(map[string]bool),
+		SubscribedTopics: make(map[string]bool),
 	}
 	client3 := &Client{
 		Channel:          make(chan Event, 10),
 		UserID:           3,
-		SubscribedGroups: make(map[string]bool),
+		SubscribedTopics: make(map[string]bool),
 	}
 
 	hub.Register(client1, []string{"group_1"})
@@ -143,7 +143,7 @@ func TestHubUnregister(t *testing.T) {
 				clients[i] = &Client{
 					Channel:          make(chan Event, 10),
 					UserID:           int64(i + 1),
-					SubscribedGroups: make(map[string]bool),
+					SubscribedTopics: make(map[string]bool),
 				}
 				hub.Register(clients[i], []string{tt.groupID})
 			}
@@ -176,7 +176,7 @@ func TestHubUnregisterNonExistent(t *testing.T) {
 	client := &Client{
 		Channel:          make(chan Event, 10),
 		UserID:           1,
-		SubscribedGroups: make(map[string]bool),
+		SubscribedTopics: make(map[string]bool),
 	}
 
 	// Unregister client that was never registered (should not panic)
@@ -188,13 +188,13 @@ func TestHubUnregisterNonExistent(t *testing.T) {
 	}
 }
 
-// TestHubUnregisterCleanup verifies groupClients map cleanup
+// TestHubUnregisterCleanup verifies topicClients map cleanup
 func TestHubUnregisterCleanup(t *testing.T) {
 	hub := NewHub()
 	client := &Client{
 		Channel:          make(chan Event, 10),
 		UserID:           1,
-		SubscribedGroups: make(map[string]bool),
+		SubscribedTopics: make(map[string]bool),
 	}
 
 	hub.Register(client, []string{"group_1", "group_2"})
@@ -218,8 +218,8 @@ func TestHubUnregisterCleanup(t *testing.T) {
 	// Verify internal map is cleaned up
 	hub.mu.RLock()
 	defer hub.mu.RUnlock()
-	if len(hub.groupClients) != 0 {
-		t.Errorf("groupClients map should be empty, got %v entries", len(hub.groupClients))
+	if len(hub.topicClients) != 0 {
+		t.Errorf("topicClients map should be empty, got %v entries", len(hub.topicClients))
 	}
 }
 
@@ -229,7 +229,7 @@ func TestHubBroadcastToSingleSubscriber(t *testing.T) {
 	client := &Client{
 		Channel:          make(chan Event, 10),
 		UserID:           1,
-		SubscribedGroups: make(map[string]bool),
+		SubscribedTopics: make(map[string]bool),
 	}
 
 	hub.Register(client, []string{"group_1"})
@@ -269,7 +269,7 @@ func TestHubBroadcastToMultipleSubscribers(t *testing.T) {
 		clients[i] = &Client{
 			Channel:          make(chan Event, 10),
 			UserID:           int64(i + 1),
-			SubscribedGroups: make(map[string]bool),
+			SubscribedTopics: make(map[string]bool),
 		}
 		hub.Register(clients[i], []string{"group_1"})
 	}
@@ -304,12 +304,12 @@ func TestHubBroadcastGroupIsolation(t *testing.T) {
 	client1 := &Client{
 		Channel:          make(chan Event, 10),
 		UserID:           1,
-		SubscribedGroups: make(map[string]bool),
+		SubscribedTopics: make(map[string]bool),
 	}
 	client2 := &Client{
 		Channel:          make(chan Event, 10),
 		UserID:           2,
-		SubscribedGroups: make(map[string]bool),
+		SubscribedTopics: make(map[string]bool),
 	}
 
 	hub.Register(client1, []string{"group_1"})
@@ -370,7 +370,7 @@ func TestHubBroadcastChannelFull(t *testing.T) {
 	client := &Client{
 		Channel:          make(chan Event, 1),
 		UserID:           1,
-		SubscribedGroups: make(map[string]bool),
+		SubscribedTopics: make(map[string]bool),
 	}
 
 	hub.Register(client, []string{"group_1"})
@@ -419,7 +419,7 @@ func TestHubGetClientCount(t *testing.T) {
 		client := &Client{
 			Channel:          make(chan Event, 10),
 			UserID:           int64(i + 1),
-			SubscribedGroups: make(map[string]bool),
+			SubscribedTopics: make(map[string]bool),
 		}
 		hub.Register(client, []string{"group_1"})
 	}
@@ -443,7 +443,7 @@ func TestHubGetGroupSubscriberCount(t *testing.T) {
 		client := &Client{
 			Channel:          make(chan Event, 10),
 			UserID:           int64(i + 1),
-			SubscribedGroups: make(map[string]bool),
+			SubscribedTopics: make(map[string]bool),
 		}
 		hub.Register(client, []string{"group_1"})
 	}

@@ -200,7 +200,7 @@ func (rs *Resource) createAndRegisterClient(conn *sseConnection) {
 	conn.client = &realtime.Client{
 		Channel:          make(chan realtime.Event, 10), // Buffer up to 10 events
 		UserID:           conn.staffID,
-		SubscribedGroups: make(map[string]bool),
+		SubscribedTopics: make(map[string]bool),
 	}
 	rs.hub.Register(conn.client, conn.topics.allTopics)
 }
