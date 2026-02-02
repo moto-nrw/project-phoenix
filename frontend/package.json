@@ -51,7 +51,7 @@
     "@vitejs/plugin-react": "^5.1.2",
     "@vitest/coverage-v8": "^4.0.17",
     "eslint": "^9.39.2",
-    "eslint-config-next": "^15.2.3",
+    "eslint-config-next": "^16.1.6",
     "happy-dom": "^20.1.0",
     "jsdom": "^27.4.0",
     "knip": "^5.80.2",
