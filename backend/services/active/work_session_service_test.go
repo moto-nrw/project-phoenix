@@ -453,7 +453,7 @@ func TestWSCheckIn_Success(t *testing.T) {
 	}
 
 	sessionRepo.createFunc = func(_ context.Context, entity *activeModels.WorkSession) error {
-		entity.ID = 1
+		entity.ID = 10
 		return nil
 	}
 
@@ -474,7 +474,7 @@ func TestWSCheckIn_DefaultStatus(t *testing.T) {
 	}
 	sessionRepo.createFunc = func(_ context.Context, entity *activeModels.WorkSession) error {
 		assert.Equal(t, activeModels.WorkSessionStatusPresent, entity.Status)
-		entity.ID = 1
+		entity.ID = 10
 		return nil
 	}
 
@@ -689,7 +689,7 @@ func TestWSStartBreak_Success(t *testing.T) {
 
 	sessionRepo.getCurrentByStaffIDFunc = func(_ context.Context, _ int64) (*activeModels.WorkSession, error) {
 		return &activeModels.WorkSession{
-			Model:       base.Model{ID: 1},
+			Model:       base.Model{ID: 50},
 			StaffID:     staffID,
 			CheckInTime: time.Now().Add(-2 * time.Hour),
 		}, nil
@@ -700,14 +700,14 @@ func TestWSStartBreak_Success(t *testing.T) {
 	}
 
 	breakRepo.createFunc = func(_ context.Context, entity *activeModels.WorkSessionBreak) error {
-		entity.ID = 1
+		entity.ID = 10
 		return nil
 	}
 
 	brk, err := svc.StartBreak(context.Background(), staffID)
 	require.NoError(t, err)
 	require.NotNil(t, brk)
-	assert.Equal(t, int64(1), brk.SessionID)
+	assert.Equal(t, int64(50), brk.SessionID)
 }
 
 func TestWSStartBreak_NoActiveSession(t *testing.T) {
@@ -1072,7 +1072,7 @@ func TestWSEnsureCheckedIn_CreatesNew(t *testing.T) {
 	}
 
 	sessionRepo.createFunc = func(_ context.Context, entity *activeModels.WorkSession) error {
-		entity.ID = 1
+		entity.ID = 10
 		return nil
 	}
 
@@ -1088,7 +1088,7 @@ func TestWSEnsureCheckedIn_CreatesNew(t *testing.T) {
 func TestWSUpdateSession_CheckInTimeChange(t *testing.T) {
 	svc, sessionRepo, _, auditRepo, _ := wsCreateTestService()
 	staffID := int64(100)
-	sessionID := int64(1)
+	sessionID := int64(100)
 
 	oldCheckIn := time.Now().Add(-8 * time.Hour)
 	newCheckIn := time.Now().Add(-7 * time.Hour)
@@ -1159,7 +1159,7 @@ func TestWSUpdateSession_NotFound(t *testing.T) {
 func TestWSUpdateSession_BreakDurationUpdate(t *testing.T) {
 	svc, sessionRepo, breakRepo, auditRepo, _ := wsCreateTestService()
 	staffID := int64(100)
-	sessionID := int64(1)
+	sessionID := int64(100)
 
 	endedAt := time.Now().Add(-1 * time.Hour)
 	sessionRepo.findByIDFunc = func(_ context.Context, _ any) (*activeModels.WorkSession, error) {
@@ -1218,7 +1218,7 @@ func TestWSUpdateSession_BreakDurationUpdate(t *testing.T) {
 func TestWSUpdateSession_BreakNotBelongsToSession(t *testing.T) {
 	svc, sessionRepo, breakRepo, _, _ := wsCreateTestService()
 	staffID := int64(100)
-	sessionID := int64(1)
+	sessionID := int64(100)
 
 	sessionRepo.findByIDFunc = func(_ context.Context, _ any) (*activeModels.WorkSession, error) {
 		return &activeModels.WorkSession{
@@ -1250,7 +1250,7 @@ func TestWSUpdateSession_BreakNotBelongsToSession(t *testing.T) {
 func TestWSUpdateSession_CannotEditActiveBreak(t *testing.T) {
 	svc, sessionRepo, breakRepo, _, _ := wsCreateTestService()
 	staffID := int64(100)
-	sessionID := int64(1)
+	sessionID := int64(100)
 
 	sessionRepo.findByIDFunc = func(_ context.Context, _ any) (*activeModels.WorkSession, error) {
 		return &activeModels.WorkSession{

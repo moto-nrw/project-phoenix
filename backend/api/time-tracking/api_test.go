@@ -1051,17 +1051,17 @@ func TestUpdateAbsence_Success(t *testing.T) {
 	absSvc := &mockStaffAbsenceService{
 		updateAbsenceFn: func(_ context.Context, staffID int64, absenceID int64, _ activeSvc.UpdateAbsenceRequest) (*activeSvc.StaffAbsenceResponse, error) {
 			assert.Equal(t, int64(100), staffID)
-			assert.Equal(t, int64(7), absenceID)
+			assert.Equal(t, int64(77), absenceID)
 			return &activeSvc.StaffAbsenceResponse{}, nil
 		},
 	}
 	rs := testResource(&mockWorkSessionService{}, absSvc, defaultPersonSvc())
 
 	body := bytes.NewBufferString(`{"note":"updated note"}`)
-	r := httptest.NewRequest(http.MethodPut, "/absences/7", body)
+	r := httptest.NewRequest(http.MethodPut, "/absences/77", body)
 	r.Header.Set("Content-Type", "application/json")
 	r = withClaims(r, validClaims())
-	r = withChiParam(r, "id", "7")
+	r = withChiParam(r, "id", "77")
 	w := httptest.NewRecorder()
 
 	rs.updateAbsence(w, r)
@@ -1107,15 +1107,15 @@ func TestDeleteAbsence_Success(t *testing.T) {
 	absSvc := &mockStaffAbsenceService{
 		deleteAbsenceFn: func(_ context.Context, staffID int64, absenceID int64) error {
 			assert.Equal(t, int64(100), staffID)
-			assert.Equal(t, int64(7), absenceID)
+			assert.Equal(t, int64(77), absenceID)
 			return nil
 		},
 	}
 	rs := testResource(&mockWorkSessionService{}, absSvc, defaultPersonSvc())
 
-	r := httptest.NewRequest(http.MethodDelete, "/absences/7", nil)
+	r := httptest.NewRequest(http.MethodDelete, "/absences/77", nil)
 	r = withClaims(r, validClaims())
-	r = withChiParam(r, "id", "7")
+	r = withChiParam(r, "id", "77")
 	w := httptest.NewRecorder()
 
 	rs.deleteAbsence(w, r)

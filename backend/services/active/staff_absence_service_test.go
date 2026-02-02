@@ -215,7 +215,7 @@ func absSetupService() (*staffAbsenceService, *absStaffAbsenceRepoMock, *absWork
 func TestAbsCreateAbsence_Success(t *testing.T) {
 	svc, absRepo, workRepo := absSetupService()
 	ctx := context.Background()
-	staffID := int64(1)
+	staffID := int64(100)
 
 	absRepo.getByStaffAndDateRangeFunc = func(_ context.Context, _ int64, _, _ time.Time) ([]*activeModels.StaffAbsence, error) {
 		return nil, nil
@@ -307,7 +307,7 @@ func TestAbsCreateAbsence_OverlapDifferentType(t *testing.T) {
 func TestAbsCreateAbsence_MergeSameType(t *testing.T) {
 	svc, absRepo, _ := absSetupService()
 	ctx := context.Background()
-	staffID := int64(1)
+	staffID := int64(100)
 
 	existing := &activeModels.StaffAbsence{
 		Model:       base.Model{ID: 60},
@@ -345,7 +345,7 @@ func TestAbsCreateAbsence_MergeSameType(t *testing.T) {
 func TestAbsCreateAbsence_MergeMultipleSameType(t *testing.T) {
 	svc, absRepo, _ := absSetupService()
 	ctx := context.Background()
-	staffID := int64(1)
+	staffID := int64(100)
 
 	absRepo.getByStaffAndDateRangeFunc = func(_ context.Context, _ int64, _, _ time.Time) ([]*activeModels.StaffAbsence, error) {
 		return []*activeModels.StaffAbsence{
@@ -439,7 +439,7 @@ func TestAbsCreateAbsence_RepoCreateError(t *testing.T) {
 func TestAbsUpdateAbsence_Success(t *testing.T) {
 	svc, absRepo, _ := absSetupService()
 	ctx := context.Background()
-	staffID := int64(1)
+	staffID := int64(100)
 	absenceID := int64(100)
 
 	existing := &activeModels.StaffAbsence{
@@ -511,7 +511,7 @@ func TestAbsUpdateAbsence_OwnershipFails(t *testing.T) {
 
 func TestAbsUpdateAbsence_InvalidDateStart(t *testing.T) {
 	svc, absRepo, _ := absSetupService()
-	staffID := int64(1)
+	staffID := int64(100)
 
 	absRepo.findByIDFunc = func(_ context.Context, _ any) (*activeModels.StaffAbsence, error) {
 		return &activeModels.StaffAbsence{
@@ -533,7 +533,7 @@ func TestAbsUpdateAbsence_InvalidDateStart(t *testing.T) {
 
 func TestAbsUpdateAbsence_InvalidDateEnd(t *testing.T) {
 	svc, absRepo, _ := absSetupService()
-	staffID := int64(1)
+	staffID := int64(100)
 
 	absRepo.findByIDFunc = func(_ context.Context, _ any) (*activeModels.StaffAbsence, error) {
 		return &activeModels.StaffAbsence{
@@ -555,7 +555,7 @@ func TestAbsUpdateAbsence_InvalidDateEnd(t *testing.T) {
 
 func TestAbsUpdateAbsence_OverlapAfterUpdate(t *testing.T) {
 	svc, absRepo, _ := absSetupService()
-	staffID := int64(1)
+	staffID := int64(100)
 	absenceID := int64(100)
 
 	existing := &activeModels.StaffAbsence{
@@ -597,7 +597,7 @@ func TestAbsUpdateAbsence_OverlapAfterUpdate(t *testing.T) {
 
 func TestAbsDeleteAbsence_Success(t *testing.T) {
 	svc, absRepo, _ := absSetupService()
-	staffID := int64(1)
+	staffID := int64(100)
 	absenceID := int64(100)
 
 	absRepo.findByIDFunc = func(_ context.Context, _ any) (*activeModels.StaffAbsence, error) {
@@ -647,7 +647,7 @@ func TestAbsDeleteAbsence_OwnershipFails(t *testing.T) {
 
 func TestAbsDeleteAbsence_RepoError(t *testing.T) {
 	svc, absRepo, _ := absSetupService()
-	staffID := int64(1)
+	staffID := int64(100)
 
 	absRepo.findByIDFunc = func(_ context.Context, _ any) (*activeModels.StaffAbsence, error) {
 		return &activeModels.StaffAbsence{
@@ -672,7 +672,7 @@ func TestAbsDeleteAbsence_RepoError(t *testing.T) {
 func TestAbsGetAbsencesForRange_Success(t *testing.T) {
 	svc, absRepo, _ := absSetupService()
 	ctx := context.Background()
-	staffID := int64(1)
+	staffID := int64(100)
 	from := time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC)
 	to := time.Date(2026, 2, 28, 0, 0, 0, 0, time.UTC)
 
@@ -735,7 +735,7 @@ func TestAbsGetAbsencesForRange_RepoError(t *testing.T) {
 
 func TestAbsHasAbsenceOnDate_Found(t *testing.T) {
 	svc, absRepo, _ := absSetupService()
-	staffID := int64(1)
+	staffID := int64(100)
 	date := time.Date(2026, 2, 11, 0, 0, 0, 0, time.UTC)
 
 	absRepo.getByStaffAndDateFunc = func(_ context.Context, _ int64, _ time.Time) (*activeModels.StaffAbsence, error) {
