@@ -1,6 +1,8 @@
 package api
 
 import (
+	"context"
+	"log"
 	"net/http"
 	"os"
 	"strconv"
@@ -100,6 +102,15 @@ func New(enableCORS bool) (*API, error) {
 
 	// Initialize API resources
 	initializeAPIResources(api, repoFactory, db)
+
+	// Auto-sync settings definitions and tabs to database on startup
+	if api.Services.HierarchicalSettings != nil {
+		if err := api.Services.HierarchicalSettings.SyncAll(context.Background()); err != nil {
+			log.Printf("Warning: Failed to sync settings definitions: %v", err)
+		} else {
+			log.Println("Settings definitions synced successfully")
+		}
+	}
 
 	// Register routes with rate limiting
 	api.registerRoutesWithRateLimiting()
