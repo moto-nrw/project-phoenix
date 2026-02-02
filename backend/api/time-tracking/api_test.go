@@ -1230,6 +1230,7 @@ func TestClassifyServiceError(t *testing.T) {
 			r := httptest.NewRequest(http.MethodGet, "/", nil)
 			err := renderer.Render(w, r)
 			require.NoError(t, err)
+			assert.Equal(t, tt.wantStatus, w.Code)
 		})
 	}
 }
@@ -1247,6 +1248,7 @@ func TestClassifyAbsenceError(t *testing.T) {
 		{"conflict - updated overlaps", "updated dates overlap with existing", http.StatusConflict},
 		{"bad request - invalid", "invalid absence type", http.StatusBadRequest},
 		{"bad request - invalid status", "invalid absence status", http.StatusBadRequest},
+		{"bad request - invalid prefix", "invalid date format", http.StatusBadRequest},
 		{"internal server - unknown", "some unknown error", http.StatusInternalServerError},
 	}
 
@@ -1257,6 +1259,7 @@ func TestClassifyAbsenceError(t *testing.T) {
 			r := httptest.NewRequest(http.MethodGet, "/", nil)
 			err := renderer.Render(w, r)
 			require.NoError(t, err)
+			assert.Equal(t, tt.wantStatus, w.Code)
 		})
 	}
 }
