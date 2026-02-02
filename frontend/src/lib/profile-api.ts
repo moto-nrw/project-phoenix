@@ -1,4 +1,4 @@
-import { getSession } from "next-auth/react";
+import { getCachedSession } from "./session-cache";
 import {
   mapProfileResponse,
   mapProfileUpdateRequest,
@@ -11,7 +11,7 @@ import {
  * Fetch the current user's profile
  */
 export async function fetchProfile(): Promise<Profile> {
-  const session = await getSession();
+  const session = await getCachedSession();
   const token = session?.user?.token;
 
   if (!token) {
@@ -56,7 +56,7 @@ export async function fetchProfile(): Promise<Profile> {
 export async function updateProfile(
   data: ProfileUpdateRequest,
 ): Promise<Profile> {
-  const session = await getSession();
+  const session = await getCachedSession();
   const token = session?.user?.token;
 
   if (!token) {
@@ -101,7 +101,7 @@ export async function updateProfile(
  * Upload a new avatar image
  */
 export async function uploadAvatar(file: File): Promise<Profile> {
-  const session = await getSession();
+  const session = await getCachedSession();
   const token = session?.user?.token;
 
   if (!token) {
@@ -154,7 +154,7 @@ export async function uploadAvatar(file: File): Promise<Profile> {
  * Delete the user's avatar
  */
 export async function deleteAvatar(): Promise<Profile> {
-  const session = await getSession();
+  const session = await getCachedSession();
   const token = session?.user?.token;
 
   if (!token) {

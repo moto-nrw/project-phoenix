@@ -1,5 +1,5 @@
 // lib/active-service.ts
-import { getSession } from "next-auth/react";
+import { getCachedSession } from "./session-cache";
 import { env } from "~/env";
 import api from "./api";
 import {
@@ -85,7 +85,7 @@ async function executeProxyFetch(
   operationName: string,
   body?: unknown,
 ): Promise<Response> {
-  const session = await getSession();
+  const session = await getCachedSession();
   const fetchOptions: RequestInit = {
     method,
     headers: {
@@ -398,7 +398,7 @@ export const activeService = {
 
   // Bulk fetch visits with student display data (optimized for SSE - single query)
   getActiveGroupVisitsWithDisplay: async (id: string): Promise<Visit[]> => {
-    const session = await getSession();
+    const session = await getCachedSession();
     const response = await fetch(`/api/active/groups/${id}/visits/display`, {
       headers: {
         Authorization: `Bearer ${session?.user?.token}`,
@@ -929,7 +929,7 @@ export const activeService = {
 
     try {
       if (useProxyApi) {
-        const session = await getSession();
+        const session = await getCachedSession();
         const response = await fetch(url, {
           headers: {
             Authorization: `Bearer ${session?.user?.token}`,
