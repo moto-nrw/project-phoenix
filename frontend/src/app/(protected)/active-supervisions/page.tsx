@@ -734,6 +734,28 @@ function MeinRaumPageContent() {
       // No ?room= param (e.g. after login or browser back) — restore from
       // localStorage so the user returns to their previously selected room.
       const savedRoomId = localStorage.getItem("sidebar-last-room");
+
+      // Handle Schulhof restore from localStorage
+      if (savedRoomId === "schulhof" && schulhofStatus?.exists) {
+        if (!isSchulhofTabSelected) {
+          setIsSchulhofTabSelected(true);
+          setSelectedRoomIndex(-1);
+          if (
+            schulhofStatus.isUserSupervising &&
+            schulhofStatus.activeGroupId
+          ) {
+            void loadRoomVisits(
+              schulhofStatus.activeGroupId,
+              SCHULHOF_ROOM_NAME,
+              groupNameToIdMapRef.current,
+            ).then(setStudents);
+          } else {
+            setStudents([]);
+          }
+        }
+        return;
+      }
+
       const savedIndex = savedRoomId
         ? allRooms.findIndex((r) => r.room_id === savedRoomId)
         : -1;
@@ -1204,7 +1226,7 @@ function MeinRaumPageContent() {
                     setIsSchulhofTabSelected(true);
                     setSelectedRoomIndex(-1);
                     router.push("/active-supervisions?room=schulhof");
-                    localStorage.setItem("sidebar-last-room", SCHULHOF_TAB_ID);
+                    localStorage.setItem("sidebar-last-room", "schulhof");
                     localStorage.setItem(
                       "sidebar-last-room-name",
                       SCHULHOF_ROOM_NAME,

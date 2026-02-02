@@ -416,12 +416,16 @@ function SidebarContent({ className = "" }: SidebarProps) {
     toggle("supervisions");
     if (!pathname.startsWith("/active-supervisions")) {
       const savedRoomId = localStorage.getItem("sidebar-last-room");
+      // Match saved room: Schulhof uses "schulhof" in URL but "schulhof-permanent" as id
       const targetRoom = savedRoomId
-        ? supervisedRooms.find((r) => r.id === savedRoomId)
+        ? supervisedRooms.find((r) =>
+            r.isSchulhof ? savedRoomId === "schulhof" : r.id === savedRoomId,
+          )
         : supervisedRooms[0];
-      const roomId = targetRoom?.id ?? supervisedRooms[0]?.id;
-      if (roomId) {
-        router.push(`/active-supervisions?room=${roomId}`);
+      const fallback = targetRoom ?? supervisedRooms[0];
+      const roomParam = fallback?.isSchulhof ? "schulhof" : fallback?.id;
+      if (roomParam) {
+        router.push(`/active-supervisions?room=${roomParam}`);
       } else {
         router.push("/active-supervisions");
       }
