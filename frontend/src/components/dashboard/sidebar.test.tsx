@@ -336,18 +336,27 @@ describe("Sidebar", () => {
     it("coming soon items are not clickable", () => {
       render(<Sidebar />);
 
-      const zeiterfassungElement = screen.getByText("Zeiterfassung");
-      // Should not be inside a link
-      expect(zeiterfassungElement.closest("a")).toBeNull();
+      // Nachrichten is still a coming soon feature
+      const nachrichtenElement = screen.getByText("Nachrichten");
+      expect(nachrichtenElement.closest("a")).toBeNull();
     });
 
     it("coming soon items have disabled styling", () => {
       render(<Sidebar />);
 
-      const zeiterfassungElement = screen.getByText("Zeiterfassung");
-      const container = zeiterfassungElement.closest("div");
+      const nachrichtenElement = screen.getByText("Nachrichten");
+      const container = nachrichtenElement.closest("div");
       expect(container).toHaveClass("text-gray-400");
       expect(container).toHaveClass("cursor-not-allowed");
+    });
+
+    it("Zeiterfassung is an active navigation link", () => {
+      render(<Sidebar />);
+
+      const zeiterfassungElement = screen.getByText("Zeiterfassung");
+      const link = zeiterfassungElement.closest("a");
+      expect(link).not.toBeNull();
+      expect(link).toHaveAttribute("href", "/time-tracking");
     });
 
     it("shows admin-only coming soon items for admins", () => {
