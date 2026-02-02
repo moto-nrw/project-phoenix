@@ -48,7 +48,18 @@ func TestServeCmd_UsageOutput(t *testing.T) {
 // =============================================================================
 
 func TestServeCmd_ViperDefaults(t *testing.T) {
-	// These defaults are set in serve.go init()
+	// Reset viper to isolate from dev.env (which initConfig may have loaded)
+	viper.Reset()
+
+	// Re-register the defaults that serve.go init() sets
+	viper.SetDefault("port", "8080")
+	viper.SetDefault("log_level", "debug")
+	viper.SetDefault("login_url", "http://localhost:8080/login")
+	viper.SetDefault("auth_jwt_secret", "random")
+	viper.SetDefault("auth_jwt_expiry", "15m")
+	viper.SetDefault("auth_jwt_refresh_expiry", "1h")
+
+	// Verify defaults without any config file influence
 	assert.Equal(t, "8080", viper.GetString("port"))
 	assert.Equal(t, "debug", viper.GetString("log_level"))
 	assert.Equal(t, "http://localhost:8080/login", viper.GetString("login_url"))

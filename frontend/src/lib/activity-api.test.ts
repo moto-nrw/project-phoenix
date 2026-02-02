@@ -15,8 +15,8 @@ import type {
 import { buildBackendActivity, buildBackendCategory } from "~/test/fixtures";
 
 // Mock dependencies
-vi.mock("next-auth/react", () => ({
-  getSession: vi.fn(),
+vi.mock("./session-cache", () => ({
+  getCachedSession: vi.fn(),
 }));
 
 vi.mock("./api", () => ({
@@ -33,12 +33,12 @@ vi.mock("./auth-api", () => ({
 }));
 
 // Import after mocks
-import { getSession } from "next-auth/react";
+import { getCachedSession } from "./session-cache";
 import api from "./api";
 import { handleAuthFailure } from "./auth-api";
 import * as activityApi from "./activity-api";
 
-const mockedGetSession = vi.mocked(getSession);
+const mockedGetSession = vi.mocked(getCachedSession);
 const mockedApiGet = vi.mocked(api.get);
 const mockedApiPost = vi.mocked(api.post);
 const mockedApiPut = vi.mocked(api.put);

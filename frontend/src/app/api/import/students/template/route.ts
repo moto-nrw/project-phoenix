@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { auth } from "~/server/auth";
-import { env } from "~/env";
+import { getServerApiUrl } from "~/lib/server-api-url";
 
 export async function GET(request: NextRequest) {
   try {
@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
     const format = searchParams.get("format") ?? "csv";
 
     const response = await fetch(
-      `${env.NEXT_PUBLIC_API_URL}/api/import/students/template?format=${format}`,
+      `${getServerApiUrl()}/api/import/students/template?format=${format}`,
       {
         headers: {
           Authorization: `Bearer ${session.user.token}`,

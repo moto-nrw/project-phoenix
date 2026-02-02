@@ -30,9 +30,10 @@ const (
 // systemRoleTranslations maps English system role names to German display names.
 // Used for user-facing content like emails.
 var systemRoleTranslations = map[string]string{
-	"admin": "Administrator",
-	"user":  "Nutzer",
-	"guest": "Gast",
+	"admin":    "Administrator",
+	"user":     "Betreuer",
+	"guest":    "Gast",
+	"guardian": "Erziehungsberechtigter",
 }
 
 // translateRoleNameToGerman translates system role names to German.

@@ -14,20 +14,20 @@ describe("getRoleDisplayName", () => {
     expect(getRoleDisplayName("ADMIN")).toBe("Administrator");
   });
 
-  it("translates user to Nutzer", () => {
-    expect(getRoleDisplayName("user")).toBe("Nutzer");
+  it("translates user to Betreuer", () => {
+    expect(getRoleDisplayName("user")).toBe("Betreuer");
   });
 
   it("translates guest to Gast", () => {
     expect(getRoleDisplayName("guest")).toBe("Gast");
   });
 
-  it("translates teacher to Lehrkraft", () => {
-    expect(getRoleDisplayName("teacher")).toBe("Lehrkraft");
+  it("returns original name for removed roles like teacher", () => {
+    expect(getRoleDisplayName("teacher")).toBe("teacher");
   });
 
-  it("translates staff to Betreuer", () => {
-    expect(getRoleDisplayName("staff")).toBe("Betreuer");
+  it("returns original name for removed roles like staff", () => {
+    expect(getRoleDisplayName("staff")).toBe("staff");
   });
 
   it("translates guardian to Erziehungsberechtigter", () => {
@@ -46,9 +46,9 @@ describe("getRoleDisplayDescription", () => {
     );
   });
 
-  it("translates user description to German", () => {
+  it("translates user description to Betreuer description", () => {
     expect(getRoleDisplayDescription("user", "Standard user")).toBe(
-      "Standardbenutzer mit grundlegenden Berechtigungen",
+      "Pädagogische Fachkraft mit Betreuungsrechten",
     );
   });
 
@@ -58,15 +58,15 @@ describe("getRoleDisplayDescription", () => {
     );
   });
 
-  it("translates teacher description to German", () => {
+  it("returns original description for removed roles like teacher", () => {
     expect(getRoleDisplayDescription("teacher", "Teaching staff")).toBe(
-      "Lehrkraft mit Gruppenmanagement-Berechtigungen",
+      "Teaching staff",
     );
   });
 
-  it("translates staff description to German", () => {
+  it("returns original description for removed roles like staff", () => {
     expect(getRoleDisplayDescription("staff", "General staff")).toBe(
-      "Pädagogische Fachkraft mit Betreuungsrechten",
+      "General staff",
     );
   });
 

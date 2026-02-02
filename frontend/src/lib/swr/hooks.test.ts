@@ -63,7 +63,7 @@ describe("SWR Hooks", () => {
         "test-key",
         mockFetcher,
         expect.objectContaining({
-          dedupingInterval: 2000,
+          dedupingInterval: 5000,
         }),
       );
     });

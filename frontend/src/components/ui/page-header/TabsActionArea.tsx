@@ -39,14 +39,11 @@ function TabsActionArea({
 
   const isDesktop = variant === "desktop";
 
-  // Render action button if present
-  if (actionButton) {
-    return <>{actionButton}</>;
-  }
-
-  // Render status/badge indicators
+  // Render action button + badge/status together when both present
+  // Render status/badge indicators (also shown alongside action button)
   return (
     <>
+      {actionButton}
       {statusIndicator && (
         <StatusIndicator
           color={statusIndicator.color}

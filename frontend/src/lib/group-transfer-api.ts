@@ -1,7 +1,7 @@
 // lib/group-transfer-api.ts
 // API client for group transfer operations
 
-import { getSession } from "next-auth/react";
+import { getCachedSession } from "./session-cache";
 
 // Staff member with role info for dropdown
 export interface StaffWithRole {
@@ -71,7 +71,7 @@ export const groupTransferService = {
   // Get staff members with a specific role (for dropdown)
   async getStaffByRole(role: string): Promise<StaffWithRole[]> {
     try {
-      const session = await getSession();
+      const session = await getCachedSession();
       const response = await fetch(`/api/staff/by-role?role=${role}`, {
         credentials: "include",
         headers: session?.user?.token
@@ -110,7 +110,7 @@ export const groupTransferService = {
   // Transfer group to another user (until end of day)
   async transferGroup(groupId: string, targetPersonId: string): Promise<void> {
     try {
-      const session = await getSession();
+      const session = await getCachedSession();
       const response = await fetch(`/api/groups/${groupId}/transfer`, {
         method: "POST",
         credentials: "include",
@@ -156,7 +156,7 @@ export const groupTransferService = {
       // Use provided token or fall back to getSession()
       let authToken = token;
       if (!authToken) {
-        const session = await getSession();
+        const session = await getCachedSession();
         authToken = session?.user?.token;
       }
 
@@ -254,7 +254,7 @@ export const groupTransferService = {
     substitutionId: string,
   ): Promise<void> {
     try {
-      const session = await getSession();
+      const session = await getCachedSession();
       const response = await fetch(
         `/api/groups/${groupId}/transfer/${substitutionId}`,
         {

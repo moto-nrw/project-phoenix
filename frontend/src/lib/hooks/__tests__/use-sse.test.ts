@@ -717,4 +717,182 @@ describe("useSSE Hook", () => {
       );
     });
   });
+
+  describe("Sleep/Wake Reconnection", () => {
+    it("should reconnect on visibilitychange when EventSource is closed", async () => {
+      const { result } = renderHook(() =>
+        useSSE("/api/sse/events", {
+          reconnectInterval: 10,
+          maxReconnectAttempts: 5,
+        }),
+      );
+
+      await waitForEventSource();
+      const firstInstance = requireLatestEventSource();
+      firstInstance.triggerOpen();
+      await waitFor(() => expect(result.current.isConnected).toBe(true), {
+        timeout: 500,
+      });
+
+      // Simulate connection dying (e.g., device sleep)
+      firstInstance.readyState = firstInstance.CLOSED;
+
+      // Simulate tab becoming visible again
+      Object.defineProperty(document, "visibilityState", {
+        value: "visible",
+        writable: true,
+      });
+      document.dispatchEvent(new Event("visibilitychange"));
+
+      // Should create a new EventSource
+      await waitFor(() => expect(eventSourceInstances.length).toBe(2), {
+        timeout: 500,
+      });
+
+      const secondInstance = requireLatestEventSource();
+      secondInstance.triggerOpen();
+
+      await waitFor(
+        () => {
+          expect(result.current.isConnected).toBe(true);
+          expect(result.current.reconnectAttempts).toBe(0);
+          expect(result.current.status).toBe("connected");
+        },
+        { timeout: 500 },
+      );
+    });
+
+    it("should reconnect on online event when EventSource is closed", async () => {
+      const { result } = renderHook(() =>
+        useSSE("/api/sse/events", {
+          reconnectInterval: 10,
+          maxReconnectAttempts: 5,
+        }),
+      );
+
+      await waitForEventSource();
+      const firstInstance = requireLatestEventSource();
+      firstInstance.triggerOpen();
+      await waitFor(() => expect(result.current.isConnected).toBe(true), {
+        timeout: 500,
+      });
+
+      // Simulate connection dying
+      firstInstance.readyState = firstInstance.CLOSED;
+
+      // Simulate network coming back online
+      window.dispatchEvent(new Event("online"));
+
+      // Should create a new EventSource
+      await waitFor(() => expect(eventSourceInstances.length).toBe(2), {
+        timeout: 500,
+      });
+
+      const secondInstance = requireLatestEventSource();
+      secondInstance.triggerOpen();
+
+      await waitFor(
+        () => {
+          expect(result.current.isConnected).toBe(true);
+          expect(result.current.reconnectAttempts).toBe(0);
+        },
+        { timeout: 500 },
+      );
+    });
+
+    it("should not reconnect on visibilitychange if already connected", async () => {
+      renderHook(() =>
+        useSSE("/api/sse/events", {
+          reconnectInterval: 10,
+          maxReconnectAttempts: 5,
+        }),
+      );
+
+      await waitForEventSource();
+      const firstInstance = requireLatestEventSource();
+      firstInstance.triggerOpen();
+
+      // readyState is OPEN (1), so visibility change should be a no-op
+      Object.defineProperty(document, "visibilityState", {
+        value: "visible",
+        writable: true,
+      });
+      document.dispatchEvent(new Event("visibilitychange"));
+
+      // Should NOT create a new EventSource
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      expect(eventSourceInstances.length).toBe(1);
+    });
+
+    it("should reset reconnect attempts on wake reconnection after failed state", async () => {
+      const { result } = renderHook(() =>
+        useSSE("/api/sse/events", {
+          reconnectInterval: 10,
+          maxReconnectAttempts: 2,
+        }),
+      );
+
+      // Initial connection
+      await waitForEventSource();
+      const firstInstance = requireLatestEventSource();
+      firstInstance.triggerOpen();
+      await waitFor(() => expect(result.current.isConnected).toBe(true), {
+        timeout: 500,
+      });
+
+      // Exhaust all reconnection attempts
+      firstInstance.triggerError();
+      await waitFor(() => expect(result.current.reconnectAttempts).toBe(1), {
+        timeout: 500,
+      });
+
+      await waitFor(() => expect(eventSourceInstances.length).toBe(2), {
+        timeout: 500,
+      });
+      const secondInstance = requireLatestEventSource();
+      secondInstance.triggerError();
+
+      await waitFor(() => expect(result.current.status).toBe("failed"), {
+        timeout: 500,
+      });
+
+      // Simulate coming back online — should reset and reconnect
+      window.dispatchEvent(new Event("online"));
+
+      await waitFor(
+        () => expect(eventSourceInstances.length).toBeGreaterThan(2),
+        { timeout: 500 },
+      );
+
+      const freshInstance = requireLatestEventSource();
+      freshInstance.triggerOpen();
+
+      await waitFor(
+        () => {
+          expect(result.current.isConnected).toBe(true);
+          expect(result.current.reconnectAttempts).toBe(0);
+          expect(result.current.status).toBe("connected");
+        },
+        { timeout: 500 },
+      );
+    });
+
+    it("should clean up visibility and online listeners on unmount", async () => {
+      const removeDocSpy = vi.spyOn(document, "removeEventListener");
+      const removeWinSpy = vi.spyOn(window, "removeEventListener");
+
+      const { unmount } = renderHook(() => useSSE("/api/sse/events"));
+
+      await waitForEventSource();
+      mockEventSource?.triggerOpen();
+
+      unmount();
+
+      expect(removeDocSpy).toHaveBeenCalledWith(
+        "visibilitychange",
+        expect.any(Function),
+      );
+      expect(removeWinSpy).toHaveBeenCalledWith("online", expect.any(Function));
+    });
+  });
 });

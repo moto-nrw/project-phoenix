@@ -62,8 +62,8 @@ async function serverFetchWithRetry<T>(
   token: string,
   options: ServerFetchOptions,
 ): Promise<T> {
-  const { env } = await import("~/env");
-  const url = `${env.NEXT_PUBLIC_API_URL}${endpoint}`;
+  const { getServerApiUrl } = await import("~/lib/server-api-url");
+  const url = `${getServerApiUrl()}${endpoint}`;
 
   const executeRequest = async (bearer: string) =>
     fetch(url, {

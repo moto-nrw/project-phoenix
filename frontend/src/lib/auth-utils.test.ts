@@ -3,7 +3,6 @@ import type { Session } from "next-auth";
 import {
   hasRole,
   isAdmin,
-  isTeacher,
   isAuthenticated,
   getUserDisplayName,
   getUserRolesDisplay,
@@ -19,7 +18,6 @@ describe("auth-utils", () => {
           email: "test@example.com",
           roles: ["admin", "teacher"],
           isAdmin: false,
-          isTeacher: false,
           token: "token",
         },
         expires: "2024-12-31",
@@ -36,7 +34,6 @@ describe("auth-utils", () => {
           email: "test@example.com",
           roles: ["teacher"],
           isAdmin: false,
-          isTeacher: false,
           token: "token",
         },
         expires: "2024-12-31",
@@ -61,7 +58,6 @@ describe("auth-utils", () => {
           id: "1",
           email: "test@example.com",
           isAdmin: false,
-          isTeacher: false,
           token: "token",
         },
         expires: "2024-12-31",
@@ -77,7 +73,6 @@ describe("auth-utils", () => {
           email: "test@example.com",
           roles: [],
           isAdmin: false,
-          isTeacher: false,
           token: "token",
         },
         expires: "2024-12-31",
@@ -94,7 +89,6 @@ describe("auth-utils", () => {
           id: "1",
           email: "admin@example.com",
           isAdmin: true,
-          isTeacher: false,
           token: "token",
         },
         expires: "2024-12-31",
@@ -109,7 +103,6 @@ describe("auth-utils", () => {
           id: "1",
           email: "teacher@example.com",
           isAdmin: false,
-          isTeacher: true,
           token: "token",
         },
         expires: "2024-12-31",
@@ -132,68 +125,12 @@ describe("auth-utils", () => {
         user: {
           id: "1",
           email: "test@example.com",
-          isTeacher: false,
           token: "token",
         },
         expires: "2024-12-31",
       };
 
       expect(isAdmin(session)).toBe(false);
-    });
-  });
-
-  describe("isTeacher", () => {
-    it("should return true when user is teacher", () => {
-      const session: Session = {
-        user: {
-          id: "1",
-          email: "teacher@example.com",
-          isAdmin: false,
-          isTeacher: true,
-          token: "token",
-        },
-        expires: "2024-12-31",
-      };
-
-      expect(isTeacher(session)).toBe(true);
-    });
-
-    it("should return false when user is not teacher", () => {
-      const session: Session = {
-        user: {
-          id: "1",
-          email: "admin@example.com",
-          isAdmin: true,
-          isTeacher: false,
-          token: "token",
-        },
-        expires: "2024-12-31",
-      };
-
-      expect(isTeacher(session)).toBe(false);
-    });
-
-    it("should return false when session is null", () => {
-      expect(isTeacher(null)).toBe(false);
-    });
-
-    it("should return false when user is undefined", () => {
-      const session = { expires: "2024-12-31" } as Session;
-      expect(isTeacher(session)).toBe(false);
-    });
-
-    it("should return false when isTeacher is undefined", () => {
-      const session: Session = {
-        user: {
-          id: "1",
-          email: "test@example.com",
-          isAdmin: false,
-          token: "token",
-        },
-        expires: "2024-12-31",
-      };
-
-      expect(isTeacher(session)).toBe(false);
     });
   });
 
@@ -204,7 +141,6 @@ describe("auth-utils", () => {
           id: "1",
           email: "test@example.com",
           isAdmin: false,
-          isTeacher: false,
           token: "valid-token-123",
         },
         expires: "2024-12-31",
@@ -228,7 +164,6 @@ describe("auth-utils", () => {
           id: "1",
           email: "test@example.com",
           isAdmin: false,
-          isTeacher: false,
         },
         expires: "2024-12-31",
       };
@@ -242,7 +177,6 @@ describe("auth-utils", () => {
           id: "1",
           email: "test@example.com",
           isAdmin: false,
-          isTeacher: false,
           token: "",
         },
         expires: "2024-12-31",
@@ -261,7 +195,6 @@ describe("auth-utils", () => {
           firstName: "John",
           name: "John Doe",
           isAdmin: false,
-          isTeacher: false,
           token: "token",
         },
         expires: "2024-12-31",
@@ -277,7 +210,6 @@ describe("auth-utils", () => {
           email: "test@example.com",
           name: "John Doe",
           isAdmin: false,
-          isTeacher: false,
           token: "token",
         },
         expires: "2024-12-31",
@@ -292,7 +224,6 @@ describe("auth-utils", () => {
           id: "1",
           email: "test@example.com",
           isAdmin: false,
-          isTeacher: false,
           token: "token",
         },
         expires: "2024-12-31",
@@ -318,7 +249,6 @@ describe("auth-utils", () => {
           name: undefined,
           firstName: undefined,
           isAdmin: false,
-          isTeacher: false,
           token: "token",
         },
         expires: "2024-12-31",
@@ -335,7 +265,6 @@ describe("auth-utils", () => {
           firstName: "John",
           name: "John Doe",
           isAdmin: false,
-          isTeacher: false,
           token: "token",
         },
         expires: "2024-12-31",
@@ -353,7 +282,6 @@ describe("auth-utils", () => {
           email: "test@example.com",
           roles: ["admin", "teacher", "moderator"],
           isAdmin: true,
-          isTeacher: true,
           token: "token",
         },
         expires: "2024-12-31",
@@ -369,7 +297,6 @@ describe("auth-utils", () => {
           email: "test@example.com",
           roles: ["teacher"],
           isAdmin: false,
-          isTeacher: true,
           token: "token",
         },
         expires: "2024-12-31",
@@ -393,7 +320,6 @@ describe("auth-utils", () => {
           id: "1",
           email: "test@example.com",
           isAdmin: false,
-          isTeacher: false,
           token: "token",
         },
         expires: "2024-12-31",
@@ -409,7 +335,6 @@ describe("auth-utils", () => {
           email: "test@example.com",
           roles: [],
           isAdmin: false,
-          isTeacher: false,
           token: "token",
         },
         expires: "2024-12-31",
@@ -425,7 +350,6 @@ describe("auth-utils", () => {
           email: "test@example.com",
           roles: ["super-admin", "teacher_level_2"],
           isAdmin: true,
-          isTeacher: true,
           token: "token",
         },
         expires: "2024-12-31",
@@ -442,7 +366,6 @@ describe("auth-utils", () => {
           id: "1",
           email: "test@example.com",
           isAdmin: false,
-          isTeacher: false,
           token: "token",
         },
         expires: "2024-12-31",
@@ -458,7 +381,6 @@ describe("auth-utils", () => {
           id: "1",
           email: "test@example.com",
           isAdmin: false,
-          isTeacher: false,
           token: "token",
         },
         expires: "2024-12-31",
@@ -478,7 +400,6 @@ describe("auth-utils", () => {
           id: "1",
           email: "test@example.com",
           isAdmin: false,
-          isTeacher: false,
           token: "token",
         },
         expires: "2024-12-31",
@@ -494,7 +415,6 @@ describe("auth-utils", () => {
           id: "1",
           email: "test@example.com",
           isAdmin: false,
-          isTeacher: false,
           token: "token",
         },
         expires: "2024-12-31",

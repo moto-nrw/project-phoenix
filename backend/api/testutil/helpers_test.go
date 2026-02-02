@@ -392,10 +392,9 @@ func TestTeacherTestClaims(t *testing.T) {
 	assert.Equal(t, 42, claims.ID)
 	assert.Equal(t, "teacher@example.com", claims.Sub)
 	assert.Equal(t, "teacher", claims.Username)
-	assert.Contains(t, claims.Roles, "teacher")
+	assert.Contains(t, claims.Roles, "user")
 	assert.Contains(t, claims.Permissions, "students:read")
 	assert.Contains(t, claims.Permissions, "groups:read")
-	assert.True(t, claims.IsTeacher)
 	assert.False(t, claims.IsAdmin)
 }
 

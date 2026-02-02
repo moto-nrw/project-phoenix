@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { auth } from "~/server/auth";
-import { env } from "~/env";
+import { getServerApiUrl } from "~/lib/server-api-url";
 
 export async function POST(request: NextRequest) {
   try {
@@ -14,7 +14,7 @@ export async function POST(request: NextRequest) {
 
     // Forward to backend
     const response = await fetch(
-      `${env.NEXT_PUBLIC_API_URL}/api/import/students/preview`,
+      `${getServerApiUrl()}/api/import/students/preview`,
       {
         method: "POST",
         headers: {

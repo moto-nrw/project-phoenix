@@ -242,7 +242,11 @@ func TestEndDailySessions_NoActiveSessions(t *testing.T) {
 	ctx := context.Background()
 	service := setupSessionService(t, db)
 
-	// ACT: End daily sessions with no active sessions
+	// ARRANGE: First, end any existing sessions to start with a clean slate
+	_, err := service.EndDailySessions(ctx)
+	require.NoError(t, err, "Failed to clean up existing sessions")
+
+	// ACT: End daily sessions with no active sessions (should be 0 now)
 	result, err := service.EndDailySessions(ctx)
 
 	// ASSERT

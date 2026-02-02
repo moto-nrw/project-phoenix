@@ -207,7 +207,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.Suggestions = suggestionsAPI.NewResource(api.Services.Suggestions)
 	api.Schedules = schedulesAPI.NewResource(api.Services.Schedule)
 	api.Config = configAPI.NewResource(api.Services.Config, api.Services.ActiveCleanup)
-	api.Active = activeAPI.NewResource(api.Services.Active, api.Services.Users, db)
+	api.Active = activeAPI.NewResource(api.Services.Active, api.Services.Users, api.Services.Schulhof, api.Services.UserContext, db)
 	api.IoT = iotAPI.NewResource(iotAPI.ServiceDependencies{
 		IoTService:        api.Services.IoT,
 		UsersService:      api.Services.Users,

@@ -1,5 +1,5 @@
 // lib/student-api.ts
-import { getSession } from "next-auth/react";
+import { getCachedSession } from "./session-cache";
 import { env } from "~/env";
 import api from "./api";
 import {
@@ -112,7 +112,7 @@ export async function fetchStudents(filters?: StudentFilters): Promise<{
 
   try {
     if (useProxy) {
-      const session = await getSession();
+      const session = await getCachedSession();
       const responseData = await authFetch<
         Student[] | PaginatedResponse<Student>
       >(url, { token: session?.user?.token });
@@ -176,7 +176,7 @@ export async function fetchStudent(id: string): Promise<Student> {
 
   try {
     if (useProxy) {
-      const session = await getSession();
+      const session = await getCachedSession();
       const responseData = await authFetch<ApiResponse<Student> | Student>(
         url,
         {
@@ -212,7 +212,7 @@ export async function createStudent(studentData: {
 
   try {
     if (useProxy) {
-      const session = await getSession();
+      const session = await getCachedSession();
       const responseData = await authFetch<
         ApiResponse<BackendStudent> | BackendStudent
       >(url, {
@@ -246,7 +246,7 @@ export async function updateStudent(
 
   try {
     if (useProxy) {
-      const session = await getSession();
+      const session = await getCachedSession();
       const responseData = await authFetch<
         ApiResponse<BackendStudent> | BackendStudent
       >(url, { method: "PUT", body: studentData, token: session?.user?.token });
@@ -273,7 +273,7 @@ export async function deleteStudent(id: string): Promise<void> {
 
   try {
     if (useProxy) {
-      const session = await getSession();
+      const session = await getCachedSession();
       await authFetch<void>(url, {
         method: "DELETE",
         token: session?.user?.token,
@@ -293,7 +293,7 @@ export async function fetchGroups(): Promise<Group[]> {
 
   try {
     if (useProxy) {
-      const session = await getSession();
+      const session = await getCachedSession();
       const responseData = await authFetch<BackendGroup[]>(url, {
         token: session?.user?.token,
       });
@@ -321,7 +321,7 @@ export async function fetchStudentPrivacyConsent(
 
   try {
     if (useProxy) {
-      const session = await getSession();
+      const session = await getCachedSession();
       // Cannot use authFetch here due to special 404 handling
       const response = await fetch(url, {
         method: "GET",
@@ -369,7 +369,7 @@ export async function updateStudentPrivacyConsent(
 
   try {
     if (useProxy) {
-      const session = await getSession();
+      const session = await getCachedSession();
       const responseData = await authFetch<ApiResponse<BackendPrivacyConsent>>(
         url,
         { method: "PUT", body: consentData, token: session?.user?.token },
@@ -377,7 +377,7 @@ export async function updateStudentPrivacyConsent(
       return mapPrivacyConsentResponse(responseData.data);
     }
 
-    const session = await getSession();
+    const session = await getCachedSession();
     const response = await api.put<ApiResponse<BackendPrivacyConsent>>(
       url,
       consentData,

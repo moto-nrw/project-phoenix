@@ -485,7 +485,6 @@ func TestFullRequestLifecycle_AccessToken(t *testing.T) {
 		Roles:       []string{"admin", "user"},
 		Permissions: []string{"read", "write", "delete"},
 		IsAdmin:     true,
-		IsTeacher:   false,
 	}
 
 	refreshClaims := RefreshClaims{
@@ -516,7 +515,6 @@ func TestFullRequestLifecycle_AccessToken(t *testing.T) {
 		assert.Equal(t, []string{"admin", "user"}, claims.Roles)
 		assert.Equal(t, []string{"read", "write", "delete"}, perms)
 		assert.True(t, claims.IsAdmin)
-		assert.False(t, claims.IsTeacher)
 
 		w.WriteHeader(http.StatusOK)
 	})
