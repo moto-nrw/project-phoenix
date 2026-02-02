@@ -19,6 +19,7 @@ type sseConnection struct {
 	writer  http.ResponseWriter
 	flusher http.Flusher
 	staffID int64
+	userID  int64 // Account ID for user-specific subscriptions (settings)
 	client  *realtime.Client
 	topics  *sseTopics
 }
@@ -27,6 +28,7 @@ type sseConnection struct {
 type sseTopics struct {
 	activeGroupIDs []string
 	eduTopics      []string
+	settingsTopics []string
 	allTopics      []string
 }
 
@@ -36,6 +38,7 @@ type connectedEvent struct {
 	SupervisedGroupCount     int      `json:"supervisedGroupCount"`
 	ActiveGroupIDs           []string `json:"activeGroupIds"`
 	EducationalGroupTopics   []string `json:"educationalGroupTopics"`
+	SettingsTopics           []string `json:"settingsTopics"`
 	SubscribedTopicCount     int      `json:"subscribedTopicCount"`
 	SubscribedTopicSnapshots []string `json:"subscribedTopics"`
 }
@@ -62,27 +65,28 @@ func (rs *Resource) setupSSEConnection(w http.ResponseWriter) (*sseConnection, i
 }
 
 // resolveStaff extracts JWT claims and resolves the staff member
-// Returns error message and HTTP status code on failure
-func (rs *Resource) resolveStaff(ctx context.Context) (*users.Staff, string, int) {
+// Returns staff, account ID (for settings subscriptions), error message, and HTTP status code
+func (rs *Resource) resolveStaff(ctx context.Context) (*users.Staff, int64, string, int) {
 	claims := jwt.ClaimsFromCtx(ctx)
+	accountID := int64(claims.ID)
 
 	// Get person from account ID
-	person, err := rs.personSvc.FindByAccountID(ctx, int64(claims.ID))
+	person, err := rs.personSvc.FindByAccountID(ctx, accountID)
 	if err != nil || person == nil {
-		return nil, "Account not found", http.StatusUnauthorized
+		return nil, 0, "Account not found", http.StatusUnauthorized
 	}
 
 	// Get staff from person ID
 	staff, err := rs.personSvc.StaffRepository().FindByPersonID(ctx, person.ID)
 	if err != nil || staff == nil {
-		return nil, "User is not a staff member", http.StatusForbidden
+		return nil, 0, "User is not a staff member", http.StatusForbidden
 	}
 
-	return staff, "", 0
+	return staff, accountID, "", 0
 }
 
 // buildSubscriptionTopics builds the list of topics to subscribe to
-func (rs *Resource) buildSubscriptionTopics(ctx context.Context, staffID int64) (*sseTopics, error) {
+func (rs *Resource) buildSubscriptionTopics(ctx context.Context, staffID, userID int64) (*sseTopics, error) {
 	// Get supervised active groups for this staff member
 	supervisions, err := rs.activeSvc.GetStaffActiveSupervisions(ctx, staffID)
 	if err != nil {
@@ -90,9 +94,10 @@ func (rs *Resource) buildSubscriptionTopics(ctx context.Context, staffID int64) 
 		return nil, err
 	}
 
-	// Prepare subscription topics (active groups + derived educational groups)
+	// Prepare subscription topics (active groups + educational groups + settings)
 	activeGroupIDs := make([]string, 0, len(supervisions))
 	eduTopics := make([]string, 0)
+	settingsTopics := make([]string, 0, 2)
 	allTopics := make([]string, 0)
 	topicSet := make(map[string]struct{})
 
@@ -128,9 +133,19 @@ func (rs *Resource) buildSubscriptionTopics(ctx context.Context, staffID int64) 
 		}
 	}
 
+	// Subscribe to settings topics (system-wide + user-specific)
+	systemSettingsTopic := "settings:system"
+	settingsTopics = append(settingsTopics, systemSettingsTopic)
+	addTopic(systemSettingsTopic)
+
+	userSettingsTopic := fmt.Sprintf("settings:user:%d", userID)
+	settingsTopics = append(settingsTopics, userSettingsTopic)
+	addTopic(userSettingsTopic)
+
 	return &sseTopics{
 		activeGroupIDs: activeGroupIDs,
 		eduTopics:      eduTopics,
+		settingsTopics: settingsTopics,
 		allTopics:      allTopics,
 	}, nil
 }
@@ -142,6 +157,7 @@ func (conn *sseConnection) sendConnectedEvent(topics *sseTopics) error {
 		SupervisedGroupCount:     len(topics.activeGroupIDs),
 		ActiveGroupIDs:           topics.activeGroupIDs,
 		EducationalGroupTopics:   topics.eduTopics,
+		SettingsTopics:           topics.settingsTopics,
 		SubscribedTopicCount:     len(topics.allTopics),
 		SubscribedTopicSnapshots: topics.allTopics,
 	}

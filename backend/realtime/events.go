@@ -17,6 +17,9 @@ const (
 	EventActivityStart  EventType = "activity_start"
 	EventActivityEnd    EventType = "activity_end"
 	EventActivityUpdate EventType = "activity_update"
+
+	// Settings change events
+	EventSettingChanged EventType = "setting_changed"
 )
 
 // Event represents a Server-Sent Event that will be broadcast to clients
@@ -42,6 +45,10 @@ type EventData struct {
 	RoomName      *string   `json:"room_name,omitempty"`
 	SupervisorIDs *[]string `json:"supervisor_ids,omitempty"`
 
+	// Settings change fields (for setting_changed events)
+	SettingKey   *string `json:"setting_key,omitempty"`
+	SettingScope *string `json:"setting_scope,omitempty"` // "system", "user", "device"
+
 	// Source tracking
 	Source *string `json:"source,omitempty"` // "rfid", "manual", "automated"
 }
@@ -53,5 +60,19 @@ func NewEvent(eventType EventType, activeGroupID string, data EventData) Event {
 		ActiveGroupID: activeGroupID,
 		Data:          data,
 		Timestamp:     time.Now(),
+	}
+}
+
+// NewSettingChangedEvent creates a setting changed event for SSE broadcast
+// topic should be in format "settings:system" or "settings:user:{id}"
+func NewSettingChangedEvent(topic, key, scope string) Event {
+	return Event{
+		Type:          EventSettingChanged,
+		ActiveGroupID: topic, // Reusing this field for topic routing
+		Data: EventData{
+			SettingKey:   &key,
+			SettingScope: &scope,
+		},
+		Timestamp: time.Now(),
 	}
 }

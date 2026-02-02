@@ -14,6 +14,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize/policies"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/email"
+	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	importModels "github.com/moto-nrw/project-phoenix/models/import"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/active"
@@ -221,6 +222,28 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 		}
 		log.Printf("[Settings] %s changed: key=%s scope=%s old=%q new=%q",
 			event.Action, event.Key, event.Scope, oldVal, newVal)
+	})
+
+	// Register SSE broadcaster for settings changes (real-time notifications)
+	hierarchicalSettingsService.AddChangeListener(func(event config.SettingChangeEvent) {
+		// Determine SSE topic based on scope
+		var topic string
+		switch event.Scope {
+		case configModels.ScopeSystem:
+			topic = "settings:system"
+		case configModels.ScopeUser:
+			if event.ScopeID != nil {
+				topic = fmt.Sprintf("settings:user:%d", *event.ScopeID)
+			} else {
+				return // User scope without ID - skip
+			}
+		default:
+			return // Unknown scope - skip
+		}
+
+		// Broadcast setting change via SSE (fire-and-forget)
+		sseEvent := realtime.NewSettingChangedEvent(topic, event.Key, string(event.Scope))
+		_ = realtimeHub.BroadcastToTopic(topic, sseEvent)
 	})
 
 	// Initialize activities service
