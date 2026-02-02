@@ -521,8 +521,14 @@ function ClockInCard({
                   <>
                     {/* Backdrop to close menu */}
                     <div
+                      role="button"
+                      tabIndex={0}
                       className="fixed inset-0 z-10"
                       onClick={() => setBreakMenuOpen(false)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Escape" || e.key === "Enter")
+                          setBreakMenuOpen(false);
+                      }}
                     />
                     <div className="absolute top-full left-0 z-20 mt-2 flex gap-1.5 rounded-xl border border-gray-200 bg-white p-2 shadow-lg">
                       {BREAK_OPTIONS.map((mins) => (
@@ -1520,7 +1526,15 @@ function WeekTable({
               return (
                 <div
                   key={dateKey}
+                  role="button"
+                  tabIndex={0}
                   onClick={() => onEditDay(day, null, absence)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      onEditDay(day, null, absence);
+                    }
+                  }}
                   className={`cursor-pointer py-3 transition-colors hover:bg-gray-50 ${isToday ? "rounded-lg bg-blue-50/50" : ""}`}
                 >
                   <div className="flex items-center justify-between">
@@ -1745,7 +1759,15 @@ function WeekTable({
                   return (
                     <tr
                       key={dateKey}
+                      role="button"
+                      tabIndex={0}
                       onClick={() => onEditDay(day, null, absence)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          onEditDay(day, null, absence);
+                        }
+                      }}
                       className={`group/row cursor-pointer border-b border-gray-50 transition-colors hover:bg-gray-50 ${isToday ? "bg-blue-50/50" : ""}`}
                     >
                       <td className="px-6 py-3 font-medium text-gray-700">
