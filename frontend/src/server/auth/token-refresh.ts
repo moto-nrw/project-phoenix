@@ -1,5 +1,5 @@
 import { auth, signIn } from "~/server/auth";
-import { env } from "~/env";
+import { getServerApiUrl } from "~/lib/server-api-url";
 
 type TokenPair = {
   accessToken: string;
@@ -29,7 +29,7 @@ export async function refreshSessionTokensOnServer(): Promise<TokenPair | null> 
         return null;
       }
 
-      const response = await fetch(`${env.NEXT_PUBLIC_API_URL}/auth/refresh`, {
+      const response = await fetch(`${getServerApiUrl()}/auth/refresh`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${refreshToken}`,

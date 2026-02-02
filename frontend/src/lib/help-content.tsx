@@ -290,10 +290,7 @@ export const SPECIFIC_PAGE_HELP: Record<string, ReactNode> = {
             title="Basisdaten"
             description="Name, Gebäude und Etage"
           />
-          <InfoListItem
-            title="Aktuelle Belegung"
-            description="Live-Status"
-          />
+          <InfoListItem title="Aktuelle Belegung" description="Live-Status" />
           <InfoListItem
             title="Nutzungshistorie"
             description="Chronologische Übersicht aller Aktivitäten"
@@ -970,6 +967,98 @@ export const NAVIGATION_HELP: Record<
               description="Vor- und Nachname ändern"
             />
             <InfoListItem title="Sicherheit" description="Passwort ändern" />
+          </div>
+        </div>
+      </div>
+    ),
+  },
+
+  "/suggestions": {
+    title: "Feedback Hilfe",
+    content: (
+      <div className="space-y-6">
+        <div>
+          <h3 className="mb-3 flex items-center text-lg font-semibold text-gray-900">
+            <span className="mr-3 h-2 w-2 rounded-full bg-blue-500"></span>
+            {"Feedback & Vorschläge"}
+          </h3>
+          <p className="leading-relaxed text-gray-700">
+            Das Feedback-Board ermöglicht es allen Mitarbeitenden, Ideen und
+            Verbesserungsvorschläge einzubringen und über bestehende Vorschläge
+            abzustimmen.
+          </p>
+        </div>
+
+        <div className="rounded-lg bg-gray-50 p-4">
+          <h4 className="mb-3 font-semibold text-gray-900">
+            Vorschläge erstellen & verwalten
+          </h4>
+          <div className="space-y-2 text-sm">
+            <BulletItem>
+              <strong>Neuer Beitrag:</strong> Erstelle einen Vorschlag mit Titel
+              und Beschreibung
+            </BulletItem>
+            <BulletItem>
+              <strong>Bearbeiten:</strong> Eigene Beiträge nachträglich ändern
+            </BulletItem>
+            <BulletItem>
+              <strong>Löschen:</strong> Eigene Beiträge entfernen
+            </BulletItem>
+          </div>
+        </div>
+
+        <div className="rounded-lg bg-gray-50 p-4">
+          <h4 className="mb-3 font-semibold text-gray-900">Abstimmung</h4>
+          <div className="space-y-2 text-sm">
+            <BulletItem>
+              <strong>Daumen hoch/runter:</strong> Stimme für oder gegen einen
+              Vorschlag
+            </BulletItem>
+            <BulletItem>
+              <strong>Stimme ändern:</strong> Klicke auf die andere Richtung, um
+              deine Stimme zu wechseln
+            </BulletItem>
+            <BulletItem>
+              <strong>Stimme zurücknehmen:</strong> Klicke erneut auf deine
+              aktive Stimme, um sie zu entfernen
+            </BulletItem>
+          </div>
+        </div>
+
+        <div className="rounded-lg bg-gray-50 p-4">
+          <h4 className="mb-3 font-semibold text-gray-900">
+            Sortierung & Filter
+          </h4>
+          <div className="space-y-2 text-sm">
+            <BulletItem>
+              <strong>Beliebteste:</strong> Sortiert nach Bewertung (Upvotes
+              minus Downvotes)
+            </BulletItem>
+            <BulletItem>
+              <strong>Neueste:</strong> Sortiert nach Erstellungsdatum
+            </BulletItem>
+            <BulletItem>
+              <strong>Suchfeld:</strong> Durchsuche Titel, Beschreibung und
+              Autorname
+            </BulletItem>
+          </div>
+        </div>
+
+        <div className="rounded-lg bg-gray-50 p-4">
+          <h4 className="mb-3 font-semibold text-gray-900">Status-Anzeige</h4>
+          <div className="space-y-2 text-sm">
+            <StatusBulletItem color="bg-gray-400">
+              <strong>Offen:</strong> Neuer Vorschlag, noch nicht bearbeitet
+            </StatusBulletItem>
+            <StatusBulletItem color="bg-blue-500">
+              <strong>Geplant:</strong> Vorschlag wird zur Umsetzung eingeplant
+            </StatusBulletItem>
+            <StatusBulletItem color="bg-green-500">
+              <strong>Umgesetzt:</strong> Vorschlag wurde erfolgreich umgesetzt
+            </StatusBulletItem>
+            <StatusBulletItem color="bg-red-500">
+              <strong>Abgelehnt:</strong> Vorschlag wird nicht umgesetzt
+            </StatusBulletItem>
           </div>
         </div>
       </div>

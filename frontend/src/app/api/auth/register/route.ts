@@ -1,7 +1,7 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { auth } from "~/server/auth";
-import { env } from "~/env";
+import { getServerApiUrl } from "~/lib/server-api-url";
 
 export async function POST(request: NextRequest) {
   try {
@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
       headers.Authorization = `Bearer ${session.user.token}`;
     }
 
-    const response = await fetch(`${env.NEXT_PUBLIC_API_URL}/auth/register`, {
+    const response = await fetch(`${getServerApiUrl()}/auth/register`, {
       method: "POST",
       headers,
       body: JSON.stringify(requestBody),

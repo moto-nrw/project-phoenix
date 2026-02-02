@@ -161,7 +161,7 @@ const mockPickupData: PickupData = {
   notes: [],
 };
 
-const COMPONENT_TITLE = "Abholplan und Notizen";
+const COMPONENT_TITLE = "Abholplan & Notizen";
 
 describe("PickupScheduleManager", () => {
   beforeEach(() => {

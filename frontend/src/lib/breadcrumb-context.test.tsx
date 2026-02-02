@@ -1,11 +1,12 @@
 import { render, screen, act } from "@testing-library/react";
 import { renderHook } from "@testing-library/react";
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { ReactNode } from "react";
 import {
   BreadcrumbProvider,
   useBreadcrumb,
   useSetBreadcrumb,
+  useStudentHistoryBreadcrumb,
 } from "./breadcrumb-context";
 
 function wrapper({ children }: { children: ReactNode }) {
@@ -129,5 +130,171 @@ describe("useSetBreadcrumb", () => {
     );
 
     expect(breadcrumbResult?.breadcrumb).toEqual({ studentName: "Lisa" });
+  });
+});
+
+describe("useStudentHistoryBreadcrumb", () => {
+  let originalGetItem: typeof localStorage.getItem;
+
+  beforeEach(() => {
+    originalGetItem = localStorage.getItem.bind(localStorage);
+    Object.defineProperty(localStorage, "getItem", {
+      value: vi.fn().mockReturnValue(null),
+      writable: true,
+      configurable: true,
+    });
+  });
+
+  afterEach(() => {
+    Object.defineProperty(localStorage, "getItem", {
+      value: originalGetItem,
+      writable: true,
+      configurable: true,
+    });
+  });
+
+  it("sets breadcrumb with OGS group name from localStorage when referrer is /ogs-groups", () => {
+    (localStorage.getItem as ReturnType<typeof vi.fn>).mockImplementation(
+      (key: string) => {
+        if (key === "sidebar-last-group-name") return "Eulen";
+        return null;
+      },
+    );
+
+    let breadcrumbResult: ReturnType<typeof useBreadcrumb> | undefined;
+
+    function TestConsumer() {
+      useStudentHistoryBreadcrumb({
+        studentName: "Max Mustermann",
+        referrer: "/ogs-groups",
+      });
+      breadcrumbResult = useBreadcrumb();
+      return <div>consumer</div>;
+    }
+
+    render(
+      <BreadcrumbProvider>
+        <TestConsumer />
+      </BreadcrumbProvider>,
+    );
+
+    expect(breadcrumbResult?.breadcrumb).toEqual({
+      studentName: "Max Mustermann",
+      referrerPage: "/ogs-groups",
+      ogsGroupName: "Eulen",
+      activeSupervisionName: undefined,
+    });
+  });
+
+  it("sets breadcrumb with room name from localStorage when referrer is /active-supervisions", () => {
+    (localStorage.getItem as ReturnType<typeof vi.fn>).mockImplementation(
+      (key: string) => {
+        if (key === "sidebar-last-room-name") return "Raum A";
+        return null;
+      },
+    );
+
+    let breadcrumbResult: ReturnType<typeof useBreadcrumb> | undefined;
+
+    function TestConsumer() {
+      useStudentHistoryBreadcrumb({
+        studentName: "Lisa Schmidt",
+        referrer: "/active-supervisions",
+      });
+      breadcrumbResult = useBreadcrumb();
+      return <div>consumer</div>;
+    }
+
+    render(
+      <BreadcrumbProvider>
+        <TestConsumer />
+      </BreadcrumbProvider>,
+    );
+
+    expect(breadcrumbResult?.breadcrumb).toEqual({
+      studentName: "Lisa Schmidt",
+      referrerPage: "/active-supervisions",
+      ogsGroupName: undefined,
+      activeSupervisionName: "Raum A",
+    });
+  });
+
+  it("sets breadcrumb without group/room names for other referrers", () => {
+    let breadcrumbResult: ReturnType<typeof useBreadcrumb> | undefined;
+
+    function TestConsumer() {
+      useStudentHistoryBreadcrumb({
+        studentName: "Tom Test",
+        referrer: "/students/search",
+      });
+      breadcrumbResult = useBreadcrumb();
+      return <div>consumer</div>;
+    }
+
+    render(
+      <BreadcrumbProvider>
+        <TestConsumer />
+      </BreadcrumbProvider>,
+    );
+
+    expect(breadcrumbResult?.breadcrumb).toEqual({
+      studentName: "Tom Test",
+      referrerPage: "/students/search",
+      ogsGroupName: undefined,
+      activeSupervisionName: undefined,
+    });
+  });
+
+  it("handles null localStorage values gracefully", () => {
+    // getItem already mocked to return null in beforeEach
+
+    let breadcrumbResult: ReturnType<typeof useBreadcrumb> | undefined;
+
+    function TestConsumer() {
+      useStudentHistoryBreadcrumb({
+        studentName: "Anna Test",
+        referrer: "/ogs-groups",
+      });
+      breadcrumbResult = useBreadcrumb();
+      return <div>consumer</div>;
+    }
+
+    render(
+      <BreadcrumbProvider>
+        <TestConsumer />
+      </BreadcrumbProvider>,
+    );
+
+    expect(breadcrumbResult?.breadcrumb).toEqual({
+      studentName: "Anna Test",
+      referrerPage: "/ogs-groups",
+      ogsGroupName: undefined,
+      activeSupervisionName: undefined,
+    });
+  });
+
+  it("works without studentName", () => {
+    let breadcrumbResult: ReturnType<typeof useBreadcrumb> | undefined;
+
+    function TestConsumer() {
+      useStudentHistoryBreadcrumb({
+        referrer: "/students/search",
+      });
+      breadcrumbResult = useBreadcrumb();
+      return <div>consumer</div>;
+    }
+
+    render(
+      <BreadcrumbProvider>
+        <TestConsumer />
+      </BreadcrumbProvider>,
+    );
+
+    expect(breadcrumbResult?.breadcrumb).toEqual({
+      studentName: undefined,
+      referrerPage: "/students/search",
+      ogsGroupName: undefined,
+      activeSupervisionName: undefined,
+    });
   });
 });

@@ -27,6 +27,7 @@ import (
 	importService "github.com/moto-nrw/project-phoenix/services/import"
 	"github.com/moto-nrw/project-phoenix/services/iot"
 	"github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/services/suggestions"
 	"github.com/moto-nrw/project-phoenix/services/usercontext"
 	"github.com/moto-nrw/project-phoenix/services/users"
 )
@@ -40,8 +41,10 @@ type Factory struct {
 	Education                education.Service
 	GradeTransition          education.GradeTransitionService
 	Facilities               facilities.Service
+	Schulhof                 facilities.SchulhofService
 	Invitation               auth.InvitationService
 	Feedback                 feedback.Service
+	Suggestions              suggestions.Service
 	IoT                      iot.Service
 	Config                   config.Service
 	Schedule                 schedule.Service
@@ -185,6 +188,13 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 		db,
 	)
 
+	// Initialize suggestions service
+	suggestionsService := suggestions.NewService(
+		repos.SuggestionPost,
+		repos.SuggestionVote,
+		db,
+	)
+
 	// Initialize IoT service
 	iotService := iot.NewService(
 		repos.Device,
@@ -214,6 +224,14 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 	facilitiesService := facilities.NewService(
 		repos.Room,
 		repos.ActiveGroup,
+		db,
+	)
+
+	// Initialize Schulhof service (depends on facilities, activities, and active services)
+	schulhofService := facilities.NewSchulhofService(
+		facilitiesService,
+		activitiesService,
+		activeService,
 		db,
 	)
 
@@ -335,7 +353,9 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 		Education:                educationService,
 		GradeTransition:          gradeTransitionService,
 		Facilities:               facilitiesService,
+		Schulhof:                 schulhofService,
 		Feedback:                 feedbackService,
+		Suggestions:              suggestionsService,
 		IoT:                      iotService,
 		Config:                   configService,
 		Schedule:                 scheduleService,

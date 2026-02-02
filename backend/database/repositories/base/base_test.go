@@ -118,11 +118,42 @@ func TestRepository_FindByID_NotFound(t *testing.T) {
 }
 
 // TestRepository_Update tests the Update method
-// Note: This test is skipped because the base repository's Update method
-// uses WherePK() which doesn't work correctly with schema-qualified table aliases.
-// Domain-specific repositories that need Update should implement their own version.
 func TestRepository_Update(t *testing.T) {
-	t.Skip("Skipped: base repository Update with WherePK() has known issues with schema-qualified tables")
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := base.NewRepository[*configModels.Setting](db, "config.settings", "Setting")
+	ctx := context.Background()
+
+	// Create a test setting
+	key := uniqueKey("test_base_repo_update")
+	setting := &configModels.Setting{
+		Key:         key,
+		Value:       "original_value",
+		Description: "Test setting for Update",
+		Category:    "test",
+	}
+	_, err := db.NewInsert().Model(setting).ModelTableExpr("config.settings").Exec(ctx)
+	require.NoError(t, err)
+	require.NotZero(t, setting.ID)
+
+	// Cleanup after test
+	defer func() {
+		_, _ = db.NewDelete().Model(setting).
+			ModelTableExpr("config.settings").
+			Where("key = ?", setting.Key).
+			Exec(ctx)
+	}()
+
+	// Update the setting
+	setting.Value = "updated_value"
+	err = repo.Update(ctx, setting)
+	require.NoError(t, err)
+
+	// Verify the update
+	found, err := repo.FindByID(ctx, setting.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "updated_value", found.Value)
 }
 
 // TestRepository_Update_NilEntity tests Update with nil entity

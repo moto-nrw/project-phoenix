@@ -14,6 +14,7 @@ import { Loading } from "~/components/ui/loading";
 import { useProfile } from "~/lib/profile-context";
 import { compressAvatar } from "~/lib/image-utils";
 import { navigationIcons } from "~/lib/navigation-icons";
+import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
 
 // Tab configuration
 interface Tab {
@@ -378,48 +379,23 @@ function SettingsContent() {
         <PageHeaderWithSearch title="Einstellungen" />
       )}
 
-      {/* Tab Navigation - Desktop with new underline style */}
+      {/* Tab Navigation - Desktop with line variant */}
       {!isMobile && (
         <div className="mb-6 ml-6">
-          <div className="relative flex gap-8">
-            {allTabs.map((tab) => {
-              const isActive = activeTab === tab.id;
-              return (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`relative flex items-center gap-2 pb-3 text-sm font-medium transition-all ${
-                    isActive
-                      ? "font-semibold text-gray-900"
-                      : "text-gray-500 hover:text-gray-700"
-                  } `}
-                >
-                  <svg
-                    className="h-4 w-4"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d={tab.icon}
-                    />
-                  </svg>
-                  <span>{tab.label}</span>
+          <Tabs value={activeTab ?? "profile"} onValueChange={setActiveTab}>
+            <TabsList variant="line">
+              {allTabs.map((tab) => (
+                <TabsTrigger key={tab.id} value={tab.id}>
+                  {tab.label}
                   {tab.adminOnly && (
                     <span className="ml-1 rounded bg-gray-200 px-1.5 py-0.5 text-xs">
                       Admin
                     </span>
                   )}
-                  {isActive && (
-                    <div className="absolute right-0 bottom-0 left-0 h-0.5 rounded-full bg-gray-900" />
-                  )}
-                </button>
-              );
-            })}
-          </div>
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </Tabs>
         </div>
       )}
 

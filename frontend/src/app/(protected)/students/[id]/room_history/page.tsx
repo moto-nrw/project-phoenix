@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Alert } from "~/components/ui/alert";
 import { useSession } from "next-auth/react";
-import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
+import { useStudentHistoryBreadcrumb } from "~/lib/breadcrumb-context";
 
 import { Loading } from "~/components/ui/loading";
 // Student type (reused from student page)
@@ -52,8 +52,7 @@ export default function StudentRoomHistoryPage() {
   const [error, setError] = useState<string | null>(null);
   const [timeRange, setTimeRange] = useState<string>("7days"); // Default to last 7 days
 
-  // Set breadcrumb for persistent header
-  useSetBreadcrumb({ studentName: student?.name, referrerPage: referrer });
+  useStudentHistoryBreadcrumb({ studentName: student?.name, referrer });
 
   // Fetch student data and room history
   useEffect(() => {

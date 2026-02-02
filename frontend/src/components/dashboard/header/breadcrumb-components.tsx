@@ -237,6 +237,7 @@ interface StudentHistoryBreadcrumbProps {
   readonly studentName: string;
   readonly historyType: string;
   readonly isScrolled?: boolean;
+  readonly subSectionName?: string;
 }
 
 export function StudentHistoryBreadcrumb({
@@ -246,11 +247,18 @@ export function StudentHistoryBreadcrumb({
   studentName,
   historyType,
   isScrolled = false,
+  subSectionName,
 }: StudentHistoryBreadcrumbProps) {
   return (
     <BreadcrumbNav isScrolled={isScrolled}>
       <BreadcrumbLink href={referrer}>{breadcrumbLabel}</BreadcrumbLink>
       <BreadcrumbSeparator />
+      {subSectionName ? (
+        <>
+          <BreadcrumbLink href={referrer}>{subSectionName}</BreadcrumbLink>
+          <BreadcrumbSeparator />
+        </>
+      ) : null}
       <BreadcrumbLink href={pathname.split("/").slice(0, 3).join("/")}>
         {studentName}
       </BreadcrumbLink>
@@ -268,6 +276,7 @@ interface StudentDetailBreadcrumbProps {
   readonly breadcrumbLabel: string;
   readonly studentName: string;
   readonly isScrolled?: boolean;
+  readonly subSectionName?: string;
 }
 
 export function StudentDetailBreadcrumb({
@@ -275,11 +284,18 @@ export function StudentDetailBreadcrumb({
   breadcrumbLabel,
   studentName,
   isScrolled = false,
+  subSectionName,
 }: StudentDetailBreadcrumbProps) {
   return (
     <BreadcrumbNav isScrolled={isScrolled}>
       <BreadcrumbLink href={referrer}>{breadcrumbLabel}</BreadcrumbLink>
       <BreadcrumbSeparator />
+      {subSectionName ? (
+        <>
+          <BreadcrumbLink href={referrer}>{subSectionName}</BreadcrumbLink>
+          <BreadcrumbSeparator />
+        </>
+      ) : null}
       <BreadcrumbCurrent>{studentName}</BreadcrumbCurrent>
     </BreadcrumbNav>
   );

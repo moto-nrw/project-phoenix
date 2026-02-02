@@ -21,7 +21,6 @@ import {
   StudentDetailHeader,
   SupervisorsCard,
   PersonalInfoReadOnly,
-  FullAccessPersonalInfoReadOnly,
   StudentHistorySection,
 } from "~/components/students/student-detail-components";
 import { PersonalInfoFormModal } from "~/components/students/personal-info-form-modal";
@@ -61,10 +60,23 @@ export default function StudentDetailPage() {
     refreshData,
   } = useStudentData(studentId);
 
-  // Set breadcrumb data
+  // Set breadcrumb data — include group/room name for 3-level breadcrumb
+  // when navigating from an accordion section (e.g. Meine Gruppe > 1a > Mia Fischer)
+  const breadcrumbGroupName =
+    referrer.startsWith("/ogs-groups") && globalThis.window !== undefined
+      ? localStorage.getItem("sidebar-last-group-name")
+      : undefined;
+  const breadcrumbRoomName =
+    referrer.startsWith("/active-supervisions") &&
+    globalThis.window !== undefined
+      ? localStorage.getItem("sidebar-last-room-name")
+      : undefined;
+
   useSetBreadcrumb({
     studentName: student?.name,
     referrerPage: referrer,
+    ogsGroupName: breadcrumbGroupName ?? undefined,
+    activeSupervisionName: breadcrumbRoomName ?? undefined,
   });
 
   // Personal info modal state
@@ -430,7 +442,15 @@ function LimitedAccessView({
 
       <SupervisorsCard supervisors={supervisors} studentName={student.name} />
 
+      <PickupScheduleManager
+        studentId={student.id}
+        readOnly={true}
+        isSick={student.sick}
+      />
+
       <PersonalInfoReadOnly student={student} />
+
+      <StudentGuardianManager studentId={student.id} readOnly={true} />
     </div>
   );
 }
@@ -481,8 +501,9 @@ function FullAccessView({
           isSick={student.sick}
         />
 
-        <FullAccessPersonalInfoReadOnly
+        <PersonalInfoReadOnly
           student={student}
+          showEditButton={true}
           onEditClick={onOpenPersonalInfoModal}
         />
 

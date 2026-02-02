@@ -4,6 +4,17 @@ import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import SettingsPage from "./page";
 
+/**
+ * Radix UI components rely on pointer events for activation, not just click.
+ * happy-dom's fireEvent.click doesn't fire the pointer event chain that Radix expects.
+ * This helper simulates the full pointer interaction sequence.
+ */
+function clickRadixTrigger(element: HTMLElement) {
+  fireEvent.mouseDown(element, { button: 0 });
+  fireEvent.mouseUp(element, { button: 0 });
+  fireEvent.click(element);
+}
+
 // Mock next-auth
 const mockUseSession = vi.fn();
 vi.mock("next-auth/react", () => ({
@@ -465,10 +476,10 @@ describe("SettingsPage", () => {
     it("should switch to security tab when clicked", async () => {
       render(<SettingsPage />);
 
-      const securityTab = screen.getByRole("button", {
+      const securityTab = screen.getByRole("tab", {
         name: /^.*sicherheit$/i,
       });
-      fireEvent.click(securityTab);
+      clickRadixTrigger(securityTab);
 
       await waitFor(
         () => {
@@ -485,8 +496,8 @@ describe("SettingsPage", () => {
     it("should open password change modal", async () => {
       render(<SettingsPage />);
 
-      const securityTab = screen.getByRole("button", { name: /sicherheit/i });
-      fireEvent.click(securityTab);
+      const securityTab = screen.getByRole("tab", { name: /sicherheit/i });
+      clickRadixTrigger(securityTab);
 
       await waitFor(() => {
         const changePasswordButton = screen.getByRole("button", {
@@ -503,8 +514,8 @@ describe("SettingsPage", () => {
     it("should close password modal and show success toast on success", async () => {
       render(<SettingsPage />);
 
-      const securityTab = screen.getByRole("button", { name: /sicherheit/i });
-      fireEvent.click(securityTab);
+      const securityTab = screen.getByRole("tab", { name: /sicherheit/i });
+      clickRadixTrigger(securityTab);
 
       await waitFor(() => {
         const changePasswordButton = screen.getByRole("button", {
@@ -529,8 +540,8 @@ describe("SettingsPage", () => {
     it("should close password modal when close button clicked", async () => {
       render(<SettingsPage />);
 
-      const securityTab = screen.getByRole("button", { name: /sicherheit/i });
-      fireEvent.click(securityTab);
+      const securityTab = screen.getByRole("tab", { name: /sicherheit/i });
+      clickRadixTrigger(securityTab);
 
       await waitFor(() => {
         const changePasswordButton = screen.getByRole("button", {
@@ -568,8 +579,8 @@ describe("SettingsPage", () => {
 
       await waitFor(
         () => {
-          const profileTab = screen.getByText("Profil").closest("button");
-          expect(profileTab).toHaveClass("font-semibold", "text-gray-900");
+          const profileTab = screen.getByRole("tab", { name: /profil/i });
+          expect(profileTab).toHaveAttribute("data-state", "active");
         },
         { timeout: 2000 },
       );

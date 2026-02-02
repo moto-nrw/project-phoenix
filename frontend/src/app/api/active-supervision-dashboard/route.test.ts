@@ -6,6 +6,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { Session } from "next-auth";
 import { NextRequest } from "next/server";
 import { GET } from "./route";
+import { mockSessionData } from "~/test/mocks/next-auth";
 
 interface ExtendedSession extends Session {
   user: Session["user"] & { token?: string };
@@ -50,10 +51,7 @@ function createMockContext(
   return { params: Promise.resolve(params) };
 }
 
-const defaultSession: ExtendedSession = {
-  user: { id: "1", token: "test-token", name: "Test User" },
-  expires: "2099-01-01",
-};
+const defaultSession = mockSessionData() as ExtendedSession;
 
 interface ApiResponse<T> {
   success: boolean;
@@ -94,7 +92,8 @@ describe("GET /api/active-supervision-dashboard", () => {
       .mockResolvedValueOnce({ data: [] }) // supervised groups
       .mockResolvedValueOnce({ data: unclaimedGroups }) // unclaimed groups
       .mockResolvedValueOnce({ data: staff }) // staff
-      .mockResolvedValueOnce({ data: educationalGroups }); // educational groups
+      .mockResolvedValueOnce({ data: educationalGroups }) // educational groups
+      .mockResolvedValueOnce({ data: { exists: false } }); // Schulhof status
 
     const request = createMockRequest("/api/active-supervision-dashboard");
     const response = await GET(request, createMockContext());
@@ -168,6 +167,7 @@ describe("GET /api/active-supervision-dashboard", () => {
       .mockResolvedValueOnce({ data: unclaimedGroups })
       .mockResolvedValueOnce({ data: staff })
       .mockResolvedValueOnce({ data: educationalGroups })
+      .mockResolvedValueOnce({ data: { exists: false } }) // Schulhof status
       .mockResolvedValueOnce({ data: visits }); // visits for first group
 
     const request = createMockRequest("/api/active-supervision-dashboard");
@@ -208,6 +208,7 @@ describe("GET /api/active-supervision-dashboard", () => {
       .mockResolvedValueOnce({ data: [] }) // unclaimed
       .mockResolvedValueOnce({ data: null }) // staff (not found)
       .mockResolvedValueOnce({ data: [] }) // educational groups
+      .mockResolvedValueOnce({ data: { exists: false } }) // Schulhof status
       .mockResolvedValueOnce({ data: roomData }) // room fetch
       .mockResolvedValueOnce({ data: [] }); // visits
 
@@ -235,7 +236,8 @@ describe("GET /api/active-supervision-dashboard", () => {
       .mockRejectedValueOnce(new Error("Supervised groups error"))
       .mockRejectedValueOnce(new Error("Unclaimed groups error"))
       .mockRejectedValueOnce(new Error("Staff error"))
-      .mockRejectedValueOnce(new Error("Educational groups error"));
+      .mockRejectedValueOnce(new Error("Educational groups error"))
+      .mockRejectedValueOnce(new Error("Schulhof status error"));
 
     const request = createMockRequest("/api/active-supervision-dashboard");
     const response = await GET(request, createMockContext());
@@ -267,7 +269,8 @@ describe("GET /api/active-supervision-dashboard", () => {
       .mockResolvedValueOnce({ data: null }) // supervised (null instead of array)
       .mockResolvedValueOnce({ data: null }) // unclaimed
       .mockResolvedValueOnce({ data: null }) // staff
-      .mockResolvedValueOnce({ data: null }); // educational groups
+      .mockResolvedValueOnce({ data: null }) // educational groups
+      .mockResolvedValueOnce({ data: null }); // Schulhof status
 
     const request = createMockRequest("/api/active-supervision-dashboard");
     const response = await GET(request, createMockContext());
@@ -297,6 +300,7 @@ describe("GET /api/active-supervision-dashboard", () => {
       .mockResolvedValueOnce({ data: [] })
       .mockResolvedValueOnce({ data: { id: 5 } })
       .mockResolvedValueOnce({ data: [] })
+      .mockResolvedValueOnce({ data: { exists: false } }) // Schulhof status
       .mockRejectedValueOnce(new Error("403 Forbidden")); // visits fetch fails with 403
 
     const request = createMockRequest("/api/active-supervision-dashboard");
@@ -328,6 +332,7 @@ describe("GET /api/active-supervision-dashboard", () => {
       .mockResolvedValueOnce({ data: [] })
       .mockResolvedValueOnce({ data: null })
       .mockResolvedValueOnce({ data: [] })
+      .mockResolvedValueOnce({ data: { exists: false } }) // Schulhof status
       .mockRejectedValueOnce(new Error("Room not found")) // room fetch fails
       .mockResolvedValueOnce({ data: [] }); // visits
 
@@ -363,7 +368,8 @@ describe("GET /api/active-supervision-dashboard", () => {
       .mockResolvedValueOnce({ data: [] })
       .mockResolvedValueOnce({ data: staff })
       .mockResolvedValueOnce({ data: [] })
-      .mockResolvedValueOnce({ data: [] });
+      .mockResolvedValueOnce({ data: { exists: false } }) // Schulhof status
+      .mockResolvedValueOnce({ data: [] }); // visits
 
     const request = createMockRequest("/api/active-supervision-dashboard");
     const response = await GET(request, createMockContext());
@@ -383,5 +389,143 @@ describe("GET /api/active-supervision-dashboard", () => {
     expect(json.data.supervisedGroups[0]?.id).toBe("123456789");
     expect(json.data.supervisedGroups[0]?.room?.id).toBe("987654321");
     expect(json.data.currentStaff.id).toBe("555666777");
+  });
+
+  it("handles supervised group without room_id", async () => {
+    const supervisedGroups = [
+      { id: 1, name: "Draussen" }, // No room_id, no room object
+    ];
+
+    mockApiGet
+      .mockResolvedValueOnce({ data: supervisedGroups })
+      .mockResolvedValueOnce({ data: [] }) // unclaimed
+      .mockResolvedValueOnce({ data: null }) // staff
+      .mockResolvedValueOnce({ data: [] }) // educational groups
+      .mockResolvedValueOnce({ data: { exists: false } }) // Schulhof status
+      .mockResolvedValueOnce({ data: [] }); // visits
+
+    const request = createMockRequest("/api/active-supervision-dashboard");
+    const response = await GET(request, createMockContext());
+
+    expect(response.status).toBe(200);
+
+    const json = await parseJsonResponse<
+      ApiResponse<{
+        supervisedGroups: Array<{
+          id: string;
+          name: string;
+          room_id?: string;
+          room?: { id: string; name: string };
+        }>;
+      }>
+    >(response);
+
+    expect(json.data.supervisedGroups).toHaveLength(1);
+    expect(json.data.supervisedGroups[0]?.id).toBe("1");
+    expect(json.data.supervisedGroups[0]?.room_id).toBeUndefined();
+    expect(json.data.supervisedGroups[0]?.room).toBeUndefined();
+  });
+
+  it("handles visits with missing optional fields", async () => {
+    const supervisedGroups = [
+      { id: 1, name: "Test", room: { id: 10, name: "Room A" } },
+    ];
+    const visits = [
+      {
+        id: 100,
+        student_id: 200,
+        active_group_id: 1,
+        check_in_time: "2024-01-15T10:00:00Z",
+        // Missing: student_name, school_class, group_name
+        is_active: true,
+      },
+    ];
+
+    mockApiGet
+      .mockResolvedValueOnce({ data: supervisedGroups })
+      .mockResolvedValueOnce({ data: [] })
+      .mockResolvedValueOnce({ data: null })
+      .mockResolvedValueOnce({ data: [] })
+      .mockResolvedValueOnce({ data: { exists: false } }) // Schulhof status
+      .mockResolvedValueOnce({ data: visits });
+
+    const request = createMockRequest("/api/active-supervision-dashboard");
+    const response = await GET(request, createMockContext());
+
+    const json = await parseJsonResponse<
+      ApiResponse<{
+        firstRoomVisits: Array<{
+          studentName: string;
+          schoolClass: string;
+          groupName: string;
+        }>;
+      }>
+    >(response);
+
+    // Should use empty string defaults for missing optional fields
+    expect(json.data.firstRoomVisits).toHaveLength(1);
+    expect(json.data.firstRoomVisits[0]?.studentName).toBe("");
+    expect(json.data.firstRoomVisits[0]?.schoolClass).toBe("");
+    expect(json.data.firstRoomVisits[0]?.groupName).toBe("");
+  });
+
+  it("sorts supervised groups by room name", async () => {
+    const supervisedGroups = [
+      { id: 2, name: "Group B", room: { id: 20, name: "Zimmer" } },
+      { id: 1, name: "Group A", room: { id: 10, name: "Aula" } },
+    ];
+
+    mockApiGet
+      .mockResolvedValueOnce({ data: supervisedGroups })
+      .mockResolvedValueOnce({ data: [] })
+      .mockResolvedValueOnce({ data: null })
+      .mockResolvedValueOnce({ data: [] })
+      .mockResolvedValueOnce({ data: { exists: false } }) // Schulhof status
+      .mockResolvedValueOnce({ data: [] }); // visits for first (Aula)
+
+    const request = createMockRequest("/api/active-supervision-dashboard");
+    const response = await GET(request, createMockContext());
+
+    const json = await parseJsonResponse<
+      ApiResponse<{
+        supervisedGroups: Array<{ id: string; name: string }>;
+        firstRoomId: string | null;
+      }>
+    >(response);
+
+    // Sorted by room name: "Aula" before "Zimmer"
+    expect(json.data.supervisedGroups[0]?.id).toBe("1");
+    expect(json.data.firstRoomId).toBe("1");
+  });
+
+  it("maps unclaimed groups with room names correctly", async () => {
+    const unclaimedGroups = [
+      { id: 5, name: "Unclaimed", room: { id: 50, name: "Hof" } },
+      { id: 6, name: "No Room" }, // No room object
+    ];
+
+    mockApiGet
+      .mockResolvedValueOnce({ data: [] }) // no supervised groups
+      .mockResolvedValueOnce({ data: unclaimedGroups })
+      .mockResolvedValueOnce({ data: null })
+      .mockResolvedValueOnce({ data: [] })
+      .mockResolvedValueOnce({ data: { exists: false } }); // Schulhof status
+
+    const request = createMockRequest("/api/active-supervision-dashboard");
+    const response = await GET(request, createMockContext());
+
+    const json = await parseJsonResponse<
+      ApiResponse<{
+        unclaimedGroups: Array<{
+          id: string;
+          name: string;
+          room?: { name: string };
+        }>;
+      }>
+    >(response);
+
+    expect(json.data.unclaimedGroups).toHaveLength(2);
+    expect(json.data.unclaimedGroups[0]?.room?.name).toBe("Hof");
+    expect(json.data.unclaimedGroups[1]?.room).toBeUndefined();
   });
 });

@@ -609,6 +609,110 @@ func TestScheduleCleanupTask_InvalidMinute(t *testing.T) {
 	})
 }
 
+func TestScheduleCleanupTask_NonNumericHour(t *testing.T) {
+	require.NoError(t, os.Setenv("CLEANUP_SCHEDULER_ENABLED", "true"))
+	require.NoError(t, os.Setenv("CLEANUP_SCHEDULER_TIME", "aa:00"))
+	defer func() {
+		_ = os.Unsetenv("CLEANUP_SCHEDULER_ENABLED")
+		_ = os.Unsetenv("CLEANUP_SCHEDULER_TIME")
+	}()
+
+	synctest.Test(t, func(t *testing.T) {
+		s := &Scheduler{
+			tasks: make(map[string]*ScheduledTask),
+			done:  make(chan struct{}),
+		}
+
+		// Schedule cleanup task with non-numeric hour
+		s.scheduleCleanupTask()
+
+		// Wait for goroutines to be durably blocked (fake time makes sleeps instant)
+		synctest.Wait()
+
+		// Stop scheduler
+		close(s.done)
+		s.wg.Wait()
+	})
+}
+
+func TestScheduleCleanupTask_NonNumericMinute(t *testing.T) {
+	require.NoError(t, os.Setenv("CLEANUP_SCHEDULER_ENABLED", "true"))
+	require.NoError(t, os.Setenv("CLEANUP_SCHEDULER_TIME", "02:bb"))
+	defer func() {
+		_ = os.Unsetenv("CLEANUP_SCHEDULER_ENABLED")
+		_ = os.Unsetenv("CLEANUP_SCHEDULER_TIME")
+	}()
+
+	synctest.Test(t, func(t *testing.T) {
+		s := &Scheduler{
+			tasks: make(map[string]*ScheduledTask),
+			done:  make(chan struct{}),
+		}
+
+		// Schedule cleanup task with non-numeric minute
+		s.scheduleCleanupTask()
+
+		// Wait for goroutines to be durably blocked (fake time makes sleeps instant)
+		synctest.Wait()
+
+		// Stop scheduler
+		close(s.done)
+		s.wg.Wait()
+	})
+}
+
+func TestScheduleCleanupTask_NegativeHour(t *testing.T) {
+	require.NoError(t, os.Setenv("CLEANUP_SCHEDULER_ENABLED", "true"))
+	require.NoError(t, os.Setenv("CLEANUP_SCHEDULER_TIME", "-1:00"))
+	defer func() {
+		_ = os.Unsetenv("CLEANUP_SCHEDULER_ENABLED")
+		_ = os.Unsetenv("CLEANUP_SCHEDULER_TIME")
+	}()
+
+	synctest.Test(t, func(t *testing.T) {
+		s := &Scheduler{
+			tasks: make(map[string]*ScheduledTask),
+			done:  make(chan struct{}),
+		}
+
+		// Schedule cleanup task with negative hour
+		s.scheduleCleanupTask()
+
+		// Wait for goroutines to be durably blocked (fake time makes sleeps instant)
+		synctest.Wait()
+
+		// Stop scheduler
+		close(s.done)
+		s.wg.Wait()
+	})
+}
+
+func TestScheduleCleanupTask_NegativeMinute(t *testing.T) {
+	require.NoError(t, os.Setenv("CLEANUP_SCHEDULER_ENABLED", "true"))
+	require.NoError(t, os.Setenv("CLEANUP_SCHEDULER_TIME", "02:-5"))
+	defer func() {
+		_ = os.Unsetenv("CLEANUP_SCHEDULER_ENABLED")
+		_ = os.Unsetenv("CLEANUP_SCHEDULER_TIME")
+	}()
+
+	synctest.Test(t, func(t *testing.T) {
+		s := &Scheduler{
+			tasks: make(map[string]*ScheduledTask),
+			done:  make(chan struct{}),
+		}
+
+		// Schedule cleanup task with negative minute
+		s.scheduleCleanupTask()
+
+		// Wait for goroutines to be durably blocked (fake time makes sleeps instant)
+		synctest.Wait()
+
+		// Stop scheduler
+		close(s.done)
+		s.wg.Wait()
+	})
+}
+
 func TestScheduleSessionEndTask_InvalidTimeFormat(t *testing.T) {
 	require.NoError(t, os.Setenv("SESSION_END_SCHEDULER_ENABLED", "true"))
 	require.NoError(t, os.Setenv("SESSION_END_TIME", "invalid"))
@@ -676,6 +780,110 @@ func TestScheduleSessionEndTask_InvalidMinute(t *testing.T) {
 		}
 
 		// Schedule session end task with invalid minute
+		s.scheduleSessionEndTask()
+
+		// Wait for goroutines to be durably blocked (fake time makes sleeps instant)
+		synctest.Wait()
+
+		// Stop scheduler
+		close(s.done)
+		s.wg.Wait()
+	})
+}
+
+func TestScheduleSessionEndTask_NonNumericHour(t *testing.T) {
+	require.NoError(t, os.Setenv("SESSION_END_SCHEDULER_ENABLED", "true"))
+	require.NoError(t, os.Setenv("SESSION_END_TIME", "xx:00"))
+	defer func() {
+		_ = os.Unsetenv("SESSION_END_SCHEDULER_ENABLED")
+		_ = os.Unsetenv("SESSION_END_TIME")
+	}()
+
+	synctest.Test(t, func(t *testing.T) {
+		s := &Scheduler{
+			tasks: make(map[string]*ScheduledTask),
+			done:  make(chan struct{}),
+		}
+
+		// Schedule session end task with non-numeric hour
+		s.scheduleSessionEndTask()
+
+		// Wait for goroutines to be durably blocked (fake time makes sleeps instant)
+		synctest.Wait()
+
+		// Stop scheduler
+		close(s.done)
+		s.wg.Wait()
+	})
+}
+
+func TestScheduleSessionEndTask_NonNumericMinute(t *testing.T) {
+	require.NoError(t, os.Setenv("SESSION_END_SCHEDULER_ENABLED", "true"))
+	require.NoError(t, os.Setenv("SESSION_END_TIME", "18:yy"))
+	defer func() {
+		_ = os.Unsetenv("SESSION_END_SCHEDULER_ENABLED")
+		_ = os.Unsetenv("SESSION_END_TIME")
+	}()
+
+	synctest.Test(t, func(t *testing.T) {
+		s := &Scheduler{
+			tasks: make(map[string]*ScheduledTask),
+			done:  make(chan struct{}),
+		}
+
+		// Schedule session end task with non-numeric minute
+		s.scheduleSessionEndTask()
+
+		// Wait for goroutines to be durably blocked (fake time makes sleeps instant)
+		synctest.Wait()
+
+		// Stop scheduler
+		close(s.done)
+		s.wg.Wait()
+	})
+}
+
+func TestScheduleSessionEndTask_NegativeHour(t *testing.T) {
+	require.NoError(t, os.Setenv("SESSION_END_SCHEDULER_ENABLED", "true"))
+	require.NoError(t, os.Setenv("SESSION_END_TIME", "-2:00"))
+	defer func() {
+		_ = os.Unsetenv("SESSION_END_SCHEDULER_ENABLED")
+		_ = os.Unsetenv("SESSION_END_TIME")
+	}()
+
+	synctest.Test(t, func(t *testing.T) {
+		s := &Scheduler{
+			tasks: make(map[string]*ScheduledTask),
+			done:  make(chan struct{}),
+		}
+
+		// Schedule session end task with negative hour
+		s.scheduleSessionEndTask()
+
+		// Wait for goroutines to be durably blocked (fake time makes sleeps instant)
+		synctest.Wait()
+
+		// Stop scheduler
+		close(s.done)
+		s.wg.Wait()
+	})
+}
+
+func TestScheduleSessionEndTask_NegativeMinute(t *testing.T) {
+	require.NoError(t, os.Setenv("SESSION_END_SCHEDULER_ENABLED", "true"))
+	require.NoError(t, os.Setenv("SESSION_END_TIME", "18:-3"))
+	defer func() {
+		_ = os.Unsetenv("SESSION_END_SCHEDULER_ENABLED")
+		_ = os.Unsetenv("SESSION_END_TIME")
+	}()
+
+	synctest.Test(t, func(t *testing.T) {
+		s := &Scheduler{
+			tasks: make(map[string]*ScheduledTask),
+			done:  make(chan struct{}),
+		}
+
+		// Schedule session end task with negative minute
 		s.scheduleSessionEndTask()
 
 		// Wait for goroutines to be durably blocked (fake time makes sleeps instant)
@@ -986,6 +1194,14 @@ func (m *mockCleanupService) PreviewAttendanceCleanup(_ context.Context) (*activ
 	defer m.mu.Unlock()
 	m.attendancePreviewCalls++
 	return nil, m.attendancePreviewErr
+}
+
+func (m *mockCleanupService) CleanupStaleSupervisors(_ context.Context) (*activeService.SupervisorCleanupResult, error) {
+	return &activeService.SupervisorCleanupResult{Success: true}, nil
+}
+
+func (m *mockCleanupService) PreviewSupervisorCleanup(_ context.Context) (*activeService.SupervisorCleanupPreview, error) {
+	return &activeService.SupervisorCleanupPreview{}, nil
 }
 
 // =============================================================================
@@ -1718,4 +1934,340 @@ func TestMockActiveService_ImplementsInterface(_ *testing.T) {
 
 func TestMockCleanupService_ImplementsInterface(_ *testing.T) {
 	var _ activeService.CleanupService = &mockCleanupService{}
+}
+
+// =============================================================================
+// Goroutine Run Loop Tests (synctest)
+// =============================================================================
+
+func TestRunCleanupTask_DefaultScheduleTime(t *testing.T) {
+	// Enable cleanup but do NOT set CLEANUP_SCHEDULER_TIME
+	require.NoError(t, os.Setenv("CLEANUP_SCHEDULER_ENABLED", "true"))
+	// Explicitly unset the time to test default "02:00"
+	_ = os.Unsetenv("CLEANUP_SCHEDULER_TIME")
+	defer func() {
+		_ = os.Unsetenv("CLEANUP_SCHEDULER_ENABLED")
+	}()
+
+	synctest.Test(t, func(t *testing.T) {
+		cleanupSvc := &mockCleanupService{
+			cleanupResult: &activeService.CleanupResult{
+				StudentsProcessed: 5,
+				RecordsDeleted:    25,
+				Success:           true,
+			},
+		}
+
+		s := &Scheduler{
+			cleanupService: cleanupSvc,
+			tasks:          make(map[string]*ScheduledTask),
+			done:           make(chan struct{}),
+		}
+
+		// Schedule cleanup task (should use default "02:00")
+		s.scheduleCleanupTask()
+
+		// Verify task was created with default schedule
+		s.mu.RLock()
+		task, hasTask := s.tasks["visit-cleanup"]
+		s.mu.RUnlock()
+		assert.True(t, hasTask)
+		assert.Equal(t, "02:00", task.Schedule, "Should use default schedule when env var is not set")
+
+		// Stop scheduler
+		close(s.done)
+		s.wg.Wait()
+	})
+}
+
+func TestRunCleanupTask_ExecutesOnSchedule(t *testing.T) {
+	// Set env vars before synctest.Test
+	require.NoError(t, os.Setenv("CLEANUP_SCHEDULER_ENABLED", "true"))
+	require.NoError(t, os.Setenv("CLEANUP_SCHEDULER_TIME", "02:00"))
+	defer func() {
+		_ = os.Unsetenv("CLEANUP_SCHEDULER_ENABLED")
+		_ = os.Unsetenv("CLEANUP_SCHEDULER_TIME")
+	}()
+
+	synctest.Test(t, func(t *testing.T) {
+		cleanupSvc := &mockCleanupService{
+			cleanupResult: &activeService.CleanupResult{
+				StudentsProcessed: 10,
+				RecordsDeleted:    100,
+				Success:           true,
+			},
+		}
+
+		s := &Scheduler{
+			cleanupService: cleanupSvc,
+			tasks:          make(map[string]*ScheduledTask),
+			done:           make(chan struct{}),
+		}
+
+		// Schedule cleanup task (spawns goroutine)
+		// Task is scheduled for 02:00, and synctest starts at 01:00:00
+		s.scheduleCleanupTask()
+
+		// Sleep for more than 1 hour to trigger the scheduled cleanup
+		// In synctest, this will advance fake time past 02:00
+		time.Sleep(2 * time.Hour)
+
+		// Wait for goroutines to process the scheduled task
+		synctest.Wait()
+
+		// Verify cleanup was called at least once
+		cleanupSvc.mu.Lock()
+		assert.GreaterOrEqual(t, cleanupSvc.cleanupCalls, 1, "Cleanup should execute after scheduled time")
+		cleanupSvc.mu.Unlock()
+
+		// Stop scheduler
+		close(s.done)
+		s.wg.Wait()
+	})
+}
+
+func TestRunCleanupTask_StopsOnDone(t *testing.T) {
+	require.NoError(t, os.Setenv("CLEANUP_SCHEDULER_ENABLED", "true"))
+	require.NoError(t, os.Setenv("CLEANUP_SCHEDULER_TIME", "02:00"))
+	defer func() {
+		_ = os.Unsetenv("CLEANUP_SCHEDULER_ENABLED")
+		_ = os.Unsetenv("CLEANUP_SCHEDULER_TIME")
+	}()
+
+	synctest.Test(t, func(t *testing.T) {
+		cleanupSvc := &mockCleanupService{
+			cleanupResult: &activeService.CleanupResult{Success: true},
+		}
+
+		s := &Scheduler{
+			cleanupService: cleanupSvc,
+			tasks:          make(map[string]*ScheduledTask),
+			done:           make(chan struct{}),
+		}
+
+		// Schedule cleanup task
+		s.scheduleCleanupTask()
+
+		// Close done channel before scheduled time fires
+		close(s.done)
+
+		// Wait for goroutine to exit
+		done := make(chan struct{})
+		go func() {
+			s.wg.Wait()
+			close(done)
+		}()
+
+		select {
+		case <-done:
+			// Success - goroutine exited cleanly
+		case <-time.After(100 * time.Millisecond):
+			t.Fatal("Goroutine did not exit after done channel closed")
+		}
+	})
+}
+
+func TestRunSessionEndTask_ExecutesOnSchedule(t *testing.T) {
+	// SESSION_END_SCHEDULER_ENABLED defaults to enabled (only disabled if explicitly "false")
+	require.NoError(t, os.Setenv("SESSION_END_TIME", "18:00"))
+	defer func() {
+		_ = os.Unsetenv("SESSION_END_TIME")
+	}()
+
+	synctest.Test(t, func(t *testing.T) {
+		activeSvc := &mockActiveService{
+			endDailySessionsResult: &activeService.DailySessionCleanupResult{
+				SessionsEnded:    5,
+				VisitsEnded:      20,
+				SupervisorsEnded: 3,
+				Success:          true,
+			},
+		}
+
+		s := &Scheduler{
+			activeService: activeSvc,
+			tasks:         make(map[string]*ScheduledTask),
+			done:          make(chan struct{}),
+		}
+
+		// Schedule session end task
+		// Task is scheduled for 18:00, and synctest starts at 01:00:00
+		s.scheduleSessionEndTask()
+
+		// Sleep for more than 17 hours to trigger the scheduled session end
+		// In synctest, this will advance fake time past 18:00
+		time.Sleep(18 * time.Hour)
+
+		// Wait for goroutines to process the scheduled task
+		synctest.Wait()
+
+		// Verify service was called at least once
+		activeSvc.mu.Lock()
+		assert.GreaterOrEqual(t, activeSvc.endDailySessionsCalls, 1, "Session end should execute after scheduled time")
+		activeSvc.mu.Unlock()
+
+		// Stop scheduler
+		close(s.done)
+		s.wg.Wait()
+	})
+}
+
+func TestRunSessionEndTask_StopsOnDone(t *testing.T) {
+	require.NoError(t, os.Setenv("SESSION_END_TIME", "18:00"))
+	defer func() {
+		_ = os.Unsetenv("SESSION_END_TIME")
+	}()
+
+	synctest.Test(t, func(t *testing.T) {
+		activeSvc := &mockActiveService{
+			endDailySessionsResult: &activeService.DailySessionCleanupResult{Success: true},
+		}
+
+		s := &Scheduler{
+			activeService: activeSvc,
+			tasks:         make(map[string]*ScheduledTask),
+			done:          make(chan struct{}),
+		}
+
+		// Schedule session end task
+		s.scheduleSessionEndTask()
+
+		// Close done channel before scheduled time fires
+		close(s.done)
+
+		// Wait for goroutine to exit
+		done := make(chan struct{})
+		go func() {
+			s.wg.Wait()
+			close(done)
+		}()
+
+		select {
+		case <-done:
+			// Success - goroutine exited cleanly
+		case <-time.After(100 * time.Millisecond):
+			t.Fatal("Goroutine did not exit after done channel closed")
+		}
+	})
+}
+
+func TestRunSessionCleanupTask_ExecutesAfterDelay(t *testing.T) {
+	// SESSION_CLEANUP_ENABLED defaults to enabled
+	_ = os.Unsetenv("SESSION_CLEANUP_ENABLED")
+
+	synctest.Test(t, func(t *testing.T) {
+		activeSvc := &mockActiveService{
+			cleanupAbandonedResult: 5,
+		}
+
+		s := &Scheduler{
+			activeService: activeSvc,
+			tasks:         make(map[string]*ScheduledTask),
+			done:          make(chan struct{}),
+		}
+
+		// Schedule session cleanup task (has 30-second initial delay)
+		s.scheduleSessionCleanupTask()
+
+		// Sleep for more than 30 seconds to trigger the initial cleanup
+		// In synctest, this will advance fake time past the 30-second delay
+		time.Sleep(1 * time.Minute)
+
+		// Verify cleanup was called (should execute after 30s delay)
+		activeSvc.mu.Lock()
+		assert.GreaterOrEqual(t, activeSvc.cleanupAbandonedCalls, 1, "Session cleanup should execute after initial delay")
+		activeSvc.mu.Unlock()
+
+		// Stop scheduler
+		close(s.done)
+		s.wg.Wait()
+	})
+}
+
+func TestRunTokenCleanupTask_TickerRepeat(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		auth := &fakeAuthCleanup{
+			tokenResult:     1,
+			passwordResult:  2,
+			rateLimitResult: 3,
+		}
+
+		s := NewScheduler(nil, nil, auth, nil)
+
+		// Schedule token cleanup task (runs immediately, then every hour)
+		s.scheduleTokenCleanupTask()
+
+		// Small sleep to allow initial execution to complete
+		time.Sleep(100 * time.Millisecond)
+
+		// Verify first call happened (runs immediately on startup)
+		auth.mu.Lock()
+		firstCallCount := auth.tokenCalls
+		auth.mu.Unlock()
+		assert.GreaterOrEqual(t, firstCallCount, 1, "Token cleanup should run immediately")
+
+		// Sleep for more than 1 hour to trigger ticker
+		// In synctest, this will advance fake time and fire the ticker
+		time.Sleep(2 * time.Hour)
+
+		// Yield to let the token cleanup goroutine execute after its ticker fires
+		time.Sleep(1 * time.Second)
+
+		// Verify second call happened
+		auth.mu.Lock()
+		secondCallCount := auth.tokenCalls
+		auth.mu.Unlock()
+		assert.GreaterOrEqual(t, secondCallCount, 2, "Token cleanup should repeat after ticker interval")
+
+		// Stop scheduler
+		close(s.done)
+		s.wg.Wait()
+	})
+}
+
+func TestRunSessionCleanupTask_StopsOnDoneAfterSleep(t *testing.T) {
+	// Enable session cleanup
+	_ = os.Unsetenv("SESSION_CLEANUP_ENABLED")
+
+	synctest.Test(t, func(t *testing.T) {
+		activeSvc := &mockActiveService{
+			cleanupAbandonedResult: 3,
+		}
+
+		s := &Scheduler{
+			activeService: activeSvc,
+			tasks:         make(map[string]*ScheduledTask),
+			done:          make(chan struct{}),
+		}
+
+		// Schedule session cleanup task (has 30-second initial delay, then runs every 15 min by default)
+		s.scheduleSessionCleanupTask()
+
+		// Wait for initial sleep (30s) to complete and first cleanup to execute
+		// In synctest, this advances fake time past the initial delay
+		time.Sleep(35 * time.Second)
+
+		// Verify first cleanup executed
+		activeSvc.mu.Lock()
+		firstCallCount := activeSvc.cleanupAbandonedCalls
+		activeSvc.mu.Unlock()
+		assert.GreaterOrEqual(t, firstCallCount, 1, "Initial cleanup should execute after 30s delay")
+
+		// Now close done channel to trigger the ticker select's done case
+		close(s.done)
+
+		// Wait for goroutine to exit
+		done := make(chan struct{})
+		go func() {
+			s.wg.Wait()
+			close(done)
+		}()
+
+		select {
+		case <-done:
+			// Success - goroutine exited cleanly via ticker's done case
+		case <-time.After(100 * time.Millisecond):
+			t.Fatal("Goroutine did not exit after done channel closed")
+		}
+	})
 }

@@ -66,7 +66,10 @@ describe("StudentCard", () => {
 
   it("applies custom gradient class", () => {
     const { container } = render(
-      <StudentCard {...defaultProps} gradient="from-red-50/80 to-pink-100/80" />,
+      <StudentCard
+        {...defaultProps}
+        gradient="from-red-50/80 to-pink-100/80"
+      />,
     );
 
     const gradientDiv = container.querySelector(".from-red-50\\/80");

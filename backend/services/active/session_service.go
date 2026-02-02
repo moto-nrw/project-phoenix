@@ -606,6 +606,17 @@ func (s *service) EndActivitySession(ctx context.Context, activeGroupID int64) e
 			}
 		}
 
+		// Fetch and end all active supervisors inside the transaction
+		activeSupervisors, err := txService.supervisorRepo.FindByActiveGroupID(ctx, activeGroupID, true)
+		if err != nil {
+			return err
+		}
+		for _, sup := range activeSupervisors {
+			if err := txService.supervisorRepo.EndSupervision(ctx, sup.ID); err != nil {
+				return err
+			}
+		}
+
 		// End the session
 		if err := txService.groupRepo.EndSession(ctx, activeGroupID); err != nil {
 			return err
@@ -915,6 +926,10 @@ func (s *service) EndDailySessions(ctx context.Context) (*DailySessionCleanupRes
 		}
 	}
 
+	// Clean up orphaned supervisors from previous days that the per-group loop wouldn't catch
+	// (e.g., supervisors whose groups were already ended but end_date was never set)
+	s.cleanupOrphanedSupervisors(ctx, result)
+
 	return result, nil
 }
 
@@ -989,6 +1004,56 @@ func (s *service) endActiveSupervisorsForGroup(ctx context.Context, groupID int6
 		supervisor.EndDate = &now
 		if err := s.supervisorRepo.Update(ctx, supervisor); err != nil {
 			errMsg := fmt.Sprintf("Failed to end supervisor %d: %v", supervisor.ID, err)
+			result.Errors = append(result.Errors, errMsg)
+			result.Success = false
+		} else {
+			result.SupervisorsEnded++
+		}
+	}
+}
+
+// cleanupOrphanedSupervisors closes supervisor records from previous days
+// that the per-group loop wouldn't find (e.g., groups already ended but supervisors left open)
+func (s *service) cleanupOrphanedSupervisors(ctx context.Context, result *DailySessionCleanupResult) {
+	now := time.Now().UTC()
+	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+
+	// Find orphaned supervisor records from before today with no end_date
+	var staleRecords []struct {
+		ID        int64     `bun:"id"`
+		StartDate time.Time `bun:"start_date"`
+	}
+
+	err := s.db.NewSelect().
+		Table("active.group_supervisors").
+		Column("id", "start_date").
+		Where("start_date < ?", today).
+		Where("end_date IS NULL").
+		Scan(ctx, &staleRecords)
+
+	if err != nil {
+		errMsg := fmt.Sprintf("Failed to find orphaned supervisors: %v", err)
+		result.Errors = append(result.Errors, errMsg)
+		result.Success = false
+		return
+	}
+
+	for _, record := range staleRecords {
+		// end_date is a DATE column, so set it to the start_date itself
+		endDate := time.Date(
+			record.StartDate.Year(), record.StartDate.Month(), record.StartDate.Day(),
+			0, 0, 0, 0, record.StartDate.Location(),
+		)
+
+		_, err := s.db.NewUpdate().
+			Table("active.group_supervisors").
+			Set("end_date = ?", endDate).
+			Set("updated_at = ?", now).
+			Where("id = ?", record.ID).
+			Exec(ctx)
+
+		if err != nil {
+			errMsg := fmt.Sprintf("Failed to close orphaned supervisor %d: %v", record.ID, err)
 			result.Errors = append(result.Errors, errMsg)
 			result.Success = false
 		} else {

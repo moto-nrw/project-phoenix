@@ -1,7 +1,7 @@
 // lib/substitution-api.ts
 // API client for substitution-related operations
 
-import { getSession } from "next-auth/react";
+import { getCachedSession } from "./session-cache";
 import {
   type Substitution,
   type TeacherAvailability,
@@ -35,7 +35,7 @@ class SubstitutionService {
         }
       }
 
-      const session = await getSession();
+      const session = await getCachedSession();
       const response = await fetch(url, {
         credentials: "include",
         headers: session?.user?.token
@@ -80,7 +80,7 @@ class SubstitutionService {
         url += `?${params.toString()}`;
       }
 
-      const session = await getSession();
+      const session = await getCachedSession();
       const response = await fetch(url, {
         credentials: "include",
         headers: session?.user?.token
@@ -133,7 +133,7 @@ class SubstitutionService {
         url += `?${params.toString()}`;
       }
 
-      const session = await getSession();
+      const session = await getCachedSession();
       const response = await fetch(url, {
         credentials: "include",
         headers: session?.user?.token
@@ -191,7 +191,7 @@ class SubstitutionService {
         notes,
       );
 
-      const session = await getSession();
+      const session = await getCachedSession();
       const response = await fetch("/api/substitutions", {
         method: "POST",
         credentials: "include",
@@ -234,7 +234,7 @@ class SubstitutionService {
   // Delete/end a substitution
   async deleteSubstitution(id: string): Promise<void> {
     try {
-      const session = await getSession();
+      const session = await getCachedSession();
       const response = await fetch(`/api/substitutions/${id}`, {
         method: "DELETE",
         credentials: "include",
@@ -260,7 +260,7 @@ class SubstitutionService {
   // Get a single substitution by ID
   async getSubstitution(id: string): Promise<Substitution> {
     try {
-      const session = await getSession();
+      const session = await getCachedSession();
       const response = await fetch(`/api/substitutions/${id}`, {
         credentials: "include",
         headers: session?.user?.token

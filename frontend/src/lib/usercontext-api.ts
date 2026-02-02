@@ -1,5 +1,5 @@
 // lib/usercontext-api.ts
-import { getSession } from "next-auth/react";
+import { getCachedSession } from "./session-cache";
 import { env } from "~/env";
 import api from "./api";
 import { fetchWithAuth } from "./fetch-with-auth";
@@ -39,7 +39,7 @@ export const userContextService = {
 
     try {
       if (useProxyApi) {
-        const session = await getSession();
+        const session = await getCachedSession();
         const response = await fetchWithAuth(url, {
           headers: {
             Authorization: `Bearer ${session?.user?.token}`,
@@ -78,7 +78,7 @@ export const userContextService = {
 
     try {
       if (useProxyApi) {
-        const session = await getSession();
+        const session = await getCachedSession();
         const response = await fetchWithAuth(url, {
           headers: {
             Authorization: `Bearer ${session?.user?.token}`,
@@ -126,7 +126,7 @@ export const userContextService = {
 
     try {
       if (useProxyApi) {
-        const session = await getSession();
+        const session = await getCachedSession();
         const response = await fetchWithAuth(url, {
           headers: {
             Authorization: `Bearer ${session?.user?.token}`,
@@ -171,7 +171,7 @@ export const userContextService = {
         // Use provided token or fall back to getSession()
         let authToken = token;
         if (!authToken) {
-          const session = await getSession();
+          const session = await getCachedSession();
           authToken = session?.user?.token;
         }
 
@@ -223,7 +223,7 @@ export const userContextService = {
 
     try {
       if (useProxyApi) {
-        const session = await getSession();
+        const session = await getCachedSession();
         const response = await fetchWithAuth(url, {
           headers: {
             Authorization: `Bearer ${session?.user?.token}`,
@@ -264,7 +264,7 @@ export const userContextService = {
 
     try {
       if (useProxyApi) {
-        const session = await getSession();
+        const session = await getCachedSession();
         const response = await fetchWithAuth(url, {
           headers: {
             Authorization: `Bearer ${session?.user?.token}`,
@@ -311,7 +311,7 @@ export const userContextService = {
 
     try {
       if (useProxyApi) {
-        const session = await getSession();
+        const session = await getCachedSession();
         const response = await fetchWithAuth(url, {
           headers: {
             Authorization: `Bearer ${session?.user?.token}`,

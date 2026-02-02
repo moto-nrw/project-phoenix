@@ -6,8 +6,8 @@ import type {
 } from "./profile-helpers";
 
 // Mock dependencies before importing the module under test
-vi.mock("next-auth/react", () => ({
-  getSession: vi.fn(),
+vi.mock("./session-cache", () => ({
+  getCachedSession: vi.fn(),
 }));
 
 vi.mock("./profile-helpers", () => ({
@@ -16,7 +16,7 @@ vi.mock("./profile-helpers", () => ({
 }));
 
 // Import after mocks are set up
-import { getSession } from "next-auth/react";
+import { getCachedSession } from "./session-cache";
 import { mapProfileResponse, mapProfileUpdateRequest } from "./profile-helpers";
 import {
   fetchProfile,
@@ -26,7 +26,7 @@ import {
 } from "./profile-api";
 
 // Type-safe mocks
-const mockedGetSession = vi.mocked(getSession);
+const mockedGetSession = vi.mocked(getCachedSession);
 const mockedMapProfileResponse = vi.mocked(mapProfileResponse);
 const mockedMapProfileUpdateRequest = vi.mocked(mapProfileUpdateRequest);
 

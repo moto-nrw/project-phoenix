@@ -117,6 +117,7 @@ describe("MobileBottomNav", () => {
       isSupervising: false,
       isLoadingGroups: false,
       isLoadingSupervision: false,
+      supervisedRooms: [],
       groups: [],
       refresh: vi.fn(),
     });
@@ -254,6 +255,7 @@ describe("MobileBottomNav", () => {
         isSupervising: true,
         isLoadingGroups: false,
         isLoadingSupervision: false,
+        supervisedRooms: [],
         groups: [],
         refresh: vi.fn(),
       });
@@ -390,6 +392,7 @@ describe("MobileBottomNav", () => {
         isSupervising: false,
         isLoadingGroups: false,
         isLoadingSupervision: false,
+        supervisedRooms: [],
         groups: [],
         refresh: vi.fn(),
       });
@@ -408,6 +411,7 @@ describe("MobileBottomNav", () => {
         isSupervising: true,
         isLoadingGroups: false,
         isLoadingSupervision: false,
+        supervisedRooms: [],
         groups: [],
         refresh: vi.fn(),
       });

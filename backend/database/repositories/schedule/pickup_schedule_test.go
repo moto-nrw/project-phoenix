@@ -790,7 +790,7 @@ func TestStudentPickupExceptionRepository_DeletePastExceptions(t *testing.T) {
 			futureExceptionCount++
 		}
 
-		cutoffDate := time.Now().Truncate(24 * time.Hour)
+		cutoffDate := timezone.DateOfUTC(time.Now())
 		rowsAffected, err := repo.DeletePastExceptions(ctx, cutoffDate)
 
 		require.NoError(t, err)
@@ -1193,7 +1193,7 @@ func TestStudentPickupNoteRepository_DeletePastNotes(t *testing.T) {
 			futureNoteCount++
 		}
 
-		cutoffDate := time.Now().Truncate(24 * time.Hour)
+		cutoffDate := timezone.DateOfUTC(time.Now())
 		rowsAffected, err := repo.DeletePastNotes(ctx, cutoffDate)
 
 		require.NoError(t, err)

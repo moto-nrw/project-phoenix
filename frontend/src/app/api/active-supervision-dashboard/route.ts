@@ -71,6 +71,27 @@ interface BackendVisitDisplay {
   is_active: boolean;
 }
 
+// Backend response for Schulhof status
+interface BackendSchulhofSupervisor {
+  id: number;
+  staff_id: number;
+  name: string;
+  is_current_user: boolean;
+}
+
+interface BackendSchulhofStatus {
+  exists: boolean;
+  room_id?: number;
+  room_name: string;
+  activity_group_id?: number;
+  active_group_id?: number;
+  is_user_supervising: boolean;
+  supervision_id?: number;
+  supervisor_count: number;
+  student_count: number;
+  supervisors: BackendSchulhofSupervisor[];
+}
+
 // Combined dashboard response type
 interface ActiveSupervisionDashboardResponse {
   // User's supervised active groups (with room info pre-loaded)
@@ -113,6 +134,25 @@ interface ActiveSupervisionDashboardResponse {
 
   // ID of first room (for state initialization)
   firstRoomId: string | null;
+
+  // Schulhof (Schoolyard) status - always included for permanent tab
+  schulhofStatus: {
+    exists: boolean;
+    roomId: string | null;
+    roomName: string;
+    activityGroupId: string | null;
+    activeGroupId: string | null;
+    isUserSupervising: boolean;
+    supervisionId: string | null;
+    supervisorCount: number;
+    studentCount: number;
+    supervisors: Array<{
+      id: string;
+      staffId: string;
+      name: string;
+      isCurrentUser: boolean;
+    }>;
+  } | null;
 }
 
 /**
@@ -126,37 +166,53 @@ interface ActiveSupervisionDashboardResponse {
  */
 export const GET = createGetHandler<ActiveSupervisionDashboardResponse>(
   async (_request: NextRequest, token: string) => {
-    // Step 1: Fetch all initial data in parallel
-    const [supervisedResult, unclaimedResult, staffResult, groupsResult] =
-      await Promise.all([
-        // User's supervised active groups
-        apiGet<{ data: BackendActiveGroup[] | null }>(
-          "/api/me/groups/supervised",
-          token,
-        ).catch(() => ({ data: [] as BackendActiveGroup[] })),
+    // Step 1: Fetch all initial data in parallel (including Schulhof status)
+    const [
+      supervisedResult,
+      unclaimedResult,
+      staffResult,
+      groupsResult,
+      schulhofResult,
+    ] = await Promise.all([
+      // User's supervised active groups
+      apiGet<{ data: BackendActiveGroup[] | null }>(
+        "/api/me/groups/supervised",
+        token,
+      ).catch(() => ({ data: [] as BackendActiveGroup[] })),
 
-        // Unclaimed groups available to claim
-        apiGet<{ data: BackendUnclaimedGroup[] | null }>(
-          "/api/active/groups/unclaimed",
-          token,
-        ).catch(() => ({ data: [] as BackendUnclaimedGroup[] })),
+      // Unclaimed groups available to claim
+      apiGet<{ data: BackendUnclaimedGroup[] | null }>(
+        "/api/active/groups/unclaimed",
+        token,
+      ).catch(() => ({ data: [] as BackendUnclaimedGroup[] })),
 
-        // Current staff info
-        apiGet<{ data: BackendStaff }>("/api/me/staff", token).catch(() => ({
-          data: null as BackendStaff | null,
-        })),
+      // Current staff info
+      apiGet<{ data: BackendStaff }>("/api/me/staff", token).catch(() => ({
+        data: null as BackendStaff | null,
+      })),
 
-        // Educational groups for permission checking
-        apiGet<{ data: BackendEducationalGroup[] | null }>(
-          "/api/me/groups",
-          token,
-        ).catch(() => ({ data: [] as BackendEducationalGroup[] })),
-      ]);
+      // Educational groups for permission checking
+      apiGet<{ data: BackendEducationalGroup[] | null }>(
+        "/api/me/groups",
+        token,
+      ).catch(() => ({ data: [] as BackendEducationalGroup[] })),
 
-    // Extract data with null safety
-    const supervisedGroups = Array.isArray(supervisedResult.data)
-      ? supervisedResult.data
-      : [];
+      // Schulhof status for permanent tab
+      apiGet<{ data: BackendSchulhofStatus }>(
+        "/api/active/schulhof/status",
+        token,
+      ).catch(() => ({ data: null as BackendSchulhofStatus | null })),
+    ]);
+
+    // Extract data with null safety, sorted by room name for deterministic order
+    const supervisedGroups = (
+      Array.isArray(supervisedResult.data) ? supervisedResult.data : []
+    ).sort((a, b) =>
+      (a.room?.name ?? a.name ?? "").localeCompare(
+        b.room?.name ?? b.name ?? "",
+        "de",
+      ),
+    );
     const unclaimedGroups = Array.isArray(unclaimedResult.data)
       ? unclaimedResult.data
       : [];
@@ -164,6 +220,28 @@ export const GET = createGetHandler<ActiveSupervisionDashboardResponse>(
     const educationalGroups = Array.isArray(groupsResult.data)
       ? groupsResult.data
       : [];
+    const schulhofData = schulhofResult.data;
+
+    // Transform Schulhof status to frontend format
+    const schulhofStatus = schulhofData
+      ? {
+          exists: schulhofData.exists,
+          roomId: schulhofData.room_id?.toString() ?? null,
+          roomName: schulhofData.room_name,
+          activityGroupId: schulhofData.activity_group_id?.toString() ?? null,
+          activeGroupId: schulhofData.active_group_id?.toString() ?? null,
+          isUserSupervising: schulhofData.is_user_supervising,
+          supervisionId: schulhofData.supervision_id?.toString() ?? null,
+          supervisorCount: schulhofData.supervisor_count,
+          studentCount: schulhofData.student_count,
+          supervisors: (schulhofData.supervisors ?? []).map((s) => ({
+            id: s.id.toString(),
+            staffId: s.staff_id.toString(),
+            name: s.name,
+            isCurrentUser: s.is_current_user,
+          })),
+        }
+      : null;
 
     // If no supervised groups, return early with just unclaimed groups data
     if (supervisedGroups.length === 0) {
@@ -182,6 +260,7 @@ export const GET = createGetHandler<ActiveSupervisionDashboardResponse>(
         })),
         firstRoomVisits: [],
         firstRoomId: null,
+        schulhofStatus,
       };
     }
 
@@ -281,6 +360,7 @@ export const GET = createGetHandler<ActiveSupervisionDashboardResponse>(
       })),
       firstRoomVisits,
       firstRoomId: firstGroupId,
+      schulhofStatus,
     };
   },
 );

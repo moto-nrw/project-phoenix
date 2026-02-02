@@ -1,5 +1,5 @@
 // lib/activity-api.ts
-import { getSession } from "next-auth/react";
+import { getCachedSession } from "./session-cache";
 import { env } from "~/env";
 import api from "./api";
 import { handleAuthFailure } from "./auth-api";
@@ -358,7 +358,7 @@ export async function fetchActivities(
 
   if (useProxyApi) {
     // Browser environment: use fetch with our Next.js API route
-    const session = await getSession();
+    const session = await getCachedSession();
     const response = await fetch(url, {
       method: "GET",
       credentials: "include",
@@ -399,7 +399,7 @@ export async function getActivity(id: string): Promise<Activity> {
     : `${env.NEXT_PUBLIC_API_URL}/api/activities/${id}`;
 
   if (useProxyApi) {
-    const session = await getSession();
+    const session = await getCachedSession();
     const response = await fetch(url, {
       method: "GET",
       credentials: "include",
@@ -445,7 +445,7 @@ export async function getEnrolledStudents(
 
   try {
     if (useProxyApi) {
-      const session = await getSession();
+      const session = await getCachedSession();
       const response = await fetch(url, {
         method: "GET",
         credentials: "include",
@@ -487,7 +487,7 @@ export async function enrollStudent(
   // No request body needed since backend extracts IDs from URL path
 
   if (useProxyApi) {
-    const session = await getSession();
+    const session = await getCachedSession();
     const response = await fetch(url, {
       method: "POST",
       credentials: "include",
@@ -523,7 +523,7 @@ export async function unenrollStudent(
     : `${env.NEXT_PUBLIC_API_URL}/api/activities/${activityId}/students/${studentId}`;
 
   if (useProxyApi) {
-    const session = await getSession();
+    const session = await getCachedSession();
     const response = await fetch(url, {
       method: "DELETE",
       credentials: "include",
@@ -556,7 +556,7 @@ export async function createActivity(
   const safeActivity = createSafeActivity(data);
 
   if (useProxyApi) {
-    const session = await getSession();
+    const session = await getCachedSession();
     const response = await fetch(url, {
       method: "POST",
       credentials: "include",
@@ -611,7 +611,7 @@ export async function updateActivity(
   const backendData = prepareActivityForBackend(activityData);
 
   if (useProxyApi) {
-    const session = await getSession();
+    const session = await getCachedSession();
     const response = await fetch(url, {
       method: "PUT",
       credentials: "include",
@@ -658,7 +658,7 @@ export async function deleteActivity(id: string): Promise<void> {
     : `${env.NEXT_PUBLIC_API_URL}/api/activities/${id}`;
 
   if (useProxyApi) {
-    const session = await getSession();
+    const session = await getCachedSession();
     const response = await fetch(url, {
       method: "DELETE",
       credentials: "include",
@@ -687,7 +687,7 @@ export async function getCategories(): Promise<ActivityCategory[]> {
 
   try {
     if (useProxyApi) {
-      const session = await getSession();
+      const session = await getCachedSession();
       const response = await fetch(url, {
         method: "GET",
         credentials: "include",
@@ -739,7 +739,7 @@ export async function getSupervisors(): Promise<
 
   try {
     if (useProxyApi) {
-      const session = await getSession();
+      const session = await getCachedSession();
       const response = await fetch(url, {
         method: "GET",
         credentials: "include",
@@ -790,7 +790,7 @@ export async function getActivitySchedules(
 
   try {
     if (useProxyApi) {
-      const session = await getSession();
+      const session = await getCachedSession();
       const response = await fetch(url, {
         method: "GET",
         credentials: "include",
@@ -829,7 +829,7 @@ export async function getActivitySchedule(
 
   try {
     if (useProxyApi) {
-      const session = await getSession();
+      const session = await getCachedSession();
       const response = await fetch(url, {
         method: "GET",
         credentials: "include",
@@ -876,7 +876,7 @@ export async function getTimeframes(): Promise<Timeframe[]> {
 
   try {
     if (useProxyApi) {
-      const session = await getSession();
+      const session = await getCachedSession();
       const response = await fetch(url, {
         method: "GET",
         credentials: "include",
@@ -920,7 +920,7 @@ export async function getAvailableTimeSlots(
 
   try {
     if (useProxyApi) {
-      const session = await getSession();
+      const session = await getCachedSession();
       const response = await fetch(url, {
         method: "GET",
         credentials: "include",
@@ -973,7 +973,7 @@ export async function createActivitySchedule(
 
   try {
     if (useProxyApi) {
-      const session = await getSession();
+      const session = await getCachedSession();
       const response = await fetch(url, {
         method: "POST",
         credentials: "include",
@@ -1031,7 +1031,7 @@ export async function updateActivitySchedule(
 
   try {
     if (useProxyApi) {
-      const session = await getSession();
+      const session = await getCachedSession();
       const response = await fetch(url, {
         method: "PUT",
         credentials: "include",
@@ -1085,7 +1085,7 @@ export async function deleteActivitySchedule(
 
   try {
     if (useProxyApi) {
-      const session = await getSession();
+      const session = await getCachedSession();
       const response = await fetch(url, {
         method: "DELETE",
         credentials: "include",
@@ -1165,7 +1165,7 @@ export async function getActivitySupervisors(
 
   try {
     if (useProxyApi) {
-      const session = await getSession();
+      const session = await getCachedSession();
       const response = await fetch(url, {
         method: "GET",
         credentials: "include",
@@ -1225,7 +1225,7 @@ export async function getAvailableSupervisors(
 
   try {
     if (useProxyApi) {
-      const session = await getSession();
+      const session = await getCachedSession();
       const response = await fetch(url, {
         method: "GET",
         credentials: "include",
@@ -1270,7 +1270,7 @@ export async function assignSupervisor(
 
   try {
     if (useProxyApi) {
-      const session = await getSession();
+      const session = await getCachedSession();
       const response = await fetch(url, {
         method: "POST",
         credentials: "include",
@@ -1310,7 +1310,7 @@ export async function updateSupervisorRole(
 
   try {
     if (useProxyApi) {
-      const session = await getSession();
+      const session = await getCachedSession();
       const response = await fetch(url, {
         method: "PUT",
         credentials: "include",
@@ -1349,7 +1349,7 @@ export async function removeSupervisor(
 
   try {
     if (useProxyApi) {
-      const session = await getSession();
+      const session = await getCachedSession();
       const response = await fetch(url, {
         method: "DELETE",
         credentials: "include",
@@ -1444,7 +1444,7 @@ export async function getAvailableStudents(
 
   try {
     if (useProxyApi) {
-      const session = await getSession();
+      const session = await getCachedSession();
       const response = await fetch(url, {
         method: "GET",
         credentials: "include",
@@ -1498,7 +1498,7 @@ async function retryPutWithRefreshedToken(
     return null;
   }
 
-  const session = await getSession();
+  const session = await getCachedSession();
   if (!session?.user?.token) {
     return null;
   }
@@ -1533,7 +1533,7 @@ export async function updateGroupEnrollments(
 
   try {
     if (useProxyApi) {
-      const session = await getSession();
+      const session = await getCachedSession();
 
       // Check if we have a valid session
       if (!session?.user?.token) {

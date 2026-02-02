@@ -4,8 +4,6 @@
 /* eslint-disable @typescript-eslint/unbound-method */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type {
-  BackendActivity,
-  BackendActivityCategory,
   BackendActivitySchedule,
   BackendTimeframe,
   BackendSupervisor,
@@ -14,10 +12,11 @@ import type {
   CreateActivityRequest,
   UpdateActivityRequest,
 } from "./activity-helpers";
+import { buildBackendActivity, buildBackendCategory } from "~/test/fixtures";
 
 // Mock dependencies
-vi.mock("next-auth/react", () => ({
-  getSession: vi.fn(),
+vi.mock("./session-cache", () => ({
+  getCachedSession: vi.fn(),
 }));
 
 vi.mock("./api", () => ({
@@ -33,19 +32,13 @@ vi.mock("./auth-api", () => ({
   handleAuthFailure: vi.fn(),
 }));
 
-vi.mock("~/env", () => ({
-  env: {
-    NEXT_PUBLIC_API_URL: "http://localhost:8080",
-  },
-}));
-
 // Import after mocks
-import { getSession } from "next-auth/react";
+import { getCachedSession } from "./session-cache";
 import api from "./api";
 import { handleAuthFailure } from "./auth-api";
 import * as activityApi from "./activity-api";
 
-const mockedGetSession = vi.mocked(getSession);
+const mockedGetSession = vi.mocked(getCachedSession);
 const mockedApiGet = vi.mocked(api.get);
 const mockedApiPost = vi.mocked(api.post);
 const mockedApiPut = vi.mocked(api.put);
@@ -53,7 +46,7 @@ const mockedApiDelete = vi.mocked(api.delete);
 const mockedHandleAuthFailure = vi.mocked(handleAuthFailure);
 
 // Sample test data
-const sampleBackendActivity: BackendActivity = {
+const sampleBackendActivity = buildBackendActivity({
   id: 1,
   name: "Basketball AG",
   max_participants: 20,
@@ -61,18 +54,14 @@ const sampleBackendActivity: BackendActivity = {
   category_id: 1,
   supervisor_id: 10,
   enrollment_count: 15,
-  created_at: "2024-01-01T00:00:00Z",
-  updated_at: "2024-01-01T00:00:00Z",
-};
+});
 
-const sampleBackendCategory: BackendActivityCategory = {
+const sampleBackendCategory = buildBackendCategory({
   id: 1,
   name: "Sport",
   description: "Sports activities",
   color: "#3b82f6",
-  created_at: "2024-01-01T00:00:00Z",
-  updated_at: "2024-01-01T00:00:00Z",
-};
+});
 
 const sampleBackendSchedule: BackendActivitySchedule = {
   id: 1,

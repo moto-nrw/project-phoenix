@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { Session } from "next-auth";
 import { NextRequest } from "next/server";
 import { GET } from "./route";
+import { mockSessionData } from "~/test/mocks/next-auth";
 
 interface ExtendedSession extends Session {
   user: Session["user"] & { token?: string };
@@ -44,10 +45,7 @@ function createMockContext(
   return { params: Promise.resolve(params) };
 }
 
-const defaultSession: ExtendedSession = {
-  user: { id: "1", token: "test-token", name: "Test User" },
-  expires: "2099-01-01",
-};
+const defaultSession = mockSessionData() as ExtendedSession;
 
 interface ApiResponse<T> {
   success: boolean;
@@ -178,5 +176,66 @@ describe("GET /api/ogs-dashboard", () => {
     expect(json.data.roomStatus).toBeNull();
     expect(json.data.substitutions).toEqual([]);
     expect(json.data.firstGroupId).toBe("5");
+  });
+
+  it("sorts groups alphabetically and uses first group", async () => {
+    const groups = [
+      { id: 20, name: "Zebra" },
+      { id: 10, name: "Adler" },
+    ];
+
+    mockApiGet
+      .mockResolvedValueOnce({ data: groups })
+      .mockResolvedValueOnce({ data: [] })
+      .mockResolvedValueOnce({ data: null })
+      .mockResolvedValueOnce({ data: [] });
+
+    const request = createMockRequest("/api/ogs-dashboard");
+    const response = await GET(request, createMockContext());
+
+    // After sorting, "Adler" (id=10) should be first
+    expect(mockApiGet).toHaveBeenNthCalledWith(
+      2,
+      "/api/students?group_id=10",
+      "test-token",
+    );
+
+    const json = await parseJsonResponse<
+      ApiResponse<{
+        groups: typeof groups;
+        firstGroupId: string | null;
+      }>
+    >(response);
+
+    expect(json.data.firstGroupId).toBe("10");
+    // Groups should be sorted alphabetically
+    expect(json.data.groups).toHaveLength(2);
+    expect(json.data.groups.at(0)?.name).toBe("Adler");
+    expect(json.data.groups.at(1)?.name).toBe("Zebra");
+  });
+
+  it("handles null data arrays gracefully", async () => {
+    const groups = [{ id: 1, name: "Group" }];
+
+    mockApiGet
+      .mockResolvedValueOnce({ data: groups })
+      .mockResolvedValueOnce({ data: null }) // students null
+      .mockResolvedValueOnce({ data: null }) // roomStatus null
+      .mockResolvedValueOnce({ data: null }); // substitutions null
+
+    const request = createMockRequest("/api/ogs-dashboard");
+    const response = await GET(request, createMockContext());
+
+    const json = await parseJsonResponse<
+      ApiResponse<{
+        students: unknown[];
+        roomStatus: unknown;
+        substitutions: unknown[];
+      }>
+    >(response);
+
+    expect(json.data.students).toEqual([]);
+    expect(json.data.roomStatus).toBeNull();
+    expect(json.data.substitutions).toEqual([]);
   });
 });

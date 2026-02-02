@@ -21,7 +21,7 @@ export function NavigationTabs({
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
 
-  const showMobileDropdown = items.length >= 3;
+  const showMobileDropdown = items.length >= 2;
 
   // Memoize active index to avoid redundant findIndex calls on re-renders
   const activeIndex = useMemo(

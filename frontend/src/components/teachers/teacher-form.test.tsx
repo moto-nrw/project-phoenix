@@ -174,9 +174,7 @@ describe("TeacherForm", () => {
     fireEvent.click(submitBtn);
 
     await waitFor(() => {
-      expect(
-        screen.getByText("Ungültige E-Mail-Adresse"),
-      ).toBeInTheDocument();
+      expect(screen.getByText("Ungültige E-Mail-Adresse")).toBeInTheDocument();
     });
   });
 
@@ -325,9 +323,7 @@ describe("TeacherForm", () => {
     expect(
       screen.getByText("RFID-Karte (Funktion nicht verfügbar)"),
     ).toBeInTheDocument();
-    expect(
-      screen.getByText("RFID-Funktion deaktiviert"),
-    ).toBeInTheDocument();
+    expect(screen.getByText("RFID-Funktion deaktiviert")).toBeInTheDocument();
   });
 
   it("hides RFID section by default", () => {

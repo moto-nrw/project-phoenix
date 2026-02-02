@@ -14,6 +14,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
 	sessionsAPI "github.com/moto-nrw/project-phoenix/api/iot/sessions"
@@ -243,9 +244,7 @@ func TestGetCurrentSession_WithActiveSession(t *testing.T) {
 	startRR := testutil.ExecuteRequest(router, startReq)
 	t.Logf("Start session response: %d - %s", startRR.Code, startRR.Body.String())
 
-	if startRR.Code != http.StatusOK {
-		t.Skipf("Could not start session (status %d), skipping current session test", startRR.Code)
-	}
+	require.Equal(t, http.StatusOK, startRR.Code, "Session start must succeed; body: %s", startRR.Body.String())
 
 	// Now call getCurrentSession — this exercises the supervisor lookup (lines 173-178)
 	currentReq := testutil.NewAuthenticatedRequest(t, "GET", "/current", nil,

@@ -291,7 +291,6 @@ func TestAppClaims_ParseClaims_ValidClaims(t *testing.T) {
 	assert.Equal(t, []string{"admin", "user"}, c.Roles)
 	assert.Equal(t, []string{"read", "write", "delete"}, c.Permissions)
 	assert.True(t, c.IsAdmin)
-	assert.False(t, c.IsTeacher)
 }
 
 func TestAppClaims_ParseClaims_MinimalClaims(t *testing.T) {
@@ -315,7 +314,6 @@ func TestAppClaims_ParseClaims_MinimalClaims(t *testing.T) {
 	assert.Empty(t, c.LastName)
 	assert.Empty(t, c.Permissions)
 	assert.False(t, c.IsAdmin)
-	assert.False(t, c.IsTeacher)
 }
 
 func TestAppClaims_ParseClaims_MissingID(t *testing.T) {

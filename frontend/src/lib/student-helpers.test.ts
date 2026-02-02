@@ -19,9 +19,10 @@ import {
   extractGuardianContact,
   getStatusColor,
 } from "./student-helpers";
+import { buildBackendStudent } from "~/test/fixtures";
 
 // Sample backend student for testing
-const sampleBackendStudent: BackendStudent = {
+const sampleBackendStudent = buildBackendStudent({
   id: 1,
   person_id: 100,
   first_name: "Max",
@@ -43,9 +44,7 @@ const sampleBackendStudent: BackendStudent = {
   health_info: "No health concerns",
   supervisor_notes: "Good student",
   pickup_status: "parent",
-  created_at: "2024-01-01T00:00:00Z",
-  updated_at: "2024-01-15T12:00:00Z",
-};
+});
 
 describe("SCHOOL_YEAR_FILTER_OPTIONS", () => {
   it("contains 5 options including 'all'", () => {

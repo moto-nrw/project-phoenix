@@ -198,12 +198,16 @@ const SYSTEM_ROLE_TRANSLATIONS: Record<
     description: "Systemadministrator mit vollem Zugriff",
   },
   user: {
-    name: "Nutzer",
-    description: "Standardbenutzer mit grundlegenden Berechtigungen",
+    name: "Betreuer",
+    description: "Pädagogische Fachkraft mit Betreuungsrechten",
   },
   guest: {
     name: "Gast",
     description: "Eingeschränkter Zugriff für nicht authentifizierte Benutzer",
+  },
+  guardian: {
+    name: "Erziehungsberechtigter",
+    description: "Eingeschränkter Zugriff auf Daten der eigenen Kinder",
   },
 };
 

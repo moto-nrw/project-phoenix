@@ -1,7 +1,7 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { auth, signIn } from "~/server/auth";
-import { env } from "~/env";
+import { getServerApiUrl } from "~/lib/server-api-url";
 
 interface TokenResponse {
   access_token: string;
@@ -23,7 +23,7 @@ export async function POST(_request: NextRequest) {
 
     // Send refresh token request to backend
     // Use server URL in server context (Docker environment)
-    const apiUrl = env.NEXT_PUBLIC_API_URL;
+    const apiUrl = getServerApiUrl();
 
     // The backend expects the refresh token in Authorization header
     const backendResponse = await fetch(`${apiUrl}/auth/refresh`, {

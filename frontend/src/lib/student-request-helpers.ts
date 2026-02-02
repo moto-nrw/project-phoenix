@@ -162,10 +162,12 @@ export function buildBackendStudentRequest(
     request.guardian_contact = validated.guardianContact;
   }
   if (guardianContact.email || backendData.guardian_email) {
-    request.guardian_email = guardianContact.email ?? backendData.guardian_email;
+    request.guardian_email =
+      guardianContact.email ?? backendData.guardian_email;
   }
   if (guardianContact.phone || backendData.guardian_phone) {
-    request.guardian_phone = guardianContact.phone ?? backendData.guardian_phone;
+    request.guardian_phone =
+      guardianContact.phone ?? backendData.guardian_phone;
   }
 
   return request;
@@ -192,7 +194,11 @@ export async function handlePrivacyConsentCreation(
   shouldCreate: (accepted?: boolean, retentionDays?: number) => boolean,
   updateConsent: (
     id: number | string,
-    apiPut: (endpoint: string, token: string, data: unknown) => Promise<unknown>,
+    apiPut: (
+      endpoint: string,
+      token: string,
+      data: unknown,
+    ) => Promise<unknown>,
     token: string,
     accepted?: boolean,
     retentionDays?: number,
@@ -242,8 +248,13 @@ export async function buildStudentResponse(
     studentId: string,
     apiGet: (endpoint: string, token: string) => Promise<unknown>,
     token: string,
-  ) => Promise<{ privacy_consent_accepted: boolean; data_retention_days: number }>,
-): Promise<Student & { privacy_consent_accepted: boolean; data_retention_days: number }> {
+  ) => Promise<{
+    privacy_consent_accepted: boolean;
+    data_retention_days: number;
+  }>,
+): Promise<
+  Student & { privacy_consent_accepted: boolean; data_retention_days: number }
+> {
   if (studentId) {
     const consentData = await fetchConsent(studentId.toString(), apiGet, token);
     return {

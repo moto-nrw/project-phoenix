@@ -72,7 +72,6 @@ func TestTokenAuth_CreateJWT_ValidClaims(t *testing.T) {
 		Roles:       []string{"admin", "user"},
 		Permissions: []string{"read", "write"},
 		IsAdmin:     true,
-		IsTeacher:   false,
 	}
 
 	token, err := auth.CreateJWT(claims)
@@ -271,7 +270,6 @@ func TestParseStructToMap_AppClaims(t *testing.T) {
 		Roles:       []string{"admin", "user"},
 		Permissions: []string{"read", "write"},
 		IsAdmin:     true,
-		IsTeacher:   false,
 		CommonClaims: CommonClaims{
 			ExpiresAt: 1234567890,
 			IssuedAt:  1234567800,
@@ -289,9 +287,6 @@ func TestParseStructToMap_AppClaims(t *testing.T) {
 	assert.Equal(t, []string{"admin", "user"}, result["roles"])
 	assert.Equal(t, []string{"read", "write"}, result["permissions"])
 	assert.Equal(t, true, result["is_admin"])
-	// is_teacher is false but omitempty means it's not included in JSON
-	_, hasIsTeacher := result["is_teacher"]
-	assert.False(t, hasIsTeacher, "is_teacher should be omitted when false")
 	assert.Equal(t, int64(1234567890), result["exp"])
 	assert.Equal(t, int64(1234567800), result["iat"])
 }
