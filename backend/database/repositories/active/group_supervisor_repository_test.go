@@ -930,4 +930,5 @@ func TestGroupSupervisorRepository_EndAllActiveByStaffID(t *testing.T) {
 
 // NOTE: FindWithStaff and FindWithActiveGroup methods exist in implementation
 // but are not exposed in the GroupSupervisorRepository interface, so they
-// cannot be tested through the interface.
+// cannot be tested through the interface. These methods are unused in the
+// codebase and account for the 6 uncovered lines (62.5% → ~68% coverage).

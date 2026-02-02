@@ -124,6 +124,15 @@ describe("PUT /api/time-tracking/absences/[id]", () => {
       await parseJsonResponse<ApiResponse<typeof mockUpdatedAbsence>>(response);
     expect(json.data).toEqual(mockUpdatedAbsence);
   });
+
+  it("returns 500 when id param is invalid (array)", async () => {
+    const request = createMockRequest("/api/time-tracking/absences/bad", {
+      method: "PUT",
+      body: { note: "test" },
+    });
+    const response = await PUT(request, createMockContext({ id: ["a", "b"] }));
+    expect(response.status).toBe(500);
+  });
 });
 
 describe("DELETE /api/time-tracking/absences/[id]", () => {
@@ -156,5 +165,16 @@ describe("DELETE /api/time-tracking/absences/[id]", () => {
       "test-token",
     );
     expect(response.status).toBe(204);
+  });
+
+  it("returns 500 when id param is invalid (array)", async () => {
+    const request = createMockRequest("/api/time-tracking/absences/bad", {
+      method: "DELETE",
+    });
+    const response = await DELETE(
+      request,
+      createMockContext({ id: ["a", "b"] }),
+    );
+    expect(response.status).toBe(500);
   });
 });

@@ -191,6 +191,55 @@ func TestWorkSessionBreakRepository_Create(t *testing.T) {
 		err = repo.Create(ctx, brk)
 		assert.Error(t, err)
 	})
+
+	t.Run("create with zero started_at should fail validation", func(t *testing.T) {
+		today := timezone.DateOfUTC(time.Now())
+		session := &active.WorkSession{
+			StaffID:     staff.ID,
+			Date:        today,
+			Status:      active.WorkSessionStatusPresent,
+			CheckInTime: time.Now(),
+			CreatedBy:   staff.ID,
+		}
+		err := sessionRepo.Create(ctx, session)
+		require.NoError(t, err)
+		defer testpkg.CleanupTableRecords(t, db, "active.work_sessions", session.ID)
+
+		brk := &active.WorkSessionBreak{
+			SessionID:       session.ID,
+			StartedAt:       time.Time{}, // Zero value - invalid
+			DurationMinutes: 0,
+		}
+		err = repo.Create(ctx, brk)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "started_at is required")
+	})
+
+	t.Run("create with started_at after ended_at should fail validation", func(t *testing.T) {
+		today := timezone.DateOfUTC(time.Now())
+		session := &active.WorkSession{
+			StaffID:     staff.ID,
+			Date:        today,
+			Status:      active.WorkSessionStatusPresent,
+			CheckInTime: time.Now(),
+			CreatedBy:   staff.ID,
+		}
+		err := sessionRepo.Create(ctx, session)
+		require.NoError(t, err)
+		defer testpkg.CleanupTableRecords(t, db, "active.work_sessions", session.ID)
+
+		startedAt := time.Now()
+		endedAt := startedAt.Add(-30 * time.Minute) // Ended before started - invalid
+		brk := &active.WorkSessionBreak{
+			SessionID:       session.ID,
+			StartedAt:       startedAt,
+			EndedAt:         &endedAt,
+			DurationMinutes: 30,
+		}
+		err = repo.Create(ctx, brk)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "started_at must be before ended_at")
+	})
 }
 
 func TestWorkSessionBreakRepository_GetBySessionID(t *testing.T) {

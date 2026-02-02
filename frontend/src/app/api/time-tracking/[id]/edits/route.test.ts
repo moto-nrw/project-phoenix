@@ -119,4 +119,10 @@ describe("GET /api/time-tracking/[id]/edits", () => {
       await parseJsonResponse<ApiResponse<typeof mockEdits>>(response);
     expect(json.data).toEqual(mockEdits);
   });
+
+  it("returns 500 when id param is invalid", async () => {
+    const request = createMockRequest("/api/time-tracking/bad/edits");
+    const response = await GET(request, createMockContext({ id: ["a", "b"] }));
+    expect(response.status).toBe(500);
+  });
 });

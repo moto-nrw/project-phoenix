@@ -123,4 +123,13 @@ describe("GET /api/time-tracking/breaks/[sessionId]", () => {
       await parseJsonResponse<ApiResponse<typeof mockBreaks>>(response);
     expect(json.data).toEqual(mockBreaks);
   });
+
+  it("returns 500 when sessionId param is invalid", async () => {
+    const request = createMockRequest("/api/time-tracking/breaks/bad");
+    const response = await GET(
+      request,
+      createMockContext({ sessionId: ["a", "b"] }),
+    );
+    expect(response.status).toBe(500);
+  });
 });

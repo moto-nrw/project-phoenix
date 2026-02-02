@@ -648,4 +648,432 @@ describe("staff-api", () => {
       expect(result).toEqual([]);
     });
   });
+
+  describe("extractActiveGroups edge cases", () => {
+    it("handles double-wrapped data (frontend wrapper around backend response)", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+
+      mockFetch.mockImplementation((url: string) => {
+        if (url.includes("/api/staff")) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve([sampleBackendStaff]),
+          } as Response);
+        }
+        if (url.includes("/api/active/groups")) {
+          // Double wrapped: { data: { data: [...] } }
+          return Promise.resolve({
+            ok: true,
+            json: () =>
+              Promise.resolve({
+                data: { data: sampleActiveGroups },
+              }),
+          } as Response);
+        }
+        return Promise.reject(new Error(`Unexpected URL: ${url}`));
+      });
+
+      const result = await staffService.getAllStaff();
+
+      // Should handle double-wrapped and still find supervisions
+      expect(result[0]?.isSupervising).toBe(true);
+      expect(result[0]?.currentLocation).toBe("2 Räume");
+    });
+
+    it("handles non-array data gracefully", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+
+      mockFetch.mockImplementation((url: string) => {
+        if (url.includes("/api/staff")) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve([sampleBackendStaff]),
+          } as Response);
+        }
+        if (url.includes("/api/active/groups")) {
+          // Return object without data array
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve({ data: "not-an-array" }),
+          } as Response);
+        }
+        return Promise.reject(new Error(`Unexpected URL: ${url}`));
+      });
+
+      const result = await staffService.getAllStaff();
+
+      // Should fallback to empty array and not throw
+      expect(result[0]?.isSupervising).toBe(false);
+      expect(result[0]?.currentLocation).toBe("Zuhause");
+    });
+
+    it("handles null data property", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+
+      mockFetch.mockImplementation((url: string) => {
+        if (url.includes("/api/staff")) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve([sampleBackendStaff]),
+          } as Response);
+        }
+        if (url.includes("/api/active/groups")) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve({ data: null }),
+          } as Response);
+        }
+        return Promise.reject(new Error(`Unexpected URL: ${url}`));
+      });
+
+      const result = await staffService.getAllStaff();
+
+      expect(result[0]?.isSupervising).toBe(false);
+    });
+  });
+
+  describe("getSupervisionInfo priority hierarchy", () => {
+    it("returns absence status when absence_type is provided", async () => {
+      const staffWithAbsence: BackendStaffResponse = {
+        ...sampleBackendStaff,
+        absence_type: "sick",
+        work_status: "present", // Should be overridden by absence
+      };
+
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+
+      mockFetch.mockImplementation((url: string) => {
+        if (url.includes("/api/staff")) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve([staffWithAbsence]),
+          } as Response);
+        }
+        if (url.includes("/api/active/groups")) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve({ data: sampleActiveGroups }),
+          } as Response);
+        }
+        return Promise.reject(new Error(`Unexpected URL: ${url}`));
+      });
+
+      const result = await staffService.getAllStaff();
+
+      // Absence overrides everything (priority 1)
+      expect(result[0]?.isSupervising).toBe(false);
+      expect(result[0]?.currentLocation).toBe("Krank");
+      expect(result[0]?.absenceType).toBe("sick");
+    });
+
+    it("returns Urlaub for vacation absence", async () => {
+      const staffOnVacation: BackendStaffResponse = {
+        ...sampleBackendStaff,
+        absence_type: "vacation",
+      };
+
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+
+      mockFetch.mockImplementation((url: string) => {
+        if (url.includes("/api/staff")) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve([staffOnVacation]),
+          } as Response);
+        }
+        if (url.includes("/api/active/groups")) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve([]),
+          } as Response);
+        }
+        return Promise.reject(new Error(`Unexpected URL: ${url}`));
+      });
+
+      const result = await staffService.getAllStaff();
+
+      expect(result[0]?.currentLocation).toBe("Urlaub");
+    });
+
+    it("returns Fortbildung for training absence", async () => {
+      const staffInTraining: BackendStaffResponse = {
+        ...sampleBackendStaff,
+        absence_type: "training",
+      };
+
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+
+      mockFetch.mockImplementation((url: string) => {
+        if (url.includes("/api/staff")) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve([staffInTraining]),
+          } as Response);
+        }
+        if (url.includes("/api/active/groups")) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve([]),
+          } as Response);
+        }
+        return Promise.reject(new Error(`Unexpected URL: ${url}`));
+      });
+
+      const result = await staffService.getAllStaff();
+
+      expect(result[0]?.currentLocation).toBe("Fortbildung");
+    });
+
+    it("returns Abwesend for other absence type", async () => {
+      const staffAbsent: BackendStaffResponse = {
+        ...sampleBackendStaff,
+        absence_type: "other",
+      };
+
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+
+      mockFetch.mockImplementation((url: string) => {
+        if (url.includes("/api/staff")) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve([staffAbsent]),
+          } as Response);
+        }
+        if (url.includes("/api/active/groups")) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve([]),
+          } as Response);
+        }
+        return Promise.reject(new Error(`Unexpected URL: ${url}`));
+      });
+
+      const result = await staffService.getAllStaff();
+
+      expect(result[0]?.currentLocation).toBe("Abwesend");
+    });
+
+    it("returns Zuhause for checked_out status (priority 2)", async () => {
+      const staffCheckedOut: BackendStaffResponse = {
+        ...sampleBackendStaff,
+        work_status: "checked_out",
+        was_present_today: true, // Should be overridden by checked_out
+      };
+
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+
+      mockFetch.mockImplementation((url: string) => {
+        if (url.includes("/api/staff")) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve([staffCheckedOut]),
+          } as Response);
+        }
+        if (url.includes("/api/active/groups")) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve({ data: sampleActiveGroups }),
+          } as Response);
+        }
+        return Promise.reject(new Error(`Unexpected URL: ${url}`));
+      });
+
+      const result = await staffService.getAllStaff();
+
+      // Checked out overrides supervision and presence
+      expect(result[0]?.isSupervising).toBe(false);
+      expect(result[0]?.currentLocation).toBe("Zuhause");
+      expect(result[0]?.workStatus).toBe("checked_out");
+    });
+
+    it("returns Anwesend for present work status without supervision (priority 4)", async () => {
+      const staffPresent: BackendStaffResponse = {
+        ...sampleBackendStaff,
+        work_status: "present",
+      };
+
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+
+      mockFetch.mockImplementation((url: string) => {
+        if (url.includes("/api/staff")) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve([staffPresent]),
+          } as Response);
+        }
+        if (url.includes("/api/active/groups")) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve([]), // No supervision
+          } as Response);
+        }
+        return Promise.reject(new Error(`Unexpected URL: ${url}`));
+      });
+
+      const result = await staffService.getAllStaff();
+
+      expect(result[0]?.isSupervising).toBe(false);
+      expect(result[0]?.currentLocation).toBe("Anwesend");
+      expect(result[0]?.workStatus).toBe("present");
+    });
+
+    it("returns Homeoffice for home_office work status (priority 4)", async () => {
+      const staffHomeOffice: BackendStaffResponse = {
+        ...sampleBackendStaff,
+        work_status: "home_office",
+      };
+
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+
+      mockFetch.mockImplementation((url: string) => {
+        if (url.includes("/api/staff")) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve([staffHomeOffice]),
+          } as Response);
+        }
+        if (url.includes("/api/active/groups")) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve([]),
+          } as Response);
+        }
+        return Promise.reject(new Error(`Unexpected URL: ${url}`));
+      });
+
+      const result = await staffService.getAllStaff();
+
+      expect(result[0]?.isSupervising).toBe(false);
+      expect(result[0]?.currentLocation).toBe("Homeoffice");
+      expect(result[0]?.workStatus).toBe("home_office");
+    });
+
+    it("returns single room name for staff supervising one room", async () => {
+      const singleRoomSupervision = [
+        {
+          id: 1,
+          name: "Morning Session",
+          room: { id: 5, name: "Room A" },
+          supervisors: [{ staff_id: 1, role: "supervisor" }],
+        },
+      ];
+
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+
+      mockFetch.mockImplementation((url: string) => {
+        if (url.includes("/api/staff")) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve([sampleBackendStaff]),
+          } as Response);
+        }
+        if (url.includes("/api/active/groups")) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve({ data: singleRoomSupervision }),
+          } as Response);
+        }
+        return Promise.reject(new Error(`Unexpected URL: ${url}`));
+      });
+
+      const result = await staffService.getAllStaff();
+
+      expect(result[0]?.isSupervising).toBe(true);
+      expect(result[0]?.currentLocation).toBe("Room A");
+    });
+
+    it("returns Unterwegs for staff supervising groups without rooms", async () => {
+      const noRoomSupervision = [
+        {
+          id: 1,
+          name: "Mobile Session",
+          room: null, // No room assigned
+          supervisors: [{ staff_id: 1, role: "supervisor" }],
+        },
+      ];
+
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+
+      mockFetch.mockImplementation((url: string) => {
+        if (url.includes("/api/staff")) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve([sampleBackendStaff]),
+          } as Response);
+        }
+        if (url.includes("/api/active/groups")) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve({ data: noRoomSupervision }),
+          } as Response);
+        }
+        return Promise.reject(new Error(`Unexpected URL: ${url}`));
+      });
+
+      const result = await staffService.getAllStaff();
+
+      expect(result[0]?.isSupervising).toBe(true);
+      expect(result[0]?.currentLocation).toBe("Unterwegs");
+    });
+
+    it("handles undefined room name fallback to Unterwegs", async () => {
+      const undefinedRoomName = [
+        {
+          id: 1,
+          name: "Session",
+          room: { id: 5, name: undefined }, // Room exists but no name
+          supervisors: [{ staff_id: 1, role: "supervisor" }],
+        },
+      ];
+
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+
+      mockFetch.mockImplementation((url: string) => {
+        if (url.includes("/api/staff")) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve([sampleBackendStaff]),
+          } as Response);
+        }
+        if (url.includes("/api/active/groups")) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve({ data: undefinedRoomName }),
+          } as Response);
+        }
+        return Promise.reject(new Error(`Unexpected URL: ${url}`));
+      });
+
+      const result = await staffService.getAllStaff();
+
+      expect(result[0]?.currentLocation).toBe("Unterwegs");
+    });
+  });
+
+  describe("fetchActiveGroups error handling", () => {
+    it("handles fetch exception and returns empty array", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+
+      mockFetch.mockImplementation((url: string) => {
+        if (url.includes("/api/staff")) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve([sampleBackendStaff]),
+          } as Response);
+        }
+        if (url.includes("/api/active/groups")) {
+          // Throw network error
+          throw new Error("Network failure");
+        }
+        return Promise.reject(new Error(`Unexpected URL: ${url}`));
+      });
+
+      // Should not throw, just return staff without supervision info
+      const result = await staffService.getAllStaff();
+
+      expect(result).toHaveLength(1);
+      expect(result[0]?.isSupervising).toBe(false);
+      expect(result[0]?.currentLocation).toBe("Zuhause");
+    });
+  });
 });
