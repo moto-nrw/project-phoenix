@@ -1095,7 +1095,7 @@ describe("SupervisionProvider supervised rooms comparison", () => {
 
 describe("SupervisionProvider Schulhof room creation", () => {
   it("creates virtual Schulhof room from status", () => {
-    const SCHULHOF_TAB_ID = "schulhof-permanent";
+    const SCHULHOF_TAB_ID = "schulhof";
     const SCHULHOF_ROOM_NAME = "Schulhof";
 
     const schulhofData = {
@@ -1113,7 +1113,7 @@ describe("SupervisionProvider Schulhof room creation", () => {
       : null;
 
     expect(schulhofRoom).not.toBeNull();
-    expect(schulhofRoom?.id).toBe("schulhof-permanent");
+    expect(schulhofRoom?.id).toBe("schulhof");
     expect(schulhofRoom?.groupId).toBe("123");
     expect(schulhofRoom?.isSchulhof).toBe(true);
   });
@@ -1122,7 +1122,7 @@ describe("SupervisionProvider Schulhof room creation", () => {
     const schulhofData = { exists: false };
 
     const schulhofRoom = schulhofData.exists
-      ? { id: "schulhof-permanent", name: "Schulhof" }
+      ? { id: "schulhof", name: "Schulhof" }
       : null;
 
     expect(schulhofRoom).toBeNull();

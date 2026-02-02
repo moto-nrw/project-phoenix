@@ -1192,7 +1192,12 @@ describe("Sidebar", () => {
         isLoadingSupervision: false,
         supervisedRooms: [
           { id: "10", name: "Raum A", groupId: "1" },
-          { id: "schulhof-permanent", name: "Schulhof", groupId: "schulhof", isSchulhof: true },
+          {
+            id: "schulhof",
+            name: "Schulhof",
+            groupId: "schulhof",
+            isSchulhof: true,
+          },
         ],
         groups: [],
         refresh: vi.fn(),
@@ -1212,7 +1217,12 @@ describe("Sidebar", () => {
         isLoadingGroups: false,
         isLoadingSupervision: false,
         supervisedRooms: [
-          { id: "schulhof-permanent", name: "Schulhof", groupId: "schulhof", isSchulhof: true },
+          {
+            id: "schulhof",
+            name: "Schulhof",
+            groupId: "schulhof",
+            isSchulhof: true,
+          },
         ],
         groups: [],
         refresh: vi.fn(),
@@ -1230,7 +1240,7 @@ describe("Sidebar", () => {
 
     it("uses schulhof string in navigation for Schulhof rooms", () => {
       // Test the condition: room.isSchulhof ? "schulhof" : room.id
-      const room = { id: "schulhof-permanent", name: "Schulhof", isSchulhof: true };
+      const room = { id: "schulhof", name: "Schulhof", isSchulhof: true };
       const navParam = room.isSchulhof ? "schulhof" : room.id;
 
       expect(navParam).toBe("schulhof");
@@ -1244,7 +1254,7 @@ describe("Sidebar", () => {
     });
 
     it("generates correct href for Schulhof room", () => {
-      const room = { id: "schulhof-permanent", name: "Schulhof", isSchulhof: true };
+      const room = { id: "schulhof", name: "Schulhof", isSchulhof: true };
       const basePath = "/active-supervisions";
 
       const href = room.isSchulhof
@@ -1273,7 +1283,12 @@ describe("Sidebar", () => {
         isLoadingSupervision: false,
         supervisedRooms: [
           { id: "10", name: "Raum A", groupId: "1" },
-          { id: "schulhof-permanent", name: "Schulhof", groupId: "schulhof", isSchulhof: true },
+          {
+            id: "schulhof",
+            name: "Schulhof",
+            groupId: "schulhof",
+            isSchulhof: true,
+          },
         ],
         groups: [],
         refresh: vi.fn(),

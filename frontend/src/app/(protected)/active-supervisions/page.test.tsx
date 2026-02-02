@@ -1844,7 +1844,7 @@ describe("Filter configs generation", () => {
 });
 
 describe("Schulhof tab ID handling", () => {
-  const SCHULHOF_TAB_ID = "schulhof-permanent";
+  const SCHULHOF_TAB_ID = "schulhof";
   const SCHULHOF_ROOM_NAME = "Schulhof";
 
   it("identifies Schulhof tab by ID", () => {
@@ -1852,7 +1852,7 @@ describe("Schulhof tab ID handling", () => {
       return tabId === SCHULHOF_TAB_ID;
     };
 
-    expect(isSchulhofTab("schulhof-permanent")).toBe(true);
+    expect(isSchulhofTab("schulhof")).toBe(true);
     expect(isSchulhofTab("room-123")).toBe(false);
   });
 
@@ -2066,7 +2066,7 @@ describe("Local storage for room persistence", () => {
   });
 
   it("saves Schulhof tab ID for persistence", () => {
-    const SCHULHOF_TAB_ID = "schulhof-permanent";
+    const SCHULHOF_TAB_ID = "schulhof";
     const SCHULHOF_ROOM_NAME = "Schulhof";
     const setItem = vi.fn();
     const mockLocalStorage = { setItem };
@@ -2074,10 +2074,7 @@ describe("Local storage for room persistence", () => {
     mockLocalStorage.setItem("sidebar-last-room", SCHULHOF_TAB_ID);
     mockLocalStorage.setItem("sidebar-last-room-name", SCHULHOF_ROOM_NAME);
 
-    expect(setItem).toHaveBeenCalledWith(
-      "sidebar-last-room",
-      "schulhof-permanent",
-    );
+    expect(setItem).toHaveBeenCalledWith("sidebar-last-room", "schulhof");
     expect(setItem).toHaveBeenCalledWith("sidebar-last-room-name", "Schulhof");
   });
 });
@@ -2197,8 +2194,8 @@ describe("SWR visit data sync", () => {
 
 describe("Tab change handler logic", () => {
   it("switches to Schulhof tab correctly", () => {
-    const SCHULHOF_TAB_ID = "schulhof-permanent";
-    const tabId = "schulhof-permanent";
+    const SCHULHOF_TAB_ID = "schulhof";
+    const tabId = "schulhof";
 
     let isSchulhofTabSelected = false;
     let selectedRoomIndex = 0;
@@ -2213,7 +2210,7 @@ describe("Tab change handler logic", () => {
   });
 
   it("switches to regular room tab correctly", () => {
-    const SCHULHOF_TAB_ID = "schulhof-permanent";
+    const SCHULHOF_TAB_ID = "schulhof";
     const tabId = "room-123" as string;
     const allRooms = [
       { id: "room-123", room_id: "r1" },
@@ -2987,7 +2984,7 @@ describe("currentRoom calculation", () => {
       activeGroupId: "ag-123",
       studentCount: 5,
     };
-    const SCHULHOF_TAB_ID = "schulhof-permanent";
+    const SCHULHOF_TAB_ID = "schulhof";
     const SCHULHOF_ROOM_NAME = "Schulhof";
 
     const currentRoom = isSchulhofTabSelected
@@ -3002,7 +2999,7 @@ describe("currentRoom calculation", () => {
       : null;
 
     expect(currentRoom).not.toBeNull();
-    expect(currentRoom?.id).toBe("schulhof-permanent");
+    expect(currentRoom?.id).toBe("schulhof");
     expect(currentRoom?.student_count).toBe(5);
   });
 
@@ -4835,7 +4832,7 @@ describe("handleToggleSchulhof edge cases", () => {
 
 describe("Tab configuration with Schulhof", () => {
   it("includes Schulhof tab in items when it exists", () => {
-    const SCHULHOF_TAB_ID = "schulhof-permanent";
+    const SCHULHOF_TAB_ID = "schulhof";
     const SCHULHOF_ROOM_NAME = "Schulhof";
     const allRooms = [
       { id: "g1", room_name: "Raum A", name: "Group A" },
@@ -4877,7 +4874,7 @@ describe("Tab configuration with Schulhof", () => {
   });
 
   it("determines active tab ID for Schulhof tab", () => {
-    const SCHULHOF_TAB_ID = "schulhof-permanent";
+    const SCHULHOF_TAB_ID = "schulhof";
     const isSchulhofTabSelected = true;
     const currentRoomId = "g1";
 
@@ -4886,7 +4883,7 @@ describe("Tab configuration with Schulhof", () => {
   });
 
   it("determines active tab ID for regular room", () => {
-    const SCHULHOF_TAB_ID = "schulhof-permanent";
+    const SCHULHOF_TAB_ID = "schulhof";
     const isSchulhofTabSelected = false;
     const currentRoomId = "g1";
 
@@ -4895,7 +4892,7 @@ describe("Tab configuration with Schulhof", () => {
   });
 
   it("falls back to empty string when no current room", () => {
-    const SCHULHOF_TAB_ID = "schulhof-permanent";
+    const SCHULHOF_TAB_ID = "schulhof";
     const isSchulhofTabSelected = false;
     const currentRoomId: string | undefined = undefined;
 
