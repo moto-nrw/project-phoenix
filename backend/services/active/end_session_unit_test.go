@@ -257,6 +257,10 @@ func (m *mockGroupSupervisorRepository) GetStaffIDsWithSupervisionToday(ctx cont
 	return nil, nil
 }
 
+func (m *mockGroupSupervisorRepository) EndAllActiveByStaffID(ctx context.Context, staffID int64) (int, error) {
+	return 0, nil
+}
+
 // TestEndActivitySession_FindByActiveGroupIDError tests the error path when finding supervisors fails.
 // This covers the error path inside the transaction when supervisorRepo.FindByActiveGroupID
 // returns an error, causing a transaction rollback.
