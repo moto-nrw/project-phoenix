@@ -2,6 +2,7 @@ import type { DefaultSession, NextAuthConfig, User } from "next-auth";
 import DiscordProvider from "next-auth/providers/discord";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { env } from "~/env";
+import { getServerApiUrl } from "~/lib/server-api-url";
 
 /**
  * JWT payload structure from backend tokens
@@ -94,7 +95,7 @@ async function performLogin(
   password: string,
   isDev: boolean,
 ): Promise<{ access_token: string; refresh_token: string } | null> {
-  const apiUrl = env.NEXT_PUBLIC_API_URL;
+  const apiUrl = getServerApiUrl();
 
   if (isDev) {
     console.log(`Attempting login with API URL: ${apiUrl}/auth/login`);

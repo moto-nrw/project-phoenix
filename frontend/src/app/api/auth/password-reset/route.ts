@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { env } from "~/env";
+import { getServerApiUrl } from "~/lib/server-api-url";
 
 interface PasswordResetRequestBody {
   email: string;
@@ -17,14 +17,11 @@ export async function POST(request: NextRequest) {
   try {
     const body = (await request.json()) as PasswordResetRequestBody;
 
-    const response = await fetch(
-      `${env.NEXT_PUBLIC_API_URL}/auth/password-reset`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      },
-    );
+    const response = await fetch(`${getServerApiUrl()}/auth/password-reset`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
 
     if (!response.ok) {
       const retryAfter = response.headers.get("Retry-After");

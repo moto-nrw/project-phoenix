@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { auth } from "~/server/auth";
-import { env } from "~/env";
+import { getServerApiUrl } from "~/lib/server-api-url";
 
 export async function GET(_request: NextRequest) {
   try {
@@ -10,7 +10,7 @@ export async function GET(_request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const response = await fetch(`${env.NEXT_PUBLIC_API_URL}/auth/account`, {
+    const response = await fetch(`${getServerApiUrl()}/auth/account`, {
       headers: {
         Authorization: `Bearer ${session.user.token}`,
         "Content-Type": "application/json",

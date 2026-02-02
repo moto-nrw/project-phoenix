@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { auth } from "~/server/auth";
-import { env } from "~/env";
+import { getServerApiUrl } from "~/lib/server-api-url";
 
 // Error response interface
 interface ErrorResponse {
@@ -30,7 +30,7 @@ export async function POST(
       });
     }
 
-    const url = `${env.NEXT_PUBLIC_API_URL}/auth/roles/${roleId}/permissions/${permissionId}`;
+    const url = `${getServerApiUrl()}/auth/roles/${roleId}/permissions/${permissionId}`;
 
     const response = await fetch(url, {
       method: "POST",
@@ -87,7 +87,7 @@ export async function DELETE(
       });
     }
 
-    const url = `${env.NEXT_PUBLIC_API_URL}/auth/roles/${roleId}/permissions/${permissionId}`;
+    const url = `${getServerApiUrl()}/auth/roles/${roleId}/permissions/${permissionId}`;
 
     const response = await fetch(url, {
       method: "DELETE",
