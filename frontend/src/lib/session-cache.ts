@@ -21,11 +21,14 @@ export async function getCachedSession() {
   if (cached && now < cached.expiry) return cached.session;
   if (inflight) return inflight;
 
-  inflight = getSession().then((session) => {
-    cached = { session, expiry: Date.now() + TTL_MS };
-    inflight = null;
-    return session;
-  });
+  inflight = getSession()
+    .then((session) => {
+      cached = { session, expiry: Date.now() + TTL_MS };
+      return session;
+    })
+    .finally(() => {
+      inflight = null;
+    });
 
   return inflight;
 }
