@@ -26,15 +26,13 @@ import { Modal } from "~/components/ui/modal";
 import { useToast } from "~/contexts/ToastContext";
 import { useSWRAuth } from "~/lib/swr";
 import { timeTrackingService } from "~/lib/time-tracking-api";
-import type {
-  StaffAbsence,
-  WorkSession,
-  WorkSessionBreak,
-  WorkSessionEdit,
-  WorkSessionHistory,
-} from "~/lib/time-tracking-helpers";
 import {
   type AbsenceType,
+  type StaffAbsence,
+  type WorkSession,
+  type WorkSessionBreak,
+  type WorkSessionEdit,
+  type WorkSessionHistory,
   absenceTypeLabels,
   absenceTypeColors,
   formatDuration,
@@ -1082,7 +1080,7 @@ function ExportDropdown({ weekDays }: { readonly weekDays: (Date | null)[] }) {
     if (!rangeFrom || !rangeTo) return;
     const from = toISODate(rangeFrom);
     const to = toISODate(rangeTo);
-    window.location.href = `/api/time-tracking/export?from=${from}&to=${to}&format=${format}`;
+    globalThis.location.href = `/api/time-tracking/export?from=${from}&to=${to}&format=${format}`;
     setOpen(false);
   };
 
@@ -1313,9 +1311,9 @@ function MiniCalendar({
               className={`flex h-9 items-center justify-center text-sm transition-colors ${rounding} ${cellBg} ${
                 disabled
                   ? "cursor-not-allowed text-gray-300"
-                  : !inRange
-                    ? "text-gray-700 hover:bg-gray-100"
-                    : ""
+                  : inRange
+                    ? ""
+                    : "text-gray-700 hover:bg-gray-100"
               } ${isToday && !isStart && !isEnd ? "font-bold" : ""}`}
             >
               {dayNum}
@@ -1513,14 +1511,14 @@ function WeekTable({
                   new Date().toISOString(),
                   liveBreakMins,
                 );
-                netDisplay = live !== null ? formatDuration(live) : "--";
+                netDisplay = live == null ? "--" : formatDuration(live);
               }
             }
 
             const warnings = session ? getComplianceWarnings(session) : [];
 
             // Absence-only card — clickable to open edit modal
-            if (absence && !session) {
+            if (absence && session == null) {
               const colorClass =
                 absenceTypeColors[absence.absenceType] ??
                 "bg-gray-100 text-gray-600";
@@ -1747,13 +1745,13 @@ function WeekTable({
                       new Date().toISOString(),
                       liveBreakMins,
                     );
-                    netDisplay = live !== null ? formatDuration(live) : "--";
+                    netDisplay = live == null ? "--" : formatDuration(live);
                   }
                 }
 
                 const warnings = session ? getComplianceWarnings(session) : [];
 
-                if (absence && !session) {
+                if (absence && session == null) {
                   const colorClass =
                     absenceTypeColors[absence.absenceType] ??
                     "bg-gray-100 text-gray-600";
@@ -2207,7 +2205,7 @@ function EditSessionModal({
   // Calculate total break from individual breaks or fallback dropdown
   const editedBreak = hasIndividualBreaks
     ? Array.from(breakDurations.values()).reduce((sum, d) => sum + d, 0)
-    : parseInt(breakMins, 10) || 0;
+    : Number.parseInt(breakMins, 10) || 0;
 
   // Compliance check for the edited values
   const warnings: string[] = [];
@@ -2469,7 +2467,7 @@ function EditSessionModal({
                               onChange={(e) =>
                                 handleBreakDurationChange(
                                   brk.id,
-                                  parseInt(e.target.value, 10),
+                                  Number.parseInt(e.target.value, 10),
                                 )
                               }
                               className="w-full appearance-none rounded-lg border border-gray-300 px-3 py-1.5 pr-8 text-sm transition-colors focus:border-gray-900 focus:ring-1 focus:ring-gray-900 focus:outline-none"

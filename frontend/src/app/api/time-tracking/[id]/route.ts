@@ -38,7 +38,7 @@ export const PUT = createPutHandler<unknown, UpdateSessionRequest>(
     // Convert break IDs from string to int for backend
     if (body.breaks && body.breaks.length > 0) {
       backendBody.breaks = body.breaks.map((b) => ({
-        id: parseInt(b.id, 10),
+        id: Number.parseInt(b.id, 10),
         duration_minutes: b.durationMinutes,
       }));
     }

@@ -180,7 +180,7 @@ export function mapWorkSessionResponse(data: BackendWorkSession): WorkSession {
     notes: data.notes ?? "",
     autoCheckedOut: data.auto_checked_out,
     createdBy: data.created_by.toString(),
-    updatedBy: data.updated_by != null ? data.updated_by.toString() : null,
+    updatedBy: data.updated_by == null ? null : data.updated_by.toString(),
     createdAt: data.created_at,
     updatedAt: data.updated_at,
   };
