@@ -238,7 +238,7 @@ function getSupervisionInfo(
   // Determine badge location (time clock status only)
   let currentLocation: string;
 
-  // Priority 1: Absence today → overrides time clock
+  // Priority 1: Absence today → overrides everything
   if (absenceType && absenceLabels[absenceType]) {
     currentLocation = absenceLabels[absenceType];
   }
@@ -250,11 +250,15 @@ function getSupervisionInfo(
   else if (workStatus === "home_office") {
     currentLocation = "Homeoffice";
   }
-  // Priority 4: Legacy wasPresentToday fallback
-  else if (wasPresentToday) {
+  // Priority 4: Explicitly checked out → Abwesend
+  else if (workStatus === "checked_out") {
+    currentLocation = "Abwesend";
+  }
+  // Priority 5: Legacy fallback (only if NO work_status data exists)
+  else if (wasPresentToday && !workStatus) {
     currentLocation = "Anwesend";
   }
-  // Priority 5: Not present (checked out or never clocked in)
+  // Priority 6: Not present
   else {
     currentLocation = "Abwesend";
   }
