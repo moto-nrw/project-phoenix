@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/render"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/models/base"
@@ -1228,7 +1229,7 @@ func TestClassifyServiceError(t *testing.T) {
 			renderer := classifyServiceError(errors.New(tt.errMsg))
 			w := httptest.NewRecorder()
 			r := httptest.NewRequest(http.MethodGet, "/", nil)
-			err := renderer.Render(w, r)
+			err := render.Render(w, r, renderer)
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantStatus, w.Code)
 		})
@@ -1257,7 +1258,7 @@ func TestClassifyAbsenceError(t *testing.T) {
 			renderer := classifyAbsenceError(errors.New(tt.errMsg))
 			w := httptest.NewRecorder()
 			r := httptest.NewRequest(http.MethodGet, "/", nil)
-			err := renderer.Render(w, r)
+			err := render.Render(w, r, renderer)
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantStatus, w.Code)
 		})
