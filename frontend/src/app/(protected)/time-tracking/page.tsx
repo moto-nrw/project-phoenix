@@ -1594,21 +1594,33 @@ function getRowBackgroundClass(isExpanded: boolean, isToday: boolean): string {
   return "";
 }
 
-/** Get desktop status badge (full labels) */
-function getDesktopStatusBadge(
+/** Render desktop status badge (full labels) */
+function renderDesktopStatusBadge(
   session: WorkSessionHistory | undefined,
   isActive: boolean,
   isFuture: boolean,
-): { className: string; label: string } | null {
-  if (session) {
-    if (isActive)
-      return { className: "bg-green-100 text-green-700", label: "aktiv" };
-    if (session.status === "home_office")
-      return { className: "bg-sky-100 text-sky-700", label: "Homeoffice" };
-    return { className: "bg-gray-100 text-gray-600", label: "In der OGS" };
+): React.ReactNode {
+  if (!session) {
+    if (isFuture) return null;
+    return <span className="text-gray-300">—</span>;
   }
-  if (isFuture) return null;
-  return { className: "text-gray-300", label: "—" };
+  const badgeStyles = isActive
+    ? "bg-green-100 text-green-700"
+    : session.status === "home_office"
+      ? "bg-sky-100 text-sky-700"
+      : "bg-gray-100 text-gray-600";
+  const label = isActive
+    ? "aktiv"
+    : session.status === "home_office"
+      ? "Homeoffice"
+      : "In der OGS";
+  return (
+    <span
+      className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${badgeStyles}`}
+    >
+      {label}
+    </span>
+  );
 }
 
 // ─── WeekTable ────────────────────────────────────────────────────────────────
@@ -2112,28 +2124,7 @@ function WeekTable({
                         )}
                       </td>
                       <td className="px-4 py-3 text-center">
-                        {(() => {
-                          const badge = getDesktopStatusBadge(
-                            session,
-                            isActive,
-                            isFuture,
-                          );
-                          if (!badge) return null;
-                          if (badge.label === "—") {
-                            return (
-                              <span className="text-gray-300">
-                                {badge.label}
-                              </span>
-                            );
-                          }
-                          return (
-                            <span
-                              className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${badge.className}`}
-                            >
-                              {badge.label}
-                            </span>
-                          );
-                        })()}
+                        {renderDesktopStatusBadge(session, isActive, isFuture)}
                       </td>
                       <td className="px-4 py-3 text-center">
                         {(() => {
