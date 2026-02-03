@@ -1355,19 +1355,21 @@ function MiniCalendar({
           else if (isEnd && !isStart) rounding = "rounded-r-md";
           else if (inRange && !isStart && !isEnd) rounding = "rounded-none";
 
+          // Determine text/hover styles
+          let interactionClass = "";
+          if (disabled) {
+            interactionClass = "cursor-not-allowed text-gray-300";
+          } else if (!inRange) {
+            interactionClass = "text-gray-700 hover:bg-gray-100";
+          }
+
           return (
             <button
               key={dayNum}
               type="button"
               disabled={disabled}
               onClick={() => onDayClick(date)}
-              className={`flex h-9 items-center justify-center text-sm transition-colors ${rounding} ${cellBg} ${
-                disabled
-                  ? "cursor-not-allowed text-gray-300"
-                  : inRange
-                    ? ""
-                    : "text-gray-700 hover:bg-gray-100"
-              } ${isToday && !isStart && !isEnd ? "font-bold" : ""}`}
+              className={`flex h-9 items-center justify-center text-sm transition-colors ${rounding} ${cellBg} ${interactionClass} ${isToday && !isStart && !isEnd ? "font-bold" : ""}`}
             >
               {dayNum}
             </button>
@@ -1620,23 +1622,25 @@ function WeekTable({
                     )}
                   </div>
                   <div className="flex items-center gap-2">
-                    {session ? (
-                      <span
-                        className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${
-                          isActive
-                            ? "bg-green-100 text-green-700"
-                            : session.status === "home_office"
-                              ? "bg-sky-100 text-sky-700"
-                              : "bg-gray-100 text-gray-600"
-                        }`}
-                      >
-                        {isActive
-                          ? "aktiv"
-                          : session.status === "home_office"
-                            ? "HO"
-                            : "OGS"}
-                      </span>
-                    ) : null}
+                    {session &&
+                      (() => {
+                        let badgeClass = "bg-gray-100 text-gray-600";
+                        let badgeLabel = "OGS";
+                        if (isActive) {
+                          badgeClass = "bg-green-100 text-green-700";
+                          badgeLabel = "aktiv";
+                        } else if (session.status === "home_office") {
+                          badgeClass = "bg-sky-100 text-sky-700";
+                          badgeLabel = "HO";
+                        }
+                        return (
+                          <span
+                            className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${badgeClass}`}
+                          >
+                            {badgeLabel}
+                          </span>
+                        );
+                      })()}
                     {canEdit && session && (
                       <button
                         type="button"
@@ -1850,13 +1854,11 @@ function WeekTable({
                   <React.Fragment key={dateKey}>
                     <tr
                       onClick={canEdit || hasEdits ? handleRowClick : undefined}
-                      className={`group/row border-b border-gray-50 transition-colors ${
-                        isExpanded
-                          ? "bg-gray-50"
-                          : isToday
-                            ? "bg-blue-50/50"
-                            : ""
-                      } ${canEdit || hasEdits ? "cursor-pointer hover:bg-gray-50" : ""} ${
+                      className={`group/row border-b border-gray-50 transition-colors ${(() => {
+                        if (isExpanded) return "bg-gray-50";
+                        if (isToday) return "bg-blue-50/50";
+                        return "";
+                      })()} ${canEdit || hasEdits ? "cursor-pointer hover:bg-gray-50" : ""} ${
                         isFuture ? "opacity-40" : ""
                       }`}
                     >
@@ -1883,13 +1885,13 @@ function WeekTable({
                         {session ? formatTime(session.checkInTime) : "--:--"}
                       </td>
                       <td className="px-4 py-3 text-center text-gray-600">
-                        {session
-                          ? session.checkOutTime
-                            ? formatTime(session.checkOutTime)
-                            : isActive
-                              ? "···"
-                              : "--:--"
-                          : "--:--"}
+                        {(() => {
+                          if (!session) return "--:--";
+                          if (session.checkOutTime)
+                            return formatTime(session.checkOutTime);
+                          if (isActive) return "···";
+                          return "--:--";
+                        })()}
                       </td>
                       <td className="px-4 py-3 text-center text-gray-600">
                         {session && session.breakMinutes > 0
@@ -1910,25 +1912,28 @@ function WeekTable({
                         )}
                       </td>
                       <td className="px-4 py-3 text-center">
-                        {session ? (
-                          <span
-                            className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
-                              isActive
-                                ? "bg-green-100 text-green-700"
-                                : session.status === "home_office"
-                                  ? "bg-sky-100 text-sky-700"
-                                  : "bg-gray-100 text-gray-600"
-                            }`}
-                          >
-                            {isActive
-                              ? "aktiv"
-                              : session.status === "home_office"
-                                ? "Homeoffice"
-                                : "In der OGS"}
-                          </span>
-                        ) : isFuture ? null : (
-                          <span className="text-gray-300">—</span>
-                        )}
+                        {(() => {
+                          if (session) {
+                            let badgeClass = "bg-gray-100 text-gray-600";
+                            let badgeLabel = "In der OGS";
+                            if (isActive) {
+                              badgeClass = "bg-green-100 text-green-700";
+                              badgeLabel = "aktiv";
+                            } else if (session.status === "home_office") {
+                              badgeClass = "bg-sky-100 text-sky-700";
+                              badgeLabel = "Homeoffice";
+                            }
+                            return (
+                              <span
+                                className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${badgeClass}`}
+                              >
+                                {badgeLabel}
+                              </span>
+                            );
+                          }
+                          if (isFuture) return null;
+                          return <span className="text-gray-300">—</span>;
+                        })()}
                       </td>
                       <td className="px-4 py-3 text-center">
                         {hasEdits && session ? (
