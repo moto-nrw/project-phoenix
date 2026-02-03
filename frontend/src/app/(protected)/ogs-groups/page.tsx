@@ -249,6 +249,11 @@ function OGSGroupPageContent() {
     // overwrite their current view with the first group's data.
     const firstGroupId = ogsGroups[0]?.id;
     if (!selectedGroupId || selectedGroupId === firstGroupId) {
+      // When no group is explicitly selected yet, lock in the first group's ID
+      // so the URL-sync effect won't try to "switch" to it via localStorage.
+      if (!selectedGroupId && firstGroupId) {
+        setSelectedGroupId(firstGroupId);
+      }
       setStudents(studentsData);
 
       if (rs?.student_room_status) {

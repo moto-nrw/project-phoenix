@@ -655,6 +655,11 @@ function MeinRaumPageContent() {
     // overwrite their current view with the first room's data.
     const firstRoom = activeRooms[0];
     if (!selectedRoomId || selectedRoomId === firstRoom?.id) {
+      // When no room is explicitly selected yet, lock in the first room's ID
+      // so the URL-sync effect won't try to "switch" to it via localStorage.
+      if (!selectedRoomId && firstRoom) {
+        setSelectedRoomId(firstRoom.id);
+      }
       if (firstRoom && data.firstRoomVisits.length > 0) {
         const studentsFromVisits: StudentWithVisit[] = data.firstRoomVisits.map(
           (visit) => {
