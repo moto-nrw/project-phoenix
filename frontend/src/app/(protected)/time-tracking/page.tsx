@@ -1564,7 +1564,7 @@ function computeDayData(
   };
 }
 
-/** Get session status badge styling for week table */
+/** Get session status badge styling for week table (mobile) */
 function getWeekTableBadge(
   session: WorkSessionHistory,
   isActive: boolean,
@@ -1574,6 +1574,24 @@ function getWeekTableBadge(
   if (session.status === "home_office")
     return { className: "bg-sky-100 text-sky-700", label: "HO" };
   return { className: "bg-gray-100 text-gray-600", label: "OGS" };
+}
+
+/** Get checkout time display for desktop table */
+function getCheckoutTimeDisplay(
+  session: WorkSessionHistory | undefined,
+  isActive: boolean,
+): string {
+  if (!session) return "--:--";
+  if (session.checkOutTime) return formatTime(session.checkOutTime);
+  if (isActive) return "···";
+  return "--:--";
+}
+
+/** Get row background class based on state */
+function getRowBackgroundClass(isExpanded: boolean, isToday: boolean): string {
+  if (isExpanded) return "bg-gray-50";
+  if (isToday) return "bg-blue-50/50";
+  return "";
 }
 
 // ─── WeekTable ────────────────────────────────────────────────────────────────
@@ -2029,11 +2047,7 @@ function WeekTable({
                   <React.Fragment key={dateKey}>
                     <tr
                       onClick={canEdit || hasEdits ? handleRowClick : undefined}
-                      className={`group/row border-b border-gray-50 transition-colors ${(() => {
-                        if (isExpanded) return "bg-gray-50";
-                        if (isToday) return "bg-blue-50/50";
-                        return "";
-                      })()} ${canEdit || hasEdits ? "cursor-pointer hover:bg-gray-50" : ""} ${
+                      className={`group/row border-b border-gray-50 transition-colors ${getRowBackgroundClass(isExpanded, isToday)} ${canEdit || hasEdits ? "cursor-pointer hover:bg-gray-50" : ""} ${
                         isFuture ? "opacity-40" : ""
                       }`}
                     >
@@ -2060,13 +2074,7 @@ function WeekTable({
                         {session ? formatTime(session.checkInTime) : "--:--"}
                       </td>
                       <td className="px-4 py-3 text-center text-gray-600">
-                        {(() => {
-                          if (!session) return "--:--";
-                          if (session.checkOutTime)
-                            return formatTime(session.checkOutTime);
-                          if (isActive) return "···";
-                          return "--:--";
-                        })()}
+                        {getCheckoutTimeDisplay(session, isActive)}
                       </td>
                       <td className="px-4 py-3 text-center text-gray-600">
                         {session && session.breakMinutes > 0
