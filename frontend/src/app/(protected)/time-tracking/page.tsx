@@ -299,12 +299,26 @@ function calcGrossMinutes(
 }
 
 // Calculate countdown remaining seconds for break timer
+// Prefers plannedEndTime from backend (persists across refresh)
+// Falls back to plannedMins for immediate feedback before backend responds
 function calcCountdownSecs(
   isOnBreak: boolean,
+  plannedEndTime: string | null,
   plannedMins: number | null,
   elapsedSecs: number,
+  now: Date,
 ): number | null {
-  if (!isOnBreak || plannedMins === null) return null;
+  if (!isOnBreak) return null;
+
+  // Use backend's plannedEndTime if available (survives refresh)
+  if (plannedEndTime) {
+    const endTime = new Date(plannedEndTime).getTime();
+    const remaining = Math.floor((endTime - now.getTime()) / 1000);
+    return Math.max(0, remaining);
+  }
+
+  // Fallback to local state for immediate feedback
+  if (plannedMins === null) return null;
   return Math.max(0, plannedMins * 60 - elapsedSecs);
 }
 
@@ -345,20 +359,24 @@ function getCheckedOutNetMins(
 function renderTimerContent(
   isOnBreak: boolean,
   countdownRemainingSecs: number | null,
-  plannedBreakMinutes: number | null,
+  plannedBreakDurationMins: number | null,
   activeBreakElapsedSecs: number,
   displayMinutes: number,
   breakWarning: string | null,
 ): React.ReactNode {
   // Break with countdown timer
-  if (isOnBreak && countdownRemainingSecs !== null) {
+  if (
+    isOnBreak &&
+    countdownRemainingSecs !== null &&
+    plannedBreakDurationMins
+  ) {
     return (
       <>
         <span className="text-4xl font-light text-amber-500 tabular-nums">
           {formatCountdown(countdownRemainingSecs)}
         </span>
         <span className="mt-0.5 text-xs font-medium text-amber-500">
-          Pause ({plannedBreakMinutes} Min)
+          Pause ({plannedBreakDurationMins} Min)
         </span>
       </>
     );
@@ -456,9 +474,22 @@ function ClockInCard({
     : 0;
   const countdownRemainingSecs = calcCountdownSecs(
     isOnBreak,
+    activeBreak?.plannedEndTime ?? null,
     plannedBreakMinutes,
     activeBreakElapsedSecs,
+    now,
   );
+
+  // Calculate planned break duration from backend or local state
+  // Backend: plannedEndTime - startedAt, Local: plannedBreakMinutes (for immediate feedback)
+  const plannedBreakDurationMins: number | null = (() => {
+    if (activeBreak?.plannedEndTime && activeBreak.startedAt) {
+      const start = new Date(activeBreak.startedAt).getTime();
+      const end = new Date(activeBreak.plannedEndTime).getTime();
+      return Math.round((end - start) / 60000);
+    }
+    return plannedBreakMinutes;
+  })();
 
   // Auto-end break when countdown reaches 0
   useEffect(() => {
@@ -708,7 +739,7 @@ function ClockInCard({
                 {renderTimerContent(
                   isOnBreak,
                   countdownRemainingSecs,
-                  plannedBreakMinutes,
+                  plannedBreakDurationMins,
                   activeBreakElapsedSecs,
                   displayMinutes,
                   breakWarning,
