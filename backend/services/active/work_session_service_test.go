@@ -131,6 +131,7 @@ type wsMockWorkSessionBreakRepository struct {
 	getActiveBySessionIDFunc func(ctx context.Context, sessionID int64) (*activeModels.WorkSessionBreak, error)
 	endBreakFunc             func(ctx context.Context, id int64, endedAt time.Time, durationMinutes int) error
 	updateDurationFunc       func(ctx context.Context, id int64, durationMinutes int, endedAt time.Time) error
+	getExpiredBreaksFunc     func(ctx context.Context, before time.Time) ([]*activeModels.WorkSessionBreak, error)
 }
 
 func (m *wsMockWorkSessionBreakRepository) Create(ctx context.Context, entity *activeModels.WorkSessionBreak) error {
@@ -194,6 +195,13 @@ func (m *wsMockWorkSessionBreakRepository) UpdateDuration(ctx context.Context, i
 		return m.updateDurationFunc(ctx, id, durationMinutes, endedAt)
 	}
 	return nil
+}
+
+func (m *wsMockWorkSessionBreakRepository) GetExpiredBreaks(ctx context.Context, before time.Time) ([]*activeModels.WorkSessionBreak, error) {
+	if m.getExpiredBreaksFunc != nil {
+		return m.getExpiredBreaksFunc(ctx, before)
+	}
+	return nil, nil
 }
 
 // ============================================================================
@@ -704,7 +712,7 @@ func TestWSStartBreak_Success(t *testing.T) {
 		return nil
 	}
 
-	brk, err := svc.StartBreak(context.Background(), staffID)
+	brk, err := svc.StartBreak(context.Background(), staffID, nil)
 	require.NoError(t, err)
 	require.NotNil(t, brk)
 	assert.Equal(t, int64(50), brk.SessionID)
@@ -717,7 +725,7 @@ func TestWSStartBreak_NoActiveSession(t *testing.T) {
 		return nil, sql.ErrNoRows
 	}
 
-	brk, err := svc.StartBreak(context.Background(), 100)
+	brk, err := svc.StartBreak(context.Background(), 100, nil)
 	require.Error(t, err)
 	assert.Nil(t, brk)
 	assert.Contains(t, err.Error(), "no active session found")
@@ -742,7 +750,7 @@ func TestWSStartBreak_AlreadyOnBreak(t *testing.T) {
 		}, nil
 	}
 
-	brk, err := svc.StartBreak(context.Background(), 100)
+	brk, err := svc.StartBreak(context.Background(), 100, nil)
 	require.Error(t, err)
 	assert.Nil(t, brk)
 	assert.Contains(t, err.Error(), "break already active")

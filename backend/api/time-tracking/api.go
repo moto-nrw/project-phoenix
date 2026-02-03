@@ -264,6 +264,11 @@ func (rs *Resource) updateSession(w http.ResponseWriter, r *http.Request) {
 	common.Respond(w, r, http.StatusOK, session, "Session updated successfully")
 }
 
+// StartBreakRequest represents a request to start a break
+type StartBreakRequest struct {
+	PlannedDurationMinutes *int `json:"planned_duration_minutes,omitempty"`
+}
+
 // startBreak handles POST /api/time-tracking/break/start
 func (rs *Resource) startBreak(w http.ResponseWriter, r *http.Request) {
 	// Get staff ID from JWT claims
@@ -274,8 +279,17 @@ func (rs *Resource) startBreak(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Parse optional request body for planned_duration_minutes
+	var req StartBreakRequest
+	if r.ContentLength > 0 {
+		if err := render.DecodeJSON(r.Body, &req); err != nil {
+			common.RenderError(w, r, common.ErrorInvalidRequest(err))
+			return
+		}
+	}
+
 	// Call service to start break
-	brk, err := rs.WorkSessionService.StartBreak(r.Context(), staffID)
+	brk, err := rs.WorkSessionService.StartBreak(r.Context(), staffID, req.PlannedDurationMinutes)
 	if err != nil {
 		common.RenderError(w, r, classifyServiceError(err))
 		return

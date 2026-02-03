@@ -118,17 +118,18 @@ func (m *mockPersonService) GetStudentsWithGroupsByTeacher(_ context.Context, _ 
 // --- Mock WorkSessionService ---
 
 type mockWorkSessionService struct {
-	checkInFn           func(ctx context.Context, staffID int64, status string) (*activeModels.WorkSession, error)
-	checkOutFn          func(ctx context.Context, staffID int64) (*activeModels.WorkSession, error)
-	startBreakFn        func(ctx context.Context, staffID int64) (*activeModels.WorkSessionBreak, error)
-	endBreakFn          func(ctx context.Context, staffID int64) (*activeModels.WorkSession, error)
-	getSessionBreaksFn  func(ctx context.Context, staffID, sessionID int64) ([]*activeModels.WorkSessionBreak, error)
-	updateSessionFn     func(ctx context.Context, staffID int64, sessionID int64, updates activeSvc.SessionUpdateRequest) (*activeModels.WorkSession, error)
-	getCurrentSessionFn func(ctx context.Context, staffID int64) (*activeModels.WorkSession, error)
-	getHistoryFn        func(ctx context.Context, staffID int64, from, to time.Time) ([]*activeSvc.SessionResponse, error)
-	getSessionEditsFn   func(ctx context.Context, staffID, sessionID int64) ([]*auditModels.WorkSessionEdit, error)
-	getTodayPresenceFn  func(ctx context.Context) (map[int64]string, error)
-	exportSessionsFn    func(ctx context.Context, staffID int64, from, to time.Time, format string) ([]byte, string, error)
+	checkInFn            func(ctx context.Context, staffID int64, status string) (*activeModels.WorkSession, error)
+	checkOutFn           func(ctx context.Context, staffID int64) (*activeModels.WorkSession, error)
+	startBreakFn         func(ctx context.Context, staffID int64, plannedDurationMinutes *int) (*activeModels.WorkSessionBreak, error)
+	endBreakFn           func(ctx context.Context, staffID int64) (*activeModels.WorkSession, error)
+	getSessionBreaksFn   func(ctx context.Context, staffID, sessionID int64) ([]*activeModels.WorkSessionBreak, error)
+	updateSessionFn      func(ctx context.Context, staffID int64, sessionID int64, updates activeSvc.SessionUpdateRequest) (*activeModels.WorkSession, error)
+	getCurrentSessionFn  func(ctx context.Context, staffID int64) (*activeModels.WorkSession, error)
+	getHistoryFn         func(ctx context.Context, staffID int64, from, to time.Time) ([]*activeSvc.SessionResponse, error)
+	getSessionEditsFn    func(ctx context.Context, staffID, sessionID int64) ([]*auditModels.WorkSessionEdit, error)
+	getTodayPresenceFn   func(ctx context.Context) (map[int64]string, error)
+	exportSessionsFn     func(ctx context.Context, staffID int64, from, to time.Time, format string) ([]byte, string, error)
+	autoEndExpiredBreaks func(ctx context.Context) (int, error)
 }
 
 func (m *mockWorkSessionService) CheckIn(ctx context.Context, staffID int64, status string) (*activeModels.WorkSession, error) {
@@ -143,9 +144,9 @@ func (m *mockWorkSessionService) CheckOut(ctx context.Context, staffID int64) (*
 	}
 	return &activeModels.WorkSession{}, nil
 }
-func (m *mockWorkSessionService) StartBreak(ctx context.Context, staffID int64) (*activeModels.WorkSessionBreak, error) {
+func (m *mockWorkSessionService) StartBreak(ctx context.Context, staffID int64, plannedDurationMinutes *int) (*activeModels.WorkSessionBreak, error) {
 	if m.startBreakFn != nil {
-		return m.startBreakFn(ctx, staffID)
+		return m.startBreakFn(ctx, staffID, plannedDurationMinutes)
 	}
 	return &activeModels.WorkSessionBreak{}, nil
 }
@@ -200,6 +201,12 @@ func (m *mockWorkSessionService) ExportSessions(ctx context.Context, staffID int
 		return m.exportSessionsFn(ctx, staffID, from, to, format)
 	}
 	return []byte("data"), "export.csv", nil
+}
+func (m *mockWorkSessionService) AutoEndExpiredBreaks(ctx context.Context) (int, error) {
+	if m.autoEndExpiredBreaks != nil {
+		return m.autoEndExpiredBreaks(ctx)
+	}
+	return 0, nil
 }
 
 // --- Mock StaffAbsenceService ---
@@ -721,7 +728,7 @@ func TestUpdateSession_Forbidden(t *testing.T) {
 
 func TestStartBreak_Success(t *testing.T) {
 	wsSvc := &mockWorkSessionService{
-		startBreakFn: func(_ context.Context, staffID int64) (*activeModels.WorkSessionBreak, error) {
+		startBreakFn: func(_ context.Context, staffID int64, _ *int) (*activeModels.WorkSessionBreak, error) {
 			assert.Equal(t, int64(100), staffID)
 			return &activeModels.WorkSessionBreak{}, nil
 		},
@@ -738,7 +745,7 @@ func TestStartBreak_Success(t *testing.T) {
 
 func TestStartBreak_AlreadyActive(t *testing.T) {
 	wsSvc := &mockWorkSessionService{
-		startBreakFn: func(_ context.Context, _ int64) (*activeModels.WorkSessionBreak, error) {
+		startBreakFn: func(_ context.Context, _ int64, _ *int) (*activeModels.WorkSessionBreak, error) {
 			return nil, errors.New("break already active")
 		},
 	}

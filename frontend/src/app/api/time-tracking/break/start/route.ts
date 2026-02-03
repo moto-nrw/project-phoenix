@@ -3,14 +3,27 @@ import { apiPost } from "~/lib/api-helpers";
 import { createPostHandler } from "~/lib/route-wrapper";
 
 /**
+ * Request body for starting a break
+ */
+interface StartBreakRequest {
+  planned_duration_minutes?: number;
+}
+
+/**
  * POST /api/time-tracking/break/start
  * Start a new break for the current session
  */
-export const POST = createPostHandler<unknown>(
-  async (_request: NextRequest, _body: unknown, token: string) => {
-    const response = await apiPost<{ data: unknown }>(
+export const POST = createPostHandler<unknown, StartBreakRequest>(
+  async (
+    _request: NextRequest,
+    body: StartBreakRequest,
+    token: string,
+    _params: Record<string, unknown>,
+  ) => {
+    const response = await apiPost<{ data: unknown }, StartBreakRequest>(
       "/api/time-tracking/break/start",
       token,
+      body,
     );
     return response.data;
   },

@@ -1014,7 +1014,7 @@ func TestWSStartBreak_NilSession(t *testing.T) {
 		return nil, nil
 	}
 
-	brk, err := svc.StartBreak(context.Background(), 100)
+	brk, err := svc.StartBreak(context.Background(), 100, nil)
 	require.Error(t, err)
 	assert.Nil(t, brk)
 	assert.Contains(t, err.Error(), "no active session found")

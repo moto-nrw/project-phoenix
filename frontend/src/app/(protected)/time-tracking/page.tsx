@@ -405,7 +405,7 @@ function ClockInCard({
   readonly breaks: WorkSessionBreak[];
   readonly onCheckIn: (status: SessionStatus) => Promise<void>;
   readonly onCheckOut: () => Promise<void>;
-  readonly onStartBreak: () => Promise<void>;
+  readonly onStartBreak: (durationMinutes: number) => Promise<void>;
   readonly onEndBreak: () => Promise<void>;
   readonly weeklyMinutes: number;
   readonly onAddAbsence: () => void;
@@ -528,7 +528,7 @@ function ClockInCard({
     setPlannedBreakMinutes(minutes);
     setActionLoading(true);
     try {
-      await onStartBreak();
+      await onStartBreak(minutes);
     } finally {
       setActionLoading(false);
     }
@@ -1044,18 +1044,20 @@ function WeekChart({
   const today = new Date();
 
   const chartData = useMemo(() => {
-    // Build 2 weeks of workdays (Mon-Fri): previous week + current week
+    // Build last 10 workdays ending with today (or offset reference)
+    // Today is always on the right, past days to the left
     const referenceDate = new Date(today);
     referenceDate.setDate(referenceDate.getDate() + weekOffset * 7);
-    const currentWeek = getWeekDays(referenceDate);
-    const prevRef = new Date(referenceDate);
-    prevRef.setDate(prevRef.getDate() - 7);
-    const prevWeek = getWeekDays(prevRef);
 
-    // Combine both weeks, filter weekends (Sat=5, Sun=6)
-    const allDays = [...prevWeek, ...currentWeek].filter(
-      (d) => d && d.getDay() !== 0 && d.getDay() !== 6,
-    );
+    const allDays: Date[] = [];
+    const d = new Date(referenceDate);
+    while (allDays.length < 10) {
+      // Skip weekends
+      if (d.getDay() !== 0 && d.getDay() !== 6) {
+        allDays.unshift(new Date(d)); // prepend so oldest is first
+      }
+      d.setDate(d.getDate() - 1);
+    }
 
     const sessionMap = new Map<string, WorkSessionHistory>();
     for (const session of history) {
@@ -1121,7 +1123,7 @@ function WeekChart({
   );
 
   return (
-    <div className="relative flex h-full flex-col overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)]">
+    <div className="relative flex min-h-[280px] flex-col overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)] md:h-full md:min-h-0">
       <div className="flex min-h-0 flex-1 flex-col p-4 sm:p-6 md:p-8">
         <div className="mb-3 flex items-baseline justify-between sm:mb-4">
           <h2 className="text-base font-bold text-gray-900 sm:text-lg">
@@ -1264,13 +1266,14 @@ function ExportDropdown({ weekDays }: { readonly weekDays: (Date | null)[] }) {
   const hasRange = rangeFrom && rangeTo;
 
   // Position the portal panel below the trigger button
+  // Using position: fixed, so coordinates are relative to viewport (no scrollY/scrollX needed)
   const [pos, setPos] = useState({ top: 0, right: 0 });
   useEffect(() => {
     if (!open || !triggerRef.current) return;
     const rect = triggerRef.current.getBoundingClientRect();
     setPos({
-      top: rect.bottom + window.scrollY + 8,
-      right: window.innerWidth - rect.right - window.scrollX,
+      top: rect.bottom + 8,
+      right: window.innerWidth - rect.right,
     });
   }, [open]);
 
@@ -1826,7 +1829,10 @@ function WeekTable({
               />
             </svg>
           </button>
-          <ExportDropdown weekDays={weekDays} />
+          {/* Hide on mobile - Excel export not useful on small screens */}
+          <div className="hidden md:block">
+            <ExportDropdown weekDays={weekDays} />
+          </div>
         </div>
       </div>
 
@@ -1893,7 +1899,7 @@ function WeekTable({
             return (
               <div
                 key={dateKey}
-                className={`py-3 ${isToday ? "rounded-lg bg-blue-50/50 px-2" : ""} ${isFuture ? "opacity-40" : ""}`}
+                className={`overflow-hidden py-3 ${isToday ? "rounded-lg bg-blue-50/50 px-2" : ""} ${isFuture ? "opacity-40" : ""}`}
               >
                 {/* Header: day name + status badge */}
                 <div className="mb-2 flex items-center justify-between">
@@ -1996,7 +2002,7 @@ function WeekTable({
                   </button>
                 )}
                 {expandedSessionId === session?.id && session && (
-                  <div className="mt-2 rounded-lg bg-gray-50 p-3">
+                  <div className="mt-2 overflow-hidden rounded-lg bg-gray-50 p-3">
                     <EditHistoryAccordion
                       edits={expandedEdits}
                       isLoading={editsLoading}
@@ -2301,7 +2307,41 @@ function EditHistoryAccordion({
 
   return (
     <div>
-      <table className="w-full text-xs">
+      {/* Mobile: Compact card layout */}
+      <div className="space-y-2 md:hidden">
+        {rows.map(({ timestamp, dateStr, fieldEdits, notes }) => (
+          <div
+            key={timestamp}
+            className="rounded-lg border border-gray-100 bg-white p-2.5"
+          >
+            <div className="mb-1.5 text-[10px] text-gray-400">{dateStr}</div>
+            <div className="space-y-1">
+              {fieldEdits.map((edit) => (
+                <div key={edit.id} className="flex items-center gap-2 text-xs">
+                  <span className="w-12 shrink-0 text-gray-500">
+                    {FIELD_LABELS[edit.fieldName] ?? edit.fieldName}
+                  </span>
+                  <span className="text-red-400 line-through">
+                    {formatEditValue(edit.fieldName, edit.oldValue)}
+                  </span>
+                  <span className="text-gray-300">→</span>
+                  <span className="font-medium text-[#83cd2d]">
+                    {formatEditValue(edit.fieldName, edit.newValue)}
+                  </span>
+                </div>
+              ))}
+            </div>
+            {notes && (
+              <p className="mt-1.5 text-[10px] text-gray-400 italic">
+                &ldquo;{notes}&rdquo;
+              </p>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {/* Desktop: Table layout */}
+      <table className="hidden w-full text-xs md:table">
         <thead>
           <tr className="border-b border-gray-100 text-left text-[10px] font-medium tracking-wide text-gray-400 uppercase">
             <th className="pr-4 pb-2">Datum</th>
@@ -3305,19 +3345,22 @@ function TimeTrackingContent() {
     null,
   );
 
-  // Calculate date range: current week + previous week (for chart and table)
+  // Calculate date range for data fetching
+  // - Chart shows trailing 10 workdays ending at reference date
+  // - WeekView shows calendar week containing reference date
   const { toDate, chartFromDate, weekFromDate } = (() => {
     const ref = new Date();
     ref.setDate(ref.getDate() + weekOffset * 7);
     const days = getWeekDays(ref);
-    // Chart needs 2 weeks: go back 1 extra week
-    const prevRef = new Date(ref);
-    prevRef.setDate(prevRef.getDate() - 7);
-    const prevDays = getWeekDays(prevRef);
+
+    // Chart needs ~14 days back to cover 10 workdays (worst case)
+    const chartStart = new Date(ref);
+    chartStart.setDate(chartStart.getDate() - 14);
+
     return {
-      toDate: days[6] ? toISODate(days[6]) : "",
-      chartFromDate: prevDays[0] ? toISODate(prevDays[0]) : "",
-      weekFromDate: days[0] ? toISODate(days[0]) : "",
+      toDate: toISODate(ref), // Reference date (today or offset)
+      chartFromDate: toISODate(chartStart), // 14 days before reference
+      weekFromDate: days[0] ? toISODate(days[0]) : "", // Monday of reference week
     };
   })();
 
@@ -3428,14 +3471,17 @@ function TimeTrackingContent() {
     }
   }, [mutateCurrentSession, mutateHistory, toast]);
 
-  const handleStartBreak = useCallback(async () => {
-    try {
-      await timeTrackingService.startBreak();
-      await fetchBreaks();
-    } catch (err) {
-      toast.error(friendlyError(err, "Fehler beim Starten der Pause"));
-    }
-  }, [fetchBreaks, toast]);
+  const handleStartBreak = useCallback(
+    async (durationMinutes: number) => {
+      try {
+        await timeTrackingService.startBreak(durationMinutes);
+        await fetchBreaks();
+      } catch (err) {
+        toast.error(friendlyError(err, "Fehler beim Starten der Pause"));
+      }
+    },
+    [fetchBreaks, toast],
+  );
 
   const handleEndBreak = useCallback(async () => {
     try {

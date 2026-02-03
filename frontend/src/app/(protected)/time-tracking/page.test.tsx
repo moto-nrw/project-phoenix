@@ -522,6 +522,7 @@ describe("TimeTrackingPage", () => {
         startedAt: new Date().toISOString(),
         endedAt: null,
         durationMinutes: 0,
+        plannedEndTime: null,
       });
       render(<TimeTrackingPage />);
       fireEvent.click(screen.getByLabelText("Pause starten"));
@@ -545,6 +546,7 @@ describe("TimeTrackingPage", () => {
           startedAt: new Date().toISOString(),
           endedAt: null,
           durationMinutes: 0,
+          plannedEndTime: null,
         },
       ]);
       render(<TimeTrackingPage />);
@@ -1214,6 +1216,7 @@ describe("TimeTrackingPage", () => {
           startedAt: new Date().toISOString(),
           endedAt: null,
           durationMinutes: 0,
+          plannedEndTime: null,
         },
       ]);
       vi.mocked(timeTrackingService.endBreak).mockRejectedValue(
@@ -1652,6 +1655,7 @@ describe("TimeTrackingPage", () => {
             startedAt: `${yISO}T10:00:00Z`,
             endedAt: `${yISO}T10:30:00Z`,
             durationMinutes: 30,
+            plannedEndTime: null,
           },
           {
             id: "b2",
@@ -1659,6 +1663,7 @@ describe("TimeTrackingPage", () => {
             startedAt: `${yISO}T13:00:00Z`,
             endedAt: `${yISO}T13:15:00Z`,
             durationMinutes: 15,
+            plannedEndTime: null,
           },
         ],
       });
@@ -1690,6 +1695,7 @@ describe("TimeTrackingPage", () => {
             startedAt: `${yISO}T10:00:00Z`,
             endedAt: `${yISO}T10:30:00Z`,
             durationMinutes: 30,
+            plannedEndTime: null,
           },
         ],
       });
@@ -1965,6 +1971,7 @@ describe("TimeTrackingPage", () => {
           startedAt: breakStart.toISOString(),
           endedAt: breakEnd.toISOString(),
           durationMinutes: 30,
+          plannedEndTime: null,
         },
       ]);
 
@@ -1991,6 +1998,7 @@ describe("TimeTrackingPage", () => {
           startedAt: breakStart.toISOString(),
           endedAt: breakEnd.toISOString(),
           durationMinutes: 30,
+          plannedEndTime: null,
         },
       ]);
 
@@ -2012,6 +2020,7 @@ describe("TimeTrackingPage", () => {
           startedAt: new Date().toISOString(),
           endedAt: null,
           durationMinutes: 0,
+          plannedEndTime: null,
         },
       ]);
 
@@ -3013,6 +3022,7 @@ describe("TimeTrackingPage", () => {
           startedAt: new Date().toISOString(),
           endedAt: null,
           durationMinutes: 0,
+          plannedEndTime: null,
         },
       ]);
       vi.mocked(timeTrackingService.endBreak).mockResolvedValue({
@@ -3338,6 +3348,7 @@ describe("TimeTrackingPage", () => {
           startedAt: new Date().toISOString(),
           endedAt: null,
           durationMinutes: 0,
+          plannedEndTime: null,
         },
       ]);
       vi.mocked(timeTrackingService.endBreak).mockRejectedValue(

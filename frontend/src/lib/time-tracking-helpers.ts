@@ -23,6 +23,7 @@ export interface BackendWorkSessionBreak {
   started_at: string;
   ended_at: string | null;
   duration_minutes: number;
+  planned_end_time: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -143,6 +144,7 @@ export interface WorkSessionBreak {
   startedAt: string;
   endedAt: string | null;
   durationMinutes: number;
+  plannedEndTime: string | null;
 }
 
 export interface WorkSessionHistory extends WorkSession {
@@ -198,6 +200,7 @@ export function mapWorkSessionBreakResponse(
     startedAt: data.started_at,
     endedAt: data.ended_at ?? null,
     durationMinutes: data.duration_minutes,
+    plannedEndTime: data.planned_end_time ?? null,
   };
 }
 

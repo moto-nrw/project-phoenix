@@ -56,7 +56,7 @@ type SessionResponse struct {
 type WorkSessionService interface {
 	CheckIn(ctx context.Context, staffID int64, status string) (*activeModels.WorkSession, error)
 	CheckOut(ctx context.Context, staffID int64) (*activeModels.WorkSession, error)
-	StartBreak(ctx context.Context, staffID int64) (*activeModels.WorkSessionBreak, error)
+	StartBreak(ctx context.Context, staffID int64, plannedDurationMinutes *int) (*activeModels.WorkSessionBreak, error)
 	EndBreak(ctx context.Context, staffID int64) (*activeModels.WorkSession, error)
 	GetSessionBreaks(ctx context.Context, staffID, sessionID int64) ([]*activeModels.WorkSessionBreak, error)
 	UpdateSession(ctx context.Context, staffID int64, sessionID int64, updates SessionUpdateRequest) (*activeModels.WorkSession, error)
@@ -67,6 +67,7 @@ type WorkSessionService interface {
 	CleanupOpenSessions(ctx context.Context) (int, error)
 	EnsureCheckedIn(ctx context.Context, staffID int64) (*activeModels.WorkSession, error)
 	ExportSessions(ctx context.Context, staffID int64, from, to time.Time, format string) ([]byte, string, error)
+	AutoEndExpiredBreaks(ctx context.Context) (int, error)
 }
 
 // workSessionService implements WorkSessionService
@@ -229,7 +230,8 @@ func (s *workSessionService) endActiveSupervisionsOnCheckout(ctx context.Context
 }
 
 // StartBreak starts a new break for the current session
-func (s *workSessionService) StartBreak(ctx context.Context, staffID int64) (*activeModels.WorkSessionBreak, error) {
+// If plannedDurationMinutes is provided (1-120), sets planned_end_time for auto-end
+func (s *workSessionService) StartBreak(ctx context.Context, staffID int64, plannedDurationMinutes *int) (*activeModels.WorkSessionBreak, error) {
 	// Get today's active session
 	session, err := s.repo.GetCurrentByStaffID(ctx, staffID)
 	if err != nil {
@@ -248,7 +250,14 @@ func (s *workSessionService) StartBreak(ctx context.Context, staffID int64) (*ac
 		return nil, fmt.Errorf("failed to check active break: %w", err)
 	}
 	if activeBreak != nil {
-		return nil, fmt.Errorf("break already active")
+		return nil, errors.New("break already active")
+	}
+
+	// Validate plannedDurationMinutes if provided
+	if plannedDurationMinutes != nil {
+		if *plannedDurationMinutes < 1 || *plannedDurationMinutes > 120 {
+			return nil, errors.New("planned_duration_minutes must be between 1 and 120")
+		}
 	}
 
 	// Create a new break
@@ -257,6 +266,13 @@ func (s *workSessionService) StartBreak(ctx context.Context, staffID int64) (*ac
 		SessionID: session.ID,
 		StartedAt: now,
 	}
+
+	// Set planned_end_time if duration is specified
+	if plannedDurationMinutes != nil {
+		plannedEnd := now.Add(time.Duration(*plannedDurationMinutes) * time.Minute)
+		brk.PlannedEndTime = &plannedEnd
+	}
+
 	brk.CreatedAt = now
 	brk.UpdatedAt = now
 
@@ -637,6 +653,12 @@ func (s *workSessionService) CleanupOpenSessions(ctx context.Context) (int, erro
 
 	count := 0
 	for _, session := range openSessions {
+		// End any active break before closing the session
+		if err := s.endActiveBreakIfExists(ctx, session.ID); err != nil {
+			log.Printf("Warning: failed to end active break for session %d: %v", session.ID, err)
+			// Continue cleanup even if break ending fails
+		}
+
 		// Set check-out time to 23:59:59 of the session date
 		endOfDay := session.Date.Add(23*time.Hour + 59*time.Minute + 59*time.Second)
 
@@ -877,4 +899,41 @@ func (s *workSessionService) sessionToRow(sr *SessionResponse) []string {
 	}
 
 	return []string{datum, wochentag, start, ende, pauseMin, netto, ort, sess.Notes}
+}
+
+// AutoEndExpiredBreaks ends all breaks whose planned_end_time has passed
+// Returns the number of breaks that were ended
+func (s *workSessionService) AutoEndExpiredBreaks(ctx context.Context) (int, error) {
+	now := time.Now()
+
+	// Get all expired breaks
+	expiredBreaks, err := s.breakRepo.GetExpiredBreaks(ctx, now)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get expired breaks: %w", err)
+	}
+
+	if len(expiredBreaks) == 0 {
+		return 0, nil
+	}
+
+	count := 0
+	for _, brk := range expiredBreaks {
+		// Use planned_end_time as the end time for accurate duration
+		endTime := *brk.PlannedEndTime
+		duration := int(math.Round(endTime.Sub(brk.StartedAt).Minutes()))
+
+		if err := s.breakRepo.EndBreak(ctx, brk.ID, endTime, duration); err != nil {
+			log.Printf("Warning: failed to auto-end break %d: %v", brk.ID, err)
+			continue
+		}
+
+		// Recalculate break minutes for the session
+		if err := s.recalcBreakMinutes(ctx, brk.SessionID); err != nil {
+			log.Printf("Warning: failed to recalc break minutes for session %d: %v", brk.SessionID, err)
+		}
+
+		count++
+	}
+
+	return count, nil
 }

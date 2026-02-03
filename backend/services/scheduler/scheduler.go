@@ -40,6 +40,11 @@ type WorkSessionCleaner interface {
 	CleanupOpenSessions(ctx context.Context) (int, error)
 }
 
+// BreakAutoEnder exposes the method to auto-end expired breaks.
+type BreakAutoEnder interface {
+	AutoEndExpiredBreaks(ctx context.Context) (int, error)
+}
+
 // Scheduler manages scheduled tasks
 type Scheduler struct {
 	activeService      active.Service
@@ -47,6 +52,7 @@ type Scheduler struct {
 	authCleanup        AuthCleanup
 	invitationCleanup  InvitationCleaner
 	workSessionCleanup WorkSessionCleaner
+	breakAutoEnder     BreakAutoEnder
 	cleanupJobs        []CleanupJob
 	tasks              map[string]*ScheduledTask
 	mu                 sync.RWMutex
@@ -57,6 +63,9 @@ type Scheduler struct {
 	// Session cleanup configuration (parsed once during initialization)
 	sessionCleanupIntervalMinutes    int
 	sessionAbandonedThresholdMinutes int
+
+	// Break auto-end configuration (parsed once during initialization)
+	breakAutoEndIntervalSeconds int
 }
 
 // ScheduledTask represents a scheduled task
@@ -87,6 +96,11 @@ func (s *Scheduler) SetWorkSessionCleaner(wsc WorkSessionCleaner) {
 	s.workSessionCleanup = wsc
 }
 
+// SetBreakAutoEnder sets the break auto-end service (optional).
+func (s *Scheduler) SetBreakAutoEnder(bae BreakAutoEnder) {
+	s.breakAutoEnder = bae
+}
+
 // Start begins the scheduler
 func (s *Scheduler) Start() {
 	log.Println("Starting scheduler service...")
@@ -102,6 +116,9 @@ func (s *Scheduler) Start() {
 
 	// Schedule abandoned session cleanup
 	s.scheduleSessionCleanupTask()
+
+	// Schedule break auto-end task
+	s.scheduleBreakAutoEndTask()
 }
 
 // Stop gracefully stops the scheduler
@@ -663,5 +680,101 @@ func (s *Scheduler) executeSessionCleanup(task *ScheduledTask, intervalMinutes, 
 
 	if count > 0 {
 		log.Printf("Session cleanup: cleaned up %d abandoned sessions (threshold: %d minutes)", count, thresholdMinutes)
+	}
+}
+
+// scheduleBreakAutoEndTask schedules the break auto-end task
+func (s *Scheduler) scheduleBreakAutoEndTask() {
+	// Check if break auto-end is enabled (skip if no service configured)
+	if s.breakAutoEnder == nil {
+		log.Println("Break auto-end not configured (no BreakAutoEnder service)")
+		return
+	}
+
+	// Check if explicitly disabled
+	if os.Getenv("BREAK_AUTO_END_ENABLED") == "false" {
+		log.Println("Break auto-end is disabled (set BREAK_AUTO_END_ENABLED=true to enable)")
+		return
+	}
+
+	// Parse interval from env (default 60 seconds)
+	s.breakAutoEndIntervalSeconds = 60
+	if envInterval := os.Getenv("BREAK_AUTO_END_INTERVAL_SECONDS"); envInterval != "" {
+		if parsed, err := strconv.Atoi(envInterval); err == nil && parsed > 0 {
+			s.breakAutoEndIntervalSeconds = parsed
+		}
+	}
+
+	task := &ScheduledTask{
+		Name:     "break-auto-end",
+		Schedule: strconv.Itoa(s.breakAutoEndIntervalSeconds) + "s",
+	}
+
+	s.mu.Lock()
+	s.tasks[task.Name] = task
+	s.mu.Unlock()
+
+	// Capture configuration value before starting goroutine to prevent data race
+	intervalSeconds := s.breakAutoEndIntervalSeconds
+
+	s.wg.Add(1)
+	go s.runBreakAutoEndTask(task, intervalSeconds)
+}
+
+// runBreakAutoEndTask runs the break auto-end task at configured intervals.
+func (s *Scheduler) runBreakAutoEndTask(task *ScheduledTask, intervalSeconds int) {
+	defer s.wg.Done()
+
+	interval := time.Duration(intervalSeconds) * time.Second
+	log.Printf("Break auto-end task scheduled to run every %d seconds", intervalSeconds)
+
+	// Run immediately on startup (after brief delay)
+	time.Sleep(10 * time.Second)
+	s.executeBreakAutoEnd(task, intervalSeconds)
+
+	// Then run at configured interval
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			s.executeBreakAutoEnd(task, intervalSeconds)
+		case <-s.done:
+			return
+		}
+	}
+}
+
+// executeBreakAutoEnd executes the break auto-end task.
+func (s *Scheduler) executeBreakAutoEnd(task *ScheduledTask, intervalSeconds int) {
+	task.mu.Lock()
+	if task.Running {
+		task.mu.Unlock()
+		return
+	}
+	task.Running = true
+	task.LastRun = time.Now()
+	task.mu.Unlock()
+
+	defer func() {
+		task.mu.Lock()
+		task.Running = false
+		task.NextRun = time.Now().Add(time.Duration(intervalSeconds) * time.Second)
+		task.mu.Unlock()
+	}()
+
+	// Add timeout to prevent blocking shutdown
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	count, err := s.breakAutoEnder.AutoEndExpiredBreaks(ctx)
+	if err != nil {
+		log.Printf("ERROR: Break auto-end failed: %v", err)
+		return
+	}
+
+	if count > 0 {
+		log.Printf("Break auto-end: ended %d expired break(s)", count)
 	}
 }

@@ -23,11 +23,13 @@ func classifyServiceError(err error) render.Renderer {
 		msg == "no active break found":
 		return common.ErrorNotFound(err)
 
-	case msg == "can only update own sessions":
+	case msg == "can only update own sessions",
+		msg == "session does not belong to requesting staff":
 		return common.ErrorForbidden(err)
 
 	case strings.HasPrefix(msg, "status must be"),
-		msg == "break minutes cannot be negative":
+		msg == "break minutes cannot be negative",
+		strings.HasPrefix(msg, "planned_duration_minutes must be"):
 		return common.ErrorInvalidRequest(err)
 
 	default:

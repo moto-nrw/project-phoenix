@@ -186,11 +186,15 @@ class TimeTrackingService {
     return mapWorkSessionResponse(result.data as never);
   }
 
-  async startBreak(): Promise<WorkSessionBreak> {
+  async startBreak(durationMinutes?: number): Promise<WorkSessionBreak> {
+    const body = durationMinutes
+      ? { planned_duration_minutes: durationMinutes }
+      : undefined;
     const result = await this.request<WorkSessionBreak>(
       "/break/start",
       "POST",
       "Failed to start break",
+      body,
     );
     return mapWorkSessionBreakResponse(result.data as never);
   }

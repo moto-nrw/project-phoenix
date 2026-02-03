@@ -89,6 +89,7 @@ describe("mapWorkSessionBreakResponse", () => {
     started_at: "2024-03-15T12:00:00Z",
     ended_at: "2024-03-15T12:30:00Z",
     duration_minutes: 30,
+    planned_end_time: null,
     created_at: "2024-03-15T12:00:00Z",
     updated_at: "2024-03-15T12:30:00Z",
   };
@@ -137,6 +138,7 @@ describe("mapWorkSessionHistoryResponse", () => {
         started_at: "2024-03-15T12:00:00Z",
         ended_at: "2024-03-15T12:30:00Z",
         duration_minutes: 30,
+        planned_end_time: null,
         created_at: "2024-03-15T12:00:00Z",
         updated_at: "2024-03-15T12:30:00Z",
       },

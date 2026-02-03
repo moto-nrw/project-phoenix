@@ -148,3 +148,24 @@ func (r *WorkSessionBreakRepository) UpdateDuration(ctx context.Context, id int6
 
 	return nil
 }
+
+// GetExpiredBreaks returns all active breaks with planned_end_time <= before
+func (r *WorkSessionBreakRepository) GetExpiredBreaks(ctx context.Context, before time.Time) ([]*active.WorkSessionBreak, error) {
+	var breaks []*active.WorkSessionBreak
+	err := r.db.NewSelect().
+		Model(&breaks).
+		ModelTableExpr(tableExprActiveWorkSessionBreaksAsWorkSessionBreak).
+		Where(`"work_session_break".ended_at IS NULL`).
+		Where(`"work_session_break".planned_end_time IS NOT NULL`).
+		Where(`"work_session_break".planned_end_time <= ?`, before).
+		Scan(ctx)
+
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "get expired breaks",
+			Err: err,
+		}
+	}
+
+	return breaks, nil
+}

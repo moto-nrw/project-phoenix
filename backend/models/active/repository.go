@@ -221,4 +221,8 @@ type WorkSessionBreakRepository interface {
 
 	// UpdateDuration updates the duration and ended_at of a completed break
 	UpdateDuration(ctx context.Context, id int64, durationMinutes int, endedAt time.Time) error
+
+	// GetExpiredBreaks returns all active breaks with planned_end_time <= before
+	// Used by the scheduler to auto-end breaks
+	GetExpiredBreaks(ctx context.Context, before time.Time) ([]*WorkSessionBreak, error)
 }

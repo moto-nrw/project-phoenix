@@ -17,6 +17,7 @@ type WorkSessionBreak struct {
 	StartedAt       time.Time  `bun:"started_at,notnull" json:"started_at"`
 	EndedAt         *time.Time `bun:"ended_at" json:"ended_at,omitempty"`
 	DurationMinutes int        `bun:"duration_minutes,notnull,default:0" json:"duration_minutes"`
+	PlannedEndTime  *time.Time `bun:"planned_end_time" json:"planned_end_time,omitempty"`
 
 	Session *WorkSession `bun:"rel:belongs-to,join:session_id=id" json:"session,omitempty"`
 }
