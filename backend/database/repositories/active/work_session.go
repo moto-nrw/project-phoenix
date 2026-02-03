@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/uptrace/bun"
@@ -68,7 +69,7 @@ func (r *WorkSessionRepository) GetByStaffAndDate(ctx context.Context, staffID i
 // GetCurrentByStaffID returns the active (not checked out) session for a staff member today
 func (r *WorkSessionRepository) GetCurrentByStaffID(ctx context.Context, staffID int64) (*active.WorkSession, error) {
 	session := new(active.WorkSession)
-	today := time.Now().Format(dateFormatISO)
+	today := timezone.TodayUTC() // Use TodayUTC for consistency with session creation in service
 
 	err := r.db.NewSelect().
 		Model(session).
@@ -132,7 +133,7 @@ func (r *WorkSessionRepository) GetOpenSessions(ctx context.Context, beforeDate 
 
 // GetTodayPresenceMap returns a map of staff IDs to their work status for today
 func (r *WorkSessionRepository) GetTodayPresenceMap(ctx context.Context) (map[int64]string, error) {
-	today := time.Now().Format(dateFormatISO)
+	today := timezone.TodayUTC() // Use TodayUTC for consistency with session creation in service
 
 	var results []struct {
 		StaffID      int64      `bun:"staff_id"`

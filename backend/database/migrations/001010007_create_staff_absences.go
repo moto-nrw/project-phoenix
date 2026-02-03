@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	staffAbsencesVersion     = "1.10.6"
+	staffAbsencesVersion     = "1.10.7"
 	staffAbsencesDescription = "Create active.staff_absences table for absence tracking"
 )
 

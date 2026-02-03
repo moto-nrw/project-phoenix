@@ -57,6 +57,7 @@ func NewServer() (*Server, error) {
 		srv.scheduler = scheduler.NewScheduler(api.Services.Active, api.Services.ActiveCleanup, api.Services.Auth, api.Services.Invitation)
 		if api.Services.WorkSession != nil {
 			srv.scheduler.SetWorkSessionCleaner(api.Services.WorkSession)
+			srv.scheduler.SetBreakAutoEnder(api.Services.WorkSession)
 		}
 	}
 
