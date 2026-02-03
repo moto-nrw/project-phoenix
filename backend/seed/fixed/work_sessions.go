@@ -7,6 +7,7 @@ import (
 	"math"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 )
 
@@ -14,7 +15,7 @@ import (
 // Generates sessions for the previous week through yesterday (skipping weekends and today).
 // Each session gets 1-2 break records (morning + lunch) with break_minutes as cached total.
 func (s *Seeder) seedWorkSessions(ctx context.Context) error {
-	today := time.Now().Truncate(24 * time.Hour)
+	today := timezone.Today()
 	monday := s.getPreviousWeekMonday(today)
 
 	staffCount := min(5, len(s.result.Staff))
@@ -150,7 +151,7 @@ func sumBreakMinutes(breaks []*active.WorkSessionBreak) int {
 func buildBreaksForSession(checkIn, checkOut time.Time, staffIdx, dayIdx int) []*active.WorkSessionBreak {
 	var breaks []*active.WorkSessionBreak
 	netHours := checkOut.Sub(checkIn).Hours()
-	day := checkIn.Truncate(24 * time.Hour)
+	day := timezone.DateOf(checkIn)
 
 	// Morning break: ~10:00, 15 min, only some staff/days
 	if staffIdx%2 == 0 || dayIdx%3 == 0 {

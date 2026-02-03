@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/xuri/excelize/v2"
@@ -94,8 +95,8 @@ func (s *workSessionService) CheckIn(ctx context.Context, staffID int64, status 
 		return nil, fmt.Errorf("status must be 'present' or 'home_office'")
 	}
 
-	// Get today's date (truncated to date)
-	today := time.Now().Truncate(24 * time.Hour)
+	// Get today's date in Berlin timezone
+	today := timezone.Today()
 
 	// Check if there's already a session today
 	existingSession, err := s.repo.GetByStaffAndDate(ctx, staffID, today)
@@ -603,8 +604,8 @@ func (s *workSessionService) GetTodayPresenceMap(ctx context.Context) (map[int64
 
 // CleanupOpenSessions closes all sessions that are still open before today
 func (s *workSessionService) CleanupOpenSessions(ctx context.Context) (int, error) {
-	// Get today's date (truncated)
-	today := time.Now().Truncate(24 * time.Hour)
+	// Get today's date in Berlin timezone
+	today := timezone.Today()
 
 	// Get all open sessions before today
 	openSessions, err := s.repo.GetOpenSessions(ctx, today)
@@ -639,7 +640,7 @@ func (s *workSessionService) EnsureCheckedIn(ctx context.Context, staffID int64)
 	}
 
 	// Check if there's already a checked-out session today
-	today := time.Now().Truncate(24 * time.Hour)
+	today := timezone.Today()
 	todaySession, err := s.repo.GetByStaffAndDate(ctx, staffID, today)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return nil, fmt.Errorf("failed to check today's session: %w", err)

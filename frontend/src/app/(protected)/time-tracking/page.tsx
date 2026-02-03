@@ -417,6 +417,8 @@ function ClockInCard({
   const [plannedBreakMinutes, setPlannedBreakMinutes] = useState<number | null>(
     null,
   );
+  // Mutex to prevent race condition in auto-end break effect
+  const autoEndInFlightRef = useRef(false);
 
   const isCheckedIn =
     currentSession !== null && currentSession.checkOutTime === null;
@@ -460,7 +462,11 @@ function ClockInCard({
 
   // Auto-end break when countdown reaches 0
   useEffect(() => {
-    if (shouldAutoEndBreak(countdownRemainingSecs, isOnBreak, actionLoading)) {
+    if (
+      shouldAutoEndBreak(countdownRemainingSecs, isOnBreak, actionLoading) &&
+      !autoEndInFlightRef.current
+    ) {
+      autoEndInFlightRef.current = true;
       void (async () => {
         setActionLoading(true);
         try {
@@ -468,6 +474,7 @@ function ClockInCard({
           setPlannedBreakMinutes(null);
         } finally {
           setActionLoading(false);
+          autoEndInFlightRef.current = false;
         }
       })();
     }
