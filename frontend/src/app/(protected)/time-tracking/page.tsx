@@ -2316,6 +2316,56 @@ function EditHistoryAccordion({
 
 const BREAK_DURATION_OPTIONS = [0, 15, 30, 45, 60] as const;
 
+/** Calculate compliance warnings for edited session times */
+function calcEditComplianceWarnings(
+  startTime: string,
+  endTime: string,
+  breakMinutes: number,
+): string[] {
+  if (!startTime || !endTime) return [];
+
+  const [sh, sm] = startTime.split(":").map(Number);
+  const [eh, em] = endTime.split(":").map(Number);
+
+  if (
+    sh === undefined ||
+    sm === undefined ||
+    eh === undefined ||
+    em === undefined
+  ) {
+    return [];
+  }
+
+  const totalMins = eh * 60 + em - (sh * 60 + sm);
+  const netMins = totalMins - breakMinutes;
+  const warnings: string[] = [];
+
+  if (netMins > 600) {
+    warnings.push("Arbeitszeit > 10h (§3 ArbZG)");
+  }
+  if (netMins > 540 && breakMinutes < 45) {
+    warnings.push("Pausenzeit < 45 Min bei > 9h Arbeitszeit (§4 ArbZG)");
+  } else if (netMins > 360 && breakMinutes < 30) {
+    warnings.push("Pausenzeit < 30 Min bei > 6h Arbeitszeit (§4 ArbZG)");
+  }
+
+  return warnings;
+}
+
+/** Get modal footer based on context */
+function getEditModalFooter(
+  hasBoth: boolean,
+  hasAbsence: boolean,
+  activeTab: "session" | "absence",
+  sessionFooter: React.ReactNode,
+  absenceFooter: React.ReactNode,
+): React.ReactNode {
+  if (hasBoth) {
+    return activeTab === "session" ? sessionFooter : absenceFooter;
+  }
+  return hasAbsence ? absenceFooter : sessionFooter;
+}
+
 function EditSessionModal({
   isOpen,
   onClose,
@@ -2439,28 +2489,7 @@ function EditSessionModal({
     : Number.parseInt(breakMins, 10) || 0;
 
   // Compliance check for the edited values
-  const warnings: string[] = [];
-  if (startTime && endTime) {
-    const [sh, sm] = startTime.split(":").map(Number);
-    const [eh, em] = endTime.split(":").map(Number);
-    if (
-      sh !== undefined &&
-      sm !== undefined &&
-      eh !== undefined &&
-      em !== undefined
-    ) {
-      const totalMins = eh * 60 + em - (sh * 60 + sm);
-      const netMins = totalMins - editedBreak;
-      if (netMins > 600) {
-        warnings.push("Arbeitszeit > 10h (§3 ArbZG)");
-      }
-      if (netMins > 540 && editedBreak < 45) {
-        warnings.push("Pausenzeit < 45 Min bei > 9h Arbeitszeit (§4 ArbZG)");
-      } else if (netMins > 360 && editedBreak < 30) {
-        warnings.push("Pausenzeit < 30 Min bei > 6h Arbeitszeit (§4 ArbZG)");
-      }
-    }
-  }
+  const warnings = calcEditComplianceWarnings(startTime, endTime, editedBreak);
 
   const handleBreakDurationChange = (breakId: string, minutes: number) => {
     setBreakDurations((prev) => {
@@ -2596,12 +2625,13 @@ function EditSessionModal({
     </div>
   );
 
-  const footer = (() => {
-    if (hasBoth) {
-      return activeTab === "session" ? sessionFooter : absenceFooter;
-    }
-    return hasAbsence ? absenceFooter : sessionFooter;
-  })();
+  const footer = getEditModalFooter(
+    hasBoth,
+    hasAbsence,
+    activeTab,
+    sessionFooter,
+    absenceFooter,
+  );
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={modalTitle} footer={footer}>
