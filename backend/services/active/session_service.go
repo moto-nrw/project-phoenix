@@ -296,7 +296,11 @@ func (s *service) ForceStartActivitySessionWithSupervisors(ctx context.Context, 
 
 	var newGroup *active.Group
 	err := s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
-		if err := s.endExistingDeviceSessionWithCleanup(ctx, deviceID); err != nil {
+		// Use simple cleanup (fullCleanup=false) to only mark the group as ended
+		// without ending visits, so TransferVisitsFromRecentSessions can move them
+		// to the new session. Using fullCleanup=true would set exit_time on all visits
+		// first, causing the transfer to find nothing and losing all checked-in students.
+		if err := s.endExistingDeviceSessionIfPresent(ctx, deviceID); err != nil {
 			return err
 		}
 
@@ -314,11 +318,6 @@ func (s *service) ForceStartActivitySessionWithSupervisors(ctx context.Context, 
 	}
 
 	return newGroup, nil
-}
-
-// endExistingDeviceSessionWithCleanup ends existing device session using full cleanup (EndActivitySession)
-func (s *service) endExistingDeviceSessionWithCleanup(ctx context.Context, deviceID int64) error {
-	return s.endExistingDeviceSession(ctx, deviceID, true)
 }
 
 // endExistingDeviceSession ends any existing session for the device
