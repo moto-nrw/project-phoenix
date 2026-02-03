@@ -192,7 +192,7 @@ func TestWorkSession_IsOvertime(t *testing.T) {
 }
 
 func TestWorkSession_IsBreakCompliant(t *testing.T) {
-	makeSession := func(hours int, breakMin int) *WorkSession {
+	makeSession := func(hours, breakMin int) *WorkSession {
 		checkIn := time.Date(2024, 1, 1, 8, 0, 0, 0, time.UTC)
 		checkOut := checkIn.Add(time.Duration(hours)*time.Hour + time.Duration(breakMin)*time.Minute)
 		return &WorkSession{
