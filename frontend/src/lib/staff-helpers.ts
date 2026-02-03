@@ -139,7 +139,8 @@ export interface SupervisionBadge {
  */
 export function getStaffSupervisionBadges(staff: Staff): SupervisionBadge[] {
   // Non-supervising staff - single badge
-  if (!staff.isSupervising || staff.supervisions.length === 0) {
+  const supervisions = staff.supervisions ?? [];
+  if (!staff.isSupervising || supervisions.length === 0) {
     const location = staff.currentLocation ?? "Zuhause";
     return [
       {
@@ -151,7 +152,7 @@ export function getStaffSupervisionBadges(staff: Staff): SupervisionBadge[] {
   }
 
   // Supervising staff - one badge per room
-  return staff.supervisions.map((supervision) => {
+  return supervisions.map((supervision) => {
     // Create a locationStatus for this specific room
     const roomName = supervision.roomName;
     let locationStatus: LocationStatus;
