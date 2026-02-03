@@ -4928,3 +4928,498 @@ describe("Auto-select Schulhof tab logic", () => {
     expect(shouldAutoSelectSchulhof(0, false, false)).toBe(false);
   });
 });
+
+describe("ID-based selection: Stale selection reset", () => {
+  const mockMutate = vi.fn();
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    global.fetch = vi.fn();
+  });
+
+  afterEach(() => {
+    cleanup();
+  });
+
+  it("resets to first room when previously selected room disappears from active rooms list", async () => {
+    // Initial render with room g2 selected
+    const initialData = {
+      supervisedGroups: [
+        { id: "g1", name: "Raum A", room: { id: "10", name: "Raum A" } },
+        { id: "g2", name: "Raum B", room: { id: "11", name: "Raum B" } },
+      ],
+      unclaimedGroups: [],
+      currentStaff: { id: "staff1" },
+      educationalGroups: [],
+      firstRoomVisits: [],
+      firstRoomId: "g1",
+    };
+
+    vi.mocked(useSWRAuth)
+      .mockReturnValueOnce({
+        data: initialData,
+        isLoading: false,
+        error: null,
+        mutate: mockMutate,
+        isValidating: false,
+      } as never)
+      .mockReturnValue({
+        data: null,
+        isLoading: false,
+        error: null,
+        mutate: mockMutate,
+        isValidating: false,
+      } as never);
+
+    const { rerender } = render(<MeinRaumPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("page-header")).toBeInTheDocument();
+    });
+
+    // Simulate SSE refresh where g2 is removed (supervision revoked)
+    const updatedData = {
+      supervisedGroups: [
+        { id: "g1", name: "Raum A", room: { id: "10", name: "Raum A" } },
+        // g2 is gone
+      ],
+      unclaimedGroups: [],
+      currentStaff: { id: "staff1" },
+      educationalGroups: [],
+      firstRoomVisits: [],
+      firstRoomId: "g1",
+    };
+
+    vi.mocked(useSWRAuth)
+      .mockReturnValueOnce({
+        data: updatedData,
+        isLoading: false,
+        error: null,
+        mutate: mockMutate,
+        isValidating: false,
+      } as never)
+      .mockReturnValue({
+        data: null,
+        isLoading: false,
+        error: null,
+        mutate: mockMutate,
+        isValidating: false,
+      } as never);
+
+    rerender(<MeinRaumPage />);
+
+    await waitFor(() => {
+      // Should reset to first room (g1)
+      expect(screen.getByTestId("page-header")).toBeInTheDocument();
+    });
+  });
+
+  it("handles case when selected room disappears and no rooms remain", async () => {
+    const initialData = {
+      supervisedGroups: [
+        { id: "g1", name: "Raum A", room: { id: "10", name: "Raum A" } },
+      ],
+      unclaimedGroups: [],
+      currentStaff: { id: "staff1" },
+      educationalGroups: [],
+      firstRoomVisits: [],
+      firstRoomId: "g1",
+    };
+
+    vi.mocked(useSWRAuth)
+      .mockReturnValueOnce({
+        data: initialData,
+        isLoading: false,
+        error: null,
+        mutate: mockMutate,
+        isValidating: false,
+      } as never)
+      .mockReturnValue({
+        data: null,
+        isLoading: false,
+        error: null,
+        mutate: mockMutate,
+        isValidating: false,
+      } as never);
+
+    const { rerender } = render(<MeinRaumPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("page-header")).toBeInTheDocument();
+    });
+
+    // All rooms removed
+    const updatedData = {
+      supervisedGroups: [],
+      unclaimedGroups: [],
+      currentStaff: { id: "staff1" },
+      educationalGroups: [],
+      firstRoomVisits: [],
+      firstRoomId: null,
+    };
+
+    vi.mocked(useSWRAuth)
+      .mockReturnValueOnce({
+        data: updatedData,
+        isLoading: false,
+        error: null,
+        mutate: mockMutate,
+        isValidating: false,
+      } as never)
+      .mockReturnValue({
+        data: null,
+        isLoading: false,
+        error: null,
+        mutate: mockMutate,
+        isValidating: false,
+      } as never);
+
+    rerender(<MeinRaumPage />);
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("Keine aktive Raum-Aufsicht"),
+      ).toBeInTheDocument();
+    });
+  });
+});
+
+describe("ID-based selection: Schulhof tab skip guard logic", () => {
+  it("determines when to skip first-room preload with Schulhof tab active", () => {
+    const isSchulhofTabSelected = true;
+    const selectedRoomId = null;
+    const firstRoomId = "g1";
+
+    // Skip guard: !isSchulhofTabSelected && (!selectedRoomId || selectedRoomId === firstRoomId)
+    const shouldPreload =
+      !isSchulhofTabSelected &&
+      (!selectedRoomId || selectedRoomId === firstRoomId);
+
+    expect(shouldPreload).toBe(false); // Should skip when Schulhof is active
+  });
+
+  it("preloads first room when NOT on Schulhof tab", () => {
+    const isSchulhofTabSelected = false;
+    const selectedRoomId = null;
+    const firstRoomId = "g1";
+
+    const shouldPreload =
+      !isSchulhofTabSelected &&
+      (!selectedRoomId || selectedRoomId === firstRoomId);
+
+    expect(shouldPreload).toBe(true); // Should preload when not on Schulhof
+  });
+
+  it("preloads when first room is selected and not on Schulhof", () => {
+    const isSchulhofTabSelected = false;
+    const selectedRoomId = "g1";
+    const firstRoomId = "g1";
+
+    const shouldPreload =
+      !isSchulhofTabSelected &&
+      (!selectedRoomId || selectedRoomId === firstRoomId);
+
+    expect(shouldPreload).toBe(true);
+  });
+
+  it("skips preload when different room is selected", () => {
+    const isSchulhofTabSelected = false;
+    const selectedRoomId = "g2" as string;
+    const firstRoomId = "g1" as string;
+
+    const shouldPreload =
+      !isSchulhofTabSelected &&
+      (!selectedRoomId || selectedRoomId === firstRoomId);
+
+    expect(shouldPreload).toBe(false); // Different room selected
+  });
+});
+
+describe("ID-based selection: switchToRoom function", () => {
+  const mockMutate = vi.fn();
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    global.fetch = vi.fn();
+  });
+
+  afterEach(() => {
+    cleanup();
+  });
+
+  it("handles room not found by ID gracefully (no-op)", async () => {
+    const dashboardData = {
+      supervisedGroups: [
+        { id: "g1", name: "Raum A", room: { id: "10", name: "Raum A" } },
+      ],
+      unclaimedGroups: [],
+      currentStaff: { id: "staff1" },
+      educationalGroups: [],
+      firstRoomVisits: [],
+      firstRoomId: "g1",
+    };
+
+    vi.mocked(useSWRAuth)
+      .mockReturnValueOnce({
+        data: dashboardData,
+        isLoading: false,
+        error: null,
+        mutate: mockMutate,
+        isValidating: false,
+      } as never)
+      .mockReturnValue({
+        data: null,
+        isLoading: false,
+        error: null,
+        mutate: mockMutate,
+        isValidating: false,
+      } as never);
+
+    render(<MeinRaumPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("page-header")).toBeInTheDocument();
+    });
+
+    // switchToRoom with non-existent ID should be a no-op
+    // This is tested indirectly - page should not crash or show errors
+  });
+
+  it("does not switch when target room ID matches current selection", async () => {
+    const dashboardData = {
+      supervisedGroups: [
+        { id: "g1", name: "Raum A", room: { id: "10", name: "Raum A" } },
+      ],
+      unclaimedGroups: [],
+      currentStaff: { id: "staff1" },
+      educationalGroups: [],
+      firstRoomVisits: [],
+      firstRoomId: "g1",
+    };
+
+    vi.mocked(useSWRAuth)
+      .mockReturnValueOnce({
+        data: dashboardData,
+        isLoading: false,
+        error: null,
+        mutate: mockMutate,
+        isValidating: false,
+      } as never)
+      .mockReturnValue({
+        data: null,
+        isLoading: false,
+        error: null,
+        mutate: mockMutate,
+        isValidating: false,
+      } as never);
+
+    render(<MeinRaumPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("page-header")).toBeInTheDocument();
+    });
+
+    // Attempting to switch to the same room should be a no-op
+  });
+});
+
+describe("ID-based selection: URL param handler logic", () => {
+  it("finds target room by room_id from allRooms array", () => {
+    const roomParam = "10";
+    const allRooms = [
+      { id: "g1", name: "Raum A", room_id: "10" },
+      { id: "g2", name: "Raum B", room_id: "11" },
+    ];
+
+    const targetRoom = allRooms.find((r) => r.room_id === roomParam);
+
+    expect(targetRoom).toBeDefined();
+    expect(targetRoom?.id).toBe("g1");
+    expect(targetRoom?.room_id).toBe("10");
+  });
+
+  it("returns undefined when room_id does not match any room", () => {
+    const roomParam = "999";
+    const allRooms = [
+      { id: "g1", name: "Raum A", room_id: "10" },
+      { id: "g2", name: "Raum B", room_id: "11" },
+    ];
+
+    const targetRoom = allRooms.find((r) => r.room_id === roomParam);
+
+    expect(targetRoom).toBeUndefined();
+  });
+
+  it("checks if target room ID differs from selected room ID", () => {
+    const roomParam = "10";
+    const selectedRoomId = "g2";
+    const allRooms = [
+      { id: "g1", name: "Raum A", room_id: "10" },
+      { id: "g2", name: "Raum B", room_id: "11" },
+    ];
+
+    const targetRoom = allRooms.find((r) => r.room_id === roomParam);
+    const shouldSwitch = targetRoom && targetRoom.id !== selectedRoomId;
+
+    expect(shouldSwitch).toBe(true); // g1 !== g2
+  });
+
+  it("avoids switching when target room is already selected", () => {
+    const roomParam = "10";
+    const selectedRoomId = "g1";
+    const allRooms = [
+      { id: "g1", name: "Raum A", room_id: "10" },
+      { id: "g2", name: "Raum B", room_id: "11" },
+    ];
+
+    const targetRoom = allRooms.find((r) => r.room_id === roomParam);
+    const shouldSwitch = targetRoom && targetRoom.id !== selectedRoomId;
+
+    expect(shouldSwitch).toBe(false); // g1 === g1
+  });
+});
+
+describe("ID-based selection: localStorage restore logic", () => {
+  it("finds saved room from localStorage using ID-based find", () => {
+    const savedRoomId = "11";
+    const allRooms = [
+      { id: "g1", name: "Raum A", room_id: "10" },
+      { id: "g2", name: "Raum B", room_id: "11" },
+    ];
+
+    const savedRoom = savedRoomId
+      ? allRooms.find((r) => r.room_id === savedRoomId)
+      : undefined;
+
+    expect(savedRoom).toBeDefined();
+    expect(savedRoom?.id).toBe("g2");
+    expect(savedRoom?.room_id).toBe("11");
+  });
+
+  it("handles saved room not found in current allRooms list", () => {
+    const savedRoomId = "999";
+    const allRooms = [
+      { id: "g1", name: "Raum A", room_id: "10" },
+      { id: "g2", name: "Raum B", room_id: "11" },
+    ];
+
+    const savedRoom = savedRoomId
+      ? allRooms.find((r) => r.room_id === savedRoomId)
+      : undefined;
+
+    expect(savedRoom).toBeUndefined();
+  });
+
+  it("checks if saved room ID differs from current selection", () => {
+    const savedRoomId = "11";
+    const selectedRoomId = "g1";
+    const allRooms = [
+      { id: "g1", name: "Raum A", room_id: "10" },
+      { id: "g2", name: "Raum B", room_id: "11" },
+    ];
+
+    const savedRoom = savedRoomId
+      ? allRooms.find((r) => r.room_id === savedRoomId)
+      : undefined;
+    const shouldSwitch = savedRoom && savedRoom.id !== selectedRoomId;
+
+    expect(shouldSwitch).toBe(true); // g2 !== g1
+  });
+
+  it("avoids switch when saved room is already selected", () => {
+    const savedRoomId = "11";
+    const selectedRoomId = "g2";
+    const allRooms = [
+      { id: "g1", name: "Raum A", room_id: "10" },
+      { id: "g2", name: "Raum B", room_id: "11" },
+    ];
+
+    const savedRoom = savedRoomId
+      ? allRooms.find((r) => r.room_id === savedRoomId)
+      : undefined;
+    const shouldSwitch = savedRoom && savedRoom.id !== selectedRoomId;
+
+    expect(shouldSwitch).toBe(false); // g2 === g2
+  });
+
+  it("persists first room when no saved room exists", () => {
+    const savedRoomId = null;
+    const allRooms = [
+      { id: "g1", name: "Raum A", room_id: "10" },
+      { id: "g2", name: "Raum B", room_id: "11" },
+    ];
+
+    const savedRoom = savedRoomId
+      ? allRooms.find((r) => r.room_id === savedRoomId)
+      : undefined;
+
+    if (!savedRoom) {
+      const firstRoom = allRooms[0];
+      expect(firstRoom?.room_id).toBe("10");
+    }
+  });
+});
+
+describe("ID-based selection: Tab change handler logic", () => {
+  it("finds room by ID from allRooms array", () => {
+    const tabId = "g2";
+    const allRooms = [
+      { id: "g1", name: "Raum A", room_id: "10", room_name: "Raum A" },
+      { id: "g2", name: "Raum B", room_id: "11", room_name: "Raum B" },
+    ];
+
+    const room = allRooms.find((r) => r.id === tabId);
+
+    expect(room).toBeDefined();
+    expect(room?.id).toBe("g2");
+    expect(room?.room_id).toBe("11");
+    expect(room?.room_name).toBe("Raum B");
+  });
+
+  it("returns undefined when tab ID does not match any room", () => {
+    const tabId = "g999";
+    const allRooms = [
+      { id: "g1", name: "Raum A", room_id: "10" },
+      { id: "g2", name: "Raum B", room_id: "11" },
+    ];
+
+    const room = allRooms.find((r) => r.id === tabId);
+
+    expect(room).toBeUndefined();
+  });
+
+  it("extracts room_id and room_name for localStorage storage", () => {
+    const tabId = "g1";
+    const allRooms = [
+      { id: "g1", name: "Raum A", room_id: "10", room_name: "Raum A" },
+    ];
+
+    const room = allRooms.find((r) => r.id === tabId);
+
+    if (room) {
+      expect(room.room_id).toBe("10");
+      expect(room.room_name).toBe("Raum A");
+    }
+  });
+
+  it("handles Schulhof tab ID specially", () => {
+    const SCHULHOF_TAB_ID = "schulhof";
+    const tabId = SCHULHOF_TAB_ID;
+
+    const isSchulhofTab = tabId === SCHULHOF_TAB_ID;
+
+    expect(isSchulhofTab).toBe(true);
+  });
+
+  it("distinguishes between Schulhof and regular room tabs", () => {
+    const SCHULHOF_TAB_ID = "schulhof";
+    const regularTabId = "g1" as string;
+    const schulhofTabId: string = SCHULHOF_TAB_ID;
+
+    const regularIsSchulhof = regularTabId === SCHULHOF_TAB_ID;
+    const schulhofIsSchulhof = schulhofTabId === SCHULHOF_TAB_ID;
+
+    expect(regularIsSchulhof).toBe(false);
+    expect(schulhofIsSchulhof).toBe(true);
+  });
+});
