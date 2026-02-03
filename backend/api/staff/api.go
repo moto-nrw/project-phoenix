@@ -277,6 +277,32 @@ func newTeacherResponse(staff *users.Staff, teacher *users.Teacher, wasPresentTo
 	return response
 }
 
+// loadWorkStatusMap loads work session status map (non-critical, returns empty map on error)
+func (rs *Resource) loadWorkStatusMap(ctx context.Context) map[int64]string {
+	if rs.WorkSessionService == nil {
+		return make(map[int64]string)
+	}
+	wsm, err := rs.WorkSessionService.GetTodayPresenceMap(ctx)
+	if err != nil {
+		log.Printf("Warning: failed to fetch work status map: %v", err)
+		return make(map[int64]string)
+	}
+	return wsm
+}
+
+// loadAbsenceMap loads absence status map (non-critical, returns empty map on error)
+func (rs *Resource) loadAbsenceMap(ctx context.Context) map[int64]string {
+	if rs.AbsenceRepo == nil {
+		return make(map[int64]string)
+	}
+	am, err := rs.AbsenceRepo.GetTodayAbsenceMap(ctx)
+	if err != nil {
+		log.Printf("Warning: failed to fetch absence map: %v", err)
+		return make(map[int64]string)
+	}
+	return am
+}
+
 // listStaff handles listing all staff members with optional filtering
 // Optimized to avoid N+1 queries by batch-loading Person and Teacher data
 func (rs *Resource) listStaff(w http.ResponseWriter, r *http.Request) {
@@ -317,25 +343,9 @@ func (rs *Resource) listStaff(w http.ResponseWriter, r *http.Request) {
 		presentMap[id] = true
 	}
 
-	// Batch-load work session status for today (non-critical)
-	workStatusMap := make(map[int64]string)
-	if rs.WorkSessionService != nil {
-		if wsm, err := rs.WorkSessionService.GetTodayPresenceMap(ctx); err != nil {
-			log.Printf("Warning: failed to fetch work status map: %v", err)
-		} else {
-			workStatusMap = wsm
-		}
-	}
-
-	// Batch-load absence status for today (non-critical)
-	absenceMap := make(map[int64]string)
-	if rs.AbsenceRepo != nil {
-		if am, err := rs.AbsenceRepo.GetTodayAbsenceMap(ctx); err != nil {
-			log.Printf("Warning: failed to fetch absence map: %v", err)
-		} else {
-			absenceMap = am
-		}
-	}
+	// Batch-load work session and absence status (non-critical)
+	workStatusMap := rs.loadWorkStatusMap(ctx)
+	absenceMap := rs.loadAbsenceMap(ctx)
 
 	// Build response objects using pre-loaded data
 	responses := make([]interface{}, 0, len(staffMembers))
