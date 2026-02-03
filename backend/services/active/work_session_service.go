@@ -168,20 +168,8 @@ func (s *workSessionService) CheckOut(ctx context.Context, staffID int64) (*acti
 	}
 
 	// End any active break before checkout
-	activeBreak, err := s.breakRepo.GetActiveBySessionID(ctx, session.ID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to check active break: %w", err)
-	}
-	if activeBreak != nil {
-		now := time.Now()
-		duration := int(math.Round(now.Sub(activeBreak.StartedAt).Minutes()))
-		if err := s.breakRepo.EndBreak(ctx, activeBreak.ID, now, duration); err != nil {
-			return nil, fmt.Errorf("failed to end active break: %w", err)
-		}
-		// Recalculate break_minutes cache
-		if err := s.recalcBreakMinutes(ctx, session.ID); err != nil {
-			return nil, fmt.Errorf("failed to update break minutes: %w", err)
-		}
+	if err := s.endActiveBreakIfExists(ctx, session.ID); err != nil {
+		return nil, err
 	}
 
 	// Close the session using repository method
@@ -191,13 +179,7 @@ func (s *workSessionService) CheckOut(ctx context.Context, staffID int64) (*acti
 	}
 
 	// End all active supervisions for this staff member (fire-and-forget)
-	if s.supervisorRepo != nil {
-		if ended, err := s.supervisorRepo.EndAllActiveByStaffID(ctx, staffID); err != nil {
-			log.Printf("Warning: failed to end active supervisions for staff %d on checkout: %v", staffID, err)
-		} else if ended > 0 {
-			log.Printf("Ended %d active supervision(s) for staff %d on checkout", ended, staffID)
-		}
-	}
+	s.endActiveSupervisionsOnCheckout(ctx, staffID)
 
 	// Re-fetch the updated session
 	updatedSession, err := s.repo.FindByID(ctx, session.ID)
@@ -206,6 +188,43 @@ func (s *workSessionService) CheckOut(ctx context.Context, staffID int64) (*acti
 	}
 
 	return updatedSession, nil
+}
+
+// endActiveBreakIfExists ends any active break for a session and recalculates break minutes.
+func (s *workSessionService) endActiveBreakIfExists(ctx context.Context, sessionID int64) error {
+	activeBreak, err := s.breakRepo.GetActiveBySessionID(ctx, sessionID)
+	if err != nil {
+		return fmt.Errorf("failed to check active break: %w", err)
+	}
+	if activeBreak == nil {
+		return nil
+	}
+
+	now := time.Now()
+	duration := int(math.Round(now.Sub(activeBreak.StartedAt).Minutes()))
+	if err := s.breakRepo.EndBreak(ctx, activeBreak.ID, now, duration); err != nil {
+		return fmt.Errorf("failed to end active break: %w", err)
+	}
+
+	if err := s.recalcBreakMinutes(ctx, sessionID); err != nil {
+		return fmt.Errorf("failed to update break minutes: %w", err)
+	}
+	return nil
+}
+
+// endActiveSupervisionsOnCheckout ends all active supervisions for a staff member (fire-and-forget).
+func (s *workSessionService) endActiveSupervisionsOnCheckout(ctx context.Context, staffID int64) {
+	if s.supervisorRepo == nil {
+		return
+	}
+	ended, err := s.supervisorRepo.EndAllActiveByStaffID(ctx, staffID)
+	if err != nil {
+		log.Printf("Warning: failed to end active supervisions for staff %d on checkout: %v", staffID, err)
+		return
+	}
+	if ended > 0 {
+		log.Printf("Ended %d active supervision(s) for staff %d on checkout", ended, staffID)
+	}
 }
 
 // StartBreak starts a new break for the current session
