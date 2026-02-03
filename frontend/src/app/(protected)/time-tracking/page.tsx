@@ -627,7 +627,7 @@ function ClockInCard({
                 {formatTime(currentSession.checkOutTime)}
               </span>
               <span className="w-16 shrink-0 text-right font-medium text-gray-700 tabular-nums">
-                {checkedOutNet !== null ? formatDuration(checkedOutNet) : "--"}
+                {checkedOutNet === null ? "--" : formatDuration(checkedOutNet)}
               </span>
             </div>
 
@@ -943,6 +943,28 @@ function WeekChart({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [history, currentSession, weekOffset]);
 
+  const tooltipLabelFormatter = useCallback(
+    (_value: unknown, payload: Array<{ payload?: { label?: string } }>) => {
+      const item = payload[0]?.payload;
+      return item?.label ?? "";
+    },
+    [],
+  );
+
+  const tooltipValueFormatter = useCallback(
+    (
+      value: number | string | Array<number | string>,
+      name: string | number,
+    ) => {
+      const totalMins = value as number;
+      const hours = Math.floor(totalMins / 60);
+      const mins = totalMins % 60;
+      const label = name === "netMinutes" ? "Arbeitszeit" : "Pause";
+      return `${label}: ${hours}h ${mins}min`;
+    },
+    [],
+  );
+
   return (
     <div className="relative flex h-full flex-col overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)]">
       <div className="flex min-h-0 flex-1 flex-col p-4 sm:p-6 md:p-8">
@@ -992,23 +1014,8 @@ function WeekChart({
             <ChartTooltip
               content={
                 <ChartTooltipContent
-                  labelFormatter={(_value, payload) => {
-                    const item = payload[0]?.payload as
-                      | { label?: string }
-                      | undefined;
-                    return item?.label ?? "";
-                  }}
-                  formatter={(value, name) => {
-                    const totalMins = value as number;
-                    const hours = Math.floor(totalMins / 60);
-                    const mins = totalMins % 60;
-                    return (
-                      <span>
-                        {name === "netMinutes" ? "Arbeitszeit" : "Pause"}:{" "}
-                        {hours}h {mins}min
-                      </span>
-                    );
-                  }}
+                  labelFormatter={tooltipLabelFormatter}
+                  formatter={tooltipValueFormatter}
                 />
               }
             />
@@ -1296,10 +1303,9 @@ function MiniCalendar({
 
           // Rounding for range edges
           let rounding = "rounded-md";
-          if (isStart && isEnd) rounding = "rounded-md";
-          else if (isStart) rounding = "rounded-l-md";
-          else if (isEnd) rounding = "rounded-r-md";
-          else if (inRange) rounding = "rounded-none";
+          if (isStart && !isEnd) rounding = "rounded-l-md";
+          else if (isEnd && !isStart) rounding = "rounded-r-md";
+          else if (inRange && !isStart && !isEnd) rounding = "rounded-none";
 
           return (
             <button
