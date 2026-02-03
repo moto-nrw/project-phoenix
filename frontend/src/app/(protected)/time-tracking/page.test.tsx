@@ -1371,7 +1371,9 @@ describe("TimeTrackingPage", () => {
         }
 
         // Also try clicking a quick-reason button
-        const reasonBtn = screen.queryByText("Zeitkorrektur");
+        const reasonBtn = screen.queryByRole("button", {
+          name: "Zeitkorrektur",
+        });
         if (reasonBtn) {
           fireEvent.click(reasonBtn);
         }

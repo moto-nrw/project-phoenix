@@ -424,7 +424,7 @@ describe("useStudentData", () => {
 
   describe("refresh functionality", () => {
     it("should call SWR mutate when refreshData is invoked", async () => {
-      const mockMutate = vi.fn();
+      const mockMutate = vi.fn(() => Promise.resolve());
 
       mockUseSession.mockReturnValue({
         data: { user: { id: "1", token: "test-token" }, expires: "2099-12-31" },
