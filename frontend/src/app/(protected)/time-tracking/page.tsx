@@ -1716,11 +1716,12 @@ function WeekTable({
                     <div>
                       <span className="text-gray-400">Ende</span>
                       <p className="font-medium text-gray-600 tabular-nums">
-                        {session.checkOutTime
-                          ? formatTime(session.checkOutTime)
-                          : isActive
-                            ? "···"
-                            : "--:--"}
+                        {(() => {
+                          if (session.checkOutTime)
+                            return formatTime(session.checkOutTime);
+                          if (isActive) return "···";
+                          return "--:--";
+                        })()}
                       </p>
                     </div>
                     <div>
