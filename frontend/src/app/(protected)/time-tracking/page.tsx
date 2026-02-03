@@ -231,6 +231,59 @@ function getSessionStatusBadge(
   return { className: "bg-[#83CD2D]/10 text-[#70b525]", label: "In der OGS" };
 }
 
+// Returns className for mode toggle button
+function getModeToggleClassName(
+  buttonMode: "present" | "home_office" | "absent",
+  currentMode: "present" | "home_office" | "absent",
+): string {
+  const base =
+    "rounded-full px-3 py-1.5 text-xs font-medium transition-all sm:px-4";
+  const inactive = "bg-gray-100 text-gray-500 hover:bg-gray-200";
+  if (buttonMode !== currentMode) return `${base} ${inactive}`;
+  if (buttonMode === "present")
+    return `${base} bg-[#83CD2D]/10 text-[#70b525] ring-1 ring-[#83CD2D]/40`;
+  if (buttonMode === "home_office")
+    return `${base} bg-sky-100 text-sky-700 ring-1 ring-sky-300`;
+  return `${base} bg-red-100 text-red-700 ring-1 ring-red-300`;
+}
+
+// Returns className for check-in button based on mode
+function getCheckInButtonClassName(
+  mode: "present" | "home_office" | "absent",
+): string {
+  const base =
+    "flex h-16 w-16 items-center justify-center rounded-full border-2 transition-all active:scale-95 disabled:opacity-50";
+  if (mode === "home_office")
+    return `${base} border-sky-500 text-sky-500 hover:bg-sky-50`;
+  return `${base} border-[#83CD2D] text-[#83CD2D] hover:bg-[#83CD2D]/5`;
+}
+
+// Returns className for break/pause button
+function getBreakButtonClassName(
+  isOnBreak: boolean,
+  breakMins: number,
+): string {
+  const base =
+    "flex h-12 w-12 items-center justify-center rounded-full border-2 transition-all active:scale-95 disabled:opacity-60";
+  if (isOnBreak) return `${base} border-amber-400 text-amber-500`;
+  if (breakMins > 0)
+    return `${base} border-amber-400 text-amber-500 hover:bg-amber-50`;
+  return `${base} border-gray-200 text-gray-400 hover:border-gray-300 hover:text-gray-500`;
+}
+
+// Returns formatted duration for today footer
+function getTodayDisplayValue(
+  isCheckedIn: boolean,
+  isCheckedOut: boolean,
+  netMinutes: number,
+  checkedOutNet: number | null,
+): string {
+  if (isCheckedIn) return formatDuration(netMinutes);
+  if (isCheckedOut && checkedOutNet !== null)
+    return formatDuration(checkedOutNet);
+  return "--";
+}
+
 function ClockInCard({
   currentSession,
   breaks,
@@ -417,31 +470,19 @@ function ClockInCard({
             <div className="flex gap-2">
               <button
                 onClick={() => setMode("present")}
-                className={`rounded-full px-3 py-1.5 text-xs font-medium transition-all sm:px-4 ${
-                  mode === "present"
-                    ? "bg-[#83CD2D]/10 text-[#70b525] ring-1 ring-[#83CD2D]/40"
-                    : "bg-gray-100 text-gray-500 hover:bg-gray-200"
-                }`}
+                className={getModeToggleClassName("present", mode)}
               >
                 In der OGS
               </button>
               <button
                 onClick={() => setMode("home_office")}
-                className={`rounded-full px-3 py-1.5 text-xs font-medium transition-all sm:px-4 ${
-                  mode === "home_office"
-                    ? "bg-sky-100 text-sky-700 ring-1 ring-sky-300"
-                    : "bg-gray-100 text-gray-500 hover:bg-gray-200"
-                }`}
+                className={getModeToggleClassName("home_office", mode)}
               >
                 Homeoffice
               </button>
               <button
                 onClick={() => setMode("absent")}
-                className={`rounded-full px-3 py-1.5 text-xs font-medium transition-all sm:px-4 ${
-                  mode === "absent"
-                    ? "bg-red-100 text-red-700 ring-1 ring-red-300"
-                    : "bg-gray-100 text-gray-500 hover:bg-gray-200"
-                }`}
+                className={getModeToggleClassName("absent", mode)}
               >
                 Abwesend
               </button>
@@ -472,11 +513,7 @@ function ClockInCard({
               <button
                 onClick={handleCheckIn}
                 disabled={actionLoading}
-                className={`flex h-16 w-16 items-center justify-center rounded-full border-2 transition-all active:scale-95 disabled:opacity-50 ${
-                  mode === "home_office"
-                    ? "border-sky-500 text-sky-500 hover:bg-sky-50"
-                    : "border-[#83CD2D] text-[#83CD2D] hover:bg-[#83CD2D]/5"
-                }`}
+                className={getCheckInButtonClassName(mode)}
                 aria-label="Einstempeln"
               >
                 {actionLoading ? (
@@ -510,7 +547,7 @@ function ClockInCard({
                   <button
                     onClick={handleEndBreakEarly}
                     disabled={actionLoading}
-                    className="flex h-12 w-12 items-center justify-center rounded-full border-2 border-amber-400 text-amber-500 transition-all active:scale-95 disabled:opacity-60"
+                    className={getBreakButtonClassName(true, breakMins)}
                     aria-label="Pause beenden"
                   >
                     <svg
@@ -525,11 +562,7 @@ function ClockInCard({
                   <button
                     onClick={() => setBreakMenuOpen(!breakMenuOpen)}
                     disabled={actionLoading}
-                    className={`flex h-12 w-12 items-center justify-center rounded-full border-2 transition-all active:scale-95 disabled:opacity-60 ${
-                      breakMins > 0
-                        ? "border-amber-400 text-amber-500 hover:bg-amber-50"
-                        : "border-gray-200 text-gray-400 hover:border-gray-300 hover:text-gray-500"
-                    }`}
+                    className={getBreakButtonClassName(false, breakMins)}
                     aria-label="Pause starten"
                   >
                     <svg
@@ -690,12 +723,12 @@ function ClockInCard({
           <span>
             Heute:{" "}
             <span className="font-medium text-gray-600">
-              {(() => {
-                if (isCheckedIn) return formatDuration(netMinutes);
-                if (isCheckedOut && checkedOutNet !== null)
-                  return formatDuration(checkedOutNet);
-                return "--";
-              })()}
+              {getTodayDisplayValue(
+                isCheckedIn,
+                isCheckedOut,
+                netMinutes,
+                checkedOutNet,
+              )}
             </span>
           </span>
           <span>
