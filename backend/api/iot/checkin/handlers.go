@@ -192,6 +192,11 @@ func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 		rs.updateSessionActivityForDevice(ctx, *req.RoomID, deviceCtx.ID)
 	}
 
+	// Step 11b: Get active student count for response
+	if req.RoomID != nil {
+		result.ActiveStudents = rs.getActiveStudentCountForRoom(ctx, *req.RoomID, deviceCtx.ID)
+	}
+
 	// Step 12: Build and send response
 	response := buildCheckinResponse(student, result, now)
 	log.Printf("[CHECKIN] Final response: action='%s', student='%s %s', message='%s', visit_id=%v, room='%s'",
