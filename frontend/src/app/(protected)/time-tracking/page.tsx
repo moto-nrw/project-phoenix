@@ -2418,13 +2418,12 @@ function EditSessionModal({
     </div>
   );
 
-  const footer = hasBoth
-    ? activeTab === "session"
-      ? sessionFooter
-      : absenceFooter
-    : hasAbsence
-      ? absenceFooter
-      : sessionFooter;
+  const footer = (() => {
+    if (hasBoth) {
+      return activeTab === "session" ? sessionFooter : absenceFooter;
+    }
+    return hasAbsence ? absenceFooter : sessionFooter;
+  })();
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={modalTitle} footer={footer}>
