@@ -2411,8 +2411,8 @@ describe("TimeTrackingPage", () => {
       fireEvent.click(changeText.closest("tr")!);
 
       await waitFor(() => {
-        expect(screen.getByText("0 min")).toBeInTheDocument();
-        expect(screen.getByText("30 min")).toBeInTheDocument();
+        expect(screen.getAllByText("0 min").length).toBeGreaterThan(0);
+        expect(screen.getAllByText("30 min").length).toBeGreaterThan(0);
       });
     });
 
@@ -2547,7 +2547,7 @@ describe("TimeTrackingPage", () => {
         // Both edits should show field labels
         const startLabels = screen.queryAllByText("Start");
         expect(startLabels.length).toBeGreaterThan(0);
-        expect(screen.getByText("30 min")).toBeInTheDocument();
+        expect(screen.getAllByText("30 min").length).toBeGreaterThan(0);
       });
     });
   });

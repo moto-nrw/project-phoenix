@@ -887,7 +887,7 @@ func TestWSGetTodayPresenceMap_RepoError(t *testing.T) {
 func TestWSGetSessionEdits_RepoError(t *testing.T) {
 	svc, sessionRepo, _, auditRepo, _, _ := wsCreateTestServiceWithAbsenceRepo()
 	staffID := int64(100)
-	sessionID := int64(1)
+	sessionID := int64(500)
 
 	// Mock FindByID to return session owned by staffID
 	sessionRepo.findByIDFunc = func(_ context.Context, _ any) (*activeModels.WorkSession, error) {
@@ -909,7 +909,7 @@ func TestWSGetSessionEdits_RepoError(t *testing.T) {
 func TestWSGetSessionBreaks_RepoError(t *testing.T) {
 	svc, sessionRepo, breakRepo, _, _, _ := wsCreateTestServiceWithAbsenceRepo()
 	staffID := int64(100)
-	sessionID := int64(1)
+	sessionID := int64(501)
 
 	// Mock FindByID to return session owned by staffID
 	sessionRepo.findByIDFunc = func(_ context.Context, _ any) (*activeModels.WorkSession, error) {

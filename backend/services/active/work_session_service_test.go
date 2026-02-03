@@ -929,7 +929,7 @@ func TestWSGetHistory_RepoError(t *testing.T) {
 func TestWSGetSessionBreaks_Success(t *testing.T) {
 	svc, sessionRepo, breakRepo, _, _ := wsCreateTestService()
 	staffID := int64(100)
-	sessionID := int64(1)
+	sessionID := int64(502)
 
 	// Mock FindByID to return session owned by staffID
 	sessionRepo.findByIDFunc = func(_ context.Context, _ any) (*activeModels.WorkSession, error) {
@@ -958,7 +958,7 @@ func TestWSGetSessionBreaks_Success(t *testing.T) {
 func TestWSGetSessionEdits_Success(t *testing.T) {
 	svc, sessionRepo, _, auditRepo, _ := wsCreateTestService()
 	staffID := int64(100)
-	sessionID := int64(1)
+	sessionID := int64(503)
 
 	// Mock FindByID to return session owned by staffID
 	sessionRepo.findByIDFunc = func(_ context.Context, _ any) (*activeModels.WorkSession, error) {

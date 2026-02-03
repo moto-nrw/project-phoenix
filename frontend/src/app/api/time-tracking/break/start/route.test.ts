@@ -101,6 +101,7 @@ describe("POST /api/time-tracking/break/start", () => {
     expect(mockApiPost).toHaveBeenCalledWith(
       "/api/time-tracking/break/start",
       "test-token",
+      {},
     );
     expect(response.status).toBe(200);
 
