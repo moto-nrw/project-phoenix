@@ -339,7 +339,7 @@ func (rs *Resource) getBreaks(w http.ResponseWriter, r *http.Request) {
 	// Get breaks (service verifies ownership)
 	breaks, err := rs.WorkSessionService.GetSessionBreaks(r.Context(), staffID, sessionID)
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInternalServer(err))
+		common.RenderError(w, r, classifyServiceError(err))
 		return
 	}
 
@@ -367,7 +367,7 @@ func (rs *Resource) getSessionEdits(w http.ResponseWriter, r *http.Request) {
 	// Get edits (service verifies ownership)
 	edits, err := rs.WorkSessionService.GetSessionEdits(r.Context(), staffID, sessionID)
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInternalServer(err))
+		common.RenderError(w, r, classifyServiceError(err))
 		return
 	}
 
