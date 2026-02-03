@@ -124,3 +124,61 @@ export function sortStaff(staff: Staff[]): Staff[] {
     return a.lastName.localeCompare(b.lastName, "de");
   });
 }
+
+// Badge representation for a single supervision or status
+export interface SupervisionBadge {
+  key: string;
+  label: string;
+  locationStatus: LocationStatus;
+}
+
+/**
+ * Returns an array of badges for a staff member's supervisions.
+ * - Non-supervising staff: single badge (Zuhause/Anwesend)
+ * - Supervising staff: one badge per room with appropriate color
+ */
+export function getStaffSupervisionBadges(staff: Staff): SupervisionBadge[] {
+  // Non-supervising staff - single badge
+  if (!staff.isSupervising || staff.supervisions.length === 0) {
+    const location = staff.currentLocation ?? "Zuhause";
+    return [
+      {
+        key: "status",
+        label: location,
+        locationStatus: getStaffLocationStatus(staff),
+      },
+    ];
+  }
+
+  // Supervising staff - one badge per room
+  return staff.supervisions.map((supervision) => {
+    // Create a locationStatus for this specific room
+    const roomName = supervision.roomName;
+    let locationStatus: LocationStatus;
+
+    if (roomName === "Schulhof") {
+      locationStatus = {
+        label: "Schulhof",
+        badgeColor: "text-white backdrop-blur-sm",
+        cardGradient: "from-amber-50/80 to-yellow-100/80",
+        customBgColor: "#F78C10",
+        customShadow: "0 8px 25px rgba(247, 140, 16, 0.4)",
+      };
+    } else {
+      // Default room color (blue)
+      locationStatus = {
+        label: roomName,
+        badgeColor: "text-white backdrop-blur-sm",
+        cardGradient: "from-blue-50/80 to-cyan-100/80",
+        customBgColor: "#5080D8",
+        customShadow: "0 8px 25px rgba(80, 128, 216, 0.4)",
+      };
+    }
+
+    return {
+      key: `room-${supervision.roomId}`,
+      label: roomName,
+      locationStatus,
+    };
+  });
+}

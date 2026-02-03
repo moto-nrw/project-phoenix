@@ -6,6 +6,7 @@ import {
   getStaffCardInfo,
   formatStaffNotes,
   sortStaff,
+  getStaffSupervisionBadges,
 } from "./staff-helpers";
 
 // Sample staff for testing
@@ -23,6 +24,7 @@ const createSampleStaff = (overrides: Partial<Staff> = {}): Staff => ({
   isSupervising: false,
   currentLocation: "Zuhause",
   supervisionRole: undefined,
+  supervisions: [],
   wasPresentToday: false,
   ...overrides,
 });
@@ -315,5 +317,112 @@ describe("sortStaff", () => {
 
     expect(staff[0]?.lastName).toBe("Zeta"); // Original unchanged
     expect(result[0]?.lastName).toBe("Alpha"); // Sorted copy
+  });
+});
+
+describe("getStaffSupervisionBadges", () => {
+  it("returns single Zuhause badge for non-supervising staff", () => {
+    const staff = createSampleStaff({
+      isSupervising: false,
+      currentLocation: "Zuhause",
+      supervisions: [],
+    });
+    const result = getStaffSupervisionBadges(staff);
+
+    expect(result).toHaveLength(1);
+    expect(result[0]?.label).toBe("Zuhause");
+    expect(result[0]?.key).toBe("status");
+    expect(result[0]?.locationStatus.customBgColor).toBe("#FF3130");
+  });
+
+  it("returns single Anwesend badge for present non-supervising staff", () => {
+    const staff = createSampleStaff({
+      isSupervising: false,
+      currentLocation: "Anwesend",
+      supervisions: [],
+    });
+    const result = getStaffSupervisionBadges(staff);
+
+    expect(result).toHaveLength(1);
+    expect(result[0]?.label).toBe("Anwesend");
+    expect(result[0]?.locationStatus.customBgColor).toBe("#83CD2D");
+  });
+
+  it("returns one badge per room for supervising staff", () => {
+    const staff = createSampleStaff({
+      isSupervising: true,
+      currentLocation: "2 Räume",
+      supervisions: [
+        { roomId: "1", roomName: "Gymnasium", activeGroupId: "101" },
+        { roomId: "2", roomName: "Bibliothek", activeGroupId: "102" },
+      ],
+    });
+    const result = getStaffSupervisionBadges(staff);
+
+    expect(result).toHaveLength(2);
+    expect(result[0]?.label).toBe("Gymnasium");
+    expect(result[0]?.key).toBe("room-1");
+    expect(result[1]?.label).toBe("Bibliothek");
+    expect(result[1]?.key).toBe("room-2");
+  });
+
+  it("uses blue color for regular room badges", () => {
+    const staff = createSampleStaff({
+      isSupervising: true,
+      currentLocation: "Gymnasium",
+      supervisions: [
+        { roomId: "1", roomName: "Gymnasium", activeGroupId: "101" },
+      ],
+    });
+    const result = getStaffSupervisionBadges(staff);
+
+    expect(result).toHaveLength(1);
+    expect(result[0]?.locationStatus.customBgColor).toBe("#5080D8");
+  });
+
+  it("uses orange color for Schulhof badge", () => {
+    const staff = createSampleStaff({
+      isSupervising: true,
+      currentLocation: "Schulhof",
+      supervisions: [
+        { roomId: "1", roomName: "Schulhof", activeGroupId: "101" },
+      ],
+    });
+    const result = getStaffSupervisionBadges(staff);
+
+    expect(result).toHaveLength(1);
+    expect(result[0]?.label).toBe("Schulhof");
+    expect(result[0]?.locationStatus.customBgColor).toBe("#F78C10");
+  });
+
+  it("mixes colors for multiple rooms including Schulhof", () => {
+    const staff = createSampleStaff({
+      isSupervising: true,
+      currentLocation: "3 Räume",
+      supervisions: [
+        { roomId: "1", roomName: "Gymnasium", activeGroupId: "101" },
+        { roomId: "2", roomName: "Schulhof", activeGroupId: "102" },
+        { roomId: "3", roomName: "Bibliothek", activeGroupId: "103" },
+      ],
+    });
+    const result = getStaffSupervisionBadges(staff);
+
+    expect(result).toHaveLength(3);
+    expect(result[0]?.locationStatus.customBgColor).toBe("#5080D8"); // Gymnasium - blue
+    expect(result[1]?.locationStatus.customBgColor).toBe("#F78C10"); // Schulhof - orange
+    expect(result[2]?.locationStatus.customBgColor).toBe("#5080D8"); // Bibliothek - blue
+  });
+
+  it("falls back to status badge when isSupervising but empty supervisions", () => {
+    const staff = createSampleStaff({
+      isSupervising: true,
+      currentLocation: "Unterwegs",
+      supervisions: [],
+    });
+    const result = getStaffSupervisionBadges(staff);
+
+    expect(result).toHaveLength(1);
+    expect(result[0]?.label).toBe("Unterwegs");
+    expect(result[0]?.key).toBe("status");
   });
 });

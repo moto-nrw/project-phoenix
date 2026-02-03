@@ -8,11 +8,11 @@ import type { FilterConfig, ActiveFilter } from "~/components/ui/page-header";
 import { staffService } from "~/lib/staff-api";
 import type { Staff } from "~/lib/staff-api";
 import {
-  getStaffLocationStatus,
   getStaffDisplayType,
   getStaffCardInfo,
   formatStaffNotes,
   sortStaff,
+  getStaffSupervisionBadges,
 } from "~/lib/staff-helpers";
 import { useSWRAuth } from "~/lib/swr";
 
@@ -248,10 +248,12 @@ function StaffPageContent() {
         <div>
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3">
             {filteredStaff.map((staffMember) => {
-              const locationStatus = getStaffLocationStatus(staffMember);
+              const supervisionBadges = getStaffSupervisionBadges(staffMember);
               const displayType = getStaffDisplayType(staffMember);
               const cardInfo = getStaffCardInfo(staffMember);
               const notes = formatStaffNotes(staffMember.staffNotes, 80);
+              // Use first badge's gradient for card background
+              const primaryBadge = supervisionBadges[0];
 
               return (
                 <div
@@ -260,7 +262,7 @@ function StaffPageContent() {
                 >
                   {/* Modern gradient overlay */}
                   <div
-                    className={`absolute inset-0 bg-gradient-to-br ${locationStatus.cardGradient} rounded-3xl opacity-[0.03]`}
+                    className={`absolute inset-0 bg-gradient-to-br ${primaryBadge?.locationStatus.cardGradient ?? "from-gray-50/80 to-gray-100/80"} rounded-3xl opacity-[0.03]`}
                   ></div>
                   {/* Subtle inner glow */}
                   <div className="absolute inset-px rounded-3xl bg-gradient-to-br from-white/80 to-white/20"></div>
@@ -269,7 +271,7 @@ function StaffPageContent() {
 
                   <div className="relative p-6">
                     {/* Header with staff name */}
-                    <div className="mb-2 flex items-center justify-between">
+                    <div className="mb-2 flex items-start justify-between">
                       {/* Staff Name */}
                       <div className="min-w-0 flex-1">
                         <h3 className="overflow-hidden text-lg font-bold text-ellipsis whitespace-nowrap text-gray-800">
@@ -284,18 +286,39 @@ function StaffPageContent() {
                         </p>
                       </div>
 
-                      {/* Status Badge */}
-                      <span
-                        className={`inline-flex items-center rounded-full px-3 py-1.5 text-xs font-bold ${locationStatus.badgeColor} ml-3`}
-                        style={{
-                          backgroundColor: locationStatus.customBgColor,
-                          boxShadow: locationStatus.customShadow,
-                        }}
-                      >
-                        <span className="mr-2 h-1.5 w-1.5 animate-pulse rounded-full bg-white/80"></span>
-                        {locationStatus.label}
-                      </span>
+                      {/* Single Badge - show beside name */}
+                      {supervisionBadges.length === 1 && (
+                        <span
+                          className={`ml-3 inline-flex items-center rounded-full px-3 py-1.5 text-xs font-bold ${supervisionBadges[0]?.locationStatus.badgeColor}`}
+                          style={{
+                            backgroundColor: supervisionBadges[0]?.locationStatus.customBgColor,
+                            boxShadow: supervisionBadges[0]?.locationStatus.customShadow,
+                          }}
+                        >
+                          <span className="mr-2 h-1.5 w-1.5 animate-pulse rounded-full bg-white/80"></span>
+                          {supervisionBadges[0]?.label}
+                        </span>
+                      )}
                     </div>
+
+                    {/* Multiple Badges - show below name */}
+                    {supervisionBadges.length > 1 && (
+                      <div className="mb-2 flex flex-wrap gap-1.5">
+                        {supervisionBadges.map((badge) => (
+                          <span
+                            key={badge.key}
+                            className={`inline-flex items-center rounded-full px-3 py-1.5 text-xs font-bold ${badge.locationStatus.badgeColor}`}
+                            style={{
+                              backgroundColor: badge.locationStatus.customBgColor,
+                              boxShadow: badge.locationStatus.customShadow,
+                            }}
+                          >
+                            <span className="mr-2 h-1.5 w-1.5 animate-pulse rounded-full bg-white/80"></span>
+                            {badge.label}
+                          </span>
+                        ))}
+                      </div>
+                    )}
 
                     {/* Additional Info */}
                     {cardInfo.length > 0 && (
