@@ -339,150 +339,194 @@ func (s *workSessionService) recalcBreakMinutes(ctx context.Context, sessionID i
 	return s.repo.UpdateBreakMinutes(ctx, sessionID, totalMinutes)
 }
 
+// sessionUpdateContext holds state during session update to avoid passing many parameters.
+type sessionUpdateContext struct {
+	session    *activeModels.WorkSession
+	sessionID  int64
+	staffID    int64
+	now        time.Time
+	auditEdits []*auditModels.WorkSessionEdit
+	notes      *string
+}
+
+func (uc *sessionUpdateContext) addAuditEdit(field string, oldVal, newVal *string) {
+	uc.auditEdits = append(uc.auditEdits, &auditModels.WorkSessionEdit{
+		SessionID: uc.sessionID,
+		StaffID:   uc.session.StaffID,
+		EditedBy:  uc.staffID,
+		FieldName: field,
+		OldValue:  oldVal,
+		NewValue:  newVal,
+		Notes:     uc.notes,
+		CreatedAt: uc.now,
+	})
+}
+
 // UpdateSession updates a work session with the provided fields and creates audit entries
 func (s *workSessionService) UpdateSession(ctx context.Context, staffID int64, sessionID int64, updates SessionUpdateRequest) (*activeModels.WorkSession, error) {
-	// Get the session
 	session, err := s.repo.FindByID(ctx, sessionID)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, fmt.Errorf("session not found")
-		}
-		return nil, fmt.Errorf("failed to get session: %w", err)
+		return nil, s.handleSessionNotFoundError(err)
 	}
 
-	// Verify ownership
 	if session.StaffID != staffID {
 		return nil, fmt.Errorf("can only update own sessions")
 	}
 
-	// Snapshot old values before applying updates
-	now := time.Now()
-	var auditEdits []*auditModels.WorkSessionEdit
-
-	makeEdit := func(field string, oldVal, newVal *string) {
-		auditEdits = append(auditEdits, &auditModels.WorkSessionEdit{
-			SessionID: sessionID,
-			StaffID:   session.StaffID,
-			EditedBy:  staffID,
-			FieldName: field,
-			OldValue:  oldVal,
-			NewValue:  newVal,
-			Notes:     updates.Notes,
-			CreatedAt: now,
-		})
+	uc := &sessionUpdateContext{
+		session:   session,
+		sessionID: sessionID,
+		staffID:   staffID,
+		now:       time.Now(),
+		notes:     updates.Notes,
 	}
 
-	strPtr := func(s string) *string { return &s }
+	// Apply time field updates
+	s.applyTimeFieldUpdates(uc, updates)
 
-	if updates.CheckInTime != nil {
-		oldVal := session.CheckInTime.Format(time.RFC3339)
-		newVal := updates.CheckInTime.Format(time.RFC3339)
-		if oldVal != newVal {
-			makeEdit(auditModels.FieldCheckInTime, strPtr(oldVal), strPtr(newVal))
-		}
-		session.CheckInTime = *updates.CheckInTime
+	// Apply break updates (either individual breaks or break_minutes)
+	if err := s.applyBreakUpdates(ctx, uc, updates); err != nil {
+		return nil, err
 	}
-	if updates.CheckOutTime != nil {
-		var oldVal string
-		if session.CheckOutTime != nil {
-			oldVal = session.CheckOutTime.Format(time.RFC3339)
-		}
-		newVal := updates.CheckOutTime.Format(time.RFC3339)
-		if oldVal != newVal {
-			makeEdit(auditModels.FieldCheckOutTime, strPtr(oldVal), strPtr(newVal))
-		}
-		session.CheckOutTime = updates.CheckOutTime
-	}
-	// If individual break updates are provided, process them instead of BreakMinutes
-	if len(updates.Breaks) > 0 {
-		// Load all breaks for this session
-		sessionBreaks, err := s.breakRepo.GetBySessionID(ctx, sessionID)
-		if err != nil {
-			return nil, fmt.Errorf("failed to load session breaks: %w", err)
-		}
 
-		// Build lookup map
-		breakMap := make(map[int64]*activeModels.WorkSessionBreak, len(sessionBreaks))
-		for _, b := range sessionBreaks {
-			breakMap[b.ID] = b
-		}
-
-		for _, bu := range updates.Breaks {
-			brk, ok := breakMap[bu.ID]
-			if !ok {
-				return nil, fmt.Errorf("break %d does not belong to this session", bu.ID)
-			}
-			if brk.EndedAt == nil {
-				return nil, fmt.Errorf("cannot edit duration of an active break")
-			}
-
-			oldDuration := brk.DurationMinutes
-			if oldDuration != bu.DurationMinutes {
-				// Calculate new ended_at from started_at + new duration
-				newEndedAt := brk.StartedAt.Add(time.Duration(bu.DurationMinutes) * time.Minute)
-
-				if err := s.breakRepo.UpdateDuration(ctx, bu.ID, bu.DurationMinutes, newEndedAt); err != nil {
-					return nil, fmt.Errorf("failed to update break %d: %w", bu.ID, err)
-				}
-
-				// Audit entry for this break change
-				oldVal := strconv.Itoa(oldDuration)
-				newVal := strconv.Itoa(bu.DurationMinutes)
-				makeEdit(auditModels.FieldBreakDuration, strPtr(oldVal), strPtr(newVal))
-			}
-		}
-
-		// Recalculate session break_minutes cache from updated breaks
-		if err := s.recalcBreakMinutes(ctx, sessionID); err != nil {
-			return nil, fmt.Errorf("failed to recalculate break minutes: %w", err)
-		}
-		// Re-fetch session to get updated break_minutes
-		session, err = s.repo.FindByID(ctx, sessionID)
-		if err != nil {
-			return nil, fmt.Errorf("failed to re-fetch session: %w", err)
-		}
-	} else if updates.BreakMinutes != nil {
-		oldVal := strconv.Itoa(session.BreakMinutes)
-		newVal := strconv.Itoa(*updates.BreakMinutes)
-		if oldVal != newVal {
-			makeEdit(auditModels.FieldBreakMinutes, strPtr(oldVal), strPtr(newVal))
-		}
-		session.BreakMinutes = *updates.BreakMinutes
-	}
-	if updates.Status != nil {
-		if session.Status != *updates.Status {
-			makeEdit(auditModels.FieldStatus, strPtr(session.Status), updates.Status)
-		}
-		session.Status = *updates.Status
-	}
-	if updates.Notes != nil {
-		if session.Notes != *updates.Notes {
-			makeEdit(auditModels.FieldNotes, strPtr(session.Notes), updates.Notes)
-		}
-		session.Notes = *updates.Notes
-	}
+	// Apply simple field updates
+	s.applySimpleFieldUpdates(uc, updates)
 
 	session.UpdatedBy = &staffID
-	session.UpdatedAt = now
+	session.UpdatedAt = uc.now
 
-	// Validate the updated session
 	if err := session.Validate(); err != nil {
 		return nil, fmt.Errorf(errInvalidSessionData, err)
 	}
 
-	// Update in database
 	if err := s.repo.Update(ctx, session); err != nil {
 		return nil, fmt.Errorf("failed to update session: %w", err)
 	}
 
-	// Create audit entries for changed fields
-	if len(auditEdits) > 0 {
-		if err := s.auditRepo.CreateBatch(ctx, auditEdits); err != nil {
+	if len(uc.auditEdits) > 0 {
+		if err := s.auditRepo.CreateBatch(ctx, uc.auditEdits); err != nil {
 			return nil, fmt.Errorf("failed to create audit entries: %w", err)
 		}
 	}
 
 	return session, nil
+}
+
+func (s *workSessionService) handleSessionNotFoundError(err error) error {
+	if errors.Is(err, sql.ErrNoRows) {
+		return fmt.Errorf("session not found")
+	}
+	return fmt.Errorf("failed to get session: %w", err)
+}
+
+func (s *workSessionService) applyTimeFieldUpdates(uc *sessionUpdateContext, updates SessionUpdateRequest) {
+	strPtr := func(str string) *string { return &str }
+
+	if updates.CheckInTime != nil {
+		oldVal := uc.session.CheckInTime.Format(time.RFC3339)
+		newVal := updates.CheckInTime.Format(time.RFC3339)
+		if oldVal != newVal {
+			uc.addAuditEdit(auditModels.FieldCheckInTime, strPtr(oldVal), strPtr(newVal))
+		}
+		uc.session.CheckInTime = *updates.CheckInTime
+	}
+
+	if updates.CheckOutTime != nil {
+		var oldVal string
+		if uc.session.CheckOutTime != nil {
+			oldVal = uc.session.CheckOutTime.Format(time.RFC3339)
+		}
+		newVal := updates.CheckOutTime.Format(time.RFC3339)
+		if oldVal != newVal {
+			uc.addAuditEdit(auditModels.FieldCheckOutTime, strPtr(oldVal), strPtr(newVal))
+		}
+		uc.session.CheckOutTime = updates.CheckOutTime
+	}
+}
+
+func (s *workSessionService) applyBreakUpdates(ctx context.Context, uc *sessionUpdateContext, updates SessionUpdateRequest) error {
+	strPtr := func(str string) *string { return &str }
+
+	if len(updates.Breaks) > 0 {
+		return s.processIndividualBreakUpdates(ctx, uc, updates.Breaks, strPtr)
+	}
+
+	if updates.BreakMinutes != nil {
+		oldVal := strconv.Itoa(uc.session.BreakMinutes)
+		newVal := strconv.Itoa(*updates.BreakMinutes)
+		if oldVal != newVal {
+			uc.addAuditEdit(auditModels.FieldBreakMinutes, strPtr(oldVal), strPtr(newVal))
+		}
+		uc.session.BreakMinutes = *updates.BreakMinutes
+	}
+	return nil
+}
+
+func (s *workSessionService) processIndividualBreakUpdates(ctx context.Context, uc *sessionUpdateContext, breaks []BreakDurationUpdate, strPtr func(string) *string) error {
+	sessionBreaks, err := s.breakRepo.GetBySessionID(ctx, uc.sessionID)
+	if err != nil {
+		return fmt.Errorf("failed to load session breaks: %w", err)
+	}
+
+	breakMap := make(map[int64]*activeModels.WorkSessionBreak, len(sessionBreaks))
+	for _, b := range sessionBreaks {
+		breakMap[b.ID] = b
+	}
+
+	for _, bu := range breaks {
+		if err := s.updateSingleBreak(ctx, uc, breakMap, bu, strPtr); err != nil {
+			return err
+		}
+	}
+
+	if err := s.recalcBreakMinutes(ctx, uc.sessionID); err != nil {
+		return fmt.Errorf("failed to recalculate break minutes: %w", err)
+	}
+
+	// Re-fetch session to get updated break_minutes
+	uc.session, err = s.repo.FindByID(ctx, uc.sessionID)
+	if err != nil {
+		return fmt.Errorf("failed to re-fetch session: %w", err)
+	}
+	return nil
+}
+
+func (s *workSessionService) updateSingleBreak(ctx context.Context, uc *sessionUpdateContext, breakMap map[int64]*activeModels.WorkSessionBreak, bu BreakDurationUpdate, strPtr func(string) *string) error {
+	brk, ok := breakMap[bu.ID]
+	if !ok {
+		return fmt.Errorf("break %d does not belong to this session", bu.ID)
+	}
+	if brk.EndedAt == nil {
+		return fmt.Errorf("cannot edit duration of an active break")
+	}
+
+	if brk.DurationMinutes == bu.DurationMinutes {
+		return nil
+	}
+
+	newEndedAt := brk.StartedAt.Add(time.Duration(bu.DurationMinutes) * time.Minute)
+	if err := s.breakRepo.UpdateDuration(ctx, bu.ID, bu.DurationMinutes, newEndedAt); err != nil {
+		return fmt.Errorf("failed to update break %d: %w", bu.ID, err)
+	}
+
+	oldVal := strconv.Itoa(brk.DurationMinutes)
+	newVal := strconv.Itoa(bu.DurationMinutes)
+	uc.addAuditEdit(auditModels.FieldBreakDuration, strPtr(oldVal), strPtr(newVal))
+	return nil
+}
+
+func (s *workSessionService) applySimpleFieldUpdates(uc *sessionUpdateContext, updates SessionUpdateRequest) {
+	strPtr := func(str string) *string { return &str }
+
+	if updates.Status != nil && uc.session.Status != *updates.Status {
+		uc.addAuditEdit(auditModels.FieldStatus, strPtr(uc.session.Status), updates.Status)
+		uc.session.Status = *updates.Status
+	}
+
+	if updates.Notes != nil && uc.session.Notes != *updates.Notes {
+		uc.addAuditEdit(auditModels.FieldNotes, strPtr(uc.session.Notes), updates.Notes)
+		uc.session.Notes = *updates.Notes
+	}
 }
 
 // GetCurrentSession returns the current active session for a staff member
