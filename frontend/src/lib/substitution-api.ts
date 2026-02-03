@@ -1,7 +1,7 @@
 // lib/substitution-api.ts
 // API client for substitution-related operations
 
-import { getCachedSession } from "./session-cache";
+import { sessionFetch } from "./session-cache";
 import {
   type Substitution,
   type TeacherAvailability,
@@ -35,15 +35,8 @@ class SubstitutionService {
         }
       }
 
-      const session = await getCachedSession();
-      const response = await fetch(url, {
+      const response = await sessionFetch(url, {
         credentials: "include",
-        headers: session?.user?.token
-          ? {
-              Authorization: `Bearer ${session.user.token}`,
-              "Content-Type": "application/json",
-            }
-          : undefined,
       });
 
       if (!response.ok) {
@@ -80,15 +73,8 @@ class SubstitutionService {
         url += `?${params.toString()}`;
       }
 
-      const session = await getCachedSession();
-      const response = await fetch(url, {
+      const response = await sessionFetch(url, {
         credentials: "include",
-        headers: session?.user?.token
-          ? {
-              Authorization: `Bearer ${session.user.token}`,
-              "Content-Type": "application/json",
-            }
-          : undefined,
       });
 
       if (!response.ok) {
@@ -133,15 +119,8 @@ class SubstitutionService {
         url += `?${params.toString()}`;
       }
 
-      const session = await getCachedSession();
-      const response = await fetch(url, {
+      const response = await sessionFetch(url, {
         credentials: "include",
-        headers: session?.user?.token
-          ? {
-              Authorization: `Bearer ${session.user.token}`,
-              "Content-Type": "application/json",
-            }
-          : undefined,
       });
 
       if (!response.ok) {
@@ -191,18 +170,9 @@ class SubstitutionService {
         notes,
       );
 
-      const session = await getCachedSession();
-      const response = await fetch("/api/substitutions", {
+      const response = await sessionFetch("/api/substitutions", {
         method: "POST",
         credentials: "include",
-        headers: session?.user?.token
-          ? {
-              Authorization: `Bearer ${session.user.token}`,
-              "Content-Type": "application/json",
-            }
-          : {
-              "Content-Type": "application/json",
-            },
         body: JSON.stringify(requestData),
       });
 
@@ -234,16 +204,9 @@ class SubstitutionService {
   // Delete/end a substitution
   async deleteSubstitution(id: string): Promise<void> {
     try {
-      const session = await getCachedSession();
-      const response = await fetch(`/api/substitutions/${id}`, {
+      const response = await sessionFetch(`/api/substitutions/${id}`, {
         method: "DELETE",
         credentials: "include",
-        headers: session?.user?.token
-          ? {
-              Authorization: `Bearer ${session.user.token}`,
-              "Content-Type": "application/json",
-            }
-          : undefined,
       });
 
       if (!response.ok) {
@@ -260,15 +223,8 @@ class SubstitutionService {
   // Get a single substitution by ID
   async getSubstitution(id: string): Promise<Substitution> {
     try {
-      const session = await getCachedSession();
-      const response = await fetch(`/api/substitutions/${id}`, {
+      const response = await sessionFetch(`/api/substitutions/${id}`, {
         credentials: "include",
-        headers: session?.user?.token
-          ? {
-              Authorization: `Bearer ${session.user.token}`,
-              "Content-Type": "application/json",
-            }
-          : undefined,
       });
 
       if (!response.ok) {
