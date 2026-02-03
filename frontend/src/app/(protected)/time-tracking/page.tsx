@@ -739,7 +739,7 @@ function BreakActivityLog({
   }
 
   // Final work segment after last break (if checked in and not on active break)
-  const lastBreak = breaks[breaks.length - 1];
+  const lastBreak = breaks.at(-1);
   const hasActiveBreak = lastBreak && !lastBreak.endedAt;
   if (isCheckedIn && !hasActiveBreak) {
     const workDuration = Math.max(
@@ -1089,14 +1089,13 @@ function ExportDropdown({ weekDays }: { readonly weekDays: (Date | null)[] }) {
       // Start a new range
       setRangeFrom(day);
       setRangeTo(null);
+    } else if (isBeforeDay(day, rangeFrom)) {
+      // Complete the range (selected day is before start)
+      setRangeTo(rangeFrom);
+      setRangeFrom(day);
     } else {
-      // Complete the range
-      if (isBeforeDay(day, rangeFrom)) {
-        setRangeTo(rangeFrom);
-        setRangeFrom(day);
-      } else {
-        setRangeTo(day);
-      }
+      // Complete the range (selected day is after start)
+      setRangeTo(day);
     }
   };
 
