@@ -2565,8 +2565,15 @@ function EditSessionModal({
     if (!session) return;
     setSaving(true);
     try {
-      const checkInTime = buildIsoTimestamp(date, startTime);
-      const checkOutTime = buildIsoTimestamp(date, endTime);
+      // Use session's actual date, not the clicked day (they may differ)
+      const parts = session.date.split("-");
+      const sessionDate = new Date(
+        Number(parts[0]),
+        Number(parts[1]) - 1,
+        Number(parts[2]),
+      );
+      const checkInTime = buildIsoTimestamp(sessionDate, startTime);
+      const checkOutTime = buildIsoTimestamp(sessionDate, endTime);
 
       if (hasIndividualBreaks) {
         // Build breaks array with only changed durations

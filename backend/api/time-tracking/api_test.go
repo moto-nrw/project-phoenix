@@ -122,11 +122,11 @@ type mockWorkSessionService struct {
 	checkOutFn          func(ctx context.Context, staffID int64) (*activeModels.WorkSession, error)
 	startBreakFn        func(ctx context.Context, staffID int64) (*activeModels.WorkSessionBreak, error)
 	endBreakFn          func(ctx context.Context, staffID int64) (*activeModels.WorkSession, error)
-	getSessionBreaksFn  func(ctx context.Context, sessionID int64) ([]*activeModels.WorkSessionBreak, error)
+	getSessionBreaksFn  func(ctx context.Context, staffID, sessionID int64) ([]*activeModels.WorkSessionBreak, error)
 	updateSessionFn     func(ctx context.Context, staffID int64, sessionID int64, updates activeSvc.SessionUpdateRequest) (*activeModels.WorkSession, error)
 	getCurrentSessionFn func(ctx context.Context, staffID int64) (*activeModels.WorkSession, error)
 	getHistoryFn        func(ctx context.Context, staffID int64, from, to time.Time) ([]*activeSvc.SessionResponse, error)
-	getSessionEditsFn   func(ctx context.Context, sessionID int64) ([]*auditModels.WorkSessionEdit, error)
+	getSessionEditsFn   func(ctx context.Context, staffID, sessionID int64) ([]*auditModels.WorkSessionEdit, error)
 	getTodayPresenceFn  func(ctx context.Context) (map[int64]string, error)
 	exportSessionsFn    func(ctx context.Context, staffID int64, from, to time.Time, format string) ([]byte, string, error)
 }
@@ -155,9 +155,9 @@ func (m *mockWorkSessionService) EndBreak(ctx context.Context, staffID int64) (*
 	}
 	return &activeModels.WorkSession{}, nil
 }
-func (m *mockWorkSessionService) GetSessionBreaks(ctx context.Context, sessionID int64) ([]*activeModels.WorkSessionBreak, error) {
+func (m *mockWorkSessionService) GetSessionBreaks(ctx context.Context, staffID, sessionID int64) ([]*activeModels.WorkSessionBreak, error) {
 	if m.getSessionBreaksFn != nil {
-		return m.getSessionBreaksFn(ctx, sessionID)
+		return m.getSessionBreaksFn(ctx, staffID, sessionID)
 	}
 	return nil, nil
 }
@@ -179,9 +179,9 @@ func (m *mockWorkSessionService) GetHistory(ctx context.Context, staffID int64, 
 	}
 	return nil, nil
 }
-func (m *mockWorkSessionService) GetSessionEdits(ctx context.Context, sessionID int64) ([]*auditModels.WorkSessionEdit, error) {
+func (m *mockWorkSessionService) GetSessionEdits(ctx context.Context, staffID, sessionID int64) ([]*auditModels.WorkSessionEdit, error) {
 	if m.getSessionEditsFn != nil {
-		return m.getSessionEditsFn(ctx, sessionID)
+		return m.getSessionEditsFn(ctx, staffID, sessionID)
 	}
 	return nil, nil
 }
@@ -791,7 +791,8 @@ func TestEndBreak_NoActiveBreak(t *testing.T) {
 
 func TestGetBreaks_Success(t *testing.T) {
 	wsSvc := &mockWorkSessionService{
-		getSessionBreaksFn: func(_ context.Context, sessionID int64) ([]*activeModels.WorkSessionBreak, error) {
+		getSessionBreaksFn: func(_ context.Context, staffID, sessionID int64) ([]*activeModels.WorkSessionBreak, error) {
+			assert.Equal(t, int64(100), staffID) // from defaultPersonSvc
 			assert.Equal(t, int64(42), sessionID)
 			return []*activeModels.WorkSessionBreak{}, nil
 		},
@@ -800,6 +801,7 @@ func TestGetBreaks_Success(t *testing.T) {
 
 	r := httptest.NewRequest(http.MethodGet, "/breaks/42", nil)
 	r = withChiParam(r, "sessionId", "42")
+	r = withClaims(r, validClaims())
 	w := httptest.NewRecorder()
 
 	rs.getBreaks(w, r)
@@ -811,6 +813,7 @@ func TestGetBreaks_InvalidSessionID(t *testing.T) {
 
 	r := httptest.NewRequest(http.MethodGet, "/breaks/abc", nil)
 	r = withChiParam(r, "sessionId", "abc")
+	r = withClaims(r, validClaims())
 	w := httptest.NewRecorder()
 
 	rs.getBreaks(w, r)
@@ -819,7 +822,7 @@ func TestGetBreaks_InvalidSessionID(t *testing.T) {
 
 func TestGetBreaks_ServiceError(t *testing.T) {
 	wsSvc := &mockWorkSessionService{
-		getSessionBreaksFn: func(_ context.Context, _ int64) ([]*activeModels.WorkSessionBreak, error) {
+		getSessionBreaksFn: func(_ context.Context, _, _ int64) ([]*activeModels.WorkSessionBreak, error) {
 			return nil, errors.New("database error")
 		},
 	}
@@ -827,6 +830,7 @@ func TestGetBreaks_ServiceError(t *testing.T) {
 
 	r := httptest.NewRequest(http.MethodGet, "/breaks/42", nil)
 	r = withChiParam(r, "sessionId", "42")
+	r = withClaims(r, validClaims())
 	w := httptest.NewRecorder()
 
 	rs.getBreaks(w, r)
@@ -837,7 +841,8 @@ func TestGetBreaks_ServiceError(t *testing.T) {
 
 func TestGetSessionEdits_Success(t *testing.T) {
 	wsSvc := &mockWorkSessionService{
-		getSessionEditsFn: func(_ context.Context, sessionID int64) ([]*auditModels.WorkSessionEdit, error) {
+		getSessionEditsFn: func(_ context.Context, staffID, sessionID int64) ([]*auditModels.WorkSessionEdit, error) {
+			assert.Equal(t, int64(100), staffID) // from defaultPersonSvc
 			assert.Equal(t, int64(42), sessionID)
 			return []*auditModels.WorkSessionEdit{}, nil
 		},
@@ -846,6 +851,7 @@ func TestGetSessionEdits_Success(t *testing.T) {
 
 	r := httptest.NewRequest(http.MethodGet, "/42/edits", nil)
 	r = withChiParam(r, "id", "42")
+	r = withClaims(r, validClaims())
 	w := httptest.NewRecorder()
 
 	rs.getSessionEdits(w, r)
@@ -857,6 +863,7 @@ func TestGetSessionEdits_InvalidID(t *testing.T) {
 
 	r := httptest.NewRequest(http.MethodGet, "/abc/edits", nil)
 	r = withChiParam(r, "id", "abc")
+	r = withClaims(r, validClaims())
 	w := httptest.NewRecorder()
 
 	rs.getSessionEdits(w, r)

@@ -58,11 +58,11 @@ type WorkSessionService interface {
 	CheckOut(ctx context.Context, staffID int64) (*activeModels.WorkSession, error)
 	StartBreak(ctx context.Context, staffID int64) (*activeModels.WorkSessionBreak, error)
 	EndBreak(ctx context.Context, staffID int64) (*activeModels.WorkSession, error)
-	GetSessionBreaks(ctx context.Context, sessionID int64) ([]*activeModels.WorkSessionBreak, error)
+	GetSessionBreaks(ctx context.Context, staffID, sessionID int64) ([]*activeModels.WorkSessionBreak, error)
 	UpdateSession(ctx context.Context, staffID int64, sessionID int64, updates SessionUpdateRequest) (*activeModels.WorkSession, error)
 	GetCurrentSession(ctx context.Context, staffID int64) (*activeModels.WorkSession, error)
 	GetHistory(ctx context.Context, staffID int64, from, to time.Time) ([]*SessionResponse, error)
-	GetSessionEdits(ctx context.Context, sessionID int64) ([]*auditModels.WorkSessionEdit, error)
+	GetSessionEdits(ctx context.Context, staffID, sessionID int64) ([]*auditModels.WorkSessionEdit, error)
 	GetTodayPresenceMap(ctx context.Context) (map[int64]string, error)
 	CleanupOpenSessions(ctx context.Context) (int, error)
 	EnsureCheckedIn(ctx context.Context, staffID int64) (*activeModels.WorkSession, error)
@@ -95,8 +95,8 @@ func (s *workSessionService) CheckIn(ctx context.Context, staffID int64, status 
 		return nil, fmt.Errorf("status must be 'present' or 'home_office'")
 	}
 
-	// Get today's date in Berlin timezone
-	today := timezone.Today()
+	// Get today's date as UTC midnight for PostgreSQL DATE column
+	today := timezone.TodayUTC()
 
 	// Check if there's already a session today
 	existingSession, err := s.repo.GetByStaffAndDate(ctx, staffID, today)
@@ -312,7 +312,16 @@ func (s *workSessionService) EndBreak(ctx context.Context, staffID int64) (*acti
 }
 
 // GetSessionBreaks returns all breaks for a given session
-func (s *workSessionService) GetSessionBreaks(ctx context.Context, sessionID int64) ([]*activeModels.WorkSessionBreak, error) {
+func (s *workSessionService) GetSessionBreaks(ctx context.Context, staffID, sessionID int64) ([]*activeModels.WorkSessionBreak, error) {
+	// Verify ownership: session must belong to requesting staff
+	session, err := s.repo.FindByID(ctx, sessionID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get session: %w", err)
+	}
+	if session.StaffID != staffID {
+		return nil, fmt.Errorf("session does not belong to requesting staff")
+	}
+
 	breaks, err := s.breakRepo.GetBySessionID(ctx, sessionID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get session breaks: %w", err)
@@ -424,21 +433,25 @@ func (s *workSessionService) applyTimeFieldUpdates(uc *sessionUpdateContext, upd
 	strPtr := func(str string) *string { return &str }
 
 	if updates.CheckInTime != nil {
-		oldVal := uc.session.CheckInTime.Format(time.RFC3339)
-		newVal := updates.CheckInTime.Format(time.RFC3339)
-		if oldVal != newVal {
+		// Compare actual time points, not string representations (timezone-safe)
+		if !uc.session.CheckInTime.Equal(*updates.CheckInTime) {
+			oldVal := uc.session.CheckInTime.Format(time.RFC3339)
+			newVal := updates.CheckInTime.Format(time.RFC3339)
 			uc.addAuditEdit(auditModels.FieldCheckInTime, strPtr(oldVal), strPtr(newVal))
 		}
 		uc.session.CheckInTime = *updates.CheckInTime
 	}
 
 	if updates.CheckOutTime != nil {
-		var oldVal string
-		if uc.session.CheckOutTime != nil {
-			oldVal = uc.session.CheckOutTime.Format(time.RFC3339)
-		}
-		newVal := updates.CheckOutTime.Format(time.RFC3339)
-		if oldVal != newVal {
+		// Compare actual time points, not string representations (timezone-safe)
+		oldTime := uc.session.CheckOutTime
+		changed := oldTime == nil || !oldTime.Equal(*updates.CheckOutTime)
+		if changed {
+			var oldVal string
+			if oldTime != nil {
+				oldVal = oldTime.Format(time.RFC3339)
+			}
+			newVal := updates.CheckOutTime.Format(time.RFC3339)
 			uc.addAuditEdit(auditModels.FieldCheckOutTime, strPtr(oldVal), strPtr(newVal))
 		}
 		uc.session.CheckOutTime = updates.CheckOutTime
@@ -584,7 +597,16 @@ func (s *workSessionService) GetHistory(ctx context.Context, staffID int64, from
 }
 
 // GetSessionEdits returns the audit trail for a work session
-func (s *workSessionService) GetSessionEdits(ctx context.Context, sessionID int64) ([]*auditModels.WorkSessionEdit, error) {
+func (s *workSessionService) GetSessionEdits(ctx context.Context, staffID, sessionID int64) ([]*auditModels.WorkSessionEdit, error) {
+	// Verify ownership: session must belong to requesting staff
+	session, err := s.repo.FindByID(ctx, sessionID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get session: %w", err)
+	}
+	if session.StaffID != staffID {
+		return nil, fmt.Errorf("session does not belong to requesting staff")
+	}
+
 	edits, err := s.auditRepo.GetBySessionID(ctx, sessionID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get session edits: %w", err)
@@ -604,8 +626,8 @@ func (s *workSessionService) GetTodayPresenceMap(ctx context.Context) (map[int64
 
 // CleanupOpenSessions closes all sessions that are still open before today
 func (s *workSessionService) CleanupOpenSessions(ctx context.Context) (int, error) {
-	// Get today's date in Berlin timezone
-	today := timezone.Today()
+	// Get today's date as UTC midnight for PostgreSQL DATE column
+	today := timezone.TodayUTC()
 
 	// Get all open sessions before today
 	openSessions, err := s.repo.GetOpenSessions(ctx, today)
@@ -639,8 +661,8 @@ func (s *workSessionService) EnsureCheckedIn(ctx context.Context, staffID int64)
 		return currentSession, nil
 	}
 
-	// Check if there's already a checked-out session today
-	today := timezone.Today()
+	// Check if there's already a checked-out session today (use UTC for DATE column)
+	today := timezone.TodayUTC()
 	todaySession, err := s.repo.GetByStaffAndDate(ctx, staffID, today)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return nil, fmt.Errorf("failed to check today's session: %w", err)

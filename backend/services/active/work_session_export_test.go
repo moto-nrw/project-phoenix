@@ -885,25 +885,45 @@ func TestWSGetTodayPresenceMap_RepoError(t *testing.T) {
 }
 
 func TestWSGetSessionEdits_RepoError(t *testing.T) {
-	svc, _, _, auditRepo, _ := wsCreateTestService()
+	svc, sessionRepo, _, auditRepo, _, _ := wsCreateTestServiceWithAbsenceRepo()
+	staffID := int64(100)
+	sessionID := int64(1)
+
+	// Mock FindByID to return session owned by staffID
+	sessionRepo.findByIDFunc = func(_ context.Context, _ any) (*activeModels.WorkSession, error) {
+		return &activeModels.WorkSession{
+			Model:   base.Model{ID: sessionID},
+			StaffID: staffID,
+		}, nil
+	}
 
 	auditRepo.getBySessionIDFunc = func(_ context.Context, _ int64) ([]*auditModels.WorkSessionEdit, error) {
 		return nil, errors.New("database error")
 	}
 
-	edits, err := svc.GetSessionEdits(context.Background(), 1)
+	edits, err := svc.GetSessionEdits(context.Background(), staffID, sessionID)
 	require.Error(t, err)
 	assert.Nil(t, edits)
 }
 
 func TestWSGetSessionBreaks_RepoError(t *testing.T) {
-	svc, _, breakRepo, _, _ := wsCreateTestService()
+	svc, sessionRepo, breakRepo, _, _, _ := wsCreateTestServiceWithAbsenceRepo()
+	staffID := int64(100)
+	sessionID := int64(1)
+
+	// Mock FindByID to return session owned by staffID
+	sessionRepo.findByIDFunc = func(_ context.Context, _ any) (*activeModels.WorkSession, error) {
+		return &activeModels.WorkSession{
+			Model:   base.Model{ID: sessionID},
+			StaffID: staffID,
+		}, nil
+	}
 
 	breakRepo.getBySessionIDFunc = func(_ context.Context, _ int64) ([]*activeModels.WorkSessionBreak, error) {
 		return nil, errors.New("database error")
 	}
 
-	breaks, err := svc.GetSessionBreaks(context.Background(), 1)
+	breaks, err := svc.GetSessionBreaks(context.Background(), staffID, sessionID)
 	require.Error(t, err)
 	assert.Nil(t, breaks)
 }

@@ -1,6 +1,6 @@
 import { type NextRequest } from "next/server";
 import { auth } from "~/server/auth";
-import { env } from "~/env";
+import { getServerApiUrl } from "~/lib/server-api-url";
 
 /**
  * Time-tracking export proxy endpoint
@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
     // Forward query params to backend
     const qs = request.nextUrl.search ?? "";
     const backendResponse = await fetch(
-      `${env.NEXT_PUBLIC_API_URL}/api/time-tracking/export${qs}`,
+      `${getServerApiUrl()}/api/time-tracking/export${qs}`,
       {
         headers: {
           Authorization: `Bearer ${session.user.token}`,

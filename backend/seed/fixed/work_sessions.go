@@ -15,7 +15,7 @@ import (
 // Generates sessions for the previous week through yesterday (skipping weekends and today).
 // Each session gets 1-2 break records (morning + lunch) with break_minutes as cached total.
 func (s *Seeder) seedWorkSessions(ctx context.Context) error {
-	today := timezone.Today()
+	today := timezone.TodayUTC()
 	monday := s.getPreviousWeekMonday(today)
 
 	staffCount := min(5, len(s.result.Staff))

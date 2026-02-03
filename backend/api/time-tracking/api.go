@@ -306,6 +306,14 @@ func (rs *Resource) endBreak(w http.ResponseWriter, r *http.Request) {
 
 // getBreaks handles GET /api/time-tracking/breaks/{sessionId}
 func (rs *Resource) getBreaks(w http.ResponseWriter, r *http.Request) {
+	// Get staff ID from JWT claims for ownership verification
+	userClaims := jwt.ClaimsFromCtx(r.Context())
+	staffID, err := rs.getStaffIDFromClaims(r.Context(), userClaims)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorUnauthorized(err))
+		return
+	}
+
 	// Parse session ID from URL
 	idStr := chi.URLParam(r, "sessionId")
 	sessionID, err := strconv.ParseInt(idStr, 10, 64)
@@ -314,8 +322,8 @@ func (rs *Resource) getBreaks(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get breaks
-	breaks, err := rs.WorkSessionService.GetSessionBreaks(r.Context(), sessionID)
+	// Get breaks (service verifies ownership)
+	breaks, err := rs.WorkSessionService.GetSessionBreaks(r.Context(), staffID, sessionID)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
@@ -326,6 +334,14 @@ func (rs *Resource) getBreaks(w http.ResponseWriter, r *http.Request) {
 
 // getSessionEdits handles GET /api/time-tracking/{id}/edits
 func (rs *Resource) getSessionEdits(w http.ResponseWriter, r *http.Request) {
+	// Get staff ID from JWT claims for ownership verification
+	userClaims := jwt.ClaimsFromCtx(r.Context())
+	staffID, err := rs.getStaffIDFromClaims(r.Context(), userClaims)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorUnauthorized(err))
+		return
+	}
+
 	// Parse session ID from URL
 	idStr := chi.URLParam(r, "id")
 	sessionID, err := strconv.ParseInt(idStr, 10, 64)
@@ -334,8 +350,8 @@ func (rs *Resource) getSessionEdits(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get edits
-	edits, err := rs.WorkSessionService.GetSessionEdits(r.Context(), sessionID)
+	// Get edits (service verifies ownership)
+	edits, err := rs.WorkSessionService.GetSessionEdits(r.Context(), staffID, sessionID)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
