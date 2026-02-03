@@ -134,6 +134,18 @@ func (d *Definition) ToSettingDefinition() *config.SettingDefinition {
 		IsSensitive:     d.IsSensitive,
 	}
 
+	// Convert EnumOptions if present
+	if len(d.EnumOptions) > 0 {
+		options := make([]config.EnumOption, len(d.EnumOptions))
+		for i, opt := range d.EnumOptions {
+			options[i] = config.EnumOption{
+				Value: opt.Value,
+				Label: opt.Label,
+			}
+		}
+		def.EnumOptions = options
+	}
+
 	if d.Label != "" {
 		def.Label = &d.Label
 	}

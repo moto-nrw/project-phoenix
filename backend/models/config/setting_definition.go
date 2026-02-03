@@ -13,6 +13,15 @@ import (
 // tableSettingDefinitions is the schema-qualified table name
 const tableSettingDefinitions = "config.setting_definitions"
 
+// EnumOption represents a single option for enum-type settings
+// with both a value (stored in DB) and a display label (shown in UI)
+type EnumOption struct {
+	// Value is the actual value stored in the database
+	Value string `json:"value"`
+	// Label is the human-readable display name
+	Label string `json:"label"`
+}
+
 // SettingDefinition describes a configurable setting
 type SettingDefinition struct {
 	base.Model `bun:"schema:config,table:setting_definitions"`
@@ -53,8 +62,12 @@ type SettingDefinition struct {
 	// ValidationSchema contains JSON Schema for value validation
 	ValidationSchema json.RawMessage `bun:"validation_schema,type:jsonb" json:"validation_schema,omitempty"`
 
-	// EnumValues lists allowed values for enum type settings
+	// EnumValues lists allowed values for enum type settings (simple mode, no labels)
 	EnumValues []string `bun:"enum_values,array" json:"enum_values,omitempty"`
+
+	// EnumOptions lists allowed values with display labels for enum type settings
+	// Stored as JSONB. If set, takes precedence over EnumValues for display
+	EnumOptions []EnumOption `bun:"enum_options,type:jsonb" json:"enum_options,omitempty"`
 
 	// ObjectRefType specifies the entity type for object_ref settings (room, group, staff, etc.)
 	ObjectRefType *string `bun:"object_ref_type" json:"object_ref_type,omitempty"`
@@ -129,8 +142,8 @@ func (d *SettingDefinition) Validate() error {
 			return errors.New("invalid scope: " + scope)
 		}
 	}
-	if d.ValueType == ValueTypeEnum && len(d.EnumValues) == 0 {
-		return errors.New("enum_values required for enum type")
+	if d.ValueType == ValueTypeEnum && len(d.EnumValues) == 0 && len(d.EnumOptions) == 0 {
+		return errors.New("enum_values or enum_options required for enum type")
 	}
 	if d.ValueType == ValueTypeObjectRef && (d.ObjectRefType == nil || *d.ObjectRefType == "") {
 		return errors.New("object_ref_type required for object_ref type")
@@ -169,10 +182,21 @@ func (d *SettingDefinition) ValidateValue(value string) error {
 		}
 	case ValueTypeEnum:
 		found := false
-		for _, ev := range d.EnumValues {
-			if ev == value {
-				found = true
-				break
+		// Check EnumOptions first (takes precedence)
+		if len(d.EnumOptions) > 0 {
+			for _, opt := range d.EnumOptions {
+				if opt.Value == value {
+					found = true
+					break
+				}
+			}
+		} else {
+			// Fall back to EnumValues
+			for _, ev := range d.EnumValues {
+				if ev == value {
+					found = true
+					break
+				}
 			}
 		}
 		if !found {

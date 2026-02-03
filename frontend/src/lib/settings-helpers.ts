@@ -22,6 +22,12 @@ export interface BackendValidationSchema {
   required?: boolean;
 }
 
+// EnumOption represents a single option for enum-type settings
+export interface BackendEnumOption {
+  value: string;
+  label: string;
+}
+
 export interface BackendSettingDefinition {
   id: number;
   key: string;
@@ -37,6 +43,7 @@ export interface BackendSettingDefinition {
   edit_permission?: string;
   validation?: BackendValidationSchema;
   enum_values?: string[];
+  enum_options?: BackendEnumOption[];
   object_ref_type?: string;
   requires_restart: boolean;
   is_sensitive: boolean;
@@ -109,6 +116,12 @@ export interface ValidationSchema {
   required?: boolean;
 }
 
+// EnumOption represents a single option for enum-type settings
+export interface EnumOption {
+  value: string;
+  label: string;
+}
+
 export interface SettingDefinition {
   id: string;
   key: string;
@@ -124,6 +137,7 @@ export interface SettingDefinition {
   editPermission?: string;
   validation?: ValidationSchema;
   enumValues?: string[];
+  enumOptions?: EnumOption[];
   objectRefType?: string;
   requiresRestart: boolean;
   isSensitive: boolean;
@@ -221,6 +235,7 @@ export function mapSettingDefinition(
     editPermission: data.edit_permission,
     validation: data.validation,
     enumValues: data.enum_values,
+    enumOptions: data.enum_options,
     objectRefType: data.object_ref_type,
     requiresRestart: data.requires_restart,
     isSensitive: data.is_sensitive,
@@ -238,7 +253,12 @@ export function mapSettingTab(data: BackendSettingTab): SettingTab {
 
 export function mapResolvedSetting(
   data: BackendResolvedSetting,
-): ResolvedSetting {
+): ResolvedSetting | null {
+  // Guard against undefined data or missing definition
+  if (!data || !data.definition) {
+    console.error("mapResolvedSetting: Invalid data or missing definition", data);
+    return null;
+  }
   return {
     key: data.key,
     definition: mapSettingDefinition(data.definition),
@@ -255,7 +275,9 @@ export function mapSettingCategory(
   return {
     key: data.key,
     name: data.name,
-    settings: data.settings.map(mapResolvedSetting),
+    settings: data.settings
+      .map(mapResolvedSetting)
+      .filter((s): s is ResolvedSetting => s !== null),
   };
 }
 

@@ -500,3 +500,40 @@ export async function clientFetchObjectRefOptions(
     return [];
   }
 }
+
+/**
+ * Client-side: Fetches a specific setting value
+ */
+export async function clientFetchSettingValue(
+  key: string,
+): Promise<ResolvedSetting | null> {
+  try {
+    const url = `/api/settings/values/${encodeURIComponent(key)}`;
+    const response = await fetch(url);
+
+    if (!response.ok) {
+      console.error("Failed to fetch setting value:", response.status);
+      return null;
+    }
+
+    // Response is double-wrapped:
+    // { success: true, data: { status: "success", data: BackendResolvedSetting } }
+    const outerResponse = (await response.json()) as {
+      success?: boolean;
+      data?: ApiWrapper<BackendResolvedSetting>;
+    };
+
+    // Extract the actual setting data from the nested structure
+    const backendData = outerResponse?.data?.data;
+    if (!backendData) {
+      console.error("Failed to extract setting data from response:", outerResponse);
+      return null;
+    }
+
+    const mapped = mapResolvedSetting(backendData);
+    return mapped;
+  } catch (error) {
+    console.error("Error fetching setting value:", error);
+    return null;
+  }
+}

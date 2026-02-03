@@ -48,6 +48,7 @@ type SettingDefinitionDTO struct {
 	Description     *string           `json:"description,omitempty"`
 	AllowedScopes   []string          `json:"allowed_scopes"`
 	EnumValues      []string          `json:"enum_values,omitempty"`
+	EnumOptions     []EnumOption      `json:"enum_options,omitempty"`
 	ObjectRefType   *string           `json:"object_ref_type,omitempty"`
 	ObjectRefFilter json.RawMessage   `json:"object_ref_filter,omitempty"`
 	RequiresRestart bool              `json:"requires_restart"`
@@ -79,6 +80,7 @@ func (d *SettingDefinition) ToDTO() *SettingDefinitionDTO {
 		Description:     d.Description,
 		AllowedScopes:   d.AllowedScopes,
 		EnumValues:      d.EnumValues,
+		EnumOptions:     d.EnumOptions,
 		ObjectRefType:   d.ObjectRefType,
 		ObjectRefFilter: d.ObjectRefFilter,
 		RequiresRestart: d.RequiresRestart,

@@ -203,6 +203,7 @@ func (r *SettingDefinitionRepository) Upsert(ctx context.Context, def *config.Se
 		Set("edit_permission = EXCLUDED.edit_permission").
 		Set("validation_schema = EXCLUDED.validation_schema").
 		Set("enum_values = EXCLUDED.enum_values").
+		Set("enum_options = EXCLUDED.enum_options").
 		Set("object_ref_type = EXCLUDED.object_ref_type").
 		Set("object_ref_filter = EXCLUDED.object_ref_filter").
 		Set("requires_restart = EXCLUDED.requires_restart").

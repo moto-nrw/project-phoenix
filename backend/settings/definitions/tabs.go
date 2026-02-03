@@ -17,15 +17,6 @@ func init() {
 		DisplayOrder: 0,
 	})
 
-	// Security settings - admin only
-	settings.MustRegisterTab(settings.TabDefinition{
-		Key:                "security",
-		Name:               "Sicherheit",
-		Icon:               "shield",
-		DisplayOrder:       10,
-		RequiredPermission: "config:manage",
-	})
-
 	// Email settings - admin only
 	settings.MustRegisterTab(settings.TabDefinition{
 		Key:                "email",

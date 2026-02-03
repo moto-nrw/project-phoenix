@@ -51,8 +51,13 @@ export function SettingControl({
     );
   }
 
-  // Enum select
-  if (definition.valueType === "enum" && definition.enumValues) {
+  // Enum select - use enumOptions for labels if available, otherwise fall back to enumValues
+  if (definition.valueType === "enum" && (definition.enumOptions ?? definition.enumValues)) {
+    // Prefer enumOptions (with labels), fall back to enumValues (value-only)
+    const options = definition.enumOptions
+      ? definition.enumOptions.map((opt) => ({ value: opt.value, label: opt.label }))
+      : (definition.enumValues ?? []).map((v) => ({ value: v, label: v }));
+
     return (
       <select
         value={displayValue}
@@ -60,9 +65,9 @@ export function SettingControl({
         disabled={isDisabled}
         className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-gray-100 sm:text-sm"
       >
-        {definition.enumValues.map((enumValue) => (
-          <option key={enumValue} value={enumValue}>
-            {enumValue}
+        {options.map((opt) => (
+          <option key={opt.value} value={opt.value}>
+            {opt.label}
           </option>
         ))}
       </select>

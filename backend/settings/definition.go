@@ -10,6 +10,15 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/config"
 )
 
+// EnumOption represents a single option for enum-type settings
+// with both a value (stored in DB) and a display label (shown in UI)
+type EnumOption struct {
+	// Value is the actual value stored in the database
+	Value string `json:"value"`
+	// Label is the human-readable display name
+	Label string `json:"label"`
+}
+
 // Definition describes a configurable setting.
 // Use this struct to register settings in code.
 type Definition struct {
@@ -49,8 +58,12 @@ type Definition struct {
 	// Validation contains validation rules
 	Validation *ValidationSchema
 
-	// EnumValues lists allowed values for enum type
+	// EnumValues lists allowed values for enum type (simple mode, no labels)
 	EnumValues []string
+
+	// EnumOptions lists allowed values with display labels for enum type
+	// If set, takes precedence over EnumValues
+	EnumOptions []EnumOption
 
 	// ObjectRefType specifies the entity type for object_ref settings
 	ObjectRefType string
@@ -97,8 +110,8 @@ func (d *Definition) Validate() error {
 			return errors.New("invalid scope: " + string(scope))
 		}
 	}
-	if d.Type == config.ValueTypeEnum && len(d.EnumValues) == 0 {
-		return errors.New("enum_values required for enum type")
+	if d.Type == config.ValueTypeEnum && len(d.EnumValues) == 0 && len(d.EnumOptions) == 0 {
+		return errors.New("enum_values or enum_options required for enum type")
 	}
 	if d.Type == config.ValueTypeObjectRef && d.ObjectRefType == "" {
 		return errors.New("object_ref_type required for object_ref type")
@@ -145,14 +158,32 @@ func (d *Definition) validateValue(value string) error {
 		}
 	case config.ValueTypeEnum:
 		found := false
-		for _, ev := range d.EnumValues {
-			if ev == value {
-				found = true
-				break
+		// Check EnumOptions first (takes precedence)
+		if len(d.EnumOptions) > 0 {
+			for _, opt := range d.EnumOptions {
+				if opt.Value == value {
+					found = true
+					break
+				}
 			}
-		}
-		if !found {
-			return fmt.Errorf("value must be one of: %v", d.EnumValues)
+			if !found {
+				values := make([]string, len(d.EnumOptions))
+				for i, opt := range d.EnumOptions {
+					values[i] = opt.Value
+				}
+				return fmt.Errorf("value must be one of: %v", values)
+			}
+		} else {
+			// Fall back to EnumValues
+			for _, ev := range d.EnumValues {
+				if ev == value {
+					found = true
+					break
+				}
+			}
+			if !found {
+				return fmt.Errorf("value must be one of: %v", d.EnumValues)
+			}
 		}
 	case config.ValueTypeTime:
 		if _, err := time.Parse("15:04:05", value); err != nil {
