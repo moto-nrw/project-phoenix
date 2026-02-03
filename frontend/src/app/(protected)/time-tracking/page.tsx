@@ -1594,6 +1594,23 @@ function getRowBackgroundClass(isExpanded: boolean, isToday: boolean): string {
   return "";
 }
 
+/** Get desktop status badge (full labels) */
+function getDesktopStatusBadge(
+  session: WorkSessionHistory | undefined,
+  isActive: boolean,
+  isFuture: boolean,
+): { className: string; label: string } | null {
+  if (session) {
+    if (isActive)
+      return { className: "bg-green-100 text-green-700", label: "aktiv" };
+    if (session.status === "home_office")
+      return { className: "bg-sky-100 text-sky-700", label: "Homeoffice" };
+    return { className: "bg-gray-100 text-gray-600", label: "In der OGS" };
+  }
+  if (isFuture) return null;
+  return { className: "text-gray-300", label: "—" };
+}
+
 // ─── WeekTable ────────────────────────────────────────────────────────────────
 
 function WeekTable({
@@ -2096,26 +2113,26 @@ function WeekTable({
                       </td>
                       <td className="px-4 py-3 text-center">
                         {(() => {
-                          if (session) {
-                            let badgeClass = "bg-gray-100 text-gray-600";
-                            let badgeLabel = "In der OGS";
-                            if (isActive) {
-                              badgeClass = "bg-green-100 text-green-700";
-                              badgeLabel = "aktiv";
-                            } else if (session.status === "home_office") {
-                              badgeClass = "bg-sky-100 text-sky-700";
-                              badgeLabel = "Homeoffice";
-                            }
+                          const badge = getDesktopStatusBadge(
+                            session,
+                            isActive,
+                            isFuture,
+                          );
+                          if (!badge) return null;
+                          if (badge.label === "—") {
                             return (
-                              <span
-                                className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${badgeClass}`}
-                              >
-                                {badgeLabel}
+                              <span className="text-gray-300">
+                                {badge.label}
                               </span>
                             );
                           }
-                          if (isFuture) return null;
-                          return <span className="text-gray-300">—</span>;
+                          return (
+                            <span
+                              className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${badge.className}`}
+                            >
+                              {badge.label}
+                            </span>
+                          );
                         })()}
                       </td>
                       <td className="px-4 py-3 text-center">
@@ -2363,6 +2380,13 @@ function calcEditComplianceWarnings(
   return warnings;
 }
 
+/** Get modal title based on content */
+function getEditModalTitle(hasSession: boolean, hasAbsence: boolean): string {
+  if (hasSession && hasAbsence) return "Tag bearbeiten";
+  if (hasAbsence) return "Abwesenheit bearbeiten";
+  return "Eintrag bearbeiten";
+}
+
 /** Get modal footer based on context */
 function getEditModalFooter(
   hasBoth: boolean,
@@ -2592,12 +2616,7 @@ function EditSessionModal({
     }
   };
 
-  // Dynamic title based on what's present
-  const modalTitle = (() => {
-    if (hasBoth) return "Tag bearbeiten";
-    if (hasAbsence) return "Abwesenheit bearbeiten";
-    return "Eintrag bearbeiten";
-  })();
+  const modalTitle = getEditModalTitle(hasSession, hasAbsence);
 
   // Footer: tab-aware for dual-section, standard for single-section
   const sessionFooter = (
