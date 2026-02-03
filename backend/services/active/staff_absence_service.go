@@ -61,14 +61,9 @@ func NewStaffAbsenceService(absenceRepo activeModels.StaffAbsenceRepository, wor
 
 // CreateAbsence creates a new absence record
 func (s *staffAbsenceService) CreateAbsence(ctx context.Context, staffID int64, req CreateAbsenceRequest) (*StaffAbsenceResponse, error) {
-	// Parse dates
-	dateStart, err := time.Parse(dateFormatISO, req.DateStart)
+	dateStart, dateEnd, err := parseDateRange(req.DateStart, req.DateEnd)
 	if err != nil {
-		return nil, fmt.Errorf("invalid date_start format, expected YYYY-MM-DD")
-	}
-	dateEnd, err := time.Parse(dateFormatISO, req.DateEnd)
-	if err != nil {
-		return nil, fmt.Errorf("invalid date_end format, expected YYYY-MM-DD")
+		return nil, err
 	}
 
 	// Check for overlapping absences — merge if same type, reject if different type
@@ -76,59 +71,116 @@ func (s *staffAbsenceService) CreateAbsence(ctx context.Context, staffID int64, 
 	if err != nil {
 		return nil, fmt.Errorf("failed to check existing absences: %w", err)
 	}
+
 	if len(existing) > 0 {
-		// Check if all overlapping absences have the same type
-		for _, e := range existing {
-			if e.AbsenceType != req.AbsenceType {
-				return nil, fmt.Errorf("absence overlaps with existing %s absence from %s to %s",
-					e.AbsenceType,
-					e.DateStart.Format(dateFormatISO),
-					e.DateEnd.Format(dateFormatISO))
-			}
-		}
-
-		// Same type: merge by expanding date range to cover all overlapping absences
-		mergedStart := dateStart
-		mergedEnd := dateEnd
-		for _, e := range existing {
-			if e.DateStart.Before(mergedStart) {
-				mergedStart = e.DateStart
-			}
-			if e.DateEnd.After(mergedEnd) {
-				mergedEnd = e.DateEnd
-			}
-		}
-
-		// Update the first existing absence with merged range, delete the rest
-		primary := existing[0]
-		primary.DateStart = mergedStart
-		primary.DateEnd = mergedEnd
-		if req.Note != "" && primary.Note == "" {
-			primary.Note = req.Note
-		}
-		primary.UpdatedAt = time.Now()
-
-		if err := s.absenceRepo.Update(ctx, primary); err != nil {
-			return nil, fmt.Errorf("failed to merge absence: %w", err)
-		}
-
-		// Delete remaining overlapping absences
-		for _, e := range existing[1:] {
-			if err := s.absenceRepo.Delete(ctx, e.ID); err != nil {
-				log.Printf("Warning: failed to delete merged absence %d: %v", e.ID, err)
-			}
-		}
-
-		return toAbsenceResponse(primary), nil
+		return s.mergeOverlappingAbsences(ctx, existing, dateStart, dateEnd, req)
 	}
 
-	// Log warning if work sessions exist in the date range (non-blocking)
+	s.warnIfWorkSessionsExist(ctx, staffID, dateStart, dateEnd)
+
+	return s.createNewAbsence(ctx, staffID, dateStart, dateEnd, req)
+}
+
+// parseDateRange parses start and end date strings in ISO format.
+func parseDateRange(startStr, endStr string) (time.Time, time.Time, error) {
+	dateStart, err := time.Parse(dateFormatISO, startStr)
+	if err != nil {
+		return time.Time{}, time.Time{}, fmt.Errorf("invalid date_start format, expected YYYY-MM-DD")
+	}
+	dateEnd, err := time.Parse(dateFormatISO, endStr)
+	if err != nil {
+		return time.Time{}, time.Time{}, fmt.Errorf("invalid date_end format, expected YYYY-MM-DD")
+	}
+	return dateStart, dateEnd, nil
+}
+
+// mergeOverlappingAbsences handles overlapping absences: rejects if different type, merges if same type.
+func (s *staffAbsenceService) mergeOverlappingAbsences(
+	ctx context.Context,
+	existing []*activeModels.StaffAbsence,
+	dateStart, dateEnd time.Time,
+	req CreateAbsenceRequest,
+) (*StaffAbsenceResponse, error) {
+	// Check if all overlapping absences have the same type
+	if err := validateSameAbsenceType(existing, req.AbsenceType); err != nil {
+		return nil, err
+	}
+
+	// Calculate merged date range
+	mergedStart, mergedEnd := calculateMergedDateRange(existing, dateStart, dateEnd)
+
+	// Update the primary absence with merged range
+	primary := existing[0]
+	primary.DateStart = mergedStart
+	primary.DateEnd = mergedEnd
+	if req.Note != "" && primary.Note == "" {
+		primary.Note = req.Note
+	}
+	primary.UpdatedAt = time.Now()
+
+	if err := s.absenceRepo.Update(ctx, primary); err != nil {
+		return nil, fmt.Errorf("failed to merge absence: %w", err)
+	}
+
+	// Delete remaining overlapping absences
+	s.deleteRemainingAbsences(ctx, existing[1:])
+
+	return toAbsenceResponse(primary), nil
+}
+
+// validateSameAbsenceType checks that all existing absences match the requested type.
+func validateSameAbsenceType(existing []*activeModels.StaffAbsence, absenceType string) error {
+	for _, e := range existing {
+		if e.AbsenceType != absenceType {
+			return fmt.Errorf("absence overlaps with existing %s absence from %s to %s",
+				e.AbsenceType,
+				e.DateStart.Format(dateFormatISO),
+				e.DateEnd.Format(dateFormatISO))
+		}
+	}
+	return nil
+}
+
+// calculateMergedDateRange expands the date range to cover all overlapping absences.
+func calculateMergedDateRange(existing []*activeModels.StaffAbsence, dateStart, dateEnd time.Time) (time.Time, time.Time) {
+	mergedStart := dateStart
+	mergedEnd := dateEnd
+	for _, e := range existing {
+		if e.DateStart.Before(mergedStart) {
+			mergedStart = e.DateStart
+		}
+		if e.DateEnd.After(mergedEnd) {
+			mergedEnd = e.DateEnd
+		}
+	}
+	return mergedStart, mergedEnd
+}
+
+// deleteRemainingAbsences deletes absences that were merged into the primary.
+func (s *staffAbsenceService) deleteRemainingAbsences(ctx context.Context, absences []*activeModels.StaffAbsence) {
+	for _, e := range absences {
+		if err := s.absenceRepo.Delete(ctx, e.ID); err != nil {
+			log.Printf("Warning: failed to delete merged absence %d: %v", e.ID, err)
+		}
+	}
+}
+
+// warnIfWorkSessionsExist logs a warning if work sessions exist in the date range.
+func (s *staffAbsenceService) warnIfWorkSessionsExist(ctx context.Context, staffID int64, dateStart, dateEnd time.Time) {
 	sessions, err := s.workSessionRepo.GetHistoryByStaffID(ctx, staffID, dateStart, dateEnd)
 	if err == nil && len(sessions) > 0 {
 		log.Printf("Warning: %d work session(s) exist for staff %d in absence range %s to %s",
-			len(sessions), staffID, req.DateStart, req.DateEnd)
+			len(sessions), staffID, dateStart.Format(dateFormatISO), dateEnd.Format(dateFormatISO))
 	}
+}
 
+// createNewAbsence creates a new absence record in the database.
+func (s *staffAbsenceService) createNewAbsence(
+	ctx context.Context,
+	staffID int64,
+	dateStart, dateEnd time.Time,
+	req CreateAbsenceRequest,
+) (*StaffAbsenceResponse, error) {
 	now := time.Now()
 	absence := &activeModels.StaffAbsence{
 		StaffID:     staffID,
