@@ -248,6 +248,14 @@ function OGSGroupPageContent() {
     // When SSE triggers revalidation while user views another group, we must NOT
     // overwrite their current view with the first group's data.
     const firstGroupId = ogsGroups[0]?.id;
+
+    // If the previously selected group no longer exists in the refreshed list
+    // (e.g., access revoked, group removed), reset to the first group so
+    // the student data stays in sync with what the UI displays.
+    if (selectedGroupId && !ogsGroups.some((g) => g.id === selectedGroupId)) {
+      setSelectedGroupId(firstGroupId ?? null);
+    }
+
     if (!selectedGroupId || selectedGroupId === firstGroupId) {
       // When no group is explicitly selected yet, lock in the first group's ID
       // so the URL-sync effect won't try to "switch" to it via localStorage.

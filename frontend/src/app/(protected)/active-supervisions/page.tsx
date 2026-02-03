@@ -654,6 +654,14 @@ function MeinRaumPageContent() {
     // When SSE triggers revalidation while user views another room, we must NOT
     // overwrite their current view with the first room's data.
     const firstRoom = activeRooms[0];
+
+    // If the previously selected room no longer exists in the refreshed list
+    // (e.g., supervision revoked, session ended), reset to the first room so
+    // the student data stays in sync with what the UI displays.
+    if (selectedRoomId && !activeRooms.some((r) => r.id === selectedRoomId)) {
+      setSelectedRoomId(firstRoom?.id ?? null);
+    }
+
     if (!selectedRoomId || selectedRoomId === firstRoom?.id) {
       // When no room is explicitly selected yet, lock in the first room's ID
       // so the URL-sync effect won't try to "switch" to it via localStorage.
