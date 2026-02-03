@@ -1903,17 +1903,17 @@ function WeekTable({
                     )}
                   </div>
                   <div className="flex items-center gap-2">
-                    {session &&
-                      (() => {
-                        const badge = getWeekTableBadge(session, isActive);
-                        return (
-                          <span
-                            className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${badge.className}`}
-                          >
-                            {badge.label}
-                          </span>
-                        );
-                      })()}
+                    {(() => {
+                      if (!session) return null;
+                      const b = getWeekTableBadge(session, isActive);
+                      return (
+                        <span
+                          className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${b.className}`}
+                        >
+                          {b.label}
+                        </span>
+                      );
+                    })()}
                     {canEdit && session && (
                       <button
                         type="button"
