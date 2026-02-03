@@ -100,7 +100,7 @@ export function SimpleAlert({
 
   return (
     <div
-      className={`fixed right-4 bottom-6 left-4 z-[9998] md:right-6 md:left-auto md:max-w-sm ${styles.bg} ${styles.border} rounded-2xl border p-4 shadow-lg backdrop-blur-sm transition-all duration-300 ease-out ${isVisible && !isExiting ? "translate-y-0 opacity-100" : "translate-y-4 opacity-0"} `}
+      className={`fixed right-4 bottom-6 left-4 z-[9998] md:right-6 md:left-auto md:max-w-sm ${styles.bg} ${styles.border} rounded-2xl border p-4 shadow-lg backdrop-blur-sm transition-all duration-200 ease-out ${isVisible && !isExiting ? "translate-y-0 opacity-100" : "translate-y-4 opacity-0"} `}
       style={{
         transform:
           isVisible && !isExiting ? "translateY(0)" : "translateY(16px)",

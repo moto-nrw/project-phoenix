@@ -9,6 +9,12 @@ import (
 	"github.com/uptrace/bun"
 )
 
+// Common validation error messages for pickup schedule models.
+const (
+	errMsgStudentIDRequired = "student_id is required"
+	errMsgCreatedByRequired = "created_by is required"
+)
+
 // Weekday constants (ISO 8601: Monday = 1, Friday = 5)
 const (
 	WeekdayMonday    = 1
@@ -67,7 +73,7 @@ func (s *StudentPickupSchedule) TableName() string {
 // Validate ensures pickup schedule data is valid
 func (s *StudentPickupSchedule) Validate() error {
 	if s.StudentID <= 0 {
-		return errors.New("student_id is required")
+		return errors.New(errMsgStudentIDRequired)
 	}
 	if s.Weekday < WeekdayMonday || s.Weekday > WeekdayFriday {
 		return errors.New("weekday must be between 1 (Monday) and 5 (Friday)")
@@ -76,7 +82,7 @@ func (s *StudentPickupSchedule) Validate() error {
 		return errors.New("pickup_time is required")
 	}
 	if s.CreatedBy <= 0 {
-		return errors.New("created_by is required")
+		return errors.New(errMsgCreatedByRequired)
 	}
 	if s.Notes != nil && len(*s.Notes) > 500 {
 		return errors.New("notes cannot exceed 500 characters")
@@ -114,7 +120,7 @@ type StudentPickupException struct {
 	StudentID     int64      `bun:"student_id,notnull" json:"student_id"`
 	ExceptionDate time.Time  `bun:"exception_date,notnull" json:"exception_date"`
 	PickupTime    *time.Time `bun:"pickup_time" json:"pickup_time,omitempty"`
-	Reason        string     `bun:"reason,notnull" json:"reason"`
+	Reason        *string    `bun:"reason" json:"reason,omitempty"`
 	CreatedBy     int64      `bun:"created_by,notnull" json:"created_by"`
 }
 
@@ -139,19 +145,16 @@ func (e *StudentPickupException) TableName() string {
 // Validate ensures pickup exception data is valid
 func (e *StudentPickupException) Validate() error {
 	if e.StudentID <= 0 {
-		return errors.New("student_id is required")
+		return errors.New(errMsgStudentIDRequired)
 	}
 	if e.ExceptionDate.IsZero() {
 		return errors.New("exception_date is required")
 	}
-	if e.Reason == "" {
-		return errors.New("reason is required")
-	}
-	if len(e.Reason) > 255 {
+	if e.Reason != nil && len(*e.Reason) > 255 {
 		return errors.New("reason cannot exceed 255 characters")
 	}
 	if e.CreatedBy <= 0 {
-		return errors.New("created_by is required")
+		return errors.New(errMsgCreatedByRequired)
 	}
 	return nil
 }
@@ -217,4 +220,87 @@ type StudentPickupExceptionRepository interface {
 
 	// DeletePastExceptions deletes all exceptions older than the given date
 	DeletePastExceptions(ctx context.Context, beforeDate time.Time) (int64, error)
+}
+
+// StudentPickupNote represents a date-specific note for a student's pickup
+type StudentPickupNote struct {
+	base.Model `bun:"schema:schedule,table:student_pickup_notes"`
+
+	StudentID int64     `bun:"student_id,notnull" json:"student_id"`
+	NoteDate  time.Time `bun:"note_date,notnull" json:"note_date"`
+	Content   string    `bun:"content,notnull" json:"content"`
+	CreatedBy int64     `bun:"created_by,notnull" json:"created_by"`
+}
+
+func (n *StudentPickupNote) BeforeAppendModel(query any) error {
+	if q, ok := query.(*bun.SelectQuery); ok {
+		q.ModelTableExpr(`schedule.student_pickup_notes AS "student_pickup_note"`)
+	}
+	if q, ok := query.(*bun.UpdateQuery); ok {
+		q.ModelTableExpr(`schedule.student_pickup_notes AS "student_pickup_note"`)
+	}
+	if q, ok := query.(*bun.DeleteQuery); ok {
+		q.ModelTableExpr(`schedule.student_pickup_notes AS "student_pickup_note"`)
+	}
+	return nil
+}
+
+// TableName returns the database table name
+func (n *StudentPickupNote) TableName() string {
+	return "schedule.student_pickup_notes"
+}
+
+// Validate ensures pickup note data is valid
+func (n *StudentPickupNote) Validate() error {
+	if n.StudentID <= 0 {
+		return errors.New(errMsgStudentIDRequired)
+	}
+	if n.NoteDate.IsZero() {
+		return errors.New("note_date is required")
+	}
+	if n.Content == "" {
+		return errors.New("content is required")
+	}
+	if len(n.Content) > 500 {
+		return errors.New("content cannot exceed 500 characters")
+	}
+	if n.CreatedBy <= 0 {
+		return errors.New(errMsgCreatedByRequired)
+	}
+	return nil
+}
+
+// GetID implements the Entity interface
+func (n *StudentPickupNote) GetID() any {
+	return n.ID
+}
+
+// GetCreatedAt implements the Entity interface
+func (n *StudentPickupNote) GetCreatedAt() time.Time {
+	return n.CreatedAt
+}
+
+// GetUpdatedAt implements the Entity interface
+func (n *StudentPickupNote) GetUpdatedAt() time.Time {
+	return n.UpdatedAt
+}
+
+// StudentPickupNoteRepository defines operations for managing student pickup notes
+type StudentPickupNoteRepository interface {
+	base.Repository[*StudentPickupNote]
+
+	// FindByStudentID finds all pickup notes for a student
+	FindByStudentID(ctx context.Context, studentID int64) ([]*StudentPickupNote, error)
+
+	// FindByStudentIDAndDate finds all pickup notes for a student on a specific date
+	FindByStudentIDAndDate(ctx context.Context, studentID int64, date time.Time) ([]*StudentPickupNote, error)
+
+	// FindByStudentIDsAndDate finds all pickup notes for multiple students on a specific date (bulk query)
+	FindByStudentIDsAndDate(ctx context.Context, studentIDs []int64, date time.Time) ([]*StudentPickupNote, error)
+
+	// DeleteByStudentID deletes all pickup notes for a student
+	DeleteByStudentID(ctx context.Context, studentID int64) error
+
+	// DeletePastNotes deletes all notes older than the given date
+	DeletePastNotes(ctx context.Context, beforeDate time.Time) (int64, error)
 }

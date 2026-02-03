@@ -285,8 +285,12 @@ describe("ConfirmationModal", () => {
       vi.advanceTimersByTime(20);
     });
 
-    expect(screen.getByRole("button", { name: "Abbrechen" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Bestätigen" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Abbrechen" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Bestätigen" }),
+    ).toBeInTheDocument();
   });
 
   it("should render with custom button texts", async () => {

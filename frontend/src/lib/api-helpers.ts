@@ -62,8 +62,8 @@ async function serverFetchWithRetry<T>(
   token: string,
   options: ServerFetchOptions,
 ): Promise<T> {
-  const { env } = await import("~/env");
-  const url = `${env.NEXT_PUBLIC_API_URL}${endpoint}`;
+  const { getServerApiUrl } = await import("~/lib/server-api-url");
+  const url = `${getServerApiUrl()}${endpoint}`;
 
   const executeRequest = async (bearer: string) =>
     fetch(url, {
@@ -78,9 +78,8 @@ async function serverFetchWithRetry<T>(
   let response = await executeRequest(token);
 
   if (response.status === 401) {
-    const { refreshSessionTokensOnServer } = await import(
-      "~/server/auth/token-refresh"
-    );
+    const { refreshSessionTokensOnServer } =
+      await import("~/server/auth/token-refresh");
     const refreshed = await refreshSessionTokensOnServer();
     if (refreshed?.accessToken) {
       response = await executeRequest(refreshed.accessToken);

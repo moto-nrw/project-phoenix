@@ -143,6 +143,7 @@ describe("mapPickupDataResponse", () => {
     const backendData: BackendPickupData = {
       schedules: [sampleBackendSchedule],
       exceptions: [sampleBackendException],
+      notes: [],
     };
 
     const result = mapPickupDataResponse(backendData);
@@ -157,6 +158,7 @@ describe("mapPickupDataResponse", () => {
     const backendData: BackendPickupData = {
       schedules: [],
       exceptions: [],
+      notes: [],
     };
 
     const result = mapPickupDataResponse(backendData);
@@ -738,27 +740,38 @@ describe("getDayData", () => {
     expect(result.isException).toBe(true);
   });
 
-  it("returns sick status when student is sick today", () => {
-    const today = new Date();
-    const result = getDayData(today, schedules, [], true);
+  describe("with mocked time (weekday)", () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2024-01-17T12:00:00Z")); // Wednesday
+    });
 
-    expect(result.showSick).toBe(true);
-    expect(result.effectiveTime).toBeUndefined();
-  });
+    afterEach(() => {
+      vi.useRealTimers();
+    });
 
-  it("does not show sick status for past days", () => {
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
-    const result = getDayData(yesterday, schedules, [], true);
+    it("returns sick status when student is sick today", () => {
+      const today = new Date();
+      const result = getDayData(today, schedules, [], true);
 
-    expect(result.showSick).toBe(false);
-  });
+      expect(result.showSick).toBe(true);
+      expect(result.effectiveTime).toBeUndefined();
+    });
 
-  it("marks today correctly", () => {
-    const today = new Date();
-    const result = getDayData(today, schedules, [], false);
+    it("does not show sick status for past days", () => {
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      const result = getDayData(yesterday, schedules, [], true);
 
-    expect(result.isToday).toBe(true);
+      expect(result.showSick).toBe(false);
+    });
+
+    it("marks today correctly", () => {
+      const today = new Date();
+      const result = getDayData(today, schedules, [], false);
+
+      expect(result.isToday).toBe(true);
+    });
   });
 
   it("handles no schedule for weekday", () => {

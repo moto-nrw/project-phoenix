@@ -16,14 +16,6 @@ export function isAdmin(session: Session | null): boolean {
 }
 
 /**
- * Check if the user is a teacher
- * Uses the static isTeacher flag from JWT for performance
- */
-export function isTeacher(session: Session | null): boolean {
-  return session?.user?.isTeacher ?? false;
-}
-
-/**
  * Check if the user is authenticated
  */
 export function isAuthenticated(session: Session | null): boolean {

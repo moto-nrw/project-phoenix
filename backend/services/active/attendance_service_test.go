@@ -305,6 +305,42 @@ func TestToggleStudentAttendance_CheckOut(t *testing.T) {
 	assert.NotZero(t, result.AttendanceID)
 }
 
+// TestToggleStudentAttendance_CheckOutWithZeroStaffID tests checking out when staffID is 0.
+// This exercises the `if staffID > 0` guard in performCheckOut.
+func TestToggleStudentAttendance_CheckOutWithZeroStaffID(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupActiveService(t, db)
+	ctx := context.Background()
+
+	// ARRANGE: Create a student and check them in
+	student := testpkg.CreateTestStudent(t, db, "ZeroStaff", "Checkout", "4z")
+	staff := testpkg.CreateTestStaff(t, db, "ZeroStaff", "Checkin")
+	testDevice := testpkg.CreateTestDevice(t, db, "toggle-device-zero-staff")
+	defer testpkg.CleanupActivityFixtures(t, db, student.ID, staff.ID, testDevice.ID)
+
+	// Check in the student first (needs valid staffID for check-in FK)
+	checkInTime := time.Now().Add(-1 * time.Hour)
+	testpkg.CreateTestAttendance(t, db, student.ID, staff.ID, testDevice.ID, checkInTime, nil)
+
+	// ACT: Toggle attendance with staffID=0, skipAuthCheck=true
+	// This triggers performCheckOut with staffID=0, exercising the guard
+	result, err := service.ToggleStudentAttendance(ctx, student.ID, 0, testDevice.ID, true)
+
+	// ASSERT
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Equal(t, "checked_out", result.Action)
+	assert.Equal(t, student.ID, result.StudentID)
+
+	// Verify the attendance record has nil CheckedOutBy (staffID=0 should NOT be written)
+	status, err := service.GetStudentAttendanceStatus(ctx, student.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "checked_out", status.Status)
+	assert.Empty(t, status.CheckedOutBy, "CheckedOutBy should be empty when staffID is 0")
+}
+
 // TestToggleStudentAttendance_ReCheckIn tests re-checking in a student who was checked out.
 func TestToggleStudentAttendance_ReCheckIn(t *testing.T) {
 	db := testpkg.SetupTestDB(t)

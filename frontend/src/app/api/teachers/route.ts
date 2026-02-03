@@ -1,6 +1,6 @@
 import { type NextRequest } from "next/server";
 import { createPostHandler } from "@/lib/route-wrapper";
-import { env } from "@/env";
+import { getServerApiUrl } from "~/lib/server-api-url";
 
 // Extend the Teacher type to include password for creation
 interface TeacherCreationData {
@@ -58,7 +58,7 @@ export const POST = createPostHandler(
     try {
       // Step 1: Create an account via backend API
       const accountResponse = await fetch(
-        `${env.NEXT_PUBLIC_API_URL}/auth/register`,
+        `${getServerApiUrl()}/auth/register`,
         {
           method: "POST",
           headers: {
@@ -83,22 +83,19 @@ export const POST = createPostHandler(
       const account = accountResult.data;
 
       // Step 2: Create a person linked to this account via backend API
-      const personResponse = await fetch(
-        `${env.NEXT_PUBLIC_API_URL}/api/users`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            first_name: body.first_name,
-            last_name: body.last_name,
-            account_id: Number.parseInt(account.id, 10),
-            tag_id: body.tag_id ?? undefined,
-          }),
+      const personResponse = await fetch(`${getServerApiUrl()}/api/users`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
         },
-      );
+        body: JSON.stringify({
+          first_name: body.first_name,
+          last_name: body.last_name,
+          account_id: Number.parseInt(account.id, 10),
+          tag_id: body.tag_id ?? undefined,
+        }),
+      });
 
       if (!personResponse.ok) {
         const error = await personResponse.text();
@@ -114,34 +111,30 @@ export const POST = createPostHandler(
       const trimmedRole = body.role?.trim();
       const trimmedQualifications = body.qualifications?.trim();
 
-      const staffResponse = await fetch(
-        `${env.NEXT_PUBLIC_API_URL}/api/staff`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            person_id: person.id,
-            staff_notes:
-              trimmedStaffNotes && trimmedStaffNotes.length > 0
-                ? trimmedStaffNotes
-                : undefined,
-            is_teacher: true,
-            specialization:
-              trimmedSpecialization && trimmedSpecialization.length > 0
-                ? trimmedSpecialization
-                : undefined,
-            role:
-              trimmedRole && trimmedRole.length > 0 ? trimmedRole : undefined,
-            qualifications:
-              trimmedQualifications && trimmedQualifications.length > 0
-                ? trimmedQualifications
-                : undefined,
-          }),
+      const staffResponse = await fetch(`${getServerApiUrl()}/api/staff`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
         },
-      );
+        body: JSON.stringify({
+          person_id: person.id,
+          staff_notes:
+            trimmedStaffNotes && trimmedStaffNotes.length > 0
+              ? trimmedStaffNotes
+              : undefined,
+          is_teacher: true,
+          specialization:
+            trimmedSpecialization && trimmedSpecialization.length > 0
+              ? trimmedSpecialization
+              : undefined,
+          role: trimmedRole && trimmedRole.length > 0 ? trimmedRole : undefined,
+          qualifications:
+            trimmedQualifications && trimmedQualifications.length > 0
+              ? trimmedQualifications
+              : undefined,
+        }),
+      });
 
       if (!staffResponse.ok) {
         const error = await staffResponse.text();

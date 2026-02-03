@@ -61,9 +61,7 @@ describe("SimpleAlert", () => {
 
   it("shows close button when onClose is provided", async () => {
     const onClose = vi.fn();
-    render(
-      <SimpleAlert type="success" message="Test" onClose={onClose} />,
-    );
+    render(<SimpleAlert type="success" message="Test" onClose={onClose} />);
 
     await act(async () => {
       vi.advanceTimersByTime(50);
@@ -75,9 +73,7 @@ describe("SimpleAlert", () => {
 
   it("calls onClose when close button clicked", async () => {
     const onClose = vi.fn();
-    render(
-      <SimpleAlert type="success" message="Test" onClose={onClose} />,
-    );
+    render(<SimpleAlert type="success" message="Test" onClose={onClose} />);
 
     await act(async () => {
       vi.advanceTimersByTime(50);

@@ -9,6 +9,7 @@ import { HelpButton } from "@/components/ui/help_button";
 import { getHelpContent } from "@/lib/help-content";
 import { LogoutModal } from "~/components/ui/logout-modal";
 import { useProfile } from "~/lib/profile-context";
+import { useBreadcrumb } from "~/lib/breadcrumb-context";
 
 // Import extracted components
 import { BrandLink, BreadcrumbDivider } from "./header/brand-link";
@@ -33,31 +34,17 @@ import {
   getPageTypeInfo,
 } from "./header/breadcrumb-utils";
 
-interface HeaderProps {
-  readonly userName?: string;
-  readonly userEmail?: string;
-  readonly userRole?: string;
-  readonly customPageTitle?: string;
-  readonly studentName?: string;
-  readonly roomName?: string;
-  readonly activityName?: string;
-  readonly referrerPage?: string;
-  readonly activeSupervisionName?: string;
-  readonly ogsGroupName?: string;
-}
-
-export function Header({
-  userName = "Benutzer",
-  userEmail = "",
-  userRole = "",
-  customPageTitle,
-  studentName,
-  roomName,
-  activityName,
-  referrerPage,
-  activeSupervisionName,
-  ogsGroupName,
-}: HeaderProps) {
+export function Header() {
+  const { breadcrumb } = useBreadcrumb();
+  const {
+    studentName,
+    roomName,
+    activityName,
+    referrerPage,
+    activeSupervisionName,
+    ogsGroupName,
+    pageTitle: customPageTitle,
+  } = breadcrumb;
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
@@ -66,6 +53,13 @@ export function Header({
   const pageTitle = customPageTitle ?? getPageTitle(pathname);
   const { data: session } = useSession();
   const { profile } = useProfile();
+
+  // Derive user info from session (previously passed as props from ResponsiveLayout)
+  // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing -- intentionally using || to treat empty strings as falsy
+  const userName = session?.user?.name?.trim() || "Benutzer";
+  const userEmail = session?.user?.email ?? "";
+  const userRoles = session?.user?.roles ?? [];
+  const userRole = userRoles.includes("admin") ? "Admin" : "Betreuer";
 
   // Scroll effect for header shrinking
   useEffect(() => {
@@ -83,7 +77,7 @@ export function Header({
   const historyType = getHistoryType(pathname);
   const subPageLabel = getSubPageLabel(pathname);
 
-  // Profile data from context or props
+  // Profile data from context or session
   const displayName = profile
     ? `${profile.firstName ?? ""} ${profile.lastName ?? ""}`.trim() || userName
     : userName;
@@ -172,6 +166,24 @@ export function Header({
 }
 
 /**
+ * Enrich a bare referrer URL (e.g. "/ogs-groups") with the last-selected
+ * sub-item param from localStorage so the sidebar highlights the correct item
+ * when navigating back via breadcrumb link.
+ */
+function enrichReferrerWithParam(referrer: string): string {
+  if (typeof globalThis.window === "undefined") return referrer;
+  if (referrer === "/ogs-groups") {
+    const groupId = localStorage.getItem("sidebar-last-group");
+    if (groupId) return `/ogs-groups?group=${groupId}`;
+  }
+  if (referrer === "/active-supervisions") {
+    const roomId = localStorage.getItem("sidebar-last-room");
+    if (roomId) return `/active-supervisions?room=${roomId}`;
+  }
+  return referrer;
+}
+
+/**
  * Breadcrumb section component - handles routing logic for different page types
  */
 interface HeaderBreadcrumbProps {
@@ -244,28 +256,38 @@ function HeaderBreadcrumb({
     return <RoomBreadcrumb roomName={roomName} />;
   }
 
-  // Student history sub-page (3 levels)
-  if (pageTypeInfo.isStudentHistoryPage && studentName) {
+  // Enrich referrer with sub-item param so the sidebar highlights the correct
+  // group/room when navigating back (e.g. /ogs-groups?group=5 instead of /ogs-groups).
+  const enrichedReferrer = enrichReferrerWithParam(referrer);
+
+  // Student history sub-page (3 or 4 levels depending on context)
+  if (pageTypeInfo.isStudentHistoryPage) {
+    const subSectionName = ogsGroupName ?? activeSupervisionName;
     return (
       <StudentHistoryBreadcrumb
-        referrer={referrer}
+        referrer={enrichedReferrer}
         breadcrumbLabel={breadcrumbLabel}
         pathname={pathname}
-        studentName={studentName}
+        studentName={studentName ?? "…"}
         historyType={historyType}
         isScrolled={isScrolled}
+        subSectionName={subSectionName}
       />
     );
   }
 
-  // Student detail page (2 levels)
-  if (pageTypeInfo.isStudentDetailPage && studentName) {
+  // Student detail page (2 or 3 levels depending on context)
+  if (pageTypeInfo.isStudentDetailPage) {
+    // When navigating from an accordion section, show the sub-section name
+    // e.g. "Meine Gruppe > 1a > Mia Fischer" instead of "Meine Gruppe > Mia Fischer"
+    const subSectionName = ogsGroupName ?? activeSupervisionName;
     return (
       <StudentDetailBreadcrumb
-        referrer={referrer}
+        referrer={enrichedReferrer}
         breadcrumbLabel={breadcrumbLabel}
-        studentName={studentName}
+        studentName={studentName ?? "…"}
         isScrolled={isScrolled}
+        subSectionName={subSectionName}
       />
     );
   }

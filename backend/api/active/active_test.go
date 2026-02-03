@@ -39,7 +39,7 @@ func setupTestContext(t *testing.T) *testContext {
 	t.Helper()
 
 	db, svc := testutil.SetupAPITest(t)
-	resource := activeAPI.NewResource(svc.Active, svc.Users, db)
+	resource := activeAPI.NewResource(svc.Active, svc.Users, svc.Schulhof, svc.UserContext, db)
 
 	t.Cleanup(func() {
 		if err := db.Close(); err != nil {
@@ -2224,7 +2224,6 @@ func TestCheckoutStudent_AuthorizedAsGroupTeacher(t *testing.T) {
 	teacherClaims := jwt.AppClaims{
 		ID:          int(teacherAccount.ID),
 		Sub:         "teacher@example.com",
-		IsTeacher:   true,
 		Permissions: []string{permissions.VisitsUpdate},
 	}
 
@@ -2239,7 +2238,7 @@ func TestCheckoutStudent_AuthorizedAsGroupTeacher(t *testing.T) {
 	})
 }
 
-func TestCheckoutStudent_NotAuthorizedNoSupervision(t *testing.T) {
+func TestCheckoutStudent_AnyStaffCanCheckout(t *testing.T) {
 	tc, router := setupCheckoutRouter(t)
 
 	// Create staff without any supervision or group access
@@ -2247,7 +2246,7 @@ func TestCheckoutStudent_NotAuthorizedNoSupervision(t *testing.T) {
 	defer testpkg.CleanupStaffFixtures(t, tc.db, staff.ID)
 	defer testpkg.CleanupAuthFixtures(t, tc.db, staffAccount.ID)
 
-	// Create student who IS checked in but staff has no access
+	// Create student who IS checked in but staff has no direct access
 	student := testpkg.CreateTestStudent(t, tc.db, "Protected", "Student", "4a")
 	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
@@ -2265,14 +2264,13 @@ func TestCheckoutStudent_NotAuthorizedNoSupervision(t *testing.T) {
 		Permissions: []string{permissions.VisitsUpdate},
 	}
 
-	t.Run("forbidden when not supervising room or teaching group", func(t *testing.T) {
+	t.Run("any authenticated staff can checkout any checked-in student", func(t *testing.T) {
 		req := testutil.NewJSONRequest(t, "POST", fmt.Sprintf("/active/visits/student/%d/checkout", student.ID), nil)
 		rr := executeWithAuth(router, req, staffClaims, []string{permissions.VisitsUpdate})
 
-		// Should return 403 Forbidden
+		// Any staff member can checkout any checked-in student
 		t.Logf("Response: %d - %s", rr.Code, rr.Body.String())
-		assert.True(t, rr.Code == http.StatusForbidden || rr.Code == http.StatusInternalServerError,
-			"Expected 403 Forbidden or 500 error, got %d", rr.Code)
+		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK, got %d", rr.Code)
 	})
 }
 

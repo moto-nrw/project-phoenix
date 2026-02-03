@@ -209,7 +209,9 @@ export function prepareSubstitutionForBackend(
 
   return {
     group_id: Number.parseInt(groupId, 10),
-    regular_staff_id: regularStaffId ? Number.parseInt(regularStaffId, 10) : undefined,
+    regular_staff_id: regularStaffId
+      ? Number.parseInt(regularStaffId, 10)
+      : undefined,
     substitute_staff_id: Number.parseInt(substituteStaffId, 10),
     start_date: startDateParts[0] ?? "", // YYYY-MM-DD format
     end_date: endDateParts[0] ?? "",

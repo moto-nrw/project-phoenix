@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { env } from "~/env";
+import { getServerApiUrl } from "~/lib/server-api-url";
 
 export async function GET(request: NextRequest) {
   const token = request.nextUrl.searchParams.get("token");
@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
 
   try {
     const response = await fetch(
-      `${env.NEXT_PUBLIC_API_URL}/auth/invitations/${encodeURIComponent(token)}`,
+      `${getServerApiUrl()}/auth/invitations/${encodeURIComponent(token)}`,
     );
     const contentType = response.headers.get("Content-Type") ?? "";
     let payload: unknown = null;

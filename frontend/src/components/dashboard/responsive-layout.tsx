@@ -9,32 +9,29 @@ import { MobileBottomNav } from "./mobile-bottom-nav";
 
 interface ResponsiveLayoutProps {
   readonly children: React.ReactNode;
+  /** @deprecated Breadcrumb props are now set via useSetBreadcrumb() */
   readonly pageTitle?: string;
-  readonly studentName?: string; // For student detail page breadcrumbs
-  readonly roomName?: string; // For room detail page breadcrumbs
-  readonly activityName?: string; // For activity detail page breadcrumbs
-  readonly referrerPage?: string; // Where the user came from (for contextual breadcrumbs)
-  readonly activeSupervisionName?: string; // For active supervision breadcrumb (e.g., "Schulhof")
-  readonly ogsGroupName?: string; // For OGS group breadcrumb (e.g., "Sonngruppe")
+  /** @deprecated Breadcrumb props are now set via useSetBreadcrumb() */
+  readonly studentName?: string;
+  /** @deprecated Breadcrumb props are now set via useSetBreadcrumb() */
+  readonly roomName?: string;
+  /** @deprecated Breadcrumb props are now set via useSetBreadcrumb() */
+  readonly activityName?: string;
+  /** @deprecated Breadcrumb props are now set via useSetBreadcrumb() */
+  readonly referrerPage?: string;
+  /** @deprecated Breadcrumb props are now set via useSetBreadcrumb() */
+  readonly activeSupervisionName?: string;
+  /** @deprecated Breadcrumb props are now set via useSetBreadcrumb() */
+  readonly ogsGroupName?: string;
 }
 
-export default function ResponsiveLayout({
-  children,
-  pageTitle,
-  studentName,
-  roomName,
-  activityName,
-  referrerPage,
-  activeSupervisionName,
-  ogsGroupName,
-}: ResponsiveLayoutProps) {
+/**
+ * @deprecated Use AppShell via (protected)/layout.tsx instead.
+ * This component is kept for backward compatibility with tests.
+ */
+export default function ResponsiveLayout({ children }: ResponsiveLayoutProps) {
   const { data: session, status } = useSession();
   const router = useRouter();
-  // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing -- intentionally using || to treat empty strings as falsy
-  const userName = session?.user?.name?.trim() || undefined;
-  const userEmail = session?.user?.email ?? "";
-  const userRoles = session?.user?.roles ?? [];
-  const userRole = userRoles.includes("admin") ? "Admin" : "Betreuer";
 
   // Check for invalid session and redirect
   useEffect(() => {
@@ -48,22 +45,9 @@ export default function ResponsiveLayout({
 
   return (
     <div className="relative min-h-screen">
-      {/* Note: Modal blur overlay is now in BackgroundWrapper for global coverage */}
-
       {/* Header - sticky positioning */}
       <div className="sticky top-0 z-40">
-        <Header
-          userName={userName}
-          userEmail={userEmail}
-          userRole={userRole}
-          customPageTitle={pageTitle}
-          studentName={studentName}
-          roomName={roomName}
-          activityName={activityName}
-          referrerPage={referrerPage}
-          activeSupervisionName={activeSupervisionName}
-          ogsGroupName={ogsGroupName}
-        />
+        <Header />
       </div>
 
       {/* Main content */}

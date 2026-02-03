@@ -14,6 +14,9 @@ const mockUpdateStudentPickupSchedules = vi.fn();
 const mockCreateStudentPickupException = vi.fn();
 const mockUpdateStudentPickupException = vi.fn();
 const mockDeleteStudentPickupException = vi.fn();
+const mockCreateStudentPickupNote = vi.fn();
+const mockUpdateStudentPickupNote = vi.fn();
+const mockDeleteStudentPickupNote = vi.fn();
 
 vi.mock("@/lib/pickup-schedule-api", () => ({
   fetchStudentPickupData: (...args: unknown[]): unknown =>
@@ -26,6 +29,12 @@ vi.mock("@/lib/pickup-schedule-api", () => ({
     mockUpdateStudentPickupException(...args) as unknown,
   deleteStudentPickupException: (...args: unknown[]): unknown =>
     mockDeleteStudentPickupException(...args) as unknown,
+  createStudentPickupNote: (...args: unknown[]): unknown =>
+    mockCreateStudentPickupNote(...args) as unknown,
+  updateStudentPickupNote: (...args: unknown[]): unknown =>
+    mockUpdateStudentPickupNote(...args) as unknown,
+  deleteStudentPickupNote: (...args: unknown[]): unknown =>
+    mockDeleteStudentPickupNote(...args) as unknown,
 }));
 
 // Mock child modals
@@ -61,66 +70,19 @@ vi.mock("./pickup-schedule-form-modal", () => ({
     ) : null,
 }));
 
-vi.mock("./pickup-exception-form-modal", () => ({
-  PickupExceptionFormModal: ({
+vi.mock("./pickup-day-edit-modal", () => ({
+  PickupDayEditModal: ({
     isOpen,
     onClose,
-    onSubmit,
-    mode,
   }: {
     isOpen: boolean;
     onClose: () => void;
-    onSubmit: (data: unknown) => void;
-    mode: "create" | "edit";
   }) =>
     isOpen ? (
-      <div data-testid="pickup-exception-form-modal">
-        <span>{mode === "create" ? "Create Exception" : "Edit Exception"}</span>
-        <button onClick={onClose} data-testid="close-exception-modal">
+      <div data-testid="pickup-day-edit-modal">
+        <span>Day Edit Modal</span>
+        <button onClick={onClose} data-testid="close-day-edit-modal">
           Close
-        </button>
-        <button
-          onClick={() =>
-            onSubmit({
-              exceptionDate: "2025-01-27",
-              pickupTime: "16:00",
-              reason: "Test exception",
-            })
-          }
-          data-testid="submit-exception-form"
-        >
-          Submit
-        </button>
-      </div>
-    ) : null,
-}));
-
-vi.mock("~/components/ui/modal", () => ({
-  ConfirmationModal: ({
-    isOpen,
-    onClose,
-    onConfirm,
-    isConfirmLoading,
-    children,
-  }: {
-    isOpen: boolean;
-    onClose: () => void;
-    onConfirm: () => void;
-    isConfirmLoading?: boolean;
-    children: React.ReactNode;
-  }) =>
-    isOpen ? (
-      <div data-testid="confirmation-modal">
-        {children}
-        <button onClick={onClose} data-testid="cancel-delete">
-          Cancel
-        </button>
-        <button
-          onClick={onConfirm}
-          data-testid="confirm-delete"
-          disabled={isConfirmLoading}
-        >
-          {isConfirmLoading ? "Deleting..." : "Confirm"}
         </button>
       </div>
     ) : null,
@@ -196,7 +158,10 @@ const mockPickupExceptions: PickupException[] = [
 const mockPickupData: PickupData = {
   schedules: mockPickupSchedules,
   exceptions: mockPickupExceptions,
+  notes: [],
 };
+
+const COMPONENT_TITLE = "Abholplan & Notizen";
 
 describe("PickupScheduleManager", () => {
   beforeEach(() => {
@@ -233,7 +198,7 @@ describe("PickupScheduleManager", () => {
       render(<PickupScheduleManager studentId="student-123" />);
 
       await waitFor(() => {
-        expect(screen.getByText("Abholplan")).toBeInTheDocument();
+        expect(screen.getByText(COMPONENT_TITLE)).toBeInTheDocument();
       });
     });
   });
@@ -271,7 +236,7 @@ describe("PickupScheduleManager", () => {
       render(<PickupScheduleManager studentId="student-123" />);
 
       await waitFor(() => {
-        expect(screen.getByText("Abholplan")).toBeInTheDocument();
+        expect(screen.getByText(COMPONENT_TITLE)).toBeInTheDocument();
       });
     });
 
@@ -287,28 +252,32 @@ describe("PickupScheduleManager", () => {
       render(<PickupScheduleManager studentId="student-123" readOnly={true} />);
 
       await waitFor(() => {
-        expect(screen.getByText("Abholplan")).toBeInTheDocument();
+        expect(screen.getByText(COMPONENT_TITLE)).toBeInTheDocument();
       });
 
       expect(screen.queryByText("Bearbeiten")).not.toBeInTheDocument();
     });
 
-    it("shows add exception button when not readOnly", async () => {
+    it("shows day edit buttons when not readOnly", async () => {
       render(<PickupScheduleManager studentId="student-123" />);
 
       await waitFor(() => {
-        expect(screen.getByText("Ausnahme")).toBeInTheDocument();
+        expect(screen.getByText(COMPONENT_TITLE)).toBeInTheDocument();
       });
+
+      // Day edit buttons use title "Tag bearbeiten"
+      const editButtons = screen.getAllByTitle("Tag bearbeiten");
+      expect(editButtons.length).toBeGreaterThan(0);
     });
 
-    it("hides add exception button when readOnly is true", async () => {
+    it("hides day edit buttons when readOnly is true", async () => {
       render(<PickupScheduleManager studentId="student-123" readOnly={true} />);
 
       await waitFor(() => {
-        expect(screen.getByText("Abholplan")).toBeInTheDocument();
+        expect(screen.getByText(COMPONENT_TITLE)).toBeInTheDocument();
       });
 
-      expect(screen.queryByText("Ausnahme")).not.toBeInTheDocument();
+      expect(screen.queryAllByTitle("Tag bearbeiten").length).toBe(0);
     });
   });
 
@@ -317,7 +286,7 @@ describe("PickupScheduleManager", () => {
       render(<PickupScheduleManager studentId="student-123" />);
 
       await waitFor(() => {
-        expect(screen.getByText("Abholplan")).toBeInTheDocument();
+        expect(screen.getByText(COMPONENT_TITLE)).toBeInTheDocument();
       });
 
       const prevButtons = screen.getAllByTitle("Vorherige Woche");
@@ -331,7 +300,7 @@ describe("PickupScheduleManager", () => {
       render(<PickupScheduleManager studentId="student-123" />);
 
       await waitFor(() => {
-        expect(screen.getByText("Abholplan")).toBeInTheDocument();
+        expect(screen.getByText(COMPONENT_TITLE)).toBeInTheDocument();
       });
 
       const prevButtons = screen.getAllByTitle("Vorherige Woche");
@@ -339,7 +308,7 @@ describe("PickupScheduleManager", () => {
 
       // Component should re-render with new week offset
       await waitFor(() => {
-        expect(screen.getByText("Abholplan")).toBeInTheDocument();
+        expect(screen.getByText(COMPONENT_TITLE)).toBeInTheDocument();
       });
     });
 
@@ -347,7 +316,7 @@ describe("PickupScheduleManager", () => {
       render(<PickupScheduleManager studentId="student-123" />);
 
       await waitFor(() => {
-        expect(screen.getByText("Abholplan")).toBeInTheDocument();
+        expect(screen.getByText(COMPONENT_TITLE)).toBeInTheDocument();
       });
 
       const nextButtons = screen.getAllByTitle("Nächste Woche");
@@ -355,7 +324,7 @@ describe("PickupScheduleManager", () => {
 
       // Component should re-render with new week offset
       await waitFor(() => {
-        expect(screen.getByText("Abholplan")).toBeInTheDocument();
+        expect(screen.getByText(COMPONENT_TITLE)).toBeInTheDocument();
       });
     });
   });
@@ -454,255 +423,39 @@ describe("PickupScheduleManager", () => {
     });
   });
 
-  describe("Exception Create Modal", () => {
-    it("opens create exception modal when add exception button is clicked", async () => {
+  describe("Day Edit Modal", () => {
+    it("opens day edit modal when day edit button is clicked", async () => {
       render(<PickupScheduleManager studentId="student-123" />);
 
       await waitFor(() => {
-        expect(screen.getByText("Ausnahme")).toBeInTheDocument();
+        expect(screen.getByText(COMPONENT_TITLE)).toBeInTheDocument();
       });
 
-      fireEvent.click(screen.getByText("Ausnahme"));
+      const editButtons = screen.getAllByTitle("Tag bearbeiten");
+      fireEvent.click(editButtons[0]!);
 
-      expect(
-        screen.getByTestId("pickup-exception-form-modal"),
-      ).toBeInTheDocument();
-      expect(screen.getByText("Create Exception")).toBeInTheDocument();
+      expect(screen.getByTestId("pickup-day-edit-modal")).toBeInTheDocument();
     });
 
-    it("closes exception modal when close button is clicked", async () => {
+    it("closes day edit modal when close button is clicked", async () => {
       render(<PickupScheduleManager studentId="student-123" />);
 
       await waitFor(() => {
-        expect(screen.getByText("Ausnahme")).toBeInTheDocument();
+        expect(screen.getByText(COMPONENT_TITLE)).toBeInTheDocument();
       });
 
-      fireEvent.click(screen.getByText("Ausnahme"));
+      const editButtons = screen.getAllByTitle("Tag bearbeiten");
+      fireEvent.click(editButtons[0]!);
 
-      expect(
-        screen.getByTestId("pickup-exception-form-modal"),
-      ).toBeInTheDocument();
+      expect(screen.getByTestId("pickup-day-edit-modal")).toBeInTheDocument();
 
-      fireEvent.click(screen.getByTestId("close-exception-modal"));
+      fireEvent.click(screen.getByTestId("close-day-edit-modal"));
 
       await waitFor(() => {
         expect(
-          screen.queryByTestId("pickup-exception-form-modal"),
+          screen.queryByTestId("pickup-day-edit-modal"),
         ).not.toBeInTheDocument();
       });
-    });
-
-    it("creates exception and reloads data on submit", async () => {
-      const newException: PickupException = {
-        id: "exc-2",
-        studentId: "student-123",
-        exceptionDate: "2025-01-27",
-        pickupTime: "16:00",
-        reason: "Test exception",
-        createdBy: "1",
-        createdAt: "2025-01-25T00:00:00Z",
-        updatedAt: "2025-01-25T00:00:00Z",
-      };
-
-      mockCreateStudentPickupException.mockResolvedValue(newException);
-
-      render(<PickupScheduleManager studentId="student-123" />);
-
-      await waitFor(() => {
-        expect(screen.getByText("Ausnahme")).toBeInTheDocument();
-      });
-
-      fireEvent.click(screen.getByText("Ausnahme"));
-      fireEvent.click(screen.getByTestId("submit-exception-form"));
-
-      await waitFor(() => {
-        expect(mockCreateStudentPickupException).toHaveBeenCalledWith(
-          "student-123",
-          {
-            exceptionDate: "2025-01-27",
-            pickupTime: "16:00",
-            reason: "Test exception",
-          },
-        );
-      });
-
-      // Should reload data
-      await waitFor(() => {
-        expect(mockFetchStudentPickupData).toHaveBeenCalledTimes(2);
-      });
-    });
-
-    it("calls onUpdate callback after successful exception creation", async () => {
-      const mockOnUpdate = vi.fn();
-      const newException: PickupException = {
-        id: "exc-2",
-        studentId: "student-123",
-        exceptionDate: "2025-01-27",
-        pickupTime: "16:00",
-        reason: "Test exception",
-        createdBy: "1",
-        createdAt: "2025-01-25T00:00:00Z",
-        updatedAt: "2025-01-25T00:00:00Z",
-      };
-
-      mockCreateStudentPickupException.mockResolvedValue(newException);
-
-      render(
-        <PickupScheduleManager
-          studentId="student-123"
-          onUpdate={mockOnUpdate}
-        />,
-      );
-
-      await waitFor(() => {
-        expect(screen.getByText("Ausnahme")).toBeInTheDocument();
-      });
-
-      fireEvent.click(screen.getByText("Ausnahme"));
-      fireEvent.click(screen.getByTestId("submit-exception-form"));
-
-      await waitFor(() => {
-        expect(mockOnUpdate).toHaveBeenCalled();
-      });
-    });
-  });
-
-  describe("Delete Exception Flow", () => {
-    it("opens delete modal when delete button is clicked", async () => {
-      render(<PickupScheduleManager studentId="student-123" />);
-
-      await waitFor(() => {
-        expect(screen.getByText("Abholplan")).toBeInTheDocument();
-      });
-
-      // Find delete button (trash icon)
-      const deleteButtons = screen.getAllByTitle("Ausnahme löschen");
-      if (deleteButtons.length > 0) {
-        fireEvent.click(deleteButtons[0]!);
-
-        expect(screen.getByTestId("confirmation-modal")).toBeInTheDocument();
-      }
-    });
-
-    it("closes delete modal when cancel is clicked", async () => {
-      render(<PickupScheduleManager studentId="student-123" />);
-
-      await waitFor(() => {
-        expect(screen.getByText("Abholplan")).toBeInTheDocument();
-      });
-
-      const deleteButtons = screen.getAllByTitle("Ausnahme löschen");
-      if (deleteButtons.length > 0) {
-        fireEvent.click(deleteButtons[0]!);
-
-        expect(screen.getByTestId("confirmation-modal")).toBeInTheDocument();
-
-        fireEvent.click(screen.getByTestId("cancel-delete"));
-
-        await waitFor(() => {
-          expect(
-            screen.queryByTestId("confirmation-modal"),
-          ).not.toBeInTheDocument();
-        });
-      }
-    });
-
-    it("deletes exception and reloads data on confirm", async () => {
-      mockDeleteStudentPickupException.mockResolvedValue(undefined);
-
-      render(<PickupScheduleManager studentId="student-123" />);
-
-      await waitFor(() => {
-        expect(screen.getByText("Abholplan")).toBeInTheDocument();
-      });
-
-      const deleteButtons = screen.getAllByTitle("Ausnahme löschen");
-      if (deleteButtons.length > 0) {
-        fireEvent.click(deleteButtons[0]!);
-
-        expect(screen.getByTestId("confirmation-modal")).toBeInTheDocument();
-
-        fireEvent.click(screen.getByTestId("confirm-delete"));
-
-        await waitFor(() => {
-          expect(mockDeleteStudentPickupException).toHaveBeenCalledWith(
-            "student-123",
-            "exc-1",
-          );
-        });
-
-        // Should reload data
-        await waitFor(() => {
-          expect(mockFetchStudentPickupData).toHaveBeenCalledTimes(2);
-        });
-      }
-    });
-
-    it("calls onUpdate callback after successful exception deletion", async () => {
-      const mockOnUpdate = vi.fn();
-      mockDeleteStudentPickupException.mockResolvedValue(undefined);
-
-      render(
-        <PickupScheduleManager
-          studentId="student-123"
-          onUpdate={mockOnUpdate}
-        />,
-      );
-
-      await waitFor(() => {
-        expect(screen.getByText("Abholplan")).toBeInTheDocument();
-      });
-
-      const deleteButtons = screen.getAllByTitle("Ausnahme löschen");
-      if (deleteButtons.length > 0) {
-        fireEvent.click(deleteButtons[0]!);
-        fireEvent.click(screen.getByTestId("confirm-delete"));
-
-        await waitFor(() => {
-          expect(mockOnUpdate).toHaveBeenCalled();
-        });
-      }
-    });
-
-    it("shows error alert when deletion fails", async () => {
-      // Mock window.alert (undefined in jsdom)
-      const alertMock = vi.fn();
-      window.alert = alertMock;
-
-      mockDeleteStudentPickupException.mockRejectedValue(
-        new Error("Delete failed"),
-      );
-
-      render(<PickupScheduleManager studentId="student-123" />);
-
-      await waitFor(() => {
-        expect(screen.getByText("Abholplan")).toBeInTheDocument();
-      });
-
-      // Wait for delete buttons to be rendered (exception on 2025-01-28 should show)
-      const deleteButtons = await waitFor(() => {
-        const buttons = screen.getAllByTitle("Ausnahme löschen");
-        expect(buttons.length).toBeGreaterThan(0);
-        return buttons;
-      });
-
-      fireEvent.click(deleteButtons[0]!);
-      fireEvent.click(screen.getByTestId("confirm-delete"));
-
-      await waitFor(() => {
-        expect(alertMock).toHaveBeenCalledWith("Delete failed");
-      });
-    });
-
-    it("does not show delete button in read-only mode", async () => {
-      render(<PickupScheduleManager studentId="student-123" readOnly={true} />);
-
-      await waitFor(() => {
-        expect(screen.getByText("Abholplan")).toBeInTheDocument();
-      });
-
-      const deleteButtons = screen.queryAllByTitle("Ausnahme löschen");
-      expect(deleteButtons.length).toBe(0);
     });
   });
 
@@ -711,11 +464,11 @@ describe("PickupScheduleManager", () => {
       render(<PickupScheduleManager studentId="student-123" readOnly={true} />);
 
       await waitFor(() => {
-        expect(screen.getByText("Abholplan")).toBeInTheDocument();
+        expect(screen.getByText(COMPONENT_TITLE)).toBeInTheDocument();
       });
 
       expect(screen.queryByText("Bearbeiten")).not.toBeInTheDocument();
-      expect(screen.queryByText("Ausnahme")).not.toBeInTheDocument();
+      expect(screen.queryAllByTitle("Tag bearbeiten").length).toBe(0);
     });
   });
 
@@ -724,12 +477,13 @@ describe("PickupScheduleManager", () => {
       mockFetchStudentPickupData.mockResolvedValue({
         schedules: [],
         exceptions: [],
+        notes: [],
       });
 
       render(<PickupScheduleManager studentId="student-123" />);
 
       await waitFor(() => {
-        expect(screen.getByText("Abholplan")).toBeInTheDocument();
+        expect(screen.getByText(COMPONENT_TITLE)).toBeInTheDocument();
       });
 
       // Should still render the week view with empty data
@@ -762,7 +516,7 @@ describe("PickupScheduleManager", () => {
       render(<PickupScheduleManager studentId="student-123" isSick={true} />);
 
       await waitFor(() => {
-        expect(screen.getByText("Abholplan")).toBeInTheDocument();
+        expect(screen.getByText(COMPONENT_TITLE)).toBeInTheDocument();
       });
 
       // Should display "Krank" label for today
@@ -775,12 +529,11 @@ describe("PickupScheduleManager", () => {
       render(<PickupScheduleManager studentId="student-123" isSick={false} />);
 
       await waitFor(() => {
-        expect(screen.getByText("Abholplan")).toBeInTheDocument();
+        expect(screen.getByText(COMPONENT_TITLE)).toBeInTheDocument();
       });
 
       // With our mocked dates, Krank should not appear unless today matches
-      // This is a basic assertion
-      expect(screen.getByText("Abholplan")).toBeInTheDocument();
+      expect(screen.getByText(COMPONENT_TITLE)).toBeInTheDocument();
     });
   });
 
@@ -789,7 +542,7 @@ describe("PickupScheduleManager", () => {
       render(<PickupScheduleManager studentId="student-123" />);
 
       await waitFor(() => {
-        expect(screen.getByText("Abholplan")).toBeInTheDocument();
+        expect(screen.getByText(COMPONENT_TITLE)).toBeInTheDocument();
       });
 
       // Check for weekday abbreviations (should appear in both mobile and desktop views)
@@ -804,7 +557,7 @@ describe("PickupScheduleManager", () => {
       render(<PickupScheduleManager studentId="student-123" />);
 
       await waitFor(() => {
-        expect(screen.getByText("Abholplan")).toBeInTheDocument();
+        expect(screen.getByText(COMPONENT_TITLE)).toBeInTheDocument();
       });
 
       // Check for times (may appear multiple times in mobile/desktop views)
@@ -819,7 +572,7 @@ describe("PickupScheduleManager", () => {
       render(<PickupScheduleManager studentId="student-123" />);
 
       await waitFor(() => {
-        expect(screen.getByText("Abholplan")).toBeInTheDocument();
+        expect(screen.getByText(COMPONENT_TITLE)).toBeInTheDocument();
       });
 
       // Days without schedules should show "—"

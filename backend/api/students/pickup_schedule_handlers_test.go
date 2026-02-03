@@ -70,11 +70,12 @@ func TestGetStudentPickupSchedules(t *testing.T) {
 		// Insert a pickup exception directly into the database
 		exceptionDate := time.Date(2026, 2, 15, 12, 0, 0, 0, timezone.Berlin) // Use noon to avoid day boundary issues
 		exceptionTime := time.Date(2000, 1, 1, 12, 0, 0, 0, time.UTC)
+		arztterminReason := "Arzttermin"
 		exception := &scheduleModel.StudentPickupException{
 			StudentID:     studentWithData.ID,
 			ExceptionDate: exceptionDate,
 			PickupTime:    &exceptionTime,
-			Reason:        "Arzttermin",
+			Reason:        &arztterminReason,
 			CreatedBy:     1,
 		}
 		_, err = tc.db.NewInsert().Model(exception).
@@ -110,7 +111,8 @@ func TestGetStudentPickupSchedules(t *testing.T) {
 		testutil.AssertNotFound(t, rr)
 	})
 
-	t.Run("forbidden_without_full_access", func(t *testing.T) {
+	t.Run("success_any_staff_can_read_schedules", func(t *testing.T) {
+		// Any authenticated staff can read pickup schedules (read-only access)
 		staff, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "NoAccess", "Staff")
 		defer testpkg.CleanupActivityFixtures(t, tc.db, staff.ID)
 
@@ -118,7 +120,7 @@ func TestGetStudentPickupSchedules(t *testing.T) {
 		claims := testutil.TeacherTestClaims(int(account.ID))
 		rr := executeWithAuth(router, req, claims, []string{"students:read"})
 
-		testutil.AssertForbidden(t, rr)
+		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK - any staff can read pickup schedules. Body: %s", rr.Body.String())
 	})
 }
 
@@ -383,7 +385,10 @@ func TestCreateStudentPickupException(t *testing.T) {
 		testutil.AssertBadRequest(t, rr)
 	})
 
-	t.Run("bad_request_missing_reason", func(t *testing.T) {
+	t.Run("valid_request_without_reason", func(t *testing.T) {
+		// Reason is now optional — omitting it should not cause a bad request.
+		// Full creation still requires a valid account+person setup, so we only
+		// verify the bind step doesn't reject the payload.
 		student := testpkg.CreateTestStudent(t, tc.db, "ExceptionNoReason", "Test", "ENR1")
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
@@ -394,7 +399,10 @@ func TestCreateStudentPickupException(t *testing.T) {
 		req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d", student.ID), body)
 		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
-		testutil.AssertBadRequest(t, rr)
+		// Should NOT be a bad request (reason is optional). The actual status
+		// depends on account setup, but it must not be 400.
+		assert.NotEqual(t, http.StatusBadRequest, rr.Code,
+			"Omitting reason should not cause bad request. Body: %s", rr.Body.String())
 	})
 
 	t.Run("bad_request_reason_too_long", func(t *testing.T) {
@@ -453,11 +461,12 @@ func TestUpdateStudentPickupException(t *testing.T) {
 		// Create an exception to update
 		exceptionDate := time.Date(2026, 4, 15, 12, 0, 0, 0, timezone.Berlin) // Use noon to avoid day boundary issues
 		exceptionTime := time.Date(2000, 1, 1, 14, 0, 0, 0, time.UTC)
+		originalReason := "Original reason"
 		exception := &scheduleModel.StudentPickupException{
 			StudentID:     student.ID,
 			ExceptionDate: exceptionDate,
 			PickupTime:    &exceptionTime,
-			Reason:        "Original reason",
+			Reason:        &originalReason,
 			CreatedBy:     1,
 		}
 		_, err := tc.db.NewInsert().Model(exception).
@@ -495,10 +504,11 @@ func TestUpdateStudentPickupException(t *testing.T) {
 
 		// Create exception for student2
 		exceptionDate := time.Date(2026, 5, 15, 12, 0, 0, 0, timezone.Berlin) // Use noon to avoid day boundary issues
+		testReason := "Test reason"
 		exception := &scheduleModel.StudentPickupException{
 			StudentID:     student2.ID, // Belongs to student2
 			ExceptionDate: exceptionDate,
-			Reason:        "Test reason",
+			Reason:        &testReason,
 			CreatedBy:     1,
 		}
 		_, err := tc.db.NewInsert().Model(exception).
@@ -595,10 +605,11 @@ func TestDeleteStudentPickupException(t *testing.T) {
 
 		// Create exception to delete
 		exceptionDate := time.Date(2026, 6, 15, 12, 0, 0, 0, timezone.Berlin) // Use noon to avoid day boundary issues
+		deleteReason := "To be deleted"
 		exception := &scheduleModel.StudentPickupException{
 			StudentID:     student.ID,
 			ExceptionDate: exceptionDate,
-			Reason:        "To be deleted",
+			Reason:        &deleteReason,
 			CreatedBy:     1,
 		}
 		_, err := tc.db.NewInsert().Model(exception).
@@ -624,10 +635,11 @@ func TestDeleteStudentPickupException(t *testing.T) {
 
 		// Create exception for student2
 		exceptionDate := time.Date(2026, 7, 15, 12, 0, 0, 0, timezone.Berlin) // Use noon to avoid day boundary issues
+		deleteTestReason := "Test reason"
 		exception := &scheduleModel.StudentPickupException{
 			StudentID:     student2.ID, // Belongs to student2
 			ExceptionDate: exceptionDate,
-			Reason:        "Test reason",
+			Reason:        &deleteTestReason,
 			CreatedBy:     1,
 		}
 		_, err := tc.db.NewInsert().Model(exception).
@@ -865,11 +877,12 @@ func TestGetBulkPickupTimes(t *testing.T) {
 		// Insert exception for specific date
 		exceptionDate := time.Date(2026, 1, 26, 12, 0, 0, 0, timezone.Berlin) // Monday, noon to avoid day boundary issues
 		exceptionTime := time.Date(2000, 1, 1, 12, 0, 0, 0, time.UTC)
+		earlyPickupReason := "Early pickup"
 		exception := &scheduleModel.StudentPickupException{
 			StudentID:     student.ID,
 			ExceptionDate: exceptionDate,
 			PickupTime:    &exceptionTime,
-			Reason:        "Early pickup",
+			Reason:        &earlyPickupReason,
 			CreatedBy:     1,
 		}
 		_, err = tc.db.NewInsert().Model(exception).
@@ -896,6 +909,356 @@ func TestGetBulkPickupTimes(t *testing.T) {
 		assert.Contains(t, rr.Body.String(), "12:00", "Should contain exception pickup time")
 		assert.Contains(t, rr.Body.String(), "is_exception", "Should indicate exception")
 	})
+}
+
+// =============================================================================
+// Create Pickup Note Tests
+// =============================================================================
+
+func TestCreateStudentPickupNote(t *testing.T) {
+	tc := setupTestContext(t)
+
+	router := setupRouterWithMethods(tc.resource.CreateStudentPickupNoteHandler(), "id", []string{"POST"})
+
+	t.Run("success_creates_note_as_teacher", func(t *testing.T) {
+		student := testpkg.CreateTestStudent(t, tc.db, "NoteCreate", "Test", "NCT1")
+		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
+
+		teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Create", "NoteTeacher")
+		defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID)
+
+		body := map[string]any{
+			"note_date": "2026-03-15",
+			"content":   "Please call before pickup today",
+		}
+		req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d", student.ID), body)
+		rr := executeWithAuth(router, req, testutil.AdminTestClaims(int(account.ID)), []string{"admin:*"})
+
+		assert.Equal(t, http.StatusCreated, rr.Code, "Expected 201 Created. Body: %s", rr.Body.String())
+		assert.Contains(t, rr.Body.String(), "2026-03-15", "Should contain note date")
+		assert.Contains(t, rr.Body.String(), "Please call before pickup today", "Should contain content")
+
+		// Cleanup created note
+		_, _ = tc.db.NewDelete().Model((*scheduleModel.StudentPickupNote)(nil)).
+			ModelTableExpr("schedule.student_pickup_notes").
+			Where("student_id = ?", student.ID).
+			Exec(context.Background())
+	})
+
+	t.Run("bad_request_missing_date", func(t *testing.T) {
+		student := testpkg.CreateTestStudent(t, tc.db, "NoteNoDate", "Test", "NND1")
+		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
+
+		body := map[string]any{
+			"content": "Test content",
+		}
+		req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d", student.ID), body)
+		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+
+		testutil.AssertBadRequest(t, rr)
+		assert.Contains(t, rr.Body.String(), "note_date is required")
+	})
+
+	t.Run("bad_request_invalid_date_format", func(t *testing.T) {
+		student := testpkg.CreateTestStudent(t, tc.db, "NoteBadDate", "Test", "NBD1")
+		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
+
+		body := map[string]any{
+			"note_date": "15-03-2026",
+			"content":   "Test content",
+		}
+		req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d", student.ID), body)
+		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+
+		testutil.AssertBadRequest(t, rr)
+		assert.Contains(t, rr.Body.String(), "invalid note_date format")
+	})
+
+	t.Run("bad_request_missing_content", func(t *testing.T) {
+		student := testpkg.CreateTestStudent(t, tc.db, "NoteNoContent", "Test", "NNC1")
+		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
+
+		body := map[string]any{
+			"note_date": "2026-03-15",
+			"content":   "",
+		}
+		req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d", student.ID), body)
+		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+
+		testutil.AssertBadRequest(t, rr)
+		assert.Contains(t, rr.Body.String(), "content is required")
+	})
+
+	t.Run("bad_request_content_too_long", func(t *testing.T) {
+		student := testpkg.CreateTestStudent(t, tc.db, "NoteLongContent", "Test", "NLC1")
+		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
+
+		longContent := make([]byte, 501)
+		for i := range longContent {
+			longContent[i] = 'a'
+		}
+		body := map[string]any{
+			"note_date": "2026-03-15",
+			"content":   string(longContent),
+		}
+		req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d", student.ID), body)
+		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+
+		testutil.AssertBadRequest(t, rr)
+		assert.Contains(t, rr.Body.String(), "content cannot exceed 500 characters")
+	})
+
+	t.Run("forbidden_without_full_access", func(t *testing.T) {
+		student := testpkg.CreateTestStudent(t, tc.db, "NoteForbidden", "Test", "NF1")
+		staff, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "NoAccess", "NoteStaff")
+		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID, staff.ID)
+
+		body := map[string]any{
+			"note_date": "2026-03-15",
+			"content":   "Test note",
+		}
+		req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d", student.ID), body)
+		claims := testutil.TeacherTestClaims(int(account.ID))
+		rr := executeWithAuth(router, req, claims, []string{"students:write"})
+
+		testutil.AssertForbidden(t, rr)
+	})
+}
+
+// =============================================================================
+// Update Pickup Note Tests
+// =============================================================================
+
+func TestUpdateStudentPickupNote(t *testing.T) {
+	tc := setupTestContext(t)
+
+	t.Run("success_updates_note_as_teacher", func(t *testing.T) {
+		student := testpkg.CreateTestStudent(t, tc.db, "NoteUpdate", "Test", "NUT1")
+		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
+
+		teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Update", "NoteTeacher2")
+		defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID)
+
+		// Create a note to update
+		noteDate := time.Date(2026, 4, 15, 12, 0, 0, 0, timezone.Berlin)
+		originalContent := "Original content"
+		note := &scheduleModel.StudentPickupNote{
+			StudentID: student.ID,
+			NoteDate:  noteDate,
+			Content:   originalContent,
+			CreatedBy: 1,
+		}
+		_, err := tc.db.NewInsert().Model(note).
+			ModelTableExpr("schedule.student_pickup_notes").
+			Returning("id").
+			Exec(context.Background())
+		require.NoError(t, err)
+		defer func() {
+			_, _ = tc.db.NewDelete().Model((*scheduleModel.StudentPickupNote)(nil)).
+				ModelTableExpr("schedule.student_pickup_notes").
+				Where("id = ?", note.ID).
+				Exec(context.Background())
+		}()
+
+		router := setupNoteRouter(tc.resource.UpdateStudentPickupNoteHandler(), "PUT")
+
+		body := map[string]any{
+			"note_date": "2026-04-15",
+			"content":   "Updated content",
+		}
+		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d/%d", student.ID, note.ID), body)
+		rr := executeWithAuth(router, req, testutil.AdminTestClaims(int(account.ID)), []string{"admin:*"})
+
+		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
+		assert.Contains(t, rr.Body.String(), "Updated content", "Should contain updated content")
+	})
+
+	t.Run("forbidden_note_belongs_to_different_student", func(t *testing.T) {
+		student1 := testpkg.CreateTestStudent(t, tc.db, "Student1Note", "Test", "ST1N")
+		student2 := testpkg.CreateTestStudent(t, tc.db, "Student2Note", "Test", "ST2N")
+		defer testpkg.CleanupActivityFixtures(t, tc.db, student1.ID, student2.ID)
+
+		// Create note for student2
+		noteDate := time.Date(2026, 5, 15, 12, 0, 0, 0, timezone.Berlin)
+		testContent := "Test content"
+		note := &scheduleModel.StudentPickupNote{
+			StudentID: student2.ID, // Belongs to student2
+			NoteDate:  noteDate,
+			Content:   testContent,
+			CreatedBy: 1,
+		}
+		_, err := tc.db.NewInsert().Model(note).
+			ModelTableExpr("schedule.student_pickup_notes").
+			Returning("id").
+			Exec(context.Background())
+		require.NoError(t, err)
+		defer func() {
+			_, _ = tc.db.NewDelete().Model((*scheduleModel.StudentPickupNote)(nil)).
+				ModelTableExpr("schedule.student_pickup_notes").
+				Where("id = ?", note.ID).
+				Exec(context.Background())
+		}()
+
+		router := setupNoteRouter(tc.resource.UpdateStudentPickupNoteHandler(), "PUT")
+
+		body := map[string]any{
+			"note_date": "2026-05-15",
+			"content":   "Updated",
+		}
+		// Try to update student2's note using student1's URL
+		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d/%d", student1.ID, note.ID), body)
+		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+
+		testutil.AssertForbidden(t, rr)
+	})
+
+	t.Run("bad_request_invalid_note_id", func(t *testing.T) {
+		student := testpkg.CreateTestStudent(t, tc.db, "NoteUpdateInvalid", "Test", "NUI1")
+		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
+
+		router := setupNoteRouter(tc.resource.UpdateStudentPickupNoteHandler(), "PUT")
+
+		body := map[string]any{
+			"note_date": "2026-02-15",
+			"content":   "Updated content",
+		}
+		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d/abc", student.ID), body)
+		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+
+		testutil.AssertBadRequest(t, rr)
+	})
+
+	t.Run("not_found_nonexistent_note", func(t *testing.T) {
+		student := testpkg.CreateTestStudent(t, tc.db, "NoteUpdateNotFound", "Test", "NUNF1")
+		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
+
+		router := setupNoteRouter(tc.resource.UpdateStudentPickupNoteHandler(), "PUT")
+
+		body := map[string]any{
+			"note_date": "2026-02-15",
+			"content":   "Updated content",
+		}
+		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d/999999", student.ID), body)
+		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+
+		testutil.AssertNotFound(t, rr)
+	})
+}
+
+// =============================================================================
+// Delete Pickup Note Tests
+// =============================================================================
+
+func TestDeleteStudentPickupNote(t *testing.T) {
+	tc := setupTestContext(t)
+
+	t.Run("success_deletes_note_as_teacher", func(t *testing.T) {
+		student := testpkg.CreateTestStudent(t, tc.db, "NoteDelete", "Test", "NDT1")
+		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
+
+		// Create note to delete
+		noteDate := time.Date(2026, 6, 15, 12, 0, 0, 0, timezone.Berlin)
+		deleteContent := "To be deleted"
+		note := &scheduleModel.StudentPickupNote{
+			StudentID: student.ID,
+			NoteDate:  noteDate,
+			Content:   deleteContent,
+			CreatedBy: 1,
+		}
+		_, err := tc.db.NewInsert().Model(note).
+			ModelTableExpr("schedule.student_pickup_notes").
+			Returning("id").
+			Exec(context.Background())
+		require.NoError(t, err)
+
+		router := setupNoteRouter(tc.resource.DeleteStudentPickupNoteHandler(), "DELETE")
+
+		req := testutil.NewRequest("DELETE", fmt.Sprintf("/%d/%d", student.ID, note.ID), nil)
+		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+
+		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
+		assert.Contains(t, rr.Body.String(), "deleted successfully")
+	})
+
+	t.Run("forbidden_delete_note_belongs_to_different_student", func(t *testing.T) {
+		student1 := testpkg.CreateTestStudent(t, tc.db, "DeleteSt1Note", "Test", "DS1N")
+		student2 := testpkg.CreateTestStudent(t, tc.db, "DeleteSt2Note", "Test", "DS2N")
+		defer testpkg.CleanupActivityFixtures(t, tc.db, student1.ID, student2.ID)
+
+		// Create note for student2
+		noteDate := time.Date(2026, 7, 15, 12, 0, 0, 0, timezone.Berlin)
+		deleteTestContent := "Test content"
+		note := &scheduleModel.StudentPickupNote{
+			StudentID: student2.ID, // Belongs to student2
+			NoteDate:  noteDate,
+			Content:   deleteTestContent,
+			CreatedBy: 1,
+		}
+		_, err := tc.db.NewInsert().Model(note).
+			ModelTableExpr("schedule.student_pickup_notes").
+			Returning("id").
+			Exec(context.Background())
+		require.NoError(t, err)
+		defer func() {
+			_, _ = tc.db.NewDelete().Model((*scheduleModel.StudentPickupNote)(nil)).
+				ModelTableExpr("schedule.student_pickup_notes").
+				Where("id = ?", note.ID).
+				Exec(context.Background())
+		}()
+
+		router := setupNoteRouter(tc.resource.DeleteStudentPickupNoteHandler(), "DELETE")
+
+		// Try to delete student2's note using student1's URL
+		req := testutil.NewRequest("DELETE", fmt.Sprintf("/%d/%d", student1.ID, note.ID), nil)
+		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+
+		testutil.AssertForbidden(t, rr)
+	})
+
+	t.Run("bad_request_invalid_note_id", func(t *testing.T) {
+		student := testpkg.CreateTestStudent(t, tc.db, "NoteDeleteInvalid", "Test", "NDI1")
+		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
+
+		router := setupNoteRouter(tc.resource.DeleteStudentPickupNoteHandler(), "DELETE")
+
+		req := testutil.NewRequest("DELETE", fmt.Sprintf("/%d/invalid", student.ID), nil)
+		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+
+		testutil.AssertBadRequest(t, rr)
+	})
+
+	t.Run("not_found_nonexistent_note", func(t *testing.T) {
+		student := testpkg.CreateTestStudent(t, tc.db, "NoteDeleteNotFound", "Test", "NDNF1")
+		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
+
+		router := setupNoteRouter(tc.resource.DeleteStudentPickupNoteHandler(), "DELETE")
+
+		req := testutil.NewRequest("DELETE", fmt.Sprintf("/%d/999999", student.ID), nil)
+		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+
+		testutil.AssertNotFound(t, rr)
+	})
+}
+
+// =============================================================================
+// Note-specific Helper Functions
+// =============================================================================
+
+// setupNoteRouter creates a router for note endpoints with nested URL params
+func setupNoteRouter(handler http.HandlerFunc, method string) chi.Router {
+	router := chi.NewRouter()
+	router.Use(render.SetContentType(render.ContentTypeJSON))
+	switch method {
+	case "GET":
+		router.Get("/{id}/{noteId}", handler)
+	case "POST":
+		router.Post("/{id}/{noteId}", handler)
+	case "PUT":
+		router.Put("/{id}/{noteId}", handler)
+	case "DELETE":
+		router.Delete("/{id}/{noteId}", handler)
+	}
+	return router
 }
 
 // =============================================================================

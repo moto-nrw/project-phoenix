@@ -114,13 +114,13 @@ export function FormModal({
         type="button"
         onClick={handleClose}
         aria-label="Hintergrund - Klicken zum Schließen"
-        className={`absolute inset-0 cursor-default border-none bg-transparent p-0 transition-all duration-400 ease-out ${
+        className={`absolute inset-0 cursor-default border-none bg-transparent p-0 transition-all duration-200 ease-out ${
           isAnimating && !isExiting ? "bg-black/40" : "bg-black/0"
         }`}
         style={{
           animation:
             isAnimating && !isExiting
-              ? "backdropEnter 400ms ease-out"
+              ? "backdropEnter 200ms ease-out"
               : undefined,
         }}
       />

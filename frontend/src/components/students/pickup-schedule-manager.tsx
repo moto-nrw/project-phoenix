@@ -5,23 +5,20 @@ import {
   Calendar,
   ChevronLeft,
   ChevronRight,
-  Plus,
+  SquarePen,
   Loader2,
+  StickyNote,
 } from "lucide-react";
 import { PickupScheduleFormModal } from "./pickup-schedule-form-modal";
-import { PickupExceptionFormModal } from "./pickup-exception-form-modal";
-import { ConfirmationModal } from "~/components/ui/modal";
+import { PickupDayEditModal } from "./pickup-day-edit-modal";
 import type {
   PickupData,
-  PickupException,
   BulkPickupScheduleFormData,
-  PickupExceptionFormData,
   DayData,
 } from "@/lib/pickup-schedule-helpers";
 import {
   WEEKDAYS,
   formatPickupTime,
-  formatExceptionDate,
   mergeSchedulesWithTemplate,
   getWeekDays,
   formatShortDate,
@@ -34,6 +31,9 @@ import {
   createStudentPickupException,
   updateStudentPickupException,
   deleteStudentPickupException,
+  createStudentPickupNote,
+  updateStudentPickupNote,
+  deleteStudentPickupNote,
 } from "@/lib/pickup-schedule-api";
 
 interface PickupScheduleManagerProps {
@@ -52,6 +52,7 @@ export default function PickupScheduleManager({
   const [pickupData, setPickupData] = useState<PickupData>({
     schedules: [],
     exceptions: [],
+    notes: [],
   });
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -59,29 +60,30 @@ export default function PickupScheduleManager({
 
   // Modal states
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
-  const [isExceptionModalOpen, setIsExceptionModalOpen] = useState(false);
-  const [editingException, setEditingException] = useState<
-    PickupException | undefined
-  >();
-  const [defaultExceptionDate, setDefaultExceptionDate] = useState<
-    string | undefined
-  >();
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [deletingException, setDeletingException] = useState<
-    PickupException | undefined
-  >();
-  const [isDeleting, setIsDeleting] = useState(false);
+  const [editingDay, setEditingDay] = useState<DayData | null>(null);
 
   // Compute week data
   const weekDays = useMemo(() => getWeekDays(weekOffset), [weekOffset]);
 
-  // Merge schedule + exceptions + sick for each day
+  // Merge schedule + exceptions + sick + notes for each day
   const dayDataList = useMemo(
     () =>
       weekDays.map((date) =>
-        getDayData(date, pickupData.schedules, pickupData.exceptions, isSick),
+        getDayData(
+          date,
+          pickupData.schedules,
+          pickupData.exceptions,
+          isSick,
+          pickupData.notes,
+        ),
       ),
-    [weekDays, pickupData.schedules, pickupData.exceptions, isSick],
+    [
+      weekDays,
+      pickupData.schedules,
+      pickupData.exceptions,
+      isSick,
+      pickupData.notes,
+    ],
   );
 
   // Load pickup data
@@ -114,90 +116,104 @@ export default function PickupScheduleManager({
     setIsScheduleModalOpen(false);
   };
 
-  // Handle create exception
-  const handleCreateException = async (data: PickupExceptionFormData) => {
-    await createStudentPickupException(studentId, data);
-    await loadPickupData();
+  // Open day edit modal
+  const handleOpenDayEdit = (day: DayData) => {
+    if (readOnly || day.weekday === 0) return;
+    setEditingDay(day);
+  };
+
+  // Refresh day data after changes (keeps modal open with fresh data)
+  const refreshAndKeepModal = useCallback(async () => {
+    const data = await fetchStudentPickupData(studentId);
+    setPickupData(data);
     onUpdate?.();
-    setIsExceptionModalOpen(false);
-    setDefaultExceptionDate(undefined);
-  };
+  }, [studentId, onUpdate]);
 
-  // Handle update exception
-  const handleUpdateException = async (data: PickupExceptionFormData) => {
-    if (!editingException) return;
-    await updateStudentPickupException(studentId, editingException.id, data);
-    await loadPickupData();
-    onUpdate?.();
-    setIsExceptionModalOpen(false);
-    setEditingException(undefined);
-  };
+  // Day edit modal: exception handlers
+  const handleSaveException = useCallback(
+    async (params: { pickupTime?: string; reason?: string }) => {
+      if (!editingDay) return;
+      const dateStr = formatDateISO(editingDay.date);
 
-  // Handle delete exception
-  const handleDeleteClick = (exception: PickupException) => {
-    setDeletingException(exception);
-    setShowDeleteModal(true);
-  };
-
-  const handleConfirmDelete = async () => {
-    if (!deletingException) return;
-
-    setIsDeleting(true);
-    try {
-      await deleteStudentPickupException(studentId, deletingException.id);
-      await loadPickupData();
-      onUpdate?.();
-      setShowDeleteModal(false);
-      setDeletingException(undefined);
-    } catch (err) {
-      alert(
-        err instanceof Error ? err.message : "Fehler beim Löschen der Ausnahme",
-      );
-    } finally {
-      setIsDeleting(false);
-    }
-  };
-
-  const handleCancelDelete = () => {
-    setShowDeleteModal(false);
-    setDeletingException(undefined);
-  };
-
-  // Open exception modal for editing
-  const handleOpenEditException = (exception: PickupException) => {
-    setEditingException(exception);
-    setDefaultExceptionDate(undefined);
-    setIsExceptionModalOpen(true);
-  };
-
-  // Open exception modal for creating (optionally with pre-filled date)
-  const handleOpenCreateException = (date?: Date) => {
-    setEditingException(undefined);
-    if (date) {
-      // Only allow future dates
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      if (date >= today) {
-        setDefaultExceptionDate(formatDateISO(date));
+      if (editingDay.exception) {
+        // Update existing exception
+        await updateStudentPickupException(studentId, editingDay.exception.id, {
+          exceptionDate: dateStr,
+          pickupTime: params.pickupTime,
+          reason: params.reason,
+        });
       } else {
-        setDefaultExceptionDate(undefined);
+        // Create new exception
+        await createStudentPickupException(studentId, {
+          exceptionDate: dateStr,
+          pickupTime: params.pickupTime,
+          reason: params.reason,
+        });
       }
-    } else {
-      setDefaultExceptionDate(undefined);
-    }
-    setIsExceptionModalOpen(true);
-  };
+      await refreshAndKeepModal();
+    },
+    [editingDay, studentId, refreshAndKeepModal],
+  );
 
-  // Close exception modal
-  const handleCloseExceptionModal = () => {
-    setIsExceptionModalOpen(false);
-    setEditingException(undefined);
-    setDefaultExceptionDate(undefined);
+  const handleDeleteException = useCallback(async () => {
+    if (!editingDay?.exception) return;
+    await deleteStudentPickupException(studentId, editingDay.exception.id);
+    await refreshAndKeepModal();
+  }, [editingDay, studentId, refreshAndKeepModal]);
+
+  // Day edit modal: note handlers
+  const handleCreateNote = useCallback(
+    async (content: string) => {
+      if (!editingDay) return;
+      await createStudentPickupNote(studentId, {
+        noteDate: formatDateISO(editingDay.date),
+        content,
+      });
+      await refreshAndKeepModal();
+    },
+    [editingDay, studentId, refreshAndKeepModal],
+  );
+
+  const handleUpdateNote = useCallback(
+    async (noteId: string, content: string) => {
+      if (!editingDay) return;
+      await updateStudentPickupNote(studentId, noteId, {
+        noteDate: formatDateISO(editingDay.date),
+        content,
+      });
+      await refreshAndKeepModal();
+    },
+    [editingDay, studentId, refreshAndKeepModal],
+  );
+
+  const handleDeleteNote = useCallback(
+    async (noteId: string) => {
+      await deleteStudentPickupNote(studentId, noteId);
+      await refreshAndKeepModal();
+    },
+    [studentId, refreshAndKeepModal],
+  );
+
+  // Close day edit modal
+  const handleCloseDayEdit = () => {
+    setEditingDay(null);
   };
 
   // Navigate weeks
   const goToPreviousWeek = () => setWeekOffset((w) => w - 1);
   const goToNextWeek = () => setWeekOffset((w) => w + 1);
+
+  // Keep editingDay in sync with latest pickupData
+  const currentEditingDay = useMemo(() => {
+    if (!editingDay) return null;
+    return getDayData(
+      editingDay.date,
+      pickupData.schedules,
+      pickupData.exceptions,
+      isSick,
+      pickupData.notes,
+    );
+  }, [editingDay, pickupData, isSick]);
 
   // Show loading state
   if (isLoading && pickupData.schedules.length === 0) {
@@ -225,7 +241,7 @@ export default function PickupScheduleManager({
             <Calendar className="h-5 w-5" />
           </div>
           <h2 className="truncate text-base font-semibold text-gray-900 sm:text-lg">
-            Abholplan
+            Abholplan & Notizen
           </h2>
         </div>
         {!readOnly && (
@@ -263,8 +279,7 @@ export default function PickupScheduleManager({
               key={formatDateISO(day.date)}
               day={day}
               readOnly={readOnly}
-              onEditException={handleOpenEditException}
-              onDeleteException={handleDeleteClick}
+              onEditDay={handleOpenDayEdit}
             />
           ))}
         </div>
@@ -288,8 +303,7 @@ export default function PickupScheduleManager({
                   key={formatDateISO(day.date)}
                   day={day}
                   readOnly={readOnly}
-                  onEditException={handleOpenEditException}
-                  onDeleteException={handleDeleteClick}
+                  onEditDay={handleOpenDayEdit}
                 />
               ))}
             </div>
@@ -304,19 +318,6 @@ export default function PickupScheduleManager({
         </div>
       </div>
 
-      {/* Footer Actions */}
-      {!readOnly && (
-        <div className="mt-4 flex items-center justify-end border-t border-gray-100 pt-4">
-          <button
-            onClick={() => handleOpenCreateException()}
-            className="inline-flex items-center gap-1 rounded-lg bg-gray-900 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-gray-700"
-          >
-            <Plus className="h-4 w-4" />
-            Ausnahme
-          </button>
-        </div>
-      )}
-
       {/* Schedule Edit Modal */}
       <PickupScheduleFormModal
         isOpen={isScheduleModalOpen}
@@ -325,39 +326,17 @@ export default function PickupScheduleManager({
         initialSchedules={mergeSchedulesWithTemplate(pickupData.schedules)}
       />
 
-      {/* Exception Modal */}
-      <PickupExceptionFormModal
-        isOpen={isExceptionModalOpen}
-        onClose={handleCloseExceptionModal}
-        onSubmit={
-          editingException ? handleUpdateException : handleCreateException
-        }
-        initialData={editingException}
-        mode={editingException ? "edit" : "create"}
-        defaultDate={defaultExceptionDate}
+      {/* Day Edit Modal */}
+      <PickupDayEditModal
+        isOpen={editingDay !== null}
+        onClose={handleCloseDayEdit}
+        day={currentEditingDay}
+        onSaveException={handleSaveException}
+        onDeleteException={handleDeleteException}
+        onCreateNote={handleCreateNote}
+        onUpdateNote={handleUpdateNote}
+        onDeleteNote={handleDeleteNote}
       />
-
-      {/* Delete Confirmation Modal */}
-      <ConfirmationModal
-        isOpen={showDeleteModal}
-        onClose={handleCancelDelete}
-        onConfirm={handleConfirmDelete}
-        title="Ausnahme löschen"
-        confirmText={isDeleting ? "Wird gelöscht..." : "Löschen"}
-        cancelText="Abbrechen"
-        isConfirmLoading={isDeleting}
-        confirmButtonClass="bg-red-600 hover:bg-red-700"
-      >
-        <p>
-          Möchten Sie die Ausnahme für{" "}
-          <strong>
-            {deletingException
-              ? formatExceptionDate(deletingException.exceptionDate)
-              : ""}
-          </strong>{" "}
-          wirklich löschen?
-        </p>
-      </ConfirmationModal>
     </div>
   );
 }
@@ -369,103 +348,105 @@ export default function PickupScheduleManager({
 interface DayComponentProps {
   readonly day: DayData;
   readonly readOnly: boolean;
-  readonly onEditException: (exception: PickupException) => void;
-  readonly onDeleteException: (exception: PickupException) => void;
+  readonly onEditDay: (day: DayData) => void;
 }
 
-function DayRow({
-  day,
-  readOnly,
-  onEditException,
-  onDeleteException,
-}: DayComponentProps) {
+function DayRow({ day, readOnly, onEditDay }: DayComponentProps) {
   const weekdayInfo = WEEKDAYS[day.weekday - 1];
   const effectiveTime = day.effectiveTime
     ? formatPickupTime(day.effectiveTime)
     : null;
 
+  const hasNotes = !!day.baseSchedule?.notes || day.notes.length > 0;
+
   return (
     <div
-      className={`flex items-center gap-3 rounded-lg border px-3 py-2 ${
+      className={`rounded-lg border px-3 py-2 ${
         day.isToday
           ? "border-[#F78C10] bg-[#F78C10]/5"
           : "border-gray-200 bg-white"
       }`}
     >
-      {/* Weekday + Date */}
-      <div className="w-16 flex-shrink-0">
-        <div
-          className={`text-sm font-medium ${
-            day.isToday ? "text-[#F78C10]" : "text-gray-700"
-          }`}
-        >
-          {weekdayInfo?.shortLabel} {formatShortDate(day.date)}
-        </div>
-        {day.isToday && <div className="text-[10px] text-[#F78C10]">heute</div>}
-      </div>
-
-      {/* Content */}
-      {day.showSick ? (
-        <div className="inline-flex items-center gap-1 rounded-full bg-pink-100 px-2 py-0.5 text-xs font-medium text-pink-700">
-          <span className="h-1.5 w-1.5 rounded-full bg-pink-500" />
-          <span>Krank</span>
-        </div>
-      ) : (
-        <>
-          {/* Time */}
-          <div className="w-12 flex-shrink-0 text-sm font-semibold text-gray-900">
-            {effectiveTime ?? "—"}
+      {/* Top row: weekday, time, indicators, edit */}
+      <div className="flex items-center gap-3">
+        {/* Weekday + Date */}
+        <div className="w-16 flex-shrink-0">
+          <div
+            className={`text-sm font-medium ${
+              day.isToday ? "text-[#F78C10]" : "text-gray-700"
+            }`}
+          >
+            {weekdayInfo?.shortLabel} {formatShortDate(day.date)}
           </div>
+          {day.isToday && (
+            <div className="text-[10px] text-[#F78C10]">heute</div>
+          )}
+        </div>
 
-          {/* Exception indicator + notes */}
-          <div className="flex min-w-0 flex-1 items-center gap-1.5">
-            {day.isException && day.exception && (
+        {/* Content */}
+        {day.showSick ? (
+          <div
+            className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium text-white"
+            style={{ backgroundColor: "#EAB308" }}
+          >
+            <span className="h-1.5 w-1.5 rounded-full bg-white/80" />
+            <span>Krank</span>
+          </div>
+        ) : (
+          <>
+            {/* Time */}
+            <div className="w-12 flex-shrink-0 text-sm font-semibold text-gray-900">
+              {effectiveTime ?? "—"}
+            </div>
+
+            {/* Exception indicator */}
+            <div className="min-w-0 flex-1">
+              {day.isException && (
+                <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-orange-100 text-orange-600">
+                  <svg
+                    className="h-3 w-3"
+                    viewBox="0 0 20 20"
+                    fill="currentColor"
+                  >
+                    <circle cx="10" cy="10" r="5" />
+                  </svg>
+                </span>
+              )}
+            </div>
+
+            {/* Edit button */}
+            {!readOnly && (
               <button
-                type="button"
-                className="flex h-5 w-5 flex-shrink-0 cursor-pointer items-center justify-center rounded-full bg-orange-100 text-orange-600"
-                onClick={() => !readOnly && onEditException(day.exception!)}
-                title={readOnly ? day.exception.reason : "Ausnahme bearbeiten"}
-                disabled={readOnly}
+                onClick={() => onEditDay(day)}
+                className="flex-shrink-0 rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+                title="Tag bearbeiten"
               >
-                <svg
-                  className="h-3 w-3"
-                  viewBox="0 0 20 20"
-                  fill="currentColor"
-                >
-                  <circle cx="10" cy="10" r="5" />
-                </svg>
+                <SquarePen className="h-4 w-4" />
               </button>
             )}
-            {day.effectiveNotes && (
-              <span className="truncate text-sm text-gray-500">
-                {day.effectiveNotes}
-              </span>
-            )}
-          </div>
+          </>
+        )}
+      </div>
 
-          {/* Edit/Delete for exceptions */}
-          {!readOnly && day.isException && day.exception && (
-            <button
-              onClick={() => onDeleteException(day.exception!)}
-              className="flex-shrink-0 rounded p-1 text-gray-400 hover:bg-red-50 hover:text-red-600"
-              title="Ausnahme löschen"
-            >
-              <svg
-                className="h-4 w-4"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                />
-              </svg>
-            </button>
+      {/* Notes below (full width) */}
+      {!day.showSick && hasNotes && (
+        <div className="mt-1.5 space-y-0.5 pl-[76px]">
+          {day.baseSchedule?.notes && (
+            <div className="flex items-start gap-1 text-xs text-gray-400 italic">
+              <StickyNote className="mt-0.5 h-3 w-3 flex-shrink-0" />
+              <span>{day.baseSchedule.notes}</span>
+            </div>
           )}
-        </>
+          {day.notes.map((note) => (
+            <div
+              key={note.id}
+              className="flex items-start gap-1 text-xs text-gray-500"
+            >
+              <StickyNote className="mt-0.5 h-3 w-3 flex-shrink-0 text-gray-400" />
+              <span>{note.content}</span>
+            </div>
+          ))}
+        </div>
       )}
     </div>
   );
@@ -475,12 +456,7 @@ function DayRow({
 // Day Cell Component (Desktop)
 // ============================================
 
-function DayCell({
-  day,
-  readOnly,
-  onEditException,
-  onDeleteException,
-}: DayComponentProps) {
+function DayCell({ day, readOnly, onEditDay }: DayComponentProps) {
   const weekdayInfo = WEEKDAYS[day.weekday - 1];
   const effectiveTime = day.effectiveTime
     ? formatPickupTime(day.effectiveTime)
@@ -494,7 +470,7 @@ function DayCell({
           : "border-gray-200 bg-white"
       }`}
     >
-      {/* Weekday + Exception indicator */}
+      {/* Weekday + indicators */}
       <div className="flex items-center justify-center gap-1">
         <div
           className={`text-xs font-medium ${
@@ -504,19 +480,14 @@ function DayCell({
           {weekdayInfo?.shortLabel}
         </div>
         {day.isException && (
-          <button
-            type="button"
-            className="flex h-4 w-4 cursor-pointer items-center justify-center rounded-full bg-orange-100 text-orange-600"
-            onClick={() =>
-              !readOnly && day.exception && onEditException(day.exception)
-            }
-            title={day.exception?.reason ?? "Ausnahme"}
-            disabled={readOnly}
+          <span
+            className="flex h-4 w-4 items-center justify-center rounded-full bg-orange-100 text-orange-600"
+            title="Abweichende Zeit"
           >
             <svg className="h-2 w-2" viewBox="0 0 20 20" fill="currentColor">
               <circle cx="10" cy="10" r="5" />
             </svg>
-          </button>
+          </span>
         )}
       </div>
 
@@ -528,8 +499,11 @@ function DayCell({
 
       {/* Content */}
       {day.showSick ? (
-        <div className="mt-1 inline-flex items-center gap-1 rounded-full bg-pink-100 px-2 py-0.5 text-xs font-medium text-pink-700">
-          <span className="h-1.5 w-1.5 rounded-full bg-pink-500" />
+        <div
+          className="mt-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium text-white"
+          style={{ backgroundColor: "#EAB308" }}
+        >
+          <span className="h-1.5 w-1.5 rounded-full bg-white/80" />
           <span>Krank</span>
         </div>
       ) : (
@@ -539,40 +513,35 @@ function DayCell({
             {effectiveTime ?? "—"}
           </div>
 
-          {/* Notes */}
-          {day.effectiveNotes && (
-            <div
-              title={day.effectiveNotes}
-              className={`mt-1 truncate text-xs ${
-                day.isException ? "text-orange-600" : "text-gray-500"
-              }`}
-            >
-              {day.effectiveNotes}
+          {/* Schedule note (recurring weekly) */}
+          {day.baseSchedule?.notes && (
+            <div className="mt-1 flex items-start justify-center gap-1 text-xs text-gray-400 italic">
+              <StickyNote className="mt-0.5 h-3 w-3 flex-shrink-0" />
+              <span className="text-left">{day.baseSchedule.notes}</span>
             </div>
           )}
+
+          {/* Day-specific notes */}
+          {day.notes.map((note) => (
+            <div
+              key={note.id}
+              className="mt-1 flex items-start justify-center gap-1 text-xs text-gray-500"
+            >
+              <StickyNote className="mt-0.5 h-3 w-3 flex-shrink-0 text-gray-400" />
+              <span className="text-left">{note.content}</span>
+            </div>
+          ))}
         </>
       )}
 
-      {/* Delete button for exceptions (hover only on desktop) */}
-      {!readOnly && day.isException && day.exception && (
+      {/* Edit button — always visible */}
+      {!readOnly && (
         <button
-          onClick={() => onDeleteException(day.exception!)}
-          className="absolute top-1 right-1 hidden rounded p-1 text-gray-400 group-hover:block hover:bg-red-50 hover:text-red-600"
-          title="Ausnahme löschen"
+          onClick={() => onEditDay(day)}
+          className="absolute top-1 right-1 rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+          title="Tag bearbeiten"
         >
-          <svg
-            className="h-3.5 w-3.5"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M6 18L18 6M6 6l12 12"
-            />
-          </svg>
+          <SquarePen className="h-3.5 w-3.5" />
         </button>
       )}
     </div>

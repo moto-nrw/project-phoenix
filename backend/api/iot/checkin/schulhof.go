@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 
+	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/constants"
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/base"
@@ -80,10 +81,10 @@ func (rs *Resource) ensureSchulhofCategory(ctx context.Context) (*activities.Cat
 // infrastructure (room, category, activity) on first use if not found.
 func (rs *Resource) schulhofActivityGroup(ctx context.Context) (*activities.Group, error) {
 	// Build filter for Schulhof activity using constant
-	// Use qualified column name to avoid ambiguity with category.name
+	// WithTableAlias("group") is applied in the repository, so use unqualified field name
 	options := base.NewQueryOptions()
 	filter := base.NewFilter()
-	filter.Equal("group.name", constants.SchulhofActivityName)
+	filter.Equal("name", constants.SchulhofActivityName)
 	options.Filter = filter
 
 	// Query activities service
@@ -114,12 +115,19 @@ func (rs *Resource) schulhofActivityGroup(ctx context.Context) (*activities.Grou
 	}
 
 	// Step 3: Create the Schulhof activity group
+	// Get staff ID from device authentication context - required for created_by FK
+	staffCtx := device.StaffFromCtx(ctx)
+	if staffCtx == nil {
+		return nil, fmt.Errorf("schulhof activity auto-create requires staff context (scan staff RFID first)")
+	}
+
 	newActivity := &activities.Group{
 		Name:            constants.SchulhofActivityName,
 		MaxParticipants: constants.SchulhofMaxParticipants,
 		IsOpen:          true, // Open activity - anyone can join
 		CategoryID:      category.ID,
 		PlannedRoomID:   &room.ID,
+		CreatedBy:       staffCtx.ID,
 	}
 
 	// CreateGroup requires supervisorIDs and schedules - pass empty slices for auto-created activity

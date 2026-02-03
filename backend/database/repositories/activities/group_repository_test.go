@@ -27,7 +27,8 @@ func TestActivityGroupRepository_Create(t *testing.T) {
 
 	t.Run("creates activity group with valid data", func(t *testing.T) {
 		category := testpkg.CreateTestActivityCategory(t, db, "GroupCreate")
-		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, category.ID, 0)
+		staff := testpkg.CreateTestStaff(t, db, "GroupCreate", "Staff")
+		defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID, 0, category.ID, 0)
 
 		uniqueName := fmt.Sprintf("TestGroup-%d", time.Now().UnixNano())
 		group := &activities.Group{
@@ -35,6 +36,7 @@ func TestActivityGroupRepository_Create(t *testing.T) {
 			CategoryID:      category.ID,
 			MaxParticipants: 20,
 			IsOpen:          true,
+			CreatedBy:       staff.ID,
 		}
 
 		err := repo.Create(ctx, group)
@@ -46,7 +48,8 @@ func TestActivityGroupRepository_Create(t *testing.T) {
 
 	t.Run("creates closed activity group", func(t *testing.T) {
 		category := testpkg.CreateTestActivityCategory(t, db, "ClosedGroup")
-		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, category.ID, 0)
+		staff := testpkg.CreateTestStaff(t, db, "ClosedGroup", "Staff")
+		defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID, 0, category.ID, 0)
 
 		uniqueName := fmt.Sprintf("ClosedGroup-%d", time.Now().UnixNano())
 		group := &activities.Group{
@@ -54,6 +57,7 @@ func TestActivityGroupRepository_Create(t *testing.T) {
 			CategoryID:      category.ID,
 			MaxParticipants: 15,
 			IsOpen:          false,
+			CreatedBy:       staff.ID,
 		}
 
 		err := repo.Create(ctx, group)

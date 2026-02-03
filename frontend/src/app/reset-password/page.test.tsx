@@ -1,4 +1,10 @@
-import { render, screen, waitFor, fireEvent, act } from "@testing-library/react";
+import {
+  render,
+  screen,
+  waitFor,
+  fireEvent,
+  act,
+} from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import ResetPasswordPage from "./page";
 
@@ -50,7 +56,9 @@ describe("ResetPasswordPage", () => {
     expect(screen.getByText("• Mindestens 8 Zeichen lang")).toBeInTheDocument();
     expect(screen.getByText("• Groß- und Kleinbuchstaben")).toBeInTheDocument();
     expect(screen.getByText("• Mindestens eine Zahl")).toBeInTheDocument();
-    expect(screen.getByText("• Mindestens ein Sonderzeichen")).toBeInTheDocument();
+    expect(
+      screen.getByText("• Mindestens ein Sonderzeichen"),
+    ).toBeInTheDocument();
   });
 
   it("displays error when token is missing", async () => {
@@ -77,7 +85,9 @@ describe("ResetPasswordPage", () => {
   it("renders submit button", () => {
     render(<ResetPasswordPage />);
 
-    const submitButton = screen.getByRole("button", { name: /Passwort ändern/i });
+    const submitButton = screen.getByRole("button", {
+      name: /Passwort ändern/i,
+    });
     expect(submitButton).toBeInTheDocument();
   });
 
@@ -106,7 +116,9 @@ describe("ResetPasswordPage", () => {
     render(<ResetPasswordPage />);
 
     await waitFor(() => {
-      const submitButton = screen.getByRole("button", { name: /Passwort ändern/i });
+      const submitButton = screen.getByRole("button", {
+        name: /Passwort ändern/i,
+      });
       expect(submitButton).toBeDisabled();
     });
   });
@@ -156,10 +168,14 @@ describe("ResetPasswordPage", () => {
 
     await act(async () => {
       fireEvent.change(passwordInput, { target: { value: "ValidPass1!" } });
-      fireEvent.change(confirmPasswordInput, { target: { value: "ValidPass1!" } });
+      fireEvent.change(confirmPasswordInput, {
+        target: { value: "ValidPass1!" },
+      });
     });
 
-    const submitButton = screen.getByRole("button", { name: /Passwort ändern/i });
+    const submitButton = screen.getByRole("button", {
+      name: /Passwort ändern/i,
+    });
 
     await act(async () => {
       fireEvent.click(submitButton);
@@ -182,17 +198,23 @@ describe("ResetPasswordPage", () => {
 
     await act(async () => {
       fireEvent.change(passwordInput, { target: { value: "ValidPass1!" } });
-      fireEvent.change(confirmPasswordInput, { target: { value: "ValidPass1!" } });
+      fireEvent.change(confirmPasswordInput, {
+        target: { value: "ValidPass1!" },
+      });
     });
 
-    const submitButton = screen.getByRole("button", { name: /Passwort ändern/i });
+    const submitButton = screen.getByRole("button", {
+      name: /Passwort ändern/i,
+    });
 
     await act(async () => {
       fireEvent.click(submitButton);
     });
 
     await waitFor(() => {
-      expect(screen.getByText("Passwort erfolgreich geändert!")).toBeInTheDocument();
+      expect(
+        screen.getByText("Passwort erfolgreich geändert!"),
+      ).toBeInTheDocument();
     });
   });
 
@@ -204,10 +226,14 @@ describe("ResetPasswordPage", () => {
 
     await act(async () => {
       fireEvent.change(passwordInput, { target: { value: "ValidPass1!" } });
-      fireEvent.change(confirmPasswordInput, { target: { value: "ValidPass1!" } });
+      fireEvent.change(confirmPasswordInput, {
+        target: { value: "ValidPass1!" },
+      });
     });
 
-    const submitButton = screen.getByRole("button", { name: /Passwort ändern/i });
+    const submitButton = screen.getByRole("button", {
+      name: /Passwort ändern/i,
+    });
 
     await act(async () => {
       fireEvent.click(submitButton);
@@ -231,7 +257,9 @@ describe("ResetPasswordPage", () => {
       fireEvent.change(confirmPasswordInput, { target: { value: "Short1!" } });
     });
 
-    const submitButton = screen.getByRole("button", { name: /Passwort ändern/i });
+    const submitButton = screen.getByRole("button", {
+      name: /Passwort ändern/i,
+    });
 
     await act(async () => {
       fireEvent.click(submitButton);
@@ -254,10 +282,14 @@ describe("ResetPasswordPage", () => {
 
     await act(async () => {
       fireEvent.change(passwordInput, { target: { value: "lowercase1!" } });
-      fireEvent.change(confirmPasswordInput, { target: { value: "lowercase1!" } });
+      fireEvent.change(confirmPasswordInput, {
+        target: { value: "lowercase1!" },
+      });
     });
 
-    const submitButton = screen.getByRole("button", { name: /Passwort ändern/i });
+    const submitButton = screen.getByRole("button", {
+      name: /Passwort ändern/i,
+    });
 
     await act(async () => {
       fireEvent.click(submitButton);
@@ -265,7 +297,9 @@ describe("ResetPasswordPage", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText("Das Passwort muss mindestens einen Großbuchstaben enthalten."),
+        screen.getByText(
+          "Das Passwort muss mindestens einen Großbuchstaben enthalten.",
+        ),
       ).toBeInTheDocument();
     });
   });
@@ -278,10 +312,14 @@ describe("ResetPasswordPage", () => {
 
     await act(async () => {
       fireEvent.change(passwordInput, { target: { value: "ValidPass1!" } });
-      fireEvent.change(confirmPasswordInput, { target: { value: "Different1!" } });
+      fireEvent.change(confirmPasswordInput, {
+        target: { value: "Different1!" },
+      });
     });
 
-    const submitButton = screen.getByRole("button", { name: /Passwort ändern/i });
+    const submitButton = screen.getByRole("button", {
+      name: /Passwort ändern/i,
+    });
 
     await act(async () => {
       fireEvent.click(submitButton);
@@ -307,10 +345,14 @@ describe("ResetPasswordPage", () => {
 
     await act(async () => {
       fireEvent.change(passwordInput, { target: { value: "ValidPass1!" } });
-      fireEvent.change(confirmPasswordInput, { target: { value: "ValidPass1!" } });
+      fireEvent.change(confirmPasswordInput, {
+        target: { value: "ValidPass1!" },
+      });
     });
 
-    const submitButton = screen.getByRole("button", { name: /Passwort ändern/i });
+    const submitButton = screen.getByRole("button", {
+      name: /Passwort ändern/i,
+    });
 
     await act(async () => {
       fireEvent.click(submitButton);
@@ -338,10 +380,14 @@ describe("ResetPasswordPage", () => {
 
     await act(async () => {
       fireEvent.change(passwordInput, { target: { value: "ValidPass1!" } });
-      fireEvent.change(confirmPasswordInput, { target: { value: "ValidPass1!" } });
+      fireEvent.change(confirmPasswordInput, {
+        target: { value: "ValidPass1!" },
+      });
     });
 
-    const submitButton = screen.getByRole("button", { name: /Passwort ändern/i });
+    const submitButton = screen.getByRole("button", {
+      name: /Passwort ändern/i,
+    });
 
     await act(async () => {
       fireEvent.click(submitButton);
@@ -368,10 +414,14 @@ describe("ResetPasswordPage", () => {
 
     await act(async () => {
       fireEvent.change(passwordInput, { target: { value: "ValidPass1!" } });
-      fireEvent.change(confirmPasswordInput, { target: { value: "ValidPass1!" } });
+      fireEvent.change(confirmPasswordInput, {
+        target: { value: "ValidPass1!" },
+      });
     });
 
-    const submitButton = screen.getByRole("button", { name: /Passwort ändern/i });
+    const submitButton = screen.getByRole("button", {
+      name: /Passwort ändern/i,
+    });
 
     await act(async () => {
       fireEvent.click(submitButton);

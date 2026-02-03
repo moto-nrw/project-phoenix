@@ -32,6 +32,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | Database | PostgreSQL 17+ (multi-schema, SSL) |
 | Auth | JWT (15min access, 1hr refresh) |
 | Testing | Go tests + Bruno API tests |
+| License | Source-Available (see [LICENSE](LICENSE)) |
 
 ---
 
@@ -207,12 +208,18 @@ devbox add <tool>@latest    # Add to devbox.json
 | View logs | `docker compose logs -f server` |
 | Run migrations | `docker compose run server ./main migrate` |
 
+**Database names:** Production/dev DB is `postgres` (default), test DB is `phoenix_test` (port 5433). If unsure, check `DB_DSN` in the relevant docker-compose file.
+
 ### Test Database (port 5433)
 ```bash
-docker compose --profile test up -d postgres-test  # Start test DB
+docker compose --profile test up -d postgres-test  # Start test DB (isolated network)
+docker compose --profile test down                 # Stop test DB (required: plain `down` won't stop it)
 APP_ENV=test go run main.go migrate reset          # Setup test DB
 go test ./...                                       # Run tests
 ```
+> **Note:** The test DB runs on an isolated `test` network to prevent
+> "network still in use" errors when running `docker compose down`.
+> Always use `--profile test` to start/stop it.
 
 ---
 
@@ -285,17 +292,19 @@ docker compose exec server ./main migrate  # Run migrations
 
 ### Test Database (Integration Tests - Detailed)
 ```bash
-# Start test DB (port 5433)
+# Start test DB (port 5433, isolated network)
 docker compose --profile test up -d postgres-test
+
+# Stop test DB (plain `docker compose down` won't stop it — use --profile)
+docker compose --profile test down
 
 # Run migrations on test DB
 docker compose run --rm \
   -e DB_DSN="postgres://postgres:postgres@postgres-test:5432/phoenix_test?sslmode=disable" \
   server ./main migrate
 
-# Run tests
-TEST_DB_DSN="postgres://postgres:postgres@localhost:5433/phoenix_test?sslmode=disable" \
-  go test ./services/active/... -v
+# Run tests (APP_ENV=test is auto-set by SetupTestDB)
+go test ./services/active/... -v
 ```
 
 ---
@@ -438,10 +447,41 @@ ENABLE_CORS=true              # Required for local dev
 
 ### Frontend (`frontend/.env.local`)
 ```bash
-NEXT_PUBLIC_API_URL=http://localhost:8080
+NEXT_PUBLIC_API_URL=http://localhost:8080  # Client-side (browser)
+API_URL=                                   # Server-side (optional, see below)
 NEXTAUTH_URL=http://localhost:3000
 NEXTAUTH_SECRET=your_secret   # openssl rand -base64 32
 ```
+
+### Frontend API URL Architecture (IMPORTANT)
+
+Two separate environment variables control how the frontend reaches the backend:
+
+| Variable | Context | Purpose |
+|----------|---------|---------|
+| `NEXT_PUBLIC_API_URL` | **Client-side** (browser) | Used by Axios in the browser. Must be reachable from the user's browser. |
+| `API_URL` | **Server-side** (Next.js server) | Used by API route handlers, SSR, auth, SSE proxy. Uses internal Docker network in production. |
+
+**How it works:**
+- `getServerApiUrl()` from `~/lib/server-api-url` returns `API_URL` if set, otherwise falls back to `NEXT_PUBLIC_API_URL`
+- All server-side code (API routes, auth, SSE, `serverFetchWithRetry`) uses `getServerApiUrl()`
+- The Axios client (`lib/api.ts:425 baseURL`) uses `env.NEXT_PUBLIC_API_URL` directly (client-side only)
+
+**Local development:** `API_URL` is not set → both server and client use `NEXT_PUBLIC_API_URL` (localhost:8080)
+
+**Docker/Production:** `API_URL=http://server:8080` → server-side calls stay inside the Docker network, avoiding a round-trip through the internet/reverse proxy
+
+```yaml
+# docker-compose.yml
+frontend:
+  environment:
+    API_URL: "http://server:8080"                              # Internal Docker network
+    NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-"http://server:8080"}  # Browser-accessible
+```
+
+**Server-only files** (API route handlers in `app/api/`, auth config, token-refresh, SSE proxy, `api-helpers.ts`): use `getServerApiUrl()`.
+
+**Mixed client/server lib files** (`lib/api.ts`, `lib/active-service.ts`, `lib/activity-api.ts`, `lib/student-api.ts`, `lib/usercontext-api.ts`, `lib/auth-service.ts`): use `env.NEXT_PUBLIC_API_URL` — importing `getServerApiUrl()` here causes t3-env to throw "Attempted to access a server-side environment variable on the client".
 
 ---
 

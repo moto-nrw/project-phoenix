@@ -7,6 +7,7 @@ import (
 	"math/rand"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/models/users"
 )
@@ -48,7 +49,14 @@ var exceptionReasons = []string{
 // seedPickupSchedules creates weekly pickup schedules and exceptions for students
 func (s *Seeder) seedPickupSchedules(ctx context.Context) error {
 	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
-	createdBy := s.result.AdminAccount.ID
+
+	// Use first staff member as creator (FK references users.staff, not auth.accounts)
+	var createdBy int64
+	if len(s.result.Staff) > 0 {
+		createdBy = s.result.Staff[0].ID
+	} else {
+		return fmt.Errorf("no staff members available for pickup schedule creation")
+	}
 
 	scheduleCount := 0
 	exceptionCount := 0
@@ -211,11 +219,12 @@ func (s *Seeder) createException(ctx context.Context, rng *rand.Rand, studentID 
 		return false, fmt.Errorf("failed to parse exception time: %w", err)
 	}
 
+	reason := exceptionReasons[rng.Intn(len(exceptionReasons))]
 	exception := &schedule.StudentPickupException{
 		StudentID:     studentID,
 		ExceptionDate: exceptionDate,
 		PickupTime:    &exceptionTime,
-		Reason:        exceptionReasons[rng.Intn(len(exceptionReasons))],
+		Reason:        &reason,
 		CreatedBy:     createdBy,
 	}
 	exception.CreatedAt = time.Now()
@@ -234,16 +243,19 @@ func (s *Seeder) createException(ctx context.Context, rng *rand.Rand, studentID 
 }
 
 // generateExceptionDate generates a random weekday within the next 2 weeks
+// Returns UTC midnight of the date in Berlin timezone for consistent DB storage
 func generateExceptionDate(rng *rand.Rand) time.Time {
 	daysFromNow := rng.Intn(14) + 1
-	date := time.Now().AddDate(0, 0, daysFromNow)
+	// Use Berlin timezone to ensure consistent date calculation
+	date := timezone.Now().AddDate(0, 0, daysFromNow)
 
 	// Skip weekends
 	for date.Weekday() == time.Saturday || date.Weekday() == time.Sunday {
 		date = date.AddDate(0, 0, 1)
 	}
 
-	return date
+	// Return as UTC midnight for consistent DB storage
+	return timezone.DateOfUTC(date)
 }
 
 // parseTimeOnly parses a time string (HH:MM) into a time.Time with only hour/minute set

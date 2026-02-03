@@ -1,12 +1,10 @@
 package migrations
 
 import (
-	"context"
 	"fmt"
 	"sort"
 	"strings"
 
-	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/migrate"
 )
 
@@ -31,8 +29,9 @@ func RegisteredMigrations() []*Migration {
 	return migrations
 }
 
-// ValidateMigrations validates migration dependencies and ordering
-func ValidateMigrations(_ context.Context, _ *bun.DB) error {
+// ValidateMigrations validates migration dependencies and ordering.
+// This is a pure in-memory check against the registered migration graph — no database needed.
+func ValidateMigrations() error {
 	migrations := RegisteredMigrations()
 
 	// Build a set of all migration versions

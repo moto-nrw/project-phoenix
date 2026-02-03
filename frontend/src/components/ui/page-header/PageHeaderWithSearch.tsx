@@ -123,7 +123,7 @@ function TabsSection({
 }: TabsSectionProps) {
   return (
     <div className="mt-4 mb-4 md:mt-0">
-      <div className="flex items-end justify-between gap-2 md:gap-4">
+      <div className="flex items-center justify-between gap-2 md:items-end md:gap-4">
         <NavigationTabs {...tabs} className="min-w-0 flex-1" />
 
         <DesktopTabsActionArea
@@ -282,7 +282,7 @@ function DesktopSearchSection({
   }
 
   const searchBarClass =
-    hasFilters || hasActionContent ? "w-64 lg:w-96" : "flex-1";
+    hasFilters || hasActionContent ? "min-w-48 max-w-96 flex-1" : "flex-1";
 
   return (
     <div className="mb-6 hidden lg:block">

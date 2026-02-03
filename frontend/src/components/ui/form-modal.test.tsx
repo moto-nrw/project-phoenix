@@ -1,10 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import {
-  render,
-  screen,
-  fireEvent,
-  act,
-} from "@testing-library/react";
+import { render, screen, fireEvent, act } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { FormModal } from "./form-modal";
 import { ModalProvider } from "../dashboard/modal-context";
@@ -67,7 +62,9 @@ describe("FormModal", () => {
       vi.advanceTimersByTime(20);
     });
 
-    const closeButton = screen.getAllByRole("button", { name: /schließen/i })[0];
+    const closeButton = screen.getAllByRole("button", {
+      name: /schließen/i,
+    })[0];
     fireEvent.click(closeButton!);
 
     await act(async () => {

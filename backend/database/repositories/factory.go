@@ -11,6 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories/feedback"
 	"github.com/moto-nrw/project-phoenix/database/repositories/iot"
 	"github.com/moto-nrw/project-phoenix/database/repositories/schedule"
+	suggestionsRepo "github.com/moto-nrw/project-phoenix/database/repositories/suggestions"
 	"github.com/moto-nrw/project-phoenix/database/repositories/users"
 
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
@@ -23,6 +24,7 @@ import (
 	feedbackModels "github.com/moto-nrw/project-phoenix/models/feedback"
 	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	suggestionsModels "github.com/moto-nrw/project-phoenix/models/suggestions"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 
 	"github.com/uptrace/bun"
@@ -73,6 +75,7 @@ type Factory struct {
 	RecurrenceRule         scheduleModels.RecurrenceRuleRepository
 	StudentPickupSchedule  scheduleModels.StudentPickupScheduleRepository
 	StudentPickupException scheduleModels.StudentPickupExceptionRepository
+	StudentPickupNote      scheduleModels.StudentPickupNoteRepository
 
 	// Activities domain
 	ActivityGroup      activitiesModels.GroupRepository
@@ -101,6 +104,10 @@ type Factory struct {
 	SettingValue      configModels.SettingValueRepository
 	SettingAudit      configModels.SettingAuditRepository
 	SettingTab        configModels.SettingTabRepository
+
+	// Suggestions domain
+	SuggestionPost suggestionsModels.PostRepository
+	SuggestionVote suggestionsModels.VoteRepository
 
 	// Audit domain
 	DataDeletion auditModels.DataDeletionRepository
@@ -154,6 +161,7 @@ func NewFactory(db *bun.DB) *Factory {
 		RecurrenceRule:         schedule.NewRecurrenceRuleRepository(db),
 		StudentPickupSchedule:  schedule.NewStudentPickupScheduleRepository(db),
 		StudentPickupException: schedule.NewStudentPickupExceptionRepository(db),
+		StudentPickupNote:      schedule.NewStudentPickupNoteRepository(db),
 
 		// Activities repositories
 		ActivityGroup:      activities.NewGroupRepository(db),
@@ -182,6 +190,10 @@ func NewFactory(db *bun.DB) *Factory {
 		SettingValue:      config.NewSettingValueRepository(db),
 		SettingAudit:      config.NewSettingAuditRepository(db),
 		SettingTab:        config.NewSettingTabRepository(db),
+
+		// Suggestions repositories
+		SuggestionPost: suggestionsRepo.NewPostRepository(db),
+		SuggestionVote: suggestionsRepo.NewVoteRepository(db),
 
 		// Audit repositories
 		DataDeletion: audit.NewDataDeletionRepository(db),

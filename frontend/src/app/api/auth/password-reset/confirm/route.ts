@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { env } from "~/env";
+import { getServerApiUrl } from "~/lib/server-api-url";
 
 interface PasswordResetConfirmRequest {
   token: string;
@@ -15,7 +15,7 @@ export async function POST(request: NextRequest) {
     const body = (await request.json()) as PasswordResetConfirmRequest;
 
     const response = await fetch(
-      `${env.NEXT_PUBLIC_API_URL}/auth/password-reset/confirm`,
+      `${getServerApiUrl()}/auth/password-reset/confirm`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },

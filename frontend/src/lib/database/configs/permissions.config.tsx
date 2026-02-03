@@ -161,12 +161,20 @@ export const permissionsConfig = defineEntityConfig<Permission>({
           {
             label: "Erstellt am",
             value: (p: Permission) =>
-              new Date(p.createdAt).toLocaleDateString("de-DE"),
+              new Date(p.createdAt).toLocaleDateString("de-DE", {
+                day: "2-digit",
+                month: "2-digit",
+                year: "numeric",
+              }),
           },
           {
             label: "Aktualisiert am",
             value: (p: Permission) =>
-              new Date(p.updatedAt).toLocaleDateString("de-DE"),
+              new Date(p.updatedAt).toLocaleDateString("de-DE", {
+                day: "2-digit",
+                month: "2-digit",
+                year: "numeric",
+              }),
           },
         ],
       },

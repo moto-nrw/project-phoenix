@@ -39,14 +39,11 @@ function TabsActionArea({
 
   const isDesktop = variant === "desktop";
 
-  // Render action button if present
-  if (actionButton) {
-    return <>{actionButton}</>;
-  }
-
-  // Render status/badge indicators
+  // Render action button + badge/status together when both present
+  // Render status/badge indicators (also shown alongside action button)
   return (
     <>
+      {actionButton}
       {statusIndicator && (
         <StatusIndicator
           color={statusIndicator.color}
@@ -100,7 +97,7 @@ export function MobileTabsActionArea(
   if (!actionButton && !statusIndicator && !badge) return null;
 
   return (
-    <div className="mr-2 flex flex-shrink-0 items-center gap-2 pb-3 md:hidden md:gap-3">
+    <div className="mr-2 flex flex-shrink-0 items-center gap-2 md:hidden md:gap-3">
       <TabsActionArea {...props} variant="mobile" />
     </div>
   );

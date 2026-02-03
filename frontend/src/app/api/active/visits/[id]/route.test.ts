@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { Session } from "next-auth";
 import { NextRequest } from "next/server";
 import { GET, PUT, DELETE } from "./route";
+import { mockSessionData } from "~/test/mocks/next-auth";
 
 // ============================================================================
 // Types
@@ -71,10 +72,7 @@ function createMockContext(
   return { params: Promise.resolve(params) };
 }
 
-const defaultSession: ExtendedSession = {
-  user: { id: "1", token: "test-token", name: "Test User" },
-  expires: "2099-01-01",
-};
+const defaultSession = mockSessionData() as ExtendedSession;
 
 interface ApiResponse<T> {
   success: boolean;

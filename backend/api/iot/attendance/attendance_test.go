@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
@@ -465,8 +466,8 @@ func TestToggleAttendance_DailyCheckoutNoActiveVisit(t *testing.T) {
 	router := chi.NewRouter()
 	router.Post("/toggle", ctx.resource.ToggleAttendanceHandler())
 
-	// Daily checkout when student has no active visit
-	// The service returns an error when visit not found, which results in 500
+	// Daily checkout when student has no attendance record
+	// The handler returns 404 when the student was never checked in today
 	dest := "zuhause"
 	body := map[string]interface{}{
 		"rfid":        rfidCard.ID,
@@ -480,9 +481,9 @@ func TestToggleAttendance_DailyCheckoutNoActiveVisit(t *testing.T) {
 
 	rr := testutil.ExecuteRequest(router, req)
 
-	// Service returns error when visit not found, handler returns 500
+	// Student has no attendance record, handler returns 404
 	// This tests the error handling path in handleDailyCheckout
-	testutil.AssertErrorResponse(t, rr, http.StatusInternalServerError)
+	testutil.AssertErrorResponse(t, rr, http.StatusNotFound)
 }
 
 func TestToggleAttendance_NormalToggleValidStudent(t *testing.T) {
@@ -560,7 +561,7 @@ func TestToggleAttendance_DailyCheckoutUnterwegs(t *testing.T) {
 	router := chi.NewRouter()
 	router.Post("/toggle", ctx.resource.ToggleAttendanceHandler())
 
-	// Daily checkout with "unterwegs" destination - tests the other destination branch
+	// Daily checkout with "unterwegs" destination — student has no attendance record
 	dest := "unterwegs"
 	body := map[string]interface{}{
 		"rfid":        rfidCard.ID,
@@ -574,8 +575,8 @@ func TestToggleAttendance_DailyCheckoutUnterwegs(t *testing.T) {
 
 	rr := testutil.ExecuteRequest(router, req)
 
-	// Will fail at GetStudentCurrentVisit since no active visit
-	testutil.AssertErrorResponse(t, rr, http.StatusInternalServerError)
+	// Student has no attendance record, handler returns 404
+	testutil.AssertErrorResponse(t, rr, http.StatusNotFound)
 }
 
 func TestRouter_ReturnsValidRouter(t *testing.T) {
@@ -586,6 +587,280 @@ func TestRouter_ReturnsValidRouter(t *testing.T) {
 	require.NotNil(t, router, "Router should return a valid chi.Router")
 }
 
+// =============================================================================
+// DAILY CHECKOUT SUCCESS PATH TESTS
+// =============================================================================
+
+// TestToggleAttendance_DailyCheckoutZuhauseCheckedIn tests the daily checkout with
+// destination "zuhause" when the student IS checked in — the ToggleStudentAttendance path.
+func TestToggleAttendance_DailyCheckoutZuhauseCheckedIn(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	// ARRANGE: Create student with RFID and attendance record (checked_in)
+	testDevice := testpkg.CreateTestDevice(t, ctx.db, "daily-zuhause-checkedin-device")
+	student := testpkg.CreateTestStudent(t, ctx.db, "Zuhause", "CheckedIn", "5a")
+	staff := testpkg.CreateTestStaff(t, ctx.db, "Zuhause", "Staff")
+	rfidCard := testpkg.CreateTestRFIDCard(t, ctx.db, "TESTRFID_ZUHAUSE_IN001")
+	testpkg.LinkRFIDToStudent(t, ctx.db, student.PersonID, rfidCard.ID)
+
+	// Create attendance record: checked in, NOT checked out
+	checkInTime := time.Now().Add(-2 * time.Hour)
+	testpkg.CreateTestAttendance(t, ctx.db, student.ID, staff.ID, testDevice.ID, checkInTime, nil)
+
+	router := chi.NewRouter()
+	router.Post("/toggle", ctx.resource.ToggleAttendanceHandler())
+
+	dest := "zuhause"
+	body := map[string]interface{}{
+		"rfid":        rfidCard.ID,
+		"action":      "confirm_daily_checkout",
+		"destination": dest,
+	}
+
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/toggle", body,
+		testutil.WithDeviceContext(testDevice),
+		testutil.WithStaffContext(staff),
+	)
+
+	// ACT
+	rr := testutil.ExecuteRequest(router, req)
+
+	// ASSERT: Should succeed — student checked_in + zuhause triggers ToggleStudentAttendance
+	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+
+	// Verify response contains daily checkout action
+	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+	data, ok := response["data"].(map[string]interface{})
+	if ok {
+		assert.Equal(t, "checked_out_daily", data["action"])
+		assert.Contains(t, data["message"], "Tschüss")
+	}
+}
+
+// TestToggleAttendance_DailyCheckoutZuhauseAlreadyCheckedOut tests the daily checkout with
+// destination "zuhause" when the student is already checked out — the skip path.
+func TestToggleAttendance_DailyCheckoutZuhauseAlreadyCheckedOut(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	// ARRANGE: Create student with RFID and attendance record (already checked out)
+	testDevice := testpkg.CreateTestDevice(t, ctx.db, "daily-zuhause-checkedout-device")
+	student := testpkg.CreateTestStudent(t, ctx.db, "Zuhause", "CheckedOut", "5b")
+	staff := testpkg.CreateTestStaff(t, ctx.db, "Zuhause", "Staff2")
+	rfidCard := testpkg.CreateTestRFIDCard(t, ctx.db, "TESTRFID_ZUHAUSE_OUT001")
+	testpkg.LinkRFIDToStudent(t, ctx.db, student.PersonID, rfidCard.ID)
+
+	// Create attendance record: checked in AND checked out
+	checkInTime := time.Now().Add(-2 * time.Hour)
+	checkOutTime := time.Now().Add(-30 * time.Minute)
+	testpkg.CreateTestAttendance(t, ctx.db, student.ID, staff.ID, testDevice.ID, checkInTime, &checkOutTime)
+
+	router := chi.NewRouter()
+	router.Post("/toggle", ctx.resource.ToggleAttendanceHandler())
+
+	dest := "zuhause"
+	body := map[string]interface{}{
+		"rfid":        rfidCard.ID,
+		"action":      "confirm_daily_checkout",
+		"destination": dest,
+	}
+
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/toggle", body,
+		testutil.WithDeviceContext(testDevice),
+		testutil.WithStaffContext(staff),
+	)
+
+	// ACT
+	rr := testutil.ExecuteRequest(router, req)
+
+	// ASSERT: Should succeed — student already checked_out, skips toggle
+	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+
+	// Verify response
+	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+	data, ok := response["data"].(map[string]interface{})
+	if ok {
+		assert.Equal(t, "checked_out_daily", data["action"])
+		assert.Contains(t, data["message"], "Tschüss")
+	}
+}
+
+// TestToggleAttendance_DailyCheckoutUnterwegsCheckedIn tests the daily checkout with
+// destination "unterwegs" when the student is checked in — no attendance change.
+func TestToggleAttendance_DailyCheckoutUnterwegsCheckedIn(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	// ARRANGE: Create student with RFID and attendance record (checked_in)
+	testDevice := testpkg.CreateTestDevice(t, ctx.db, "daily-unterwegs-checkedin-device")
+	student := testpkg.CreateTestStudent(t, ctx.db, "Unterwegs", "CheckedIn", "5c")
+	staff := testpkg.CreateTestStaff(t, ctx.db, "Unterwegs", "Staff")
+	rfidCard := testpkg.CreateTestRFIDCard(t, ctx.db, "TESTRFID_UNTERWEGS_IN001")
+	testpkg.LinkRFIDToStudent(t, ctx.db, student.PersonID, rfidCard.ID)
+
+	// Create attendance record: checked in, NOT checked out
+	checkInTime := time.Now().Add(-2 * time.Hour)
+	testpkg.CreateTestAttendance(t, ctx.db, student.ID, staff.ID, testDevice.ID, checkInTime, nil)
+
+	router := chi.NewRouter()
+	router.Post("/toggle", ctx.resource.ToggleAttendanceHandler())
+
+	dest := "unterwegs"
+	body := map[string]interface{}{
+		"rfid":        rfidCard.ID,
+		"action":      "confirm_daily_checkout",
+		"destination": dest,
+	}
+
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/toggle", body,
+		testutil.WithDeviceContext(testDevice),
+		testutil.WithStaffContext(staff),
+	)
+
+	// ACT
+	rr := testutil.ExecuteRequest(router, req)
+
+	// ASSERT: Should succeed — "unterwegs" skips attendance change, returns "checked_out" action
+	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+
+	// Verify response — "unterwegs" returns action="checked_out" with "Viel Spaß!"
+	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+	data, ok := response["data"].(map[string]interface{})
+	if ok {
+		assert.Equal(t, "checked_out", data["action"])
+		assert.Equal(t, "Viel Spaß!", data["message"])
+	}
+}
+
+// TestToggleAttendance_DailyCheckoutNotCheckedIn tests daily checkout rejection
+// when the student has no attendance record (not_checked_in status).
+func TestToggleAttendance_DailyCheckoutNotCheckedIn(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	// ARRANGE: Create student with RFID but NO attendance record
+	testDevice := testpkg.CreateTestDevice(t, ctx.db, "daily-notcheckedin-device")
+	student := testpkg.CreateTestStudent(t, ctx.db, "NotCheckedIn", "Daily", "5d")
+	rfidCard := testpkg.CreateTestRFIDCard(t, ctx.db, "TESTRFID_NOTCHECKEDIN001")
+	testpkg.LinkRFIDToStudent(t, ctx.db, student.PersonID, rfidCard.ID)
+
+	router := chi.NewRouter()
+	router.Post("/toggle", ctx.resource.ToggleAttendanceHandler())
+
+	dest := "zuhause"
+	body := map[string]interface{}{
+		"rfid":        rfidCard.ID,
+		"action":      "confirm_daily_checkout",
+		"destination": dest,
+	}
+
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/toggle", body,
+		testutil.WithDeviceContext(testDevice),
+	)
+
+	// ACT
+	rr := testutil.ExecuteRequest(router, req)
+
+	// ASSERT: Should return 404 — student has no attendance record
+	testutil.AssertErrorResponse(t, rr, http.StatusNotFound)
+}
+
+// TestToggleAttendance_NormalToggleSuccess tests the full success path for normal toggle
+// when an active session exists with supervisor access via IoT device context.
+func TestToggleAttendance_NormalToggleSuccess(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	// ARRANGE: Create all fixtures needed for a complete toggle
+	testDevice := testpkg.CreateTestDevice(t, ctx.db, "normal-toggle-success-device")
+	student := testpkg.CreateTestStudent(t, ctx.db, "NormalToggle", "Success", "5e")
+	staff := testpkg.CreateTestStaff(t, ctx.db, "NormalToggle", "Staff")
+	rfidCard := testpkg.CreateTestRFIDCard(t, ctx.db, "TESTRFID_NORMALTOGGLE001")
+	testpkg.LinkRFIDToStudent(t, ctx.db, student.PersonID, rfidCard.ID)
+
+	// Create active session with supervisor (required for IoT device authorization)
+	activity := testpkg.CreateTestActivityGroup(t, ctx.db, "normal-toggle-activity")
+	room := testpkg.CreateTestRoom(t, ctx.db, "Normal Toggle Room")
+	activeGroup := testpkg.CreateTestActiveGroup(t, ctx.db, activity.ID, room.ID)
+
+	// Link device to active group
+	_, err := ctx.db.NewUpdate().
+		Model(activeGroup).
+		ModelTableExpr(`active.groups`).
+		Set("device_id = ?", testDevice.ID).
+		Where("id = ?", activeGroup.ID).
+		Exec(context.Background())
+	require.NoError(t, err)
+
+	// Create supervisor for the active group
+	testpkg.CreateTestGroupSupervisor(t, ctx.db, staff.ID, activeGroup.ID, "supervisor")
+
+	router := chi.NewRouter()
+	router.Post("/toggle", ctx.resource.ToggleAttendanceHandler())
+
+	body := map[string]interface{}{
+		"rfid":   rfidCard.ID,
+		"action": "confirm",
+	}
+
+	// Must include CtxIsIoTDevice so the service authorizes via device supervisor lookup
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/toggle", body,
+		testutil.WithDeviceContext(testDevice),
+		testutil.WithStaffContext(staff),
+		func(r *http.Request) {
+			reqCtx := context.WithValue(r.Context(), device.CtxIsIoTDevice, true)
+			*r = *r.WithContext(reqCtx)
+		},
+	)
+
+	// ACT: First toggle should check in
+	rr := testutil.ExecuteRequest(router, req)
+
+	// ASSERT: Should succeed — full success path with sendToggleResponse
+	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+
+	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+	data, ok := response["data"].(map[string]interface{})
+	if ok {
+		assert.Equal(t, "checked_in", data["action"])
+		assert.Contains(t, data["message"], "Hallo")
+		// Verify student info is present
+		studentInfo, _ := data["student"].(map[string]interface{})
+		if studentInfo != nil {
+			assert.NotEmpty(t, studentInfo["first_name"])
+		}
+	}
+}
+
+// TestToggleAttendance_PersonNotLinkedToRFID tests the path where RFID tag exists
+// in the persons table but the person has a nil tag (findStudentByRFID nil check).
+func TestToggleAttendance_PersonNotStudent(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	testDevice := testpkg.CreateTestDevice(t, ctx.db, "not-student-device")
+
+	// Create a staff member (non-student) with RFID
+	staff := testpkg.CreateTestStaff(t, ctx.db, "NotStudent", "Person")
+	rfidCard := testpkg.CreateTestRFIDCard(t, ctx.db, "TESTRFID_NOTSTUDENT001")
+	// Link RFID to staff's person (who is NOT a student)
+	testpkg.LinkRFIDToStudent(t, ctx.db, staff.PersonID, rfidCard.ID)
+
+	router := chi.NewRouter()
+	router.Get("/status/{rfid}", ctx.resource.GetAttendanceStatusHandler())
+
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/status/"+rfidCard.ID, nil,
+		testutil.WithDeviceContext(testDevice),
+	)
+
+	// ACT
+	rr := testutil.ExecuteRequest(router, req)
+
+	// ASSERT: Should return 404 — person is not a student
+	testutil.AssertNotFound(t, rr)
+}
+
 // NOTE: Full success paths for toggleAttendance and confirm_daily_checkout require
-// complex staff context setup and active visits/groups. These scenarios are better
-// covered by Bruno API tests which have full authentication context and real workflow setup.
+// complex staff context setup and active visits/groups. The tests above cover
+// these scenarios with real database fixtures.

@@ -1,10 +1,10 @@
 import { type NextRequest } from "next/server";
 import { createPostHandler } from "@/lib/route-wrapper";
-import { env } from "@/env";
+import { getServerApiUrl } from "~/lib/server-api-url";
 
 export const POST = createPostHandler(
   async (req: NextRequest, body: unknown, token: string) => {
-    const response = await fetch(`${env.NEXT_PUBLIC_API_URL}/persons`, {
+    const response = await fetch(`${getServerApiUrl()}/persons`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

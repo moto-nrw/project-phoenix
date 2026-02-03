@@ -458,7 +458,11 @@ export function PersonalInfoReadOnly({
   onEditClick,
 }: Readonly<PersonalInfoReadOnlyProps>) {
   const birthdayDisplay = student.birthday
-    ? new Date(student.birthday).toLocaleDateString("de-DE")
+    ? new Date(student.birthday).toLocaleDateString("de-DE", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+      })
     : "Nicht angegeben";
 
   return (
@@ -469,7 +473,8 @@ export function PersonalInfoReadOnly({
             <PersonIcon />
           </div>
           <h2 className="truncate text-base font-semibold text-gray-900 sm:text-lg">
-            Persönliche Informationen
+            <span className="sm:hidden">Persönliche Infos</span>
+            <span className="hidden sm:inline">Persönliche Informationen</span>
           </h2>
         </div>
         {showEditButton && onEditClick ? (
@@ -483,66 +488,6 @@ export function PersonalInfoReadOnly({
         ) : (
           <ViewOnlyBadge />
         )}
-      </div>
-      <div className="space-y-3">
-        <InfoItem label="Vollständiger Name" value={student.name} />
-        <InfoItem label="Klasse" value={student.school_class} />
-        <InfoItem
-          label="Gruppe"
-          value={student.group_name ?? "Nicht zugewiesen"}
-        />
-        <InfoItem label="Geburtsdatum" value={birthdayDisplay} />
-        <InfoItem label="Buskind" value={student.buskind ? "Ja" : "Nein"} />
-        <InfoItem
-          label="Abholstatus"
-          value={student.pickup_status ?? "Nicht gesetzt"}
-        />
-        {student.health_info && (
-          <InfoItem
-            label="Gesundheitsinformationen"
-            value={student.health_info}
-          />
-        )}
-      </div>
-    </div>
-  );
-}
-
-// =============================================================================
-// FULL ACCESS PERSONAL INFO (with sickness status)
-// =============================================================================
-
-interface FullAccessPersonalInfoReadOnlyProps {
-  student: ExtendedStudent;
-  onEditClick: () => void;
-}
-
-export function FullAccessPersonalInfoReadOnly({
-  student,
-  onEditClick,
-}: Readonly<FullAccessPersonalInfoReadOnlyProps>) {
-  const birthdayDisplay = student.birthday
-    ? new Date(student.birthday).toLocaleDateString("de-DE")
-    : "Nicht angegeben";
-
-  return (
-    <div className="rounded-2xl border border-gray-100 bg-white/50 p-4 backdrop-blur-sm sm:p-6">
-      <div className="mb-4 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-[#83CD2D]/10 text-[#83CD2D] sm:h-10 sm:w-10">
-            <PersonIcon />
-          </div>
-          <h2 className="text-base font-semibold text-gray-900 sm:text-lg">
-            Persönliche Informationen
-          </h2>
-        </div>
-        <button
-          onClick={onEditClick}
-          className="rounded-lg px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100"
-          title="Bearbeiten"
-        >
-          Bearbeiten
-        </button>
       </div>
       <div className="space-y-3">
         <InfoItem label="Vollständiger Name" value={student.name} />
@@ -590,13 +535,21 @@ function SicknessStatus({ student }: Readonly<{ student: ExtendedStudent }>) {
 
   return (
     <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-      <span className="inline-flex items-center gap-1.5 rounded-full bg-pink-100 px-2.5 py-1 text-xs font-medium text-pink-800">
-        <span className="h-2 w-2 rounded-full bg-pink-500" />
-        <span>Krank gemeldet</span>
+      <span
+        className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium text-white"
+        style={{ backgroundColor: "#EAB308" }}
+      >
+        <span className="h-2 w-2 rounded-full bg-white/80" />
+        <span>Krank</span>
       </span>
       {student.sick_since && (
         <span className="text-sm text-gray-500">
-          seit {new Date(student.sick_since).toLocaleDateString("de-DE")}
+          seit{" "}
+          {new Date(student.sick_since).toLocaleDateString("de-DE", {
+            day: "2-digit",
+            month: "2-digit",
+            year: "numeric",
+          })}
         </span>
       )}
     </div>

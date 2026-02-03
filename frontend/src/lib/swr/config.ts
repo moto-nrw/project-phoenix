@@ -11,17 +11,19 @@ import type { SWRConfiguration } from "swr";
  * Default SWR configuration for the application.
  *
  * Key settings:
- * - dedupingInterval: 2000ms - Prevents duplicate requests within 2 seconds
- * - revalidateOnFocus: true - Refetches data when user returns to tab
- * - revalidateOnReconnect: true - Refetches when network reconnects
+ * - dedupingInterval: 5000ms - Prevents duplicate requests within 5 seconds
+ *   (wider window to absorb SSE event bursts)
+ * - revalidateOnFocus: false - SSE handles freshness, tab focus is redundant
+ * - revalidateOnReconnect: true - Important after network loss
  * - errorRetryCount: 3 - Retries failed requests up to 3 times
  */
 export const swrConfig: SWRConfiguration = {
-  // Deduplicate requests made within 2 seconds
-  dedupingInterval: 2000,
+  // Deduplicate requests within 5 seconds (prevents rapid-fire from SSE bursts)
+  dedupingInterval: 5000,
 
   // Revalidation triggers
-  revalidateOnFocus: true,
+  // SSE pushes real-time updates, so tab focus revalidation is redundant
+  revalidateOnFocus: false,
   revalidateOnReconnect: true,
   revalidateIfStale: true,
 

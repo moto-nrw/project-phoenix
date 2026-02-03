@@ -1,6 +1,6 @@
 import { type NextRequest } from "next/server";
 import { auth } from "~/server/auth";
-import { env } from "~/env";
+import { getServerApiUrl } from "~/lib/server-api-url";
 
 // REQUIRED for streaming - must use Node.js runtime
 export const runtime = "nodejs";
@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
     // Preserve query params (e.g., cache busters) though backend ignores them
     const qs = request.nextUrl.search ? request.nextUrl.search : "";
     const backendResponse = await fetch(
-      `${env.NEXT_PUBLIC_API_URL}/api/sse/events${qs}`,
+      `${getServerApiUrl()}/api/sse/events${qs}`,
       {
         headers: {
           Authorization: `Bearer ${session.user.token}`,

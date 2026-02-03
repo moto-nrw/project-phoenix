@@ -27,24 +27,7 @@ vi.mock("next-auth/react", () => ({
 }));
 
 vi.mock("./header", () => ({
-  Header: ({
-    userName,
-    userEmail,
-    userRole,
-    customPageTitle,
-  }: {
-    userName?: string;
-    userEmail?: string;
-    userRole?: string;
-    customPageTitle?: string;
-  }) => (
-    <header data-testid="header">
-      <span data-testid="header-name">{userName}</span>
-      <span data-testid="header-email">{userEmail}</span>
-      <span data-testid="header-role">{userRole}</span>
-      <span data-testid="header-title">{customPageTitle}</span>
-    </header>
-  ),
+  Header: () => <header data-testid="header">Header</header>,
 }));
 
 vi.mock("./sidebar", () => ({
@@ -113,64 +96,6 @@ describe("ResponsiveLayout", () => {
     );
 
     expect(screen.getByTestId("mobile-nav")).toBeInTheDocument();
-  });
-
-  it("passes pageTitle to header", () => {
-    render(
-      <ResponsiveLayout pageTitle="Custom Title">
-        <div>Content</div>
-      </ResponsiveLayout>,
-    );
-
-    expect(screen.getByTestId("header-title")).toHaveTextContent("Custom Title");
-  });
-
-  it("passes user info from session to header", () => {
-    render(
-      <ResponsiveLayout>
-        <div>Content</div>
-      </ResponsiveLayout>,
-    );
-
-    expect(screen.getByTestId("header-name")).toHaveTextContent("Test User");
-    expect(screen.getByTestId("header-email")).toHaveTextContent(
-      "test@example.com",
-    );
-  });
-
-  it("shows Admin role for admin users", () => {
-    render(
-      <ResponsiveLayout>
-        <div>Content</div>
-      </ResponsiveLayout>,
-    );
-
-    expect(screen.getByTestId("header-role")).toHaveTextContent("Admin");
-  });
-
-  it("shows Betreuer role for non-admin users", () => {
-    vi.mocked(useSession).mockReturnValue({
-      data: {
-        user: {
-          id: "2",
-          name: "Regular User",
-          email: "user@example.com",
-          token: "valid-token",
-          roles: ["betreuer"],
-        },
-        expires: "",
-      },
-      status: "authenticated",
-      update: vi.fn(),
-    });
-
-    render(
-      <ResponsiveLayout>
-        <div>Content</div>
-      </ResponsiveLayout>,
-    );
-
-    expect(screen.getByTestId("header-role")).toHaveTextContent("Betreuer");
   });
 
   it("redirects to login when session has no token", async () => {

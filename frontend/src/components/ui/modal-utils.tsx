@@ -37,7 +37,7 @@ function getBackdropStyle(
     right: 0,
     bottom: 0,
     animation:
-      isAnimating && !isExiting ? "backdropEnter 400ms ease-out" : undefined,
+      isAnimating && !isExiting ? "backdropEnter 200ms ease-out" : undefined,
   };
 }
 
@@ -115,8 +115,17 @@ export function getApiErrorMessage(
   if (message.includes("401")) {
     return "Ihre Sitzung ist abgelaufen. Bitte melden Sie sich erneut an.";
   }
+  // Check for ownership/permission error (403 with specific message)
+  if (
+    message.includes("403") &&
+    (message.includes("you can only modify") ||
+      message.includes("created or supervise"))
+  ) {
+    return `Sie können diese ${entityType} nicht ${action}, da Sie sie nicht erstellt haben und kein Betreuer sind.`;
+  }
+  // Generic 403 - could be other permission issues
   if (message.includes("403")) {
-    return "Zugriff verweigert. Bitte melden Sie sich erneut an.";
+    return `Sie haben keine Berechtigung, diese ${entityType} zu ${action}.`;
   }
   if (message.includes("400")) {
     return "Ungültige Eingabedaten. Bitte überprüfen Sie Ihre Eingaben.";
@@ -292,7 +301,7 @@ function renderBackdropButton({
       type="button"
       onClick={onClose}
       aria-label={ariaLabel}
-      className={`absolute inset-0 cursor-default border-none bg-transparent p-0 transition-all duration-400 ease-out ${bgClass}`}
+      className={`absolute inset-0 cursor-default border-none bg-transparent p-0 transition-all duration-200 ease-out ${bgClass}`}
       style={getBackdropStyle(isAnimating, isExiting)}
     />
   );

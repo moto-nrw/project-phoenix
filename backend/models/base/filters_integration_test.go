@@ -272,18 +272,11 @@ func TestPagination_ApplyToQuery(t *testing.T) {
 
 	ctx := context.Background()
 
-	// Get total count first
-	var totalCount int
-	err := db.NewSelect().
-		Model((*auth.Account)(nil)).
-		ModelTableExpr(accountTableAlias).
-		ColumnExpr("COUNT(*)").
-		Scan(ctx, &totalCount)
-	require.NoError(t, err)
-
-	if totalCount < 2 {
-		t.Skip("Need at least 2 records to test pagination")
-	}
+	// Create fixture accounts to guarantee at least 2 records exist
+	acct1 := testpkg.CreateTestAccount(t, db, "pagination-test-1")
+	acct2 := testpkg.CreateTestAccount(t, db, "pagination-test-2")
+	defer testpkg.CleanupAuthFixtures(t, db, acct1.ID)
+	defer testpkg.CleanupAuthFixtures(t, db, acct2.ID)
 
 	// Test page 1 with size 1
 	pagination := base.NewPagination(1, 1)
@@ -296,7 +289,7 @@ func TestPagination_ApplyToQuery(t *testing.T) {
 
 	query = pagination.ApplyToQuery(query)
 
-	err = query.Scan(ctx)
+	err := query.Scan(ctx)
 	require.NoError(t, err)
 	assert.Len(t, page1Records, 1, "Page 1 should have 1 record")
 

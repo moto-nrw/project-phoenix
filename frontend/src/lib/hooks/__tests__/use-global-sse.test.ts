@@ -41,9 +41,11 @@ import { useSession } from "next-auth/react";
 describe("useGlobalSSE", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.useFakeTimers();
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     vi.restoreAllMocks();
   });
 
@@ -127,6 +129,9 @@ describe("useGlobalSSE", () => {
         timestamp: new Date().toISOString(),
       });
 
+      // Flush debounce timer
+      vi.advanceTimersByTime(500);
+
       // Should call mutate with pattern matching function
       expect(mutate).toHaveBeenCalled();
     });
@@ -143,6 +148,8 @@ describe("useGlobalSSE", () => {
         timestamp: new Date().toISOString(),
       });
 
+      vi.advanceTimersByTime(500);
+
       expect(mutate).toHaveBeenCalled();
     });
 
@@ -157,6 +164,8 @@ describe("useGlobalSSE", () => {
         data: {},
         timestamp: new Date().toISOString(),
       });
+
+      vi.advanceTimersByTime(500);
 
       expect(mutate).toHaveBeenCalled();
     });
@@ -173,6 +182,8 @@ describe("useGlobalSSE", () => {
         timestamp: new Date().toISOString(),
       });
 
+      vi.advanceTimersByTime(500);
+
       expect(mutate).toHaveBeenCalled();
     });
 
@@ -187,6 +198,8 @@ describe("useGlobalSSE", () => {
         data: {},
         timestamp: new Date().toISOString(),
       });
+
+      vi.advanceTimersByTime(500);
 
       expect(mutate).toHaveBeenCalled();
     });
@@ -203,6 +216,9 @@ describe("useGlobalSSE", () => {
         data: {},
         timestamp: new Date().toISOString(),
       });
+
+      // Advance past debounce window to confirm nothing fires
+      vi.advanceTimersByTime(500);
 
       // Verify no caches were invalidated for unknown event type
       expect(vi.mocked(mutate)).not.toHaveBeenCalled();

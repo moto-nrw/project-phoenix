@@ -198,9 +198,52 @@ export function useSSE(
     // Initial connection
     connect();
 
+    // Reconnect when device wakes from sleep or network restores
+    const handleWakeReconnect = () => {
+      if (!mountedRef.current) return;
+      // Skip if already connected
+      if (eventSourceRef.current?.readyState === 1) {
+        return;
+      }
+
+      // Close dead connection if it exists
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+        eventSourceRef.current = null;
+      }
+
+      // Clear any pending reconnect timeout
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+        reconnectTimeoutRef.current = null;
+      }
+
+      // Reset attempts so we get fresh retries
+      reconnectAttemptsRef.current = 0;
+      setReconnectAttempts(0);
+
+      connect();
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        handleWakeReconnect();
+      }
+    };
+
+    const handleOnline = () => {
+      handleWakeReconnect();
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("online", handleOnline);
+
     // Cleanup on unmount
     return () => {
       mountedRef.current = false;
+
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("online", handleOnline);
 
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);

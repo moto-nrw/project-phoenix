@@ -1,22 +1,18 @@
-import { useEffect, useRef } from "react";
+import { useLayoutEffect, useRef } from "react";
 
 /**
  * Custom hook to lock body scroll when a modal/popup is open
- * Uses event prevention instead of CSS to avoid layout shifts
+ * Relies on scrollbar-gutter: stable in globals.css to prevent layout shift
  */
 export function useScrollLock(isLocked: boolean) {
-  const scrollPosition = useRef(0);
   const modalContentElements = useRef<WeakSet<Element>>(new WeakSet());
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (typeof globalThis === "undefined") return;
 
     if (isLocked) {
-      // Save current scroll position
-      scrollPosition.current = globalThis.pageYOffset;
-
-      // Block scrollbar dragging via CSS (events don't catch this)
-      // Note: Must set on documentElement (html) because globals.css sets overflow-y: scroll on html
+      // Simply hide overflow - scrollbar-gutter: stable in globals.css
+      // prevents layout shift from scrollbar disappearing
       document.documentElement.style.overflow = "hidden";
 
       // Cache modal content elements for performance

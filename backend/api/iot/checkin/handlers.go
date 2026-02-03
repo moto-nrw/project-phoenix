@@ -127,13 +127,10 @@ func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 	var previousRoomName string
 	var checkedOut bool
 
-	// Step 6: Check for pending daily checkout (must check BEFORE processing checkout)
-	if currentVisit != nil && rs.isPendingDailyCheckoutScenario(ctx, student, currentVisit) {
-		handlePendingDailyCheckoutResponse(w, r, student, person, currentVisit)
-		return
-	}
-
-	// Step 6b: Process checkout if student has active visit
+	// Step 6b: Process checkout if student has active visit.
+	// Checkout always produces "unterwegs" state — attendance is NOT synced here.
+	// Daily attendance checkout is confirmed separately via confirm_daily_checkout
+	// when the student selects "nach Hause" on the device.
 	if currentVisit != nil {
 		var err error
 		checkoutVisitID, previousRoomName, err = rs.processCheckout(ctx, w, r, student, person, currentVisit)
@@ -183,6 +180,11 @@ func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 	// Step 10: Check daily checkout with education group
 	if rs.shouldUpgradeToDailyCheckout(ctx, result.Action, student, currentVisit) {
 		result.Action = "checked_out_daily"
+	}
+
+	// Compute daily_checkout_available flag for frontend "nach Hause" button
+	if currentVisit != nil && (result.Action == "checked_out" || result.Action == "checked_out_daily") {
+		result.DailyCheckoutAvailable = rs.shouldShowDailyCheckoutWithGroup(ctx, student, currentVisit)
 	}
 
 	// Step 11: Update session activity for device monitoring

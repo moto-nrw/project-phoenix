@@ -18,7 +18,19 @@ import (
 const (
 	tablePickupSchedules  = "schedule.student_pickup_schedules"
 	tablePickupExceptions = "schedule.student_pickup_exceptions"
+	tablePickupNotes      = "schedule.student_pickup_notes"
 )
+
+// Common database operation names to avoid string duplication.
+const (
+	opFindByStudentID   = "find by student id"
+	opDeleteByStudentID = "delete by student id"
+	opFindByID          = "find by id"
+	orderCreatedAtASC   = "created_at ASC"
+)
+
+// Common query clauses to avoid string duplication.
+const whereStudentID = "student_id = ?"
 
 // errScheduleNil is returned when a nil schedule is passed to a repository method.
 var errScheduleNil = fmt.Errorf("schedule cannot be nil")
@@ -49,7 +61,7 @@ func (r *StudentPickupScheduleRepository) FindByStudentID(ctx context.Context, s
 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
-			Op:  "find by student id",
+			Op:  opFindByStudentID,
 			Err: err,
 		}
 	}
@@ -139,12 +151,12 @@ func (r *StudentPickupScheduleRepository) DeleteByStudentID(ctx context.Context,
 	_, err := r.db.NewDelete().
 		Model((*schedule.StudentPickupSchedule)(nil)).
 		ModelTableExpr(tablePickupSchedules).
-		Where("student_id = ?", studentID).
+		Where(whereStudentID, studentID).
 		Exec(ctx)
 
 	if err != nil {
 		return &modelBase.DatabaseError{
-			Op:  "delete by student id",
+			Op:  opDeleteByStudentID,
 			Err: err,
 		}
 	}
@@ -211,7 +223,7 @@ func (r *StudentPickupScheduleRepository) FindByID(ctx context.Context, id any) 
 		Scan(ctx)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
-			Op:  "find by id",
+			Op:  opFindByID,
 			Err: err,
 		}
 	}
@@ -245,7 +257,7 @@ func (r *StudentPickupExceptionRepository) FindByStudentID(ctx context.Context, 
 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
-			Op:  "find by student id",
+			Op:  opFindByStudentID,
 			Err: err,
 		}
 	}
@@ -332,12 +344,12 @@ func (r *StudentPickupExceptionRepository) DeleteByStudentID(ctx context.Context
 	_, err := r.db.NewDelete().
 		Model((*schedule.StudentPickupException)(nil)).
 		ModelTableExpr(tablePickupExceptions).
-		Where("student_id = ?", studentID).
+		Where(whereStudentID, studentID).
 		Exec(ctx)
 
 	if err != nil {
 		return &modelBase.DatabaseError{
-			Op:  "delete by student id",
+			Op:  opDeleteByStudentID,
 			Err: err,
 		}
 	}
@@ -427,10 +439,202 @@ func (r *StudentPickupExceptionRepository) FindByID(ctx context.Context, id any)
 		Scan(ctx)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
-			Op:  "find by id",
+			Op:  opFindByID,
 			Err: err,
 		}
 	}
 
 	return &exception, nil
+}
+
+// StudentPickupNoteRepository implements schedule.StudentPickupNoteRepository interface
+type StudentPickupNoteRepository struct {
+	*base.Repository[*schedule.StudentPickupNote]
+	db *bun.DB
+}
+
+// NewStudentPickupNoteRepository creates a new StudentPickupNoteRepository
+func NewStudentPickupNoteRepository(db *bun.DB) schedule.StudentPickupNoteRepository {
+	return &StudentPickupNoteRepository{
+		Repository: base.NewRepository[*schedule.StudentPickupNote](db, tablePickupNotes, "StudentPickupNote"),
+		db:         db,
+	}
+}
+
+// FindByStudentID finds all pickup notes for a student
+func (r *StudentPickupNoteRepository) FindByStudentID(ctx context.Context, studentID int64) ([]*schedule.StudentPickupNote, error) {
+	var notes []*schedule.StudentPickupNote
+	err := r.db.NewSelect().
+		Model(&notes).
+		ModelTableExpr(`schedule.student_pickup_notes AS "student_pickup_note"`).
+		Where(`"student_pickup_note".student_id = ?`, studentID).
+		Order("note_date ASC", orderCreatedAtASC).
+		Scan(ctx)
+
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  opFindByStudentID,
+			Err: err,
+		}
+	}
+
+	return notes, nil
+}
+
+// FindByStudentIDAndDate finds all pickup notes for a student on a specific date
+func (r *StudentPickupNoteRepository) FindByStudentIDAndDate(ctx context.Context, studentID int64, date time.Time) ([]*schedule.StudentPickupNote, error) {
+	dateOnly := timezone.DateOfUTC(date)
+	var notes []*schedule.StudentPickupNote
+
+	err := r.db.NewSelect().
+		Model(&notes).
+		ModelTableExpr(`schedule.student_pickup_notes AS "student_pickup_note"`).
+		Where(`"student_pickup_note".student_id = ?`, studentID).
+		Where(`"student_pickup_note".note_date = ?`, dateOnly).
+		Order(orderCreatedAtASC).
+		Scan(ctx)
+
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find by student id and date",
+			Err: err,
+		}
+	}
+
+	return notes, nil
+}
+
+// FindByStudentIDsAndDate finds all pickup notes for multiple students on a specific date (bulk query)
+func (r *StudentPickupNoteRepository) FindByStudentIDsAndDate(ctx context.Context, studentIDs []int64, date time.Time) ([]*schedule.StudentPickupNote, error) {
+	if len(studentIDs) == 0 {
+		return []*schedule.StudentPickupNote{}, nil
+	}
+
+	dateOnly := timezone.DateOfUTC(date)
+	var notes []*schedule.StudentPickupNote
+
+	err := r.db.NewSelect().
+		Model(&notes).
+		ModelTableExpr(`schedule.student_pickup_notes AS "student_pickup_note"`).
+		Where(`"student_pickup_note".student_id IN (?)`, bun.In(studentIDs)).
+		Where(`"student_pickup_note".note_date = ?`, dateOnly).
+		Order(orderCreatedAtASC).
+		Scan(ctx)
+
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find by student ids and date",
+			Err: err,
+		}
+	}
+
+	return notes, nil
+}
+
+// DeleteByStudentID deletes all pickup notes for a student
+func (r *StudentPickupNoteRepository) DeleteByStudentID(ctx context.Context, studentID int64) error {
+	_, err := r.db.NewDelete().
+		Model((*schedule.StudentPickupNote)(nil)).
+		ModelTableExpr(tablePickupNotes).
+		Where(whereStudentID, studentID).
+		Exec(ctx)
+
+	if err != nil {
+		return &modelBase.DatabaseError{
+			Op:  opDeleteByStudentID,
+			Err: err,
+		}
+	}
+
+	return nil
+}
+
+// DeletePastNotes deletes all notes older than the given date
+func (r *StudentPickupNoteRepository) DeletePastNotes(ctx context.Context, beforeDate time.Time) (int64, error) {
+	result, err := r.db.NewDelete().
+		Model((*schedule.StudentPickupNote)(nil)).
+		ModelTableExpr(tablePickupNotes).
+		Where("note_date < ?", beforeDate).
+		Exec(ctx)
+
+	if err != nil {
+		return 0, &modelBase.DatabaseError{
+			Op:  "delete past notes",
+			Err: err,
+		}
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return 0, err
+	}
+
+	return rowsAffected, nil
+}
+
+// Create overrides the base Create method to handle validation
+func (r *StudentPickupNoteRepository) Create(ctx context.Context, n *schedule.StudentPickupNote) error {
+	if n == nil {
+		return fmt.Errorf("note cannot be nil")
+	}
+
+	if err := n.Validate(); err != nil {
+		return err
+	}
+
+	return r.Repository.Create(ctx, n)
+}
+
+// Update overrides the base Update method to handle validation
+func (r *StudentPickupNoteRepository) Update(ctx context.Context, n *schedule.StudentPickupNote) error {
+	if n == nil {
+		return fmt.Errorf("note cannot be nil")
+	}
+
+	if err := n.Validate(); err != nil {
+		return err
+	}
+
+	return r.Repository.Update(ctx, n)
+}
+
+// List retrieves pickup notes matching the provided query options
+func (r *StudentPickupNoteRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*schedule.StudentPickupNote, error) {
+	var notes []*schedule.StudentPickupNote
+	query := r.db.NewSelect().
+		Model(&notes).
+		ModelTableExpr(`schedule.student_pickup_notes AS "student_pickup_note"`)
+
+	if options != nil {
+		query = options.ApplyToQuery(query)
+	}
+
+	err := query.Scan(ctx)
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "list",
+			Err: err,
+		}
+	}
+
+	return notes, nil
+}
+
+// FindByID overrides base method to ensure schema qualification
+func (r *StudentPickupNoteRepository) FindByID(ctx context.Context, id any) (*schedule.StudentPickupNote, error) {
+	var note schedule.StudentPickupNote
+
+	err := r.db.NewSelect().
+		Model(&note).
+		ModelTableExpr(`schedule.student_pickup_notes AS "student_pickup_note"`).
+		Where(`"student_pickup_note".id = ?`, id).
+		Scan(ctx)
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  opFindByID,
+			Err: err,
+		}
+	}
+
+	return &note, nil
 }

@@ -399,7 +399,7 @@ export default function StudentGuardianManager({
               title="Erziehungsberechtigte/n hinzufügen"
             >
               <Plus className="h-4 w-4" />
-              Hinzufügen
+              <span className="hidden sm:inline">Hinzufügen</span>
             </button>
           )}
         </div>
