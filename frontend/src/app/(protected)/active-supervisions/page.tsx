@@ -662,7 +662,13 @@ function MeinRaumPageContent() {
       setSelectedRoomId(firstRoom?.id ?? null);
     }
 
-    if (!selectedRoomId || selectedRoomId === firstRoom?.id) {
+    // Skip first-room preload when Schulhof tab is active — Schulhof uses
+    // selectedRoomId=null intentionally, so !selectedRoomId would incorrectly
+    // match and overwrite Schulhof students with first-room data.
+    if (
+      !isSchulhofTabSelected &&
+      (!selectedRoomId || selectedRoomId === firstRoom?.id)
+    ) {
       // When no room is explicitly selected yet, lock in the first room's ID
       // so the URL-sync effect won't try to "switch" to it via localStorage.
       if (!selectedRoomId && firstRoom) {
@@ -707,7 +713,12 @@ function MeinRaumPageContent() {
 
     setError(null);
     setIsLoading(false);
-  }, [dashboardData, updateRoomStudentCount, selectedRoomId]);
+  }, [
+    dashboardData,
+    updateRoomStudentCount,
+    selectedRoomId,
+    isSchulhofTabSelected,
+  ]);
 
   // Sync selected room with URL param.
   // The sidebar navigates with the correct ?room= param at click-time,
