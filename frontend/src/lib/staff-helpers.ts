@@ -18,31 +18,17 @@ const BADGE_COLOR = "text-white backdrop-blur-sm";
 type LocationColorConfig = [string, string, string];
 
 const LOCATION_COLORS: Record<string, LocationColorConfig> = {
-  Zuhause: ["from-red-50/80 to-rose-100/80", "#FF3130", "255, 49, 48"],
+  Abwesend: ["from-red-50/80 to-rose-100/80", "#FF3130", "255, 49, 48"],
   Anwesend: ["from-green-50/80 to-emerald-100/80", "#83CD2D", "131, 205, 45"],
-  Schulhof: ["from-amber-50/80 to-yellow-100/80", "#F78C10", "247, 140, 16"],
-  Unterwegs: ["from-fuchsia-50/80 to-pink-100/80", "#D946EF", "217, 70, 239"],
   Homeoffice: ["from-sky-50/80 to-sky-100/80", "#0EA5E9", "14, 165, 233"],
 };
 
 // Absence types all share the same gray styling
-const ABSENCE_LOCATIONS = new Set([
-  "Krank",
-  "Urlaub",
-  "Fortbildung",
-  "Abwesend",
-]);
+const ABSENCE_LOCATIONS = new Set(["Krank", "Urlaub", "Fortbildung"]);
 const ABSENCE_COLOR: LocationColorConfig = [
   "from-gray-50/80 to-slate-100/80",
   "#6B7280",
   "107, 114, 128",
-];
-
-// Default for specific rooms
-const ROOM_COLOR: LocationColorConfig = [
-  "from-blue-50/80 to-cyan-100/80",
-  "#5080D8",
-  "80, 128, 216",
 ];
 
 function buildLocationStatus(
@@ -58,21 +44,23 @@ function buildLocationStatus(
   };
 }
 
-// Get location status for a staff member based on their supervision status
+// Get location status for a staff member based on their clock-in status
 export function getStaffLocationStatus(staff: Staff): LocationStatus {
-  const location = staff.currentLocation ?? "Zuhause";
+  const location = staff.currentLocation ?? "Abwesend";
 
+  // Check direct matches first (Abwesend, Anwesend, Homeoffice)
   const directMatch = LOCATION_COLORS[location];
   if (directMatch) {
     return buildLocationStatus(location, directMatch);
   }
 
+  // Absence types (Krank, Urlaub, Fortbildung) get gray styling
   if (ABSENCE_LOCATIONS.has(location)) {
     return buildLocationStatus(location, ABSENCE_COLOR);
   }
 
-  // Specific room - use blue/cyan color
-  return buildLocationStatus(location, ROOM_COLOR);
+  // Any other location (in a room, supervising) means they're present → green
+  return buildLocationStatus("Anwesend", LOCATION_COLORS.Anwesend!);
 }
 
 // Get a display-friendly role/type for staff
@@ -135,64 +123,5 @@ export function sortStaff(staff: Staff[]): Staff[] {
 
     // Then sort alphabetically by last name
     return a.lastName.localeCompare(b.lastName, "de");
-  });
-}
-
-// Badge representation for a single supervision or status
-export interface SupervisionBadge {
-  key: string;
-  label: string;
-  locationStatus: LocationStatus;
-}
-
-/**
- * Returns an array of badges for a staff member's supervisions.
- * - Non-supervising staff: single badge (Zuhause/Anwesend)
- * - Supervising staff: one badge per room with appropriate color
- */
-export function getStaffSupervisionBadges(staff: Staff): SupervisionBadge[] {
-  // Non-supervising staff - single badge
-  const supervisions = staff.supervisions ?? [];
-  if (!staff.isSupervising || supervisions.length === 0) {
-    const location = staff.currentLocation ?? "Zuhause";
-    return [
-      {
-        key: "status",
-        label: location,
-        locationStatus: getStaffLocationStatus(staff),
-      },
-    ];
-  }
-
-  // Supervising staff - one badge per room
-  return supervisions.map((supervision) => {
-    // Create a locationStatus for this specific room
-    const roomName = supervision.roomName;
-    let locationStatus: LocationStatus;
-
-    if (roomName === "Schulhof") {
-      locationStatus = {
-        label: "Schulhof",
-        badgeColor: "text-white backdrop-blur-sm",
-        cardGradient: "from-amber-50/80 to-yellow-100/80",
-        customBgColor: "#F78C10",
-        customShadow: "0 8px 25px rgba(247, 140, 16, 0.4)",
-      };
-    } else {
-      // Default room color (blue)
-      locationStatus = {
-        label: roomName,
-        badgeColor: "text-white backdrop-blur-sm",
-        cardGradient: "from-blue-50/80 to-cyan-100/80",
-        customBgColor: "#5080D8",
-        customShadow: "0 8px 25px rgba(80, 128, 216, 0.4)",
-      };
-    }
-
-    return {
-      key: `room-${supervision.roomId}-${supervision.activeGroupId}`,
-      label: roomName,
-      locationStatus,
-    };
   });
 }
