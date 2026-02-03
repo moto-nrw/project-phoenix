@@ -18,6 +18,13 @@ import (
 	"github.com/xuri/excelize/v2"
 )
 
+// Error message constants to avoid duplication
+const (
+	errNoActiveSession    = "no active session found"
+	errGetCurrentSession  = "failed to get current session: %w"
+	errInvalidSessionData = "invalid session data: %w"
+)
+
 // BreakDurationUpdate represents an update to a single break's duration
 type BreakDurationUpdate struct {
 	ID              int64 `json:"id"`
@@ -117,7 +124,7 @@ func (s *workSessionService) CheckIn(ctx context.Context, staffID int64, status 
 	}
 
 	if err := session.Validate(); err != nil {
-		return nil, fmt.Errorf("invalid session data: %w", err)
+		return nil, fmt.Errorf(errInvalidSessionData, err)
 	}
 
 	if err := s.repo.Create(ctx, session); err != nil {
@@ -135,7 +142,7 @@ func (s *workSessionService) reopenSession(ctx context.Context, session *activeM
 	session.UpdatedBy = &staffID
 
 	if err := session.Validate(); err != nil {
-		return nil, fmt.Errorf("invalid session data: %w", err)
+		return nil, fmt.Errorf(errInvalidSessionData, err)
 	}
 
 	if err := s.repo.Update(ctx, session); err != nil {
@@ -151,13 +158,13 @@ func (s *workSessionService) CheckOut(ctx context.Context, staffID int64) (*acti
 	session, err := s.repo.GetCurrentByStaffID(ctx, staffID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, fmt.Errorf("no active session found")
+			return nil, errors.New(errNoActiveSession)
 		}
-		return nil, fmt.Errorf("failed to get current session: %w", err)
+		return nil, fmt.Errorf(errGetCurrentSession, err)
 	}
 
 	if session == nil {
-		return nil, fmt.Errorf("no active session found")
+		return nil, errors.New(errNoActiveSession)
 	}
 
 	// End any active break before checkout
@@ -207,12 +214,12 @@ func (s *workSessionService) StartBreak(ctx context.Context, staffID int64) (*ac
 	session, err := s.repo.GetCurrentByStaffID(ctx, staffID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, fmt.Errorf("no active session found")
+			return nil, errors.New(errNoActiveSession)
 		}
-		return nil, fmt.Errorf("failed to get current session: %w", err)
+		return nil, fmt.Errorf(errGetCurrentSession, err)
 	}
 	if session == nil {
-		return nil, fmt.Errorf("no active session found")
+		return nil, errors.New(errNoActiveSession)
 	}
 
 	// Check no active break exists
@@ -246,12 +253,12 @@ func (s *workSessionService) EndBreak(ctx context.Context, staffID int64) (*acti
 	session, err := s.repo.GetCurrentByStaffID(ctx, staffID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, fmt.Errorf("no active session found")
+			return nil, errors.New(errNoActiveSession)
 		}
-		return nil, fmt.Errorf("failed to get current session: %w", err)
+		return nil, fmt.Errorf(errGetCurrentSession, err)
 	}
 	if session == nil {
-		return nil, fmt.Errorf("no active session found")
+		return nil, errors.New(errNoActiveSession)
 	}
 
 	// Find active break
@@ -441,7 +448,7 @@ func (s *workSessionService) UpdateSession(ctx context.Context, staffID int64, s
 
 	// Validate the updated session
 	if err := session.Validate(); err != nil {
-		return nil, fmt.Errorf("invalid session data: %w", err)
+		return nil, fmt.Errorf(errInvalidSessionData, err)
 	}
 
 	// Update in database
@@ -466,7 +473,7 @@ func (s *workSessionService) GetCurrentSession(ctx context.Context, staffID int6
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
 		}
-		return nil, fmt.Errorf("failed to get current session: %w", err)
+		return nil, fmt.Errorf(errGetCurrentSession, err)
 	}
 
 	return session, nil

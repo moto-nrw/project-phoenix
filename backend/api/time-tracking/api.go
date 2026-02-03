@@ -17,6 +17,9 @@ import (
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 )
 
+// Error message constants
+const errInvalidSessionID = "invalid session ID"
+
 // Resource defines the time-tracking API resource
 type Resource struct {
 	WorkSessionService  activeSvc.WorkSessionService
@@ -240,7 +243,7 @@ func (rs *Resource) updateSession(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "id")
 	sessionID, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid session ID")))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errInvalidSessionID)))
 		return
 	}
 
@@ -307,7 +310,7 @@ func (rs *Resource) getBreaks(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "sessionId")
 	sessionID, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid session ID")))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errInvalidSessionID)))
 		return
 	}
 
@@ -327,7 +330,7 @@ func (rs *Resource) getSessionEdits(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "id")
 	sessionID, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid session ID")))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errInvalidSessionID)))
 		return
 	}
 

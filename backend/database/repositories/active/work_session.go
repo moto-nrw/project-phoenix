@@ -15,6 +15,7 @@ import (
 const (
 	tableActiveWorkSessions              = "active.work_sessions"
 	tableExprActiveWorkSessionsAsSession = `active.work_sessions AS "work_session"`
+	dateFormatISO                        = "2006-01-02"
 )
 
 // WorkSessionRepository implements active.WorkSessionRepository interface
@@ -51,7 +52,7 @@ func (r *WorkSessionRepository) GetByStaffAndDate(ctx context.Context, staffID i
 		Model(session).
 		ModelTableExpr(tableExprActiveWorkSessionsAsSession).
 		Where(`"work_session".staff_id = ?`, staffID).
-		Where(`"work_session".date = ?`, date.Format("2006-01-02")).
+		Where(`"work_session".date = ?`, date.Format(dateFormatISO)).
 		Scan(ctx)
 
 	if err != nil {
@@ -67,7 +68,7 @@ func (r *WorkSessionRepository) GetByStaffAndDate(ctx context.Context, staffID i
 // GetCurrentByStaffID returns the active (not checked out) session for a staff member today
 func (r *WorkSessionRepository) GetCurrentByStaffID(ctx context.Context, staffID int64) (*active.WorkSession, error) {
 	session := new(active.WorkSession)
-	today := time.Now().Format("2006-01-02")
+	today := time.Now().Format(dateFormatISO)
 
 	err := r.db.NewSelect().
 		Model(session).
@@ -94,8 +95,8 @@ func (r *WorkSessionRepository) GetHistoryByStaffID(ctx context.Context, staffID
 		Model(&sessions).
 		ModelTableExpr(tableExprActiveWorkSessionsAsSession).
 		Where(`"work_session".staff_id = ?`, staffID).
-		Where(`"work_session".date >= ?`, from.Format("2006-01-02")).
-		Where(`"work_session".date <= ?`, to.Format("2006-01-02")).
+		Where(`"work_session".date >= ?`, from.Format(dateFormatISO)).
+		Where(`"work_session".date <= ?`, to.Format(dateFormatISO)).
 		OrderExpr(`"work_session".date ASC`).
 		Scan(ctx)
 
@@ -115,7 +116,7 @@ func (r *WorkSessionRepository) GetOpenSessions(ctx context.Context, beforeDate 
 	err := r.db.NewSelect().
 		Model(&sessions).
 		ModelTableExpr(tableExprActiveWorkSessionsAsSession).
-		Where(`"work_session".date < ?`, beforeDate.Format("2006-01-02")).
+		Where(`"work_session".date < ?`, beforeDate.Format(dateFormatISO)).
 		Where(`"work_session".check_out_time IS NULL`).
 		Scan(ctx)
 
@@ -131,7 +132,7 @@ func (r *WorkSessionRepository) GetOpenSessions(ctx context.Context, beforeDate 
 
 // GetTodayPresenceMap returns a map of staff IDs to their work status for today
 func (r *WorkSessionRepository) GetTodayPresenceMap(ctx context.Context) (map[int64]string, error) {
-	today := time.Now().Format("2006-01-02")
+	today := time.Now().Format(dateFormatISO)
 
 	var results []struct {
 		StaffID      int64      `bun:"staff_id"`

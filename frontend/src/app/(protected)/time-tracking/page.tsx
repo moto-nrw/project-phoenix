@@ -213,9 +213,10 @@ function ClockInCard({
     return () => clearInterval(interval);
   }, [isCheckedIn, isOnBreak]);
 
-  // Use `tick` to make `now` reactive
+  // Use `tick` to make `now` reactive (tick triggers re-render)
+  // eslint-disable-next-line @typescript-eslint/no-unused-expressions
+  tick;
   const now = new Date();
-  void tick; // suppress unused warning — tick triggers re-render
 
   const breakMins = currentSession?.breakMinutes ?? 0;
 
@@ -3070,7 +3071,9 @@ function TimeTrackingContent() {
   }, [currentSession?.id, currentSession?.checkOutTime]);
 
   useEffect(() => {
-    void fetchBreaks();
+    fetchBreaks().catch(() => {
+      // Error already handled in fetchBreaks
+    });
   }, [fetchBreaks]);
 
   // Calculate weekly minutes from history (current week only, completed sessions)

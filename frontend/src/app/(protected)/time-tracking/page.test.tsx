@@ -1228,6 +1228,9 @@ describe("TimeTrackingPage", () => {
           fireEvent.click(endBreakBtn);
         }
       });
+
+      // Verify test setup was correct - breaks were loaded
+      expect(timeTrackingService.getSessionBreaks).toHaveBeenCalled();
     });
   });
 

@@ -9,6 +9,9 @@ import (
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 )
 
+// dateFormatISO is the standard date format for parsing and formatting
+const dateFormatISO = "2006-01-02"
+
 // CreateAbsenceRequest defines the request for creating an absence
 type CreateAbsenceRequest struct {
 	AbsenceType string `json:"absence_type"`
@@ -59,11 +62,11 @@ func NewStaffAbsenceService(absenceRepo activeModels.StaffAbsenceRepository, wor
 // CreateAbsence creates a new absence record
 func (s *staffAbsenceService) CreateAbsence(ctx context.Context, staffID int64, req CreateAbsenceRequest) (*StaffAbsenceResponse, error) {
 	// Parse dates
-	dateStart, err := time.Parse("2006-01-02", req.DateStart)
+	dateStart, err := time.Parse(dateFormatISO, req.DateStart)
 	if err != nil {
 		return nil, fmt.Errorf("invalid date_start format, expected YYYY-MM-DD")
 	}
-	dateEnd, err := time.Parse("2006-01-02", req.DateEnd)
+	dateEnd, err := time.Parse(dateFormatISO, req.DateEnd)
 	if err != nil {
 		return nil, fmt.Errorf("invalid date_end format, expected YYYY-MM-DD")
 	}
@@ -79,8 +82,8 @@ func (s *staffAbsenceService) CreateAbsence(ctx context.Context, staffID int64, 
 			if e.AbsenceType != req.AbsenceType {
 				return nil, fmt.Errorf("absence overlaps with existing %s absence from %s to %s",
 					e.AbsenceType,
-					e.DateStart.Format("2006-01-02"),
-					e.DateEnd.Format("2006-01-02"))
+					e.DateStart.Format(dateFormatISO),
+					e.DateEnd.Format(dateFormatISO))
 			}
 		}
 
@@ -163,14 +166,14 @@ func (s *staffAbsenceService) UpdateAbsence(ctx context.Context, staffID int64, 
 		absence.AbsenceType = *req.AbsenceType
 	}
 	if req.DateStart != nil {
-		dateStart, err := time.Parse("2006-01-02", *req.DateStart)
+		dateStart, err := time.Parse(dateFormatISO, *req.DateStart)
 		if err != nil {
 			return nil, fmt.Errorf("invalid date_start format, expected YYYY-MM-DD")
 		}
 		absence.DateStart = dateStart
 	}
 	if req.DateEnd != nil {
-		dateEnd, err := time.Parse("2006-01-02", *req.DateEnd)
+		dateEnd, err := time.Parse(dateFormatISO, *req.DateEnd)
 		if err != nil {
 			return nil, fmt.Errorf("invalid date_end format, expected YYYY-MM-DD")
 		}
@@ -191,8 +194,8 @@ func (s *staffAbsenceService) UpdateAbsence(ctx context.Context, staffID int64, 
 	for _, e := range existing {
 		if e.ID != absenceID {
 			return nil, fmt.Errorf("updated dates overlap with existing absence from %s to %s",
-				e.DateStart.Format("2006-01-02"),
-				e.DateEnd.Format("2006-01-02"))
+				e.DateStart.Format(dateFormatISO),
+				e.DateEnd.Format(dateFormatISO))
 		}
 	}
 
