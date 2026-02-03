@@ -597,3 +597,171 @@ func TestCheckinProcessingInput_Struct(t *testing.T) {
 	assert.True(t, input.CheckedOut)
 	assert.Nil(t, input.CurrentVisit)
 }
+
+// =============================================================================
+// countActiveStudentsInVisits TESTS
+// =============================================================================
+
+func TestCountActiveStudentsInVisits_EmptySlice(t *testing.T) {
+	count := countActiveStudentsInVisits([]*active.Visit{})
+	assert.Equal(t, 0, count)
+}
+
+func TestCountActiveStudentsInVisits_NilSlice(t *testing.T) {
+	count := countActiveStudentsInVisits(nil)
+	assert.Equal(t, 0, count)
+}
+
+func TestCountActiveStudentsInVisits_AllActive(t *testing.T) {
+	visits := []*active.Visit{
+		{Model: base.Model{ID: 1}, ExitTime: nil},
+		{Model: base.Model{ID: 2}, ExitTime: nil},
+		{Model: base.Model{ID: 3}, ExitTime: nil},
+	}
+	count := countActiveStudentsInVisits(visits)
+	assert.Equal(t, 3, count)
+}
+
+func TestCountActiveStudentsInVisits_AllExited(t *testing.T) {
+	now := time.Now()
+	visits := []*active.Visit{
+		{Model: base.Model{ID: 1}, ExitTime: &now},
+		{Model: base.Model{ID: 2}, ExitTime: &now},
+	}
+	count := countActiveStudentsInVisits(visits)
+	assert.Equal(t, 0, count)
+}
+
+func TestCountActiveStudentsInVisits_Mixed(t *testing.T) {
+	now := time.Now()
+	visits := []*active.Visit{
+		{Model: base.Model{ID: 1}, ExitTime: nil},  // active
+		{Model: base.Model{ID: 2}, ExitTime: &now}, // exited
+		{Model: base.Model{ID: 3}, ExitTime: nil},  // active
+		{Model: base.Model{ID: 4}, ExitTime: &now}, // exited
+		{Model: base.Model{ID: 5}, ExitTime: nil},  // active
+	}
+	count := countActiveStudentsInVisits(visits)
+	assert.Equal(t, 3, count)
+}
+
+// =============================================================================
+// buildCheckinResponse ActiveStudents TESTS
+// =============================================================================
+
+func TestBuildCheckinResponse_WithActiveStudents(t *testing.T) {
+	now := time.Now()
+	visitID := int64(123)
+	activeStudents := 5
+	student := &users.Student{
+		Model:  base.Model{ID: 1},
+		Person: &users.Person{FirstName: "Max", LastName: "Test"},
+	}
+	result := &checkinResult{
+		Action:         "checked_in",
+		VisitID:        &visitID,
+		RoomName:       "Room A",
+		GreetingMsg:    "Hallo Max!",
+		ActiveStudents: &activeStudents,
+	}
+
+	response := buildCheckinResponse(student, result, now)
+
+	assert.Equal(t, 5, response["active_students"])
+}
+
+func TestBuildCheckinResponse_WithoutActiveStudents(t *testing.T) {
+	now := time.Now()
+	visitID := int64(123)
+	student := &users.Student{
+		Model:  base.Model{ID: 1},
+		Person: &users.Person{FirstName: "Max", LastName: "Test"},
+	}
+	result := &checkinResult{
+		Action:         "checked_in",
+		VisitID:        &visitID,
+		RoomName:       "Room A",
+		GreetingMsg:    "Hallo Max!",
+		ActiveStudents: nil,
+	}
+
+	response := buildCheckinResponse(student, result, now)
+
+	_, exists := response["active_students"]
+	assert.False(t, exists, "active_students should not be in response when nil")
+}
+
+func TestBuildCheckinResponse_ActiveStudentsZero(t *testing.T) {
+	now := time.Now()
+	visitID := int64(123)
+	activeStudents := 0
+	student := &users.Student{
+		Model:  base.Model{ID: 1},
+		Person: &users.Person{FirstName: "Max", LastName: "Test"},
+	}
+	result := &checkinResult{
+		Action:         "checked_out",
+		VisitID:        &visitID,
+		RoomName:       "Room A",
+		GreetingMsg:    "Tschüss Max!",
+		ActiveStudents: &activeStudents,
+	}
+
+	response := buildCheckinResponse(student, result, now)
+
+	assert.Equal(t, 0, response["active_students"])
+}
+
+// =============================================================================
+// validateDeviceContext TESTS
+// =============================================================================
+
+func TestValidateDeviceContext_NilContext(t *testing.T) {
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest("POST", "/checkin", nil)
+
+	result := validateDeviceContext(w, r)
+
+	assert.Nil(t, result, "Should return nil when no device in context")
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+}
+
+// =============================================================================
+// parseCheckinRequest TESTS
+// =============================================================================
+
+func TestParseCheckinRequest_NilBody(t *testing.T) {
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest("POST", "/checkin", nil)
+	r.Header.Set("Content-Type", "application/json")
+
+	result := parseCheckinRequest(w, r, "test-device")
+
+	assert.Nil(t, result, "Should return nil for nil body")
+}
+
+// =============================================================================
+// checkinResult struct TESTS
+// =============================================================================
+
+func TestCheckinResult_AllFields(t *testing.T) {
+	visitID := int64(42)
+	activeStudents := 7
+	result := &checkinResult{
+		Action:                 "transferred",
+		VisitID:                &visitID,
+		RoomName:               "Room B",
+		PreviousRoomName:       "Room A",
+		GreetingMsg:            "Gewechselt!",
+		DailyCheckoutAvailable: true,
+		ActiveStudents:         &activeStudents,
+	}
+
+	assert.Equal(t, "transferred", result.Action)
+	assert.Equal(t, &visitID, result.VisitID)
+	assert.Equal(t, "Room B", result.RoomName)
+	assert.Equal(t, "Room A", result.PreviousRoomName)
+	assert.Equal(t, "Gewechselt!", result.GreetingMsg)
+	assert.True(t, result.DailyCheckoutAvailable)
+	assert.Equal(t, &activeStudents, result.ActiveStudents)
+}

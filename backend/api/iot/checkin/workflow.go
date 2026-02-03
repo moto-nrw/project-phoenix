@@ -27,6 +27,7 @@ type checkinResult struct {
 	PreviousRoomName       string
 	GreetingMsg            string
 	DailyCheckoutAvailable bool
+	ActiveStudents         *int
 }
 
 // checkinResultInput holds the input parameters for building a checkin result.
@@ -607,6 +608,56 @@ func buildCheckinResult(input *checkinResultInput) *checkinResult {
 	return result
 }
 
+// getActiveStudentCountForRoom returns the count of active students in the device's
+// session for the given room. Returns nil if no active group is found or on error.
+func (rs *Resource) getActiveStudentCountForRoom(ctx context.Context, roomID int64, deviceID int64) *int {
+	activeGroups, err := rs.ActiveService.FindActiveGroupsByRoomID(ctx, roomID)
+	if err != nil {
+		log.Printf("[CHECKIN] Warning: Failed to find active groups for room %d: %v", roomID, err)
+		return nil
+	}
+
+	if len(activeGroups) == 0 {
+		return nil
+	}
+
+	// Find the active group associated with this device
+	for _, group := range activeGroups {
+		if group.DeviceID != nil && *group.DeviceID == deviceID {
+			visits, visitErr := rs.ActiveService.FindVisitsByActiveGroupID(ctx, group.ID)
+			if visitErr != nil {
+				log.Printf("[CHECKIN] Warning: Failed to get visits for active group %d: %v", group.ID, visitErr)
+				return nil
+			}
+			count := countActiveStudentsInVisits(visits)
+			return &count
+		}
+	}
+
+	// No device-matched group; fall back to counting across all groups in the room
+	total := 0
+	for _, group := range activeGroups {
+		visits, visitErr := rs.ActiveService.FindVisitsByActiveGroupID(ctx, group.ID)
+		if visitErr != nil {
+			log.Printf("[CHECKIN] Warning: Failed to get visits for active group %d in fallback count: %v", group.ID, visitErr)
+			continue
+		}
+		total += countActiveStudentsInVisits(visits)
+	}
+	return &total
+}
+
+// countActiveStudentsInVisits counts visits without an exit time (active students).
+func countActiveStudentsInVisits(visits []*active.Visit) int {
+	count := 0
+	for _, visit := range visits {
+		if visit.ExitTime == nil {
+			count++
+		}
+	}
+	return count
+}
+
 // updateSessionActivityForDevice updates session activity when student scans
 func (rs *Resource) updateSessionActivityForDevice(ctx context.Context, roomID int64, deviceID int64) {
 	activeGroups, err := rs.ActiveService.FindActiveGroupsByRoomID(ctx, roomID)
@@ -642,6 +693,10 @@ func buildCheckinResponse(student *users.Student, result *checkinResult, now tim
 
 	if result.Action == "transferred" && result.PreviousRoomName != "" {
 		response["previous_room"] = result.PreviousRoomName
+	}
+
+	if result.ActiveStudents != nil {
+		response["active_students"] = *result.ActiveStudents
 	}
 
 	return response
