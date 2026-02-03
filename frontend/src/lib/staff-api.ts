@@ -177,6 +177,33 @@ const absenceLabels: Record<string, string> = {
  * 4. Time clock (present/home_office) → "Anwesend" / "Homeoffice"
  * 5. Default → "Zuhause"
  */
+// Derive room location from supervised groups
+function getSupervisionLocation(supervisedGroups: SupervisedGroupEntry[]): {
+  location: string;
+  role?: string;
+} {
+  const rooms: string[] = [];
+  let role: string | undefined;
+  for (const entry of supervisedGroups) {
+    if (entry.group.room) rooms.push(entry.group.room.name);
+    role ??= entry.role;
+  }
+  if (rooms.length > 1) return { location: `${rooms.length} Räume`, role };
+  if (rooms.length === 1) return { location: rooms[0] ?? "Unterwegs", role };
+  return { location: "Unterwegs", role };
+}
+
+// Check time clock status for location
+function getTimeClockLocation(
+  workStatus?: string,
+  wasPresentToday?: boolean,
+): string | null {
+  if (workStatus === "present") return "Anwesend";
+  if (workStatus === "home_office") return "Homeoffice";
+  if (wasPresentToday) return "Anwesend";
+  return null;
+}
+
 function getSupervisionInfo(
   staffId: string | undefined,
   staffGroupsMap: Record<string, SupervisedGroupEntry[]>,
@@ -202,43 +229,20 @@ function getSupervisionInfo(
   }
 
   // Priority 3: Active supervision → room(s) (more precise than generic "Anwesend")
-  if (staffId) {
-    const supervisedGroups = staffGroupsMap[staffId];
-    if (supervisedGroups) {
-      const supervisedRooms: string[] = [];
-      let supervisionRole: string | undefined;
-
-      for (const { group, role } of supervisedGroups) {
-        if (group.room) {
-          supervisedRooms.push(group.room.name);
-        }
-        supervisionRole ??= role;
-      }
-
-      let currentLocation: string;
-      if (supervisedRooms.length > 1) {
-        currentLocation = `${supervisedRooms.length} Räume`;
-      } else if (supervisedRooms.length === 1) {
-        currentLocation = supervisedRooms[0] ?? "Unterwegs";
-      } else {
-        currentLocation = "Unterwegs";
-      }
-
-      return { isSupervising: true, currentLocation, supervisionRole };
-    }
+  const supervisedGroups = staffId ? staffGroupsMap[staffId] : undefined;
+  if (supervisedGroups) {
+    const { location, role } = getSupervisionLocation(supervisedGroups);
+    return {
+      isSupervising: true,
+      currentLocation: location,
+      supervisionRole: role,
+    };
   }
 
-  // Priority 4: Time clock → "Anwesend" or "Homeoffice"
-  if (workStatus === "present") {
-    return { isSupervising: false, currentLocation: "Anwesend" };
-  }
-  if (workStatus === "home_office") {
-    return { isSupervising: false, currentLocation: "Homeoffice" };
-  }
-
-  // Legacy fallback: wasPresentToday from supervision data (for backward compatibility)
-  if (wasPresentToday) {
-    return { isSupervising: false, currentLocation: "Anwesend" };
+  // Priority 4: Time clock / legacy wasPresentToday → "Anwesend" or "Homeoffice"
+  const timeClockLocation = getTimeClockLocation(workStatus, wasPresentToday);
+  if (timeClockLocation) {
+    return { isSupervising: false, currentLocation: timeClockLocation };
   }
 
   // Priority 5: Default
