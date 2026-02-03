@@ -214,41 +214,14 @@ func (s *staffAbsenceService) UpdateAbsence(ctx context.Context, staffID int64, 
 		return nil, fmt.Errorf("can only update own absences")
 	}
 
-	if req.AbsenceType != nil {
-		absence.AbsenceType = *req.AbsenceType
-	}
-	if req.DateStart != nil {
-		dateStart, err := time.Parse(dateFormatISO, *req.DateStart)
-		if err != nil {
-			return nil, fmt.Errorf("invalid date_start format, expected YYYY-MM-DD")
-		}
-		absence.DateStart = dateStart
-	}
-	if req.DateEnd != nil {
-		dateEnd, err := time.Parse(dateFormatISO, *req.DateEnd)
-		if err != nil {
-			return nil, fmt.Errorf("invalid date_end format, expected YYYY-MM-DD")
-		}
-		absence.DateEnd = dateEnd
-	}
-	if req.HalfDay != nil {
-		absence.HalfDay = *req.HalfDay
-	}
-	if req.Note != nil {
-		absence.Note = *req.Note
+	// Apply updates from request
+	if err := applyAbsenceUpdates(absence, req); err != nil {
+		return nil, err
 	}
 
 	// Check for overlapping absences (excluding self)
-	existing, err := s.absenceRepo.GetByStaffAndDateRange(ctx, staffID, absence.DateStart, absence.DateEnd)
-	if err != nil {
-		return nil, fmt.Errorf("failed to check existing absences: %w", err)
-	}
-	for _, e := range existing {
-		if e.ID != absenceID {
-			return nil, fmt.Errorf("updated dates overlap with existing absence from %s to %s",
-				e.DateStart.Format(dateFormatISO),
-				e.DateEnd.Format(dateFormatISO))
-		}
+	if err := s.checkOverlapExcludingSelf(ctx, staffID, absenceID, absence.DateStart, absence.DateEnd); err != nil {
+		return nil, err
 	}
 
 	absence.UpdatedAt = time.Now()
@@ -262,6 +235,50 @@ func (s *staffAbsenceService) UpdateAbsence(ctx context.Context, staffID int64, 
 	}
 
 	return toAbsenceResponse(absence), nil
+}
+
+// applyAbsenceUpdates applies partial updates from the request to the absence.
+func applyAbsenceUpdates(absence *activeModels.StaffAbsence, req UpdateAbsenceRequest) error {
+	if req.AbsenceType != nil {
+		absence.AbsenceType = *req.AbsenceType
+	}
+	if req.DateStart != nil {
+		dateStart, err := time.Parse(dateFormatISO, *req.DateStart)
+		if err != nil {
+			return fmt.Errorf("invalid date_start format, expected YYYY-MM-DD")
+		}
+		absence.DateStart = dateStart
+	}
+	if req.DateEnd != nil {
+		dateEnd, err := time.Parse(dateFormatISO, *req.DateEnd)
+		if err != nil {
+			return fmt.Errorf("invalid date_end format, expected YYYY-MM-DD")
+		}
+		absence.DateEnd = dateEnd
+	}
+	if req.HalfDay != nil {
+		absence.HalfDay = *req.HalfDay
+	}
+	if req.Note != nil {
+		absence.Note = *req.Note
+	}
+	return nil
+}
+
+// checkOverlapExcludingSelf checks for overlapping absences, excluding the given absence ID.
+func (s *staffAbsenceService) checkOverlapExcludingSelf(ctx context.Context, staffID, absenceID int64, dateStart, dateEnd time.Time) error {
+	existing, err := s.absenceRepo.GetByStaffAndDateRange(ctx, staffID, dateStart, dateEnd)
+	if err != nil {
+		return fmt.Errorf("failed to check existing absences: %w", err)
+	}
+	for _, e := range existing {
+		if e.ID != absenceID {
+			return fmt.Errorf("updated dates overlap with existing absence from %s to %s",
+				e.DateStart.Format(dateFormatISO),
+				e.DateEnd.Format(dateFormatISO))
+		}
+	}
+	return nil
 }
 
 // DeleteAbsence deletes an absence record
