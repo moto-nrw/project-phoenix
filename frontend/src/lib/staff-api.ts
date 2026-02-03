@@ -188,20 +188,21 @@ const absenceLabels: Record<string, string> = {
   sick: "Krank",
   vacation: "Urlaub",
   training: "Fortbildung",
-  other: "Abwesend",
+  other: "Abwesend", // Shows red, same as "not clocked in"
 };
 
 /**
  * Determines location and supervision info for a staff member.
  *
- * Badge shows time clock status (Anwesend/Abwesend/Homeoffice/Krank/etc.)
+ * Badge shows time clock status. Absence only shown when NOT clocked in.
  * Supervisions are returned separately as an array of rooms.
  *
  * Priority for currentLocation (badge):
- * 1. Absence today → "Krank" / "Urlaub" / "Fortbildung" / "Abwesend"
- * 2. Time clock present → "Anwesend"
- * 3. Time clock home_office → "Homeoffice"
- * 4. Checked out or never clocked in → "Abwesend"
+ * 1. Time clock present → "Anwesend" (green)
+ * 2. Time clock home_office → "Homeoffice" (blue)
+ * 3. Not clocked in + absence → "Krank"/"Urlaub"/"Fortbildung" (gray), "other" → "Abwesend" (red)
+ * 4. Legacy fallback (no work_status) → "Anwesend"
+ * 5. Not clocked in, no absence → "Abwesend" (red)
  */
 function getSupervisionInfo(
   staffId: string | undefined,
@@ -238,27 +239,25 @@ function getSupervisionInfo(
   // Determine badge location (time clock status only)
   let currentLocation: string;
 
-  // Priority 1: Absence today → overrides everything
-  if (absenceType && absenceLabels[absenceType]) {
-    currentLocation = absenceLabels[absenceType];
-  }
-  // Priority 2: Time clock present
-  else if (workStatus === "present") {
+  // Priority 1: Time clock present → always wins
+  if (workStatus === "present") {
     currentLocation = "Anwesend";
   }
-  // Priority 3: Time clock home office
+  // Priority 2: Time clock home office → always wins
   else if (workStatus === "home_office") {
     currentLocation = "Homeoffice";
   }
-  // Priority 4: Explicitly checked out → Abwesend
-  else if (workStatus === "checked_out") {
-    currentLocation = "Abwesend";
+  // Priority 3: Not clocked in - check for absence reason
+  // (checked_out, no work_status, or legacy fallback)
+  else if (absenceType && absenceLabels[absenceType]) {
+    // Absence provides more detail on WHY they're absent
+    currentLocation = absenceLabels[absenceType];
   }
-  // Priority 5: Legacy fallback (only if NO work_status data exists)
+  // Priority 4: Legacy fallback (only if NO work_status and NO absence)
   else if (wasPresentToday && !workStatus) {
     currentLocation = "Anwesend";
   }
-  // Priority 6: Not present
+  // Priority 5: Not present (checked out or never clocked in, no absence)
   else {
     currentLocation = "Abwesend";
   }
