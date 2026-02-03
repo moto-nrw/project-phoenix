@@ -169,6 +169,9 @@ function formatTimeFromDate(date: Date): string {
 
 const BREAK_OPTIONS = [15, 30, 45, 60] as const;
 
+// Work mode type for clock-in status
+type WorkMode = "present" | "home_office" | "absent";
+
 // Calculate elapsed minutes from a start time to now
 function calcElapsedMinutes(startTime: string | Date, now: Date): number {
   return Math.max(
@@ -233,8 +236,8 @@ function getSessionStatusBadge(
 
 // Returns className for mode toggle button
 function getModeToggleClassName(
-  buttonMode: "present" | "home_office" | "absent",
-  currentMode: "present" | "home_office" | "absent",
+  buttonMode: WorkMode,
+  currentMode: WorkMode,
 ): string {
   const base =
     "rounded-full px-3 py-1.5 text-xs font-medium transition-all sm:px-4";
@@ -248,9 +251,7 @@ function getModeToggleClassName(
 }
 
 // Returns className for check-in button based on mode
-function getCheckInButtonClassName(
-  mode: "present" | "home_office" | "absent",
-): string {
+function getCheckInButtonClassName(mode: WorkMode): string {
   const base =
     "flex h-16 w-16 items-center justify-center rounded-full border-2 transition-all active:scale-95 disabled:opacity-50";
   if (mode === "home_office")
@@ -313,6 +314,80 @@ function shouldAutoEndBreak(
   return countdownSecs !== null && countdownSecs <= 0 && isOnBreak && !loading;
 }
 
+// Get break warning only when checked in
+function getBreakWarningIfActive(
+  isCheckedIn: boolean,
+  session: WorkSession | null,
+  netMins: number,
+  breakMins: number,
+): string | null {
+  if (!isCheckedIn || !session) return null;
+  return getBreakWarning(netMins, breakMins);
+}
+
+// Calculate checked-out net minutes
+function getCheckedOutNetMins(
+  isCheckedOut: boolean,
+  session: WorkSession | null,
+): number | null {
+  if (!isCheckedOut || !session) return null;
+  return calculateNetMinutes(
+    session.checkInTime,
+    session.checkOutTime,
+    session.breakMinutes,
+  );
+}
+
+// Timer display content based on break/work state
+function renderTimerContent(
+  isOnBreak: boolean,
+  countdownRemainingSecs: number | null,
+  plannedBreakMinutes: number | null,
+  activeBreakElapsedSecs: number,
+  displayMinutes: number,
+  breakWarning: string | null,
+): React.ReactNode {
+  // Break with countdown timer
+  if (isOnBreak && countdownRemainingSecs !== null) {
+    return (
+      <>
+        <span className="text-4xl font-light text-amber-500 tabular-nums">
+          {formatCountdown(countdownRemainingSecs)}
+        </span>
+        <span className="mt-0.5 text-xs font-medium text-amber-500">
+          Pause ({plannedBreakMinutes} Min)
+        </span>
+      </>
+    );
+  }
+  // Break without countdown (manual)
+  if (isOnBreak) {
+    return (
+      <>
+        <span className="text-4xl font-light text-amber-500 tabular-nums">
+          {formatCountdown(activeBreakElapsedSecs)}
+        </span>
+        <span className="mt-0.5 text-xs font-medium text-amber-500">
+          Pause läuft
+        </span>
+      </>
+    );
+  }
+  // Working time display
+  return (
+    <>
+      <span className="text-4xl font-light text-gray-900 tabular-nums">
+        {formatHMM(displayMinutes)}
+      </span>
+      {breakWarning && (
+        <span className="mt-0.5 text-xs font-medium text-amber-600">
+          {breakWarning}
+        </span>
+      )}
+    </>
+  );
+}
+
 function ClockInCard({
   currentSession,
   breaks,
@@ -332,9 +407,7 @@ function ClockInCard({
   readonly weeklyMinutes: number;
   readonly onAddAbsence: () => void;
 }) {
-  const [mode, setMode] = useState<"present" | "home_office" | "absent">(
-    "present",
-  );
+  const [mode, setMode] = useState<WorkMode>("present");
   const [actionLoading, setActionLoading] = useState(false);
   const [tick, setTick] = useState(0); // forces re-render for live times
   const [breakMenuOpen, setBreakMenuOpen] = useState(false);
@@ -405,19 +478,20 @@ function ClockInCard({
   }, [isOnBreak]);
 
   // Break compliance warning (only shown when checked in)
-  const breakWarning =
-    isCheckedIn && currentSession
-      ? getBreakWarning(netMinutes, liveBreakMins)
-      : null;
+  const breakWarning = getBreakWarningIfActive(
+    isCheckedIn,
+    currentSession,
+    netMinutes,
+    liveBreakMins,
+  );
 
   // Checked-out net
-  const checkedOutNet =
-    isCheckedOut && currentSession
-      ? calculateNetMinutes(
-          currentSession.checkInTime,
-          currentSession.checkOutTime,
-          currentSession.breakMinutes,
-        )
+  const checkedOutNet = getCheckedOutNetMins(isCheckedOut, currentSession);
+
+  // Session status badge (computed once, not in IIFE)
+  const statusBadge =
+    isCheckedIn && currentSession
+      ? getSessionStatusBadge(isOnBreak, currentSession.status)
       : null;
 
   const handleCheckIn = async () => {
@@ -468,21 +542,13 @@ function ClockInCard({
           <h2 className="text-base font-bold text-gray-900 sm:text-lg">
             Stempeluhr
           </h2>
-          {isCheckedIn &&
-            currentSession &&
-            (() => {
-              const badge = getSessionStatusBadge(
-                isOnBreak,
-                currentSession.status,
-              );
-              return (
-                <span
-                  className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${badge.className}`}
-                >
-                  {badge.label}
-                </span>
-              );
-            })()}
+          {statusBadge && (
+            <span
+              className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${statusBadge.className}`}
+            >
+              {statusBadge.label}
+            </span>
+          )}
         </div>
 
         {/* ── Not checked in: start controls ── */}
@@ -629,47 +695,14 @@ function ClockInCard({
 
               {/* Timer display */}
               <div className="flex flex-col items-center">
-                {(() => {
-                  // Break with countdown timer
-                  if (isOnBreak && countdownRemainingSecs !== null) {
-                    return (
-                      <>
-                        <span className="text-4xl font-light text-amber-500 tabular-nums">
-                          {formatCountdown(countdownRemainingSecs)}
-                        </span>
-                        <span className="mt-0.5 text-xs font-medium text-amber-500">
-                          Pause ({plannedBreakMinutes} Min)
-                        </span>
-                      </>
-                    );
-                  }
-                  // Break without countdown (manual)
-                  if (isOnBreak) {
-                    return (
-                      <>
-                        <span className="text-4xl font-light text-amber-500 tabular-nums">
-                          {formatCountdown(activeBreakElapsedSecs)}
-                        </span>
-                        <span className="mt-0.5 text-xs font-medium text-amber-500">
-                          Pause läuft
-                        </span>
-                      </>
-                    );
-                  }
-                  // Working time display
-                  return (
-                    <>
-                      <span className="text-4xl font-light text-gray-900 tabular-nums">
-                        {formatHMM(displayMinutes)}
-                      </span>
-                      {breakWarning && (
-                        <span className="mt-0.5 text-xs font-medium text-amber-600">
-                          {breakWarning}
-                        </span>
-                      )}
-                    </>
-                  );
-                })()}
+                {renderTimerContent(
+                  isOnBreak,
+                  countdownRemainingSecs,
+                  plannedBreakMinutes,
+                  activeBreakElapsedSecs,
+                  displayMinutes,
+                  breakWarning,
+                )}
               </div>
 
               {/* Stop / check-out button */}
@@ -1453,6 +1486,93 @@ function MiniCalendar({
   );
 }
 
+// ─── WeekTable Helpers ────────────────────────────────────────────────────────
+
+/** Pre-computed data for rendering a single day in the week table */
+interface DayRenderData {
+  day: Date;
+  dateKey: string;
+  session: WorkSessionHistory | undefined;
+  absence: StaffAbsence | undefined;
+  isToday: boolean;
+  isPast: boolean;
+  isFuture: boolean;
+  dayName: string;
+  isActive: boolean;
+  canEdit: boolean;
+  hasEdits: boolean;
+  netDisplay: string;
+  warnings: string[];
+}
+
+/** Compute all derived values for a day cell */
+function computeDayData(
+  day: Date,
+  index: number,
+  sessionMap: Map<string, WorkSessionHistory>,
+  absenceMap: Map<string, StaffAbsence>,
+  today: Date,
+  currentSession: WorkSession | null,
+  liveBreakMins: number,
+): DayRenderData {
+  const dateKey = toISODate(day);
+  const session = sessionMap.get(dateKey);
+  const absence = absenceMap.get(dateKey);
+  const isToday = isSameDay(day, today);
+  const isPast = isBeforeDay(day, today);
+  const isFuture = !isToday && !isPast;
+  const dayName = DAY_NAMES[index] ?? "";
+  const isActive =
+    isToday && currentSession !== null && currentSession.checkOutTime === null;
+  const canEdit = session !== undefined && (isPast || (isToday && !isActive));
+  const hasEdits = (session?.editCount ?? 0) > 0;
+
+  // Calculate net display
+  let netDisplay = "--";
+  if (session) {
+    if (session.checkOutTime) {
+      netDisplay = formatDuration(session.netMinutes);
+    } else if (isActive) {
+      const live = calculateNetMinutes(
+        session.checkInTime,
+        new Date().toISOString(),
+        liveBreakMins,
+      );
+      netDisplay = live == null ? "--" : formatDuration(live);
+    }
+  }
+
+  const warnings = session ? getComplianceWarnings(session) : [];
+
+  return {
+    day,
+    dateKey,
+    session,
+    absence,
+    isToday,
+    isPast,
+    isFuture,
+    dayName,
+    isActive,
+    canEdit,
+    hasEdits,
+    netDisplay,
+    warnings,
+  };
+}
+
+/** Get session status badge styling for week table */
+function getWeekTableBadge(
+  session: WorkSessionHistory,
+  isActive: boolean,
+): { className: string; label: string } {
+  if (isActive)
+    return { className: "bg-green-100 text-green-700", label: "aktiv" };
+  if (session.status === "home_office")
+    return { className: "bg-sky-100 text-sky-700", label: "HO" };
+  return { className: "bg-gray-100 text-gray-600", label: "OGS" };
+}
+
 // ─── WeekTable ────────────────────────────────────────────────────────────────
 
 function WeekTable({
@@ -1614,36 +1734,29 @@ function WeekTable({
           {weekDays.map((day, index) => {
             if (!day) return null;
             if (day.getDay() === 0 || day.getDay() === 6) return null;
-            const dateKey = toISODate(day);
-            const session = sessionMap.get(dateKey);
-            const absence = absenceMap.get(dateKey);
-            const isToday = isSameDay(day, today);
-            const isPast = isBeforeDay(day, today);
-            const isFuture = !isToday && !isPast;
-            const dayName = DAY_NAMES[index];
-            const isActive =
-              isToday &&
-              currentSession !== null &&
-              currentSession.checkOutTime === null;
-            const canEdit =
-              session !== undefined && (isPast || (isToday && !isActive));
-            const hasEdits = (session?.editCount ?? 0) > 0;
 
-            let netDisplay = "--";
-            if (session) {
-              if (session.checkOutTime) {
-                netDisplay = formatDuration(session.netMinutes);
-              } else if (isActive) {
-                const live = calculateNetMinutes(
-                  session.checkInTime,
-                  new Date().toISOString(),
-                  liveBreakMins,
-                );
-                netDisplay = live == null ? "--" : formatDuration(live);
-              }
-            }
-
-            const warnings = session ? getComplianceWarnings(session) : [];
+            const d = computeDayData(
+              day,
+              index,
+              sessionMap,
+              absenceMap,
+              today,
+              currentSession,
+              liveBreakMins,
+            );
+            const {
+              dateKey,
+              session,
+              absence,
+              isToday,
+              isFuture,
+              dayName,
+              isActive,
+              canEdit,
+              hasEdits,
+              netDisplay,
+              warnings,
+            } = d;
 
             // Absence-only card — clickable to open edit modal
             if (absence && session == null) {
@@ -1697,20 +1810,12 @@ function WeekTable({
                   <div className="flex items-center gap-2">
                     {session &&
                       (() => {
-                        let badgeClass = "bg-gray-100 text-gray-600";
-                        let badgeLabel = "OGS";
-                        if (isActive) {
-                          badgeClass = "bg-green-100 text-green-700";
-                          badgeLabel = "aktiv";
-                        } else if (session.status === "home_office") {
-                          badgeClass = "bg-sky-100 text-sky-700";
-                          badgeLabel = "HO";
-                        }
+                        const badge = getWeekTableBadge(session, isActive);
                         return (
                           <span
-                            className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${badgeClass}`}
+                            className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${badge.className}`}
                           >
-                            {badgeLabel}
+                            {badge.label}
                           </span>
                         );
                       })()}
@@ -1834,20 +1939,29 @@ function WeekTable({
               {weekDays.map((day, index) => {
                 if (!day) return null;
                 if (day.getDay() === 0 || day.getDay() === 6) return null;
-                const dateKey = toISODate(day);
-                const session = sessionMap.get(dateKey);
-                const absence = absenceMap.get(dateKey);
-                const isToday = isSameDay(day, today);
-                const isPast = isBeforeDay(day, today);
-                const isFuture = !isToday && !isPast;
-                const dayName = DAY_NAMES[index];
-                const isActive =
-                  isToday &&
-                  currentSession !== null &&
-                  currentSession.checkOutTime === null;
-                const canEdit =
-                  session !== undefined && (isPast || (isToday && !isActive));
-                const hasEdits = (session?.editCount ?? 0) > 0;
+
+                const d = computeDayData(
+                  day,
+                  index,
+                  sessionMap,
+                  absenceMap,
+                  today,
+                  currentSession,
+                  liveBreakMins,
+                );
+                const {
+                  dateKey,
+                  session,
+                  absence,
+                  isToday,
+                  isFuture,
+                  dayName,
+                  isActive,
+                  canEdit,
+                  hasEdits,
+                  netDisplay,
+                  warnings,
+                } = d;
                 const isExpanded = expandedSessionId === session?.id;
 
                 const handleRowClick = () => {
@@ -1858,22 +1972,6 @@ function WeekTable({
                     onEditDay(day, session, absence ?? null);
                   }
                 };
-
-                let netDisplay = "--";
-                if (session) {
-                  if (session.checkOutTime) {
-                    netDisplay = formatDuration(session.netMinutes);
-                  } else if (isActive) {
-                    const live = calculateNetMinutes(
-                      session.checkInTime,
-                      new Date().toISOString(),
-                      liveBreakMins,
-                    );
-                    netDisplay = live == null ? "--" : formatDuration(live);
-                  }
-                }
-
-                const warnings = session ? getComplianceWarnings(session) : [];
 
                 if (absence && session == null) {
                   const colorClass =
@@ -2455,11 +2553,11 @@ function EditSessionModal({
   };
 
   // Dynamic title based on what's present
-  const modalTitle = hasBoth
-    ? "Tag bearbeiten"
-    : hasAbsence
-      ? "Abwesenheit bearbeiten"
-      : "Eintrag bearbeiten";
+  const modalTitle = (() => {
+    if (hasBoth) return "Tag bearbeiten";
+    if (hasAbsence) return "Abwesenheit bearbeiten";
+    return "Eintrag bearbeiten";
+  })();
 
   // Footer: tab-aware for dual-section, standard for single-section
   const sessionFooter = (
