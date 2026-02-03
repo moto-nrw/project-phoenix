@@ -1594,6 +1594,51 @@ function getRowBackgroundClass(isExpanded: boolean, isToday: boolean): string {
   return "";
 }
 
+/** Render desktop edit actions cell */
+function renderDesktopEditActions(
+  hasEdits: boolean,
+  canEdit: boolean,
+  session: WorkSessionHistory | undefined,
+  day: Date,
+  absence: StaffAbsence | undefined,
+  onEditDay: (
+    day: Date,
+    session: WorkSessionHistory,
+    absence: StaffAbsence | null,
+  ) => void,
+): React.ReactNode {
+  if (hasEdits && session) {
+    return (
+      <span className="text-xs text-gray-500">
+        Zuletzt geändert {formatDateTime(new Date(session.updatedAt))}
+      </span>
+    );
+  }
+  if (canEdit && session) {
+    return (
+      <div className="flex items-center justify-center">
+        <span className="text-xs text-gray-300 group-hover/row:hidden">–</span>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onEditDay(day, session, absence ?? null);
+          }}
+          className="hidden group-hover/row:block"
+          aria-label="Eintrag bearbeiten"
+        >
+          <SquarePen className="h-3.5 w-3.5 text-gray-300" />
+        </button>
+      </div>
+    );
+  }
+  return (
+    <div className="flex items-center justify-center">
+      <span className="text-xs text-gray-300">–</span>
+    </div>
+  );
+}
+
 /** Render desktop status badge (full labels) */
 function renderDesktopStatusBadge(
   session: WorkSessionHistory | undefined,
@@ -2127,41 +2172,14 @@ function WeekTable({
                         {renderDesktopStatusBadge(session, isActive, isFuture)}
                       </td>
                       <td className="px-4 py-3 text-center">
-                        {(() => {
-                          if (hasEdits && session) {
-                            return (
-                              <span className="text-xs text-gray-500">
-                                Zuletzt geändert{" "}
-                                {formatDateTime(new Date(session.updatedAt))}
-                              </span>
-                            );
-                          }
-                          if (canEdit && session) {
-                            return (
-                              <div className="flex items-center justify-center">
-                                <span className="text-xs text-gray-300 group-hover/row:hidden">
-                                  –
-                                </span>
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    onEditDay(day, session, absence ?? null);
-                                  }}
-                                  className="hidden group-hover/row:block"
-                                  aria-label="Eintrag bearbeiten"
-                                >
-                                  <SquarePen className="h-3.5 w-3.5 text-gray-300" />
-                                </button>
-                              </div>
-                            );
-                          }
-                          return (
-                            <div className="flex items-center justify-center">
-                              <span className="text-xs text-gray-300">–</span>
-                            </div>
-                          );
-                        })()}
+                        {renderDesktopEditActions(
+                          hasEdits,
+                          canEdit,
+                          session,
+                          day,
+                          absence,
+                          onEditDay,
+                        )}
                       </td>
                     </tr>
                     {isExpanded && session && (
