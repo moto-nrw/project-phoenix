@@ -617,6 +617,10 @@ func (rs *Resource) getActiveStudentCountForRoom(ctx context.Context, roomID int
 		return nil
 	}
 
+	if len(activeGroups) == 0 {
+		return nil
+	}
+
 	// Find the active group associated with this device
 	for _, group := range activeGroups {
 		if group.DeviceID != nil && *group.DeviceID == deviceID {
@@ -635,6 +639,7 @@ func (rs *Resource) getActiveStudentCountForRoom(ctx context.Context, roomID int
 	for _, group := range activeGroups {
 		visits, visitErr := rs.ActiveService.FindVisitsByActiveGroupID(ctx, group.ID)
 		if visitErr != nil {
+			log.Printf("[CHECKIN] Warning: Failed to get visits for active group %d in fallback count: %v", group.ID, visitErr)
 			continue
 		}
 		total += countActiveStudentsInVisits(visits)
