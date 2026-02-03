@@ -519,10 +519,10 @@ function ClockInCard({
                 {breakMenuOpen && !isOnBreak && (
                   <>
                     {/* Backdrop to close menu */}
-                    <div
-                      role="button"
-                      tabIndex={0}
-                      className="fixed inset-0 z-10"
+                    <button
+                      type="button"
+                      aria-label="Menü schließen"
+                      className="fixed inset-0 z-10 cursor-default bg-transparent"
                       onClick={() => setBreakMenuOpen(false)}
                       onKeyDown={(e) => {
                         if (e.key === "Escape" || e.key === "Enter")
@@ -1522,18 +1522,11 @@ function WeekTable({
                 absenceTypeColors[absence.absenceType] ??
                 "bg-gray-100 text-gray-600";
               return (
-                <div
+                <button
                   key={dateKey}
-                  role="button"
-                  tabIndex={0}
+                  type="button"
                   onClick={() => onEditDay(day, null, absence)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault();
-                      onEditDay(day, null, absence);
-                    }
-                  }}
-                  className={`cursor-pointer py-3 transition-colors hover:bg-gray-50 ${isToday ? "rounded-lg bg-blue-50/50" : ""}`}
+                  className={`w-full cursor-pointer py-3 text-left transition-colors hover:bg-gray-50 ${isToday ? "rounded-lg bg-blue-50/50" : ""}`}
                 >
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium text-gray-700">
@@ -1548,7 +1541,7 @@ function WeekTable({
                       <SquarePen className="h-3.5 w-3.5 text-gray-300" />
                     </div>
                   </div>
-                </div>
+                </button>
               );
             }
 
@@ -1757,15 +1750,7 @@ function WeekTable({
                   return (
                     <tr
                       key={dateKey}
-                      role="button"
-                      tabIndex={0}
                       onClick={() => onEditDay(day, null, absence)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" || e.key === " ") {
-                          e.preventDefault();
-                          onEditDay(day, null, absence);
-                        }
-                      }}
                       className={`group/row cursor-pointer border-b border-gray-50 transition-colors hover:bg-gray-50 ${isToday ? "bg-blue-50/50" : ""}`}
                     >
                       <td className="px-6 py-3 font-medium text-gray-700">
@@ -1791,7 +1776,17 @@ function WeekTable({
                         </span>
                       </td>
                       <td className="px-4 py-3 text-center">
-                        <SquarePen className="inline h-3.5 w-3.5 text-gray-300 opacity-0 transition-opacity group-hover/row:opacity-100" />
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onEditDay(day, null, absence);
+                          }}
+                          aria-label={`${absenceTypeLabels[absence.absenceType]} am ${dayName} ${formatDateShort(day)} bearbeiten`}
+                          className="inline-flex opacity-0 transition-opacity group-hover/row:opacity-100 focus:opacity-100"
+                        >
+                          <SquarePen className="h-3.5 w-3.5 text-gray-300" />
+                        </button>
                       </td>
                     </tr>
                   );
