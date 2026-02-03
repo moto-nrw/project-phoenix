@@ -2396,6 +2396,17 @@ function getEditModalTitle(hasSession: boolean, hasAbsence: boolean): string {
   return "Eintrag bearbeiten";
 }
 
+/** Build ISO timestamp from date and time string with local timezone */
+function buildIsoTimestamp(date: Date, time: string): string | undefined {
+  if (!time) return undefined;
+  const dateStr = toISODate(date);
+  const tzOffset = -new Date().getTimezoneOffset();
+  const tzSign = tzOffset >= 0 ? "+" : "-";
+  const tzH = String(Math.floor(Math.abs(tzOffset) / 60)).padStart(2, "0");
+  const tzM = String(Math.abs(tzOffset) % 60).padStart(2, "0");
+  return `${dateStr}T${time}:00${tzSign}${tzH}:${tzM}`;
+}
+
 /** Get modal footer based on context */
 function getEditModalFooter(
   hasBoth: boolean,
@@ -2547,45 +2558,34 @@ function EditSessionModal({
     if (!session) return;
     setSaving(true);
     try {
-      const dateStr = toISODate(date);
-
-      // Build ISO timestamps from time inputs + date (with local timezone)
-      const tzOffset = -new Date().getTimezoneOffset();
-      const tzSign = tzOffset >= 0 ? "+" : "-";
-      const tzH = String(Math.floor(Math.abs(tzOffset) / 60)).padStart(2, "0");
-      const tzM = String(Math.abs(tzOffset) % 60).padStart(2, "0");
-      const tz = `${tzSign}${tzH}:${tzM}`;
-
-      const buildTimestamp = (time: string) => {
-        if (!time) return undefined;
-        return `${dateStr}T${time}:00${tz}`;
-      };
+      const checkInTime = buildIsoTimestamp(date, startTime);
+      const checkOutTime = buildIsoTimestamp(date, endTime);
 
       if (hasIndividualBreaks) {
         // Build breaks array with only changed durations
-        const changedBreaks: Array<{ id: string; durationMinutes: number }> =
-          [];
-        for (const brk of session.breaks) {
-          const newDuration = breakDurations.get(brk.id);
-          if (
-            newDuration !== undefined &&
-            newDuration !== brk.durationMinutes
-          ) {
-            changedBreaks.push({ id: brk.id, durationMinutes: newDuration });
-          }
-        }
+        const changedBreaks = session.breaks
+          .filter((brk) => {
+            const newDuration = breakDurations.get(brk.id);
+            return (
+              newDuration !== undefined && newDuration !== brk.durationMinutes
+            );
+          })
+          .map((brk) => ({
+            id: brk.id,
+            durationMinutes: breakDurations.get(brk.id)!,
+          }));
 
         await onSave(session.id, {
-          checkInTime: buildTimestamp(startTime),
-          checkOutTime: buildTimestamp(endTime) ?? undefined,
+          checkInTime,
+          checkOutTime,
           status,
           notes: notes || undefined,
           breaks: changedBreaks.length > 0 ? changedBreaks : undefined,
         });
       } else {
         await onSave(session.id, {
-          checkInTime: buildTimestamp(startTime),
-          checkOutTime: buildTimestamp(endTime) ?? undefined,
+          checkInTime,
+          checkOutTime,
           breakMinutes: editedBreak,
           status,
           notes: notes || undefined,
