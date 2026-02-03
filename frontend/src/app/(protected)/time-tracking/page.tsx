@@ -88,10 +88,16 @@ function isBeforeDay(a: Date, b: Date): boolean {
   return aDate.getTime() < bDate.getTime();
 }
 
+// Extracts error message string from unknown error types
+function getErrorMessage(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  if (typeof err === "string") return err;
+  return "";
+}
+
 // Maps backend error messages to user-friendly German messages
 function friendlyError(err: unknown, fallback: string): string {
-  const msg =
-    err instanceof Error ? err.message : typeof err === "string" ? err : "";
+  const msg = getErrorMessage(err);
 
   // Extract backend error from nested API error format
   const match = /"error":"([^"]+)"/.exec(msg);
@@ -162,6 +168,20 @@ function formatTimeFromDate(date: Date): string {
 }
 
 const BREAK_OPTIONS = [15, 30, 45, 60] as const;
+
+// Returns status badge styling and label for current session state
+function getSessionStatusBadge(
+  isOnBreak: boolean,
+  status: string | undefined,
+): { className: string; label: string } {
+  if (isOnBreak) {
+    return { className: "bg-amber-100 text-amber-700", label: "Pause" };
+  }
+  if (status === "home_office") {
+    return { className: "bg-sky-100 text-sky-700", label: "Homeoffice" };
+  }
+  return { className: "bg-[#83CD2D]/10 text-[#70b525]", label: "In der OGS" };
+}
 
 function ClockInCard({
   currentSession,
@@ -364,23 +384,21 @@ function ClockInCard({
           <h2 className="text-base font-bold text-gray-900 sm:text-lg">
             Stempeluhr
           </h2>
-          {isCheckedIn && currentSession && (
-            <span
-              className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                isOnBreak
-                  ? "bg-amber-100 text-amber-700"
-                  : currentSession.status === "home_office"
-                    ? "bg-sky-100 text-sky-700"
-                    : "bg-[#83CD2D]/10 text-[#70b525]"
-              }`}
-            >
-              {isOnBreak
-                ? "Pause"
-                : currentSession.status === "home_office"
-                  ? "Homeoffice"
-                  : "In der OGS"}
-            </span>
-          )}
+          {isCheckedIn &&
+            currentSession &&
+            (() => {
+              const badge = getSessionStatusBadge(
+                isOnBreak,
+                currentSession.status,
+              );
+              return (
+                <span
+                  className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${badge.className}`}
+                >
+                  {badge.label}
+                </span>
+              );
+            })()}
         </div>
 
         {/* ── Not checked in: start controls ── */}
@@ -547,36 +565,47 @@ function ClockInCard({
 
               {/* Timer display */}
               <div className="flex flex-col items-center">
-                {isOnBreak && countdownRemainingSecs !== null ? (
-                  <>
-                    <span className="text-4xl font-light text-amber-500 tabular-nums">
-                      {formatCountdown(countdownRemainingSecs)}
-                    </span>
-                    <span className="mt-0.5 text-xs font-medium text-amber-500">
-                      Pause ({plannedBreakMinutes} Min)
-                    </span>
-                  </>
-                ) : isOnBreak ? (
-                  <>
-                    <span className="text-4xl font-light text-amber-500 tabular-nums">
-                      {formatCountdown(activeBreakElapsedSecs)}
-                    </span>
-                    <span className="mt-0.5 text-xs font-medium text-amber-500">
-                      Pause läuft
-                    </span>
-                  </>
-                ) : (
-                  <>
-                    <span className="text-4xl font-light text-gray-900 tabular-nums">
-                      {formatHMM(displayMinutes)}
-                    </span>
-                    {breakWarning && (
-                      <span className="mt-0.5 text-xs font-medium text-amber-600">
-                        {breakWarning}
+                {(() => {
+                  // Break with countdown timer
+                  if (isOnBreak && countdownRemainingSecs !== null) {
+                    return (
+                      <>
+                        <span className="text-4xl font-light text-amber-500 tabular-nums">
+                          {formatCountdown(countdownRemainingSecs)}
+                        </span>
+                        <span className="mt-0.5 text-xs font-medium text-amber-500">
+                          Pause ({plannedBreakMinutes} Min)
+                        </span>
+                      </>
+                    );
+                  }
+                  // Break without countdown (manual)
+                  if (isOnBreak) {
+                    return (
+                      <>
+                        <span className="text-4xl font-light text-amber-500 tabular-nums">
+                          {formatCountdown(activeBreakElapsedSecs)}
+                        </span>
+                        <span className="mt-0.5 text-xs font-medium text-amber-500">
+                          Pause läuft
+                        </span>
+                      </>
+                    );
+                  }
+                  // Working time display
+                  return (
+                    <>
+                      <span className="text-4xl font-light text-gray-900 tabular-nums">
+                        {formatHMM(displayMinutes)}
                       </span>
-                    )}
-                  </>
-                )}
+                      {breakWarning && (
+                        <span className="mt-0.5 text-xs font-medium text-amber-600">
+                          {breakWarning}
+                        </span>
+                      )}
+                    </>
+                  );
+                })()}
               </div>
 
               {/* Stop / check-out button */}
@@ -652,11 +681,12 @@ function ClockInCard({
           <span>
             Heute:{" "}
             <span className="font-medium text-gray-600">
-              {isCheckedIn
-                ? formatDuration(netMinutes)
-                : isCheckedOut && checkedOutNet !== null
-                  ? formatDuration(checkedOutNet)
-                  : "--"}
+              {(() => {
+                if (isCheckedIn) return formatDuration(netMinutes);
+                if (isCheckedOut && checkedOutNet !== null)
+                  return formatDuration(checkedOutNet);
+                return "--";
+              })()}
             </span>
           </span>
           <span>
@@ -719,14 +749,14 @@ function BreakActivityLog({
 
     // Break segment
     const isActiveBreak = !breakEnd;
-    const breakDuration = breakEnd
-      ? brk.durationMinutes
-      : isActiveBreak && plannedBreakMinutes
-        ? plannedBreakMinutes
-        : Math.max(
-            0,
-            Math.floor((now.getTime() - breakStart.getTime()) / 60000),
-          );
+    const breakDuration = (() => {
+      if (breakEnd) return brk.durationMinutes;
+      if (isActiveBreak && plannedBreakMinutes) return plannedBreakMinutes;
+      return Math.max(
+        0,
+        Math.floor((now.getTime() - breakStart.getTime()) / 60000),
+      );
+    })();
     segments.push({
       type: "break",
       start: breakStart,
@@ -776,6 +806,36 @@ function BreakActivityLog({
   const hiddenSegments = hasHidden ? segments.slice(0, -MAX_VISIBLE) : [];
   const visibleSegments = hasHidden ? segments.slice(-MAX_VISIBLE) : segments;
 
+  // Returns row text color class based on segment type and state
+  const getSegmentRowColor = (seg: {
+    type: "work" | "break";
+    isActive: boolean;
+  }) => {
+    if (seg.type === "break" && seg.isActive) return "text-amber-600";
+    if (seg.type === "break") return "text-gray-500";
+    return "";
+  };
+
+  // Returns label text color class based on segment type and state
+  const getSegmentLabelColor = (seg: {
+    type: "work" | "break";
+    isActive: boolean;
+  }) => {
+    if (seg.type === "work" && seg.isActive) return "text-[#83CD2D]";
+    if (seg.type === "work") return "text-gray-600";
+    return "";
+  };
+
+  // Returns time text color class based on segment type and state
+  const getSegmentTimeColor = (seg: {
+    type: "work" | "break";
+    isActive: boolean;
+  }) => {
+    if (seg.type === "work" && seg.isActive) return "text-[#70b525]";
+    if (seg.type === "work") return "text-gray-600";
+    return "";
+  };
+
   const renderRow = (
     seg: (typeof segments)[number],
     index: number,
@@ -785,27 +845,15 @@ function BreakActivityLog({
       key={`${seg.type}-${index}`}
       className={`flex items-center justify-between py-2.5 text-sm ${
         showBorder ? "border-t border-gray-50" : ""
-      } ${seg.type === "break" && seg.isActive ? "text-amber-600" : seg.type === "break" ? "text-gray-500" : ""}`}
+      } ${getSegmentRowColor(seg)}`}
     >
       <span
-        className={`w-14 shrink-0 font-medium ${
-          seg.type === "work" && seg.isActive
-            ? "text-[#83CD2D]"
-            : seg.type === "work"
-              ? "text-gray-600"
-              : ""
-        }`}
+        className={`w-14 shrink-0 font-medium ${getSegmentLabelColor(seg)}`}
       >
         {seg.type === "work" ? "Arbeitszeit" : "Pause"}
       </span>
       <span
-        className={`w-12 shrink-0 text-center tabular-nums ${
-          seg.type === "work" && seg.isActive
-            ? "text-[#70b525]"
-            : seg.type === "work"
-              ? "text-gray-600"
-              : ""
-        }`}
+        className={`w-12 shrink-0 text-center tabular-nums ${getSegmentTimeColor(seg)}`}
       >
         {formatTimeFromDate(seg.start)}
       </span>
