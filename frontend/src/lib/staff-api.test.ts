@@ -116,7 +116,7 @@ describe("staff-api", () => {
       expect(result[0]?.hasRfid).toBe(true);
       expect(result[0]?.isTeacher).toBe(true);
       expect(result[0]?.isSupervising).toBe(false);
-      expect(result[0]?.currentLocation).toBe("Zuhause");
+      expect(result[0]?.currentLocation).toBe("Abwesend");
     });
 
     it("throws error when no auth token available", async () => {
@@ -300,8 +300,11 @@ describe("staff-api", () => {
 
       // Staff ID 1 supervises 2 rooms
       expect(result[0]?.isSupervising).toBe(true);
-      expect(result[0]?.currentLocation).toBe("2 Räume");
+      // currentLocation shows time clock status (Abwesend since no work_status)
+      expect(result[0]?.currentLocation).toBe("Abwesend");
       expect(result[0]?.supervisionRole).toBe("supervisor");
+      // Room info is in supervisions array
+      expect(result[0]?.supervisions).toHaveLength(2);
     });
 
     it("handles active groups fetch failure gracefully", async () => {
@@ -410,7 +413,7 @@ describe("staff-api", () => {
       const result = await staffService.getAllStaff();
 
       expect(result[0]?.isSupervising).toBe(false);
-      expect(result[0]?.currentLocation).toBe("Zuhause");
+      expect(result[0]?.currentLocation).toBe("Abwesend");
     });
 
     it("returns Anwesend location for staff with was_present_today true and not supervising", async () => {
@@ -444,7 +447,7 @@ describe("staff-api", () => {
       expect(result[0]?.wasPresentToday).toBe(true);
     });
 
-    it("returns Zuhause location for staff with was_present_today false", async () => {
+    it("returns Abwesend location for staff with was_present_today false", async () => {
       const staffNotPresentToday: BackendStaffResponse = {
         ...sampleBackendStaff,
         was_present_today: false,
@@ -471,11 +474,11 @@ describe("staff-api", () => {
       const result = await staffService.getAllStaff();
 
       expect(result[0]?.isSupervising).toBe(false);
-      expect(result[0]?.currentLocation).toBe("Zuhause");
+      expect(result[0]?.currentLocation).toBe("Abwesend");
       expect(result[0]?.wasPresentToday).toBe(false);
     });
 
-    it("returns room location when supervising even if was_present_today is true", async () => {
+    it("returns Anwesend location when supervising with was_present_today true (legacy)", async () => {
       const staffSupervisingAndPresent: BackendStaffResponse = {
         ...sampleBackendStaff,
         was_present_today: true,
@@ -501,9 +504,11 @@ describe("staff-api", () => {
 
       const result = await staffService.getAllStaff();
 
-      // Staff is supervising, so should show room location, not "Anwesend"
+      // Staff is supervising, currentLocation shows time clock status (legacy fallback)
       expect(result[0]?.isSupervising).toBe(true);
-      expect(result[0]?.currentLocation).toBe("2 Räume");
+      expect(result[0]?.currentLocation).toBe("Anwesend");
+      // Room info is in supervisions array
+      expect(result[0]?.supervisions).toHaveLength(2);
     });
 
     it("returns Anwesend for staff without staff_id but with was_present_today true", async () => {
@@ -677,7 +682,10 @@ describe("staff-api", () => {
 
       // Should handle double-wrapped and still find supervisions
       expect(result[0]?.isSupervising).toBe(true);
-      expect(result[0]?.currentLocation).toBe("2 Räume");
+      // currentLocation shows time clock status
+      expect(result[0]?.currentLocation).toBe("Abwesend");
+      // Room info is in supervisions array
+      expect(result[0]?.supervisions).toHaveLength(2);
     });
 
     it("handles non-array data gracefully", async () => {
@@ -704,7 +712,7 @@ describe("staff-api", () => {
 
       // Should fallback to empty array and not throw
       expect(result[0]?.isSupervising).toBe(false);
-      expect(result[0]?.currentLocation).toBe("Zuhause");
+      expect(result[0]?.currentLocation).toBe("Abwesend");
     });
 
     it("handles null data property", async () => {
@@ -733,11 +741,11 @@ describe("staff-api", () => {
   });
 
   describe("getSupervisionInfo priority hierarchy", () => {
-    it("returns absence status when absence_type is provided", async () => {
+    it("returns absence status when absence_type is provided and not clocked in", async () => {
       const staffWithAbsence: BackendStaffResponse = {
         ...sampleBackendStaff,
         absence_type: "sick",
-        work_status: "present", // Should be overridden by absence
+        // Note: NO work_status - absence shown when not clocked in
       };
 
       const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
@@ -752,7 +760,7 @@ describe("staff-api", () => {
         if (url.includes("/api/active/groups")) {
           return Promise.resolve({
             ok: true,
-            json: () => Promise.resolve({ data: sampleActiveGroups }),
+            json: () => Promise.resolve({ data: [] }), // No supervisions
           } as Response);
         }
         return Promise.reject(new Error(`Unexpected URL: ${url}`));
@@ -760,7 +768,7 @@ describe("staff-api", () => {
 
       const result = await staffService.getAllStaff();
 
-      // Absence overrides everything (priority 1)
+      // Absence shown when not clocked in
       expect(result[0]?.isSupervising).toBe(false);
       expect(result[0]?.currentLocation).toBe("Krank");
       expect(result[0]?.absenceType).toBe("sick");
@@ -853,7 +861,7 @@ describe("staff-api", () => {
       expect(result[0]?.currentLocation).toBe("Abwesend");
     });
 
-    it("returns Zuhause for checked_out status (priority 2)", async () => {
+    it("returns Abwesend for checked_out status", async () => {
       const staffCheckedOut: BackendStaffResponse = {
         ...sampleBackendStaff,
         work_status: "checked_out",
@@ -880,9 +888,9 @@ describe("staff-api", () => {
 
       const result = await staffService.getAllStaff();
 
-      // Checked out overrides supervision and presence
-      expect(result[0]?.isSupervising).toBe(false);
-      expect(result[0]?.currentLocation).toBe("Zuhause");
+      // Checked out shows Abwesend, supervisions still tracked
+      expect(result[0]?.isSupervising).toBe(true);
+      expect(result[0]?.currentLocation).toBe("Abwesend");
       expect(result[0]?.workStatus).toBe("checked_out");
     });
 
@@ -948,7 +956,7 @@ describe("staff-api", () => {
       expect(result[0]?.workStatus).toBe("home_office");
     });
 
-    it("returns single room name for staff supervising one room", async () => {
+    it("returns Abwesend for staff supervising one room (room info in supervisions)", async () => {
       const singleRoomSupervision = [
         {
           id: 1,
@@ -978,11 +986,15 @@ describe("staff-api", () => {
 
       const result = await staffService.getAllStaff();
 
+      // currentLocation shows time clock status
       expect(result[0]?.isSupervising).toBe(true);
-      expect(result[0]?.currentLocation).toBe("Room A");
+      expect(result[0]?.currentLocation).toBe("Abwesend");
+      // Room info is in supervisions array
+      expect(result[0]?.supervisions).toHaveLength(1);
+      expect(result[0]?.supervisions?.[0]?.roomName).toBe("Room A");
     });
 
-    it("returns Unterwegs for staff supervising groups without rooms", async () => {
+    it("returns Abwesend for staff supervising groups without rooms", async () => {
       const noRoomSupervision = [
         {
           id: 1,
@@ -1012,11 +1024,12 @@ describe("staff-api", () => {
 
       const result = await staffService.getAllStaff();
 
+      // currentLocation shows time clock status, not room
       expect(result[0]?.isSupervising).toBe(true);
-      expect(result[0]?.currentLocation).toBe("Unterwegs");
+      expect(result[0]?.currentLocation).toBe("Abwesend");
     });
 
-    it("handles undefined room name fallback to Unterwegs", async () => {
+    it("handles undefined room name", async () => {
       const undefinedRoomName = [
         {
           id: 1,
@@ -1046,7 +1059,8 @@ describe("staff-api", () => {
 
       const result = await staffService.getAllStaff();
 
-      expect(result[0]?.currentLocation).toBe("Unterwegs");
+      // currentLocation shows time clock status
+      expect(result[0]?.currentLocation).toBe("Abwesend");
     });
   });
 
@@ -1073,7 +1087,7 @@ describe("staff-api", () => {
 
       expect(result).toHaveLength(1);
       expect(result[0]?.isSupervising).toBe(false);
-      expect(result[0]?.currentLocation).toBe("Zuhause");
+      expect(result[0]?.currentLocation).toBe("Abwesend");
     });
   });
 });
