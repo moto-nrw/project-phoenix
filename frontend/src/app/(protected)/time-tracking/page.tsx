@@ -1230,15 +1230,24 @@ function ExportDropdown({ weekDays }: { readonly weekDays: (Date | null)[] }) {
               <p className="text-sm font-medium text-gray-700">
                 Zeitraum exportieren
               </p>
-              {hasRange ? (
-                <p className="mt-1 text-xs text-gray-500">
-                  {formatDateGerman(rangeFrom)} – {formatDateGerman(rangeTo)}
-                </p>
-              ) : rangeFrom ? (
-                <p className="mt-1 text-xs text-gray-500">
-                  {formatDateGerman(rangeFrom)} – …
-                </p>
-              ) : null}
+              {(() => {
+                if (hasRange) {
+                  return (
+                    <p className="mt-1 text-xs text-gray-500">
+                      {formatDateGerman(rangeFrom)} –{" "}
+                      {formatDateGerman(rangeTo)}
+                    </p>
+                  );
+                }
+                if (rangeFrom) {
+                  return (
+                    <p className="mt-1 text-xs text-gray-500">
+                      {formatDateGerman(rangeFrom)} – …
+                    </p>
+                  );
+                }
+                return null;
+              })()}
             </div>
             <MiniCalendar
               viewMonth={viewMonth}
@@ -1978,15 +1987,18 @@ function WeekTable({
                         })()}
                       </td>
                       <td className="px-4 py-3 text-center">
-                        {hasEdits && session ? (
-                          <span className="text-xs text-gray-500">
-                            Zuletzt geändert{" "}
-                            {formatDateTime(new Date(session.updatedAt))}
-                          </span>
-                        ) : (
-                          <div className="flex items-center justify-center">
-                            {canEdit && session ? (
-                              <>
+                        {(() => {
+                          if (hasEdits && session) {
+                            return (
+                              <span className="text-xs text-gray-500">
+                                Zuletzt geändert{" "}
+                                {formatDateTime(new Date(session.updatedAt))}
+                              </span>
+                            );
+                          }
+                          if (canEdit && session) {
+                            return (
+                              <div className="flex items-center justify-center">
                                 <span className="text-xs text-gray-300 group-hover/row:hidden">
                                   –
                                 </span>
@@ -2001,12 +2013,15 @@ function WeekTable({
                                 >
                                   <SquarePen className="h-3.5 w-3.5 text-gray-300" />
                                 </button>
-                              </>
-                            ) : (
+                              </div>
+                            );
+                          }
+                          return (
+                            <div className="flex items-center justify-center">
                               <span className="text-xs text-gray-300">–</span>
-                            )}
-                          </div>
-                        )}
+                            </div>
+                          );
+                        })()}
                       </td>
                     </tr>
                     {isExpanded && session && (
