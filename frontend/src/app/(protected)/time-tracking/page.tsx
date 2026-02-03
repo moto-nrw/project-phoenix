@@ -169,6 +169,54 @@ function formatTimeFromDate(date: Date): string {
 
 const BREAK_OPTIONS = [15, 30, 45, 60] as const;
 
+// Calculate elapsed minutes from a start time to now
+function calcElapsedMinutes(startTime: string | Date, now: Date): number {
+  return Math.max(
+    0,
+    Math.floor((now.getTime() - new Date(startTime).getTime()) / 60000),
+  );
+}
+
+// Calculate elapsed seconds from a start time to now
+function calcElapsedSeconds(startTime: string | Date, now: Date): number {
+  return Math.max(
+    0,
+    Math.floor((now.getTime() - new Date(startTime).getTime()) / 1000),
+  );
+}
+
+// Calculate live break minutes including active break
+function calcLiveBreakMins(
+  breakMins: number,
+  activeBreak: WorkSessionBreak | null,
+  now: Date,
+): number {
+  if (!activeBreak) return breakMins;
+  const activeBreakMins = calcElapsedMinutes(activeBreak.startedAt, now);
+  return breakMins + activeBreakMins;
+}
+
+// Get break compliance warning based on work time and breaks taken
+function getBreakWarning(
+  netMinutes: number,
+  liveBreakMins: number,
+): string | null {
+  if (netMinutes > 540 && liveBreakMins < 45) {
+    return "45 Min Pause ab 9h nötig (§4 ArbZG)";
+  }
+  if (netMinutes > 360 && liveBreakMins < 30) {
+    return "30 Min Pause ab 6h nötig (§4 ArbZG)";
+  }
+  return null;
+}
+
+// Format countdown as MM:SS
+function formatCountdown(totalSecs: number): string {
+  const m = Math.floor(totalSecs / 60);
+  const s = totalSecs % 60;
+  return `${m}:${s.toString().padStart(2, "0")}`;
+}
+
 // Returns status badge styling and label for current session state
 function getSessionStatusBadge(
   isOnBreak: boolean,
@@ -238,45 +286,17 @@ function ClockInCard({
 
   const breakMins = currentSession?.breakMinutes ?? 0;
 
-  // Total break time including live active break
-  const liveBreakMins = (() => {
-    if (!activeBreak) return breakMins;
-    const activeBreakMins = Math.max(
-      0,
-      Math.floor(
-        (now.getTime() - new Date(activeBreak.startedAt).getTime()) / 60000,
-      ),
-    );
-    return breakMins + activeBreakMins;
-  })();
-
-  // Gross elapsed since check-in
+  // Calculate derived time values using extracted helpers
+  const liveBreakMins = calcLiveBreakMins(breakMins, activeBreak, now);
   const grossMinutes =
     isCheckedIn && currentSession
-      ? Math.max(
-          0,
-          Math.floor(
-            (now.getTime() - new Date(currentSession.checkInTime).getTime()) /
-              60000,
-          ),
-        )
+      ? calcElapsedMinutes(currentSession.checkInTime, now)
       : 0;
   const netMinutes = Math.max(0, grossMinutes - liveBreakMins);
-
-  // Timer display: net working time (freeze during break by subtracting active break time)
   const displayMinutes = isCheckedIn ? netMinutes : 0;
-
-  // Active break: elapsed seconds for countdown precision
   const activeBreakElapsedSecs = activeBreak
-    ? Math.max(
-        0,
-        Math.floor(
-          (now.getTime() - new Date(activeBreak.startedAt).getTime()) / 1000,
-        ),
-      )
+    ? calcElapsedSeconds(activeBreak.startedAt, now)
     : 0;
-
-  // Countdown remaining in seconds (null if no planned duration)
   const countdownRemainingSecs =
     isOnBreak && plannedBreakMinutes !== null
       ? Math.max(0, plannedBreakMinutes * 60 - activeBreakElapsedSecs)
@@ -309,15 +329,11 @@ function ClockInCard({
     }
   }, [isOnBreak]);
 
-  // Break compliance warning
-  const breakWarning = (() => {
-    if (!isCheckedIn || !currentSession) return null;
-    if (netMinutes > 540 && liveBreakMins < 45)
-      return "45 Min Pause ab 9h nötig (§4 ArbZG)";
-    if (netMinutes > 360 && liveBreakMins < 30)
-      return "30 Min Pause ab 6h nötig (§4 ArbZG)";
-    return null;
-  })();
+  // Break compliance warning (only shown when checked in)
+  const breakWarning =
+    isCheckedIn && currentSession
+      ? getBreakWarning(netMinutes, liveBreakMins)
+      : null;
 
   // Checked-out net
   const checkedOutNet =
@@ -367,13 +383,6 @@ function ClockInCard({
     } finally {
       setActionLoading(false);
     }
-  };
-
-  // Format countdown as MM:SS
-  const formatCountdown = (totalSecs: number): string => {
-    const m = Math.floor(totalSecs / 60);
-    const s = totalSecs % 60;
-    return `${m}:${s.toString().padStart(2, "0")}`;
   };
 
   return (
