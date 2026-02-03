@@ -361,9 +361,9 @@ describe("getStaffSupervisionBadges", () => {
 
     expect(result).toHaveLength(2);
     expect(result[0]?.label).toBe("Gymnasium");
-    expect(result[0]?.key).toBe("room-1");
+    expect(result[0]?.key).toBe("room-1-101");
     expect(result[1]?.label).toBe("Bibliothek");
-    expect(result[1]?.key).toBe("room-2");
+    expect(result[1]?.key).toBe("room-2-102");
   });
 
   it("uses blue color for regular room badges", () => {

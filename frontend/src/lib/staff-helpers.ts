@@ -177,7 +177,7 @@ export function getStaffSupervisionBadges(staff: Staff): SupervisionBadge[] {
     }
 
     return {
-      key: `room-${supervision.roomId}`,
+      key: `room-${supervision.roomId}-${supervision.activeGroupId}`,
       label: roomName,
       locationStatus,
     };
