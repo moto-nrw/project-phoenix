@@ -284,6 +284,35 @@ function getTodayDisplayValue(
   return "--";
 }
 
+// Calculate gross minutes for checked-in session
+function calcGrossMinutes(
+  isCheckedIn: boolean,
+  session: WorkSession | null,
+  now: Date,
+): number {
+  if (!isCheckedIn || !session) return 0;
+  return calcElapsedMinutes(session.checkInTime, now);
+}
+
+// Calculate countdown remaining seconds for break timer
+function calcCountdownSecs(
+  isOnBreak: boolean,
+  plannedMins: number | null,
+  elapsedSecs: number,
+): number | null {
+  if (!isOnBreak || plannedMins === null) return null;
+  return Math.max(0, plannedMins * 60 - elapsedSecs);
+}
+
+// Check if auto-end break should trigger
+function shouldAutoEndBreak(
+  countdownSecs: number | null,
+  isOnBreak: boolean,
+  loading: boolean,
+): boolean {
+  return countdownSecs !== null && countdownSecs <= 0 && isOnBreak && !loading;
+}
+
 function ClockInCard({
   currentSession,
   breaks,
@@ -341,28 +370,21 @@ function ClockInCard({
 
   // Calculate derived time values using extracted helpers
   const liveBreakMins = calcLiveBreakMins(breakMins, activeBreak, now);
-  const grossMinutes =
-    isCheckedIn && currentSession
-      ? calcElapsedMinutes(currentSession.checkInTime, now)
-      : 0;
+  const grossMinutes = calcGrossMinutes(isCheckedIn, currentSession, now);
   const netMinutes = Math.max(0, grossMinutes - liveBreakMins);
   const displayMinutes = isCheckedIn ? netMinutes : 0;
   const activeBreakElapsedSecs = activeBreak
     ? calcElapsedSeconds(activeBreak.startedAt, now)
     : 0;
-  const countdownRemainingSecs =
-    isOnBreak && plannedBreakMinutes !== null
-      ? Math.max(0, plannedBreakMinutes * 60 - activeBreakElapsedSecs)
-      : null;
+  const countdownRemainingSecs = calcCountdownSecs(
+    isOnBreak,
+    plannedBreakMinutes,
+    activeBreakElapsedSecs,
+  );
 
   // Auto-end break when countdown reaches 0
   useEffect(() => {
-    if (
-      countdownRemainingSecs !== null &&
-      countdownRemainingSecs <= 0 &&
-      isOnBreak &&
-      !actionLoading
-    ) {
+    if (shouldAutoEndBreak(countdownRemainingSecs, isOnBreak, actionLoading)) {
       void (async () => {
         setActionLoading(true);
         try {
