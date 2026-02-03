@@ -169,8 +169,11 @@ function formatTimeFromDate(date: Date): string {
 
 const BREAK_OPTIONS = [15, 30, 45, 60] as const;
 
-// Work mode type for clock-in status
-type WorkMode = "present" | "home_office" | "absent";
+// Session status type (only present or home_office - no absent for active sessions)
+type SessionStatus = "present" | "home_office";
+
+// Work mode type for clock-in status (includes absent option)
+type WorkMode = SessionStatus | "absent";
 
 // Calculate elapsed minutes from a start time to now
 function calcElapsedMinutes(startTime: string | Date, now: Date): number {
@@ -400,7 +403,7 @@ function ClockInCard({
 }: {
   readonly currentSession: WorkSession | null;
   readonly breaks: WorkSessionBreak[];
-  readonly onCheckIn: (status: "present" | "home_office") => Promise<void>;
+  readonly onCheckIn: (status: SessionStatus) => Promise<void>;
   readonly onCheckOut: () => Promise<void>;
   readonly onStartBreak: () => Promise<void>;
   readonly onEndBreak: () => Promise<void>;
@@ -2386,7 +2389,7 @@ function EditSessionModal({
       checkInTime?: string;
       checkOutTime?: string;
       breakMinutes?: number;
-      status?: "present" | "home_office";
+      status?: SessionStatus;
       notes?: string;
       breaks?: Array<{ id: string; durationMinutes: number }>;
     },
@@ -2411,7 +2414,7 @@ function EditSessionModal({
   const [breakDurations, setBreakDurations] = useState<Map<string, number>>(
     new Map(),
   );
-  const [status, setStatus] = useState<"present" | "home_office">("present");
+  const [status, setStatus] = useState<SessionStatus>("present");
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -2813,9 +2816,7 @@ function EditSessionModal({
                   <select
                     id="edit-status"
                     value={status}
-                    onChange={(e) =>
-                      setStatus(e.target.value as "present" | "home_office")
-                    }
+                    onChange={(e) => setStatus(e.target.value as SessionStatus)}
                     className="w-full appearance-none rounded-lg border border-gray-300 px-3 py-2 pr-8 text-sm transition-colors focus:border-gray-900 focus:ring-1 focus:ring-gray-900 focus:outline-none"
                   >
                     <option value="present">In der OGS</option>
@@ -3250,9 +3251,9 @@ function TimeTrackingContent() {
   const [expandedEdits, setExpandedEdits] = useState<WorkSessionEdit[]>([]);
   const [editsLoading, setEditsLoading] = useState(false);
   const [absenceModalOpen, setAbsenceModalOpen] = useState(false);
-  const [pendingCheckIn, setPendingCheckIn] = useState<
-    "present" | "home_office" | null
-  >(null);
+  const [pendingCheckIn, setPendingCheckIn] = useState<SessionStatus | null>(
+    null,
+  );
 
   // Calculate date range: current week + previous week (for chart and table)
   const { toDate, chartFromDate, weekFromDate } = (() => {
@@ -3343,7 +3344,7 @@ function TimeTrackingContent() {
     }, 0);
 
   const executeCheckIn = useCallback(
-    async (status: "present" | "home_office") => {
+    async (status: SessionStatus) => {
       try {
         await timeTrackingService.checkIn(status);
         await Promise.all([mutateCurrentSession(), mutateHistory()]);
@@ -3356,7 +3357,7 @@ function TimeTrackingContent() {
   );
 
   const handleCheckIn = useCallback(
-    async (status: "present" | "home_office") => {
+    async (status: SessionStatus) => {
       if (todayAbsence) {
         setPendingCheckIn(status);
         return;
@@ -3402,7 +3403,7 @@ function TimeTrackingContent() {
         checkInTime?: string;
         checkOutTime?: string;
         breakMinutes?: number;
-        status?: "present" | "home_office";
+        status?: SessionStatus;
         notes?: string;
         breaks?: Array<{ id: string; durationMinutes: number }>;
       },
