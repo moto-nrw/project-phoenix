@@ -74,13 +74,19 @@ export function QuickCreateActivityModal({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    // Prevent double-submit: check synchronously at the very start
+    if (isSubmitting || loading) {
+      return;
+    }
+    setIsSubmitting(true);
+
     const validationError = validateForm();
     if (validationError) {
       setError(validationError);
+      setIsSubmitting(false);
       return;
     }
 
-    setIsSubmitting(true);
     setError(null);
 
     try {
