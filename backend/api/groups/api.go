@@ -15,6 +15,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/education"
@@ -958,7 +959,7 @@ func (rs *Resource) translateTransferRequestError(err error) string {
 
 // checkDuplicateTransfer verifies target doesn't already have access to this group
 func (rs *Resource) checkDuplicateTransfer(w http.ResponseWriter, r *http.Request, groupID int64, targetStaffID int64, targetPerson *users.Person) bool {
-	today := time.Date(time.Now().UTC().Year(), time.Now().UTC().Month(), time.Now().UTC().Day(), 0, 0, 0, 0, time.UTC)
+	today := timezone.TodayUTC()
 	existingTransfers, err := rs.EducationService.GetActiveGroupSubstitutions(r.Context(), groupID, today)
 	if err != nil {
 		common.RenderError(w, r, ErrorInternalServer(err))
@@ -1011,9 +1012,8 @@ func (rs *Resource) transferGroup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	now := time.Now().UTC()
-	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
-	endOfDay := time.Date(now.Year(), now.Month(), now.Day(), 23, 59, 59, 0, time.UTC)
+	today := timezone.TodayUTC()
+	endOfDay := today.Add(23*time.Hour + 59*time.Minute + 59*time.Second)
 
 	// Create substitution (without regular_staff_id = additional access, not replacement)
 	substitution := &education.GroupSubstitution{
