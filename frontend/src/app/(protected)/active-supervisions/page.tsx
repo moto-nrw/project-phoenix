@@ -332,7 +332,7 @@ function MeinRaumPageContent() {
 
   // State variables for multiple rooms
   const [allRooms, setAllRooms] = useState<ActiveRoom[]>([]);
-  const [selectedRoomIndex, setSelectedRoomIndex] = useState(0);
+  const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
 
   // Pre-select room from URL param (?room=<id>)
   const roomParam = searchParams.get("room");
@@ -400,7 +400,9 @@ function MeinRaumPageContent() {
               student_count: schulhofStatus.studentCount,
             }
           : null
-        : (allRooms[selectedRoomIndex] ?? null),
+        : (allRooms.find((r) => r.id === selectedRoomId) ??
+          allRooms[0] ??
+          null),
     [
       isSchulhofTabSelected,
       schulhofStatus?.isUserSupervising,
@@ -408,7 +410,7 @@ function MeinRaumPageContent() {
       schulhofStatus?.roomId,
       schulhofStatus?.studentCount,
       allRooms,
-      selectedRoomIndex,
+      selectedRoomId,
     ],
   );
 
@@ -652,7 +654,26 @@ function MeinRaumPageContent() {
     // When SSE triggers revalidation while user views another room, we must NOT
     // overwrite their current view with the first room's data.
     const firstRoom = activeRooms[0];
-    if (selectedRoomIndex === 0) {
+
+    // If the previously selected room no longer exists in the refreshed list
+    // (e.g., supervision revoked, session ended), reset to the first room so
+    // the student data stays in sync with what the UI displays.
+    if (selectedRoomId && !activeRooms.some((r) => r.id === selectedRoomId)) {
+      setSelectedRoomId(firstRoom?.id ?? null);
+    }
+
+    // Skip first-room preload when Schulhof tab is active — Schulhof uses
+    // selectedRoomId=null intentionally, so !selectedRoomId would incorrectly
+    // match and overwrite Schulhof students with first-room data.
+    if (
+      !isSchulhofTabSelected &&
+      (!selectedRoomId || selectedRoomId === firstRoom?.id)
+    ) {
+      // When no room is explicitly selected yet, lock in the first room's ID
+      // so the URL-sync effect won't try to "switch" to it via localStorage.
+      if (!selectedRoomId && firstRoom) {
+        setSelectedRoomId(firstRoom.id);
+      }
       if (firstRoom && data.firstRoomVisits.length > 0) {
         const studentsFromVisits: StudentWithVisit[] = data.firstRoomVisits.map(
           (visit) => {
@@ -692,7 +713,12 @@ function MeinRaumPageContent() {
 
     setError(null);
     setIsLoading(false);
-  }, [dashboardData, updateRoomStudentCount, selectedRoomIndex]);
+  }, [
+    dashboardData,
+    updateRoomStudentCount,
+    selectedRoomId,
+    isSchulhofTabSelected,
+  ]);
 
   // Sync selected room with URL param.
   // The sidebar navigates with the correct ?room= param at click-time,
@@ -704,14 +730,18 @@ function MeinRaumPageContent() {
     if (roomParam === "schulhof" && schulhofStatus?.exists) {
       if (!isSchulhofTabSelected) {
         setIsSchulhofTabSelected(true);
-        setSelectedRoomIndex(-1);
+        setSelectedRoomId(null);
         // Load Schulhof visits if supervising
         if (schulhofStatus.isUserSupervising && schulhofStatus.activeGroupId) {
-          void loadRoomVisits(
+          loadRoomVisits(
             schulhofStatus.activeGroupId,
             SCHULHOF_ROOM_NAME,
             groupNameToIdMapRef.current,
-          ).then(setStudents);
+          )
+            .then(setStudents)
+            .catch(() => {
+              // Error already handled in loadRoomVisits
+            });
         } else {
           setStudents([]);
         }
@@ -726,9 +756,9 @@ function MeinRaumPageContent() {
       if (isSchulhofTabSelected) {
         setIsSchulhofTabSelected(false);
       }
-      const targetIndex = allRooms.findIndex((r) => r.room_id === roomParam);
-      if (targetIndex !== -1 && targetIndex !== selectedRoomIndex) {
-        void switchToRoom(targetIndex);
+      const targetRoom = allRooms.find((r) => r.room_id === roomParam);
+      if (targetRoom && targetRoom.id !== selectedRoomId) {
+        void switchToRoom(targetRoom.id);
       }
     } else {
       // No ?room= param (e.g. after login or browser back) — restore from
@@ -739,16 +769,20 @@ function MeinRaumPageContent() {
       if (savedRoomId === SCHULHOF_TAB_ID && schulhofStatus?.exists) {
         if (!isSchulhofTabSelected) {
           setIsSchulhofTabSelected(true);
-          setSelectedRoomIndex(-1);
+          setSelectedRoomId(null);
           if (
             schulhofStatus.isUserSupervising &&
             schulhofStatus.activeGroupId
           ) {
-            void loadRoomVisits(
+            loadRoomVisits(
               schulhofStatus.activeGroupId,
               SCHULHOF_ROOM_NAME,
               groupNameToIdMapRef.current,
-            ).then(setStudents);
+            )
+              .then(setStudents)
+              .catch(() => {
+                // Error already handled in loadRoomVisits
+              });
           } else {
             setStudents([]);
           }
@@ -756,19 +790,19 @@ function MeinRaumPageContent() {
         return;
       }
 
-      const savedIndex = savedRoomId
-        ? allRooms.findIndex((r) => r.room_id === savedRoomId)
-        : -1;
-      if (savedIndex !== -1 && savedIndex !== selectedRoomIndex) {
-        void switchToRoom(savedIndex);
-      } else if (savedIndex === -1) {
+      const savedRoom = savedRoomId
+        ? allRooms.find((r) => r.room_id === savedRoomId)
+        : undefined;
+      if (savedRoom && savedRoom.id !== selectedRoomId) {
+        void switchToRoom(savedRoom.id);
+      } else if (!savedRoom) {
         // Nothing saved or saved room no longer exists — persist first room
         const firstRoom = allRooms[0];
         if (firstRoom?.room_id) {
           localStorage.setItem("sidebar-last-room", firstRoom.room_id);
         }
       }
-      // When savedIndex === selectedRoomIndex, do nothing — already in sync
+      // When savedRoom.id === selectedRoomId, do nothing — already in sync
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
@@ -930,21 +964,17 @@ function MeinRaumPageContent() {
     }
   }, [schulhofStatus]);
 
-  // Function to switch between rooms
-  const switchToRoom = async (roomIndex: number) => {
-    if (roomIndex === selectedRoomIndex || !allRooms[roomIndex]) return;
+  // Function to switch between rooms (by ID — stable across re-sorts)
+  const switchToRoom = async (roomId: string) => {
+    if (roomId === selectedRoomId) return;
+    const selectedRoom = allRooms.find((r) => r.id === roomId);
+    if (!selectedRoom) return;
 
     setIsLoading(true);
-    setSelectedRoomIndex(roomIndex);
+    setSelectedRoomId(roomId);
     setStudents([]); // Clear current students
 
     try {
-      const selectedRoom = allRooms[roomIndex];
-
-      if (!selectedRoom) {
-        throw new Error("No active room found");
-      }
-
       // Use bulk endpoint to fetch visits for selected room
       const studentsFromVisits = await loadRoomVisits(
         selectedRoom.id,
@@ -957,8 +987,8 @@ function MeinRaumPageContent() {
 
       // Update room with actual student count
       setAllRooms((prev) =>
-        prev.map((room, idx) =>
-          idx === roomIndex
+        prev.map((room) =>
+          room.id === roomId
             ? { ...room, student_count: studentsFromVisits.length }
             : room,
         ),
@@ -969,7 +999,7 @@ function MeinRaumPageContent() {
       // Handle 403 gracefully - show message but don't break the UI
       if (err instanceof Error && err.message.includes("403")) {
         setError(
-          `Keine Berechtigung für "${allRooms[roomIndex]?.name}". Kontaktieren Sie einen Administrator.`,
+          `Keine Berechtigung für "${selectedRoom.name}". Kontaktieren Sie einen Administrator.`,
         );
         setStudents([]); // Show empty list instead of crashing
       } else {
@@ -1224,7 +1254,7 @@ function MeinRaumPageContent() {
                   if (tabId === SCHULHOF_TAB_ID) {
                     // Switch to Schulhof tab
                     setIsSchulhofTabSelected(true);
-                    setSelectedRoomIndex(-1);
+                    setSelectedRoomId(null);
                     router.push("/active-supervisions?room=schulhof");
                     localStorage.setItem("sidebar-last-room", SCHULHOF_TAB_ID);
                     localStorage.setItem(
@@ -1237,34 +1267,36 @@ function MeinRaumPageContent() {
                       currentSchulhofStatus?.isUserSupervising &&
                       currentSchulhofStatus?.activeGroupId
                     ) {
-                      void loadRoomVisits(
+                      loadRoomVisits(
                         currentSchulhofStatus.activeGroupId,
                         SCHULHOF_ROOM_NAME,
                         groupNameToIdMapRef.current,
-                      ).then(setStudents);
+                      )
+                        .then(setStudents)
+                        .catch(() => {
+                          // Error already handled in loadRoomVisits
+                        });
                     } else {
                       setStudents([]);
                     }
                   } else {
                     // Switch to regular room
                     setIsSchulhofTabSelected(false);
-                    const index = allRooms.findIndex((r) => r.id === tabId);
-                    if (index !== -1) {
-                      const room = allRooms[index];
-                      if (room?.room_id) {
+                    const room = allRooms.find((r) => r.id === tabId);
+                    if (room) {
+                      if (room.room_id) {
                         router.push(
                           `/active-supervisions?room=${room.room_id}`,
                         );
                         localStorage.setItem("sidebar-last-room", room.room_id);
                       }
-                      const roomName = room?.room_name;
-                      if (roomName) {
+                      if (room.room_name) {
                         localStorage.setItem(
                           "sidebar-last-room-name",
-                          roomName,
+                          room.room_name,
                         );
                       }
-                      void switchToRoom(index);
+                      void switchToRoom(tabId);
                     }
                   }
                 },

@@ -11,18 +11,36 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { MockInstance } from "vitest";
 
-// Mock next-auth/react before importing the module
-vi.mock("next-auth/react", () => ({
-  getSession: vi.fn(() =>
-    Promise.resolve({
-      user: { token: "test-token" },
+// Mock session-cache before importing the module
+vi.mock("./session-cache", () => {
+  const getCachedSession = vi.fn();
+  return {
+    getCachedSession,
+    clearSessionCache: vi.fn(),
+    sessionFetch: vi.fn(async (url: string, init?: RequestInit) => {
+      const session = (await getCachedSession()) as {
+        user?: { token?: string };
+      } | null;
+      const token = session?.user?.token;
+      if (!token) throw new Error("No authentication token available");
+      return fetch(url, {
+        ...init,
+        headers: {
+          "Content-Type": "application/json",
+          ...(init?.headers as Record<string, string> | undefined),
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
     }),
-  ),
-}));
+  };
+});
 
 // Import after mocking
+import { getCachedSession } from "./session-cache";
 import { groupTransferService } from "./group-transfer-api";
 import type { StaffWithRole, GroupTransfer } from "./group-transfer-api";
+
+const mockedGetSession = vi.mocked(getCachedSession);
 
 describe("groupTransferService", () => {
   let fetchMock: MockInstance<typeof fetch>;
@@ -30,6 +48,12 @@ describe("groupTransferService", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     fetchMock = vi.spyOn(globalThis, "fetch");
+
+    // Default session mock
+    mockedGetSession.mockResolvedValue({
+      user: { id: "1", token: "test-token" },
+      expires: "2099-01-01",
+    });
   });
 
   afterEach(() => {
@@ -284,7 +308,10 @@ describe("groupTransferService", () => {
       expect(fetchMock).toHaveBeenCalledWith(
         "/api/staff/by-role?role=teacher",
         expect.objectContaining({
-          credentials: "include",
+          method: "GET",
+          headers: expect.objectContaining({
+            Authorization: "Bearer test-token",
+          }) as HeadersInit,
         }),
       );
     });
@@ -472,7 +499,7 @@ describe("groupTransferService", () => {
       expect(result).toEqual([]);
     });
 
-    it("uses provided token instead of getSession", async () => {
+    it("uses session token even when token parameter is provided", async () => {
       fetchMock.mockResolvedValueOnce({
         ok: true,
         json: () => Promise.resolve({ data: [] }),
@@ -483,11 +510,12 @@ describe("groupTransferService", () => {
         "custom-token",
       );
 
+      // sessionFetch always uses the session token, the _token parameter is unused
       expect(fetchMock).toHaveBeenCalledWith(
         expect.any(String),
         expect.objectContaining({
           headers: expect.objectContaining({
-            Authorization: "Bearer custom-token",
+            Authorization: "Bearer test-token",
           }) as HeadersInit,
         }),
       );

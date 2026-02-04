@@ -15,9 +15,50 @@ import type {
 import { buildBackendActivity, buildBackendCategory } from "~/test/fixtures";
 
 // Mock dependencies
-vi.mock("./session-cache", () => ({
-  getCachedSession: vi.fn(),
-}));
+vi.mock("./session-cache", () => {
+  const getCachedSession = vi.fn();
+  return {
+    getCachedSession,
+    clearSessionCache: vi.fn(),
+    sessionFetch: vi.fn(async (url: string, init?: RequestInit) => {
+      const session = (await getCachedSession()) as {
+        user?: { token?: string };
+      } | null;
+      const token = session?.user?.token;
+      if (!token) throw new Error("No authentication token available");
+      const response = await fetch(url, {
+        ...init,
+        headers: {
+          "Content-Type": "application/json",
+          ...(init?.headers as Record<string, string> | undefined),
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
+      if (response.status === 401) {
+        const { handleAuthFailure } = (await import("./auth-api")) as {
+          handleAuthFailure: () => Promise<boolean>;
+        };
+        const refreshed = await handleAuthFailure();
+        if (refreshed) {
+          const freshSession = (await getCachedSession()) as {
+            user?: { token?: string };
+          } | null;
+          const freshToken = freshSession?.user?.token;
+          return fetch(url, {
+            ...init,
+            headers: {
+              "Content-Type": "application/json",
+              ...(init?.headers as Record<string, string> | undefined),
+              ...(freshToken ? { Authorization: `Bearer ${freshToken}` } : {}),
+            },
+          });
+        }
+        throw new Error("Authentication expired");
+      }
+      return response;
+    }),
+  };
+});
 
 vi.mock("./api", () => ({
   default: {
@@ -221,18 +262,12 @@ describe("activity-api", () => {
       expect(result).toEqual([]);
     });
 
-    it("throws error on API failure in browser context", async () => {
+    it("throws error when no token available in browser context", async () => {
       vi.stubGlobal("window", {});
       mockedGetSession.mockResolvedValueOnce(null);
 
-      const mockResponse = {
-        ok: false,
-        status: 401,
-      };
-      vi.stubGlobal("fetch", vi.fn().mockResolvedValueOnce(mockResponse));
-
       await expect(activityApi.fetchActivities()).rejects.toThrow(
-        "API error: 401",
+        "No authentication token available",
       );
     });
   });

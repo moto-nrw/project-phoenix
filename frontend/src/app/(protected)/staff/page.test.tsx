@@ -39,10 +39,10 @@ vi.mock("~/components/ui/page-header", () => ({
         onChange={(e) => search.onChange(e.target.value)}
       />
       <button
-        data-testid="filter-schulhof"
-        onClick={() => filters?.[0]?.onChange("schulhof")}
+        data-testid="filter-im-raum"
+        onClick={() => filters?.[0]?.onChange("im_raum")}
       >
-        Schulhof
+        Im Raum
       </button>
       <button data-testid="clear-filters" onClick={onClearAllFilters}>
         Clear
@@ -76,7 +76,7 @@ const mockStaff = [
     specialization: "Sport",
     isSupervising: true,
     supervisionRole: "primary",
-    currentLocation: "Schulhof",
+    currentLocation: "Raum 101",
     qualifications: "Erste Hilfe",
   },
 ];
@@ -134,7 +134,7 @@ describe("StaffPage", () => {
       expect(screen.getByText("Ben")).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByTestId("filter-schulhof"));
+    fireEvent.click(screen.getByTestId("filter-im-raum"));
 
     await waitFor(() => {
       expect(screen.queryByText("Anna")).not.toBeInTheDocument();

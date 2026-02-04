@@ -18,6 +18,8 @@ const (
 	tableFeedbackEntries      = "feedback.entries"
 	tableFeedbackEntriesAlias = `feedback.entries AS "entry"`
 	whereIsMensaFeedback      = "is_mensa_feedback = ?"
+	orderDayDesc              = "day DESC"
+	orderTimeDesc             = "time DESC"
 )
 
 // EntryRepository implements feedback.EntryRepository interface
@@ -65,8 +67,8 @@ func (r *EntryRepository) FindByStudentID(ctx context.Context, studentID int64) 
 		Model(&entries).
 		ModelTableExpr(tableFeedbackEntriesAlias).
 		Where("student_id = ?", studentID).
-		Order("day DESC").
-		Order("time DESC").
+		Order(orderDayDesc).
+		Order(orderTimeDesc).
 		Scan(ctx)
 
 	if err != nil {
@@ -86,7 +88,7 @@ func (r *EntryRepository) FindByDay(ctx context.Context, day time.Time) ([]*feed
 		Model(&entries).
 		ModelTableExpr(tableFeedbackEntriesAlias).
 		Where("day = ?", day).
-		Order("time DESC").
+		Order(orderTimeDesc).
 		Scan(ctx)
 
 	if err != nil {
@@ -106,8 +108,8 @@ func (r *EntryRepository) FindByDateRange(ctx context.Context, startDate, endDat
 		Model(&entries).
 		ModelTableExpr(tableFeedbackEntriesAlias).
 		Where("day >= ? AND day <= ?", startDate, endDate).
-		Order("day DESC").
-		Order("time DESC").
+		Order(orderDayDesc).
+		Order(orderTimeDesc).
 		Scan(ctx)
 
 	if err != nil {
@@ -127,8 +129,8 @@ func (r *EntryRepository) FindMensaFeedback(ctx context.Context, isMensaFeedback
 		Model(&entries).
 		ModelTableExpr(tableFeedbackEntriesAlias).
 		Where(whereIsMensaFeedback, isMensaFeedback).
-		Order("day DESC").
-		Order("time DESC").
+		Order(orderDayDesc).
+		Order(orderTimeDesc).
 		Scan(ctx)
 
 	if err != nil {
@@ -148,8 +150,8 @@ func (r *EntryRepository) FindByStudentAndDateRange(ctx context.Context, student
 		Model(&entries).
 		ModelTableExpr(tableFeedbackEntriesAlias).
 		Where("student_id = ? AND day >= ? AND day <= ?", studentID, startDate, endDate).
-		Order("day DESC").
-		Order("time DESC").
+		Order(orderDayDesc).
+		Order(orderTimeDesc).
 		Scan(ctx)
 
 	if err != nil {
@@ -252,7 +254,7 @@ func (r *EntryRepository) List(ctx context.Context, filters map[string]interface
 	query := r.db.NewSelect().Model(&entries).ModelTableExpr(tableFeedbackEntriesAlias)
 
 	query = applyFeedbackFilters(query, filters)
-	query = query.Order("day DESC").Order("time DESC")
+	query = query.Order(orderDayDesc).Order(orderTimeDesc)
 
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{Op: "list", Err: err}

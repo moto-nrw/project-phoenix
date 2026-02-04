@@ -166,7 +166,9 @@ export function useStudentData(studentId: string): UseStudentDataResult {
 
   // refreshData now uses SWR's mutate
   const refreshData = useCallback(() => {
-    void mutate();
+    mutate().catch(() => {
+      // Ignore revalidation errors
+    });
   }, [mutate]);
 
   // Convert SWR state to component state

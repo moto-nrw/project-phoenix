@@ -26,16 +26,17 @@ import (
 
 // SQL constants to avoid duplication
 const (
-	whereIDEquals       = "id = ?"
-	whereIDIn           = "id IN (?)"
-	whereIDOrAccountID  = "id = ? OR account_id = ?"
-	whereAccountIDIn    = "account_id IN (?)"
-	tableUsersTeachers  = "users.teachers"
-	tableUsersStaff     = "users.staff"
-	tableUsersPersons   = "users.persons"
-	tableActiveVisits   = "active.visits"
-	tableUsersRFIDCards = "users.rfid_cards"
-	testEmailFormat     = "%s-%d@test.local"
+	whereIDEquals                 = "id = ?"
+	whereIDIn                     = "id IN (?)"
+	whereIDOrAccountID            = "id = ? OR account_id = ?"
+	whereAccountIDIn              = "account_id IN (?)"
+	tableUsersTeachers            = "users.teachers"
+	tableUsersStaff               = "users.staff"
+	tableUsersPersons             = "users.persons"
+	tableActiveVisits             = "active.visits"
+	tableUsersRFIDCards           = "users.rfid_cards"
+	tableEducationGradeTransition = "education.grade_transitions"
+	testEmailFormat               = "%s-%d@test.local"
 )
 
 // cleanupDelete executes a delete query and logs any errors.
@@ -588,9 +589,9 @@ func CleanupAuthFixtures(tb testing.TB, db *bun.DB, accountIDs ...int64) {
 
 	// Delete grade_transitions that reference these accounts (created_by FK)
 	cleanupDelete(tb, db.NewDelete().
-		Table("education.grade_transitions").
+		Table(tableEducationGradeTransition).
 		Where("created_by IN (?)", bun.In(accountIDs)),
-		"education.grade_transitions")
+		tableEducationGradeTransition)
 
 	// Finally delete the accounts themselves
 	cleanupDelete(tb, db.NewDelete().
@@ -1799,7 +1800,7 @@ func CreateTestGradeTransition(tb testing.TB, db *bun.DB, academicYear string, c
 
 	err := db.NewInsert().
 		Model(transition).
-		ModelTableExpr(`education.grade_transitions`).
+		ModelTableExpr(tableEducationGradeTransition).
 		Scan(ctx)
 	require.NoError(tb, err, "Failed to create test grade transition")
 
@@ -1854,7 +1855,7 @@ func CleanupGradeTransitionFixtures(tb testing.TB, db *bun.DB, transitionIDs ...
 
 	// Delete transitions
 	_, _ = db.NewDelete().
-		TableExpr("education.grade_transitions").
+		TableExpr(tableEducationGradeTransition).
 		Where(whereIDIn, bun.In(transitionIDs)).
 		Exec(ctx)
 }

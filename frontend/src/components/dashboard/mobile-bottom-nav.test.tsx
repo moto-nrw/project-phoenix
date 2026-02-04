@@ -363,10 +363,11 @@ describe("MobileBottomNav", () => {
       const moreButton = getMoreButton();
       fireEvent.click(moreButton);
 
-      // Zeiterfassung is a coming soon feature
+      // Zeiterfassung is now an active feature with a real link
       const zeiterfassungElement = screen.getByText("Zeiterfassung");
-      // It should be in a div, not a link
-      expect(zeiterfassungElement.closest("a")).toBeNull();
+      const link = zeiterfassungElement.closest("a");
+      expect(link).not.toBeNull();
+      expect(link).toHaveAttribute("href", "/time-tracking");
     });
 
     it("shows admin-only coming soon items for admins", () => {

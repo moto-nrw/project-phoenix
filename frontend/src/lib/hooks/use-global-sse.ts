@@ -60,34 +60,40 @@ export function useGlobalSSE(): SSEHookState {
     // A student checked out of Room A may appear on the Schulhof (catch-all),
     // so we can't limit to just the source group's cache key.
     if (pendingGroupIds.current.size > 0) {
-      void mutate(
+      mutate(
         (key) =>
           typeof key === "string" && key.startsWith("supervision-visits-"),
         undefined,
         { revalidate: true },
-      );
+      ).catch(() => {
+        // Ignore revalidation errors - they're logged elsewhere
+      });
     }
 
     // Invalidate specific student detail caches
     for (const studentId of pendingStudentIds.current) {
-      void mutate(`student-detail-${studentId}`);
+      mutate(`student-detail-${studentId}`).catch(() => {
+        // Ignore revalidation errors
+      });
     }
 
     // Invalidate dashboard (student counts changed) — single broad invalidation
     if (pendingGroupIds.current.size > 0 || hasPendingActivityEvent.current) {
-      void mutate(
+      mutate(
         (key) =>
           typeof key === "string" &&
           (key.startsWith("active-supervision-dashboard") ||
             key.includes("dashboard")),
         undefined,
         { revalidate: true },
-      );
+      ).catch(() => {
+        // Ignore revalidation errors
+      });
     }
 
     // Activity events also need room/supervision refresh
     if (hasPendingActivityEvent.current) {
-      void mutate(
+      mutate(
         (key) =>
           typeof key === "string" &&
           (key.includes("supervision") ||
@@ -95,7 +101,9 @@ export function useGlobalSSE(): SSEHookState {
             key.includes("rooms")),
         undefined,
         { revalidate: true },
-      );
+      ).catch(() => {
+        // Ignore revalidation errors
+      });
     }
 
     // Reset pending state

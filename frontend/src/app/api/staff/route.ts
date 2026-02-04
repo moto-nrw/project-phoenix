@@ -27,6 +27,8 @@ interface BackendStaffResponse {
   created_at: string;
   updated_at: string;
   was_present_today?: boolean;
+  work_status?: string;
+  absence_type?: string;
 }
 
 /**
@@ -66,6 +68,34 @@ interface ApiStaffResponse {
 }
 
 /**
+ * Maps a backend staff response to the frontend representation
+ * Always uses staff.id as unique identifier (NEVER teacher_id to avoid duplicates)
+ */
+function mapBackendStaff(staff: BackendStaffResponse) {
+  return {
+    id: String(staff.id),
+    name: staff.person
+      ? `${staff.person.first_name} ${staff.person.last_name}`
+      : "",
+    firstName: staff.person?.first_name ?? "",
+    lastName: staff.person?.last_name ?? "",
+    specialization: staff.specialization ?? null,
+    role: staff.role ?? null,
+    qualifications: staff.qualifications ?? null,
+    tag_id: staff.person?.tag_id ?? null,
+    staff_notes: staff.staff_notes ?? null,
+    created_at: staff.created_at,
+    updated_at: staff.updated_at,
+    staff_id: String(staff.id),
+    teacher_id: staff.teacher_id ? String(staff.teacher_id) : undefined,
+    person_id: staff.person_id,
+    was_present_today: staff.was_present_today,
+    work_status: staff.work_status,
+    absence_type: staff.absence_type,
+  };
+}
+
+/**
  * Handler for GET /api/staff
  * Returns a list of staff members, optionally filtered by query parameters
  */
@@ -99,58 +129,12 @@ export const GET = createGetHandler(
 
       // Check if the response is already an array (common pattern)
       if (Array.isArray(response)) {
-        // Direct array response - map all staff (not just teachers)
-        const mappedStaff = response.map((staff: BackendStaffResponse) => ({
-          id: String(staff.id), // Always use staff.id as unique identifier (NEVER teacher_id to avoid duplicates)
-          name: staff.person
-            ? `${staff.person.first_name} ${staff.person.last_name}`
-            : "",
-          firstName: staff.person?.first_name ?? "",
-          lastName: staff.person?.last_name ?? "",
-          specialization: staff.specialization ?? null,
-          role: staff.role ?? null,
-          qualifications: staff.qualifications ?? null,
-          tag_id: staff.person?.tag_id ?? null,
-          staff_notes: staff.staff_notes ?? null,
-          created_at: staff.created_at,
-          updated_at: staff.updated_at,
-          // Include both IDs for reference
-          staff_id: String(staff.id),
-          teacher_id: staff.teacher_id ? String(staff.teacher_id) : undefined,
-          person_id: staff.person_id,
-          was_present_today: staff.was_present_today,
-        }));
-
-        return mappedStaff;
+        return response.map(mapBackendStaff);
       }
 
       // Check for nested data structure
       if ("data" in response && Array.isArray(response.data)) {
-        // Map the response data to match the Teacher interface from teacher-api.ts
-        const mappedStaff = response.data.map(
-          (staff: BackendStaffResponse) => ({
-            id: String(staff.id), // Always use staff.id as unique identifier (NEVER teacher_id to avoid duplicates)
-            name: staff.person
-              ? `${staff.person.first_name} ${staff.person.last_name}`
-              : "",
-            firstName: staff.person?.first_name ?? "",
-            lastName: staff.person?.last_name ?? "",
-            specialization: staff.specialization ?? null,
-            role: staff.role ?? null,
-            qualifications: staff.qualifications ?? null,
-            tag_id: staff.person?.tag_id ?? null,
-            staff_notes: staff.staff_notes ?? null,
-            created_at: staff.created_at,
-            updated_at: staff.updated_at,
-            // Include both IDs for reference
-            staff_id: String(staff.id),
-            teacher_id: staff.teacher_id ? String(staff.teacher_id) : undefined,
-            person_id: staff.person_id,
-            was_present_today: staff.was_present_today,
-          }),
-        );
-
-        return mappedStaff;
+        return response.data.map(mapBackendStaff);
       }
 
       // If the response doesn't have the expected structure, return an empty array
@@ -224,26 +208,7 @@ export const POST = createPostHandler<TeacherResponse, StaffCreateRequest>(
         normalizedBody,
       );
 
-      // Map the response to match the Teacher interface from teacher-api.ts
-      return {
-        ...response,
-        id: String(response.id), // Always use staff.id as unique identifier (NEVER teacher_id to avoid duplicates)
-        name: response.person
-          ? `${response.person.first_name} ${response.person.last_name}`
-          : "",
-        firstName: response.person?.first_name ?? "",
-        lastName: response.person?.last_name ?? "",
-        specialization: response.specialization ?? null,
-        role: response.role ?? null,
-        qualifications: response.qualifications ?? null,
-        tag_id: response.person?.tag_id ?? null,
-        staff_notes: response.staff_notes ?? null,
-        staff_id: String(response.id),
-        teacher_id: response.teacher_id
-          ? String(response.teacher_id)
-          : undefined,
-        person_id: response.person_id,
-      };
+      return mapBackendStaff(response);
     } catch (error) {
       // Check for permission errors (403 Forbidden)
       if (error instanceof Error && error.message.includes("403")) {

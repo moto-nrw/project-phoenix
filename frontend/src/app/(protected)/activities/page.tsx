@@ -482,7 +482,9 @@ export default function ActivitiesPage() {
         onClose={() => setIsQuickCreateOpen(false)}
         onSuccess={() => {
           // Don't close here - let the modal handle its own closing
-          void handleManagementSuccess(); // Reload activities
+          handleManagementSuccess().catch(() => {
+            // Error already handled in handleManagementSuccess
+          });
         }}
       />
 

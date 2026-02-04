@@ -712,11 +712,12 @@ describe("PermissionsPage", () => {
   });
 
   it("handles detail loading state", async () => {
+    let resolveGetOne: (value: unknown) => void;
     mockGetOne.mockImplementation(
       () =>
-        new Promise((resolve) =>
-          setTimeout(() => resolve(mockPermissions[0]), 100),
-        ),
+        new Promise((resolve) => {
+          resolveGetOne = resolve;
+        }),
     );
 
     render(<PermissionsPage />);
@@ -731,6 +732,11 @@ describe("PermissionsPage", () => {
       expect(screen.getByTestId("detail-modal")).toBeInTheDocument();
       expect(mockGetOne).toHaveBeenCalledWith("1");
     });
+
+    // Resolve the pending getOne promise before unmount to prevent
+    // "window is not defined" from state updates on unmounted components
+    resolveGetOne!(mockPermissions[0]);
+    await waitFor(() => expect(mockGetOne).toHaveBeenCalledTimes(1));
   });
 
   it("sorts permissions by resource, action, then name", async () => {

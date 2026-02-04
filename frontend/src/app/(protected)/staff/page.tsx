@@ -8,11 +8,11 @@ import type { FilterConfig, ActiveFilter } from "~/components/ui/page-header";
 import { staffService } from "~/lib/staff-api";
 import type { Staff } from "~/lib/staff-api";
 import {
-  getStaffLocationStatus,
   getStaffDisplayType,
   getStaffCardInfo,
   formatStaffNotes,
   sortStaff,
+  getStaffLocationStatus,
 } from "~/lib/staff-helpers";
 import { useSWRAuth } from "~/lib/swr";
 
@@ -61,21 +61,40 @@ function StaffPageContent() {
   const staff = staffData ?? [];
   const error = staffError ? "Fehler beim Laden der Personaldaten." : null;
 
+  // Known non-room locations for the "Im Raum" filter
+  const nonRoomLocations = new Set([
+    "Zuhause",
+    "Anwesend",
+    "Schulhof",
+    "Unterwegs",
+    "Homeoffice",
+    "Krank",
+    "Urlaub",
+    "Fortbildung",
+    "Abwesend",
+  ]);
+
+  // All absence location labels for the unified "Abwesend" filter
+  const absenceLocations = new Set([
+    "Krank",
+    "Urlaub",
+    "Fortbildung",
+    "Abwesend",
+  ]);
+
   // Helper to check if location matches filter
   const matchesLocationFilter = (location: string, filter: string): boolean => {
     if (filter === "all") return true;
-    if (filter === "zuhause") return location === "Zuhause";
+    // "abwesend_nicht_eingecheckt" - not clocked in (Zuhause or Abwesend)
+    if (filter === "abwesend_nicht_eingecheckt")
+      return location === "Zuhause" || location === "Abwesend";
     if (filter === "anwesend") return location === "Anwesend";
-    if (filter === "schulhof") return location === "Schulhof";
-    if (filter === "unterwegs") return location === "Unterwegs";
+    if (filter === "homeoffice") return location === "Homeoffice";
+    // "abwesend" - all absence types (Krank, Urlaub, Fortbildung)
+    if (filter === "abwesend") return absenceLocations.has(location);
     if (filter === "im_raum") {
-      // Staff actively supervising in a room (not Zuhause, Anwesend, Schulhof, or Unterwegs)
-      return (
-        location !== "Zuhause" &&
-        location !== "Anwesend" &&
-        location !== "Schulhof" &&
-        location !== "Unterwegs"
-      );
+      // Staff actively supervising in a room
+      return !nonRoomLocations.has(location);
     }
     return true;
   };
@@ -94,7 +113,7 @@ function StaffPageContent() {
     }
 
     // Location filter
-    const location = staffMember.currentLocation ?? "Zuhause";
+    const location = staffMember.currentLocation ?? "Abwesend";
     return matchesLocationFilter(location, locationFilter);
   });
 
@@ -103,21 +122,21 @@ function StaffPageContent() {
     () => [
       {
         id: "location",
-        label: "Aufenthaltsort",
+        label: "Status",
         type: "grid",
         value: locationFilter,
         onChange: (value) => setLocationFilter(value as string),
         options: [
-          { value: "all", label: "Alle Orte", icon: "M4 6h16M4 12h16M4 18h16" },
-          {
-            value: "zuhause",
-            label: "Zuhause",
-            icon: "M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6",
-          },
+          { value: "all", label: "Alle", icon: "M4 6h16M4 12h16M4 18h16" },
           {
             value: "anwesend",
             label: "Anwesend",
             icon: "M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z",
+          },
+          {
+            value: "abwesend_nicht_eingecheckt",
+            label: "Abwesend",
+            icon: "M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6",
           },
           {
             value: "im_raum",
@@ -125,14 +144,14 @@ function StaffPageContent() {
             icon: "M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4",
           },
           {
-            value: "schulhof",
-            label: "Schulhof",
-            icon: "M21 12a9 9 0 11-18 0 9 9 0 0118 0zM12 12a8 8 0 008 4M7.5 13.5a12 12 0 008.5 6.5M12 12a8 8 0 00-7.464 4.928M12.951 7.353a12 12 0 00-9.88 4.111M12 12a8 8 0 00-.536-8.928M15.549 15.147a12 12 0 001.38-10.611",
+            value: "homeoffice",
+            label: "Homeoffice",
+            icon: "M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z",
           },
           {
-            value: "unterwegs",
-            label: "Unterwegs",
-            icon: "M13 10V3L4 14h7v7l9-11h-7z",
+            value: "abwesend",
+            label: "Krank/Urlaub",
+            icon: "M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636",
           },
         ],
       },
@@ -154,11 +173,11 @@ function StaffPageContent() {
 
     if (locationFilter !== "all") {
       const locationLabels: Record<string, string> = {
-        zuhause: "Zuhause",
         anwesend: "Anwesend",
+        abwesend_nicht_eingecheckt: "Abwesend",
         im_raum: "Im Raum",
-        schulhof: "Schulhof",
-        unterwegs: "Unterwegs",
+        homeoffice: "Homeoffice",
+        abwesend: "Krank/Urlaub",
       };
       filters.push({
         id: "location",
@@ -252,6 +271,7 @@ function StaffPageContent() {
               const displayType = getStaffDisplayType(staffMember);
               const cardInfo = getStaffCardInfo(staffMember);
               const notes = formatStaffNotes(staffMember.staffNotes, 80);
+              const supervisions = staffMember.supervisions ?? [];
 
               return (
                 <div
@@ -268,8 +288,8 @@ function StaffPageContent() {
                   <div className="absolute inset-0 rounded-3xl ring-1 ring-white/20"></div>
 
                   <div className="relative p-6">
-                    {/* Header with staff name */}
-                    <div className="mb-2 flex items-center justify-between">
+                    {/* Header with staff name and status badge */}
+                    <div className="mb-2 flex items-start justify-between">
                       {/* Staff Name */}
                       <div className="min-w-0 flex-1">
                         <h3 className="overflow-hidden text-lg font-bold text-ellipsis whitespace-nowrap text-gray-800">
@@ -284,9 +304,9 @@ function StaffPageContent() {
                         </p>
                       </div>
 
-                      {/* Status Badge */}
+                      {/* Single Status Badge */}
                       <span
-                        className={`inline-flex items-center rounded-full px-3 py-1.5 text-xs font-bold ${locationStatus.badgeColor} ml-3`}
+                        className={`ml-3 inline-flex items-center rounded-full px-3 py-1.5 text-xs font-bold ${locationStatus.badgeColor}`}
                         style={{
                           backgroundColor: locationStatus.customBgColor,
                           boxShadow: locationStatus.customShadow,
@@ -296,6 +316,22 @@ function StaffPageContent() {
                         {locationStatus.label}
                       </span>
                     </div>
+
+                    {/* Supervision info as text (if supervising) */}
+                    {supervisions.length > 0 && (
+                      <div className="mb-2 text-sm text-gray-600">
+                        <span className="font-medium">Aktuelle Aufsicht:</span>
+                        <ul className="mt-0.5 list-inside">
+                          {supervisions.map((supervision) => (
+                            <li
+                              key={`${supervision.roomId}-${supervision.activeGroupId}`}
+                            >
+                              • {supervision.roomName}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
 
                     {/* Additional Info */}
                     {cardInfo.length > 0 && (
