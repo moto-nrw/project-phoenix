@@ -16,7 +16,7 @@ import { PageHeaderWithSearch } from "~/components/ui/page-header";
 import type { FilterConfig, ActiveFilter } from "~/components/ui/page-header";
 import { Loading } from "~/components/ui/loading";
 import { LocationBadge } from "@/components/ui/location-badge";
-import { Modal } from "~/components/ui/modal";
+import { ConfirmationModal } from "~/components/ui/modal";
 import { EmptyStudentResults } from "~/components/ui/empty-student-results";
 import {
   StudentCard,
@@ -128,64 +128,6 @@ function matchesStudentFilters(
     if (studentGroupName !== groupFilter) return false;
   }
   return true;
-}
-
-/** Schulhof release supervision button (desktop) */
-function ReleaseSupervisionButton({
-  isReleasing,
-  onClick,
-}: Readonly<{ isReleasing: boolean; onClick: () => void }>) {
-  return (
-    <button
-      onClick={onClick}
-      className="flex h-10 items-center gap-2 rounded-full bg-red-50 px-4 text-red-600 ring-1 ring-red-300 transition-colors duration-150 hover:bg-red-100 active:bg-red-200"
-      aria-label="Aufsicht abgeben"
-    >
-      <svg
-        className="size-5"
-        fill="none"
-        viewBox="0 0 24 24"
-        stroke="currentColor"
-        strokeWidth={2.5}
-      >
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
-        />
-      </svg>
-      <span className="text-sm font-semibold">
-        {isReleasing ? "Wird abgegeben..." : "Aufsicht abgeben"}
-      </span>
-    </button>
-  );
-}
-
-/** Schulhof release supervision button (mobile) */
-function MobileReleaseSupervisionButton({
-  onClick,
-}: Readonly<{ onClick: () => void }>) {
-  return (
-    <button
-      onClick={onClick}
-      className="flex size-8 items-center justify-center rounded-full bg-red-50 text-red-600 ring-1 ring-red-300 transition-colors duration-150 active:bg-red-200"
-      aria-label="Aufsicht abgeben"
-    >
-      <svg
-        className="size-4"
-        fill="none"
-        viewBox="0 0 24 24"
-        stroke="currentColor"
-        strokeWidth={2.5}
-      >
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
-        />
-      </svg>
-    </button>
-  );
 }
 
 /** Loading state view */
@@ -951,6 +893,8 @@ function MeinRaumPageContent() {
       await activeService.toggleSchulhofSupervision(action);
 
       // Refresh to get updated status
+      // Note: Don't reset isTogglingSchulhof here - let the useEffect below handle it
+      // when schulhofStatus actually updates, to avoid flickering
       setRefreshKey((prev) => prev + 1);
     } catch (err) {
       console.error("Failed to toggle Schulhof supervision:", err);
@@ -959,10 +903,20 @@ function MeinRaumPageContent() {
           ? "Fehler beim Abgeben der Schulhof-Aufsicht."
           : "Fehler beim Übernehmen der Schulhof-Aufsicht.",
       );
-    } finally {
+      // Only reset loading state on error - success case handled by useEffect
       setIsTogglingSchulhof(false);
     }
   }, [schulhofStatus]);
+
+  // Reset toggling state when schulhofStatus updates (prevents flicker after successful toggle)
+  useEffect(() => {
+    if (isTogglingSchulhof && schulhofStatus) {
+      // When SWR has updated the data, reset the loading state
+      setIsTogglingSchulhof(false);
+    }
+    // Only react to schulhofStatus changes, not isTogglingSchulhof
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [schulhofStatus?.isUserSupervising]);
 
   // Function to switch between rooms (by ID — stable across re-sorts)
   const switchToRoom = async (roomId: string) => {
@@ -1193,208 +1147,214 @@ function MeinRaumPageContent() {
       />
 
       {/* Modern Header with PageHeaderWithSearch component */}
-      {/* No title - breadcrumb menu handles page identification */}
-      <PageHeaderWithSearch
-        title={
-          !isDesktop &&
-          (allRooms.length === 1 ||
-            (allRooms.length === 0 && schulhofStatus?.exists))
-            ? isSchulhofActive
-              ? SCHULHOF_ROOM_NAME
-              : (currentRoom?.room_name ?? "Aktuelle Aufsicht")
-            : ""
-        }
-        badge={{
-          icon: (
-            <svg
-              className="h-5 w-5 text-gray-600"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"
-              />
-            </svg>
-          ),
-          count: isSchulhofActive
-            ? (schulhofStatus?.studentCount ?? 0)
-            : (currentRoom?.student_count ?? 0),
-          label: "Schüler",
-        }}
-        tabs={
-          // Show tabs when there are multiple rooms OR Schulhof exists (always show Schulhof tab)
-          (allRooms.length > 1 || schulhofStatus?.exists) && !isDesktop
-            ? {
-                items: [
-                  // Regular supervised rooms
-                  ...allRooms
-                    .filter((room) => room.room_name !== SCHULHOF_ROOM_NAME)
-                    .map((room) => ({
-                      id: room.id,
-                      label: room.room_name ?? room.name,
-                    })),
-                  // Schulhof permanent tab (always shown if exists)
-                  ...(schulhofStatus?.exists
-                    ? [
-                        {
-                          id: SCHULHOF_TAB_ID,
-                          label: SCHULHOF_ROOM_NAME,
-                        },
-                      ]
-                    : []),
-                ],
-                activeTab: isSchulhofTabSelected
-                  ? SCHULHOF_TAB_ID
-                  : (currentRoom?.id ?? ""),
-                onTabChange: (tabId) => {
-                  if (tabId === SCHULHOF_TAB_ID) {
-                    // Switch to Schulhof tab
-                    setIsSchulhofTabSelected(true);
-                    setSelectedRoomId(null);
-                    router.push("/active-supervisions?room=schulhof");
-                    localStorage.setItem("sidebar-last-room", SCHULHOF_TAB_ID);
-                    localStorage.setItem(
-                      "sidebar-last-room-name",
-                      SCHULHOF_ROOM_NAME,
-                    );
-                    // Load Schulhof visits if supervising (use ref to avoid stale closure)
-                    const currentSchulhofStatus = schulhofStatusRef.current;
-                    if (
-                      currentSchulhofStatus?.isUserSupervising &&
-                      currentSchulhofStatus?.activeGroupId
-                    ) {
-                      loadRoomVisits(
-                        currentSchulhofStatus.activeGroupId,
-                        SCHULHOF_ROOM_NAME,
-                        groupNameToIdMapRef.current,
-                      )
-                        .then(setStudents)
-                        .catch(() => {
-                          // Error already handled in loadRoomVisits
-                        });
-                    } else {
-                      setStudents([]);
-                    }
-                  } else {
-                    // Switch to regular room
-                    setIsSchulhofTabSelected(false);
-                    const room = allRooms.find((r) => r.id === tabId);
-                    if (room) {
-                      if (room.room_id) {
-                        router.push(
-                          `/active-supervisions?room=${room.room_id}`,
+      {/* Count rooms EXCLUDING Schulhof (to avoid double-counting with schulhofStatus) */}
+      {(() => {
+        const roomsWithoutSchulhof = allRooms.filter(
+          (room) => room.room_name !== SCHULHOF_ROOM_NAME,
+        );
+        const totalSupervisions =
+          roomsWithoutSchulhof.length + (schulhofStatus?.exists ? 1 : 0);
+
+        return (
+          <PageHeaderWithSearch
+            title={
+              // Mobile only: Show title when exactly 1 supervision
+              // 1 supervision = title, 2+ supervisions = tabs (dropdown)
+              !isDesktop && totalSupervisions === 1
+                ? isSchulhofActive
+                  ? SCHULHOF_ROOM_NAME
+                  : (currentRoom?.room_name ?? "Aktuelle Aufsicht")
+                : ""
+            }
+            badge={{
+              icon: (
+                <svg
+                  className="h-5 w-5 text-gray-600"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"
+                  />
+                </svg>
+              ),
+              count: isSchulhofActive
+                ? (schulhofStatus?.studentCount ?? 0)
+                : (currentRoom?.student_count ?? 0),
+              label: "Schüler",
+            }}
+            tabs={
+              // Show tabs (dropdown) when 2+ supervisions
+              totalSupervisions >= 2 && !isDesktop
+                ? {
+                    items: [
+                      // Regular supervised rooms (excluding Schulhof)
+                      ...roomsWithoutSchulhof.map((room) => ({
+                        id: room.id,
+                        label: room.room_name ?? room.name,
+                      })),
+                      // Schulhof permanent tab (always shown if exists)
+                      ...(schulhofStatus?.exists
+                        ? [
+                            {
+                              id: SCHULHOF_TAB_ID,
+                              label: SCHULHOF_ROOM_NAME,
+                            },
+                          ]
+                        : []),
+                    ],
+                    activeTab: isSchulhofTabSelected
+                      ? SCHULHOF_TAB_ID
+                      : (currentRoom?.id ?? ""),
+                    onTabChange: (tabId) => {
+                      if (tabId === SCHULHOF_TAB_ID) {
+                        // Switch to Schulhof tab
+                        setIsSchulhofTabSelected(true);
+                        setSelectedRoomId(null);
+                        router.push("/active-supervisions?room=schulhof");
+                        localStorage.setItem(
+                          "sidebar-last-room",
+                          SCHULHOF_TAB_ID,
                         );
-                        localStorage.setItem("sidebar-last-room", room.room_id);
-                      }
-                      if (room.room_name) {
                         localStorage.setItem(
                           "sidebar-last-room-name",
-                          room.room_name,
+                          SCHULHOF_ROOM_NAME,
                         );
+                        // Load Schulhof visits if supervising (use ref to avoid stale closure)
+                        const currentSchulhofStatus = schulhofStatusRef.current;
+                        if (
+                          currentSchulhofStatus?.isUserSupervising &&
+                          currentSchulhofStatus?.activeGroupId
+                        ) {
+                          loadRoomVisits(
+                            currentSchulhofStatus.activeGroupId,
+                            SCHULHOF_ROOM_NAME,
+                            groupNameToIdMapRef.current,
+                          )
+                            .then(setStudents)
+                            .catch(() => {
+                              // Error already handled in loadRoomVisits
+                            });
+                        } else {
+                          setStudents([]);
+                        }
+                      } else {
+                        // Switch to regular room
+                        setIsSchulhofTabSelected(false);
+                        const room = allRooms.find((r) => r.id === tabId);
+                        if (room) {
+                          if (room.room_id) {
+                            router.push(
+                              `/active-supervisions?room=${room.room_id}`,
+                            );
+                            localStorage.setItem(
+                              "sidebar-last-room",
+                              room.room_id,
+                            );
+                          }
+                          if (room.room_name) {
+                            localStorage.setItem(
+                              "sidebar-last-room-name",
+                              room.room_name,
+                            );
+                          }
+                          void switchToRoom(tabId);
+                        }
                       }
-                      void switchToRoom(tabId);
-                    }
+                    },
                   }
-                },
-              }
-            : undefined
-        }
-        search={{
-          value: searchTerm,
-          onChange: setSearchTerm,
-          placeholder: "Name suchen...",
-        }}
-        filters={filterConfigs}
-        activeFilters={activeFilters}
-        onClearAllFilters={() => {
-          setSearchTerm("");
-          setGroupFilter("all");
-        }}
-        actionButton={
-          isSchulhofActive && schulhofStatus ? (
-            schulhofStatus.isUserSupervising ? (
-              <ReleaseSupervisionButton
-                isReleasing={isReleasingSupervision}
-                onClick={() => setShowReleaseModal(true)}
-              />
-            ) : (
-              <button
-                onClick={() => handleToggleSchulhof().catch(() => undefined)}
-                disabled={isTogglingSchulhof}
-                className="flex h-10 items-center gap-2 rounded-full bg-gray-900 px-4 text-white transition-colors duration-150 hover:bg-gray-700 active:bg-gray-800 disabled:opacity-50"
-              >
-                <svg
-                  className="size-5"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  strokeWidth={2.5}
+                : undefined
+            }
+            search={{
+              value: searchTerm,
+              onChange: setSearchTerm,
+              placeholder: "Name suchen...",
+            }}
+            filters={filterConfigs}
+            activeFilters={activeFilters}
+            onClearAllFilters={() => {
+              setSearchTerm("");
+              setGroupFilter("all");
+            }}
+            actionButton={
+              // Only show release button when user IS supervising Schulhof
+              // "Beaufsichtigen" button is shown in the empty state instead (no duplicate)
+              isSchulhofActive && schulhofStatus?.isUserSupervising ? (
+                <button
+                  type="button"
+                  onClick={() => setShowReleaseModal(true)}
+                  className="flex h-10 items-center gap-2 rounded-full border border-red-200 bg-red-50 px-4 text-red-600 transition-colors hover:bg-red-100"
                 >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                  />
-                </svg>
-                <span className="text-sm font-semibold">
-                  {isTogglingSchulhof ? "Wird übernommen..." : "Beaufsichtigen"}
-                </span>
-              </button>
-            )
-          ) : undefined
-        }
-        mobileActionButton={
-          isSchulhofActive && schulhofStatus ? (
-            schulhofStatus.isUserSupervising ? (
-              <MobileReleaseSupervisionButton
-                onClick={() => setShowReleaseModal(true)}
-              />
-            ) : (
-              <button
-                onClick={() => handleToggleSchulhof().catch(() => undefined)}
-                disabled={isTogglingSchulhof}
-                className="flex size-8 items-center justify-center rounded-full bg-gray-900 text-white transition-colors duration-150 hover:bg-gray-700 active:bg-gray-800 disabled:opacity-50"
-                aria-label="Beaufsichtigen"
-              >
-                <svg
-                  className="size-4"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  strokeWidth={2.5}
+                  <svg
+                    className="h-5 w-5"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
+                    />
+                  </svg>
+                  <span className="text-sm font-medium">Aufsicht abgeben</span>
+                </button>
+              ) : undefined
+            }
+            mobileActionButton={
+              // Only show release button when user IS supervising Schulhof
+              isSchulhofActive && schulhofStatus?.isUserSupervising ? (
+                <button
+                  type="button"
+                  onClick={() => setShowReleaseModal(true)}
+                  className="flex h-8 w-8 items-center justify-center rounded-full border border-red-200 bg-red-50 text-red-600 transition-colors hover:bg-red-100"
+                  aria-label="Aufsicht abgeben"
                 >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                  />
-                </svg>
-              </button>
-            )
-          ) : undefined
-        }
-      />
+                  <svg
+                    className="h-4 w-4"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
+                    />
+                  </svg>
+                </button>
+              ) : undefined
+            }
+          />
+        );
+      })()}
 
       {/* Schulhof Release Supervision Modal */}
-      <Modal
+      <ConfirmationModal
         isOpen={showReleaseModal}
         onClose={() => setShowReleaseModal(false)}
-        title="Schulhof-Aufsicht abgeben"
+        onConfirm={() => handleReleaseSupervision().catch(() => undefined)}
+        title="Aufsicht abgeben"
+        confirmText="Abgeben"
+        confirmButtonClass="bg-red-600 hover:bg-red-700"
+        isConfirmLoading={isReleasingSupervision}
       >
-        <div className="space-y-4 md:space-y-5">
+        <div className="space-y-4">
           {/* Warning Box */}
-          <div className="rounded-lg border border-red-100 bg-red-50/50 p-3 md:p-4">
+          <div className="rounded-lg border border-red-100 bg-red-50/50 p-3">
             <div className="flex items-start gap-3">
               <svg
                 className="mt-0.5 size-5 flex-shrink-0 text-red-500"
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
-                strokeWidth={2.5}
+                strokeWidth={2}
               >
                 <path
                   strokeLinecap="round"
@@ -1403,49 +1363,16 @@ function MeinRaumPageContent() {
                 />
               </svg>
               <div className="flex-1">
-                <p className="text-sm font-medium text-gray-900">
-                  Du wirst nicht mehr als Aufsicht angezeigt.
-                </p>
-                <p className="mt-1 text-sm text-gray-700">
-                  Der Schulhof wird dann als &quot;ohne Aufsicht&quot;
-                  angezeigt, bis eine andere Lehrkraft die Aufsicht übernimmt.
+                <p className="text-sm text-gray-600">
+                  Du wirst nicht mehr als Aufsicht angezeigt. Der Schulhof wird
+                  dann als &quot;ohne Aufsicht&quot; angezeigt, bis eine andere
+                  Lehrkraft die Aufsicht übernimmt.
                 </p>
               </div>
             </div>
           </div>
-
-          {/* Current Room Info */}
-          <div className="rounded-lg border border-gray-100 bg-gray-50 p-3 md:p-4">
-            <p className="text-sm text-gray-600">
-              <span className="font-medium text-gray-900">Raum:</span>{" "}
-              {currentRoom?.room_name ?? "Schulhof"}
-            </p>
-          </div>
-
-          {/* Action Buttons */}
-          <div className="flex gap-3 pt-2 md:pt-4">
-            <button
-              type="button"
-              onClick={() => setShowReleaseModal(false)}
-              disabled={isReleasingSupervision}
-              className="flex-1 rounded-lg border border-gray-300 px-4 py-2.5 text-sm font-medium text-gray-700 transition-all duration-200 hover:scale-105 hover:border-gray-400 hover:bg-gray-50 hover:shadow-md active:scale-100 disabled:cursor-not-allowed disabled:opacity-50 md:hover:scale-105"
-            >
-              Abbrechen
-            </button>
-
-            <button
-              type="button"
-              onClick={() => handleReleaseSupervision().catch(() => undefined)}
-              disabled={isReleasingSupervision}
-              className="flex-1 rounded-lg bg-red-600 px-4 py-2.5 text-sm font-medium text-white transition-colors duration-200 hover:bg-red-700 active:bg-red-800 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {isReleasingSupervision
-                ? "Wird abgegeben..."
-                : "Aufsicht abgeben"}
-            </button>
-          </div>
         </div>
-      </Modal>
+      </ConfirmationModal>
 
       {/* Mobile Error Display */}
       {error && (
@@ -1454,70 +1381,40 @@ function MeinRaumPageContent() {
         </div>
       )}
 
-      {/* Schulhof Not Supervising View */}
+      {/* Schulhof Not Supervising View - matches suggestions page empty state style */}
       {isSchulhofActive &&
         schulhofStatus &&
         !schulhofStatus.isUserSupervising && (
-          <div className="mt-8 flex min-h-[30vh] items-center justify-center">
-            <div className="flex max-w-md flex-col items-center gap-4 text-center">
-              <svg
-                className="size-12 text-gray-400"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={1.5}
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M12 3v2.25m6.364.386l-1.591 1.591M21 12h-2.25m-.386 6.364l-1.591-1.591M12 18.75V21m-4.773-4.227l-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z"
-                />
-              </svg>
-
-              <div className="space-y-1">
-                <h3 className="text-lg font-medium text-balance text-gray-900">
-                  Schulhof-Aufsicht verfügbar
-                </h3>
-                <p className="text-sm text-pretty text-gray-500">
-                  Klicke auf &quot;Beaufsichtigen&quot;, um die
-                  Schulhof-Aufsicht zu übernehmen.
-                </p>
-              </div>
-
-              {/* Current supervisors info */}
-              {schulhofStatus.supervisorCount > 0 && (
-                <div className="w-full rounded-lg border border-gray-100 bg-gray-50 p-3">
-                  <p className="text-xs font-medium text-gray-600">
-                    Aktuelle Aufsicht ({schulhofStatus.supervisorCount}):
-                  </p>
-                  <p className="mt-1 text-sm text-gray-700">
-                    {schulhofStatus.supervisors.map((s) => s.name).join(", ")}
-                  </p>
-                </div>
-              )}
-
-              {schulhofStatus.supervisorCount === 0 && (
-                <p className="text-sm text-gray-500">Aktuell keine Aufsicht</p>
-              )}
-
-              {/* Student count info */}
-              {schulhofStatus.studentCount > 0 && (
-                <p className="text-xs text-gray-400">
-                  {schulhofStatus.studentCount} Schüler im Schulhof
-                </p>
-              )}
-
-              {/* Claim Button */}
-              <button
-                onClick={() => handleToggleSchulhof().catch(() => undefined)}
-                disabled={isTogglingSchulhof}
-                className="w-full rounded-lg bg-gray-900 px-6 py-3 text-sm font-semibold text-white transition-colors duration-150 hover:bg-gray-700 active:bg-gray-800 disabled:opacity-50"
-              >
-                {isTogglingSchulhof
-                  ? "Wird übernommen..."
-                  : "Schulhof beaufsichtigen"}
-              </button>
-            </div>
+          <div className="flex flex-col items-center gap-4 py-12 text-center">
+            <svg
+              className="h-12 w-12 text-gray-400"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={1.5}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M12 3v2.25m6.364.386l-1.591 1.591M21 12h-2.25m-.386 6.364l-1.591-1.591M12 18.75V21m-4.773-4.227l-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z"
+              />
+            </svg>
+            <p className="text-lg font-medium text-gray-900">
+              Schulhof ohne Aufsicht
+            </p>
+            <p className="text-sm text-gray-500">
+              {schulhofStatus.supervisorCount > 0
+                ? `Aktuelle Aufsicht: ${schulhofStatus.supervisors.map((s) => s.name).join(", ")}`
+                : "Übernimm die Aufsicht, um Schüler zu sehen."}
+            </p>
+            <button
+              type="button"
+              onClick={() => handleToggleSchulhof().catch(() => undefined)}
+              disabled={isTogglingSchulhof}
+              className="mt-2 rounded-full bg-gray-900 px-5 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-700 disabled:opacity-50"
+            >
+              {isTogglingSchulhof ? "Wird übernommen..." : "Beaufsichtigen"}
+            </button>
           </div>
         )}
 

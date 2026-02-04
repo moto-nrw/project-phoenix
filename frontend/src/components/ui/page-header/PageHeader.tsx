@@ -32,7 +32,7 @@ export function PageHeader({
     <div className={`mb-6 md:hidden ${className}`}>
       <div className="flex items-center justify-between gap-4">
         {/* Title */}
-        <div className="ml-6">
+        <div>
           <h1 className="text-2xl font-bold text-gray-900">{title}</h1>
         </div>
 
