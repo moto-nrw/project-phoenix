@@ -203,14 +203,36 @@ describe("QuickCreateActivityModal", () => {
   });
 
   describe("double-submit prevention", () => {
-    it("disables submit button when loading prop is true", () => {
-      // The existing mock returns loading: false by default
-      // We need to test that the button is disabled when loading is true
-      // Since the mock already includes loading: false and we can't easily change it,
-      // we test that the button disables based on form validity instead
+    it("disables submit button when loading prop is true", async () => {
+      // Override mock to return loading: true with a valid form
+      const { useActivityForm } = await import("~/hooks/useActivityForm");
+      vi.mocked(useActivityForm).mockReturnValue({
+        form: {
+          name: "Test Activity",
+          category_id: "1",
+          max_participants: "15",
+        },
+        setForm: vi.fn(),
+        categories: [
+          {
+            id: "1",
+            name: "Gruppenraum",
+            created_at: new Date("2024-01-01"),
+            updated_at: new Date("2024-01-01"),
+          },
+        ],
+        loading: true, // Loading is true - this should disable the button
+        error: null,
+        setError: vi.fn(),
+        handleInputChange: vi.fn(),
+        validateForm: vi.fn(() => null),
+        loadCategories: vi.fn(),
+      });
+
       render(<QuickCreateActivityModal isOpen={true} onClose={mockOnClose} />);
 
-      // Submit button should be disabled when form is empty (name and category_id are empty)
+      // Submit button should be disabled because loading is true
+      // (form itself is valid with name and category_id filled)
       const submitButton = screen.getByRole("button", {
         name: /Aktivität erstellen/,
       });

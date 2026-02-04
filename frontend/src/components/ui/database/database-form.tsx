@@ -260,6 +260,16 @@ export function DatabaseForm<T = Record<string, unknown>>({
     {},
   );
   const loadedFieldsRef = useRef<Set<string>>(new Set());
+  // Track mount state to avoid setState on unmounted component
+  const isMountedRef = useRef(true);
+
+  // Track unmount
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
   const themeClasses = getThemeClassNames(theme);
   const accentTextClass = getAccentText(theme.accent);
 
@@ -372,7 +382,9 @@ export function DatabaseForm<T = Record<string, unknown>>({
     const validationError = validateFormFields(sections, formData);
     if (validationError) {
       setError(validationError);
-      setIsSubmitting(false);
+      if (isMountedRef.current) {
+        setIsSubmitting(false);
+      }
       return;
     }
 
@@ -386,7 +398,9 @@ export function DatabaseForm<T = Record<string, unknown>>({
           : "Fehler beim Speichern der Daten. Bitte versuchen Sie es später erneut.";
       setError(errorMessage);
     } finally {
-      setIsSubmitting(false);
+      if (isMountedRef.current) {
+        setIsSubmitting(false);
+      }
     }
   };
 

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { getDbOperationMessage } from "~/lib/use-notification";
 import { useScrollLock } from "~/hooks/useScrollLock";
@@ -38,6 +38,16 @@ export function QuickCreateActivityModal({
 }: QuickCreateActivityModalProps) {
   const { success: toastSuccess } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // Track mount state to avoid setState on unmounted component
+  const isMountedRef = useRef(true);
+
+  // Track unmount
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   // Use activity form hook for form state and validation
   const {
@@ -83,7 +93,9 @@ export function QuickCreateActivityModal({
     const validationError = validateForm();
     if (validationError) {
       setError(validationError);
-      setIsSubmitting(false);
+      if (isMountedRef.current) {
+        setIsSubmitting(false);
+      }
       return;
     }
 
@@ -136,7 +148,9 @@ export function QuickCreateActivityModal({
         ),
       );
     } finally {
-      setIsSubmitting(false);
+      if (isMountedRef.current) {
+        setIsSubmitting(false);
+      }
     }
   };
 
