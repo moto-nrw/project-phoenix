@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -20,10 +21,10 @@ type Server struct {
 }
 
 // NewServer creates and configures a new API server
-func NewServer() (*Server, error) {
+func NewServer(logger *slog.Logger) (*Server, error) {
 	log.Println("Initializing API server...")
 
-	api, err := New(viper.GetBool("enable_cors"))
+	api, err := New(viper.GetBool("enable_cors"), logger)
 	if err != nil {
 		return nil, err
 	}

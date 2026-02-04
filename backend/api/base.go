@@ -1,6 +1,7 @@
 package api
 
 import (
+	"log/slog"
 	"net/http"
 	"os"
 	"strconv"
@@ -9,6 +10,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
+	slogchi "github.com/samber/slog-chi"
 	"github.com/uptrace/bun"
 
 	activeAPI "github.com/moto-nrw/project-phoenix/api/active"
@@ -68,7 +70,7 @@ type API struct {
 }
 
 // New creates a new API instance
-func New(enableCORS bool) (*API, error) {
+func New(enableCORS bool, logger *slog.Logger) (*API, error) {
 	// Get database connection
 	db, err := database.DBConn()
 	if err != nil {
@@ -91,7 +93,7 @@ func New(enableCORS bool) (*API, error) {
 	}
 
 	// Setup router middleware
-	setupBasicMiddleware(api.Router)
+	setupBasicMiddleware(api.Router, logger)
 
 	// Setup CORS, security logging, and rate limiting
 	if enableCORS {
@@ -110,10 +112,22 @@ func New(enableCORS bool) (*API, error) {
 }
 
 // setupBasicMiddleware configures basic router middleware
-func setupBasicMiddleware(router chi.Router) {
+func setupBasicMiddleware(router chi.Router, logger *slog.Logger) {
 	router.Use(middleware.RequestID)
 	router.Use(middleware.RealIP)
-	router.Use(middleware.Logger)
+	router.Use(slogchi.NewWithConfig(logger, slogchi.Config{
+		DefaultLevel:     slog.LevelInfo,
+		ClientErrorLevel: slog.LevelWarn,
+		ServerErrorLevel: slog.LevelError,
+		WithRequestID:    true,
+		WithRequestBody:  false,
+		WithResponseBody: false,
+		WithSpanID:       false,
+		WithTraceID:      false,
+		Filters: []slogchi.Filter{
+			slogchi.IgnorePath("/health"),
+		},
+	}))
 	router.Use(middleware.Recoverer)
 	router.Use(customMiddleware.SecurityHeaders)
 }
