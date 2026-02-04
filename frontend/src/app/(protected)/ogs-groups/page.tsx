@@ -51,6 +51,33 @@ import { fetchBulkPickupTimes } from "~/lib/pickup-schedule-api";
 import type { BulkPickupTime } from "~/lib/pickup-schedule-api";
 import { Clock, AlertTriangle } from "lucide-react";
 
+// Backend pickup time response (from BFF)
+interface BackendPickupTime {
+  student_id: number;
+  date: string;
+  weekday_name: string;
+  pickup_time?: string;
+  is_exception: boolean;
+  day_notes?: Array<{ id: number; content: string }>;
+  notes?: string;
+}
+
+// Backend student response (raw from Go backend via BFF)
+// Note: Backend uses "last_name", frontend uses "second_name"
+interface BackendStudentFromBFF {
+  id: number;
+  first_name: string;
+  last_name: string; // Backend field name
+  name?: string;
+  school_class?: string;
+  current_location?: string;
+  sick_since?: string;
+  sick_until?: string;
+  location_since?: string;
+  group_id?: number;
+  group_name?: string;
+}
+
 // BFF response type for dashboard data
 interface OGSDashboardBFFResponse {
   groups: Array<{
@@ -60,7 +87,7 @@ interface OGSDashboardBFFResponse {
     room?: { id: number; name: string };
     via_substitution?: boolean;
   }>;
-  students: Student[];
+  students: BackendStudentFromBFF[]; // Raw backend format
   roomStatus: {
     group_has_room: boolean;
     group_room_id?: number;
@@ -86,6 +113,7 @@ interface OGSDashboardBFFResponse {
     start_date: string;
     end_date: string;
   }>;
+  pickupTimes: BackendPickupTime[];
   firstGroupId: string | null;
 }
 
@@ -213,6 +241,7 @@ function OGSGroupPageContent() {
       students: studentsData,
       roomStatus: rs,
       substitutions,
+      pickupTimes: pickupTimesData,
     } = dashboardData;
 
     if (groups.length === 0) {
@@ -262,7 +291,39 @@ function OGSGroupPageContent() {
       if (!selectedGroupId && firstGroupId) {
         setSelectedGroupId(firstGroupId);
       }
-      setStudents(studentsData);
+
+      // Map backend students to frontend format (last_name → second_name)
+      const mappedStudents: Student[] = studentsData.map((s) => ({
+        id: s.id.toString(),
+        name: `${s.first_name} ${s.last_name}`.trim(),
+        first_name: s.first_name,
+        second_name: s.last_name, // Backend uses last_name
+        school_class: s.school_class ?? "",
+        current_location: s.current_location ?? "",
+        location_since: s.location_since,
+        group_id: s.group_id?.toString(),
+        group_name: s.group_name,
+      }));
+      setStudents(mappedStudents);
+
+      // Set pickup times from BFF response (prevents loading flash)
+      // Convert backend format to Map for O(1) lookup
+      const pickupMap = new Map<string, BulkPickupTime>();
+      for (const pt of pickupTimesData ?? []) {
+        pickupMap.set(pt.student_id.toString(), {
+          studentId: pt.student_id.toString(),
+          date: pt.date,
+          weekdayName: pt.weekday_name,
+          pickupTime: pt.pickup_time,
+          isException: pt.is_exception,
+          dayNotes: (pt.day_notes ?? []).map((n) => ({
+            id: n.id.toString(),
+            content: n.content,
+          })),
+          notes: pt.notes,
+        });
+      }
+      setPickupTimes(pickupMap);
 
       if (rs?.student_room_status) {
         setRoomStatus(rs.student_room_status);
@@ -364,7 +425,7 @@ function OGSGroupPageContent() {
   // SWR-based student data subscription for real-time updates.
   // When global SSE invalidates "student*" caches, this triggers a refetch.
   // Only fetches when hasAccess is confirmed and we have a group ID.
-  // Includes room status to ensure filters (in_room, foreign_room) stay accurate.
+  // Includes room status and pickup times to prevent "loading flash" on student cards.
   const { data: swrStudentsData } = useSWRAuth<{
     students: Student[];
     roomStatus?: Record<
@@ -377,10 +438,11 @@ function OGSGroupPageContent() {
         reason?: string;
       }
     >;
+    pickupTimes?: Map<string, BulkPickupTime>;
   }>(
     hasAccess && currentGroupId ? `ogs-students-${currentGroupId}` : null,
     async () => {
-      // Fetch both students and room status in parallel for accurate filtering
+      // Fetch students and room status in parallel for accurate filtering
       const [studentsResponse, roomStatusResponse] = await Promise.all([
         studentService.getStudents({
           groupId: currentGroupId!,
@@ -414,9 +476,22 @@ function OGSGroupPageContent() {
           .catch(() => null),
       ]);
 
+      const students = studentsResponse.students || [];
+
+      // Fetch pickup times for all students (prevents loading flash)
+      let pickupTimesMap = new Map<string, BulkPickupTime>();
+      if (students.length > 0) {
+        const studentIds = students.map((s) => s.id.toString());
+        pickupTimesMap = await fetchBulkPickupTimes(studentIds).catch(() => {
+          console.error("Failed to fetch pickup times in SWR");
+          return new Map<string, BulkPickupTime>();
+        });
+      }
+
       return {
-        students: studentsResponse.students || [],
+        students,
         roomStatus: roomStatusResponse ?? undefined,
+        pickupTimes: pickupTimesMap,
       };
     },
     {
@@ -426,7 +501,7 @@ function OGSGroupPageContent() {
   );
 
   // Sync SWR student data with local state
-  // Also syncs room status to keep filters (in_room, foreign_room) accurate
+  // Also syncs room status and pickup times to keep UI in sync and prevent loading flash
   useEffect(() => {
     if (swrStudentsData?.students) {
       setStudents(swrStudentsData.students);
@@ -434,26 +509,12 @@ function OGSGroupPageContent() {
     if (swrStudentsData?.roomStatus) {
       setRoomStatus(swrStudentsData.roomStatus);
     }
-  }, [swrStudentsData]);
-
-  // Fetch pickup times for all students (bulk query - O(2) database queries)
-  useEffect(() => {
-    if (students.length === 0) {
-      setPickupTimes(new Map());
-      return;
+    // Only set pickupTimes if it's a Map (the SWR fetcher returns a Map,
+    // but test mocks may return the wrong type)
+    if (swrStudentsData?.pickupTimes instanceof Map) {
+      setPickupTimes(swrStudentsData.pickupTimes);
     }
-
-    const studentIds = students.map((s) => s.id.toString());
-
-    fetchBulkPickupTimes(studentIds)
-      .then((times) => {
-        setPickupTimes(times);
-      })
-      .catch((err) => {
-        console.error("Failed to fetch pickup times:", err);
-        setPickupTimes(new Map());
-      });
-  }, [students]);
+  }, [swrStudentsData]);
 
   // Ref to track current group without triggering unnecessary re-renders
   const currentGroupRef = useRef<OGSGroup | null>(null);
