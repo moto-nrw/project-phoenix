@@ -76,4 +76,4 @@ export function useUserContext(): UseUserContextReturn {
 /**
  * Type export for consumers who need the response shape
  */
-export type { UserContextResponse };
+export type { UserContextResponse } from "~/app/api/user-context/route";

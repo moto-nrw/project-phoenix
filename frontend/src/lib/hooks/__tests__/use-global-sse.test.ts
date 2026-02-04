@@ -20,7 +20,7 @@ vi.mock("next-auth/react", () => ({
 }));
 
 vi.mock("swr", () => ({
-  mutate: vi.fn(),
+  mutate: vi.fn(() => Promise.resolve()),
 }));
 
 vi.mock("~/lib/hooks/use-sse", () => ({

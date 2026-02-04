@@ -6,7 +6,6 @@ import {
   getStaffCardInfo,
   formatStaffNotes,
   sortStaff,
-  getStaffSupervisionBadges,
 } from "./staff-helpers";
 
 // Sample staff for testing
@@ -22,7 +21,7 @@ const createSampleStaff = (overrides: Partial<Staff> = {}): Staff => ({
   hasRfid: true,
   isTeacher: true,
   isSupervising: false,
-  currentLocation: "Zuhause",
+  currentLocation: "Abwesend",
   supervisionRole: undefined,
   supervisions: [],
   wasPresentToday: false,
@@ -30,68 +29,83 @@ const createSampleStaff = (overrides: Partial<Staff> = {}): Staff => ({
 });
 
 describe("getStaffLocationStatus", () => {
-  it("returns Zuhause status with red styling for staff at home", () => {
-    const staff = createSampleStaff({ currentLocation: "Zuhause" });
+  it("returns Abwesend status with red styling for absent staff", () => {
+    const staff = createSampleStaff({ currentLocation: "Abwesend" });
     const result = getStaffLocationStatus(staff);
 
-    expect(result.label).toBe("Zuhause");
+    expect(result.label).toBe("Abwesend");
     expect(result.customBgColor).toBe("#FF3130");
     expect(result.customShadow).toContain("255, 49, 48");
   });
 
-  it("returns Anwesend status with green styling matching student badge", () => {
+  it("returns Anwesend status with green styling for present staff", () => {
     const staff = createSampleStaff({ currentLocation: "Anwesend" });
     const result = getStaffLocationStatus(staff);
 
     expect(result.label).toBe("Anwesend");
-    // Should match LOCATION_COLORS.GROUP_ROOM from location-helper.ts
     expect(result.customBgColor).toBe("#83CD2D");
     expect(result.customShadow).toContain("131, 205, 45");
     expect(result.badgeColor).toContain("text-white");
   });
 
-  it("returns Schulhof status with orange styling", () => {
-    const staff = createSampleStaff({ currentLocation: "Schulhof" });
+  it("returns Homeoffice status with light blue styling", () => {
+    const staff = createSampleStaff({ currentLocation: "Homeoffice" });
     const result = getStaffLocationStatus(staff);
 
-    expect(result.label).toBe("Schulhof");
-    expect(result.customBgColor).toBe("#F78C10");
-    expect(result.customShadow).toContain("247, 140, 16");
+    expect(result.label).toBe("Homeoffice");
+    expect(result.customBgColor).toBe("#0EA5E9");
+    expect(result.customShadow).toContain("14, 165, 233");
   });
 
-  it("returns Unterwegs status with purple styling", () => {
-    const staff = createSampleStaff({ currentLocation: "Unterwegs" });
+  it("returns Krank status with gray styling", () => {
+    const staff = createSampleStaff({ currentLocation: "Krank" });
     const result = getStaffLocationStatus(staff);
 
-    expect(result.label).toBe("Unterwegs");
-    expect(result.customBgColor).toBe("#D946EF");
-    expect(result.customShadow).toContain("217, 70, 239");
+    expect(result.label).toBe("Krank");
+    expect(result.customBgColor).toBe("#6B7280");
+    expect(result.customShadow).toContain("107, 114, 128");
   });
 
-  it("returns room name with blue styling for specific rooms", () => {
+  it("returns Urlaub status with gray styling", () => {
+    const staff = createSampleStaff({ currentLocation: "Urlaub" });
+    const result = getStaffLocationStatus(staff);
+
+    expect(result.label).toBe("Urlaub");
+    expect(result.customBgColor).toBe("#6B7280");
+  });
+
+  it("returns Fortbildung status with gray styling", () => {
+    const staff = createSampleStaff({ currentLocation: "Fortbildung" });
+    const result = getStaffLocationStatus(staff);
+
+    expect(result.label).toBe("Fortbildung");
+    expect(result.customBgColor).toBe("#6B7280");
+  });
+
+  it("returns Anwesend for staff in a specific room (supervising)", () => {
     const staff = createSampleStaff({ currentLocation: "Werkraum" });
     const result = getStaffLocationStatus(staff);
 
-    expect(result.label).toBe("Werkraum");
-    expect(result.customBgColor).toBe("#5080D8");
-    expect(result.customShadow).toContain("80, 128, 216");
+    // Any room location means they're present → Anwesend with green
+    expect(result.label).toBe("Anwesend");
+    expect(result.customBgColor).toBe("#83CD2D");
   });
 
-  it("defaults to Zuhause when currentLocation is undefined", () => {
+  it("defaults to Abwesend when currentLocation is undefined", () => {
     const staff = createSampleStaff({ currentLocation: undefined });
     const result = getStaffLocationStatus(staff);
 
-    expect(result.label).toBe("Zuhause");
+    expect(result.label).toBe("Abwesend");
     expect(result.customBgColor).toBe("#FF3130");
   });
 
-  it("handles multiple room display", () => {
+  it("handles supervising staff in multiple rooms as Anwesend", () => {
     const staff = createSampleStaff({ currentLocation: "2 Räume" });
     const result = getStaffLocationStatus(staff);
 
-    // Multiple rooms should use blue styling
-    expect(result.label).toBe("2 Räume");
-    expect(result.customBgColor).toBe("#5080D8");
+    // Any room/supervision location means they're present
+    expect(result.label).toBe("Anwesend");
+    expect(result.customBgColor).toBe("#83CD2D");
   });
 });
 
@@ -317,112 +331,5 @@ describe("sortStaff", () => {
 
     expect(staff[0]?.lastName).toBe("Zeta"); // Original unchanged
     expect(result[0]?.lastName).toBe("Alpha"); // Sorted copy
-  });
-});
-
-describe("getStaffSupervisionBadges", () => {
-  it("returns single Zuhause badge for non-supervising staff", () => {
-    const staff = createSampleStaff({
-      isSupervising: false,
-      currentLocation: "Zuhause",
-      supervisions: [],
-    });
-    const result = getStaffSupervisionBadges(staff);
-
-    expect(result).toHaveLength(1);
-    expect(result[0]?.label).toBe("Zuhause");
-    expect(result[0]?.key).toBe("status");
-    expect(result[0]?.locationStatus.customBgColor).toBe("#FF3130");
-  });
-
-  it("returns single Anwesend badge for present non-supervising staff", () => {
-    const staff = createSampleStaff({
-      isSupervising: false,
-      currentLocation: "Anwesend",
-      supervisions: [],
-    });
-    const result = getStaffSupervisionBadges(staff);
-
-    expect(result).toHaveLength(1);
-    expect(result[0]?.label).toBe("Anwesend");
-    expect(result[0]?.locationStatus.customBgColor).toBe("#83CD2D");
-  });
-
-  it("returns one badge per room for supervising staff", () => {
-    const staff = createSampleStaff({
-      isSupervising: true,
-      currentLocation: "2 Räume",
-      supervisions: [
-        { roomId: "1", roomName: "Gymnasium", activeGroupId: "101" },
-        { roomId: "2", roomName: "Bibliothek", activeGroupId: "102" },
-      ],
-    });
-    const result = getStaffSupervisionBadges(staff);
-
-    expect(result).toHaveLength(2);
-    expect(result[0]?.label).toBe("Gymnasium");
-    expect(result[0]?.key).toBe("room-1-101");
-    expect(result[1]?.label).toBe("Bibliothek");
-    expect(result[1]?.key).toBe("room-2-102");
-  });
-
-  it("uses blue color for regular room badges", () => {
-    const staff = createSampleStaff({
-      isSupervising: true,
-      currentLocation: "Gymnasium",
-      supervisions: [
-        { roomId: "1", roomName: "Gymnasium", activeGroupId: "101" },
-      ],
-    });
-    const result = getStaffSupervisionBadges(staff);
-
-    expect(result).toHaveLength(1);
-    expect(result[0]?.locationStatus.customBgColor).toBe("#5080D8");
-  });
-
-  it("uses orange color for Schulhof badge", () => {
-    const staff = createSampleStaff({
-      isSupervising: true,
-      currentLocation: "Schulhof",
-      supervisions: [
-        { roomId: "1", roomName: "Schulhof", activeGroupId: "101" },
-      ],
-    });
-    const result = getStaffSupervisionBadges(staff);
-
-    expect(result).toHaveLength(1);
-    expect(result[0]?.label).toBe("Schulhof");
-    expect(result[0]?.locationStatus.customBgColor).toBe("#F78C10");
-  });
-
-  it("mixes colors for multiple rooms including Schulhof", () => {
-    const staff = createSampleStaff({
-      isSupervising: true,
-      currentLocation: "3 Räume",
-      supervisions: [
-        { roomId: "1", roomName: "Gymnasium", activeGroupId: "101" },
-        { roomId: "2", roomName: "Schulhof", activeGroupId: "102" },
-        { roomId: "3", roomName: "Bibliothek", activeGroupId: "103" },
-      ],
-    });
-    const result = getStaffSupervisionBadges(staff);
-
-    expect(result).toHaveLength(3);
-    expect(result[0]?.locationStatus.customBgColor).toBe("#5080D8"); // Gymnasium - blue
-    expect(result[1]?.locationStatus.customBgColor).toBe("#F78C10"); // Schulhof - orange
-    expect(result[2]?.locationStatus.customBgColor).toBe("#5080D8"); // Bibliothek - blue
-  });
-
-  it("falls back to status badge when isSupervising but empty supervisions", () => {
-    const staff = createSampleStaff({
-      isSupervising: true,
-      currentLocation: "Unterwegs",
-      supervisions: [],
-    });
-    const result = getStaffSupervisionBadges(staff);
-
-    expect(result).toHaveLength(1);
-    expect(result[0]?.label).toBe("Unterwegs");
-    expect(result[0]?.key).toBe("status");
   });
 });

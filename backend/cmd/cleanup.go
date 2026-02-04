@@ -22,6 +22,8 @@ var (
 const (
 	flagDryRun          = "dry-run"
 	flagDescShowDetails = "Show detailed information"
+	flagDescDryRun      = "Show what would be cleaned without cleaning"
+	fmtDuration         = "Duration: %s\n"
 	fmtStudentsAffected = "Students affected: %d\n"
 	fmtStatus           = "Status: %s\n"
 )
@@ -144,17 +146,17 @@ func init() {
 	cleanupStatsCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, flagDescShowDetails)
 
 	// Flags for attendance command
-	cleanupAttendanceCmd.Flags().BoolVar(&dryRun, flagDryRun, false, "Show what would be cleaned without cleaning")
+	cleanupAttendanceCmd.Flags().BoolVar(&dryRun, flagDryRun, false, flagDescDryRun)
 	cleanupAttendanceCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, flagDescShowDetails)
 
 	// Flags for sessions command
-	cleanupSessionsCmd.Flags().BoolVar(&dryRun, flagDryRun, false, "Show what would be cleaned without cleaning")
+	cleanupSessionsCmd.Flags().BoolVar(&dryRun, flagDryRun, false, flagDescDryRun)
 	cleanupSessionsCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, flagDescShowDetails)
 	cleanupSessionsCmd.Flags().String("mode", "abandoned", "Cleanup mode: 'abandoned' (timeout-based) or 'daily' (end all sessions)")
 	cleanupSessionsCmd.Flags().Duration("threshold", 2*time.Hour, "Threshold for abandoned session cleanup (only used with --mode=abandoned)")
 
 	// Flags for supervisors command
-	cleanupSupervisorsCmd.Flags().BoolVar(&dryRun, flagDryRun, false, "Show what would be cleaned without cleaning")
+	cleanupSupervisorsCmd.Flags().BoolVar(&dryRun, flagDryRun, false, flagDescDryRun)
 	cleanupSupervisorsCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, flagDescShowDetails)
 }
 
@@ -236,7 +238,7 @@ func printVisitCleanupSummary(result *active.CleanupResult) {
 	duration := result.CompletedAt.Sub(result.StartedAt)
 
 	fmt.Println("\nCleanup Summary:")
-	fmt.Printf("Duration: %s\n", duration)
+	fmt.Printf(fmtDuration, duration)
 	fmt.Printf("Students processed: %d\n", result.StudentsProcessed)
 	fmt.Printf("Records deleted: %d\n", result.RecordsDeleted)
 	fmt.Printf(fmtStatus, getStatusString(result.Success))
@@ -467,7 +469,7 @@ func printAttendanceCleanupSummary(result *active.AttendanceCleanupResult) {
 	duration := result.CompletedAt.Sub(result.StartedAt)
 
 	fmt.Println("\nAttendance Cleanup Summary:")
-	fmt.Printf("Duration: %s\n", duration)
+	fmt.Printf(fmtDuration, duration)
 	fmt.Printf("Records closed: %d\n", result.RecordsClosed)
 	fmt.Printf(fmtStudentsAffected, result.StudentsAffected)
 
@@ -622,7 +624,7 @@ func printSupervisorCleanupSummary(result *active.SupervisorCleanupResult) {
 	duration := result.CompletedAt.Sub(result.StartedAt)
 
 	fmt.Println("\nSupervisor Cleanup Summary:")
-	fmt.Printf("Duration: %s\n", duration)
+	fmt.Printf(fmtDuration, duration)
 	fmt.Printf("Records closed: %d\n", result.RecordsClosed)
 	fmt.Printf("Staff affected: %d\n", result.StaffAffected)
 

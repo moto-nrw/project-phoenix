@@ -733,11 +733,15 @@ function MeinRaumPageContent() {
         setSelectedRoomId(null);
         // Load Schulhof visits if supervising
         if (schulhofStatus.isUserSupervising && schulhofStatus.activeGroupId) {
-          void loadRoomVisits(
+          loadRoomVisits(
             schulhofStatus.activeGroupId,
             SCHULHOF_ROOM_NAME,
             groupNameToIdMapRef.current,
-          ).then(setStudents);
+          )
+            .then(setStudents)
+            .catch(() => {
+              // Error already handled in loadRoomVisits
+            });
         } else {
           setStudents([]);
         }
@@ -770,11 +774,15 @@ function MeinRaumPageContent() {
             schulhofStatus.isUserSupervising &&
             schulhofStatus.activeGroupId
           ) {
-            void loadRoomVisits(
+            loadRoomVisits(
               schulhofStatus.activeGroupId,
               SCHULHOF_ROOM_NAME,
               groupNameToIdMapRef.current,
-            ).then(setStudents);
+            )
+              .then(setStudents)
+              .catch(() => {
+                // Error already handled in loadRoomVisits
+              });
           } else {
             setStudents([]);
           }
@@ -1259,11 +1267,15 @@ function MeinRaumPageContent() {
                       currentSchulhofStatus?.isUserSupervising &&
                       currentSchulhofStatus?.activeGroupId
                     ) {
-                      void loadRoomVisits(
+                      loadRoomVisits(
                         currentSchulhofStatus.activeGroupId,
                         SCHULHOF_ROOM_NAME,
                         groupNameToIdMapRef.current,
-                      ).then(setStudents);
+                      )
+                        .then(setStudents)
+                        .catch(() => {
+                          // Error already handled in loadRoomVisits
+                        });
                     } else {
                       setStudents([]);
                     }

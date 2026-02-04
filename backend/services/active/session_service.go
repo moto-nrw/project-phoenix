@@ -3,6 +3,7 @@ package active
 import (
 	"context"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/active"
@@ -50,7 +51,8 @@ func (s *service) createSessionWithSupervisor(ctx context.Context, activityID, d
 	return newGroup, nil
 }
 
-// assignSupervisorNonCritical assigns a supervisor but doesn't fail if assignment fails
+// assignSupervisorNonCritical assigns a supervisor but doesn't fail if assignment fails.
+// Also ensures the staff member is checked in for time tracking (NFC auto-check-in).
 func (s *service) assignSupervisorNonCritical(ctx context.Context, groupID, staffID int64, startDate time.Time) {
 	supervisor := &active.GroupSupervisor{
 		StaffID:   staffID,
@@ -60,6 +62,13 @@ func (s *service) assignSupervisorNonCritical(ctx context.Context, groupID, staf
 	}
 	if err := s.supervisorRepo.Create(ctx, supervisor); err != nil {
 		fmt.Printf(supervisorAssignmentWarning, staffID, groupID, err)
+	}
+
+	// NFC auto-check-in: ensure staff member has a work session for today
+	if s.workSessionService != nil {
+		if _, err := s.workSessionService.EnsureCheckedIn(ctx, staffID); err != nil {
+			log.Printf("WARNING: NFC auto-check-in failed for staff %d: %v", staffID, err)
+		}
 	}
 }
 

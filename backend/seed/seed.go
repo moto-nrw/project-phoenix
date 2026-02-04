@@ -142,6 +142,8 @@ func (s *Seeder) resetData(ctx context.Context) error {
 	// Order matters due to foreign key constraints
 	tables := []string{
 		// Runtime data first
+		"active.work_session_breaks",
+		"active.work_sessions",
 		"active.attendance",
 		"active.visits",
 		"active.group_supervisors",
@@ -288,6 +290,8 @@ func (s *Seeder) printSummary(result *Result) {
 		fmt.Printf("  Education Groups: %d\n", len(result.Fixed.EducationGroups))
 		fmt.Printf("  Activity Groups: %d\n", len(result.Fixed.ActivityGroups))
 		fmt.Printf("  Devices: %d\n", len(result.Fixed.Devices))
+		fmt.Printf("  Work Sessions: %d\n", len(result.Fixed.WorkSessions))
+		fmt.Printf("  Work Session Breaks: %d\n", len(result.Fixed.WorkSessionBreaks))
 		fmt.Printf("  Accounts: %d\n", len(result.Fixed.Accounts))
 	}
 

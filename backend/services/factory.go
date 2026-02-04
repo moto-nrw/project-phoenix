@@ -37,6 +37,8 @@ type Factory struct {
 	Auth                     auth.AuthService
 	Active                   active.Service
 	ActiveCleanup            active.CleanupService
+	WorkSession              active.WorkSessionService
+	StaffAbsence             active.StaffAbsenceService
 	Activities               activities.ActivityService
 	Education                education.Service
 	GradeTransition          education.GradeTransitionService
@@ -159,6 +161,12 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 		DB:                      db,
 	})
 
+	// Initialize work session service (before active service - needed for NFC auto-check-in)
+	workSessionService := active.NewWorkSessionService(repos.WorkSession, repos.WorkSessionBreak, repos.WorkSessionEdit, repos.StaffAbsence, repos.GroupSupervisor)
+
+	// Initialize staff absence service
+	staffAbsenceService := active.NewStaffAbsenceService(repos.StaffAbsence, repos.WorkSession)
+
 	// Initialize active service with SSE broadcaster
 	activeService := active.NewService(active.ServiceDependencies{
 		GroupRepo:          repos.ActiveGroup,
@@ -179,7 +187,8 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 		EducationService:   educationService,
 		UsersService:       usersService,
 		DB:                 db,
-		Broadcaster:        realtimeHub, // Pass SSE broadcaster
+		Broadcaster:        realtimeHub,        // Pass SSE broadcaster
+		WorkSessionService: workSessionService, // NFC auto-check-in
 	})
 
 	// Initialize feedback service
@@ -349,6 +358,8 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 		Auth:                     authService,
 		Active:                   activeService,
 		ActiveCleanup:            activeCleanupService,
+		WorkSession:              workSessionService,
+		StaffAbsence:             staffAbsenceService,
 		Activities:               activitiesService,
 		Education:                educationService,
 		GradeTransition:          gradeTransitionService,

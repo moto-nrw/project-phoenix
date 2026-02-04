@@ -76,6 +76,9 @@ type ServiceDependencies struct {
 	// Infrastructure
 	DB          *bun.DB
 	Broadcaster Broadcaster // SSE event broadcaster (optional - can be nil for testing)
+
+	// Optional: Work session service for NFC auto-check-in
+	WorkSessionService WorkSessionService
 }
 
 // Service implements the Active Service interface
@@ -107,6 +110,9 @@ type service struct {
 
 	// SSE real-time event broadcasting (optional - can be nil for testing)
 	broadcaster Broadcaster
+
+	// Optional: Work session service for NFC auto-check-in
+	workSessionService WorkSessionService
 }
 
 // NewService creates a new active service instance
@@ -132,6 +138,7 @@ func NewService(deps ServiceDependencies) Service {
 		db:                 deps.DB,
 		txHandler:          base.NewTxHandler(deps.DB),
 		broadcaster:        deps.Broadcaster,
+		workSessionService: deps.WorkSessionService,
 	}
 }
 
