@@ -101,7 +101,8 @@ func (m *SMTPMailer) Send(email Message) error {
 	if err := m.client.DialAndSend(msg); err != nil {
 		slog.Default().Error("email send failed",
 			slog.String("to", email.To.Address),
-			"error", err)
+			slog.Any("error", err),
+		)
 		return err
 	}
 	slog.Default().Info("email sent successfully",

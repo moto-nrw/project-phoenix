@@ -475,7 +475,10 @@ func (rs *Resource) getEnrollmentCount(ctx context.Context, activityID int64) in
 func (rs *Resource) fetchActivityData(ctx context.Context, id int64) (*activities.Group, []*activities.SupervisorPlanned, []*activities.Schedule, error) {
 	group, supervisors, schedules, detailsErr := rs.ActivityService.GetGroupWithDetails(ctx, id)
 	if detailsErr != nil {
-		slog.Default().WarnContext(ctx, "Error getting detailed group info", slog.String("error", detailsErr.Error()), slog.Int64("group_id", id))
+		slog.Default().WarnContext(ctx, "Error getting detailed group info",
+			slog.String("error", detailsErr.Error()),
+			slog.Int64("group_id", id),
+		)
 		return rs.fetchActivityDataFallback(ctx, id)
 	}
 	return group, supervisors, schedules, nil
@@ -490,7 +493,10 @@ func (rs *Resource) fetchActivityDataFallback(ctx context.Context, id int64) (*a
 
 	schedules, scheduleErr := rs.ActivityService.GetGroupSchedules(ctx, id)
 	if scheduleErr != nil {
-		slog.Default().WarnContext(ctx, "Error getting schedules", slog.String("error", scheduleErr.Error()), slog.Int64("group_id", id))
+		slog.Default().WarnContext(ctx, "Error getting schedules",
+			slog.String("error", scheduleErr.Error()),
+			slog.Int64("group_id", id),
+		)
 		schedules = []*activities.Schedule{}
 	}
 
@@ -503,7 +509,10 @@ func (rs *Resource) ensureCategoryLoaded(ctx context.Context, group *activities.
 	if group.Category == nil && group.CategoryID > 0 {
 		category, catErr := rs.ActivityService.GetCategory(ctx, group.CategoryID)
 		if catErr != nil {
-			slog.Default().WarnContext(ctx, "Error getting category", slog.Int64("category_id", group.CategoryID), slog.String("error", catErr.Error()))
+			slog.Default().WarnContext(ctx, "Error getting category",
+				slog.Int64("category_id", group.CategoryID),
+				slog.String("error", catErr.Error()),
+			)
 		} else if category != nil {
 			group.Category = category
 		}
@@ -598,7 +607,10 @@ func updateGroupFields(group *activities.Group, req *ActivityRequest) {
 func (rs *Resource) updateSupervisorsWithLogging(ctx context.Context, groupID int64, supervisorIDs []int64) {
 	err := rs.ActivityService.UpdateGroupSupervisors(ctx, groupID, supervisorIDs)
 	if err != nil {
-		slog.Default().WarnContext(ctx, "Failed to update supervisors", slog.Int64("activity_id", groupID), slog.String("error", err.Error()))
+		slog.Default().WarnContext(ctx, "Failed to update supervisors",
+			slog.Int64("activity_id", groupID),
+			slog.String("error", err.Error()),
+		)
 	}
 }
 
@@ -612,7 +624,10 @@ func (rs *Resource) replaceGroupSchedules(ctx context.Context, groupID int64, ne
 		for _, schedule := range existingSchedules {
 			err = rs.ActivityService.DeleteSchedule(ctx, schedule.ID)
 			if err != nil {
-				slog.Default().WarnContext(ctx, "Failed to delete schedule", slog.Int64("schedule_id", schedule.ID), slog.String("error", err.Error()))
+				slog.Default().WarnContext(ctx, "Failed to delete schedule",
+					slog.Int64("schedule_id", schedule.ID),
+					slog.String("error", err.Error()),
+				)
 			}
 		}
 	}
@@ -625,7 +640,10 @@ func (rs *Resource) replaceGroupSchedules(ctx context.Context, groupID int64, ne
 		}
 		_, err = rs.ActivityService.AddSchedule(ctx, groupID, schedule)
 		if err != nil {
-			slog.Default().WarnContext(ctx, "Failed to add schedule", slog.Int("weekday", scheduleReq.Weekday), slog.String("error", err.Error()))
+			slog.Default().WarnContext(ctx, "Failed to add schedule",
+				slog.Int("weekday", scheduleReq.Weekday),
+				slog.String("error", err.Error()),
+			)
 		}
 	}
 }
@@ -727,7 +745,10 @@ func (rs *Resource) fetchSupervisorsBySpecialization(ctx context.Context, specia
 	for _, teacher := range teachers {
 		fullTeacher, err := rs.UserService.TeacherRepository().FindWithStaffAndPerson(ctx, teacher.ID)
 		if err != nil {
-			slog.Default().ErrorContext(ctx, "Error fetching full teacher data", slog.Int64("teacher_id", teacher.ID), slog.String("error", err.Error()))
+			slog.Default().ErrorContext(ctx, "Error fetching full teacher data",
+				slog.Int64("teacher_id", teacher.ID),
+				slog.String("error", err.Error()),
+			)
 			continue
 		}
 

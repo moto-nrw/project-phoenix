@@ -133,7 +133,8 @@ func (s *Service) persistTokenInTransaction(ctx context.Context, account *auth.A
 		if err := txService.repos.Token.CleanupOldTokensForAccount(ctx, account.ID, maxTokensPerAccount); err != nil {
 			s.getLogger().Warn("failed to clean up old tokens",
 				slog.Int64("account_id", account.ID),
-				"error", err)
+				slog.Any("error", err),
+			)
 		}
 
 		// Create new token
@@ -199,7 +200,8 @@ func (s *Service) ensureAccountRolesLoaded(ctx context.Context, account *auth.Ac
 	if err != nil {
 		s.getLogger().Warn("failed to load roles",
 			slog.Int64("account_id", account.ID),
-			"error", err)
+			slog.Any("error", err),
+		)
 		return
 	}
 
@@ -216,7 +218,8 @@ func (s *Service) loadAccountPermissions(ctx context.Context, accountID int64) [
 	if err != nil {
 		s.getLogger().Warn("failed to load permissions",
 			slog.Int64("account_id", accountID),
-			"error", err)
+			slog.Any("error", err),
+		)
 		return []*auth.Permission{}
 	}
 	return permissions
@@ -232,7 +235,8 @@ func (s *Service) ensureAccountPermissionsLoaded(ctx context.Context, account *a
 	if err != nil {
 		s.getLogger().Warn("failed to load permissions",
 			slog.Int64("account_id", account.ID),
-			"error", err)
+			slog.Any("error", err),
+		)
 		return
 	}
 
@@ -703,7 +707,8 @@ func (s *Service) LogoutWithAudit(ctx context.Context, refreshTokenStr, ipAddres
 		// Log the error but don't fail the logout
 		s.getLogger().Warn("failed to delete all tokens during logout",
 			slog.Int64("account_id", dbToken.AccountID),
-			"error", err)
+			slog.Any("error", err),
+		)
 		// Still try to delete the specific token
 		if deleteErr := s.repos.Token.Delete(ctx, dbToken.ID); deleteErr != nil {
 			return &AuthError{Op: "delete token", Err: deleteErr}

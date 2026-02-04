@@ -105,7 +105,8 @@ func (s *Service) createPasswordResetTokenInTransaction(ctx context.Context, acc
 		if err := txService.(*Service).repos.PasswordResetToken.InvalidateTokensByAccountID(ctx, accountID); err != nil {
 			s.getLogger().Error("failed to invalidate reset tokens, rolling back",
 				slog.Int64("account_id", accountID),
-				"error", err)
+				slog.Any("error", err),
+			)
 			return err
 		}
 
@@ -214,7 +215,8 @@ func (s *Service) ResetPassword(ctx context.Context, token, newPassword string) 
 			// Log error but don't fail the password reset
 			s.getLogger().Warn("failed to delete tokens during password reset",
 				slog.Int64("account_id", resetToken.AccountID),
-				"error", err)
+				slog.Any("error", err),
+			)
 		}
 
 		return nil
@@ -243,7 +245,8 @@ func (s *Service) persistPasswordResetDelivery(ctx context.Context, meta email.D
 	if err := s.repos.PasswordResetToken.UpdateDeliveryResult(ctx, meta.ReferenceID, sentAt, errText, retryCount); err != nil {
 		s.getLogger().Error("failed to update password reset delivery status",
 			slog.Int64("token_id", meta.ReferenceID),
-			"error", err)
+			slog.Any("error", err),
+		)
 		return
 	}
 
@@ -251,7 +254,8 @@ func (s *Service) persistPasswordResetDelivery(ctx context.Context, meta email.D
 		s.getLogger().Error("password reset email permanently failed",
 			slog.Int64("token_id", meta.ReferenceID),
 			slog.String("recipient", meta.Recipient),
-			"error", result.Err)
+			slog.Any("error", result.Err),
+		)
 	}
 }
 

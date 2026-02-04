@@ -397,7 +397,8 @@ func (s *Scheduler) RunCleanupJobs() error {
 		if err != nil {
 			s.getLogger().Error("cleanup job failed",
 				slog.String("job", job.Description),
-				"error", err)
+				slog.Any("error", err),
+			)
 			if firstErr == nil {
 				firstErr = err
 			}

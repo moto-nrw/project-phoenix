@@ -443,7 +443,10 @@ func (rs *Resource) logout(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		// Even if there's an error, we want to consider the logout successful from the client's perspective
 		// Log the error on the server side for debugging
-		slog.Default().WarnContext(r.Context(), "Logout audit logging failed (client logout still successful)", slog.String("ip", ipAddress), slog.String("error", err.Error()))
+		slog.Default().WarnContext(r.Context(), "Logout audit logging failed (client logout still successful)",
+			slog.String("ip", ipAddress),
+			slog.String("error", err.Error()),
+		)
 	}
 
 	common.RespondNoContent(w, r)

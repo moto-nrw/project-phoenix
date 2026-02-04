@@ -41,7 +41,8 @@ func (s *Service) DeactivateAccount(ctx context.Context, accountID int) error {
 		// Log error but don't fail the deactivation
 		s.getLogger().Warn("failed to delete tokens during account deactivation",
 			slog.Int("account_id", accountID),
-			"error", err)
+			slog.Any("error", err),
+		)
 	}
 
 	return nil

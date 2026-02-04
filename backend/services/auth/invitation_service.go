@@ -705,7 +705,8 @@ func (s *invitationService) persistInvitationDelivery(ctx context.Context, meta 
 	if err := s.invitationRepo.UpdateDeliveryResult(ctx, meta.ReferenceID, sentAt, errText, retryCount); err != nil {
 		s.getLogger().Error("failed to update invitation delivery status",
 			slog.Int64("invitation_id", meta.ReferenceID),
-			"error", err)
+			slog.Any("error", err),
+		)
 		return
 	}
 
@@ -713,7 +714,8 @@ func (s *invitationService) persistInvitationDelivery(ctx context.Context, meta 
 		s.getLogger().Error("invitation email permanently failed",
 			slog.Int64("invitation_id", meta.ReferenceID),
 			slog.String("recipient", meta.Recipient),
-			"error", result.Err)
+			slog.Any("error", result.Err),
+		)
 	}
 }
 
