@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/uptrace/bun"
@@ -1048,8 +1049,7 @@ func (s *service) endActiveSupervisorsForGroup(ctx context.Context, groupID int6
 // cleanupOrphanedSupervisors closes supervisor records from previous days
 // that the per-group loop wouldn't find (e.g., groups already ended but supervisors left open)
 func (s *service) cleanupOrphanedSupervisors(ctx context.Context, result *DailySessionCleanupResult) {
-	now := time.Now().UTC()
-	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+	today := timezone.TodayUTC()
 
 	// Find orphaned supervisor records from before today with no end_date
 	var staleRecords []struct {
@@ -1081,7 +1081,7 @@ func (s *service) cleanupOrphanedSupervisors(ctx context.Context, result *DailyS
 		_, err := s.db.NewUpdate().
 			Table("active.group_supervisors").
 			Set("end_date = ?", endDate).
-			Set("updated_at = ?", now).
+			Set("updated_at = ?", time.Now()).
 			Where("id = ?", record.ID).
 			Exec(ctx)
 
