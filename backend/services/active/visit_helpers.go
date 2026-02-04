@@ -94,7 +94,7 @@ func (s *service) resolveDeviceIDForAttendance(ctx context.Context, deviceID int
 	}
 
 	// Log warning if web device not found - this indicates a seeding issue
-	s.logger.Warn("web manual device not found - manual check-ins may fail",
+	s.getLogger().Warn("web manual device not found - manual check-ins may fail",
 		slog.String("device_code", WebManualDeviceCode),
 		slog.Any("error", err),
 	)
@@ -112,7 +112,7 @@ func (s *service) clearCheckoutOnReentry(ctx context.Context, studentID int64, a
 		attendance.CheckOutTime = nil
 		attendance.CheckedOutBy = nil
 		if err := s.attendanceRepo.Update(ctx, attendance); err != nil {
-			s.logger.Warn("failed to clear check_out_time on re-entry",
+			s.getLogger().Warn("failed to clear check_out_time on re-entry",
 				slog.Int64("student_id", studentID),
 				slog.Int64("attendance_id", attendance.ID),
 				slog.String("error", err.Error()),
@@ -138,14 +138,14 @@ func (s *service) autoClearStudentSickness(ctx context.Context, studentID int64)
 	student.SickSince = nil
 
 	if err := s.studentRepo.Update(ctx, student); err != nil {
-		s.logger.Warn("failed to auto-clear sickness on check-in",
+		s.getLogger().Warn("failed to auto-clear sickness on check-in",
 			slog.Int64("student_id", studentID),
 			slog.String("error", err.Error()),
 		)
 		return
 	}
 
-	s.logger.Info("auto-cleared sickness on student check-in",
+	s.getLogger().Info("auto-cleared sickness on student check-in",
 		slog.Int64("student_id", studentID),
 	)
 }
@@ -171,7 +171,7 @@ func (s *service) broadcastVisitCreated(ctx context.Context, visit *active.Visit
 	)
 
 	if err := s.broadcaster.BroadcastToGroup(activeGroupID, event); err != nil {
-		s.logger.Error("SSE broadcast failed",
+		s.getLogger().Error("SSE broadcast failed",
 			slog.String("error", err.Error()),
 			slog.String("event_type", "student_checkin"),
 			slog.String("active_group_id", activeGroupID),

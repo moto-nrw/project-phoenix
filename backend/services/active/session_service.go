@@ -3,7 +3,6 @@ package active
 import (
 	"context"
 	"fmt"
-	"log"
 	"log/slog"
 	"time"
 
@@ -46,7 +45,10 @@ func (s *service) createSessionWithSupervisor(ctx context.Context, activityID, d
 	s.assignSupervisorNonCritical(ctx, newGroup.ID, staffID, newGroup.StartTime)
 
 	if transferredCount > 0 {
-		fmt.Printf(visitTransferMessage, transferredCount, newGroup.ID)
+		s.getLogger().InfoContext(ctx, "visits transferred to new session",
+			slog.Int("count", transferredCount),
+			slog.Int64("session_id", newGroup.ID),
+		)
 	}
 
 	return newGroup, nil
@@ -62,13 +64,20 @@ func (s *service) assignSupervisorNonCritical(ctx context.Context, groupID, staf
 		StartDate: startDate,
 	}
 	if err := s.supervisorRepo.Create(ctx, supervisor); err != nil {
-		fmt.Printf(supervisorAssignmentWarning, staffID, groupID, err)
+		s.getLogger().WarnContext(ctx, "supervisor assignment failed",
+			slog.Int64("staff_id", staffID),
+			slog.Int64("group_id", groupID),
+			slog.String("error", err.Error()),
+		)
 	}
 
 	// NFC auto-check-in: ensure staff member has a work session for today
 	if s.workSessionService != nil {
 		if _, err := s.workSessionService.EnsureCheckedIn(ctx, staffID); err != nil {
-			log.Printf("WARNING: NFC auto-check-in failed for staff %d: %v", staffID, err)
+			s.getLogger().WarnContext(ctx, "NFC auto-check-in failed",
+				slog.Int64("staff_id", staffID),
+				slog.String("error", err.Error()),
+			)
 		}
 	}
 }
@@ -188,7 +197,10 @@ func (s *service) createSessionWithMultipleSupervisors(ctx context.Context, acti
 	s.assignMultipleSupervisorsNonCritical(ctx, newGroup.ID, supervisorIDs, newGroup.StartTime)
 
 	if transferredCount > 0 {
-		fmt.Printf(visitTransferMessage, transferredCount, newGroup.ID)
+		s.getLogger().InfoContext(ctx, "visits transferred to new session",
+			slog.Int("count", transferredCount),
+			slog.Int64("session_id", newGroup.ID),
+		)
 	}
 
 	return newGroup, nil
@@ -202,7 +214,7 @@ func (s *service) assignMultipleSupervisorsNonCritical(ctx context.Context, grou
 		uniqueSupervisors[id] = true
 	}
 
-	s.logger.DebugContext(ctx, "assigning multiple supervisors",
+	s.getLogger().DebugContext(ctx, "assigning multiple supervisors",
 		slog.Any("supervisor_ids", supervisorIDs),
 		slog.Int("unique_count", len(uniqueSupervisors)),
 	)
@@ -216,7 +228,11 @@ func (s *service) assignMultipleSupervisorsNonCritical(ctx context.Context, grou
 			StartDate: startDate,
 		}
 		if err := s.supervisorRepo.Create(ctx, supervisor); err != nil {
-			fmt.Printf(supervisorAssignmentWarning, staffID, groupID, err)
+			s.getLogger().WarnContext(ctx, "supervisor assignment failed",
+				slog.Int64("staff_id", staffID),
+				slog.Int64("group_id", groupID),
+				slog.String("error", err.Error()),
+			)
 		}
 	}
 }
@@ -264,7 +280,10 @@ func (s *service) createSessionWithSupervisorForceStart(ctx context.Context, act
 	s.assignSupervisorNonCritical(ctx, newGroup.ID, staffID, newGroup.StartTime)
 
 	if transferredCount > 0 {
-		fmt.Printf("Transferred %d active visits to new session %d (force start)\n", transferredCount, newGroup.ID)
+		s.getLogger().InfoContext(ctx, "visits transferred to new session (force start)",
+			slog.Int("count", transferredCount),
+			slog.Int64("session_id", newGroup.ID),
+		)
 	}
 
 	return newGroup, nil
@@ -296,7 +315,12 @@ func (s *service) createSessionBase(ctx context.Context, activityID, deviceID, r
 
 // ForceStartActivitySessionWithSupervisors starts an activity session with multiple supervisors and override capability
 func (s *service) ForceStartActivitySessionWithSupervisors(ctx context.Context, activityID, deviceID int64, supervisorIDs []int64, roomID *int64) (*active.Group, error) {
-	fmt.Printf("ForceStartActivitySessionWithSupervisors called with supervisorIDs: %v (len=%d)\n", supervisorIDs, len(supervisorIDs))
+	s.getLogger().DebugContext(ctx, "force start with multiple supervisors called",
+		slog.Any("supervisor_ids", supervisorIDs),
+		slog.Int("supervisor_count", len(supervisorIDs)),
+		slog.Int64("activity_id", activityID),
+		slog.Int64("device_id", deviceID),
+	)
 
 	if err := s.validateSupervisorIDs(ctx, supervisorIDs); err != nil {
 		return nil, err
@@ -382,7 +406,9 @@ func (s *service) validateManualRoomSelection(ctx context.Context, roomID int64,
 		if strategy == RoomConflictFail {
 			return 0, ErrRoomConflict
 		}
-		fmt.Printf("Warning: Overriding room conflict for room %d\n", roomID)
+		s.getLogger().WarnContext(ctx, "overriding room conflict",
+			slog.Int64("room_id", roomID),
+		)
 	}
 
 	return roomID, nil

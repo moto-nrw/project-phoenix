@@ -1,7 +1,7 @@
 package database
 
 import (
-	"log"
+	"log/slog"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -48,7 +48,7 @@ func (rs *Resource) Router() chi.Router {
 func (rs *Resource) getStats(w http.ResponseWriter, r *http.Request) {
 	stats, err := rs.DatabaseService.GetStats(r.Context())
 	if err != nil {
-		log.Printf("Error getting database stats: %v", err)
+		slog.Default().Error("failed to get database stats", slog.String("error", err.Error()))
 		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}

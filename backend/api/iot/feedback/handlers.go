@@ -3,7 +3,7 @@ package feedback
 import (
 	"database/sql"
 	"errors"
-	"log"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -27,35 +27,50 @@ func (rs *Resource) deviceSubmitFeedback(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	log.Printf("[FEEDBACK] Starting feedback submission - Device: %s (ID: %d)",
-		deviceCtx.DeviceID, deviceCtx.ID)
+	slog.Default().InfoContext(r.Context(), "starting feedback submission",
+		slog.String("device_id", deviceCtx.DeviceID),
+		slog.Int64("device_db_id", deviceCtx.ID),
+	)
 
 	// Parse request
 	req := &IoTFeedbackRequest{}
 	if err := render.Bind(r, req); err != nil {
-		log.Printf("[FEEDBACK] ERROR: Invalid request from device %s: %v", deviceCtx.DeviceID, err)
+		slog.Default().ErrorContext(r.Context(), "invalid feedback request",
+			slog.String("device_id", deviceCtx.DeviceID),
+			slog.String("error", err.Error()),
+		)
 		iotCommon.RenderError(w, r, iotCommon.ErrorInvalidRequest(err))
 		return
 	}
 
-	log.Printf("[FEEDBACK] Received feedback - StudentID: %d, Value: %s", req.StudentID, req.Value)
+	slog.Default().DebugContext(r.Context(), "received feedback",
+		slog.Int64("student_id", req.StudentID),
+		slog.String("value", req.Value),
+	)
 
 	// Validate student exists before creating feedback
 	studentRepo := rs.UsersService.StudentRepository()
 	student, err := studentRepo.FindByID(r.Context(), req.StudentID)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		log.Printf("[FEEDBACK] ERROR: Failed to lookup student %d: %v", req.StudentID, err)
+		slog.Default().ErrorContext(r.Context(), "failed to lookup student",
+			slog.Int64("student_id", req.StudentID),
+			slog.String("error", err.Error()),
+		)
 		iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(err))
 		return
 	}
 
 	if errors.Is(err, sql.ErrNoRows) {
-		log.Printf("[FEEDBACK] ERROR: Student %d not found", req.StudentID)
+		slog.Default().WarnContext(r.Context(), "student not found",
+			slog.Int64("student_id", req.StudentID),
+		)
 		iotCommon.RenderError(w, r, iotCommon.ErrorNotFound(errors.New("student not found")))
 		return
 	}
 
-	log.Printf("[FEEDBACK] Student %d validated", student.ID)
+	slog.Default().DebugContext(r.Context(), "student validated",
+		slog.Int64("student_id", student.ID),
+	)
 
 	// Create feedback entry with server-side timestamps
 	now := time.Now()
@@ -69,12 +84,17 @@ func (rs *Resource) deviceSubmitFeedback(w http.ResponseWriter, r *http.Request)
 
 	// Create feedback entry (validation happens in service layer)
 	if err = rs.FeedbackService.CreateEntry(r.Context(), entry); err != nil {
-		log.Printf("[FEEDBACK] ERROR: Failed to create feedback entry: %v", err)
+		slog.Default().ErrorContext(r.Context(), "failed to create feedback entry",
+			slog.String("error", err.Error()),
+		)
 		iotCommon.RenderError(w, r, iotCommon.ErrorRenderer(err))
 		return
 	}
 
-	log.Printf("[FEEDBACK] Successfully created feedback entry ID: %d for student %d", entry.ID, req.StudentID)
+	slog.Default().InfoContext(r.Context(), "created feedback entry",
+		slog.Int64("entry_id", entry.ID),
+		slog.Int64("student_id", req.StudentID),
+	)
 
 	// Prepare response
 	response := map[string]interface{}{

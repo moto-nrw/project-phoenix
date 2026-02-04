@@ -2,7 +2,7 @@ package scheduler
 
 import (
 	"context"
-	"log"
+	"log/slog"
 	"os"
 	"strconv"
 	"strings"
@@ -10,11 +10,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/services/active"
-)
-
-// Log format constants to avoid string duplication
-const (
-	fmtAndMoreErrors = "  ... and %d more errors"
 )
 
 // AuthCleanup exposes the cleanup routines required from the auth service.
@@ -56,6 +51,7 @@ type Scheduler struct {
 	cleanupJobs        []CleanupJob
 	tasks              map[string]*ScheduledTask
 	mu                 sync.RWMutex
+	logger             *slog.Logger
 	// done signals goroutines to stop when closed (replaces stored context)
 	done chan struct{}
 	wg   sync.WaitGroup
@@ -79,7 +75,7 @@ type ScheduledTask struct {
 }
 
 // NewScheduler creates a new scheduler
-func NewScheduler(activeService active.Service, cleanupService active.CleanupService, authService AuthCleanup, invitationService InvitationCleaner) *Scheduler {
+func NewScheduler(activeService active.Service, cleanupService active.CleanupService, authService AuthCleanup, invitationService InvitationCleaner, logger *slog.Logger) *Scheduler {
 	return &Scheduler{
 		activeService:     activeService,
 		cleanupService:    cleanupService,
@@ -88,7 +84,16 @@ func NewScheduler(activeService active.Service, cleanupService active.CleanupSer
 		cleanupJobs:       buildCleanupJobs(authService, invitationService),
 		tasks:             make(map[string]*ScheduledTask),
 		done:              make(chan struct{}),
+		logger:            logger,
 	}
+}
+
+// getLogger returns the scheduler's logger, falling back to slog.Default() if nil.
+func (s *Scheduler) getLogger() *slog.Logger {
+	if s.logger != nil {
+		return s.logger
+	}
+	return slog.Default()
 }
 
 // SetWorkSessionCleaner sets the work session cleanup service (optional).
@@ -103,7 +108,7 @@ func (s *Scheduler) SetBreakAutoEnder(bae BreakAutoEnder) {
 
 // Start begins the scheduler
 func (s *Scheduler) Start() {
-	log.Println("Starting scheduler service...")
+	s.getLogger().Info("starting scheduler service")
 
 	// Schedule daily data cleanup at 2 AM
 	s.scheduleCleanupTask()
@@ -123,17 +128,17 @@ func (s *Scheduler) Start() {
 
 // Stop gracefully stops the scheduler
 func (s *Scheduler) Stop() {
-	log.Println("Stopping scheduler service...")
+	s.getLogger().Info("stopping scheduler service")
 	close(s.done)
 	s.wg.Wait()
-	log.Println("Scheduler service stopped")
+	s.getLogger().Info("scheduler service stopped")
 }
 
 // scheduleCleanupTask schedules the daily cleanup task
 func (s *Scheduler) scheduleCleanupTask() {
 	// Check if cleanup is enabled
 	if os.Getenv("CLEANUP_SCHEDULER_ENABLED") != "true" {
-		log.Println("Cleanup scheduler is disabled (set CLEANUP_SCHEDULER_ENABLED=true to enable)")
+		s.getLogger().Info("cleanup scheduler is disabled")
 		return
 	}
 
@@ -163,19 +168,22 @@ func (s *Scheduler) runCleanupTask(task *ScheduledTask) {
 	// Parse scheduled time
 	parts := strings.Split(task.Schedule, ":")
 	if len(parts) != 2 {
-		log.Printf("Invalid scheduled time format: %s (expected HH:MM)", task.Schedule)
+		s.getLogger().Error("invalid scheduled time format (expected HH:MM)",
+			slog.String("schedule", task.Schedule))
 		return
 	}
 
 	hour, err := strconv.Atoi(parts[0])
 	if err != nil || hour < 0 || hour > 23 {
-		log.Printf("Invalid hour in scheduled time: %s", task.Schedule)
+		s.getLogger().Error("invalid hour in scheduled time",
+			slog.String("schedule", task.Schedule))
 		return
 	}
 
 	minute, err := strconv.Atoi(parts[1])
 	if err != nil || minute < 0 || minute > 59 {
-		log.Printf("Invalid minute in scheduled time: %s", task.Schedule)
+		s.getLogger().Error("invalid minute in scheduled time",
+			slog.String("schedule", task.Schedule))
 		return
 	}
 
@@ -189,7 +197,9 @@ func (s *Scheduler) runCleanupTask(task *ScheduledTask) {
 
 	// Wait until first run
 	initialWait := time.Until(nextRun)
-	log.Printf("Scheduled cleanup task will run in %v (at %v)", initialWait.Round(time.Minute), nextRun.Format("2006-01-02 15:04:05"))
+	s.getLogger().Info("scheduled cleanup task will run",
+		slog.Duration("in", initialWait.Round(time.Minute)),
+		slog.String("at", nextRun.Format("2006-01-02 15:04:05")))
 
 	select {
 	case <-time.After(initialWait):
@@ -218,7 +228,7 @@ func (s *Scheduler) executeCleanup(task *ScheduledTask) {
 	task.mu.Lock()
 	if task.Running {
 		task.mu.Unlock()
-		log.Println("Cleanup task already running, skipping...")
+		s.getLogger().Warn("cleanup task already running, skipping")
 		return
 	}
 	task.Running = true
@@ -232,7 +242,7 @@ func (s *Scheduler) executeCleanup(task *ScheduledTask) {
 		task.mu.Unlock()
 	}()
 
-	log.Println("Starting scheduled cleanup (visits + supervisors)...")
+	s.getLogger().Info("starting scheduled cleanup (visits + supervisors)")
 	startTime := time.Now()
 
 	// Get timeout from env or default to 30 minutes
@@ -248,49 +258,52 @@ func (s *Scheduler) executeCleanup(task *ScheduledTask) {
 
 	result, err := s.cleanupService.CleanupExpiredVisits(ctx)
 	if err != nil {
-		log.Printf("ERROR: Scheduled cleanup failed: %v", err)
+		s.getLogger().Error("scheduled cleanup failed", "error", err)
 		return
 	}
 
 	duration := time.Since(startTime)
-	log.Printf("Scheduled cleanup completed in %v: processed %d students, deleted %d records, success: %v",
-		duration.Round(time.Second),
-		result.StudentsProcessed,
-		result.RecordsDeleted,
-		result.Success,
-	)
+	s.getLogger().Info("scheduled cleanup completed",
+		slog.Duration("duration", duration.Round(time.Second)),
+		slog.Int("students_processed", result.StudentsProcessed),
+		slog.Int64("records_deleted", result.RecordsDeleted),
+		slog.Bool("success", result.Success))
 
 	if len(result.Errors) > 0 {
-		log.Printf("Cleanup completed with %d errors", len(result.Errors))
+		s.getLogger().Warn("cleanup completed with errors",
+			slog.Int("error_count", len(result.Errors)))
 		for i, err := range result.Errors {
 			if i < 10 { // Log first 10 errors
-				log.Printf("  - Student %d: %s", err.StudentID, err.Error)
+				s.getLogger().Warn("cleanup error",
+					slog.Int64("student_id", err.StudentID),
+					slog.String("error", err.Error))
 			}
 		}
 		if len(result.Errors) > 10 {
-			log.Printf(fmtAndMoreErrors, len(result.Errors)-10)
+			s.getLogger().Warn("additional cleanup errors",
+				slog.Int("count", len(result.Errors)-10))
 		}
 	}
 
 	// Clean up stale supervisor records from previous days
 	supervisorResult, err := s.cleanupService.CleanupStaleSupervisors(ctx)
 	if err != nil {
-		log.Printf("ERROR: Scheduled supervisor cleanup failed: %v", err)
+		s.getLogger().Error("scheduled supervisor cleanup failed", "error", err)
 	} else {
-		log.Printf("Supervisor cleanup completed: closed %d records, %d staff affected, success: %v",
-			supervisorResult.RecordsClosed,
-			supervisorResult.StaffAffected,
-			supervisorResult.Success,
-		)
+		s.getLogger().Info("supervisor cleanup completed",
+			slog.Int("records_closed", supervisorResult.RecordsClosed),
+			slog.Int("staff_affected", supervisorResult.StaffAffected),
+			slog.Bool("success", supervisorResult.Success))
 	}
 
 	// Clean up open work sessions from previous days (auto-checkout at end of day)
 	if s.workSessionCleanup != nil {
 		closedCount, wsErr := s.workSessionCleanup.CleanupOpenSessions(ctx)
 		if wsErr != nil {
-			log.Printf("ERROR: Work session cleanup failed: %v", wsErr)
+			s.getLogger().Error("work session cleanup failed", "error", wsErr)
 		} else if closedCount > 0 {
-			log.Printf("Work session cleanup completed: auto-closed %d open sessions", closedCount)
+			s.getLogger().Info("work session cleanup completed",
+				slog.Int("sessions_closed", closedCount))
 		}
 	}
 }
@@ -314,7 +327,7 @@ func (s *Scheduler) scheduleTokenCleanupTask() {
 func (s *Scheduler) runTokenCleanupTask(task *ScheduledTask) {
 	defer s.wg.Done()
 
-	log.Println("Token cleanup task scheduled to run every hour")
+	s.getLogger().Info("token cleanup task scheduled to run every hour")
 
 	// Run immediately on startup
 	s.executeTokenCleanup(task)
@@ -351,23 +364,24 @@ func (s *Scheduler) executeTokenCleanup(task *ScheduledTask) {
 		task.mu.Unlock()
 	}()
 
-	log.Println("Running scheduled token cleanup...")
+	s.getLogger().Info("running scheduled token cleanup")
 	startTime := time.Now()
 
 	// Use reflection to call CleanupExpiredTokens method
 	if err := s.RunCleanupJobs(); err != nil {
-		log.Printf("ERROR: Token cleanup failed: %v", err)
+		s.getLogger().Error("token cleanup failed", "error", err)
 		return
 	}
 
 	duration := time.Since(startTime)
-	log.Printf("Token cleanup completed in %v", duration.Round(time.Millisecond))
+	s.getLogger().Info("token cleanup completed",
+		slog.Duration("duration", duration.Round(time.Millisecond)))
 }
 
 // RunCleanupJobs executes all token-related cleanup tasks in sequence.
 func (s *Scheduler) RunCleanupJobs() error {
 	if len(s.cleanupJobs) == 0 {
-		log.Println("No cleanup jobs registered; skipping token cleanup")
+		s.getLogger().Info("no cleanup jobs registered, skipping token cleanup")
 		return nil
 	}
 
@@ -381,14 +395,18 @@ func (s *Scheduler) RunCleanupJobs() error {
 
 		count, err := job.Run(ctx)
 		if err != nil {
-			log.Printf("ERROR: %s failed: %v", job.Description, err)
+			s.getLogger().Error("cleanup job failed",
+				slog.String("job", job.Description),
+				"error", err)
 			if firstErr == nil {
 				firstErr = err
 			}
 			continue
 		}
 
-		log.Printf("%s removed %d records", job.Description, count)
+		s.getLogger().Info("cleanup job completed",
+			slog.String("job", job.Description),
+			slog.Int("records_deleted", count))
 	}
 
 	return firstErr
@@ -437,7 +455,7 @@ func buildCleanupJobs(authService AuthCleanup, invitationService InvitationClean
 func (s *Scheduler) scheduleSessionEndTask() {
 	// Check if session end is enabled (default enabled)
 	if os.Getenv("SESSION_END_SCHEDULER_ENABLED") == "false" {
-		log.Println("Session end scheduler is disabled (set SESSION_END_SCHEDULER_ENABLED=true to enable)")
+		s.getLogger().Info("session end scheduler is disabled")
 		return
 	}
 
@@ -467,19 +485,22 @@ func (s *Scheduler) runSessionEndTask(task *ScheduledTask) {
 	// Parse scheduled time
 	parts := strings.Split(task.Schedule, ":")
 	if len(parts) != 2 {
-		log.Printf("Invalid session end time format: %s (expected HH:MM)", task.Schedule)
+		s.getLogger().Error("invalid session end time format (expected HH:MM)",
+			slog.String("schedule", task.Schedule))
 		return
 	}
 
 	hour, err := strconv.Atoi(parts[0])
 	if err != nil || hour < 0 || hour > 23 {
-		log.Printf("Invalid hour in session end time: %s", task.Schedule)
+		s.getLogger().Error("invalid hour in session end time",
+			slog.String("schedule", task.Schedule))
 		return
 	}
 
 	minute, err := strconv.Atoi(parts[1])
 	if err != nil || minute < 0 || minute > 59 {
-		log.Printf("Invalid minute in session end time: %s", task.Schedule)
+		s.getLogger().Error("invalid minute in session end time",
+			slog.String("schedule", task.Schedule))
 		return
 	}
 
@@ -493,7 +514,9 @@ func (s *Scheduler) runSessionEndTask(task *ScheduledTask) {
 
 	// Wait until first run
 	initialWait := time.Until(nextRun)
-	log.Printf("Scheduled session end task will run in %v (at %v)", initialWait.Round(time.Minute), nextRun.Format("2006-01-02 15:04:05"))
+	s.getLogger().Info("scheduled session end task will run",
+		slog.Duration("in", initialWait.Round(time.Minute)),
+		slog.String("at", nextRun.Format("2006-01-02 15:04:05")))
 
 	select {
 	case <-time.After(initialWait):
@@ -522,7 +545,7 @@ func (s *Scheduler) executeSessionEnd(task *ScheduledTask) {
 	task.mu.Lock()
 	if task.Running {
 		task.mu.Unlock()
-		log.Println("Session end task already running, skipping...")
+		s.getLogger().Warn("session end task already running, skipping")
 		return
 	}
 	task.Running = true
@@ -536,7 +559,7 @@ func (s *Scheduler) executeSessionEnd(task *ScheduledTask) {
 		task.mu.Unlock()
 	}()
 
-	log.Println("Starting scheduled session end...")
+	s.getLogger().Info("starting scheduled session end")
 	startTime := time.Now()
 
 	// Get timeout from env or default to 10 minutes
@@ -553,28 +576,31 @@ func (s *Scheduler) executeSessionEnd(task *ScheduledTask) {
 	// Call the active service to end all daily sessions
 	result, err := s.activeService.EndDailySessions(ctx)
 	if err != nil {
-		log.Printf("ERROR: Scheduled session end failed: %v", err)
+		s.getLogger().Error("scheduled session end failed", "error", err)
 		return
 	}
 
 	duration := time.Since(startTime)
-	log.Printf("Scheduled session end completed in %v: ended %d sessions, %d visits, %d supervisors, success: %v",
-		duration.Round(time.Second),
-		result.SessionsEnded,
-		result.VisitsEnded,
-		result.SupervisorsEnded,
-		result.Success,
-	)
+	s.getLogger().Info("scheduled session end completed",
+		slog.Duration("duration", duration.Round(time.Second)),
+		slog.Int("sessions_ended", result.SessionsEnded),
+		slog.Int("visits_ended", result.VisitsEnded),
+		slog.Int("supervisors_ended", result.SupervisorsEnded),
+		slog.Bool("success", result.Success))
 
 	if len(result.Errors) > 0 {
-		log.Printf("Session end completed with %d errors", len(result.Errors))
+		s.getLogger().Warn("session end completed with errors",
+			slog.Int("error_count", len(result.Errors)))
 		for i, errMsg := range result.Errors {
 			if i < 10 { // Log first 10 errors
-				log.Printf("  - Error %d: %s", i+1, errMsg)
+				s.getLogger().Warn("session end error",
+					slog.Int("error_number", i+1),
+					slog.String("message", errMsg))
 			}
 		}
 		if len(result.Errors) > 10 {
-			log.Printf(fmtAndMoreErrors, len(result.Errors)-10)
+			s.getLogger().Warn("additional session end errors",
+				slog.Int("count", len(result.Errors)-10))
 		}
 	}
 }
@@ -583,7 +609,7 @@ func (s *Scheduler) executeSessionEnd(task *ScheduledTask) {
 func (s *Scheduler) scheduleSessionCleanupTask() {
 	// Check if session cleanup is enabled (default enabled)
 	if os.Getenv("SESSION_CLEANUP_ENABLED") == "false" {
-		log.Println("Session cleanup is disabled (set SESSION_CLEANUP_ENABLED=true to enable)")
+		s.getLogger().Info("session cleanup is disabled")
 		return
 	}
 
@@ -626,7 +652,8 @@ func (s *Scheduler) runSessionCleanupTask(task *ScheduledTask, intervalMinutes, 
 	defer s.wg.Done()
 
 	interval := time.Duration(intervalMinutes) * time.Minute
-	log.Printf("Session cleanup task scheduled to run every %d minutes", intervalMinutes)
+	s.getLogger().Info("session cleanup task scheduled",
+		slog.Int("interval_minutes", intervalMinutes))
 
 	// Run immediately on startup (after brief delay to let other services initialize)
 	time.Sleep(30 * time.Second)
@@ -674,12 +701,14 @@ func (s *Scheduler) executeSessionCleanup(task *ScheduledTask, intervalMinutes, 
 	// Call the active service cleanup method
 	count, err := s.activeService.CleanupAbandonedSessions(ctx, threshold)
 	if err != nil {
-		log.Printf("ERROR: Session cleanup failed: %v", err)
+		s.getLogger().Error("session cleanup failed", "error", err)
 		return
 	}
 
 	if count > 0 {
-		log.Printf("Session cleanup: cleaned up %d abandoned sessions (threshold: %d minutes)", count, thresholdMinutes)
+		s.getLogger().Info("session cleanup completed",
+			slog.Int("abandoned_sessions", count),
+			slog.Int("threshold_minutes", thresholdMinutes))
 	}
 }
 
@@ -687,13 +716,13 @@ func (s *Scheduler) executeSessionCleanup(task *ScheduledTask, intervalMinutes, 
 func (s *Scheduler) scheduleBreakAutoEndTask() {
 	// Check if break auto-end is enabled (skip if no service configured)
 	if s.breakAutoEnder == nil {
-		log.Println("Break auto-end not configured (no BreakAutoEnder service)")
+		s.getLogger().Info("break auto-end not configured (no BreakAutoEnder service)")
 		return
 	}
 
 	// Check if explicitly disabled
 	if os.Getenv("BREAK_AUTO_END_ENABLED") == "false" {
-		log.Println("Break auto-end is disabled (set BREAK_AUTO_END_ENABLED=true to enable)")
+		s.getLogger().Info("break auto-end is disabled")
 		return
 	}
 
@@ -726,7 +755,8 @@ func (s *Scheduler) runBreakAutoEndTask(task *ScheduledTask, intervalSeconds int
 	defer s.wg.Done()
 
 	interval := time.Duration(intervalSeconds) * time.Second
-	log.Printf("Break auto-end task scheduled to run every %d seconds", intervalSeconds)
+	s.getLogger().Info("break auto-end task scheduled",
+		slog.Int("interval_seconds", intervalSeconds))
 
 	// Run immediately on startup (after brief delay)
 	time.Sleep(10 * time.Second)
@@ -770,11 +800,12 @@ func (s *Scheduler) executeBreakAutoEnd(task *ScheduledTask, intervalSeconds int
 
 	count, err := s.breakAutoEnder.AutoEndExpiredBreaks(ctx)
 	if err != nil {
-		log.Printf("ERROR: Break auto-end failed: %v", err)
+		s.getLogger().Error("break auto-end failed", "error", err)
 		return
 	}
 
 	if count > 0 {
-		log.Printf("Break auto-end: ended %d expired break(s)", count)
+		s.getLogger().Info("break auto-end completed",
+			slog.Int("breaks_ended", count))
 	}
 }

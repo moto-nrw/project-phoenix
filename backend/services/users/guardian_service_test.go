@@ -768,7 +768,7 @@ func setupGuardianServiceWithMailer(db *bun.DB, mailer *testpkg.CapturingMailer)
 	repoFactory := repositories.NewFactory(db)
 
 	// Create dispatcher from the capturing mailer
-	dispatcher := email.NewDispatcher(mailer)
+	dispatcher := email.NewDispatcher(mailer, slog.Default())
 	// Use fast retry settings for tests
 	dispatcher.SetDefaults(1, []time.Duration{10 * time.Millisecond})
 

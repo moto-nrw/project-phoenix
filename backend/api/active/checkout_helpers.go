@@ -125,7 +125,7 @@ func (rs *Resource) endActiveVisit(ctx context.Context, currentVisit *active.Vis
 	}
 
 	if err := rs.ActiveService.EndVisit(ctx, currentVisit.ID); err != nil {
-		rs.logger.WarnContext(ctx, "failed to end visit during checkout",
+		rs.getLogger().WarnContext(ctx, "failed to end visit during checkout",
 			slog.Int64("visit_id", currentVisit.ID),
 			slog.String("error", err.Error()),
 		)
@@ -136,7 +136,7 @@ func (rs *Resource) endActiveVisit(ctx context.Context, currentVisit *active.Vis
 func (rs *Resource) getUpdatedAttendanceStatus(ctx context.Context, studentID int64) *activeService.AttendanceStatus {
 	status, err := rs.ActiveService.GetStudentAttendanceStatus(ctx, studentID)
 	if err != nil {
-		rs.logger.WarnContext(ctx, "failed to get updated attendance status after checkout",
+		rs.getLogger().WarnContext(ctx, "failed to get updated attendance status after checkout",
 			slog.Int64("student_id", studentID),
 			slog.String("error", err.Error()),
 		)

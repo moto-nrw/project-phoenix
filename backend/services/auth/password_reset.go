@@ -3,7 +3,7 @@ package auth
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -33,7 +33,8 @@ func (s *Service) InitiatePasswordReset(ctx context.Context, emailAddress string
 		return nil, err
 	}
 
-	log.Printf("Password reset requested for email=%s", emailAddress)
+	s.getLogger().Info("password reset requested",
+		slog.String("email", emailAddress))
 
 	// Create password reset token in transaction
 	resetToken, err := s.createPasswordResetTokenInTransaction(ctx, account.ID)
@@ -41,7 +42,8 @@ func (s *Service) InitiatePasswordReset(ctx context.Context, emailAddress string
 		return nil, err
 	}
 
-	log.Printf("Password reset token created for account=%d", account.ID)
+	s.getLogger().Info("password reset token created",
+		slog.Int64("account_id", account.ID))
 
 	// Dispatch password reset email
 	s.dispatchPasswordResetEmail(ctx, resetToken, account.Email)
@@ -101,7 +103,9 @@ func (s *Service) createPasswordResetTokenInTransaction(ctx context.Context, acc
 		txService := s.WithTx(tx).(AuthService)
 
 		if err := txService.(*Service).repos.PasswordResetToken.InvalidateTokensByAccountID(ctx, accountID); err != nil {
-			log.Printf("Failed to invalidate reset tokens for account %d, rolling back: %v", accountID, err)
+			s.getLogger().Error("failed to invalidate reset tokens, rolling back",
+				slog.Int64("account_id", accountID),
+				"error", err)
 			return err
 		}
 
@@ -130,7 +134,8 @@ func (s *Service) createPasswordResetTokenInTransaction(ctx context.Context, acc
 // dispatchPasswordResetEmail sends the password reset email asynchronously
 func (s *Service) dispatchPasswordResetEmail(ctx context.Context, resetToken *auth.PasswordResetToken, accountEmail string) {
 	if s.dispatcher == nil {
-		log.Printf("Email dispatcher unavailable; skipping password reset email account=%d", resetToken.AccountID)
+		s.getLogger().Warn("email dispatcher unavailable, skipping password reset email",
+			slog.Int64("account_id", resetToken.AccountID))
 		return
 	}
 
@@ -207,7 +212,9 @@ func (s *Service) ResetPassword(ctx context.Context, token, newPassword string) 
 		// Invalidate all existing auth tokens for security
 		if err := txService.(*Service).repos.Token.DeleteByAccountID(ctx, resetToken.AccountID); err != nil {
 			// Log error but don't fail the password reset
-			log.Printf("Failed to delete tokens during password reset for account %d: %v", resetToken.AccountID, err)
+			s.getLogger().Warn("failed to delete tokens during password reset",
+				slog.Int64("account_id", resetToken.AccountID),
+				"error", err)
 		}
 
 		return nil
@@ -234,12 +241,17 @@ func (s *Service) persistPasswordResetDelivery(ctx context.Context, meta email.D
 	}
 
 	if err := s.repos.PasswordResetToken.UpdateDeliveryResult(ctx, meta.ReferenceID, sentAt, errText, retryCount); err != nil {
-		log.Printf("Failed to update password reset delivery status token_id=%d err=%v", meta.ReferenceID, err)
+		s.getLogger().Error("failed to update password reset delivery status",
+			slog.Int64("token_id", meta.ReferenceID),
+			"error", err)
 		return
 	}
 
 	if result.Final && result.Status == email.DeliveryStatusFailed {
-		log.Printf("Password reset email permanently failed id=%d recipient=%s err=%v", meta.ReferenceID, meta.Recipient, result.Err)
+		s.getLogger().Error("password reset email permanently failed",
+			slog.Int64("token_id", meta.ReferenceID),
+			slog.String("recipient", meta.Recipient),
+			"error", result.Err)
 	}
 }
 

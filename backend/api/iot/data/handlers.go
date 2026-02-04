@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
@@ -55,7 +55,10 @@ func (rs *Resource) getAvailableTeachers(w http.ResponseWriter, r *http.Request)
 	}
 
 	// Log device access for audit trail
-	log.Printf("Device %s requested teacher list, returned %d teachers", deviceCtx.DeviceID, len(responses))
+	slog.Default().InfoContext(r.Context(), "device requested teacher list",
+		slog.String("device_id", deviceCtx.DeviceID),
+		slog.Int("teacher_count", len(responses)),
+	)
 
 	common.Respond(w, r, http.StatusOK, responses, "Available teachers retrieved successfully")
 }
@@ -231,13 +234,20 @@ func (rs *Resource) fetchStudentsForTeachers(ctx context.Context, teacherIDs []i
 	for _, staffID := range teacherIDs {
 		teacher, err := teacherRepo.FindByStaffID(ctx, staffID)
 		if err != nil || teacher == nil {
-			log.Printf("Error finding teacher for staff %d: %v", staffID, err)
+			slog.Default().WarnContext(ctx, "failed to find teacher for staff",
+				slog.Int64("staff_id", staffID),
+				slog.String("error", fmt.Sprintf("%v", err)),
+			)
 			continue
 		}
 
 		students, err := rs.UsersService.GetStudentsWithGroupsByTeacher(ctx, teacher.ID)
 		if err != nil {
-			log.Printf("Error fetching students for teacher %d (staff %d): %v", teacher.ID, staffID, err)
+			slog.Default().WarnContext(ctx, "failed to fetch students for teacher",
+				slog.Int64("teacher_id", teacher.ID),
+				slog.Int64("staff_id", staffID),
+				slog.String("error", err.Error()),
+			)
 			continue
 		}
 
@@ -256,7 +266,10 @@ func (rs *Resource) buildStudentResponses(ctx context.Context, uniqueStudents ma
 	for _, swg := range uniqueStudents {
 		person, err := rs.UsersService.Get(ctx, swg.Student.PersonID)
 		if err != nil {
-			log.Printf("Error fetching person for student %d: %v", swg.Student.ID, err)
+			slog.Default().WarnContext(ctx, "failed to fetch person for student",
+				slog.Int64("student_id", swg.Student.ID),
+				slog.String("error", err.Error()),
+			)
 			continue
 		}
 
@@ -283,7 +296,10 @@ func (rs *Resource) buildStudentResponses(ctx context.Context, uniqueStudents ma
 func (rs *Resource) findPersonByTag(ctx context.Context, normalizedTagID, originalTagID string) *users.Person {
 	person, err := rs.UsersService.FindByTagID(ctx, normalizedTagID)
 	if err != nil {
-		log.Printf("Warning: No person found for RFID tag %s: %v", originalTagID, err)
+		slog.Default().WarnContext(ctx, "no person found for RFID tag",
+			slog.String("tag_id", originalTagID),
+			slog.String("error", err.Error()),
+		)
 		return nil
 	}
 	return person
@@ -317,7 +333,10 @@ func (rs *Resource) buildStudentRFIDResponse(ctx context.Context, person *users.
 	student, err := rs.UsersService.StudentRepository().FindByPersonID(ctx, person.ID)
 	if err != nil || student == nil {
 		if err != nil {
-			log.Printf("Warning: Error finding student for person %d: %v", person.ID, err)
+			slog.Default().WarnContext(ctx, "error finding student for person",
+				slog.Int64("person_id", person.ID),
+				slog.String("error", err.Error()),
+			)
 		}
 		return nil
 	}
@@ -344,7 +363,10 @@ func (rs *Resource) buildStaffRFIDResponse(ctx context.Context, person *users.Pe
 	staff, err := rs.UsersService.StaffRepository().FindByPersonID(ctx, person.ID)
 	if err != nil || staff == nil {
 		if err != nil {
-			log.Printf("Warning: Error finding staff for person %d: %v", person.ID, err)
+			slog.Default().WarnContext(ctx, "error finding staff for person",
+				slog.Int64("person_id", person.ID),
+				slog.String("error", err.Error()),
+			)
 		}
 		return nil
 	}
@@ -368,7 +390,10 @@ func (rs *Resource) getStaffGroupInfo(ctx context.Context, staffID int64) string
 	teacher, err := rs.UsersService.TeacherRepository().FindByStaffID(ctx, staffID)
 	if err != nil || teacher == nil {
 		if err != nil {
-			log.Printf("Warning: Error checking teacher status for staff %d: %v", staffID, err)
+			slog.Default().WarnContext(ctx, "error checking teacher status for staff",
+				slog.Int64("staff_id", staffID),
+				slog.String("error", err.Error()),
+			)
 		}
 		return "Staff"
 	}

@@ -2,7 +2,7 @@ package active
 
 import (
 	"errors"
-	"log"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -119,7 +119,7 @@ func (rs *Resource) loadActiveSupervisorsMap(r *http.Request, groups []*active.G
 
 	allSupervisors, err := rs.ActiveService.FindSupervisorsByActiveGroupIDs(r.Context(), groupIDs)
 	if err != nil {
-		log.Printf("Error loading supervisors: %v", err)
+		slog.Default().Error("failed to load supervisors", slog.String("error", err.Error()))
 		return make(map[int64][]*active.GroupSupervisor)
 	}
 

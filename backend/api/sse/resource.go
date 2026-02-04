@@ -18,6 +18,14 @@ type Resource struct {
 	logger    *slog.Logger
 }
 
+// getLogger returns a nil-safe logger, falling back to slog.Default() if logger is nil
+func (rs *Resource) getLogger() *slog.Logger {
+	if rs.logger != nil {
+		return rs.logger
+	}
+	return slog.Default()
+}
+
 // NewResource creates a new SSE resource
 func NewResource(
 	hub *realtime.Hub,

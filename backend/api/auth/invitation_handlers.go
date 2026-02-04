@@ -2,7 +2,7 @@ package auth
 
 import (
 	"errors"
-	"log"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
@@ -111,7 +111,9 @@ func (rs *Resource) createInvitation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Printf("Invitation created by account=%d for email=%s", claims.ID, invitation.Email)
+	slog.Default().Info("invitation created",
+		slog.Int64("account_id", int64(claims.ID)),
+		slog.String("email", invitation.Email))
 
 	resp := InvitationResponse{
 		ID:              invitation.ID,
@@ -146,7 +148,7 @@ func (rs *Resource) validateInvitation(w http.ResponseWriter, r *http.Request) {
 	}
 
 	token := strings.TrimSpace(chi.URLParam(r, "token"))
-	log.Printf("Invitation validation requested")
+	slog.Default().Info("invitation validation requested")
 
 	result, err := rs.InvitationService.ValidateInvitation(r.Context(), token)
 	if err != nil {
@@ -228,7 +230,8 @@ func (rs *Resource) acceptInvitation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Printf("Invitation accepted for account=%d", account.ID)
+	slog.Default().Info("invitation accepted",
+		slog.Int64("account_id", account.ID))
 
 	resp := AcceptInvitationResponse{
 		AccountID: account.ID,
@@ -316,7 +319,9 @@ func (rs *Resource) resendInvitation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Printf("Invitation resend requested id=%d by account=%d", invitationID, claims.ID)
+	slog.Default().Info("invitation resend requested",
+		slog.Int64("invitation_id", invitationID),
+		slog.Int64("account_id", int64(claims.ID)))
 	common.Respond(w, r, http.StatusOK, map[string]string{"message": "Invitation resent"}, "Invitation resent successfully")
 }
 
@@ -343,7 +348,9 @@ func (rs *Resource) revokeInvitation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Printf("Invitation revoked id=%d by account=%d", invitationID, claims.ID)
+	slog.Default().Info("invitation revoked",
+		slog.Int64("invitation_id", invitationID),
+		slog.Int64("account_id", int64(claims.ID)))
 	common.RespondNoContent(w, r)
 }
 

@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"log/slog"
 	"testing"
 	"time"
 
@@ -44,7 +45,7 @@ func TestRefactoringPreservesRepositoryAccess(t *testing.T) {
 
 	// Create service config with validation
 	config, err := NewServiceConfig(
-		email.NewDispatcher(newCapturingMailer()),
+		email.NewDispatcher(newCapturingMailer(), slog.Default()),
 		newDefaultFromEmail(),
 		"http://localhost:3000",
 		30*time.Minute,
@@ -52,7 +53,7 @@ func TestRefactoringPreservesRepositoryAccess(t *testing.T) {
 	require.NoError(t, err, "NewServiceConfig should succeed with valid config")
 
 	// Create service with new factory-based signature
-	service, err := NewService(repos, config, bunDB)
+	service, err := NewService(repos, config, bunDB, slog.Default())
 	require.NoError(t, err, "NewService should succeed with factory pattern")
 	require.NotNil(t, service, "Service should not be nil")
 

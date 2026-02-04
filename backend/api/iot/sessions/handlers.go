@@ -2,7 +2,7 @@ package sessions
 
 import (
 	"errors"
-	"log"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"time"
@@ -35,8 +35,11 @@ func (rs *Resource) startActivitySession(w http.ResponseWriter, r *http.Request)
 	}
 
 	// Additional debug - check what we got after binding
-	log.Printf("AFTER BIND - ActivityID: %d, SupervisorIDs: %v (len=%d), Force: %v",
-		req.ActivityID, req.SupervisorIDs, len(req.SupervisorIDs), req.Force)
+	slog.Default().DebugContext(r.Context(), "session start request parsed",
+		slog.Int64("activity_id", req.ActivityID),
+		slog.Int("supervisor_count", len(req.SupervisorIDs)),
+		slog.Bool("force", req.Force),
+	)
 
 	// Start the activity session
 	activeGroup, err := rs.startSession(r.Context(), req, deviceCtx)
@@ -113,7 +116,10 @@ func (rs *Resource) getCurrentSession(w http.ResponseWriter, r *http.Request) {
 	// Update device last seen time (best-effort - don't fail request if this fails)
 	// This keeps the device marked as "online" while it's actively polling session/current
 	if err := rs.IoTService.PingDevice(r.Context(), deviceCtx.DeviceID); err != nil {
-		log.Printf("Warning: Failed to update device last seen for device %s: %v", deviceCtx.DeviceID, err)
+		slog.Default().WarnContext(r.Context(), "failed to update device last seen",
+			slog.String("device_id", deviceCtx.DeviceID),
+			slog.String("error", err.Error()),
+		)
 	}
 
 	// Get current session for this device
@@ -138,7 +144,10 @@ func (rs *Resource) getCurrentSession(w http.ResponseWriter, r *http.Request) {
 	// This allows devices polling this endpoint to prevent session timeout
 	if updateErr := rs.ActiveService.UpdateSessionActivity(r.Context(), currentSession.ID); updateErr != nil {
 		// Log but don't fail - the main purpose is to return session info
-		log.Printf("Warning: Failed to update session activity for session %d: %v", currentSession.ID, updateErr)
+		slog.Default().WarnContext(r.Context(), "failed to update session activity",
+			slog.Int64("session_id", currentSession.ID),
+			slog.String("error", updateErr.Error()),
+		)
 	}
 
 	// Session found - populate response
@@ -164,7 +173,10 @@ func (rs *Resource) getCurrentSession(w http.ResponseWriter, r *http.Request) {
 	activeVisits, err := rs.ActiveService.FindVisitsByActiveGroupID(r.Context(), currentSession.ID)
 	if err != nil {
 		// Log error but don't fail the request - student count is optional info
-		log.Printf("Warning: Failed to get active student count for session %d: %v", currentSession.ID, err)
+		slog.Default().WarnContext(r.Context(), "failed to get active student count",
+			slog.Int64("session_id", currentSession.ID),
+			slog.String("error", err.Error()),
+		)
 	} else {
 		activeCount := countActiveStudents(activeVisits)
 		response.ActiveStudents = &activeCount
@@ -173,7 +185,10 @@ func (rs *Resource) getCurrentSession(w http.ResponseWriter, r *http.Request) {
 	// Get supervisors for this session
 	supervisors, err := rs.ActiveService.FindSupervisorsByActiveGroupID(r.Context(), currentSession.ID)
 	if err != nil {
-		log.Printf("Warning: Failed to get supervisors for session %d: %v", currentSession.ID, err)
+		slog.Default().WarnContext(r.Context(), "failed to get supervisors",
+			slog.Int64("session_id", currentSession.ID),
+			slog.String("error", err.Error()),
+		)
 	} else if len(supervisors) > 0 {
 		response.Supervisors = rs.buildSupervisorInfos(r.Context(), supervisors)
 	}

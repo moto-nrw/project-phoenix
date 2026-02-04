@@ -2,7 +2,7 @@ package common
 
 import (
 	"errors"
-	"log"
+	"log/slog"
 	"net/http"
 
 	"github.com/go-chi/render"
@@ -13,7 +13,7 @@ import (
 // logging render failures, reducing code duplication across handlers.
 func RenderError(w http.ResponseWriter, r *http.Request, renderer render.Renderer) {
 	if err := render.Render(w, r, renderer); err != nil {
-		log.Printf(LogRenderError, err)
+		slog.Default().Error("error rendering error response", slog.String("error", err.Error()))
 	}
 }
 

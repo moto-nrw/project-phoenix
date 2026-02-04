@@ -6,7 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"mime/multipart"
 	"net/http"
 	"os"
@@ -432,21 +432,23 @@ func getFileExtension(filename, contentType string) string {
 // closeFile safely closes a file
 func closeFile(file io.Closer) {
 	if err := file.Close(); err != nil {
-		log.Printf(errCloseFileFmt, err)
+		slog.Default().Error("file close error", slog.String("error", err.Error()))
 	}
 }
 
 // closeFileHandle safely closes an os.File
 func closeFileHandle(f *os.File) {
 	if err := f.Close(); err != nil {
-		log.Printf(errCloseFileFmt, err)
+		slog.Default().Error("file close error", slog.String("error", err.Error()))
 	}
 }
 
 // removeFile attempts to remove a file, logging any error
 func removeFile(path string) {
 	if err := os.Remove(path); err != nil {
-		log.Printf("Error removing file: %v", err)
+		slog.Default().Error("failed to remove file",
+			slog.String("path", path),
+			slog.String("error", err.Error()))
 	}
 }
 
@@ -479,7 +481,9 @@ func (res *Resource) deleteAvatar(w http.ResponseWriter, r *http.Request) {
 		filePath := filepath.Join("public", avatarPath)
 		if err := os.Remove(filePath); err != nil {
 			// Log error but don't fail the request
-			log.Printf("Failed to delete avatar file: %v", err)
+			slog.Default().Warn("failed to delete avatar file",
+				slog.String("path", filePath),
+				slog.String("error", err.Error()))
 		}
 	}
 
@@ -571,7 +575,7 @@ func (res *Resource) serveAvatarFile(w http.ResponseWriter, r *http.Request, fil
 	}
 	defer func() {
 		if err := file.Close(); err != nil {
-			log.Printf(errCloseFileFmt, err)
+			slog.Default().Error("file close error", slog.String("error", err.Error()))
 		}
 	}()
 

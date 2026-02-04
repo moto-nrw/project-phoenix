@@ -4,7 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"log"
+	"log/slog"
 
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/base"
@@ -451,7 +451,9 @@ func (s *Service) GetGroupWithDetails(ctx context.Context, id int64) (*activitie
 	if group.Category == nil && group.CategoryID > 0 {
 		category, err := s.categoryRepo.FindByID(ctx, group.CategoryID)
 		if err != nil {
-			log.Printf("Warning: Failed to load category for group ID %d: %v", id, err)
+			slog.Default().WarnContext(ctx, "failed to load category for group",
+				slog.Int64("group_id", id),
+				slog.String("error", err.Error()))
 		} else {
 			group.Category = category
 		}
@@ -464,7 +466,9 @@ func (s *Service) GetGroupWithDetails(ctx context.Context, id int64) (*activitie
 	if supervisorErr != nil {
 		// Log the error but continue - we'll return an error at the end
 		// so the caller can decide whether to use the partial data
-		log.Printf("Warning: Failed to load supervisors for group ID %d: %v", id, supervisorErr)
+		slog.Default().WarnContext(ctx, "failed to load supervisors for group",
+			slog.Int64("group_id", id),
+			slog.String("error", supervisorErr.Error()))
 	}
 
 	// Get schedules
@@ -515,7 +519,8 @@ func (s *Service) CanModifyActivity(ctx context.Context, groupID int64, staffID 
 	// Check if user is a supervisor
 	supervisors, err := s.supervisorRepo.FindByGroupID(ctx, groupID)
 	if err != nil {
-		log.Printf("Warning: Failed to load supervisors for permission check: %v", err)
+		slog.Default().WarnContext(ctx, "failed to load supervisors for permission check",
+			slog.String("error", err.Error()))
 		// Continue without supervisor check if we can't load them
 	} else {
 		for _, supervisor := range supervisors {

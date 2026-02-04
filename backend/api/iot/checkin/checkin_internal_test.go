@@ -5,6 +5,7 @@ package checkin
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -735,7 +736,7 @@ func TestParseCheckinRequest_NilBody(t *testing.T) {
 	r := httptest.NewRequest("POST", "/checkin", nil)
 	r.Header.Set("Content-Type", "application/json")
 
-	result := parseCheckinRequest(w, r, "test-device")
+	result := parseCheckinRequest(r.Context(), w, r, slog.Default(), "test-device")
 
 	assert.Nil(t, result, "Should return nil for nil body")
 }

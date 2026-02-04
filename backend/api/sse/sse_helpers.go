@@ -31,6 +31,14 @@ type sseTopics struct {
 	allTopics      []string
 }
 
+// getLogger returns a nil-safe logger, falling back to slog.Default() if logger is nil
+func (conn *sseConnection) getLogger() *slog.Logger {
+	if conn.logger != nil {
+		return conn.logger
+	}
+	return slog.Default()
+}
+
 // connectedEvent is the initial event sent when SSE connection is established
 type connectedEvent struct {
 	Status                   string   `json:"status"`
@@ -59,7 +67,7 @@ func (rs *Resource) setupSSEConnection(w http.ResponseWriter) (*sseConnection, i
 	return &sseConnection{
 		writer:  w,
 		flusher: flusher,
-		logger:  rs.logger,
+		logger:  rs.getLogger(),
 	}, 0
 }
 
@@ -88,7 +96,7 @@ func (rs *Resource) buildSubscriptionTopics(ctx context.Context, staffID int64) 
 	// Get supervised active groups for this staff member
 	supervisions, err := rs.activeSvc.GetStaffActiveSupervisions(ctx, staffID)
 	if err != nil {
-		rs.logger.Error("failed to get staff active supervisions for SSE",
+		rs.getLogger().Error("failed to get staff active supervisions for SSE",
 			slog.String("error", err.Error()),
 			slog.Int64("staff_id", staffID),
 		)
@@ -122,7 +130,7 @@ func (rs *Resource) buildSubscriptionTopics(ctx context.Context, staffID int64) 
 	if rs.userCtx != nil {
 		eduGroups, err := rs.userCtx.GetMyGroups(ctx)
 		if err != nil {
-			rs.logger.Warn("failed to load educational groups for SSE subscription",
+			rs.getLogger().Warn("failed to load educational groups for SSE subscription",
 				slog.String("error", err.Error()),
 				slog.Int64("staff_id", staffID),
 			)
@@ -156,7 +164,7 @@ func (conn *sseConnection) sendConnectedEvent(topics *sseTopics) error {
 
 	data, err := json.Marshal(event)
 	if err != nil {
-		conn.logger.Error("failed to marshal initial SSE event",
+		conn.getLogger().Error("failed to marshal initial SSE event",
 			slog.String("error", err.Error()),
 			slog.Int64("staff_id", conn.staffID),
 		)
@@ -189,7 +197,7 @@ func (conn *sseConnection) sendHeartbeat() error {
 
 // runHeartbeatOnlyLoop runs the event loop when there are no topics to subscribe to
 func (conn *sseConnection) runHeartbeatOnlyLoop(ctx context.Context) {
-	conn.logger.Info("SSE connection - no available topics (heartbeat only)",
+	conn.getLogger().Info("SSE connection - no available topics (heartbeat only)",
 		slog.Int64("staff_id", conn.staffID),
 	)
 
@@ -247,7 +255,7 @@ func (rs *Resource) runEventLoop(ctx context.Context, conn *sseConnection) {
 func (conn *sseConnection) sendEvent(event realtime.Event) error {
 	eventData, err := json.Marshal(event)
 	if err != nil {
-		conn.logger.Error("failed to marshal SSE event",
+		conn.getLogger().Error("failed to marshal SSE event",
 			slog.String("error", err.Error()),
 			slog.Int64("staff_id", conn.staffID),
 			slog.String("event_type", string(event.Type)),

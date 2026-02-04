@@ -3,7 +3,7 @@ package active
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"time"
 
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
@@ -160,7 +160,9 @@ func calculateMergedDateRange(existing []*activeModels.StaffAbsence, dateStart, 
 func (s *staffAbsenceService) deleteRemainingAbsences(ctx context.Context, absences []*activeModels.StaffAbsence) {
 	for _, e := range absences {
 		if err := s.absenceRepo.Delete(ctx, e.ID); err != nil {
-			log.Printf("Warning: failed to delete merged absence %d: %v", e.ID, err)
+			slog.Default().WarnContext(ctx, "failed to delete merged absence",
+				slog.Int64("absence_id", e.ID),
+				slog.String("error", err.Error()))
 		}
 	}
 }
@@ -169,8 +171,11 @@ func (s *staffAbsenceService) deleteRemainingAbsences(ctx context.Context, absen
 func (s *staffAbsenceService) warnIfWorkSessionsExist(ctx context.Context, staffID int64, dateStart, dateEnd time.Time) {
 	sessions, err := s.workSessionRepo.GetHistoryByStaffID(ctx, staffID, dateStart, dateEnd)
 	if err == nil && len(sessions) > 0 {
-		log.Printf("Warning: %d work session(s) exist for staff %d in absence range %s to %s",
-			len(sessions), staffID, dateStart.Format(dateFormatISO), dateEnd.Format(dateFormatISO))
+		slog.Default().WarnContext(ctx, "work sessions exist in absence range",
+			slog.Int("session_count", len(sessions)),
+			slog.Int64("staff_id", staffID),
+			slog.String("date_start", dateStart.Format(dateFormatISO)),
+			slog.String("date_end", dateEnd.Format(dateFormatISO)))
 	}
 }
 

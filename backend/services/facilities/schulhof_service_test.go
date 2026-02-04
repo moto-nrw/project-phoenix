@@ -2,6 +2,7 @@ package facilities_test
 
 import (
 	"context"
+	"log/slog"
 	"testing"
 	"time"
 
@@ -91,6 +92,7 @@ func setupSchulhofService(t *testing.T, db *bun.DB) facilitiesSvc.SchulhofServic
 		activityService,
 		activeService,
 		db,
+		slog.Default(),
 	)
 }
 

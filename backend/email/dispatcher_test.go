@@ -3,6 +3,7 @@ package email
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"sync"
 	"testing"
 	"time"
@@ -131,7 +132,7 @@ func (ct *callbackTracker) getResults() []DeliveryResult {
 
 func TestNewDispatcher(t *testing.T) {
 	mailer := newMockMailer()
-	dispatcher := NewDispatcher(mailer)
+	dispatcher := NewDispatcher(mailer, slog.Default())
 
 	require.NotNil(t, dispatcher)
 	assert.Equal(t, 3, dispatcher.defaultRetry)
@@ -147,7 +148,7 @@ func TestNewDispatcher(t *testing.T) {
 
 func TestDispatcher_SetDefaults(t *testing.T) {
 	mailer := newMockMailer()
-	dispatcher := NewDispatcher(mailer)
+	dispatcher := NewDispatcher(mailer, slog.Default())
 
 	// Custom settings
 	customBackoff := []time.Duration{100 * time.Millisecond, 200 * time.Millisecond}
@@ -167,7 +168,7 @@ func TestDispatcher_SetDefaults_NilDispatcher(t *testing.T) {
 
 func TestDispatcher_SetDefaults_ZeroMaxAttempts(t *testing.T) {
 	mailer := newMockMailer()
-	dispatcher := NewDispatcher(mailer)
+	dispatcher := NewDispatcher(mailer, slog.Default())
 	originalRetry := dispatcher.defaultRetry
 
 	// Zero should not change the value
@@ -177,7 +178,7 @@ func TestDispatcher_SetDefaults_ZeroMaxAttempts(t *testing.T) {
 
 func TestDispatcher_SetDefaults_EmptyBackoff(t *testing.T) {
 	mailer := newMockMailer()
-	dispatcher := NewDispatcher(mailer)
+	dispatcher := NewDispatcher(mailer, slog.Default())
 	originalBackoff := dispatcher.defaultBackoff
 
 	// Empty slice should not change backoff
@@ -191,7 +192,7 @@ func TestDispatcher_SetDefaults_EmptyBackoff(t *testing.T) {
 
 func TestDispatcher_Dispatch_Success(t *testing.T) {
 	mailer := newMockMailer()
-	dispatcher := NewDispatcher(mailer)
+	dispatcher := NewDispatcher(mailer, slog.Default())
 	// Use short backoff for testing
 	dispatcher.SetDefaults(3, []time.Duration{1 * time.Millisecond, 2 * time.Millisecond})
 
@@ -232,7 +233,7 @@ func TestDispatcher_Dispatch_Success(t *testing.T) {
 }
 
 func TestDispatcher_Dispatch_NilMailer(t *testing.T) {
-	dispatcher := NewDispatcher(nil)
+	dispatcher := NewDispatcher(nil, slog.Default())
 
 	tracker := newCallbackTracker()
 
@@ -252,7 +253,7 @@ func TestDispatcher_Dispatch_NilMailer(t *testing.T) {
 
 func TestDispatcher_Dispatch_NoCallback(t *testing.T) {
 	mailer := newMockMailer()
-	dispatcher := NewDispatcher(mailer)
+	dispatcher := NewDispatcher(mailer, slog.Default())
 
 	msg := Message{
 		From:    Email{Name: "Test", Address: "test@example.com"},
@@ -284,7 +285,7 @@ func TestDispatcher_Dispatch_RetryOnFailure(t *testing.T) {
 	mailer.sendError = errors.New("SMTP error")
 	mailer.setFailCount(2) // Fail twice, then succeed
 
-	dispatcher := NewDispatcher(mailer)
+	dispatcher := NewDispatcher(mailer, slog.Default())
 	dispatcher.SetDefaults(3, []time.Duration{1 * time.Millisecond, 2 * time.Millisecond})
 
 	tracker := newCallbackTracker()
@@ -328,7 +329,7 @@ func TestDispatcher_Dispatch_AllRetriesFail(t *testing.T) {
 	mailer.sendError = errors.New("permanent SMTP error")
 	mailer.alwaysFail = true // Always fail, not just for failCount times
 
-	dispatcher := NewDispatcher(mailer)
+	dispatcher := NewDispatcher(mailer, slog.Default())
 	dispatcher.SetDefaults(3, []time.Duration{1 * time.Millisecond, 2 * time.Millisecond})
 
 	tracker := newCallbackTracker()
@@ -372,7 +373,7 @@ func TestDispatcher_Dispatch_CustomMaxAttempts(t *testing.T) {
 	mailer.sendError = errors.New("error")
 	mailer.alwaysFail = true // Always fail for this test
 
-	dispatcher := NewDispatcher(mailer)
+	dispatcher := NewDispatcher(mailer, slog.Default())
 	dispatcher.SetDefaults(3, []time.Duration{1 * time.Millisecond})
 
 	tracker := newCallbackTracker()
@@ -396,7 +397,7 @@ func TestDispatcher_Dispatch_CustomBackoff(t *testing.T) {
 	mailer := newMockMailer()
 	mailer.setFailCount(1)
 
-	dispatcher := NewDispatcher(mailer)
+	dispatcher := NewDispatcher(mailer, slog.Default())
 	dispatcher.SetDefaults(3, []time.Duration{1 * time.Millisecond})
 
 	tracker := newCallbackTracker()
@@ -429,7 +430,7 @@ func TestDispatcher_Dispatch_CustomBackoff(t *testing.T) {
 
 func TestDispatcher_Dispatch_MetadataPassedToCallback(t *testing.T) {
 	mailer := newMockMailer()
-	dispatcher := NewDispatcher(mailer)
+	dispatcher := NewDispatcher(mailer, slog.Default())
 
 	tracker := newCallbackTracker()
 
@@ -465,7 +466,7 @@ func TestDispatcher_Dispatch_MetadataPassedToCallback(t *testing.T) {
 
 func TestDispatcher_Dispatch_MessageCopied(t *testing.T) {
 	mailer := newMockMailer()
-	dispatcher := NewDispatcher(mailer)
+	dispatcher := NewDispatcher(mailer, slog.Default())
 
 	tracker := newCallbackTracker()
 
@@ -547,7 +548,7 @@ func TestDeliveryStatus_Values(t *testing.T) {
 
 func TestDeliveryResult_SentAt(t *testing.T) {
 	mailer := newMockMailer()
-	dispatcher := NewDispatcher(mailer)
+	dispatcher := NewDispatcher(mailer, slog.Default())
 
 	tracker := newCallbackTracker()
 
@@ -578,7 +579,7 @@ func TestDeliveryResult_SentAt(t *testing.T) {
 
 func TestDispatcher_Dispatch_Concurrent(t *testing.T) {
 	mailer := newMockMailer()
-	dispatcher := NewDispatcher(mailer)
+	dispatcher := NewDispatcher(mailer, slog.Default())
 
 	tracker := newCallbackTracker()
 
@@ -624,7 +625,7 @@ func TestDispatcher_Dispatch_Concurrent(t *testing.T) {
 
 func TestDispatcher_Dispatch_ContextPassedToCallback(t *testing.T) {
 	mailer := newMockMailer()
-	dispatcher := NewDispatcher(mailer)
+	dispatcher := NewDispatcher(mailer, slog.Default())
 
 	type contextKey string
 	const testKey contextKey = "test-key"

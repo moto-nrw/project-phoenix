@@ -2,6 +2,7 @@ package auth
 
 import (
 	"errors"
+	"log/slog"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
@@ -69,6 +70,7 @@ type Service struct {
 	jwtRefreshExpiry    time.Duration
 	txHandler           *base.TxHandler
 	db                  *bun.DB
+	logger              *slog.Logger
 }
 
 // NewService creates a new auth service with reduced parameter count
@@ -77,6 +79,7 @@ func NewService(
 	repos *repositories.Factory,
 	config *ServiceConfig,
 	db *bun.DB,
+	logger *slog.Logger,
 ) (*Service, error) {
 	if repos == nil {
 		return nil, &AuthError{Op: opCreateService, Err: errors.New("repos factory is nil")}
@@ -104,7 +107,16 @@ func NewService(
 		jwtRefreshExpiry:    tokenAuth.JwtRefreshExpiry,
 		txHandler:           base.NewTxHandler(db),
 		db:                  db,
+		logger:              logger,
 	}, nil
+}
+
+// getLogger returns the service's logger, falling back to slog.Default() if nil.
+func (s *Service) getLogger() *slog.Logger {
+	if s.logger != nil {
+		return s.logger
+	}
+	return slog.Default()
 }
 
 // WithTx returns a new service instance with transaction-aware repositories
@@ -121,5 +133,6 @@ func (s *Service) WithTx(tx bun.Tx) interface{} {
 		jwtRefreshExpiry:    s.jwtRefreshExpiry,
 		txHandler:           s.txHandler.WithTx(tx),
 		db:                  s.db,
+		logger:              s.logger,
 	}
 }

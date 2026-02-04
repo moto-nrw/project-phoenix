@@ -20,6 +20,14 @@ type Hub struct {
 	logger       *slog.Logger
 }
 
+// getLogger returns a nil-safe logger, falling back to slog.Default() if logger is nil
+func (h *Hub) getLogger() *slog.Logger {
+	if h.logger != nil {
+		return h.logger
+	}
+	return slog.Default()
+}
+
 // NewHub creates a new SSE hub
 func NewHub(logger *slog.Logger) *Hub {
 	return &Hub{
@@ -42,7 +50,7 @@ func (h *Hub) Register(client *Client, activeGroupIDs []string) {
 		client.SubscribedGroups[groupID] = true
 	}
 
-	h.logger.Info("SSE client connected",
+	h.getLogger().Info("SSE client connected",
 		slog.Int64("user_id", client.UserID),
 		slog.Any("subscribed_groups", activeGroupIDs),
 		slog.Int("total_clients", len(h.clients)),
@@ -79,7 +87,7 @@ func (h *Hub) Unregister(client *Client) {
 
 	close(client.Channel)
 
-	h.logger.Info("SSE client disconnected",
+	h.getLogger().Info("SSE client disconnected",
 		slog.Int64("user_id", client.UserID),
 		slog.Int("total_clients", len(h.clients)),
 	)
@@ -94,7 +102,7 @@ func (h *Hub) BroadcastToGroup(activeGroupID string, event Event) error {
 	clients := h.groupClients[activeGroupID]
 	if len(clients) == 0 {
 		// No subscribers for this group - not an error
-		h.logger.Debug("no SSE subscribers for group",
+		h.getLogger().Debug("no SSE subscribers for group",
 			slog.String("active_group_id", activeGroupID),
 			slog.String("event_type", string(event.Type)),
 		)
@@ -109,7 +117,7 @@ func (h *Hub) BroadcastToGroup(activeGroupID string, event Event) error {
 			successCount++
 		default:
 			// Client's channel is full - skip this client
-			h.logger.Warn("SSE client channel full, skipping event",
+			h.getLogger().Warn("SSE client channel full, skipping event",
 				slog.Int64("user_id", client.UserID),
 				slog.String("active_group_id", activeGroupID),
 				slog.String("event_type", string(event.Type)),
@@ -117,7 +125,7 @@ func (h *Hub) BroadcastToGroup(activeGroupID string, event Event) error {
 		}
 	}
 
-	h.logger.Debug("SSE event broadcast",
+	h.getLogger().Debug("SSE event broadcast",
 		slog.String("active_group_id", activeGroupID),
 		slog.String("event_type", string(event.Type)),
 		slog.Int("recipient_count", len(clients)),

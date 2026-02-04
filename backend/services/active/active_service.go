@@ -28,10 +28,6 @@ type Broadcaster = realtime.Broadcaster
 const (
 	// sseErrorMessage is the standard error message for SSE broadcast failures
 	sseErrorMessage = "SSE broadcast failed"
-	// supervisorAssignmentWarning is the format string for supervisor assignment failures
-	supervisorAssignmentWarning = "Warning: Failed to assign supervisor %d to session %d: %v\n"
-	// visitTransferMessage is the format string for visit transfer logging
-	visitTransferMessage = "Transferred %d active visits to new session %d\n"
 )
 
 // RoomConflictStrategy defines how to handle room conflicts when determining room ID
@@ -119,6 +115,14 @@ type service struct {
 
 	// Structured logger (nil-safe)
 	logger *slog.Logger
+}
+
+// getLogger returns a nil-safe logger, falling back to slog.Default() if logger is nil
+func (s *service) getLogger() *slog.Logger {
+	if s.logger != nil {
+		return s.logger
+	}
+	return slog.Default()
 }
 
 // NewService creates a new active service instance
@@ -687,7 +691,7 @@ func (s *service) broadcastToEducationalGroup(student *userModels.Student, event
 		if event.Data.StudentID != nil {
 			studentID = *event.Data.StudentID
 		}
-		s.logger.Error(sseErrorMessage+" for educational topic",
+		s.getLogger().Error(sseErrorMessage+" for educational topic",
 			slog.String("error", err.Error()),
 			slog.String("event_type", string(event.Type)),
 			slog.String("education_group_topic", groupID),
@@ -753,7 +757,7 @@ func (s *service) broadcastWithLogging(activeGroupID, studentID string, event re
 		if studentID != "" {
 			attrs = append(attrs, slog.String("student_id", studentID))
 		}
-		s.logger.LogAttrs(context.Background(), slog.LevelError, sseErrorMessage, attrs...)
+		s.getLogger().LogAttrs(context.Background(), slog.LevelError, sseErrorMessage, attrs...)
 	}
 }
 

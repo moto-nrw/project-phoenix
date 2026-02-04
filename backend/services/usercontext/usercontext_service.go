@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"log"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -62,6 +61,14 @@ type userContextService struct {
 	db                 *bun.DB
 	txHandler          *base.TxHandler
 	logger             *slog.Logger
+}
+
+// getLogger returns a nil-safe logger, falling back to slog.Default() if logger is nil
+func (s *userContextService) getLogger() *slog.Logger {
+	if s.logger != nil {
+		return s.logger
+	}
+	return slog.Default()
 }
 
 // NewUserContextServiceWithRepos creates a new user context service using a repositories struct
@@ -352,7 +359,7 @@ func (s *userContextService) resolveSubstitutionGroup(ctx context.Context, sub *
 
 // recordSubstitutionFailure records a failure to load a substitution group
 func (s *userContextService) recordSubstitutionFailure(partialErr *PartialError, groupID int64, err error) *PartialError {
-	s.logger.Warn("failed to load group for substitution",
+	s.getLogger().Warn("failed to load group for substitution",
 		slog.Int64("group_id", groupID),
 		slog.String("error", err.Error()),
 	)
@@ -375,7 +382,7 @@ func (s *userContextService) handlePartialError(groups []*education.Group, parti
 		return groups, nil
 	}
 
-	s.logger.Warn("partial failure in GetMyGroups",
+	s.getLogger().Warn("partial failure in GetMyGroups",
 		slog.Int("success_count", partialErr.SuccessCount),
 		slog.Int("failure_count", partialErr.FailureCount),
 		slog.Any("failed_ids", partialErr.FailedIDs),
@@ -514,7 +521,10 @@ func (s *userContextService) GetMySupervisedGroups(ctx context.Context) ([]*acti
 		// Check if supervision itself is still active (not ended)
 		if !supervision.IsActive() {
 			// Log for observability; helps diagnose silent filters of ended supervisions
-			log.Printf("Skipping ended supervision: supervision_id=%d group_id=%d staff_id=%d", supervision.ID, supervision.GroupID, staff.ID)
+			s.getLogger().DebugContext(ctx, "skipping ended supervision",
+				slog.Int64("supervision_id", supervision.ID),
+				slog.Int64("group_id", supervision.GroupID),
+				slog.Int64("staff_id", staff.ID))
 			continue // Skip ended supervisions
 		}
 		groupIDs = append(groupIDs, supervision.GroupID)
@@ -885,7 +895,7 @@ func (s *userContextService) UpdateAvatar(ctx context.Context, avatarURL string)
 		return nil, &UserContextError{Op: "update avatar", Err: err}
 	}
 
-	cleanupOldAvatar(oldAvatarPath)
+	s.cleanupOldAvatar(ctx, oldAvatarPath)
 
 	return s.GetCurrentProfile(ctx)
 }
@@ -926,12 +936,14 @@ func getOldAvatarPath(currentAvatar string) string {
 }
 
 // cleanupOldAvatar deletes old avatar file if path is provided
-func cleanupOldAvatar(oldAvatarPath string) {
+func (s *userContextService) cleanupOldAvatar(ctx context.Context, oldAvatarPath string) {
 	if oldAvatarPath == "" {
 		return
 	}
 
 	if err := os.Remove(oldAvatarPath); err != nil {
-		log.Printf("Failed to delete old avatar file: %v", err)
+		s.getLogger().WarnContext(ctx, "failed to delete old avatar file",
+			slog.String("path", oldAvatarPath),
+			slog.String("error", err.Error()))
 	}
 }

@@ -2,7 +2,6 @@ package api
 
 import (
 	"context"
-	"log"
 	"log/slog"
 	"net/http"
 	"os"
@@ -22,7 +21,7 @@ type Server struct {
 
 // NewServer creates and configures a new API server
 func NewServer(logger *slog.Logger) (*Server, error) {
-	log.Println("Initializing API server...")
+	slog.Info("Initializing API server")
 
 	api, err := New(viper.GetBool("enable_cors"), logger)
 	if err != nil {
@@ -55,7 +54,7 @@ func NewServer(logger *slog.Logger) (*Server, error) {
 	// Initialize scheduler if cleanup is enabled
 	// Note: Session cleanup is now handled by the scheduler's scheduleSessionCleanupTask()
 	if api.Services != nil && api.Services.ActiveCleanup != nil && api.Services.Active != nil {
-		srv.scheduler = scheduler.NewScheduler(api.Services.Active, api.Services.ActiveCleanup, api.Services.Auth, api.Services.Invitation)
+		srv.scheduler = scheduler.NewScheduler(api.Services.Active, api.Services.ActiveCleanup, api.Services.Auth, api.Services.Invitation, logger.With("service", "scheduler"))
 		if api.Services.WorkSession != nil {
 			srv.scheduler.SetWorkSessionCleaner(api.Services.WorkSession)
 			srv.scheduler.SetBreakAutoEnder(api.Services.WorkSession)
@@ -74,9 +73,10 @@ func (srv *Server) Start() {
 
 	// Start server in a goroutine so that it doesn't block
 	go func() {
-		log.Printf("Server listening on %s\n", srv.Addr)
+		slog.Info("Server listening", slog.String("addr", srv.Addr))
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("Server error: %v", err)
+			slog.Error("Server error", slog.String("error", err.Error()))
+			os.Exit(1)
 		}
 	}()
 
@@ -86,7 +86,7 @@ func (srv *Server) Start() {
 
 	// Block until we receive a signal
 	sig := <-quit
-	log.Printf("Server shutting down due to %s signal", sig)
+	slog.Info("Server shutting down", slog.String("signal", sig.String()))
 
 	// Stop scheduler if it's running (includes session cleanup task)
 	if srv.scheduler != nil {
@@ -99,8 +99,9 @@ func (srv *Server) Start() {
 
 	// Attempt graceful shutdown
 	if err := srv.Shutdown(ctx); err != nil {
-		log.Fatalf("Server forced to shutdown: %v", err)
+		slog.Error("Server forced to shutdown", slog.String("error", err.Error()))
+		os.Exit(1)
 	}
 
-	log.Println("Server gracefully stopped")
+	slog.Info("Server gracefully stopped")
 }

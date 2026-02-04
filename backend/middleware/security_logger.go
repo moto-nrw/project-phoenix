@@ -1,10 +1,8 @@
 package middleware
 
 import (
-	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
-	"os"
 	"time"
 )
 
@@ -19,14 +17,20 @@ const (
 
 // SecurityLogger provides structured security event logging
 type SecurityLogger struct {
-	logger *log.Logger
+	logger *slog.Logger
+}
+
+// getLogger returns a nil-safe logger, falling back to slog.Default() if logger is nil
+func (sl *SecurityLogger) getLogger() *slog.Logger {
+	if sl.logger != nil {
+		return sl.logger
+	}
+	return slog.Default()
 }
 
 // NewSecurityLogger creates a new security logger
 func NewSecurityLogger() *SecurityLogger {
-	// In production, this could write to a separate security log file
-	logger := log.New(os.Stdout, "[SECURITY] ", log.LstdFlags|log.Lshortfile)
-	return &SecurityLogger{logger: logger}
+	return &SecurityLogger{logger: slog.Default().With("component", "security")}
 }
 
 // LogEvent logs a security event with context
@@ -34,15 +38,18 @@ func (sl *SecurityLogger) LogEvent(eventType string, r *http.Request, details ma
 	ip := GetClientIP(r)
 	userAgent := r.Header.Get("User-Agent")
 
-	logEntry := fmt.Sprintf("event=%s ip=%s method=%s path=%s ua=%q",
-		eventType, ip, r.Method, r.URL.Path, userAgent)
-
-	// Add additional details
+	attrs := []any{
+		"event", eventType,
+		"ip", ip,
+		"method", r.Method,
+		"path", r.URL.Path,
+		"user_agent", userAgent,
+	}
 	for k, v := range details {
-		logEntry += fmt.Sprintf(" %s=%v", k, v)
+		attrs = append(attrs, k, v)
 	}
 
-	sl.logger.Println(logEntry)
+	sl.getLogger().Info("security event", attrs...)
 }
 
 // LogRateLimitExceeded logs rate limit violations

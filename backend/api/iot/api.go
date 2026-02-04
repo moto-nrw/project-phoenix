@@ -1,6 +1,7 @@
 package iot
 
 import (
+	"log/slog"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -42,6 +43,7 @@ type ServiceDependencies struct {
 	FacilityService   facilitiesSvc.Service
 	EducationService  educationSvc.Service
 	FeedbackService   feedbackSvc.Service
+	Logger            *slog.Logger
 }
 
 // Resource defines the IoT API resource
@@ -54,6 +56,7 @@ type Resource struct {
 	FacilityService   facilitiesSvc.Service
 	EducationService  educationSvc.Service
 	FeedbackService   feedbackSvc.Service
+	logger            *slog.Logger
 }
 
 // NewResource creates a new IoT resource
@@ -67,7 +70,16 @@ func NewResource(deps ServiceDependencies) *Resource {
 		FacilityService:   deps.FacilityService,
 		EducationService:  deps.EducationService,
 		FeedbackService:   deps.FeedbackService,
+		logger:            deps.Logger,
 	}
+}
+
+// getLogger returns the resource's logger, falling back to slog.Default() if nil.
+func (rs *Resource) getLogger() *slog.Logger {
+	if rs.logger != nil {
+		return rs.logger
+	}
+	return slog.Default()
 }
 
 // Router returns a configured router for IoT endpoints
@@ -116,6 +128,7 @@ func (rs *Resource) Router() chi.Router {
 			rs.FacilityService,
 			rs.ActivitiesService,
 			rs.EducationService,
+			rs.getLogger().With(slog.String("sub", "checkin")),
 		)
 		// Register routes directly instead of mounting at "/" to avoid Chi conflict
 		checkinHandler := delegateHandler(checkinResource.Router())

@@ -1,7 +1,7 @@
 package checkin
 
 import (
-	"log"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -36,7 +36,10 @@ func (rs *Resource) devicePing(w http.ResponseWriter, r *http.Request) {
 	if session, err := rs.ActiveService.GetDeviceCurrentSession(r.Context(), deviceCtx.ID); err == nil && session != nil {
 		sessionActive = true // Session exists - set immediately regardless of update success
 		if err := rs.ActiveService.UpdateSessionActivity(r.Context(), session.ID); err != nil {
-			log.Printf("Warning: Failed to update session activity for session %d during ping: %v", session.ID, err)
+			rs.getLogger().WarnContext(r.Context(), "failed to update session activity during ping",
+				slog.Int64("session_id", session.ID),
+				slog.String("error", err.Error()),
+			)
 		}
 	}
 
@@ -94,14 +97,21 @@ func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 	if deviceCtx == nil {
 		return
 	}
-	log.Printf("[CHECKIN] Starting process - Device: %s (ID: %d)", deviceCtx.DeviceID, deviceCtx.ID)
+	rs.getLogger().DebugContext(ctx, "starting checkin process",
+		slog.String("device_id", deviceCtx.DeviceID),
+		slog.Int64("device_db_id", deviceCtx.ID),
+	)
 
 	// Step 2: Parse and validate request
-	req := parseCheckinRequest(w, r, deviceCtx.DeviceID)
+	req := parseCheckinRequest(ctx, w, r, rs.getLogger(), deviceCtx.DeviceID)
 	if req == nil {
 		return
 	}
-	log.Printf("[CHECKIN] Request details: action='%s', student_rfid='%s', room_id=%v", req.Action, req.StudentRFID, req.RoomID)
+	rs.getLogger().DebugContext(ctx, "checkin request details",
+		slog.String("action", req.Action),
+		slog.String("student_rfid", req.StudentRFID),
+		slog.Any("room_id", req.RoomID),
+	)
 
 	// Step 3: Lookup person by RFID
 	person := rs.lookupPersonByRFID(ctx, w, r, req.StudentRFID)
@@ -116,7 +126,10 @@ func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 		rs.handleStaffScan(w, r, deviceCtx, person)
 		return
 	}
-	log.Printf("[CHECKIN] Found student: ID %d, Class: %s", student.ID, student.SchoolClass)
+	rs.getLogger().InfoContext(ctx, "found student",
+		slog.Int64("student_id", student.ID),
+		slog.String("class", student.SchoolClass),
+	)
 	student.Person = person
 
 	// Step 5: Load current visit with room information
@@ -143,7 +156,9 @@ func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 	// Step 7: Determine if checkin should be skipped (same room scenario)
 	skipCheckin := shouldSkipCheckin(req.RoomID, checkedOut, currentVisit)
 	if skipCheckin {
-		log.Printf("[CHECKIN] Student checked out from room %d, same as checkin room - skipping re-checkin", *req.RoomID)
+		rs.getLogger().DebugContext(ctx, "skipping re-checkin to same room",
+			slog.Int64("room_id", *req.RoomID),
+		)
 	}
 
 	// Step 8: Process checkin if room_id provided and not skipping
@@ -172,7 +187,9 @@ func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 	})
 	if result.Action == "" {
 		// No action occurred - shouldn't happen but handle gracefully
-		log.Printf("[CHECKIN] WARNING: No action determined for student %d", student.ID)
+		rs.getLogger().WarnContext(ctx, "no action determined for student",
+			slog.Int64("student_id", student.ID),
+		)
 		result.Action = "no_action"
 		result.GreetingMsg = "Keine Aktion durchgeführt"
 	}
@@ -199,8 +216,13 @@ func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 
 	// Step 12: Build and send response
 	response := buildCheckinResponse(student, result, now)
-	log.Printf("[CHECKIN] Final response: action='%s', student='%s %s', message='%s', visit_id=%v, room='%s'",
-		result.Action, person.FirstName, person.LastName, result.GreetingMsg, result.VisitID, result.RoomName)
+	rs.getLogger().InfoContext(ctx, "checkin complete",
+		slog.String("action", result.Action),
+		slog.Int64("student_id", student.ID),
+		slog.String("message", result.GreetingMsg),
+		slog.Any("visit_id", result.VisitID),
+		slog.String("room", result.RoomName),
+	)
 
 	sendCheckinResponse(w, r, response, result.Action)
 }

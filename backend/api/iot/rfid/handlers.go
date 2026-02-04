@@ -2,7 +2,7 @@ package rfid
 
 import (
 	"errors"
-	"log"
+	"log/slog"
 	"net/http"
 
 	"github.com/go-chi/render"
@@ -71,8 +71,12 @@ func (rs *Resource) assignStaffRFIDTag(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Log assignment for audit trail
-	log.Printf("RFID tag assignment: device=%s, staff=%d, tag=%s, previous_tag=%v",
-		deviceCtx.DeviceID, staffID, req.RFIDTag, previousTag)
+	slog.Default().InfoContext(r.Context(), "RFID tag assigned to staff",
+		slog.String("device_id", deviceCtx.DeviceID),
+		slog.Int64("staff_id", staffID),
+		slog.String("tag", req.RFIDTag),
+		slog.Any("previous_tag", previousTag),
+	)
 
 	common.Respond(w, r, http.StatusOK, response, response.Message)
 }
@@ -127,8 +131,11 @@ func (rs *Resource) unassignStaffRFIDTag(w http.ResponseWriter, r *http.Request)
 	}
 
 	// Log unassignment for audit trail
-	log.Printf("RFID tag unassignment: device=%s, staff=%d, tag=%s",
-		deviceCtx.DeviceID, staffID, removedTag)
+	slog.Default().InfoContext(r.Context(), "RFID tag unassigned from staff",
+		slog.String("device_id", deviceCtx.DeviceID),
+		slog.Int64("staff_id", staffID),
+		slog.String("tag", removedTag),
+	)
 
 	common.Respond(w, r, http.StatusOK, response, response.Message)
 }

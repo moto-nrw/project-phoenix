@@ -2,7 +2,7 @@ package auth
 
 import (
 	"context"
-	"log"
+	"log/slog"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/audit"
@@ -40,7 +40,8 @@ func (s *Service) CleanupExpiredRateLimits(ctx context.Context) (int, error) {
 		return 0, &AuthError{Op: "cleanup password reset rate limits", Err: err}
 	}
 
-	log.Printf("Password reset rate limit cleanup removed %d records", count)
+	s.getLogger().Info("password reset rate limit cleanup completed",
+		slog.Int("records_deleted", count))
 	return count, nil
 }
 
@@ -83,7 +84,7 @@ func (s *Service) logAuthEvent(ctx context.Context, accountID int64, eventType s
 
 		if err := s.repos.AuthEvent.Create(logCtx, event); err != nil {
 			// Log the error but don't fail the auth operation
-			log.Printf("Failed to log auth event: %v", err)
+			s.getLogger().Error("failed to log auth event", "error", err)
 		}
 	}()
 }
