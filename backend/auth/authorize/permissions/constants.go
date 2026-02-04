@@ -146,6 +146,13 @@ const (
 	VisitsManage = "visits:manage"
 )
 
+// Time Tracking permissions
+const (
+	ResourceTimeTracking = "time_tracking"
+
+	TimeTrackingOwn = ResourceTimeTracking + ":own" // Read + write own sessions
+)
+
 // Grade Transition permissions (admin only)
 const (
 	GradeTransitionsRead   = "grade_transitions:read"

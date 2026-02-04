@@ -306,6 +306,19 @@ export function createProxyGetHandler<T>(backendEndpoint: string) {
 }
 
 /**
+ * Creates a proxy GET handler that forwards query params and unwraps response.data
+ * Use for backend endpoints that return { status, data, message } wrappers
+ * @param backendEndpoint The backend API endpoint (e.g., "/api/time-tracking/history")
+ */
+export function createProxyGetDataHandler<T>(backendEndpoint: string) {
+  return createGetHandler<T>(async (request: NextRequest, token: string) => {
+    const endpoint = `${backendEndpoint}${buildQueryString(request)}`;
+    const response = await apiGet<{ data: T }>(endpoint, token);
+    return response.data;
+  });
+}
+
+/**
  * Creates a proxy GET handler for routes with [id] parameter
  * @param backendEndpoint The backend API endpoint (e.g., "/api/active/groups")
  */

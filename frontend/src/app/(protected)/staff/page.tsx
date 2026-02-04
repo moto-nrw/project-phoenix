@@ -12,7 +12,7 @@ import {
   getStaffCardInfo,
   formatStaffNotes,
   sortStaff,
-  getStaffSupervisionBadges,
+  getStaffLocationStatus,
 } from "~/lib/staff-helpers";
 import { useSWRAuth } from "~/lib/swr";
 
@@ -61,21 +61,40 @@ function StaffPageContent() {
   const staff = staffData ?? [];
   const error = staffError ? "Fehler beim Laden der Personaldaten." : null;
 
+  // Known non-room locations for the "Im Raum" filter
+  const nonRoomLocations = new Set([
+    "Zuhause",
+    "Anwesend",
+    "Schulhof",
+    "Unterwegs",
+    "Homeoffice",
+    "Krank",
+    "Urlaub",
+    "Fortbildung",
+    "Abwesend",
+  ]);
+
+  // All absence location labels for the unified "Abwesend" filter
+  const absenceLocations = new Set([
+    "Krank",
+    "Urlaub",
+    "Fortbildung",
+    "Abwesend",
+  ]);
+
   // Helper to check if location matches filter
   const matchesLocationFilter = (location: string, filter: string): boolean => {
     if (filter === "all") return true;
-    if (filter === "zuhause") return location === "Zuhause";
+    // "abwesend_nicht_eingecheckt" - not clocked in (Zuhause or Abwesend)
+    if (filter === "abwesend_nicht_eingecheckt")
+      return location === "Zuhause" || location === "Abwesend";
     if (filter === "anwesend") return location === "Anwesend";
-    if (filter === "schulhof") return location === "Schulhof";
-    if (filter === "unterwegs") return location === "Unterwegs";
+    if (filter === "homeoffice") return location === "Homeoffice";
+    // "abwesend" - all absence types (Krank, Urlaub, Fortbildung)
+    if (filter === "abwesend") return absenceLocations.has(location);
     if (filter === "im_raum") {
-      // Staff actively supervising in a room (not Zuhause, Anwesend, Schulhof, or Unterwegs)
-      return (
-        location !== "Zuhause" &&
-        location !== "Anwesend" &&
-        location !== "Schulhof" &&
-        location !== "Unterwegs"
-      );
+      // Staff actively supervising in a room
+      return !nonRoomLocations.has(location);
     }
     return true;
   };
@@ -94,7 +113,7 @@ function StaffPageContent() {
     }
 
     // Location filter
-    const location = staffMember.currentLocation ?? "Zuhause";
+    const location = staffMember.currentLocation ?? "Abwesend";
     return matchesLocationFilter(location, locationFilter);
   });
 
@@ -103,21 +122,21 @@ function StaffPageContent() {
     () => [
       {
         id: "location",
-        label: "Aufenthaltsort",
+        label: "Status",
         type: "grid",
         value: locationFilter,
         onChange: (value) => setLocationFilter(value as string),
         options: [
-          { value: "all", label: "Alle Orte", icon: "M4 6h16M4 12h16M4 18h16" },
-          {
-            value: "zuhause",
-            label: "Zuhause",
-            icon: "M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6",
-          },
+          { value: "all", label: "Alle", icon: "M4 6h16M4 12h16M4 18h16" },
           {
             value: "anwesend",
             label: "Anwesend",
             icon: "M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z",
+          },
+          {
+            value: "abwesend_nicht_eingecheckt",
+            label: "Abwesend",
+            icon: "M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6",
           },
           {
             value: "im_raum",
@@ -125,14 +144,14 @@ function StaffPageContent() {
             icon: "M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4",
           },
           {
-            value: "schulhof",
-            label: "Schulhof",
-            icon: "M21 12a9 9 0 11-18 0 9 9 0 0118 0zM12 12a8 8 0 008 4M7.5 13.5a12 12 0 008.5 6.5M12 12a8 8 0 00-7.464 4.928M12.951 7.353a12 12 0 00-9.88 4.111M12 12a8 8 0 00-.536-8.928M15.549 15.147a12 12 0 001.38-10.611",
+            value: "homeoffice",
+            label: "Homeoffice",
+            icon: "M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z",
           },
           {
-            value: "unterwegs",
-            label: "Unterwegs",
-            icon: "M13 10V3L4 14h7v7l9-11h-7z",
+            value: "abwesend",
+            label: "Krank/Urlaub",
+            icon: "M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636",
           },
         ],
       },
@@ -154,11 +173,11 @@ function StaffPageContent() {
 
     if (locationFilter !== "all") {
       const locationLabels: Record<string, string> = {
-        zuhause: "Zuhause",
         anwesend: "Anwesend",
+        abwesend_nicht_eingecheckt: "Abwesend",
         im_raum: "Im Raum",
-        schulhof: "Schulhof",
-        unterwegs: "Unterwegs",
+        homeoffice: "Homeoffice",
+        abwesend: "Krank/Urlaub",
       };
       filters.push({
         id: "location",
@@ -248,12 +267,11 @@ function StaffPageContent() {
         <div>
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3">
             {filteredStaff.map((staffMember) => {
-              const supervisionBadges = getStaffSupervisionBadges(staffMember);
+              const locationStatus = getStaffLocationStatus(staffMember);
               const displayType = getStaffDisplayType(staffMember);
               const cardInfo = getStaffCardInfo(staffMember);
               const notes = formatStaffNotes(staffMember.staffNotes, 80);
-              // Use first badge's gradient for card background
-              const primaryBadge = supervisionBadges[0];
+              const supervisions = staffMember.supervisions ?? [];
 
               return (
                 <div
@@ -262,7 +280,7 @@ function StaffPageContent() {
                 >
                   {/* Modern gradient overlay */}
                   <div
-                    className={`absolute inset-0 bg-gradient-to-br ${primaryBadge?.locationStatus.cardGradient ?? "from-gray-50/80 to-gray-100/80"} rounded-3xl opacity-[0.03]`}
+                    className={`absolute inset-0 bg-gradient-to-br ${locationStatus.cardGradient} rounded-3xl opacity-[0.03]`}
                   ></div>
                   {/* Subtle inner glow */}
                   <div className="absolute inset-px rounded-3xl bg-gradient-to-br from-white/80 to-white/20"></div>
@@ -270,7 +288,7 @@ function StaffPageContent() {
                   <div className="absolute inset-0 rounded-3xl ring-1 ring-white/20"></div>
 
                   <div className="relative p-6">
-                    {/* Header with staff name */}
+                    {/* Header with staff name and status badge */}
                     <div className="mb-2 flex items-start justify-between">
                       {/* Staff Name */}
                       <div className="min-w-0 flex-1">
@@ -286,37 +304,32 @@ function StaffPageContent() {
                         </p>
                       </div>
 
-                      {/* Single Badge - show beside name */}
-                      {supervisionBadges.length === 1 && (
-                        <span
-                          className={`ml-3 inline-flex items-center rounded-full px-3 py-1.5 text-xs font-bold ${supervisionBadges[0]?.locationStatus.badgeColor}`}
-                          style={{
-                            backgroundColor: supervisionBadges[0]?.locationStatus.customBgColor,
-                            boxShadow: supervisionBadges[0]?.locationStatus.customShadow,
-                          }}
-                        >
-                          <span className="mr-2 h-1.5 w-1.5 animate-pulse rounded-full bg-white/80"></span>
-                          {supervisionBadges[0]?.label}
-                        </span>
-                      )}
+                      {/* Single Status Badge */}
+                      <span
+                        className={`ml-3 inline-flex items-center rounded-full px-3 py-1.5 text-xs font-bold ${locationStatus.badgeColor}`}
+                        style={{
+                          backgroundColor: locationStatus.customBgColor,
+                          boxShadow: locationStatus.customShadow,
+                        }}
+                      >
+                        <span className="mr-2 h-1.5 w-1.5 animate-pulse rounded-full bg-white/80"></span>
+                        {locationStatus.label}
+                      </span>
                     </div>
 
-                    {/* Multiple Badges - show below name */}
-                    {supervisionBadges.length > 1 && (
-                      <div className="mb-2 flex flex-wrap gap-1.5">
-                        {supervisionBadges.map((badge) => (
-                          <span
-                            key={badge.key}
-                            className={`inline-flex items-center rounded-full px-3 py-1.5 text-xs font-bold ${badge.locationStatus.badgeColor}`}
-                            style={{
-                              backgroundColor: badge.locationStatus.customBgColor,
-                              boxShadow: badge.locationStatus.customShadow,
-                            }}
-                          >
-                            <span className="mr-2 h-1.5 w-1.5 animate-pulse rounded-full bg-white/80"></span>
-                            {badge.label}
-                          </span>
-                        ))}
+                    {/* Supervision info as text (if supervising) */}
+                    {supervisions.length > 0 && (
+                      <div className="mb-2 text-sm text-gray-600">
+                        <span className="font-medium">Aktuelle Aufsicht:</span>
+                        <ul className="mt-0.5 list-inside">
+                          {supervisions.map((supervision) => (
+                            <li
+                              key={`${supervision.roomId}-${supervision.activeGroupId}`}
+                            >
+                              • {supervision.roomName}
+                            </li>
+                          ))}
+                        </ul>
                       </div>
                     )}
 

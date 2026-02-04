@@ -612,7 +612,9 @@ export default function TeachersPage() {
           }}
           teacher={selectedTeacher}
           onUpdate={() => {
-            void mutate("database-teachers-list");
+            mutate("database-teachers-list").catch(() => {
+              // Ignore revalidation errors
+            });
           }}
         />
       )}
@@ -627,7 +629,9 @@ export default function TeachersPage() {
           }}
           teacher={selectedTeacher}
           onUpdate={() => {
-            void mutate("database-teachers-list");
+            mutate("database-teachers-list").catch(() => {
+              // Ignore revalidation errors
+            });
           }}
         />
       )}

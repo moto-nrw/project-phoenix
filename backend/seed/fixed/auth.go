@@ -13,15 +13,15 @@ import (
 
 // seedRolesAndPermissions creates the basic roles and permissions
 func (s *Seeder) seedRolesAndPermissions(ctx context.Context) error {
-	// Define roles
+	// Define roles (must match migration 1.9.4 role structure)
 	roleData := []struct {
 		name        string
 		description string
 	}{
 		{"admin", "Full system administrator"},
-		{"teacher", "Teacher with group management capabilities"},
-		{"staff", "General staff member"},
+		{"user", "Standard user with group and activity access"},
 		{"guardian", "Parent or guardian with limited access"},
+		{"guest", "Limited guest access"},
 	}
 
 	// Create roles
@@ -169,20 +169,17 @@ func (s *Seeder) seedRolesAndPermissions(ctx context.Context) error {
 	rolePermissions := map[string][]string{
 		"admin": allPermissions, // Admin gets everything
 
-		"teacher": {
-			// Users - read and update students in their groups
+		"user": {
+			// Users - read, update, and list (consolidated from teacher/staff)
+			permissions.UsersCreate,
 			permissions.UsersRead,
 			permissions.UsersUpdate,
 			permissions.UsersList,
 
-			// Groups - full management of their groups
-			permissions.GroupsCreate,
+			// Groups - read, update, and list
 			permissions.GroupsRead,
 			permissions.GroupsUpdate,
-			permissions.GroupsDelete,
 			permissions.GroupsList,
-			permissions.GroupsManage,
-			permissions.GroupsAssign,
 
 			// Activities - full management
 			permissions.ActivitiesCreate,
@@ -194,65 +191,35 @@ func (s *Seeder) seedRolesAndPermissions(ctx context.Context) error {
 			permissions.ActivitiesEnroll,
 			permissions.ActivitiesAssign,
 
-			// Visits - full management for their groups
+			// Visits - full management
 			permissions.VisitsCreate,
 			permissions.VisitsRead,
 			permissions.VisitsUpdate,
 			permissions.VisitsDelete,
 			permissions.VisitsList,
 
-			// Rooms - read access
-			permissions.RoomsRead,
-			permissions.RoomsList,
-
-			// Substitutions - full management of their own
-			permissions.SubstitutionsCreate,
-			permissions.SubstitutionsRead,
-			permissions.SubstitutionsUpdate,
-			permissions.SubstitutionsDelete,
-			permissions.SubstitutionsList,
-			permissions.SubstitutionsManage,
-
-			// Schedules - read access
-			permissions.SchedulesRead,
-			permissions.SchedulesList,
-
-			// Feedback - read access
-			permissions.FeedbackRead,
-			permissions.FeedbackList,
-		},
-
-		"staff": {
-			// Users - read only
-			permissions.UsersRead,
-			permissions.UsersList,
-
-			// Groups - read only
-			permissions.GroupsRead,
-			permissions.GroupsList,
-
-			// Activities - read only
-			permissions.ActivitiesRead,
-			permissions.ActivitiesList,
-
-			// Visits - full management (staff handles check-ins/outs)
-			permissions.VisitsCreate,
-			permissions.VisitsRead,
-			permissions.VisitsUpdate,
-			permissions.VisitsDelete,
-			permissions.VisitsList,
-
-			// Rooms - read only
+			// Rooms - read and list
 			permissions.RoomsRead,
 			permissions.RoomsList,
 
 			// Substitutions - read only
 			permissions.SubstitutionsRead,
-			permissions.SubstitutionsList,
 
-			// Schedules - read only
+			// Schedules - read and list
 			permissions.SchedulesRead,
 			permissions.SchedulesList,
+
+			// Feedback - read and list
+			permissions.FeedbackRead,
+			permissions.FeedbackList,
+		},
+
+		"guest": {
+			// Minimal read-only access
+			permissions.GroupsRead,
+			permissions.GroupsList,
+			permissions.RoomsRead,
+			permissions.RoomsList,
 		},
 
 		"guardian": {

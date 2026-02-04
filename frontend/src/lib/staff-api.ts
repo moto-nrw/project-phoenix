@@ -18,6 +18,8 @@ export interface BackendStaffResponse {
   staff_id?: string;
   teacher_id?: string;
   was_present_today?: boolean;
+  work_status?: string;
+  absence_type?: string;
 }
 
 export interface ActiveSupervisionResponse {
@@ -65,6 +67,9 @@ export interface Staff {
   supervisionRole?: string;
   supervisions: StaffSupervision[]; // Array of active supervisions
   wasPresentToday?: boolean;
+  // Time-tracking
+  workStatus?: string;
+  absenceType?: string;
 }
 
 export interface StaffFilters {
@@ -166,7 +171,11 @@ function buildStaffGroupsMap(
       if (supervisor.staff_id !== undefined) {
         const staffIdStr = supervisor.staff_id.toString();
         map[staffIdStr] ??= [];
-        map[staffIdStr].push({ group, role: supervisor.role, groupId: group.id });
+        map[staffIdStr].push({
+          group,
+          role: supervisor.role,
+          groupId: group.id,
+        });
       }
     }
   }
@@ -174,66 +183,86 @@ function buildStaffGroupsMap(
   return map;
 }
 
+/** Absence type label mapping */
+const absenceLabels: Record<string, string> = {
+  sick: "Krank",
+  vacation: "Urlaub",
+  training: "Fortbildung",
+  other: "Abwesend", // Shows red, same as "not clocked in"
+};
+
 /**
- * Determines location and supervision info for a staff member
- * @param staffId - Staff ID to look up
- * @param staffGroupsMap - Map of staff IDs to their supervised groups
- * @param wasPresentToday - Whether the staff had supervision activity today
+ * Determines location and supervision info for a staff member.
+ *
+ * Badge shows time clock status. Absence only shown when NOT clocked in.
+ * Supervisions are returned separately as an array of rooms.
+ *
+ * Priority for currentLocation (badge):
+ * 1. Time clock present → "Anwesend" (green)
+ * 2. Time clock home_office → "Homeoffice" (blue)
+ * 3. Not clocked in + absence → "Krank"/"Urlaub"/"Fortbildung" (gray), "other" → "Abwesend" (red)
+ * 4. Legacy fallback (no work_status) → "Anwesend"
+ * 5. Not clocked in, no absence → "Abwesend" (red)
  */
 function getSupervisionInfo(
   staffId: string | undefined,
   staffGroupsMap: Record<string, SupervisedGroupEntryWithId[]>,
   wasPresentToday?: boolean,
+  workStatus?: string,
+  absenceType?: string,
 ): {
   isSupervising: boolean;
   currentLocation: string;
   supervisionRole?: string;
   supervisions: StaffSupervision[];
 } {
-  if (!staffId) {
-    return {
-      isSupervising: false,
-      currentLocation: wasPresentToday ? "Anwesend" : "Zuhause",
-      supervisions: [],
-    };
-  }
-
-  const supervisedGroups = staffGroupsMap[staffId];
-  if (!supervisedGroups) {
-    // Not currently supervising - check if they were present today
-    return {
-      isSupervising: false,
-      currentLocation: wasPresentToday ? "Anwesend" : "Zuhause",
-      supervisions: [],
-    };
-  }
-
-  const supervisedRooms: string[] = [];
+  // Build supervisions array (independent of time clock status)
+  const supervisedGroups = staffId ? staffGroupsMap[staffId] : undefined;
   const supervisions: StaffSupervision[] = [];
   let supervisionRole: string | undefined;
+  let isSupervising = false;
 
-  for (const { group, role, groupId } of supervisedGroups) {
-    if (group.room) {
-      supervisedRooms.push(group.room.name);
-      supervisions.push({
-        roomId: group.room.id.toString(),
-        roomName: group.room.name,
-        activeGroupId: groupId?.toString() ?? "",
-      });
+  if (supervisedGroups) {
+    isSupervising = true;
+    for (const { group, role, groupId } of supervisedGroups) {
+      if (group.room) {
+        supervisions.push({
+          roomId: group.room.id.toString(),
+          roomName: group.room.name,
+          activeGroupId: groupId?.toString() ?? "",
+        });
+      }
+      supervisionRole ??= role;
     }
-    supervisionRole ??= role;
   }
 
+  // Determine badge location (time clock status only)
   let currentLocation: string;
-  if (supervisedRooms.length > 1) {
-    currentLocation = `${supervisedRooms.length} Räume`;
-  } else if (supervisedRooms.length === 1) {
-    currentLocation = supervisedRooms[0] ?? "Unterwegs";
-  } else {
-    currentLocation = "Unterwegs";
+
+  // Priority 1: Time clock present → always wins
+  if (workStatus === "present") {
+    currentLocation = "Anwesend";
+  }
+  // Priority 2: Time clock home office → always wins
+  else if (workStatus === "home_office") {
+    currentLocation = "Homeoffice";
+  }
+  // Priority 3: Not clocked in - check for absence reason
+  // (checked_out, no work_status, or legacy fallback)
+  else if (absenceType && absenceLabels[absenceType]) {
+    // Absence provides more detail on WHY they're absent
+    currentLocation = absenceLabels[absenceType];
+  }
+  // Priority 4: Legacy fallback (only if NO work_status and NO absence)
+  else if (wasPresentToday && !workStatus) {
+    currentLocation = "Anwesend";
+  }
+  // Priority 5: Not present (checked out or never clocked in, no absence)
+  else {
+    currentLocation = "Abwesend";
   }
 
-  return { isSupervising: true, currentLocation, supervisionRole, supervisions };
+  return { isSupervising, currentLocation, supervisionRole, supervisions };
 }
 
 /**
@@ -244,7 +273,13 @@ function mapStaffMember(
   staffGroupsMap: Record<string, SupervisedGroupEntryWithId[]>,
 ): Staff {
   const { isSupervising, currentLocation, supervisionRole, supervisions } =
-    getSupervisionInfo(staff.staff_id, staffGroupsMap, staff.was_present_today);
+    getSupervisionInfo(
+      staff.staff_id,
+      staffGroupsMap,
+      staff.was_present_today,
+      staff.work_status,
+      staff.absence_type,
+    );
 
   return {
     id: staff.id,
@@ -263,6 +298,8 @@ function mapStaffMember(
     supervisionRole,
     supervisions,
     wasPresentToday: staff.was_present_today,
+    workStatus: staff.work_status,
+    absenceType: staff.absence_type,
   };
 }
 

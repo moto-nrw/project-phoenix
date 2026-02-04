@@ -707,11 +707,15 @@ function MeinRaumPageContent() {
         setSelectedRoomIndex(-1);
         // Load Schulhof visits if supervising
         if (schulhofStatus.isUserSupervising && schulhofStatus.activeGroupId) {
-          void loadRoomVisits(
+          loadRoomVisits(
             schulhofStatus.activeGroupId,
             SCHULHOF_ROOM_NAME,
             groupNameToIdMapRef.current,
-          ).then(setStudents);
+          )
+            .then(setStudents)
+            .catch(() => {
+              // Error already handled in loadRoomVisits
+            });
         } else {
           setStudents([]);
         }
@@ -728,7 +732,9 @@ function MeinRaumPageContent() {
       }
       const targetIndex = allRooms.findIndex((r) => r.room_id === roomParam);
       if (targetIndex !== -1 && targetIndex !== selectedRoomIndex) {
-        void switchToRoom(targetIndex);
+        switchToRoom(targetIndex).catch(() => {
+          // Error already handled in switchToRoom
+        });
       }
     } else {
       // No ?room= param (e.g. after login or browser back) — restore from
@@ -744,11 +750,15 @@ function MeinRaumPageContent() {
             schulhofStatus.isUserSupervising &&
             schulhofStatus.activeGroupId
           ) {
-            void loadRoomVisits(
+            loadRoomVisits(
               schulhofStatus.activeGroupId,
               SCHULHOF_ROOM_NAME,
               groupNameToIdMapRef.current,
-            ).then(setStudents);
+            )
+              .then(setStudents)
+              .catch(() => {
+                // Error already handled in loadRoomVisits
+              });
           } else {
             setStudents([]);
           }
@@ -760,7 +770,9 @@ function MeinRaumPageContent() {
         ? allRooms.findIndex((r) => r.room_id === savedRoomId)
         : -1;
       if (savedIndex !== -1 && savedIndex !== selectedRoomIndex) {
-        void switchToRoom(savedIndex);
+        switchToRoom(savedIndex).catch(() => {
+          // Error already handled in switchToRoom
+        });
       } else if (savedIndex === -1) {
         // Nothing saved or saved room no longer exists — persist first room
         const firstRoom = allRooms[0];
@@ -1237,11 +1249,15 @@ function MeinRaumPageContent() {
                       currentSchulhofStatus?.isUserSupervising &&
                       currentSchulhofStatus?.activeGroupId
                     ) {
-                      void loadRoomVisits(
+                      loadRoomVisits(
                         currentSchulhofStatus.activeGroupId,
                         SCHULHOF_ROOM_NAME,
                         groupNameToIdMapRef.current,
-                      ).then(setStudents);
+                      )
+                        .then(setStudents)
+                        .catch(() => {
+                          // Error already handled in loadRoomVisits
+                        });
                     } else {
                       setStudents([]);
                     }
@@ -1264,7 +1280,9 @@ function MeinRaumPageContent() {
                           roomName,
                         );
                       }
-                      void switchToRoom(index);
+                      switchToRoom(index).catch(() => {
+                        // Error already handled in switchToRoom
+                      });
                     }
                   }
                 },
