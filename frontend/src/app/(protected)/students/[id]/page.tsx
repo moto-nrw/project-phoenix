@@ -371,7 +371,7 @@ export default function StudentDetailPage() {
         onClose={() => setShowConfirmCheckout(false)}
         onConfirm={handleConfirmCheckout}
         title="Kind abmelden"
-        confirmText={checkingOut ? "Wird abgemeldet..." : "Abmelden"}
+        confirmText={checkingOut ? "Wird abgemeldet..." : "Geht nach Hause"}
         cancelText="Abbrechen"
         isConfirmLoading={checkingOut}
         confirmButtonClass="bg-gray-900 hover:bg-gray-700"
