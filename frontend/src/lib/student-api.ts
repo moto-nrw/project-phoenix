@@ -1,5 +1,5 @@
 // lib/student-api.ts
-import { getCachedSession } from "./session-cache";
+import { getCachedSession, sessionFetch } from "./session-cache";
 import { env } from "~/env";
 import api from "./api";
 import {
@@ -321,14 +321,9 @@ export async function fetchStudentPrivacyConsent(
 
   try {
     if (useProxy) {
-      const session = await getCachedSession();
-      // Cannot use authFetch here due to special 404 handling
-      const response = await fetch(url, {
+      const response = await sessionFetch(url, {
         method: "GET",
         credentials: "include",
-        headers: session?.user?.token
-          ? { Authorization: `Bearer ${session.user.token}` }
-          : undefined,
       });
 
       if (!response.ok) {

@@ -1,6 +1,6 @@
 // Staff API service for fetching all staff members and their supervision status
 
-import { getCachedSession } from "./session-cache";
+import { sessionFetch } from "./session-cache";
 
 // Backend response types (already mapped by the API route handler)
 export interface BackendStaffResponse {
@@ -325,27 +325,11 @@ function applyStaffFilters(staff: Staff[], filters?: StaffFilters): Staff[] {
 }
 
 /**
- * Builds fetch options with authorization header
- */
-function buildFetchOptions(token: string): RequestInit {
-  return {
-    credentials: "include",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
-  };
-}
-
-/**
  * Fetches active groups data, returning empty array on failure
  */
-async function fetchActiveGroups(token: string): Promise<ActiveGroupWithId[]> {
+async function fetchActiveGroups(): Promise<ActiveGroupWithId[]> {
   try {
-    const response = await fetch(
-      "/api/active/groups?active=true",
-      buildFetchOptions(token),
-    );
+    const response = await sessionFetch("/api/active/groups?active=true");
     if (!response.ok) return [];
     const data = (await response.json()) as unknown;
     return extractActiveGroups(data);
@@ -358,13 +342,6 @@ async function fetchActiveGroups(token: string): Promise<ActiveGroupWithId[]> {
 class StaffService {
   // Get all staff members with their current supervision status
   async getAllStaff(filters?: StaffFilters): Promise<Staff[]> {
-    const session = await getCachedSession();
-    const token = session?.user?.token;
-
-    if (!token) {
-      throw new Error("No authentication token available");
-    }
-
     // Build staff URL with search filter
     const staffUrl = filters?.search
       ? `/api/staff?search=${encodeURIComponent(filters.search)}`
@@ -372,8 +349,8 @@ class StaffService {
 
     // Fetch staff and active groups in parallel
     const [staffResponse, activeGroups] = await Promise.all([
-      fetch(staffUrl, buildFetchOptions(token)),
-      fetchActiveGroups(token),
+      sessionFetch(staffUrl),
+      fetchActiveGroups(),
     ]);
 
     if (!staffResponse.ok) {
@@ -398,22 +375,8 @@ class StaffService {
     staffId: string,
   ): Promise<ActiveSupervisionResponse[]> {
     try {
-      const session = await getCachedSession();
-      const token = session?.user?.token;
-
-      if (!token) {
-        throw new Error("No authentication token available");
-      }
-
-      const response = await fetch(
+      const response = await sessionFetch(
         `/api/active/supervisors/staff/${staffId}/active`,
-        {
-          credentials: "include",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-        },
       );
 
       if (!response.ok) {

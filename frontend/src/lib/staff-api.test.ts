@@ -5,9 +5,28 @@ import { suppressConsole } from "~/test/helpers/console";
 import { mockSessionData } from "~/test/mocks/next-auth";
 
 // Mock session-cache before importing the module
-vi.mock("./session-cache", () => ({
-  getCachedSession: vi.fn(),
-}));
+vi.mock("./session-cache", () => {
+  const getCachedSession = vi.fn();
+  return {
+    getCachedSession,
+    clearSessionCache: vi.fn(),
+    sessionFetch: vi.fn(async (url: string, init?: RequestInit) => {
+      const session = (await getCachedSession()) as {
+        user?: { token?: string };
+      } | null;
+      const token = session?.user?.token;
+      if (!token) throw new Error("No authentication token available");
+      return fetch(url, {
+        ...init,
+        headers: {
+          "Content-Type": "application/json",
+          ...(init?.headers as Record<string, string> | undefined),
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
+    }),
+  };
+});
 
 // Import after mocks are set up
 import { getCachedSession } from "./session-cache";

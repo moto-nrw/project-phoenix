@@ -12,9 +12,28 @@ import type {
 import { buildBackendGroup } from "~/test/fixtures";
 
 // Mock dependencies
-vi.mock("./session-cache", () => ({
-  getCachedSession: vi.fn(),
-}));
+vi.mock("./session-cache", () => {
+  const getCachedSession = vi.fn();
+  return {
+    getCachedSession,
+    clearSessionCache: vi.fn(),
+    sessionFetch: vi.fn(async (url: string, init?: RequestInit) => {
+      const session = (await getCachedSession()) as {
+        user?: { token?: string };
+      } | null;
+      const token = session?.user?.token;
+      if (!token) throw new Error("No authentication token available");
+      return fetch(url, {
+        ...init,
+        headers: {
+          "Content-Type": "application/json",
+          ...(init?.headers as Record<string, string> | undefined),
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
+    }),
+  };
+});
 
 // Import after mocks
 import { getCachedSession } from "./session-cache";
@@ -214,23 +233,11 @@ describe("SubstitutionService", () => {
       );
     });
 
-    it("handles fetch without token", async () => {
+    it("throws error when no token is available", async () => {
       mockGetSession.mockResolvedValueOnce(null);
 
-      const mockFetch = vi.fn().mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ data: [] }),
-      });
-      global.fetch = mockFetch;
-
-      await substitutionService.fetchSubstitutions();
-
-      expect(mockFetch).toHaveBeenCalledWith(
-        "/api/substitutions",
-        expect.objectContaining({
-          credentials: "include",
-          headers: undefined,
-        }),
+      await expect(substitutionService.fetchSubstitutions()).rejects.toThrow(
+        "No authentication token available",
       );
     });
   });
@@ -590,31 +597,18 @@ describe("SubstitutionService", () => {
       );
     });
 
-    it("handles request without token", async () => {
+    it("throws error when no token is available", async () => {
       mockGetSession.mockResolvedValueOnce(null);
 
-      const mockFetch = vi.fn().mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ data: sampleBackendSubstitution }),
-      });
-      global.fetch = mockFetch;
-
-      await substitutionService.createSubstitution(
-        "5",
-        "10",
-        "11",
-        new Date("2024-01-15"),
-        new Date("2024-01-20"),
-      );
-
-      expect(mockFetch).toHaveBeenCalledWith(
-        "/api/substitutions",
-        expect.objectContaining({
-          headers: {
-            "Content-Type": "application/json",
-          },
-        }),
-      );
+      await expect(
+        substitutionService.createSubstitution(
+          "5",
+          "10",
+          "11",
+          new Date("2024-01-15"),
+          new Date("2024-01-20"),
+        ),
+      ).rejects.toThrow("No authentication token available");
     });
   });
 
@@ -749,43 +743,21 @@ describe("SubstitutionService", () => {
       consoleErrorSpy.mockRestore();
     });
 
-    it("handles getSession returning null", async () => {
+    it("throws error when getSession returns null", async () => {
       mockGetSession.mockResolvedValueOnce(null);
 
-      const mockFetch = vi.fn().mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ data: [] }),
-      });
-      global.fetch = mockFetch;
-
-      await substitutionService.fetchSubstitutions();
-
-      expect(mockFetch).toHaveBeenCalledWith(
-        "/api/substitutions",
-        expect.objectContaining({
-          headers: undefined,
-        }),
+      await expect(substitutionService.fetchSubstitutions()).rejects.toThrow(
+        "No authentication token available",
       );
     });
 
-    it("handles session without user object", async () => {
+    it("throws error when session has no user object", async () => {
       mockGetSession.mockResolvedValueOnce({
         expires: "2099-01-01",
       } as never);
 
-      const mockFetch = vi.fn().mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ data: [] }),
-      });
-      global.fetch = mockFetch;
-
-      await substitutionService.fetchSubstitutions();
-
-      expect(mockFetch).toHaveBeenCalledWith(
-        "/api/substitutions",
-        expect.objectContaining({
-          headers: undefined,
-        }),
+      await expect(substitutionService.fetchSubstitutions()).rejects.toThrow(
+        "No authentication token available",
       );
     });
   });

@@ -1,4 +1,8 @@
-import { getCachedSession } from "./session-cache";
+import {
+  sessionFetch,
+  getCachedSession,
+  clearSessionCache,
+} from "./session-cache";
 import {
   mapProfileResponse,
   mapProfileUpdateRequest,
@@ -7,37 +11,24 @@ import {
   type BackendProfile,
 } from "./profile-helpers";
 
+interface ProfileApiResult {
+  success: boolean;
+  message: string;
+  data: BackendProfile;
+}
+
 /**
  * Fetch the current user's profile
  */
 export async function fetchProfile(): Promise<Profile> {
-  const session = await getCachedSession();
-  const token = session?.user?.token;
-
-  if (!token) {
-    throw new Error("No authentication token available");
-  }
-
-  const url = `/api/me/profile`;
-
   try {
-    const response = await fetch(url, {
-      method: "GET",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-    });
+    const response = await sessionFetch(`/api/me/profile`, { method: "GET" });
 
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
 
-    const result = (await response.json()) as {
-      success: boolean;
-      message: string;
-      data: BackendProfile;
-    };
+    const result = (await response.json()) as ProfileApiResult;
 
     if (!result.success) {
       throw new Error(result.message || "Failed to fetch profile");
@@ -45,6 +36,12 @@ export async function fetchProfile(): Promise<Profile> {
 
     return mapProfileResponse(result.data);
   } catch (error) {
+    if (
+      error instanceof Error &&
+      error.message === "No authentication token available"
+    ) {
+      throw error;
+    }
     console.error("Error fetching profile:", error);
     throw new Error("Failed to fetch profile");
   }
@@ -56,23 +53,10 @@ export async function fetchProfile(): Promise<Profile> {
 export async function updateProfile(
   data: ProfileUpdateRequest,
 ): Promise<Profile> {
-  const session = await getCachedSession();
-  const token = session?.user?.token;
-
-  if (!token) {
-    throw new Error("No authentication token available");
-  }
-
-  const url = `/api/me/profile`;
-
   try {
     const payload = mapProfileUpdateRequest(data);
-    const response = await fetch(url, {
+    const response = await sessionFetch(`/api/me/profile`, {
       method: "PUT",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
       body: JSON.stringify(payload),
     });
 
@@ -80,11 +64,7 @@ export async function updateProfile(
       throw new Error(`HTTP error! status: ${response.status}`);
     }
 
-    const result = (await response.json()) as {
-      success: boolean;
-      message: string;
-      data: BackendProfile;
-    };
+    const result = (await response.json()) as ProfileApiResult;
 
     if (!result.success) {
       throw new Error(result.message || "Failed to update profile");
@@ -92,6 +72,12 @@ export async function updateProfile(
 
     return mapProfileResponse(result.data);
   } catch (error) {
+    if (
+      error instanceof Error &&
+      error.message === "No authentication token available"
+    ) {
+      throw error;
+    }
     console.error("Error updating profile:", error);
     throw new Error("Failed to update profile");
   }
@@ -99,6 +85,7 @@ export async function updateProfile(
 
 /**
  * Upload a new avatar image
+ * Note: Uses raw fetch because FormData requires browser-set Content-Type
  */
 export async function uploadAvatar(file: File): Promise<Profile> {
   const session = await getCachedSession();
@@ -110,17 +97,34 @@ export async function uploadAvatar(file: File): Promise<Profile> {
 
   const url = `/api/me/profile/avatar`;
 
-  try {
+  const doUpload = async (authToken: string) => {
     const formData = new FormData();
     formData.append("avatar", file);
-
-    const response = await fetch(url, {
+    return fetch(url, {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
+      headers: { Authorization: `Bearer ${authToken}` },
       body: formData,
     });
+  };
+
+  try {
+    let response = await doUpload(token);
+
+    if (response.status === 401) {
+      clearSessionCache();
+      const { handleAuthFailure } = await import("./auth-api");
+      const refreshed = await handleAuthFailure();
+      if (refreshed) {
+        const freshSession = await getCachedSession();
+        const freshToken = freshSession?.user?.token;
+        if (freshToken) {
+          response = await doUpload(freshToken);
+        }
+      }
+      if (response.status === 401) {
+        throw new Error("Authentication expired");
+      }
+    }
 
     if (!response.ok) {
       const errorData = (await response.json().catch(() => ({}))) as {
@@ -131,11 +135,7 @@ export async function uploadAvatar(file: File): Promise<Profile> {
       );
     }
 
-    const result = (await response.json()) as {
-      success: boolean;
-      message: string;
-      data: BackendProfile;
-    };
+    const result = (await response.json()) as ProfileApiResult;
 
     if (!result.success) {
       throw new Error(result.message || "Failed to upload avatar");
@@ -154,33 +154,16 @@ export async function uploadAvatar(file: File): Promise<Profile> {
  * Delete the user's avatar
  */
 export async function deleteAvatar(): Promise<Profile> {
-  const session = await getCachedSession();
-  const token = session?.user?.token;
-
-  if (!token) {
-    throw new Error("No authentication token available");
-  }
-
-  const url = `/api/me/profile/avatar`;
-
   try {
-    const response = await fetch(url, {
+    const response = await sessionFetch(`/api/me/profile/avatar`, {
       method: "DELETE",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
     });
 
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
 
-    const result = (await response.json()) as {
-      success: boolean;
-      message: string;
-      data: BackendProfile;
-    };
+    const result = (await response.json()) as ProfileApiResult;
 
     if (!result.success) {
       throw new Error(result.message || "Failed to delete avatar");
@@ -188,6 +171,12 @@ export async function deleteAvatar(): Promise<Profile> {
 
     return mapProfileResponse(result.data);
   } catch (error) {
+    if (
+      error instanceof Error &&
+      error.message === "No authentication token available"
+    ) {
+      throw error;
+    }
     console.error("Error deleting avatar:", error);
     throw new Error("Failed to delete avatar");
   }
