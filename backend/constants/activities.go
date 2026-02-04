@@ -27,7 +27,4 @@ const (
 
 	// SchulhofMaxParticipants is the default max participants for the Schulhof activity.
 	SchulhofMaxParticipants = 100
-
-	// SchulhofLogPrefix is the prefix used for all Schulhof-related log messages.
-	SchulhofLogPrefix = "[SCHULHOF]"
 )

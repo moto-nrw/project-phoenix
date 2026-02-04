@@ -3,6 +3,7 @@ package cmd
 import (
 	"bytes"
 	"log"
+	"log/slog"
 	"os"
 	"strings"
 	"testing"
@@ -41,7 +42,7 @@ func setupTestCleanupContext(t *testing.T) *cleanupContext {
 func setupTestCleanupContextWithServices(t *testing.T) *cleanupContext {
 	db := testpkg.SetupTestDB(t)
 	repoFactory := repositories.NewFactory(db)
-	serviceFactory, err := services.NewFactory(repoFactory, db)
+	serviceFactory, err := services.NewFactory(repoFactory, db, slog.Default())
 	require.NoError(t, err, "Failed to create service factory")
 	cleanupSvc := active.NewCleanupService(
 		repoFactory.ActiveVisit,

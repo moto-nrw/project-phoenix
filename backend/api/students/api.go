@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -26,14 +26,11 @@ import (
 	userService "github.com/moto-nrw/project-phoenix/services/users"
 )
 
-// Use shared constant from common package
-var errRenderingErrorResponse = common.LogRenderError
-
 // renderError writes an error response to the HTTP response writer
 // Logs rendering errors but doesn't propagate them (already in error state)
 func renderError(w http.ResponseWriter, r *http.Request, errorResponse render.Renderer) {
 	if err := render.Render(w, r, errorResponse); err != nil {
-		log.Printf(errRenderingErrorResponse, err)
+		slog.Default().Error("error rendering error response", slog.String("error", err.Error()))
 	}
 }
 
@@ -252,7 +249,7 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 		groupIDs,
 	)
 	if err != nil {
-		log.Printf("Failed to load student data snapshot: %v", err)
+		slog.Default().Error("failed to load student data snapshot", slog.String("error", err.Error()))
 		renderError(w, r, ErrorInternalServer(err))
 		return
 	}
@@ -511,7 +508,9 @@ func (rs *Resource) createStudent(w http.ResponseWriter, r *http.Request) {
 // cleanupPersonAfterStudentFailure removes the person record if student creation fails
 func (rs *Resource) cleanupPersonAfterStudentFailure(ctx context.Context, personID int64) {
 	if err := rs.PersonService.Delete(ctx, personID); err != nil {
-		log.Printf("Error cleaning up person after failed student creation: %v", err)
+		slog.Default().Error("failed to cleanup person after failed student creation",
+			slog.Int64("person_id", personID),
+			slog.String("error", err.Error()))
 	}
 }
 
@@ -753,7 +752,9 @@ func (rs *Resource) deleteStudent(w http.ResponseWriter, r *http.Request) {
 	// Then delete the associated person record
 	if err := rs.PersonService.Delete(r.Context(), student.PersonID); err != nil {
 		// Log the error but don't fail the request since student is already deleted
-		log.Printf("Error deleting associated person record: %v", err)
+		slog.Default().Error("failed to delete associated person record",
+			slog.Int64("person_id", student.PersonID),
+			slog.String("error", err.Error()))
 	}
 
 	common.Respond(w, r, http.StatusOK, nil, "Student deleted successfully")

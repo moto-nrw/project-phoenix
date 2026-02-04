@@ -3,6 +3,7 @@ package schedule_test
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"testing"
 	"time"
 
@@ -25,7 +26,7 @@ func strPtr(s string) *string {
 // setupPickupScheduleService creates a PickupScheduleService with real database connection
 func setupPickupScheduleService(t *testing.T, db *bun.DB) schedule.PickupScheduleService {
 	repoFactory := repositories.NewFactory(db)
-	serviceFactory, err := services.NewFactory(repoFactory, db)
+	serviceFactory, err := services.NewFactory(repoFactory, db, slog.Default())
 	require.NoError(t, err, "Failed to create service factory")
 	return serviceFactory.PickupSchedule
 }

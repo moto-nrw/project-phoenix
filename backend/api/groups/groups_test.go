@@ -7,6 +7,7 @@ package groups_test
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"testing"
 	"time"
@@ -42,7 +43,7 @@ func setupTestContext(t *testing.T) *testContext {
 	db := testpkg.SetupTestDB(t)
 
 	repoFactory := repositories.NewFactory(db)
-	svc, err := services.NewFactory(repoFactory, db)
+	svc, err := services.NewFactory(repoFactory, db, slog.Default())
 	require.NoError(t, err, "Failed to create service factory")
 
 	// Groups resource requires multiple services and repositories

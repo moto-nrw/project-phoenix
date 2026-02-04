@@ -1,6 +1,7 @@
 package checkin
 
 import (
+	"log/slog"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -21,6 +22,15 @@ type Resource struct {
 	FacilityService   facilitiesSvc.Service
 	ActivitiesService activitiesSvc.ActivityService
 	EducationService  educationSvc.Service
+	logger            *slog.Logger
+}
+
+// getLogger returns a nil-safe logger, falling back to slog.Default() if logger is nil
+func (rs *Resource) getLogger() *slog.Logger {
+	if rs.logger != nil {
+		return rs.logger
+	}
+	return slog.Default()
 }
 
 // NewResource creates a new Check-in resource
@@ -31,6 +41,7 @@ func NewResource(
 	facilityService facilitiesSvc.Service,
 	activitiesService activitiesSvc.ActivityService,
 	educationService educationSvc.Service,
+	logger *slog.Logger,
 ) *Resource {
 	return &Resource{
 		IoTService:        iotService,
@@ -39,6 +50,7 @@ func NewResource(
 		FacilityService:   facilityService,
 		ActivitiesService: activitiesService,
 		EducationService:  educationService,
+		logger:            logger,
 	}
 }
 

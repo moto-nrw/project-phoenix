@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -180,20 +180,27 @@ func (rs *Resource) handleDailyCheckout(w http.ResponseWriter, r *http.Request, 
 		return
 	}
 
-	log.Printf("[DAILY_CHECKOUT] Confirming daily checkout for student %s %s (ID: %d), destination: %s",
-		person.FirstName, person.LastName, student.ID, *req.Destination)
+	slog.Default().InfoContext(r.Context(), "confirming daily checkout",
+		slog.Int64("student_id", student.ID),
+		slog.String("destination", *req.Destination),
+	)
 
 	// Verify the student has an attendance record for today.
 	// Without one, daily checkout makes no sense — the student was never checked in.
 	currentStatus, err := rs.ActiveService.GetStudentAttendanceStatus(r.Context(), student.ID)
 	if err != nil {
-		log.Printf("[DAILY_CHECKOUT] ERROR: Failed to get attendance status for student %d: %v", student.ID, err)
+		slog.Default().ErrorContext(r.Context(), "failed to get attendance status",
+			slog.Int64("student_id", student.ID),
+			slog.String("error", err.Error()),
+		)
 		iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(err))
 		return
 	}
 	if currentStatus.Status != "checked_in" && currentStatus.Status != "checked_out" {
-		log.Printf("[DAILY_CHECKOUT] ERROR: Student %d has no attendance record for today (status: %s) — cannot perform daily checkout",
-			student.ID, currentStatus.Status)
+		slog.Default().ErrorContext(r.Context(), "student has no attendance record for today",
+			slog.Int64("student_id", student.ID),
+			slog.String("status", currentStatus.Status),
+		)
 		iotCommon.RenderError(w, r, iotCommon.ErrorNotFound(
 			errors.New("student has no attendance record for today")))
 		return
@@ -206,7 +213,9 @@ func (rs *Resource) handleDailyCheckout(w http.ResponseWriter, r *http.Request, 
 		// (e.g., teacher manually checked out) between scan and "nach Hause" click.
 		switch currentStatus.Status {
 		case "checked_out":
-			log.Printf("[DAILY_CHECKOUT] Student %d already checked out — skipping attendance toggle", student.ID)
+			slog.Default().DebugContext(r.Context(), "student already checked out, skipping attendance toggle",
+				slog.Int64("student_id", student.ID),
+			)
 		case "checked_in":
 			deviceCtx := device.DeviceFromCtx(r.Context())
 			staffID := int64(0)
@@ -222,7 +231,10 @@ func (rs *Resource) handleDailyCheckout(w http.ResponseWriter, r *http.Request, 
 			// skipAuthCheck=true because the IoT device already authenticated this request.
 			_, err := rs.ActiveService.ToggleStudentAttendance(r.Context(), student.ID, staffID, deviceID, true)
 			if err != nil {
-				log.Printf("[DAILY_CHECKOUT] ERROR: Failed to update attendance for student %d: %v", student.ID, err)
+				slog.Default().ErrorContext(r.Context(), "failed to update attendance for daily checkout",
+					slog.Int64("student_id", student.ID),
+					slog.String("error", err.Error()),
+				)
 				iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(err))
 				return
 			}
@@ -237,8 +249,11 @@ func (rs *Resource) handleDailyCheckout(w http.ResponseWriter, r *http.Request, 
 		message = "Viel Spaß!"
 	}
 
-	log.Printf("[DAILY_CHECKOUT] SUCCESS: Student %s %s daily checkout confirmed, action=%s, destination=%s",
-		person.FirstName, person.LastName, action, *req.Destination)
+	slog.Default().InfoContext(r.Context(), "daily checkout confirmed",
+		slog.Int64("student_id", student.ID),
+		slog.String("action", action),
+		slog.String("destination", *req.Destination),
+	)
 
 	response := AttendanceToggleResponse{
 		Action:  action,
@@ -279,7 +294,10 @@ func (rs *Resource) handleNormalToggle(w http.ResponseWriter, r *http.Request, n
 	// Toggle attendance
 	result, err := rs.ActiveService.ToggleStudentAttendance(r.Context(), student.ID, staffID, deviceCtx.ID, false)
 	if err != nil {
-		log.Printf("[ATTENDANCE_TOGGLE] ERROR: Failed to toggle attendance for student %d: %v", student.ID, err)
+		slog.Default().ErrorContext(r.Context(), "failed to toggle attendance",
+			slog.Int64("student_id", student.ID),
+			slog.String("error", err.Error()),
+		)
 		iotCommon.RenderError(w, r, iotCommon.ErrorRenderer(err))
 		return
 	}

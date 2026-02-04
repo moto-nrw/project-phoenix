@@ -3,7 +3,7 @@ package checkin
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/constants"
@@ -17,12 +17,14 @@ func (rs *Resource) ensureSchulhofRoom(ctx context.Context) (*facilities.Room, e
 	// Try to find existing Schulhof room
 	room, err := rs.FacilityService.FindRoomByName(ctx, constants.SchulhofRoomName)
 	if err == nil && room != nil {
-		log.Printf("%s Found existing room: ID=%d", constants.SchulhofLogPrefix, room.ID)
+		rs.getLogger().DebugContext(ctx, "found existing Schulhof room",
+			slog.Int64("room_id", room.ID),
+		)
 		return room, nil
 	}
 
 	// Room not found - create it
-	log.Printf("%s Room not found, auto-creating...", constants.SchulhofLogPrefix)
+	rs.getLogger().InfoContext(ctx, "Schulhof room not found, auto-creating")
 
 	capacity := constants.SchulhofRoomCapacity
 	category := constants.SchulhofCategoryName
@@ -39,7 +41,9 @@ func (rs *Resource) ensureSchulhofRoom(ctx context.Context) (*facilities.Room, e
 		return nil, fmt.Errorf("failed to auto-create Schulhof room: %w", err)
 	}
 
-	log.Printf("%s Successfully auto-created room: ID=%d", constants.SchulhofLogPrefix, newRoom.ID)
+	rs.getLogger().InfoContext(ctx, "successfully auto-created Schulhof room",
+		slog.Int64("room_id", newRoom.ID),
+	)
 	return newRoom, nil
 }
 
@@ -53,13 +57,15 @@ func (rs *Resource) ensureSchulhofCategory(ctx context.Context) (*activities.Cat
 
 	for _, cat := range categories {
 		if cat.Name == constants.SchulhofCategoryName {
-			log.Printf("%s Found existing category: ID=%d", constants.SchulhofLogPrefix, cat.ID)
+			rs.getLogger().DebugContext(ctx, "found existing Schulhof category",
+				slog.Int64("category_id", cat.ID),
+			)
 			return cat, nil
 		}
 	}
 
 	// Category not found - create it
-	log.Printf("%s Category not found, auto-creating...", constants.SchulhofLogPrefix)
+	rs.getLogger().InfoContext(ctx, "Schulhof category not found, auto-creating")
 
 	newCategory := &activities.Category{
 		Name:        constants.SchulhofCategoryName,
@@ -72,7 +78,9 @@ func (rs *Resource) ensureSchulhofCategory(ctx context.Context) (*activities.Cat
 		return nil, fmt.Errorf("failed to auto-create Schulhof category: %w", err)
 	}
 
-	log.Printf("%s Successfully auto-created category: ID=%d", constants.SchulhofLogPrefix, createdCategory.ID)
+	rs.getLogger().InfoContext(ctx, "successfully auto-created Schulhof category",
+		slog.Int64("category_id", createdCategory.ID),
+	)
 	return createdCategory, nil
 }
 
@@ -95,12 +103,14 @@ func (rs *Resource) schulhofActivityGroup(ctx context.Context) (*activities.Grou
 
 	// If activity exists, return it
 	if len(groups) > 0 {
-		log.Printf("%s Found existing activity: ID=%d", constants.SchulhofLogPrefix, groups[0].ID)
+		rs.getLogger().DebugContext(ctx, "found existing Schulhof activity",
+			slog.Int64("activity_id", groups[0].ID),
+		)
 		return groups[0], nil
 	}
 
 	// Activity not found - auto-create the entire Schulhof infrastructure
-	log.Printf("%s Activity not found, auto-creating infrastructure...", constants.SchulhofLogPrefix)
+	rs.getLogger().InfoContext(ctx, "Schulhof activity not found, auto-creating infrastructure")
 
 	// Step 1: Ensure Schulhof room exists
 	room, err := rs.ensureSchulhofRoom(ctx)
@@ -136,8 +146,11 @@ func (rs *Resource) schulhofActivityGroup(ctx context.Context) (*activities.Grou
 		return nil, fmt.Errorf("failed to auto-create Schulhof activity: %w", err)
 	}
 
-	log.Printf("%s Successfully auto-created infrastructure: room=%d, category=%d, activity=%d",
-		constants.SchulhofLogPrefix, room.ID, category.ID, createdActivity.ID)
+	rs.getLogger().InfoContext(ctx, "successfully auto-created Schulhof infrastructure",
+		slog.Int64("room_id", room.ID),
+		slog.Int64("category_id", category.ID),
+		slog.Int64("activity_id", createdActivity.ID),
+	)
 
 	return createdActivity, nil
 }

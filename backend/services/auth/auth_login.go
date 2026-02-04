@@ -3,7 +3,7 @@ package auth
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -100,7 +100,10 @@ func (s *Service) createRefreshTokenWithRetry(ctx context.Context, account *auth
 
 		// Regenerate family ID and retry
 		token.FamilyID = uuid.Must(uuid.NewV4()).String()
-		log.Printf("Login race condition detected for account %d, retrying (attempt %d/%d)", account.ID, attempt+1, maxRetries)
+		s.getLogger().Warn("login race condition detected, retrying",
+			slog.Int64("account_id", account.ID),
+			slog.Int("attempt", attempt+1),
+			slog.Int("max_retries", maxRetries))
 	}
 
 	return nil, &AuthError{Op: "login transaction", Err: fmt.Errorf("max retries exceeded")}
@@ -128,7 +131,10 @@ func (s *Service) persistTokenInTransaction(ctx context.Context, account *auth.A
 		// Clean up old tokens (keep 5 most recent)
 		const maxTokensPerAccount = 5
 		if err := txService.repos.Token.CleanupOldTokensForAccount(ctx, account.ID, maxTokensPerAccount); err != nil {
-			log.Printf("Warning: failed to clean up old tokens for account %d: %v", account.ID, err)
+			s.getLogger().Warn("failed to clean up old tokens",
+				slog.Int64("account_id", account.ID),
+				slog.Any("error", err),
+			)
 		}
 
 		// Create new token
@@ -192,7 +198,10 @@ func (s *Service) ensureAccountRolesLoaded(ctx context.Context, account *auth.Ac
 
 	accountRoles, err := s.repos.AccountRole.FindByAccountID(ctx, account.ID)
 	if err != nil {
-		log.Printf("Warning: failed to load roles for account %d: %v", account.ID, err)
+		s.getLogger().Warn("failed to load roles",
+			slog.Int64("account_id", account.ID),
+			slog.Any("error", err),
+		)
 		return
 	}
 
@@ -207,7 +216,10 @@ func (s *Service) ensureAccountRolesLoaded(ctx context.Context, account *auth.Ac
 func (s *Service) loadAccountPermissions(ctx context.Context, accountID int64) []*auth.Permission {
 	permissions, err := s.getAccountPermissions(ctx, accountID)
 	if err != nil {
-		log.Printf("Warning: failed to load permissions for account %d: %v", accountID, err)
+		s.getLogger().Warn("failed to load permissions",
+			slog.Int64("account_id", accountID),
+			slog.Any("error", err),
+		)
 		return []*auth.Permission{}
 	}
 	return permissions
@@ -221,7 +233,10 @@ func (s *Service) ensureAccountPermissionsLoaded(ctx context.Context, account *a
 
 	permissions, err := s.getAccountPermissions(ctx, account.ID)
 	if err != nil {
-		log.Printf("Warning: failed to load permissions for account %d: %v", account.ID, err)
+		s.getLogger().Warn("failed to load permissions",
+			slog.Int64("account_id", account.ID),
+			slog.Any("error", err),
+		)
 		return
 	}
 
@@ -425,7 +440,7 @@ func (s *Service) assignRoleToNewAccount(ctx context.Context, txService *Service
 	}
 
 	if err := txService.repos.AccountRole.Create(ctx, accountRole); err != nil {
-		log.Printf("Failed to create account role: %v", err)
+		s.getLogger().Error("failed to create account role", "error", err)
 		return err // Roll back transaction if role assignment fails
 	}
 
@@ -441,7 +456,7 @@ func (s *Service) determineRoleForNewAccount(ctx context.Context, txService *Ser
 	// Find default user role
 	userRole, err := txService.getRoleByName(ctx, "user")
 	if err != nil || userRole == nil {
-		log.Printf("Failed to find default user role: %v", err)
+		s.getLogger().Warn("failed to find default user role", "error", err)
 		return 0, nil // Return 0 to indicate no role (continue without role assignment)
 	}
 
@@ -690,7 +705,10 @@ func (s *Service) LogoutWithAudit(ctx context.Context, refreshTokenStr, ipAddres
 	err = s.repos.Token.DeleteByAccountID(ctx, dbToken.AccountID)
 	if err != nil {
 		// Log the error but don't fail the logout
-		log.Printf("Warning: failed to delete all tokens for account %d during logout: %v", dbToken.AccountID, err)
+		s.getLogger().Warn("failed to delete all tokens during logout",
+			slog.Int64("account_id", dbToken.AccountID),
+			slog.Any("error", err),
+		)
 		// Still try to delete the specific token
 		if deleteErr := s.repos.Token.Delete(ctx, dbToken.ID); deleteErr != nil {
 			return &AuthError{Op: "delete token", Err: deleteErr}

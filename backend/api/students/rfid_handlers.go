@@ -2,7 +2,7 @@ package students
 
 import (
 	"errors"
-	"log"
+	"log/slog"
 	"net/http"
 
 	"github.com/go-chi/render"
@@ -79,8 +79,11 @@ func (rs *Resource) assignRFIDTag(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Log assignment for audit trail
-	log.Printf("RFID tag assignment: device=%s, student=%d, tag=%s, previous_tag=%v",
-		deviceCtx.DeviceID, student.ID, req.RFIDTag, previousTag)
+	slog.Default().Info("RFID tag assignment",
+		slog.String("device_id", deviceCtx.DeviceID),
+		slog.Int64("student_id", student.ID),
+		slog.String("tag", req.RFIDTag),
+		slog.Any("previous_tag", previousTag))
 
 	common.Respond(w, r, http.StatusOK, response, response.Message)
 }
@@ -130,8 +133,10 @@ func (rs *Resource) unassignRFIDTag(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Log unassignment for audit trail
-	log.Printf("RFID tag unassignment: device=%s, student=%d, tag=%s",
-		deviceCtx.DeviceID, student.ID, removedTag)
+	slog.Default().Info("RFID tag unassignment",
+		slog.String("device_id", deviceCtx.DeviceID),
+		slog.Int64("student_id", student.ID),
+		slog.String("tag", removedTag))
 
 	common.Respond(w, r, http.StatusOK, response, response.Message)
 }

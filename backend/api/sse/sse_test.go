@@ -7,6 +7,7 @@ package sse_test
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
 	"testing"
 	"time"
@@ -39,13 +40,13 @@ func setupTestContext(t *testing.T) *testContext {
 
 	db := testpkg.SetupTestDB(t)
 	repos := repositories.NewFactory(db)
-	svc, err := services.NewFactory(repos, db)
+	svc, err := services.NewFactory(repos, db, slog.Default())
 	if err != nil {
 		t.Fatalf("Failed to create services factory: %v", err)
 	}
 
 	// Create realtime hub
-	hub := realtime.NewHub()
+	hub := realtime.NewHub(slog.Default())
 
 	// Create SSE resource with all dependencies
 	resource := sseAPI.NewResource(
@@ -53,6 +54,7 @@ func setupTestContext(t *testing.T) *testContext {
 		svc.Active,
 		svc.Users,
 		svc.UserContext,
+		slog.Default(),
 	)
 
 	return &testContext{

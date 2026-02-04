@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"testing"
 	"time"
 
@@ -47,7 +48,7 @@ func newPasswordResetTestEnvWithMailer(t *testing.T, mailer email.Mailer) (*Serv
 	rateRepo := newTestRateLimitRepo()
 	sessionTokens := newStubTokenRepository()
 
-	dispatcher := email.NewDispatcher(mailer)
+	dispatcher := email.NewDispatcher(mailer, slog.Default())
 	dispatcher.SetDefaults(3, []time.Duration{10 * time.Millisecond, 20 * time.Millisecond, 40 * time.Millisecond})
 
 	// Create a mock repository factory for testing

@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/mail"
 	"strings"
 	"time"
@@ -60,6 +60,7 @@ type InvitationServiceConfig struct {
 	DefaultFrom      email.Email
 	InvitationExpiry time.Duration
 	DB               *bun.DB
+	Logger           *slog.Logger
 }
 
 type invitationService struct {
@@ -76,14 +77,27 @@ type invitationService struct {
 	invitationExpiry time.Duration
 	db               *bun.DB
 	txHandler        *modelBase.TxHandler
+	logger           *slog.Logger
+}
+
+// getLogger returns the service's logger, falling back to slog.Default() if nil.
+func (s *invitationService) getLogger() *slog.Logger {
+	if s.logger != nil {
+		return s.logger
+	}
+	return slog.Default()
 }
 
 // NewInvitationService constructs a new invitation service instance.
 func NewInvitationService(config InvitationServiceConfig) InvitationService {
 	trimmedFrontend := strings.TrimRight(strings.TrimSpace(config.FrontendURL), "/")
 	dispatcher := config.Dispatcher
+	logger := config.Logger
+	if logger == nil {
+		logger = slog.Default()
+	}
 	if dispatcher == nil && config.Mailer != nil {
-		dispatcher = email.NewDispatcher(config.Mailer)
+		dispatcher = email.NewDispatcher(config.Mailer, logger.With("component", "email"))
 	}
 	return &invitationService{
 		invitationRepo:   config.InvitationRepo,
@@ -99,6 +113,7 @@ func NewInvitationService(config InvitationServiceConfig) InvitationService {
 		invitationExpiry: config.InvitationExpiry,
 		db:               config.DB,
 		txHandler:        modelBase.NewTxHandler(config.DB),
+		logger:           logger,
 	}
 }
 
@@ -148,6 +163,7 @@ func (s *invitationService) WithTx(tx bun.Tx) interface{} {
 		invitationExpiry: s.invitationExpiry,
 		db:               s.db,
 		txHandler:        s.txHandler.WithTx(tx),
+		logger:           s.logger,
 	}
 }
 
@@ -167,7 +183,9 @@ func (s *invitationService) CreateInvitation(ctx context.Context, req Invitation
 		return nil, &AuthError{Op: opCreateInvitation, Err: err}
 	}
 
-	log.Printf("Invitation created by account=%d for email=%s", req.CreatedBy, invitation.Email)
+	s.getLogger().Info("invitation created",
+		slog.Int64("created_by", req.CreatedBy),
+		slog.String("email", invitation.Email))
 
 	if err := s.attachRoleAndCreator(ctx, invitation); err != nil {
 		return nil, err
@@ -353,7 +371,8 @@ func (s *invitationService) AcceptInvitation(ctx context.Context, token string, 
 		return nil, err
 	}
 
-	log.Printf("Invitation accepted for account=%d", createdAccount.ID)
+	s.getLogger().Info("invitation accepted",
+		slog.Int64("account_id", createdAccount.ID))
 	return createdAccount, nil
 }
 
@@ -522,7 +541,9 @@ func (s *invitationService) ResendInvitation(ctx context.Context, invitationID i
 		return &AuthError{Op: opResendInvitation, Err: err}
 	}
 
-	log.Printf("Invitation resent (id=%d) by account=%d", invitation.ID, actorAccountID)
+	s.getLogger().Info("invitation resent",
+		slog.Int64("invitation_id", invitation.ID),
+		slog.Int64("actor_account_id", actorAccountID))
 
 	s.sendInvitationEmail(invitation, roleName)
 	return nil
@@ -555,7 +576,9 @@ func (s *invitationService) RevokeInvitation(ctx context.Context, invitationID i
 		return &AuthError{Op: opRevokeInvitation, Err: err}
 	}
 
-	log.Printf("Invitation revoked (id=%d) by account=%d", invitation.ID, actorAccountID)
+	s.getLogger().Info("invitation revoked",
+		slog.Int64("invitation_id", invitation.ID),
+		slog.Int64("actor_account_id", actorAccountID))
 	return nil
 }
 
@@ -567,7 +590,8 @@ func (s *invitationService) CleanupExpiredInvitations(ctx context.Context) (int,
 	}
 
 	if count > 0 {
-		log.Printf("Invitation cleanup removed %d records", count)
+		s.getLogger().Info("invitation cleanup completed",
+			slog.Int("records_deleted", count))
 	}
 	return count, nil
 }
@@ -616,7 +640,8 @@ var invitationEmailBackoff = []time.Duration{
 
 func (s *invitationService) sendInvitationEmail(invitation *authModels.InvitationToken, roleName string) {
 	if s.dispatcher == nil {
-		log.Printf("Email dispatcher unavailable; skipping invitation email id=%d", invitation.ID)
+		s.getLogger().Warn("email dispatcher unavailable, skipping invitation email",
+			slog.Int64("invitation_id", invitation.ID))
 		return
 	}
 
@@ -678,12 +703,19 @@ func (s *invitationService) persistInvitationDelivery(ctx context.Context, meta 
 	}
 
 	if err := s.invitationRepo.UpdateDeliveryResult(ctx, meta.ReferenceID, sentAt, errText, retryCount); err != nil {
-		log.Printf("Failed to update invitation delivery status id=%d err=%v", meta.ReferenceID, err)
+		s.getLogger().Error("failed to update invitation delivery status",
+			slog.Int64("invitation_id", meta.ReferenceID),
+			slog.Any("error", err),
+		)
 		return
 	}
 
 	if result.Final && result.Status == email.DeliveryStatusFailed {
-		log.Printf("Invitation email permanently failed id=%d recipient=%s err=%v", meta.ReferenceID, meta.Recipient, result.Err)
+		s.getLogger().Error("invitation email permanently failed",
+			slog.Int64("invitation_id", meta.ReferenceID),
+			slog.String("recipient", meta.Recipient),
+			slog.Any("error", result.Err),
+		)
 	}
 }
 

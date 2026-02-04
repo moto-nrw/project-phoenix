@@ -1,6 +1,7 @@
 package api
 
 import (
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -157,7 +158,7 @@ func TestSetupRateLimiting_CustomValues(t *testing.T) {
 
 func TestSetupBasicMiddleware(t *testing.T) {
 	router := chi.NewRouter()
-	setupBasicMiddleware(router)
+	setupBasicMiddleware(router, slog.Default())
 
 	// Add a test route
 	router.Get("/test", func(w http.ResponseWriter, r *http.Request) {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"log/slog"
 	"os"
 	"text/tabwriter"
 
@@ -64,7 +65,7 @@ func newCleanupContextWithServices() (*cleanupContext, error) {
 		return nil, err
 	}
 
-	serviceFactory, err := services.NewFactory(ctx.RepoFactory, ctx.DB)
+	serviceFactory, err := services.NewFactory(ctx.RepoFactory, ctx.DB, slog.Default())
 	if err != nil {
 		ctx.Close()
 		return nil, fmt.Errorf(errServiceFactory, err)
