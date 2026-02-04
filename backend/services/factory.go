@@ -116,7 +116,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	usercontextLogger := logger.With("service", "usercontext")
 
 	// Create realtime hub for SSE broadcasting (single shared instance)
-	realtimeHub := realtime.NewHub()
+	realtimeHub := realtime.NewHub(logger.With("component", "sse-hub"))
 
 	// Initialize education service first (needed for active service)
 	educationService := education.NewService(

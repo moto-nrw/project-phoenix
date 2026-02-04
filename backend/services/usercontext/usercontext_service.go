@@ -11,7 +11,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/sirupsen/logrus"
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
@@ -353,10 +352,10 @@ func (s *userContextService) resolveSubstitutionGroup(ctx context.Context, sub *
 
 // recordSubstitutionFailure records a failure to load a substitution group
 func (s *userContextService) recordSubstitutionFailure(partialErr *PartialError, groupID int64, err error) *PartialError {
-	logrus.WithFields(logrus.Fields{
-		"group_id": groupID,
-		"error":    err,
-	}).Warn("Failed to load group for substitution")
+	s.logger.Warn("failed to load group for substitution",
+		slog.Int64("group_id", groupID),
+		slog.String("error", err.Error()),
+	)
 
 	if partialErr == nil {
 		partialErr = &PartialError{
@@ -376,12 +375,12 @@ func (s *userContextService) handlePartialError(groups []*education.Group, parti
 		return groups, nil
 	}
 
-	logrus.WithFields(logrus.Fields{
-		"success_count": partialErr.SuccessCount,
-		"failure_count": partialErr.FailureCount,
-		"failed_ids":    partialErr.FailedIDs,
-		"operation":     partialErr.Op,
-	}).Warn("Partial failure in GetMyGroups")
+	s.logger.Warn("partial failure in GetMyGroups",
+		slog.Int("success_count", partialErr.SuccessCount),
+		slog.Int("failure_count", partialErr.FailureCount),
+		slog.Any("failed_ids", partialErr.FailedIDs),
+		slog.String("operation", partialErr.Op),
+	)
 
 	if len(groups) > 0 {
 		return groups, partialErr

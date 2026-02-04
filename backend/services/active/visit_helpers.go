@@ -3,10 +3,10 @@ package active
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/logging"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
@@ -94,12 +94,10 @@ func (s *service) resolveDeviceIDForAttendance(ctx context.Context, deviceID int
 	}
 
 	// Log warning if web device not found - this indicates a seeding issue
-	if logging.Logger != nil {
-		logging.Logger.WithFields(map[string]interface{}{
-			"device_code": WebManualDeviceCode,
-			"error":       err,
-		}).Warn("Web manual device not found - manual check-ins may fail")
-	}
+	s.logger.Warn("web manual device not found - manual check-ins may fail",
+		slog.String("device_code", WebManualDeviceCode),
+		slog.Any("error", err),
+	)
 
 	return 0
 }
@@ -114,21 +112,13 @@ func (s *service) clearCheckoutOnReentry(ctx context.Context, studentID int64, a
 		attendance.CheckOutTime = nil
 		attendance.CheckedOutBy = nil
 		if err := s.attendanceRepo.Update(ctx, attendance); err != nil {
-			logAttendanceUpdateFailure(studentID, attendance.ID, err)
+			s.logger.Warn("failed to clear check_out_time on re-entry",
+				slog.Int64("student_id", studentID),
+				slog.Int64("attendance_id", attendance.ID),
+				slog.String("error", err.Error()),
+			)
 		}
 	}
-}
-
-// logAttendanceUpdateFailure logs a warning when attendance update fails
-func logAttendanceUpdateFailure(studentID, attendanceID int64, err error) {
-	if logging.Logger == nil {
-		return
-	}
-	logging.Logger.WithFields(map[string]interface{}{
-		"student_id":    studentID,
-		"attendance_id": attendanceID,
-		"error":         err.Error(),
-	}).Warn("Failed to clear check_out_time on re-entry")
 }
 
 // autoClearStudentSickness clears sickness flag when student checks in
@@ -148,32 +138,16 @@ func (s *service) autoClearStudentSickness(ctx context.Context, studentID int64)
 	student.SickSince = nil
 
 	if err := s.studentRepo.Update(ctx, student); err != nil {
-		logSicknessClearFailure(studentID, err)
+		s.logger.Warn("failed to auto-clear sickness on check-in",
+			slog.Int64("student_id", studentID),
+			slog.String("error", err.Error()),
+		)
 		return
 	}
 
-	logSicknessClearSuccess(studentID)
-}
-
-// logSicknessClearFailure logs a warning when sickness clear fails
-func logSicknessClearFailure(studentID int64, err error) {
-	if logging.Logger == nil {
-		return
-	}
-	logging.Logger.WithFields(map[string]interface{}{
-		"student_id": studentID,
-		"error":      err.Error(),
-	}).Warn("Failed to auto-clear sickness on check-in")
-}
-
-// logSicknessClearSuccess logs successful sickness clear
-func logSicknessClearSuccess(studentID int64) {
-	if logging.Logger == nil {
-		return
-	}
-	logging.Logger.WithFields(map[string]interface{}{
-		"student_id": studentID,
-	}).Info("Auto-cleared sickness on student check-in")
+	s.logger.Info("auto-cleared sickness on student check-in",
+		slog.Int64("student_id", studentID),
+	)
 }
 
 // broadcastVisitCreated sends SSE event for visit creation
@@ -197,7 +171,12 @@ func (s *service) broadcastVisitCreated(ctx context.Context, visit *active.Visit
 	)
 
 	if err := s.broadcaster.BroadcastToGroup(activeGroupID, event); err != nil {
-		logSSEBroadcastFailure(activeGroupID, studentID, err)
+		s.logger.Error("SSE broadcast failed",
+			slog.String("error", err.Error()),
+			slog.String("event_type", "student_checkin"),
+			slog.String("active_group_id", activeGroupID),
+			slog.String("student_id", studentID),
+		)
 	}
 
 	s.broadcastToEducationalGroup(studentRec, event)
@@ -216,17 +195,4 @@ func (s *service) getStudentDisplayData(ctx context.Context, studentID int64) (s
 	}
 
 	return fmt.Sprintf("%s %s", person.FirstName, person.LastName), student
-}
-
-// logSSEBroadcastFailure logs SSE broadcast failure
-func logSSEBroadcastFailure(activeGroupID, studentID string, err error) {
-	if logging.Logger == nil {
-		return
-	}
-	logging.Logger.WithFields(map[string]interface{}{
-		"error":           err.Error(),
-		"event_type":      "student_checkin",
-		"active_group_id": activeGroupID,
-		"student_id":      studentID,
-	}).Error("SSE broadcast failed")
 }

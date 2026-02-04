@@ -46,7 +46,7 @@ func setupTestContext(t *testing.T) *testContext {
 	}
 
 	// Create realtime hub
-	hub := realtime.NewHub()
+	hub := realtime.NewHub(slog.Default())
 
 	// Create SSE resource with all dependencies
 	resource := sseAPI.NewResource(
@@ -54,6 +54,7 @@ func setupTestContext(t *testing.T) *testContext {
 		svc.Active,
 		svc.Users,
 		svc.UserContext,
+		slog.Default(),
 	)
 
 	return &testContext{

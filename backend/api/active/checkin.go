@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"time"
@@ -16,7 +17,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	"github.com/moto-nrw/project-phoenix/logging"
 )
 
 // CheckinRequest represents the request body for manual check-in
@@ -201,13 +201,11 @@ func (rs *Resource) createCheckinVisit(ctx context.Context, checkinCtx *checkinC
 		if errors.Is(createErr, activeService.ErrStudentAlreadyActive) {
 			return nil, &checkinError{http.StatusConflict, "Student already has an active visit"}
 		}
-		if logging.Logger != nil {
-			logging.Logger.WithFields(map[string]interface{}{
-				"student_id":      checkinCtx.studentID,
-				"active_group_id": checkinCtx.request.ActiveGroupID,
-				"error":           createErr.Error(),
-			}).Error("Failed to create visit during check-in")
-		}
+		rs.logger.ErrorContext(ctx, "failed to create visit during check-in",
+			slog.Int64("student_id", checkinCtx.studentID),
+			slog.Int64("active_group_id", checkinCtx.request.ActiveGroupID),
+			slog.String("error", createErr.Error()),
+		)
 		return nil, &checkinError{http.StatusInternalServerError, "Failed to check in student to room"}
 	}
 
@@ -215,12 +213,10 @@ func (rs *Resource) createCheckinVisit(ctx context.Context, checkinCtx *checkinC
 	// while staff are actively using the web check-in feature
 	if activityErr := rs.ActiveService.UpdateSessionActivity(ctx, checkinCtx.request.ActiveGroupID); activityErr != nil {
 		// Log but don't fail - the visit was created successfully
-		if logging.Logger != nil {
-			logging.Logger.WithFields(map[string]interface{}{
-				"active_group_id": checkinCtx.request.ActiveGroupID,
-				"error":           activityErr.Error(),
-			}).Warn("Failed to update session activity after check-in")
-		}
+		rs.logger.WarnContext(ctx, "failed to update session activity after check-in",
+			slog.Int64("active_group_id", checkinCtx.request.ActiveGroupID),
+			slog.String("error", activityErr.Error()),
+		)
 	}
 
 	return visit, nil
@@ -238,11 +234,11 @@ func (rs *Resource) respondCheckinSuccess(w http.ResponseWriter, r *http.Request
 
 	// Try to get updated attendance status for response
 	updatedAttendance, statusErr := rs.ActiveService.GetStudentAttendanceStatus(ctx, checkinCtx.studentID)
-	if statusErr != nil && logging.Logger != nil {
-		logging.Logger.WithFields(map[string]interface{}{
-			"student_id": checkinCtx.studentID,
-			"error":      statusErr.Error(),
-		}).Warn("Failed to get updated attendance status after checkin")
+	if statusErr != nil {
+		rs.logger.WarnContext(ctx, "failed to get updated attendance status after checkin",
+			slog.Int64("student_id", checkinCtx.studentID),
+			slog.String("error", statusErr.Error()),
+		)
 	}
 
 	if statusErr == nil && updatedAttendance != nil {

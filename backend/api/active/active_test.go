@@ -7,6 +7,7 @@ package active_test
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -39,7 +40,7 @@ func setupTestContext(t *testing.T) *testContext {
 	t.Helper()
 
 	db, svc := testutil.SetupAPITest(t)
-	resource := activeAPI.NewResource(svc.Active, svc.Users, svc.Schulhof, svc.UserContext, db)
+	resource := activeAPI.NewResource(svc.Active, svc.Users, svc.Schulhof, svc.UserContext, db, slog.Default())
 
 	t.Cleanup(func() {
 		if err := db.Close(); err != nil {

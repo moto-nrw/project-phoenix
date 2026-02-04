@@ -103,7 +103,7 @@ func New(enableCORS bool, logger *slog.Logger) (*API, error) {
 	setupRateLimiting(api.Router, securityLogger)
 
 	// Initialize API resources
-	initializeAPIResources(api, repoFactory, db)
+	initializeAPIResources(api, repoFactory, db, logger)
 
 	// Register routes with rate limiting
 	api.registerRoutesWithRateLimiting()
@@ -201,7 +201,7 @@ func parsePositiveInt(envVar string, defaultValue int) int {
 }
 
 // initializeAPIResources initializes all API resource instances
-func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun.DB) {
+func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun.DB, logger *slog.Logger) {
 	api.Auth = authAPI.NewResource(api.Services.Auth, api.Services.Invitation)
 	api.Rooms = roomsAPI.NewResource(api.Services.Facilities)
 	api.Students = studentsAPI.NewResource(studentsAPI.ResourceConfig{
@@ -223,7 +223,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.Suggestions = suggestionsAPI.NewResource(api.Services.Suggestions)
 	api.Schedules = schedulesAPI.NewResource(api.Services.Schedule)
 	api.Config = configAPI.NewResource(api.Services.Config, api.Services.ActiveCleanup)
-	api.Active = activeAPI.NewResource(api.Services.Active, api.Services.Users, api.Services.Schulhof, api.Services.UserContext, db)
+	api.Active = activeAPI.NewResource(api.Services.Active, api.Services.Users, api.Services.Schulhof, api.Services.UserContext, db, logger.With("handler", "active"))
 	api.IoT = iotAPI.NewResource(iotAPI.ServiceDependencies{
 		IoTService:        api.Services.IoT,
 		UsersService:      api.Services.Users,
@@ -234,7 +234,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		EducationService:  api.Services.Education,
 		FeedbackService:   api.Services.Feedback,
 	})
-	api.SSE = sseAPI.NewResource(api.Services.RealtimeHub, api.Services.Active, api.Services.Users, api.Services.UserContext)
+	api.SSE = sseAPI.NewResource(api.Services.RealtimeHub, api.Services.Active, api.Services.Users, api.Services.UserContext, logger.With("handler", "sse"))
 	api.Users = usersAPI.NewResource(api.Services.Users)
 	api.UserContext = usercontextAPI.NewResource(api.Services.UserContext, repoFactory.GroupSubstitution)
 	api.Substitutions = substitutionsAPI.NewResource(api.Services.Education)

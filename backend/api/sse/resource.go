@@ -1,6 +1,8 @@
 package sse
 
 import (
+	"log/slog"
+
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/moto-nrw/project-phoenix/services/usercontext"
@@ -13,6 +15,7 @@ type Resource struct {
 	activeSvc active.Service
 	personSvc users.PersonService
 	userCtx   usercontext.UserContextService
+	logger    *slog.Logger
 }
 
 // NewResource creates a new SSE resource
@@ -21,11 +24,13 @@ func NewResource(
 	activeSvc active.Service,
 	personSvc users.PersonService,
 	userCtx usercontext.UserContextService,
+	logger *slog.Logger,
 ) *Resource {
 	return &Resource{
 		hub:       hub,
 		activeSvc: activeSvc,
 		personSvc: personSvc,
 		userCtx:   userCtx,
+		logger:    logger,
 	}
 }

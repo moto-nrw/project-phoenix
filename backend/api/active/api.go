@@ -1,6 +1,7 @@
 package active
 
 import (
+	"log/slog"
 	"net/http"
 	"strconv"
 
@@ -24,16 +25,18 @@ type Resource struct {
 	SchulhofService    facilities.SchulhofService
 	UserContextService usercontext.UserContextService
 	db                 *bun.DB
+	logger             *slog.Logger
 }
 
 // NewResource creates a new active resource
-func NewResource(activeService activeSvc.Service, personService userSvc.PersonService, schulhofService facilities.SchulhofService, userContextService usercontext.UserContextService, db *bun.DB) *Resource {
+func NewResource(activeService activeSvc.Service, personService userSvc.PersonService, schulhofService facilities.SchulhofService, userContextService usercontext.UserContextService, db *bun.DB, logger *slog.Logger) *Resource {
 	return &Resource{
 		ActiveService:      activeService,
 		PersonService:      personService,
 		SchulhofService:    schulhofService,
 		UserContextService: userContextService,
 		db:                 db,
+		logger:             logger,
 	}
 }
 

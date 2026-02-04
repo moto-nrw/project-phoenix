@@ -285,7 +285,7 @@ func setupCheckinTestHandler(t *testing.T, db *bun.DB) *active.Resource {
 	serviceFactory, err := services.NewFactory(repoFactory, db, slog.Default())
 	require.NoError(t, err, "Failed to create service factory")
 
-	return active.NewResource(serviceFactory.Active, serviceFactory.Users, serviceFactory.Schulhof, serviceFactory.UserContext, db)
+	return active.NewResource(serviceFactory.Active, serviceFactory.Users, serviceFactory.Schulhof, serviceFactory.UserContext, db, slog.Default())
 }
 
 // makeCheckinRequest creates an HTTP request with JWT auth for the checkin endpoint

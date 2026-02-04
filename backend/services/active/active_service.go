@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/auth/device"
-	"github.com/moto-nrw/project-phoenix/logging"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/base"
@@ -684,18 +683,16 @@ func (s *service) broadcastToEducationalGroup(student *userModels.Student, event
 	}
 	groupID := fmt.Sprintf("edu:%d", *student.GroupID)
 	if err := s.broadcaster.BroadcastToGroup(groupID, event); err != nil {
-		if logging.Logger != nil {
-			studentID := ""
-			if event.Data.StudentID != nil {
-				studentID = *event.Data.StudentID
-			}
-			logging.Logger.WithFields(map[string]interface{}{
-				"error":                 err.Error(),
-				"event_type":            string(event.Type),
-				"education_group_topic": groupID,
-				"student_id":            studentID,
-			}).Error(sseErrorMessage + " for educational topic")
+		studentID := ""
+		if event.Data.StudentID != nil {
+			studentID = *event.Data.StudentID
 		}
+		s.logger.Error(sseErrorMessage+" for educational topic",
+			slog.String("error", err.Error()),
+			slog.String("event_type", string(event.Type)),
+			slog.String("education_group_topic", groupID),
+			slog.String("student_id", studentID),
+		)
 	}
 }
 
@@ -748,17 +745,15 @@ func (s *service) broadcastActivityEndEvent(ctx context.Context, sessionID int64
 // broadcastWithLogging broadcasts an event and logs any errors.
 func (s *service) broadcastWithLogging(activeGroupID, studentID string, event realtime.Event, eventType string) {
 	if err := s.broadcaster.BroadcastToGroup(activeGroupID, event); err != nil {
-		if logging.Logger != nil {
-			fields := map[string]interface{}{
-				"error":           err.Error(),
-				"event_type":      eventType,
-				"active_group_id": activeGroupID,
-			}
-			if studentID != "" {
-				fields["student_id"] = studentID
-			}
-			logging.Logger.WithFields(fields).Error(sseErrorMessage)
+		attrs := []slog.Attr{
+			slog.String("error", err.Error()),
+			slog.String("event_type", eventType),
+			slog.String("active_group_id", activeGroupID),
 		}
+		if studentID != "" {
+			attrs = append(attrs, slog.String("student_id", studentID))
+		}
+		s.logger.LogAttrs(context.Background(), slog.LevelError, sseErrorMessage, attrs...)
 	}
 }
 
