@@ -32,7 +32,7 @@ func init() {
 }
 
 func createStaffAbsences(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.10.6: Creating active.staff_absences table...")
+	fmt.Println("Migration 1.10.7: Creating active.staff_absences table...")
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -71,7 +71,7 @@ func createStaffAbsences(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error creating staff_absences table: %w", err)
 	}
 
-	fmt.Println("Migration 1.10.6: Successfully created active.staff_absences table")
+	fmt.Println("Migration 1.10.7: Successfully created active.staff_absences table")
 	return tx.Commit()
 }
 
@@ -95,6 +95,6 @@ func dropStaffAbsences(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error dropping staff_absences table: %w", err)
 	}
 
-	fmt.Println("Migration 1.10.6: Successfully rolled back")
+	fmt.Println("Migration 1.10.7: Successfully rolled back")
 	return tx.Commit()
 }

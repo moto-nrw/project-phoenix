@@ -168,7 +168,7 @@ class TimeTrackingService {
       "GET",
       "Failed to get history",
     );
-    return result.data.map((session) =>
+    return (result.data ?? []).map((session) =>
       mapWorkSessionHistoryResponse(session as never),
     );
   }
