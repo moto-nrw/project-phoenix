@@ -5,6 +5,7 @@
 package importapi_test
 
 import (
+	"log/slog"
 	"net/http"
 	"strings"
 	"testing"
@@ -34,7 +35,7 @@ func setupTestContext(t *testing.T) *testContext {
 
 	db := testpkg.SetupTestDB(t)
 	repos := repositories.NewFactory(db)
-	svc, err := services.NewFactory(repos, db)
+	svc, err := services.NewFactory(repos, db, slog.Default())
 	if err != nil {
 		t.Fatalf("Failed to create services factory: %v", err)
 	}

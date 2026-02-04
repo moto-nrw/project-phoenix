@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"log"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -61,10 +62,11 @@ type userContextService struct {
 	substitutionRepo   education.GroupSubstitutionRepository
 	db                 *bun.DB
 	txHandler          *base.TxHandler
+	logger             *slog.Logger
 }
 
 // NewUserContextServiceWithRepos creates a new user context service using a repositories struct
-func NewUserContextServiceWithRepos(repos UserContextRepositories, db *bun.DB) UserContextService {
+func NewUserContextServiceWithRepos(repos UserContextRepositories, db *bun.DB, logger *slog.Logger) UserContextService {
 	return &userContextService{
 		accountRepo:        repos.AccountRepo,
 		personRepo:         repos.PersonRepo,
@@ -80,6 +82,7 @@ func NewUserContextServiceWithRepos(repos UserContextRepositories, db *bun.DB) U
 		substitutionRepo:   repos.SubstitutionRepo,
 		db:                 db,
 		txHandler:          base.NewTxHandler(db),
+		logger:             logger,
 	}
 }
 

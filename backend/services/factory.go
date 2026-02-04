@@ -4,6 +4,7 @@ package services
 import (
 	"fmt"
 	"log"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -65,7 +66,7 @@ type Factory struct {
 }
 
 // NewFactory creates a new services factory
-func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
+func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*Factory, error) {
 
 	mailer, err := email.NewMailer()
 	if err != nil {
@@ -109,6 +110,10 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 		passwordResetExpiryMinutes = 1440
 	}
 	passwordResetTokenExpiry := time.Duration(passwordResetExpiryMinutes) * time.Minute
+
+	// Create scoped loggers for services that need them
+	activeLogger := logger.With("service", "active")
+	usercontextLogger := logger.With("service", "usercontext")
 
 	// Create realtime hub for SSE broadcasting (single shared instance)
 	realtimeHub := realtime.NewHub()
@@ -189,6 +194,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 		DB:                 db,
 		Broadcaster:        realtimeHub,        // Pass SSE broadcaster
 		WorkSessionService: workSessionService, // NFC auto-check-in
+		Logger:             activeLogger,
 	})
 
 	// Initialize feedback service
@@ -325,7 +331,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 		SupervisorRepo:     repos.GroupSupervisor,
 		ProfileRepo:        repos.Profile,
 		SubstitutionRepo:   repos.GroupSubstitution,
-	}, db)
+	}, db, usercontextLogger)
 
 	// Initialize database stats service
 	databaseService := database.NewService(repos)

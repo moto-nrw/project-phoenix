@@ -81,7 +81,7 @@ func New(enableCORS bool, logger *slog.Logger) (*API, error) {
 	repoFactory := repositories.NewFactory(db)
 
 	// Initialize service factory with repository factory
-	serviceFactory, err := services.NewFactory(repoFactory, db)
+	serviceFactory, err := services.NewFactory(repoFactory, db, logger)
 	if err != nil {
 		return nil, err
 	}

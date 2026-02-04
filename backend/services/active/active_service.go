@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/auth/device"
@@ -79,6 +80,9 @@ type ServiceDependencies struct {
 
 	// Optional: Work session service for NFC auto-check-in
 	WorkSessionService WorkSessionService
+
+	// Optional: Structured logger (nil-safe, Phase 2b will add logging calls)
+	Logger *slog.Logger
 }
 
 // Service implements the Active Service interface
@@ -113,6 +117,9 @@ type service struct {
 
 	// Optional: Work session service for NFC auto-check-in
 	workSessionService WorkSessionService
+
+	// Structured logger (nil-safe)
+	logger *slog.Logger
 }
 
 // NewService creates a new active service instance
@@ -139,6 +146,7 @@ func NewService(deps ServiceDependencies) Service {
 		txHandler:          base.NewTxHandler(deps.DB),
 		broadcaster:        deps.Broadcaster,
 		workSessionService: deps.WorkSessionService,
+		logger:             deps.Logger,
 	}
 }
 

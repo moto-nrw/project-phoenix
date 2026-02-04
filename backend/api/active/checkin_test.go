@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -281,7 +282,7 @@ func setupCheckinTestHandler(t *testing.T, db *bun.DB) *active.Resource {
 	t.Helper()
 
 	repoFactory := repositories.NewFactory(db)
-	serviceFactory, err := services.NewFactory(repoFactory, db)
+	serviceFactory, err := services.NewFactory(repoFactory, db, slog.Default())
 	require.NoError(t, err, "Failed to create service factory")
 
 	return active.NewResource(serviceFactory.Active, serviceFactory.Users, serviceFactory.Schulhof, serviceFactory.UserContext, db)
