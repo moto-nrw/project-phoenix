@@ -11,6 +11,7 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
 	slogchi "github.com/samber/slog-chi"
+	"github.com/spf13/viper"
 	"github.com/uptrace/bun"
 
 	activeAPI "github.com/moto-nrw/project-phoenix/api/active"
@@ -75,6 +76,10 @@ func New(enableCORS bool, logger *slog.Logger) (*API, error) {
 	db, err := database.DBConn()
 	if err != nil {
 		return nil, err
+	}
+
+	if viper.GetBool("db_debug") {
+		db.AddQueryHook(database.NewQueryHook(logger.With("component", "database")))
 	}
 
 	// Initialize repository factory with DB connection
