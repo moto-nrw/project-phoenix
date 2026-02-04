@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/models/base"
@@ -348,9 +349,8 @@ func (s *cleanupService) CleanupStaleAttendance(ctx context.Context) (*Attendanc
 		Errors:    make([]string, 0),
 	}
 
-	// Get today's date at midnight (start of day) - use UTC to match database
-	now := time.Now().UTC()
-	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+	// Get today's date at midnight - Berlin date as UTC for database comparison
+	today := timezone.TodayUTC()
 
 	// Find all attendance records from before today that don't have check-out times
 	var staleRecords []struct {
@@ -402,7 +402,7 @@ func (s *cleanupService) CleanupStaleAttendance(ctx context.Context) (*Attendanc
 		_, err := s.db.NewUpdate().
 			Table(attendanceTableName).
 			Set("check_out_time = ?", checkOutTime).
-			Set("updated_at = ?", now).
+			Set("updated_at = ?", time.Now()).
 			Where("id = ?", record.ID).
 			Exec(ctx)
 
@@ -436,9 +436,8 @@ func (s *cleanupService) PreviewAttendanceCleanup(ctx context.Context) (*Attenda
 		RecordsByDate:  make(map[string]int),
 	}
 
-	// Get today's date at midnight - use UTC to match database
-	now := time.Now().UTC()
-	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+	// Get today's date at midnight - Berlin date as UTC for database comparison
+	today := timezone.TodayUTC()
 
 	// Find all stale attendance records
 	var staleRecords []struct {
@@ -485,9 +484,8 @@ func (s *cleanupService) CleanupStaleSupervisors(ctx context.Context) (*Supervis
 		Errors:    make([]string, 0),
 	}
 
-	// Get today's date at midnight (start of day) - use UTC to match database
-	now := time.Now().UTC()
-	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+	// Get today's date at midnight - Berlin date as UTC for database comparison
+	today := timezone.TodayUTC()
 
 	// Find all supervisor records from before today that don't have end_date
 	var staleRecords []struct {
@@ -531,7 +529,7 @@ func (s *cleanupService) CleanupStaleSupervisors(ctx context.Context) (*Supervis
 		_, err := s.db.NewUpdate().
 			Table(supervisorTableName).
 			Set("end_date = ?", endDate).
-			Set("updated_at = ?", now).
+			Set("updated_at = ?", time.Now()).
 			Where("id = ?", record.ID).
 			Exec(ctx)
 
@@ -565,9 +563,8 @@ func (s *cleanupService) PreviewSupervisorCleanup(ctx context.Context) (*Supervi
 		RecordsByDate: make(map[string]int),
 	}
 
-	// Get today's date at midnight - use UTC to match database
-	now := time.Now().UTC()
-	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+	// Get today's date at midnight - Berlin date as UTC for database comparison
+	today := timezone.TodayUTC()
 
 	// Find all stale supervisor records
 	var staleRecords []struct {

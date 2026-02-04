@@ -33,6 +33,7 @@ jobs:
           POSTGRES_DB: phoenix_test
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
+          TZ: Europe/Berlin
         ports:
           - 5432:5432
         options: >-

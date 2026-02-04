@@ -8,16 +8,16 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-// utcToday returns today's date at midnight UTC, matching the cleanup service's UTC approach.
-// Using UTC avoids timezone-induced off-by-one errors when PostgreSQL stores DATE values.
+// utcToday returns today's date (Berlin calendar day) at midnight UTC,
+// matching the cleanup service's timezone.TodayUTC() approach.
 func utcToday() time.Time {
-	now := time.Now().UTC()
-	return time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+	return timezone.TodayUTC()
 }
 
 // =============================================================================
