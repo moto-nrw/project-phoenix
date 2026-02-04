@@ -909,6 +909,7 @@ function MeinRaumPageContent() {
   }, [schulhofStatus]);
 
   // Reset toggling state when schulhofStatus updates (prevents flicker after successful toggle)
+  // Also includes a timeout fallback to prevent stuck loading state if SWR refresh fails
   useEffect(() => {
     if (isTogglingSchulhof && schulhofStatus) {
       // When SWR has updated the data, reset the loading state
@@ -917,6 +918,21 @@ function MeinRaumPageContent() {
     // Only react to schulhofStatus changes, not isTogglingSchulhof
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [schulhofStatus?.isUserSupervising]);
+
+  // Safety timeout: Reset loading state after 5s if SWR refresh doesn't update status
+  // This prevents stuck loading state when refresh fails or returns stale data
+  useEffect(() => {
+    if (!isTogglingSchulhof) return;
+
+    const timeout = setTimeout(() => {
+      console.warn(
+        "Schulhof toggle timeout: resetting loading state after 5s (SWR refresh may have failed)",
+      );
+      setIsTogglingSchulhof(false);
+    }, 5000);
+
+    return () => clearTimeout(timeout);
+  }, [isTogglingSchulhof]);
 
   // Function to switch between rooms (by ID — stable across re-sorts)
   const switchToRoom = async (roomId: string) => {
@@ -1288,6 +1304,7 @@ function MeinRaumPageContent() {
                   type="button"
                   onClick={() => setShowReleaseModal(true)}
                   className="flex h-10 items-center gap-2 rounded-full border border-red-200 bg-red-50 px-4 text-red-600 transition-colors hover:bg-red-100"
+                  aria-label="Aufsicht abgeben"
                 >
                   <svg
                     className="h-5 w-5"

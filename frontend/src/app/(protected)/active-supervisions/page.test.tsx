@@ -58,7 +58,7 @@ vi.mock("~/components/ui/alert", () => ({
   ),
 }));
 
-// Mock Modal
+// Mock Modal and ConfirmationModal
 vi.mock("~/components/ui/modal", () => ({
   Modal: ({
     isOpen,
@@ -71,6 +71,20 @@ vi.mock("~/components/ui/modal", () => ({
   }) =>
     isOpen ? (
       <div data-testid="modal" data-title={title}>
+        {children}
+      </div>
+    ) : null,
+  ConfirmationModal: ({
+    isOpen,
+    children,
+    title,
+  }: {
+    isOpen: boolean;
+    children: React.ReactNode;
+    title: string;
+  }) =>
+    isOpen ? (
+      <div data-testid="confirmation-modal" data-title={title}>
         {children}
       </div>
     ) : null,
@@ -1454,9 +1468,7 @@ describe("Schulhof permanent tab functionality", () => {
 
     await waitFor(() => {
       // Should show the Schulhof not supervising view
-      expect(
-        screen.getByText("Schulhof-Aufsicht verfügbar"),
-      ).toBeInTheDocument();
+      expect(screen.getByText("Schulhof ohne Aufsicht")).toBeInTheDocument();
     });
   });
 
@@ -1512,9 +1524,9 @@ describe("Schulhof permanent tab functionality", () => {
     render(<MeinRaumPage />);
 
     await waitFor(() => {
-      expect(screen.getByText(/Aktuelle Aufsicht/)).toBeInTheDocument();
+      // Names are shown inline with "Aktuelle Aufsicht:" prefix
       expect(
-        screen.getByText("Max Mustermann, Erika Schmidt"),
+        screen.getByText("Aktuelle Aufsicht: Max Mustermann, Erika Schmidt"),
       ).toBeInTheDocument();
     });
   });
@@ -1558,7 +1570,9 @@ describe("Schulhof permanent tab functionality", () => {
     render(<MeinRaumPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("Aktuell keine Aufsicht")).toBeInTheDocument();
+      expect(
+        screen.getByText("Übernimm die Aufsicht, um Schüler zu sehen."),
+      ).toBeInTheDocument();
     });
   });
 
@@ -1608,7 +1622,10 @@ describe("Schulhof permanent tab functionality", () => {
     render(<MeinRaumPage />);
 
     await waitFor(() => {
-      expect(screen.getByText(/15 Schüler im Schulhof/)).toBeInTheDocument();
+      // When not supervising, shows the current supervisor name instead of student count
+      expect(
+        screen.getByText("Aktuelle Aufsicht: Test Aufsicht"),
+      ).toBeInTheDocument();
     });
   });
 });
