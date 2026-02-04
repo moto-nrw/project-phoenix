@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"log/slog"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/active"
@@ -196,20 +197,18 @@ func (s *service) createSessionWithMultipleSupervisors(ctx context.Context, acti
 // assignMultipleSupervisorsNonCritical assigns multiple supervisors but doesn't fail if assignment fails
 func (s *service) assignMultipleSupervisorsNonCritical(ctx context.Context, groupID int64, supervisorIDs []int64, startDate time.Time) {
 	// Deduplicate supervisor IDs
-	fmt.Printf("DEBUG: Received supervisor IDs: %v\n", supervisorIDs)
-	for i, id := range supervisorIDs {
-		fmt.Printf("DEBUG: supervisorIDs[%d] = %d\n", i, id)
-	}
-
 	uniqueSupervisors := make(map[int64]bool)
 	for _, id := range supervisorIDs {
 		uniqueSupervisors[id] = true
 	}
 
+	s.logger.DebugContext(ctx, "assigning multiple supervisors",
+		slog.Any("supervisor_ids", supervisorIDs),
+		slog.Int("unique_count", len(uniqueSupervisors)),
+	)
+
 	// Assign each unique supervisor
-	fmt.Printf("DEBUG: Unique supervisors map: %v\n", uniqueSupervisors)
 	for staffID := range uniqueSupervisors {
-		fmt.Printf("DEBUG: Creating supervisor for staff ID: %d\n", staffID)
 		supervisor := &active.GroupSupervisor{
 			StaffID:   staffID,
 			GroupID:   groupID,
