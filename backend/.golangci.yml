@@ -9,7 +9,7 @@ linters:
     - sloglint
   settings:
     sloglint:
-      no-mixed-arguments: true
+      no-mixed-args: true
       key-naming-case: snake
       args-on-sep-lines: true
 
