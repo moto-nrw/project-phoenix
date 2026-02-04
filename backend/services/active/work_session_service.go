@@ -332,7 +332,7 @@ func (s *workSessionService) GetSessionBreaks(ctx context.Context, staffID, sess
 	// Verify ownership: session must belong to requesting staff
 	session, err := s.repo.FindByID(ctx, sessionID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get session: %w", err)
+		return nil, s.handleSessionNotFoundError(err)
 	}
 	if session.StaffID != staffID {
 		return nil, fmt.Errorf("session does not belong to requesting staff")
@@ -530,6 +530,10 @@ func (s *workSessionService) updateSingleBreak(ctx context.Context, uc *sessionU
 		return fmt.Errorf("cannot edit duration of an active break")
 	}
 
+	if bu.DurationMinutes < 0 {
+		return fmt.Errorf("break duration cannot be negative")
+	}
+
 	if brk.DurationMinutes == bu.DurationMinutes {
 		return nil
 	}
@@ -617,7 +621,7 @@ func (s *workSessionService) GetSessionEdits(ctx context.Context, staffID, sessi
 	// Verify ownership: session must belong to requesting staff
 	session, err := s.repo.FindByID(ctx, sessionID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get session: %w", err)
+		return nil, s.handleSessionNotFoundError(err)
 	}
 	if session.StaffID != staffID {
 		return nil, fmt.Errorf("session does not belong to requesting staff")

@@ -29,6 +29,7 @@ func classifyServiceError(err error) render.Renderer {
 
 	case strings.HasPrefix(msg, "status must be"),
 		msg == "break minutes cannot be negative",
+		msg == "break duration cannot be negative",
 		strings.HasPrefix(msg, "planned_duration_minutes must be"),
 		strings.HasPrefix(msg, "break ") && strings.Contains(msg, "does not belong to this session"),
 		msg == "cannot edit duration of an active break":
