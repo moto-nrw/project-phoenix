@@ -167,7 +167,7 @@ describe("StudentCheckoutSection", () => {
   it("renders checkout button", () => {
     render(<StudentCheckoutSection onCheckoutClick={vi.fn()} />);
     expect(
-      screen.getByRole("button", { name: /kind abmelden/i }),
+      screen.getByRole("button", { name: /geht nach hause/i }),
     ).toBeInTheDocument();
   });
 
@@ -180,7 +180,7 @@ describe("StudentCheckoutSection", () => {
     const mockOnClick = vi.fn();
     render(<StudentCheckoutSection onCheckoutClick={mockOnClick} />);
 
-    fireEvent.click(screen.getByRole("button", { name: /kind abmelden/i }));
+    fireEvent.click(screen.getByRole("button", { name: /geht nach hause/i }));
 
     expect(mockOnClick).toHaveBeenCalledTimes(1);
   });
