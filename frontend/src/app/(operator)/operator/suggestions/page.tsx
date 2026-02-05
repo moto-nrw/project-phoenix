@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useMemo, useCallback } from "react";
-import { useRouter } from "next/navigation";
 import { AnimatePresence, LayoutGroup, motion } from "framer-motion";
 import { ThumbsUp, ThumbsDown } from "lucide-react";
 import useSWR from "swr";
@@ -11,6 +10,7 @@ import {
 } from "~/components/ui/page-header";
 import { Skeleton } from "~/components/ui/skeleton";
 import { StatusDropdown } from "~/components/operator/status-dropdown";
+import { OperatorCommentAccordion } from "~/components/operator/operator-comment-accordion";
 import { useOperatorAuth } from "~/lib/operator/auth-context";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { operatorSuggestionsService } from "~/lib/operator/suggestions-api";
@@ -46,7 +46,6 @@ function getInitials(name: string): string {
 }
 
 export default function OperatorSuggestionsPage() {
-  const router = useRouter();
   const { isAuthenticated } = useOperatorAuth();
   useSetBreadcrumb({ pageTitle: "Feedback" });
   const [searchTerm, setSearchTerm] = useState("");
@@ -179,21 +178,8 @@ export default function OperatorSuggestionsPage() {
                     openDropdownId === suggestion.id ? "relative z-10" : ""
                   }
                 >
-                  <div
-                    role="button"
-                    tabIndex={0}
-                    onClick={() =>
-                      router.push(`/operator/suggestions/${suggestion.id}`)
-                    }
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault();
-                        router.push(`/operator/suggestions/${suggestion.id}`);
-                      }
-                    }}
-                    className="w-full cursor-pointer text-left"
-                  >
-                    <div className="rounded-3xl border border-gray-100/50 bg-white/90 p-5 shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-150 md:hover:-translate-y-0.5 md:hover:border-blue-200/50 md:hover:shadow-[0_12px_40px_rgb(0,0,0,0.18)]">
+                  <div className="rounded-3xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md">
+                    <div className="p-5">
                       <div className="flex items-start justify-between gap-2">
                         <h3 className="text-base font-semibold text-gray-900">
                           {suggestion.title}
@@ -241,19 +227,12 @@ export default function OperatorSuggestionsPage() {
                         <span>{suggestion.authorName}</span>
                         <span>·</span>
                         <span>{getRelativeTime(suggestion.createdAt)}</span>
-                        {suggestion.commentCount > 0 && (
-                          <>
-                            <span>·</span>
-                            <span>
-                              {suggestion.commentCount}{" "}
-                              {suggestion.commentCount === 1
-                                ? "Kommentar"
-                                : "Kommentare"}
-                            </span>
-                          </>
-                        )}
                       </div>
                     </div>
+                    <OperatorCommentAccordion
+                      postId={suggestion.id}
+                      commentCount={suggestion.commentCount}
+                    />
                   </div>
                 </motion.div>
               ))}

@@ -66,3 +66,10 @@ type CommentNotFoundError struct {
 func (e *CommentNotFoundError) Error() string {
 	return fmt.Sprintf("operator comment with ID %d not found", e.CommentID)
 }
+
+// PasswordMismatchError is returned when the current password does not match
+type PasswordMismatchError struct{}
+
+func (e *PasswordMismatchError) Error() string {
+	return "current password is incorrect"
+}

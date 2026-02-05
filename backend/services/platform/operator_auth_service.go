@@ -4,10 +4,12 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"strings"
 
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/auth/userpass"
 	"github.com/moto-nrw/project-phoenix/models/platform"
+	authSvc "github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/uptrace/bun"
 )
 
@@ -24,6 +26,12 @@ type OperatorAuthService interface {
 
 	// ListOperators retrieves all operators
 	ListOperators(ctx context.Context) ([]*platform.Operator, error)
+
+	// UpdateProfile updates an operator's display name
+	UpdateProfile(ctx context.Context, operatorID int64, displayName string) (*platform.Operator, error)
+
+	// ChangePassword changes an operator's password after verifying the current one
+	ChangePassword(ctx context.Context, operatorID int64, currentPassword, newPassword string) error
 }
 
 type operatorAuthService struct {
@@ -160,4 +168,65 @@ func (s *operatorAuthService) GetOperator(ctx context.Context, id int64) (*platf
 // ListOperators retrieves all operators
 func (s *operatorAuthService) ListOperators(ctx context.Context) ([]*platform.Operator, error) {
 	return s.operatorRepo.List(ctx)
+}
+
+// UpdateProfile updates an operator's display name
+func (s *operatorAuthService) UpdateProfile(ctx context.Context, operatorID int64, displayName string) (*platform.Operator, error) {
+	displayName = strings.TrimSpace(displayName)
+	if displayName == "" {
+		return nil, &InvalidDataError{Err: fmt.Errorf("display name is required")}
+	}
+	if len(displayName) > 100 {
+		return nil, &InvalidDataError{Err: fmt.Errorf("display name must not exceed 100 characters")}
+	}
+
+	operator, err := s.operatorRepo.FindByID(ctx, operatorID)
+	if err != nil {
+		return nil, err
+	}
+	if operator == nil {
+		return nil, &OperatorNotFoundError{OperatorID: operatorID}
+	}
+
+	operator.DisplayName = displayName
+	if err := s.operatorRepo.Update(ctx, operator); err != nil {
+		return nil, fmt.Errorf("failed to update operator profile: %w", err)
+	}
+
+	return operator, nil
+}
+
+// ChangePassword changes an operator's password after verifying the current one
+func (s *operatorAuthService) ChangePassword(ctx context.Context, operatorID int64, currentPassword, newPassword string) error {
+	operator, err := s.operatorRepo.FindByID(ctx, operatorID)
+	if err != nil {
+		return err
+	}
+	if operator == nil {
+		return &OperatorNotFoundError{OperatorID: operatorID}
+	}
+
+	// Verify current password
+	match, err := userpass.VerifyPassword(currentPassword, operator.PasswordHash)
+	if err != nil || !match {
+		return &PasswordMismatchError{}
+	}
+
+	// Validate new password strength
+	if err := authSvc.ValidatePasswordStrength(newPassword); err != nil {
+		return &InvalidDataError{Err: fmt.Errorf("password doesn't meet complexity requirements")}
+	}
+
+	// Hash new password
+	hash, err := authSvc.HashPassword(newPassword)
+	if err != nil {
+		return fmt.Errorf("failed to hash password: %w", err)
+	}
+
+	operator.PasswordHash = hash
+	if err := s.operatorRepo.Update(ctx, operator); err != nil {
+		return fmt.Errorf("failed to update password: %w", err)
+	}
+
+	return nil
 }

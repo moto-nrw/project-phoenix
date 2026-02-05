@@ -92,6 +92,36 @@ export const STATUS_STYLES: Record<Suggestion["status"], string> = {
   need_info: "bg-purple-100 text-purple-700",
 };
 
+// Comment types (bidirectional: operator + user comments)
+export interface BackendComment {
+  id: number;
+  content: string;
+  author_name: string;
+  author_type: "operator" | "user";
+  is_internal: boolean;
+  created_at: string;
+}
+
+export interface SuggestionComment {
+  id: string;
+  content: string;
+  authorName: string;
+  authorType: "operator" | "user";
+  isInternal: boolean;
+  createdAt: string;
+}
+
+export function mapCommentResponse(data: BackendComment): SuggestionComment {
+  return {
+    id: data.id.toString(),
+    content: data.content,
+    authorName: data.author_name,
+    authorType: data.author_type,
+    isInternal: data.is_internal,
+    createdAt: data.created_at,
+  };
+}
+
 export type SortOption = "score" | "newest" | "status";
 
 export const SORT_LABELS: Record<SortOption, string> = {

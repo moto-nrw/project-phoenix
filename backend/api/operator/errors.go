@@ -6,6 +6,7 @@ import (
 
 	"github.com/go-chi/render"
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
+	suggestionsSvc "github.com/moto-nrw/project-phoenix/services/suggestions"
 )
 
 // ErrInvalidRequest creates an error response for invalid requests
@@ -92,11 +93,19 @@ func SuggestionsErrorRenderer(err error) render.Renderer {
 	var commentNotFound *platformSvc.CommentNotFoundError
 	var invalidData *platformSvc.InvalidDataError
 
+	// Also check for suggestions service errors (unified comment system)
+	var suggestionsCommentNotFound *suggestionsSvc.CommentNotFoundError
+	var suggestionsForbidden *suggestionsSvc.ForbiddenError
+
 	switch {
 	case errors.As(err, &postNotFound):
 		return ErrNotFound("Suggestion post not found")
 	case errors.As(err, &commentNotFound):
 		return ErrNotFound("Comment not found")
+	case errors.As(err, &suggestionsCommentNotFound):
+		return ErrNotFound("Comment not found")
+	case errors.As(err, &suggestionsForbidden):
+		return ErrForbidden(err.Error())
 	case errors.As(err, &invalidData):
 		return ErrInvalidRequest(err)
 	default:

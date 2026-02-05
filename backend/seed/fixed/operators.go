@@ -17,7 +17,7 @@ func (s *Seeder) seedOperators(ctx context.Context) error {
 		displayName string
 		password    string
 	}{
-		{"operator@example.com", "moto Operator", "Test1234%"},
+		{"operator@example.com", "Administrator", "Test1234%"},
 	}
 
 	for _, data := range operators {

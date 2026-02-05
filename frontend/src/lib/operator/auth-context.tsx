@@ -22,6 +22,7 @@ interface OperatorAuthContextType {
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
+  updateOperator: (updates: Partial<Operator>) => void;
 }
 
 interface SessionResponse {
@@ -98,6 +99,10 @@ export function OperatorAuthProvider({
     [router],
   );
 
+  const updateOperator = useCallback((updates: Partial<Operator>) => {
+    setOperator((prev) => (prev ? { ...prev, ...updates } : prev));
+  }, []);
+
   const logout = useCallback(async () => {
     try {
       await fetch("/api/operator/logout", { method: "POST" });
@@ -116,8 +121,9 @@ export function OperatorAuthProvider({
       isLoading,
       login,
       logout,
+      updateOperator,
     }),
-    [operator, isLoading, login, logout],
+    [operator, isLoading, login, logout, updateOperator],
   );
 
   return (

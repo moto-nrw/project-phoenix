@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import type { Suggestion } from "~/lib/suggestions-helpers";
 import { STATUS_LABELS, STATUS_STYLES } from "~/lib/suggestions-helpers";
+import { CommentAccordion } from "./comment-accordion";
 import { VoteButtons } from "./vote-buttons";
 
 interface SuggestionCardProps {
@@ -181,6 +182,9 @@ export function SuggestionCard({
           </div>
         </div>
       </div>
+
+      {/* Comment accordion */}
+      <CommentAccordion postId={suggestion.id} />
     </div>
   );
 }

@@ -49,21 +49,6 @@ type AnnouncementViewRepository interface {
 	HasSeen(ctx context.Context, userID, announcementID int64) (bool, error)
 }
 
-// OperatorCommentRepository defines operations for managing operator comments
-type OperatorCommentRepository interface {
-	// Core CRUD operations
-	Create(ctx context.Context, comment *OperatorComment) error
-	FindByID(ctx context.Context, id int64) (*OperatorComment, error)
-	Update(ctx context.Context, comment *OperatorComment) error
-	Delete(ctx context.Context, id int64) error
-
-	// Query by post
-	FindByPostID(ctx context.Context, postID int64, includeInternal bool) ([]*OperatorComment, error)
-
-	// Count comments for a post
-	CountByPostID(ctx context.Context, postID int64) (int, error)
-}
-
 // OperatorAuditLogRepository defines operations for the audit log
 type OperatorAuditLogRepository interface {
 	// Create a new audit log entry

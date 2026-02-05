@@ -9,7 +9,7 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	"github.com/moto-nrw/project-phoenix/models/platform"
+	"github.com/moto-nrw/project-phoenix/models/suggestions"
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 )
 
@@ -27,27 +27,28 @@ func NewSuggestionsResource(suggestionsService platformSvc.OperatorSuggestionsSe
 
 // SuggestionResponse represents a suggestion in the response
 type SuggestionResponse struct {
-	ID               int64                      `json:"id"`
-	Title            string                     `json:"title"`
-	Description      string                     `json:"description"`
-	Status           string                     `json:"status"`
-	Score            int                        `json:"score"`
-	Upvotes          int                        `json:"upvotes"`
-	Downvotes        int                        `json:"downvotes"`
-	AuthorName       string                     `json:"author_name"`
-	CreatedAt        string                     `json:"created_at"`
-	UpdatedAt        string                     `json:"updated_at"`
-	CommentCount     int                        `json:"comment_count,omitempty"`
-	OperatorComments []*OperatorCommentResponse `json:"operator_comments,omitempty"`
+	ID               int64              `json:"id"`
+	Title            string             `json:"title"`
+	Description      string             `json:"description"`
+	Status           string             `json:"status"`
+	Score            int                `json:"score"`
+	Upvotes          int                `json:"upvotes"`
+	Downvotes        int                `json:"downvotes"`
+	AuthorName       string             `json:"author_name"`
+	CreatedAt        string             `json:"created_at"`
+	UpdatedAt        string             `json:"updated_at"`
+	CommentCount     int                `json:"comment_count,omitempty"`
+	OperatorComments []*CommentResponse `json:"operator_comments,omitempty"`
 }
 
-// OperatorCommentResponse represents an operator comment in the response
-type OperatorCommentResponse struct {
-	ID           int64  `json:"id"`
-	Content      string `json:"content"`
-	IsInternal   bool   `json:"is_internal"`
-	OperatorName string `json:"operator_name,omitempty"`
-	CreatedAt    string `json:"created_at"`
+// CommentResponse represents a comment in the response (shared between operator and user APIs)
+type CommentResponse struct {
+	ID         int64  `json:"id"`
+	Content    string `json:"content"`
+	AuthorName string `json:"author_name"`
+	AuthorType string `json:"author_type"`
+	IsInternal bool   `json:"is_internal"`
+	CreatedAt  string `json:"created_at"`
 }
 
 // UpdateStatusRequest represents the status update request body
@@ -104,7 +105,7 @@ func (rs *SuggestionsResource) ListSuggestions(w http.ResponseWriter, r *http.Re
 	common.Respond(w, r, http.StatusOK, responses, "Suggestions retrieved successfully")
 }
 
-// GetSuggestion handles getting a single suggestion with operator comments
+// GetSuggestion handles getting a single suggestion with comments
 func (rs *SuggestionsResource) GetSuggestion(w http.ResponseWriter, r *http.Request) {
 	id, err := parseID(r, "id")
 	if err != nil {
@@ -118,18 +119,15 @@ func (rs *SuggestionsResource) GetSuggestion(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	commentResponses := make([]*OperatorCommentResponse, 0, len(comments))
+	commentResponses := make([]*CommentResponse, 0, len(comments))
 	for _, comment := range comments {
-		operatorName := ""
-		if comment.Operator != nil {
-			operatorName = comment.Operator.DisplayName
-		}
-		commentResponses = append(commentResponses, &OperatorCommentResponse{
-			ID:           comment.ID,
-			Content:      comment.Content,
-			IsInternal:   comment.IsInternal,
-			OperatorName: operatorName,
-			CreatedAt:    comment.CreatedAt.Format("2006-01-02T15:04:05Z"),
+		commentResponses = append(commentResponses, &CommentResponse{
+			ID:         comment.ID,
+			Content:    comment.Content,
+			AuthorName: comment.AuthorName,
+			AuthorType: comment.AuthorType,
+			IsInternal: comment.IsInternal,
+			CreatedAt:  comment.CreatedAt.Format("2006-01-02T15:04:05Z"),
 		})
 	}
 
@@ -183,7 +181,7 @@ func (rs *SuggestionsResource) UpdateStatus(w http.ResponseWriter, r *http.Reque
 	common.Respond(w, r, http.StatusOK, nil, "Status updated successfully")
 }
 
-// AddComment handles adding an operator comment to a suggestion
+// AddComment handles adding a comment to a suggestion
 func (rs *SuggestionsResource) AddComment(w http.ResponseWriter, r *http.Request) {
 	claims := jwt.ClaimsFromCtx(r.Context())
 	operatorID := int64(claims.ID)
@@ -205,9 +203,9 @@ func (rs *SuggestionsResource) AddComment(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	comment := &platform.OperatorComment{
+	comment := &suggestions.Comment{
 		PostID:     postID,
-		OperatorID: operatorID,
+		AuthorID:   operatorID,
 		Content:    req.Content,
 		IsInternal: req.IsInternal,
 	}
@@ -222,7 +220,7 @@ func (rs *SuggestionsResource) AddComment(w http.ResponseWriter, r *http.Request
 	common.Respond(w, r, http.StatusCreated, nil, "Comment added successfully")
 }
 
-// DeleteComment handles deleting an operator comment
+// DeleteComment handles deleting a comment
 func (rs *SuggestionsResource) DeleteComment(w http.ResponseWriter, r *http.Request) {
 	claims := jwt.ClaimsFromCtx(r.Context())
 	operatorID := int64(claims.ID)

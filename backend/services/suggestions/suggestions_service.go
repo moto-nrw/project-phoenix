@@ -10,17 +10,19 @@ import (
 )
 
 type suggestionsService struct {
-	postRepo  suggestions.PostRepository
-	voteRepo  suggestions.VoteRepository
-	txHandler *base.TxHandler
+	postRepo    suggestions.PostRepository
+	voteRepo    suggestions.VoteRepository
+	commentRepo suggestions.CommentRepository
+	txHandler   *base.TxHandler
 }
 
 // NewService creates a new suggestions service
-func NewService(postRepo suggestions.PostRepository, voteRepo suggestions.VoteRepository, db *bun.DB) Service {
+func NewService(postRepo suggestions.PostRepository, voteRepo suggestions.VoteRepository, commentRepo suggestions.CommentRepository, db *bun.DB) Service {
 	return &suggestionsService{
-		postRepo:  postRepo,
-		voteRepo:  voteRepo,
-		txHandler: base.NewTxHandler(db),
+		postRepo:    postRepo,
+		voteRepo:    voteRepo,
+		commentRepo: commentRepo,
+		txHandler:   base.NewTxHandler(db),
 	}
 }
 
@@ -166,4 +168,53 @@ func (s *suggestionsService) RemoveVote(ctx context.Context, postID int64, accou
 
 	// Return updated post (outside transaction — read-only)
 	return s.postRepo.FindByIDWithVote(ctx, postID, accountID)
+}
+
+// CreateComment creates a new user-facing comment on a post
+func (s *suggestionsService) CreateComment(ctx context.Context, comment *suggestions.Comment) error {
+	if comment == nil {
+		return &InvalidDataError{Err: fmt.Errorf("comment cannot be nil")}
+	}
+
+	// User-facing comments are always from type "user" and never internal
+	comment.AuthorType = suggestions.AuthorTypeUser
+	comment.IsInternal = false
+
+	// Verify post exists
+	post, err := s.postRepo.FindByID(ctx, comment.PostID)
+	if err != nil {
+		return err
+	}
+	if post == nil {
+		return &PostNotFoundError{PostID: comment.PostID}
+	}
+
+	if err := comment.Validate(); err != nil {
+		return &InvalidDataError{Err: err}
+	}
+
+	return s.commentRepo.Create(ctx, comment)
+}
+
+// GetComments retrieves public (non-internal) comments for a post
+func (s *suggestionsService) GetComments(ctx context.Context, postID int64) ([]*suggestions.Comment, error) {
+	return s.commentRepo.FindByPostID(ctx, postID, false)
+}
+
+// DeleteComment deletes a user's own comment
+func (s *suggestionsService) DeleteComment(ctx context.Context, commentID int64, accountID int64) error {
+	comment, err := s.commentRepo.FindByID(ctx, commentID)
+	if err != nil {
+		return err
+	}
+	if comment == nil {
+		return &CommentNotFoundError{CommentID: commentID}
+	}
+
+	// Users can only delete their own comments
+	if comment.AuthorType != suggestions.AuthorTypeUser || comment.AuthorID != accountID {
+		return &ForbiddenError{Reason: "you can only delete your own comments"}
+	}
+
+	return s.commentRepo.Delete(ctx, commentID)
 }

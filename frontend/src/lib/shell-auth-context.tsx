@@ -136,7 +136,7 @@ export function OperatorShellProvider({
       logout,
       mode: "operator" as const,
       homeUrl: "/operator/suggestions",
-      settingsUrl: null,
+      settingsUrl: "/operator/settings",
     };
   }, [operator, isLoading, isAuthenticated, logout]);
 

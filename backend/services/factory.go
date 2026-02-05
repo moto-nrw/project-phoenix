@@ -216,6 +216,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	suggestionsService := suggestions.NewService(
 		repos.SuggestionPost,
 		repos.SuggestionVote,
+		repos.SuggestionComment,
 		db,
 	)
 
@@ -390,7 +391,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 
 	operatorSuggestionsService := platform.NewOperatorSuggestionsService(platform.OperatorSuggestionsServiceConfig{
 		PostRepo:     repos.SuggestionPost,
-		CommentRepo:  repos.OperatorComment,
+		CommentRepo:  repos.SuggestionComment,
 		AuditLogRepo: repos.OperatorAuditLog,
 		DB:           db,
 	})

@@ -54,6 +54,13 @@ func (rs *Resource) Router() chi.Router {
 		// Voting
 		r.With(authorize.RequiresPermission(permissions.SuggestionsCreate)).Post("/{id}/vote", rs.vote)
 		r.With(authorize.RequiresPermission(permissions.SuggestionsCreate)).Delete("/{id}/vote", rs.removeVote)
+
+		// Comments
+		r.Route("/{id}/comments", func(r chi.Router) {
+			r.With(authorize.RequiresPermission(permissions.SuggestionsRead)).Get("/", rs.listComments)
+			r.With(authorize.RequiresPermission(permissions.SuggestionsCreate)).Post("/", rs.createComment)
+			r.With(authorize.RequiresPermission(permissions.SuggestionsDelete)).Delete("/{commentId}", rs.deleteComment)
+		})
 	})
 
 	return r

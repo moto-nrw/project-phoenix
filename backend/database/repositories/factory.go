@@ -107,8 +107,9 @@ type Factory struct {
 	Setting configModels.SettingRepository
 
 	// Suggestions domain
-	SuggestionPost suggestionsModels.PostRepository
-	SuggestionVote suggestionsModels.VoteRepository
+	SuggestionPost    suggestionsModels.PostRepository
+	SuggestionVote    suggestionsModels.VoteRepository
+	SuggestionComment suggestionsModels.CommentRepository
 
 	// Audit domain
 	DataDeletion    auditModels.DataDeletionRepository
@@ -120,7 +121,6 @@ type Factory struct {
 	Operator         platformModels.OperatorRepository
 	Announcement     platformModels.AnnouncementRepository
 	AnnouncementView platformModels.AnnouncementViewRepository
-	OperatorComment  platformModels.OperatorCommentRepository
 	OperatorAuditLog platformModels.OperatorAuditLogRepository
 }
 
@@ -200,8 +200,9 @@ func NewFactory(db *bun.DB) *Factory {
 		Setting: config.NewSettingRepository(db),
 
 		// Suggestions repositories
-		SuggestionPost: suggestionsRepo.NewPostRepository(db),
-		SuggestionVote: suggestionsRepo.NewVoteRepository(db),
+		SuggestionPost:    suggestionsRepo.NewPostRepository(db),
+		SuggestionVote:    suggestionsRepo.NewVoteRepository(db),
+		SuggestionComment: suggestionsRepo.NewCommentRepository(db),
 
 		// Audit repositories
 		DataDeletion:    audit.NewDataDeletionRepository(db),
@@ -213,7 +214,6 @@ func NewFactory(db *bun.DB) *Factory {
 		Operator:         platformRepo.NewOperatorRepository(db),
 		Announcement:     platformRepo.NewAnnouncementRepository(db),
 		AnnouncementView: platformRepo.NewAnnouncementViewRepository(db),
-		OperatorComment:  platformRepo.NewOperatorCommentRepository(db),
 		OperatorAuditLog: platformRepo.NewOperatorAuditLogRepository(db),
 	}
 }

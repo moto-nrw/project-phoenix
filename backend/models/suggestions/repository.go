@@ -34,3 +34,22 @@ type VoteRepository interface {
 	// FindByPostAndVoter returns the vote for a specific post and voter, or nil.
 	FindByPostAndVoter(ctx context.Context, postID, voterID int64) (*Vote, error)
 }
+
+// CommentRepository defines operations for managing suggestion comments
+type CommentRepository interface {
+	// Create inserts a new comment
+	Create(ctx context.Context, comment *Comment) error
+
+	// FindByID retrieves a comment by ID
+	FindByID(ctx context.Context, id int64) (*Comment, error)
+
+	// FindByPostID retrieves all comments for a post with author names resolved.
+	// If includeInternal is false, internal comments are excluded.
+	FindByPostID(ctx context.Context, postID int64, includeInternal bool) ([]*Comment, error)
+
+	// Delete soft-deletes a comment by ID
+	Delete(ctx context.Context, id int64) error
+
+	// CountByPostID counts non-deleted comments for a post
+	CountByPostID(ctx context.Context, postID int64) (int, error)
+}

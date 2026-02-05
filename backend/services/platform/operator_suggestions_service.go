@@ -15,24 +15,24 @@ type OperatorSuggestionsService interface {
 	// List all suggestions (cross-tenant for operators)
 	ListAllPosts(ctx context.Context, status string, sortBy string) ([]*suggestions.Post, error)
 
-	// Get a single post with operator comments
-	GetPost(ctx context.Context, postID int64) (*suggestions.Post, []*platform.OperatorComment, error)
+	// Get a single post with comments
+	GetPost(ctx context.Context, postID int64) (*suggestions.Post, []*suggestions.Comment, error)
 
 	// Update post status (only operators can change status)
 	UpdatePostStatus(ctx context.Context, postID int64, status string, operatorID int64, clientIP net.IP) error
 
-	// Operator comments
-	AddComment(ctx context.Context, comment *platform.OperatorComment, clientIP net.IP) error
-	GetComments(ctx context.Context, postID int64, includeInternal bool) ([]*platform.OperatorComment, error)
+	// Comments (operators can see internal, create internal/public, delete any)
+	AddComment(ctx context.Context, comment *suggestions.Comment, clientIP net.IP) error
+	GetComments(ctx context.Context, postID int64, includeInternal bool) ([]*suggestions.Comment, error)
 	DeleteComment(ctx context.Context, commentID int64, operatorID int64, clientIP net.IP) error
 
 	// Get public comments for user-facing display
-	GetPublicComments(ctx context.Context, postID int64) ([]*platform.OperatorComment, error)
+	GetPublicComments(ctx context.Context, postID int64) ([]*suggestions.Comment, error)
 }
 
 type operatorSuggestionsService struct {
 	postRepo     suggestions.PostRepository
-	commentRepo  platform.OperatorCommentRepository
+	commentRepo  suggestions.CommentRepository
 	auditLogRepo platform.OperatorAuditLogRepository
 	db           *bun.DB
 }
@@ -40,7 +40,7 @@ type operatorSuggestionsService struct {
 // OperatorSuggestionsServiceConfig holds configuration for the service
 type OperatorSuggestionsServiceConfig struct {
 	PostRepo     suggestions.PostRepository
-	CommentRepo  platform.OperatorCommentRepository
+	CommentRepo  suggestions.CommentRepository
 	AuditLogRepo platform.OperatorAuditLogRepository
 	DB           *bun.DB
 }
@@ -61,8 +61,8 @@ func (s *operatorSuggestionsService) ListAllPosts(ctx context.Context, status st
 	return s.postRepo.List(ctx, 0, sortBy)
 }
 
-// GetPost retrieves a single post with its operator comments
-func (s *operatorSuggestionsService) GetPost(ctx context.Context, postID int64) (*suggestions.Post, []*platform.OperatorComment, error) {
+// GetPost retrieves a single post with its comments (including internal)
+func (s *operatorSuggestionsService) GetPost(ctx context.Context, postID int64) (*suggestions.Post, []*suggestions.Comment, error) {
 	post, err := s.postRepo.FindByID(ctx, postID)
 	if err != nil {
 		return nil, nil, err
@@ -111,10 +111,13 @@ func (s *operatorSuggestionsService) UpdatePostStatus(ctx context.Context, postI
 }
 
 // AddComment adds an operator comment to a suggestion
-func (s *operatorSuggestionsService) AddComment(ctx context.Context, comment *platform.OperatorComment, clientIP net.IP) error {
+func (s *operatorSuggestionsService) AddComment(ctx context.Context, comment *suggestions.Comment, clientIP net.IP) error {
 	if comment == nil {
 		return &InvalidDataError{Err: fmt.Errorf("comment cannot be nil")}
 	}
+
+	// Force operator author type
+	comment.AuthorType = suggestions.AuthorTypeOperator
 
 	// Verify post exists
 	post, err := s.postRepo.FindByID(ctx, comment.PostID)
@@ -138,17 +141,17 @@ func (s *operatorSuggestionsService) AddComment(ctx context.Context, comment *pl
 		"post_id":     comment.PostID,
 		"is_internal": comment.IsInternal,
 	}
-	s.logAction(ctx, comment.OperatorID, platform.ActionAddComment, platform.ResourceComment, &comment.ID, clientIP, changes)
+	s.logAction(ctx, comment.AuthorID, platform.ActionAddComment, platform.ResourceComment, &comment.ID, clientIP, changes)
 
 	return nil
 }
 
 // GetComments retrieves comments for a post
-func (s *operatorSuggestionsService) GetComments(ctx context.Context, postID int64, includeInternal bool) ([]*platform.OperatorComment, error) {
+func (s *operatorSuggestionsService) GetComments(ctx context.Context, postID int64, includeInternal bool) ([]*suggestions.Comment, error) {
 	return s.commentRepo.FindByPostID(ctx, postID, includeInternal)
 }
 
-// DeleteComment deletes an operator comment
+// DeleteComment deletes a comment (operators can delete any comment)
 func (s *operatorSuggestionsService) DeleteComment(ctx context.Context, commentID int64, operatorID int64, clientIP net.IP) error {
 	comment, err := s.commentRepo.FindByID(ctx, commentID)
 	if err != nil {
@@ -172,7 +175,7 @@ func (s *operatorSuggestionsService) DeleteComment(ctx context.Context, commentI
 }
 
 // GetPublicComments retrieves only public comments for user-facing display
-func (s *operatorSuggestionsService) GetPublicComments(ctx context.Context, postID int64) ([]*platform.OperatorComment, error) {
+func (s *operatorSuggestionsService) GetPublicComments(ctx context.Context, postID int64) ([]*suggestions.Comment, error) {
 	return s.commentRepo.FindByPostID(ctx, postID, false) // Exclude internal comments
 }
 

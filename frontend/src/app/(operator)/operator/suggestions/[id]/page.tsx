@@ -38,7 +38,6 @@ export default function OperatorSuggestionDetailPage() {
   useSetBreadcrumb({ pageTitle: "Feedback Details" });
 
   const [commentText, setCommentText] = useState("");
-  const [isInternal, setIsInternal] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [statusUpdating, setStatusUpdating] = useState(false);
   const [deleteCommentId, setDeleteCommentId] = useState<string | null>(null);
@@ -80,10 +79,9 @@ export default function OperatorSuggestionDetailPage() {
         await operatorSuggestionsService.addComment(
           suggestion.id,
           commentText.trim(),
-          isInternal,
+          false,
         );
         setCommentText("");
-        setIsInternal(false);
         await mutate();
       } catch (error) {
         console.error("Failed to add comment:", error);
@@ -91,7 +89,7 @@ export default function OperatorSuggestionDetailPage() {
         setIsSubmitting(false);
       }
     },
-    [suggestion, commentText, isInternal, mutate],
+    [suggestion, commentText, mutate],
   );
 
   const handleDeleteComment = useCallback(async () => {
@@ -213,61 +211,65 @@ export default function OperatorSuggestionDetailPage() {
         {/* Comment list */}
         {suggestion.operatorComments.length > 0 && (
           <div className="mb-6 space-y-3">
-            {suggestion.operatorComments.map((comment) => (
-              <div
-                key={comment.id}
-                className={`rounded-xl border p-4 ${
-                  comment.isInternal
-                    ? "border-yellow-200 bg-yellow-50"
-                    : "border-blue-200 bg-blue-50"
-                }`}
-              >
-                <div className="mb-1 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium text-gray-900">
-                      {comment.operatorName}
-                    </span>
-                    <span
-                      className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                        comment.isInternal
-                          ? "bg-yellow-200 text-yellow-800"
-                          : "bg-blue-200 text-blue-800"
-                      }`}
-                    >
-                      {comment.isInternal ? "Intern" : "Öffentlich"}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-gray-500">
-                      {getRelativeTime(comment.createdAt)}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setDeleteCommentId(comment.id)}
-                      className="rounded p-1 text-gray-400 transition-colors hover:bg-gray-200 hover:text-red-500"
-                      aria-label="Kommentar löschen"
-                    >
-                      <svg
-                        className="h-4 w-4"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                        strokeWidth={2}
+            {suggestion.operatorComments.map((comment) => {
+              const isOperator = comment.authorType === "operator";
+              const borderClass = isOperator
+                ? "border-blue-200"
+                : "border-green-200";
+              const bgClass = isOperator ? "bg-blue-50" : "bg-green-50";
+              const badgeClass = isOperator
+                ? "bg-blue-200 text-blue-800"
+                : "bg-green-200 text-green-800";
+              const badgeText = isOperator ? "moto Team" : "OGS-Benutzer";
+
+              return (
+                <div
+                  key={comment.id}
+                  className={`rounded-xl border p-4 ${borderClass} ${bgClass}`}
+                >
+                  <div className="mb-1 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium text-gray-900">
+                        {comment.authorName}
+                      </span>
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-xs font-medium ${badgeClass}`}
                       >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                        />
-                      </svg>
-                    </button>
+                        {badgeText}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-gray-500">
+                        {getRelativeTime(comment.createdAt)}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setDeleteCommentId(comment.id)}
+                        className="rounded p-1 text-gray-400 transition-colors hover:bg-gray-200 hover:text-red-500"
+                        aria-label="Kommentar löschen"
+                      >
+                        <svg
+                          className="h-4 w-4"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                          strokeWidth={2}
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                          />
+                        </svg>
+                      </button>
+                    </div>
                   </div>
+                  <p className="text-sm whitespace-pre-wrap text-gray-700">
+                    {comment.content}
+                  </p>
                 </div>
-                <p className="text-sm whitespace-pre-wrap text-gray-700">
-                  {comment.content}
-                </p>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
 
@@ -278,18 +280,9 @@ export default function OperatorSuggestionDetailPage() {
             onChange={(e) => setCommentText(e.target.value)}
             placeholder="Kommentar schreiben..."
             rows={3}
-            className="w-full rounded-xl border border-gray-200 p-3 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+            className="w-full rounded-xl border border-gray-200 p-3 text-sm transition-all duration-200 focus:border-gray-300 focus:ring-0 focus:outline-none"
           />
-          <div className="flex items-center justify-between">
-            <label className="flex items-center gap-2 text-sm text-gray-600">
-              <input
-                type="checkbox"
-                checked={isInternal}
-                onChange={(e) => setIsInternal(e.target.checked)}
-                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-              />
-              Interne Notiz
-            </label>
+          <div className="flex justify-end">
             <button
               type="submit"
               disabled={isSubmitting || !commentText.trim()}

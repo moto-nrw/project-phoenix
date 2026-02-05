@@ -60,7 +60,7 @@ func createOperatorAccount(ctx context.Context, db *bun.DB) error {
 
 	operatorName := os.Getenv("OPERATOR_DISPLAY_NAME")
 	if operatorName == "" {
-		operatorName = "moto Operator"
+		operatorName = "Administrator"
 	}
 
 	hashedPassword, err := userpass.HashPassword(operatorPassword, userpass.DefaultParams())

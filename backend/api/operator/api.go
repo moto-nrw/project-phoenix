@@ -12,6 +12,7 @@ type Resource struct {
 	authResource          *AuthResource
 	suggestionsResource   *SuggestionsResource
 	announcementsResource *AnnouncementsResource
+	profileResource       *ProfileResource
 	tokenAuth             *jwt.TokenAuth
 }
 
@@ -35,6 +36,7 @@ func NewResource(cfg ResourceConfig) *Resource {
 		authResource:          NewAuthResource(cfg.AuthService),
 		suggestionsResource:   NewSuggestionsResource(cfg.SuggestionsService),
 		announcementsResource: NewAnnouncementsResource(cfg.AnnouncementsService),
+		profileResource:       NewProfileResource(cfg.AuthService),
 		tokenAuth:             tokenAuth,
 	}
 }
@@ -62,6 +64,13 @@ func (rs *Resource) Router() chi.Router {
 			r.Put("/{id}/status", rs.suggestionsResource.UpdateStatus)
 			r.Post("/{id}/comments", rs.suggestionsResource.AddComment)
 			r.Delete("/{id}/comments/{commentId}", rs.suggestionsResource.DeleteComment)
+		})
+
+		// Profile management
+		r.Route("/profile", func(r chi.Router) {
+			r.Get("/", rs.profileResource.GetProfile)
+			r.Put("/", rs.profileResource.UpdateProfile)
+			r.Post("/password", rs.profileResource.ChangePassword)
 		})
 
 		// Announcements management
