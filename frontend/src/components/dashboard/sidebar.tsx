@@ -6,6 +6,7 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useSupervision } from "~/lib/supervision-context";
+import { useShellAuth } from "~/lib/shell-auth-context";
 import { isAdmin } from "~/lib/auth-utils";
 import { useSidebarAccordion } from "~/lib/hooks/use-sidebar-accordion";
 import { SidebarAccordionSection } from "~/components/dashboard/sidebar-accordion-section";
@@ -132,6 +133,24 @@ const NAV_ITEMS: NavItem[] = [
   },
 ];
 
+// Operator navigation items (flat, no accordions)
+const OPERATOR_NAV_ITEMS: NavItem[] = [
+  {
+    href: "/operator/suggestions",
+    label: "Vorschläge",
+    icon: "M10.34 15.84c-.688-.06-1.386-.09-2.09-.09H7.5a4.5 4.5 0 110-9h.75c.704 0 1.402-.03 2.09-.09m0 9.18c.253.962.584 1.892.985 2.783.247.55.06 1.21-.463 1.511l-.657.38c-.551.318-1.26.117-1.527-.461a20.845 20.845 0 01-1.44-4.282m3.102.069a18.03 18.03 0 01-.59-4.59c0-1.586.205-3.124.59-4.59m0 9.18a23.848 23.848 0 018.835 2.535M10.34 6.66a23.847 23.847 0 008.835-2.535m0 0A23.74 23.74 0 0018.795 3m.38 1.125a23.91 23.91 0 011.014 5.395m-1.014 8.855c-.118.38-.245.754-.38 1.125m.38-1.125a23.91 23.91 0 001.014-5.395m0-3.46c.495.413.811 1.035.811 1.73 0 .695-.316 1.317-.811 1.73m0-3.46a24.347 24.347 0 010 3.46",
+    activeColor: "text-teal-500",
+    alwaysShow: true,
+  },
+  {
+    href: "/operator/announcements",
+    label: "Ankündigungen",
+    icon: "M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9",
+    activeColor: "text-amber-500",
+    alwaysShow: true,
+  },
+];
+
 // Static sub-pages for Datenverwaltung accordion
 const DATABASE_SUB_PAGES = [
   { href: "/database/students", label: "Kinder" },
@@ -181,6 +200,7 @@ function SidebarContent({ className = "" }: SidebarProps) {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { data: session } = useSession();
+  const { mode } = useShellAuth();
 
   // Get supervision state
   const { isLoadingGroups, isLoadingSupervision, groups, supervisedRooms } =
@@ -444,6 +464,42 @@ function SidebarContent({ className = "" }: SidebarProps) {
 
   // Show staff-only accordions (groups + supervisions) only for non-admin
   const showStaffAccordions = !userIsAdmin;
+
+  // Operator mode: simple flat navigation (no accordions, no teacher features)
+  if (mode === "operator") {
+    return (
+      <aside
+        className={`min-h-screen w-64 border-r border-gray-200 bg-white ${className}`}
+      >
+        <div className="sticky top-[73px] flex h-[calc(100vh-73px)] flex-col">
+          <nav className="flex-1 space-y-1 overflow-y-auto p-3 lg:p-4 xl:p-3">
+            {OPERATOR_NAV_ITEMS.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={getLinkClasses(item.href)}
+              >
+                <svg
+                  className={getIconClasses(item)}
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d={item.icon}
+                  />
+                </svg>
+                {item.label}
+              </Link>
+            ))}
+          </nav>
+        </div>
+      </aside>
+    );
+  }
 
   return (
     <aside

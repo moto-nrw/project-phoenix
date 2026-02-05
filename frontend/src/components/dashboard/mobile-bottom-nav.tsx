@@ -7,6 +7,7 @@ import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useSupervision } from "~/lib/supervision-context";
+import { useShellAuth } from "~/lib/shell-auth-context";
 import { isAdmin } from "~/lib/auth-utils";
 import { navigationIcons } from "~/lib/navigation-icons";
 import {
@@ -82,6 +83,21 @@ const STAFF_MAIN_ITEMS: NavItem[] = [
     href: "/activities",
     label: "Aktivitäten",
     iconKey: "activities",
+    alwaysShow: true,
+  },
+];
+
+const OPERATOR_MAIN_ITEMS: NavItem[] = [
+  {
+    href: "/operator/suggestions",
+    label: "Vorschläge",
+    iconKey: "feedback",
+    alwaysShow: true,
+  },
+  {
+    href: "/operator/announcements",
+    label: "Ankündigungen",
+    iconKey: "bell",
     alwaysShow: true,
   },
 ];
@@ -202,6 +218,9 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
   const { hasGroups, isSupervising, isLoadingGroups, isLoadingSupervision } =
     useSupervision();
 
+  // Get shell auth mode
+  const { mode } = useShellAuth();
+
   // Check if current path matches nav item
   const isActiveRoute = useCallback(
     (href: string) => {
@@ -224,8 +243,13 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
     setIsOverflowMenuOpen(false);
   };
 
-  // Compute main navigation items per role
-  const baseMain = isAdmin(session) ? ADMIN_MAIN_ITEMS : STAFF_MAIN_ITEMS;
+  // Compute main navigation items per role and mode
+  const baseMain =
+    mode === "operator"
+      ? OPERATOR_MAIN_ITEMS
+      : isAdmin(session)
+        ? ADMIN_MAIN_ITEMS
+        : STAFF_MAIN_ITEMS;
   const filteredMainItems = baseMain;
 
   // Pre-compute permission flags to reduce complexity in filter
@@ -250,14 +274,15 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
     return true;
   });
 
-  // Static navigation - 4 main items + overflow menu
+  // Static navigation - 4 main items + overflow menu (operator mode: 2 items, no overflow)
   const displayMainItems: NavItem[] = filteredMainItems;
-  const showOverflowMenu = true;
+  const showOverflowMenu = mode !== "operator";
   // Avoid duplicates between main and additional
   const mainHrefs = new Set(displayMainItems.map((i) => i.href));
-  const displayAdditionalItems = filteredAdditionalItems.filter(
-    (i) => !mainHrefs.has(i.href),
-  );
+  const displayAdditionalItems =
+    mode === "operator"
+      ? []
+      : filteredAdditionalItems.filter((i) => !mainHrefs.has(i.href));
 
   // Check if any additional nav item is active
   const isAnyAdditionalNavActive = displayAdditionalItems.some((item) =>

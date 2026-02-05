@@ -11,11 +11,15 @@ import Image from "next/image";
  */
 interface BrandLinkProps {
   readonly isScrolled?: boolean;
+  readonly href?: string;
 }
 
-export function BrandLink({ isScrolled = false }: BrandLinkProps) {
+export function BrandLink({
+  isScrolled = false,
+  href = "/dashboard",
+}: BrandLinkProps) {
   return (
-    <Link href="/dashboard" className="group flex items-center space-x-3">
+    <Link href={href} className="group flex items-center space-x-3">
       <div className="relative transition-transform duration-200 group-hover:scale-110">
         <Image
           src="/images/moto_transparent.png"

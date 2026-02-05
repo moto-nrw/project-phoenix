@@ -191,6 +191,7 @@ interface ProfileDropdownMenuProps {
   readonly userEmail: string;
   readonly onClose: () => void;
   readonly onLogout: () => void;
+  readonly settingsUrl?: string | null;
 }
 
 export function ProfileDropdownMenu({
@@ -200,6 +201,7 @@ export function ProfileDropdownMenu({
   userEmail,
   onClose,
   onLogout,
+  settingsUrl,
 }: ProfileDropdownMenuProps) {
   const handleHelpClick = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -262,14 +264,16 @@ export function ProfileDropdownMenu({
 
         {/* Menu items */}
         <div className="p-2">
-          <Link
-            href="/settings"
-            onClick={onClose}
-            className="group flex items-center rounded-xl px-3 py-2.5 text-sm font-medium text-gray-700 transition-all duration-200 ease-out hover:bg-gray-100 hover:text-gray-900 active:bg-gray-900 active:text-white"
-          >
-            <SettingsIcon />
-            Einstellungen
-          </Link>
+          {settingsUrl && (
+            <Link
+              href={settingsUrl}
+              onClick={onClose}
+              className="group flex items-center rounded-xl px-3 py-2.5 text-sm font-medium text-gray-700 transition-all duration-200 ease-out hover:bg-gray-100 hover:text-gray-900 active:bg-gray-900 active:text-white"
+            >
+              <SettingsIcon />
+              Einstellungen
+            </Link>
+          )}
 
           <button
             onClick={handleHelpClick}
