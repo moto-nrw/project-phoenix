@@ -76,7 +76,7 @@ export function CommentAccordion({
   }, [isOpen, loadComments]);
 
   const handleSubmit = useCallback(
-    async (e: React.FormEvent) => {
+    async (e: React.SyntheticEvent) => {
       e.preventDefault();
       if (!newComment.trim()) return;
       setIsSubmitting(true);
@@ -214,6 +214,14 @@ export function CommentAccordion({
               <textarea
                 value={newComment}
                 onChange={(e) => setNewComment(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    if (newComment.trim() && !isSubmitting) {
+                      void handleSubmit(e);
+                    }
+                  }
+                }}
                 placeholder="Kommentar schreiben..."
                 rows={1}
                 className="flex-1 resize-none rounded-lg border border-gray-200 px-3 py-2 text-xs transition-all duration-200 focus:border-gray-300 focus:ring-0 focus:outline-none"
