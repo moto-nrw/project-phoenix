@@ -103,24 +103,42 @@ func TestGetTeacherStudents_NoDevice(t *testing.T) {
 	assert.Equal(t, http.StatusUnauthorized, rr.Code, "Expected 401 for missing device authentication")
 }
 
-func TestGetTeacherStudents_NoTeacherIDs(t *testing.T) {
+func TestGetTeacherStudents_NoTeacherIDs_ReturnsAllStudents(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "data-test-device-2")
+	student := testpkg.CreateTestStudent(t, ctx.db, "AllVis", "Student", "2c")
 
 	router := chi.NewRouter()
 	router.Get("/students", ctx.resource.GetTeacherStudentsHandler())
 
-	// Request without teacher_ids parameter
+	// Request without teacher_ids parameter — should return all students
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/students", nil,
 		testutil.WithDeviceContext(testDevice),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
 
-	// Should return success with empty list (not an error)
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+
+	// Parse response and verify our student is in the list
+	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+	data, ok := response["data"].([]interface{})
+	assert.True(t, ok, "data should be an array")
+	assert.NotEmpty(t, data, "should return students when teacher_ids is absent")
+
+	// Verify our test student appears in results
+	var found bool
+	for _, item := range data {
+		s, _ := item.(map[string]interface{})
+		if int64(s["student_id"].(float64)) == student.ID {
+			found = true
+			assert.Equal(t, "AllVis", s["first_name"])
+			break
+		}
+	}
+	assert.True(t, found, "test student should appear in all-students response")
 }
 
 func TestGetTeacherStudents_InvalidTeacherID(t *testing.T) {
@@ -142,24 +160,32 @@ func TestGetTeacherStudents_InvalidTeacherID(t *testing.T) {
 	testutil.AssertBadRequest(t, rr)
 }
 
-func TestGetTeacherStudents_EmptyTeacherIDs(t *testing.T) {
+func TestGetTeacherStudents_EmptyTeacherIDs_ReturnsEmptyList(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "data-test-device-4")
+	// Create a student to verify it is NOT returned
+	testpkg.CreateTestStudent(t, ctx.db, "ShouldNot", "Appear", "5x")
 
 	router := chi.NewRouter()
 	router.Get("/students", ctx.resource.GetTeacherStudentsHandler())
 
-	// Request with empty teacher_ids parameter
+	// Explicit empty teacher_ids= (key present, value empty) — must NOT return all students.
+	// This distinguishes from the "key absent" case which returns all.
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/students?teacher_ids=", nil,
 		testutil.WithDeviceContext(testDevice),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
 
-	// Returns success with empty list when no valid IDs
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+
+	// Verify the data array is empty — explicit empty filter returns no students
+	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+	data, ok := response["data"].([]interface{})
+	assert.True(t, ok, "data should be an array")
+	assert.Empty(t, data, "explicit empty teacher_ids= should return empty list, not all students")
 }
 
 func TestGetTeacherStudents_NonExistentTeacher(t *testing.T) {

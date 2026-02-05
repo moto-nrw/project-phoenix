@@ -63,7 +63,8 @@ func (rs *Resource) getAvailableTeachers(w http.ResponseWriter, r *http.Request)
 	common.Respond(w, r, http.StatusOK, responses, "Available teachers retrieved successfully")
 }
 
-// getTeacherStudents handles getting students supervised by authenticated teacher(s)
+// getTeacherStudents handles getting students supervised by authenticated teacher(s).
+// When teacher_ids is omitted, returns ALL students (used for bracelet assignment).
 func (rs *Resource) getTeacherStudents(w http.ResponseWriter, r *http.Request) {
 	// Get authenticated device from context
 	deviceCtx := device.DeviceFromCtx(r.Context())
@@ -72,6 +73,14 @@ func (rs *Resource) getTeacherStudents(w http.ResponseWriter, r *http.Request) {
 		if render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey)) != nil {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		}
+		return
+	}
+
+	// If teacher_ids query key is absent entirely, return all students.
+	// An explicitly empty value (?teacher_ids=) still goes through parseTeacherIDs
+	// which returns an empty result — preserving previous behavior.
+	if _, hasTeacherIDs := r.URL.Query()["teacher_ids"]; !hasTeacherIDs {
+		rs.getAllStudents(w, r)
 		return
 	}
 
@@ -191,6 +200,39 @@ func (rs *Resource) checkRFIDTagAssignment(w http.ResponseWriter, r *http.Reques
 	response := rs.buildRFIDAssignmentResponse(r.Context(), person, normalizedTagID)
 
 	common.Respond(w, r, http.StatusOK, response, "RFID tag assignment status retrieved")
+}
+
+// getAllStudents returns all students with group info (no teacher filter)
+func (rs *Resource) getAllStudents(w http.ResponseWriter, r *http.Request) {
+	allStudents, err := rs.UsersService.GetAllStudentsWithGroups(r.Context())
+	if err != nil {
+		iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(err))
+		return
+	}
+
+	response := make([]TeacherStudentResponse, 0, len(allStudents))
+	for _, swg := range allStudents {
+		if swg.Student == nil || swg.Student.Person == nil {
+			continue
+		}
+
+		rfidTag := ""
+		if swg.Student.Person.TagID != nil {
+			rfidTag = *swg.Student.Person.TagID
+		}
+
+		response = append(response, TeacherStudentResponse{
+			StudentID:   swg.Student.ID,
+			PersonID:    swg.Student.PersonID,
+			FirstName:   swg.Student.Person.FirstName,
+			LastName:    swg.Student.Person.LastName,
+			SchoolClass: swg.Student.SchoolClass,
+			GroupName:   swg.GroupName,
+			RFIDTag:     rfidTag,
+		})
+	}
+
+	common.Respond(w, r, http.StatusOK, response, fmt.Sprintf("Found %d students", len(response)))
 }
 
 // Helper functions
