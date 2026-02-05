@@ -3,8 +3,8 @@ import { getOperatorToken } from "~/lib/operator/cookies";
 
 interface JwtPayload {
   sub: string;
-  email: string;
-  display_name: string;
+  username: string;
+  first_name: string;
   scope: string;
   exp: number;
 }
@@ -40,7 +40,7 @@ export async function GET() {
 
   return NextResponse.json({
     id: payload.sub,
-    email: payload.email,
-    displayName: payload.display_name,
+    email: payload.username,
+    displayName: payload.first_name,
   });
 }

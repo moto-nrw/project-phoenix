@@ -121,6 +121,11 @@ func (s *Seeder) SeedAll(ctx context.Context) (*Result, error) {
 		return nil, fmt.Errorf("failed to seed work sessions: %w", err)
 	}
 
+	// 18. Suggestion posts with votes
+	if err := s.seedSuggestions(ctx); err != nil {
+		return nil, fmt.Errorf("failed to seed suggestions: %w", err)
+	}
+
 	if s.verbose {
 		log.Printf("Fixed data seeding completed successfully")
 	}

@@ -3,13 +3,11 @@
 import { useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import useSWR from "swr";
+import { ThumbsUp, ThumbsDown } from "lucide-react";
 import { useOperatorAuth } from "~/lib/operator/auth-context";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { operatorSuggestionsService } from "~/lib/operator/suggestions-api";
-import {
-  OPERATOR_STATUS_LABELS,
-  OPERATOR_STATUS_STYLES,
-} from "~/lib/operator/suggestions-helpers";
+import { StatusDropdown } from "~/components/operator/status-dropdown";
 import type { OperatorSuggestionStatus } from "~/lib/operator/suggestions-helpers";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { Skeleton } from "~/components/ui/skeleton";
@@ -37,7 +35,7 @@ export default function OperatorSuggestionDetailPage() {
   const router = useRouter();
   const { isAuthenticated } = useOperatorAuth();
   const id = params.id as string;
-  useSetBreadcrumb({ pageTitle: "Vorschlag Details" });
+  useSetBreadcrumb({ pageTitle: "Feedback Details" });
 
   const [commentText, setCommentText] = useState("");
   const [isInternal, setIsInternal] = useState(false);
@@ -131,7 +129,7 @@ export default function OperatorSuggestionDetailPage() {
     return (
       <div className="py-12 text-center">
         <p className="text-lg font-medium text-gray-900">
-          Vorschlag nicht gefunden
+          Feedback nicht gefunden
         </p>
         <button
           type="button"
@@ -172,26 +170,22 @@ export default function OperatorSuggestionDetailPage() {
       <div className="rounded-3xl border border-gray-100/50 bg-white/90 p-6 shadow-[0_8px_30px_rgb(0,0,0,0.12)]">
         {/* Status dropdown (prominent) */}
         <div className="mb-4 flex items-center justify-between">
-          <select
+          <StatusDropdown
             value={suggestion.status}
-            onChange={(e) =>
-              void handleStatusChange(
-                e.target.value as OperatorSuggestionStatus,
-              )
-            }
+            onChange={(newStatus) => void handleStatusChange(newStatus)}
             disabled={statusUpdating}
-            className={`rounded-full border-0 px-3 py-1 text-sm font-medium ${OPERATOR_STATUS_STYLES[suggestion.status]} cursor-pointer focus:ring-2 focus:ring-blue-500 focus:outline-none disabled:opacity-50`}
-          >
-            {Object.entries(OPERATOR_STATUS_LABELS).map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </select>
-          <span className="text-sm text-gray-500">
-            {suggestion.score} Stimmen ({suggestion.upvotes} /{" "}
-            {suggestion.downvotes})
-          </span>
+            size="md"
+          />
+          <div className="flex items-center gap-3">
+            <span className="flex items-center gap-1 text-[#83CD2D]">
+              <ThumbsUp className="h-4.5 w-4.5" fill="currentColor" />
+              <span className="text-sm font-bold">{suggestion.upvotes}</span>
+            </span>
+            <span className="flex items-center gap-1 text-red-500">
+              <ThumbsDown className="h-4.5 w-4.5" fill="currentColor" />
+              <span className="text-sm font-bold">{suggestion.downvotes}</span>
+            </span>
+          </div>
         </div>
 
         {/* Title & description */}

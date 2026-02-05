@@ -90,7 +90,7 @@ const STAFF_MAIN_ITEMS: NavItem[] = [
 const OPERATOR_MAIN_ITEMS: NavItem[] = [
   {
     href: "/operator/suggestions",
-    label: "Vorschläge",
+    label: "Feedback",
     iconKey: "feedback",
     alwaysShow: true,
   },

@@ -114,7 +114,7 @@ export function OperatorShellProvider({
         }
       : null;
 
-    const nameParts = operator?.displayName.split(" ") ?? [];
+    const nameParts = operator?.displayName?.split(" ") ?? [];
     const shellProfile: ShellProfile | null = operator
       ? {
           firstName: nameParts[0],

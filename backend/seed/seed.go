@@ -192,6 +192,10 @@ func (s *Seeder) resetData(ctx context.Context) error {
 		"config.settings",
 		"feedback.entries",
 
+		// Suggestions
+		"suggestions.votes",
+		"suggestions.posts",
+
 		// Platform (operator dashboard)
 		"suggestions.operator_comments",
 		"platform.operator_audit_log",
@@ -302,6 +306,9 @@ func (s *Seeder) printSummary(result *Result) {
 		fmt.Printf("  Accounts: %d\n", len(result.Fixed.Accounts))
 		if len(result.Fixed.Operators) > 0 {
 			fmt.Printf("  Operators: %d\n", len(result.Fixed.Operators))
+		}
+		if len(result.Fixed.SuggestionPosts) > 0 {
+			fmt.Printf("  Suggestion Posts: %d\n", len(result.Fixed.SuggestionPosts))
 		}
 	}
 

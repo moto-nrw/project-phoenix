@@ -3,19 +3,18 @@
 import { useState, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, LayoutGroup, motion } from "framer-motion";
+import { ThumbsUp, ThumbsDown } from "lucide-react";
 import useSWR from "swr";
 import {
   PageHeaderWithSearch,
   type FilterConfig,
 } from "~/components/ui/page-header";
 import { Skeleton } from "~/components/ui/skeleton";
+import { StatusDropdown } from "~/components/operator/status-dropdown";
 import { useOperatorAuth } from "~/lib/operator/auth-context";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { operatorSuggestionsService } from "~/lib/operator/suggestions-api";
-import {
-  OPERATOR_STATUS_LABELS,
-  OPERATOR_STATUS_STYLES,
-} from "~/lib/operator/suggestions-helpers";
+import { OPERATOR_STATUS_LABELS } from "~/lib/operator/suggestions-helpers";
 import type { OperatorSuggestionStatus } from "~/lib/operator/suggestions-helpers";
 
 function getRelativeTime(dateStr: string): string {
@@ -49,10 +48,11 @@ function getInitials(name: string): string {
 export default function OperatorSuggestionsPage() {
   const router = useRouter();
   const { isAuthenticated } = useOperatorAuth();
-  useSetBreadcrumb({ pageTitle: "Vorschläge" });
+  useSetBreadcrumb({ pageTitle: "Feedback" });
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [statusUpdating, setStatusUpdating] = useState<string | null>(null);
+  const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
 
   const {
     data: suggestions,
@@ -121,7 +121,7 @@ export default function OperatorSuggestionsPage() {
   return (
     <div className="-mt-1.5 w-full">
       <PageHeaderWithSearch
-        title="Vorschläge"
+        title="Feedback"
         badge={
           suggestions
             ? {
@@ -134,7 +134,7 @@ export default function OperatorSuggestionsPage() {
         search={{
           value: searchTerm,
           onChange: setSearchTerm,
-          placeholder: "Vorschläge durchsuchen...",
+          placeholder: "Feedback durchsuchen...",
         }}
       />
 
@@ -157,12 +157,12 @@ export default function OperatorSuggestionsPage() {
           <p className="text-lg font-medium text-gray-900">
             {searchTerm.trim()
               ? "Keine Ergebnisse gefunden"
-              : "Keine Vorschläge vorhanden"}
+              : "Kein Feedback vorhanden"}
           </p>
           <p className="text-sm text-gray-500">
             {searchTerm.trim()
               ? "Versuche einen anderen Suchbegriff."
-              : "Es wurden noch keine Vorschläge eingereicht."}
+              : "Es wurde noch kein Feedback eingereicht."}
           </p>
         </div>
       )}
@@ -175,13 +175,23 @@ export default function OperatorSuggestionsPage() {
                   key={suggestion.id}
                   layout
                   transition={{ type: "spring", stiffness: 500, damping: 35 }}
+                  className={
+                    openDropdownId === suggestion.id ? "relative z-10" : ""
+                  }
                 >
-                  <button
-                    type="button"
+                  <div
+                    role="button"
+                    tabIndex={0}
                     onClick={() =>
                       router.push(`/operator/suggestions/${suggestion.id}`)
                     }
-                    className="w-full text-left"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        router.push(`/operator/suggestions/${suggestion.id}`);
+                      }
+                    }}
+                    className="w-full cursor-pointer text-left"
                   >
                     <div className="rounded-3xl border border-gray-100/50 bg-white/90 p-5 shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-150 md:hover:-translate-y-0.5 md:hover:border-blue-200/50 md:hover:shadow-[0_12px_40px_rgb(0,0,0,0.18)]">
                       <div className="flex items-start justify-between gap-2">
@@ -189,30 +199,36 @@ export default function OperatorSuggestionsPage() {
                           {suggestion.title}
                         </h3>
                         <div className="flex shrink-0 items-center gap-2">
-                          <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
-                            {suggestion.score} Stimmen
-                          </span>
-                          <select
+                          <div className="flex items-center gap-2">
+                            <span className="flex items-center gap-1 text-[#83CD2D]">
+                              <ThumbsUp
+                                className="h-4 w-4"
+                                fill="currentColor"
+                              />
+                              <span className="text-xs font-bold">
+                                {suggestion.upvotes}
+                              </span>
+                            </span>
+                            <span className="flex items-center gap-1 text-red-500">
+                              <ThumbsDown
+                                className="h-4 w-4"
+                                fill="currentColor"
+                              />
+                              <span className="text-xs font-bold">
+                                {suggestion.downvotes}
+                              </span>
+                            </span>
+                          </div>
+                          <StatusDropdown
                             value={suggestion.status}
-                            onClick={(e) => e.stopPropagation()}
-                            onChange={(e) => {
-                              e.stopPropagation();
-                              void handleStatusChange(
-                                suggestion.id,
-                                e.target.value as OperatorSuggestionStatus,
-                              );
-                            }}
+                            onChange={(newStatus) =>
+                              void handleStatusChange(suggestion.id, newStatus)
+                            }
                             disabled={statusUpdating === suggestion.id}
-                            className={`rounded-full border-0 px-2.5 py-0.5 text-xs font-medium ${OPERATOR_STATUS_STYLES[suggestion.status]} cursor-pointer focus:ring-2 focus:ring-blue-500 focus:outline-none disabled:opacity-50`}
-                          >
-                            {Object.entries(OPERATOR_STATUS_LABELS).map(
-                              ([value, label]) => (
-                                <option key={value} value={value}>
-                                  {label}
-                                </option>
-                              ),
-                            )}
-                          </select>
+                            onOpenChange={(open) =>
+                              setOpenDropdownId(open ? suggestion.id : null)
+                            }
+                          />
                         </div>
                       </div>
                       <p className="mt-1 line-clamp-2 text-sm text-gray-600">
@@ -238,7 +254,7 @@ export default function OperatorSuggestionsPage() {
                         )}
                       </div>
                     </div>
-                  </button>
+                  </div>
                 </motion.div>
               ))}
             </AnimatePresence>
