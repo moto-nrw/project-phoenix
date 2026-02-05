@@ -282,6 +282,7 @@ describe("OGSGroupPage", () => {
         students: [],
         roomStatus: null,
         substitutions: [],
+        pickupTimes: [],
         firstGroupId: null,
       },
       isLoading: false,
@@ -349,7 +350,7 @@ describe("OGSGroupPage", () => {
             id: "1",
             name: "Max Mustermann",
             first_name: "Max",
-            second_name: "Mustermann",
+            last_name: "Mustermann",
             current_location: "Raum 101",
           },
         ],
@@ -359,6 +360,7 @@ describe("OGSGroupPage", () => {
           },
         },
         substitutions: [],
+        pickupTimes: [],
         firstGroupId: "1",
       },
       isLoading: false,
@@ -373,6 +375,606 @@ describe("OGSGroupPage", () => {
       expect(screen.getByTestId("student-card")).toBeInTheDocument();
     });
   });
+
+  it("converts BFF pickup times array to Map and displays pickup time", async () => {
+    vi.mocked(useSWRAuth).mockReturnValue({
+      data: {
+        groups: [
+          {
+            id: 1,
+            name: "OGS Gruppe A",
+            room_id: 10,
+            room: { id: 10, name: "Raum 101" },
+          },
+        ],
+        students: [
+          {
+            id: "1",
+            name: "Max Mustermann",
+            first_name: "Max",
+            last_name: "Mustermann",
+            second_name: "Mustermann",
+            current_location: "Raum 101",
+          },
+        ],
+        roomStatus: {
+          student_room_status: {
+            "1": { in_group_room: true },
+          },
+        },
+        substitutions: [],
+        // BFF returns pickup times as array (backend format)
+        pickupTimes: [
+          {
+            student_id: 1,
+            date: "2026-02-04",
+            weekday_name: "Mittwoch",
+            pickup_time: "15:30",
+            is_exception: false,
+            day_notes: [{ id: 1, content: "Test note" }],
+            notes: "Parent pickup",
+          },
+        ],
+        firstGroupId: "1",
+      },
+      isLoading: false,
+      error: null,
+      mutate: mockMutate,
+      isValidating: false,
+    } as never);
+
+    render(<OGSGroupPage />);
+
+    // Should display the student card with pickup time
+    await waitFor(() => {
+      expect(screen.getByTestId("student-card")).toBeInTheDocument();
+      // Pickup time should be rendered (15:30 Uhr format)
+      expect(screen.getByText(/15:30 Uhr/)).toBeInTheDocument();
+    });
+  });
+
+  it("handles BFF pickup times with day notes correctly", async () => {
+    vi.mocked(useSWRAuth).mockReturnValue({
+      data: {
+        groups: [
+          {
+            id: 1,
+            name: "OGS Gruppe A",
+            room_id: 10,
+            room: { id: 10, name: "Raum 101" },
+          },
+        ],
+        students: [
+          {
+            id: "1",
+            name: "Max Mustermann",
+            first_name: "Max",
+            last_name: "Mustermann",
+            second_name: "Mustermann",
+            current_location: "Raum 101",
+          },
+        ],
+        roomStatus: {
+          student_room_status: {
+            "1": { in_group_room: true },
+          },
+        },
+        substitutions: [],
+        pickupTimes: [
+          {
+            student_id: 1,
+            date: "2026-02-04",
+            weekday_name: "Mittwoch",
+            pickup_time: "16:00",
+            is_exception: true,
+            day_notes: [
+              { id: 1, content: "Note 1" },
+              { id: 2, content: "Note 2" },
+            ],
+            notes: "Multiple notes test",
+          },
+        ],
+        firstGroupId: "1",
+      },
+      isLoading: false,
+      error: null,
+      mutate: mockMutate,
+      isValidating: false,
+    } as never);
+
+    render(<OGSGroupPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("student-card")).toBeInTheDocument();
+      expect(screen.getByText(/16:00 Uhr/)).toBeInTheDocument();
+    });
+  });
+
+  it("handles BFF pickup times without day notes", async () => {
+    vi.mocked(useSWRAuth).mockReturnValue({
+      data: {
+        groups: [
+          {
+            id: 1,
+            name: "OGS Gruppe A",
+            room_id: 10,
+            room: { id: 10, name: "Raum 101" },
+          },
+        ],
+        students: [
+          {
+            id: "1",
+            name: "Max Mustermann",
+            first_name: "Max",
+            last_name: "Mustermann",
+            second_name: "Mustermann",
+            current_location: "Raum 101",
+          },
+        ],
+        roomStatus: {
+          student_room_status: {
+            "1": { in_group_room: true },
+          },
+        },
+        substitutions: [],
+        pickupTimes: [
+          {
+            student_id: 1,
+            date: "2026-02-04",
+            weekday_name: "Mittwoch",
+            pickup_time: "14:00",
+            is_exception: false,
+            // No day_notes - tests null coalescing
+          },
+        ],
+        firstGroupId: "1",
+      },
+      isLoading: false,
+      error: null,
+      mutate: mockMutate,
+      isValidating: false,
+    } as never);
+
+    render(<OGSGroupPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("student-card")).toBeInTheDocument();
+      expect(screen.getByText(/14:00 Uhr/)).toBeInTheDocument();
+    });
+  });
+
+  it("syncs pickup times from SWR students data when pickupTimes is a Map", async () => {
+    // This test covers the `instanceof Map` branch in the SWR students sync useEffect.
+    // The second useSWRAuth call (students SWR) returns pickupTimes as a Map,
+    // which triggers `setPickupTimes(swrStudentsData.pickupTimes)`.
+    const pickupMap = new Map([
+      [
+        "1",
+        {
+          studentId: "1",
+          date: "2026-02-05",
+          weekdayName: "Donnerstag",
+          pickupTime: "15:30",
+          isException: false,
+          dayNotes: [],
+          notes: undefined,
+        },
+      ],
+    ]);
+
+    // IMPORTANT: Stable references prevent infinite re-render loops
+    const studentsSwrResult = {
+      data: {
+        students: [
+          {
+            id: "1",
+            name: "Max Mustermann",
+            first_name: "Max",
+            second_name: "Mustermann",
+            current_location: "Raum 101",
+          },
+        ],
+        roomStatus: { "1": { in_group_room: true } },
+        pickupTimes: pickupMap,
+      },
+      isLoading: false,
+      error: null,
+      mutate: mockMutate,
+      isValidating: false,
+    };
+
+    const dashboardSwrResult = {
+      data: {
+        groups: [
+          {
+            id: 1,
+            name: "OGS A",
+            room_id: 10,
+            room: { id: 10, name: "Raum 101" },
+          },
+        ],
+        students: [
+          {
+            id: 1,
+            first_name: "Max",
+            last_name: "Mustermann",
+            current_location: "Raum 101",
+          },
+        ],
+        roomStatus: {
+          group_has_room: true,
+          student_room_status: { "1": { in_group_room: true } },
+        },
+        substitutions: [],
+        pickupTimes: [
+          {
+            student_id: 1,
+            date: "2026-02-05",
+            weekday_name: "Donnerstag",
+            pickup_time: "15:30",
+            is_exception: false,
+          },
+        ],
+        firstGroupId: "1",
+      },
+      isLoading: false,
+      error: null,
+      mutate: mockMutate,
+      isValidating: false,
+    };
+
+    vi.mocked(useSWRAuth).mockImplementation(((key: string | null) => {
+      if (typeof key === "string" && key.startsWith("ogs-students-")) {
+        return studentsSwrResult;
+      }
+      return dashboardSwrResult;
+    }) as unknown as typeof useSWRAuth);
+
+    render(<OGSGroupPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("student-card")).toBeInTheDocument();
+      expect(screen.getByText(/15:30 Uhr/)).toBeInTheDocument();
+    });
+  });
+
+  it("executes SWR students fetcher with pickup times", async () => {
+    // This test captures and directly invokes the fetcher function passed to
+    // the second useSWRAuth call (ogs-students-*), covering the SWR fetcher body
+    // that is normally never executed because useSWRAuth is mocked.
+    interface SwrFetcherResult {
+      students: { id: string }[];
+      pickupTimes: Map<string, unknown>;
+      roomStatus: Record<string, unknown> | undefined;
+    }
+    let capturedStudentsFetcher: (() => Promise<SwrFetcherResult>) | null =
+      null;
+
+    const dashboardResult = {
+      data: {
+        groups: [
+          {
+            id: 1,
+            name: "OGS A",
+            room_id: 10,
+            room: { id: 10, name: "Raum 101" },
+          },
+        ],
+        students: [
+          {
+            id: 1,
+            first_name: "Max",
+            last_name: "Mustermann",
+            current_location: "Raum 101",
+          },
+        ],
+        roomStatus: {
+          group_has_room: true,
+          student_room_status: { "1": { in_group_room: true } },
+        },
+        substitutions: [],
+        pickupTimes: [],
+        firstGroupId: "1",
+      },
+      isLoading: false,
+      error: null,
+      mutate: mockMutate,
+      isValidating: false,
+    };
+
+    const nullResult = {
+      data: null,
+      isLoading: false,
+      error: null,
+      mutate: mockMutate,
+      isValidating: false,
+    };
+
+    vi.mocked(useSWRAuth).mockImplementation(((
+      key: string | null,
+      fetcher?: () => Promise<unknown>,
+    ) => {
+      if (typeof key === "string" && key.startsWith("ogs-students-")) {
+        capturedStudentsFetcher = fetcher as typeof capturedStudentsFetcher;
+        return nullResult;
+      }
+      if (key === "ogs-dashboard") return dashboardResult;
+      return nullResult;
+    }) as unknown as typeof useSWRAuth);
+
+    render(<OGSGroupPage />);
+
+    // Wait for re-render so the students SWR key becomes non-null
+    await waitFor(() => {
+      expect(capturedStudentsFetcher).not.toBeNull();
+    });
+
+    // Set up mocks for the fetcher's dependencies
+    vi.mocked(studentService.getStudents).mockResolvedValue({
+      students: [
+        {
+          id: "1",
+          name: "Max Mustermann",
+          first_name: "Max",
+          second_name: "Mustermann",
+          school_class: "1a",
+          current_location: "Raum 101",
+        },
+      ] as never,
+      total: 1,
+    } as never);
+
+    vi.mocked(global.fetch).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        data: {
+          student_room_status: { "1": { in_group_room: true } },
+        },
+      }),
+    } as Response);
+
+    const pickupMap = new Map([
+      [
+        "1",
+        {
+          studentId: "1",
+          date: "2026-02-05",
+          weekdayName: "Donnerstag",
+          pickupTime: "15:30",
+          isException: false,
+          dayNotes: [] as { id: string; content: string }[],
+          notes: undefined,
+        },
+      ],
+    ]);
+    mockFetchBulkPickupTimes.mockResolvedValueOnce(pickupMap);
+
+    // Invoke the captured fetcher directly to cover lines 444-496
+    const result = await capturedStudentsFetcher!();
+
+    expect(result.students).toHaveLength(1);
+    expect(result.pickupTimes).toBeInstanceOf(Map);
+    expect(result.pickupTimes.get("1")).toBeDefined();
+    expect(result.roomStatus).toEqual({ "1": { in_group_room: true } });
+  });
+
+  it("SWR students fetcher returns empty pickup times when fetch fails", async () => {
+    // Covers the catch branch in the SWR fetcher for fetchBulkPickupTimes
+    interface SwrFetcherResult {
+      students: { id: string }[];
+      pickupTimes: Map<string, unknown>;
+      roomStatus: Record<string, unknown> | undefined;
+    }
+    let capturedStudentsFetcher: (() => Promise<SwrFetcherResult>) | null =
+      null;
+
+    const dashboardResult = {
+      data: {
+        groups: [
+          {
+            id: 1,
+            name: "OGS A",
+            room_id: 10,
+            room: { id: 10, name: "Raum 101" },
+          },
+        ],
+        students: [
+          {
+            id: 1,
+            first_name: "Max",
+            last_name: "Mustermann",
+          },
+        ],
+        roomStatus: null,
+        substitutions: [],
+        pickupTimes: [],
+        firstGroupId: "1",
+      },
+      isLoading: false,
+      error: null,
+      mutate: mockMutate,
+      isValidating: false,
+    };
+
+    const nullResult = {
+      data: null,
+      isLoading: false,
+      error: null,
+      mutate: mockMutate,
+      isValidating: false,
+    };
+
+    vi.mocked(useSWRAuth).mockImplementation(((
+      key: string | null,
+      fetcher?: () => Promise<unknown>,
+    ) => {
+      if (typeof key === "string" && key.startsWith("ogs-students-")) {
+        capturedStudentsFetcher = fetcher as typeof capturedStudentsFetcher;
+        return nullResult;
+      }
+      if (key === "ogs-dashboard") return dashboardResult;
+      return nullResult;
+    }) as unknown as typeof useSWRAuth);
+
+    render(<OGSGroupPage />);
+
+    await waitFor(() => {
+      expect(capturedStudentsFetcher).not.toBeNull();
+    });
+
+    vi.mocked(studentService.getStudents).mockResolvedValue({
+      students: [
+        {
+          id: "1",
+          name: "Max Mustermann",
+          first_name: "Max",
+          second_name: "Mustermann",
+        },
+      ] as never,
+      total: 1,
+    } as never);
+
+    vi.mocked(global.fetch).mockResolvedValueOnce({
+      ok: false,
+      status: 500,
+    } as Response);
+
+    // fetchBulkPickupTimes throws
+    mockFetchBulkPickupTimes.mockRejectedValueOnce(
+      new Error("Pickup times fetch failed"),
+    );
+
+    const consoleSpy = vi.spyOn(console, "error").mockImplementation(vi.fn());
+
+    const result = await capturedStudentsFetcher!();
+
+    // Should still return students but with empty pickup times Map
+    expect(result.students).toHaveLength(1);
+    expect(result.pickupTimes).toBeInstanceOf(Map);
+    expect(result.pickupTimes.size).toBe(0);
+    // Room status fetch failed (ok: false), so should be null/undefined
+    expect(result.roomStatus).toBeUndefined();
+
+    consoleSpy.mockRestore();
+  });
+
+  it("SWR students fetcher skips pickup times when no students", async () => {
+    // Covers the `if (students.length > 0)` false branch in the SWR fetcher
+    interface SwrFetcherResult {
+      students: { id: string }[];
+      pickupTimes: Map<string, unknown>;
+      roomStatus: Record<string, unknown> | undefined;
+    }
+    let capturedStudentsFetcher: (() => Promise<SwrFetcherResult>) | null =
+      null;
+
+    const dashboardResult = {
+      data: {
+        groups: [
+          {
+            id: 1,
+            name: "OGS A",
+            room_id: 10,
+            room: { id: 10, name: "Raum 101" },
+          },
+        ],
+        students: [],
+        roomStatus: null,
+        substitutions: [],
+        pickupTimes: [],
+        firstGroupId: "1",
+      },
+      isLoading: false,
+      error: null,
+      mutate: mockMutate,
+      isValidating: false,
+    };
+
+    const nullResult = {
+      data: null,
+      isLoading: false,
+      error: null,
+      mutate: mockMutate,
+      isValidating: false,
+    };
+
+    vi.mocked(useSWRAuth).mockImplementation(((
+      key: string | null,
+      fetcher?: () => Promise<unknown>,
+    ) => {
+      if (typeof key === "string" && key.startsWith("ogs-students-")) {
+        capturedStudentsFetcher = fetcher as typeof capturedStudentsFetcher;
+        return nullResult;
+      }
+      if (key === "ogs-dashboard") return dashboardResult;
+      return nullResult;
+    }) as unknown as typeof useSWRAuth);
+
+    render(<OGSGroupPage />);
+
+    await waitFor(() => {
+      expect(capturedStudentsFetcher).not.toBeNull();
+    });
+
+    vi.mocked(studentService.getStudents).mockResolvedValue({
+      students: [],
+      total: 0,
+    } as never);
+
+    vi.mocked(global.fetch).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ data: { student_room_status: {} } }),
+    } as Response);
+
+    const result = await capturedStudentsFetcher!();
+
+    expect(result.students).toHaveLength(0);
+    expect(result.pickupTimes).toBeInstanceOf(Map);
+    expect(result.pickupTimes.size).toBe(0);
+    // fetchBulkPickupTimes should NOT have been called
+    expect(mockFetchBulkPickupTimes).not.toHaveBeenCalled();
+  });
+
+  it("maps BFF students with missing optional fields", async () => {
+    // Covers null coalescing branches in student mapping (school_class ?? "", etc.)
+    vi.mocked(useSWRAuth).mockReturnValue({
+      data: {
+        groups: [
+          {
+            id: 1,
+            name: "OGS A",
+            room_id: 10,
+            room: { id: 10, name: "Raum 101" },
+          },
+        ],
+        students: [
+          {
+            id: 1,
+            first_name: "Max",
+            last_name: "Mustermann",
+            // Intentionally missing: school_class, current_location,
+            // location_since, group_id, group_name
+          },
+        ],
+        roomStatus: null,
+        substitutions: [],
+        pickupTimes: [],
+        firstGroupId: "1",
+      },
+      isLoading: false,
+      error: null,
+      mutate: mockMutate,
+      isValidating: false,
+    } as never);
+
+    render(<OGSGroupPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("student-card")).toBeInTheDocument();
+      // Student name should render from first_name + last_name mapping
+      expect(screen.getByText(/Max Mustermann/)).toBeInTheDocument();
+    });
+  });
 });
 
 describe("OGSGroupPage helper functions", () => {
@@ -383,7 +985,7 @@ describe("OGSGroupPage helper functions", () => {
     const student = {
       name: "Max Mustermann",
       first_name: "Max",
-      second_name: "Mustermann",
+      last_name: "Mustermann",
       school_class: "1a",
     };
 
@@ -392,7 +994,7 @@ describe("OGSGroupPage helper functions", () => {
     const matches =
       student.name?.toLowerCase().includes(searchLower) ??
       student.first_name?.toLowerCase().includes(searchLower) ??
-      student.second_name?.toLowerCase().includes(searchLower) ??
+      student.last_name?.toLowerCase().includes(searchLower) ??
       false;
 
     expect(matches).toBe(true);
@@ -454,6 +1056,7 @@ describe("OGSGroupPage additional scenarios", () => {
         students: [], // No students
         roomStatus: null,
         substitutions: [],
+        pickupTimes: [],
         firstGroupId: "1",
       },
       isLoading: false,
@@ -485,21 +1088,21 @@ describe("OGSGroupPage additional scenarios", () => {
             id: "1",
             name: "Max Mustermann",
             first_name: "Max",
-            second_name: "Mustermann",
+            last_name: "Mustermann",
             current_location: "Raum 101",
           },
           {
             id: "2",
             name: "Erika Schmidt",
             first_name: "Erika",
-            second_name: "Schmidt",
+            last_name: "Schmidt",
             current_location: "Raum 101",
           },
           {
             id: "3",
             name: "Hans Mueller",
             first_name: "Hans",
-            second_name: "Mueller",
+            last_name: "Mueller",
             current_location: "Raum 101",
           },
         ],
@@ -512,6 +1115,7 @@ describe("OGSGroupPage additional scenarios", () => {
           },
         },
         substitutions: [],
+        pickupTimes: [],
         firstGroupId: "1",
       },
       isLoading: false,
@@ -560,7 +1164,7 @@ describe("OGSGroupPage additional scenarios", () => {
             id: "1",
             name: "Max Mustermann",
             first_name: "Max",
-            second_name: "Mustermann",
+            last_name: "Mustermann",
             current_location: "Raum 101",
           },
         ],
@@ -570,6 +1174,7 @@ describe("OGSGroupPage additional scenarios", () => {
           },
         },
         substitutions: [],
+        pickupTimes: [],
         firstGroupId: "1",
       },
       isLoading: false,
@@ -602,7 +1207,7 @@ describe("OGSGroupPage additional scenarios", () => {
             id: "1",
             name: "Max Mustermann",
             first_name: "Max",
-            second_name: "Mustermann",
+            last_name: "Mustermann",
             current_location: "Raum 101",
           },
         ],
@@ -612,6 +1217,7 @@ describe("OGSGroupPage additional scenarios", () => {
           },
         },
         substitutions: [],
+        pickupTimes: [],
         firstGroupId: "1",
       },
       isLoading: false,
@@ -643,7 +1249,7 @@ describe("OGSGroupPage additional scenarios", () => {
             id: "1",
             name: "Max Mustermann",
             first_name: "Max",
-            second_name: "Mustermann",
+            last_name: "Mustermann",
             current_location: "Raum 101",
           },
         ],
@@ -665,6 +1271,7 @@ describe("OGSGroupPage additional scenarios", () => {
             end_date: "2024-01-20",
           },
         ],
+        pickupTimes: [],
         firstGroupId: "1",
       },
       isLoading: false,
@@ -1490,7 +2097,7 @@ describe("OGSGroupPage sorting logic", () => {
   type StudentSort = {
     id: string;
     first_name: string;
-    second_name: string;
+    last_name: string;
     current_location: string;
   };
 
@@ -1501,26 +2108,26 @@ describe("OGSGroupPage sorting logic", () => {
       {
         id: "1",
         first_name: "Zara",
-        second_name: "Mueller",
+        last_name: "Mueller",
         current_location: "Raum 101",
       },
       {
         id: "2",
         first_name: "Anna",
-        second_name: "Becker",
+        last_name: "Becker",
         current_location: "Raum 101",
       },
       {
         id: "3",
         first_name: "Max",
-        second_name: "Mueller",
+        last_name: "Mueller",
         current_location: "Raum 101",
       },
     ];
 
     const sorted = [...students].sort((a, b) => {
-      const lastCmp = (a.second_name ?? "").localeCompare(
-        b.second_name ?? "",
+      const lastCmp = (a.last_name ?? "").localeCompare(
+        b.last_name ?? "",
         "de",
       );
       if (lastCmp !== 0) return lastCmp;
@@ -1535,20 +2142,20 @@ describe("OGSGroupPage sorting logic", () => {
       {
         id: "1",
         first_name: "Max",
-        second_name: "",
+        last_name: "",
         current_location: "Raum 101",
       },
       {
         id: "2",
         first_name: "Anna",
-        second_name: "Zeller",
+        last_name: "Zeller",
         current_location: "Raum 101",
       },
     ];
 
     const sorted = [...students].sort((a, b) => {
-      const lastCmp = (a.second_name ?? "").localeCompare(
-        b.second_name ?? "",
+      const lastCmp = (a.last_name ?? "").localeCompare(
+        b.last_name ?? "",
         "de",
       );
       if (lastCmp !== 0) return lastCmp;
@@ -1568,25 +2175,25 @@ describe("OGSGroupPage sorting logic", () => {
       {
         id: "1",
         first_name: "A",
-        second_name: "A",
+        last_name: "A",
         current_location: "Raum 101",
       }, // present, pickup 15:00
       {
         id: "2",
         first_name: "B",
-        second_name: "B",
+        last_name: "B",
         current_location: "Raum 101",
       }, // present, no pickup
       {
         id: "3",
         first_name: "C",
-        second_name: "C",
+        last_name: "C",
         current_location: "Raum 101",
       }, // present, pickup 14:00
       {
         id: "4",
         first_name: "D",
-        second_name: "D",
+        last_name: "D",
         current_location: "Zuhause",
       }, // at home
     ];
@@ -1623,13 +2230,13 @@ describe("OGSGroupPage sorting logic", () => {
       {
         id: "1",
         first_name: "A",
-        second_name: "A",
+        last_name: "A",
         current_location: "Raum 101",
       },
       {
         id: "2",
         first_name: "B",
-        second_name: "B",
+        last_name: "B",
         current_location: "Zuhause",
       },
     ];
@@ -1661,13 +2268,13 @@ describe("OGSGroupPage sorting logic", () => {
       {
         id: "1",
         first_name: "A",
-        second_name: "A",
+        last_name: "A",
         current_location: "Zuhause",
       },
       {
         id: "2",
         first_name: "B",
-        second_name: "B",
+        last_name: "B",
         current_location: "Zuhause",
       },
     ];
@@ -1693,13 +2300,13 @@ describe("OGSGroupPage sorting logic", () => {
       {
         id: "1",
         first_name: "A",
-        second_name: "A",
+        last_name: "A",
         current_location: "Raum 101",
       },
       {
         id: "2",
         first_name: "B",
-        second_name: "B",
+        last_name: "B",
         current_location: "Raum 102",
       },
     ];
@@ -1859,8 +2466,23 @@ describe("OGSGroupPage rendered pickup urgency", () => {
       vi.mocked(isHomeLocation).mockReturnValue(false);
     }
 
-    // Return pickup times when fetched
+    // Return pickup times when fetched (for SWR refetch)
     mockFetchBulkPickupTimes.mockResolvedValue(pickupMap);
+
+    // Convert pickupMap to BFF response format (array of BackendPickupTime objects)
+    const pickupTimesArray = Array.from(pickupMap.entries()).map(
+      ([studentId, pickup]) => ({
+        student_id: parseInt(studentId, 10),
+        date: new Date().toISOString().split("T")[0],
+        weekday_name: "Mittwoch",
+        pickup_time: pickup.pickupTime,
+        is_exception: pickup.isException,
+        day_notes: pickup.dayNotes?.map((n) => ({
+          id: parseInt(n.id, 10),
+          content: n.content,
+        })),
+      }),
+    );
 
     // Two SWR calls: dashboard (first) and students (second)
     vi.mocked(useSWRAuth)
@@ -1879,21 +2501,21 @@ describe("OGSGroupPage rendered pickup urgency", () => {
               id: "1",
               name: "Anna Becker",
               first_name: "Anna",
-              second_name: "Becker",
+              last_name: "Becker",
               current_location: "Raum 101",
             },
             {
               id: "2",
               name: "Max Zeller",
               first_name: "Max",
-              second_name: "Zeller",
+              last_name: "Zeller",
               current_location: "Raum 101",
             },
             {
               id: "3",
               name: "Lena Mueller",
               first_name: "Lena",
-              second_name: "Mueller",
+              last_name: "Mueller",
               current_location: "Zuhause",
             },
           ],
@@ -1905,6 +2527,7 @@ describe("OGSGroupPage rendered pickup urgency", () => {
             },
           },
           substitutions: [],
+          pickupTimes: pickupTimesArray,
           firstGroupId: "1",
         },
         isLoading: false,
@@ -2402,7 +3025,7 @@ function makeTestStudent(
     id: "1",
     name: "Max Mustermann",
     first_name: "Max",
-    second_name: "Mustermann",
+    last_name: "Mustermann",
     school_class: "3a",
     current_location: "Anwesend - Raum 1",
     group_name: "Eulen",
@@ -2643,7 +3266,7 @@ describe("OGSGroupPage ID-based selection: Stale selection reset", () => {
             id: "1",
             name: "Max Mustermann",
             first_name: "Max",
-            second_name: "Mustermann",
+            last_name: "Mustermann",
             current_location: "Raum 101",
           },
         ],
@@ -2653,6 +3276,7 @@ describe("OGSGroupPage ID-based selection: Stale selection reset", () => {
           },
         },
         substitutions: [],
+        pickupTimes: [],
         firstGroupId: "1",
       },
       isLoading: false,
@@ -2684,7 +3308,7 @@ describe("OGSGroupPage ID-based selection: Stale selection reset", () => {
             id: "2",
             name: "Erika Schmidt",
             first_name: "Erika",
-            second_name: "Schmidt",
+            last_name: "Schmidt",
             current_location: "Raum 202",
           },
         ],
@@ -2694,6 +3318,7 @@ describe("OGSGroupPage ID-based selection: Stale selection reset", () => {
           },
         },
         substitutions: [],
+        pickupTimes: [],
         firstGroupId: "2",
       },
       isLoading: false,
@@ -2733,6 +3358,7 @@ describe("OGSGroupPage ID-based selection: Stale selection reset", () => {
             id: "2",
             name: "Erika Schmidt",
             first_name: "Erika",
+            last_name: "Schmidt",
             second_name: "Schmidt",
             current_location: "Raum 202",
           },
@@ -2743,6 +3369,7 @@ describe("OGSGroupPage ID-based selection: Stale selection reset", () => {
           },
         },
         substitutions: [],
+        pickupTimes: [],
         firstGroupId: "2", // Group B selected
       },
       isLoading: false,
@@ -2780,6 +3407,7 @@ describe("OGSGroupPage ID-based selection: Stale selection reset", () => {
             id: "2",
             name: "Erika Schmidt",
             first_name: "Erika",
+            last_name: "Schmidt",
             second_name: "Schmidt",
             current_location: "Raum 202",
           },
@@ -2790,6 +3418,7 @@ describe("OGSGroupPage ID-based selection: Stale selection reset", () => {
           },
         },
         substitutions: [],
+        pickupTimes: [],
         firstGroupId: "1", // First group in alphabetical order
       },
       isLoading: false,
@@ -2861,7 +3490,7 @@ describe("OGSGroupPage ID-based selection: First load initialization", () => {
             id: "1",
             name: "Max Mustermann",
             first_name: "Max",
-            second_name: "Mustermann",
+            last_name: "Mustermann",
             current_location: "Raum 101",
           },
         ],
@@ -2871,6 +3500,7 @@ describe("OGSGroupPage ID-based selection: First load initialization", () => {
           },
         },
         substitutions: [],
+        pickupTimes: [],
         firstGroupId: "1",
       },
       isLoading: false,
@@ -2912,7 +3542,7 @@ describe("OGSGroupPage ID-based selection: First load initialization", () => {
             id: "1",
             name: "Max Mustermann",
             first_name: "Max",
-            second_name: "Mustermann",
+            last_name: "Mustermann",
             current_location: "Raum 101",
           },
         ],
@@ -2922,6 +3552,7 @@ describe("OGSGroupPage ID-based selection: First load initialization", () => {
           },
         },
         substitutions: [],
+        pickupTimes: [],
         firstGroupId: "1", // BFF returns first group's data
       },
       isLoading: false,
@@ -2964,7 +3595,7 @@ describe("OGSGroupPage ID-based selection: URL param matching", () => {
           id: "2",
           name: "Erika Schmidt",
           first_name: "Erika",
-          second_name: "Schmidt",
+          last_name: "Schmidt",
           current_location: "Raum 202",
         },
       ],
@@ -3000,7 +3631,7 @@ describe("OGSGroupPage ID-based selection: URL param matching", () => {
             id: "1",
             name: "Max Mustermann",
             first_name: "Max",
-            second_name: "Mustermann",
+            last_name: "Mustermann",
             current_location: "Raum 101",
           },
         ],
@@ -3010,6 +3641,8 @@ describe("OGSGroupPage ID-based selection: URL param matching", () => {
           },
         },
         substitutions: [],
+        pickupTimes: [],
+        firstGroupId: "1",
       },
       isLoading: false,
       error: null,
@@ -3046,7 +3679,7 @@ describe("OGSGroupPage ID-based selection: URL param matching", () => {
             id: "1",
             name: "Max Mustermann",
             first_name: "Max",
-            second_name: "Mustermann",
+            last_name: "Mustermann",
             current_location: "Raum 101",
           },
         ],
@@ -3056,6 +3689,7 @@ describe("OGSGroupPage ID-based selection: URL param matching", () => {
           },
         },
         substitutions: [],
+        pickupTimes: [],
         firstGroupId: "1",
       },
       isLoading: false,
@@ -3099,7 +3733,7 @@ describe("OGSGroupPage ID-based selection: URL param matching", () => {
             id: "1",
             name: "Max Mustermann",
             first_name: "Max",
-            second_name: "Mustermann",
+            last_name: "Mustermann",
             current_location: "Raum 101",
           },
         ],
@@ -3109,6 +3743,7 @@ describe("OGSGroupPage ID-based selection: URL param matching", () => {
           },
         },
         substitutions: [],
+        pickupTimes: [],
         firstGroupId: "1",
       },
       isLoading: false,
@@ -3156,7 +3791,7 @@ describe("OGSGroupPage ID-based selection: localStorage restore", () => {
           id: "2",
           name: "Erika Schmidt",
           first_name: "Erika",
-          second_name: "Schmidt",
+          last_name: "Schmidt",
           current_location: "Raum 202",
         },
       ],
@@ -3214,7 +3849,7 @@ describe("OGSGroupPage ID-based selection: localStorage restore", () => {
             id: "1",
             name: "Max Mustermann",
             first_name: "Max",
-            second_name: "Mustermann",
+            last_name: "Mustermann",
             current_location: "Raum 101",
           },
         ],
@@ -3261,7 +3896,7 @@ describe("OGSGroupPage ID-based selection: localStorage restore", () => {
             id: "1",
             name: "Max Mustermann",
             first_name: "Max",
-            second_name: "Mustermann",
+            last_name: "Mustermann",
             current_location: "Raum 101",
           },
         ],
@@ -3271,6 +3906,7 @@ describe("OGSGroupPage ID-based selection: localStorage restore", () => {
           },
         },
         substitutions: [],
+        pickupTimes: [],
         firstGroupId: "1",
       },
       isLoading: false,
@@ -3311,7 +3947,7 @@ describe("OGSGroupPage ID-based selection: localStorage restore", () => {
             id: "1",
             name: "Max Mustermann",
             first_name: "Max",
-            second_name: "Mustermann",
+            last_name: "Mustermann",
             current_location: "Raum 101",
           },
         ],
@@ -3321,6 +3957,7 @@ describe("OGSGroupPage ID-based selection: localStorage restore", () => {
           },
         },
         substitutions: [],
+        pickupTimes: [],
         firstGroupId: "1",
       },
       isLoading: false,
@@ -3370,7 +4007,7 @@ describe("OGSGroupPage ID-based selection: switchToGroup behavior", () => {
             id: "1",
             name: "Max Mustermann",
             first_name: "Max",
-            second_name: "Mustermann",
+            last_name: "Mustermann",
             current_location: "Raum 101",
           },
         ],
@@ -3380,6 +4017,7 @@ describe("OGSGroupPage ID-based selection: switchToGroup behavior", () => {
           },
         },
         substitutions: [],
+        pickupTimes: [],
         firstGroupId: "1",
       },
       isLoading: false,
@@ -3415,7 +4053,7 @@ describe("OGSGroupPage ID-based selection: switchToGroup behavior", () => {
             id: "1",
             name: "Max Mustermann",
             first_name: "Max",
-            second_name: "Mustermann",
+            last_name: "Mustermann",
             current_location: "Raum 101",
           },
         ],
@@ -3425,6 +4063,7 @@ describe("OGSGroupPage ID-based selection: switchToGroup behavior", () => {
           },
         },
         substitutions: [],
+        pickupTimes: [],
         firstGroupId: "1",
       },
       isLoading: false,
@@ -3460,14 +4099,14 @@ describe("OGSGroupPage ID-based selection: student count update", () => {
             id: "2",
             name: "Erika Schmidt",
             first_name: "Erika",
-            second_name: "Schmidt",
+            last_name: "Schmidt",
             current_location: "Raum 202",
           },
           {
             id: "3",
             name: "Hans Mueller",
             first_name: "Hans",
-            second_name: "Mueller",
+            last_name: "Mueller",
             current_location: "Raum 202",
           },
         ],
@@ -3502,7 +4141,7 @@ describe("OGSGroupPage ID-based selection: student count update", () => {
               id: "1",
               name: "Max Mustermann",
               first_name: "Max",
-              second_name: "Mustermann",
+              last_name: "Mustermann",
               current_location: "Raum 101",
             },
           ],
@@ -3512,6 +4151,7 @@ describe("OGSGroupPage ID-based selection: student count update", () => {
             },
           },
           substitutions: [],
+          pickupTimes: [],
           firstGroupId: "1",
         },
         isLoading: false,
@@ -3553,7 +4193,7 @@ describe("OGSGroupPage ID-based selection: tab change handler", () => {
             id: "2",
             name: "Erika Schmidt",
             first_name: "Erika",
-            second_name: "Schmidt",
+            last_name: "Schmidt",
             current_location: "Raum 202",
           },
         ],
@@ -3610,7 +4250,7 @@ describe("OGSGroupPage ID-based selection: tab change handler", () => {
               id: "1",
               name: "Max Mustermann",
               first_name: "Max",
-              second_name: "Mustermann",
+              last_name: "Mustermann",
               current_location: "Raum 101",
             },
           ],
@@ -3620,6 +4260,7 @@ describe("OGSGroupPage ID-based selection: tab change handler", () => {
             },
           },
           substitutions: [],
+          pickupTimes: [],
           firstGroupId: "1",
         },
         isLoading: false,
@@ -3690,7 +4331,7 @@ describe("OGSGroupPage ID-based selection: currentGroup useMemo", () => {
             id: "1",
             name: "Max Mustermann",
             first_name: "Max",
-            second_name: "Mustermann",
+            last_name: "Mustermann",
             current_location: "Raum 101",
           },
         ],
@@ -3700,6 +4341,7 @@ describe("OGSGroupPage ID-based selection: currentGroup useMemo", () => {
           },
         },
         substitutions: [],
+        pickupTimes: [],
         firstGroupId: "1",
       },
       isLoading: false,
@@ -3737,7 +4379,7 @@ describe("OGSGroupPage ID-based selection: currentGroup useMemo", () => {
             id: "1",
             name: "Max Mustermann",
             first_name: "Max",
-            second_name: "Mustermann",
+            last_name: "Mustermann",
             current_location: "Raum 101",
           },
         ],
@@ -3747,6 +4389,7 @@ describe("OGSGroupPage ID-based selection: currentGroup useMemo", () => {
           },
         },
         substitutions: [],
+        pickupTimes: [],
         firstGroupId: "1",
       },
       isLoading: false,
@@ -3772,6 +4415,7 @@ describe("OGSGroupPage ID-based selection: currentGroup useMemo", () => {
         students: [],
         roomStatus: null,
         substitutions: [],
+        pickupTimes: [],
         firstGroupId: null,
       },
       isLoading: false,
