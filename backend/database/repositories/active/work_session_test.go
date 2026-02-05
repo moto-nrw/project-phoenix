@@ -254,7 +254,7 @@ func TestWorkSessionRepository_GetOpenSessions(t *testing.T) {
 		require.NoError(t, err)
 		defer testpkg.CleanupTableRecords(t, db, "active.work_sessions", session.ID)
 
-		openSessions, err := repo.GetOpenSessions(ctx, time.Now())
+		openSessions, err := repo.GetOpenSessions(ctx, timezone.TodayUTC())
 		require.NoError(t, err)
 		assert.NotEmpty(t, openSessions)
 
@@ -283,7 +283,7 @@ func TestWorkSessionRepository_GetOpenSessions(t *testing.T) {
 		require.NoError(t, err)
 		defer testpkg.CleanupTableRecords(t, db, "active.work_sessions", session.ID)
 
-		openSessions, err := repo.GetOpenSessions(ctx, time.Now())
+		openSessions, err := repo.GetOpenSessions(ctx, timezone.TodayUTC())
 		require.NoError(t, err)
 
 		for _, s := range openSessions {

@@ -167,7 +167,22 @@ gh pr create --base development  # NEVER target main unless explicitly asked
 const { id } = await context.params;  // MUST await params in route handlers
 ```
 
-### 8. Devbox: Reproducible Environment
+### 8. Backend Logging: slog Only (MANDATORY)
+**All backend Go code MUST use `log/slog`** — never logrus, never bare `log.Printf`. Logger is injected via the factory pattern. See full rules in `.claude/rules/backend-logging.md`.
+
+```go
+// CORRECT - use injected logger with key-value pairs
+s.logger.Info("student checked in", "student_id", studentID)
+
+// WRONG - logrus, bare log, or positional args
+logrus.Info("checked in")           // FORBIDDEN
+log.Printf("checked in %d", id)    // FORBIDDEN
+slog.Info("checked in", studentID)  // WRONG - missing key
+```
+
+**GDPR**: Student names must NOT appear at Info level — use `student_id` only. Names at Debug only.
+
+### 9. Devbox: Reproducible Environment
 This project uses **Devbox + direnv** to eliminate "works on my machine" issues. Every developer gets identical tool versions (Go, Node, golangci-lint, etc.) regardless of their OS or global installations.
 
 **For Claude:** When you need a CLI tool that isn't available:

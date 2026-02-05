@@ -1,6 +1,7 @@
 package realtime
 
 import (
+	"log/slog"
 	"testing"
 	"time"
 )
@@ -35,7 +36,7 @@ func TestHubRegister(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			hub := NewHub()
+			hub := NewHub(slog.Default())
 			client := &Client{
 				Channel:          make(chan Event, 10),
 				UserID:           123,
@@ -68,7 +69,7 @@ func TestHubRegister(t *testing.T) {
 
 // TestHubRegisterMultipleClients verifies multiple client registrations
 func TestHubRegisterMultipleClients(t *testing.T) {
-	hub := NewHub()
+	hub := NewHub(slog.Default())
 
 	// Register three clients to the same group
 	client1 := &Client{
@@ -135,7 +136,7 @@ func TestHubUnregister(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			hub := NewHub()
+			hub := NewHub(slog.Default())
 			clients := make([]*Client, tt.setupClients)
 
 			// Register clients
@@ -172,7 +173,7 @@ func TestHubUnregister(t *testing.T) {
 
 // TestHubUnregisterNonExistent verifies idempotent unregister
 func TestHubUnregisterNonExistent(t *testing.T) {
-	hub := NewHub()
+	hub := NewHub(slog.Default())
 	client := &Client{
 		Channel:          make(chan Event, 10),
 		UserID:           1,
@@ -190,7 +191,7 @@ func TestHubUnregisterNonExistent(t *testing.T) {
 
 // TestHubUnregisterCleanup verifies groupClients map cleanup
 func TestHubUnregisterCleanup(t *testing.T) {
-	hub := NewHub()
+	hub := NewHub(slog.Default())
 	client := &Client{
 		Channel:          make(chan Event, 10),
 		UserID:           1,
@@ -225,7 +226,7 @@ func TestHubUnregisterCleanup(t *testing.T) {
 
 // TestHubBroadcastToSingleSubscriber verifies event delivery to one client
 func TestHubBroadcastToSingleSubscriber(t *testing.T) {
-	hub := NewHub()
+	hub := NewHub(slog.Default())
 	client := &Client{
 		Channel:          make(chan Event, 10),
 		UserID:           1,
@@ -261,7 +262,7 @@ func TestHubBroadcastToSingleSubscriber(t *testing.T) {
 
 // TestHubBroadcastToMultipleSubscribers verifies event delivery to multiple clients
 func TestHubBroadcastToMultipleSubscribers(t *testing.T) {
-	hub := NewHub()
+	hub := NewHub(slog.Default())
 
 	// Register three clients to the same group
 	clients := make([]*Client, 3)
@@ -299,7 +300,7 @@ func TestHubBroadcastToMultipleSubscribers(t *testing.T) {
 
 // TestHubBroadcastGroupIsolation verifies events only go to subscribed groups
 func TestHubBroadcastGroupIsolation(t *testing.T) {
-	hub := NewHub()
+	hub := NewHub(slog.Default())
 
 	client1 := &Client{
 		Channel:          make(chan Event, 10),
@@ -344,7 +345,7 @@ func TestHubBroadcastGroupIsolation(t *testing.T) {
 
 // TestHubBroadcastNoSubscribers verifies silent broadcast when no clients
 func TestHubBroadcastNoSubscribers(t *testing.T) {
-	hub := NewHub()
+	hub := NewHub(slog.Default())
 
 	event := NewEvent(EventStudentCheckIn, "group_nonexistent", EventData{
 		StudentID: strPtr("123"),
@@ -364,7 +365,7 @@ func TestHubBroadcastNoSubscribers(t *testing.T) {
 
 // TestHubBroadcastChannelFull verifies skip behavior when channel is full
 func TestHubBroadcastChannelFull(t *testing.T) {
-	hub := NewHub()
+	hub := NewHub(slog.Default())
 
 	// Create client with very small buffer
 	client := &Client{
@@ -407,7 +408,7 @@ func TestHubBroadcastChannelFull(t *testing.T) {
 
 // TestHubGetClientCount verifies client counting
 func TestHubGetClientCount(t *testing.T) {
-	hub := NewHub()
+	hub := NewHub(slog.Default())
 
 	// Initially zero
 	if got := hub.GetClientCount(); got != 0 {
@@ -431,7 +432,7 @@ func TestHubGetClientCount(t *testing.T) {
 
 // TestHubGetGroupSubscriberCount verifies group subscriber counting
 func TestHubGetGroupSubscriberCount(t *testing.T) {
-	hub := NewHub()
+	hub := NewHub(slog.Default())
 
 	// Non-existent group
 	if got := hub.GetGroupSubscriberCount("nonexistent"); got != 0 {

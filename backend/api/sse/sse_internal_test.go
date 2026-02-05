@@ -3,6 +3,7 @@ package sse
 import (
 	"bytes"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -265,61 +266,29 @@ func TestConnectedEvent_Marshaling(t *testing.T) {
 }
 
 // =============================================================================
-// LOGGING HELPER TESTS
-// =============================================================================
-
-func TestLogError_NilLogger(t *testing.T) {
-	// With nil logger, should not panic
-	assert.NotPanics(t, func() {
-		logError("test error", assert.AnError, 123)
-	})
-}
-
-func TestLogWarning_NilLogger(t *testing.T) {
-	// With nil logger, should not panic
-	assert.NotPanics(t, func() {
-		logWarning("test warning", assert.AnError, 456)
-	})
-}
-
-func TestLogInfo_NilLogger(t *testing.T) {
-	// With nil logger, should not panic
-	assert.NotPanics(t, func() {
-		logInfo("test info", 789)
-	})
-}
-
-func TestLogEventError_NilLogger(t *testing.T) {
-	// With nil logger, should not panic
-	assert.NotPanics(t, func() {
-		logEventError("test event error", assert.AnError, 100, realtime.EventStudentCheckIn)
-	})
-}
-
-// =============================================================================
 // RESOURCE TESTS
 // =============================================================================
 
 func TestNewResource(t *testing.T) {
-	hub := realtime.NewHub()
+	hub := realtime.NewHub(slog.Default())
 
 	// Test with nil services (should not panic)
-	resource := NewResource(hub, nil, nil, nil)
+	resource := NewResource(hub, nil, nil, nil, slog.Default())
 	assert.NotNil(t, resource)
 	assert.Equal(t, hub, resource.hub)
 }
 
 func TestResource_Router(t *testing.T) {
-	hub := realtime.NewHub()
-	resource := NewResource(hub, nil, nil, nil)
+	hub := realtime.NewHub(slog.Default())
+	resource := NewResource(hub, nil, nil, nil, slog.Default())
 
 	router := resource.Router()
 	assert.NotNil(t, router)
 }
 
 func TestResource_EventsHandler(t *testing.T) {
-	hub := realtime.NewHub()
-	resource := NewResource(hub, nil, nil, nil)
+	hub := realtime.NewHub(slog.Default())
+	resource := NewResource(hub, nil, nil, nil, slog.Default())
 
 	handler := resource.EventsHandler()
 	assert.NotNil(t, handler)

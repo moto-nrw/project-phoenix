@@ -7,6 +7,7 @@ package usercontext_test
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"testing"
 
@@ -37,7 +38,7 @@ func setupTestContext(t *testing.T) *testContext {
 	db := testpkg.SetupTestDB(t)
 
 	repoFactory := repositories.NewFactory(db)
-	serviceFactory, err := services.NewFactory(repoFactory, db)
+	serviceFactory, err := services.NewFactory(repoFactory, db, slog.Default())
 	require.NoError(t, err, "Failed to create service factory")
 
 	// Create usercontext resource with service and substitution repository

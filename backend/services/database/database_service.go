@@ -2,7 +2,7 @@ package database
 
 import (
 	"context"
-	"log"
+	"log/slog"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
@@ -11,13 +11,23 @@ import (
 
 // databaseService implements the DatabaseService interface
 type databaseService struct {
-	repos *repositories.Factory
+	repos  *repositories.Factory
+	logger *slog.Logger
+}
+
+// getLogger returns a nil-safe logger, falling back to slog.Default() if logger is nil
+func (s *databaseService) getLogger() *slog.Logger {
+	if s.logger != nil {
+		return s.logger
+	}
+	return slog.Default()
 }
 
 // NewService creates a new DatabaseService instance
-func NewService(repos *repositories.Factory) DatabaseService {
+func NewService(repos *repositories.Factory, logger *slog.Logger) DatabaseService {
 	return &databaseService{
-		repos: repos,
+		repos:  repos,
+		logger: logger,
 	}
 }
 
@@ -64,7 +74,7 @@ func collectStudentStats(ctx context.Context, s *databaseService, claims jwt.App
 
 	response.Permissions.CanViewStudents = true
 	if students, err := s.repos.Student.List(ctx, nil); err != nil {
-		log.Printf("Error counting students: %v", err)
+		s.getLogger().ErrorContext(ctx, "Error counting students", slog.String("error", err.Error()))
 	} else {
 		response.Students = len(students)
 	}
@@ -78,7 +88,7 @@ func collectTeacherStats(ctx context.Context, s *databaseService, claims jwt.App
 
 	response.Permissions.CanViewTeachers = true
 	if teachers, err := s.repos.Teacher.List(ctx, nil); err != nil {
-		log.Printf("Error counting teachers: %v", err)
+		s.getLogger().ErrorContext(ctx, "Error counting teachers", slog.String("error", err.Error()))
 	} else {
 		response.Teachers = len(teachers)
 	}
@@ -92,7 +102,7 @@ func collectRoomStats(ctx context.Context, s *databaseService, claims jwt.AppCla
 
 	response.Permissions.CanViewRooms = true
 	if rooms, err := s.repos.Room.List(ctx, nil); err != nil {
-		log.Printf("Error counting rooms: %v", err)
+		s.getLogger().ErrorContext(ctx, "Error counting rooms", slog.String("error", err.Error()))
 	} else {
 		response.Rooms = len(rooms)
 	}
@@ -106,7 +116,7 @@ func collectActivityStats(ctx context.Context, s *databaseService, claims jwt.Ap
 
 	response.Permissions.CanViewActivities = true
 	if activities, err := s.repos.ActivityGroup.List(ctx, nil); err != nil {
-		log.Printf("Error counting activities: %v", err)
+		s.getLogger().ErrorContext(ctx, "Error counting activities", slog.String("error", err.Error()))
 	} else {
 		response.Activities = len(activities)
 	}
@@ -120,7 +130,7 @@ func collectGroupStats(ctx context.Context, s *databaseService, claims jwt.AppCl
 
 	response.Permissions.CanViewGroups = true
 	if groups, err := s.repos.Group.List(ctx, nil); err != nil {
-		log.Printf("Error counting groups: %v", err)
+		s.getLogger().ErrorContext(ctx, "Error counting groups", slog.String("error", err.Error()))
 	} else {
 		response.Groups = len(groups)
 	}
@@ -134,7 +144,7 @@ func collectRoleStats(ctx context.Context, s *databaseService, claims jwt.AppCla
 
 	response.Permissions.CanViewRoles = true
 	if roles, err := s.repos.Role.List(ctx, nil); err != nil {
-		log.Printf("Error counting roles: %v", err)
+		s.getLogger().ErrorContext(ctx, "Error counting roles", slog.String("error", err.Error()))
 	} else {
 		response.Roles = len(roles)
 	}
@@ -148,7 +158,7 @@ func collectDeviceStats(ctx context.Context, s *databaseService, claims jwt.AppC
 
 	response.Permissions.CanViewDevices = true
 	if devices, err := s.repos.Device.List(ctx, nil); err != nil {
-		log.Printf("Error counting devices: %v", err)
+		s.getLogger().ErrorContext(ctx, "Error counting devices", slog.String("error", err.Error()))
 	} else {
 		response.Devices = len(devices)
 	}
@@ -162,7 +172,7 @@ func collectPermissionStats(ctx context.Context, s *databaseService, claims jwt.
 
 	response.Permissions.CanViewPermissions = true
 	if perms, err := s.repos.Permission.List(ctx, nil); err != nil {
-		log.Printf("Error counting permissions: %v", err)
+		s.getLogger().ErrorContext(ctx, "Error counting permissions", slog.String("error", err.Error()))
 	} else {
 		response.PermissionCount = len(perms)
 	}

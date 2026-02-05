@@ -2,6 +2,7 @@ package checkin_test
 
 import (
 	"fmt"
+	"log/slog"
 	"net/http"
 	"testing"
 	"time"
@@ -47,6 +48,7 @@ func setupTestContext(t *testing.T) *testContext {
 		svc.Facilities,
 		svc.Activities,
 		svc.Education,
+		slog.Default(),
 	)
 
 	return &testContext{

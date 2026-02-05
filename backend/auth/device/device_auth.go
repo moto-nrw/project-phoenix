@@ -3,12 +3,12 @@ package device
 import (
 	"context"
 	"crypto/subtle"
+	"log/slog"
 	"net/http"
 	"os"
 	"strings"
 
 	"github.com/go-chi/render"
-	"github.com/moto-nrw/project-phoenix/logging"
 	"github.com/moto-nrw/project-phoenix/models/iot"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	iotSvc "github.com/moto-nrw/project-phoenix/services/iot"
@@ -54,38 +54,42 @@ func extractAndValidateAPIKey(r *http.Request, iotService iotSvc.Service) (*iot.
 	// Extract API key from Authorization header
 	authHeader := r.Header.Get("Authorization")
 	if authHeader == "" {
-		logging.Logger.Warn("Device authentication failed: missing Authorization header")
+		slog.Warn("device authentication failed: missing Authorization header")
 		return nil, ErrDeviceUnauthorized(ErrMissingAPIKey)
 	}
 
 	// Parse Bearer token
 	const bearerPrefix = "Bearer "
 	if !strings.HasPrefix(authHeader, bearerPrefix) {
-		logging.Logger.Warn("Device authentication failed: invalid Authorization header format")
+		slog.Warn("device authentication failed: invalid Authorization header format")
 		return nil, ErrDeviceUnauthorized(ErrInvalidAPIKeyFormat)
 	}
 
 	apiKey := strings.TrimPrefix(authHeader, bearerPrefix)
 	if apiKey == "" {
-		logging.Logger.Warn("Device authentication failed: empty API key")
+		slog.Warn("device authentication failed: empty API key")
 		return nil, ErrDeviceUnauthorized(ErrMissingAPIKey)
 	}
 
 	// Validate API key and get device
 	device, err := iotService.GetDeviceByAPIKey(r.Context(), apiKey)
 	if err != nil {
-		logging.Logger.Warn("Device authentication failed: invalid API key:", err)
+		slog.Warn("device authentication failed: invalid API key",
+			slog.String("error", err.Error()),
+		)
 		return nil, ErrDeviceUnauthorized(ErrInvalidAPIKey)
 	}
 
 	if device == nil {
-		logging.Logger.Warn("Device authentication failed: device not found")
+		slog.Warn("device authentication failed: device not found")
 		return nil, ErrDeviceUnauthorized(ErrInvalidAPIKey)
 	}
 
 	// Check if device is active
 	if !device.IsActive() {
-		logging.Logger.Warn("Device authentication failed: device not active, status:", device.Status)
+		slog.Warn("device authentication failed: device not active",
+			slog.String("status", string(device.Status)),
+		)
 		return nil, ErrDeviceForbidden(ErrDeviceInactive)
 	}
 
@@ -96,7 +100,9 @@ func extractAndValidateAPIKey(r *http.Request, iotService iotSvc.Service) (*iot.
 func updateDeviceLastSeen(r *http.Request, iotService iotSvc.Service, device *iot.Device) {
 	device.UpdateLastSeen()
 	if err := iotService.UpdateDevice(r.Context(), device); err != nil {
-		logging.Logger.Warn("Failed to update device last seen time:", err)
+		slog.Warn("failed to update device last seen time",
+			slog.String("error", err.Error()),
+		)
 	}
 }
 
@@ -116,7 +122,7 @@ func DeviceAuthenticator(iotService iotSvc.Service, _ usersSvc.PersonService) fu
 			// Extract staff PIN from X-Staff-PIN header
 			staffPIN := r.Header.Get("X-Staff-PIN")
 			if staffPIN == "" {
-				logging.Logger.Warn("Device authentication failed: missing X-Staff-PIN header")
+				slog.Warn("device authentication failed: missing X-Staff-PIN header")
 				_ = render.Render(w, r, ErrDeviceUnauthorized(ErrMissingPIN))
 				return
 			}
@@ -124,14 +130,14 @@ func DeviceAuthenticator(iotService iotSvc.Service, _ usersSvc.PersonService) fu
 			// Get global OGS PIN from environment
 			ogsPin := os.Getenv("OGS_DEVICE_PIN")
 			if ogsPin == "" {
-				logging.Logger.Error("OGS_DEVICE_PIN not configured in environment")
+				slog.Error("OGS_DEVICE_PIN not configured in environment")
 				_ = render.Render(w, r, ErrDeviceUnauthorized(ErrInvalidPIN))
 				return
 			}
 
 			// Validate PIN using constant-time comparison
 			if !SecureCompareStrings(staffPIN, ogsPin) {
-				logging.Logger.Warn("Device authentication failed: invalid PIN")
+				slog.Warn("device authentication failed: invalid PIN")
 				_ = render.Render(w, r, ErrDeviceUnauthorized(ErrInvalidPIN))
 				return
 			}
@@ -140,7 +146,9 @@ func DeviceAuthenticator(iotService iotSvc.Service, _ usersSvc.PersonService) fu
 			ctx := context.WithValue(r.Context(), CtxDevice, device)
 			ctx = context.WithValue(ctx, CtxIsIoTDevice, true)
 
-			logging.Logger.Info("Device authentication successful", "device_id", device.DeviceID)
+			slog.Info("device authentication successful",
+				slog.String("device_id", device.DeviceID),
+			)
 			updateDeviceLastSeen(r, iotService, device)
 
 			next.ServeHTTP(w, r.WithContext(ctx))
@@ -166,7 +174,9 @@ func DeviceOnlyAuthenticator(iotService iotSvc.Service) func(http.Handler) http.
 			// Authentication successful - set device context only
 			ctx := context.WithValue(r.Context(), CtxDevice, device)
 
-			logging.Logger.Info("Device-only authentication successful", "device_id", device.DeviceID)
+			slog.Info("device-only authentication successful",
+				slog.String("device_id", device.DeviceID),
+			)
 			updateDeviceLastSeen(r, iotService, device)
 
 			next.ServeHTTP(w, r.WithContext(ctx))

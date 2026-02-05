@@ -3,7 +3,7 @@ package timetracking
 import (
 	"context"
 	"errors"
-	"log"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"time"
@@ -413,7 +413,7 @@ func (rs *Resource) exportSessions(w http.ResponseWriter, r *http.Request) {
 
 	if _, err := w.Write(fileBytes); err != nil {
 		// Response already started, just log the error
-		log.Printf("ERROR: failed to write export response: %v", err)
+		slog.Default().Error("failed to write export response", slog.String("error", err.Error()))
 		return
 	}
 }

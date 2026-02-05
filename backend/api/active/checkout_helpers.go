@@ -4,13 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strconv"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	"github.com/moto-nrw/project-phoenix/logging"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
@@ -125,7 +125,10 @@ func (rs *Resource) endActiveVisit(ctx context.Context, currentVisit *active.Vis
 	}
 
 	if err := rs.ActiveService.EndVisit(ctx, currentVisit.ID); err != nil {
-		fmt.Printf("Warning: Failed to end visit %d: %v\n", currentVisit.ID, err)
+		rs.getLogger().WarnContext(ctx, "failed to end visit during checkout",
+			slog.Int64("visit_id", currentVisit.ID),
+			slog.String("error", err.Error()),
+		)
 	}
 }
 
@@ -133,12 +136,10 @@ func (rs *Resource) endActiveVisit(ctx context.Context, currentVisit *active.Vis
 func (rs *Resource) getUpdatedAttendanceStatus(ctx context.Context, studentID int64) *activeService.AttendanceStatus {
 	status, err := rs.ActiveService.GetStudentAttendanceStatus(ctx, studentID)
 	if err != nil {
-		if logging.Logger != nil {
-			logging.Logger.WithFields(map[string]interface{}{
-				"student_id": studentID,
-				"error":      err.Error(),
-			}).Warn("Failed to get updated attendance status after checkout")
-		}
+		rs.getLogger().WarnContext(ctx, "failed to get updated attendance status after checkout",
+			slog.Int64("student_id", studentID),
+			slog.String("error", err.Error()),
+		)
 		return nil
 	}
 	return status

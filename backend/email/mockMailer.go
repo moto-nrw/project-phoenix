@@ -1,6 +1,6 @@
 package email
 
-import "log"
+import "log/slog"
 
 // MockMailer is a mock Mailer
 type MockMailer struct {
@@ -9,11 +9,14 @@ type MockMailer struct {
 }
 
 func logMessage(m Message) {
-	log.Printf("MockMailer email queued to=%s subject=%s template=%s", m.To.Address, m.Subject, m.Template)
+	slog.Default().Info("mock email queued",
+		slog.String("to", m.To.Address),
+		slog.String("subject", m.Subject),
+		slog.String("template", m.Template))
 }
 
 func NewMockMailer() *MockMailer {
-	log.Println("ATTENTION: SMTP Mailer not configured => printing emails to stdout")
+	slog.Default().Warn("SMTP mailer not configured, using mock mailer (emails will be logged only)")
 	return &MockMailer{
 		SendFn: func(m Message) error {
 			logMessage(m)

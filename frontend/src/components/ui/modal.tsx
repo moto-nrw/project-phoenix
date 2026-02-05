@@ -120,8 +120,8 @@ export function Modal({
       >
         {/* Header with close button - only show border if title exists */}
         {title ? (
-          <div className="flex items-center justify-between border-b border-gray-100 p-6">
-            <h3 className="pr-4 text-xl font-semibold text-gray-900">
+          <div className="flex items-center justify-between border-b border-gray-100 p-4 sm:p-6">
+            <h3 className="pr-4 text-lg font-semibold text-gray-900 sm:text-xl">
               {title}
             </h3>
             <button
@@ -201,7 +201,7 @@ export function Modal({
 
         {/* Footer if provided */}
         {footer && (
-          <div className="flex justify-end gap-3 border-t border-gray-100 bg-gray-50/50 p-6">
+          <div className="flex justify-end gap-3 border-t border-gray-100 bg-gray-50/50 p-4 sm:p-6">
             {footer}
           </div>
         )}
@@ -248,7 +248,7 @@ export function ConfirmationModal({
       <button
         type="button"
         onClick={onClose}
-        className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-all duration-200 hover:scale-105 hover:border-gray-400 hover:bg-gray-50 hover:shadow-md active:scale-100"
+        className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium whitespace-nowrap text-gray-700 transition-all duration-200 hover:scale-105 hover:border-gray-400 hover:bg-gray-50 hover:shadow-md active:scale-100"
       >
         {cancelText}
       </button>
@@ -257,7 +257,7 @@ export function ConfirmationModal({
         type="button"
         onClick={onConfirm}
         disabled={isConfirmLoading || isConfirmDisabled}
-        className={`flex-1 rounded-lg px-4 py-2 ${confirmButtonClass} text-sm font-medium text-white transition-all duration-200 hover:scale-105 hover:shadow-lg active:scale-100 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100`}
+        className={`flex-1 rounded-lg px-4 py-2 whitespace-nowrap ${confirmButtonClass} text-sm font-medium text-white transition-all duration-200 hover:scale-105 hover:shadow-lg active:scale-100 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100`}
       >
         {isConfirmLoading ? (
           <span className="flex items-center justify-center gap-2">

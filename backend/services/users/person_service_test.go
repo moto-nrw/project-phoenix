@@ -10,6 +10,7 @@ package users_test
 
 import (
 	"context"
+	"log/slog"
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
@@ -26,7 +27,7 @@ import (
 // setupPersonService creates a PersonService with real database connection
 func setupPersonService(t *testing.T, db *bun.DB) users.PersonService {
 	repoFactory := repositories.NewFactory(db)
-	serviceFactory, err := services.NewFactory(repoFactory, db)
+	serviceFactory, err := services.NewFactory(repoFactory, db, slog.Default())
 	require.NoError(t, err, "Failed to create service factory")
 	return serviceFactory.Users
 }

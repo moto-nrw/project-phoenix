@@ -3,7 +3,7 @@ package auth
 import (
 	"database/sql"
 	"errors"
-	"log"
+	"log/slog"
 	"net"
 	"net/http"
 	"strconv"
@@ -314,19 +314,19 @@ func (rs *Resource) authorizeRoleAssignment(w http.ResponseWriter, r *http.Reque
 
 	authHeader := r.Header.Get("Authorization")
 	if !isValidAuthHeader(authHeader) {
-		log.Printf("Security: Unauthenticated register attempt with role_id, ignoring role_id")
+		slog.Default().Warn("Security: Unauthenticated register attempt with role_id, ignoring role_id")
 		return nil, false
 	}
 
 	token := authHeader[7:]
 	callerAccount, err := rs.AuthService.ValidateToken(r.Context(), token)
 	if err != nil {
-		log.Printf("Security: Invalid token in register with role_id, ignoring role_id")
+		slog.Default().Warn("Security: Invalid token in register with role_id, ignoring role_id")
 		return nil, false
 	}
 
 	if !hasAdminRole(callerAccount.Roles) {
-		log.Printf("Security: Non-admin (account %d) attempted to set role_id, denying", callerAccount.ID)
+		slog.Default().Warn("Security: Non-admin attempted to set role_id", slog.Int64("account_id", callerAccount.ID))
 		common.RenderError(w, r, ErrorUnauthorized(errors.New("only administrators can assign roles")))
 		return nil, true
 	}
@@ -443,7 +443,10 @@ func (rs *Resource) logout(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		// Even if there's an error, we want to consider the logout successful from the client's perspective
 		// Log the error on the server side for debugging
-		log.Printf("Logout audit logging failed (client logout still successful): ip=%s, error=%v", ipAddress, err)
+		slog.Default().WarnContext(r.Context(), "Logout audit logging failed (client logout still successful)",
+			slog.String("ip", ipAddress),
+			slog.String("error", err.Error()),
+		)
 	}
 
 	common.RespondNoContent(w, r)
@@ -1434,7 +1437,7 @@ func (rs *Resource) initiatePasswordReset(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	log.Printf("Password reset initiated for email=%s", req.Email)
+	slog.Default().Info("Password reset initiated", slog.String("email", req.Email))
 
 	common.Respond(w, r, http.StatusOK, nil, "If the email exists, a password reset link has been sent")
 }
@@ -1448,7 +1451,7 @@ func (rs *Resource) resetPassword(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := rs.AuthService.ResetPassword(r.Context(), req.Token, req.NewPassword); err != nil {
-		log.Printf("Password reset failed reason=%v", err)
+		slog.Default().WarnContext(r.Context(), "Password reset failed", slog.String("error", err.Error()))
 
 		var authErr *authService.AuthError
 		if errors.As(err, &authErr) {
@@ -1468,7 +1471,7 @@ func (rs *Resource) resetPassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Printf("Password reset completed successfully")
+	slog.Default().Info("Password reset completed successfully")
 
 	common.Respond(w, r, http.StatusOK, nil, "Password reset successfully")
 }

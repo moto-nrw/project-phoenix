@@ -5,7 +5,7 @@ package facilities
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/constants"
@@ -78,6 +78,15 @@ type schulhofService struct {
 	activityService activities.ActivityService
 	activeService   activeSvc.Service
 	db              *bun.DB
+	logger          *slog.Logger
+}
+
+// getLogger returns a nil-safe logger, falling back to slog.Default() if logger is nil
+func (s *schulhofService) getLogger() *slog.Logger {
+	if s.logger != nil {
+		return s.logger
+	}
+	return slog.Default()
 }
 
 // NewSchulhofService creates a new Schulhof service.
@@ -86,12 +95,14 @@ func NewSchulhofService(
 	activityService activities.ActivityService,
 	activeService activeSvc.Service,
 	db *bun.DB,
+	logger *slog.Logger,
 ) SchulhofService {
 	return &schulhofService{
 		facilityService: facilityService,
 		activityService: activityService,
 		activeService:   activeService,
 		db:              db,
+		logger:          logger,
 	}
 }
 
@@ -107,7 +118,8 @@ func (s *schulhofService) GetSchulhofStatus(ctx context.Context, staffID int64) 
 	room, err := s.facilityService.FindRoomByName(ctx, constants.SchulhofRoomName)
 	if err != nil {
 		// Room doesn't exist yet - return status with exists=false
-		log.Printf("%s Room not found, infrastructure not yet created", constants.SchulhofLogPrefix)
+		s.getLogger().Info("schulhof room not found, infrastructure not yet created",
+			slog.String("component", "schulhof"))
 		return status, nil
 	}
 	status.Exists = true
@@ -116,7 +128,9 @@ func (s *schulhofService) GetSchulhofStatus(ctx context.Context, staffID int64) 
 	// Step 2: Find Schulhof activity group
 	activityGroup, err := s.findSchulhofActivity(ctx)
 	if err != nil {
-		log.Printf("%s Activity not found: %v", constants.SchulhofLogPrefix, err)
+		s.getLogger().Info("schulhof activity not found",
+			slog.String("component", "schulhof"),
+			slog.String("error", err.Error()))
 		return status, nil
 	}
 	status.ActivityGroupID = &activityGroup.ID
@@ -132,7 +146,9 @@ func (s *schulhofService) GetSchulhofStatus(ctx context.Context, staffID int64) 
 	// Step 4: Get supervisors for this active group
 	supervisors, err := s.activeService.FindSupervisorsByActiveGroupID(ctx, activeGroup.ID)
 	if err != nil {
-		log.Printf("%s Error fetching supervisors: %v", constants.SchulhofLogPrefix, err)
+		s.getLogger().Warn("error fetching schulhof supervisors",
+			slog.String("component", "schulhof"),
+			slog.String("error", err.Error()))
 	} else {
 		status.SupervisorCount = len(supervisors)
 		for _, sup := range supervisors {
@@ -160,7 +176,9 @@ func (s *schulhofService) GetSchulhofStatus(ctx context.Context, staffID int64) 
 	// Step 5: Count students in this active group
 	visits, err := s.activeService.FindVisitsByActiveGroupID(ctx, activeGroup.ID)
 	if err != nil {
-		log.Printf("%s Error fetching visits: %v", constants.SchulhofLogPrefix, err)
+		s.getLogger().Warn("error fetching schulhof visits",
+			slog.String("component", "schulhof"),
+			slog.String("error", err.Error()))
 	} else {
 		for _, visit := range visits {
 			if visit.ExitTime == nil {
@@ -240,7 +258,8 @@ func (s *schulhofService) EnsureInfrastructure(ctx context.Context, createdBy in
 		return activityGroup, nil
 	}
 
-	log.Printf("%s Infrastructure not found, auto-creating...", constants.SchulhofLogPrefix)
+	s.getLogger().Info("schulhof infrastructure not found, auto-creating...",
+		slog.String("component", "schulhof"))
 
 	// Step 1: Ensure Schulhof room exists
 	room, err := s.ensureSchulhofRoom(ctx)
@@ -269,8 +288,11 @@ func (s *schulhofService) EnsureInfrastructure(ctx context.Context, createdBy in
 		return nil, fmt.Errorf("failed to create Schulhof activity: %w", err)
 	}
 
-	log.Printf("%s Successfully created infrastructure: room=%d, category=%d, activity=%d",
-		constants.SchulhofLogPrefix, room.ID, category.ID, createdActivity.ID)
+	s.getLogger().Info("successfully created schulhof infrastructure",
+		slog.String("component", "schulhof"),
+		slog.Int64("room_id", room.ID),
+		slog.Int64("category_id", category.ID),
+		slog.Int64("activity_id", createdActivity.ID))
 
 	return createdActivity, nil
 }
@@ -314,7 +336,9 @@ func (s *schulhofService) GetOrCreateActiveGroup(ctx context.Context, createdBy 
 		return nil, fmt.Errorf("failed to create Schulhof active group: %w", err)
 	}
 
-	log.Printf("%s Created active group for today: ID=%d", constants.SchulhofLogPrefix, newActiveGroup.ID)
+	s.getLogger().Info("created schulhof active group for today",
+		slog.String("component", "schulhof"),
+		slog.Int64("active_group_id", newActiveGroup.ID))
 
 	return newActiveGroup, nil
 }
@@ -375,7 +399,10 @@ func (s *schulhofService) endStaleActiveGroups(ctx context.Context, roomID int64
 		// Only end groups from BEFORE today. Today's groups are safe — this ensures
 		// mid-day supervisor changes don't disrupt the current Schulhof session.
 		if ag.EndTime == nil && !ag.StartTime.After(todayStart) {
-			log.Printf("%s Ending stale active group ID=%d (started %s)", constants.SchulhofLogPrefix, ag.ID, ag.StartTime.Format("2006-01-02"))
+			s.getLogger().Info("ending stale schulhof active group",
+				slog.String("component", "schulhof"),
+				slog.Int64("active_group_id", ag.ID),
+				slog.String("started", ag.StartTime.Format("2006-01-02")))
 			if err := s.activeService.EndActiveGroupSession(ctx, ag.ID); err != nil {
 				return fmt.Errorf("failed to end stale active group %d: %w", ag.ID, err)
 			}
@@ -390,12 +417,15 @@ func (s *schulhofService) ensureSchulhofRoom(ctx context.Context) (*facilities.R
 	// Try to find existing Schulhof room
 	room, err := s.facilityService.FindRoomByName(ctx, constants.SchulhofRoomName)
 	if err == nil && room != nil {
-		log.Printf("%s Found existing room: ID=%d", constants.SchulhofLogPrefix, room.ID)
+		s.getLogger().Info("found existing schulhof room",
+			slog.String("component", "schulhof"),
+			slog.Int64("room_id", room.ID))
 		return room, nil
 	}
 
 	// Room not found - create it
-	log.Printf("%s Room not found, auto-creating...", constants.SchulhofLogPrefix)
+	s.getLogger().Info("schulhof room not found, auto-creating...",
+		slog.String("component", "schulhof"))
 
 	capacity := constants.SchulhofRoomCapacity
 	category := constants.SchulhofCategoryName
@@ -412,7 +442,9 @@ func (s *schulhofService) ensureSchulhofRoom(ctx context.Context) (*facilities.R
 		return nil, fmt.Errorf("failed to create Schulhof room: %w", err)
 	}
 
-	log.Printf("%s Successfully created room: ID=%d", constants.SchulhofLogPrefix, newRoom.ID)
+	s.getLogger().Info("successfully created schulhof room",
+		slog.String("component", "schulhof"),
+		slog.Int64("room_id", newRoom.ID))
 	return newRoom, nil
 }
 
@@ -426,13 +458,16 @@ func (s *schulhofService) ensureSchulhofCategory(ctx context.Context) (*activity
 
 	for _, cat := range categories {
 		if cat.Name == constants.SchulhofCategoryName {
-			log.Printf("%s Found existing category: ID=%d", constants.SchulhofLogPrefix, cat.ID)
+			s.getLogger().Info("found existing schulhof category",
+				slog.String("component", "schulhof"),
+				slog.Int64("category_id", cat.ID))
 			return cat, nil
 		}
 	}
 
 	// Category not found - create it
-	log.Printf("%s Category not found, auto-creating...", constants.SchulhofLogPrefix)
+	s.getLogger().Info("schulhof category not found, auto-creating...",
+		slog.String("component", "schulhof"))
 
 	newCategory := &activityModels.Category{
 		Name:        constants.SchulhofCategoryName,
@@ -445,6 +480,8 @@ func (s *schulhofService) ensureSchulhofCategory(ctx context.Context) (*activity
 		return nil, fmt.Errorf("failed to create Schulhof category: %w", err)
 	}
 
-	log.Printf("%s Successfully created category: ID=%d", constants.SchulhofLogPrefix, createdCategory.ID)
+	s.getLogger().Info("successfully created schulhof category",
+		slog.String("component", "schulhof"),
+		slog.Int64("category_id", createdCategory.ID))
 	return createdCategory, nil
 }

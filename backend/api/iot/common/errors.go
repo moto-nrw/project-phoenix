@@ -3,7 +3,7 @@ package common
 import (
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 
 	"github.com/go-chi/render"
@@ -19,7 +19,9 @@ import (
 // Exported for use by sub-packages (devices, checkin, etc.)
 func RenderError(w http.ResponseWriter, r *http.Request, renderer render.Renderer) {
 	if err := render.Render(w, r, renderer); err != nil {
-		log.Printf(common.LogRenderError, err)
+		slog.Default().ErrorContext(r.Context(), "failed to render error response",
+			slog.String("error", err.Error()),
+		)
 	}
 }
 

@@ -3,9 +3,10 @@ package active
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/uptrace/bun"
@@ -45,7 +46,10 @@ func (s *service) createSessionWithSupervisor(ctx context.Context, activityID, d
 	s.assignSupervisorNonCritical(ctx, newGroup.ID, staffID, newGroup.StartTime)
 
 	if transferredCount > 0 {
-		fmt.Printf(visitTransferMessage, transferredCount, newGroup.ID)
+		s.getLogger().InfoContext(ctx, "visits transferred to new session",
+			slog.Int("count", transferredCount),
+			slog.Int64("session_id", newGroup.ID),
+		)
 	}
 
 	return newGroup, nil
@@ -61,13 +65,20 @@ func (s *service) assignSupervisorNonCritical(ctx context.Context, groupID, staf
 		StartDate: startDate,
 	}
 	if err := s.supervisorRepo.Create(ctx, supervisor); err != nil {
-		fmt.Printf(supervisorAssignmentWarning, staffID, groupID, err)
+		s.getLogger().WarnContext(ctx, "supervisor assignment failed",
+			slog.Int64("staff_id", staffID),
+			slog.Int64("group_id", groupID),
+			slog.String("error", err.Error()),
+		)
 	}
 
 	// NFC auto-check-in: ensure staff member has a work session for today
 	if s.workSessionService != nil {
 		if _, err := s.workSessionService.EnsureCheckedIn(ctx, staffID); err != nil {
-			log.Printf("WARNING: NFC auto-check-in failed for staff %d: %v", staffID, err)
+			s.getLogger().WarnContext(ctx, "NFC auto-check-in failed",
+				slog.Int64("staff_id", staffID),
+				slog.String("error", err.Error()),
+			)
 		}
 	}
 }
@@ -187,7 +198,10 @@ func (s *service) createSessionWithMultipleSupervisors(ctx context.Context, acti
 	s.assignMultipleSupervisorsNonCritical(ctx, newGroup.ID, supervisorIDs, newGroup.StartTime)
 
 	if transferredCount > 0 {
-		fmt.Printf(visitTransferMessage, transferredCount, newGroup.ID)
+		s.getLogger().InfoContext(ctx, "visits transferred to new session",
+			slog.Int("count", transferredCount),
+			slog.Int64("session_id", newGroup.ID),
+		)
 	}
 
 	return newGroup, nil
@@ -196,20 +210,18 @@ func (s *service) createSessionWithMultipleSupervisors(ctx context.Context, acti
 // assignMultipleSupervisorsNonCritical assigns multiple supervisors but doesn't fail if assignment fails
 func (s *service) assignMultipleSupervisorsNonCritical(ctx context.Context, groupID int64, supervisorIDs []int64, startDate time.Time) {
 	// Deduplicate supervisor IDs
-	fmt.Printf("DEBUG: Received supervisor IDs: %v\n", supervisorIDs)
-	for i, id := range supervisorIDs {
-		fmt.Printf("DEBUG: supervisorIDs[%d] = %d\n", i, id)
-	}
-
 	uniqueSupervisors := make(map[int64]bool)
 	for _, id := range supervisorIDs {
 		uniqueSupervisors[id] = true
 	}
 
+	s.getLogger().DebugContext(ctx, "assigning multiple supervisors",
+		slog.Any("supervisor_ids", supervisorIDs),
+		slog.Int("unique_count", len(uniqueSupervisors)),
+	)
+
 	// Assign each unique supervisor
-	fmt.Printf("DEBUG: Unique supervisors map: %v\n", uniqueSupervisors)
 	for staffID := range uniqueSupervisors {
-		fmt.Printf("DEBUG: Creating supervisor for staff ID: %d\n", staffID)
 		supervisor := &active.GroupSupervisor{
 			StaffID:   staffID,
 			GroupID:   groupID,
@@ -217,7 +229,11 @@ func (s *service) assignMultipleSupervisorsNonCritical(ctx context.Context, grou
 			StartDate: startDate,
 		}
 		if err := s.supervisorRepo.Create(ctx, supervisor); err != nil {
-			fmt.Printf(supervisorAssignmentWarning, staffID, groupID, err)
+			s.getLogger().WarnContext(ctx, "supervisor assignment failed",
+				slog.Int64("staff_id", staffID),
+				slog.Int64("group_id", groupID),
+				slog.String("error", err.Error()),
+			)
 		}
 	}
 }
@@ -265,7 +281,10 @@ func (s *service) createSessionWithSupervisorForceStart(ctx context.Context, act
 	s.assignSupervisorNonCritical(ctx, newGroup.ID, staffID, newGroup.StartTime)
 
 	if transferredCount > 0 {
-		fmt.Printf("Transferred %d active visits to new session %d (force start)\n", transferredCount, newGroup.ID)
+		s.getLogger().InfoContext(ctx, "visits transferred to new session (force start)",
+			slog.Int("count", transferredCount),
+			slog.Int64("session_id", newGroup.ID),
+		)
 	}
 
 	return newGroup, nil
@@ -297,7 +316,12 @@ func (s *service) createSessionBase(ctx context.Context, activityID, deviceID, r
 
 // ForceStartActivitySessionWithSupervisors starts an activity session with multiple supervisors and override capability
 func (s *service) ForceStartActivitySessionWithSupervisors(ctx context.Context, activityID, deviceID int64, supervisorIDs []int64, roomID *int64) (*active.Group, error) {
-	fmt.Printf("ForceStartActivitySessionWithSupervisors called with supervisorIDs: %v (len=%d)\n", supervisorIDs, len(supervisorIDs))
+	s.getLogger().DebugContext(ctx, "force start with multiple supervisors called",
+		slog.Any("supervisor_ids", supervisorIDs),
+		slog.Int("supervisor_count", len(supervisorIDs)),
+		slog.Int64("activity_id", activityID),
+		slog.Int64("device_id", deviceID),
+	)
 
 	if err := s.validateSupervisorIDs(ctx, supervisorIDs); err != nil {
 		return nil, err
@@ -383,7 +407,9 @@ func (s *service) validateManualRoomSelection(ctx context.Context, roomID int64,
 		if strategy == RoomConflictFail {
 			return 0, ErrRoomConflict
 		}
-		fmt.Printf("Warning: Overriding room conflict for room %d\n", roomID)
+		s.getLogger().WarnContext(ctx, "overriding room conflict",
+			slog.Int64("room_id", roomID),
+		)
 	}
 
 	return roomID, nil
@@ -1023,8 +1049,7 @@ func (s *service) endActiveSupervisorsForGroup(ctx context.Context, groupID int6
 // cleanupOrphanedSupervisors closes supervisor records from previous days
 // that the per-group loop wouldn't find (e.g., groups already ended but supervisors left open)
 func (s *service) cleanupOrphanedSupervisors(ctx context.Context, result *DailySessionCleanupResult) {
-	now := time.Now().UTC()
-	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+	today := timezone.TodayUTC()
 
 	// Find orphaned supervisor records from before today with no end_date
 	var staleRecords []struct {
@@ -1056,7 +1081,7 @@ func (s *service) cleanupOrphanedSupervisors(ctx context.Context, result *DailyS
 		_, err := s.db.NewUpdate().
 			Table("active.group_supervisors").
 			Set("end_date = ?", endDate).
-			Set("updated_at = ?", now).
+			Set("updated_at = ?", time.Now()).
 			Where("id = ?", record.ID).
 			Exec(ctx)
 

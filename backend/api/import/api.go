@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/csv"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -111,7 +111,7 @@ func (rs *Resource) downloadStudentTemplateCSV(w http.ResponseWriter, _ *http.Re
 	}
 
 	if err := csvWriter.Write(headers); err != nil {
-		log.Printf("Error writing CSV headers: %v", err)
+		slog.Default().Error("Error writing CSV headers", slog.String("error", err.Error()))
 		http.Error(w, errTemplateCreation, http.StatusInternalServerError)
 		return
 	}
@@ -142,7 +142,7 @@ func (rs *Resource) downloadStudentTemplateCSV(w http.ResponseWriter, _ *http.Re
 
 	for _, row := range examples {
 		if err := csvWriter.Write(row); err != nil {
-			log.Printf("Error writing CSV row: %v", err)
+			slog.Default().Error("Error writing CSV row", slog.String("error", err.Error()))
 		}
 	}
 
@@ -157,13 +157,13 @@ func (rs *Resource) downloadStudentTemplateXLSX(w http.ResponseWriter, _ *http.R
 	f := excelize.NewFile()
 	defer func() {
 		if err := f.Close(); err != nil {
-			log.Printf("Error closing Excel file: %v", err)
+			slog.Default().Error("Error closing Excel file", slog.String("error", err.Error()))
 		}
 	}()
 
 	sheetName := "Schüler"
 	if err := setupExcelSheet(f, sheetName); err != nil {
-		log.Printf("Error setting up sheet: %v", err)
+		slog.Default().Error("Error setting up sheet", slog.String("error", err.Error()))
 		http.Error(w, errTemplateCreation, http.StatusInternalServerError)
 		return
 	}
@@ -174,7 +174,7 @@ func (rs *Resource) downloadStudentTemplateXLSX(w http.ResponseWriter, _ *http.R
 	setExcelColumnWidths(f, sheetName, len(headers), 15)
 
 	if err := f.Write(w); err != nil {
-		log.Printf("Error writing Excel file: %v", err)
+		slog.Default().Error("Error writing Excel file", slog.String("error", err.Error()))
 		http.Error(w, errTemplateCreation, http.StatusInternalServerError)
 	}
 }
@@ -223,7 +223,7 @@ func writeExcelHeaders(f *excelize.File, sheetName string, headers []string) {
 	for i, header := range headers {
 		cell, _ := excelize.CoordinatesToCellName(i+1, 1)
 		if err := f.SetCellValue(sheetName, cell, header); err != nil {
-			log.Printf("Error setting header: %v", err)
+			slog.Default().Error("Error setting header", slog.String("error", err.Error()))
 		}
 	}
 }
@@ -234,7 +234,7 @@ func writeExcelExampleRows(f *excelize.File, sheetName string, examples [][]any)
 		for colIdx, value := range row {
 			cell, _ := excelize.CoordinatesToCellName(colIdx+1, rowIdx+2)
 			if err := f.SetCellValue(sheetName, cell, value); err != nil {
-				log.Printf("Error setting cell value: %v", err)
+				slog.Default().Error("Error setting cell value", slog.String("error", err.Error()))
 			}
 		}
 	}
@@ -245,7 +245,7 @@ func setExcelColumnWidths(f *excelize.File, sheetName string, numCols int, width
 	for i := 1; i <= numCols; i++ {
 		col, _ := excelize.ColumnNumberToName(i)
 		if err := f.SetColWidth(sheetName, col, col, width); err != nil {
-			log.Printf("Error setting column width: %v", err)
+			slog.Default().Error("Error setting column width", slog.String("error", err.Error()))
 		}
 	}
 }
@@ -320,9 +320,12 @@ func (rs *Resource) importStudents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Log import summary (using %q to prevent log injection via filename)
-	log.Printf("Student import completed: created=%d, updated=%d, errors=%d, filename=%q",
-		result.CreatedCount, result.UpdatedCount, result.ErrorCount, uploadResult.Filename)
+	// Log import summary
+	slog.Default().Info("Student import completed",
+		slog.Int("created", result.CreatedCount),
+		slog.Int("updated", result.UpdatedCount),
+		slog.Int("errors", result.ErrorCount),
+		slog.String("filename", uploadResult.Filename))
 
 	// GDPR Compliance: Audit log for actual import (Article 30)
 	rs.logImportAudit(uploadResult.Filename, result, userID, false)
@@ -364,11 +367,11 @@ func (rs *Resource) logImportAudit(filename string, result *importModels.ImportR
 			Metadata:     audit.JSONBMap{},
 		}
 		if err := rs.auditRepo.Create(auditCtx, auditRecord); err != nil {
-			logLevel := "WARNING"
-			if !dryRun {
-				logLevel = "ERROR"
+			if dryRun {
+				slog.Default().Warn("Failed to create audit log for import", slog.String("error", err.Error()))
+			} else {
+				slog.Default().Error("Failed to create audit log for import", slog.String("error", err.Error()))
 			}
-			log.Printf("%s: Failed to create audit log for import: %v", logLevel, err)
 		}
 	}()
 }

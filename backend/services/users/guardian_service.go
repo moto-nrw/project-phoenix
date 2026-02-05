@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -67,7 +68,7 @@ func NewGuardianService(deps GuardianServiceDependencies) GuardianService {
 	trimmedFrontend := strings.TrimRight(strings.TrimSpace(deps.FrontendURL), "/")
 	dispatcher := deps.Dispatcher
 	if dispatcher == nil && deps.Mailer != nil {
-		dispatcher = email.NewDispatcher(deps.Mailer)
+		dispatcher = email.NewDispatcher(deps.Mailer, slog.Default().With("component", "email"))
 	}
 
 	return &guardianService{
@@ -331,7 +332,10 @@ func (s *guardianService) sendInvitationEmail(invitation *authModels.GuardianInv
 	// (better to send the invitation without student names than to fail completely)
 	studentNames, err := s.getStudentNamesForGuardian(context.Background(), profile.ID)
 	if err != nil {
-		fmt.Printf("Warning: failed to load student names for guardian %d invitation email: %v\n", profile.ID, err)
+		slog.Warn("failed to load student names for guardian invitation email",
+			slog.Int64("guardian_id", profile.ID),
+			slog.String("error", err.Error()),
+		)
 		studentNames = []string{} // Use empty list as fallback
 	}
 

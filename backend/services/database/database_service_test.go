@@ -2,6 +2,7 @@ package database_test
 
 import (
 	"context"
+	"log/slog"
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
@@ -22,7 +23,7 @@ func setupDatabaseService(t *testing.T) (*repositories.Factory, databaseSvc.Data
 
 	repoFactory := repositories.NewFactory(db)
 
-	return repoFactory, databaseSvc.NewService(repoFactory)
+	return repoFactory, databaseSvc.NewService(repoFactory, slog.Default())
 }
 
 // contextWithPermissions creates a context with JWT claims containing permissions

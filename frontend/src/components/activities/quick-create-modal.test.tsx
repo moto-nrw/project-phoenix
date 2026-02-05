@@ -201,4 +201,250 @@ describe("QuickCreateActivityModal", () => {
     });
     expect(submitButton).toBeDisabled();
   });
+
+  describe("double-submit prevention", () => {
+    it("disables submit button when loading prop is true", async () => {
+      // Override mock to return loading: true with a valid form
+      const { useActivityForm } = await import("~/hooks/useActivityForm");
+      vi.mocked(useActivityForm).mockReturnValue({
+        form: {
+          name: "Test Activity",
+          category_id: "1",
+          max_participants: "15",
+        },
+        setForm: vi.fn(),
+        categories: [
+          {
+            id: "1",
+            name: "Gruppenraum",
+            created_at: new Date("2024-01-01"),
+            updated_at: new Date("2024-01-01"),
+          },
+        ],
+        loading: true, // Loading is true - this should disable the button
+        error: null,
+        setError: vi.fn(),
+        handleInputChange: vi.fn(),
+        validateForm: vi.fn(() => null),
+        loadCategories: vi.fn(),
+      });
+
+      render(<QuickCreateActivityModal isOpen={true} onClose={mockOnClose} />);
+
+      // Submit button should be disabled because loading is true
+      // (form itself is valid with name and category_id filled)
+      const submitButton = screen.getByRole("button", {
+        name: /Aktivität erstellen/,
+      });
+      expect(submitButton).toBeDisabled();
+    });
+
+    it("shows loading state in submit button text while submitting", async () => {
+      // This tests that the isSubmitting state shows "Wird erstellt..." in the button
+      // The mock returns a valid form, so we can test the button text changes
+      const { useActivityForm } = await import("~/hooks/useActivityForm");
+      vi.mocked(useActivityForm).mockReturnValue({
+        form: {
+          name: "Test Activity",
+          category_id: "1",
+          max_participants: "15",
+        },
+        setForm: vi.fn(),
+        categories: [
+          {
+            id: "1",
+            name: "Gruppenraum",
+            created_at: new Date("2024-01-01"),
+            updated_at: new Date("2024-01-01"),
+          },
+        ],
+        loading: false,
+        error: null,
+        setError: vi.fn(),
+        handleInputChange: vi.fn(),
+        validateForm: vi.fn(() => null),
+        loadCategories: vi.fn(),
+      });
+
+      // Make fetch hang to test loading state
+      let resolveSubmit: (value: unknown) => void;
+      const fetchPromise = new Promise((resolve) => {
+        resolveSubmit = resolve;
+      });
+      (global.fetch as ReturnType<typeof vi.fn>).mockImplementationOnce(
+        // eslint-disable-next-line @typescript-eslint/no-misused-promises
+        () => fetchPromise,
+      );
+
+      render(<QuickCreateActivityModal isOpen={true} onClose={mockOnClose} />);
+
+      const submitButton = screen.getByRole("button", {
+        name: /Aktivität erstellen/,
+      });
+
+      // Click submit
+      fireEvent.click(submitButton);
+
+      // Button should show loading text
+      await waitFor(() => {
+        expect(screen.getByText(/Wird erstellt.../)).toBeInTheDocument();
+      });
+
+      // Resolve to clean up
+      resolveSubmit!({
+        ok: true,
+        json: async () => ({ id: "1", name: "Test" }),
+      });
+    });
+
+    it("resets isSubmitting after validation error", async () => {
+      const mockSetError = vi.fn();
+      const { useActivityForm } = await import("~/hooks/useActivityForm");
+      vi.mocked(useActivityForm).mockReturnValue({
+        form: {
+          name: "Test Activity",
+          category_id: "1",
+          max_participants: "15",
+        },
+        setForm: vi.fn(),
+        categories: [
+          {
+            id: "1",
+            name: "Gruppenraum",
+            created_at: new Date("2024-01-01"),
+            updated_at: new Date("2024-01-01"),
+          },
+        ],
+        loading: false,
+        error: null,
+        setError: mockSetError,
+        handleInputChange: vi.fn(),
+        validateForm: vi.fn(() => "Validation error"), // Return an error
+        loadCategories: vi.fn(),
+      });
+
+      render(<QuickCreateActivityModal isOpen={true} onClose={mockOnClose} />);
+
+      const submitButton = screen.getByRole("button", {
+        name: /Aktivität erstellen/,
+      });
+
+      // Click submit - validation will fail
+      fireEvent.click(submitButton);
+
+      // setError should be called with validation error
+      expect(mockSetError).toHaveBeenCalledWith("Validation error");
+
+      // Button should be enabled again (isSubmitting reset)
+      await waitFor(() => {
+        expect(submitButton).not.toBeDisabled();
+      });
+    });
+
+    it("handles API error and resets isSubmitting", async () => {
+      const mockSetError = vi.fn();
+      const { useActivityForm } = await import("~/hooks/useActivityForm");
+      vi.mocked(useActivityForm).mockReturnValue({
+        form: {
+          name: "Test Activity",
+          category_id: "1",
+          max_participants: "15",
+        },
+        setForm: vi.fn(),
+        categories: [
+          {
+            id: "1",
+            name: "Gruppenraum",
+            created_at: new Date("2024-01-01"),
+            updated_at: new Date("2024-01-01"),
+          },
+        ],
+        loading: false,
+        error: null,
+        setError: mockSetError,
+        handleInputChange: vi.fn(),
+        validateForm: vi.fn(() => null),
+        loadCategories: vi.fn(),
+      });
+
+      // Mock fetch to return error
+      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+      });
+
+      render(<QuickCreateActivityModal isOpen={true} onClose={mockOnClose} />);
+
+      const submitButton = screen.getByRole("button", {
+        name: /Aktivität erstellen/,
+      });
+
+      fireEvent.click(submitButton);
+
+      // Wait for error handling
+      await waitFor(() => {
+        expect(mockSetError).toHaveBeenCalled();
+      });
+
+      // Button should be enabled again (isSubmitting reset in finally)
+      await waitFor(() => {
+        expect(submitButton).not.toBeDisabled();
+      });
+    });
+
+    it("prevents double-click during submission", async () => {
+      const { useActivityForm } = await import("~/hooks/useActivityForm");
+      vi.mocked(useActivityForm).mockReturnValue({
+        form: {
+          name: "Test Activity",
+          category_id: "1",
+          max_participants: "15",
+        },
+        setForm: vi.fn(),
+        categories: [
+          {
+            id: "1",
+            name: "Gruppenraum",
+            created_at: new Date("2024-01-01"),
+            updated_at: new Date("2024-01-01"),
+          },
+        ],
+        loading: false,
+        error: null,
+        setError: vi.fn(),
+        handleInputChange: vi.fn(),
+        validateForm: vi.fn(() => null),
+        loadCategories: vi.fn(),
+      });
+
+      // Make fetch hang
+      let resolveSubmit: (value: unknown) => void;
+      const fetchPromise = new Promise((resolve) => {
+        resolveSubmit = resolve;
+      });
+      (global.fetch as ReturnType<typeof vi.fn>).mockImplementation(
+        // eslint-disable-next-line @typescript-eslint/no-misused-promises
+        () => fetchPromise,
+      );
+
+      render(<QuickCreateActivityModal isOpen={true} onClose={mockOnClose} />);
+
+      const submitButton = screen.getByRole("button", {
+        name: /Aktivität erstellen/,
+      });
+
+      // Click submit twice rapidly
+      fireEvent.click(submitButton);
+      fireEvent.click(submitButton);
+
+      // Should only call fetch once (second click blocked by isSubmitting)
+      expect(global.fetch).toHaveBeenCalledTimes(1);
+
+      // Clean up
+      resolveSubmit!({
+        ok: true,
+        json: async () => ({ id: "1", name: "Test" }),
+      });
+    });
+  });
 });

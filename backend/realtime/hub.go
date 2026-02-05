@@ -1,9 +1,8 @@
 package realtime
 
 import (
+	"log/slog"
 	"sync"
-
-	"github.com/moto-nrw/project-phoenix/logging"
 )
 
 // Client represents a single SSE client connection
@@ -18,13 +17,23 @@ type Hub struct {
 	clients      map[*Client]bool
 	groupClients map[string][]*Client // active_group_id -> subscribers
 	mu           sync.RWMutex
+	logger       *slog.Logger
+}
+
+// getLogger returns a nil-safe logger, falling back to slog.Default() if logger is nil
+func (h *Hub) getLogger() *slog.Logger {
+	if h.logger != nil {
+		return h.logger
+	}
+	return slog.Default()
 }
 
 // NewHub creates a new SSE hub
-func NewHub() *Hub {
+func NewHub(logger *slog.Logger) *Hub {
 	return &Hub{
 		clients:      make(map[*Client]bool),
 		groupClients: make(map[string][]*Client),
+		logger:       logger,
 	}
 }
 
@@ -41,14 +50,11 @@ func (h *Hub) Register(client *Client, activeGroupIDs []string) {
 		client.SubscribedGroups[groupID] = true
 	}
 
-	// Audit logging for GDPR compliance (defensive nil check)
-	if logging.Logger != nil {
-		logging.Logger.WithFields(map[string]interface{}{
-			"user_id":           client.UserID,
-			"subscribed_groups": activeGroupIDs,
-			"total_clients":     len(h.clients),
-		}).Info("SSE client connected")
-	}
+	h.getLogger().Info("SSE client connected",
+		slog.Int64("user_id", client.UserID),
+		slog.Any("subscribed_groups", activeGroupIDs),
+		slog.Int("total_clients", len(h.clients)),
+	)
 }
 
 // Unregister removes a client from the hub and all group subscriptions
@@ -81,12 +87,10 @@ func (h *Hub) Unregister(client *Client) {
 
 	close(client.Channel)
 
-	if logging.Logger != nil {
-		logging.Logger.WithFields(map[string]interface{}{
-			"user_id":       client.UserID,
-			"total_clients": len(h.clients),
-		}).Info("SSE client disconnected")
-	}
+	h.getLogger().Info("SSE client disconnected",
+		slog.Int64("user_id", client.UserID),
+		slog.Int("total_clients", len(h.clients)),
+	)
 }
 
 // BroadcastToGroup sends an event to all clients subscribed to the specified active group
@@ -98,12 +102,10 @@ func (h *Hub) BroadcastToGroup(activeGroupID string, event Event) error {
 	clients := h.groupClients[activeGroupID]
 	if len(clients) == 0 {
 		// No subscribers for this group - not an error
-		if logging.Logger != nil {
-			logging.Logger.WithFields(map[string]interface{}{
-				"active_group_id": activeGroupID,
-				"event_type":      string(event.Type),
-			}).Debug("No SSE subscribers for group")
-		}
+		h.getLogger().Debug("no SSE subscribers for group",
+			slog.String("active_group_id", activeGroupID),
+			slog.String("event_type", string(event.Type)),
+		)
 		return nil
 	}
 
@@ -115,24 +117,20 @@ func (h *Hub) BroadcastToGroup(activeGroupID string, event Event) error {
 			successCount++
 		default:
 			// Client's channel is full - skip this client
-			if logging.Logger != nil {
-				logging.Logger.WithFields(map[string]interface{}{
-					"user_id":         client.UserID,
-					"active_group_id": activeGroupID,
-					"event_type":      string(event.Type),
-				}).Warn("SSE client channel full, skipping event")
-			}
+			h.getLogger().Warn("SSE client channel full, skipping event",
+				slog.Int64("user_id", client.UserID),
+				slog.String("active_group_id", activeGroupID),
+				slog.String("event_type", string(event.Type)),
+			)
 		}
 	}
 
-	if logging.Logger != nil {
-		logging.Logger.WithFields(map[string]interface{}{
-			"active_group_id": activeGroupID,
-			"event_type":      string(event.Type),
-			"recipient_count": len(clients),
-			"successful":      successCount,
-		}).Debug("SSE event broadcast")
-	}
+	h.getLogger().Debug("SSE event broadcast",
+		slog.String("active_group_id", activeGroupID),
+		slog.String("event_type", string(event.Type)),
+		slog.Int("recipient_count", len(clients)),
+		slog.Int("successful", successCount),
+	)
 
 	return nil
 }

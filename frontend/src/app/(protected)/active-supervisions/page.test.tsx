@@ -58,7 +58,7 @@ vi.mock("~/components/ui/alert", () => ({
   ),
 }));
 
-// Mock Modal
+// Mock Modal and ConfirmationModal
 vi.mock("~/components/ui/modal", () => ({
   Modal: ({
     isOpen,
@@ -74,6 +74,20 @@ vi.mock("~/components/ui/modal", () => ({
         {children}
       </div>
     ) : null,
+  ConfirmationModal: ({
+    isOpen,
+    children,
+    title,
+  }: {
+    isOpen: boolean;
+    children: React.ReactNode;
+    title: string;
+  }) =>
+    isOpen ? (
+      <div data-testid="confirmation-modal" data-title={title}>
+        {children}
+      </div>
+    ) : null,
 }));
 
 // Mock activeService
@@ -82,6 +96,7 @@ vi.mock("~/lib/active-api", () => ({
     getActiveGroupVisitsWithDisplay: vi.fn(() => Promise.resolve([])),
     getActiveGroupSupervisors: vi.fn(() => Promise.resolve([])),
     endSupervision: vi.fn(() => Promise.resolve()),
+    toggleSchulhofSupervision: vi.fn(() => Promise.resolve()),
   },
 }));
 
@@ -1454,9 +1469,7 @@ describe("Schulhof permanent tab functionality", () => {
 
     await waitFor(() => {
       // Should show the Schulhof not supervising view
-      expect(
-        screen.getByText("Schulhof-Aufsicht verfügbar"),
-      ).toBeInTheDocument();
+      expect(screen.getByText("Schulhof ohne Aufsicht")).toBeInTheDocument();
     });
   });
 
@@ -1512,9 +1525,9 @@ describe("Schulhof permanent tab functionality", () => {
     render(<MeinRaumPage />);
 
     await waitFor(() => {
-      expect(screen.getByText(/Aktuelle Aufsicht/)).toBeInTheDocument();
+      // Names are shown inline with "Aktuelle Aufsicht:" prefix
       expect(
-        screen.getByText("Max Mustermann, Erika Schmidt"),
+        screen.getByText("Aktuelle Aufsicht: Max Mustermann, Erika Schmidt"),
       ).toBeInTheDocument();
     });
   });
@@ -1558,7 +1571,9 @@ describe("Schulhof permanent tab functionality", () => {
     render(<MeinRaumPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("Aktuell keine Aufsicht")).toBeInTheDocument();
+      expect(
+        screen.getByText("Übernimm die Aufsicht, um Schüler zu sehen."),
+      ).toBeInTheDocument();
     });
   });
 
@@ -1608,7 +1623,10 @@ describe("Schulhof permanent tab functionality", () => {
     render(<MeinRaumPage />);
 
     await waitFor(() => {
-      expect(screen.getByText(/15 Schüler im Schulhof/)).toBeInTheDocument();
+      // When not supervising, shows the current supervisor name instead of student count
+      expect(
+        screen.getByText("Aktuelle Aufsicht: Test Aufsicht"),
+      ).toBeInTheDocument();
     });
   });
 });
@@ -6681,6 +6699,568 @@ describe("ID-based selection coverage: loadRoomVisits 403 handling", () => {
       expect(
         activeService.getActiveGroupVisitsWithDisplay,
       ).toHaveBeenCalledWith("room-no-access");
+    });
+  });
+});
+
+/**
+ * Tests for action button click handlers (lines 1305-1359, 1429)
+ * These tests cover the actual click handlers on action buttons
+ */
+describe("Action button click handlers", () => {
+  const mockMutate = vi.fn();
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    global.fetch = vi.fn();
+
+    // Override PageHeaderWithSearch to render action buttons as clickable elements
+    const mod = await import("~/components/ui/page-header");
+    vi.mocked(
+      mod.PageHeaderWithSearch as React.FC<Record<string, unknown>>,
+    ).mockImplementation((props: Record<string, unknown>) => {
+      const p = props;
+      const actionButton = p.actionButton as React.ReactNode;
+      const mobileActionButton = p.mobileActionButton as React.ReactNode;
+
+      return (
+        <div data-testid="page-header">
+          {actionButton && (
+            <div data-testid="action-btn-wrap">{actionButton}</div>
+          )}
+          {mobileActionButton && (
+            <div data-testid="mobile-btn-wrap">{mobileActionButton}</div>
+          )}
+        </div>
+      );
+    });
+  });
+
+  afterEach(() => {
+    cleanup();
+  });
+
+  it("clicking release supervision button opens the modal", async () => {
+    vi.mocked(useSWRAuth)
+      .mockReturnValueOnce({
+        data: {
+          supervisedGroups: [],
+          unclaimedGroups: [],
+          currentStaff: { id: "staff-1" },
+          educationalGroups: [],
+          firstRoomVisits: [],
+          firstRoomId: null,
+          schulhofStatus: {
+            exists: true,
+            roomId: "schulhof-r1",
+            roomName: "Schulhof",
+            activityGroupId: "ag-1",
+            activeGroupId: "active-schulhof",
+            isUserSupervising: true,
+            supervisionId: "sup-1",
+            supervisorCount: 1,
+            studentCount: 3,
+            supervisors: [
+              {
+                id: "sup-1",
+                staffId: "staff-1",
+                name: "Test Teacher",
+                isCurrentUser: true,
+              },
+            ],
+          },
+        },
+        isLoading: false,
+        error: null,
+        mutate: mockMutate,
+        isValidating: false,
+      } as never)
+      .mockReturnValue({
+        data: null,
+        isLoading: false,
+        error: null,
+        mutate: mockMutate,
+        isValidating: false,
+      } as never);
+
+    render(<MeinRaumPage />);
+
+    // Wait for release button to appear
+    await waitFor(() => {
+      expect(screen.getByText("Aufsicht abgeben")).toBeInTheDocument();
+    });
+
+    // Click the desktop release button - this triggers setShowReleaseModal(true)
+    const releaseButton = screen.getByText("Aufsicht abgeben");
+    fireEvent.click(releaseButton);
+
+    // Modal should now be open
+    await waitFor(() => {
+      expect(screen.getByTestId("confirmation-modal")).toBeInTheDocument();
+    });
+  });
+
+  it("clicking mobile release supervision button opens the modal", async () => {
+    vi.mocked(useSWRAuth)
+      .mockReturnValueOnce({
+        data: {
+          supervisedGroups: [],
+          unclaimedGroups: [],
+          currentStaff: { id: "staff-1" },
+          educationalGroups: [],
+          firstRoomVisits: [],
+          firstRoomId: null,
+          schulhofStatus: {
+            exists: true,
+            roomId: "schulhof-r1",
+            roomName: "Schulhof",
+            activityGroupId: "ag-1",
+            activeGroupId: "active-schulhof",
+            isUserSupervising: true,
+            supervisionId: "sup-1",
+            supervisorCount: 1,
+            studentCount: 3,
+            supervisors: [
+              {
+                id: "sup-1",
+                staffId: "staff-1",
+                name: "Test Teacher",
+                isCurrentUser: true,
+              },
+            ],
+          },
+        },
+        isLoading: false,
+        error: null,
+        mutate: mockMutate,
+        isValidating: false,
+      } as never)
+      .mockReturnValue({
+        data: null,
+        isLoading: false,
+        error: null,
+        mutate: mockMutate,
+        isValidating: false,
+      } as never);
+
+    render(<MeinRaumPage />);
+
+    // Wait for release buttons to appear
+    await waitFor(() => {
+      expect(
+        screen.getAllByLabelText("Aufsicht abgeben").length,
+      ).toBeGreaterThanOrEqual(2);
+    });
+
+    // Click the mobile release button (second one with aria-label)
+    const releaseButtons = screen.getAllByLabelText("Aufsicht abgeben");
+    fireEvent.click(releaseButtons[1]!);
+
+    // Modal should now be open
+    await waitFor(() => {
+      expect(screen.getByTestId("confirmation-modal")).toBeInTheDocument();
+    });
+  });
+
+  it("clicking Beaufsichtigen button calls toggleSchulhofSupervision", async () => {
+    const { activeService } = await import("~/lib/active-api");
+    vi.mocked(activeService.toggleSchulhofSupervision).mockResolvedValue(
+      undefined as never,
+    );
+
+    vi.mocked(useSWRAuth)
+      .mockReturnValueOnce({
+        data: {
+          supervisedGroups: [],
+          unclaimedGroups: [],
+          currentStaff: { id: "staff-1" },
+          educationalGroups: [],
+          firstRoomVisits: [],
+          firstRoomId: null,
+          schulhofStatus: {
+            exists: true,
+            roomId: "schulhof-r1",
+            roomName: "Schulhof",
+            activityGroupId: "ag-1",
+            activeGroupId: null,
+            isUserSupervising: false,
+            supervisionId: null,
+            supervisorCount: 0,
+            studentCount: 0,
+            supervisors: [],
+          },
+        },
+        isLoading: false,
+        error: null,
+        mutate: mockMutate,
+        isValidating: false,
+      } as never)
+      .mockReturnValue({
+        data: null,
+        isLoading: false,
+        error: null,
+        mutate: mockMutate,
+        isValidating: false,
+      } as never);
+
+    render(<MeinRaumPage />);
+
+    // Wait for "Beaufsichtigen" button to appear
+    await waitFor(() => {
+      expect(screen.getByText("Beaufsichtigen")).toBeInTheDocument();
+    });
+
+    // Click the button - this triggers handleToggleSchulhof() (line 1429)
+    const beaufsichtigenButton = screen.getByText("Beaufsichtigen");
+    fireEvent.click(beaufsichtigenButton);
+
+    // Should have called toggleSchulhofSupervision with "start"
+    await waitFor(() => {
+      expect(activeService.toggleSchulhofSupervision).toHaveBeenCalledWith(
+        "start",
+      );
+    });
+  });
+
+  it("clicking Beaufsichtigen shows loading state", async () => {
+    const { activeService } = await import("~/lib/active-api");
+    // Make the toggle take time
+    vi.mocked(activeService.toggleSchulhofSupervision).mockImplementation(
+      () => new Promise((resolve) => setTimeout(resolve, 100)),
+    );
+
+    vi.mocked(useSWRAuth)
+      .mockReturnValueOnce({
+        data: {
+          supervisedGroups: [],
+          unclaimedGroups: [],
+          currentStaff: { id: "staff-1" },
+          educationalGroups: [],
+          firstRoomVisits: [],
+          firstRoomId: null,
+          schulhofStatus: {
+            exists: true,
+            roomId: "schulhof-r1",
+            roomName: "Schulhof",
+            activityGroupId: "ag-1",
+            activeGroupId: null,
+            isUserSupervising: false,
+            supervisionId: null,
+            supervisorCount: 0,
+            studentCount: 0,
+            supervisors: [],
+          },
+        },
+        isLoading: false,
+        error: null,
+        mutate: mockMutate,
+        isValidating: false,
+      } as never)
+      .mockReturnValue({
+        data: null,
+        isLoading: false,
+        error: null,
+        mutate: mockMutate,
+        isValidating: false,
+      } as never);
+
+    render(<MeinRaumPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Beaufsichtigen")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByText("Beaufsichtigen"));
+
+    // Should show loading text
+    await waitFor(() => {
+      expect(screen.getByText("Wird übernommen...")).toBeInTheDocument();
+    });
+  });
+});
+
+/**
+ * Tests for Schulhof tab onTabChange callback (lines 1232-1259)
+ */
+describe("Schulhof tab onTabChange callback", () => {
+  const mockMutate = vi.fn();
+  const originalInnerWidth = window.innerWidth;
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    global.fetch = vi.fn();
+    // Simulate mobile viewport for tabs to appear
+    Object.defineProperty(window, "innerWidth", {
+      writable: true,
+      configurable: true,
+      value: 500,
+    });
+
+    // Override PageHeaderWithSearch to render tabs with onTabChange
+    const mod = await import("~/components/ui/page-header");
+    vi.mocked(
+      mod.PageHeaderWithSearch as React.FC<Record<string, unknown>>,
+    ).mockImplementation((props: Record<string, unknown>) => {
+      const p = props;
+      const tabs = p.tabs as
+        | {
+            items: Array<{ id: string; label: string }>;
+            activeTab: string;
+            onTabChange: (tabId: string) => void;
+          }
+        | undefined;
+      const actionButton = p.actionButton as React.ReactNode;
+
+      return (
+        <div data-testid="page-header">
+          {tabs?.items.map((tab) => (
+            <button
+              key={tab.id}
+              data-testid={`tab-${tab.id}`}
+              data-active={tab.id === tabs.activeTab}
+              onClick={() => tabs.onTabChange(tab.id)}
+            >
+              {tab.label}
+            </button>
+          ))}
+          {actionButton && (
+            <div data-testid="action-btn-wrap">{actionButton}</div>
+          )}
+        </div>
+      );
+    });
+  });
+
+  afterEach(() => {
+    cleanup();
+    Object.defineProperty(window, "innerWidth", {
+      writable: true,
+      configurable: true,
+      value: originalInnerWidth,
+    });
+  });
+
+  it("clicking Schulhof tab triggers onTabChange callback and sets state", async () => {
+    const { activeService } = await import("~/lib/active-api");
+    vi.mocked(activeService.getActiveGroupVisitsWithDisplay).mockResolvedValue(
+      [] as never,
+    );
+
+    const dashboardData = {
+      supervisedGroups: [
+        {
+          id: "room-1",
+          name: "Raum A",
+          room_id: "r1",
+          room: { id: "r1", name: "Raum A" },
+        },
+      ],
+      unclaimedGroups: [],
+      currentStaff: { id: "staff-1" },
+      educationalGroups: [],
+      firstRoomVisits: [],
+      firstRoomId: "room-1",
+      schulhofStatus: {
+        exists: true,
+        roomId: "schulhof-r1",
+        roomName: "Schulhof",
+        activityGroupId: "ag-1",
+        activeGroupId: "active-schulhof",
+        isUserSupervising: true,
+        supervisionId: "sup-1",
+        supervisorCount: 1,
+        studentCount: 5,
+        supervisors: [
+          {
+            id: "sup-1",
+            staffId: "staff-1",
+            name: "Test Teacher",
+            isCurrentUser: true,
+          },
+        ],
+      },
+    };
+
+    vi.mocked(useSWRAuth)
+      .mockReturnValueOnce({
+        data: dashboardData,
+        isLoading: false,
+        error: null,
+        mutate: mockMutate,
+        isValidating: false,
+      } as never)
+      .mockReturnValue({
+        data: null,
+        isLoading: false,
+        error: null,
+        mutate: mockMutate,
+        isValidating: false,
+      } as never);
+
+    render(<MeinRaumPage />);
+
+    // Wait for tabs to render
+    await waitFor(() => {
+      expect(screen.getByTestId("tab-schulhof")).toBeInTheDocument();
+    });
+
+    // Click the Schulhof tab - triggers onTabChange with "schulhof" (lines 1232-1259)
+    const schulhofTab = screen.getByTestId("tab-schulhof");
+    fireEvent.click(schulhofTab);
+
+    // Should have called router.push with schulhof URL
+    await waitFor(() => {
+      expect(mockPush).toHaveBeenCalledWith(
+        "/active-supervisions?room=schulhof",
+      );
+    });
+
+    // Should have called loadRoomVisits for Schulhof
+    await waitFor(() => {
+      expect(
+        activeService.getActiveGroupVisitsWithDisplay,
+      ).toHaveBeenCalledWith("active-schulhof");
+    });
+  });
+
+  it("clicking Schulhof tab when not supervising sets empty students", async () => {
+    const { activeService } = await import("~/lib/active-api");
+
+    const dashboardData = {
+      supervisedGroups: [
+        {
+          id: "room-1",
+          name: "Raum A",
+          room_id: "r1",
+          room: { id: "r1", name: "Raum A" },
+        },
+      ],
+      unclaimedGroups: [],
+      currentStaff: { id: "staff-1" },
+      educationalGroups: [],
+      firstRoomVisits: [],
+      firstRoomId: "room-1",
+      schulhofStatus: {
+        exists: true,
+        roomId: "schulhof-r1",
+        roomName: "Schulhof",
+        activityGroupId: "ag-1",
+        activeGroupId: null, // Not supervising
+        isUserSupervising: false,
+        supervisionId: null,
+        supervisorCount: 0,
+        studentCount: 0,
+        supervisors: [],
+      },
+    };
+
+    vi.mocked(useSWRAuth)
+      .mockReturnValueOnce({
+        data: dashboardData,
+        isLoading: false,
+        error: null,
+        mutate: mockMutate,
+        isValidating: false,
+      } as never)
+      .mockReturnValue({
+        data: null,
+        isLoading: false,
+        error: null,
+        mutate: mockMutate,
+        isValidating: false,
+      } as never);
+
+    render(<MeinRaumPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("tab-schulhof")).toBeInTheDocument();
+    });
+
+    // Click Schulhof tab
+    fireEvent.click(screen.getByTestId("tab-schulhof"));
+
+    // Should push to schulhof URL
+    await waitFor(() => {
+      expect(mockPush).toHaveBeenCalledWith(
+        "/active-supervisions?room=schulhof",
+      );
+    });
+
+    // Should NOT call getActiveGroupVisitsWithDisplay since not supervising
+    expect(
+      activeService.getActiveGroupVisitsWithDisplay,
+    ).not.toHaveBeenCalled();
+  });
+
+  it("switching from Schulhof tab to regular room tab", async () => {
+    const { activeService } = await import("~/lib/active-api");
+    vi.mocked(activeService.getActiveGroupVisitsWithDisplay).mockResolvedValue(
+      [] as never,
+    );
+
+    const dashboardData = {
+      supervisedGroups: [
+        {
+          id: "room-1",
+          name: "Raum A",
+          room_id: "r1",
+          room: { id: "r1", name: "Raum A" },
+        },
+      ],
+      unclaimedGroups: [],
+      currentStaff: { id: "staff-1" },
+      educationalGroups: [],
+      firstRoomVisits: [],
+      firstRoomId: "room-1",
+      schulhofStatus: {
+        exists: true,
+        roomId: "schulhof-r1",
+        roomName: "Schulhof",
+        activityGroupId: "ag-1",
+        activeGroupId: "active-schulhof",
+        isUserSupervising: true,
+        supervisionId: "sup-1",
+        supervisorCount: 1,
+        studentCount: 5,
+        supervisors: [],
+      },
+    };
+
+    vi.mocked(useSWRAuth)
+      .mockReturnValueOnce({
+        data: dashboardData,
+        isLoading: false,
+        error: null,
+        mutate: mockMutate,
+        isValidating: false,
+      } as never)
+      .mockReturnValue({
+        data: null,
+        isLoading: false,
+        error: null,
+        mutate: mockMutate,
+        isValidating: false,
+      } as never);
+
+    render(<MeinRaumPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("tab-room-1")).toBeInTheDocument();
+    });
+
+    // Click regular room tab (switching from Schulhof to room)
+    fireEvent.click(screen.getByTestId("tab-room-1"));
+
+    // Should have called router.push with room URL
+    await waitFor(() => {
+      expect(mockPush).toHaveBeenCalledWith("/active-supervisions?room=r1");
+    });
+
+    // Should have called loadRoomVisits for the room
+    await waitFor(() => {
+      expect(
+        activeService.getActiveGroupVisitsWithDisplay,
+      ).toHaveBeenCalledWith("room-1");
     });
   });
 });

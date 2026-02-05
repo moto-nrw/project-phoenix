@@ -1,6 +1,7 @@
 package api
 
 import (
+	"log/slog"
 	"net/http"
 	"os"
 	"strconv"
@@ -9,6 +10,8 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
+	slogchi "github.com/samber/slog-chi"
+	"github.com/spf13/viper"
 	"github.com/uptrace/bun"
 
 	activeAPI "github.com/moto-nrw/project-phoenix/api/active"
@@ -68,18 +71,22 @@ type API struct {
 }
 
 // New creates a new API instance
-func New(enableCORS bool) (*API, error) {
+func New(enableCORS bool, logger *slog.Logger) (*API, error) {
 	// Get database connection
 	db, err := database.DBConn()
 	if err != nil {
 		return nil, err
 	}
 
+	if viper.GetBool("db_debug") {
+		db.AddQueryHook(database.NewQueryHook(logger.With("component", "database")))
+	}
+
 	// Initialize repository factory with DB connection
 	repoFactory := repositories.NewFactory(db)
 
 	// Initialize service factory with repository factory
-	serviceFactory, err := services.NewFactory(repoFactory, db)
+	serviceFactory, err := services.NewFactory(repoFactory, db, logger)
 	if err != nil {
 		return nil, err
 	}
@@ -91,7 +98,7 @@ func New(enableCORS bool) (*API, error) {
 	}
 
 	// Setup router middleware
-	setupBasicMiddleware(api.Router)
+	setupBasicMiddleware(api.Router, logger)
 
 	// Setup CORS, security logging, and rate limiting
 	if enableCORS {
@@ -101,7 +108,7 @@ func New(enableCORS bool) (*API, error) {
 	setupRateLimiting(api.Router, securityLogger)
 
 	// Initialize API resources
-	initializeAPIResources(api, repoFactory, db)
+	initializeAPIResources(api, repoFactory, db, logger)
 
 	// Register routes with rate limiting
 	api.registerRoutesWithRateLimiting()
@@ -110,10 +117,22 @@ func New(enableCORS bool) (*API, error) {
 }
 
 // setupBasicMiddleware configures basic router middleware
-func setupBasicMiddleware(router chi.Router) {
+func setupBasicMiddleware(router chi.Router, logger *slog.Logger) {
 	router.Use(middleware.RequestID)
 	router.Use(middleware.RealIP)
-	router.Use(middleware.Logger)
+	router.Use(slogchi.NewWithConfig(logger, slogchi.Config{
+		DefaultLevel:     slog.LevelInfo,
+		ClientErrorLevel: slog.LevelWarn,
+		ServerErrorLevel: slog.LevelError,
+		WithRequestID:    true,
+		WithRequestBody:  false,
+		WithResponseBody: false,
+		WithSpanID:       false,
+		WithTraceID:      false,
+		Filters: []slogchi.Filter{
+			slogchi.IgnorePath("/health"),
+		},
+	}))
 	router.Use(middleware.Recoverer)
 	router.Use(customMiddleware.SecurityHeaders)
 }
@@ -187,7 +206,7 @@ func parsePositiveInt(envVar string, defaultValue int) int {
 }
 
 // initializeAPIResources initializes all API resource instances
-func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun.DB) {
+func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun.DB, logger *slog.Logger) {
 	api.Auth = authAPI.NewResource(api.Services.Auth, api.Services.Invitation)
 	api.Rooms = roomsAPI.NewResource(api.Services.Facilities)
 	api.Students = studentsAPI.NewResource(studentsAPI.ResourceConfig{
@@ -209,7 +228,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.Suggestions = suggestionsAPI.NewResource(api.Services.Suggestions)
 	api.Schedules = schedulesAPI.NewResource(api.Services.Schedule)
 	api.Config = configAPI.NewResource(api.Services.Config, api.Services.ActiveCleanup)
-	api.Active = activeAPI.NewResource(api.Services.Active, api.Services.Users, api.Services.Schulhof, api.Services.UserContext, db)
+	api.Active = activeAPI.NewResource(api.Services.Active, api.Services.Users, api.Services.Schulhof, api.Services.UserContext, db, logger.With("handler", "active"))
 	api.IoT = iotAPI.NewResource(iotAPI.ServiceDependencies{
 		IoTService:        api.Services.IoT,
 		UsersService:      api.Services.Users,
@@ -219,8 +238,9 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		FacilityService:   api.Services.Facilities,
 		EducationService:  api.Services.Education,
 		FeedbackService:   api.Services.Feedback,
+		Logger:            logger.With("handler", "iot"),
 	})
-	api.SSE = sseAPI.NewResource(api.Services.RealtimeHub, api.Services.Active, api.Services.Users, api.Services.UserContext)
+	api.SSE = sseAPI.NewResource(api.Services.RealtimeHub, api.Services.Active, api.Services.Users, api.Services.UserContext, logger.With("handler", "sse"))
 	api.Users = usersAPI.NewResource(api.Services.Users)
 	api.UserContext = usercontextAPI.NewResource(api.Services.UserContext, repoFactory.GroupSubstitution)
 	api.Substitutions = substitutionsAPI.NewResource(api.Services.Education)

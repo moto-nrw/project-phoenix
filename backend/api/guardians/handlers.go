@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"strings"
 
@@ -757,7 +757,9 @@ func (rs *Resource) getGuardianStudents(w http.ResponseWriter, r *http.Request) 
 		// Get person data for student
 		person, err := rs.PersonService.Get(r.Context(), swr.Student.PersonID)
 		if err != nil {
-			log.Printf("Failed to get person for student %d: %v", swr.Student.ID, err)
+			slog.Default().Error("failed to get person for student",
+				slog.Int64("student_id", swr.Student.ID),
+				slog.String("error", err.Error()))
 			continue
 		}
 
@@ -973,7 +975,7 @@ func (rs *Resource) acceptGuardianInvitation(w http.ResponseWriter, r *http.Requ
 	account, err := rs.GuardianService.AcceptInvitation(r.Context(), acceptReq)
 	if err != nil {
 		// Log the full error for debugging
-		log.Printf("Error accepting invitation: %v", err)
+		slog.Default().Error("failed to accept invitation", slog.String("error", err.Error()))
 
 		// Return appropriate error (use Contains for wrapped errors)
 		errMsg := err.Error()

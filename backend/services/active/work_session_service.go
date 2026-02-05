@@ -7,7 +7,7 @@ import (
 	"encoding/csv"
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"math"
 	"sort"
 	"strconv"
@@ -77,11 +77,20 @@ type workSessionService struct {
 	auditRepo      auditModels.WorkSessionEditRepository
 	absenceRepo    activeModels.StaffAbsenceRepository
 	supervisorRepo activeModels.GroupSupervisorRepository
+	logger         *slog.Logger
+}
+
+// getLogger returns a nil-safe logger, falling back to slog.Default() if logger is nil
+func (s *workSessionService) getLogger() *slog.Logger {
+	if s.logger != nil {
+		return s.logger
+	}
+	return slog.Default()
 }
 
 // NewWorkSessionService creates a new work session service
-func NewWorkSessionService(repo activeModels.WorkSessionRepository, breakRepo activeModels.WorkSessionBreakRepository, auditRepo auditModels.WorkSessionEditRepository, absenceRepo activeModels.StaffAbsenceRepository, supervisorRepo activeModels.GroupSupervisorRepository) WorkSessionService {
-	return &workSessionService{repo: repo, breakRepo: breakRepo, auditRepo: auditRepo, absenceRepo: absenceRepo, supervisorRepo: supervisorRepo}
+func NewWorkSessionService(repo activeModels.WorkSessionRepository, breakRepo activeModels.WorkSessionBreakRepository, auditRepo auditModels.WorkSessionEditRepository, absenceRepo activeModels.StaffAbsenceRepository, supervisorRepo activeModels.GroupSupervisorRepository, logger *slog.Logger) WorkSessionService {
+	return &workSessionService{repo: repo, breakRepo: breakRepo, auditRepo: auditRepo, absenceRepo: absenceRepo, supervisorRepo: supervisorRepo, logger: logger}
 }
 
 // CheckIn creates a new work session for the staff member
@@ -221,11 +230,15 @@ func (s *workSessionService) endActiveSupervisionsOnCheckout(ctx context.Context
 	}
 	ended, err := s.supervisorRepo.EndAllActiveByStaffID(ctx, staffID)
 	if err != nil {
-		log.Printf("Warning: failed to end active supervisions for staff %d on checkout: %v", staffID, err)
+		s.getLogger().WarnContext(ctx, "failed to end active supervisions on checkout",
+			slog.Int64("staff_id", staffID),
+			slog.String("error", err.Error()))
 		return
 	}
 	if ended > 0 {
-		log.Printf("Ended %d active supervision(s) for staff %d on checkout", ended, staffID)
+		s.getLogger().InfoContext(ctx, "ended active supervisions on checkout",
+			slog.Int("ended_count", ended),
+			slog.Int64("staff_id", staffID))
 	}
 }
 
@@ -659,7 +672,9 @@ func (s *workSessionService) CleanupOpenSessions(ctx context.Context) (int, erro
 	for _, session := range openSessions {
 		// End any active break before closing the session
 		if err := s.endActiveBreakIfExists(ctx, session.ID); err != nil {
-			log.Printf("Warning: failed to end active break for session %d: %v", session.ID, err)
+			s.getLogger().WarnContext(ctx, "failed to end active break during cleanup",
+				slog.Int64("session_id", session.ID),
+				slog.String("error", err.Error()))
 			// Continue cleanup even if break ending fails
 		}
 
@@ -927,13 +942,17 @@ func (s *workSessionService) AutoEndExpiredBreaks(ctx context.Context) (int, err
 		duration := int(math.Round(endTime.Sub(brk.StartedAt).Minutes()))
 
 		if err := s.breakRepo.EndBreak(ctx, brk.ID, endTime, duration); err != nil {
-			log.Printf("Warning: failed to auto-end break %d: %v", brk.ID, err)
+			s.getLogger().WarnContext(ctx, "failed to auto-end break",
+				slog.Int64("break_id", brk.ID),
+				slog.String("error", err.Error()))
 			continue
 		}
 
 		// Recalculate break minutes for the session
 		if err := s.recalcBreakMinutes(ctx, brk.SessionID); err != nil {
-			log.Printf("Warning: failed to recalc break minutes for session %d: %v", brk.SessionID, err)
+			s.getLogger().WarnContext(ctx, "failed to recalc break minutes",
+				slog.Int64("session_id", brk.SessionID),
+				slog.String("error", err.Error()))
 		}
 
 		count++

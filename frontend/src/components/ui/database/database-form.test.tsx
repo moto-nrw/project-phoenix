@@ -884,4 +884,201 @@ describe("DatabaseForm", () => {
     const stickyContainer = document.querySelector(".sticky");
     expect(stickyContainer).toBeInTheDocument();
   });
+
+  describe("double-submit prevention", () => {
+    it("prevents double-submit by disabling button immediately", async () => {
+      let resolveSubmit: (value: void) => void;
+      const submitPromise = new Promise<void>((resolve) => {
+        resolveSubmit = resolve;
+      });
+      const onSubmit = vi.fn(() => submitPromise);
+
+      const sectionsOptional: FormSection[] = [
+        {
+          title: "Test",
+          fields: [{ name: "field", label: "Field", type: "text" }],
+        },
+      ];
+
+      render(
+        <DatabaseForm
+          {...defaultProps}
+          sections={sectionsOptional}
+          onSubmit={onSubmit}
+        />,
+      );
+
+      const submitButton = screen.getByRole("button", { name: "Speichern" });
+
+      // Click submit button
+      fireEvent.click(submitButton);
+
+      // Button should show loading state
+      await waitFor(() => {
+        expect(screen.getByText("Wird gespeichert...")).toBeInTheDocument();
+      });
+
+      // Click again while submitting
+      fireEvent.click(screen.getByText("Wird gespeichert..."));
+
+      // onSubmit should only have been called once
+      expect(onSubmit).toHaveBeenCalledTimes(1);
+
+      // Resolve the submission
+      resolveSubmit!();
+
+      await waitFor(() => {
+        expect(screen.getByText("Speichern")).toBeInTheDocument();
+      });
+    });
+
+    it("resets isSubmitting state after validation error", async () => {
+      const onSubmit = vi.fn().mockResolvedValue(undefined);
+
+      render(<DatabaseForm {...defaultProps} onSubmit={onSubmit} />);
+
+      const submitButton = screen.getByRole("button", { name: "Speichern" });
+
+      // First submit - validation fails (required field is empty)
+      fireEvent.click(submitButton);
+
+      await waitFor(() => {
+        expect(
+          screen.getByText("Test Field ist erforderlich."),
+        ).toBeInTheDocument();
+      });
+
+      // Button should be back to normal state (not showing loading)
+      expect(screen.getByText("Speichern")).toBeInTheDocument();
+      expect(submitButton).not.toBeDisabled();
+
+      // Now fill in the field and submit again - should work
+      const input = screen.getByLabelText(/Test Field/);
+      fireEvent.change(input, { target: { value: "test value" } });
+      fireEvent.click(submitButton);
+
+      await waitFor(() => {
+        expect(onSubmit).toHaveBeenCalledTimes(1);
+      });
+    });
+
+    it("resets isSubmitting state after submit error", async () => {
+      // Suppress expected console.error from component's error handling
+      const consoleSpy = vi
+        .spyOn(console, "error")
+        .mockImplementation(() => undefined);
+
+      const onSubmit = vi.fn().mockRejectedValue(new Error("Network error"));
+
+      const sectionsOptional: FormSection[] = [
+        {
+          title: "Test",
+          fields: [{ name: "field", label: "Field", type: "text" }],
+        },
+      ];
+
+      render(
+        <DatabaseForm
+          {...defaultProps}
+          sections={sectionsOptional}
+          onSubmit={onSubmit}
+        />,
+      );
+
+      const submitButton = screen.getByRole("button", { name: "Speichern" });
+
+      // Submit the form
+      fireEvent.click(submitButton);
+
+      // Wait for error to be displayed
+      await waitFor(() => {
+        expect(screen.getByText("Network error")).toBeInTheDocument();
+      });
+
+      // Button should be back to normal state
+      expect(screen.getByText("Speichern")).toBeInTheDocument();
+
+      // Can submit again
+      fireEvent.click(submitButton);
+      await waitFor(() => {
+        expect(onSubmit).toHaveBeenCalledTimes(2);
+      });
+
+      consoleSpy.mockRestore();
+    });
+
+    it("prevents submit while parent isLoading is true", () => {
+      const onSubmit = vi.fn();
+
+      const sectionsOptional: FormSection[] = [
+        {
+          title: "Test",
+          fields: [{ name: "field", label: "Field", type: "text" }],
+        },
+      ];
+
+      render(
+        <DatabaseForm
+          {...defaultProps}
+          sections={sectionsOptional}
+          onSubmit={onSubmit}
+          isLoading={true}
+        />,
+      );
+
+      // Button should be disabled
+      const submitButton = screen.getByRole("button", {
+        name: /wird gespeichert/i,
+      });
+      expect(submitButton).toBeDisabled();
+
+      // Try to click (should be blocked)
+      fireEvent.click(submitButton);
+
+      // onSubmit should not have been called
+      expect(onSubmit).not.toHaveBeenCalled();
+    });
+
+    it("shows loading state during async submission", async () => {
+      let resolveSubmit: (value: void) => void;
+      const submitPromise = new Promise<void>((resolve) => {
+        resolveSubmit = resolve;
+      });
+      const onSubmit = vi.fn(() => submitPromise);
+
+      const sectionsOptional: FormSection[] = [
+        {
+          title: "Test",
+          fields: [{ name: "field", label: "Field", type: "text" }],
+        },
+      ];
+
+      render(
+        <DatabaseForm
+          {...defaultProps}
+          sections={sectionsOptional}
+          onSubmit={onSubmit}
+        />,
+      );
+
+      const submitButton = screen.getByRole("button", { name: "Speichern" });
+      fireEvent.click(submitButton);
+
+      // Should show loading state
+      await waitFor(() => {
+        expect(screen.getByText("Wird gespeichert...")).toBeInTheDocument();
+      });
+
+      // Cancel button should also be disabled
+      const cancelButton = screen.getByRole("button", { name: "Abbrechen" });
+      expect(cancelButton).toBeDisabled();
+
+      // Resolve and check state returns to normal
+      resolveSubmit!();
+
+      await waitFor(() => {
+        expect(screen.getByText("Speichern")).toBeInTheDocument();
+      });
+    });
+  });
 });
