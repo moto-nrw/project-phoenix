@@ -10,6 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories/facilities"
 	"github.com/moto-nrw/project-phoenix/database/repositories/feedback"
 	"github.com/moto-nrw/project-phoenix/database/repositories/iot"
+	platformRepo "github.com/moto-nrw/project-phoenix/database/repositories/platform"
 	"github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	suggestionsRepo "github.com/moto-nrw/project-phoenix/database/repositories/suggestions"
 	"github.com/moto-nrw/project-phoenix/database/repositories/users"
@@ -23,6 +24,7 @@ import (
 	facilityModels "github.com/moto-nrw/project-phoenix/models/facilities"
 	feedbackModels "github.com/moto-nrw/project-phoenix/models/feedback"
 	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
+	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	suggestionsModels "github.com/moto-nrw/project-phoenix/models/suggestions"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -113,6 +115,13 @@ type Factory struct {
 	AuthEvent       auditModels.AuthEventRepository
 	DataImport      auditModels.DataImportRepository
 	WorkSessionEdit auditModels.WorkSessionEditRepository
+
+	// Platform domain (operator dashboard)
+	Operator         platformModels.OperatorRepository
+	Announcement     platformModels.AnnouncementRepository
+	AnnouncementView platformModels.AnnouncementViewRepository
+	OperatorComment  platformModels.OperatorCommentRepository
+	OperatorAuditLog platformModels.OperatorAuditLogRepository
 }
 
 // NewFactory creates a new repository factory with all repositories
@@ -199,5 +208,12 @@ func NewFactory(db *bun.DB) *Factory {
 		AuthEvent:       audit.NewAuthEventRepository(db),
 		DataImport:      audit.NewDataImportRepository(db),
 		WorkSessionEdit: audit.NewWorkSessionEditRepository(db),
+
+		// Platform repositories
+		Operator:         platformRepo.NewOperatorRepository(db),
+		Announcement:     platformRepo.NewAnnouncementRepository(db),
+		AnnouncementView: platformRepo.NewAnnouncementViewRepository(db),
+		OperatorComment:  platformRepo.NewOperatorCommentRepository(db),
+		OperatorAuditLog: platformRepo.NewOperatorAuditLogRepository(db),
 	}
 }

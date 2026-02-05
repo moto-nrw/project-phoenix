@@ -11,10 +11,12 @@ import (
 
 // Status constants for suggestion posts
 const (
-	StatusOpen     = "open"
-	StatusPlanned  = "planned"
-	StatusDone     = "done"
-	StatusRejected = "rejected"
+	StatusOpen       = "open"
+	StatusPlanned    = "planned"
+	StatusInProgress = "in_progress"
+	StatusDone       = "done"
+	StatusRejected   = "rejected"
+	StatusNeedInfo   = "need_info"
 )
 
 // tableSuggestionsPosts is the schema-qualified table name
@@ -84,7 +86,7 @@ func (p *Post) Validate() error {
 // IsValidStatus checks if a status string is valid
 func IsValidStatus(status string) bool {
 	switch status {
-	case StatusOpen, StatusPlanned, StatusDone, StatusRejected:
+	case StatusOpen, StatusPlanned, StatusInProgress, StatusDone, StatusRejected, StatusNeedInfo:
 		return true
 	default:
 		return false

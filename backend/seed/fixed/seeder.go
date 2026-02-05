@@ -41,6 +41,11 @@ func (s *Seeder) SeedAll(ctx context.Context) (*Result, error) {
 		return nil, fmt.Errorf("failed to seed admin account: %w", err)
 	}
 
+	// 3.5. Platform operators (no dependencies on tenant data)
+	if err := s.seedOperators(ctx); err != nil {
+		return nil, fmt.Errorf("failed to seed operators: %w", err)
+	}
+
 	// 4. Persons with RFID cards and accounts
 	if err := s.seedPersonsWithAccounts(ctx); err != nil {
 		return nil, fmt.Errorf("failed to seed persons: %w", err)

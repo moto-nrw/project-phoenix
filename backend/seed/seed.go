@@ -191,6 +191,13 @@ func (s *Seeder) resetData(ctx context.Context) error {
 		// Config & Feedback
 		"config.settings",
 		"feedback.entries",
+
+		// Platform (operator dashboard)
+		"suggestions.operator_comments",
+		"platform.operator_audit_log",
+		"platform.announcement_views",
+		"platform.announcements",
+		"platform.operators",
 	}
 
 	for _, table := range tables {
@@ -293,6 +300,9 @@ func (s *Seeder) printSummary(result *Result) {
 		fmt.Printf("  Work Sessions: %d\n", len(result.Fixed.WorkSessions))
 		fmt.Printf("  Work Session Breaks: %d\n", len(result.Fixed.WorkSessionBreaks))
 		fmt.Printf("  Accounts: %d\n", len(result.Fixed.Accounts))
+		if len(result.Fixed.Operators) > 0 {
+			fmt.Printf("  Operators: %d\n", len(result.Fixed.Operators))
+		}
 	}
 
 	if result.Runtime != nil {
@@ -313,6 +323,9 @@ func (s *Seeder) printSummary(result *Result) {
 
 	fmt.Println("\nThe database is now ready for testing RFID check-ins/check-outs!")
 	fmt.Println("Use the admin account: admin@example.com / Test1234%")
+	if result.Fixed != nil && len(result.Fixed.Operators) > 0 {
+		fmt.Println("\nOperator dashboard account: operator@example.com / Test1234%")
+	}
 	if result.Fixed != nil && len(result.Fixed.StaffWithPINs) > 0 {
 		fmt.Println("\nStaff members with PINs for RFID device authentication:")
 		for email, pin := range result.Fixed.StaffWithPINs {

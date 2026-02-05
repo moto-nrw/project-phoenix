@@ -23,7 +23,16 @@ type AppClaims struct {
 	Permissions []string `json:"permissions,omitempty"` // Added permissions field
 	// Static role flags for quick access
 	IsAdmin bool `json:"is_admin,omitempty"`
+	// Scope distinguishes tenant tokens from platform tokens
+	// "platform" = operator tokens (moto DevOps team)
+	// "" or "tenant" = regular user tokens
+	Scope string `json:"scope,omitempty"`
 	CommonClaims
+}
+
+// IsPlatformScope returns true if this is a platform/operator token
+func (c *AppClaims) IsPlatformScope() bool {
+	return c.Scope == "platform"
 }
 
 // Error format for missing claims
@@ -155,6 +164,7 @@ func (c *AppClaims) ParseClaims(claims map[string]any) error {
 
 	c.Permissions = getOptionalStringSlice(claims, "permissions")
 	c.IsAdmin = getOptionalBool(claims, "is_admin")
+	c.Scope = getOptionalString(claims, "scope")
 
 	return nil
 }
