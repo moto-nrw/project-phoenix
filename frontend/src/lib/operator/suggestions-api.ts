@@ -2,13 +2,8 @@ import { operatorFetch } from "./api-helpers";
 import type {
   BackendOperatorSuggestion,
   OperatorSuggestion,
-  OperatorComment,
-  BackendOperatorComment,
 } from "./suggestions-helpers";
-import {
-  mapOperatorSuggestion,
-  mapOperatorComment,
-} from "./suggestions-helpers";
+import { mapOperatorSuggestion } from "./suggestions-helpers";
 
 class OperatorSuggestionsService {
   async fetchAll(
@@ -42,12 +37,11 @@ class OperatorSuggestionsService {
     id: string,
     content: string,
     isInternal: boolean,
-  ): Promise<OperatorComment> {
-    const data = await operatorFetch<BackendOperatorComment>(
-      `/api/operator/suggestions/${id}/comments`,
-      { method: "POST", body: { content, is_internal: isInternal } },
-    );
-    return mapOperatorComment(data);
+  ): Promise<void> {
+    await operatorFetch<unknown>(`/api/operator/suggestions/${id}/comments`, {
+      method: "POST",
+      body: { content, is_internal: isInternal },
+    });
   }
 
   async deleteComment(id: string, commentId: string): Promise<void> {
