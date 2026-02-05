@@ -76,9 +76,10 @@ func (rs *Resource) getTeacherStudents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// If no teacher_ids provided, return all students
-	teacherIDsParam := r.URL.Query().Get("teacher_ids")
-	if teacherIDsParam == "" {
+	// If teacher_ids query key is absent entirely, return all students.
+	// An explicitly empty value (?teacher_ids=) still goes through parseTeacherIDs
+	// which returns an empty result — preserving previous behavior.
+	if _, hasTeacherIDs := r.URL.Query()["teacher_ids"]; !hasTeacherIDs {
 		rs.getAllStudents(w, r)
 		return
 	}
