@@ -31,12 +31,11 @@ class OperatorSuggestionsService {
     return mapOperatorSuggestion(data);
   }
 
-  async updateStatus(id: string, status: string): Promise<OperatorSuggestion> {
-    const data = await operatorFetch<BackendOperatorSuggestion>(
-      `/api/operator/suggestions/${id}/status`,
-      { method: "PUT", body: { status } },
-    );
-    return mapOperatorSuggestion(data);
+  async updateStatus(id: string, status: string): Promise<void> {
+    await operatorFetch<unknown>(`/api/operator/suggestions/${id}/status`, {
+      method: "PUT",
+      body: { status },
+    });
   }
 
   async addComment(

@@ -84,12 +84,12 @@ export default function OperatorSuggestionsPage() {
     async (id: string, newStatus: OperatorSuggestionStatus) => {
       setStatusUpdating(id);
       try {
-        const updated = await operatorSuggestionsService.updateStatus(
-          id,
-          newStatus,
-        );
+        await operatorSuggestionsService.updateStatus(id, newStatus);
         await mutate(
-          (current) => current?.map((s) => (s.id === updated.id ? updated : s)),
+          (current) =>
+            current?.map((s) =>
+              s.id === id ? { ...s, status: newStatus } : s,
+            ),
           { revalidate: false },
         );
       } catch (error) {

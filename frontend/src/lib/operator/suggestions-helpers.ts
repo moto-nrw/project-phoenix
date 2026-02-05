@@ -95,12 +95,12 @@ export const OPERATOR_STATUS_LABELS: Record<OperatorSuggestionStatus, string> =
 
 export const OPERATOR_STATUS_STYLES: Record<OperatorSuggestionStatus, string> =
   {
-    open: "bg-gray-200 text-gray-700",
-    planned: "bg-blue-200 text-blue-700",
-    in_progress: "bg-amber-200 text-amber-800",
-    done: "bg-green-200 text-green-700",
-    rejected: "bg-red-200 text-red-700",
-    need_info: "bg-purple-200 text-purple-700",
+    open: "bg-white text-gray-700 border-2 border-gray-300",
+    planned: "bg-white text-gray-700 border-2 border-[#5080D8]",
+    in_progress: "bg-white text-gray-700 border-2 border-[#F78C10]",
+    done: "bg-white text-gray-700 border-2 border-[#83CD2D]",
+    rejected: "bg-white text-gray-700 border-2 border-[#FF3130]",
+    need_info: "bg-white text-gray-700 border-2 border-purple-500",
   };
 
 export const OPERATOR_STATUS_DOT_COLORS: Record<
@@ -108,9 +108,9 @@ export const OPERATOR_STATUS_DOT_COLORS: Record<
   string
 > = {
   open: "bg-gray-400",
-  planned: "bg-blue-500",
-  in_progress: "bg-amber-500",
-  done: "bg-green-500",
-  rejected: "bg-red-500",
+  planned: "bg-[#5080D8]",
+  in_progress: "bg-[#F78C10]",
+  done: "bg-[#83CD2D]",
+  rejected: "bg-[#FF3130]",
   need_info: "bg-purple-500",
 };

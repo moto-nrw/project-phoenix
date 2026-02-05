@@ -91,7 +91,14 @@ func (r *OperatorCommentRepository) FindByPostID(ctx context.Context, postID int
 	query := r.db.NewSelect().
 		Model(&comments).
 		ModelTableExpr(tableSuggestionsOperatorCommentsAlias).
-		Relation("Operator").
+		ColumnExpr(`"comment".*`).
+		ColumnExpr(`"operator"."id" AS "operator__id"`).
+		ColumnExpr(`"operator"."email" AS "operator__email"`).
+		ColumnExpr(`"operator"."display_name" AS "operator__display_name"`).
+		ColumnExpr(`"operator"."active" AS "operator__active"`).
+		ColumnExpr(`"operator"."created_at" AS "operator__created_at"`).
+		ColumnExpr(`"operator"."updated_at" AS "operator__updated_at"`).
+		Join(`LEFT JOIN platform.operators AS "operator" ON "operator".id = "comment".operator_id`).
 		Where(`"comment".post_id = ?`, postID)
 
 	if !includeInternal {
@@ -99,7 +106,7 @@ func (r *OperatorCommentRepository) FindByPostID(ctx context.Context, postID int
 	}
 
 	err := query.
-		Order(`"comment".created_at ASC`).
+		OrderExpr(`"comment".created_at ASC`).
 		Scan(ctx)
 
 	if err != nil {

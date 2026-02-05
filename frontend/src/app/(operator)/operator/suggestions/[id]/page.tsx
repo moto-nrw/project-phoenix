@@ -57,11 +57,11 @@ export default function OperatorSuggestionDetailPage() {
       if (!suggestion) return;
       setStatusUpdating(true);
       try {
-        const updated = await operatorSuggestionsService.updateStatus(
-          suggestion.id,
-          newStatus,
+        await operatorSuggestionsService.updateStatus(suggestion.id, newStatus);
+        await mutate(
+          { ...suggestion, status: newStatus },
+          { revalidate: false },
         );
-        await mutate(updated, { revalidate: false });
       } catch (error) {
         console.error("Failed to update status:", error);
       } finally {

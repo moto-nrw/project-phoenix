@@ -79,7 +79,7 @@ export function StatusDropdown({
           if (!disabled) setIsOpen(!isOpen);
         }}
         disabled={disabled}
-        className={`flex items-center gap-1 rounded-full font-medium ${sizeClasses} ${OPERATOR_STATUS_STYLES[value]} transition-all disabled:opacity-50 ${isOpen ? "ring-2 ring-blue-500 ring-offset-1" : ""}`}
+        className={`flex items-center gap-1 rounded-full font-medium outline-none ${sizeClasses} ${OPERATOR_STATUS_STYLES[value]} transition-all disabled:opacity-50 ${isOpen ? "ring-2 ring-blue-500 ring-offset-1" : ""}`}
       >
         <span>{OPERATOR_STATUS_LABELS[value]}</span>
         <svg
