@@ -537,3 +537,52 @@ export async function clientFetchSettingValue(
     return null;
   }
 }
+
+// ========== Action API functions ==========
+
+import type { ActionResult } from "./settings-helpers";
+
+/**
+ * Client-side: Executes an action
+ */
+export async function clientExecuteAction(key: string): Promise<ActionResult> {
+  try {
+    const response = await fetch(
+      `/api/settings/actions/${encodeURIComponent(key)}/execute`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      },
+    );
+
+    const data = (await response.json()) as {
+      success?: boolean;
+      data?: ActionResult;
+      error?: string;
+    };
+
+    if (!response.ok) {
+      return {
+        success: false,
+        message: data.error ?? "Fehler bei der Ausführung der Aktion",
+      };
+    }
+
+    // Handle wrapped response
+    if (data.data) {
+      return data.data;
+    }
+
+    return {
+      success: data.success ?? false,
+      message: data.error ?? "Unbekannter Fehler",
+    };
+  } catch (error) {
+    console.error("Error executing action:", error);
+    return {
+      success: false,
+      message:
+        error instanceof Error ? error.message : "Fehler bei der Ausführung",
+    };
+  }
+}

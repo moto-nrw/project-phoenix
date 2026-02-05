@@ -76,6 +76,38 @@ type Definition struct {
 
 	// IsSensitive indicates if the value should be encrypted
 	IsSensitive bool
+
+	// Action-specific fields (only used when Type == config.ValueTypeAction)
+
+	// ActionEndpoint is the API endpoint for action execution
+	ActionEndpoint string
+
+	// ActionMethod is the HTTP method (default: POST)
+	ActionMethod string
+
+	// ActionRequiresConfirmation shows confirmation dialog before execution
+	ActionRequiresConfirmation bool
+
+	// ActionConfirmationTitle is the title for the confirmation dialog
+	ActionConfirmationTitle string
+
+	// ActionConfirmationMessage is the message body for confirmation dialog
+	ActionConfirmationMessage string
+
+	// ActionConfirmationButton is the label for the confirm button
+	ActionConfirmationButton string
+
+	// ActionSuccessMessage is shown on successful execution
+	ActionSuccessMessage string
+
+	// ActionErrorMessage is shown on failed execution
+	ActionErrorMessage string
+
+	// ActionIsDangerous affects button styling (red/destructive)
+	ActionIsDangerous bool
+
+	// Icon is the icon name for display
+	Icon string
 }
 
 // ValidationSchema defines validation rules for a setting
@@ -115,6 +147,15 @@ func (d *Definition) Validate() error {
 	}
 	if d.Type == config.ValueTypeObjectRef && d.ObjectRefType == "" {
 		return errors.New("object_ref_type required for object_ref type")
+	}
+	// Actions require an endpoint
+	if d.Type == config.ValueTypeAction && d.ActionEndpoint == "" {
+		return errors.New("action_endpoint required for action type")
+	}
+
+	// Actions don't have stored values, so skip default validation
+	if d.Type == config.ValueTypeAction {
+		return nil
 	}
 
 	// Validate that the default value matches the type

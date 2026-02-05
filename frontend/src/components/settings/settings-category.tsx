@@ -3,6 +3,7 @@
 import { useState, useCallback } from "react";
 import type { SettingCategory, Scope } from "~/lib/settings-helpers";
 import { SettingControl } from "./setting-control";
+import { ActionControl } from "./action-control";
 import { SettingInheritanceBadge } from "./setting-inheritance-badge";
 import { clientSetSettingValue } from "~/lib/settings-api";
 import { InfoTooltip } from "~/components/ui/info-tooltip";
@@ -117,30 +118,36 @@ export function SettingsCategory({
               )}
             </div>
             <div className="sm:col-span-2">
-              <div className="flex items-center gap-2">
-                <div className="flex-1">
-                  <SettingControl
-                    setting={setting}
-                    onChange={(value) =>
-                      handleSettingChange(setting.key, value)
-                    }
-                    deviceId={deviceId}
-                  />
-                </div>
-                {savingKeys.has(setting.key) && (
-                  <span className="text-sm text-gray-500">Speichern...</span>
-                )}
-                {savedKeys.has(setting.key) && (
-                  <span className="text-sm text-green-600">Gespeichert</span>
-                )}
-                {errorKeys.has(setting.key) && (
-                  <span className="text-sm text-red-600">Fehler</span>
-                )}
-              </div>
-              {!setting.canEdit && (
-                <p className="mt-1 text-xs text-gray-500">
-                  Sie haben keine Berechtigung, diese Einstellung zu ändern.
-                </p>
+              {setting.definition.valueType === "action" ? (
+                <ActionControl setting={setting} />
+              ) : (
+                <>
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1">
+                      <SettingControl
+                        setting={setting}
+                        onChange={(value) =>
+                          handleSettingChange(setting.key, value)
+                        }
+                        deviceId={deviceId}
+                      />
+                    </div>
+                    {savingKeys.has(setting.key) && (
+                      <span className="text-sm text-gray-500">Speichern...</span>
+                    )}
+                    {savedKeys.has(setting.key) && (
+                      <span className="text-sm text-green-600">Gespeichert</span>
+                    )}
+                    {errorKeys.has(setting.key) && (
+                      <span className="text-sm text-red-600">Fehler</span>
+                    )}
+                  </div>
+                  {!setting.canEdit && (
+                    <p className="mt-1 text-xs text-gray-500">
+                      Sie haben keine Berechtigung, diese Einstellung zu ändern.
+                    </p>
+                  )}
+                </>
               )}
             </div>
           </div>

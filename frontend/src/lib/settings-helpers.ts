@@ -11,7 +11,8 @@ export type BackendValueType =
   | "time"
   | "duration"
   | "object_ref"
-  | "json";
+  | "json"
+  | "action";
 
 export type BackendScope = "system" | "user" | "device";
 
@@ -47,6 +48,17 @@ export interface BackendSettingDefinition {
   object_ref_type?: string;
   requires_restart: boolean;
   is_sensitive: boolean;
+  // Action-specific fields (when value_type === "action")
+  action_endpoint?: string;
+  action_method?: string;
+  action_requires_confirmation?: boolean;
+  action_confirmation_title?: string;
+  action_confirmation_message?: string;
+  action_confirmation_button?: string;
+  action_success_message?: string;
+  action_error_message?: string;
+  action_is_dangerous?: boolean;
+  icon?: string;
 }
 
 export interface BackendSettingTab {
@@ -105,7 +117,8 @@ export type ValueType =
   | "time"
   | "duration"
   | "objectRef"
-  | "json";
+  | "json"
+  | "action";
 
 export type Scope = "system" | "user" | "device";
 
@@ -141,6 +154,17 @@ export interface SettingDefinition {
   objectRefType?: string;
   requiresRestart: boolean;
   isSensitive: boolean;
+  // Action-specific fields (when valueType === "action")
+  actionEndpoint?: string;
+  actionMethod?: string;
+  actionRequiresConfirmation?: boolean;
+  actionConfirmationTitle?: string;
+  actionConfirmationMessage?: string;
+  actionConfirmationButton?: string;
+  actionSuccessMessage?: string;
+  actionErrorMessage?: string;
+  actionIsDangerous?: boolean;
+  icon?: string;
 }
 
 export interface SettingTab {
@@ -210,10 +234,62 @@ export interface PurgeRequest {
   days: number;
 }
 
+// ========== Action Types ==========
+
+export interface ActionResult {
+  success: boolean;
+  message: string;
+  data?: unknown;
+}
+
+export interface BackendActionAuditEntry {
+  id: string;
+  actionKey: string;
+  executedByAccountId?: string;
+  executedByName: string;
+  executedAt: string;
+  durationMs?: number;
+  success: boolean;
+  errorMessage?: string;
+  resultSummary?: string;
+  ipAddress?: string;
+}
+
+export interface ActionAuditEntry {
+  id: string;
+  actionKey: string;
+  executedByAccountId?: string;
+  executedByName: string;
+  executedAt: Date;
+  durationMs?: number;
+  success: boolean;
+  errorMessage?: string;
+  resultSummary?: string;
+  ipAddress?: string;
+}
+
+export function mapActionAuditEntry(
+  data: BackendActionAuditEntry,
+): ActionAuditEntry {
+  return {
+    id: data.id,
+    actionKey: data.actionKey,
+    executedByAccountId: data.executedByAccountId,
+    executedByName: data.executedByName,
+    executedAt: new Date(data.executedAt),
+    durationMs: data.durationMs,
+    success: data.success,
+    errorMessage: data.errorMessage,
+    resultSummary: data.resultSummary,
+    ipAddress: data.ipAddress,
+  };
+}
+
 // ========== Mapping Functions ==========
 
 function mapValueType(type: BackendValueType): ValueType {
   if (type === "object_ref") return "objectRef";
+  if (type === "action") return "action";
   return type as ValueType;
 }
 
@@ -239,6 +315,17 @@ export function mapSettingDefinition(
     objectRefType: data.object_ref_type,
     requiresRestart: data.requires_restart,
     isSensitive: data.is_sensitive,
+    // Action-specific fields
+    actionEndpoint: data.action_endpoint,
+    actionMethod: data.action_method,
+    actionRequiresConfirmation: data.action_requires_confirmation,
+    actionConfirmationTitle: data.action_confirmation_title,
+    actionConfirmationMessage: data.action_confirmation_message,
+    actionConfirmationButton: data.action_confirmation_button,
+    actionSuccessMessage: data.action_success_message,
+    actionErrorMessage: data.action_error_message,
+    actionIsDangerous: data.action_is_dangerous,
+    icon: data.icon,
   };
 }
 
@@ -386,5 +473,7 @@ export function getValueTypeLabel(type: ValueType): string {
       return "Referenz";
     case "json":
       return "JSON";
+    case "action":
+      return "Aktion";
   }
 }

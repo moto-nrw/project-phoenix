@@ -158,3 +158,21 @@ type SettingTabRepository interface {
 	// Upsert creates or updates a tab by key
 	Upsert(ctx context.Context, tab *SettingTab) error
 }
+
+// ActionAuditRepository defines operations for managing action execution audit logs
+type ActionAuditRepository interface {
+	// Create inserts a new audit entry
+	Create(ctx context.Context, entry *ActionAuditEntry) error
+
+	// FindByActionKey retrieves audit entries for a specific action
+	FindByActionKey(ctx context.Context, key string, limit int) ([]*ActionAuditEntry, error)
+
+	// FindRecent retrieves the most recent audit entries across all actions
+	FindRecent(ctx context.Context, limit int) ([]*ActionAuditEntry, error)
+
+	// FindByAccountID retrieves audit entries by who executed the action
+	FindByAccountID(ctx context.Context, accountID int64, limit int) ([]*ActionAuditEntry, error)
+
+	// CountByActionKey returns the count of executions for an action
+	CountByActionKey(ctx context.Context, key string) (int64, error)
+}

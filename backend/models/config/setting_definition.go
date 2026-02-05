@@ -75,6 +75,28 @@ type SettingDefinition struct {
 	// ObjectRefFilter contains SQL-based filters as JSON for object_ref options
 	ObjectRefFilter json.RawMessage `bun:"object_ref_filter,type:jsonb" json:"object_ref_filter,omitempty"`
 
+	// Action-specific fields (only used when ValueType == "action")
+	// ActionEndpoint is the API endpoint for action execution
+	ActionEndpoint *string `bun:"action_endpoint" json:"action_endpoint,omitempty"`
+	// ActionMethod is the HTTP method (default: POST)
+	ActionMethod *string `bun:"action_method" json:"action_method,omitempty"`
+	// ActionRequiresConfirmation shows confirmation dialog before execution
+	ActionRequiresConfirmation *bool `bun:"action_requires_confirmation" json:"action_requires_confirmation,omitempty"`
+	// ActionConfirmationTitle is the title for the confirmation dialog
+	ActionConfirmationTitle *string `bun:"action_confirmation_title" json:"action_confirmation_title,omitempty"`
+	// ActionConfirmationMessage is the message body for confirmation dialog
+	ActionConfirmationMessage *string `bun:"action_confirmation_message" json:"action_confirmation_message,omitempty"`
+	// ActionConfirmationButton is the label for the confirm button
+	ActionConfirmationButton *string `bun:"action_confirmation_button" json:"action_confirmation_button,omitempty"`
+	// ActionSuccessMessage is shown on successful execution
+	ActionSuccessMessage *string `bun:"action_success_message" json:"action_success_message,omitempty"`
+	// ActionErrorMessage is shown on failed execution
+	ActionErrorMessage *string `bun:"action_error_message" json:"action_error_message,omitempty"`
+	// ActionIsDangerous affects button styling (red/destructive)
+	ActionIsDangerous *bool `bun:"action_is_dangerous" json:"action_is_dangerous,omitempty"`
+	// Icon is the icon name for display
+	Icon *string `bun:"icon" json:"icon,omitempty"`
+
 	// RequiresRestart indicates if changing this setting requires a service restart
 	RequiresRestart bool `bun:"requires_restart,notnull,default:false" json:"requires_restart"`
 
@@ -148,6 +170,10 @@ func (d *SettingDefinition) Validate() error {
 	if d.ValueType == ValueTypeObjectRef && (d.ObjectRefType == nil || *d.ObjectRefType == "") {
 		return errors.New("object_ref_type required for object_ref type")
 	}
+	// Actions require an endpoint
+	if d.ValueType == ValueTypeAction && (d.ActionEndpoint == nil || *d.ActionEndpoint == "") {
+		return errors.New("action_endpoint required for action type")
+	}
 	return nil
 }
 
@@ -163,6 +189,11 @@ func (d *SettingDefinition) IsScopeAllowed(scope Scope) bool {
 
 // ValidateValue validates a value against this definition
 func (d *SettingDefinition) ValidateValue(value string) error {
+	// Actions don't have stored values
+	if d.ValueType == ValueTypeAction {
+		return nil
+	}
+
 	if value == "" {
 		return nil // Empty is allowed (will use default)
 	}

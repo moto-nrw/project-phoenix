@@ -209,7 +209,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 		db,
 	)
 
-	// Initialize hierarchical settings service with ObjectRef resolver
+	// Initialize hierarchical settings service with ObjectRef resolver and action audit
 	objectRefResolver := config.NewDefaultObjectRefResolver(db)
 	hierarchicalSettingsService := config.NewHierarchicalSettingsService(
 		repos.SettingDefinition,
@@ -218,7 +218,11 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 		repos.SettingTab,
 		db,
 		config.WithObjectRefResolver(objectRefResolver),
+		config.WithActionAuditRepo(repos.ActionAudit),
 	)
+
+	// Register builtin action handlers
+	config.RegisterBuiltinActionHandlers(hierarchicalSettingsService)
 
 	// Register change listener to log setting changes
 	hierarchicalSettingsService.AddChangeListener(func(event config.SettingChangeEvent) {

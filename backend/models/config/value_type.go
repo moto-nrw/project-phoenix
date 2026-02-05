@@ -22,13 +22,16 @@ const (
 	ValueTypeObjectRef ValueType = "object_ref"
 	// ValueTypeJSON is arbitrary JSON data
 	ValueTypeJSON ValueType = "json"
+	// ValueTypeAction is an executable action (not a stored value)
+	ValueTypeAction ValueType = "action"
 )
 
 // IsValid checks if the value type is valid
 func (v ValueType) IsValid() bool {
 	switch v {
 	case ValueTypeString, ValueTypeInt, ValueTypeFloat, ValueTypeBool,
-		ValueTypeEnum, ValueTypeTime, ValueTypeDuration, ValueTypeObjectRef, ValueTypeJSON:
+		ValueTypeEnum, ValueTypeTime, ValueTypeDuration, ValueTypeObjectRef,
+		ValueTypeJSON, ValueTypeAction:
 		return true
 	}
 	return false
@@ -85,6 +88,7 @@ func AllValueTypes() []ValueType {
 		ValueTypeDuration,
 		ValueTypeObjectRef,
 		ValueTypeJSON,
+		ValueTypeAction,
 	}
 }
 

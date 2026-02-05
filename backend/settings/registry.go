@@ -170,5 +170,37 @@ func (d *Definition) ToSettingDefinition() *config.SettingDefinition {
 		def.ValidationSchema = validationJSON
 	}
 
+	// Action-specific fields
+	if d.ActionEndpoint != "" {
+		def.ActionEndpoint = &d.ActionEndpoint
+	}
+	if d.ActionMethod != "" {
+		def.ActionMethod = &d.ActionMethod
+	}
+	if d.ActionRequiresConfirmation {
+		def.ActionRequiresConfirmation = &d.ActionRequiresConfirmation
+	}
+	if d.ActionConfirmationTitle != "" {
+		def.ActionConfirmationTitle = &d.ActionConfirmationTitle
+	}
+	if d.ActionConfirmationMessage != "" {
+		def.ActionConfirmationMessage = &d.ActionConfirmationMessage
+	}
+	if d.ActionConfirmationButton != "" {
+		def.ActionConfirmationButton = &d.ActionConfirmationButton
+	}
+	if d.ActionSuccessMessage != "" {
+		def.ActionSuccessMessage = &d.ActionSuccessMessage
+	}
+	if d.ActionErrorMessage != "" {
+		def.ActionErrorMessage = &d.ActionErrorMessage
+	}
+	if d.ActionIsDangerous {
+		def.ActionIsDangerous = &d.ActionIsDangerous
+	}
+	if d.Icon != "" {
+		def.Icon = &d.Icon
+	}
+
 	return def
 }

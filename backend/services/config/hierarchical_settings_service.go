@@ -81,6 +81,11 @@ type HierarchicalSettingsService interface {
 	// Cache management
 	ClearCache()
 	CacheStats() settings.CacheStats
+
+	// Action execution
+	ExecuteAction(ctx context.Context, key string, audit *config.ActionAuditContext) (*ActionResult, error)
+	GetActionHistory(ctx context.Context, key string, limit int) ([]*config.ActionAuditEntryDTO, error)
+	GetRecentActionExecutions(ctx context.Context, limit int) ([]*config.ActionAuditEntryDTO, error)
 }
 
 // ObjectRefResolver resolves object references for settings
@@ -91,14 +96,15 @@ type ObjectRefResolver interface {
 
 // HierarchicalSettingsServiceImpl implements HierarchicalSettingsService
 type HierarchicalSettingsServiceImpl struct {
-	defRepo     config.SettingDefinitionRepository
-	valueRepo   config.SettingValueRepository
-	auditRepo   config.SettingAuditRepository
-	tabRepo     config.SettingTabRepository
-	db          *bun.DB
-	cache       *settings.Cache
-	listeners   []SettingChangeListener
-	listenersMu sync.RWMutex
+	defRepo         config.SettingDefinitionRepository
+	valueRepo       config.SettingValueRepository
+	auditRepo       config.SettingAuditRepository
+	tabRepo         config.SettingTabRepository
+	actionAuditRepo config.ActionAuditRepository
+	db              *bun.DB
+	cache           *settings.Cache
+	listeners       []SettingChangeListener
+	listenersMu     sync.RWMutex
 	// pendingRestarts tracks settings that changed and require restart
 	pendingRestarts   map[string]bool
 	pendingRestartsMu sync.RWMutex
@@ -120,6 +126,13 @@ func WithCache(cfg settings.CacheConfig) ServiceOption {
 func WithObjectRefResolver(resolver ObjectRefResolver) ServiceOption {
 	return func(s *HierarchicalSettingsServiceImpl) {
 		s.objectRefResolver = resolver
+	}
+}
+
+// WithActionAuditRepo sets the action audit repository
+func WithActionAuditRepo(repo config.ActionAuditRepository) ServiceOption {
+	return func(s *HierarchicalSettingsServiceImpl) {
+		s.actionAuditRepo = repo
 	}
 }
 

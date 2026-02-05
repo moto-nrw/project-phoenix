@@ -65,6 +65,14 @@ func (rs *Resource) Router() chi.Router {
 			Post("/values/{key}/restore", rs.restoreValue)
 		r.With(authorize.RequiresPermission(permissions.ConfigManage)).
 			Post("/purge", rs.purgeDeleted)
+
+		// Action endpoints
+		r.With(authorize.RequiresPermission(permissions.ConfigManage)).
+			Post("/actions/{key}/execute", rs.executeAction)
+		r.With(authorize.RequiresPermission(permissions.ConfigRead)).
+			Get("/actions/{key}/history", rs.getActionHistory)
+		r.With(authorize.RequiresPermission(permissions.ConfigManage)).
+			Get("/actions/recent", rs.getRecentActionExecutions)
 	})
 
 	return r
