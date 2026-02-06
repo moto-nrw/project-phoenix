@@ -16,6 +16,7 @@ import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { operatorAnnouncementsService } from "~/lib/operator/announcements-api";
 import {
   TYPE_LABELS,
+  TYPE_TEXT_COLORS,
   SEVERITY_LABELS,
   ANNOUNCEMENT_STATUS_LABELS,
   SYSTEM_ROLE_LABELS,
@@ -633,7 +634,9 @@ function AnnouncementCard({
   return (
     <div className="rounded-3xl border border-gray-100/50 bg-white/90 p-5 shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-150">
       {/* Type label at top */}
-      <p className="mb-2 text-xs font-medium tracking-wide text-gray-400 uppercase">
+      <p
+        className={`mb-2 text-xs font-medium tracking-wide uppercase ${TYPE_TEXT_COLORS[announcement.type]}`}
+      >
         {TYPE_LABELS[announcement.type]}
       </p>
 

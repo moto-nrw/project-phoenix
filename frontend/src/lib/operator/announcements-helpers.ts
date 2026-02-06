@@ -139,6 +139,12 @@ export const TYPE_STYLES: Record<AnnouncementType, string> = {
   maintenance: "bg-orange-100 text-orange-700",
 };
 
+export const TYPE_TEXT_COLORS: Record<AnnouncementType, string> = {
+  announcement: "text-blue-500",
+  release: "text-emerald-500",
+  maintenance: "text-amber-500",
+};
+
 export const SEVERITY_STYLES: Record<AnnouncementSeverity, string> = {
   info: "bg-gray-100 text-gray-700",
   warning: "bg-yellow-100 text-yellow-800",
