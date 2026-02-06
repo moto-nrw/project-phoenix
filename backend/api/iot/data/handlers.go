@@ -111,24 +111,25 @@ func (rs *Resource) getTeacherActivities(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	// Get all activities without filtering by teacher
-	activities, err := rs.ActivitiesService.ListGroups(r.Context(), nil)
+	// Get all activities with occupancy status
+	activitiesWithOccupancy, err := rs.ActivitiesService.ListGroupsWithOccupancy(r.Context())
 	if err != nil {
 		iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(err))
 		return
 	}
 
 	// Convert to response format
-	response := make([]TeacherActivityResponse, 0, len(activities))
-	for _, activity := range activities {
+	response := make([]TeacherActivityResponse, 0, len(activitiesWithOccupancy))
+	for _, ag := range activitiesWithOccupancy {
 		categoryName := ""
-		if activity.Category != nil {
-			categoryName = activity.Category.Name
+		if ag.Category != nil {
+			categoryName = ag.Category.Name
 		}
 		response = append(response, TeacherActivityResponse{
-			ID:       activity.ID,
-			Name:     activity.Name,
-			Category: categoryName,
+			ID:         ag.ID,
+			Name:       ag.Name,
+			Category:   categoryName,
+			IsOccupied: ag.IsOccupied,
 		})
 	}
 

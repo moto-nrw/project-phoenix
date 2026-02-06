@@ -5,15 +5,19 @@
 package data_test
 
 import (
+	"context"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
 	dataAPI "github.com/moto-nrw/project-phoenix/api/iot/data"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -243,6 +247,65 @@ func TestGetTeacherActivities_Success(t *testing.T) {
 	rr := testutil.ExecuteRequest(router, req)
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+}
+
+func TestGetTeacherActivities_WithOccupancy(t *testing.T) {
+	tc := setupTestContext(t)
+	defer func() { _ = tc.db.Close() }()
+
+	testDevice := testpkg.CreateTestDevice(t, tc.db, "data-test-device-occ")
+	activityGroup := testpkg.CreateTestActivityGroup(t, tc.db, "occ-test-activity")
+	room := testpkg.CreateTestRoom(t, tc.db, "occ-test-room")
+	defer testpkg.CleanupActivityFixtures(t, tc.db, activityGroup.CategoryID, room.ID)
+
+	// Create an active session for this activity group
+	bgCtx := context.Background()
+	now := time.Now()
+	activeGroup := &active.Group{
+		StartTime:      now,
+		LastActivity:   now,
+		TimeoutMinutes: 30,
+		GroupID:        activityGroup.ID,
+		RoomID:         room.ID,
+	}
+	err := tc.db.NewInsert().
+		Model(activeGroup).
+		ModelTableExpr(`active.groups AS "active_group"`).
+		Scan(bgCtx)
+	require.NoError(t, err)
+	defer func() {
+		_, _ = tc.db.NewDelete().
+			TableExpr("active.groups").
+			Where("id = ?", activeGroup.ID).
+			Exec(bgCtx)
+	}()
+
+	router := chi.NewRouter()
+	router.Get("/activities", tc.resource.GetTeacherActivitiesHandler())
+
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/activities", nil,
+		testutil.WithDeviceContext(testDevice),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+
+	// Verify the response contains is_occupied field
+	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+	data, ok := response["data"].([]interface{})
+	require.True(t, ok, "data should be an array")
+
+	// Find our test activity and verify it is occupied
+	var foundOccupied bool
+	for _, item := range data {
+		a, _ := item.(map[string]interface{})
+		if int64(a["id"].(float64)) == activityGroup.ID {
+			foundOccupied = true
+			assert.True(t, a["is_occupied"].(bool), "activity with active session should be occupied")
+			break
+		}
+	}
+	assert.True(t, foundOccupied, "test activity should appear in response")
 }
 
 // =============================================================================

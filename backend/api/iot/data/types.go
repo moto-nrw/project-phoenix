@@ -36,9 +36,10 @@ type DeviceActivityResponse struct {
 
 // TeacherActivityResponse represents an activity in the teacher's activity list
 type TeacherActivityResponse struct {
-	ID       int64  `json:"id"`
-	Name     string `json:"name"`
-	Category string `json:"category"`
+	ID         int64  `json:"id"`
+	Name       string `json:"name"`
+	Category   string `json:"category"`
+	IsOccupied bool   `json:"is_occupied"`
 }
 
 // DeviceRoomResponse represents a room available for RFID device selection

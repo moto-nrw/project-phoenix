@@ -9,6 +9,12 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/users"
 )
 
+// ActivityGroupWithOccupancy wraps an activity group with its occupancy status
+type ActivityGroupWithOccupancy struct {
+	*activities.Group
+	IsOccupied bool
+}
+
 // ActivityService defines operations for activity management
 type ActivityService interface {
 	base.TransactionalService
@@ -70,4 +76,7 @@ type ActivityService interface {
 
 	// Device operations for RFID teacher selection
 	GetTeacherTodaysActivities(ctx context.Context, staffID int64) ([]*activities.Group, error)
+
+	// ListGroupsWithOccupancy returns all activity groups with their active session status
+	ListGroupsWithOccupancy(ctx context.Context) ([]ActivityGroupWithOccupancy, error)
 }

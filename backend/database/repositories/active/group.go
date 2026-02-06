@@ -17,8 +17,11 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// Table expression constants to avoid duplication (SonarCloud S1192)
-const tableExprActiveGroupsAG = "active.groups AS ag"
+// Query constants to avoid duplication (SonarCloud S1192)
+const (
+	tableExprActiveGroupsAG = "active.groups AS ag"
+	whereEndTimeIsNull      = "ag.end_time IS NULL"
+)
 
 // GroupRepository implements active.GroupRepository interface
 type GroupRepository struct {
@@ -504,7 +507,7 @@ func (r *GroupRepository) FindActiveSessionsOlderThan(ctx context.Context, cutof
 		ColumnExpr(`d.device_id AS "device__device_id", d.device_type AS "device__device_type"`).
 		ColumnExpr(`d.name AS "device__name", d.status AS "device__status", d.last_seen AS "device__last_seen"`).
 		Join("LEFT JOIN iot.devices AS d ON d.id = ag.device_id").
-		Where("ag.end_time IS NULL").              // Only active sessions
+		Where(whereEndTimeIsNull).                 // Only active sessions
 		Where("ag.last_activity < ?", cutoffTime). // Haven't had activity since cutoff
 		Where("ag.device_id IS NOT NULL").         // Only device-managed sessions
 		Order("ag.last_activity ASC").             // Oldest first
@@ -855,7 +858,7 @@ func (r *GroupRepository) GetOccupiedRoomIDs(ctx context.Context, roomIDs []int6
 		TableExpr(tableExprActiveGroupsAG).
 		ColumnExpr("DISTINCT ag.room_id").
 		Where("ag.room_id IN (?)", bun.In(roomIDs)).
-		Where("ag.end_time IS NULL").
+		Where(whereEndTimeIsNull).
 		Scan(ctx, &occupiedRoomIDs)
 
 	if err != nil {
@@ -868,6 +871,38 @@ func (r *GroupRepository) GetOccupiedRoomIDs(ctx context.Context, roomIDs []int6
 	// Convert to set for O(1) lookup
 	result := make(map[int64]bool, len(occupiedRoomIDs))
 	for _, id := range occupiedRoomIDs {
+		result[id] = true
+	}
+
+	return result, nil
+}
+
+// GetOccupiedActivityGroupIDs returns a set of activity group IDs that currently have active sessions
+// This is optimized for checking activity occupancy without fetching full group records
+func (r *GroupRepository) GetOccupiedActivityGroupIDs(ctx context.Context, groupIDs []int64) (map[int64]bool, error) {
+	if len(groupIDs) == 0 {
+		return make(map[int64]bool), nil
+	}
+
+	// Only fetch the group_id column for active groups with the specified activity group IDs
+	var occupiedGroupIDs []int64
+	err := r.db.NewSelect().
+		TableExpr(tableExprActiveGroupsAG).
+		ColumnExpr("DISTINCT ag.group_id").
+		Where("ag.group_id IN (?)", bun.In(groupIDs)).
+		Where(whereEndTimeIsNull).
+		Scan(ctx, &occupiedGroupIDs)
+
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "get occupied activity group IDs",
+			Err: err,
+		}
+	}
+
+	// Convert to set for O(1) lookup
+	result := make(map[int64]bool, len(occupiedGroupIDs))
+	for _, id := range occupiedGroupIDs {
 		result[id] = true
 	}
 
