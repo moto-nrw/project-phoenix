@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/models/active"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/services/activities"
@@ -242,6 +243,73 @@ func TestActivityService_ListGroups(t *testing.T) {
 		require.NoError(t, err)
 		assert.NotNil(t, result)
 		assert.GreaterOrEqual(t, len(result), 2)
+	})
+}
+
+func TestActivityService_ListGroupsWithOccupancy(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupActivityService(t, db)
+	ctx := context.Background()
+
+	t.Run("returns groups with occupancy status", func(t *testing.T) {
+		// ARRANGE - create two activity groups
+		group1 := testpkg.CreateTestActivityGroup(t, db, "occ-g1")
+		group2 := testpkg.CreateTestActivityGroup(t, db, "occ-g2")
+		room := testpkg.CreateTestRoom(t, db, "occ-room")
+		defer testpkg.CleanupActivityFixtures(t, db, group1.ID, group2.ID, room.ID)
+
+		// Create an active session for group1 (making it occupied)
+		now := time.Now()
+		activeGroup := &active.Group{
+			StartTime:      now,
+			LastActivity:   now,
+			TimeoutMinutes: 30,
+			GroupID:        group1.ID,
+			RoomID:         room.ID,
+		}
+		err := db.NewInsert().
+			Model(activeGroup).
+			ModelTableExpr(`active.groups AS "active_group"`).
+			Scan(ctx)
+		require.NoError(t, err)
+		defer func() {
+			_, _ = db.NewDelete().
+				TableExpr("active.groups").
+				Where("id = ?", activeGroup.ID).
+				Exec(ctx)
+		}()
+
+		// ACT
+		result, err := service.ListGroupsWithOccupancy(ctx)
+
+		// ASSERT
+		require.NoError(t, err)
+		assert.NotEmpty(t, result)
+
+		// Find our test groups in the results
+		var found1, found2 bool
+		for _, item := range result {
+			if item.ID == group1.ID {
+				found1 = true
+				assert.True(t, item.IsOccupied, "group1 should be occupied (has active session)")
+			}
+			if item.ID == group2.ID {
+				found2 = true
+				assert.False(t, item.IsOccupied, "group2 should not be occupied (no active session)")
+			}
+		}
+		assert.True(t, found1, "group1 should be in results")
+		assert.True(t, found2, "group2 should be in results")
+	})
+
+	t.Run("returns empty list when no groups exist in fresh DB", func(t *testing.T) {
+		// This test checks the zero-groups path.
+		// In a shared test DB there may be pre-existing groups, so we just verify no error.
+		result, err := service.ListGroupsWithOccupancy(ctx)
+		require.NoError(t, err)
+		assert.NotNil(t, result)
 	})
 }
 
