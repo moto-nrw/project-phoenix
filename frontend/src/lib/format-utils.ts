@@ -24,6 +24,10 @@ export function getRelativeTime(dateStr: string): string {
   return formatUnit(years, "Jahr", "Jahren");
 }
 
+export function getInitial(name: string): string {
+  return name.charAt(0).toUpperCase() || "?";
+}
+
 export function getInitials(name: string): string {
   const parts = name.split(" ").filter(Boolean);
   if (parts.length === 0) return "?";

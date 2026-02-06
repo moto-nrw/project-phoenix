@@ -92,7 +92,10 @@ type WithBodyHandler<T, B> = (
   params: Record<string, unknown>,
 ) => Promise<T>;
 
-export function createOperatorGetHandler<T>(handler: NoBodyHandler<T>) {
+function createOperatorNoBodyHandler<T>(
+  handler: NoBodyHandler<T>,
+  formatResponse: (data: T) => NextResponse,
+) {
   return async (
     request: NextRequest,
     context: RouteContext,
@@ -102,71 +105,56 @@ export function createOperatorGetHandler<T>(handler: NoBodyHandler<T>) {
       if (!token) return createUnauthorizedResponse();
       const params = await extractParams(request, context);
       const data = await handler(request, token, params);
+      return formatResponse(data);
+    } catch (error) {
+      return handleApiError(error);
+    }
+  };
+}
+
+function createOperatorWithBodyHandler<T, B>(handler: WithBodyHandler<T, B>) {
+  return async (
+    request: NextRequest,
+    context: RouteContext,
+  ): Promise<NextResponse> => {
+    try {
+      const token = await getOperatorToken();
+      if (!token) return createUnauthorizedResponse();
+      const params = await extractParams(request, context);
+      const body = await parseRequestBody<B>(request);
+      const data = await handler(request, body, token, params);
       return NextResponse.json(wrapInApiResponse(data));
     } catch (error) {
       return handleApiError(error);
     }
   };
+}
+
+const jsonResponse = <T>(data: T) => NextResponse.json(wrapInApiResponse(data));
+
+export function createOperatorGetHandler<T>(handler: NoBodyHandler<T>) {
+  return createOperatorNoBodyHandler(handler, jsonResponse);
 }
 
 export function createOperatorPostHandler<T, B = unknown>(
   handler: WithBodyHandler<T, B>,
 ) {
-  return async (
-    request: NextRequest,
-    context: RouteContext,
-  ): Promise<NextResponse> => {
-    try {
-      const token = await getOperatorToken();
-      if (!token) return createUnauthorizedResponse();
-      const params = await extractParams(request, context);
-      const body = await parseRequestBody<B>(request);
-      const data = await handler(request, body, token, params);
-      return NextResponse.json(wrapInApiResponse(data));
-    } catch (error) {
-      return handleApiError(error);
-    }
-  };
+  return createOperatorWithBodyHandler(handler);
 }
 
 export function createOperatorPutHandler<T, B = unknown>(
   handler: WithBodyHandler<T, B>,
 ) {
-  return async (
-    request: NextRequest,
-    context: RouteContext,
-  ): Promise<NextResponse> => {
-    try {
-      const token = await getOperatorToken();
-      if (!token) return createUnauthorizedResponse();
-      const params = await extractParams(request, context);
-      const body = await parseRequestBody<B>(request);
-      const data = await handler(request, body, token, params);
-      return NextResponse.json(wrapInApiResponse(data));
-    } catch (error) {
-      return handleApiError(error);
-    }
-  };
+  return createOperatorWithBodyHandler(handler);
 }
 
 export function createOperatorDeleteHandler<T>(handler: NoBodyHandler<T>) {
-  return async (
-    request: NextRequest,
-    context: RouteContext,
-  ): Promise<NextResponse> => {
-    try {
-      const token = await getOperatorToken();
-      if (!token) return createUnauthorizedResponse();
-      const params = await extractParams(request, context);
-      const data = await handler(request, token, params);
-      if (data === null || data === undefined) {
-        return new NextResponse(null, { status: 204 });
-      }
-      return NextResponse.json(wrapInApiResponse(data));
-    } catch (error) {
-      return handleApiError(error);
+  return createOperatorNoBodyHandler(handler, (data: T) => {
+    if (data === null || data === undefined) {
+      return new NextResponse(null, { status: 204 });
     }
-  };
+    return NextResponse.json(wrapInApiResponse(data));
+  });
 }
 
 export function createOperatorProxyGetHandler<T>(backendEndpoint: string) {
