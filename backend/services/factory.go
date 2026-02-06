@@ -232,6 +232,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		repos.ActivitySchedule,
 		repos.ActivitySupervisor,
 		repos.StudentEnrollment,
+		repos.ActiveGroup,
 		db,
 	)
 	if err != nil {
