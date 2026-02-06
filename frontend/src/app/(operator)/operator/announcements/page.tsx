@@ -3,7 +3,7 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import { AnimatePresence, LayoutGroup, motion } from "framer-motion";
 import useSWR from "swr";
-import { MoreVertical, Pencil, Trash2 } from "lucide-react";
+import { MoreVertical, Pencil, Trash2, Send } from "lucide-react";
 import {
   PageHeaderWithSearch,
   type FilterConfig,
@@ -16,11 +16,9 @@ import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { operatorAnnouncementsService } from "~/lib/operator/announcements-api";
 import {
   TYPE_LABELS,
-  TYPE_STYLES,
   SEVERITY_LABELS,
-  SEVERITY_STYLES,
+  SEVERITY_BORDER_STYLES,
   ANNOUNCEMENT_STATUS_LABELS,
-  ANNOUNCEMENT_STATUS_STYLES,
   SYSTEM_ROLE_LABELS,
 } from "~/lib/operator/announcements-helpers";
 import type {
@@ -634,38 +632,37 @@ function AnnouncementCard({
   }, [menuOpen]);
 
   return (
-    <div className="rounded-3xl border border-gray-100/50 bg-white/90 p-5 shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-150">
-      {/* Header with title and kebab menu */}
+    <div
+      className={`rounded-3xl border border-l-4 border-gray-100/50 bg-white/90 p-5 shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-150 ${SEVERITY_BORDER_STYLES[announcement.severity]}`}
+    >
+      {/* Header with title, draft badge, and kebab menu */}
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
-          <h3 className="text-base font-semibold text-gray-900">
-            {announcement.title}
-          </h3>
-          <div className="mt-1 flex flex-wrap items-center gap-2">
-            <span
-              className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${TYPE_STYLES[announcement.type]}`}
-            >
-              {TYPE_LABELS[announcement.type]}
-            </span>
-            <span
-              className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${SEVERITY_STYLES[announcement.severity]}`}
-            >
-              {SEVERITY_LABELS[announcement.severity]}
-            </span>
-            <span
-              className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${ANNOUNCEMENT_STATUS_STYLES[announcement.status]}`}
-            >
-              {ANNOUNCEMENT_STATUS_LABELS[announcement.status]}
-            </span>
-            {announcement.version && (
-              <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
-                v{announcement.version}
+          <div className="flex items-center gap-2">
+            <h3 className="text-base font-semibold text-gray-900">
+              {announcement.title}
+            </h3>
+            {announcement.status === "draft" && (
+              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
+                Entwurf
               </span>
             )}
           </div>
+          {/* Meta line: type, version, timestamp */}
+          <div className="mt-1 flex items-center gap-2 text-xs text-gray-500">
+            <span>{TYPE_LABELS[announcement.type]}</span>
+            {announcement.version && (
+              <>
+                <span className="text-gray-300">·</span>
+                <span>v{announcement.version}</span>
+              </>
+            )}
+            <span className="text-gray-300">·</span>
+            <span>{getRelativeTime(announcement.createdAt)}</span>
+          </div>
           {/* Target roles display */}
           {announcement.targetRoles.length > 0 && (
-            <div className="mt-2 flex items-center gap-1.5 text-xs text-gray-500">
+            <div className="mt-1.5 flex items-center gap-1.5 text-xs text-gray-400">
               <svg
                 className="h-3.5 w-3.5"
                 fill="none"
@@ -733,23 +730,26 @@ function AnnouncementCard({
         {announcement.content}
       </p>
 
-      {/* Footer with timestamp and publish button */}
-      <div className="mt-3 flex items-center justify-between">
-        <span className="text-xs text-gray-500">
-          {getRelativeTime(announcement.createdAt)}
-          {announcement.publishedAt &&
-            ` · Veröffentlicht ${getRelativeTime(announcement.publishedAt)}`}
-        </span>
-        {announcement.status === "draft" && (
+      {/* Footer with publish button for drafts */}
+      {announcement.status === "draft" && (
+        <div className="mt-4 flex justify-end">
           <button
             type="button"
             onClick={() => onPublish(announcement)}
-            className="rounded-lg bg-gradient-to-br from-[#83CD2D] to-[#70b525] px-4 py-1.5 text-xs font-medium text-white shadow-sm transition-all hover:shadow-md"
+            className="group flex items-center gap-2 rounded-xl bg-gradient-to-r from-[#83CD2D] to-[#6db823] px-5 py-2 text-sm font-medium text-white shadow-md transition-all hover:shadow-lg hover:brightness-105 active:scale-[0.98]"
           >
-            Veröffentlichen
+            <span>Veröffentlichen</span>
+            <Send className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
           </button>
-        )}
-      </div>
+        </div>
+      )}
+
+      {/* Published timestamp */}
+      {announcement.status === "published" && announcement.publishedAt && (
+        <p className="mt-3 text-xs text-gray-400">
+          Veröffentlicht {getRelativeTime(announcement.publishedAt)}
+        </p>
+      )}
 
       {/* Views accordion at the bottom */}
       {announcement.status === "published" && (

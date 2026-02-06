@@ -145,6 +145,12 @@ export const SEVERITY_STYLES: Record<AnnouncementSeverity, string> = {
   critical: "bg-red-100 text-red-700",
 };
 
+export const SEVERITY_BORDER_STYLES: Record<AnnouncementSeverity, string> = {
+  info: "border-l-gray-300",
+  warning: "border-l-yellow-400",
+  critical: "border-l-red-500",
+};
+
 export const ANNOUNCEMENT_STATUS_STYLES: Record<AnnouncementStatus, string> = {
   draft: "bg-gray-100 text-gray-700",
   published: "bg-green-100 text-green-700",
