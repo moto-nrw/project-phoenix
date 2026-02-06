@@ -14,9 +14,10 @@ if [ -d "/ssl-certs-source" ]; then
     # Set proper permissions
     chown -R postgres:postgres /var/lib/postgresql/ssl
     chmod 700 /var/lib/postgresql/ssl
-    chmod 600 /var/lib/postgresql/ssl/server.key
-    chmod 644 /var/lib/postgresql/ssl/server.crt
-    chmod 644 /var/lib/postgresql/ssl/ca.crt
+    chmod 700 /var/lib/postgresql/ssl/certs
+    chmod 600 /var/lib/postgresql/ssl/certs/server.key
+    chmod 644 /var/lib/postgresql/ssl/certs/server.crt
+    chmod 644 /var/lib/postgresql/ssl/certs/ca.crt
     
     echo "SSL certificates configured successfully"
 else
