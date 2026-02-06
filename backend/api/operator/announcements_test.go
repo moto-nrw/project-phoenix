@@ -21,6 +21,13 @@ import (
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 )
 
+// Test constants used in mock assertions (not DB-dependent)
+const (
+	testAnnouncementID int64 = 1
+	testOperatorID     int64 = 1
+	testOperatorID123  int64 = 123
+)
+
 // Mock AnnouncementService
 type mockAnnouncementService struct {
 	createFn          func(ctx context.Context, announcement *platform.Announcement, operatorID int64, clientIP net.IP) error
@@ -121,9 +128,9 @@ func TestListAnnouncements_Success(t *testing.T) {
 				Severity:    platform.SeverityInfo,
 				Active:      true,
 				TargetRoles: []string{"teacher"},
-				CreatedBy:   1,
+				CreatedBy:   testOperatorID,
 			}
-			announcement.ID = 1
+			announcement.ID = testAnnouncementID
 			announcement.CreatedAt = now
 			announcement.UpdatedAt = now
 			return []*platform.Announcement{announcement}, nil
@@ -142,13 +149,13 @@ func TestListAnnouncements_Success(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, rr.Code)
 
-	var response map[string]interface{}
+	var response map[string]any
 	err := json.Unmarshal(rr.Body.Bytes(), &response)
 	require.NoError(t, err)
 
-	data := response["data"].([]interface{})
+	data := response["data"].([]any)
 	assert.Len(t, data, 1)
-	announcement := data[0].(map[string]interface{})
+	announcement := data[0].(map[string]any)
 	assert.Equal(t, "Test Announcement", announcement["title"])
 }
 
@@ -197,7 +204,7 @@ func TestGetAnnouncement_Success(t *testing.T) {
 	now := time.Now()
 	mockService := &mockAnnouncementService{
 		getAnnouncementFn: func(ctx context.Context, id int64) (*platform.Announcement, error) {
-			assert.Equal(t, int64(1), id)
+			assert.Equal(t, testAnnouncementID, id)
 			announcement := &platform.Announcement{
 				Title:       "Test",
 				Content:     "Content",
@@ -205,9 +212,9 @@ func TestGetAnnouncement_Success(t *testing.T) {
 				Severity:    platform.SeverityInfo,
 				Active:      true,
 				TargetRoles: []string{},
-				CreatedBy:   1,
+				CreatedBy:   testOperatorID,
 			}
-			announcement.ID = 1
+			announcement.ID = testAnnouncementID
 			announcement.CreatedAt = now
 			announcement.UpdatedAt = now
 			return announcement, nil
@@ -272,15 +279,15 @@ func TestCreateAnnouncement_Success(t *testing.T) {
 		createFn: func(ctx context.Context, announcement *platform.Announcement, operatorID int64, clientIP net.IP) error {
 			assert.Equal(t, "Test Title", announcement.Title)
 			assert.Equal(t, "Test Content", announcement.Content)
-			assert.Equal(t, int64(1), operatorID)
-			announcement.ID = 1
+			assert.Equal(t, testOperatorID, operatorID)
+			announcement.ID = testAnnouncementID
 			return nil
 		},
 	}
 
 	resource := operator.NewAnnouncementsResource(mockService)
 
-	body := map[string]interface{}{
+	body := map[string]any{
 		"title":   "Test Title",
 		"content": "Test Content",
 	}
@@ -301,7 +308,7 @@ func TestCreateAnnouncement_EmptyTitle(t *testing.T) {
 	mockService := &mockAnnouncementService{}
 	resource := operator.NewAnnouncementsResource(mockService)
 
-	body := map[string]interface{}{
+	body := map[string]any{
 		"title":   "",
 		"content": "Test Content",
 	}
@@ -323,7 +330,7 @@ func TestCreateAnnouncement_EmptyContent(t *testing.T) {
 	mockService := &mockAnnouncementService{}
 	resource := operator.NewAnnouncementsResource(mockService)
 
-	body := map[string]interface{}{
+	body := map[string]any{
 		"title":   "Test Title",
 		"content": "",
 	}
@@ -346,7 +353,7 @@ func TestCreateAnnouncement_InvalidExpiresAt(t *testing.T) {
 	resource := operator.NewAnnouncementsResource(mockService)
 
 	expiresAt := "invalid-date"
-	body := map[string]interface{}{
+	body := map[string]any{
 		"title":      "Test Title",
 		"content":    "Test Content",
 		"expires_at": &expiresAt,
@@ -377,7 +384,7 @@ func TestCreateAnnouncement_WithValidExpiresAt(t *testing.T) {
 	resource := operator.NewAnnouncementsResource(mockService)
 
 	expiresAt := time.Now().Add(24 * time.Hour).Format(time.RFC3339)
-	body := map[string]interface{}{
+	body := map[string]any{
 		"title":      "Test Title",
 		"content":    "Test Content",
 		"expires_at": &expiresAt,
@@ -406,9 +413,9 @@ func TestUpdateAnnouncement_Success(t *testing.T) {
 				Severity:    platform.SeverityInfo,
 				Active:      true,
 				TargetRoles: []string{},
-				CreatedBy:   1,
+				CreatedBy:   testOperatorID,
 			}
-			announcement.ID = 1
+			announcement.ID = testAnnouncementID
 			announcement.CreatedAt = now
 			announcement.UpdatedAt = now
 			return announcement, nil
@@ -422,7 +429,7 @@ func TestUpdateAnnouncement_Success(t *testing.T) {
 
 	resource := operator.NewAnnouncementsResource(mockService)
 
-	body := map[string]interface{}{
+	body := map[string]any{
 		"title":    "New Title",
 		"content":  "New Content",
 		"type":     platform.TypeAnnouncement,
@@ -453,7 +460,7 @@ func TestUpdateAnnouncement_NotFound(t *testing.T) {
 
 	resource := operator.NewAnnouncementsResource(mockService)
 
-	body := map[string]interface{}{
+	body := map[string]any{
 		"title":    "Title",
 		"content":  "Content",
 		"type":     platform.TypeAnnouncement,
@@ -485,7 +492,7 @@ func TestUpdateAnnouncement_InvalidExpiresAt(t *testing.T) {
 				Type:     platform.TypeAnnouncement,
 				Severity: platform.SeverityInfo,
 			}
-			announcement.ID = 1
+			announcement.ID = testAnnouncementID
 			announcement.CreatedAt = now
 			announcement.UpdatedAt = now
 			return announcement, nil
@@ -495,7 +502,7 @@ func TestUpdateAnnouncement_InvalidExpiresAt(t *testing.T) {
 	resource := operator.NewAnnouncementsResource(mockService)
 
 	expiresAt := "invalid-date"
-	body := map[string]interface{}{
+	body := map[string]any{
 		"title":      "Title",
 		"content":    "Content",
 		"type":       platform.TypeAnnouncement,
@@ -522,8 +529,8 @@ func TestUpdateAnnouncement_InvalidExpiresAt(t *testing.T) {
 func TestDeleteAnnouncement_Success(t *testing.T) {
 	mockService := &mockAnnouncementService{
 		deleteFn: func(ctx context.Context, id int64, operatorID int64, clientIP net.IP) error {
-			assert.Equal(t, int64(1), id)
-			assert.Equal(t, int64(123), operatorID)
+			assert.Equal(t, testAnnouncementID, id)
+			assert.Equal(t, testOperatorID123, operatorID)
 			return nil
 		},
 	}
@@ -570,7 +577,7 @@ func TestDeleteAnnouncement_NotFound(t *testing.T) {
 func TestPublishAnnouncement_Success(t *testing.T) {
 	mockService := &mockAnnouncementService{
 		publishFn: func(ctx context.Context, id int64, operatorID int64, clientIP net.IP) error {
-			assert.Equal(t, int64(1), id)
+			assert.Equal(t, testAnnouncementID, id)
 			return nil
 		},
 	}
@@ -649,13 +656,13 @@ func TestGetViewDetails_Success(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, rr.Code)
 
-	var response map[string]interface{}
+	var response map[string]any
 	err := json.Unmarshal(rr.Body.Bytes(), &response)
 	require.NoError(t, err)
 
-	data := response["data"].([]interface{})
+	data := response["data"].([]any)
 	assert.Len(t, data, 1)
-	detail := data[0].(map[string]interface{})
+	detail := data[0].(map[string]any)
 	assert.Equal(t, "Test User", detail["user_name"])
 	assert.Equal(t, false, detail["dismissed"])
 }

@@ -60,6 +60,7 @@ func createTestComment(t *testing.T, db *bun.DB, postID, authorID int64, content
 	comment := &suggestions.Comment{
 		PostID:     postID,
 		AuthorID:   authorID,
+		AuthorType: suggestions.AuthorTypeUser,
 		Content:    content,
 		IsInternal: false,
 	}
@@ -390,28 +391,16 @@ func TestMarkCommentsRead_InvalidPostID(t *testing.T) {
 // ============================================================================
 
 func TestCreateCommentRequest_Bind_Valid(t *testing.T) {
-	body := map[string]string{
-		"content": "Valid comment",
-	}
-	jsonBody, _ := json.Marshal(body)
-	req := httptest.NewRequest(http.MethodPost, "/suggestions/1/comments", bytes.NewReader(jsonBody))
-	req.Header.Set("Content-Type", "application/json")
-
-	createReq := &apiSuggestions.CreateCommentRequest{}
+	req := httptest.NewRequest(http.MethodPost, "/suggestions/1/comments", nil)
+	createReq := &apiSuggestions.CreateCommentRequest{Content: "Valid comment"}
 	err := createReq.Bind(req)
 
 	assert.NoError(t, err)
 }
 
 func TestCreateCommentRequest_Bind_EmptyContent(t *testing.T) {
-	body := map[string]string{
-		"content": "",
-	}
-	jsonBody, _ := json.Marshal(body)
-	req := httptest.NewRequest(http.MethodPost, "/suggestions/1/comments", bytes.NewReader(jsonBody))
-	req.Header.Set("Content-Type", "application/json")
-
-	createReq := &apiSuggestions.CreateCommentRequest{}
+	req := httptest.NewRequest(http.MethodPost, "/suggestions/1/comments", nil)
+	createReq := &apiSuggestions.CreateCommentRequest{Content: ""}
 	err := createReq.Bind(req)
 
 	assert.Error(t, err)
@@ -419,14 +408,8 @@ func TestCreateCommentRequest_Bind_EmptyContent(t *testing.T) {
 }
 
 func TestCreateCommentRequest_Bind_ContentTooLong(t *testing.T) {
-	body := map[string]string{
-		"content": strings.Repeat("a", 5001),
-	}
-	jsonBody, _ := json.Marshal(body)
-	req := httptest.NewRequest(http.MethodPost, "/suggestions/1/comments", bytes.NewReader(jsonBody))
-	req.Header.Set("Content-Type", "application/json")
-
-	createReq := &apiSuggestions.CreateCommentRequest{}
+	req := httptest.NewRequest(http.MethodPost, "/suggestions/1/comments", nil)
+	createReq := &apiSuggestions.CreateCommentRequest{Content: strings.Repeat("a", 5001)}
 	err := createReq.Bind(req)
 
 	assert.Error(t, err)

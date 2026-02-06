@@ -22,6 +22,14 @@ import (
 	suggestionsSvc "github.com/moto-nrw/project-phoenix/services/suggestions"
 )
 
+// Test constants used in mock assertions (not DB-dependent)
+const (
+	testOperatorAccountID    int64 = 1
+	testOperatorAccountID123 int64 = 123
+	testPostID               int64 = 1
+	testCommentID            int64 = 5
+)
+
 // Mock OperatorSuggestionsService
 type mockOperatorSuggestionsService struct {
 	listAllPostsFn         func(ctx context.Context, operatorAccountID int64, status string, sortBy string) ([]*suggestions.Post, error)
@@ -110,7 +118,7 @@ func TestListSuggestions_Success(t *testing.T) {
 	now := time.Now()
 	mockService := &mockOperatorSuggestionsService{
 		listAllPostsFn: func(ctx context.Context, operatorAccountID int64, status string, sortBy string) ([]*suggestions.Post, error) {
-			assert.Equal(t, int64(1), operatorAccountID)
+			assert.Equal(t, testOperatorAccountID, operatorAccountID)
 			assert.Equal(t, "", status)
 			assert.Equal(t, "created_at", sortBy)
 			post := &suggestions.Post{
@@ -125,7 +133,7 @@ func TestListSuggestions_Success(t *testing.T) {
 				IsNew:        true,
 				AuthorName:   "Test User",
 			}
-			post.ID = 1
+			post.ID = testPostID
 			post.CreatedAt = now
 			post.UpdatedAt = now
 			return []*suggestions.Post{post}, nil
@@ -144,13 +152,13 @@ func TestListSuggestions_Success(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, rr.Code)
 
-	var response map[string]interface{}
+	var response map[string]any
 	err := json.Unmarshal(rr.Body.Bytes(), &response)
 	require.NoError(t, err)
 
-	data := response["data"].([]interface{})
+	data := response["data"].([]any)
 	assert.Len(t, data, 1)
-	post := data[0].(map[string]interface{})
+	post := data[0].(map[string]any)
 	assert.Equal(t, "Test Suggestion", post["title"])
 }
 
@@ -220,8 +228,8 @@ func TestGetSuggestion_Success(t *testing.T) {
 	now := time.Now()
 	mockService := &mockOperatorSuggestionsService{
 		getPostFn: func(ctx context.Context, postID int64, operatorAccountID int64) (*suggestions.Post, []*suggestions.Comment, error) {
-			assert.Equal(t, int64(1), postID)
-			assert.Equal(t, int64(123), operatorAccountID)
+			assert.Equal(t, testPostID, postID)
+			assert.Equal(t, testOperatorAccountID123, operatorAccountID)
 			post := &suggestions.Post{
 				Title:       "Test",
 				Description: "Description",
@@ -232,17 +240,17 @@ func TestGetSuggestion_Success(t *testing.T) {
 				UnreadCount: 2,
 				AuthorName:  "Author",
 			}
-			post.ID = 1
+			post.ID = testPostID
 			post.CreatedAt = now
 			post.UpdatedAt = now
 			comment := &suggestions.Comment{
-				PostID:     1,
+				PostID:     testPostID,
 				Content:    "Comment 1",
 				AuthorName: "Commenter",
 				AuthorType: "user",
 				IsInternal: false,
 			}
-			comment.ID = 1
+			comment.ID = testPostID
 			comment.CreatedAt = now
 			return post, []*suggestions.Comment{comment}, nil
 		},
@@ -263,13 +271,13 @@ func TestGetSuggestion_Success(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, rr.Code)
 
-	var response map[string]interface{}
+	var response map[string]any
 	err := json.Unmarshal(rr.Body.Bytes(), &response)
 	require.NoError(t, err)
 
-	data := response["data"].(map[string]interface{})
+	data := response["data"].(map[string]any)
 	assert.Equal(t, "Test", data["title"])
-	comments := data["operator_comments"].([]interface{})
+	comments := data["operator_comments"].([]any)
 	assert.Len(t, comments, 1)
 }
 
@@ -315,9 +323,9 @@ func TestGetSuggestion_NotFound(t *testing.T) {
 func TestUpdateStatus_Success(t *testing.T) {
 	mockService := &mockOperatorSuggestionsService{
 		updatePostStatusFn: func(ctx context.Context, postID int64, status string, operatorID int64, clientIP net.IP) error {
-			assert.Equal(t, int64(1), postID)
+			assert.Equal(t, testPostID, postID)
 			assert.Equal(t, "in-progress", status)
-			assert.Equal(t, int64(123), operatorID)
+			assert.Equal(t, testOperatorAccountID123, operatorID)
 			return nil
 		},
 	}
@@ -370,8 +378,8 @@ func TestUpdateStatus_EmptyStatus(t *testing.T) {
 func TestAddComment_Success(t *testing.T) {
 	mockService := &mockOperatorSuggestionsService{
 		addCommentFn: func(ctx context.Context, comment *suggestions.Comment, clientIP net.IP) error {
-			assert.Equal(t, int64(1), comment.PostID)
-			assert.Equal(t, int64(123), comment.AuthorID)
+			assert.Equal(t, testPostID, comment.PostID)
+			assert.Equal(t, testOperatorAccountID123, comment.AuthorID)
 			assert.Equal(t, "Test comment", comment.Content)
 			assert.True(t, comment.IsInternal)
 			return nil
@@ -380,7 +388,7 @@ func TestAddComment_Success(t *testing.T) {
 
 	resource := operator.NewSuggestionsResource(mockService)
 
-	body := map[string]interface{}{
+	body := map[string]any{
 		"content":     "Test comment",
 		"is_internal": true,
 	}
@@ -404,7 +412,7 @@ func TestAddComment_EmptyContent(t *testing.T) {
 	mockService := &mockOperatorSuggestionsService{}
 	resource := operator.NewSuggestionsResource(mockService)
 
-	body := map[string]interface{}{
+	body := map[string]any{
 		"content": "",
 	}
 	jsonBody, _ := json.Marshal(body)
@@ -427,8 +435,8 @@ func TestAddComment_EmptyContent(t *testing.T) {
 func TestDeleteComment_Success(t *testing.T) {
 	mockService := &mockOperatorSuggestionsService{
 		deleteCommentFn: func(ctx context.Context, commentID int64, operatorID int64, clientIP net.IP) error {
-			assert.Equal(t, int64(5), commentID)
-			assert.Equal(t, int64(123), operatorID)
+			assert.Equal(t, testCommentID, commentID)
+			assert.Equal(t, testOperatorAccountID123, operatorID)
 			return nil
 		},
 	}
@@ -516,8 +524,8 @@ func TestDeleteComment_Forbidden(t *testing.T) {
 func TestMarkCommentsRead_Success(t *testing.T) {
 	mockService := &mockOperatorSuggestionsService{
 		markCommentsReadFn: func(ctx context.Context, operatorAccountID, postID int64) error {
-			assert.Equal(t, int64(123), operatorAccountID)
-			assert.Equal(t, int64(1), postID)
+			assert.Equal(t, testOperatorAccountID123, operatorAccountID)
+			assert.Equal(t, testPostID, postID)
 			return nil
 		},
 	}
@@ -541,7 +549,7 @@ func TestMarkCommentsRead_Success(t *testing.T) {
 func TestGetUnreadCount_Success(t *testing.T) {
 	mockService := &mockOperatorSuggestionsService{
 		getTotalUnreadCountFn: func(ctx context.Context, operatorAccountID int64) (int, error) {
-			assert.Equal(t, int64(123), operatorAccountID)
+			assert.Equal(t, testOperatorAccountID123, operatorAccountID)
 			return 5, nil
 		},
 	}
@@ -558,19 +566,19 @@ func TestGetUnreadCount_Success(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, rr.Code)
 
-	var response map[string]interface{}
+	var response map[string]any
 	err := json.Unmarshal(rr.Body.Bytes(), &response)
 	require.NoError(t, err)
 
-	data := response["data"].(map[string]interface{})
+	data := response["data"].(map[string]any)
 	assert.Equal(t, float64(5), data["unread_count"])
 }
 
 func TestMarkPostViewed_Success(t *testing.T) {
 	mockService := &mockOperatorSuggestionsService{
 		markPostViewedFn: func(ctx context.Context, operatorAccountID, postID int64) error {
-			assert.Equal(t, int64(123), operatorAccountID)
-			assert.Equal(t, int64(1), postID)
+			assert.Equal(t, testOperatorAccountID123, operatorAccountID)
+			assert.Equal(t, testPostID, postID)
 			return nil
 		},
 	}
@@ -594,7 +602,7 @@ func TestMarkPostViewed_Success(t *testing.T) {
 func TestGetUnviewedCount_Success(t *testing.T) {
 	mockService := &mockOperatorSuggestionsService{
 		getUnviewedPostCountFn: func(ctx context.Context, operatorAccountID int64) (int, error) {
-			assert.Equal(t, int64(123), operatorAccountID)
+			assert.Equal(t, testOperatorAccountID123, operatorAccountID)
 			return 3, nil
 		},
 	}
@@ -611,11 +619,11 @@ func TestGetUnviewedCount_Success(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, rr.Code)
 
-	var response map[string]interface{}
+	var response map[string]any
 	err := json.Unmarshal(rr.Body.Bytes(), &response)
 	require.NoError(t, err)
 
-	data := response["data"].(map[string]interface{})
+	data := response["data"].(map[string]any)
 	assert.Equal(t, float64(3), data["unviewed_count"])
 }
 

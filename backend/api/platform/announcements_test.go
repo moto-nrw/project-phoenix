@@ -19,6 +19,12 @@ import (
 	platformModel "github.com/moto-nrw/project-phoenix/models/platform"
 )
 
+// Test constants used in mock assertions (not DB-dependent)
+const (
+	testAnnouncementID int64 = 1
+	testUserID         int64 = 123
+)
+
 // Mock AnnouncementService for platform API
 type mockPlatformAnnouncementService struct {
 	getUnreadForUserFn func(ctx context.Context, userID int64, userRole string) ([]*platformModel.Announcement, error)
@@ -96,7 +102,7 @@ func TestGetUnread_Success(t *testing.T) {
 	version := "1.0.0"
 	mockService := &mockPlatformAnnouncementService{
 		getUnreadForUserFn: func(ctx context.Context, userID int64, userRole string) ([]*platformModel.Announcement, error) {
-			assert.Equal(t, int64(123), userID)
+			assert.Equal(t, testUserID, userID)
 			assert.Equal(t, "teacher", userRole)
 			announcement := &platformModel.Announcement{
 				Title:       "Important Update",
@@ -107,7 +113,7 @@ func TestGetUnread_Success(t *testing.T) {
 				PublishedAt: &now,
 				Active:      true,
 			}
-			announcement.ID = 1
+			announcement.ID = testAnnouncementID
 			return []*platformModel.Announcement{announcement}, nil
 		},
 	}
@@ -127,13 +133,13 @@ func TestGetUnread_Success(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, rr.Code)
 
-	var response map[string]interface{}
+	var response map[string]any
 	err := json.Unmarshal(rr.Body.Bytes(), &response)
 	require.NoError(t, err)
 
-	data := response["data"].([]interface{})
+	data := response["data"].([]any)
 	assert.Len(t, data, 1)
-	announcement := data[0].(map[string]interface{})
+	announcement := data[0].(map[string]any)
 	assert.Equal(t, "Important Update", announcement["title"])
 	assert.Equal(t, "1.0.0", announcement["version"])
 }
@@ -186,7 +192,7 @@ func TestGetUnread_ServiceError(t *testing.T) {
 func TestGetUnreadCount_Success(t *testing.T) {
 	mockService := &mockPlatformAnnouncementService{
 		countUnreadFn: func(ctx context.Context, userID int64, userRole string) (int, error) {
-			assert.Equal(t, int64(123), userID)
+			assert.Equal(t, testUserID, userID)
 			assert.Equal(t, "student", userRole)
 			return 5, nil
 		},
@@ -207,11 +213,11 @@ func TestGetUnreadCount_Success(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, rr.Code)
 
-	var response map[string]interface{}
+	var response map[string]any
 	err := json.Unmarshal(rr.Body.Bytes(), &response)
 	require.NoError(t, err)
 
-	data := response["data"].(map[string]interface{})
+	data := response["data"].(map[string]any)
 	assert.Equal(t, float64(5), data["count"])
 }
 
@@ -239,8 +245,8 @@ func TestGetUnreadCount_ServiceError(t *testing.T) {
 func TestMarkSeen_Success(t *testing.T) {
 	mockService := &mockPlatformAnnouncementService{
 		markSeenFn: func(ctx context.Context, userID, announcementID int64) error {
-			assert.Equal(t, int64(123), userID)
-			assert.Equal(t, int64(1), announcementID)
+			assert.Equal(t, testUserID, userID)
+			assert.Equal(t, testAnnouncementID, announcementID)
 			return nil
 		},
 	}
@@ -307,8 +313,8 @@ func TestMarkSeen_ServiceError(t *testing.T) {
 func TestMarkDismissed_Success(t *testing.T) {
 	mockService := &mockPlatformAnnouncementService{
 		markDismissedFn: func(ctx context.Context, userID, announcementID int64) error {
-			assert.Equal(t, int64(123), userID)
-			assert.Equal(t, int64(1), announcementID)
+			assert.Equal(t, testUserID, userID)
+			assert.Equal(t, testAnnouncementID, announcementID)
 			return nil
 		},
 	}
