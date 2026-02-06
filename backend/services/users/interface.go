@@ -82,4 +82,7 @@ type PersonService interface {
 
 	// GetStudentsWithGroupsByTeacher retrieves students with group info supervised by a teacher
 	GetStudentsWithGroupsByTeacher(ctx context.Context, teacherID int64) ([]StudentWithGroup, error)
+
+	// GetAllStudentsWithGroups retrieves all students with their group info
+	GetAllStudentsWithGroups(ctx context.Context) ([]StudentWithGroup, error)
 }

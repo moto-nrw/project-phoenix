@@ -382,20 +382,19 @@ func (r *StudentRepository) FindByTeacherID(ctx context.Context, teacherID int64
 	return students, nil
 }
 
-// FindByTeacherIDWithGroups retrieves students with group names supervised by a teacher
-func (r *StudentRepository) FindByTeacherIDWithGroups(ctx context.Context, teacherID int64) ([]*users.StudentWithGroupInfo, error) {
-	// Define a result struct to handle the complex JOIN and mapping
-	type studentWithPersonAndGroup struct {
-		Student   *users.Student `bun:"student"`
-		Person    *users.Person  `bun:"person"`
-		GroupName string         `bun:"group_name"`
-	}
+// studentWithPersonAndGroup is the scan target for queries that join students, persons, and groups.
+type studentWithPersonAndGroup struct {
+	Student   *users.Student `bun:"student"`
+	Person    *users.Person  `bun:"person"`
+	GroupName string         `bun:"group_name"`
+}
 
-	var results []*studentWithPersonAndGroup
-	err := r.db.NewSelect().
-		Model(&results).
+// newStudentWithGroupQuery returns a select query pre-configured with student+person column
+// expressions and the person JOIN. Callers add group JOIN, WHERE, and ORDER as needed.
+func (r *StudentRepository) newStudentWithGroupQuery(results *[]*studentWithPersonAndGroup) *bun.SelectQuery {
+	return r.db.NewSelect().
+		Model(results).
 		ModelTableExpr(`users.students AS "student"`).
-		// Student columns with proper aliasing
 		ColumnExpr(`"student".id AS "student__id", "student".created_at AS "student__created_at", "student".updated_at AS "student__updated_at"`).
 		ColumnExpr(`"student".person_id AS "student__person_id", "student".school_class AS "student__school_class"`).
 		ColumnExpr(`"student".guardian_name AS "student__guardian_name", "student".guardian_contact AS "student__guardian_contact"`).
@@ -404,19 +403,36 @@ func (r *StudentRepository) FindByTeacherIDWithGroups(ctx context.Context, teach
 		ColumnExpr(`"student".extra_info AS "student__extra_info", "student".supervisor_notes AS "student__supervisor_notes"`).
 		ColumnExpr(`"student".health_info AS "student__health_info", "student".pickup_status AS "student__pickup_status"`).
 		ColumnExpr(`"student".bus AS "student__bus"`).
-		// Person columns with proper aliasing
 		ColumnExpr(`"person".id AS "person__id", "person".created_at AS "person__created_at", "person".updated_at AS "person__updated_at"`).
 		ColumnExpr(`"person".first_name AS "person__first_name", "person".last_name AS "person__last_name"`).
 		ColumnExpr(`"person".tag_id AS "person__tag_id", "person".account_id AS "person__account_id"`).
-		// Group name for reference
+		Join(`INNER JOIN users.persons AS "person" ON "person".id = "student".person_id`)
+}
+
+// mapStudentGroupResults converts raw scan results into StudentWithGroupInfo slices.
+func mapStudentGroupResults(results []*studentWithPersonAndGroup) []*users.StudentWithGroupInfo {
+	out := make([]*users.StudentWithGroupInfo, len(results))
+	for i, result := range results {
+		student := result.Student
+		if result.Person != nil && result.Person.ID != 0 {
+			student.Person = result.Person
+		}
+		out[i] = &users.StudentWithGroupInfo{
+			Student:   student,
+			GroupName: result.GroupName,
+		}
+	}
+	return out
+}
+
+// FindByTeacherIDWithGroups retrieves students with group names supervised by a teacher
+func (r *StudentRepository) FindByTeacherIDWithGroups(ctx context.Context, teacherID int64) ([]*users.StudentWithGroupInfo, error) {
+	var results []*studentWithPersonAndGroup
+	err := r.newStudentWithGroupQuery(&results).
 		ColumnExpr(`"group".name AS "group_name"`).
-		// JOINs to traverse the relationship chain
-		Join(`INNER JOIN users.persons AS "person" ON "person".id = "student".person_id`).
 		Join(`INNER JOIN education.groups AS "group" ON "group".id = "student".group_id`).
 		Join(`INNER JOIN education.group_teacher AS "gt" ON "gt".group_id = "group".id`).
-		// Filter by teacher ID and ensure student has a group assignment
 		Where(`"gt".teacher_id = ? AND "student".group_id IS NOT NULL`, teacherID).
-		// Use DISTINCT to avoid duplicates if a teacher supervises multiple groups with same student
 		Distinct().
 		Scan(ctx)
 
@@ -427,21 +443,27 @@ func (r *StudentRepository) FindByTeacherIDWithGroups(ctx context.Context, teach
 		}
 	}
 
-	// Extract students from results and map the person relationship with group info
-	studentsWithGroups := make([]*users.StudentWithGroupInfo, len(results))
-	for i, result := range results {
-		student := result.Student
-		if result.Person != nil && result.Person.ID != 0 {
-			student.Person = result.Person
-		}
+	return mapStudentGroupResults(results), nil
+}
 
-		studentsWithGroups[i] = &users.StudentWithGroupInfo{
-			Student:   student,
-			GroupName: result.GroupName,
+// FindAllWithGroups retrieves all students with their group names.
+// Uses LEFT JOIN on groups so students without a group assignment are included.
+func (r *StudentRepository) FindAllWithGroups(ctx context.Context) ([]*users.StudentWithGroupInfo, error) {
+	var results []*studentWithPersonAndGroup
+	err := r.newStudentWithGroupQuery(&results).
+		ColumnExpr(`COALESCE("group".name, '') AS "group_name"`).
+		Join(`LEFT JOIN education.groups AS "group" ON "group".id = "student".group_id`).
+		OrderExpr(`"person".last_name, "person".first_name`).
+		Scan(ctx)
+
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find all with groups",
+			Err: err,
 		}
 	}
 
-	return studentsWithGroups, nil
+	return mapStudentGroupResults(results), nil
 }
 
 // FindByNameAndClass retrieves students by first name, last name, and school class (for import duplicate detection)
