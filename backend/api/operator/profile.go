@@ -126,7 +126,7 @@ func ProfileErrorRenderer(err error) render.Renderer {
 
 	switch {
 	case errors.As(err, &passwordMismatch):
-		return ErrInvalidRequest(errors.New("Das aktuelle Passwort ist falsch"))
+		return ErrInvalidRequest(errors.New("das aktuelle Passwort ist falsch"))
 	case errors.As(err, &operatorNotFound):
 		return ErrNotFound("Operator not found")
 	case errors.As(err, &invalidData):

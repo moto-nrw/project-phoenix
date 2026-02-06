@@ -29,11 +29,6 @@ const (
 	RoleGuardian = "guardian"
 )
 
-// ValidTargetRoles returns the allowed role values for announcement targeting
-func ValidTargetRoles() []string {
-	return []string{RoleAdmin, RoleUser, RoleGuardian}
-}
-
 // tablePlatformAnnouncements is the schema-qualified table name
 const tablePlatformAnnouncements = "platform.announcements"
 
