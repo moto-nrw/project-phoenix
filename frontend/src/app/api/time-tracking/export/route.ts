@@ -1,6 +1,9 @@
 import { type NextRequest } from "next/server";
 import { auth } from "~/server/auth";
 import { getServerApiUrl } from "~/lib/server-api-url";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "TimeTrackingExportRoute" });
 
 /**
  * Time-tracking export proxy endpoint
@@ -55,7 +58,9 @@ export async function GET(request: NextRequest) {
 
     return new Response(backendResponse.body, { headers });
   } catch (error) {
-    console.error("Export proxy error:", error);
+    logger.error("export proxy error", {
+      error: error instanceof Error ? error.message : String(error),
+    });
     return new Response("Internal server error", { status: 500 });
   }
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import { createLogger } from "~/lib/logger";
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
@@ -23,6 +24,8 @@ import { getDeviceTypeDisplayName } from "@/lib/iot-helpers";
 import { useToast } from "~/contexts/ToastContext";
 import { useIsMobile } from "~/hooks/useIsMobile";
 import { useDeleteConfirmation } from "~/hooks/useDeleteConfirmation";
+
+const logger = createLogger({ component: "DatabaseDevicesPage" });
 
 export default function DevicesPage() {
   const [loading, setLoading] = useState(true);
@@ -66,7 +69,9 @@ export default function DevicesPage() {
       setDevices(arr);
       setError(null);
     } catch (err) {
-      console.error("Error fetching devices:", err);
+      logger.error("failed to fetch devices", {
+        error: err instanceof Error ? err.message : String(err),
+      });
       setError(
         "Fehler beim Laden der Geräte. Bitte versuchen Sie es später erneut.",
       );

@@ -1,6 +1,10 @@
 // lib/substitution-helpers.ts
 // Type definitions and helper functions for substitutions
 
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "SubstitutionHelpers" });
+
 // Backend types (from Go structs)
 export interface BackendPerson {
   id: number;
@@ -165,10 +169,9 @@ export function mapSubstitutionsResponse(
   backendSubstitutions: BackendSubstitution[],
 ): Substitution[] {
   if (!Array.isArray(backendSubstitutions)) {
-    console.error(
-      "Expected array for backendSubstitutions, got:",
-      backendSubstitutions,
-    );
+    logger.error("expected array for backendSubstitutions", {
+      received: typeof backendSubstitutions,
+    });
     return [];
   }
   return backendSubstitutions.map(mapSubstitutionResponse);
@@ -178,7 +181,9 @@ export function mapTeacherAvailabilityResponses(
   backendStaff: BackendStaffWithSubstitutionStatus[],
 ): TeacherAvailability[] {
   if (!Array.isArray(backendStaff)) {
-    console.error("Expected array for backendStaff, got:", backendStaff);
+    logger.error("expected array for backendStaff", {
+      received: typeof backendStaff,
+    });
     return [];
   }
   return backendStaff.map(mapTeacherAvailabilityResponse);

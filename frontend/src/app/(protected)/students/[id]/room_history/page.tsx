@@ -7,6 +7,9 @@ import { useSession } from "next-auth/react";
 import { useStudentHistoryBreadcrumb } from "~/lib/breadcrumb-context";
 
 import { Loading } from "~/components/ui/loading";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "StudentRoomHistoryPage" });
 // Student type (reused from student page)
 interface Student {
   id: string;
@@ -165,7 +168,9 @@ export default function StudentRoomHistoryPage() {
         setRoomHistory(mockRoomHistory);
         setLoading(false);
       } catch (err) {
-        console.error("Error fetching data:", err);
+        logger.error("failed to fetch room history", {
+          error: err instanceof Error ? err.message : String(err),
+        });
         setError("Fehler beim Laden der Daten.");
         setLoading(false);
       }

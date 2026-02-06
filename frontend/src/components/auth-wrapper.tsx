@@ -27,6 +27,9 @@ import { useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { useUserContext } from "~/lib/hooks/use-user-context";
 import { useGlobalSSE } from "~/lib/hooks/use-global-sse";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "AuthWrapper" });
 
 interface AuthWrapperProps {
   children: React.ReactNode;
@@ -46,11 +49,10 @@ export function AuthWrapper({ children }: Readonly<AuthWrapperProps>) {
   // Debug logging (only in development)
   useEffect(() => {
     if (process.env.NODE_ENV === "development" && status === "authenticated") {
-      console.log("🔌 [AuthWrapper] Global SSE status:", sseStatus);
-      console.log(
-        "📦 [AuthWrapper] User context ready:",
-        contextReady ? "Yes" : "Loading...",
-      );
+      logger.debug("auth wrapper state", {
+        sse_status: sseStatus,
+        context_ready: contextReady,
+      });
     }
   }, [sseStatus, contextReady, status]);
 

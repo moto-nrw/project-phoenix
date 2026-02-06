@@ -7,6 +7,9 @@ import {
   createDeleteHandler,
 } from "~/lib/route-wrapper";
 import type { BackendRoom } from "~/lib/room-helpers";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "RoomDetailRoute" });
 
 /**
  * Type definition for room update request
@@ -90,8 +93,7 @@ export const GET = createGetHandler(
         token,
       );
 
-      // Check if the response is in the expected format
-      console.log("Room API response:", JSON.stringify(response));
+      logger.debug("room API response received", { room_id: params.id });
 
       // Handle different response formats
       if (response && typeof response === "object") {
@@ -139,11 +141,13 @@ export const GET = createGetHandler(
         }
       }
 
-      // If format is unexpected, throw error
-      console.error("Unexpected room response format:", response);
+      logger.error("unexpected room response format", { room_id: params.id });
       throw new Error("Unexpected room response format");
     } catch (error) {
-      console.error(`Error fetching room ${params.id}:`, error);
+      logger.error("room fetch failed", {
+        room_id: params.id,
+        error: error instanceof Error ? error.message : String(error),
+      });
       // If we get a 404 or database error, return a properly formatted error
       if (
         error instanceof Error &&
@@ -201,13 +205,16 @@ export const PUT = createPutHandler<BackendRoom, RoomUpdateRequest>(
         backendBody,
       );
 
-      console.log("Room updated successfully:", updatedRoom);
+      logger.debug("room updated successfully", { room_id: params.id });
 
       // Make sure we return a properly formatted response with all fields
       // Return the result directly as a BackendRoom
       return updatedRoom;
     } catch (error) {
-      console.error(`Error updating room ${params.id}:`, error);
+      logger.error("room update failed", {
+        room_id: params.id,
+        error: error instanceof Error ? error.message : String(error),
+      });
       // If we get a 404 or database error, return a properly formatted error
       if (
         error instanceof Error &&
@@ -239,7 +246,10 @@ export const DELETE = createDeleteHandler(
       // Return 204 No Content response
       return null;
     } catch (error) {
-      console.error(`Error deleting room ${params.id}:`, error);
+      logger.error("room delete failed", {
+        room_id: params.id,
+        error: error instanceof Error ? error.message : String(error),
+      });
       // If we get a 404 or database error, return a properly formatted error
       if (
         error instanceof Error &&

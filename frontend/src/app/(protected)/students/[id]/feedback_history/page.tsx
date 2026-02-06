@@ -8,6 +8,9 @@ import { getStartDateForTimeRange } from "~/lib/date-helpers";
 import { useStudentHistoryBreadcrumb } from "~/lib/breadcrumb-context";
 
 import { Loading } from "~/components/ui/loading";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "StudentFeedbackHistoryPage" });
 // Student type (reused from student page)
 interface Student {
   id: string;
@@ -150,7 +153,9 @@ export default function StudentFeedbackHistoryPage() {
         setFeedbackHistory(mockFeedbackHistory);
         setLoading(false);
       } catch (err) {
-        console.error("Error fetching data:", err);
+        logger.error("failed to fetch feedback history", {
+          error: err instanceof Error ? err.message : String(err),
+        });
         setError("Fehler beim Laden der Daten.");
         setLoading(false);
       }

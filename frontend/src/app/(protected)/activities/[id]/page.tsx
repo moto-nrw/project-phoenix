@@ -1,5 +1,6 @@
 "use client";
 
+import { createLogger } from "~/lib/logger";
 import { useEffect, useState, Suspense } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { PageHeader } from "@/components/dashboard";
@@ -15,6 +16,8 @@ import {
   type ActivityStudent,
   type Timeframe,
 } from "@/lib/activity-helpers";
+
+const logger = createLogger({ component: "ActivityDetailPage" });
 
 function ActivityDetailContent() {
   const router = useRouter();
@@ -38,10 +41,14 @@ function ActivityDetailContent() {
         // Load enrolled students separately
         try {
           const enrolledStudents = await getEnrolledStudents(activityId);
-          console.log("Enrolled students:", enrolledStudents);
+          logger.debug("enrolled students loaded", {
+            count: enrolledStudents.length,
+          });
           setStudents(enrolledStudents);
         } catch (error_) {
-          console.error("Error fetching enrolled students:", error_);
+          logger.error("failed to fetch enrolled students", {
+            error: error_ instanceof Error ? error_.message : String(error_),
+          });
           // Don't fail the whole page if students can't be loaded
           setStudents([]);
         }
@@ -51,14 +58,18 @@ function ActivityDetailContent() {
           const timeframeData = await getTimeframes();
           setTimeframes(timeframeData);
         } catch (error_) {
-          console.error("Error fetching timeframes:", error_);
+          logger.error("failed to fetch timeframes", {
+            error: error_ instanceof Error ? error_.message : String(error_),
+          });
           // Don't fail the whole page if timeframes can't be loaded
           setTimeframes([]);
         }
 
         setError(null);
       } catch (err) {
-        console.error("Error fetching activity details:", err);
+        logger.error("failed to fetch activity details", {
+          error: err instanceof Error ? err.message : String(err),
+        });
         setError("Fehler beim Laden der Aktivitätsdaten.");
         setActivity(null);
         setStudents([]);

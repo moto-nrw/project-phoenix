@@ -4,6 +4,9 @@ import { useState, useEffect, useCallback } from "react";
 import { activeService } from "~/lib/active-api";
 import { userContextService } from "~/lib/usercontext-api";
 import type { Supervisor } from "~/lib/active-helpers";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "UnclaimedRooms" });
 
 // NOTE: Schulhof is now handled as a permanent tab in active-supervisions page.
 // This banner is disabled and returns null. Keeping the component for future
@@ -96,10 +99,9 @@ export function UnclaimedRooms({
       if (supervisorsResult.status === "fulfilled") {
         activeSupervisors = supervisorsResult.value.filter((s) => s.isActive);
       } else {
-        console.warn(
-          "[SchulhofBanner] Failed to load supervisors:",
-          supervisorsResult.reason,
-        );
+        logger.warn("failed to load supervisors", {
+          reason: String(supervisorsResult.reason),
+        });
       }
 
       // Check if current user is a supervisor
@@ -127,7 +129,9 @@ export function UnclaimedRooms({
         loading: false,
       });
     } catch (err) {
-      console.error("[SchulhofBanner] Failed to load status:", err);
+      logger.error("failed to load schulhof status", {
+        error: err instanceof Error ? err.message : String(err),
+      });
       setState((prev) => ({ ...prev, loading: false }));
     }
   }, [providedGroups, providedStaffId]);
@@ -151,7 +155,7 @@ export function UnclaimedRooms({
       await loadSchulhofStatus();
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Unknown error";
-      console.error("Failed to claim Schulhof:", errorMessage);
+      logger.error("failed to claim schulhof", { error: errorMessage });
       setError("Fehler beim Übernehmen der Schulhof-Aufsicht.");
     } finally {
       setClaiming(false);

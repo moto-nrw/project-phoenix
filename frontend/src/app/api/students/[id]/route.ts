@@ -6,6 +6,9 @@ import {
   createPutHandler,
   createDeleteHandler,
 } from "~/lib/route-wrapper";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "StudentDetailRoute" });
 import type { BackendStudent, Student } from "~/lib/student-helpers";
 import {
   mapStudentResponse,
@@ -69,7 +72,9 @@ export const GET = createGetHandler(
 
       // Type guard to check response structure
       if (!response || typeof response !== "object" || !("data" in response)) {
-        console.warn("API returned invalid response for student");
+        logger.warn("API returned invalid response for student", {
+          student_id: id,
+        });
         throw new Error("Student not found");
       }
 
@@ -129,7 +134,10 @@ export const GET = createGetHandler(
         group_supervisors: groupSupervisors,
       };
     } catch (error) {
-      console.error("Error fetching student:", error);
+      logger.error("student fetch failed", {
+        student_id: id,
+        error: error instanceof Error ? error.message : String(error),
+      });
       throw error;
     }
   },
@@ -196,10 +204,13 @@ export const PUT = createPutHandler<
             "PUT Student",
           );
         } catch (consentError) {
-          console.error(
-            "[PUT Student] Error updating privacy consent:",
-            consentError,
-          );
+          logger.error("privacy consent update failed", {
+            student_id: id,
+            error:
+              consentError instanceof Error
+                ? consentError.message
+                : String(consentError),
+          });
           throw new Error(
             "Datenschutzeinstellungen konnten nicht aktualisiert werden.",
           );
@@ -217,7 +228,10 @@ export const PUT = createPutHandler<
         ...consentData,
       };
     } catch (error) {
-      console.error("Error updating student:", error);
+      logger.error("student update failed", {
+        student_id: id,
+        error: error instanceof Error ? error.message : String(error),
+      });
       throw error;
     }
   },
@@ -257,7 +271,10 @@ export const DELETE = createDeleteHandler(
         message: response?.message ?? "Student deleted successfully",
       };
     } catch (error) {
-      console.error("Error deleting student:", error);
+      logger.error("student delete failed", {
+        student_id: id,
+        error: error instanceof Error ? error.message : String(error),
+      });
       throw error;
     }
   },

@@ -2,6 +2,9 @@
 import type { NextRequest } from "next/server";
 import { apiGet, apiPost } from "~/lib/api-helpers";
 import { createGetHandler, createPostHandler } from "~/lib/route-wrapper";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "StaffRoute" });
 
 /**
  * Type definition for staff member response from backend
@@ -109,7 +112,7 @@ export const GET = createGetHandler(
 
     const endpoint = `/api/staff${queryParams.toString() ? "?" + queryParams.toString() : ""}`;
 
-    console.log("Requesting staff from backend:", endpoint);
+    logger.debug("requesting staff from backend", { endpoint });
 
     try {
       // Fetch staff from backend API
@@ -120,12 +123,11 @@ export const GET = createGetHandler(
 
       // Handle null or undefined response
       if (!response) {
-        console.warn("API returned null response for staff");
+        logger.warn("API returned null response for staff");
         return [];
       }
 
-      // Debug output to check the response data
-      console.log("API staff response:", JSON.stringify(response, null, 2));
+      logger.debug("staff API response received");
 
       // Check if the response is already an array (common pattern)
       if (Array.isArray(response)) {
@@ -138,13 +140,12 @@ export const GET = createGetHandler(
       }
 
       // If the response doesn't have the expected structure, return an empty array
-      console.warn(
-        "API response does not have the expected structure:",
-        response,
-      );
+      logger.warn("staff API response has unexpected structure");
       return [];
     } catch (error) {
-      console.error("Error fetching staff:", error);
+      logger.error("staff fetch failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
       // Return empty array instead of throwing error
       return [];
     }
@@ -212,7 +213,9 @@ export const POST = createPostHandler<TeacherResponse, StaffCreateRequest>(
     } catch (error) {
       // Check for permission errors (403 Forbidden)
       if (error instanceof Error && error.message.includes("403")) {
-        console.error("Permission denied when creating staff:", error);
+        logger.error("permission denied when creating staff", {
+          error: error instanceof Error ? error.message : String(error),
+        });
         throw new Error(
           "Permission denied: You need the 'users:create' permission to create staff members.",
         );
@@ -221,7 +224,9 @@ export const POST = createPostHandler<TeacherResponse, StaffCreateRequest>(
       // Check for validation errors
       if (error instanceof Error && error.message.includes("400")) {
         const errorMessage = error.message;
-        console.error("Validation error when creating staff:", errorMessage);
+        logger.error("validation error when creating staff", {
+          error: errorMessage,
+        });
 
         // Extract specific error message if possible
         if (errorMessage.includes("person not found")) {

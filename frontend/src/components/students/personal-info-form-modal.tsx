@@ -5,6 +5,9 @@ import { FormModal } from "~/components/ui/form-modal";
 import { useToast } from "~/contexts/ToastContext";
 import type { ExtendedStudent } from "~/lib/hooks/use-student-data";
 import { ChevronDownIcon, WarningIcon } from "./student-detail-components";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "PersonalInfoFormModal" });
 
 interface PersonalInfoFormModalProps {
   readonly isOpen: boolean;
@@ -43,7 +46,9 @@ export function PersonalInfoFormModal({
       await onSave(editedStudent);
       onClose();
     } catch (err) {
-      console.error("Failed to save personal information:", err);
+      logger.error("failed to save personal information", {
+        error: err instanceof Error ? err.message : String(err),
+      });
       toast.error("Fehler beim Speichern der persönlichen Informationen");
     } finally {
       setIsSaving(false);

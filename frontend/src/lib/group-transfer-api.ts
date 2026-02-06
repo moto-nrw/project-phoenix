@@ -2,6 +2,9 @@
 // API client for group transfer operations
 
 import { sessionFetch } from "./session-cache";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "GroupTransferAPI" });
 
 // Staff member with role info for dropdown
 export interface StaffWithRole {
@@ -94,7 +97,10 @@ export const groupTransferService = {
     } catch (error) {
       // Only log unexpected errors
       if (error instanceof Error && error.name !== "FetchStaffError") {
-        console.error("Unexpected error fetching staff by role:", error);
+        logger.error("unexpected error fetching staff by role", {
+          role,
+          error: String(error),
+        });
       }
       throw error;
     }
@@ -125,7 +131,10 @@ export const groupTransferService = {
     } catch (error) {
       // Only log if it's NOT our custom error (unexpected errors only)
       if (error instanceof Error && error.name !== "TransferError") {
-        console.error("Unexpected error transferring group:", error);
+        logger.error("unexpected error transferring group", {
+          group_id: groupId,
+          error: String(error),
+        });
       }
       throw error;
     }
@@ -190,7 +199,9 @@ export const groupTransferService = {
         // Wrapped response
         substitutionsList = responseData.data;
       } else {
-        console.warn("Unexpected response format:", responseData);
+        logger.warn("unexpected response format for active transfers", {
+          group_id: groupId,
+        });
         return [];
       }
 
@@ -217,7 +228,10 @@ export const groupTransferService = {
       return result;
     } catch (error) {
       // Log unexpected errors only
-      console.error("Unexpected error getting active transfers:", error);
+      logger.error("unexpected error getting active transfers", {
+        group_id: groupId,
+        error: String(error),
+      });
       return [];
     }
   },
@@ -248,7 +262,11 @@ export const groupTransferService = {
     } catch (error) {
       // Only log unexpected errors
       if (error instanceof Error && error.name !== "CancelTransferError") {
-        console.error("Unexpected error cancelling transfer:", error);
+        logger.error("unexpected error cancelling transfer", {
+          group_id: groupId,
+          substitution_id: substitutionId,
+          error: String(error),
+        });
       }
       throw error;
     }

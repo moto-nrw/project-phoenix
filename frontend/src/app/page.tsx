@@ -11,6 +11,9 @@ import { SmartRedirect } from "~/components/auth/smart-redirect";
 import { PasswordResetModal } from "~/components/ui/password-reset-modal";
 
 import { Loading } from "~/components/ui/loading";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "HomePage" });
 function LoginForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -29,7 +32,7 @@ function LoginForm() {
     const checkAndRedirect = async () => {
       // If we have a valid session with access token, set up for redirect
       if (status === "authenticated" && session?.user?.token) {
-        console.log("Valid session found, preparing smart redirect");
+        logger.debug("valid session found, preparing smart redirect");
         setAwaitingRedirect(true);
         setCheckingAuth(false);
         return;
@@ -41,8 +44,8 @@ function LoginForm() {
         session?.user?.refreshToken &&
         !session?.user?.token
       ) {
-        console.log(
-          "Session expired but refresh token available, attempting refresh",
+        logger.debug(
+          "session expired but refresh token available, attempting refresh",
         );
         try {
           const newTokens = await refreshToken();
@@ -56,14 +59,16 @@ function LoginForm() {
             });
 
             if (!result?.error) {
-              console.log("Token refreshed successfully");
+              logger.debug("token refreshed successfully");
               setAwaitingRedirect(true);
               setCheckingAuth(false);
               return;
             }
           }
         } catch (error) {
-          console.error("Failed to refresh token:", error);
+          logger.error("failed to refresh token", {
+            error: error instanceof Error ? error.message : String(error),
+          });
         }
       }
 
@@ -99,7 +104,7 @@ function LoginForm() {
           session?.user?.token && (
             <SmartRedirect
               onRedirect={(path) => {
-                console.log(`Redirecting to ${path} based on user permissions`);
+                logger.info("redirecting based on user permissions", { path });
                 router.push(path);
               }}
             />
@@ -268,7 +273,9 @@ function LoginForm() {
       }
 
       setError("Anmeldefehler. Bitte versuchen Sie es erneut.");
-      console.error(error);
+      logger.error("login failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
     } finally {
       setIsLoading(false);
     }

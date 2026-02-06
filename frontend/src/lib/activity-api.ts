@@ -3,6 +3,9 @@ import { sessionFetch } from "./session-cache";
 import { env } from "~/env";
 import api from "./api";
 import { handleDomainApiError } from "./api-helpers";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "ActivityAPI" });
 
 // Error handler using shared utility
 function handleActivityApiError(error: unknown, context: string): never {
@@ -1336,7 +1339,10 @@ export async function updateGroupEnrollments(
     await api.put(url, requestData);
     return true;
   } catch (error) {
-    console.error("Error updating group enrollments:", error);
+    logger.error("failed to update group enrollments", {
+      activity_id: activityId,
+      error: String(error),
+    });
     throw error; // Re-throw to let caller handle it
   }
 }

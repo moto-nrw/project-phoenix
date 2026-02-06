@@ -1,6 +1,9 @@
 "use client";
 
+import { createLogger } from "~/lib/logger";
 import { useState } from "react";
+
+const logger = createLogger({ component: "NewCombinedGroupPage" });
 import { useRouter } from "next/navigation";
 import { PageHeader } from "@/components/dashboard";
 import { CombinedGroupForm } from "@/components/groups";
@@ -33,7 +36,9 @@ export default function NewCombinedGroupPage() {
       // Navigate back to combined groups list on success
       router.push("/database/groups/combined");
     } catch (err) {
-      console.error("Error creating combined group:", err);
+      logger.error("failed to create combined group", {
+        error: err instanceof Error ? err.message : String(err),
+      });
       setError(
         "Fehler beim Erstellen der Gruppenkombination. Bitte versuchen Sie es später erneut.",
       );

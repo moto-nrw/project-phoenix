@@ -4,6 +4,9 @@ import { defineEntityConfig } from "../types";
 import { databaseThemes } from "@/components/ui/database/themes";
 import type { Activity, ActivitySupervisor } from "@/lib/activity-helpers";
 import { getSession } from "next-auth/react";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "ActivitiesConfig" });
 
 // Emoji mapping rules: [emoji, ...keywords]
 // Rules are checked in order; first match wins
@@ -315,7 +318,9 @@ export const activitiesConfig = defineEntityConfig<Activity>({
             });
 
             if (!response.ok) {
-              console.error("Failed to fetch supervisors:", response.status);
+              logger.error("failed to fetch supervisors", {
+                status: response.status,
+              });
               return [];
             }
 
@@ -342,7 +347,7 @@ export const activitiesConfig = defineEntityConfig<Activity>({
               label: sup.name,
             }));
           } catch (error) {
-            console.error("Error loading supervisors:", error);
+            logger.error("error loading supervisors", { error: String(error) });
             return [];
           }
         },

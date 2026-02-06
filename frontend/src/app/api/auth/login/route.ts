@@ -1,5 +1,8 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { getServerApiUrl } from "~/lib/server-api-url";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "AuthLoginRoute" });
 
 export async function POST(request: NextRequest) {
   try {
@@ -19,7 +22,10 @@ export async function POST(request: NextRequest) {
       try {
         data = await response.json();
       } catch (jsonError) {
-        console.error("Failed to parse JSON response:", jsonError);
+        logger.error("failed to parse JSON response", {
+          error:
+            jsonError instanceof Error ? jsonError.message : String(jsonError),
+        });
         data = { message: await response.text() };
       }
     } else {
@@ -32,7 +38,9 @@ export async function POST(request: NextRequest) {
       status: response.status,
     });
   } catch (error) {
-    console.error("Login route error:", error);
+    logger.error("login failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
     return NextResponse.json(
       { error: "Internal Server Error" },
       { status: 500 },

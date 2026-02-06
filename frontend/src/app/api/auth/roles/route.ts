@@ -1,6 +1,9 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { auth } from "~/server/auth";
 import { getServerApiUrl } from "~/lib/server-api-url";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "RolesRoute" });
 
 // Define interface for Role based on backend models
 interface Permission {
@@ -75,7 +78,9 @@ export async function GET(request: NextRequest) {
     const data = (await response.json()) as RolesResponse;
     return NextResponse.json(data);
   } catch (error) {
-    console.error("Get roles route error:", error);
+    logger.error("get roles failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
     return NextResponse.json(
       { error: "Internal Server Error" } as ErrorResponse,
       { status: 500 },
@@ -114,7 +119,9 @@ export async function POST(request: NextRequest) {
     const data = (await response.json()) as Role;
     return NextResponse.json(data);
   } catch (error) {
-    console.error("Create role route error:", error);
+    logger.error("create role failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
     return NextResponse.json(
       { error: "Internal Server Error" } as ErrorResponse,
       { status: 500 },

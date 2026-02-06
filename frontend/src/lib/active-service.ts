@@ -2,6 +2,9 @@
 import { getCachedSession, sessionFetch } from "./session-cache";
 import { env } from "~/env";
 import api from "./api";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "ActiveService" });
 import {
   mapActiveGroupResponse,
   mapVisitResponse,
@@ -92,7 +95,11 @@ async function executeProxyFetch(
 
   if (!response.ok) {
     const errorText = await response.text();
-    console.error(`${operationName} error: ${response.status}`, errorText);
+    logger.error("proxy fetch failed", {
+      operation: operationName,
+      status: response.status,
+      error: errorText,
+    });
     throw new Error(`${operationName} failed: ${response.status}`);
   }
 
@@ -157,7 +164,10 @@ async function coreFetch<T>(
       return responseData.data;
     }
   } catch (error) {
-    console.error(`${operationName} error:`, error);
+    logger.error("core fetch failed", {
+      operation: operationName,
+      error: String(error),
+    });
     throw error;
   }
 }
@@ -179,7 +189,10 @@ async function coreFetchVoid(
       await executeBackendFetch<unknown>(method, backendPath, body);
     }
   } catch (error) {
-    console.error(`${operationName} error:`, error);
+    logger.error("core fetch void failed", {
+      operation: operationName,
+      error: String(error),
+    });
     throw error;
   }
 }
@@ -253,7 +266,10 @@ async function proxyGetPaginated<TBackend, TFrontend>(
       return items.map(mapper);
     }
   } catch (error) {
-    console.error(`${operationName} error:`, error);
+    logger.error("paginated fetch failed", {
+      operation: operationName,
+      error: String(error),
+    });
     throw error;
   }
 }
@@ -403,10 +419,10 @@ export const activeService = {
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error(
-        `Get visits with display error: ${response.status}`,
-        errorText,
-      );
+      logger.error("get visits with display failed", {
+        status: response.status,
+        error: errorText,
+      });
       throw new Error(`Get visits with display failed: ${response.status}`);
     }
 
@@ -909,10 +925,9 @@ export const activeService = {
       }
 
       if (!payloadIsEffectivelyEmpty(payload)) {
-        console.warn(
-          "[active-service] Unexpected unclaimed groups response shape:",
-          payload,
-        );
+        logger.warn("unexpected unclaimed groups response shape", {
+          payload: JSON.stringify(payload),
+        });
       }
 
       return [];
@@ -930,10 +945,10 @@ export const activeService = {
 
         if (!response.ok) {
           const errorText = await response.text();
-          console.error(
-            `Get unclaimed groups error: ${response.status}`,
-            errorText,
-          );
+          logger.error("get unclaimed groups failed", {
+            status: response.status,
+            error: errorText,
+          });
           throw new Error(`Get unclaimed groups failed: ${response.status}`);
         }
 
@@ -946,7 +961,7 @@ export const activeService = {
         return rawGroups.map(mapActiveGroupResponse);
       }
     } catch (error) {
-      console.error("Get unclaimed groups error:", error);
+      logger.error("get unclaimed groups error", { error: String(error) });
       throw error;
     }
   },

@@ -2,6 +2,9 @@
 // Type definitions and helper functions for groups
 
 import { normalizeLocation } from "./location-helper";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "GroupHelpers" });
 
 // Backend types (from Go structs)
 // Define a simple backend student structure
@@ -212,7 +215,9 @@ export function mapCombinedGroupResponse(
 export function mapGroupsResponse(backendGroups: BackendGroup[]): Group[] {
   // Safety check to ensure we have an array
   if (!Array.isArray(backendGroups)) {
-    console.error("Expected array for backendGroups, got:", backendGroups);
+    logger.error("expected array for backendGroups", {
+      received: typeof backendGroups,
+    });
     return [];
   }
   return backendGroups.map(mapGroupResponse);

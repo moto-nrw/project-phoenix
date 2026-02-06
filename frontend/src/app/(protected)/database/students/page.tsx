@@ -1,6 +1,9 @@
 "use client";
 
+import { createLogger } from "~/lib/logger";
 import { useState, useMemo, useRef, useEffect } from "react";
+
+const logger = createLogger({ component: "DatabaseStudentsPage" });
 import { useIsMobile } from "~/hooks/useIsMobile";
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
@@ -87,7 +90,7 @@ export default function StudentsPage() {
   >("database-groups-dropdown", async () => {
     const response = await fetch("/api/groups");
     if (!response.ok) {
-      console.error("Failed to fetch groups:", response.status);
+      logger.error("failed to fetch groups", { status: response.status });
       return [];
     }
     const data: unknown = await response.json();
@@ -102,7 +105,9 @@ export default function StudentsPage() {
         groups = wrappedData.data as Array<{ id: number; name: string }>;
       }
     } else {
-      console.error("Unexpected groups response format:", data);
+      logger.error("unexpected groups response format", {
+        data_type: typeof data,
+      });
       return [];
     }
 
@@ -285,7 +290,9 @@ export default function StudentsPage() {
 
       await mutate("database-students-list");
     } catch (err) {
-      console.error("Error updating student:", err);
+      logger.error("failed to update student", {
+        error: err instanceof Error ? err.message : String(err),
+      });
       throw err;
     } finally {
       if (isMountedRef.current) {
@@ -318,7 +325,9 @@ export default function StudentsPage() {
       setSelectedStudent(null);
       await mutate("database-students-list");
     } catch (err) {
-      console.error("Error deleting student:", err);
+      logger.error("failed to delete student", {
+        error: err instanceof Error ? err.message : String(err),
+      });
     } finally {
       if (isMountedRef.current) {
         setDetailLoading(false);

@@ -3,6 +3,9 @@
 import React, { useState } from "react";
 import { signOut } from "next-auth/react";
 import { Modal } from "./modal";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "LogoutModal" });
 
 interface LogoutModalProps {
   readonly isOpen: boolean;
@@ -139,7 +142,9 @@ export function LogoutModal({ isOpen, onClose }: LogoutModalProps) {
       // Allow NextAuth to perform the CSRF handshake before navigating away.
       await signOut({ callbackUrl: "/" });
     } catch (error) {
-      console.error("Failed to sign out:", error);
+      logger.error("failed to sign out", {
+        error: error instanceof Error ? error.message : String(error),
+      });
       setIsLoggingOut(false);
     }
   };

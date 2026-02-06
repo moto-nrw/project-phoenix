@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { getServerApiUrl } from "~/lib/server-api-url";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "InvitationAcceptRoute" });
 
 interface AcceptInvitationBody {
   token?: string;
@@ -50,7 +53,9 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(payloadBody ?? {}, { status: response.status });
   } catch (error) {
-    console.error("Invitation accept proxy error:", error);
+    logger.error("invitation accept failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
     return NextResponse.json(
       { error: "Internal Server Error" },
       { status: 500 },

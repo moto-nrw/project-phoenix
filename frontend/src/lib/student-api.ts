@@ -1,5 +1,8 @@
 // lib/student-api.ts
 import { getCachedSession, sessionFetch } from "./session-cache";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "StudentAPI" });
 import { env } from "~/env";
 import api from "./api";
 import {
@@ -305,7 +308,7 @@ export async function fetchGroups(): Promise<Group[]> {
     const groups = response.data.data || [];
     return groups.map(mapGroupResponse);
   } catch (error) {
-    console.error("Error fetching groups:", error);
+    logger.error("failed to fetch groups", { error: String(error) });
     return [];
   }
 }
@@ -341,7 +344,10 @@ export async function fetchStudentPrivacyConsent(
     const response = await api.get<ApiResponse<BackendPrivacyConsent>>(url);
     return mapPrivacyConsentResponse(response.data.data);
   } catch (error) {
-    console.error("Error fetching privacy consent:", error);
+    logger.error("failed to fetch privacy consent", {
+      student_id: studentId,
+      error: String(error),
+    });
     return null;
   }
 }

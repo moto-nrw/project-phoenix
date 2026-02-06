@@ -12,6 +12,9 @@ import type { PendingInvitation } from "~/lib/invitation-helpers";
 import type { ApiError } from "~/lib/auth-api";
 import { getRoleDisplayName } from "~/lib/auth-helpers";
 import { isValidDateString, isDateExpired } from "~/lib/utils/date-helpers";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "PendingInvitationsList" });
 
 interface PendingInvitationsListProps {
   readonly refreshKey: number;
@@ -47,7 +50,9 @@ export function PendingInvitationsList({
 
   useEffect(() => {
     loadInvitations().catch((err) =>
-      console.error("Failed to load invitations", err),
+      logger.error("failed to load invitations", {
+        error: err instanceof Error ? err.message : String(err),
+      }),
     );
   }, [loadInvitations, refreshKey]);
 
