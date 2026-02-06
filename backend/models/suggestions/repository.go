@@ -69,3 +69,15 @@ type CommentReadRepository interface {
 	// CountTotalUnread counts all unread comments across all posts for a user
 	CountTotalUnread(ctx context.Context, accountID int64) (int, error)
 }
+
+// PostReadRepository defines operations for tracking viewed posts
+type PostReadRepository interface {
+	// MarkViewed marks a post as viewed by an operator
+	MarkViewed(ctx context.Context, accountID, postID int64) error
+
+	// IsViewed checks if an operator has viewed a post
+	IsViewed(ctx context.Context, accountID, postID int64) (bool, error)
+
+	// CountUnviewed counts posts that an operator has not yet viewed
+	CountUnviewed(ctx context.Context, accountID int64) (int, error)
+}

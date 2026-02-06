@@ -394,6 +394,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		PostRepo:        repos.SuggestionPost,
 		CommentRepo:     repos.SuggestionComment,
 		CommentReadRepo: repos.SuggestionCommentRead,
+		PostReadRepo:    repos.SuggestionPostRead,
 		AuditLogRepo:    repos.OperatorAuditLog,
 		DB:              db,
 	})

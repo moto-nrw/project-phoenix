@@ -39,6 +39,7 @@ type SuggestionResponse struct {
 	UpdatedAt        string             `json:"updated_at"`
 	CommentCount     int                `json:"comment_count,omitempty"`
 	UnreadCount      int                `json:"unread_count,omitempty"`
+	IsNew            bool               `json:"is_new,omitempty"`
 	OperatorComments []*CommentResponse `json:"operator_comments,omitempty"`
 }
 
@@ -102,6 +103,7 @@ func (rs *SuggestionsResource) ListSuggestions(w http.ResponseWriter, r *http.Re
 			Downvotes:    post.Downvotes,
 			CommentCount: post.CommentCount,
 			UnreadCount:  post.UnreadCount,
+			IsNew:        post.IsNew,
 			AuthorName:   post.AuthorName,
 			CreatedAt:    post.CreatedAt.Format("2006-01-02T15:04:05Z"),
 			UpdatedAt:    post.UpdatedAt.Format("2006-01-02T15:04:05Z"),
@@ -282,6 +284,39 @@ func (rs *SuggestionsResource) GetUnreadCount(w http.ResponseWriter, r *http.Req
 	}
 
 	common.Respond(w, r, http.StatusOK, map[string]int{"unread_count": count}, "Unread count retrieved successfully")
+}
+
+// MarkPostViewed marks a post as viewed by the operator
+func (rs *SuggestionsResource) MarkPostViewed(w http.ResponseWriter, r *http.Request) {
+	claims := jwt.ClaimsFromCtx(r.Context())
+	operatorAccountID := int64(claims.ID)
+
+	postID, err := parseID(r, "id")
+	if err != nil {
+		common.RenderError(w, r, ErrInvalidRequest(err))
+		return
+	}
+
+	if err := rs.suggestionsService.MarkPostViewed(r.Context(), operatorAccountID, postID); err != nil {
+		common.RenderError(w, r, SuggestionsErrorRenderer(err))
+		return
+	}
+
+	common.Respond(w, r, http.StatusNoContent, nil, "")
+}
+
+// GetUnviewedCount returns the total number of unviewed posts for the operator
+func (rs *SuggestionsResource) GetUnviewedCount(w http.ResponseWriter, r *http.Request) {
+	claims := jwt.ClaimsFromCtx(r.Context())
+	operatorAccountID := int64(claims.ID)
+
+	count, err := rs.suggestionsService.GetUnviewedPostCount(r.Context(), operatorAccountID)
+	if err != nil {
+		common.RenderError(w, r, SuggestionsErrorRenderer(err))
+		return
+	}
+
+	common.Respond(w, r, http.StatusOK, map[string]int{"unviewed_count": count}, "Unviewed count retrieved successfully")
 }
 
 // parseID extracts and validates an ID from the URL

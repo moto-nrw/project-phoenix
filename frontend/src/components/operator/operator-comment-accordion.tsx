@@ -40,12 +40,14 @@ interface OperatorCommentAccordionProps {
   readonly postId: string;
   readonly commentCount?: number;
   readonly unreadCount?: number;
+  readonly isNew?: boolean;
 }
 
 export function OperatorCommentAccordion({
   postId,
   commentCount,
   unreadCount,
+  isNew,
 }: OperatorCommentAccordionProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [comments, setComments] = useState<OperatorComment[]>([]);
@@ -56,6 +58,7 @@ export function OperatorCommentAccordion({
   const [deleteCommentId, setDeleteCommentId] = useState<string | null>(null);
   const [isDeletingComment, setIsDeletingComment] = useState(false);
   const [localUnreadCount, setLocalUnreadCount] = useState(unreadCount ?? 0);
+  const [localIsNew, setLocalIsNew] = useState(isNew ?? false);
   const loadedRef = useRef(false);
 
   const loadComments = useCallback(
@@ -81,6 +84,16 @@ export function OperatorCommentAccordion({
     setIsOpen(opening);
     if (opening) {
       void loadComments();
+      // Mark post as viewed when opening (fire and forget)
+      if (localIsNew) {
+        void operatorSuggestionsService.markPostViewed(postId).then(() => {
+          setLocalIsNew(false);
+          // Notify sidebar to refresh unviewed count
+          window.dispatchEvent(
+            new CustomEvent("operator-suggestions-unviewed-refresh"),
+          );
+        });
+      }
       // Mark comments as read when opening (fire and forget)
       if (localUnreadCount > 0) {
         void operatorSuggestionsService.markCommentsRead(postId).then(() => {
@@ -92,7 +105,7 @@ export function OperatorCommentAccordion({
         });
       }
     }
-  }, [isOpen, loadComments, localUnreadCount, postId]);
+  }, [isOpen, loadComments, localIsNew, localUnreadCount, postId]);
 
   const handleSubmit = useCallback(
     async (e: React.SyntheticEvent) => {
@@ -107,13 +120,13 @@ export function OperatorCommentAccordion({
           false,
         );
         setNewComment("");
+        // Mark as read BEFORE loading comments so own comment doesn't show as "unread"
+        await operatorSuggestionsService.markCommentsRead(postId);
+        setLocalUnreadCount(0);
+        window.dispatchEvent(
+          new CustomEvent("operator-suggestions-unread-refresh"),
+        );
         await loadComments(true);
-        // Mark as read so own comment doesn't show as "new" after refresh
-        void operatorSuggestionsService.markCommentsRead(postId).then(() => {
-          window.dispatchEvent(
-            new CustomEvent("operator-suggestions-unread-refresh"),
-          );
-        });
       } catch {
         setError("Kommentar konnte nicht gesendet werden.");
       } finally {

@@ -37,6 +37,8 @@ type Post struct {
 	Downvotes    int    `bun:"downvotes,scanonly" json:"downvotes"`
 	CommentCount int    `bun:"comment_count,scanonly" json:"comment_count"`
 	UnreadCount  int    `bun:"unread_count,scanonly" json:"unread_count"`
+	// IsNew indicates the operator has never viewed this post
+	IsNew bool `bun:"is_new,scanonly" json:"is_new"`
 	// Per-user vote direction, resolved at query time
 	UserVote *string `bun:"user_vote,scanonly" json:"user_vote"`
 }

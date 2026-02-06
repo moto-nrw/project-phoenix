@@ -24,6 +24,12 @@ type OperatorSuggestionsService interface {
 	// Get total unread comment count for the operator
 	GetTotalUnreadCount(ctx context.Context, operatorAccountID int64) (int, error)
 
+	// Mark a post as viewed by the operator
+	MarkPostViewed(ctx context.Context, operatorAccountID, postID int64) error
+
+	// Get count of unviewed posts for the operator
+	GetUnviewedPostCount(ctx context.Context, operatorAccountID int64) (int, error)
+
 	// Update post status (only operators can change status)
 	UpdatePostStatus(ctx context.Context, postID int64, status string, operatorID int64, clientIP net.IP) error
 
@@ -40,6 +46,7 @@ type operatorSuggestionsService struct {
 	postRepo        suggestions.PostRepository
 	commentRepo     suggestions.CommentRepository
 	commentReadRepo suggestions.CommentReadRepository
+	postReadRepo    suggestions.PostReadRepository
 	auditLogRepo    platform.OperatorAuditLogRepository
 	db              *bun.DB
 }
@@ -49,6 +56,7 @@ type OperatorSuggestionsServiceConfig struct {
 	PostRepo        suggestions.PostRepository
 	CommentRepo     suggestions.CommentRepository
 	CommentReadRepo suggestions.CommentReadRepository
+	PostReadRepo    suggestions.PostReadRepository
 	AuditLogRepo    platform.OperatorAuditLogRepository
 	DB              *bun.DB
 }
@@ -59,6 +67,7 @@ func NewOperatorSuggestionsService(cfg OperatorSuggestionsServiceConfig) Operato
 		postRepo:        cfg.PostRepo,
 		commentRepo:     cfg.CommentRepo,
 		commentReadRepo: cfg.CommentReadRepo,
+		postReadRepo:    cfg.PostReadRepo,
 		auditLogRepo:    cfg.AuditLogRepo,
 		db:              cfg.DB,
 	}
@@ -106,6 +115,25 @@ func (s *operatorSuggestionsService) GetTotalUnreadCount(ctx context.Context, op
 	return s.commentReadRepo.CountTotalUnread(ctx, operatorAccountID)
 }
 
+// MarkPostViewed marks a post as viewed by the operator
+func (s *operatorSuggestionsService) MarkPostViewed(ctx context.Context, operatorAccountID, postID int64) error {
+	// Verify post exists
+	post, err := s.postRepo.FindByID(ctx, postID)
+	if err != nil {
+		return err
+	}
+	if post == nil {
+		return &PostNotFoundError{PostID: postID}
+	}
+
+	return s.postReadRepo.MarkViewed(ctx, operatorAccountID, postID)
+}
+
+// GetUnviewedPostCount returns the count of posts the operator hasn't viewed yet
+func (s *operatorSuggestionsService) GetUnviewedPostCount(ctx context.Context, operatorAccountID int64) (int, error) {
+	return s.postReadRepo.CountUnviewed(ctx, operatorAccountID)
+}
+
 // UpdatePostStatus updates the status of a suggestion post
 func (s *operatorSuggestionsService) UpdatePostStatus(ctx context.Context, postID int64, status string, operatorID int64, clientIP net.IP) error {
 	if !suggestions.IsValidStatus(status) {
@@ -125,6 +153,11 @@ func (s *operatorSuggestionsService) UpdatePostStatus(ctx context.Context, postI
 
 	if err := s.postRepo.Update(ctx, post); err != nil {
 		return err
+	}
+
+	// Mark post as viewed when operator changes status (they've interacted with it)
+	if s.postReadRepo != nil {
+		_ = s.postReadRepo.MarkViewed(ctx, operatorID, postID)
 	}
 
 	// Audit log

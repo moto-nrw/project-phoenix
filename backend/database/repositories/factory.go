@@ -111,6 +111,7 @@ type Factory struct {
 	SuggestionVote        suggestionsModels.VoteRepository
 	SuggestionComment     suggestionsModels.CommentRepository
 	SuggestionCommentRead suggestionsModels.CommentReadRepository
+	SuggestionPostRead    suggestionsModels.PostReadRepository
 
 	// Audit domain
 	DataDeletion    auditModels.DataDeletionRepository
@@ -205,6 +206,7 @@ func NewFactory(db *bun.DB) *Factory {
 		SuggestionVote:        suggestionsRepo.NewVoteRepository(db),
 		SuggestionComment:     suggestionsRepo.NewCommentRepository(db),
 		SuggestionCommentRead: suggestionsRepo.NewCommentReadRepository(db),
+		SuggestionPostRead:    suggestionsRepo.NewPostReadRepository(db),
 
 		// Audit repositories
 		DataDeletion:    audit.NewDataDeletionRepository(db),

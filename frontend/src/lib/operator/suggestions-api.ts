@@ -63,6 +63,19 @@ class OperatorSuggestionsService {
     );
     return data.unread_count;
   }
+
+  async markPostViewed(id: string): Promise<void> {
+    await operatorFetch(`/api/operator/suggestions/${id}/view`, {
+      method: "POST",
+    });
+  }
+
+  async fetchUnviewedCount(): Promise<number> {
+    const data = await operatorFetch<{ unviewed_count: number }>(
+      "/api/operator/suggestions/unviewed-count",
+    );
+    return data.unviewed_count;
+  }
 }
 
 export const operatorSuggestionsService = new OperatorSuggestionsService();

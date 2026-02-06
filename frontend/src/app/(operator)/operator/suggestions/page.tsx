@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { AnimatePresence, LayoutGroup, motion } from "framer-motion";
 import { ThumbsUp, ThumbsDown } from "lucide-react";
 import useSWR from "swr";
@@ -57,9 +57,38 @@ export default function OperatorSuggestionsPage() {
     data: suggestions,
     isLoading,
     mutate,
-  } = useSWR(isAuthenticated ? "operator-suggestions" : null, () =>
-    operatorSuggestionsService.fetchAll(),
+  } = useSWR(
+    isAuthenticated ? "operator-suggestions" : null,
+    () => operatorSuggestionsService.fetchAll(),
+    { refreshInterval: 30000 }, // Refresh every 30 seconds to catch new posts
   );
+
+  // Track previous counts to detect external changes
+  const prevCountsRef = useRef<{ unviewed: number; unread: number } | null>(
+    null,
+  );
+
+  // Sync sidebar badge when suggestion data changes (e.g., new posts from users)
+  useEffect(() => {
+    if (!suggestions) return;
+
+    const unviewedCount = suggestions.filter((s) => s.isNew).length;
+    const unreadCount = suggestions.reduce((sum, s) => sum + s.unreadCount, 0);
+
+    // Compare with previous counts
+    if (prevCountsRef.current !== null) {
+      const { unviewed: prevUnviewed, unread: prevUnread } =
+        prevCountsRef.current;
+      if (unviewedCount !== prevUnviewed || unreadCount !== prevUnread) {
+        // Counts changed - dispatch events to update sidebar
+        window.dispatchEvent(
+          new CustomEvent("operator-suggestions-unviewed-refresh"),
+        );
+      }
+    }
+
+    prevCountsRef.current = { unviewed: unviewedCount, unread: unreadCount };
+  }, [suggestions]);
 
   const filteredSuggestions = useMemo(() => {
     if (!suggestions) return [];
@@ -84,12 +113,17 @@ export default function OperatorSuggestionsPage() {
       setStatusUpdating(id);
       try {
         await operatorSuggestionsService.updateStatus(id, newStatus);
+        // Backend marks post as viewed when changing status, update local state
         await mutate(
           (current) =>
             current?.map((s) =>
-              s.id === id ? { ...s, status: newStatus } : s,
+              s.id === id ? { ...s, status: newStatus, isNew: false } : s,
             ),
           { revalidate: false },
+        );
+        // Notify sidebar to refresh unviewed count
+        window.dispatchEvent(
+          new CustomEvent("operator-suggestions-unviewed-refresh"),
         );
       } catch (error) {
         console.error("Failed to update status:", error);
@@ -174,15 +208,18 @@ export default function OperatorSuggestionsPage() {
                   key={suggestion.id}
                   layout
                   transition={{ type: "spring", stiffness: 500, damping: 35 }}
-                  className={
-                    openDropdownId === suggestion.id ? "relative z-10" : ""
-                  }
+                  className={`relative ${openDropdownId === suggestion.id ? "z-10" : "z-0"}`}
                 >
                   <div className="rounded-3xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md">
                     <div className="p-5">
                       <div className="flex items-start justify-between gap-2">
-                        <h3 className="text-base font-semibold text-gray-900">
+                        <h3 className="flex items-center gap-2 text-base font-semibold text-gray-900">
                           {suggestion.title}
+                          {suggestion.isNew && (
+                            <span className="rounded-full bg-blue-500 px-2 py-0.5 text-[10px] font-semibold text-white">
+                              Neu
+                            </span>
+                          )}
                         </h3>
                         <div className="flex shrink-0 items-center gap-2">
                           <div className="flex items-center gap-2">
@@ -233,6 +270,7 @@ export default function OperatorSuggestionsPage() {
                       postId={suggestion.id}
                       commentCount={suggestion.commentCount}
                       unreadCount={suggestion.unreadCount}
+                      isNew={suggestion.isNew}
                     />
                   </div>
                 </motion.div>

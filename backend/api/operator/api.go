@@ -61,8 +61,10 @@ func (rs *Resource) Router() chi.Router {
 		r.Route("/suggestions", func(r chi.Router) {
 			r.Get("/", rs.suggestionsResource.ListSuggestions)
 			r.Get("/unread-count", rs.suggestionsResource.GetUnreadCount)
+			r.Get("/unviewed-count", rs.suggestionsResource.GetUnviewedCount)
 			r.Get("/{id}", rs.suggestionsResource.GetSuggestion)
 			r.Put("/{id}/status", rs.suggestionsResource.UpdateStatus)
+			r.Post("/{id}/view", rs.suggestionsResource.MarkPostViewed)
 			r.Post("/{id}/comments", rs.suggestionsResource.AddComment)
 			r.Post("/{id}/comments/read", rs.suggestionsResource.MarkCommentsRead)
 			r.Delete("/{id}/comments/{commentId}", rs.suggestionsResource.DeleteComment)

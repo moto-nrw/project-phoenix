@@ -121,6 +121,10 @@ func (r *PostRepository) List(ctx context.Context, accountID int64, sortBy strin
 			AND c.deleted_at IS NULL
 			AND (cr.last_read_at IS NULL OR c.created_at > cr.last_read_at)
 		) AS unread_count`, accountID).
+		ColumnExpr(`NOT EXISTS (
+			SELECT 1 FROM suggestions.post_reads pr
+			WHERE pr.account_id = ? AND pr.post_id = "post".id
+		) AS is_new`, accountID).
 		ColumnExpr(`v.direction AS user_vote`).
 		Join(`LEFT JOIN users.persons AS p ON p.account_id = "post".author_id`).
 		Join(`LEFT JOIN suggestions.votes AS v ON v.post_id = "post".id AND v.voter_id = ?`, accountID)
