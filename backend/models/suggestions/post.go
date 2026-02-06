@@ -36,6 +36,7 @@ type Post struct {
 	Upvotes      int    `bun:"upvotes,scanonly" json:"upvotes"`
 	Downvotes    int    `bun:"downvotes,scanonly" json:"downvotes"`
 	CommentCount int    `bun:"comment_count,scanonly" json:"comment_count"`
+	UnreadCount  int    `bun:"unread_count,scanonly" json:"unread_count"`
 	// Per-user vote direction, resolved at query time
 	UserVote *string `bun:"user_vote,scanonly" json:"user_vote"`
 }

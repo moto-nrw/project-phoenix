@@ -232,6 +232,7 @@ export default function OperatorSuggestionsPage() {
                     <OperatorCommentAccordion
                       postId={suggestion.id}
                       commentCount={suggestion.commentCount}
+                      unreadCount={suggestion.unreadCount}
                     />
                   </div>
                 </motion.div>

@@ -79,6 +79,7 @@ type PostResponse struct {
 	Upvotes      int     `json:"upvotes"`
 	Downvotes    int     `json:"downvotes"`
 	CommentCount int     `json:"comment_count"`
+	UnreadCount  int     `json:"unread_count"`
 	UserVote     *string `json:"user_vote"`
 	CreatedAt    string  `json:"created_at"`
 	UpdatedAt    string  `json:"updated_at"`
@@ -102,6 +103,7 @@ func newPostResponse(post *suggestions.Post) PostResponse {
 		Upvotes:      post.Upvotes,
 		Downvotes:    post.Downvotes,
 		CommentCount: post.CommentCount,
+		UnreadCount:  post.UnreadCount,
 		UserVote:     userVote,
 		CreatedAt:    post.CreatedAt.Format(time.RFC3339),
 		UpdatedAt:    post.UpdatedAt.Format(time.RFC3339),

@@ -23,4 +23,8 @@ type Service interface {
 	CreateComment(ctx context.Context, comment *suggestions.Comment) error
 	GetComments(ctx context.Context, postID int64) ([]*suggestions.Comment, error)
 	DeleteComment(ctx context.Context, commentID int64, accountID int64) error
+
+	// Comment read tracking
+	MarkCommentsRead(ctx context.Context, postID int64, accountID int64) error
+	GetTotalUnreadCount(ctx context.Context, accountID int64) (int, error)
 }

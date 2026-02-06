@@ -10,19 +10,21 @@ import (
 )
 
 type suggestionsService struct {
-	postRepo    suggestions.PostRepository
-	voteRepo    suggestions.VoteRepository
-	commentRepo suggestions.CommentRepository
-	txHandler   *base.TxHandler
+	postRepo        suggestions.PostRepository
+	voteRepo        suggestions.VoteRepository
+	commentRepo     suggestions.CommentRepository
+	commentReadRepo suggestions.CommentReadRepository
+	txHandler       *base.TxHandler
 }
 
 // NewService creates a new suggestions service
-func NewService(postRepo suggestions.PostRepository, voteRepo suggestions.VoteRepository, commentRepo suggestions.CommentRepository, db *bun.DB) Service {
+func NewService(postRepo suggestions.PostRepository, voteRepo suggestions.VoteRepository, commentRepo suggestions.CommentRepository, commentReadRepo suggestions.CommentReadRepository, db *bun.DB) Service {
 	return &suggestionsService{
-		postRepo:    postRepo,
-		voteRepo:    voteRepo,
-		commentRepo: commentRepo,
-		txHandler:   base.NewTxHandler(db),
+		postRepo:        postRepo,
+		voteRepo:        voteRepo,
+		commentRepo:     commentRepo,
+		commentReadRepo: commentReadRepo,
+		txHandler:       base.NewTxHandler(db),
 	}
 }
 
@@ -217,4 +219,23 @@ func (s *suggestionsService) DeleteComment(ctx context.Context, commentID int64,
 	}
 
 	return s.commentRepo.Delete(ctx, commentID)
+}
+
+// MarkCommentsRead marks all comments on a post as read for the user
+func (s *suggestionsService) MarkCommentsRead(ctx context.Context, postID int64, accountID int64) error {
+	// Verify post exists
+	post, err := s.postRepo.FindByID(ctx, postID)
+	if err != nil {
+		return err
+	}
+	if post == nil {
+		return &PostNotFoundError{PostID: postID}
+	}
+
+	return s.commentReadRepo.Upsert(ctx, accountID, postID)
+}
+
+// GetTotalUnreadCount returns the total number of unread comments across all posts
+func (s *suggestionsService) GetTotalUnreadCount(ctx context.Context, accountID int64) (int, error) {
+	return s.commentReadRepo.CountTotalUnread(ctx, accountID)
 }

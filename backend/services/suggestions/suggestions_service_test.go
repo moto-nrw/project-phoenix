@@ -21,7 +21,13 @@ import (
 func setupService(t *testing.T, db *bun.DB) svc.Service {
 	t.Helper()
 	repoFactory := repositories.NewFactory(db)
-	return svc.NewService(repoFactory.SuggestionPost, repoFactory.SuggestionVote, db)
+	return svc.NewService(
+		repoFactory.SuggestionPost,
+		repoFactory.SuggestionVote,
+		repoFactory.SuggestionComment,
+		repoFactory.SuggestionCommentRead,
+		db,
+	)
 }
 
 // createTestPost inserts a post directly for test setup.

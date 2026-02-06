@@ -28,6 +28,7 @@ function createSuggestion(overrides?: Partial<Suggestion>): Suggestion {
     upvotes: 7,
     downvotes: 2,
     commentCount: 0,
+    unreadCount: 0,
     userVote: null,
     createdAt: new Date(Date.now() - 3600000).toISOString(), // 1 hour ago
     updatedAt: new Date(Date.now() - 1800000).toISOString(),

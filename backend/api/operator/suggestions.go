@@ -38,6 +38,7 @@ type SuggestionResponse struct {
 	CreatedAt        string             `json:"created_at"`
 	UpdatedAt        string             `json:"updated_at"`
 	CommentCount     int                `json:"comment_count,omitempty"`
+	UnreadCount      int                `json:"unread_count,omitempty"`
 	OperatorComments []*CommentResponse `json:"operator_comments,omitempty"`
 }
 
@@ -74,13 +75,16 @@ func (req *AddCommentRequest) Bind(r *http.Request) error {
 
 // ListSuggestions handles listing all suggestions for operators
 func (rs *SuggestionsResource) ListSuggestions(w http.ResponseWriter, r *http.Request) {
+	claims := jwt.ClaimsFromCtx(r.Context())
+	operatorAccountID := int64(claims.ID)
+
 	status := r.URL.Query().Get("status")
 	sortBy := r.URL.Query().Get("sort")
 	if sortBy == "" {
 		sortBy = "created_at"
 	}
 
-	posts, err := rs.suggestionsService.ListAllPosts(r.Context(), status, sortBy)
+	posts, err := rs.suggestionsService.ListAllPosts(r.Context(), operatorAccountID, status, sortBy)
 	if err != nil {
 		common.RenderError(w, r, SuggestionsErrorRenderer(err))
 		return
@@ -97,6 +101,7 @@ func (rs *SuggestionsResource) ListSuggestions(w http.ResponseWriter, r *http.Re
 			Upvotes:      post.Upvotes,
 			Downvotes:    post.Downvotes,
 			CommentCount: post.CommentCount,
+			UnreadCount:  post.UnreadCount,
 			AuthorName:   post.AuthorName,
 			CreatedAt:    post.CreatedAt.Format("2006-01-02T15:04:05Z"),
 			UpdatedAt:    post.UpdatedAt.Format("2006-01-02T15:04:05Z"),
@@ -108,13 +113,16 @@ func (rs *SuggestionsResource) ListSuggestions(w http.ResponseWriter, r *http.Re
 
 // GetSuggestion handles getting a single suggestion with comments
 func (rs *SuggestionsResource) GetSuggestion(w http.ResponseWriter, r *http.Request) {
+	claims := jwt.ClaimsFromCtx(r.Context())
+	operatorAccountID := int64(claims.ID)
+
 	id, err := parseID(r, "id")
 	if err != nil {
 		common.RenderError(w, r, ErrInvalidRequest(err))
 		return
 	}
 
-	post, comments, err := rs.suggestionsService.GetPost(r.Context(), id)
+	post, comments, err := rs.suggestionsService.GetPost(r.Context(), id, operatorAccountID)
 	if err != nil {
 		common.RenderError(w, r, SuggestionsErrorRenderer(err))
 		return
@@ -144,6 +152,7 @@ func (rs *SuggestionsResource) GetSuggestion(w http.ResponseWriter, r *http.Requ
 		CreatedAt:        post.CreatedAt.Format("2006-01-02T15:04:05Z"),
 		UpdatedAt:        post.UpdatedAt.Format("2006-01-02T15:04:05Z"),
 		CommentCount:     len(comments),
+		UnreadCount:      post.UnreadCount,
 		OperatorComments: commentResponses,
 	}
 
@@ -240,6 +249,39 @@ func (rs *SuggestionsResource) DeleteComment(w http.ResponseWriter, r *http.Requ
 	}
 
 	common.Respond(w, r, http.StatusOK, nil, "Comment deleted successfully")
+}
+
+// MarkCommentsRead marks all comments on a suggestion as read for the operator
+func (rs *SuggestionsResource) MarkCommentsRead(w http.ResponseWriter, r *http.Request) {
+	claims := jwt.ClaimsFromCtx(r.Context())
+	operatorAccountID := int64(claims.ID)
+
+	postID, err := parseID(r, "id")
+	if err != nil {
+		common.RenderError(w, r, ErrInvalidRequest(err))
+		return
+	}
+
+	if err := rs.suggestionsService.MarkCommentsRead(r.Context(), operatorAccountID, postID); err != nil {
+		common.RenderError(w, r, SuggestionsErrorRenderer(err))
+		return
+	}
+
+	common.Respond(w, r, http.StatusNoContent, nil, "")
+}
+
+// GetUnreadCount returns the total number of unread comments across all suggestions
+func (rs *SuggestionsResource) GetUnreadCount(w http.ResponseWriter, r *http.Request) {
+	claims := jwt.ClaimsFromCtx(r.Context())
+	operatorAccountID := int64(claims.ID)
+
+	count, err := rs.suggestionsService.GetTotalUnreadCount(r.Context(), operatorAccountID)
+	if err != nil {
+		common.RenderError(w, r, SuggestionsErrorRenderer(err))
+		return
+	}
+
+	common.Respond(w, r, http.StatusOK, map[string]int{"unread_count": count}, "Unread count retrieved successfully")
 }
 
 // parseID extracts and validates an ID from the URL

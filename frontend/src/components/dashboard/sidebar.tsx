@@ -9,6 +9,8 @@ import { useSupervision } from "~/lib/supervision-context";
 import { useShellAuth } from "~/lib/shell-auth-context";
 import { isAdmin } from "~/lib/auth-utils";
 import { useSidebarAccordion } from "~/lib/hooks/use-sidebar-accordion";
+import { useSuggestionsUnread } from "~/lib/hooks/use-suggestions-unread";
+import { useOperatorSuggestionsUnread } from "~/lib/hooks/use-operator-suggestions-unread";
 import { SidebarAccordionSection } from "~/components/dashboard/sidebar-accordion-section";
 import { SidebarSubItem } from "~/components/dashboard/sidebar-sub-item";
 
@@ -214,6 +216,11 @@ function SidebarContent({ className = "" }: SidebarProps) {
   const { isLoadingGroups, isLoadingSupervision, groups, supervisedRooms } =
     useSupervision();
 
+  // Get unread suggestions count for badge (teacher mode)
+  const { unreadCount: suggestionsUnreadCount } = useSuggestionsUnread();
+  // Get unread suggestions count for badge (operator mode)
+  const { unreadCount: operatorUnreadCount } = useOperatorSuggestionsUnread();
+
   // Accordion state — pass `from` param so child pages (e.g. student detail)
   // keep the originating accordion section open
   const fromParam = searchParams.get("from");
@@ -337,7 +344,14 @@ function SidebarContent({ className = "" }: SidebarProps) {
               d={item.icon}
             />
           </svg>
-          {item.label}
+          <span className="flex flex-1 items-center justify-between">
+            {item.label}
+            {item.href === "/suggestions" && suggestionsUnreadCount > 0 && (
+              <span className="ml-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 text-[10px] font-semibold text-white">
+                {suggestionsUnreadCount > 99 ? "99+" : suggestionsUnreadCount}
+              </span>
+            )}
+          </span>
         </Link>
       )}
     </div>
@@ -501,7 +515,14 @@ function SidebarContent({ className = "" }: SidebarProps) {
             d={item.icon}
           />
         </svg>
-        {item.label}
+        <span className="flex flex-1 items-center justify-between">
+          {item.label}
+          {item.href === "/operator/suggestions" && operatorUnreadCount > 0 && (
+            <span className="ml-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 text-[10px] font-semibold text-white">
+              {operatorUnreadCount > 99 ? "99+" : operatorUnreadCount}
+            </span>
+          )}
+        </span>
       </Link>
     );
 

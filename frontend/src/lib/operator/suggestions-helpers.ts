@@ -18,6 +18,7 @@ export interface BackendOperatorSuggestion {
   created_at: string;
   updated_at: string;
   comment_count?: number;
+  unread_count?: number;
   operator_comments?: BackendOperatorComment[];
 }
 
@@ -42,6 +43,7 @@ export interface OperatorSuggestion {
   createdAt: string;
   updatedAt: string;
   commentCount: number;
+  unreadCount: number;
   operatorComments: OperatorComment[];
 }
 
@@ -82,6 +84,7 @@ export function mapOperatorSuggestion(
     createdAt: data.created_at,
     updatedAt: data.updated_at,
     commentCount: data.comment_count ?? 0,
+    unreadCount: data.unread_count ?? 0,
     operatorComments: (data.operator_comments ?? []).map(mapOperatorComment),
   };
 }

@@ -13,10 +13,16 @@ import (
 // OperatorSuggestionsService handles operator actions on suggestions
 type OperatorSuggestionsService interface {
 	// List all suggestions (cross-tenant for operators)
-	ListAllPosts(ctx context.Context, status string, sortBy string) ([]*suggestions.Post, error)
+	ListAllPosts(ctx context.Context, operatorAccountID int64, status string, sortBy string) ([]*suggestions.Post, error)
 
 	// Get a single post with comments
-	GetPost(ctx context.Context, postID int64) (*suggestions.Post, []*suggestions.Comment, error)
+	GetPost(ctx context.Context, postID int64, operatorAccountID int64) (*suggestions.Post, []*suggestions.Comment, error)
+
+	// Mark comments as read for the operator
+	MarkCommentsRead(ctx context.Context, operatorAccountID, postID int64) error
+
+	// Get total unread comment count for the operator
+	GetTotalUnreadCount(ctx context.Context, operatorAccountID int64) (int, error)
 
 	// Update post status (only operators can change status)
 	UpdatePostStatus(ctx context.Context, postID int64, status string, operatorID int64, clientIP net.IP) error
@@ -31,39 +37,41 @@ type OperatorSuggestionsService interface {
 }
 
 type operatorSuggestionsService struct {
-	postRepo     suggestions.PostRepository
-	commentRepo  suggestions.CommentRepository
-	auditLogRepo platform.OperatorAuditLogRepository
-	db           *bun.DB
+	postRepo        suggestions.PostRepository
+	commentRepo     suggestions.CommentRepository
+	commentReadRepo suggestions.CommentReadRepository
+	auditLogRepo    platform.OperatorAuditLogRepository
+	db              *bun.DB
 }
 
 // OperatorSuggestionsServiceConfig holds configuration for the service
 type OperatorSuggestionsServiceConfig struct {
-	PostRepo     suggestions.PostRepository
-	CommentRepo  suggestions.CommentRepository
-	AuditLogRepo platform.OperatorAuditLogRepository
-	DB           *bun.DB
+	PostRepo        suggestions.PostRepository
+	CommentRepo     suggestions.CommentRepository
+	CommentReadRepo suggestions.CommentReadRepository
+	AuditLogRepo    platform.OperatorAuditLogRepository
+	DB              *bun.DB
 }
 
 // NewOperatorSuggestionsService creates a new operator suggestions service
 func NewOperatorSuggestionsService(cfg OperatorSuggestionsServiceConfig) OperatorSuggestionsService {
 	return &operatorSuggestionsService{
-		postRepo:     cfg.PostRepo,
-		commentRepo:  cfg.CommentRepo,
-		auditLogRepo: cfg.AuditLogRepo,
-		db:           cfg.DB,
+		postRepo:        cfg.PostRepo,
+		commentRepo:     cfg.CommentRepo,
+		commentReadRepo: cfg.CommentReadRepo,
+		auditLogRepo:    cfg.AuditLogRepo,
+		db:              cfg.DB,
 	}
 }
 
 // ListAllPosts returns all suggestion posts (for operators)
-func (s *operatorSuggestionsService) ListAllPosts(ctx context.Context, status string, sortBy string) ([]*suggestions.Post, error) {
-	// Use account ID 0 since operators don't have personal votes
-	return s.postRepo.List(ctx, 0, sortBy)
+func (s *operatorSuggestionsService) ListAllPosts(ctx context.Context, operatorAccountID int64, status string, sortBy string) ([]*suggestions.Post, error) {
+	return s.postRepo.List(ctx, operatorAccountID, sortBy)
 }
 
 // GetPost retrieves a single post with its comments (including internal)
-func (s *operatorSuggestionsService) GetPost(ctx context.Context, postID int64) (*suggestions.Post, []*suggestions.Comment, error) {
-	post, err := s.postRepo.FindByID(ctx, postID)
+func (s *operatorSuggestionsService) GetPost(ctx context.Context, postID int64, operatorAccountID int64) (*suggestions.Post, []*suggestions.Comment, error) {
+	post, err := s.postRepo.FindByIDWithVote(ctx, postID, operatorAccountID)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -77,6 +85,25 @@ func (s *operatorSuggestionsService) GetPost(ctx context.Context, postID int64) 
 	}
 
 	return post, comments, nil
+}
+
+// MarkCommentsRead marks all comments on a post as read for the operator
+func (s *operatorSuggestionsService) MarkCommentsRead(ctx context.Context, operatorAccountID, postID int64) error {
+	// Verify post exists
+	post, err := s.postRepo.FindByID(ctx, postID)
+	if err != nil {
+		return err
+	}
+	if post == nil {
+		return &PostNotFoundError{PostID: postID}
+	}
+
+	return s.commentReadRepo.Upsert(ctx, operatorAccountID, postID)
+}
+
+// GetTotalUnreadCount returns the total number of unread comments across all posts
+func (s *operatorSuggestionsService) GetTotalUnreadCount(ctx context.Context, operatorAccountID int64) (int, error) {
+	return s.commentReadRepo.CountTotalUnread(ctx, operatorAccountID)
 }
 
 // UpdatePostStatus updates the status of a suggestion post

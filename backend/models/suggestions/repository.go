@@ -2,6 +2,7 @@ package suggestions
 
 import (
 	"context"
+	"time"
 )
 
 // PostRepository defines operations for managing suggestion posts
@@ -52,4 +53,19 @@ type CommentRepository interface {
 
 	// CountByPostID counts non-deleted comments for a post
 	CountByPostID(ctx context.Context, postID int64) (int, error)
+}
+
+// CommentReadRepository defines operations for tracking unread comments
+type CommentReadRepository interface {
+	// Upsert creates or updates the last_read_at timestamp for a user on a post
+	Upsert(ctx context.Context, accountID, postID int64) error
+
+	// GetLastReadAt returns when a user last read comments on a post (nil if never)
+	GetLastReadAt(ctx context.Context, accountID, postID int64) (*time.Time, error)
+
+	// CountUnreadByPost counts comments on a post created after the user's last read time
+	CountUnreadByPost(ctx context.Context, accountID, postID int64) (int, error)
+
+	// CountTotalUnread counts all unread comments across all posts for a user
+	CountTotalUnread(ctx context.Context, accountID int64) (int, error)
 }

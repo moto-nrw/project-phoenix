@@ -114,7 +114,13 @@ func (r *PostRepository) List(ctx context.Context, accountID int64, sortBy strin
 		ColumnExpr(`COALESCE(CONCAT(p.first_name, ' ', LEFT(p.last_name, 1), '.'), 'Unbekannt') AS author_name`).
 		ColumnExpr(`(SELECT COUNT(*) FROM suggestions.votes WHERE post_id = "post".id AND direction = 'up') AS upvotes`).
 		ColumnExpr(`(SELECT COUNT(*) FROM suggestions.votes WHERE post_id = "post".id AND direction = 'down') AS downvotes`).
-		ColumnExpr(`(SELECT COUNT(*) FROM suggestions.comments WHERE post_id = "post".id) AS comment_count`).
+		ColumnExpr(`(SELECT COUNT(*) FROM suggestions.comments WHERE post_id = "post".id AND deleted_at IS NULL) AS comment_count`).
+		ColumnExpr(`(SELECT COUNT(*) FROM suggestions.comments c
+			LEFT JOIN suggestions.comment_reads cr ON cr.post_id = c.post_id AND cr.account_id = ?
+			WHERE c.post_id = "post".id
+			AND c.deleted_at IS NULL
+			AND (cr.last_read_at IS NULL OR c.created_at > cr.last_read_at)
+		) AS unread_count`, accountID).
 		ColumnExpr(`v.direction AS user_vote`).
 		Join(`LEFT JOIN users.persons AS p ON p.account_id = "post".author_id`).
 		Join(`LEFT JOIN suggestions.votes AS v ON v.post_id = "post".id AND v.voter_id = ?`, accountID)
@@ -152,7 +158,13 @@ func (r *PostRepository) FindByIDWithVote(ctx context.Context, id int64, account
 		ColumnExpr(`COALESCE(CONCAT(p.first_name, ' ', LEFT(p.last_name, 1), '.'), 'Unbekannt') AS author_name`).
 		ColumnExpr(`(SELECT COUNT(*) FROM suggestions.votes WHERE post_id = "post".id AND direction = 'up') AS upvotes`).
 		ColumnExpr(`(SELECT COUNT(*) FROM suggestions.votes WHERE post_id = "post".id AND direction = 'down') AS downvotes`).
-		ColumnExpr(`(SELECT COUNT(*) FROM suggestions.comments WHERE post_id = "post".id) AS comment_count`).
+		ColumnExpr(`(SELECT COUNT(*) FROM suggestions.comments WHERE post_id = "post".id AND deleted_at IS NULL) AS comment_count`).
+		ColumnExpr(`(SELECT COUNT(*) FROM suggestions.comments c
+			LEFT JOIN suggestions.comment_reads cr ON cr.post_id = c.post_id AND cr.account_id = ?
+			WHERE c.post_id = "post".id
+			AND c.deleted_at IS NULL
+			AND (cr.last_read_at IS NULL OR c.created_at > cr.last_read_at)
+		) AS unread_count`, accountID).
 		ColumnExpr(`v.direction AS user_vote`).
 		Join(`LEFT JOIN users.persons AS p ON p.account_id = "post".author_id`).
 		Join(`LEFT JOIN suggestions.votes AS v ON v.post_id = "post".id AND v.voter_id = ?`, accountID).

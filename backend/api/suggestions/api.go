@@ -42,6 +42,7 @@ func (rs *Resource) Router() chi.Router {
 
 		// List and read
 		r.With(authorize.RequiresPermission(permissions.SuggestionsList)).Get("/", rs.listPosts)
+		r.With(authorize.RequiresPermission(permissions.SuggestionsList)).Get("/unread-count", rs.getUnreadCount)
 		r.With(authorize.RequiresPermission(permissions.SuggestionsRead)).Get("/{id}", rs.getPost)
 
 		// Create
@@ -59,6 +60,7 @@ func (rs *Resource) Router() chi.Router {
 		r.Route("/{id}/comments", func(r chi.Router) {
 			r.With(authorize.RequiresPermission(permissions.SuggestionsRead)).Get("/", rs.listComments)
 			r.With(authorize.RequiresPermission(permissions.SuggestionsCreate)).Post("/", rs.createComment)
+			r.With(authorize.RequiresPermission(permissions.SuggestionsCreate)).Post("/read", rs.markCommentsRead)
 			r.With(authorize.RequiresPermission(permissions.SuggestionsDelete)).Delete("/{commentId}", rs.deleteComment)
 		})
 	})
@@ -243,6 +245,20 @@ func (rs *Resource) removeVote(w http.ResponseWriter, r *http.Request) {
 	}
 
 	common.Respond(w, r, http.StatusOK, newPostResponse(post), "Vote removed successfully")
+}
+
+// getUnreadCount returns the total number of unread comments across all suggestions
+func (rs *Resource) getUnreadCount(w http.ResponseWriter, r *http.Request) {
+	claims := jwt.ClaimsFromCtx(r.Context())
+	accountID := int64(claims.ID)
+
+	count, err := rs.SuggestionsService.GetTotalUnreadCount(r.Context(), accountID)
+	if err != nil {
+		common.RenderError(w, r, ErrorRenderer(err))
+		return
+	}
+
+	common.Respond(w, r, http.StatusOK, map[string]int{"unread_count": count}, "Unread count retrieved successfully")
 }
 
 // parsePostID extracts and validates the post ID from the URL

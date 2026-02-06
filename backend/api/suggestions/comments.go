@@ -116,6 +116,25 @@ func (rs *Resource) deleteComment(w http.ResponseWriter, r *http.Request) {
 	common.Respond(w, r, http.StatusOK, nil, "Comment deleted successfully")
 }
 
+// markCommentsRead marks all comments on a post as read for the current user
+func (rs *Resource) markCommentsRead(w http.ResponseWriter, r *http.Request) {
+	claims := jwt.ClaimsFromCtx(r.Context())
+	accountID := int64(claims.ID)
+
+	postID, err := parsePostID(r)
+	if err != nil {
+		common.RenderError(w, r, ErrorInvalidRequest(err))
+		return
+	}
+
+	if err := rs.SuggestionsService.MarkCommentsRead(r.Context(), postID, accountID); err != nil {
+		common.RenderError(w, r, ErrorRenderer(err))
+		return
+	}
+
+	common.Respond(w, r, http.StatusNoContent, nil, "")
+}
+
 // newCommentResponse converts a model Comment to a CommentResponse
 func newCommentResponse(c *suggestions.Comment) CommentResponse {
 	return CommentResponse{

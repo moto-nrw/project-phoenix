@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
 
 // Announcement type constants
@@ -44,18 +43,10 @@ type Announcement struct {
 	Creator *Operator `bun:"rel:belongs-to,join:created_by=id" json:"creator,omitempty"`
 }
 
-func (a *Announcement) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.SelectQuery); ok {
-		q.ModelTableExpr(tablePlatformAnnouncements)
-	}
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(tablePlatformAnnouncements)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(tablePlatformAnnouncements)
-	}
-	return nil
-}
+// BeforeAppendModel is intentionally removed to allow repository methods
+// to set custom table expressions with aliases (e.g., for JOIN queries).
+// The bun tag `bun:"schema:platform,table:announcements"` handles the
+// default table name, and repositories use ModelTableExpr when needed.
 
 // TableName returns the database table name
 func (a *Announcement) TableName() string {

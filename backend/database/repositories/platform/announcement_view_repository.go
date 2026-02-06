@@ -85,25 +85,19 @@ func (r *AnnouncementViewRepository) GetUnreadForUser(ctx context.Context, userI
 	var announcements []*platform.Announcement
 	now := time.Now()
 
-	err := r.db.NewSelect().
-		Model(&announcements).
-		ModelTableExpr(tablePlatformAnnouncementsAlias).
-		Join(`LEFT JOIN platform.announcement_views AS "view" ON "view".announcement_id = "announcement".id AND "view".user_id = ?`, userID).
-		Where(`"announcement".active = true`).
-		Where(`"announcement".published_at IS NOT NULL`).
-		Where(`"announcement".published_at <= ?`, now).
-		WhereGroup(" AND ", func(q *bun.SelectQuery) *bun.SelectQuery {
-			return q.
-				Where(`"announcement".expires_at IS NULL`).
-				WhereOr(`"announcement".expires_at > ?`, now)
-		}).
-		WhereGroup(" AND ", func(q *bun.SelectQuery) *bun.SelectQuery {
-			return q.
-				Where(`"view".seen_at IS NULL`).
-				WhereOr(`"view".dismissed = false`)
-		}).
-		Order(`"announcement".published_at DESC`).
-		Scan(ctx)
+	// Use raw SQL for complex query with aliases to avoid BUN's quote escaping issues
+	err := r.db.NewRaw(`
+		SELECT a.*
+		FROM platform.announcements a
+		LEFT JOIN platform.announcement_views v
+			ON v.announcement_id = a.id AND v.user_id = ?
+		WHERE a.active = true
+			AND a.published_at IS NOT NULL
+			AND a.published_at <= ?
+			AND (a.expires_at IS NULL OR a.expires_at > ?)
+			AND (v.seen_at IS NULL OR v.dismissed = false)
+		ORDER BY a.published_at DESC
+	`, userID, now, now).Scan(ctx, &announcements)
 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{

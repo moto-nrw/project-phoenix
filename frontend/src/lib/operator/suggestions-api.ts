@@ -50,6 +50,19 @@ class OperatorSuggestionsService {
       { method: "DELETE" },
     );
   }
+
+  async markCommentsRead(id: string): Promise<void> {
+    await operatorFetch(`/api/operator/suggestions/${id}/comments/read`, {
+      method: "POST",
+    });
+  }
+
+  async fetchUnreadCount(): Promise<number> {
+    const data = await operatorFetch<{ unread_count: number }>(
+      "/api/operator/suggestions/unread-count",
+    );
+    return data.unread_count;
+  }
 }
 
 export const operatorSuggestionsService = new OperatorSuggestionsService();

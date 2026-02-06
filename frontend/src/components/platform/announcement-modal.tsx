@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { useSession } from "next-auth/react";
 import { Modal } from "~/components/ui/modal";
 import {
   fetchUnreadAnnouncements,
@@ -24,6 +25,7 @@ const TYPE_BADGE_LABELS: Record<PlatformAnnouncement["type"], string> = {
 };
 
 export function AnnouncementModal() {
+  const { status } = useSession();
   const [announcements, setAnnouncements] = useState<PlatformAnnouncement[]>(
     [],
   );
@@ -31,6 +33,9 @@ export function AnnouncementModal() {
   const [isOpen, setIsOpen] = useState(false);
 
   useEffect(() => {
+    // Only fetch announcements when user is authenticated
+    if (status !== "authenticated") return;
+
     const checkAnnouncements = async () => {
       // Throttle to once per day
       const lastCheck = localStorage.getItem(LAST_CHECK_KEY);
@@ -48,12 +53,19 @@ export function AnnouncementModal() {
         }
         localStorage.setItem(LAST_CHECK_KEY, Date.now().toString());
       } catch (error) {
+        // Silently ignore auth errors (401/403) - user may not be logged in
+        if (
+          error instanceof Error &&
+          /API error \(40[13]\)/.test(error.message)
+        ) {
+          return;
+        }
         console.error("Failed to fetch announcements:", error);
       }
     };
 
     void checkAnnouncements();
-  }, []);
+  }, [status]);
 
   const handleDismiss = useCallback(async () => {
     const current = announcements[currentIndex];

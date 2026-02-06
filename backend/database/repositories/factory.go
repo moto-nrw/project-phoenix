@@ -107,9 +107,10 @@ type Factory struct {
 	Setting configModels.SettingRepository
 
 	// Suggestions domain
-	SuggestionPost    suggestionsModels.PostRepository
-	SuggestionVote    suggestionsModels.VoteRepository
-	SuggestionComment suggestionsModels.CommentRepository
+	SuggestionPost        suggestionsModels.PostRepository
+	SuggestionVote        suggestionsModels.VoteRepository
+	SuggestionComment     suggestionsModels.CommentRepository
+	SuggestionCommentRead suggestionsModels.CommentReadRepository
 
 	// Audit domain
 	DataDeletion    auditModels.DataDeletionRepository
@@ -200,9 +201,10 @@ func NewFactory(db *bun.DB) *Factory {
 		Setting: config.NewSettingRepository(db),
 
 		// Suggestions repositories
-		SuggestionPost:    suggestionsRepo.NewPostRepository(db),
-		SuggestionVote:    suggestionsRepo.NewVoteRepository(db),
-		SuggestionComment: suggestionsRepo.NewCommentRepository(db),
+		SuggestionPost:        suggestionsRepo.NewPostRepository(db),
+		SuggestionVote:        suggestionsRepo.NewVoteRepository(db),
+		SuggestionComment:     suggestionsRepo.NewCommentRepository(db),
+		SuggestionCommentRead: suggestionsRepo.NewCommentReadRepository(db),
 
 		// Audit repositories
 		DataDeletion:    audit.NewDataDeletionRepository(db),

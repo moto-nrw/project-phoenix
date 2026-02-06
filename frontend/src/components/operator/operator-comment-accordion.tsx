@@ -39,11 +39,13 @@ function getInitial(name: string): string {
 interface OperatorCommentAccordionProps {
   readonly postId: string;
   readonly commentCount?: number;
+  readonly unreadCount?: number;
 }
 
 export function OperatorCommentAccordion({
   postId,
   commentCount,
+  unreadCount,
 }: OperatorCommentAccordionProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [comments, setComments] = useState<OperatorComment[]>([]);
@@ -53,6 +55,7 @@ export function OperatorCommentAccordion({
   const [error, setError] = useState<string | null>(null);
   const [deleteCommentId, setDeleteCommentId] = useState<string | null>(null);
   const [isDeletingComment, setIsDeletingComment] = useState(false);
+  const [localUnreadCount, setLocalUnreadCount] = useState(unreadCount ?? 0);
   const loadedRef = useRef(false);
 
   const loadComments = useCallback(
@@ -78,8 +81,18 @@ export function OperatorCommentAccordion({
     setIsOpen(opening);
     if (opening) {
       void loadComments();
+      // Mark comments as read when opening (fire and forget)
+      if (localUnreadCount > 0) {
+        void operatorSuggestionsService.markCommentsRead(postId).then(() => {
+          setLocalUnreadCount(0);
+          // Notify sidebar to refresh unread count
+          window.dispatchEvent(
+            new CustomEvent("operator-suggestions-unread-refresh"),
+          );
+        });
+      }
     }
-  }, [isOpen, loadComments]);
+  }, [isOpen, loadComments, localUnreadCount, postId]);
 
   const handleSubmit = useCallback(
     async (e: React.SyntheticEvent) => {
@@ -95,6 +108,12 @@ export function OperatorCommentAccordion({
         );
         setNewComment("");
         await loadComments(true);
+        // Mark as read so own comment doesn't show as "new" after refresh
+        void operatorSuggestionsService.markCommentsRead(postId).then(() => {
+          window.dispatchEvent(
+            new CustomEvent("operator-suggestions-unread-refresh"),
+          );
+        });
       } catch {
         setError("Kommentar konnte nicht gesendet werden.");
       } finally {
@@ -137,8 +156,13 @@ export function OperatorCommentAccordion({
           onClick={handleToggle}
           className="flex w-full items-center justify-between px-5 py-3 text-sm text-gray-600 transition-colors hover:text-gray-900"
         >
-          <span className="font-medium">
+          <span className="flex items-center gap-1.5 font-medium">
             Kommentare{displayCount > 0 ? ` (${displayCount})` : ""}
+            {localUnreadCount > 0 && (
+              <span className="rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-semibold text-white">
+                {localUnreadCount} neu
+              </span>
+            )}
           </span>
           <ChevronDown
             className={`h-4 w-4 transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}

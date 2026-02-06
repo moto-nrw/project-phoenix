@@ -187,6 +187,7 @@ export function SuggestionCard({
       <CommentAccordion
         postId={suggestion.id}
         commentCount={suggestion.commentCount}
+        unreadCount={suggestion.unreadCount}
       />
     </div>
   );

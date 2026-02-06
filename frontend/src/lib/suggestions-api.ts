@@ -115,3 +115,21 @@ export async function deleteComment(
     method: "DELETE",
   });
 }
+
+export async function markCommentsRead(postId: string): Promise<void> {
+  await authFetch(`/api/suggestions/${postId}/comments/read`, {
+    method: "POST",
+  });
+}
+
+interface ProxyUnreadCountResponse {
+  success: boolean;
+  data: { unread_count: number };
+}
+
+export async function fetchUnreadCount(): Promise<number> {
+  const response = await authFetch<ProxyUnreadCountResponse>(
+    "/api/suggestions/unread-count",
+  );
+  return response.data.unread_count;
+}
