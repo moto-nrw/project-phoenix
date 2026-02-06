@@ -6,6 +6,7 @@ import (
 	"errors"
 	"log/slog"
 
+	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/uptrace/bun"
@@ -13,13 +14,14 @@ import (
 
 // Service implements the ActivityService interface
 type Service struct {
-	categoryRepo   activities.CategoryRepository
-	groupRepo      activities.GroupRepository
-	scheduleRepo   activities.ScheduleRepository
-	supervisorRepo activities.SupervisorPlannedRepository
-	enrollmentRepo activities.StudentEnrollmentRepository
-	db             *bun.DB
-	txHandler      *base.TxHandler
+	categoryRepo    activities.CategoryRepository
+	groupRepo       activities.GroupRepository
+	scheduleRepo    activities.ScheduleRepository
+	supervisorRepo  activities.SupervisorPlannedRepository
+	enrollmentRepo  activities.StudentEnrollmentRepository
+	activeGroupRepo activeModels.GroupRepository
+	db              *bun.DB
+	txHandler       *base.TxHandler
 }
 
 // NewService creates a new activity service
@@ -29,15 +31,18 @@ func NewService(
 	scheduleRepo activities.ScheduleRepository,
 	supervisorRepo activities.SupervisorPlannedRepository,
 	enrollmentRepo activities.StudentEnrollmentRepository,
-	db *bun.DB) (*Service, error) {
+	activeGroupRepo activeModels.GroupRepository,
+	db *bun.DB,
+) (*Service, error) {
 	return &Service{
-		categoryRepo:   categoryRepo,
-		groupRepo:      groupRepo,
-		scheduleRepo:   scheduleRepo,
-		supervisorRepo: supervisorRepo,
-		enrollmentRepo: enrollmentRepo,
-		db:             db,
-		txHandler:      base.NewTxHandler(db),
+		categoryRepo:    categoryRepo,
+		groupRepo:       groupRepo,
+		scheduleRepo:    scheduleRepo,
+		supervisorRepo:  supervisorRepo,
+		enrollmentRepo:  enrollmentRepo,
+		activeGroupRepo: activeGroupRepo,
+		db:              db,
+		txHandler:       base.NewTxHandler(db),
 	}, nil
 }
 
@@ -88,13 +93,14 @@ func (s *Service) WithTx(tx bun.Tx) interface{} {
 
 	// Return a new service with the transaction
 	return &Service{
-		categoryRepo:   categoryRepo,
-		groupRepo:      groupRepo,
-		scheduleRepo:   scheduleRepo,
-		supervisorRepo: supervisorRepo,
-		enrollmentRepo: enrollmentRepo,
-		db:             s.db,
-		txHandler:      s.txHandler.WithTx(tx),
+		categoryRepo:    categoryRepo,
+		groupRepo:       groupRepo,
+		scheduleRepo:    scheduleRepo,
+		supervisorRepo:  supervisorRepo,
+		enrollmentRepo:  enrollmentRepo,
+		activeGroupRepo: s.activeGroupRepo,
+		db:              s.db,
+		txHandler:       s.txHandler.WithTx(tx),
 	}
 }
 
@@ -409,6 +415,41 @@ func (s *Service) ListGroups(ctx context.Context, queryOptions *base.QueryOption
 	}
 
 	return groups, nil
+}
+
+// ListGroupsWithOccupancy returns all activity groups with their active session status
+func (s *Service) ListGroupsWithOccupancy(ctx context.Context) ([]ActivityGroupWithOccupancy, error) {
+	groups, err := s.groupRepo.List(ctx, nil)
+	if err != nil {
+		return nil, &ActivityError{Op: "list groups with occupancy", Err: err}
+	}
+
+	if len(groups) == 0 {
+		return []ActivityGroupWithOccupancy{}, nil
+	}
+
+	// Collect all activity group IDs
+	groupIDs := make([]int64, len(groups))
+	for i, g := range groups {
+		groupIDs[i] = g.ID
+	}
+
+	// Batch-fetch occupancy status
+	occupiedMap, err := s.activeGroupRepo.GetOccupiedActivityGroupIDs(ctx, groupIDs)
+	if err != nil {
+		return nil, &ActivityError{Op: "get activity occupancy", Err: err}
+	}
+
+	// Combine
+	result := make([]ActivityGroupWithOccupancy, len(groups))
+	for i, g := range groups {
+		result[i] = ActivityGroupWithOccupancy{
+			Group:      g,
+			IsOccupied: occupiedMap[g.ID],
+		}
+	}
+
+	return result, nil
 }
 
 // FindByCategory finds all activity groups in a specific category

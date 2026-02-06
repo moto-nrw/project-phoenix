@@ -125,6 +125,10 @@ func (m *mockGroupRepository) GetOccupiedRoomIDs(ctx context.Context, roomIDs []
 	return nil, nil
 }
 
+func (m *mockGroupRepository) GetOccupiedActivityGroupIDs(ctx context.Context, groupIDs []int64) (map[int64]bool, error) {
+	return nil, nil
+}
+
 // mockVisitRepository is a minimal mock implementation of active.VisitRepository
 type mockVisitRepository struct {
 	findByActiveGroupIDFunc func(ctx context.Context, activeGroupID int64) ([]*active.Visit, error)

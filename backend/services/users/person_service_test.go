@@ -941,6 +941,45 @@ func TestPersonService_GetStudentsWithGroupsByTeacher(t *testing.T) {
 }
 
 // =============================================================================
+// GetAllStudentsWithGroups Tests
+// =============================================================================
+
+func TestPersonService_GetAllStudentsWithGroups(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupPersonService(t, db)
+	ctx := context.Background()
+
+	t.Run("returns all students including those without groups", func(t *testing.T) {
+		// ARRANGE - student with group
+		group := testpkg.CreateTestEducationGroup(t, db, "AllStudentsGroup")
+		studentWithGroup := testpkg.CreateTestStudent(t, db, "WithGroup", "Student", "3a")
+		testpkg.AssignStudentToGroup(t, db, studentWithGroup.ID, group.ID)
+		defer testpkg.CleanupActivityFixtures(t, db, studentWithGroup.ID, group.ID)
+
+		// Student without group
+		studentNoGroup := testpkg.CreateTestStudent(t, db, "NoGroup", "Student", "3b")
+		defer testpkg.CleanupActivityFixtures(t, db, studentNoGroup.ID)
+
+		// ACT
+		result, err := service.GetAllStudentsWithGroups(ctx)
+
+		// ASSERT
+		require.NoError(t, err)
+		assert.NotEmpty(t, result)
+
+		// Both students should be in results
+		ids := make(map[int64]bool)
+		for _, r := range result {
+			ids[r.Student.ID] = true
+		}
+		assert.True(t, ids[studentWithGroup.ID], "student with group should be present")
+		assert.True(t, ids[studentNoGroup.ID], "student without group should be present")
+	})
+}
+
+// =============================================================================
 // Repository Accessor Tests
 // =============================================================================
 

@@ -5,15 +5,19 @@
 package data_test
 
 import (
+	"context"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
 	dataAPI "github.com/moto-nrw/project-phoenix/api/iot/data"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -103,24 +107,42 @@ func TestGetTeacherStudents_NoDevice(t *testing.T) {
 	assert.Equal(t, http.StatusUnauthorized, rr.Code, "Expected 401 for missing device authentication")
 }
 
-func TestGetTeacherStudents_NoTeacherIDs(t *testing.T) {
+func TestGetTeacherStudents_NoTeacherIDs_ReturnsAllStudents(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "data-test-device-2")
+	student := testpkg.CreateTestStudent(t, ctx.db, "AllVis", "Student", "2c")
 
 	router := chi.NewRouter()
 	router.Get("/students", ctx.resource.GetTeacherStudentsHandler())
 
-	// Request without teacher_ids parameter
+	// Request without teacher_ids parameter — should return all students
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/students", nil,
 		testutil.WithDeviceContext(testDevice),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
 
-	// Should return success with empty list (not an error)
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+
+	// Parse response and verify our student is in the list
+	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+	data, ok := response["data"].([]interface{})
+	assert.True(t, ok, "data should be an array")
+	assert.NotEmpty(t, data, "should return students when teacher_ids is absent")
+
+	// Verify our test student appears in results
+	var found bool
+	for _, item := range data {
+		s, _ := item.(map[string]interface{})
+		if int64(s["student_id"].(float64)) == student.ID {
+			found = true
+			assert.Equal(t, "AllVis", s["first_name"])
+			break
+		}
+	}
+	assert.True(t, found, "test student should appear in all-students response")
 }
 
 func TestGetTeacherStudents_InvalidTeacherID(t *testing.T) {
@@ -142,24 +164,32 @@ func TestGetTeacherStudents_InvalidTeacherID(t *testing.T) {
 	testutil.AssertBadRequest(t, rr)
 }
 
-func TestGetTeacherStudents_EmptyTeacherIDs(t *testing.T) {
+func TestGetTeacherStudents_EmptyTeacherIDs_ReturnsEmptyList(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "data-test-device-4")
+	// Create a student to verify it is NOT returned
+	testpkg.CreateTestStudent(t, ctx.db, "ShouldNot", "Appear", "5x")
 
 	router := chi.NewRouter()
 	router.Get("/students", ctx.resource.GetTeacherStudentsHandler())
 
-	// Request with empty teacher_ids parameter
+	// Explicit empty teacher_ids= (key present, value empty) — must NOT return all students.
+	// This distinguishes from the "key absent" case which returns all.
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/students?teacher_ids=", nil,
 		testutil.WithDeviceContext(testDevice),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
 
-	// Returns success with empty list when no valid IDs
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+
+	// Verify the data array is empty — explicit empty filter returns no students
+	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+	data, ok := response["data"].([]interface{})
+	assert.True(t, ok, "data should be an array")
+	assert.Empty(t, data, "explicit empty teacher_ids= should return empty list, not all students")
 }
 
 func TestGetTeacherStudents_NonExistentTeacher(t *testing.T) {
@@ -217,6 +247,65 @@ func TestGetTeacherActivities_Success(t *testing.T) {
 	rr := testutil.ExecuteRequest(router, req)
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+}
+
+func TestGetTeacherActivities_WithOccupancy(t *testing.T) {
+	tc := setupTestContext(t)
+	defer func() { _ = tc.db.Close() }()
+
+	testDevice := testpkg.CreateTestDevice(t, tc.db, "data-test-device-occ")
+	activityGroup := testpkg.CreateTestActivityGroup(t, tc.db, "occ-test-activity")
+	room := testpkg.CreateTestRoom(t, tc.db, "occ-test-room")
+	defer testpkg.CleanupActivityFixtures(t, tc.db, activityGroup.CategoryID, room.ID)
+
+	// Create an active session for this activity group
+	bgCtx := context.Background()
+	now := time.Now()
+	activeGroup := &active.Group{
+		StartTime:      now,
+		LastActivity:   now,
+		TimeoutMinutes: 30,
+		GroupID:        activityGroup.ID,
+		RoomID:         room.ID,
+	}
+	err := tc.db.NewInsert().
+		Model(activeGroup).
+		ModelTableExpr(`active.groups AS "active_group"`).
+		Scan(bgCtx)
+	require.NoError(t, err)
+	defer func() {
+		_, _ = tc.db.NewDelete().
+			TableExpr("active.groups").
+			Where("id = ?", activeGroup.ID).
+			Exec(bgCtx)
+	}()
+
+	router := chi.NewRouter()
+	router.Get("/activities", tc.resource.GetTeacherActivitiesHandler())
+
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/activities", nil,
+		testutil.WithDeviceContext(testDevice),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+
+	// Verify the response contains is_occupied field
+	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+	data, ok := response["data"].([]interface{})
+	require.True(t, ok, "data should be an array")
+
+	// Find our test activity and verify it is occupied
+	var foundOccupied bool
+	for _, item := range data {
+		a, _ := item.(map[string]interface{})
+		if int64(a["id"].(float64)) == activityGroup.ID {
+			foundOccupied = true
+			assert.True(t, a["is_occupied"].(bool), "activity with active session should be occupied")
+			break
+		}
+	}
+	assert.True(t, foundOccupied, "test activity should appear in response")
 }
 
 // =============================================================================

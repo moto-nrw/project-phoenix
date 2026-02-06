@@ -8,9 +8,10 @@ interface ExtendedSession extends Session {
   user: Session["user"] & { token?: string };
 }
 
-const { mockAuth, mockApiGet } = vi.hoisted(() => ({
+const { mockAuth, mockApiGet, mockApiPost } = vi.hoisted(() => ({
   mockAuth: vi.fn<() => Promise<ExtendedSession | null>>(),
   mockApiGet: vi.fn(),
+  mockApiPost: vi.fn(),
 }));
 
 vi.mock("~/server/auth", () => ({
@@ -19,7 +20,7 @@ vi.mock("~/server/auth", () => ({
 
 vi.mock("~/lib/api-helpers", () => ({
   apiGet: mockApiGet,
-  apiPost: vi.fn(),
+  apiPost: mockApiPost,
   apiPut: vi.fn(),
   apiDelete: vi.fn(),
   handleApiError: vi.fn((error: unknown) => {
@@ -87,6 +88,7 @@ describe("GET /api/ogs-dashboard", () => {
         students: unknown[];
         roomStatus: unknown;
         substitutions: unknown[];
+        pickupTimes: unknown[];
         firstGroupId: string | null;
       }>
     >(response);
@@ -95,20 +97,24 @@ describe("GET /api/ogs-dashboard", () => {
     expect(json.data.students).toEqual([]);
     expect(json.data.roomStatus).toBeNull();
     expect(json.data.substitutions).toEqual([]);
+    expect(json.data.pickupTimes).toEqual([]);
     expect(json.data.firstGroupId).toBeNull();
   });
 
   it("fetches dashboard data for the first group", async () => {
     const groups = [{ id: 12, name: "OGS A" }];
-    const students = [{ id: 1, first_name: "Mia", second_name: "M" }];
+    const students = [{ id: 1, first_name: "Mia", last_name: "M" }];
     const roomStatus = { group_has_room: true, student_room_status: {} };
     const substitutions = [{ id: 99, group_id: 12 }];
+    const pickupTimes = [{ student_id: 1, pickup_time: "15:00" }];
 
     mockApiGet
       .mockResolvedValueOnce({ data: groups })
       .mockResolvedValueOnce({ data: students })
       .mockResolvedValueOnce({ data: roomStatus })
       .mockResolvedValueOnce({ data: substitutions });
+
+    mockApiPost.mockResolvedValueOnce({ data: pickupTimes });
 
     const request = createMockRequest("/api/ogs-dashboard");
     const response = await GET(request, createMockContext());
@@ -133,6 +139,11 @@ describe("GET /api/ogs-dashboard", () => {
       "/api/groups/12/substitutions",
       "test-token",
     );
+    expect(mockApiPost).toHaveBeenCalledWith(
+      "/api/students/pickup-times/bulk",
+      "test-token",
+      { student_ids: [1] },
+    );
 
     const json = await parseJsonResponse<
       ApiResponse<{
@@ -140,6 +151,7 @@ describe("GET /api/ogs-dashboard", () => {
         students: typeof students;
         roomStatus: typeof roomStatus;
         substitutions: typeof substitutions;
+        pickupTimes: typeof pickupTimes;
         firstGroupId: string | null;
       }>
     >(response);
@@ -148,6 +160,7 @@ describe("GET /api/ogs-dashboard", () => {
     expect(json.data.students).toEqual(students);
     expect(json.data.roomStatus).toEqual(roomStatus);
     expect(json.data.substitutions).toEqual(substitutions);
+    expect(json.data.pickupTimes).toEqual(pickupTimes);
     expect(json.data.firstGroupId).toBe("12");
   });
 
@@ -160,6 +173,8 @@ describe("GET /api/ogs-dashboard", () => {
       .mockRejectedValueOnce(new Error("Room status failed"))
       .mockRejectedValueOnce(new Error("Substitutions failed"));
 
+    // When students fail, pickupTimes won't be fetched (no student IDs)
+
     const request = createMockRequest("/api/ogs-dashboard");
     const response = await GET(request, createMockContext());
 
@@ -168,6 +183,7 @@ describe("GET /api/ogs-dashboard", () => {
         students: unknown[];
         roomStatus: unknown;
         substitutions: unknown[];
+        pickupTimes: unknown[];
         firstGroupId: string | null;
       }>
     >(response);
@@ -175,6 +191,7 @@ describe("GET /api/ogs-dashboard", () => {
     expect(json.data.students).toEqual([]);
     expect(json.data.roomStatus).toBeNull();
     expect(json.data.substitutions).toEqual([]);
+    expect(json.data.pickupTimes).toEqual([]);
     expect(json.data.firstGroupId).toBe("5");
   });
 
@@ -190,6 +207,8 @@ describe("GET /api/ogs-dashboard", () => {
       .mockResolvedValueOnce({ data: null })
       .mockResolvedValueOnce({ data: [] });
 
+    // No students, so no pickupTimes fetch
+
     const request = createMockRequest("/api/ogs-dashboard");
     const response = await GET(request, createMockContext());
 
@@ -203,11 +222,13 @@ describe("GET /api/ogs-dashboard", () => {
     const json = await parseJsonResponse<
       ApiResponse<{
         groups: typeof groups;
+        pickupTimes: unknown[];
         firstGroupId: string | null;
       }>
     >(response);
 
     expect(json.data.firstGroupId).toBe("10");
+    expect(json.data.pickupTimes).toEqual([]);
     // Groups should be sorted alphabetically
     expect(json.data.groups).toHaveLength(2);
     expect(json.data.groups.at(0)?.name).toBe("Adler");
@@ -223,6 +244,8 @@ describe("GET /api/ogs-dashboard", () => {
       .mockResolvedValueOnce({ data: null }) // roomStatus null
       .mockResolvedValueOnce({ data: null }); // substitutions null
 
+    // No students, so no pickupTimes fetch
+
     const request = createMockRequest("/api/ogs-dashboard");
     const response = await GET(request, createMockContext());
 
@@ -231,11 +254,70 @@ describe("GET /api/ogs-dashboard", () => {
         students: unknown[];
         roomStatus: unknown;
         substitutions: unknown[];
+        pickupTimes: unknown[];
       }>
     >(response);
 
     expect(json.data.students).toEqual([]);
     expect(json.data.roomStatus).toBeNull();
     expect(json.data.substitutions).toEqual([]);
+    expect(json.data.pickupTimes).toEqual([]);
+  });
+
+  it("returns empty pickup times when bulk pickup fetch fails", async () => {
+    const groups = [{ id: 1, name: "Group A" }];
+    const students = [{ id: 1, first_name: "Max", last_name: "M" }];
+
+    mockApiGet
+      .mockResolvedValueOnce({ data: groups }) // groups
+      .mockResolvedValueOnce({ data: students }) // students
+      .mockResolvedValueOnce({ data: null }) // roomStatus
+      .mockResolvedValueOnce({ data: [] }); // substitutions
+
+    // Pickup times fetch fails
+    mockApiPost.mockRejectedValueOnce(new Error("Pickup times fetch failed"));
+
+    const request = createMockRequest("/api/ogs-dashboard");
+    const response = await GET(request, createMockContext());
+
+    // Should still return successful response with empty pickupTimes
+    expect(response.status).toBe(200);
+
+    const json = await parseJsonResponse<
+      ApiResponse<{
+        students: typeof students;
+        pickupTimes: unknown[];
+        firstGroupId: string;
+      }>
+    >(response);
+
+    expect(json.data.students).toEqual(students);
+    expect(json.data.pickupTimes).toEqual([]);
+    expect(json.data.firstGroupId).toBe("1");
+  });
+
+  it("handles pickup times with null data field", async () => {
+    const groups = [{ id: 1, name: "Group A" }];
+    const students = [{ id: 1, first_name: "Max", last_name: "M" }];
+
+    mockApiGet
+      .mockResolvedValueOnce({ data: groups })
+      .mockResolvedValueOnce({ data: students })
+      .mockResolvedValueOnce({ data: null })
+      .mockResolvedValueOnce({ data: [] });
+
+    // Pickup times returns null data
+    mockApiPost.mockResolvedValueOnce({ data: null });
+
+    const request = createMockRequest("/api/ogs-dashboard");
+    const response = await GET(request, createMockContext());
+
+    const json = await parseJsonResponse<
+      ApiResponse<{
+        pickupTimes: unknown[];
+      }>
+    >(response);
+
+    expect(json.data.pickupTimes).toEqual([]);
   });
 });

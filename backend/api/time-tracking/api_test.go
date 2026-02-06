@@ -114,6 +114,9 @@ func (m *mockPersonService) GetStudentsByTeacher(_ context.Context, _ int64) ([]
 func (m *mockPersonService) GetStudentsWithGroupsByTeacher(_ context.Context, _ int64) ([]usersSvc.StudentWithGroup, error) {
 	return nil, nil
 }
+func (m *mockPersonService) GetAllStudentsWithGroups(_ context.Context) ([]usersSvc.StudentWithGroup, error) {
+	return nil, nil
+}
 
 // --- Mock WorkSessionService ---
 
