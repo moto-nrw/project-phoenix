@@ -17,7 +17,6 @@ import { operatorAnnouncementsService } from "~/lib/operator/announcements-api";
 import {
   TYPE_LABELS,
   SEVERITY_LABELS,
-  SEVERITY_BORDER_STYLES,
   ANNOUNCEMENT_STATUS_LABELS,
   SYSTEM_ROLE_LABELS,
 } from "~/lib/operator/announcements-helpers";
@@ -632,9 +631,12 @@ function AnnouncementCard({
   }, [menuOpen]);
 
   return (
-    <div
-      className={`rounded-3xl border border-l-4 border-gray-100/50 bg-white/90 p-5 shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-150 ${SEVERITY_BORDER_STYLES[announcement.severity]}`}
-    >
+    <div className="rounded-3xl border border-gray-100/50 bg-white/90 p-5 shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-150">
+      {/* Type label at top */}
+      <p className="mb-2 text-xs font-medium tracking-wide text-gray-400 uppercase">
+        {TYPE_LABELS[announcement.type]}
+      </p>
+
       {/* Header with title, draft badge, and kebab menu */}
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
@@ -648,16 +650,14 @@ function AnnouncementCard({
               </span>
             )}
           </div>
-          {/* Meta line: type, version, timestamp */}
+          {/* Meta line: version and timestamp */}
           <div className="mt-1 flex items-center gap-2 text-xs text-gray-500">
-            <span>{TYPE_LABELS[announcement.type]}</span>
             {announcement.version && (
               <>
-                <span className="text-gray-300">·</span>
                 <span>v{announcement.version}</span>
+                <span className="text-gray-300">·</span>
               </>
             )}
-            <span className="text-gray-300">·</span>
             <span>{getRelativeTime(announcement.createdAt)}</span>
           </div>
           {/* Target roles display */}
