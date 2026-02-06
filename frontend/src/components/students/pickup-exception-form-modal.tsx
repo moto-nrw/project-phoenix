@@ -8,6 +8,9 @@ import type {
   PickupExceptionFormData,
 } from "@/lib/pickup-schedule-helpers";
 import { formatPickupTime } from "@/lib/pickup-schedule-helpers";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "PickupExceptionForm" });
 
 interface PickupExceptionFormModalProps {
   readonly isOpen: boolean;
@@ -99,6 +102,9 @@ export function PickupExceptionFormModal({
         reason: reason.trim(),
       });
     } catch (err) {
+      logger.error("pickup_exception_save_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
       setError(
         err instanceof Error
           ? err.message

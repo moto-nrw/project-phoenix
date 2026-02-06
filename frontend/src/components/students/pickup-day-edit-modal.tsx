@@ -9,6 +9,9 @@ import {
   getWeekdayLabel,
   formatShortDate,
 } from "@/lib/pickup-schedule-helpers";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "PickupDayEdit" });
 
 interface PickupDayEditModalProps {
   readonly isOpen: boolean;
@@ -90,6 +93,9 @@ export function PickupDayEditModal({
         pickupTime: pickupTime || undefined,
       });
     } catch (err) {
+      logger.error("pickup_exception_save_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
       setError(err instanceof Error ? err.message : "Fehler beim Speichern");
     } finally {
       setIsSavingException(false);
@@ -104,6 +110,9 @@ export function PickupDayEditModal({
       setHasTimeOverride(false);
       setPickupTime("");
     } catch (err) {
+      logger.error("pickup_exception_delete_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
       setError(
         err instanceof Error ? err.message : "Fehler beim Löschen der Ausnahme",
       );
@@ -123,6 +132,9 @@ export function PickupDayEditModal({
       setNewNoteContent("");
       setIsAddingNote(false);
     } catch (err) {
+      logger.error("pickup_note_create_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
       setError(
         err instanceof Error ? err.message : "Fehler beim Erstellen der Notiz",
       );
@@ -141,6 +153,9 @@ export function PickupDayEditModal({
       setEditingNoteId(null);
       setEditingNoteContent("");
     } catch (err) {
+      logger.error("pickup_note_update_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
       setError(
         err instanceof Error
           ? err.message
@@ -158,6 +173,9 @@ export function PickupDayEditModal({
       try {
         await onDeleteNote(noteId);
       } catch (err) {
+        logger.error("pickup_note_delete_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
         setError(
           err instanceof Error ? err.message : "Fehler beim Löschen der Notiz",
         );

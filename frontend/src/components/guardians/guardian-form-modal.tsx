@@ -9,6 +9,9 @@ import type {
   PhoneType,
 } from "@/lib/guardian-helpers";
 import { RELATIONSHIP_TYPES, PHONE_TYPE_LABELS } from "@/lib/guardian-helpers";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "GuardianForm" });
 
 export interface RelationshipFormData {
   readonly relationshipType: string;
@@ -375,6 +378,10 @@ export default function GuardianFormModal({
       await onSubmit(submitData, removeEntry);
       onClose();
     } catch (err) {
+      logger.error("guardian_save_failed", {
+        error: err instanceof Error ? err.message : String(err),
+        mode,
+      });
       setError(err instanceof Error ? err.message : "Fehler beim Speichern");
     } finally {
       setIsLoading(false);

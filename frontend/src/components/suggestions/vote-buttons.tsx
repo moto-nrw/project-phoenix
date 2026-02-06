@@ -4,6 +4,9 @@ import { useState, useCallback } from "react";
 import { ThumbsUp, ThumbsDown } from "lucide-react";
 import type { Suggestion } from "~/lib/suggestions-helpers";
 import { voteSuggestion, removeVote } from "~/lib/suggestions-api";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "VoteButtons" });
 
 interface VoteButtonsProps {
   readonly suggestion: Suggestion;
@@ -42,7 +45,11 @@ export function VoteButtons({ suggestion, onVoteChange }: VoteButtonsProps) {
           const updated = await removeVote(suggestion.id);
           setOptimistic(null);
           onVoteChange(updated);
-        } catch {
+        } catch (err) {
+          logger.warn("vote_remove_failed", {
+            error: err instanceof Error ? err.message : String(err),
+            suggestion_id: suggestion.id,
+          });
           setOptimistic({
             upvotes: prevUpvotes,
             downvotes: prevDownvotes,
@@ -74,7 +81,12 @@ export function VoteButtons({ suggestion, onVoteChange }: VoteButtonsProps) {
         const updated = await voteSuggestion(suggestion.id, direction);
         setOptimistic(null);
         onVoteChange(updated);
-      } catch {
+      } catch (err) {
+        logger.warn("vote_submit_failed", {
+          error: err instanceof Error ? err.message : String(err),
+          suggestion_id: suggestion.id,
+          direction,
+        });
         setOptimistic({
           upvotes: prevUpvotes,
           downvotes: prevDownvotes,

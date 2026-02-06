@@ -25,6 +25,7 @@ import {
   formatDateISO,
   getDayData,
 } from "@/lib/pickup-schedule-helpers";
+import { createLogger } from "~/lib/logger";
 import {
   fetchStudentPickupData,
   updateStudentPickupSchedules,
@@ -35,6 +36,8 @@ import {
   updateStudentPickupNote,
   deleteStudentPickupNote,
 } from "@/lib/pickup-schedule-api";
+
+const logger = createLogger({ component: "PickupScheduleManager" });
 
 interface PickupScheduleManagerProps {
   readonly studentId: string;
@@ -94,6 +97,10 @@ export default function PickupScheduleManager({
       const data = await fetchStudentPickupData(studentId);
       setPickupData(data);
     } catch (err) {
+      logger.error("pickup_data_load_failed", {
+        error: err instanceof Error ? err.message : String(err),
+        student_id: studentId,
+      });
       setError(
         err instanceof Error ? err.message : "Fehler beim Laden des Abholplans",
       );

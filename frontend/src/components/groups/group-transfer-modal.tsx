@@ -2,6 +2,9 @@
 
 import { useState, useEffect } from "react";
 import { Modal } from "~/components/ui/modal";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "GroupTransfer" });
 
 interface GroupTransferModalProps {
   readonly isOpen: boolean;
@@ -75,6 +78,10 @@ export function GroupTransferModal({
       setSelectedPersonId(""); // Reset selection after successful transfer
       setError(null); // Clear any previous errors
     } catch (err) {
+      logger.error("group_transfer_failed", {
+        error: err instanceof Error ? err.message : String(err),
+        group_id: group?.id,
+      });
       // Extract clean error message
       let errorMessage =
         "Fehler beim Übergeben der Gruppe. Bitte versuchen Sie es erneut.";
@@ -109,6 +116,10 @@ export function GroupTransferModal({
       await onCancelTransfer(substitutionId);
       setError(null); // Clear any previous errors
     } catch (err) {
+      logger.error("group_transfer_cancel_failed", {
+        error: err instanceof Error ? err.message : String(err),
+        substitution_id: substitutionId,
+      });
       // Extract clean error message
       let errorMessage =
         "Fehler beim Zurücknehmen. Bitte versuchen Sie es erneut.";

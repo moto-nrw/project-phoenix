@@ -4,6 +4,9 @@ import { useState } from "react";
 import { Modal } from "./modal";
 import { Alert } from "./alert";
 import { EyeIcon, EyeOffIcon, CheckIcon, SpinnerIcon } from "./icons";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "PasswordChange" });
 
 interface PasswordToggleProps {
   readonly show: boolean;
@@ -95,6 +98,9 @@ export function PasswordChangeModal({
         handleClose();
       }, 2000);
     } catch (err) {
+      logger.error("password_change_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
       setError(
         err instanceof Error
           ? err.message
