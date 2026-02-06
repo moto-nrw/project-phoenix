@@ -3,6 +3,7 @@ package migrations
 import (
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/uptrace/bun/migrate"
@@ -21,12 +22,46 @@ func RegisteredMigrations() []*Migration {
 		migrations = append(migrations, m)
 	}
 
-	// Sort migrations by version (semantically)
+	// Sort migrations by version (semantically, not lexicographically)
+	// This ensures 1.10.0 comes after 1.9.0, not before
 	sort.Slice(migrations, func(i, j int) bool {
-		return migrations[i].Version < migrations[j].Version
+		return compareVersions(migrations[i].Version, migrations[j].Version) < 0
 	})
 
 	return migrations
+}
+
+// compareVersions compares two semantic version strings.
+// Returns -1 if a < b, 0 if a == b, 1 if a > b.
+// Handles versions like "1.9.4" vs "1.10.0" correctly (1.9.4 < 1.10.0).
+func compareVersions(a, b string) int {
+	partsA := strings.Split(a, ".")
+	partsB := strings.Split(b, ".")
+
+	// Compare each numeric part
+	maxLen := len(partsA)
+	if len(partsB) > maxLen {
+		maxLen = len(partsB)
+	}
+
+	for i := 0; i < maxLen; i++ {
+		var numA, numB int
+		if i < len(partsA) {
+			numA, _ = strconv.Atoi(partsA[i])
+		}
+		if i < len(partsB) {
+			numB, _ = strconv.Atoi(partsB[i])
+		}
+
+		if numA < numB {
+			return -1
+		}
+		if numA > numB {
+			return 1
+		}
+	}
+
+	return 0
 }
 
 // ValidateMigrations validates migration dependencies and ordering.

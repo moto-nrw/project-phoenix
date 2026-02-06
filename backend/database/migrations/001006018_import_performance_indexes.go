@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	ImportPerformanceIndexesVersion     = "1.6.18"
+	ImportPerformanceIndexesVersion     = "1.6.18.1"
 	ImportPerformanceIndexesDescription = "Add performance indexes for CSV import operations"
 )
 
