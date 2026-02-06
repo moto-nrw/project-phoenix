@@ -48,6 +48,10 @@ vi.mock("~/lib/suggestions-api", () => ({
   updateSuggestion: vi.fn(),
   voteSuggestion: vi.fn(),
   removeVote: vi.fn(),
+  fetchComments: vi.fn().mockResolvedValue([]),
+  createComment: vi.fn().mockResolvedValue(undefined),
+  deleteComment: vi.fn().mockResolvedValue(undefined),
+  markCommentsRead: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock("~/contexts/ToastContext", () => ({

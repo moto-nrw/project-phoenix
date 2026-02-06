@@ -10,6 +10,10 @@ import type { Suggestion } from "~/lib/suggestions-helpers";
 vi.mock("~/lib/suggestions-api", () => ({
   voteSuggestion: vi.fn(),
   removeVote: vi.fn(),
+  fetchComments: vi.fn().mockResolvedValue([]),
+  createComment: vi.fn().mockResolvedValue(undefined),
+  deleteComment: vi.fn().mockResolvedValue(undefined),
+  markCommentsRead: vi.fn().mockResolvedValue(undefined),
 }));
 
 // ============================================================================
