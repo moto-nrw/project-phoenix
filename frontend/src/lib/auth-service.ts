@@ -3,6 +3,10 @@ import { getSession } from "next-auth/react";
 import { isAxiosError } from "axios";
 import { env } from "~/env";
 import api from "./api";
+import { createLogger } from "~/lib/logger";
+
+// Logger instance for auth service
+const logger = createLogger({ component: "AuthService" });
 import {
   mapAccountResponse,
   mapRoleResponse,
@@ -93,7 +97,9 @@ function extractBackendRole(responseData: unknown): BackendRole {
     return nested as unknown as BackendRole;
   }
 
-  console.error("Unexpected role response structure:", responseData);
+  logger.error("unexpected role response structure", {
+    response_type: typeof responseData,
+  });
   throw new Error("Invalid response format from role API");
 }
 
@@ -168,7 +174,10 @@ async function buildFetchApiError(
       }
     }
   } catch (parseError) {
-    console.warn("Failed to parse password reset error response", parseError);
+    logger.warn("failed to parse password reset error response", {
+      error:
+        parseError instanceof Error ? parseError.message : String(parseError),
+    });
   }
 
   const apiError = new Error(message) as ApiError;
@@ -290,7 +299,11 @@ async function executeBrowserFetch<TBackend>(
 
   if (!response.ok) {
     const errorText = await response.text();
-    console.error(`${errorPrefix} error: ${response.status}`, errorText);
+    logger.error("api error during auth operation", {
+      operation: errorPrefix,
+      status: response.status,
+      error_text: errorText.substring(0, 200),
+    });
     throw new Error(`${errorPrefix} failed: ${response.status}`);
   }
 
@@ -386,7 +399,10 @@ async function authFetch<TBackend, TFrontend = void>(
 
     return mapper ? mapper(backendData) : (undefined as TFrontend);
   } catch (error) {
-    console.error(`${errorPrefix} error:`, error);
+    logger.error("auth operation error", {
+      operation: errorPrefix,
+      error: error instanceof Error ? error.message : String(error),
+    });
     throw error;
   }
 }
@@ -435,7 +451,9 @@ function extractNestedPermissions(response: unknown): BackendPermission[] {
   if (data?.data && Array.isArray(data.data)) {
     return data.data;
   }
-  console.error("Unexpected permissions response structure:", response);
+  logger.error("unexpected permissions response structure", {
+    response_type: typeof response,
+  });
   throw new Error("Invalid response format from permissions API");
 }
 
@@ -463,7 +481,9 @@ function extractNestedRoles(response: unknown): BackendRole[] {
   if (data?.data && Array.isArray(data.data)) {
     return data.data;
   }
-  console.error("Unexpected roles response structure:", response);
+  logger.error("unexpected roles response structure", {
+    response_type: typeof response,
+  });
   throw new Error("Invalid response format from roles API");
 }
 
@@ -485,7 +505,10 @@ export const authService = {
 
         if (!response.ok) {
           const errorText = await response.text();
-          console.error(`Login error: ${response.status}`, errorText);
+          logger.error("login failed", {
+            status: response.status,
+            error_text: errorText.substring(0, 200),
+          });
           throw new Error(`Login failed: ${response.status}`);
         }
 
@@ -495,7 +518,9 @@ export const authService = {
         return response.data;
       }
     } catch (error) {
-      console.error("Login error:", error);
+      logger.error("login error", {
+        error: error instanceof Error ? error.message : String(error),
+      });
       throw error;
     }
   },
@@ -522,7 +547,10 @@ export const authService = {
 
         if (!response.ok) {
           const errorText = await response.text();
-          console.error(`Registration error: ${response.status}`, errorText);
+          logger.error("registration failed", {
+            status: response.status,
+            error_text: errorText.substring(0, 200),
+          });
           throw new Error(`Registration failed: ${response.status}`);
         }
 
@@ -540,7 +568,9 @@ export const authService = {
         return mapAccountResponse(response.data.data);
       }
     } catch (error) {
-      console.error("Registration error:", error);
+      logger.error("registration error", {
+        error: error instanceof Error ? error.message : String(error),
+      });
       throw error;
     }
   },
@@ -567,13 +597,17 @@ export const authService = {
         });
 
         if (!response.ok && response.status !== 204) {
-          console.error(`Logout error: ${response.status}`);
+          logger.warn("logout failed", {
+            status: response.status,
+          });
         }
       } else {
         await api.post(url);
       }
     } catch (error) {
-      console.error("Logout error:", error);
+      logger.warn("logout error", {
+        error: error instanceof Error ? error.message : String(error),
+      });
       // Don't throw - logout should always succeed on the client side
     }
   },
@@ -596,7 +630,10 @@ export const authService = {
 
         if (!response.ok) {
           const errorText = await response.text();
-          console.error(`Token refresh error: ${response.status}`, errorText);
+          logger.error("token refresh failed", {
+            status: response.status,
+            error_text: errorText.substring(0, 200),
+          });
           throw new Error(`Token refresh failed: ${response.status}`);
         }
 
@@ -612,7 +649,9 @@ export const authService = {
         return response.data;
       }
     } catch (error) {
-      console.error("Token refresh error:", error);
+      logger.error("token refresh error", {
+        error: error instanceof Error ? error.message : String(error),
+      });
       throw error;
     }
   },
@@ -633,14 +672,19 @@ export const authService = {
 
         if (!response.ok) {
           const errorText = await response.text();
-          console.error(`Password reset error: ${response.status}`, errorText);
+          logger.error("password reset failed", {
+            status: response.status,
+            error_text: errorText.substring(0, 200),
+          });
           throw new Error(`Password reset failed: ${response.status}`);
         }
       } else {
         await api.post(url, data);
       }
     } catch (error) {
-      console.error("Password reset error:", error);
+      logger.error("password reset error", {
+        error: error instanceof Error ? error.message : String(error),
+      });
       throw error;
     }
   },
@@ -698,7 +742,9 @@ export const authService = {
         );
       }
 
-      console.error("Password reset confirm error:", error);
+      logger.error("password reset confirm error", {
+        error: error instanceof Error ? error.message : String(error),
+      });
       const fallbackError = new Error(fallbackMessage) as ApiError;
       throw fallbackError;
     }

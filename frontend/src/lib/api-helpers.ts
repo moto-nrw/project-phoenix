@@ -3,9 +3,13 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { isAxiosError } from "axios";
 import api from "./api";
+import { createLogger } from "~/lib/logger";
 
 // Note: Server-only imports (auth, refreshSessionTokensOnServer) are dynamically
 // imported inside functions to prevent client-side bundle from including them.
+
+// Logger instance for API helpers
+const logger = createLogger({ component: "ApiHelpers" });
 
 /**
  * Type for API response to ensure consistent structure
@@ -238,16 +242,24 @@ export function handleApiError(error: unknown): NextResponse<ApiErrorResponse> {
       const status = Number.parseInt(match[1], 10);
       // Only log server errors (5xx) to avoid Next.js error overlay for expected 4xx
       if (status >= 500) {
-        console.error("API route error:", error);
+        logger.error("api route error", {
+          status,
+          error: error.message,
+        });
       } else {
-        console.warn("API route error:", error);
+        logger.warn("api route error", {
+          status,
+          error: error.message,
+        });
       }
       return NextResponse.json({ error: error.message }, { status });
     }
   }
 
   // Unknown errors are logged as errors and return 500
-  console.error("API route error (no status extracted):", error);
+  logger.error("api route error without status", {
+    error: error instanceof Error ? error.message : String(error),
+  });
   const errorMessage =
     error instanceof Error ? error.message : "Internal Server Error";
   return NextResponse.json({ error: errorMessage }, { status: 500 });
@@ -464,7 +476,12 @@ export async function fetchWithRetry<T>(
   // Handle 401 with retry
   if (response.status === 401 && onAuthFailure && getNewToken) {
     const errorText = await response.text();
-    console.error(`API error: ${response.status}`, errorText);
+    logger.info("token expired, attempting refresh", {
+      url,
+      method,
+      status: response.status,
+      error_text: errorText,
+    });
 
     const refreshSuccessful = await onAuthFailure();
 
@@ -487,11 +504,21 @@ export async function fetchWithRetry<T>(
     // Other 4xx errors (400 Bad Request, 404 Not Found) indicate bugs and should throw
     const accessDeniedStatuses = [401, 403];
     if (accessDeniedStatuses.includes(response.status)) {
-      console.warn(`API access denied: ${response.status}`, errorText);
+      logger.warn("api access denied", {
+        url,
+        method,
+        status: response.status,
+        error_text: errorText.substring(0, 200),
+      });
       return { response: null, data: null };
     }
     // All other errors (4xx bugs, 5xx server errors) should throw
-    console.error(`API error: ${response.status}`, errorText);
+    logger.error("api error", {
+      url,
+      method,
+      status: response.status,
+      error_text: errorText.substring(0, 200),
+    });
     throw new Error(`API error: ${response.status}`);
   }
 

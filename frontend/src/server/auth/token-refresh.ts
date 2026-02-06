@@ -1,5 +1,9 @@
 import { auth, signIn } from "~/server/auth";
 import { getServerApiUrl } from "~/lib/server-api-url";
+import { createLogger } from "~/lib/logger";
+
+// Logger instance for token refresh
+const logger = createLogger({ component: "TokenRefresh" });
 
 type TokenPair = {
   accessToken: string;
@@ -23,9 +27,7 @@ export async function refreshSessionTokensOnServer(): Promise<TokenPair | null> 
 
       const refreshToken = session?.user?.refreshToken;
       if (!refreshToken) {
-        console.warn(
-          "Server-side refresh requested without a refresh token available",
-        );
+        logger.warn("server-side refresh requested without refresh token", {});
         return null;
       }
 
@@ -39,9 +41,10 @@ export async function refreshSessionTokensOnServer(): Promise<TokenPair | null> 
 
       if (!response.ok) {
         const errorText = await response.text().catch(() => "");
-        console.error(
-          `Server-side token refresh failed: ${response.status} ${errorText}`,
-        );
+        logger.error("server-side token refresh failed", {
+          status: response.status,
+          error_text: errorText.substring(0, 200),
+        });
         return null;
       }
 
@@ -58,10 +61,12 @@ export async function refreshSessionTokensOnServer(): Promise<TokenPair | null> 
           refreshToken: tokens.refresh_token,
         });
       } catch (signInError) {
-        console.error(
-          "Failed to persist refreshed tokens into session",
-          signInError,
-        );
+        logger.error("failed to persist refreshed tokens", {
+          error:
+            signInError instanceof Error
+              ? signInError.message
+              : String(signInError),
+        });
         return null;
       }
 
@@ -70,7 +75,9 @@ export async function refreshSessionTokensOnServer(): Promise<TokenPair | null> 
         refreshToken: tokens.refresh_token,
       } satisfies TokenPair;
     } catch (error) {
-      console.error("Unexpected error during server-side token refresh", error);
+      logger.error("unexpected error during token refresh", {
+        error: error instanceof Error ? error.message : String(error),
+      });
       return null;
     }
   })();

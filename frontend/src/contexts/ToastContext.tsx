@@ -9,6 +9,10 @@ import React, {
   useRef,
   useState,
 } from "react";
+import { createLogger } from "~/lib/logger";
+
+// Logger instance for toast notifications
+const logger = createLogger({ component: "ToastContext" });
 
 type ToastType = "success" | "error" | "info" | "warning";
 
@@ -342,6 +346,15 @@ export function ToastProvider({
       // Use shorter duration for mobile center-overlay style
       // Default to 1500ms to match mobile UX, desktop can be longer if needed
       const duration = options?.duration ?? 1500;
+
+      // Log error toasts for monitoring
+      if (type === "error") {
+        logger.error("user-facing error displayed", {
+          message: message.substring(0, 100), // Truncate for logging
+          toast_type: type,
+          source: "toast_context",
+        });
+      }
 
       setItems((prev) => {
         const next: ToastItemData[] = [
