@@ -7,7 +7,10 @@ import Image from "next/image";
 import { PageHeaderWithSearch } from "~/components/ui/page-header";
 import { SimpleAlert } from "~/components/simple/SimpleAlert";
 import { useToast } from "~/contexts/ToastContext";
+import { createLogger } from "~/lib/logger";
 import { PasswordChangeModal } from "~/components/ui";
+
+const logger = createLogger({ component: "SettingsPage" });
 import { updateProfile, uploadAvatar } from "~/lib/profile-api";
 import type { ProfileUpdateRequest } from "~/lib/profile-helpers";
 import { Loading } from "~/components/ui/loading";
@@ -128,7 +131,10 @@ function SettingsContent() {
 
       setIsEditing(false);
       toastSuccess("Profil erfolgreich aktualisiert");
-    } catch {
+    } catch (err) {
+      logger.error("profile_save_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
       setAlertMessage("Fehler beim Speichern des Profils");
       setAlertType("error");
       setShowAlert(true);
@@ -153,7 +159,10 @@ function SettingsContent() {
       await refreshProfile(true);
 
       toastSuccess("Profilbild erfolgreich aktualisiert");
-    } catch {
+    } catch (err) {
+      logger.error("avatar_upload_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
       setAlertMessage("Fehler beim Hochladen des Profilbilds");
       setAlertType("error");
       setShowAlert(true);
