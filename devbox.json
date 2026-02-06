@@ -43,6 +43,7 @@
   },
   "shell": {
     "init_hook": [
+      "unset DEVELOPER_DIR",
       "lefthook install --force > /dev/null 2>&1 || true",
       "which goimports > /dev/null 2>&1 || go install golang.org/x/tools/cmd/goimports@latest > /dev/null 2>&1",
       "which deadcode > /dev/null 2>&1 || go install golang.org/x/tools/cmd/deadcode@latest > /dev/null 2>&1",
