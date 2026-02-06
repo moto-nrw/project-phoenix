@@ -88,6 +88,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	authLogger := logger.With("service", "auth")
 	facilitiesLogger := logger.With("service", "facilities")
 	databaseLogger := logger.With("service", "database")
+	platformLogger := logger.With("service", "platform")
 	emailLogger := logger.With("component", "email")
 
 	dispatcher := email.NewDispatcher(mailer, emailLogger)
@@ -379,6 +380,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		OperatorRepo: repos.Operator,
 		AuditLogRepo: repos.OperatorAuditLog,
 		DB:           db,
+		Logger:       platformLogger,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create operator auth service: %w", err)
@@ -389,6 +391,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		AnnouncementViewRepo: repos.AnnouncementView,
 		AuditLogRepo:         repos.OperatorAuditLog,
 		DB:                   db,
+		Logger:               platformLogger,
 	})
 
 	operatorSuggestionsService := platform.NewOperatorSuggestionsService(platform.OperatorSuggestionsServiceConfig{
@@ -398,6 +401,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		PostReadRepo:    repos.SuggestionPostRead,
 		AuditLogRepo:    repos.OperatorAuditLog,
 		DB:              db,
+		Logger:          platformLogger,
 	})
 
 	return &Factory{

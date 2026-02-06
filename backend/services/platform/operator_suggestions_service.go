@@ -3,6 +3,7 @@ package platform
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net"
 
 	"github.com/moto-nrw/project-phoenix/models/platform"
@@ -49,6 +50,7 @@ type operatorSuggestionsService struct {
 	postReadRepo    suggestions.PostReadRepository
 	auditLogRepo    platform.OperatorAuditLogRepository
 	db              *bun.DB
+	logger          *slog.Logger
 }
 
 // OperatorSuggestionsServiceConfig holds configuration for the service
@@ -59,6 +61,7 @@ type OperatorSuggestionsServiceConfig struct {
 	PostReadRepo    suggestions.PostReadRepository
 	AuditLogRepo    platform.OperatorAuditLogRepository
 	DB              *bun.DB
+	Logger          *slog.Logger
 }
 
 // NewOperatorSuggestionsService creates a new operator suggestions service
@@ -70,7 +73,15 @@ func NewOperatorSuggestionsService(cfg OperatorSuggestionsServiceConfig) Operato
 		postReadRepo:    cfg.PostReadRepo,
 		auditLogRepo:    cfg.AuditLogRepo,
 		db:              cfg.DB,
+		logger:          cfg.Logger,
 	}
+}
+
+func (s *operatorSuggestionsService) getLogger() *slog.Logger {
+	if s.logger != nil {
+		return s.logger
+	}
+	return slog.Default()
 }
 
 // ListAllPosts returns all suggestion posts (for operators)
@@ -251,11 +262,20 @@ func (s *operatorSuggestionsService) logAction(ctx context.Context, operatorID i
 
 	if changes != nil {
 		if err := entry.SetChanges(changes); err != nil {
-			fmt.Printf("failed to set audit log changes: %v\n", err)
+			s.getLogger().Error("failed to set audit log changes",
+				"operator_id", operatorID,
+				"action", action,
+				"error", err,
+			)
 		}
 	}
 
 	if err := s.auditLogRepo.Create(ctx, entry); err != nil {
-		fmt.Printf("failed to create audit log: %v\n", err)
+		s.getLogger().Error("failed to create audit log",
+			"operator_id", operatorID,
+			"action", action,
+			"resource_type", resourceType,
+			"error", err,
+		)
 	}
 }

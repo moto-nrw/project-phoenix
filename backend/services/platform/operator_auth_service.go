@@ -3,6 +3,7 @@ package platform
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net"
 	"strings"
 
@@ -39,6 +40,7 @@ type operatorAuthService struct {
 	auditLogRepo platform.OperatorAuditLogRepository
 	tokenAuth    *jwt.TokenAuth
 	db           *bun.DB
+	logger       *slog.Logger
 }
 
 // OperatorAuthServiceConfig holds configuration for the operator auth service
@@ -46,6 +48,7 @@ type OperatorAuthServiceConfig struct {
 	OperatorRepo platform.OperatorRepository
 	AuditLogRepo platform.OperatorAuditLogRepository
 	DB           *bun.DB
+	Logger       *slog.Logger
 }
 
 // NewOperatorAuthService creates a new operator auth service
@@ -60,7 +63,15 @@ func NewOperatorAuthService(cfg OperatorAuthServiceConfig) (OperatorAuthService,
 		auditLogRepo: cfg.AuditLogRepo,
 		tokenAuth:    tokenAuth,
 		db:           cfg.DB,
+		logger:       cfg.Logger,
 	}, nil
+}
+
+func (s *operatorAuthService) getLogger() *slog.Logger {
+	if s.logger != nil {
+		return s.logger
+	}
+	return slog.Default()
 }
 
 // Login authenticates an operator and returns JWT tokens
@@ -110,8 +121,10 @@ func (s *operatorAuthService) Login(ctx context.Context, email, password string,
 
 	// Update last login
 	if err := s.operatorRepo.UpdateLastLogin(ctx, operator.ID); err != nil {
-		// Log but don't fail
-		fmt.Printf("failed to update last login for operator %d: %v\n", operator.ID, err)
+		s.getLogger().Error("failed to update last login",
+			"operator_id", operator.ID,
+			"error", err,
+		)
 	}
 
 	// Audit log
@@ -123,8 +136,11 @@ func (s *operatorAuthService) Login(ctx context.Context, email, password string,
 		RequestIP:    clientIP,
 	}
 	if err := s.auditLogRepo.Create(ctx, auditEntry); err != nil {
-		// Log but don't fail
-		fmt.Printf("failed to create audit log for operator login: %v\n", err)
+		s.getLogger().Error("failed to create audit log",
+			"operator_id", operator.ID,
+			"action", platform.ActionLogin,
+			"error", err,
+		)
 	}
 
 	return accessToken, refreshToken, operator, nil
