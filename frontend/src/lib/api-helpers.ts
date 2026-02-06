@@ -73,6 +73,7 @@ async function serverFetchWithRetry<T>(
         "Content-Type": "application/json",
       },
       body: options.body ? JSON.stringify(options.body) : undefined,
+      cache: "no-store", // Prevent Next.js from caching API responses
     });
 
   let response = await executeRequest(token);
@@ -400,6 +401,7 @@ export async function authFetch<T>(
     method,
     credentials: "include",
     headers,
+    cache: "no-store", // Prevent caching of dynamic API responses
     ...(body !== undefined && { body: JSON.stringify(body) }),
   });
 

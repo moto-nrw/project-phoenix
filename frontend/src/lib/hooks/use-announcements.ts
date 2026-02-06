@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect, useRef } from "react";
+import { usePathname } from "next/navigation";
 import useSWR from "swr";
 import { authFetch } from "~/lib/api-helpers";
 
@@ -31,15 +33,27 @@ async function markDismissed(id: number): Promise<void> {
 }
 
 export function useAnnouncements() {
+  const pathname = usePathname();
+  const previousPathname = useRef(pathname);
+
   const { data, mutate, isLoading } = useSWR(
     "user-announcements-unread",
     fetchUnread,
     {
       refreshInterval: 60000, // Poll every 60s
       revalidateOnFocus: false, // Don't revalidate on window focus to avoid showing dismissed items again
+      revalidateOnMount: true, // Always fetch fresh data on component mount
       dedupingInterval: 5000, // Prevent rapid refetches
     },
   );
+
+  // Revalidate on route change (since component stays mounted in layout)
+  useEffect(() => {
+    if (previousPathname.current !== pathname) {
+      previousPathname.current = pathname;
+      void mutate();
+    }
+  }, [pathname, mutate]);
 
   const dismiss = async (id: number) => {
     // Just send to backend - don't mutate local state

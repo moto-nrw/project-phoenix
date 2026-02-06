@@ -225,11 +225,11 @@ export function ProfileDropdownMenu({
 
   return (
     <>
-      {/* Backdrop for mobile - native button handles Enter/Space automatically */}
+      {/* Invisible backdrop to close dropdown on click outside */}
       {isOpen && (
         <button
           type="button"
-          className="fixed inset-0 z-40 cursor-default md:hidden"
+          className="fixed inset-0 z-40 cursor-default"
           onClick={onClose}
           aria-label="Menü schließen"
         />
