@@ -72,12 +72,10 @@ export function AnnouncementModal() {
     // Track this ID as dismissed locally
     dismissedIdsRef.current.add(current.id);
 
-    try {
-      // Send dismiss to backend (don't await to avoid blocking UI)
-      void dismiss(current.id);
-    } catch (error) {
+    // Send dismiss to backend (fire-and-forget, don't block UI)
+    dismiss(current.id).catch((error) => {
       console.error("Failed to dismiss announcement:", error);
-    }
+    });
 
     // Move to next or close
     if (currentIndex < queuedAnnouncements.length - 1) {

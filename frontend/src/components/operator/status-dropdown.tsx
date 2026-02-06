@@ -107,6 +107,7 @@ export function StatusDropdown({
   const dropdownMenu = isOpen && mounted && (
     <div
       ref={menuRef}
+      role="listbox"
       className="fixed z-[9999] w-48 rounded-xl border border-gray-200 bg-white py-1 shadow-lg"
       style={{
         top: position.top,
@@ -114,6 +115,11 @@ export function StatusDropdown({
         right: position.alignRight ? window.innerWidth - position.left : "auto",
       }}
       onClick={(e) => e.stopPropagation()}
+      onKeyDown={(e) => {
+        if (e.key === "Escape") {
+          setIsOpen(false);
+        }
+      }}
     >
       {Object.entries(OPERATOR_STATUS_LABELS).map(([key, label]) => {
         const isSelected = key === value;
