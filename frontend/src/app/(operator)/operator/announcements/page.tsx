@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import { AnimatePresence, LayoutGroup, motion } from "framer-motion";
 import useSWR from "swr";
 import {
@@ -9,6 +9,7 @@ import {
 } from "~/components/ui/page-header";
 import { Modal, ConfirmationModal } from "~/components/ui/modal";
 import { Skeleton } from "~/components/ui/skeleton";
+import { DatePicker } from "~/components/ui/date-picker";
 import { useOperatorAuth } from "~/lib/operator/auth-context";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { operatorAnnouncementsService } from "~/lib/operator/announcements-api";
@@ -19,11 +20,14 @@ import {
   SEVERITY_STYLES,
   ANNOUNCEMENT_STATUS_LABELS,
   ANNOUNCEMENT_STATUS_STYLES,
+  SYSTEM_ROLE_LABELS,
 } from "~/lib/operator/announcements-helpers";
 import type {
   Announcement,
   AnnouncementType,
   AnnouncementSeverity,
+  SystemRole,
+  AnnouncementStats,
   CreateAnnouncementRequest,
   UpdateAnnouncementRequest,
 } from "~/lib/operator/announcements-helpers";
@@ -53,6 +57,7 @@ interface FormData {
   severity: AnnouncementSeverity;
   version: string;
   expiresAt: string;
+  targetRoles: SystemRole[];
 }
 
 const EMPTY_FORM: FormData = {
@@ -62,6 +67,7 @@ const EMPTY_FORM: FormData = {
   severity: "info",
   version: "",
   expiresAt: "",
+  targetRoles: [],
 };
 
 export default function OperatorAnnouncementsPage() {
@@ -76,13 +82,21 @@ export default function OperatorAnnouncementsPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
+  const [severityDropdownOpen, setSeverityDropdownOpen] = useState(false);
+  const severityDropdownRef = useRef<HTMLDivElement>(null);
 
   const {
     data: announcements,
     isLoading,
     mutate,
-  } = useSWR(isAuthenticated ? "operator-announcements" : null, () =>
-    operatorAnnouncementsService.fetchAll(),
+  } = useSWR(
+    isAuthenticated ? "operator-announcements" : null,
+    () => operatorAnnouncementsService.fetchAll(),
+    {
+      keepPreviousData: true,
+      revalidateOnFocus: false,
+      dedupingInterval: 5000,
+    },
   );
 
   const filteredAnnouncements = useMemo(() => {
@@ -90,6 +104,20 @@ export default function OperatorAnnouncementsPage() {
     if (statusFilter === "all") return announcements;
     return announcements.filter((a) => a.status === statusFilter);
   }, [announcements, statusFilter]);
+
+  // Close severity dropdown on click outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (
+        severityDropdownRef.current &&
+        !severityDropdownRef.current.contains(event.target as Node)
+      ) {
+        setSeverityDropdownOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const openCreateForm = useCallback(() => {
     setEditTarget(null);
@@ -105,9 +133,8 @@ export default function OperatorAnnouncementsPage() {
       type: announcement.type,
       severity: announcement.severity,
       version: announcement.version ?? "",
-      expiresAt: announcement.expiresAt
-        ? new Date(announcement.expiresAt).toISOString().slice(0, 16)
-        : "",
+      expiresAt: announcement.expiresAt ?? "",
+      targetRoles: announcement.targetRoles,
     });
     setFormOpen(true);
   }, []);
@@ -126,6 +153,7 @@ export default function OperatorAnnouncementsPage() {
             severity: formData.severity,
             version: formData.version || null,
             expires_at: formData.expiresAt || null,
+            target_roles: formData.targetRoles,
           };
           await operatorAnnouncementsService.update(editTarget.id, updateData);
         } else {
@@ -134,6 +162,7 @@ export default function OperatorAnnouncementsPage() {
             content: formData.content,
             type: formData.type,
             severity: formData.severity,
+            target_roles: formData.targetRoles,
             ...(formData.version && { version: formData.version }),
             ...(formData.expiresAt && { expires_at: formData.expiresAt }),
           };
@@ -207,35 +236,39 @@ export default function OperatorAnnouncementsPage() {
         }
         filters={filterConfigs}
         actionButton={
-          <button
-            type="button"
-            onClick={openCreateForm}
-            className="rounded-full bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-700"
-          >
-            Neue Ankündigung
-          </button>
+          announcements && announcements.length > 0 ? (
+            <button
+              type="button"
+              onClick={openCreateForm}
+              className="rounded-full bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-700"
+            >
+              Neue Ankündigung
+            </button>
+          ) : undefined
         }
         mobileActionButton={
-          <button
-            type="button"
-            onClick={openCreateForm}
-            className="rounded-full bg-gray-900 p-2 text-white transition-colors hover:bg-gray-700"
-            aria-label="Neue Ankündigung"
-          >
-            <svg
-              className="h-5 w-5"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={2}
+          announcements && announcements.length > 0 ? (
+            <button
+              type="button"
+              onClick={openCreateForm}
+              className="rounded-full bg-gray-900 p-2 text-white transition-colors hover:bg-gray-700"
+              aria-label="Neue Ankündigung"
             >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M12 4v16m8-8H4"
-              />
-            </svg>
-          </button>
+              <svg
+                className="h-5 w-5"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2}
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M12 4v16m8-8H4"
+                />
+              </svg>
+            </button>
+          ) : undefined
         }
       />
 
@@ -400,22 +433,60 @@ export default function OperatorAnnouncementsPage() {
             <label className="mb-1 block text-sm font-medium text-gray-700">
               Dringlichkeit
             </label>
-            <select
-              value={formData.severity}
-              onChange={(e) =>
-                setFormData((prev) => ({
-                  ...prev,
-                  severity: e.target.value as AnnouncementSeverity,
-                }))
-              }
-              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
-            >
-              {Object.entries(SEVERITY_LABELS).map(([value, label]) => (
-                <option key={value} value={value}>
-                  {label}
-                </option>
-              ))}
-            </select>
+            <div className="relative" ref={severityDropdownRef}>
+              <button
+                type="button"
+                onClick={() => setSeverityDropdownOpen(!severityDropdownOpen)}
+                className={`flex w-full items-center justify-between rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm transition-all ${
+                  severityDropdownOpen
+                    ? "border-gray-300 bg-gray-50"
+                    : "hover:bg-gray-50"
+                }`}
+              >
+                <span className="text-gray-900">
+                  {SEVERITY_LABELS[formData.severity]}
+                </span>
+                <svg
+                  className={`h-4 w-4 text-gray-400 transition-transform ${
+                    severityDropdownOpen ? "rotate-180" : ""
+                  }`}
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M19 9l-7 7-7-7"
+                  />
+                </svg>
+              </button>
+              {severityDropdownOpen && (
+                <div className="absolute top-full left-0 z-[10001] mt-1 w-full rounded-xl border border-gray-200 bg-white py-1 shadow-lg">
+                  {Object.entries(SEVERITY_LABELS).map(([value, label]) => (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => {
+                        setFormData((prev) => ({
+                          ...prev,
+                          severity: value as AnnouncementSeverity,
+                        }));
+                        setSeverityDropdownOpen(false);
+                      }}
+                      className={`flex w-full items-center px-4 py-2 text-left text-sm transition-colors hover:bg-gray-50 ${
+                        formData.severity === value
+                          ? "bg-gray-50 font-medium text-gray-900"
+                          : "text-gray-700"
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Version (only for release type) */}
@@ -441,14 +512,58 @@ export default function OperatorAnnouncementsPage() {
             <label className="mb-1 block text-sm font-medium text-gray-700">
               Ablaufdatum (optional)
             </label>
-            <input
-              type="datetime-local"
-              value={formData.expiresAt}
-              onChange={(e) =>
-                setFormData((prev) => ({ ...prev, expiresAt: e.target.value }))
+            <DatePicker
+              value={formData.expiresAt ? new Date(formData.expiresAt) : null}
+              onChange={(date) =>
+                setFormData((prev) => ({
+                  ...prev,
+                  expiresAt: date ? date.toISOString() : "",
+                }))
               }
-              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+              placeholder="Datum auswählen"
             />
+          </div>
+
+          {/* Target Roles */}
+          <div>
+            <label className="mb-1 block text-sm font-medium text-gray-700">
+              Zielgruppen
+            </label>
+            <p className="mb-2 text-xs text-gray-500">
+              Leer = Alle Benutzer sehen die Ankündigung
+            </p>
+            <div className="flex flex-wrap gap-3">
+              {(["admin", "user", "guardian"] as const).map((role) => (
+                <label
+                  key={role}
+                  className="flex cursor-pointer items-center gap-2"
+                >
+                  <input
+                    type="checkbox"
+                    checked={formData.targetRoles.includes(role)}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setFormData((prev) => ({
+                          ...prev,
+                          targetRoles: [...prev.targetRoles, role],
+                        }));
+                      } else {
+                        setFormData((prev) => ({
+                          ...prev,
+                          targetRoles: prev.targetRoles.filter(
+                            (r) => r !== role,
+                          ),
+                        }));
+                      }
+                    }}
+                    className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span className="text-sm text-gray-700">
+                    {SYSTEM_ROLE_LABELS[role]}
+                  </span>
+                </label>
+              ))}
+            </div>
           </div>
         </form>
       </Modal>
@@ -528,11 +643,40 @@ function AnnouncementCard({
               </span>
             )}
           </div>
+          {/* Target roles display */}
+          {announcement.targetRoles.length > 0 && (
+            <div className="mt-2 flex items-center gap-1.5 text-xs text-gray-500">
+              <svg
+                className="h-3.5 w-3.5"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+                />
+              </svg>
+              <span>
+                {announcement.targetRoles
+                  .map((r) => SYSTEM_ROLE_LABELS[r])
+                  .join(", ")}
+              </span>
+            </div>
+          )}
         </div>
       </div>
       <p className="mt-2 line-clamp-2 text-sm text-gray-600">
         {announcement.content}
       </p>
+
+      {/* Stats for published announcements */}
+      {announcement.status === "published" && (
+        <AnnouncementStatsDisplay announcementId={announcement.id} />
+      )}
+
       <div className="mt-3 flex items-center justify-between">
         <span className="text-xs text-gray-500">
           {getRelativeTime(announcement.createdAt)}
@@ -565,6 +709,68 @@ function AnnouncementCard({
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+function AnnouncementStatsDisplay({
+  announcementId,
+}: {
+  readonly announcementId: string;
+}) {
+  const { data: stats } = useSWR<AnnouncementStats>(
+    `announcement-stats-${announcementId}`,
+    () => operatorAnnouncementsService.fetchStats(announcementId),
+    { refreshInterval: 30000 },
+  );
+
+  if (!stats) return null;
+
+  const seenPercent =
+    stats.target_count > 0
+      ? Math.round((stats.seen_count / stats.target_count) * 100)
+      : 0;
+
+  return (
+    <div className="mt-3 flex items-center gap-4 text-xs text-gray-500">
+      <span className="flex items-center gap-1">
+        <svg
+          className="h-3.5 w-3.5"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+          />
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+          />
+        </svg>
+        {stats.seen_count}/{stats.target_count} gesehen ({seenPercent}%)
+      </span>
+      <span className="flex items-center gap-1">
+        <svg
+          className="h-3.5 w-3.5"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+          />
+        </svg>
+        {stats.dismissed_count} bestätigt
+      </span>
     </div>
   );
 }

@@ -60,7 +60,12 @@ export default function OperatorSuggestionsPage() {
   } = useSWR(
     isAuthenticated ? "operator-suggestions" : null,
     () => operatorSuggestionsService.fetchAll(),
-    { refreshInterval: 30000 }, // Refresh every 30 seconds to catch new posts
+    {
+      refreshInterval: 30000, // Refresh every 30 seconds to catch new posts
+      keepPreviousData: true,
+      revalidateOnFocus: false,
+      dedupingInterval: 5000,
+    },
   );
 
   // Track previous counts to detect external changes

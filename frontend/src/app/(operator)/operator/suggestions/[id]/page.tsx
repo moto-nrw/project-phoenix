@@ -47,8 +47,14 @@ export default function OperatorSuggestionDetailPage() {
     data: suggestion,
     isLoading,
     mutate,
-  } = useSWR(isAuthenticated && id ? `operator-suggestion-${id}` : null, () =>
-    operatorSuggestionsService.fetchById(id),
+  } = useSWR(
+    isAuthenticated && id ? `operator-suggestion-${id}` : null,
+    () => operatorSuggestionsService.fetchById(id),
+    {
+      keepPreviousData: true,
+      revalidateOnFocus: false,
+      dedupingInterval: 5000,
+    },
   );
 
   const handleStatusChange = useCallback(
