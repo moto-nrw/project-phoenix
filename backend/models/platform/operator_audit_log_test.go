@@ -5,6 +5,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 )
 
 func TestOperatorAuditLog_SetChanges_Valid(t *testing.T) {
@@ -79,4 +80,32 @@ func TestOperatorAuditLog_GetChanges_InvalidJSON(t *testing.T) {
 func TestOperatorAuditLog_TableName(t *testing.T) {
 	log := &OperatorAuditLog{}
 	assert.Equal(t, "platform.operator_audit_log", log.TableName())
+}
+
+func TestOperatorAuditLog_BeforeAppendModel_SelectQuery(t *testing.T) {
+	log := &OperatorAuditLog{}
+	query := &bun.SelectQuery{}
+	err := log.BeforeAppendModel(query)
+	assert.NoError(t, err)
+}
+
+func TestOperatorAuditLog_BeforeAppendModel_UpdateQuery(t *testing.T) {
+	log := &OperatorAuditLog{}
+	query := &bun.UpdateQuery{}
+	err := log.BeforeAppendModel(query)
+	assert.NoError(t, err)
+}
+
+func TestOperatorAuditLog_BeforeAppendModel_DeleteQuery(t *testing.T) {
+	log := &OperatorAuditLog{}
+	query := &bun.DeleteQuery{}
+	err := log.BeforeAppendModel(query)
+	assert.NoError(t, err)
+}
+
+func TestOperatorAuditLog_BeforeAppendModel_OtherQueryType(t *testing.T) {
+	log := &OperatorAuditLog{}
+	// Pass some other type - should not panic
+	err := log.BeforeAppendModel("not a query")
+	assert.NoError(t, err)
 }
