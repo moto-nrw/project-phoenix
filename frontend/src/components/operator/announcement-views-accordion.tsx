@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
-import { ChevronDown, Eye, Check } from "lucide-react";
+import { useState, useCallback, useRef, useMemo } from "react";
+import { ChevronDown, Check } from "lucide-react";
 import { operatorAnnouncementsService } from "~/lib/operator/announcements-api";
 import type { AnnouncementViewDetail } from "~/lib/operator/announcements-helpers";
 
@@ -37,13 +37,11 @@ function getInitial(name: string): string {
 
 interface AnnouncementViewsAccordionProps {
   readonly announcementId: string;
-  readonly seenCount: number;
   readonly dismissedCount: number;
 }
 
 export function AnnouncementViewsAccordion({
   announcementId,
-  seenCount,
   dismissedCount,
 }: AnnouncementViewsAccordionProps) {
   const [isOpen, setIsOpen] = useState(false);
@@ -51,6 +49,12 @@ export function AnnouncementViewsAccordion({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const loadedRef = useRef(false);
+
+  // Only show users who confirmed (clicked "Verstanden")
+  const confirmedUsers = useMemo(
+    () => viewDetails.filter((d) => d.dismissed),
+    [viewDetails],
+  );
 
   const loadViewDetails = useCallback(async () => {
     if (loadedRef.current) return;
@@ -76,8 +80,8 @@ export function AnnouncementViewsAccordion({
     }
   }, [isOpen, loadViewDetails]);
 
-  // Only show if there are any views
-  if (seenCount === 0 && dismissedCount === 0) {
+  // Only show if there are any confirmations
+  if (dismissedCount === 0) {
     return null;
   }
 
@@ -95,9 +99,9 @@ export function AnnouncementViewsAccordion({
         className="flex w-full items-center justify-between py-3 text-sm text-gray-600 transition-colors hover:text-gray-900"
       >
         <span className="flex items-center gap-1.5 font-medium">
-          Wer hat es gesehen?
+          Lesebestätigungen
           <span className="text-xs font-normal text-gray-400">
-            ({seenCount} gesehen, {dismissedCount} bestätigt)
+            ({dismissedCount})
           </span>
         </span>
         <ChevronDown
@@ -119,16 +123,16 @@ export function AnnouncementViewsAccordion({
             {/* Error */}
             {error && <p className="mb-2 text-xs text-red-500">{error}</p>}
 
-            {/* View details list */}
-            {!isLoading && viewDetails.length > 0 && (
+            {/* Confirmed users list */}
+            {!isLoading && confirmedUsers.length > 0 && (
               <div className="space-y-0 divide-y divide-gray-100">
-                {viewDetails.map((detail) => (
+                {confirmedUsers.map((detail) => (
                   <div
                     key={detail.userId}
                     className="flex items-center gap-2.5 py-2.5 first:pt-0 last:pb-0"
                   >
                     {/* Initials avatar */}
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gray-100 text-xs font-medium text-gray-500">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-green-100 text-xs font-medium text-green-600">
                       {getInitial(detail.userName)}
                     </div>
 
@@ -149,20 +153,7 @@ export function AnnouncementViewsAccordion({
                             · {getRelativeTime(detail.seenAt)}
                           </time>
                         </div>
-                        {/* Status indicator */}
-                        <div className="flex items-center gap-1">
-                          {detail.dismissed ? (
-                            <span className="flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
-                              <Check className="h-3 w-3" />
-                              Bestätigt
-                            </span>
-                          ) : (
-                            <span className="flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
-                              <Eye className="h-3 w-3" />
-                              Gesehen
-                            </span>
-                          )}
-                        </div>
+                        <Check className="h-4 w-4 text-green-500" />
                       </div>
                     </div>
                   </div>
@@ -171,9 +162,9 @@ export function AnnouncementViewsAccordion({
             )}
 
             {/* Empty state */}
-            {!isLoading && loadedRef.current && viewDetails.length === 0 && (
+            {!isLoading && loadedRef.current && confirmedUsers.length === 0 && (
               <p className="text-xs text-gray-400">
-                Noch niemand hat diese Ankündigung gesehen.
+                Noch keine Lesebestätigungen.
               </p>
             )}
           </div>

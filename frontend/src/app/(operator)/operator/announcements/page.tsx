@@ -733,11 +733,6 @@ function AnnouncementCard({
         {announcement.content}
       </p>
 
-      {/* Stats for published announcements */}
-      {announcement.status === "published" && (
-        <AnnouncementStatsDisplay announcementId={announcement.id} />
-      )}
-
       {/* Footer with timestamp and publish button */}
       <div className="mt-3 flex items-center justify-between">
         <span className="text-xs text-gray-500">
@@ -764,68 +759,6 @@ function AnnouncementCard({
   );
 }
 
-function AnnouncementStatsDisplay({
-  announcementId,
-}: {
-  readonly announcementId: string;
-}) {
-  const { data: stats } = useSWR<AnnouncementStats>(
-    `announcement-stats-${announcementId}`,
-    () => operatorAnnouncementsService.fetchStats(announcementId),
-    { refreshInterval: 30000 },
-  );
-
-  if (!stats) return null;
-
-  const seenPercent =
-    stats.target_count > 0
-      ? Math.round((stats.seen_count / stats.target_count) * 100)
-      : 0;
-
-  return (
-    <div className="mt-3 flex items-center gap-4 text-xs text-gray-500">
-      <span className="flex items-center gap-1">
-        <svg
-          className="h-3.5 w-3.5"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-          />
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
-          />
-        </svg>
-        {stats.seen_count}/{stats.target_count} gesehen ({seenPercent}%)
-      </span>
-      <span className="flex items-center gap-1">
-        <svg
-          className="h-3.5 w-3.5"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-          />
-        </svg>
-        {stats.dismissed_count} bestätigt
-      </span>
-    </div>
-  );
-}
-
 function AnnouncementViewsAccordionWrapper({
   announcementId,
 }: {
@@ -844,7 +777,6 @@ function AnnouncementViewsAccordionWrapper({
   return (
     <AnnouncementViewsAccordion
       announcementId={announcementId}
-      seenCount={stats.seen_count}
       dismissedCount={stats.dismissed_count}
     />
   );
