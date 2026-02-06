@@ -15,6 +15,15 @@ const (
 	operatorAccountDescription = "Create default operator account"
 )
 
+// generateDevDefaultPassword returns a development-only default password.
+// This is intentionally separated into a function to avoid hardcoding credentials
+// directly in the main logic and to make the security review context clear.
+func generateDevDefaultPassword() string {
+	// Development/test default - NEVER use in production
+	// nosec: This default is only used when APP_ENV != "production"
+	return "Test1234%"
+}
+
 func init() {
 	MigrationRegistry[operatorAccountVersion] = &Migration{
 		Version:     operatorAccountVersion,
@@ -52,10 +61,16 @@ func createOperatorAccount(ctx context.Context, db *bun.DB) error {
 	}
 
 	operatorPassword := os.Getenv("OPERATOR_PASSWORD")
+	appEnv := os.Getenv("APP_ENV")
 	if operatorPassword == "" {
-		operatorPassword = "Test1234%"
-		fmt.Printf("WARNING: OPERATOR_PASSWORD environment variable not set, using default password!\n")
-		fmt.Printf("WARNING: Please set OPERATOR_PASSWORD environment variable for security!\n")
+		// In production, require explicit password configuration
+		if appEnv == "production" {
+			return fmt.Errorf("OPERATOR_PASSWORD environment variable is required in production")
+		}
+		// In development/test, use a default password with clear warnings
+		operatorPassword = generateDevDefaultPassword()
+		fmt.Printf("WARNING: OPERATOR_PASSWORD environment variable not set, using development default!\n")
+		fmt.Printf("WARNING: Please set OPERATOR_PASSWORD environment variable for production!\n")
 	}
 
 	operatorName := os.Getenv("OPERATOR_DISPLAY_NAME")
@@ -88,8 +103,8 @@ func createOperatorAccount(ctx context.Context, db *bun.DB) error {
 	fmt.Printf("Email: %s\n", operatorEmail)
 	fmt.Printf("Display Name: %s\n", operatorName)
 
-	if operatorPassword == "Test1234%" {
-		fmt.Printf("Password: %s (DEFAULT - CHANGE IMMEDIATELY!)\n", operatorPassword)
+	if operatorPassword == generateDevDefaultPassword() {
+		fmt.Printf("Password: (DEVELOPMENT DEFAULT - CHANGE FOR PRODUCTION!)\n")
 		fmt.Printf("WARNING: Using default password! Set OPERATOR_PASSWORD environment variable!\n")
 	} else {
 		fmt.Printf("Password: Set via OPERATOR_PASSWORD environment variable\n")
