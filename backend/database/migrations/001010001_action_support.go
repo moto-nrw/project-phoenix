@@ -13,9 +13,8 @@ const (
 )
 
 // ActionSupportDependsOn defines migration dependencies
-var ActionSupportDependsOn = []string{
-	enumOptionsVersion, // Depends on enum_options (1.8.3)
-}
+// Note: No explicit dependencies - runs after all 001009xxx migrations by file ordering
+var ActionSupportDependsOn = []string{}
 
 func init() {
 	MigrationRegistry[ActionSupportVersion] = &Migration{
@@ -115,15 +114,8 @@ func actionSupportUp(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("failed creating action_audit_log table: %w", err)
 	}
 
-	// Add system tab if not exists (for maintenance actions)
-	_, err = db.NewRaw(`
-		INSERT INTO config.setting_tabs (key, name, icon, display_order, required_permission)
-		VALUES ('system', 'System', 'server', 100, 'config:manage')
-		ON CONFLICT DO NOTHING;
-	`).Exec(ctx)
-	if err != nil {
-		return fmt.Errorf("failed inserting system tab: %w", err)
-	}
+	// Note: Tabs are now registered via code in settings/definitions/tabs.go
+	// and synced to the database on server startup. No seed data here.
 
 	fmt.Println("Migration 1.10.1: Action support added successfully")
 	return nil
@@ -156,14 +148,6 @@ func actionSupportDown(ctx context.Context, db *bun.DB) error {
 	`).Exec(ctx)
 	if err != nil {
 		return fmt.Errorf("failed removing action columns from setting_definitions: %w", err)
-	}
-
-	// Remove system tab (only if we added it)
-	_, err = db.NewRaw(`
-		DELETE FROM config.setting_tabs WHERE key = 'system';
-	`).Exec(ctx)
-	if err != nil {
-		return fmt.Errorf("failed removing system tab: %w", err)
 	}
 
 	fmt.Println("Migration 1.10.1: Action support removed successfully")

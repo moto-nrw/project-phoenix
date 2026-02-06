@@ -112,66 +112,15 @@ func (d *TranslatedDefinition) GetDescription() string {
 }
 
 // CategoryTranslations holds translations for category names
+// Add translations here when you use categories in your setting definitions
 var categoryTranslations = map[Locale]map[string]string{
 	LocaleDE: {
-		"system":         "System",
-		"session":        "Sitzungen",
-		"password":       "Passwort",
-		"jwt":            "Token",
-		"email":          "E-Mail",
-		"smtp":           "SMTP",
-		"sender":         "Absender",
-		"invitation":     "Einladungen",
-		"password_reset": "Passwort-Reset",
-		"appearance":     "Erscheinung",
-		"pagination":     "Seitenumbruch",
-		"format":         "Formatierung",
-		"device":         "Gerät",
-		"privacy":        "Datenschutz",
-		"checkin":        "Check-in",
-		"checkout":       "Check-out",
-		"capacity":       "Kapazität",
-		"security":       "Sicherheit",
-		"notifications":  "Benachrichtigungen",
-		"general":        "Allgemein",
-		// Test categories
-		"basic_types": "Grundlegende Typen",
-		"time_types":  "Zeit-Typen",
-		"references":  "Referenzen",
-		"advanced":    "Erweitert",
-		"performance": "Leistung",
-		"scopes":      "Scope-Hierarchie",
-		"protected":   "Geschützt",
+		// Add German translations for your category keys here
+		// Example: "general": "Allgemein",
 	},
 	LocaleEN: {
-		"system":         "System",
-		"session":        "Sessions",
-		"password":       "Password",
-		"jwt":            "Token",
-		"email":          "Email",
-		"smtp":           "SMTP",
-		"sender":         "Sender",
-		"invitation":     "Invitations",
-		"password_reset": "Password Reset",
-		"appearance":     "Appearance",
-		"pagination":     "Pagination",
-		"format":         "Formatting",
-		"device":         "Device",
-		"privacy":        "Privacy",
-		"checkin":        "Check-in",
-		"checkout":       "Check-out",
-		"capacity":       "Capacity",
-		"security":       "Security",
-		"notifications":  "Notifications",
-		"general":        "General",
-		// Test categories
-		"basic_types": "Basic Types",
-		"time_types":  "Time Types",
-		"references":  "References",
-		"advanced":    "Advanced",
-		"performance": "Performance",
-		"scopes":      "Scope Hierarchy",
-		"protected":   "Protected",
+		// Add English translations for your category keys here
+		// Example: "general": "General",
 	},
 }
 
@@ -201,26 +150,15 @@ func TranslateCategoryL(locale Locale, key string) string {
 }
 
 // TabTranslations holds translations for tab names
+// Add translations here when you register tabs in settings/definitions/tabs.go
 var tabTranslations = map[Locale]map[string]string{
 	LocaleDE: {
-		"general":       "Allgemein",
-		"display":       "Anzeige",
-		"security":      "Sicherheit",
-		"email":         "E-Mail",
-		"rooms":         "Räume",
-		"notifications": "Benachrichtigungen",
-		"system":        "System",
-		"test":          "Test Features",
+		// Add German translations for your tab keys here
+		// Example: "general": "Allgemein",
 	},
 	LocaleEN: {
-		"general":       "General",
-		"display":       "Display",
-		"security":      "Security",
-		"email":         "Email",
-		"rooms":         "Rooms",
-		"notifications": "Notifications",
-		"system":        "System",
-		"test":          "Test Features",
+		// Add English translations for your tab keys here
+		// Example: "general": "General",
 	},
 }
 

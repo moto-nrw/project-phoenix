@@ -197,20 +197,8 @@ func hierarchicalSettingsUp(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("failed creating setting_audit_log table: %w", err)
 	}
 
-	// Insert default tabs
-	_, err = db.NewRaw(`
-		INSERT INTO config.setting_tabs (key, name, icon, display_order, required_permission)
-		VALUES
-			('general', 'Allgemein', 'cog', 0, NULL),
-			('security', 'Sicherheit', 'shield', 10, 'config:manage'),
-			('email', 'E-Mail', 'mail', 20, 'config:manage'),
-			('display', 'Anzeige', 'monitor', 30, NULL),
-			('notifications', 'Benachrichtigungen', 'bell', 40, NULL)
-		ON CONFLICT DO NOTHING;
-	`).Exec(ctx)
-	if err != nil {
-		return fmt.Errorf("failed inserting default tabs: %w", err)
-	}
+	// Note: Tabs are now registered via code in settings/definitions/tabs.go
+	// and synced to the database on server startup. No seed data here.
 
 	fmt.Println("Migration 1.8.2: Hierarchical settings tables created successfully")
 	return nil
