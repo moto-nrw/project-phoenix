@@ -85,9 +85,10 @@ describe("SSEErrorBoundary", () => {
     );
 
     expect(consoleErrorSpy).toHaveBeenCalledWith(
-      "SSE boundary caught an error:",
-      expect.any(Error),
-      expect.anything(),
+      "SSE boundary caught an error",
+      expect.objectContaining({
+        error: "Test error",
+      }),
     );
   });
 });

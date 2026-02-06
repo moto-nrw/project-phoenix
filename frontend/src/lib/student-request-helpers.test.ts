@@ -475,11 +475,16 @@ describe("handlePrivacyConsentCreation", () => {
     );
 
     expect(consoleErrorSpy).toHaveBeenCalledWith(
-      "[POST Student] Error creating privacy consent for student 1:",
-      expect.any(Error),
+      "error creating privacy consent for student",
+      {
+        student_id: 1,
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+        error: expect.any(String),
+      },
     );
     expect(consoleWarnSpy).toHaveBeenCalledWith(
-      "[POST Student] Student created but privacy consent failed. Admin can update later.",
+      "student created but privacy consent failed, admin can update later",
+      { student_id: 1 },
     );
 
     consoleErrorSpy.mockRestore();
@@ -632,8 +637,8 @@ describe("handleStudentCreationError", () => {
     );
 
     expect(consoleErrorSpy).toHaveBeenCalledWith(
-      "Permission denied when creating student:",
-      error,
+      "permission denied when creating student",
+      { error: String(error) },
     );
 
     consoleErrorSpy.mockRestore();

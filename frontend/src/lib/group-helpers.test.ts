@@ -228,8 +228,8 @@ describe("mapGroupsResponse", () => {
 
     expect(result).toEqual([]);
     expect(consoleSpies.error).toHaveBeenCalledWith(
-      "Expected array for backendGroups, got:",
-      "invalid",
+      "expected array for backendGroups",
+      { received: "string" },
     );
   });
 });

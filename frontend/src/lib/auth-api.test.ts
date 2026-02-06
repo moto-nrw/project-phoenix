@@ -115,7 +115,9 @@ describe("auth-api", () => {
         const result = await refreshToken();
 
         expect(result).toBeNull();
-        expect(consoleSpy).toHaveBeenCalledWith("Token refresh failed:", 401);
+        expect(consoleSpy).toHaveBeenCalledWith("token refresh failed", {
+          status: 401,
+        });
       } finally {
         restore();
       }
@@ -133,10 +135,9 @@ describe("auth-api", () => {
         const result = await refreshToken();
 
         expect(result).toBeNull();
-        expect(consoleSpy).toHaveBeenCalledWith(
-          "Error refreshing token:",
-          networkError,
-        );
+        expect(consoleSpy).toHaveBeenCalledWith("error refreshing token", {
+          error: "Error: Network error",
+        });
       } finally {
         restore();
       }
@@ -152,7 +153,8 @@ describe("auth-api", () => {
 
         expect(result).toBeNull();
         expect(consoleSpy).toHaveBeenCalledWith(
-          "Token refresh attempted from server context",
+          "token refresh attempted from server context",
+          undefined,
         );
       } finally {
         restore();
@@ -273,13 +275,14 @@ describe("auth-api", () => {
         });
 
         const consoleSpy = vi
-          .spyOn(console, "log")
+          .spyOn(console, "debug")
           .mockImplementation(/* noop */ () => undefined);
         const result = await handleAuthFailure();
 
         expect(result).toBe(true);
         expect(consoleSpy).toHaveBeenCalledWith(
-          "Recently refreshed tokens, retrying request...",
+          "recently refreshed tokens, retrying request",
+          undefined,
         );
       } finally {
         restore();
@@ -354,7 +357,7 @@ describe("auth-api", () => {
         vi.mocked(signOut).mockResolvedValue({ url: "/" });
 
         const consoleSpy = vi
-          .spyOn(console, "log")
+          .spyOn(console, "warn")
           .mockImplementation(/* noop */ () => undefined);
         vi.spyOn(console, "error").mockImplementation(
           /* noop */ () => undefined,
@@ -365,7 +368,8 @@ describe("auth-api", () => {
         expect(result).toBe(false);
         expect(signOut).toHaveBeenCalledWith({ redirect: false });
         expect(consoleSpy).toHaveBeenCalledWith(
-          "Token refresh failed, signing out",
+          "token refresh failed, signing out",
+          undefined,
         );
         expect(globalThis.window.location.href).toBe("/");
       } finally {
@@ -444,8 +448,8 @@ describe("auth-api", () => {
         // Should still return true to retry, even if session update failed
         expect(result).toBe(true);
         expect(consoleSpy).toHaveBeenCalledWith(
-          "Failed to update session with new tokens:",
-          "Session update failed",
+          "failed to update session with new tokens",
+          { error: "Session update failed" },
         );
       } finally {
         restore();

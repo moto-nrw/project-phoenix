@@ -170,10 +170,9 @@ describe("useActivityForm", () => {
 
       expect(result.current.error).toBe("Failed to load categories");
       expect(result.current.categories).toEqual([]);
-      expect(console.error).toHaveBeenCalledWith(
-        "Failed to load categories:",
-        error,
-      );
+      expect(console.error).toHaveBeenCalledWith("failed to load categories", {
+        error: "Network error",
+      });
     });
 
     it("should allow manual error setting", () => {
@@ -524,10 +523,9 @@ describe("useActivityForm", () => {
 
       expect(result.current.error).toBe("Failed to load categories");
       expect(result.current.loading).toBe(false);
-      expect(console.error).toHaveBeenCalledWith(
-        "Failed to load categories:",
-        error,
-      );
+      expect(console.error).toHaveBeenCalledWith("failed to load categories", {
+        error: "API error",
+      });
     });
 
     it("should not reload categories multiple times on rapid isOpen changes", async () => {

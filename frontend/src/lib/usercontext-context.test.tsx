@@ -368,8 +368,11 @@ describe("UserContextProvider", () => {
 
       await waitFor(() => {
         expect(consoleErrorSpy).toHaveBeenCalledWith(
-          "Failed to refresh supervision context:",
-          expect.any(Error),
+          "failed to refresh supervision context",
+          {
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+            error: expect.any(String),
+          },
         );
       });
 

@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import type { BackendRoom, Room } from "./room-helpers";
 import {
   mapRoomResponse,
@@ -103,6 +103,9 @@ describe("mapRoomsResponse", () => {
   });
 
   it("handles nested API response structure { data: [...] }", () => {
+    const debugSpy = vi
+      .spyOn(console, "debug")
+      .mockImplementation(() => undefined);
     const nestedResponse = {
       data: [sampleBackendRoom, { ...sampleBackendRoom, id: 2 }],
     };
@@ -110,9 +113,11 @@ describe("mapRoomsResponse", () => {
     const result = mapRoomsResponse(nestedResponse);
 
     expect(result).toHaveLength(2);
-    expect(consoleSpies.log).toHaveBeenCalledWith(
-      "Handling nested API response for rooms",
+    expect(debugSpy).toHaveBeenCalledWith(
+      "handling nested API response for rooms",
+      undefined,
     );
+    debugSpy.mockRestore();
   });
 
   it("returns empty array for null input", () => {
@@ -120,8 +125,8 @@ describe("mapRoomsResponse", () => {
 
     expect(result).toEqual([]);
     expect(consoleSpies.warn).toHaveBeenCalledWith(
-      "Received invalid response format for rooms:",
-      null,
+      "received invalid response format for rooms",
+      { received: "object" },
     );
   });
 

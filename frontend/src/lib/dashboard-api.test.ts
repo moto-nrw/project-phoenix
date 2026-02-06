@@ -104,8 +104,8 @@ describe("fetchDashboardAnalytics", () => {
     );
 
     expect(consoleErrorSpy).toHaveBeenCalledWith(
-      "Error fetching dashboard analytics:",
-      error,
+      "failed to fetch dashboard analytics",
+      { error: String(error) },
     );
   });
 
@@ -134,8 +134,8 @@ describe("fetchDashboardAnalytics", () => {
     }
 
     expect(consoleErrorSpy).toHaveBeenCalledWith(
-      "Error fetching dashboard analytics:",
-      error,
+      "failed to fetch dashboard analytics",
+      { error: String(error) },
     );
   });
 

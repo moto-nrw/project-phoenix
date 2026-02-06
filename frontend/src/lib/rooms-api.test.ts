@@ -87,8 +87,8 @@ describe("fetchRooms", () => {
       expect(result).toEqual([]);
       // When response is null, response?.data is undefined
       expect(consoleSpies.error).toHaveBeenCalledWith(
-        "Failed to fetch rooms:",
-        undefined,
+        "failed to fetch rooms from backend",
+        { response: "undefined" },
       );
     });
 
@@ -113,10 +113,9 @@ describe("fetchRooms", () => {
       const result = await fetchRooms("test-token");
 
       expect(result).toEqual([]);
-      expect(consoleSpies.error).toHaveBeenCalledWith(
-        "Error fetching rooms:",
-        expect.any(Error),
-      );
+      expect(consoleSpies.error).toHaveBeenCalledWith("error fetching rooms", {
+        error: "Error: Network error",
+      });
     });
 
     it("works without token (public access)", async () => {
@@ -181,10 +180,9 @@ describe("fetchRooms", () => {
       const result = await fetchRooms("test-token");
 
       expect(result).toEqual([]);
-      expect(consoleSpies.error).toHaveBeenCalledWith(
-        "Failed to fetch rooms:",
-        500,
-      );
+      expect(consoleSpies.error).toHaveBeenCalledWith("failed to fetch rooms", {
+        status: 500,
+      });
     });
 
     it("returns empty array when response data is invalid", async () => {
@@ -197,8 +195,8 @@ describe("fetchRooms", () => {
 
       expect(result).toEqual([]);
       expect(consoleSpies.error).toHaveBeenCalledWith(
-        "Invalid rooms response:",
-        expect.anything(),
+        "invalid rooms response format",
+        undefined,
       );
     });
 
@@ -227,10 +225,9 @@ describe("fetchRooms", () => {
       const result = await fetchRooms("test-token");
 
       expect(result).toEqual([]);
-      expect(consoleSpies.error).toHaveBeenCalledWith(
-        "Error fetching rooms:",
-        expect.any(Error),
-      );
+      expect(consoleSpies.error).toHaveBeenCalledWith("error fetching rooms", {
+        error: "Error: Network error",
+      });
     });
 
     it("correctly maps backend room data to frontend format", async () => {

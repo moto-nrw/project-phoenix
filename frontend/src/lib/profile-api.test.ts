@@ -180,10 +180,9 @@ describe("profile-api", () => {
       global.fetch = mockFetch;
 
       await expect(fetchProfile()).rejects.toThrow("Failed to fetch profile");
-      expect(consoleErrorSpy).toHaveBeenCalledWith(
-        "Error fetching profile:",
-        expect.any(Error),
-      );
+      expect(consoleErrorSpy).toHaveBeenCalledWith("failed to fetch profile", {
+        error: expect.stringContaining("HTTP error! status: 404") as unknown,
+      });
     });
 
     it("throws error when response success is false", async () => {
@@ -220,10 +219,9 @@ describe("profile-api", () => {
       global.fetch = mockFetch;
 
       await expect(fetchProfile()).rejects.toThrow("Failed to fetch profile");
-      expect(consoleErrorSpy).toHaveBeenCalledWith(
-        "Error fetching profile:",
-        expect.any(Error),
-      );
+      expect(consoleErrorSpy).toHaveBeenCalledWith("failed to fetch profile", {
+        error: expect.stringContaining("Network error") as unknown,
+      });
     });
   });
 
@@ -281,10 +279,9 @@ describe("profile-api", () => {
       await expect(updateProfile(sampleUpdateRequest)).rejects.toThrow(
         "Failed to update profile",
       );
-      expect(consoleErrorSpy).toHaveBeenCalledWith(
-        "Error updating profile:",
-        expect.any(Error),
-      );
+      expect(consoleErrorSpy).toHaveBeenCalledWith("failed to update profile", {
+        error: expect.stringContaining("HTTP error! status: 400") as unknown,
+      });
     });
 
     it("throws error when response success is false", async () => {
@@ -311,10 +308,9 @@ describe("profile-api", () => {
       await expect(updateProfile(sampleUpdateRequest)).rejects.toThrow(
         "Failed to update profile",
       );
-      expect(consoleErrorSpy).toHaveBeenCalledWith(
-        "Error updating profile:",
-        expect.any(Error),
-      );
+      expect(consoleErrorSpy).toHaveBeenCalledWith("failed to update profile", {
+        error: expect.stringContaining("Network error") as unknown,
+      });
     });
   });
 
@@ -376,10 +372,9 @@ describe("profile-api", () => {
       global.fetch = mockFetch;
 
       await expect(uploadAvatar(mockFile)).rejects.toThrow("File too large");
-      expect(consoleErrorSpy).toHaveBeenCalledWith(
-        "Error uploading avatar:",
-        expect.any(Error),
-      );
+      expect(consoleErrorSpy).toHaveBeenCalledWith("failed to upload avatar", {
+        error: expect.stringContaining("File too large") as unknown,
+      });
     });
 
     it("throws error with status when JSON parsing fails", async () => {
@@ -419,10 +414,9 @@ describe("profile-api", () => {
       await expect(uploadAvatar(mockFile)).rejects.toThrow(
         "Custom network error",
       );
-      expect(consoleErrorSpy).toHaveBeenCalledWith(
-        "Error uploading avatar:",
-        expect.any(Error),
-      );
+      expect(consoleErrorSpy).toHaveBeenCalledWith("failed to upload avatar", {
+        error: expect.stringContaining("Custom network error") as unknown,
+      });
     });
 
     it("throws generic error when fetch throws non-Error", async () => {
@@ -477,10 +471,9 @@ describe("profile-api", () => {
       global.fetch = mockFetch;
 
       await expect(deleteAvatar()).rejects.toThrow("Failed to delete avatar");
-      expect(consoleErrorSpy).toHaveBeenCalledWith(
-        "Error deleting avatar:",
-        expect.any(Error),
-      );
+      expect(consoleErrorSpy).toHaveBeenCalledWith("failed to delete avatar", {
+        error: expect.stringContaining("HTTP error! status: 404") as unknown,
+      });
     });
 
     it("throws error when response success is false", async () => {
@@ -517,10 +510,9 @@ describe("profile-api", () => {
       global.fetch = mockFetch;
 
       await expect(deleteAvatar()).rejects.toThrow("Failed to delete avatar");
-      expect(consoleErrorSpy).toHaveBeenCalledWith(
-        "Error deleting avatar:",
-        expect.any(Error),
-      );
+      expect(consoleErrorSpy).toHaveBeenCalledWith("failed to delete avatar", {
+        error: expect.stringContaining("Network error") as unknown,
+      });
     });
   });
 });

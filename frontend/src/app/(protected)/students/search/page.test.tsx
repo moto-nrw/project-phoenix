@@ -687,7 +687,8 @@ describe("StudentSearchPage", () => {
       // Should return empty array on error
       expect(result).toEqual([]);
       expect(consoleWarnSpy).toHaveBeenCalledWith(
-        "Could not load groups for filter",
+        "could not load groups for filter",
+        undefined,
       );
 
       consoleWarnSpy.mockRestore();
