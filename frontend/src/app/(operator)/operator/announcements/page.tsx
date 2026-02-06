@@ -3,7 +3,7 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import { AnimatePresence, LayoutGroup, motion } from "framer-motion";
 import useSWR from "swr";
-import { MoreVertical, Pencil, Trash2, Send } from "lucide-react";
+import { MoreVertical, Pencil, Trash2, Send, Check } from "lucide-react";
 import {
   PageHeaderWithSearch,
   type FilterConfig,
@@ -533,36 +533,48 @@ export default function OperatorAnnouncementsPage() {
               Leer = Alle Benutzer sehen die Ankündigung
             </p>
             <div className="flex flex-wrap gap-3">
-              {(["admin", "user", "guardian"] as const).map((role) => (
-                <label
-                  key={role}
-                  className="flex cursor-pointer items-center gap-2"
-                >
-                  <input
-                    type="checkbox"
-                    checked={formData.targetRoles.includes(role)}
-                    onChange={(e) => {
-                      if (e.target.checked) {
-                        setFormData((prev) => ({
-                          ...prev,
-                          targetRoles: [...prev.targetRoles, role],
-                        }));
-                      } else {
+              {(["admin", "user", "guardian"] as const).map((role) => {
+                const isChecked = formData.targetRoles.includes(role);
+                return (
+                  <button
+                    key={role}
+                    type="button"
+                    onClick={() => {
+                      if (isChecked) {
                         setFormData((prev) => ({
                           ...prev,
                           targetRoles: prev.targetRoles.filter(
                             (r) => r !== role,
                           ),
                         }));
+                      } else {
+                        setFormData((prev) => ({
+                          ...prev,
+                          targetRoles: [...prev.targetRoles, role],
+                        }));
                       }
                     }}
-                    className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                  />
-                  <span className="text-sm text-gray-700">
+                    className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-all ${
+                      isChecked
+                        ? "border-[#83CD2D] bg-[#83CD2D]/10 text-gray-900"
+                        : "border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:bg-gray-50"
+                    }`}
+                  >
+                    <span
+                      className={`flex h-4 w-4 items-center justify-center rounded border transition-all ${
+                        isChecked
+                          ? "border-[#83CD2D] bg-[#83CD2D]"
+                          : "border-gray-300 bg-white"
+                      }`}
+                    >
+                      {isChecked && (
+                        <Check className="h-3 w-3 text-white" strokeWidth={3} />
+                      )}
+                    </span>
                     {SYSTEM_ROLE_LABELS[role]}
-                  </span>
-                </label>
-              ))}
+                  </button>
+                );
+              })}
             </div>
           </div>
         </form>
