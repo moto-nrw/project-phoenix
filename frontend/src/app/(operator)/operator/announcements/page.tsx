@@ -745,7 +745,7 @@ function AnnouncementCard({
 
       {/* Footer with publish button for drafts */}
       {announcement.status === "draft" && (
-        <div className="mt-4 flex justify-end">
+        <div className="mt-4 -mr-7 flex justify-end">
           <button
             type="button"
             onClick={() => onPublish(announcement)}
