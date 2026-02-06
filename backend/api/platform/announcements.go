@@ -3,11 +3,8 @@ package platform
 import (
 	"errors"
 	"net/http"
-	"strconv"
 	"time"
 
-	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
@@ -36,37 +33,6 @@ type AnnouncementResponse struct {
 	PublishedAt string  `json:"published_at"`
 }
 
-// ErrResponse is an error response struct
-type ErrResponse struct {
-	HTTPStatusCode int    `json:"-"`
-	StatusText     string `json:"status"`
-	ErrorText      string `json:"message,omitempty"`
-}
-
-// Render implements the render.Renderer interface
-func (e *ErrResponse) Render(w http.ResponseWriter, r *http.Request) error {
-	render.Status(r, e.HTTPStatusCode)
-	return nil
-}
-
-// ErrInvalidRequest creates an error response for invalid requests
-func ErrInvalidRequest(err error) render.Renderer {
-	return &ErrResponse{
-		HTTPStatusCode: http.StatusBadRequest,
-		StatusText:     "error",
-		ErrorText:      err.Error(),
-	}
-}
-
-// ErrInternal creates an internal server error response
-func ErrInternal(message string) render.Renderer {
-	return &ErrResponse{
-		HTTPStatusCode: http.StatusInternalServerError,
-		StatusText:     "error",
-		ErrorText:      message,
-	}
-}
-
 // GetUnread handles getting unread announcements for the current user
 func (rs *AnnouncementsResource) GetUnread(w http.ResponseWriter, r *http.Request) {
 	claims := jwt.ClaimsFromCtx(r.Context())
@@ -80,7 +46,7 @@ func (rs *AnnouncementsResource) GetUnread(w http.ResponseWriter, r *http.Reques
 
 	announcements, err := rs.announcementService.GetUnreadForUser(r.Context(), userID, userRole)
 	if err != nil {
-		common.RenderError(w, r, ErrInternal("Failed to retrieve announcements"))
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("failed to retrieve announcements")))
 		return
 	}
 
@@ -117,7 +83,7 @@ func (rs *AnnouncementsResource) GetUnreadCount(w http.ResponseWriter, r *http.R
 
 	count, err := rs.announcementService.CountUnread(r.Context(), userID, userRole)
 	if err != nil {
-		common.RenderError(w, r, ErrInternal("Failed to count announcements"))
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("failed to count announcements")))
 		return
 	}
 
@@ -129,14 +95,13 @@ func (rs *AnnouncementsResource) MarkSeen(w http.ResponseWriter, r *http.Request
 	claims := jwt.ClaimsFromCtx(r.Context())
 	userID := int64(claims.ID)
 
-	announcementID, err := parseID(r, "id")
-	if err != nil {
-		common.RenderError(w, r, ErrInvalidRequest(err))
+	announcementID, ok := common.ParseInt64IDWithError(w, r, "id", "invalid announcement ID")
+	if !ok {
 		return
 	}
 
 	if err := rs.announcementService.MarkSeen(r.Context(), userID, announcementID); err != nil {
-		common.RenderError(w, r, ErrInternal("Failed to mark announcement as seen"))
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("failed to mark announcement as seen")))
 		return
 	}
 
@@ -148,29 +113,15 @@ func (rs *AnnouncementsResource) MarkDismissed(w http.ResponseWriter, r *http.Re
 	claims := jwt.ClaimsFromCtx(r.Context())
 	userID := int64(claims.ID)
 
-	announcementID, err := parseID(r, "id")
-	if err != nil {
-		common.RenderError(w, r, ErrInvalidRequest(err))
+	announcementID, ok := common.ParseInt64IDWithError(w, r, "id", "invalid announcement ID")
+	if !ok {
 		return
 	}
 
 	if err := rs.announcementService.MarkDismissed(r.Context(), userID, announcementID); err != nil {
-		common.RenderError(w, r, ErrInternal("Failed to mark announcement as dismissed"))
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("failed to mark announcement as dismissed")))
 		return
 	}
 
 	common.Respond(w, r, http.StatusOK, nil, "Announcement dismissed")
-}
-
-// parseID extracts and validates an ID from the URL
-func parseID(r *http.Request, param string) (int64, error) {
-	idStr := chi.URLParam(r, param)
-	if idStr == "" {
-		return 0, errors.New("ID is required")
-	}
-	id, err := strconv.ParseInt(idStr, 10, 64)
-	if err != nil || id <= 0 {
-		return 0, errors.New("invalid ID")
-	}
-	return id, nil
 }

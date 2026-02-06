@@ -5,6 +5,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
+import { getInitials } from "~/lib/format-utils";
 
 /**
  * User avatar with initials fallback
@@ -41,17 +42,6 @@ function UserAvatar({ avatarUrl, userName, size = "sm" }: UserAvatarProps) {
         initials
       )}
     </div>
-  );
-}
-
-function getInitials(userName: string): string {
-  return (
-    (userName?.trim() || "")
-      .split(" ")
-      .filter((n) => n.length > 0)
-      .map((n) => n[0])
-      .join("")
-      .toUpperCase() || "?"
   );
 }
 

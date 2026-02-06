@@ -3,9 +3,7 @@ package operator
 import (
 	"errors"
 	"net/http"
-	"strconv"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
@@ -118,9 +116,8 @@ func (rs *SuggestionsResource) GetSuggestion(w http.ResponseWriter, r *http.Requ
 	claims := jwt.ClaimsFromCtx(r.Context())
 	operatorAccountID := int64(claims.ID)
 
-	id, err := parseID(r, "id")
-	if err != nil {
-		common.RenderError(w, r, ErrInvalidRequest(err))
+	id, ok := common.ParseInt64IDWithError(w, r, "id", "invalid ID")
+	if !ok {
 		return
 	}
 
@@ -166,9 +163,8 @@ func (rs *SuggestionsResource) UpdateStatus(w http.ResponseWriter, r *http.Reque
 	claims := jwt.ClaimsFromCtx(r.Context())
 	operatorID := int64(claims.ID)
 
-	id, err := parseID(r, "id")
-	if err != nil {
-		common.RenderError(w, r, ErrInvalidRequest(err))
+	id, ok := common.ParseInt64IDWithError(w, r, "id", "invalid ID")
+	if !ok {
 		return
 	}
 
@@ -198,9 +194,8 @@ func (rs *SuggestionsResource) AddComment(w http.ResponseWriter, r *http.Request
 	claims := jwt.ClaimsFromCtx(r.Context())
 	operatorID := int64(claims.ID)
 
-	postID, err := parseID(r, "id")
-	if err != nil {
-		common.RenderError(w, r, ErrInvalidRequest(err))
+	postID, ok := common.ParseInt64IDWithError(w, r, "id", "invalid ID")
+	if !ok {
 		return
 	}
 
@@ -237,9 +232,8 @@ func (rs *SuggestionsResource) DeleteComment(w http.ResponseWriter, r *http.Requ
 	claims := jwt.ClaimsFromCtx(r.Context())
 	operatorID := int64(claims.ID)
 
-	commentID, err := parseID(r, "commentId")
-	if err != nil {
-		common.RenderError(w, r, ErrInvalidRequest(err))
+	commentID, ok := common.ParseInt64IDWithError(w, r, "commentId", "invalid comment ID")
+	if !ok {
 		return
 	}
 
@@ -258,9 +252,8 @@ func (rs *SuggestionsResource) MarkCommentsRead(w http.ResponseWriter, r *http.R
 	claims := jwt.ClaimsFromCtx(r.Context())
 	operatorAccountID := int64(claims.ID)
 
-	postID, err := parseID(r, "id")
-	if err != nil {
-		common.RenderError(w, r, ErrInvalidRequest(err))
+	postID, ok := common.ParseInt64IDWithError(w, r, "id", "invalid ID")
+	if !ok {
 		return
 	}
 
@@ -291,9 +284,8 @@ func (rs *SuggestionsResource) MarkPostViewed(w http.ResponseWriter, r *http.Req
 	claims := jwt.ClaimsFromCtx(r.Context())
 	operatorAccountID := int64(claims.ID)
 
-	postID, err := parseID(r, "id")
-	if err != nil {
-		common.RenderError(w, r, ErrInvalidRequest(err))
+	postID, ok := common.ParseInt64IDWithError(w, r, "id", "invalid ID")
+	if !ok {
 		return
 	}
 
@@ -317,17 +309,4 @@ func (rs *SuggestionsResource) GetUnviewedCount(w http.ResponseWriter, r *http.R
 	}
 
 	common.Respond(w, r, http.StatusOK, map[string]int{"unviewed_count": count}, "Unviewed count retrieved successfully")
-}
-
-// parseID extracts and validates an ID from the URL
-func parseID(r *http.Request, param string) (int64, error) {
-	idStr := chi.URLParam(r, param)
-	if idStr == "" {
-		return 0, errors.New("ID is required")
-	}
-	id, err := strconv.ParseInt(idStr, 10, 64)
-	if err != nil || id <= 0 {
-		return 0, errors.New("invalid ID")
-	}
-	return id, nil
 }

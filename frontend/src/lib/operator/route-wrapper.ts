@@ -2,66 +2,14 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { getOperatorToken } from "./cookies";
 import { handleApiError } from "../api-helpers";
-import type { ApiErrorResponse, ApiResponse } from "../api-helpers";
-
-type RouteContext = {
-  params: Promise<Record<string, string | string[] | undefined>>;
-};
-
-function buildQueryString(request: NextRequest): string {
-  const queryParams = new URLSearchParams();
-  request.nextUrl.searchParams.forEach((value, key) => {
-    queryParams.append(key, value);
-  });
-  const qs = queryParams.toString();
-  return qs ? `?${qs}` : "";
-}
-
-async function extractParams(
-  request: NextRequest,
-  context: RouteContext,
-): Promise<Record<string, unknown>> {
-  const safeParams: Record<string, unknown> = {};
-  const contextParams = await context.params;
-  if (contextParams) {
-    Object.entries(contextParams).forEach(([key, value]) => {
-      if (value !== undefined) {
-        safeParams[key] = value;
-      }
-    });
-  }
-  const url = new URL(request.url);
-  if (!safeParams.id) {
-    const potentialIds = url.pathname.split("/").filter((p) => /^\d+$/.test(p));
-    if (potentialIds.length > 0) {
-      safeParams.id = potentialIds.at(-1);
-    }
-  }
-  url.searchParams.forEach((value, key) => {
-    safeParams[key] = value;
-  });
-  return safeParams;
-}
-
-async function parseRequestBody<B>(request: NextRequest): Promise<B> {
-  try {
-    const text = await request.text();
-    return text ? (JSON.parse(text) as B) : ({} as B);
-  } catch {
-    return {} as B;
-  }
-}
-
-function wrapInApiResponse<T>(data: T): ApiResponse<T> {
-  if (typeof data === "object" && data !== null && "success" in data) {
-    return data as unknown as ApiResponse<T>;
-  }
-  return { success: true, message: "Success", data };
-}
-
-function createUnauthorizedResponse(): NextResponse<ApiErrorResponse> {
-  return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-}
+import {
+  type RouteContext,
+  buildQueryString,
+  extractParams,
+  parseRequestBody,
+  wrapInApiResponse,
+  createUnauthorizedResponse,
+} from "../route-wrapper-utils";
 
 async function operatorServerFetch<T>(
   endpoint: string,
@@ -230,6 +178,4 @@ export function createOperatorProxyGetHandler<T>(backendEndpoint: string) {
   );
 }
 
-export function isStringParam(param: unknown): param is string {
-  return typeof param === "string";
-}
+export { isStringParam } from "../route-wrapper-utils";

@@ -11,24 +11,7 @@ import { StatusDropdown } from "~/components/operator/status-dropdown";
 import type { OperatorSuggestionStatus } from "~/lib/operator/suggestions-helpers";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { Skeleton } from "~/components/ui/skeleton";
-
-function getRelativeTime(dateStr: string): string {
-  const diff = Date.now() - new Date(dateStr).getTime();
-  const minutes = Math.floor(diff / 60000);
-  if (minutes < 1) return "gerade eben";
-  if (minutes < 60)
-    return `vor ${minutes} ${minutes === 1 ? "Minute" : "Minuten"}`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `vor ${hours} ${hours === 1 ? "Stunde" : "Stunden"}`;
-  const days = Math.floor(hours / 24);
-  if (days < 7) return `vor ${days} ${days === 1 ? "Tag" : "Tagen"}`;
-  const weeks = Math.floor(days / 7);
-  if (weeks < 5) return `vor ${weeks} ${weeks === 1 ? "Woche" : "Wochen"}`;
-  const months = Math.floor(days / 30);
-  if (months < 12) return `vor ${months} ${months === 1 ? "Monat" : "Monaten"}`;
-  const years = Math.floor(days / 365);
-  return `vor ${years} ${years === 1 ? "Jahr" : "Jahren"}`;
-}
+import { getRelativeTime } from "~/lib/format-utils";
 
 export default function OperatorSuggestionDetailPage() {
   const params = useParams();

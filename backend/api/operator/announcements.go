@@ -95,9 +95,8 @@ func (rs *AnnouncementsResource) ListAnnouncements(w http.ResponseWriter, r *htt
 
 // GetAnnouncement handles getting a single announcement
 func (rs *AnnouncementsResource) GetAnnouncement(w http.ResponseWriter, r *http.Request) {
-	id, err := parseID(r, "id")
-	if err != nil {
-		common.RenderError(w, r, ErrInvalidRequest(err))
+	id, ok := common.ParseInt64IDWithError(w, r, "id", "invalid announcement ID")
+	if !ok {
 		return
 	}
 
@@ -173,9 +172,8 @@ func (rs *AnnouncementsResource) UpdateAnnouncement(w http.ResponseWriter, r *ht
 	claims := jwt.ClaimsFromCtx(r.Context())
 	operatorID := int64(claims.ID)
 
-	id, err := parseID(r, "id")
-	if err != nil {
-		common.RenderError(w, r, ErrInvalidRequest(err))
+	id, ok := common.ParseInt64IDWithError(w, r, "id", "invalid announcement ID")
+	if !ok {
 		return
 	}
 
@@ -232,9 +230,8 @@ func (rs *AnnouncementsResource) DeleteAnnouncement(w http.ResponseWriter, r *ht
 	claims := jwt.ClaimsFromCtx(r.Context())
 	operatorID := int64(claims.ID)
 
-	id, err := parseID(r, "id")
-	if err != nil {
-		common.RenderError(w, r, ErrInvalidRequest(err))
+	id, ok := common.ParseInt64IDWithError(w, r, "id", "invalid announcement ID")
+	if !ok {
 		return
 	}
 
@@ -253,9 +250,8 @@ func (rs *AnnouncementsResource) PublishAnnouncement(w http.ResponseWriter, r *h
 	claims := jwt.ClaimsFromCtx(r.Context())
 	operatorID := int64(claims.ID)
 
-	id, err := parseID(r, "id")
-	if err != nil {
-		common.RenderError(w, r, ErrInvalidRequest(err))
+	id, ok := common.ParseInt64IDWithError(w, r, "id", "invalid announcement ID")
+	if !ok {
 		return
 	}
 
@@ -271,9 +267,8 @@ func (rs *AnnouncementsResource) PublishAnnouncement(w http.ResponseWriter, r *h
 
 // GetStats handles getting view statistics for an announcement
 func (rs *AnnouncementsResource) GetStats(w http.ResponseWriter, r *http.Request) {
-	id, err := parseID(r, "id")
-	if err != nil {
-		common.RenderError(w, r, ErrInvalidRequest(err))
+	id, ok := common.ParseInt64IDWithError(w, r, "id", "invalid announcement ID")
+	if !ok {
 		return
 	}
 
@@ -296,9 +291,8 @@ type AnnouncementViewDetailResponse struct {
 
 // GetViewDetails handles getting detailed view information for an announcement
 func (rs *AnnouncementsResource) GetViewDetails(w http.ResponseWriter, r *http.Request) {
-	id, err := parseID(r, "id")
-	if err != nil {
-		common.RenderError(w, r, ErrInvalidRequest(err))
+	id, ok := common.ParseInt64IDWithError(w, r, "id", "invalid announcement ID")
+	if !ok {
 		return
 	}
 
