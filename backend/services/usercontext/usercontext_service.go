@@ -4,16 +4,15 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"log"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
-	"github.com/sirupsen/logrus"
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/auth"
@@ -61,10 +60,19 @@ type userContextService struct {
 	substitutionRepo   education.GroupSubstitutionRepository
 	db                 *bun.DB
 	txHandler          *base.TxHandler
+	logger             *slog.Logger
+}
+
+// getLogger returns a nil-safe logger, falling back to slog.Default() if logger is nil
+func (s *userContextService) getLogger() *slog.Logger {
+	if s.logger != nil {
+		return s.logger
+	}
+	return slog.Default()
 }
 
 // NewUserContextServiceWithRepos creates a new user context service using a repositories struct
-func NewUserContextServiceWithRepos(repos UserContextRepositories, db *bun.DB) UserContextService {
+func NewUserContextServiceWithRepos(repos UserContextRepositories, db *bun.DB, logger *slog.Logger) UserContextService {
 	return &userContextService{
 		accountRepo:        repos.AccountRepo,
 		personRepo:         repos.PersonRepo,
@@ -80,6 +88,7 @@ func NewUserContextServiceWithRepos(repos UserContextRepositories, db *bun.DB) U
 		substitutionRepo:   repos.SubstitutionRepo,
 		db:                 db,
 		txHandler:          base.NewTxHandler(db),
+		logger:             logger,
 	}
 }
 
@@ -315,8 +324,7 @@ func (s *userContextService) addTeacherGroups(ctx context.Context, teacherID int
 
 // addSubstitutionGroups adds groups where the staff is an active substitute
 func (s *userContextService) addSubstitutionGroups(ctx context.Context, staffID int64, groupMap map[int64]*education.Group) *PartialError {
-	now := time.Now().UTC()
-	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+	today := timezone.TodayUTC()
 
 	substitutions, err := s.substitutionRepo.FindActiveBySubstituteWithRelations(ctx, staffID, today)
 	if err != nil {
@@ -350,10 +358,10 @@ func (s *userContextService) resolveSubstitutionGroup(ctx context.Context, sub *
 
 // recordSubstitutionFailure records a failure to load a substitution group
 func (s *userContextService) recordSubstitutionFailure(partialErr *PartialError, groupID int64, err error) *PartialError {
-	logrus.WithFields(logrus.Fields{
-		"group_id": groupID,
-		"error":    err,
-	}).Warn("Failed to load group for substitution")
+	s.getLogger().Warn("failed to load group for substitution",
+		slog.Int64("group_id", groupID),
+		slog.String("error", err.Error()),
+	)
 
 	if partialErr == nil {
 		partialErr = &PartialError{
@@ -373,12 +381,12 @@ func (s *userContextService) handlePartialError(groups []*education.Group, parti
 		return groups, nil
 	}
 
-	logrus.WithFields(logrus.Fields{
-		"success_count": partialErr.SuccessCount,
-		"failure_count": partialErr.FailureCount,
-		"failed_ids":    partialErr.FailedIDs,
-		"operation":     partialErr.Op,
-	}).Warn("Partial failure in GetMyGroups")
+	s.getLogger().Warn("partial failure in GetMyGroups",
+		slog.Int("success_count", partialErr.SuccessCount),
+		slog.Int("failure_count", partialErr.FailureCount),
+		slog.Any("failed_ids", partialErr.FailedIDs),
+		slog.String("operation", partialErr.Op),
+	)
 
 	if len(groups) > 0 {
 		return groups, partialErr
@@ -512,7 +520,10 @@ func (s *userContextService) GetMySupervisedGroups(ctx context.Context) ([]*acti
 		// Check if supervision itself is still active (not ended)
 		if !supervision.IsActive() {
 			// Log for observability; helps diagnose silent filters of ended supervisions
-			log.Printf("Skipping ended supervision: supervision_id=%d group_id=%d staff_id=%d", supervision.ID, supervision.GroupID, staff.ID)
+			s.getLogger().DebugContext(ctx, "skipping ended supervision",
+				slog.Int64("supervision_id", supervision.ID),
+				slog.Int64("group_id", supervision.GroupID),
+				slog.Int64("staff_id", staff.ID))
 			continue // Skip ended supervisions
 		}
 		groupIDs = append(groupIDs, supervision.GroupID)
@@ -883,7 +894,7 @@ func (s *userContextService) UpdateAvatar(ctx context.Context, avatarURL string)
 		return nil, &UserContextError{Op: "update avatar", Err: err}
 	}
 
-	cleanupOldAvatar(oldAvatarPath)
+	s.cleanupOldAvatar(ctx, oldAvatarPath)
 
 	return s.GetCurrentProfile(ctx)
 }
@@ -924,12 +935,14 @@ func getOldAvatarPath(currentAvatar string) string {
 }
 
 // cleanupOldAvatar deletes old avatar file if path is provided
-func cleanupOldAvatar(oldAvatarPath string) {
+func (s *userContextService) cleanupOldAvatar(ctx context.Context, oldAvatarPath string) {
 	if oldAvatarPath == "" {
 		return
 	}
 
 	if err := os.Remove(oldAvatarPath); err != nil {
-		log.Printf("Failed to delete old avatar file: %v", err)
+		s.getLogger().WarnContext(ctx, "failed to delete old avatar file",
+			slog.String("path", oldAvatarPath),
+			slog.String("error", err.Error()))
 	}
 }

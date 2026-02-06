@@ -1,8 +1,9 @@
 // app/api/ogs-dashboard/route.ts
 // BFF (Backend-for-Frontend) endpoint for OGS Dashboard
-// Consolidates 4 API calls into 1 to eliminate redundant auth() overhead
+// Consolidates 5 API calls into 1 to eliminate redundant auth() overhead
+// and prevent sequential loading "flash" on student cards
 import type { NextRequest } from "next/server";
-import { apiGet } from "~/lib/api-helpers";
+import { apiGet, apiPost } from "~/lib/api-helpers";
 import { createGetHandler } from "~/lib/route-wrapper";
 
 // Backend response types
@@ -20,7 +21,7 @@ interface BackendEducationalGroup {
 interface BackendStudent {
   id: number;
   first_name: string;
-  second_name: string;
+  last_name: string; // Backend returns last_name, not second_name
   name?: string;
   school_class?: string;
   current_location?: string;
@@ -59,12 +60,23 @@ interface BackendSubstitution {
   end_date: string;
 }
 
+interface BackendPickupTime {
+  student_id: number;
+  date: string;
+  weekday_name: string;
+  pickup_time?: string;
+  is_exception: boolean;
+  day_notes?: Array<{ id: number; content: string }>;
+  notes?: string;
+}
+
 // Combined dashboard response type
 interface OGSDashboardResponse {
   groups: BackendEducationalGroup[];
   students: BackendStudent[];
   roomStatus: BackendRoomStatus | null;
   substitutions: BackendSubstitution[];
+  pickupTimes: BackendPickupTime[];
   firstGroupId: string | null;
 }
 
@@ -96,6 +108,7 @@ export const GET = createGetHandler<OGSDashboardResponse>(
         students: [],
         roomStatus: null,
         substitutions: [],
+        pickupTimes: [],
         firstGroupId: null,
       };
     }
@@ -108,6 +121,7 @@ export const GET = createGetHandler<OGSDashboardResponse>(
         students: [],
         roomStatus: null,
         substitutions: [],
+        pickupTimes: [],
         firstGroupId: null,
       };
     }
@@ -135,11 +149,28 @@ export const GET = createGetHandler<OGSDashboardResponse>(
         ).catch(() => ({ data: [] as BackendSubstitution[] })),
       ]);
 
+    const students = studentsResult.data ?? [];
+
+    // Step 3: Fetch pickup times for all students (parallel with above would
+    // require student IDs which we don't have yet, so this is sequential)
+    // This eliminates the "loading flash" where cards appear without pickup times
+    let pickupTimes: BackendPickupTime[] = [];
+    if (students.length > 0) {
+      const studentIds = students.map((s) => s.id);
+      const pickupResult = await apiPost<{ data: BackendPickupTime[] }>(
+        "/api/students/pickup-times/bulk",
+        token,
+        { student_ids: studentIds },
+      ).catch(() => ({ data: [] as BackendPickupTime[] }));
+      pickupTimes = pickupResult.data ?? [];
+    }
+
     return {
       groups,
-      students: studentsResult.data ?? [],
+      students,
       roomStatus: roomStatusResult.data,
       substitutions: substitutionsResult.data ?? [],
+      pickupTimes,
       firstGroupId,
     };
   },

@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"time"
@@ -15,6 +15,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/education"
@@ -286,7 +287,7 @@ func (rs *Resource) userHasGroupAccess(r *http.Request, groupID int64) bool {
 
 	myGroups, err := rs.UserContextService.GetMyGroups(r.Context())
 	if err != nil {
-		log.Printf("Error getting user groups: %v", err)
+		slog.Default().Error("failed to get user groups", slog.String("error", err.Error()))
 		return false
 	}
 
@@ -336,7 +337,9 @@ func (rs *Resource) buildStudentResponse(
 ) *GroupStudentResponse {
 	person, err := rs.UserService.Get(ctx, student.PersonID)
 	if err != nil {
-		log.Printf("Failed to get person data for student %d: %v", student.ID, err)
+		slog.Default().Error("failed to get person data for student",
+			slog.Int64("student_id", student.ID),
+			slog.String("error", err.Error()))
 		return nil
 	}
 
@@ -512,7 +515,9 @@ func (rs *Resource) listGroups(w http.ResponseWriter, r *http.Request) {
 		teachers, err := rs.EducationService.GetGroupTeachers(r.Context(), group.ID)
 		if err != nil {
 			// Log error but continue without teachers
-			log.Printf("Failed to get teachers for group %d: %v", group.ID, err)
+			slog.Default().Warn("failed to get teachers for group",
+				slog.Int64("group_id", group.ID),
+				slog.String("error", err.Error()))
 			teachers = []*users.Teacher{}
 		}
 
@@ -543,7 +548,9 @@ func (rs *Resource) getGroup(w http.ResponseWriter, r *http.Request) {
 	teachers, err := rs.EducationService.GetGroupTeachers(r.Context(), id)
 	if err != nil {
 		// Log error but continue without teachers
-		log.Printf("Failed to get teachers for group %d: %v", id, err)
+		slog.Default().Warn("failed to get teachers for group",
+			slog.Int64("group_id", id),
+			slog.String("error", err.Error()))
 		teachers = []*users.Teacher{}
 	}
 
@@ -577,7 +584,9 @@ func (rs *Resource) createGroup(w http.ResponseWriter, r *http.Request) {
 	if len(req.TeacherIDs) > 0 {
 		if err := rs.EducationService.UpdateGroupTeachers(r.Context(), group.ID, req.TeacherIDs); err != nil {
 			// Log the error but don't fail the entire operation
-			log.Printf("Failed to assign teachers to group %d: %v", group.ID, err)
+			slog.Default().Warn("failed to assign teachers to group",
+				slog.Int64("group_id", group.ID),
+				slog.String("error", err.Error()))
 		}
 	}
 
@@ -630,7 +639,9 @@ func (rs *Resource) updateGroup(w http.ResponseWriter, r *http.Request) {
 	// Update teacher assignments if provided
 	if req.TeacherIDs != nil {
 		if err := rs.EducationService.UpdateGroupTeachers(r.Context(), group.ID, req.TeacherIDs); err != nil {
-			log.Printf("Error updating group teachers: %v", err)
+			slog.Default().Error("failed to update group teachers",
+				slog.Int64("group_id", group.ID),
+				slog.String("error", err.Error()))
 			// Continue anyway - the group update was successful
 		}
 	}
@@ -692,7 +703,8 @@ func (rs *Resource) getGroupStudents(w http.ResponseWriter, r *http.Request) {
 
 	locationSnapshot, snapshotErr := common.LoadStudentLocationSnapshot(r.Context(), rs.ActiveService, studentIDs)
 	if snapshotErr != nil {
-		log.Printf("Failed to batch load group student locations: %v", snapshotErr)
+		slog.Default().Warn("failed to batch load group student locations",
+			slog.String("error", snapshotErr.Error()))
 		locationSnapshot = nil
 	}
 
@@ -801,7 +813,8 @@ func (rs *Resource) buildRoomStatusResponse(ctx context.Context, students []*use
 
 	snapshot, snapshotErr := common.LoadStudentLocationSnapshot(ctx, rs.ActiveService, studentIDs)
 	if snapshotErr != nil {
-		log.Printf("Failed to batch load student room locations: %v", snapshotErr)
+		slog.Default().Warn("failed to batch load student room locations",
+			slog.String("error", snapshotErr.Error()))
 		snapshot = nil
 	}
 
@@ -946,7 +959,7 @@ func (rs *Resource) translateTransferRequestError(err error) string {
 
 // checkDuplicateTransfer verifies target doesn't already have access to this group
 func (rs *Resource) checkDuplicateTransfer(w http.ResponseWriter, r *http.Request, groupID int64, targetStaffID int64, targetPerson *users.Person) bool {
-	today := time.Date(time.Now().UTC().Year(), time.Now().UTC().Month(), time.Now().UTC().Day(), 0, 0, 0, 0, time.UTC)
+	today := timezone.TodayUTC()
 	existingTransfers, err := rs.EducationService.GetActiveGroupSubstitutions(r.Context(), groupID, today)
 	if err != nil {
 		common.RenderError(w, r, ErrorInternalServer(err))
@@ -999,9 +1012,8 @@ func (rs *Resource) transferGroup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	now := time.Now().UTC()
-	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
-	endOfDay := time.Date(now.Year(), now.Month(), now.Day(), 23, 59, 59, 0, time.UTC)
+	today := timezone.TodayUTC()
+	endOfDay := today.Add(23*time.Hour + 59*time.Minute + 59*time.Second)
 
 	// Create substitution (without regular_staff_id = additional access, not replacement)
 	substitution := &education.GroupSubstitution{

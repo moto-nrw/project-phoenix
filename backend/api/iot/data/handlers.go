@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
@@ -55,12 +55,16 @@ func (rs *Resource) getAvailableTeachers(w http.ResponseWriter, r *http.Request)
 	}
 
 	// Log device access for audit trail
-	log.Printf("Device %s requested teacher list, returned %d teachers", deviceCtx.DeviceID, len(responses))
+	slog.Default().InfoContext(r.Context(), "device requested teacher list",
+		slog.String("device_id", deviceCtx.DeviceID),
+		slog.Int("teacher_count", len(responses)),
+	)
 
 	common.Respond(w, r, http.StatusOK, responses, "Available teachers retrieved successfully")
 }
 
-// getTeacherStudents handles getting students supervised by authenticated teacher(s)
+// getTeacherStudents handles getting students supervised by authenticated teacher(s).
+// When teacher_ids is omitted, returns ALL students (used for bracelet assignment).
 func (rs *Resource) getTeacherStudents(w http.ResponseWriter, r *http.Request) {
 	// Get authenticated device from context
 	deviceCtx := device.DeviceFromCtx(r.Context())
@@ -69,6 +73,14 @@ func (rs *Resource) getTeacherStudents(w http.ResponseWriter, r *http.Request) {
 		if render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey)) != nil {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		}
+		return
+	}
+
+	// If teacher_ids query key is absent entirely, return all students.
+	// An explicitly empty value (?teacher_ids=) still goes through parseTeacherIDs
+	// which returns an empty result — preserving previous behavior.
+	if _, hasTeacherIDs := r.URL.Query()["teacher_ids"]; !hasTeacherIDs {
+		rs.getAllStudents(w, r)
 		return
 	}
 
@@ -99,24 +111,25 @@ func (rs *Resource) getTeacherActivities(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	// Get all activities without filtering by teacher
-	activities, err := rs.ActivitiesService.ListGroups(r.Context(), nil)
+	// Get all activities with occupancy status
+	activitiesWithOccupancy, err := rs.ActivitiesService.ListGroupsWithOccupancy(r.Context())
 	if err != nil {
 		iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(err))
 		return
 	}
 
 	// Convert to response format
-	response := make([]TeacherActivityResponse, 0, len(activities))
-	for _, activity := range activities {
+	response := make([]TeacherActivityResponse, 0, len(activitiesWithOccupancy))
+	for _, ag := range activitiesWithOccupancy {
 		categoryName := ""
-		if activity.Category != nil {
-			categoryName = activity.Category.Name
+		if ag.Category != nil {
+			categoryName = ag.Category.Name
 		}
 		response = append(response, TeacherActivityResponse{
-			ID:       activity.ID,
-			Name:     activity.Name,
-			Category: categoryName,
+			ID:         ag.ID,
+			Name:       ag.Name,
+			Category:   categoryName,
+			IsOccupied: ag.IsOccupied,
 		})
 	}
 
@@ -190,6 +203,39 @@ func (rs *Resource) checkRFIDTagAssignment(w http.ResponseWriter, r *http.Reques
 	common.Respond(w, r, http.StatusOK, response, "RFID tag assignment status retrieved")
 }
 
+// getAllStudents returns all students with group info (no teacher filter)
+func (rs *Resource) getAllStudents(w http.ResponseWriter, r *http.Request) {
+	allStudents, err := rs.UsersService.GetAllStudentsWithGroups(r.Context())
+	if err != nil {
+		iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(err))
+		return
+	}
+
+	response := make([]TeacherStudentResponse, 0, len(allStudents))
+	for _, swg := range allStudents {
+		if swg.Student == nil || swg.Student.Person == nil {
+			continue
+		}
+
+		rfidTag := ""
+		if swg.Student.Person.TagID != nil {
+			rfidTag = *swg.Student.Person.TagID
+		}
+
+		response = append(response, TeacherStudentResponse{
+			StudentID:   swg.Student.ID,
+			PersonID:    swg.Student.PersonID,
+			FirstName:   swg.Student.Person.FirstName,
+			LastName:    swg.Student.Person.LastName,
+			SchoolClass: swg.Student.SchoolClass,
+			GroupName:   swg.GroupName,
+			RFIDTag:     rfidTag,
+		})
+	}
+
+	common.Respond(w, r, http.StatusOK, response, fmt.Sprintf("Found %d students", len(response)))
+}
+
 // Helper functions
 
 // parseTeacherIDs parses comma-separated teacher IDs from query parameter
@@ -231,13 +277,20 @@ func (rs *Resource) fetchStudentsForTeachers(ctx context.Context, teacherIDs []i
 	for _, staffID := range teacherIDs {
 		teacher, err := teacherRepo.FindByStaffID(ctx, staffID)
 		if err != nil || teacher == nil {
-			log.Printf("Error finding teacher for staff %d: %v", staffID, err)
+			slog.Default().WarnContext(ctx, "failed to find teacher for staff",
+				slog.Int64("staff_id", staffID),
+				slog.String("error", fmt.Sprintf("%v", err)),
+			)
 			continue
 		}
 
 		students, err := rs.UsersService.GetStudentsWithGroupsByTeacher(ctx, teacher.ID)
 		if err != nil {
-			log.Printf("Error fetching students for teacher %d (staff %d): %v", teacher.ID, staffID, err)
+			slog.Default().WarnContext(ctx, "failed to fetch students for teacher",
+				slog.Int64("teacher_id", teacher.ID),
+				slog.Int64("staff_id", staffID),
+				slog.String("error", err.Error()),
+			)
 			continue
 		}
 
@@ -256,7 +309,10 @@ func (rs *Resource) buildStudentResponses(ctx context.Context, uniqueStudents ma
 	for _, swg := range uniqueStudents {
 		person, err := rs.UsersService.Get(ctx, swg.Student.PersonID)
 		if err != nil {
-			log.Printf("Error fetching person for student %d: %v", swg.Student.ID, err)
+			slog.Default().WarnContext(ctx, "failed to fetch person for student",
+				slog.Int64("student_id", swg.Student.ID),
+				slog.String("error", err.Error()),
+			)
 			continue
 		}
 
@@ -283,7 +339,10 @@ func (rs *Resource) buildStudentResponses(ctx context.Context, uniqueStudents ma
 func (rs *Resource) findPersonByTag(ctx context.Context, normalizedTagID, originalTagID string) *users.Person {
 	person, err := rs.UsersService.FindByTagID(ctx, normalizedTagID)
 	if err != nil {
-		log.Printf("Warning: No person found for RFID tag %s: %v", originalTagID, err)
+		slog.Default().WarnContext(ctx, "no person found for RFID tag",
+			slog.String("tag_id", originalTagID),
+			slog.String("error", err.Error()),
+		)
 		return nil
 	}
 	return person
@@ -317,7 +376,10 @@ func (rs *Resource) buildStudentRFIDResponse(ctx context.Context, person *users.
 	student, err := rs.UsersService.StudentRepository().FindByPersonID(ctx, person.ID)
 	if err != nil || student == nil {
 		if err != nil {
-			log.Printf("Warning: Error finding student for person %d: %v", person.ID, err)
+			slog.Default().WarnContext(ctx, "error finding student for person",
+				slog.Int64("person_id", person.ID),
+				slog.String("error", err.Error()),
+			)
 		}
 		return nil
 	}
@@ -344,7 +406,10 @@ func (rs *Resource) buildStaffRFIDResponse(ctx context.Context, person *users.Pe
 	staff, err := rs.UsersService.StaffRepository().FindByPersonID(ctx, person.ID)
 	if err != nil || staff == nil {
 		if err != nil {
-			log.Printf("Warning: Error finding staff for person %d: %v", person.ID, err)
+			slog.Default().WarnContext(ctx, "error finding staff for person",
+				slog.Int64("person_id", person.ID),
+				slog.String("error", err.Error()),
+			)
 		}
 		return nil
 	}
@@ -368,7 +433,10 @@ func (rs *Resource) getStaffGroupInfo(ctx context.Context, staffID int64) string
 	teacher, err := rs.UsersService.TeacherRepository().FindByStaffID(ctx, staffID)
 	if err != nil || teacher == nil {
 		if err != nil {
-			log.Printf("Warning: Error checking teacher status for staff %d: %v", staffID, err)
+			slog.Default().WarnContext(ctx, "error checking teacher status for staff",
+				slog.Int64("staff_id", staffID),
+				slog.String("error", err.Error()),
+			)
 		}
 		return "Staff"
 	}

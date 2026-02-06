@@ -2,7 +2,7 @@ package email
 
 import (
 	"context"
-	"log"
+	"log/slog"
 	"time"
 )
 
@@ -56,14 +56,24 @@ type DeliveryRequest struct {
 // Dispatcher manages asynchronous email delivery with retry behaviour.
 type Dispatcher struct {
 	mailer         Mailer
+	logger         *slog.Logger
 	defaultRetry   int
 	defaultBackoff []time.Duration
 }
 
+// getLogger returns a nil-safe logger, falling back to slog.Default() if logger is nil
+func (d *Dispatcher) getLogger() *slog.Logger {
+	if d.logger != nil {
+		return d.logger
+	}
+	return slog.Default()
+}
+
 // NewDispatcher constructs a Dispatcher with sensible defaults.
-func NewDispatcher(mailer Mailer) *Dispatcher {
+func NewDispatcher(mailer Mailer, logger *slog.Logger) *Dispatcher {
 	return &Dispatcher{
 		mailer:       mailer,
+		logger:       logger,
 		defaultRetry: 3,
 		defaultBackoff: []time.Duration{
 			time.Minute,
@@ -152,8 +162,14 @@ func (d *Dispatcher) tryDelivery(ctx context.Context, cfg dispatchConfig, attemp
 		return true
 	}
 
-	log.Printf("Email send attempt failed type=%s id=%d recipient=%s attempt=%d/%d err=%v",
-		cfg.metadata.Type, cfg.metadata.ReferenceID, cfg.metadata.Recipient, attempt, cfg.maxAttempts, err)
+	d.getLogger().Warn("email send attempt failed",
+		"type", cfg.metadata.Type,
+		"reference_id", cfg.metadata.ReferenceID,
+		"recipient", cfg.metadata.Recipient,
+		"attempt", attempt,
+		"max_attempts", cfg.maxAttempts,
+		"error", err,
+	)
 
 	d.invokeCallback(ctx, cfg, attempt, DeliveryStatusFailed, err, attempt == cfg.maxAttempts)
 	return false

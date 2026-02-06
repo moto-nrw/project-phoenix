@@ -9,20 +9,6 @@ import { MobileBottomNav } from "./mobile-bottom-nav";
 
 interface ResponsiveLayoutProps {
   readonly children: React.ReactNode;
-  /** @deprecated Breadcrumb props are now set via useSetBreadcrumb() */
-  readonly pageTitle?: string;
-  /** @deprecated Breadcrumb props are now set via useSetBreadcrumb() */
-  readonly studentName?: string;
-  /** @deprecated Breadcrumb props are now set via useSetBreadcrumb() */
-  readonly roomName?: string;
-  /** @deprecated Breadcrumb props are now set via useSetBreadcrumb() */
-  readonly activityName?: string;
-  /** @deprecated Breadcrumb props are now set via useSetBreadcrumb() */
-  readonly referrerPage?: string;
-  /** @deprecated Breadcrumb props are now set via useSetBreadcrumb() */
-  readonly activeSupervisionName?: string;
-  /** @deprecated Breadcrumb props are now set via useSetBreadcrumb() */
-  readonly ogsGroupName?: string;
 }
 
 /**

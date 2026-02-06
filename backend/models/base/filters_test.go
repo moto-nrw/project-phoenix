@@ -10,6 +10,7 @@ func TestNewFilter(t *testing.T) {
 
 	if f == nil {
 		t.Fatal("NewFilter() should not return nil")
+		return
 	}
 
 	if f.conditions == nil {
@@ -409,6 +410,7 @@ func TestNewQueryOptions(t *testing.T) {
 
 	if qo == nil {
 		t.Fatal("NewQueryOptions() should not return nil")
+		return
 	}
 
 	if qo.Filter == nil {

@@ -4,6 +4,7 @@ import (
 	"log"
 
 	"github.com/moto-nrw/project-phoenix/api"
+	"github.com/moto-nrw/project-phoenix/applog"
 
 	// Import settings definitions to trigger init() registration
 	_ "github.com/moto-nrw/project-phoenix/settings/definitions"
@@ -18,7 +19,13 @@ var serveCmd = &cobra.Command{
 	Short: "start http server with configured api",
 	Long:  `Starts a http server and serves the configured api`,
 	Run: func(cmd *cobra.Command, args []string) {
-		server, err := api.NewServer()
+		logger := applog.New(applog.Config{
+			Level:  viper.GetString("log_level"),
+			Format: viper.GetString("log_format"),
+			Env:    viper.GetString("app_env"),
+		})
+
+		server, err := api.NewServer(logger)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -32,6 +39,7 @@ func init() {
 	// Here you will define your flags and configuration settings.
 	viper.SetDefault("port", "8080")
 	viper.SetDefault("log_level", "debug")
+	viper.SetDefault("log_format", "json")
 
 	viper.SetDefault("login_url", "http://localhost:8080/login")
 	viper.SetDefault("auth_jwt_secret", "random")

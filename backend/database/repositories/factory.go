@@ -85,12 +85,15 @@ type Factory struct {
 	StudentEnrollment  activitiesModels.StudentEnrollmentRepository
 
 	// Active domain
-	ActiveGroup     activeModels.GroupRepository
-	ActiveVisit     activeModels.VisitRepository
-	GroupSupervisor activeModels.GroupSupervisorRepository
-	CombinedGroup   activeModels.CombinedGroupRepository
-	GroupMapping    activeModels.GroupMappingRepository
-	Attendance      activeModels.AttendanceRepository
+	ActiveGroup      activeModels.GroupRepository
+	ActiveVisit      activeModels.VisitRepository
+	GroupSupervisor  activeModels.GroupSupervisorRepository
+	CombinedGroup    activeModels.CombinedGroupRepository
+	GroupMapping     activeModels.GroupMappingRepository
+	Attendance       activeModels.AttendanceRepository
+	WorkSession      activeModels.WorkSessionRepository
+	WorkSessionBreak activeModels.WorkSessionBreakRepository
+	StaffAbsence     activeModels.StaffAbsenceRepository
 
 	// Feedback domain
 	FeedbackEntry feedbackModels.EntryRepository
@@ -111,9 +114,10 @@ type Factory struct {
 	SuggestionVote suggestionsModels.VoteRepository
 
 	// Audit domain
-	DataDeletion auditModels.DataDeletionRepository
-	AuthEvent    auditModels.AuthEventRepository
-	DataImport   auditModels.DataImportRepository
+	DataDeletion    auditModels.DataDeletionRepository
+	AuthEvent       auditModels.AuthEventRepository
+	DataImport      auditModels.DataImportRepository
+	WorkSessionEdit auditModels.WorkSessionEditRepository
 }
 
 // NewFactory creates a new repository factory with all repositories
@@ -172,12 +176,15 @@ func NewFactory(db *bun.DB) *Factory {
 		StudentEnrollment:  activities.NewStudentEnrollmentRepository(db),
 
 		// Active repositories
-		ActiveGroup:     active.NewGroupRepository(db),
-		ActiveVisit:     active.NewVisitRepository(db),
-		GroupSupervisor: active.NewGroupSupervisorRepository(db),
-		CombinedGroup:   active.NewCombinedGroupRepository(db),
-		GroupMapping:    active.NewGroupMappingRepository(db),
-		Attendance:      active.NewAttendanceRepository(db),
+		ActiveGroup:      active.NewGroupRepository(db),
+		ActiveVisit:      active.NewVisitRepository(db),
+		GroupSupervisor:  active.NewGroupSupervisorRepository(db),
+		CombinedGroup:    active.NewCombinedGroupRepository(db),
+		GroupMapping:     active.NewGroupMappingRepository(db),
+		Attendance:       active.NewAttendanceRepository(db),
+		WorkSession:      active.NewWorkSessionRepository(db),
+		WorkSessionBreak: active.NewWorkSessionBreakRepository(db),
+		StaffAbsence:     active.NewStaffAbsenceRepository(db),
 
 		// Feedback repositories
 		FeedbackEntry: feedback.NewEntryRepository(db),
@@ -198,8 +205,9 @@ func NewFactory(db *bun.DB) *Factory {
 		SuggestionVote: suggestionsRepo.NewVoteRepository(db),
 
 		// Audit repositories
-		DataDeletion: audit.NewDataDeletionRepository(db),
-		AuthEvent:    audit.NewAuthEventRepository(db),
-		DataImport:   audit.NewDataImportRepository(db),
+		DataDeletion:    audit.NewDataDeletionRepository(db),
+		AuthEvent:       audit.NewAuthEventRepository(db),
+		DataImport:      audit.NewDataImportRepository(db),
+		WorkSessionEdit: audit.NewWorkSessionEditRepository(db),
 	}
 }

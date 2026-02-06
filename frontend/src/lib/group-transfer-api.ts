@@ -1,7 +1,7 @@
 // lib/group-transfer-api.ts
 // API client for group transfer operations
 
-import { getCachedSession } from "./session-cache";
+import { sessionFetch } from "./session-cache";
 
 // Staff member with role info for dropdown
 export interface StaffWithRole {
@@ -71,15 +71,8 @@ export const groupTransferService = {
   // Get staff members with a specific role (for dropdown)
   async getStaffByRole(role: string): Promise<StaffWithRole[]> {
     try {
-      const session = await getCachedSession();
-      const response = await fetch(`/api/staff/by-role?role=${role}`, {
-        credentials: "include",
-        headers: session?.user?.token
-          ? {
-              Authorization: `Bearer ${session.user.token}`,
-              "Content-Type": "application/json",
-            }
-          : undefined,
+      const response = await sessionFetch(`/api/staff/by-role?role=${role}`, {
+        method: "GET",
       });
 
       if (!response.ok) {
@@ -110,16 +103,8 @@ export const groupTransferService = {
   // Transfer group to another user (until end of day)
   async transferGroup(groupId: string, targetPersonId: string): Promise<void> {
     try {
-      const session = await getCachedSession();
-      const response = await fetch(`/api/groups/${groupId}/transfer`, {
+      const response = await sessionFetch(`/api/groups/${groupId}/transfer`, {
         method: "POST",
-        credentials: "include",
-        headers: session?.user?.token
-          ? {
-              Authorization: `Bearer ${session.user.token}`,
-              "Content-Type": "application/json",
-            }
-          : undefined,
         body: JSON.stringify({
           target_user_id: Number.parseInt(targetPersonId, 10),
         }),
@@ -147,28 +132,17 @@ export const groupTransferService = {
   },
 
   // Get all active transfers for a group (from substitutions)
-  // Pass token to skip redundant getSession() call (saves ~600ms)
   async getActiveTransfersForGroup(
     groupId: string,
-    token?: string,
+    _token?: string,
   ): Promise<GroupTransfer[]> {
     try {
-      // Use provided token or fall back to getSession()
-      let authToken = token;
-      if (!authToken) {
-        const session = await getCachedSession();
-        authToken = session?.user?.token;
-      }
-
-      const response = await fetch(`/api/groups/${groupId}/substitutions`, {
-        credentials: "include",
-        headers: authToken
-          ? {
-              Authorization: `Bearer ${authToken}`,
-              "Content-Type": "application/json",
-            }
-          : undefined,
-      });
+      const response = await sessionFetch(
+        `/api/groups/${groupId}/substitutions`,
+        {
+          method: "GET",
+        },
+      );
 
       if (!response.ok) {
         // Return empty array instead of throwing if not found
@@ -254,18 +228,10 @@ export const groupTransferService = {
     substitutionId: string,
   ): Promise<void> {
     try {
-      const session = await getCachedSession();
-      const response = await fetch(
+      const response = await sessionFetch(
         `/api/groups/${groupId}/transfer/${substitutionId}`,
         {
           method: "DELETE",
-          credentials: "include",
-          headers: session?.user?.token
-            ? {
-                Authorization: `Bearer ${session.user.token}`,
-                "Content-Type": "application/json",
-              }
-            : undefined,
         },
       );
 

@@ -2,7 +2,7 @@ package config
 
 import (
 	"errors"
-	"log"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"time"
@@ -625,11 +625,11 @@ func (rs *Resource) triggerRetentionCleanup(w http.ResponseWriter, r *http.Reque
 	lastCleanupSetting.Value = time.Now().Format(time.RFC3339)
 	if lastCleanupSetting.ID == 0 {
 		if err := rs.ConfigService.CreateSetting(r.Context(), lastCleanupSetting); err != nil {
-			log.Printf("Warning: Failed to record cleanup timestamp: %v", err)
+			slog.Default().Warn("failed to record cleanup timestamp", slog.String("error", err.Error()))
 		}
 	} else {
 		if err := rs.ConfigService.UpdateSetting(r.Context(), lastCleanupSetting); err != nil {
-			log.Printf("Warning: Failed to update cleanup timestamp: %v", err)
+			slog.Default().Warn("failed to update cleanup timestamp", slog.String("error", err.Error()))
 		}
 	}
 

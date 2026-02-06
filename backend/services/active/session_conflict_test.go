@@ -89,6 +89,7 @@ package active_test
 
 import (
 	"context"
+	"log/slog"
 	"strings"
 	"sync"
 	"testing"
@@ -106,7 +107,7 @@ import (
 // setupActiveService creates an active service with real database connection
 func setupActiveService(t *testing.T, db *bun.DB) activeSvc.Service {
 	repoFactory := repositories.NewFactory(db)
-	serviceFactory, err := services.NewFactory(repoFactory, db) // Pass db as second parameter
+	serviceFactory, err := services.NewFactory(repoFactory, db, slog.Default()) // Pass db as second parameter
 	require.NoError(t, err, "Failed to create service factory")
 	return serviceFactory.Active
 }

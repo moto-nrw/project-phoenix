@@ -4,12 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	"github.com/moto-nrw/project-phoenix/logging"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
 )
@@ -22,6 +22,7 @@ type sseConnection struct {
 	userID  int64 // Account ID for user-specific subscriptions (settings)
 	client  *realtime.Client
 	topics  *sseTopics
+	logger  *slog.Logger
 }
 
 // sseTopics holds subscription topic information
@@ -30,6 +31,14 @@ type sseTopics struct {
 	eduTopics      []string
 	settingsTopics []string
 	allTopics      []string
+}
+
+// getLogger returns a nil-safe logger, falling back to slog.Default() if logger is nil
+func (conn *sseConnection) getLogger() *slog.Logger {
+	if conn.logger != nil {
+		return conn.logger
+	}
+	return slog.Default()
 }
 
 // connectedEvent is the initial event sent when SSE connection is established
@@ -61,6 +70,7 @@ func (rs *Resource) setupSSEConnection(w http.ResponseWriter) (*sseConnection, i
 	return &sseConnection{
 		writer:  w,
 		flusher: flusher,
+		logger:  rs.getLogger(),
 	}, 0
 }
 
@@ -90,7 +100,10 @@ func (rs *Resource) buildSubscriptionTopics(ctx context.Context, staffID, userID
 	// Get supervised active groups for this staff member
 	supervisions, err := rs.activeSvc.GetStaffActiveSupervisions(ctx, staffID)
 	if err != nil {
-		logError("Failed to get staff active supervisions for SSE", err, staffID)
+		rs.getLogger().Error("failed to get staff active supervisions for SSE",
+			slog.String("error", err.Error()),
+			slog.Int64("staff_id", staffID),
+		)
 		return nil, err
 	}
 
@@ -122,7 +135,10 @@ func (rs *Resource) buildSubscriptionTopics(ctx context.Context, staffID, userID
 	if rs.userCtx != nil {
 		eduGroups, err := rs.userCtx.GetMyGroups(ctx)
 		if err != nil {
-			logWarning("Failed to load educational groups for SSE subscription", err, staffID)
+			rs.getLogger().Warn("failed to load educational groups for SSE subscription",
+				slog.String("error", err.Error()),
+				slog.Int64("staff_id", staffID),
+			)
 		} else {
 			eduTopics = make([]string, 0, len(eduGroups))
 			for _, group := range eduGroups {
@@ -164,7 +180,10 @@ func (conn *sseConnection) sendConnectedEvent(topics *sseTopics) error {
 
 	data, err := json.Marshal(event)
 	if err != nil {
-		logError("Failed to marshal initial SSE event", err, conn.staffID)
+		conn.getLogger().Error("failed to marshal initial SSE event",
+			slog.String("error", err.Error()),
+			slog.Int64("staff_id", conn.staffID),
+		)
 		return err
 	}
 
@@ -194,7 +213,9 @@ func (conn *sseConnection) sendHeartbeat() error {
 
 // runHeartbeatOnlyLoop runs the event loop when there are no topics to subscribe to
 func (conn *sseConnection) runHeartbeatOnlyLoop(ctx context.Context) {
-	logInfo("SSE connection - no available topics (heartbeat only)", conn.staffID)
+	conn.getLogger().Info("SSE connection - no available topics (heartbeat only)",
+		slog.Int64("staff_id", conn.staffID),
+	)
 
 	ticker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()
@@ -250,47 +271,13 @@ func (rs *Resource) runEventLoop(ctx context.Context, conn *sseConnection) {
 func (conn *sseConnection) sendEvent(event realtime.Event) error {
 	eventData, err := json.Marshal(event)
 	if err != nil {
-		logEventError("Failed to marshal SSE event", err, conn.staffID, event.Type)
+		conn.getLogger().Error("failed to marshal SSE event",
+			slog.String("error", err.Error()),
+			slog.Int64("staff_id", conn.staffID),
+			slog.String("event_type", string(event.Type)),
+		)
 		return nil // Don't disconnect on marshal error, just skip this event
 	}
 
 	return conn.writeSSEMessage(string(event.Type), eventData)
-}
-
-// Logging helpers with defensive nil checks
-
-func logError(msg string, err error, staffID int64) {
-	if logging.Logger != nil {
-		logging.Logger.WithFields(map[string]interface{}{
-			"error":    err.Error(),
-			"staff_id": staffID,
-		}).Error(msg)
-	}
-}
-
-func logWarning(msg string, err error, staffID int64) {
-	if logging.Logger != nil {
-		logging.Logger.WithFields(map[string]interface{}{
-			"error":    err.Error(),
-			"staff_id": staffID,
-		}).Warn(msg)
-	}
-}
-
-func logInfo(msg string, staffID int64) {
-	if logging.Logger != nil {
-		logging.Logger.WithFields(map[string]interface{}{
-			"staff_id": staffID,
-		}).Info(msg)
-	}
-}
-
-func logEventError(msg string, err error, staffID int64, eventType realtime.EventType) {
-	if logging.Logger != nil {
-		logging.Logger.WithFields(map[string]interface{}{
-			"error":      err.Error(),
-			"staff_id":   staffID,
-			"event_type": string(eventType),
-		}).Error(msg)
-	}
 }

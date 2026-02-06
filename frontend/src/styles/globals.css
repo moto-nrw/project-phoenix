@@ -48,6 +48,13 @@
   --destructive-foreground: 210 40% 98%;
 
   --ring: 215 22.2% 50.2%;
+
+  /* Chart colors for shadcn/recharts */
+  --chart-1: 221.2 83.2% 53.3%;
+  --chart-2: 142.1 76.2% 36.3%;
+  --chart-3: 30.7 97.2% 72.4%;
+  --chart-4: 280.1 65.5% 60%;
+  --chart-5: 340.1 75.5% 55.2%;
 }
 
 .dark {
@@ -79,6 +86,13 @@
   --destructive-foreground: 210 40% 98%;
 
   --ring: 215 22.2% 50.2%;
+
+  /* Chart colors for shadcn/recharts */
+  --chart-1: 220 70% 50%;
+  --chart-2: 160 60% 45%;
+  --chart-3: 30 80% 55%;
+  --chart-4: 280 65% 60%;
+  --chart-5: 340 75% 55%;
 }
 
 /* Map CSS vars to Tailwind color tokens */

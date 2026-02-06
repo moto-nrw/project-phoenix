@@ -53,6 +53,9 @@ type GroupRepository interface {
 
 	// GetOccupiedRoomIDs returns a set of room IDs that currently have active groups
 	GetOccupiedRoomIDs(ctx context.Context, roomIDs []int64) (map[int64]bool, error)
+
+	// GetOccupiedActivityGroupIDs returns a set of activity group IDs that currently have active sessions
+	GetOccupiedActivityGroupIDs(ctx context.Context, groupIDs []int64) (map[int64]bool, error)
 }
 
 // VisitRepository defines operations for managing active visits
@@ -117,6 +120,10 @@ type GroupSupervisorRepository interface {
 
 	// GetStaffIDsWithSupervisionToday returns staff IDs who had any supervision activity today
 	GetStaffIDsWithSupervisionToday(ctx context.Context) ([]int64, error)
+
+	// EndAllActiveByStaffID ends all active supervisions for a staff member (sets end_date = CURRENT_DATE)
+	// Returns the number of supervisions that were ended
+	EndAllActiveByStaffID(ctx context.Context, staffID int64) (int, error)
 }
 
 // CombinedGroupRepository defines operations for managing active combined groups
@@ -154,4 +161,71 @@ type GroupMappingRepository interface {
 
 	// FindWithRelations retrieves a mapping with its associated CombinedGroup and ActiveGroup relations
 	FindWithRelations(ctx context.Context, id int64) (*GroupMapping, error)
+}
+
+// AttendanceRepository is already defined above
+
+// WorkSessionRepository defines operations for managing staff work sessions
+type WorkSessionRepository interface {
+	base.Repository[*WorkSession]
+
+	// GetByStaffAndDate returns the work session for a staff member on a given date
+	GetByStaffAndDate(ctx context.Context, staffID int64, date time.Time) (*WorkSession, error)
+
+	// GetCurrentByStaffID returns the active (not checked out) session for a staff member
+	GetCurrentByStaffID(ctx context.Context, staffID int64) (*WorkSession, error)
+
+	// GetHistoryByStaffID returns work sessions for a staff member in a date range
+	GetHistoryByStaffID(ctx context.Context, staffID int64, from, to time.Time) ([]*WorkSession, error)
+
+	// GetOpenSessions returns all sessions without check-out before a given date
+	GetOpenSessions(ctx context.Context, beforeDate time.Time) ([]*WorkSession, error)
+
+	// GetTodayPresenceMap returns a map of staff IDs to their work status for today
+	GetTodayPresenceMap(ctx context.Context) (map[int64]string, error)
+
+	// CloseSession sets the check-out time and auto_checked_out flag
+	CloseSession(ctx context.Context, id int64, checkOutTime time.Time, autoCheckedOut bool) error
+
+	// UpdateBreakMinutes sets the break_minutes cache field on a session
+	UpdateBreakMinutes(ctx context.Context, id int64, breakMinutes int) error
+}
+
+// StaffAbsenceRepository defines operations for managing staff absences
+type StaffAbsenceRepository interface {
+	base.Repository[*StaffAbsence]
+
+	// GetByStaffAndDateRange returns absences for a staff member overlapping the given date range
+	GetByStaffAndDateRange(ctx context.Context, staffID int64, from, to time.Time) ([]*StaffAbsence, error)
+
+	// GetByStaffAndDate returns an absence for a staff member on a specific date, or nil
+	GetByStaffAndDate(ctx context.Context, staffID int64, date time.Time) (*StaffAbsence, error)
+
+	// GetByDateRange returns all absences overlapping the given date range
+	GetByDateRange(ctx context.Context, from, to time.Time) ([]*StaffAbsence, error)
+
+	// GetTodayAbsenceMap returns a map of staff IDs to their absence type for today
+	// Priority order when multiple absences exist: sick > training > vacation > other
+	GetTodayAbsenceMap(ctx context.Context) (map[int64]string, error)
+}
+
+// WorkSessionBreakRepository defines operations for managing work session breaks
+type WorkSessionBreakRepository interface {
+	base.Repository[*WorkSessionBreak]
+
+	// GetBySessionID returns all breaks for a given session ordered by started_at
+	GetBySessionID(ctx context.Context, sessionID int64) ([]*WorkSessionBreak, error)
+
+	// GetActiveBySessionID returns the currently active (no ended_at) break for a session, or nil
+	GetActiveBySessionID(ctx context.Context, sessionID int64) (*WorkSessionBreak, error)
+
+	// EndBreak sets ended_at and duration_minutes on a break
+	EndBreak(ctx context.Context, id int64, endedAt time.Time, durationMinutes int) error
+
+	// UpdateDuration updates the duration and ended_at of a completed break
+	UpdateDuration(ctx context.Context, id int64, durationMinutes int, endedAt time.Time) error
+
+	// GetExpiredBreaks returns all active breaks with planned_end_time <= before
+	// Used by the scheduler to auto-end breaks
+	GetExpiredBreaks(ctx context.Context, before time.Time) ([]*WorkSessionBreak, error)
 }

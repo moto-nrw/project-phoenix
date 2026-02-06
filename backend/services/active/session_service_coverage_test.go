@@ -2,6 +2,7 @@ package active_test
 
 import (
 	"context"
+	"log/slog"
 	"testing"
 	"time"
 
@@ -19,7 +20,7 @@ import (
 func setupSessionService(t *testing.T, db *bun.DB) activeSvc.Service {
 	t.Helper()
 	repoFactory := repositories.NewFactory(db)
-	serviceFactory, err := services.NewFactory(repoFactory, db)
+	serviceFactory, err := services.NewFactory(repoFactory, db, slog.Default())
 	require.NoError(t, err, "Failed to create service factory")
 	return serviceFactory.Active
 }

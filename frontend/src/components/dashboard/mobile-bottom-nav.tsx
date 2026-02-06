@@ -132,14 +132,13 @@ const additionalNavItems: AdditionalNavItem[] = [
     iconKey: "feedback",
     alwaysShow: true,
   },
-  // Coming soon features - shown to all users
   {
-    href: "#",
+    href: "/time-tracking",
     label: "Zeiterfassung",
     iconKey: "clock",
     alwaysShow: true,
-    comingSoon: true,
   },
+  // Coming soon features - shown to all users
   {
     href: "#",
     label: "Nachrichten",

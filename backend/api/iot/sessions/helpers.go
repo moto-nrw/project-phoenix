@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"strconv"
 
@@ -16,21 +16,31 @@ import (
 
 // startSession starts an activity session with proper validation and logging
 func (rs *Resource) startSession(ctx context.Context, req *SessionStartRequest, deviceCtx *iot.Device) (*active.Group, error) {
-	log.Printf("Session start request: ActivityID=%d, SupervisorIDs=%v, Force=%v", req.ActivityID, req.SupervisorIDs, req.Force)
+	slog.Default().InfoContext(ctx, "session start request",
+		slog.Int64("activity_id", req.ActivityID),
+		slog.Int("supervisor_count", len(req.SupervisorIDs)),
+		slog.Bool("force", req.Force),
+	)
 
 	if len(req.SupervisorIDs) == 0 {
-		log.Printf("No supervisor IDs provided in request")
+		slog.Default().WarnContext(ctx, "no supervisor IDs provided")
 		return nil, errors.New("at least one supervisor ID is required")
 	}
 
-	log.Printf("Using multi-supervisor methods with %d supervisors", len(req.SupervisorIDs))
+	slog.Default().DebugContext(ctx, "using multi-supervisor session methods",
+		slog.Int("supervisor_count", len(req.SupervisorIDs)),
+	)
 
 	if req.Force {
-		log.Printf("Calling ForceStartActivitySessionWithSupervisors with supervisors: %v", req.SupervisorIDs)
+		slog.Default().InfoContext(ctx, "force starting activity session",
+			slog.Int("supervisor_count", len(req.SupervisorIDs)),
+		)
 		return rs.ActiveService.ForceStartActivitySessionWithSupervisors(ctx, req.ActivityID, deviceCtx.ID, req.SupervisorIDs, req.RoomID)
 	}
 
-	log.Printf("Calling StartActivitySessionWithSupervisors with supervisors: %v", req.SupervisorIDs)
+	slog.Default().InfoContext(ctx, "starting activity session",
+		slog.Int("supervisor_count", len(req.SupervisorIDs)),
+	)
 	return rs.ActiveService.StartActivitySessionWithSupervisors(ctx, req.ActivityID, deviceCtx.ID, req.SupervisorIDs, req.RoomID)
 }
 

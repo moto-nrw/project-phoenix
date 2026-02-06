@@ -68,14 +68,14 @@ const NAV_ITEMS: NavItem[] = [
     activeColor: "text-pink-500",
     requiresAdmin: true,
   },
-  // Coming soon features - shown to all users
   {
-    href: "#",
+    href: "/time-tracking",
     label: "Zeiterfassung",
     icon: "M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0Z",
+    activeColor: "text-sky-500",
     alwaysShow: true,
-    comingSoon: true,
   },
+  // Coming soon features - shown to all users
   {
     href: "#",
     label: "Nachrichten",

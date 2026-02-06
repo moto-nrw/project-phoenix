@@ -5,11 +5,9 @@ import (
 	"context"
 	"database/sql"
 
-	"github.com/spf13/viper"
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/dialect/pgdialect"
 	"github.com/uptrace/bun/driver/pgdriver"
-	"github.com/uptrace/bun/extra/bundebug"
 )
 
 // DBConn returns a postgres connection pool.
@@ -23,10 +21,6 @@ func DBConn() (*bun.DB, error) {
 
 	if err := checkConn(db); err != nil {
 		return nil, err
-	}
-
-	if viper.GetBool("db_debug") {
-		db.AddQueryHook(bundebug.NewQueryHook(bundebug.WithVerbose(true)))
 	}
 
 	return db, nil

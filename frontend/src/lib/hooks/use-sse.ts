@@ -236,14 +236,14 @@ export function useSSE(
     };
 
     document.addEventListener("visibilitychange", handleVisibilityChange);
-    window.addEventListener("online", handleOnline);
+    globalThis.addEventListener("online", handleOnline);
 
     // Cleanup on unmount
     return () => {
       mountedRef.current = false;
 
       document.removeEventListener("visibilitychange", handleVisibilityChange);
-      window.removeEventListener("online", handleOnline);
+      globalThis.removeEventListener("online", handleOnline);
 
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);

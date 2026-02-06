@@ -21,6 +21,7 @@ package active_test
 
 import (
 	"context"
+	"log/slog"
 	"testing"
 	"time"
 
@@ -37,7 +38,7 @@ import (
 // setupCleanupService creates a cleanup service with real database connection
 func setupCleanupService(t *testing.T, db *bun.DB) active.CleanupService {
 	repoFactory := repositories.NewFactory(db)
-	serviceFactory, err := services.NewFactory(repoFactory, db)
+	serviceFactory, err := services.NewFactory(repoFactory, db, slog.Default())
 	require.NoError(t, err, "Failed to create service factory")
 	return serviceFactory.ActiveCleanup
 }

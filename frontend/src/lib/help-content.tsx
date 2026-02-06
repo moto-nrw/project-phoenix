@@ -973,6 +973,110 @@ export const NAVIGATION_HELP: Record<
     ),
   },
 
+  "/time-tracking": {
+    title: "Zeiterfassung Hilfe",
+    content: (
+      <div className="space-y-6">
+        <div>
+          <h3 className="mb-3 flex items-center text-lg font-semibold text-gray-900">
+            <span className="mr-3 h-2 w-2 rounded-full bg-blue-500"></span>
+            {"Zeiterfassung"}
+          </h3>
+          <p className="leading-relaxed text-gray-700">
+            Erfasse deine Arbeitszeiten digital. Die Stempeluhr dokumentiert
+            Arbeitsbeginn, -ende und Pausen gemäß den Anforderungen des
+            deutschen Arbeitszeitgesetzes (ArbZG).
+          </p>
+        </div>
+
+        <div className="rounded-lg bg-gray-50 p-4">
+          <h4 className="mb-3 font-semibold text-gray-900">Stempeluhr</h4>
+          <div className="grid gap-3">
+            <InfoListItem
+              title="Einstempeln"
+              description="Wähle deinen Arbeitsort (In der OGS oder Homeoffice) und starte den Arbeitstag"
+            />
+            <InfoListItem
+              title="Ausstempeln"
+              description="Beende deinen Arbeitstag — die Netto-Arbeitszeit wird automatisch berechnet"
+            />
+            <InfoListItem
+              title="Pausen"
+              description="Starte und beende beliebig viele Pausen. Die Pausenzeit wird von der Arbeitszeit abgezogen"
+            />
+            <InfoListItem
+              title="Aktivitätsprotokoll"
+              description="Alle Aktionen (Einstempeln, Pausen, Ausstempeln) werden chronologisch protokolliert"
+            />
+          </div>
+        </div>
+
+        <div className="rounded-lg bg-gray-50 p-4">
+          <h4 className="mb-3 font-semibold text-gray-900">Wochenübersicht</h4>
+          <div className="grid gap-3">
+            <InfoListItem
+              title="Wochentabelle"
+              description="Tägliche Übersicht mit Start, Ende, Pause, Netto-Arbeitszeit und Ort"
+            />
+            <InfoListItem
+              title="Wochensumme"
+              description="Automatische Berechnung der gesamten Wochenarbeitszeit"
+            />
+            <InfoListItem
+              title="Diagramm"
+              description="Visueller Vergleich von Arbeitszeit und Pausenzeit pro Tag"
+            />
+            <InfoListItem
+              title="Wochen-Navigation"
+              description="Blättere zwischen aktueller und vergangenen Wochen"
+            />
+          </div>
+        </div>
+
+        <div className="rounded-lg bg-gray-50 p-4">
+          <h4 className="mb-3 font-semibold text-gray-900">
+            Einträge bearbeiten
+          </h4>
+          <div className="grid gap-3">
+            <InfoListItem
+              title="Nachträgliche Korrektur"
+              description="Klicke auf einen Tag in der Tabelle, um Start- und Endzeit oder den Ort zu ändern"
+            />
+            <InfoListItem
+              title="Pflichtnotiz"
+              description="Bei jeder Änderung muss ein Grund angegeben werden (z.B. Vergessen einzustempeln, Zeitkorrektur)"
+            />
+            <InfoListItem
+              title="Änderungshistorie"
+              description="Geänderte Einträge werden in der Tabelle mit Datum und Notiz markiert"
+            />
+          </div>
+        </div>
+
+        <div className="rounded-lg bg-gray-50 p-4">
+          <h4 className="mb-3 font-semibold text-gray-900">
+            Arbeitszeitgesetz (§4 ArbZG)
+          </h4>
+          <div className="space-y-2 text-sm">
+            <BulletItem>
+              Ab <strong>6 Stunden</strong> Arbeitszeit: mindestens 30 Minuten
+              Pause
+            </BulletItem>
+            <BulletItem>
+              Ab <strong>9 Stunden</strong> Arbeitszeit: mindestens 45 Minuten
+              Pause
+            </BulletItem>
+            <BulletItem>
+              Bei unzureichender Pause erscheint ein{" "}
+              <span className="text-amber-500">⚠</span> Warnsymbol in der
+              Tabelle
+            </BulletItem>
+          </div>
+        </div>
+      </div>
+    ),
+  },
+
   "/suggestions": {
     title: "Feedback Hilfe",
     content: (

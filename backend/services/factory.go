@@ -4,6 +4,7 @@ package services
 import (
 	"fmt"
 	"log"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -38,6 +39,8 @@ type Factory struct {
 	Auth                     auth.AuthService
 	Active                   active.Service
 	ActiveCleanup            active.CleanupService
+	WorkSession              active.WorkSessionService
+	StaffAbsence             active.StaffAbsenceService
 	Activities               activities.ActivityService
 	Education                education.Service
 	GradeTransition          education.GradeTransitionService
@@ -65,18 +68,26 @@ type Factory struct {
 }
 
 // NewFactory creates a new services factory
-func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
+func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*Factory, error) {
 
 	mailer, err := email.NewMailer()
 	if err != nil {
-		log.Printf("email: failed to initialize SMTP mailer, falling back to mock mailer: %v", err)
+		logger.Warn("SMTP mailer initialization failed, falling back to mock mailer", "error", err)
 		mailer = email.NewMockMailer()
 	}
 	if _, ok := mailer.(*email.MockMailer); ok {
-		log.Println("email: SMTP mailer not configured; using mock mailer (tokens will not be sent via SMTP)")
+		logger.Warn("SMTP mailer not configured; using mock mailer (tokens will not be sent via SMTP)")
 	}
 
-	dispatcher := email.NewDispatcher(mailer)
+	// Create scoped loggers for services that need them
+	activeLogger := logger.With("service", "active")
+	usercontextLogger := logger.With("service", "usercontext")
+	authLogger := logger.With("service", "auth")
+	facilitiesLogger := logger.With("service", "facilities")
+	databaseLogger := logger.With("service", "database")
+	emailLogger := logger.With("component", "email")
+
+	dispatcher := email.NewDispatcher(mailer, emailLogger)
 
 	defaultFrom := email.NewEmail(viper.GetString("email_from_name"), viper.GetString("email_from_address"))
 	if defaultFrom.Address == "" {
@@ -91,7 +102,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 
 	appEnv := strings.ToLower(viper.GetString("app_env"))
 	if appEnv == "production" && !strings.HasPrefix(frontendURL, "https://") {
-		log.Fatalf("FRONTEND_URL must use https:// in production (received %q)", rawFrontendURL)
+		return nil, fmt.Errorf("FRONTEND_URL must use https:// in production (received %q)", rawFrontendURL)
 	}
 
 	invitationExpiryHours := viper.GetInt("invitation_token_expiry_hours")
@@ -111,7 +122,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 	passwordResetTokenExpiry := time.Duration(passwordResetExpiryMinutes) * time.Minute
 
 	// Create realtime hub for SSE broadcasting (single shared instance)
-	realtimeHub := realtime.NewHub()
+	realtimeHub := realtime.NewHub(logger.With("component", "sse-hub"))
 
 	// Initialize education service first (needed for active service)
 	educationService := education.NewService(
@@ -161,6 +172,12 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 		DB:                      db,
 	})
 
+	// Initialize work session service (before active service - needed for NFC auto-check-in)
+	workSessionService := active.NewWorkSessionService(repos.WorkSession, repos.WorkSessionBreak, repos.WorkSessionEdit, repos.StaffAbsence, repos.GroupSupervisor, activeLogger)
+
+	// Initialize staff absence service
+	staffAbsenceService := active.NewStaffAbsenceService(repos.StaffAbsence, repos.WorkSession)
+
 	// Initialize active service with SSE broadcaster
 	activeService := active.NewService(active.ServiceDependencies{
 		GroupRepo:          repos.ActiveGroup,
@@ -181,7 +198,9 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 		EducationService:   educationService,
 		UsersService:       usersService,
 		DB:                 db,
-		Broadcaster:        realtimeHub, // Pass SSE broadcaster
+		Broadcaster:        realtimeHub,        // Pass SSE broadcaster
+		WorkSessionService: workSessionService, // NFC auto-check-in
+		Logger:             activeLogger,
 	})
 
 	// Initialize feedback service
@@ -267,6 +286,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 		repos.ActivitySchedule,
 		repos.ActivitySupervisor,
 		repos.StudentEnrollment,
+		repos.ActiveGroup,
 		db,
 	)
 	if err != nil {
@@ -286,6 +306,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 		activitiesService,
 		activeService,
 		db,
+		facilitiesLogger,
 	)
 
 	// Initialize schedule service
@@ -314,7 +335,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 	if err != nil {
 		return nil, fmt.Errorf("invalid auth service config: %w", err)
 	}
-	authService, err := auth.NewService(repos, authConfig, db)
+	authService, err := auth.NewService(repos, authConfig, db, authLogger)
 	if err != nil {
 		return nil, err
 	}
@@ -333,6 +354,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 		DefaultFrom:      defaultFrom,
 		InvitationExpiry: invitationTokenExpiry,
 		DB:               db,
+		Logger:           authLogger,
 	})
 
 	// Initialize authorization
@@ -369,10 +391,10 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 		SupervisorRepo:     repos.GroupSupervisor,
 		ProfileRepo:        repos.Profile,
 		SubstitutionRepo:   repos.GroupSubstitution,
-	}, db)
+	}, db, usercontextLogger)
 
 	// Initialize database stats service
-	databaseService := database.NewService(repos)
+	databaseService := database.NewService(repos, databaseLogger)
 
 	// Initialize cleanup service
 	activeCleanupService := active.NewCleanupService(
@@ -402,6 +424,8 @@ func NewFactory(repos *repositories.Factory, db *bun.DB) (*Factory, error) {
 		Auth:                     authService,
 		Active:                   activeService,
 		ActiveCleanup:            activeCleanupService,
+		WorkSession:              workSessionService,
+		StaffAbsence:             staffAbsenceService,
 		Activities:               activitiesService,
 		Education:                educationService,
 		GradeTransition:          gradeTransitionService,

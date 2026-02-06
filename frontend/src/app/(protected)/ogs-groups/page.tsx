@@ -51,6 +51,33 @@ import { fetchBulkPickupTimes } from "~/lib/pickup-schedule-api";
 import type { BulkPickupTime } from "~/lib/pickup-schedule-api";
 import { Clock, AlertTriangle } from "lucide-react";
 
+// Backend pickup time response (from BFF)
+interface BackendPickupTime {
+  student_id: number;
+  date: string;
+  weekday_name: string;
+  pickup_time?: string;
+  is_exception: boolean;
+  day_notes?: Array<{ id: number; content: string }>;
+  notes?: string;
+}
+
+// Backend student response (raw from Go backend via BFF)
+// Note: Backend uses "last_name", frontend uses "second_name"
+interface BackendStudentFromBFF {
+  id: number;
+  first_name: string;
+  last_name: string; // Backend field name
+  name?: string;
+  school_class?: string;
+  current_location?: string;
+  sick_since?: string;
+  sick_until?: string;
+  location_since?: string;
+  group_id?: number;
+  group_name?: string;
+}
+
 // BFF response type for dashboard data
 interface OGSDashboardBFFResponse {
   groups: Array<{
@@ -60,7 +87,7 @@ interface OGSDashboardBFFResponse {
     room?: { id: number; name: string };
     via_substitution?: boolean;
   }>;
-  students: Student[];
+  students: BackendStudentFromBFF[]; // Raw backend format
   roomStatus: {
     group_has_room: boolean;
     group_room_id?: number;
@@ -86,6 +113,7 @@ interface OGSDashboardBFFResponse {
     start_date: string;
     end_date: string;
   }>;
+  pickupTimes: BackendPickupTime[];
   firstGroupId: string | null;
 }
 
@@ -117,7 +145,7 @@ function OGSGroupPageContent() {
 
   // State variables for multiple groups
   const [allGroups, setAllGroups] = useState<OGSGroup[]>([]);
-  const [selectedGroupIndex, setSelectedGroupIndex] = useState(0);
+  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
 
   // Pre-select group from URL param (?group=<id>)
   const groupParam = searchParams.get("group");
@@ -213,6 +241,7 @@ function OGSGroupPageContent() {
       students: studentsData,
       roomStatus: rs,
       substitutions,
+      pickupTimes: pickupTimesData,
     } = dashboardData;
 
     if (groups.length === 0) {
@@ -247,8 +276,54 @@ function OGSGroupPageContent() {
     // The BFF sorts groups alphabetically, so groups[0] matches ogsGroups[0].
     // When SSE triggers revalidation while user views another group, we must NOT
     // overwrite their current view with the first group's data.
-    if (selectedGroupIndex === 0) {
-      setStudents(studentsData);
+    const firstGroupId = ogsGroups[0]?.id;
+
+    // If the previously selected group no longer exists in the refreshed list
+    // (e.g., access revoked, group removed), reset to the first group so
+    // the student data stays in sync with what the UI displays.
+    if (selectedGroupId && !ogsGroups.some((g) => g.id === selectedGroupId)) {
+      setSelectedGroupId(firstGroupId ?? null);
+    }
+
+    if (!selectedGroupId || selectedGroupId === firstGroupId) {
+      // When no group is explicitly selected yet, lock in the first group's ID
+      // so the URL-sync effect won't try to "switch" to it via localStorage.
+      if (!selectedGroupId && firstGroupId) {
+        setSelectedGroupId(firstGroupId);
+      }
+
+      // Map backend students to frontend format (last_name → second_name)
+      const mappedStudents: Student[] = studentsData.map((s) => ({
+        id: s.id.toString(),
+        name: `${s.first_name} ${s.last_name}`.trim(),
+        first_name: s.first_name,
+        second_name: s.last_name, // Backend uses last_name
+        school_class: s.school_class ?? "",
+        current_location: s.current_location ?? "",
+        location_since: s.location_since,
+        group_id: s.group_id?.toString(),
+        group_name: s.group_name,
+      }));
+      setStudents(mappedStudents);
+
+      // Set pickup times from BFF response (prevents loading flash)
+      // Convert backend format to Map for O(1) lookup
+      const pickupMap = new Map<string, BulkPickupTime>();
+      for (const pt of pickupTimesData ?? []) {
+        pickupMap.set(pt.student_id.toString(), {
+          studentId: pt.student_id.toString(),
+          date: pt.date,
+          weekdayName: pt.weekday_name,
+          pickupTime: pt.pickup_time,
+          isException: pt.is_exception,
+          dayNotes: (pt.day_notes ?? []).map((n) => ({
+            id: n.id.toString(),
+            content: n.content,
+          })),
+          notes: pt.notes,
+        });
+      }
+      setPickupTimes(pickupMap);
 
       if (rs?.student_room_status) {
         setRoomStatus(rs.student_room_status);
@@ -273,7 +348,7 @@ function OGSGroupPageContent() {
     setActiveTransfers(transfers);
     setError(null);
     setIsLoading(false);
-  }, [dashboardData, selectedGroupIndex]);
+  }, [dashboardData, selectedGroupId]);
 
   // Sync selected group with URL param.
   // The sidebar navigates with the correct ?group= param at click-time,
@@ -284,27 +359,29 @@ function OGSGroupPageContent() {
     if (allGroups.length === 0) return;
 
     if (groupParam) {
-      const targetIndex = allGroups.findIndex((g) => g.id === groupParam);
-      if (targetIndex !== -1 && targetIndex !== selectedGroupIndex) {
-        void switchToGroup(targetIndex);
+      if (
+        groupParam !== selectedGroupId &&
+        allGroups.some((g) => g.id === groupParam)
+      ) {
+        void switchToGroup(groupParam);
       }
     } else {
       // No ?group= param (e.g. after login or browser back) — restore from
       // localStorage so the user returns to their previously selected group.
       const savedGroupId = localStorage.getItem("sidebar-last-group");
-      const savedIndex = savedGroupId
-        ? allGroups.findIndex((g) => g.id === savedGroupId)
-        : -1;
-      if (savedIndex !== -1 && savedIndex !== selectedGroupIndex) {
-        void switchToGroup(savedIndex);
-      } else if (savedIndex === -1) {
+      const savedGroup = savedGroupId
+        ? allGroups.find((g) => g.id === savedGroupId)
+        : undefined;
+      if (savedGroup && savedGroup.id !== selectedGroupId) {
+        void switchToGroup(savedGroup.id);
+      } else if (!savedGroup) {
         // Nothing saved or saved group no longer exists — persist first group
         const firstGroup = allGroups[0];
         if (firstGroup) {
           localStorage.setItem("sidebar-last-group", firstGroup.id);
         }
       }
-      // When savedIndex === selectedGroupIndex, do nothing — already in sync
+      // When savedGroup.id === selectedGroupId, do nothing — already in sync
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allGroups, groupParam]);
@@ -331,8 +408,12 @@ function OGSGroupPageContent() {
     }
   }, [isDashboardLoading, dashboardData]);
 
-  // Get current selected group
-  const currentGroup = allGroups[selectedGroupIndex] ?? null;
+  // Get current selected group — derived from ID, stable across re-sorts
+  const currentGroup = useMemo(
+    () =>
+      allGroups.find((g) => g.id === selectedGroupId) ?? allGroups[0] ?? null,
+    [allGroups, selectedGroupId],
+  );
   const currentGroupId = currentGroup?.id;
 
   // Set breadcrumb data
@@ -344,7 +425,7 @@ function OGSGroupPageContent() {
   // SWR-based student data subscription for real-time updates.
   // When global SSE invalidates "student*" caches, this triggers a refetch.
   // Only fetches when hasAccess is confirmed and we have a group ID.
-  // Includes room status to ensure filters (in_room, foreign_room) stay accurate.
+  // Includes room status and pickup times to prevent "loading flash" on student cards.
   const { data: swrStudentsData } = useSWRAuth<{
     students: Student[];
     roomStatus?: Record<
@@ -357,10 +438,11 @@ function OGSGroupPageContent() {
         reason?: string;
       }
     >;
+    pickupTimes?: Map<string, BulkPickupTime>;
   }>(
     hasAccess && currentGroupId ? `ogs-students-${currentGroupId}` : null,
     async () => {
-      // Fetch both students and room status in parallel for accurate filtering
+      // Fetch students and room status in parallel for accurate filtering
       const [studentsResponse, roomStatusResponse] = await Promise.all([
         studentService.getStudents({
           groupId: currentGroupId!,
@@ -394,9 +476,22 @@ function OGSGroupPageContent() {
           .catch(() => null),
       ]);
 
+      const students = studentsResponse.students || [];
+
+      // Fetch pickup times for all students (prevents loading flash)
+      let pickupTimesMap = new Map<string, BulkPickupTime>();
+      if (students.length > 0) {
+        const studentIds = students.map((s) => s.id.toString());
+        pickupTimesMap = await fetchBulkPickupTimes(studentIds).catch(() => {
+          console.error("Failed to fetch pickup times in SWR");
+          return new Map<string, BulkPickupTime>();
+        });
+      }
+
       return {
-        students: studentsResponse.students || [],
+        students,
         roomStatus: roomStatusResponse ?? undefined,
+        pickupTimes: pickupTimesMap,
       };
     },
     {
@@ -406,7 +501,7 @@ function OGSGroupPageContent() {
   );
 
   // Sync SWR student data with local state
-  // Also syncs room status to keep filters (in_room, foreign_room) accurate
+  // Also syncs room status and pickup times to keep UI in sync and prevent loading flash
   useEffect(() => {
     if (swrStudentsData?.students) {
       setStudents(swrStudentsData.students);
@@ -414,26 +509,12 @@ function OGSGroupPageContent() {
     if (swrStudentsData?.roomStatus) {
       setRoomStatus(swrStudentsData.roomStatus);
     }
-  }, [swrStudentsData]);
-
-  // Fetch pickup times for all students (bulk query - O(2) database queries)
-  useEffect(() => {
-    if (students.length === 0) {
-      setPickupTimes(new Map());
-      return;
+    // Only set pickupTimes if it's a Map (the SWR fetcher returns a Map,
+    // but test mocks may return the wrong type)
+    if (swrStudentsData?.pickupTimes instanceof Map) {
+      setPickupTimes(swrStudentsData.pickupTimes);
     }
-
-    const studentIds = students.map((s) => s.id.toString());
-
-    fetchBulkPickupTimes(studentIds)
-      .then((times) => {
-        setPickupTimes(times);
-      })
-      .catch((err) => {
-        console.error("Failed to fetch pickup times:", err);
-        setPickupTimes(new Map());
-      });
-  }, [students]);
+  }, [swrStudentsData]);
 
   // Ref to track current group without triggering unnecessary re-renders
   const currentGroupRef = useRef<OGSGroup | null>(null);
@@ -507,7 +588,7 @@ function OGSGroupPageContent() {
 
     // NOTE: We intentionally do NOT reload groups here.
     // A transfer only creates a substitution record - it doesn't change group data.
-    // Reloading groups could return them in a different order, causing selectedGroupIndex
+    // Reloading groups could return them in a different order, causing the selection
     // to point to a different group and making the modal switch unexpectedly.
 
     // Show success toast
@@ -540,7 +621,7 @@ function OGSGroupPageContent() {
 
     // NOTE: We intentionally do NOT reload groups here.
     // Canceling a transfer only deletes a substitution record - it doesn't change group data.
-    // Reloading groups could return them in a different order, causing selectedGroupIndex
+    // Reloading groups could return them in a different order, causing the selection
     // to point to a different group and making the modal switch unexpectedly.
 
     // Show success toast
@@ -607,18 +688,18 @@ function OGSGroupPageContent() {
     return () => window.removeEventListener("resize", checkMobile);
   }, []);
 
-  // Function to switch between groups
-  const switchToGroup = async (groupIndex: number) => {
-    if (groupIndex === selectedGroupIndex || !allGroups[groupIndex]) return;
+  // Function to switch between groups (by ID — stable across re-sorts)
+  const switchToGroup = async (groupId: string) => {
+    if (groupId === selectedGroupId) return;
+    const selectedGroup = allGroups.find((g) => g.id === groupId);
+    if (!selectedGroup) return;
 
     setIsLoading(true);
-    setSelectedGroupIndex(groupIndex);
+    setSelectedGroupId(groupId);
     setStudents([]); // Clear current students
     setRoomStatus({}); // Clear room status
 
     try {
-      const selectedGroup = allGroups[groupIndex];
-
       // Fetch students for the selected group
       // Pass token to skip redundant getSession() call (~600ms savings)
       const studentsResponse = await studentService.getStudents({
@@ -631,8 +712,8 @@ function OGSGroupPageContent() {
 
       // Update group with actual student count
       setAllGroups((prev) =>
-        prev.map((group, idx) =>
-          idx === groupIndex
+        prev.map((group) =>
+          group.id === groupId
             ? { ...group, student_count: studentsData.length }
             : group,
         ),
@@ -1100,17 +1181,14 @@ function OGSGroupPageContent() {
                   })),
                   activeTab: currentGroup?.id ?? "",
                   onTabChange: (tabId) => {
-                    const index = allGroups.findIndex((g) => g.id === tabId);
-                    if (index !== -1) {
+                    const group = allGroups.find((g) => g.id === tabId);
+                    if (group) {
                       localStorage.setItem("sidebar-last-group", tabId);
-                      const groupName = allGroups[index]?.name;
-                      if (groupName) {
-                        localStorage.setItem(
-                          "sidebar-last-group-name",
-                          groupName,
-                        );
-                      }
-                      void switchToGroup(index);
+                      localStorage.setItem(
+                        "sidebar-last-group-name",
+                        group.name,
+                      );
+                      void switchToGroup(tabId);
                     }
                   },
                 }

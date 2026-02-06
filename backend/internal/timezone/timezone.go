@@ -67,3 +67,12 @@ func DateOfUTC(t time.Time) time.Time {
 		time.UTC,
 	)
 }
+
+// TodayUTC returns today's date (in Berlin timezone) as UTC midnight.
+// Use this for PostgreSQL DATE columns to avoid timezone conversion issues.
+//
+// Example: At 22:30 CET on Feb 3rd → returns 2026-02-03 00:00:00 UTC
+// Without this, Berlin midnight (00:00 CET) becomes 23:00 UTC on the previous day.
+func TodayUTC() time.Time {
+	return DateOfUTC(time.Now())
+}

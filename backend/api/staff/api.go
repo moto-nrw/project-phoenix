@@ -3,7 +3,7 @@ package staff
 import (
 	"context"
 	"errors"
-	"log"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -17,6 +17,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	authSvc "github.com/moto-nrw/project-phoenix/services/auth"
 	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
@@ -30,6 +31,8 @@ type Resource struct {
 	EducationService    educationSvc.Service
 	AuthService         authSvc.AuthService
 	GroupSupervisorRepo active.GroupSupervisorRepository
+	WorkSessionService  activeSvc.WorkSessionService
+	AbsenceRepo         active.StaffAbsenceRepository
 }
 
 // NewResource creates a new staff resource
@@ -38,6 +41,8 @@ func NewResource(
 	educationService educationSvc.Service,
 	authService authSvc.AuthService,
 	groupSupervisorRepo active.GroupSupervisorRepository,
+	workSessionService activeSvc.WorkSessionService,
+	absenceRepo active.StaffAbsenceRepository,
 ) *Resource {
 	return &Resource{
 		PersonService:       personService,
@@ -46,6 +51,8 @@ func NewResource(
 		EducationService:    educationService,
 		AuthService:         authService,
 		GroupSupervisorRepo: groupSupervisorRepo,
+		WorkSessionService:  workSessionService,
+		AbsenceRepo:         absenceRepo,
 	}
 }
 
@@ -104,6 +111,8 @@ type StaffResponse struct {
 	Person          *PersonResponse `json:"person,omitempty"`
 	IsTeacher       bool            `json:"is_teacher"`
 	WasPresentToday bool            `json:"was_present_today"`
+	WorkStatus      string          `json:"work_status,omitempty"`
+	AbsenceType     string          `json:"absence_type,omitempty"`
 	CreatedAt       time.Time       `json:"created_at"`
 	UpdatedAt       time.Time       `json:"updated_at"`
 }
@@ -233,13 +242,15 @@ func (rs *Resource) parseAndGetStaff(w http.ResponseWriter, r *http.Request) (*u
 // =============================================================================
 
 // newStaffResponse creates a staff response
-func newStaffResponse(staff *users.Staff, isTeacher bool, wasPresentToday bool) StaffResponse {
+func newStaffResponse(staff *users.Staff, isTeacher bool, wasPresentToday bool, workStatus string, absenceType string) StaffResponse {
 	response := StaffResponse{
 		ID:              staff.ID,
 		PersonID:        staff.PersonID,
 		StaffNotes:      staff.StaffNotes,
 		IsTeacher:       isTeacher,
 		WasPresentToday: wasPresentToday,
+		WorkStatus:      workStatus,
+		AbsenceType:     absenceType,
 		CreatedAt:       staff.CreatedAt,
 		UpdatedAt:       staff.UpdatedAt,
 	}
@@ -252,8 +263,8 @@ func newStaffResponse(staff *users.Staff, isTeacher bool, wasPresentToday bool) 
 }
 
 // newTeacherResponse creates a teacher response
-func newTeacherResponse(staff *users.Staff, teacher *users.Teacher, wasPresentToday bool) TeacherResponse {
-	staffResponse := newStaffResponse(staff, true, wasPresentToday)
+func newTeacherResponse(staff *users.Staff, teacher *users.Teacher, wasPresentToday bool, workStatus string, absenceType string) TeacherResponse {
+	staffResponse := newStaffResponse(staff, true, wasPresentToday, workStatus, absenceType)
 
 	response := TeacherResponse{
 		StaffResponse:  staffResponse,
@@ -264,6 +275,32 @@ func newTeacherResponse(staff *users.Staff, teacher *users.Teacher, wasPresentTo
 	}
 
 	return response
+}
+
+// loadWorkStatusMap loads work session status map (non-critical, returns empty map on error)
+func (rs *Resource) loadWorkStatusMap(ctx context.Context) map[int64]string {
+	if rs.WorkSessionService == nil {
+		return make(map[int64]string)
+	}
+	wsm, err := rs.WorkSessionService.GetTodayPresenceMap(ctx)
+	if err != nil {
+		slog.Default().Warn("failed to fetch work status map", slog.String("error", err.Error()))
+		return make(map[int64]string)
+	}
+	return wsm
+}
+
+// loadAbsenceMap loads absence status map (non-critical, returns empty map on error)
+func (rs *Resource) loadAbsenceMap(ctx context.Context) map[int64]string {
+	if rs.AbsenceRepo == nil {
+		return make(map[int64]string)
+	}
+	am, err := rs.AbsenceRepo.GetTodayAbsenceMap(ctx)
+	if err != nil {
+		slog.Default().Warn("failed to fetch absence map", slog.String("error", err.Error()))
+		return make(map[int64]string)
+	}
+	return am
 }
 
 // listStaff handles listing all staff members with optional filtering
@@ -296,7 +333,7 @@ func (rs *Resource) listStaff(w http.ResponseWriter, r *http.Request) {
 	presentStaffIDs, err := rs.GroupSupervisorRepo.GetStaffIDsWithSupervisionToday(ctx)
 	if err != nil {
 		// Log warning but continue - presence status is non-critical
-		log.Printf("Warning: failed to fetch present staff IDs: %v", err)
+		slog.Default().Warn("failed to fetch present staff IDs", slog.String("error", err.Error()))
 		presentStaffIDs = []int64{}
 	}
 
@@ -306,10 +343,14 @@ func (rs *Resource) listStaff(w http.ResponseWriter, r *http.Request) {
 		presentMap[id] = true
 	}
 
+	// Batch-load work session and absence status (non-critical)
+	workStatusMap := rs.loadWorkStatusMap(ctx)
+	absenceMap := rs.loadAbsenceMap(ctx)
+
 	// Build response objects using pre-loaded data
 	responses := make([]interface{}, 0, len(staffMembers))
 	for _, staff := range staffMembers {
-		if response, include := rs.processStaffForListOptimized(ctx, staff, teacherMap, presentMap, filters); include {
+		if response, include := rs.processStaffForListOptimized(ctx, staff, teacherMap, presentMap, workStatusMap, absenceMap, filters); include {
 			responses = append(responses, response)
 		}
 	}
@@ -335,7 +376,9 @@ func (rs *Resource) getStaff(w http.ResponseWriter, r *http.Request) {
 	if staff.Person == nil && staff.PersonID > 0 {
 		person, err := rs.PersonService.Get(r.Context(), staff.PersonID)
 		if err != nil {
-			log.Printf("Warning: failed to get person data for staff member %d: %v", id, err)
+			slog.Default().Warn("failed to get person data for staff member",
+				slog.Int64("staff_id", id),
+				slog.String("error", err.Error()))
 			// Don't fail the request, just log the warning
 		} else {
 			staff.Person = person
@@ -349,13 +392,13 @@ func (rs *Resource) getStaff(w http.ResponseWriter, r *http.Request) {
 	teacher, err = rs.TeacherRepo.FindByStaffID(r.Context(), staff.ID)
 	if err == nil && teacher != nil {
 		// Create teacher response (false for wasPresentToday - individual GET doesn't need this)
-		response := newTeacherResponse(staff, teacher, false)
+		response := newTeacherResponse(staff, teacher, false, "", "")
 		common.Respond(w, r, http.StatusOK, response, "Teacher retrieved successfully")
 		return
 	}
 
 	// Create staff response (false for wasPresentToday - individual GET doesn't need this)
-	response := newStaffResponse(staff, isTeacher, false)
+	response := newStaffResponse(staff, isTeacher, false, "", "")
 	common.Respond(w, r, http.StatusOK, response, "Staff member retrieved successfully")
 }
 
@@ -370,7 +413,10 @@ func (rs *Resource) grantDefaultPermissions(ctx context.Context, accountID int64
 	if err == nil && perm != nil {
 		// Grant the permission to the account
 		if err := rs.AuthService.GrantPermissionToAccount(ctx, int(accountID), int(perm.ID)); err != nil {
-			log.Printf("Failed to grant groups:read permission to %s account %d: %v", role, accountID, err)
+			slog.Default().Error("failed to grant groups:read permission",
+				slog.String("role", role),
+				slog.Int64("account_id", accountID),
+				slog.String("error", err.Error()))
 		}
 	}
 }
@@ -421,7 +467,7 @@ func (rs *Resource) createStaff(w http.ResponseWriter, r *http.Request) {
 		if rs.TeacherRepo.Create(r.Context(), teacher) != nil {
 			// Still return staff member even if teacher creation fails
 			isTeacher = false
-			response := newStaffResponse(staff, isTeacher, false)
+			response := newStaffResponse(staff, isTeacher, false, "", "")
 			common.Respond(w, r, http.StatusCreated, response, "Staff member created successfully, but failed to create teacher record")
 			return
 		}
@@ -432,7 +478,7 @@ func (rs *Resource) createStaff(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Return teacher response
-		response := newTeacherResponse(staff, teacher, false)
+		response := newTeacherResponse(staff, teacher, false, "", "")
 		common.Respond(w, r, http.StatusCreated, response, "Teacher created successfully")
 		return
 	}
@@ -443,7 +489,7 @@ func (rs *Resource) createStaff(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Return staff response
-	response := newStaffResponse(staff, isTeacher, false)
+	response := newStaffResponse(staff, isTeacher, false, "", "")
 	common.Respond(w, r, http.StatusCreated, response, "Staff member created successfully")
 }
 
@@ -534,10 +580,10 @@ func (rs *Resource) buildUpdateStaffResponse(
 
 	// Return existing teacher response if they have a teacher record
 	if existingTeacher != nil {
-		return newTeacherResponse(staff, existingTeacher, false), "Teacher updated successfully"
+		return newTeacherResponse(staff, existingTeacher, false, "", ""), "Teacher updated successfully"
 	}
 
-	return newStaffResponse(staff, false, false), "Staff member updated successfully"
+	return newStaffResponse(staff, false, false, "", ""), "Staff member updated successfully"
 }
 
 // deleteStaff handles deleting a staff member
@@ -630,7 +676,7 @@ func (rs *Resource) getAvailableStaff(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Create teacher response using pre-loaded data (false for wasPresentToday - not needed here)
-		responses = append(responses, newTeacherResponse(teacher.Staff, teacher, false))
+		responses = append(responses, newTeacherResponse(teacher.Staff, teacher, false, "", ""))
 	}
 
 	common.Respond(w, r, http.StatusOK, responses, "Available staff members retrieved successfully")
@@ -713,7 +759,7 @@ func (rs *Resource) buildStaffSubstitutionStatus(
 	teacher *users.Teacher,
 	subs []*education.GroupSubstitution,
 ) StaffWithSubstitutionStatus {
-	staffResp := newStaffResponse(staff, false, false)
+	staffResp := newStaffResponse(staff, false, false, "", "")
 	result := StaffWithSubstitutionStatus{
 		StaffResponse:     &staffResp,
 		IsSubstituting:    len(subs) > 0,
@@ -916,7 +962,8 @@ func (rs *Resource) updatePIN(w http.ResponseWriter, r *http.Request) {
 		if result == pinVerificationFailed {
 			account.IncrementPINAttempts()
 			if updateErr := rs.AuthService.UpdateAccount(r.Context(), account); updateErr != nil {
-				log.Printf("Failed to update account PIN attempts: %v", updateErr)
+				slog.Default().Error("failed to update account PIN attempts",
+					slog.String("error", updateErr.Error()))
 			}
 		}
 		common.RenderError(w, r, renderErr)

@@ -677,6 +677,92 @@ func TestActiveGroupRepository_GetOccupiedRoomIDs(t *testing.T) {
 	})
 }
 
+func TestActiveGroupRepository_GetOccupiedActivityGroupIDs(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).ActiveGroup
+	ctx := context.Background()
+
+	t.Run("returns occupied activity group IDs", func(t *testing.T) {
+		activityGroup1 := testpkg.CreateTestActivityGroup(t, db, "OccupiedActivity1")
+		activityGroup2 := testpkg.CreateTestActivityGroup(t, db, "OccupiedActivity2")
+		activityGroup3 := testpkg.CreateTestActivityGroup(t, db, "FreeActivity3")
+		room := testpkg.CreateTestRoom(t, db, "OccActivityRoom")
+		defer testpkg.CleanupActivityFixtures(t, db, activityGroup1.CategoryID, room.ID)
+		defer testpkg.CleanupActivityFixtures(t, db, activityGroup2.CategoryID)
+		defer testpkg.CleanupActivityFixtures(t, db, activityGroup3.CategoryID)
+
+		now := time.Now()
+		// Create active session for activity group 1
+		group1 := &active.Group{
+			StartTime:      now,
+			LastActivity:   now,
+			TimeoutMinutes: 30,
+			GroupID:        activityGroup1.ID,
+			RoomID:         room.ID,
+		}
+		err := repo.Create(ctx, group1)
+		require.NoError(t, err)
+		// Create active session for activity group 2
+		group2 := &active.Group{
+			StartTime:      now,
+			LastActivity:   now,
+			TimeoutMinutes: 30,
+			GroupID:        activityGroup2.ID,
+			RoomID:         room.ID,
+		}
+		err = repo.Create(ctx, group2)
+		require.NoError(t, err)
+		defer cleanupActiveGroupRecords(t, db, group1.ID, group2.ID)
+
+		// Check which activity groups are occupied
+		occupiedMap, err := repo.GetOccupiedActivityGroupIDs(ctx, []int64{activityGroup1.ID, activityGroup2.ID, activityGroup3.ID})
+		require.NoError(t, err)
+
+		assert.True(t, occupiedMap[activityGroup1.ID], "activityGroup1 should be occupied")
+		assert.True(t, occupiedMap[activityGroup2.ID], "activityGroup2 should be occupied")
+		assert.False(t, occupiedMap[activityGroup3.ID], "activityGroup3 should not be occupied")
+	})
+
+	t.Run("excludes ended sessions", func(t *testing.T) {
+		activityGroup := testpkg.CreateTestActivityGroup(t, db, "EndedActivity")
+		room := testpkg.CreateTestRoom(t, db, "EndedActivityRoom")
+		defer testpkg.CleanupActivityFixtures(t, db, activityGroup.CategoryID, room.ID)
+
+		now := time.Now()
+		endTime := now.Add(time.Hour)
+		// Create an ended session
+		endedGroup := &active.Group{
+			StartTime:      now,
+			EndTime:        &endTime,
+			LastActivity:   now,
+			TimeoutMinutes: 30,
+			GroupID:        activityGroup.ID,
+			RoomID:         room.ID,
+		}
+		err := repo.Create(ctx, endedGroup)
+		require.NoError(t, err)
+		defer cleanupActiveGroupRecords(t, db, endedGroup.ID)
+
+		occupiedMap, err := repo.GetOccupiedActivityGroupIDs(ctx, []int64{activityGroup.ID})
+		require.NoError(t, err)
+		assert.False(t, occupiedMap[activityGroup.ID], "ended session should not be occupied")
+	})
+
+	t.Run("returns empty map for empty input", func(t *testing.T) {
+		occupiedMap, err := repo.GetOccupiedActivityGroupIDs(ctx, []int64{})
+		require.NoError(t, err)
+		assert.Empty(t, occupiedMap)
+	})
+
+	t.Run("returns empty map for non-existent groups", func(t *testing.T) {
+		occupiedMap, err := repo.GetOccupiedActivityGroupIDs(ctx, []int64{999994, 999995, 999996})
+		require.NoError(t, err)
+		assert.Empty(t, occupiedMap)
+	})
+}
+
 func TestActiveGroupRepository_FindInactiveSessions(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()

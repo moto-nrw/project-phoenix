@@ -718,6 +718,82 @@ func TestStudentRepository_FindByTeacherIDWithGroups(t *testing.T) {
 	})
 }
 
+func TestStudentRepository_FindAllWithGroups(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).Student
+	ctx := context.Background()
+
+	t.Run("returns students with group names", func(t *testing.T) {
+		group := testpkg.CreateTestEducationGroup(t, db, "AllGroupTest")
+		student := testpkg.CreateTestStudent(t, db, "AllWith", "Group", "3a")
+		assignStudentToGroupDirect(t, db, student.ID, group.ID)
+
+		defer func() {
+			cleanupStudentRecords(t, db, student.ID)
+			cleanupEducationData(t, db, []int64{group.ID}, nil)
+		}()
+
+		results, err := repo.FindAllWithGroups(ctx)
+		require.NoError(t, err)
+		assert.NotEmpty(t, results)
+
+		// Find our test student in results
+		var found bool
+		for _, r := range results {
+			if r.ID == student.ID {
+				found = true
+				assert.Contains(t, r.GroupName, "AllGroupTest")
+				assert.NotNil(t, r.Person)
+				assert.Equal(t, "AllWith", r.Person.FirstName)
+				break
+			}
+		}
+		assert.True(t, found, "test student not found in results")
+	})
+
+	t.Run("includes students without group", func(t *testing.T) {
+		// Student without group_id
+		student := testpkg.CreateTestStudent(t, db, "NoGroup", "Student", "4b")
+		defer cleanupStudentRecords(t, db, student.ID)
+
+		results, err := repo.FindAllWithGroups(ctx)
+		require.NoError(t, err)
+
+		var found bool
+		for _, r := range results {
+			if r.ID == student.ID {
+				found = true
+				assert.Empty(t, r.GroupName) // COALESCE returns ''
+				break
+			}
+		}
+		assert.True(t, found, "student without group not found in results")
+	})
+
+	t.Run("results are ordered by last name then first name", func(t *testing.T) {
+		s1 := testpkg.CreateTestStudent(t, db, "Zara", "Alpha", "1a")
+		s2 := testpkg.CreateTestStudent(t, db, "Anna", "Beta", "1a")
+		defer cleanupStudentRecords(t, db, s1.ID, s2.ID)
+
+		results, err := repo.FindAllWithGroups(ctx)
+		require.NoError(t, err)
+
+		// Find positions of our two test students
+		posAlpha, posBeta := -1, -1
+		for i, r := range results {
+			if r.ID == s1.ID {
+				posAlpha = i
+			}
+			if r.ID == s2.ID {
+				posBeta = i
+			}
+		}
+		assert.Greater(t, posBeta, posAlpha, "Alpha should come before Beta alphabetically")
+	})
+}
+
 func TestStudentRepository_FindByNameAndClass(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()

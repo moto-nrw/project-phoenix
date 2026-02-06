@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"time"
@@ -244,7 +244,7 @@ func (req *QuickActivityRequest) Bind(_ *http.Request) error {
 func newCategoryResponse(category *activities.Category) CategoryResponse {
 	// Handle nil category input
 	if category == nil {
-		log.Printf("Warning: Attempted to create CategoryResponse from nil category")
+		slog.Default().Warn("Attempted to create CategoryResponse from nil category")
 		return CategoryResponse{
 			Name: "Unknown Category", // Provide a safe default
 		}
@@ -264,7 +264,7 @@ func newCategoryResponse(category *activities.Category) CategoryResponse {
 func newActivityResponse(group *activities.Group, enrollmentCount int) ActivityResponse {
 	// Check if group is nil to prevent panic
 	if group == nil {
-		log.Printf("Error: Attempted to create ActivityResponse from nil group")
+		slog.Default().Error("Attempted to create ActivityResponse from nil group")
 		// Return empty response rather than panic
 		return ActivityResponse{}
 	}
@@ -304,7 +304,7 @@ func newActivityResponse(group *activities.Group, enrollmentCount int) ActivityR
 		scheduleResponses := make([]ScheduleResponse, 0, len(group.Schedules))
 		for _, schedule := range group.Schedules {
 			if schedule == nil {
-				log.Printf("Warning: Nil schedule encountered in group ID %d", group.ID)
+				slog.Default().Warn("Nil schedule encountered", slog.Int64("group_id", group.ID))
 				continue
 			}
 			scheduleResponses = append(scheduleResponses, newScheduleResponse(schedule))
@@ -475,7 +475,10 @@ func (rs *Resource) getEnrollmentCount(ctx context.Context, activityID int64) in
 func (rs *Resource) fetchActivityData(ctx context.Context, id int64) (*activities.Group, []*activities.SupervisorPlanned, []*activities.Schedule, error) {
 	group, supervisors, schedules, detailsErr := rs.ActivityService.GetGroupWithDetails(ctx, id)
 	if detailsErr != nil {
-		log.Printf("Warning: Error getting detailed group info: %v", detailsErr)
+		slog.Default().WarnContext(ctx, "Error getting detailed group info",
+			slog.String("error", detailsErr.Error()),
+			slog.Int64("group_id", id),
+		)
 		return rs.fetchActivityDataFallback(ctx, id)
 	}
 	return group, supervisors, schedules, nil
@@ -490,7 +493,10 @@ func (rs *Resource) fetchActivityDataFallback(ctx context.Context, id int64) (*a
 
 	schedules, scheduleErr := rs.ActivityService.GetGroupSchedules(ctx, id)
 	if scheduleErr != nil {
-		log.Printf("Warning: Error getting schedules: %v", scheduleErr)
+		slog.Default().WarnContext(ctx, "Error getting schedules",
+			slog.String("error", scheduleErr.Error()),
+			slog.Int64("group_id", id),
+		)
 		schedules = []*activities.Schedule{}
 	}
 
@@ -503,7 +509,10 @@ func (rs *Resource) ensureCategoryLoaded(ctx context.Context, group *activities.
 	if group.Category == nil && group.CategoryID > 0 {
 		category, catErr := rs.ActivityService.GetCategory(ctx, group.CategoryID)
 		if catErr != nil {
-			log.Printf("Warning: Error getting category for ID %d: %v", group.CategoryID, catErr)
+			slog.Default().WarnContext(ctx, "Error getting category",
+				slog.Int64("category_id", group.CategoryID),
+				slog.String("error", catErr.Error()),
+			)
 		} else if category != nil {
 			group.Category = category
 		}
@@ -598,7 +607,10 @@ func updateGroupFields(group *activities.Group, req *ActivityRequest) {
 func (rs *Resource) updateSupervisorsWithLogging(ctx context.Context, groupID int64, supervisorIDs []int64) {
 	err := rs.ActivityService.UpdateGroupSupervisors(ctx, groupID, supervisorIDs)
 	if err != nil {
-		log.Printf("Warning: Failed to update supervisors for activity %d: %v", groupID, err)
+		slog.Default().WarnContext(ctx, "Failed to update supervisors",
+			slog.Int64("activity_id", groupID),
+			slog.String("error", err.Error()),
+		)
 	}
 }
 
@@ -607,12 +619,15 @@ func (rs *Resource) replaceGroupSchedules(ctx context.Context, groupID int64, ne
 	// Delete existing schedules
 	existingSchedules, err := rs.ActivityService.GetGroupSchedules(ctx, groupID)
 	if err != nil {
-		log.Printf("Warning: Failed to get existing schedules: %v", err)
+		slog.Default().WarnContext(ctx, "Failed to get existing schedules", slog.String("error", err.Error()))
 	} else {
 		for _, schedule := range existingSchedules {
 			err = rs.ActivityService.DeleteSchedule(ctx, schedule.ID)
 			if err != nil {
-				log.Printf("Warning: Failed to delete schedule with ID %d: %v", schedule.ID, err)
+				slog.Default().WarnContext(ctx, "Failed to delete schedule",
+					slog.Int64("schedule_id", schedule.ID),
+					slog.String("error", err.Error()),
+				)
 			}
 		}
 	}
@@ -625,7 +640,10 @@ func (rs *Resource) replaceGroupSchedules(ctx context.Context, groupID int64, ne
 		}
 		_, err = rs.ActivityService.AddSchedule(ctx, groupID, schedule)
 		if err != nil {
-			log.Printf("Warning: Failed to add schedule (weekday=%d, timeframe=%v): %v", scheduleReq.Weekday, scheduleReq.TimeframeID, err)
+			slog.Default().WarnContext(ctx, "Failed to add schedule",
+				slog.Int("weekday", scheduleReq.Weekday),
+				slog.String("error", err.Error()),
+			)
 		}
 	}
 }
@@ -634,7 +652,7 @@ func (rs *Resource) replaceGroupSchedules(ctx context.Context, groupID int64, ne
 func (rs *Resource) fetchUpdatedGroupData(ctx context.Context, updatedGroup *activities.Group) (*activities.Group, error) {
 	detailedGroup, _, updatedSchedules, err := rs.ActivityService.GetGroupWithDetails(ctx, updatedGroup.ID)
 	if err != nil {
-		log.Printf("Failed to get detailed group info after update: %v", err)
+		slog.Default().ErrorContext(ctx, "Failed to get detailed group info after update", slog.String("error", err.Error()))
 		if updatedGroup != nil {
 			updatedGroup.Schedules = []*activities.Schedule{}
 		}
@@ -646,11 +664,11 @@ func (rs *Resource) fetchUpdatedGroupData(ctx context.Context, updatedGroup *act
 		if updatedSchedules != nil {
 			updatedGroup.Schedules = updatedSchedules
 		} else {
-			log.Printf("Warning: updatedSchedules is nil despite no error from GetGroupWithDetails")
+			slog.Default().Warn("updatedSchedules is nil despite no error from GetGroupWithDetails")
 			updatedGroup.Schedules = []*activities.Schedule{}
 		}
 	} else {
-		log.Printf("Warning: detailedGroup is nil despite no error from GetGroupWithDetails")
+		slog.Default().Warn("detailedGroup is nil despite no error from GetGroupWithDetails")
 		if updatedGroup != nil {
 			updatedGroup.Schedules = []*activities.Schedule{}
 		}
@@ -662,14 +680,14 @@ func (rs *Resource) fetchUpdatedGroupData(ctx context.Context, updatedGroup *act
 // buildUpdateResponse creates the final response for an activity update.
 func (rs *Resource) buildUpdateResponse(ctx context.Context, group *activities.Group, activityID int64) (ActivityResponse, error) {
 	if group == nil {
-		log.Printf("Error: updatedGroup is nil before creating response. Returning empty response.")
+		slog.Default().Error("updatedGroup is nil before creating response")
 		return ActivityResponse{}, errors.New("group is nil")
 	}
 
 	enrolledStudents, err := rs.ActivityService.GetEnrolledStudents(ctx, activityID)
 	enrollmentCount := 0
 	if err != nil {
-		log.Printf("Failed to get enrolled students: %v", err)
+		slog.Default().ErrorContext(ctx, "Failed to get enrolled students", slog.String("error", err.Error()))
 	} else if enrolledStudents != nil {
 		enrollmentCount = len(enrolledStudents)
 	}
@@ -727,7 +745,10 @@ func (rs *Resource) fetchSupervisorsBySpecialization(ctx context.Context, specia
 	for _, teacher := range teachers {
 		fullTeacher, err := rs.UserService.TeacherRepository().FindWithStaffAndPerson(ctx, teacher.ID)
 		if err != nil {
-			log.Printf("Error fetching full teacher data for ID %d: %v", teacher.ID, err)
+			slog.Default().ErrorContext(ctx, "Error fetching full teacher data",
+				slog.Int64("teacher_id", teacher.ID),
+				slog.String("error", err.Error()),
+			)
 			continue
 		}
 
@@ -756,7 +777,7 @@ func (rs *Resource) fetchAllSupervisors(ctx context.Context) ([]SupervisorRespon
 	supervisors := make([]SupervisorResponse, 0, len(staffMembers))
 	for _, staffMember := range staffMembers {
 		if staffMember.Person == nil {
-			log.Printf("Staff ID %d has no associated person", staffMember.ID)
+			slog.Default().Warn("Staff has no associated person", slog.Int64("staff_id", staffMember.ID))
 			continue
 		}
 
@@ -817,7 +838,7 @@ func (rs *Resource) listActivities(w http.ResponseWriter, r *http.Request) {
 	}
 	supervisorMap, err := rs.ActivityService.GetSupervisorsForGroups(r.Context(), groupIDs)
 	if err != nil {
-		log.Printf("Error loading supervisors: %v", err)
+		slog.Default().ErrorContext(r.Context(), "Error loading supervisors", slog.String("error", err.Error()))
 		supervisorMap = make(map[int64][]*activities.SupervisorPlanned)
 	}
 
@@ -860,7 +881,7 @@ func (rs *Resource) getActivity(w http.ResponseWriter, r *http.Request) {
 
 	// Validate group exists
 	if group == nil {
-		log.Printf("Error: Group is nil after GetGroup call for ID %d", id)
+		slog.Default().Error("Group is nil after GetGroup call", slog.Int64("group_id", id))
 		common.RenderError(w, r, ErrorInternalServer(errors.New("activity not found or could not be retrieved")))
 		return
 	}
@@ -924,7 +945,7 @@ func (rs *Resource) createActivity(w http.ResponseWriter, r *http.Request) {
 	// Just create a response with what we know is valid and return it
 	if createdGroup == nil {
 		// This should never happen if CreateGroup didn't return an error, but just in case
-		log.Printf("Warning: CreateGroup returned nil group without error")
+		slog.Default().Warn("CreateGroup returned nil group without error")
 		common.Respond(w, r, http.StatusCreated, ActivityResponse{
 			Name:       req.Name, // Use the original request data as fallback
 			CategoryID: req.CategoryID,
@@ -1335,7 +1356,7 @@ func (rs *Resource) getTimespans(w http.ResponseWriter, r *http.Request) {
 	// Fetch active timeframes from the schedule service
 	timeframes, err := rs.ScheduleService.FindActiveTimeframes(ctx)
 	if err != nil {
-		log.Printf("Error fetching timeframes: %v", err)
+		slog.Default().ErrorContext(ctx, "Error fetching timeframes", slog.String("error", err.Error()))
 		common.RespondWithError(w, r, http.StatusInternalServerError, "Failed to retrieve timeframes")
 		return
 	}
@@ -1451,7 +1472,7 @@ func (rs *Resource) getAvailableTimeSlots(w http.ResponseWriter, r *http.Request
 	// Find available time slots
 	availableSlots, err := rs.ScheduleService.FindAvailableSlots(ctx, startDate, endDate, duration)
 	if err != nil {
-		log.Printf("Error finding available time slots: %v", err)
+		slog.Default().ErrorContext(ctx, "Error finding available time slots", slog.String("error", err.Error()))
 		common.RespondWithError(w, r, http.StatusInternalServerError, "Failed to retrieve available time slots")
 		return
 	}
@@ -1664,14 +1685,14 @@ func (rs *Resource) getAvailableSupervisors(w http.ResponseWriter, r *http.Reque
 	if specialization != "" {
 		supervisors, err = rs.fetchSupervisorsBySpecialization(ctx, specialization)
 		if err != nil {
-			log.Printf("Error fetching teachers by specialization: %v", err)
+			slog.Default().ErrorContext(ctx, "Error fetching teachers by specialization", slog.String("error", err.Error()))
 			common.RespondWithError(w, r, http.StatusInternalServerError, "Failed to retrieve teachers")
 			return
 		}
 	} else {
 		supervisors, err = rs.fetchAllSupervisors(ctx)
 		if err != nil {
-			log.Printf("Error fetching staff: %v", err)
+			slog.Default().ErrorContext(ctx, "Error fetching staff", slog.String("error", err.Error()))
 			common.RespondWithError(w, r, http.StatusInternalServerError, "Failed to retrieve staff")
 			return
 		}

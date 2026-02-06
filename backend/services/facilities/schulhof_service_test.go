@@ -2,6 +2,7 @@ package facilities_test
 
 import (
 	"context"
+	"log/slog"
 	"testing"
 	"time"
 
@@ -38,6 +39,7 @@ func setupSchulhofService(t *testing.T, db *bun.DB) facilitiesSvc.SchulhofServic
 		repoFactory.ActivitySchedule,
 		repoFactory.ActivitySupervisor,
 		repoFactory.StudentEnrollment,
+		repoFactory.ActiveGroup,
 		db,
 	)
 	require.NoError(t, err)
@@ -91,6 +93,7 @@ func setupSchulhofService(t *testing.T, db *bun.DB) facilitiesSvc.SchulhofServic
 		activityService,
 		activeService,
 		db,
+		slog.Default(),
 	)
 }
 
@@ -372,7 +375,7 @@ func TestSchulhofService_ToggleSupervision_StartSuccess(t *testing.T) {
 	filter.Equal("name", constants.SchulhofActivityName)
 	options.Filter = filter
 	repoFactory := repositories.NewFactory(db)
-	activityService, _ := activitiesSvc.NewService(repoFactory.ActivityCategory, repoFactory.ActivityGroup, repoFactory.ActivitySchedule, repoFactory.ActivitySupervisor, repoFactory.StudentEnrollment, db)
+	activityService, _ := activitiesSvc.NewService(repoFactory.ActivityCategory, repoFactory.ActivityGroup, repoFactory.ActivitySchedule, repoFactory.ActivitySupervisor, repoFactory.StudentEnrollment, repoFactory.ActiveGroup, db)
 	groups, _ := activityService.ListGroups(ctx, options)
 	if len(groups) > 0 {
 		testpkg.CleanupActivityFixtures(t, db, groups[0].ID, groups[0].CategoryID)
@@ -417,7 +420,7 @@ func TestSchulhofService_ToggleSupervision_StopSuccess(t *testing.T) {
 	filter.Equal("name", constants.SchulhofActivityName)
 	options.Filter = filter
 	repoFactory := repositories.NewFactory(db)
-	activityService, _ := activitiesSvc.NewService(repoFactory.ActivityCategory, repoFactory.ActivityGroup, repoFactory.ActivitySchedule, repoFactory.ActivitySupervisor, repoFactory.StudentEnrollment, db)
+	activityService, _ := activitiesSvc.NewService(repoFactory.ActivityCategory, repoFactory.ActivityGroup, repoFactory.ActivitySchedule, repoFactory.ActivitySupervisor, repoFactory.StudentEnrollment, repoFactory.ActiveGroup, db)
 	groups, _ := activityService.ListGroups(ctx, options)
 	if len(groups) > 0 {
 		testpkg.CleanupActivityFixtures(t, db, groups[0].ID, groups[0].CategoryID)
@@ -560,7 +563,7 @@ func TestSchulhofService_GetOrCreateActiveGroup_Creates(t *testing.T) {
 	filter.Equal("name", constants.SchulhofActivityName)
 	options.Filter = filter
 	repoFactory := repositories.NewFactory(db)
-	activityService, _ := activitiesSvc.NewService(repoFactory.ActivityCategory, repoFactory.ActivityGroup, repoFactory.ActivitySchedule, repoFactory.ActivitySupervisor, repoFactory.StudentEnrollment, db)
+	activityService, _ := activitiesSvc.NewService(repoFactory.ActivityCategory, repoFactory.ActivityGroup, repoFactory.ActivitySchedule, repoFactory.ActivitySupervisor, repoFactory.StudentEnrollment, repoFactory.ActiveGroup, db)
 	groups, _ := activityService.ListGroups(ctx, options)
 	if len(groups) > 0 {
 		testpkg.CleanupActivityFixtures(t, db, groups[0].CategoryID)
@@ -598,7 +601,7 @@ func TestSchulhofService_GetOrCreateActiveGroup_ReturnsExisting(t *testing.T) {
 	filter.Equal("name", constants.SchulhofActivityName)
 	options.Filter = filter
 	repoFactory := repositories.NewFactory(db)
-	activityService, _ := activitiesSvc.NewService(repoFactory.ActivityCategory, repoFactory.ActivityGroup, repoFactory.ActivitySchedule, repoFactory.ActivitySupervisor, repoFactory.StudentEnrollment, db)
+	activityService, _ := activitiesSvc.NewService(repoFactory.ActivityCategory, repoFactory.ActivityGroup, repoFactory.ActivitySchedule, repoFactory.ActivitySupervisor, repoFactory.StudentEnrollment, repoFactory.ActiveGroup, db)
 	groups, _ := activityService.ListGroups(ctx, options)
 	if len(groups) > 0 {
 		testpkg.CleanupActivityFixtures(t, db, groups[0].CategoryID)

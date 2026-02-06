@@ -23,7 +23,7 @@ vi.mock("~/lib/swr", () => ({
     data: null,
     isLoading: true,
     error: null,
-    mutate: vi.fn(),
+    mutate: vi.fn(() => Promise.resolve()),
   })),
 }));
 
@@ -59,7 +59,7 @@ describe("useStudentData", () => {
         data: null,
         isLoading: true,
         error: null,
-        mutate: vi.fn(),
+        mutate: vi.fn(() => Promise.resolve()),
         isValidating: false,
       });
 
@@ -94,7 +94,7 @@ describe("useStudentData", () => {
         data: mockStudentData,
         isLoading: false,
         error: null,
-        mutate: vi.fn(),
+        mutate: vi.fn(() => Promise.resolve()),
         isValidating: false,
       });
 
@@ -111,7 +111,7 @@ describe("useStudentData", () => {
         data: null,
         isLoading: false,
         error: new Error("Network error"),
-        mutate: vi.fn(),
+        mutate: vi.fn(() => Promise.resolve()),
         isValidating: false,
       });
 
@@ -122,7 +122,7 @@ describe("useStudentData", () => {
     });
 
     it("provides refreshData function", () => {
-      const mutateMock = vi.fn();
+      const mutateMock = vi.fn(() => Promise.resolve());
       vi.mocked(useSWRAuth).mockReturnValue({
         data: null,
         isLoading: false,
@@ -309,7 +309,7 @@ describe("useStudentData additional scenarios", () => {
       data: null,
       isLoading: false,
       error: null,
-      mutate: vi.fn(),
+      mutate: vi.fn(() => Promise.resolve()),
       isValidating: false,
     });
 
@@ -347,7 +347,7 @@ describe("useStudentData additional scenarios", () => {
       data: mockStudentData,
       isLoading: false,
       error: null,
-      mutate: vi.fn(),
+      mutate: vi.fn(() => Promise.resolve()),
       isValidating: false,
     });
 
@@ -397,7 +397,7 @@ describe("useStudentData additional scenarios", () => {
       data: mockStudentData,
       isLoading: false,
       error: null,
-      mutate: vi.fn(),
+      mutate: vi.fn(() => Promise.resolve()),
       isValidating: false,
     });
 
@@ -431,7 +431,7 @@ describe("useStudentData additional scenarios", () => {
       data: mockStudentData,
       isLoading: false,
       error: null,
-      mutate: vi.fn(),
+      mutate: vi.fn(() => Promise.resolve()),
       isValidating: false,
     });
 

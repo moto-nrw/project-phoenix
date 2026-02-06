@@ -1,5 +1,5 @@
 // lib/active-service.ts
-import { getCachedSession } from "./session-cache";
+import { getCachedSession, sessionFetch } from "./session-cache";
 import { env } from "~/env";
 import api from "./api";
 import {
@@ -85,19 +85,10 @@ async function executeProxyFetch(
   operationName: string,
   body?: unknown,
 ): Promise<Response> {
-  const session = await getCachedSession();
-  const fetchOptions: RequestInit = {
+  const response = await sessionFetch(url, {
     method,
-    headers: {
-      Authorization: `Bearer ${session?.user?.token}`,
-      "Content-Type": "application/json",
-    },
-  };
-  if (body !== undefined) {
-    fetchOptions.body = JSON.stringify(body);
-  }
-
-  const response = await fetch(url, fetchOptions);
+    ...(body !== undefined && { body: JSON.stringify(body) }),
+  });
 
   if (!response.ok) {
     const errorText = await response.text();

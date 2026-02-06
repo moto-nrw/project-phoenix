@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"log"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -57,7 +58,7 @@ func init() {
 }
 
 func genRoutesDoc() {
-	apiInstance, err := api.New(false)
+	apiInstance, err := api.New(false, slog.Default())
 	if err != nil {
 		log.Fatalf("Failed to initialize API: %v", err)
 	}
@@ -79,7 +80,7 @@ func genOpenAPIDoc() {
 	fmt.Print("Generating OpenAPI specification: ")
 
 	// Initialize API to get the router
-	apiInstance, err := api.New(false)
+	apiInstance, err := api.New(false, slog.Default())
 	if err != nil {
 		log.Fatalf("Failed to initialize API: %v", err)
 	}

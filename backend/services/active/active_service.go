@@ -5,10 +5,10 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/auth/device"
-	"github.com/moto-nrw/project-phoenix/logging"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/base"
@@ -28,10 +28,6 @@ type Broadcaster = realtime.Broadcaster
 const (
 	// sseErrorMessage is the standard error message for SSE broadcast failures
 	sseErrorMessage = "SSE broadcast failed"
-	// supervisorAssignmentWarning is the format string for supervisor assignment failures
-	supervisorAssignmentWarning = "Warning: Failed to assign supervisor %d to session %d: %v\n"
-	// visitTransferMessage is the format string for visit transfer logging
-	visitTransferMessage = "Transferred %d active visits to new session %d\n"
 )
 
 // RoomConflictStrategy defines how to handle room conflicts when determining room ID
@@ -76,6 +72,12 @@ type ServiceDependencies struct {
 	// Infrastructure
 	DB          *bun.DB
 	Broadcaster Broadcaster // SSE event broadcaster (optional - can be nil for testing)
+
+	// Optional: Work session service for NFC auto-check-in
+	WorkSessionService WorkSessionService
+
+	// Optional: Structured logger (nil-safe, Phase 2b will add logging calls)
+	Logger *slog.Logger
 }
 
 // Service implements the Active Service interface
@@ -107,6 +109,20 @@ type service struct {
 
 	// SSE real-time event broadcasting (optional - can be nil for testing)
 	broadcaster Broadcaster
+
+	// Optional: Work session service for NFC auto-check-in
+	workSessionService WorkSessionService
+
+	// Structured logger (nil-safe)
+	logger *slog.Logger
+}
+
+// getLogger returns a nil-safe logger, falling back to slog.Default() if logger is nil
+func (s *service) getLogger() *slog.Logger {
+	if s.logger != nil {
+		return s.logger
+	}
+	return slog.Default()
 }
 
 // NewService creates a new active service instance
@@ -132,6 +148,8 @@ func NewService(deps ServiceDependencies) Service {
 		db:                 deps.DB,
 		txHandler:          base.NewTxHandler(deps.DB),
 		broadcaster:        deps.Broadcaster,
+		workSessionService: deps.WorkSessionService,
+		logger:             deps.Logger,
 	}
 }
 
@@ -669,18 +687,16 @@ func (s *service) broadcastToEducationalGroup(student *userModels.Student, event
 	}
 	groupID := fmt.Sprintf("edu:%d", *student.GroupID)
 	if err := s.broadcaster.BroadcastToGroup(groupID, event); err != nil {
-		if logging.Logger != nil {
-			studentID := ""
-			if event.Data.StudentID != nil {
-				studentID = *event.Data.StudentID
-			}
-			logging.Logger.WithFields(map[string]interface{}{
-				"error":                 err.Error(),
-				"event_type":            string(event.Type),
-				"education_group_topic": groupID,
-				"student_id":            studentID,
-			}).Error(sseErrorMessage + " for educational topic")
+		studentID := ""
+		if event.Data.StudentID != nil {
+			studentID = *event.Data.StudentID
 		}
+		s.getLogger().Error(sseErrorMessage+" for educational topic",
+			slog.String("error", err.Error()),
+			slog.String("event_type", string(event.Type)),
+			slog.String("education_group_topic", groupID),
+			slog.String("student_id", studentID),
+		)
 	}
 }
 
@@ -733,17 +749,15 @@ func (s *service) broadcastActivityEndEvent(ctx context.Context, sessionID int64
 // broadcastWithLogging broadcasts an event and logs any errors.
 func (s *service) broadcastWithLogging(activeGroupID, studentID string, event realtime.Event, eventType string) {
 	if err := s.broadcaster.BroadcastToGroup(activeGroupID, event); err != nil {
-		if logging.Logger != nil {
-			fields := map[string]interface{}{
-				"error":           err.Error(),
-				"event_type":      eventType,
-				"active_group_id": activeGroupID,
-			}
-			if studentID != "" {
-				fields["student_id"] = studentID
-			}
-			logging.Logger.WithFields(fields).Error(sseErrorMessage)
+		attrs := []slog.Attr{
+			slog.String("error", err.Error()),
+			slog.String("event_type", eventType),
+			slog.String("active_group_id", activeGroupID),
 		}
+		if studentID != "" {
+			attrs = append(attrs, slog.String("student_id", studentID))
+		}
+		s.getLogger().LogAttrs(context.Background(), slog.LevelError, sseErrorMessage, attrs...)
 	}
 }
 

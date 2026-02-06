@@ -747,6 +747,24 @@ func (s *personService) GetStudentsByTeacher(ctx context.Context, teacherID int6
 	return students, nil
 }
 
+// GetAllStudentsWithGroups retrieves all students with their group info
+func (s *personService) GetAllStudentsWithGroups(ctx context.Context) ([]StudentWithGroup, error) {
+	studentsWithGroups, err := s.studentRepo.FindAllWithGroups(ctx)
+	if err != nil {
+		return nil, &UsersError{Op: "get all students with groups", Err: err}
+	}
+
+	results := make([]StudentWithGroup, 0, len(studentsWithGroups))
+	for _, swg := range studentsWithGroups {
+		results = append(results, StudentWithGroup{
+			Student:   swg.Student,
+			GroupName: swg.GroupName,
+		})
+	}
+
+	return results, nil
+}
+
 // GetStudentsWithGroupsByTeacher retrieves students with group info supervised by a teacher
 func (s *personService) GetStudentsWithGroupsByTeacher(ctx context.Context, teacherID int64) ([]StudentWithGroup, error) {
 	// First verify the teacher exists

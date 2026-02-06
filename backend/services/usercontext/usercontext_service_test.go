@@ -2,6 +2,7 @@ package usercontext_test
 
 import (
 	"context"
+	"log/slog"
 	"testing"
 	"time"
 
@@ -36,7 +37,7 @@ func setupUserContextService(t *testing.T, db *bun.DB) usercontextSvc.UserContex
 		SubstitutionRepo:   repoFactory.GroupSubstitution,
 	}
 
-	return usercontextSvc.NewUserContextServiceWithRepos(repos, db)
+	return usercontextSvc.NewUserContextServiceWithRepos(repos, db, slog.Default())
 }
 
 // contextWithClaims creates a context with JWT claims

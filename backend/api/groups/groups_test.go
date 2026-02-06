@@ -7,6 +7,7 @@ package groups_test
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"testing"
 	"time"
@@ -21,6 +22,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/services"
@@ -42,7 +44,7 @@ func setupTestContext(t *testing.T) *testContext {
 	db := testpkg.SetupTestDB(t)
 
 	repoFactory := repositories.NewFactory(db)
-	svc, err := services.NewFactory(repoFactory, db)
+	svc, err := services.NewFactory(repoFactory, db, slog.Default())
 	require.NoError(t, err, "Failed to create service factory")
 
 	// Groups resource requires multiple services and repositories
@@ -1267,8 +1269,8 @@ func TestGetGroupStudentsRoomStatus_WithSubstitution(t *testing.T) {
 	defer testpkg.CleanupAuthFixtures(t, tc.db, account.ID)
 
 	// Create active substitution for today (grants access)
-	today := time.Now().UTC()
-	endOfDay := time.Date(today.Year(), today.Month(), today.Day(), 23, 59, 59, 0, time.UTC)
+	today := timezone.TodayUTC()
+	endOfDay := today.Add(23*time.Hour + 59*time.Minute + 59*time.Second)
 	substitution := testpkg.CreateTestGroupSubstitution(t, tc.db, group.ID, nil, staff.ID, today, endOfDay)
 	defer testpkg.CleanupActivityFixtures(t, tc.db, substitution.ID)
 
@@ -1309,8 +1311,8 @@ func TestCancelSpecificTransfer_AsGroupLeader(t *testing.T) {
 	defer testpkg.CleanupStaffFixtures(t, tc.db, targetStaff.ID)
 
 	// Create a transfer (substitution with nil regularStaffID = transfer)
-	today := time.Now().UTC()
-	endOfDay := time.Date(today.Year(), today.Month(), today.Day(), 23, 59, 59, 0, time.UTC)
+	today := timezone.TodayUTC()
+	endOfDay := today.Add(23*time.Hour + 59*time.Minute + 59*time.Second)
 	transfer := testpkg.CreateTestGroupSubstitution(t, tc.db, group.ID, nil, targetStaff.ID, today, endOfDay)
 	defer testpkg.CleanupActivityFixtures(t, tc.db, transfer.ID)
 
@@ -1441,8 +1443,8 @@ func TestTransferGroup_DuplicateTransfer(t *testing.T) {
 	defer testpkg.CleanupStaffFixtures(t, tc.db, targetStaff.ID)
 
 	// Create existing transfer to target
-	today := time.Now().UTC()
-	endOfDay := time.Date(today.Year(), today.Month(), today.Day(), 23, 59, 59, 0, time.UTC)
+	today := timezone.TodayUTC()
+	endOfDay := today.Add(23*time.Hour + 59*time.Minute + 59*time.Second)
 	existingTransfer := testpkg.CreateTestGroupSubstitution(t, tc.db, group.ID, nil, targetStaff.ID, today, endOfDay)
 	defer testpkg.CleanupActivityFixtures(t, tc.db, existingTransfer.ID)
 
