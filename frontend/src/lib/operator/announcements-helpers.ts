@@ -140,9 +140,9 @@ export const TYPE_STYLES: Record<AnnouncementType, string> = {
 };
 
 export const TYPE_TEXT_COLORS: Record<AnnouncementType, string> = {
-  announcement: "text-blue-500",
-  release: "text-emerald-500",
-  maintenance: "text-amber-500",
+  announcement: "text-[#5080D8]", // moto blue
+  release: "text-[#83CD2D]", // moto green
+  maintenance: "text-[#F78C10]", // moto orange
 };
 
 export const SEVERITY_STYLES: Record<AnnouncementSeverity, string> = {

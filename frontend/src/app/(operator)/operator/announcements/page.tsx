@@ -632,101 +632,99 @@ function AnnouncementCard({
   }, [menuOpen]);
 
   return (
-    <div className="rounded-3xl border border-gray-100/50 bg-white/90 p-5 shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-150">
-      {/* Type label at top */}
+    <div className="relative rounded-3xl border border-gray-100/50 bg-white/90 p-5 pr-12 shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-150">
+      {/* Kebab menu - absolute top right */}
+      <div className="absolute top-3 right-3" ref={menuRef}>
+        <button
+          type="button"
+          onClick={() => setMenuOpen(!menuOpen)}
+          className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
+          aria-label="Menü öffnen"
+        >
+          <MoreVertical className="h-5 w-5" />
+        </button>
+
+        {menuOpen && (
+          <div className="absolute top-full right-0 z-50 mt-1 w-40 rounded-xl border border-gray-100 bg-white py-1 shadow-lg">
+            <button
+              type="button"
+              onClick={() => {
+                setMenuOpen(false);
+                onEdit(announcement);
+              }}
+              className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-gray-700 transition-colors hover:bg-gray-50"
+            >
+              <Pencil className="h-4 w-4" />
+              Bearbeiten
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setMenuOpen(false);
+                onDelete(announcement);
+              }}
+              className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-red-600 transition-colors hover:bg-red-50"
+            >
+              <Trash2 className="h-4 w-4" />
+              Löschen
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Type label */}
       <p
         className={`mb-2 text-xs font-medium tracking-wide uppercase ${TYPE_TEXT_COLORS[announcement.type]}`}
       >
         {TYPE_LABELS[announcement.type]}
       </p>
 
-      {/* Header with title, draft badge, and kebab menu */}
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <h3 className="text-base font-semibold text-gray-900">
-              {announcement.title}
-            </h3>
-            {announcement.status === "draft" && (
-              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
-                Entwurf
-              </span>
-            )}
-          </div>
-          {/* Meta line: version and timestamp */}
-          <div className="mt-1 flex items-center gap-2 text-xs text-gray-500">
-            {announcement.version && (
-              <>
-                <span>v{announcement.version}</span>
-                <span className="text-gray-300">·</span>
-              </>
-            )}
-            <span>{getRelativeTime(announcement.createdAt)}</span>
-          </div>
-          {/* Target roles display */}
-          {announcement.targetRoles.length > 0 && (
-            <div className="mt-1.5 flex items-center gap-1.5 text-xs text-gray-400">
-              <svg
-                className="h-3.5 w-3.5"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
-                />
-              </svg>
-              <span>
-                {announcement.targetRoles
-                  .map((r) => SYSTEM_ROLE_LABELS[r])
-                  .join(", ")}
-              </span>
-            </div>
-          )}
-        </div>
-
-        {/* Kebab menu */}
-        <div className="relative" ref={menuRef}>
-          <button
-            type="button"
-            onClick={() => setMenuOpen(!menuOpen)}
-            className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
-            aria-label="Menü öffnen"
-          >
-            <MoreVertical className="h-5 w-5" />
-          </button>
-
-          {menuOpen && (
-            <div className="absolute top-full right-0 z-50 mt-1 w-40 rounded-xl border border-gray-100 bg-white py-1 shadow-lg">
-              <button
-                type="button"
-                onClick={() => {
-                  setMenuOpen(false);
-                  onEdit(announcement);
-                }}
-                className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-gray-700 transition-colors hover:bg-gray-50"
-              >
-                <Pencil className="h-4 w-4" />
-                Bearbeiten
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setMenuOpen(false);
-                  onDelete(announcement);
-                }}
-                className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-red-600 transition-colors hover:bg-red-50"
-              >
-                <Trash2 className="h-4 w-4" />
-                Löschen
-              </button>
-            </div>
-          )}
-        </div>
+      {/* Title with draft badge */}
+      <div className="flex items-center gap-2">
+        <h3 className="text-base font-semibold text-gray-900">
+          {announcement.title}
+        </h3>
+        {announcement.status === "draft" && (
+          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
+            Entwurf
+          </span>
+        )}
       </div>
+
+      {/* Meta line: version and timestamp */}
+      <div className="mt-1 flex items-center gap-2 text-xs text-gray-500">
+        {announcement.version && (
+          <>
+            <span>v{announcement.version}</span>
+            <span className="text-gray-300">·</span>
+          </>
+        )}
+        <span>{getRelativeTime(announcement.createdAt)}</span>
+      </div>
+
+      {/* Target roles display */}
+      {announcement.targetRoles.length > 0 && (
+        <div className="mt-1.5 flex items-center gap-1.5 text-xs text-gray-400">
+          <svg
+            className="h-3.5 w-3.5"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+            />
+          </svg>
+          <span>
+            {announcement.targetRoles
+              .map((r) => SYSTEM_ROLE_LABELS[r])
+              .join(", ")}
+          </span>
+        </div>
+      )}
 
       {/* Content preview */}
       <p className="mt-2 line-clamp-2 text-sm text-gray-600">
