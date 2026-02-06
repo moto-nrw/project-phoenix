@@ -69,18 +69,19 @@ func (req *VoteRequest) Bind(_ *http.Request) error {
 
 // PostResponse represents a suggestion post in API responses
 type PostResponse struct {
-	ID          int64   `json:"id"`
-	Title       string  `json:"title"`
-	Description string  `json:"description"`
-	AuthorID    int64   `json:"author_id"`
-	AuthorName  string  `json:"author_name"`
-	Status      string  `json:"status"`
-	Score       int     `json:"score"`
-	Upvotes     int     `json:"upvotes"`
-	Downvotes   int     `json:"downvotes"`
-	UserVote    *string `json:"user_vote"`
-	CreatedAt   string  `json:"created_at"`
-	UpdatedAt   string  `json:"updated_at"`
+	ID           int64   `json:"id"`
+	Title        string  `json:"title"`
+	Description  string  `json:"description"`
+	AuthorID     int64   `json:"author_id"`
+	AuthorName   string  `json:"author_name"`
+	Status       string  `json:"status"`
+	Score        int     `json:"score"`
+	Upvotes      int     `json:"upvotes"`
+	Downvotes    int     `json:"downvotes"`
+	CommentCount int     `json:"comment_count"`
+	UserVote     *string `json:"user_vote"`
+	CreatedAt    string  `json:"created_at"`
+	UpdatedAt    string  `json:"updated_at"`
 }
 
 // newPostResponse converts a model Post to a PostResponse
@@ -91,17 +92,18 @@ func newPostResponse(post *suggestions.Post) PostResponse {
 	}
 
 	return PostResponse{
-		ID:          post.ID,
-		Title:       post.Title,
-		Description: post.Description,
-		AuthorID:    post.AuthorID,
-		AuthorName:  post.AuthorName,
-		Status:      post.Status,
-		Score:       post.Score,
-		Upvotes:     post.Upvotes,
-		Downvotes:   post.Downvotes,
-		UserVote:    userVote,
-		CreatedAt:   post.CreatedAt.Format(time.RFC3339),
-		UpdatedAt:   post.UpdatedAt.Format(time.RFC3339),
+		ID:           post.ID,
+		Title:        post.Title,
+		Description:  post.Description,
+		AuthorID:     post.AuthorID,
+		AuthorName:   post.AuthorName,
+		Status:       post.Status,
+		Score:        post.Score,
+		Upvotes:      post.Upvotes,
+		Downvotes:    post.Downvotes,
+		CommentCount: post.CommentCount,
+		UserVote:     userVote,
+		CreatedAt:    post.CreatedAt.Format(time.RFC3339),
+		UpdatedAt:    post.UpdatedAt.Format(time.RFC3339),
 	}
 }

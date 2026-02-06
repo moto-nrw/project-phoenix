@@ -17,6 +17,7 @@ export interface BackendSuggestion {
   score: number;
   upvotes: number;
   downvotes: number;
+  comment_count: number;
   user_vote: "up" | "down" | null;
   created_at: string;
   updated_at: string;
@@ -38,6 +39,7 @@ export interface Suggestion {
   score: number;
   upvotes: number;
   downvotes: number;
+  commentCount: number;
   userVote: "up" | "down" | null;
   createdAt: string;
   updatedAt: string;
@@ -68,6 +70,7 @@ export function mapSuggestionResponse(data: BackendSuggestion): Suggestion {
     score: data.score,
     upvotes: data.upvotes,
     downvotes: data.downvotes,
+    commentCount: data.comment_count,
     userVote: data.user_vote,
     createdAt: data.created_at,
     updatedAt: data.updated_at,

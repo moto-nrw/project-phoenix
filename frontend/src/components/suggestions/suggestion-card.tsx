@@ -184,7 +184,10 @@ export function SuggestionCard({
       </div>
 
       {/* Comment accordion */}
-      <CommentAccordion postId={suggestion.id} />
+      <CommentAccordion
+        postId={suggestion.id}
+        commentCount={suggestion.commentCount}
+      />
     </div>
   );
 }

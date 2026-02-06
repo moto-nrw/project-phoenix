@@ -89,16 +89,17 @@ func (rs *SuggestionsResource) ListSuggestions(w http.ResponseWriter, r *http.Re
 	responses := make([]SuggestionResponse, 0, len(posts))
 	for _, post := range posts {
 		responses = append(responses, SuggestionResponse{
-			ID:          post.ID,
-			Title:       post.Title,
-			Description: post.Description,
-			Status:      post.Status,
-			Score:       post.Score,
-			Upvotes:     post.Upvotes,
-			Downvotes:   post.Downvotes,
-			AuthorName:  post.AuthorName,
-			CreatedAt:   post.CreatedAt.Format("2006-01-02T15:04:05Z"),
-			UpdatedAt:   post.UpdatedAt.Format("2006-01-02T15:04:05Z"),
+			ID:           post.ID,
+			Title:        post.Title,
+			Description:  post.Description,
+			Status:       post.Status,
+			Score:        post.Score,
+			Upvotes:      post.Upvotes,
+			Downvotes:    post.Downvotes,
+			CommentCount: post.CommentCount,
+			AuthorName:   post.AuthorName,
+			CreatedAt:    post.CreatedAt.Format("2006-01-02T15:04:05Z"),
+			UpdatedAt:    post.UpdatedAt.Format("2006-01-02T15:04:05Z"),
 		})
 	}
 

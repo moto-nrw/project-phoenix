@@ -1,13 +1,14 @@
 "use client";
 
 import { useState, useCallback, useRef } from "react";
-import { ChevronDown, Trash2 } from "lucide-react";
+import { ArrowUp, ChevronDown, Trash2 } from "lucide-react";
 import type { SuggestionComment } from "~/lib/suggestions-helpers";
 import {
   fetchComments,
   createComment,
   deleteComment,
 } from "~/lib/suggestions-api";
+import { ConfirmationModal } from "~/components/ui/modal";
 
 function formatUnit(value: number, singular: string, plural: string): string {
   return `vor ${value} ${value === 1 ? singular : plural}`;
@@ -35,6 +36,10 @@ function getRelativeTime(dateStr: string): string {
   return formatUnit(years, "Jahr", "Jahren");
 }
 
+function getInitial(name: string): string {
+  return name.charAt(0).toUpperCase() || "?";
+}
+
 interface CommentAccordionProps {
   readonly postId: string;
   readonly commentCount?: number;
@@ -50,22 +55,27 @@ export function CommentAccordion({
   const [newComment, setNewComment] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [deleteCommentId, setDeleteCommentId] = useState<string | null>(null);
+  const [isDeletingComment, setIsDeletingComment] = useState(false);
   const loadedRef = useRef(false);
 
-  const loadComments = useCallback(async () => {
-    if (loadedRef.current) return;
-    setIsLoading(true);
-    setError(null);
-    try {
-      const data = await fetchComments(postId);
-      setComments(data);
-      loadedRef.current = true;
-    } catch {
-      setError("Kommentare konnten nicht geladen werden.");
-    } finally {
-      setIsLoading(false);
-    }
-  }, [postId]);
+  const loadComments = useCallback(
+    async (silent = false) => {
+      if (loadedRef.current && !silent) return;
+      if (!silent) setIsLoading(true);
+      setError(null);
+      try {
+        const data = await fetchComments(postId);
+        setComments(data);
+        loadedRef.current = true;
+      } catch {
+        setError("Kommentare konnten nicht geladen werden.");
+      } finally {
+        if (!silent) setIsLoading(false);
+      }
+    },
+    [postId],
+  );
 
   const handleToggle = useCallback(() => {
     const opening = !isOpen;
@@ -84,9 +94,7 @@ export function CommentAccordion({
       try {
         await createComment(postId, newComment.trim());
         setNewComment("");
-        // Reload comments
-        loadedRef.current = false;
-        await loadComments();
+        await loadComments(true);
       } catch {
         setError("Kommentar konnte nicht gesendet werden.");
       } finally {
@@ -96,147 +104,183 @@ export function CommentAccordion({
     [postId, newComment, loadComments],
   );
 
-  const handleDelete = useCallback(
-    async (commentId: string) => {
-      setError(null);
-      try {
-        await deleteComment(postId, commentId);
-        setComments((prev) => prev.filter((c) => c.id !== commentId));
-      } catch {
-        setError("Kommentar konnte nicht gelöscht werden.");
-      }
-    },
-    [postId],
-  );
+  const handleDelete = useCallback(async () => {
+    if (!deleteCommentId) return;
+    setIsDeletingComment(true);
+    setError(null);
+    try {
+      await deleteComment(postId, deleteCommentId);
+      setComments((prev) => prev.filter((c) => c.id !== deleteCommentId));
+      setDeleteCommentId(null);
+    } catch {
+      setError("Kommentar konnte nicht gelöscht werden.");
+    } finally {
+      setIsDeletingComment(false);
+    }
+  }, [postId, deleteCommentId]);
 
   const displayCount = loadedRef.current
     ? comments.length
     : (commentCount ?? 0);
 
   return (
-    <div
-      className="border-t border-gray-100"
-      onClick={(e) => e.stopPropagation()}
-      onKeyDown={(e) => e.stopPropagation()}
-      role="presentation"
-    >
-      {/* Accordion header */}
-      <button
-        type="button"
-        onClick={handleToggle}
-        className="flex w-full items-center justify-between px-5 py-3 text-sm text-gray-600 transition-colors hover:text-gray-900"
-      >
-        <span className="font-medium">
-          Kommentare{displayCount > 0 ? ` (${displayCount})` : ""}
-        </span>
-        <ChevronDown
-          className={`h-4 w-4 transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}
-        />
-      </button>
-
-      {/* Accordion body — CSS Grid for smooth animation */}
+    <>
       <div
-        className={`grid transition-[grid-template-rows] duration-200 ${isOpen ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`}
+        className="border-t border-gray-100"
+        onClick={(e) => e.stopPropagation()}
+        onKeyDown={(e) => e.stopPropagation()}
+        role="presentation"
       >
-        <div className="overflow-hidden">
-          <div className="px-5 pb-4">
-            {/* Loading state */}
-            {isLoading && (
-              <p className="py-2 text-xs text-gray-400">Laden...</p>
-            )}
+        {/* Accordion header */}
+        <button
+          type="button"
+          onClick={handleToggle}
+          className="flex w-full items-center justify-between px-5 py-3 text-sm text-gray-600 transition-colors hover:text-gray-900"
+        >
+          <span className="font-medium">
+            Kommentare{displayCount > 0 ? ` (${displayCount})` : ""}
+          </span>
+          <ChevronDown
+            className={`h-4 w-4 transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}
+          />
+        </button>
 
-            {/* Error */}
-            {error && <p className="mb-2 text-xs text-red-500">{error}</p>}
+        {/* Accordion body */}
+        <div
+          className={`grid transition-[grid-template-rows] duration-200 ${isOpen ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`}
+        >
+          <div className="overflow-hidden">
+            <div className="px-5 pb-4">
+              {/* Loading state */}
+              {isLoading && (
+                <p className="py-2 text-xs text-gray-400">Laden...</p>
+              )}
 
-            {/* Comment list */}
-            {!isLoading && comments.length > 0 && (
-              <div className="mb-3 space-y-2">
-                {comments.map((comment) => (
-                  <div
-                    key={comment.id}
-                    className={`rounded-lg border p-3 ${
-                      comment.authorType === "operator"
-                        ? "border-blue-100 bg-blue-50/50"
-                        : "border-green-100 bg-green-50/50"
-                    }`}
-                  >
-                    <div className="mb-1 flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-medium text-gray-900">
-                          {comment.authorName}
-                        </span>
-                        <span
-                          className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium ${
-                            comment.authorType === "operator"
-                              ? "bg-blue-100 text-blue-700"
-                              : "bg-green-100 text-green-700"
+              {/* Error */}
+              {error && <p className="mb-2 text-xs text-red-500">{error}</p>}
+
+              {/* Comment list */}
+              {!isLoading && comments.length > 0 && (
+                <div className="mb-3 space-y-0 divide-y divide-gray-100">
+                  {comments.map((comment) => {
+                    const isOperator = comment.authorType === "operator";
+
+                    return (
+                      <div
+                        key={comment.id}
+                        className="flex gap-2.5 py-2.5 first:pt-0 last:pb-0"
+                      >
+                        {/* Initials avatar */}
+                        <div
+                          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-medium ${
+                            isOperator
+                              ? "bg-blue-100 text-blue-600"
+                              : "bg-gray-100 text-gray-500"
                           }`}
                         >
-                          {comment.authorType === "operator"
-                            ? "moto Team"
-                            : "OGS-Benutzer"}
-                        </span>
-                        <span className="text-[10px] text-gray-400">
-                          {getRelativeTime(comment.createdAt)}
-                        </span>
+                          {getInitial(comment.authorName)}
+                        </div>
+
+                        {/* Content */}
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-baseline gap-1.5">
+                              <span className="text-sm font-medium text-gray-900">
+                                {comment.authorName}
+                              </span>
+                              <span
+                                className={`text-xs ${isOperator ? "text-blue-600" : "text-gray-400"}`}
+                              >
+                                {isOperator ? "moto Team" : "OGS Team"}
+                              </span>
+                              <time
+                                dateTime={comment.createdAt}
+                                title={new Date(
+                                  comment.createdAt,
+                                ).toLocaleString("de-DE")}
+                                className="text-xs text-gray-400"
+                              >
+                                · {getRelativeTime(comment.createdAt)}
+                              </time>
+                            </div>
+                            {comment.authorType === "user" && (
+                              <button
+                                type="button"
+                                onClick={() => setDeleteCommentId(comment.id)}
+                                className="rounded p-0.5 text-gray-300 transition-colors hover:bg-gray-100 hover:text-red-500"
+                                aria-label="Kommentar löschen"
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </button>
+                            )}
+                          </div>
+                          <p className="mt-0.5 text-xs leading-relaxed whitespace-pre-wrap text-gray-600">
+                            {comment.content}
+                          </p>
+                        </div>
                       </div>
-                      {comment.authorType === "user" && (
-                        <button
-                          type="button"
-                          onClick={() => void handleDelete(comment.id)}
-                          className="rounded p-0.5 text-gray-300 transition-colors hover:bg-gray-100 hover:text-red-500"
-                          aria-label="Kommentar löschen"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
-                      )}
-                    </div>
-                    <p className="text-xs whitespace-pre-wrap text-gray-700">
-                      {comment.content}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            )}
+                    );
+                  })}
+                </div>
+              )}
 
-            {/* Empty state */}
-            {!isLoading && loadedRef.current && comments.length === 0 && (
-              <p className="mb-3 text-xs text-gray-400">
-                Noch keine Kommentare.
-              </p>
-            )}
+              {/* Empty state */}
+              {!isLoading && loadedRef.current && comments.length === 0 && (
+                <p className="mb-3 text-xs text-gray-400">
+                  Noch keine Kommentare.
+                </p>
+              )}
 
-            {/* Comment input */}
-            <form
-              onSubmit={(e) => void handleSubmit(e)}
-              className="flex items-end gap-2"
-            >
-              <textarea
-                value={newComment}
-                onChange={(e) => setNewComment(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey) {
-                    e.preventDefault();
-                    if (newComment.trim() && !isSubmitting) {
-                      void handleSubmit(e);
-                    }
-                  }
-                }}
-                placeholder="Kommentar schreiben..."
-                rows={1}
-                className="flex-1 resize-none rounded-lg border border-gray-200 px-3 py-2 text-xs transition-all duration-200 focus:border-gray-300 focus:ring-0 focus:outline-none"
-              />
-              <button
-                type="submit"
-                disabled={isSubmitting || !newComment.trim()}
-                className="shrink-0 rounded-lg bg-gray-900 px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
+              {/* Comment input */}
+              <form
+                onSubmit={(e) => void handleSubmit(e)}
+                className="flex items-end gap-2"
               >
-                {isSubmitting ? "Senden..." : "Senden"}
-              </button>
-            </form>
+                <textarea
+                  value={newComment}
+                  onChange={(e) => setNewComment(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      if (newComment.trim() && !isSubmitting) {
+                        void handleSubmit(e);
+                      }
+                    }
+                  }}
+                  placeholder="Kommentar schreiben..."
+                  rows={1}
+                  className="flex-1 resize-none rounded-lg border border-gray-200 px-3 py-2 text-xs transition-colors focus:border-gray-300 focus:ring-0 focus:outline-none"
+                />
+                <button
+                  type="submit"
+                  disabled={isSubmitting || !newComment.trim()}
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gray-900 text-white transition-colors hover:bg-gray-700 disabled:opacity-30"
+                  aria-label="Senden"
+                >
+                  <ArrowUp className="h-4 w-4" />
+                </button>
+              </form>
+            </div>
           </div>
         </div>
       </div>
-    </div>
+
+      {/* Delete comment confirmation */}
+      <ConfirmationModal
+        isOpen={!!deleteCommentId}
+        onClose={() => setDeleteCommentId(null)}
+        onConfirm={() => {
+          void handleDelete();
+        }}
+        title="Kommentar löschen?"
+        confirmText="Löschen"
+        confirmButtonClass="bg-red-500 hover:bg-red-600"
+        isConfirmLoading={isDeletingComment}
+      >
+        <p className="text-sm text-gray-600">
+          Dieser Kommentar wird unwiderruflich gelöscht.
+        </p>
+      </ConfirmationModal>
+    </>
   );
 }

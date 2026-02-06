@@ -35,6 +35,7 @@ const backendSuggestion: BackendSuggestion = {
   score: 3,
   upvotes: 4,
   downvotes: 1,
+  comment_count: 0,
   user_vote: null,
   created_at: "2025-01-01T00:00:00Z",
   updated_at: "2025-01-01T00:00:00Z",
