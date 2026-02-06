@@ -46,6 +46,11 @@ func (s *Seeder) SeedAll(ctx context.Context) (*Result, error) {
 		return nil, fmt.Errorf("failed to seed operators: %w", err)
 	}
 
+	// 3.6. Platform announcements (depends on operators)
+	if err := s.seedAnnouncements(ctx); err != nil {
+		return nil, fmt.Errorf("failed to seed announcements: %w", err)
+	}
+
 	// 4. Persons with RFID cards and accounts
 	if err := s.seedPersonsWithAccounts(ctx); err != nil {
 		return nil, fmt.Errorf("failed to seed persons: %w", err)

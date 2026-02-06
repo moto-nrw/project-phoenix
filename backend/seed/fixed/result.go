@@ -52,7 +52,8 @@ type Result struct {
 	WorkSessionBreaks []*active.WorkSessionBreak
 
 	// Platform (operator dashboard)
-	Operators []*platform.Operator
+	Operators     []*platform.Operator
+	Announcements []*platform.Announcement
 
 	// Suggestions
 	SuggestionPosts []*suggestions.Post
