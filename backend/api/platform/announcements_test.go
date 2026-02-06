@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -16,7 +17,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/platform"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	platformModel "github.com/moto-nrw/project-phoenix/models/platform"
-	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 )
 
 // Mock AnnouncementService for platform API
@@ -27,7 +27,7 @@ type mockPlatformAnnouncementService struct {
 	markDismissedFn    func(ctx context.Context, userID, announcementID int64) error
 }
 
-func (m *mockPlatformAnnouncementService) CreateAnnouncement(ctx context.Context, announcement *platformModel.Announcement, operatorID int64, clientIP interface{}) error {
+func (m *mockPlatformAnnouncementService) CreateAnnouncement(ctx context.Context, announcement *platformModel.Announcement, operatorID int64, clientIP net.IP) error {
 	return nil
 }
 
@@ -35,11 +35,11 @@ func (m *mockPlatformAnnouncementService) GetAnnouncement(ctx context.Context, i
 	return nil, nil
 }
 
-func (m *mockPlatformAnnouncementService) UpdateAnnouncement(ctx context.Context, announcement *platformModel.Announcement, operatorID int64, clientIP interface{}) error {
+func (m *mockPlatformAnnouncementService) UpdateAnnouncement(ctx context.Context, announcement *platformModel.Announcement, operatorID int64, clientIP net.IP) error {
 	return nil
 }
 
-func (m *mockPlatformAnnouncementService) DeleteAnnouncement(ctx context.Context, id int64, operatorID int64, clientIP interface{}) error {
+func (m *mockPlatformAnnouncementService) DeleteAnnouncement(ctx context.Context, id int64, operatorID int64, clientIP net.IP) error {
 	return nil
 }
 
@@ -47,11 +47,11 @@ func (m *mockPlatformAnnouncementService) ListAnnouncements(ctx context.Context,
 	return nil, nil
 }
 
-func (m *mockPlatformAnnouncementService) PublishAnnouncement(ctx context.Context, id int64, operatorID int64, clientIP interface{}) error {
+func (m *mockPlatformAnnouncementService) PublishAnnouncement(ctx context.Context, id int64, operatorID int64, clientIP net.IP) error {
 	return nil
 }
 
-func (m *mockPlatformAnnouncementService) UnpublishAnnouncement(ctx context.Context, id int64, operatorID int64, clientIP interface{}) error {
+func (m *mockPlatformAnnouncementService) UnpublishAnnouncement(ctx context.Context, id int64, operatorID int64, clientIP net.IP) error {
 	return nil
 }
 
@@ -83,11 +83,11 @@ func (m *mockPlatformAnnouncementService) MarkDismissed(ctx context.Context, use
 	return nil
 }
 
-func (m *mockPlatformAnnouncementService) GetStats(ctx context.Context, id int64) (*platformSvc.AnnouncementStats, error) {
+func (m *mockPlatformAnnouncementService) GetStats(ctx context.Context, id int64) (*platformModel.AnnouncementStats, error) {
 	return nil, nil
 }
 
-func (m *mockPlatformAnnouncementService) GetViewDetails(ctx context.Context, id int64) ([]*platformSvc.AnnouncementViewDetail, error) {
+func (m *mockPlatformAnnouncementService) GetViewDetails(ctx context.Context, id int64) ([]*platformModel.AnnouncementViewDetail, error) {
 	return nil, nil
 }
 
@@ -98,25 +98,24 @@ func TestGetUnread_Success(t *testing.T) {
 		getUnreadForUserFn: func(ctx context.Context, userID int64, userRole string) ([]*platformModel.Announcement, error) {
 			assert.Equal(t, int64(123), userID)
 			assert.Equal(t, "teacher", userRole)
-			return []*platformModel.Announcement{
-				{
-					ID:          1,
-					Title:       "Important Update",
-					Content:     "Please read this",
-					Type:        platformModel.TypeAnnouncement,
-					Severity:    platformModel.SeverityInfo,
-					Version:     &version,
-					PublishedAt: &now,
-					Active:      true,
-				},
-			}, nil
+			announcement := &platformModel.Announcement{
+				Title:       "Important Update",
+				Content:     "Please read this",
+				Type:        platformModel.TypeAnnouncement,
+				Severity:    platformModel.SeverityInfo,
+				Version:     &version,
+				PublishedAt: &now,
+				Active:      true,
+			}
+			announcement.ID = 1
+			return []*platformModel.Announcement{announcement}, nil
 		},
 	}
 
 	resource := platform.NewAnnouncementsResource(mockService)
 
 	req := httptest.NewRequest(http.MethodGet, "/announcements/unread", nil)
-	claims := &jwt.AppClaims{
+	claims := jwt.AppClaims{
 		ID:    123,
 		Roles: []string{"teacher"},
 	}
@@ -150,7 +149,7 @@ func TestGetUnread_NoRoles(t *testing.T) {
 	resource := platform.NewAnnouncementsResource(mockService)
 
 	req := httptest.NewRequest(http.MethodGet, "/announcements/unread", nil)
-	claims := &jwt.AppClaims{
+	claims := jwt.AppClaims{
 		ID:    123,
 		Roles: []string{},
 	}
@@ -173,7 +172,7 @@ func TestGetUnread_ServiceError(t *testing.T) {
 	resource := platform.NewAnnouncementsResource(mockService)
 
 	req := httptest.NewRequest(http.MethodGet, "/announcements/unread", nil)
-	claims := &jwt.AppClaims{ID: 123, Roles: []string{"teacher"}}
+	claims := jwt.AppClaims{ID: 123, Roles: []string{"teacher"}}
 	ctx := context.WithValue(req.Context(), jwt.CtxClaims, claims)
 	req = req.WithContext(ctx)
 	rr := httptest.NewRecorder()
@@ -196,7 +195,7 @@ func TestGetUnreadCount_Success(t *testing.T) {
 	resource := platform.NewAnnouncementsResource(mockService)
 
 	req := httptest.NewRequest(http.MethodGet, "/announcements/unread-count", nil)
-	claims := &jwt.AppClaims{
+	claims := jwt.AppClaims{
 		ID:    123,
 		Roles: []string{"student", "other"},
 	}
@@ -226,7 +225,7 @@ func TestGetUnreadCount_ServiceError(t *testing.T) {
 	resource := platform.NewAnnouncementsResource(mockService)
 
 	req := httptest.NewRequest(http.MethodGet, "/announcements/unread-count", nil)
-	claims := &jwt.AppClaims{ID: 123, Roles: []string{"teacher"}}
+	claims := jwt.AppClaims{ID: 123, Roles: []string{"teacher"}}
 	ctx := context.WithValue(req.Context(), jwt.CtxClaims, claims)
 	req = req.WithContext(ctx)
 	rr := httptest.NewRecorder()
@@ -251,9 +250,9 @@ func TestMarkSeen_Success(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/announcements/1/seen", nil)
 	rctx := chi.NewRouteContext()
 	rctx.URLParams.Add("id", "1")
-	claims := &jwt.AppClaims{ID: 123}
+	claims := jwt.AppClaims{ID: 123}
 	ctx := context.WithValue(req.Context(), chi.RouteCtxKey, rctx)
-	ctx = context.WithValue(ctx, jwt.ClaimsKey, claims)
+	ctx = context.WithValue(ctx, jwt.CtxClaims, claims)
 	req = req.WithContext(ctx)
 	rr := httptest.NewRecorder()
 
@@ -270,9 +269,9 @@ func TestMarkSeen_InvalidID(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/announcements/abc/seen", nil)
 	rctx := chi.NewRouteContext()
 	rctx.URLParams.Add("id", "abc")
-	claims := &jwt.AppClaims{ID: 123}
+	claims := jwt.AppClaims{ID: 123}
 	ctx := context.WithValue(req.Context(), chi.RouteCtxKey, rctx)
-	ctx = context.WithValue(ctx, jwt.ClaimsKey, claims)
+	ctx = context.WithValue(ctx, jwt.CtxClaims, claims)
 	req = req.WithContext(ctx)
 	rr := httptest.NewRecorder()
 
@@ -293,9 +292,9 @@ func TestMarkSeen_ServiceError(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/announcements/1/seen", nil)
 	rctx := chi.NewRouteContext()
 	rctx.URLParams.Add("id", "1")
-	claims := &jwt.AppClaims{ID: 123}
+	claims := jwt.AppClaims{ID: 123}
 	ctx := context.WithValue(req.Context(), chi.RouteCtxKey, rctx)
-	ctx = context.WithValue(ctx, jwt.ClaimsKey, claims)
+	ctx = context.WithValue(ctx, jwt.CtxClaims, claims)
 	req = req.WithContext(ctx)
 	rr := httptest.NewRecorder()
 
@@ -319,9 +318,9 @@ func TestMarkDismissed_Success(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/announcements/1/dismiss", nil)
 	rctx := chi.NewRouteContext()
 	rctx.URLParams.Add("id", "1")
-	claims := &jwt.AppClaims{ID: 123}
+	claims := jwt.AppClaims{ID: 123}
 	ctx := context.WithValue(req.Context(), chi.RouteCtxKey, rctx)
-	ctx = context.WithValue(ctx, jwt.ClaimsKey, claims)
+	ctx = context.WithValue(ctx, jwt.CtxClaims, claims)
 	req = req.WithContext(ctx)
 	rr := httptest.NewRecorder()
 
@@ -338,9 +337,9 @@ func TestMarkDismissed_InvalidID(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/announcements/invalid/dismiss", nil)
 	rctx := chi.NewRouteContext()
 	rctx.URLParams.Add("id", "invalid")
-	claims := &jwt.AppClaims{ID: 123}
+	claims := jwt.AppClaims{ID: 123}
 	ctx := context.WithValue(req.Context(), chi.RouteCtxKey, rctx)
-	ctx = context.WithValue(ctx, jwt.ClaimsKey, claims)
+	ctx = context.WithValue(ctx, jwt.CtxClaims, claims)
 	req = req.WithContext(ctx)
 	rr := httptest.NewRecorder()
 
@@ -361,9 +360,9 @@ func TestMarkDismissed_ServiceError(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/announcements/1/dismiss", nil)
 	rctx := chi.NewRouteContext()
 	rctx.URLParams.Add("id", "1")
-	claims := &jwt.AppClaims{ID: 123}
+	claims := jwt.AppClaims{ID: 123}
 	ctx := context.WithValue(req.Context(), chi.RouteCtxKey, rctx)
-	ctx = context.WithValue(ctx, jwt.ClaimsKey, claims)
+	ctx = context.WithValue(ctx, jwt.CtxClaims, claims)
 	req = req.WithContext(ctx)
 	rr := httptest.NewRecorder()
 
