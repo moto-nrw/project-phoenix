@@ -46,6 +46,7 @@ func (rs *Resource) Router() chi.Router {
 		// Announcements for users
 		r.Route("/announcements", func(r chi.Router) {
 			r.Get("/unread", rs.announcementsResource.GetUnread)
+			r.Get("/unread/count", rs.announcementsResource.GetUnreadCount)
 			r.Post("/{id}/seen", rs.announcementsResource.MarkSeen)
 			r.Post("/{id}/dismiss", rs.announcementsResource.MarkDismissed)
 		})

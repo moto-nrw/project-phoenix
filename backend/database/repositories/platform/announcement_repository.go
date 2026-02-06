@@ -13,11 +13,8 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// Table and query constants
-const (
-	tablePlatformAnnouncements      = "platform.announcements"
-	tablePlatformAnnouncementsAlias = `platform.announcements AS "announcement"`
-)
+// Table constant
+const tablePlatformAnnouncements = "platform.announcements"
 
 // AnnouncementRepository implements platform.AnnouncementRepository interface
 type AnnouncementRepository struct {
@@ -50,10 +47,10 @@ func (r *AnnouncementRepository) Create(ctx context.Context, announcement *platf
 func (r *AnnouncementRepository) FindByID(ctx context.Context, id int64) (*platform.Announcement, error) {
 	announcement := new(platform.Announcement)
 	err := r.db.NewSelect().
-		Model(announcement).
-		ModelTableExpr(tablePlatformAnnouncementsAlias).
-		Where(`"announcement".id = ?`, id).
-		Scan(ctx)
+		TableExpr(tablePlatformAnnouncements).
+		ColumnExpr("*").
+		Where("id = ?", id).
+		Scan(ctx, announcement)
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -90,16 +87,16 @@ func (r *AnnouncementRepository) Delete(ctx context.Context, id int64) error {
 func (r *AnnouncementRepository) List(ctx context.Context, includeInactive bool) ([]*platform.Announcement, error) {
 	var announcements []*platform.Announcement
 	query := r.db.NewSelect().
-		Model(&announcements).
-		ModelTableExpr(tablePlatformAnnouncementsAlias)
+		TableExpr(tablePlatformAnnouncements).
+		ColumnExpr("*")
 
 	if !includeInactive {
-		query = query.Where(`"announcement".active = true`)
+		query = query.Where("active = true")
 	}
 
 	err := query.
-		Order(`"announcement".created_at DESC`).
-		Scan(ctx)
+		Order("created_at DESC").
+		Scan(ctx, &announcements)
 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
@@ -117,18 +114,18 @@ func (r *AnnouncementRepository) ListPublished(ctx context.Context) ([]*platform
 	now := time.Now()
 
 	err := r.db.NewSelect().
-		Model(&announcements).
-		ModelTableExpr(tablePlatformAnnouncementsAlias).
-		Where(`"announcement".active = true`).
-		Where(`"announcement".published_at IS NOT NULL`).
-		Where(`"announcement".published_at <= ?`, now).
+		TableExpr(tablePlatformAnnouncements).
+		ColumnExpr("*").
+		Where("active = true").
+		Where("published_at IS NOT NULL").
+		Where("published_at <= ?", now).
 		WhereGroup(" AND ", func(q *bun.SelectQuery) *bun.SelectQuery {
 			return q.
-				Where(`"announcement".expires_at IS NULL`).
-				WhereOr(`"announcement".expires_at > ?`, now)
+				Where("expires_at IS NULL").
+				WhereOr("expires_at > ?", now)
 		}).
-		Order(`"announcement".published_at DESC`).
-		Scan(ctx)
+		Order("published_at DESC").
+		Scan(ctx, &announcements)
 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{

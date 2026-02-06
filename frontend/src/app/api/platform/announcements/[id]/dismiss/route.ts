@@ -1,10 +1,17 @@
 import type { NextRequest } from "next/server";
-import { createPostHandler } from "~/lib/route-wrapper";
 import { apiPost } from "~/lib/api-helpers";
+import { createPostHandler, isStringParam } from "~/lib/route-wrapper";
 
-export const POST = createPostHandler(
-  async (_request: NextRequest, _body: unknown, token: string, params) => {
-    const id = params.id as string;
-    return await apiPost(`/api/platform/announcements/${id}/dismiss`, token);
+export const POST = createPostHandler<null, Record<string, never>>(
+  async (_request: NextRequest, _body, token: string, params) => {
+    if (!isStringParam(params.id)) {
+      throw new Error("Invalid announcement ID");
+    }
+    await apiPost(
+      `/api/platform/announcements/${params.id}/dismiss`,
+      token,
+      {},
+    );
+    return null;
   },
 );

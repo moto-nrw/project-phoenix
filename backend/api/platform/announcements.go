@@ -72,7 +72,13 @@ func (rs *AnnouncementsResource) GetUnread(w http.ResponseWriter, r *http.Reques
 	claims := jwt.ClaimsFromCtx(r.Context())
 	userID := int64(claims.ID)
 
-	announcements, err := rs.announcementService.GetUnreadForUser(r.Context(), userID)
+	// Get the user's primary role (first role in the array)
+	userRole := ""
+	if len(claims.Roles) > 0 {
+		userRole = claims.Roles[0]
+	}
+
+	announcements, err := rs.announcementService.GetUnreadForUser(r.Context(), userID, userRole)
 	if err != nil {
 		common.RenderError(w, r, ErrInternal("Failed to retrieve announcements"))
 		return
@@ -96,6 +102,26 @@ func (rs *AnnouncementsResource) GetUnread(w http.ResponseWriter, r *http.Reques
 	}
 
 	common.Respond(w, r, http.StatusOK, responses, "Unread announcements retrieved successfully")
+}
+
+// GetUnreadCount handles getting the count of unread announcements
+func (rs *AnnouncementsResource) GetUnreadCount(w http.ResponseWriter, r *http.Request) {
+	claims := jwt.ClaimsFromCtx(r.Context())
+	userID := int64(claims.ID)
+
+	// Get the user's primary role
+	userRole := ""
+	if len(claims.Roles) > 0 {
+		userRole = claims.Roles[0]
+	}
+
+	count, err := rs.announcementService.CountUnread(r.Context(), userID, userRole)
+	if err != nil {
+		common.RenderError(w, r, ErrInternal("Failed to count announcements"))
+		return
+	}
+
+	common.Respond(w, r, http.StatusOK, map[string]int{"count": count}, "")
 }
 
 // MarkSeen handles marking an announcement as seen
