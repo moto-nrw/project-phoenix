@@ -80,12 +80,13 @@ func (r *AnnouncementViewRepository) MarkDismissed(ctx context.Context, userID, 
 	return nil
 }
 
-// GetUnreadForUser retrieves all unread active announcements for a user
-func (r *AnnouncementViewRepository) GetUnreadForUser(ctx context.Context, userID int64) ([]*platform.Announcement, error) {
+// GetUnreadForUser retrieves all unread active announcements for a user filtered by role
+func (r *AnnouncementViewRepository) GetUnreadForUser(ctx context.Context, userID int64, userRole string) ([]*platform.Announcement, error) {
 	var announcements []*platform.Announcement
 	now := time.Now()
 
 	// Use raw SQL for complex query with aliases to avoid BUN's quote escaping issues
+	// target_roles = '{}' means all roles can see it, otherwise check if userRole is in the array
 	err := r.db.NewRaw(`
 		SELECT a.*
 		FROM platform.announcements a
@@ -96,8 +97,9 @@ func (r *AnnouncementViewRepository) GetUnreadForUser(ctx context.Context, userI
 			AND a.published_at <= ?
 			AND (a.expires_at IS NULL OR a.expires_at > ?)
 			AND (v.seen_at IS NULL OR v.dismissed = false)
+			AND (a.target_roles = '{}' OR ? = ANY(a.target_roles))
 		ORDER BY a.published_at DESC
-	`, userID, now, now).Scan(ctx, &announcements)
+	`, userID, now, now, userRole).Scan(ctx, &announcements)
 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
@@ -107,6 +109,96 @@ func (r *AnnouncementViewRepository) GetUnreadForUser(ctx context.Context, userI
 	}
 
 	return announcements, nil
+}
+
+// CountUnread counts unread announcements for a user filtered by role
+func (r *AnnouncementViewRepository) CountUnread(ctx context.Context, userID int64, userRole string) (int, error) {
+	now := time.Now()
+
+	var count int
+	err := r.db.NewRaw(`
+		SELECT COUNT(*)
+		FROM platform.announcements a
+		LEFT JOIN platform.announcement_views v
+			ON v.announcement_id = a.id AND v.user_id = ?
+		WHERE a.active = true
+			AND a.published_at IS NOT NULL
+			AND a.published_at <= ?
+			AND (a.expires_at IS NULL OR a.expires_at > ?)
+			AND (v.seen_at IS NULL OR v.dismissed = false)
+			AND (a.target_roles = '{}' OR ? = ANY(a.target_roles))
+	`, userID, now, now, userRole).Scan(ctx, &count)
+
+	if err != nil {
+		return 0, &modelBase.DatabaseError{
+			Op:  "count unread announcements",
+			Err: err,
+		}
+	}
+
+	return count, nil
+}
+
+// GetStats retrieves view statistics for an announcement
+func (r *AnnouncementViewRepository) GetStats(ctx context.Context, announcementID int64) (*platform.AnnouncementStats, error) {
+	stats := &platform.AnnouncementStats{
+		AnnouncementID: announcementID,
+	}
+
+	// Get the target_roles for this announcement
+	var targetRoles []string
+	err := r.db.NewRaw(`
+		SELECT COALESCE(target_roles, '{}') FROM platform.announcements WHERE id = ?
+	`, announcementID).Scan(ctx, &targetRoles)
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "get announcement target_roles",
+			Err: err,
+		}
+	}
+
+	// Count target users (users with matching roles)
+	if len(targetRoles) == 0 {
+		// All users can see it - count all accounts with roles
+		err = r.db.NewRaw(`
+			SELECT COUNT(DISTINCT acc.id)
+			FROM auth.accounts acc
+			WHERE acc.id IS NOT NULL
+		`).Scan(ctx, &stats.TargetCount)
+	} else {
+		// Only users with matching roles
+		err = r.db.NewRaw(`
+			SELECT COUNT(DISTINCT acc.id)
+			FROM auth.accounts acc
+			JOIN auth.account_roles ar ON ar.account_id = acc.id
+			JOIN auth.roles r ON r.id = ar.role_id
+			WHERE r.name IN (?)
+		`, bun.In(targetRoles)).Scan(ctx, &stats.TargetCount)
+	}
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "count target users",
+			Err: err,
+		}
+	}
+
+	// Count seen and dismissed
+	err = r.db.NewRaw(`
+		SELECT
+			COALESCE(SUM(CASE WHEN seen_at IS NOT NULL THEN 1 ELSE 0 END), 0) as seen_count,
+			COALESCE(SUM(CASE WHEN dismissed = true THEN 1 ELSE 0 END), 0) as dismissed_count
+		FROM platform.announcement_views
+		WHERE announcement_id = ?
+	`, announcementID).Scan(ctx, &stats.SeenCount, &stats.DismissedCount)
+
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "get announcement view stats",
+			Err: err,
+		}
+	}
+
+	return stats, nil
 }
 
 // HasSeen checks if a user has seen a specific announcement
@@ -130,4 +222,36 @@ func (r *AnnouncementViewRepository) HasSeen(ctx context.Context, userID, announ
 	}
 
 	return true, nil
+}
+
+// GetViewDetails returns detailed view information including user names
+func (r *AnnouncementViewRepository) GetViewDetails(ctx context.Context, announcementID int64) ([]*platform.AnnouncementViewDetail, error) {
+	var details []*platform.AnnouncementViewDetail
+
+	// Join with auth.accounts and users.persons to get user names
+	// Persons are linked directly to accounts via person.account_id
+	err := r.db.NewRaw(`
+		SELECT
+			v.user_id,
+			COALESCE(
+				CONCAT(p.first_name, ' ', p.last_name),
+				acc.email
+			) as user_name,
+			v.seen_at,
+			v.dismissed
+		FROM platform.announcement_views v
+		JOIN auth.accounts acc ON acc.id = v.user_id
+		LEFT JOIN users.persons p ON p.account_id = acc.id
+		WHERE v.announcement_id = ?
+		ORDER BY v.seen_at DESC
+	`, announcementID).Scan(ctx, &details)
+
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "get announcement view details",
+			Err: err,
+		}
+	}
+
+	return details, nil
 }

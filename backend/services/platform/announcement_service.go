@@ -25,9 +25,14 @@ type AnnouncementService interface {
 	UnpublishAnnouncement(ctx context.Context, id int64, operatorID int64, clientIP net.IP) error
 
 	// User-facing operations
-	GetUnreadForUser(ctx context.Context, userID int64) ([]*platform.Announcement, error)
+	GetUnreadForUser(ctx context.Context, userID int64, userRole string) ([]*platform.Announcement, error)
+	CountUnread(ctx context.Context, userID int64, userRole string) (int, error)
 	MarkSeen(ctx context.Context, userID, announcementID int64) error
 	MarkDismissed(ctx context.Context, userID, announcementID int64) error
+
+	// Statistics
+	GetStats(ctx context.Context, announcementID int64) (*platform.AnnouncementStats, error)
+	GetViewDetails(ctx context.Context, announcementID int64) ([]*platform.AnnouncementViewDetail, error)
 }
 
 type announcementService struct {
@@ -189,9 +194,27 @@ func (s *announcementService) UnpublishAnnouncement(ctx context.Context, id int6
 	return nil
 }
 
-// GetUnreadForUser retrieves unread announcements for a user
-func (s *announcementService) GetUnreadForUser(ctx context.Context, userID int64) ([]*platform.Announcement, error) {
-	return s.announcementViewRepo.GetUnreadForUser(ctx, userID)
+// GetUnreadForUser retrieves unread announcements for a user filtered by role
+func (s *announcementService) GetUnreadForUser(ctx context.Context, userID int64, userRole string) ([]*platform.Announcement, error) {
+	return s.announcementViewRepo.GetUnreadForUser(ctx, userID, userRole)
+}
+
+// CountUnread counts unread announcements for a user filtered by role
+func (s *announcementService) CountUnread(ctx context.Context, userID int64, userRole string) (int, error) {
+	return s.announcementViewRepo.CountUnread(ctx, userID, userRole)
+}
+
+// GetStats retrieves view statistics for an announcement
+func (s *announcementService) GetStats(ctx context.Context, announcementID int64) (*platform.AnnouncementStats, error) {
+	// Verify announcement exists
+	ann, err := s.announcementRepo.FindByID(ctx, announcementID)
+	if err != nil {
+		return nil, err
+	}
+	if ann == nil {
+		return nil, &AnnouncementNotFoundError{AnnouncementID: announcementID}
+	}
+	return s.announcementViewRepo.GetStats(ctx, announcementID)
 }
 
 // MarkSeen marks an announcement as seen by a user
@@ -202,6 +225,19 @@ func (s *announcementService) MarkSeen(ctx context.Context, userID, announcement
 // MarkDismissed marks an announcement as dismissed by a user
 func (s *announcementService) MarkDismissed(ctx context.Context, userID, announcementID int64) error {
 	return s.announcementViewRepo.MarkDismissed(ctx, userID, announcementID)
+}
+
+// GetViewDetails retrieves detailed view information for an announcement
+func (s *announcementService) GetViewDetails(ctx context.Context, announcementID int64) ([]*platform.AnnouncementViewDetail, error) {
+	// Verify announcement exists
+	ann, err := s.announcementRepo.FindByID(ctx, announcementID)
+	if err != nil {
+		return nil, err
+	}
+	if ann == nil {
+		return nil, &AnnouncementNotFoundError{AnnouncementID: announcementID}
+	}
+	return s.announcementViewRepo.GetViewDetails(ctx, announcementID)
 }
 
 // logAction logs an audit entry

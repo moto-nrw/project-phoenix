@@ -42,11 +42,20 @@ type AnnouncementViewRepository interface {
 	MarkSeen(ctx context.Context, userID, announcementID int64) error
 	MarkDismissed(ctx context.Context, userID, announcementID int64) error
 
-	// Query unread announcements for a user
-	GetUnreadForUser(ctx context.Context, userID int64) ([]*Announcement, error)
+	// Query unread announcements for a user (filtered by role)
+	GetUnreadForUser(ctx context.Context, userID int64, userRole string) ([]*Announcement, error)
+
+	// Count unread announcements for a user (filtered by role)
+	CountUnread(ctx context.Context, userID int64, userRole string) (int, error)
 
 	// Check if user has seen announcement
 	HasSeen(ctx context.Context, userID, announcementID int64) (bool, error)
+
+	// Get view statistics for an announcement
+	GetStats(ctx context.Context, announcementID int64) (*AnnouncementStats, error)
+
+	// Get detailed view list for an announcement (who has seen/dismissed)
+	GetViewDetails(ctx context.Context, announcementID int64) ([]*AnnouncementViewDetail, error)
 }
 
 // OperatorAuditLogRepository defines operations for the audit log

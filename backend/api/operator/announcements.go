@@ -26,29 +26,31 @@ func NewAnnouncementsResource(announcementService platformSvc.AnnouncementServic
 
 // AnnouncementResponse represents an announcement in the response
 type AnnouncementResponse struct {
-	ID          int64   `json:"id"`
-	Title       string  `json:"title"`
-	Content     string  `json:"content"`
-	Type        string  `json:"type"`
-	Severity    string  `json:"severity"`
-	Version     *string `json:"version,omitempty"`
-	Active      bool    `json:"active"`
-	PublishedAt *string `json:"published_at,omitempty"`
-	ExpiresAt   *string `json:"expires_at,omitempty"`
-	CreatedBy   int64   `json:"created_by"`
-	CreatedAt   string  `json:"created_at"`
-	UpdatedAt   string  `json:"updated_at"`
-	Status      string  `json:"status"` // draft, published, expired
+	ID          int64    `json:"id"`
+	Title       string   `json:"title"`
+	Content     string   `json:"content"`
+	Type        string   `json:"type"`
+	Severity    string   `json:"severity"`
+	Version     *string  `json:"version,omitempty"`
+	Active      bool     `json:"active"`
+	PublishedAt *string  `json:"published_at,omitempty"`
+	ExpiresAt   *string  `json:"expires_at,omitempty"`
+	TargetRoles []string `json:"target_roles"`
+	CreatedBy   int64    `json:"created_by"`
+	CreatedAt   string   `json:"created_at"`
+	UpdatedAt   string   `json:"updated_at"`
+	Status      string   `json:"status"` // draft, published, expired
 }
 
 // CreateAnnouncementRequest represents the create announcement request body
 type CreateAnnouncementRequest struct {
-	Title     string  `json:"title"`
-	Content   string  `json:"content"`
-	Type      string  `json:"type"`
-	Severity  string  `json:"severity"`
-	Version   *string `json:"version,omitempty"`
-	ExpiresAt *string `json:"expires_at,omitempty"`
+	Title       string   `json:"title"`
+	Content     string   `json:"content"`
+	Type        string   `json:"type"`
+	Severity    string   `json:"severity"`
+	Version     *string  `json:"version,omitempty"`
+	ExpiresAt   *string  `json:"expires_at,omitempty"`
+	TargetRoles []string `json:"target_roles,omitempty"`
 }
 
 // Bind validates the create announcement request
@@ -58,13 +60,14 @@ func (req *CreateAnnouncementRequest) Bind(r *http.Request) error {
 
 // UpdateAnnouncementRequest represents the update announcement request body
 type UpdateAnnouncementRequest struct {
-	Title     string  `json:"title"`
-	Content   string  `json:"content"`
-	Type      string  `json:"type"`
-	Severity  string  `json:"severity"`
-	Version   *string `json:"version,omitempty"`
-	Active    *bool   `json:"active,omitempty"`
-	ExpiresAt *string `json:"expires_at,omitempty"`
+	Title       string   `json:"title"`
+	Content     string   `json:"content"`
+	Type        string   `json:"type"`
+	Severity    string   `json:"severity"`
+	Version     *string  `json:"version,omitempty"`
+	Active      *bool    `json:"active,omitempty"`
+	ExpiresAt   *string  `json:"expires_at,omitempty"`
+	TargetRoles []string `json:"target_roles,omitempty"`
 }
 
 // Bind validates the update announcement request
@@ -128,12 +131,13 @@ func (rs *AnnouncementsResource) CreateAnnouncement(w http.ResponseWriter, r *ht
 	}
 
 	announcement := &platform.Announcement{
-		Title:    req.Title,
-		Content:  req.Content,
-		Type:     req.Type,
-		Severity: req.Severity,
-		Version:  req.Version,
-		Active:   true,
+		Title:       req.Title,
+		Content:     req.Content,
+		Type:        req.Type,
+		Severity:    req.Severity,
+		Version:     req.Version,
+		TargetRoles: req.TargetRoles,
+		Active:      true,
 	}
 
 	// Set defaults if not provided
@@ -194,6 +198,7 @@ func (rs *AnnouncementsResource) UpdateAnnouncement(w http.ResponseWriter, r *ht
 	existing.Type = req.Type
 	existing.Severity = req.Severity
 	existing.Version = req.Version
+	existing.TargetRoles = req.TargetRoles
 	if req.Active != nil {
 		existing.Active = *req.Active
 	}
@@ -264,19 +269,77 @@ func (rs *AnnouncementsResource) PublishAnnouncement(w http.ResponseWriter, r *h
 	common.Respond(w, r, http.StatusOK, nil, "Announcement published successfully")
 }
 
+// GetStats handles getting view statistics for an announcement
+func (rs *AnnouncementsResource) GetStats(w http.ResponseWriter, r *http.Request) {
+	id, err := parseID(r, "id")
+	if err != nil {
+		common.RenderError(w, r, ErrInvalidRequest(err))
+		return
+	}
+
+	stats, err := rs.announcementService.GetStats(r.Context(), id)
+	if err != nil {
+		common.RenderError(w, r, AnnouncementErrorRenderer(err))
+		return
+	}
+
+	common.Respond(w, r, http.StatusOK, stats, "Stats retrieved successfully")
+}
+
+// AnnouncementViewDetailResponse represents a view detail in the response
+type AnnouncementViewDetailResponse struct {
+	UserID    int64  `json:"user_id"`
+	UserName  string `json:"user_name"`
+	SeenAt    string `json:"seen_at"`
+	Dismissed bool   `json:"dismissed"`
+}
+
+// GetViewDetails handles getting detailed view information for an announcement
+func (rs *AnnouncementsResource) GetViewDetails(w http.ResponseWriter, r *http.Request) {
+	id, err := parseID(r, "id")
+	if err != nil {
+		common.RenderError(w, r, ErrInvalidRequest(err))
+		return
+	}
+
+	details, err := rs.announcementService.GetViewDetails(r.Context(), id)
+	if err != nil {
+		common.RenderError(w, r, AnnouncementErrorRenderer(err))
+		return
+	}
+
+	responses := make([]AnnouncementViewDetailResponse, 0, len(details))
+	for _, detail := range details {
+		responses = append(responses, AnnouncementViewDetailResponse{
+			UserID:    detail.UserID,
+			UserName:  detail.UserName,
+			SeenAt:    detail.SeenAt.Format(time.RFC3339),
+			Dismissed: detail.Dismissed,
+		})
+	}
+
+	common.Respond(w, r, http.StatusOK, responses, "View details retrieved successfully")
+}
+
 // newAnnouncementResponse creates an announcement response from an announcement model
 func newAnnouncementResponse(a *platform.Announcement) AnnouncementResponse {
+	targetRoles := a.TargetRoles
+	if targetRoles == nil {
+		targetRoles = []string{}
+	}
+
 	response := AnnouncementResponse{
-		ID:        a.ID,
-		Title:     a.Title,
-		Content:   a.Content,
-		Type:      a.Type,
-		Severity:  a.Severity,
-		Version:   a.Version,
-		Active:    a.Active,
-		CreatedBy: a.CreatedBy,
-		CreatedAt: a.CreatedAt.Format(time.RFC3339),
-		UpdatedAt: a.UpdatedAt.Format(time.RFC3339),
+		ID:          a.ID,
+		Title:       a.Title,
+		Content:     a.Content,
+		Type:        a.Type,
+		Severity:    a.Severity,
+		Version:     a.Version,
+		Active:      a.Active,
+		TargetRoles: targetRoles,
+		CreatedBy:   a.CreatedBy,
+		CreatedAt:   a.CreatedAt.Format(time.RFC3339),
+		UpdatedAt:   a.UpdatedAt.Format(time.RFC3339),
 	}
 
 	if a.PublishedAt != nil {

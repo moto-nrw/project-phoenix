@@ -1,127 +1,150 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
-import { useSession } from "next-auth/react";
+import { useState, useCallback, useEffect, useRef } from "react";
+import { Sparkles, Megaphone, Wrench } from "lucide-react";
 import { Modal } from "~/components/ui/modal";
-import {
-  fetchUnreadAnnouncements,
-  dismissAnnouncement,
-} from "~/lib/platform-api";
-import type { PlatformAnnouncement } from "~/lib/platform-api";
+import { useAnnouncements } from "~/lib/hooks/use-announcements";
 
-const LAST_CHECK_KEY = "announcements_last_checked";
-const CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
+// Contextual headers that create a positive, informative feeling
+// title = small subtitle, subtitle = large main header
+const DEFAULT_HEADER = {
+  icon: Megaphone,
+  title: "Neuigkeiten",
+  subtitle: "Wichtige Informationen für Sie",
+} as const;
 
-const TYPE_BADGE_STYLES: Record<PlatformAnnouncement["type"], string> = {
-  announcement: "bg-blue-100 text-blue-700",
-  release: "bg-green-100 text-green-700",
-  maintenance: "bg-yellow-100 text-yellow-800",
+const TYPE_HEADERS: Record<
+  string,
+  { icon: typeof Sparkles; title: string; subtitle: string }
+> = {
+  release: {
+    icon: Sparkles,
+    title: "Was ist neu?",
+    subtitle: "Neue Funktionen und Verbesserungen",
+  },
+  announcement: DEFAULT_HEADER,
+  maintenance: {
+    icon: Wrench,
+    title: "Wartungshinweis",
+    subtitle: "Geplante Systemarbeiten",
+  },
 };
 
-const TYPE_BADGE_LABELS: Record<PlatformAnnouncement["type"], string> = {
-  announcement: "Ankündigung",
-  release: "Release",
-  maintenance: "Wartung",
-};
+interface UnreadAnnouncement {
+  id: number;
+  title: string;
+  content: string;
+  type: string;
+  severity: string;
+  version?: string;
+  published_at: string;
+}
 
 export function AnnouncementModal() {
-  const { status } = useSession();
-  const [announcements, setAnnouncements] = useState<PlatformAnnouncement[]>(
-    [],
-  );
+  const { announcements, dismiss, isLoading, refresh } = useAnnouncements();
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [isOpen, setIsOpen] = useState(false);
+  const [isVisible, setIsVisible] = useState(false);
+  // Keep a stable snapshot of announcements when modal opens
+  const [queuedAnnouncements, setQueuedAnnouncements] = useState<
+    UnreadAnnouncement[]
+  >([]);
+  const dismissedIdsRef = useRef<Set<number>>(new Set());
 
+  // Show modal when we have announcements - capture stable snapshot
   useEffect(() => {
-    // Only fetch announcements when user is authenticated
-    if (status !== "authenticated") return;
-
-    const checkAnnouncements = async () => {
-      // Throttle to once per day
-      const lastCheck = localStorage.getItem(LAST_CHECK_KEY);
-      if (lastCheck) {
-        const elapsed = Date.now() - Number.parseInt(lastCheck, 10);
-        if (elapsed < CHECK_INTERVAL_MS) return;
+    if (!isLoading && announcements.length > 0 && !isVisible) {
+      // Filter out any we've already dismissed in this session
+      const unprocessed = announcements.filter(
+        (a) => !dismissedIdsRef.current.has(a.id),
+      );
+      if (unprocessed.length > 0) {
+        setQueuedAnnouncements(unprocessed);
+        setCurrentIndex(0);
+        setIsVisible(true);
       }
-
-      try {
-        const unread = await fetchUnreadAnnouncements();
-        if (unread.length > 0) {
-          setAnnouncements(unread);
-          setCurrentIndex(0);
-          setIsOpen(true);
-        }
-        localStorage.setItem(LAST_CHECK_KEY, Date.now().toString());
-      } catch (error) {
-        // Silently ignore auth errors (401/403) - user may not be logged in
-        if (
-          error instanceof Error &&
-          /API error \(40[13]\)/.test(error.message)
-        ) {
-          return;
-        }
-        console.error("Failed to fetch announcements:", error);
-      }
-    };
-
-    void checkAnnouncements();
-  }, [status]);
+    }
+  }, [announcements, isLoading, isVisible]);
 
   const handleDismiss = useCallback(async () => {
-    const current = announcements[currentIndex];
+    const current = queuedAnnouncements[currentIndex];
     if (!current) return;
 
+    // Track this ID as dismissed locally
+    dismissedIdsRef.current.add(current.id);
+
     try {
-      await dismissAnnouncement(current.id);
+      // Send dismiss to backend (don't await to avoid blocking UI)
+      void dismiss(current.id);
     } catch (error) {
       console.error("Failed to dismiss announcement:", error);
     }
 
-    if (currentIndex < announcements.length - 1) {
+    // Move to next or close
+    if (currentIndex < queuedAnnouncements.length - 1) {
       setCurrentIndex((prev) => prev + 1);
     } else {
-      setIsOpen(false);
+      setIsVisible(false);
+      // Refresh data after all announcements processed
+      void refresh();
     }
-  }, [announcements, currentIndex]);
+  }, [queuedAnnouncements, currentIndex, dismiss, refresh]);
 
-  const current = announcements[currentIndex];
-  if (!current) return null;
+  const current = queuedAnnouncements[currentIndex];
+  if (!current || !isVisible) return null;
+
+  const header = TYPE_HEADERS[current.type] ?? DEFAULT_HEADER;
+  const Icon = header.icon;
+  const totalCount = queuedAnnouncements.length;
+
+  const footer = (
+    <>
+      <span className="flex-1 text-xs text-gray-500">
+        {totalCount > 1 && `${currentIndex + 1} von ${totalCount}`}
+      </span>
+      <button
+        type="button"
+        onClick={() => void handleDismiss()}
+        className="rounded-xl bg-gradient-to-br from-[#83CD2D] to-[#70b525] px-5 py-2.5 text-sm font-medium text-white shadow-md transition-all hover:scale-105 hover:shadow-lg active:scale-100"
+      >
+        {currentIndex < totalCount - 1 ? "Weiter" : "Verstanden"}
+      </button>
+    </>
+  );
 
   return (
     <Modal
-      isOpen={isOpen}
-      onClose={() => setIsOpen(false)}
+      isOpen={isVisible}
+      onClose={() => void handleDismiss()}
       title=""
-      footer={
-        <div className="flex w-full items-center justify-between">
-          <span className="text-sm text-gray-500">
-            {currentIndex + 1} von {announcements.length}
-          </span>
-          <button
-            type="button"
-            onClick={() => void handleDismiss()}
-            className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-800"
-          >
-            {currentIndex < announcements.length - 1 ? "Weiter" : "Verstanden"}
-          </button>
-        </div>
-      }
+      footer={footer}
     >
-      <div className="space-y-3">
-        <div className="flex items-center gap-2">
-          <span
-            className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${TYPE_BADGE_STYLES[current.type]}`}
-          >
-            {TYPE_BADGE_LABELS[current.type]}
-          </span>
-          {current.version && (
-            <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
-              v{current.version}
-            </span>
-          )}
+      {/* Header section with icon and titles */}
+      <div className="mb-5">
+        <div className="flex items-start gap-3">
+          <Icon className="mt-0.5 h-7 w-7 flex-shrink-0 text-[#83CD2D]" />
+          <div>
+            <h2 className="text-xl font-bold text-gray-900">
+              {header.subtitle}
+            </h2>
+            <p className="mt-0.5 text-sm text-gray-500">
+              {header.title}
+              {current.version && (
+                <span className="ml-2 text-gray-400">v{current.version}</span>
+              )}
+            </p>
+          </div>
         </div>
-        <h3 className="text-lg font-semibold text-gray-900">{current.title}</h3>
-        <p className="text-sm whitespace-pre-wrap text-gray-600">
+      </div>
+
+      {/* Divider */}
+      <div className="mb-4 border-t border-gray-100" />
+
+      {/* Announcement content */}
+      <div>
+        <h3 className="text-base font-semibold text-gray-900">
+          {current.title}
+        </h3>
+        <p className="mt-2 text-sm whitespace-pre-wrap text-gray-600">
           {current.content}
         </p>
       </div>

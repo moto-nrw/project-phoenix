@@ -85,6 +85,8 @@ func (rs *Resource) Router() chi.Router {
 			r.Put("/{id}", rs.announcementsResource.UpdateAnnouncement)
 			r.Delete("/{id}", rs.announcementsResource.DeleteAnnouncement)
 			r.Post("/{id}/publish", rs.announcementsResource.PublishAnnouncement)
+			r.Get("/{id}/stats", rs.announcementsResource.GetStats)
+			r.Get("/{id}/views", rs.announcementsResource.GetViewDetails)
 		})
 	})
 

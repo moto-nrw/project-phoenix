@@ -2,10 +2,13 @@ import { operatorFetch } from "./api-helpers";
 import type {
   BackendAnnouncement,
   Announcement,
+  AnnouncementStats,
+  AnnouncementViewDetail,
+  BackendAnnouncementViewDetail,
   CreateAnnouncementRequest,
   UpdateAnnouncementRequest,
 } from "./announcements-helpers";
-import { mapAnnouncement } from "./announcements-helpers";
+import { mapAnnouncement, mapViewDetail } from "./announcements-helpers";
 
 class OperatorAnnouncementsService {
   async fetchAll(includeInactive = true): Promise<Announcement[]> {
@@ -51,6 +54,19 @@ class OperatorAnnouncementsService {
     await operatorFetch(`/api/operator/announcements/${id}/publish`, {
       method: "POST",
     });
+  }
+
+  async fetchStats(id: string): Promise<AnnouncementStats> {
+    return operatorFetch<AnnouncementStats>(
+      `/api/operator/announcements/${id}/stats`,
+    );
+  }
+
+  async fetchViewDetails(id: string): Promise<AnnouncementViewDetail[]> {
+    const data = await operatorFetch<BackendAnnouncementViewDetail[]>(
+      `/api/operator/announcements/${id}/views`,
+    );
+    return data.map(mapViewDetail);
   }
 }
 

@@ -1,6 +1,13 @@
 export type AnnouncementType = "announcement" | "release" | "maintenance";
 export type AnnouncementSeverity = "info" | "warning" | "critical";
 export type AnnouncementStatus = "draft" | "published" | "expired";
+export type SystemRole = "admin" | "user" | "guardian";
+
+export const SYSTEM_ROLE_LABELS: Record<SystemRole, string> = {
+  admin: "Administratoren",
+  user: "Lehrer/Personal",
+  guardian: "Erziehungsberechtigte",
+};
 
 export interface BackendAnnouncement {
   id: number;
@@ -12,6 +19,7 @@ export interface BackendAnnouncement {
   active: boolean;
   published_at?: string | null;
   expires_at?: string | null;
+  target_roles: string[];
   created_by: number;
   created_at: string;
   updated_at: string;
@@ -28,10 +36,43 @@ export interface Announcement {
   active: boolean;
   publishedAt: string | null;
   expiresAt: string | null;
+  targetRoles: SystemRole[];
   createdBy: string;
   createdAt: string;
   updatedAt: string;
   status: AnnouncementStatus;
+}
+
+export interface AnnouncementStats {
+  announcement_id: number;
+  target_count: number;
+  seen_count: number;
+  dismissed_count: number;
+}
+
+export interface BackendAnnouncementViewDetail {
+  user_id: number;
+  user_name: string;
+  seen_at: string;
+  dismissed: boolean;
+}
+
+export interface AnnouncementViewDetail {
+  userId: string;
+  userName: string;
+  seenAt: string;
+  dismissed: boolean;
+}
+
+export function mapViewDetail(
+  data: BackendAnnouncementViewDetail,
+): AnnouncementViewDetail {
+  return {
+    userId: data.user_id.toString(),
+    userName: data.user_name,
+    seenAt: data.seen_at,
+    dismissed: data.dismissed,
+  };
 }
 
 export interface CreateAnnouncementRequest {
@@ -41,6 +82,7 @@ export interface CreateAnnouncementRequest {
   severity: AnnouncementSeverity;
   version?: string;
   expires_at?: string;
+  target_roles?: SystemRole[];
 }
 
 export interface UpdateAnnouncementRequest {
@@ -51,6 +93,7 @@ export interface UpdateAnnouncementRequest {
   version?: string | null;
   active?: boolean;
   expires_at?: string | null;
+  target_roles?: SystemRole[];
 }
 
 export function mapAnnouncement(data: BackendAnnouncement): Announcement {
@@ -64,6 +107,7 @@ export function mapAnnouncement(data: BackendAnnouncement): Announcement {
     active: data.active,
     publishedAt: data.published_at ?? null,
     expiresAt: data.expires_at ?? null,
+    targetRoles: (data.target_roles ?? []) as SystemRole[],
     createdBy: data.created_by.toString(),
     createdAt: data.created_at,
     updatedAt: data.updated_at,

@@ -22,22 +22,34 @@ const (
 	SeverityCritical = "critical"
 )
 
+// Target role constants
+const (
+	RoleAdmin    = "admin"
+	RoleUser     = "user"
+	RoleGuardian = "guardian"
+)
+
+// ValidTargetRoles returns the allowed role values for announcement targeting
+func ValidTargetRoles() []string {
+	return []string{RoleAdmin, RoleUser, RoleGuardian}
+}
+
 // tablePlatformAnnouncements is the schema-qualified table name
 const tablePlatformAnnouncements = "platform.announcements"
 
 // Announcement represents a platform announcement or release note
 type Announcement struct {
-	base.Model      `bun:"schema:platform,table:announcements"`
-	Title           string     `bun:"title,notnull" json:"title"`
-	Content         string     `bun:"content,notnull" json:"content"`
-	Type            string     `bun:"type,notnull,default:'announcement'" json:"type"`
-	Severity        string     `bun:"severity,notnull,default:'info'" json:"severity"`
-	Version         *string    `bun:"version" json:"version,omitempty"`
-	Active          bool       `bun:"active,notnull,default:true" json:"active"`
-	PublishedAt     *time.Time `bun:"published_at" json:"published_at,omitempty"`
-	ExpiresAt       *time.Time `bun:"expires_at" json:"expires_at,omitempty"`
-	TargetSchoolIDs []int64    `bun:"target_school_ids,array" json:"target_school_ids,omitempty"`
-	CreatedBy       int64      `bun:"created_by,notnull" json:"created_by"`
+	base.Model  `bun:"schema:platform,table:announcements"`
+	Title       string     `bun:"title,notnull" json:"title"`
+	Content     string     `bun:"content,notnull" json:"content"`
+	Type        string     `bun:"type,notnull,default:'announcement'" json:"type"`
+	Severity    string     `bun:"severity,notnull,default:'info'" json:"severity"`
+	Version     *string    `bun:"version" json:"version,omitempty"`
+	Active      bool       `bun:"active,notnull,default:true" json:"active"`
+	PublishedAt *time.Time `bun:"published_at" json:"published_at,omitempty"`
+	ExpiresAt   *time.Time `bun:"expires_at" json:"expires_at,omitempty"`
+	TargetRoles []string   `bun:"target_roles,array" json:"target_roles,omitempty"`
+	CreatedBy   int64      `bun:"created_by,notnull" json:"created_by"`
 
 	// Relations
 	Creator *Operator `bun:"rel:belongs-to,join:created_by=id" json:"creator,omitempty"`
@@ -130,4 +142,20 @@ func (a *Announcement) GetCreatedAt() time.Time {
 // GetUpdatedAt returns the last update timestamp
 func (a *Announcement) GetUpdatedAt() time.Time {
 	return a.UpdatedAt
+}
+
+// AnnouncementStats contains view statistics for an announcement
+type AnnouncementStats struct {
+	AnnouncementID int64 `json:"announcement_id"`
+	TargetCount    int   `json:"target_count"`    // Total users who can see it
+	SeenCount      int   `json:"seen_count"`      // Users who saw it
+	DismissedCount int   `json:"dismissed_count"` // Users who dismissed it
+}
+
+// AnnouncementViewDetail contains info about a single user view
+type AnnouncementViewDetail struct {
+	UserID    int64     `json:"user_id"`
+	UserName  string    `json:"user_name"`
+	SeenAt    time.Time `json:"seen_at"`
+	Dismissed bool      `json:"dismissed"`
 }
