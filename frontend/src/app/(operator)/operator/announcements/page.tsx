@@ -3,6 +3,7 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import { AnimatePresence, LayoutGroup, motion } from "framer-motion";
 import useSWR from "swr";
+import { MoreVertical, Pencil, Trash2 } from "lucide-react";
 import {
   PageHeaderWithSearch,
   type FilterConfig,
@@ -615,8 +616,26 @@ function AnnouncementCard({
   readonly onDelete: (a: Announcement) => void;
   readonly onPublish: (a: Announcement) => void;
 }) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // Close menu on click outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setMenuOpen(false);
+      }
+    }
+    if (menuOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+      return () =>
+        document.removeEventListener("mousedown", handleClickOutside);
+    }
+  }, [menuOpen]);
+
   return (
     <div className="rounded-3xl border border-gray-100/50 bg-white/90 p-5 shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-150">
+      {/* Header with title and kebab menu */}
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
           <h3 className="text-base font-semibold text-gray-900">
@@ -668,7 +687,48 @@ function AnnouncementCard({
             </div>
           )}
         </div>
+
+        {/* Kebab menu */}
+        <div className="relative" ref={menuRef}>
+          <button
+            type="button"
+            onClick={() => setMenuOpen(!menuOpen)}
+            className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
+            aria-label="Menü öffnen"
+          >
+            <MoreVertical className="h-5 w-5" />
+          </button>
+
+          {menuOpen && (
+            <div className="absolute top-full right-0 z-50 mt-1 w-40 rounded-xl border border-gray-100 bg-white py-1 shadow-lg">
+              <button
+                type="button"
+                onClick={() => {
+                  setMenuOpen(false);
+                  onEdit(announcement);
+                }}
+                className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-gray-700 transition-colors hover:bg-gray-50"
+              >
+                <Pencil className="h-4 w-4" />
+                Bearbeiten
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setMenuOpen(false);
+                  onDelete(announcement);
+                }}
+                className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-red-600 transition-colors hover:bg-red-50"
+              >
+                <Trash2 className="h-4 w-4" />
+                Löschen
+              </button>
+            </div>
+          )}
+        </div>
       </div>
+
+      {/* Content preview */}
       <p className="mt-2 line-clamp-2 text-sm text-gray-600">
         {announcement.content}
       </p>
@@ -678,38 +738,28 @@ function AnnouncementCard({
         <AnnouncementStatsDisplay announcementId={announcement.id} />
       )}
 
+      {/* Footer with timestamp and publish button */}
       <div className="mt-3 flex items-center justify-between">
         <span className="text-xs text-gray-500">
           {getRelativeTime(announcement.createdAt)}
           {announcement.publishedAt &&
             ` · Veröffentlicht ${getRelativeTime(announcement.publishedAt)}`}
         </span>
-        <div className="flex items-center gap-2">
+        {announcement.status === "draft" && (
           <button
             type="button"
-            onClick={() => onEdit(announcement)}
-            className="rounded-lg px-3 py-1.5 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-100"
+            onClick={() => onPublish(announcement)}
+            className="rounded-lg bg-gradient-to-br from-[#83CD2D] to-[#70b525] px-4 py-1.5 text-xs font-medium text-white shadow-sm transition-all hover:shadow-md"
           >
-            Bearbeiten
+            Veröffentlichen
           </button>
-          {announcement.status === "draft" && (
-            <button
-              type="button"
-              onClick={() => onPublish(announcement)}
-              className="rounded-lg bg-green-50 px-3 py-1.5 text-xs font-medium text-green-700 transition-colors hover:bg-green-100"
-            >
-              Veröffentlichen
-            </button>
-          )}
-          <button
-            type="button"
-            onClick={() => onDelete(announcement)}
-            className="rounded-lg px-3 py-1.5 text-xs font-medium text-red-600 transition-colors hover:bg-red-50"
-          >
-            Löschen
-          </button>
-        </div>
+        )}
       </div>
+
+      {/* Views accordion at the bottom */}
+      {announcement.status === "published" && (
+        <AnnouncementViewsAccordionWrapper announcementId={announcement.id} />
+      )}
     </div>
   );
 }
@@ -733,53 +783,70 @@ function AnnouncementStatsDisplay({
       : 0;
 
   return (
-    <>
-      <div className="mt-3 flex items-center gap-4 text-xs text-gray-500">
-        <span className="flex items-center gap-1">
-          <svg
-            className="h-3.5 w-3.5"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-            />
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
-            />
-          </svg>
-          {stats.seen_count}/{stats.target_count} gesehen ({seenPercent}%)
-        </span>
-        <span className="flex items-center gap-1">
-          <svg
-            className="h-3.5 w-3.5"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-            />
-          </svg>
-          {stats.dismissed_count} bestätigt
-        </span>
-      </div>
-      <AnnouncementViewsAccordion
-        announcementId={announcementId}
-        seenCount={stats.seen_count}
-        dismissedCount={stats.dismissed_count}
-      />
-    </>
+    <div className="mt-3 flex items-center gap-4 text-xs text-gray-500">
+      <span className="flex items-center gap-1">
+        <svg
+          className="h-3.5 w-3.5"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+          />
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+          />
+        </svg>
+        {stats.seen_count}/{stats.target_count} gesehen ({seenPercent}%)
+      </span>
+      <span className="flex items-center gap-1">
+        <svg
+          className="h-3.5 w-3.5"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+          />
+        </svg>
+        {stats.dismissed_count} bestätigt
+      </span>
+    </div>
+  );
+}
+
+function AnnouncementViewsAccordionWrapper({
+  announcementId,
+}: {
+  readonly announcementId: string;
+}) {
+  const { data: stats } = useSWR<AnnouncementStats>(
+    `announcement-stats-${announcementId}`,
+    () => operatorAnnouncementsService.fetchStats(announcementId),
+    { refreshInterval: 30000 },
+  );
+
+  if (!stats || (stats.seen_count === 0 && stats.dismissed_count === 0)) {
+    return null;
+  }
+
+  return (
+    <AnnouncementViewsAccordion
+      announcementId={announcementId}
+      seenCount={stats.seen_count}
+      dismissedCount={stats.dismissed_count}
+    />
   );
 }
 
