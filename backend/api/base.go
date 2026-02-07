@@ -1,6 +1,8 @@
 package api
 
 import (
+	"context"
+	"log"
 	"log/slog"
 	"net/http"
 	"os"
@@ -27,6 +29,7 @@ import (
 	iotAPI "github.com/moto-nrw/project-phoenix/api/iot"
 	roomsAPI "github.com/moto-nrw/project-phoenix/api/rooms"
 	schedulesAPI "github.com/moto-nrw/project-phoenix/api/schedules"
+	settingsAPI "github.com/moto-nrw/project-phoenix/api/settings"
 	sseAPI "github.com/moto-nrw/project-phoenix/api/sse"
 	staffAPI "github.com/moto-nrw/project-phoenix/api/staff"
 	studentsAPI "github.com/moto-nrw/project-phoenix/api/students"
@@ -67,6 +70,7 @@ type API struct {
 	Substitutions    *substitutionsAPI.Resource
 	Database         *databaseAPI.Resource
 	GradeTransitions *adminAPI.GradeTransitionResource
+	Settings         *settingsAPI.Resource
 	TimeTracking     *timeTrackingAPI.Resource
 }
 
@@ -109,6 +113,15 @@ func New(enableCORS bool, logger *slog.Logger) (*API, error) {
 
 	// Initialize API resources
 	initializeAPIResources(api, repoFactory, db, logger)
+
+	// Auto-sync settings definitions and tabs to database on startup
+	if api.Services.HierarchicalSettings != nil {
+		if err := api.Services.HierarchicalSettings.SyncAll(context.Background()); err != nil {
+			log.Printf("Warning: Failed to sync settings definitions: %v", err)
+		} else {
+			log.Println("Settings definitions synced successfully")
+		}
+	}
 
 	// Register routes with rate limiting
 	api.registerRoutesWithRateLimiting()
@@ -246,6 +259,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.Substitutions = substitutionsAPI.NewResource(api.Services.Education)
 	api.Database = databaseAPI.NewResource(api.Services.Database)
 	api.GradeTransitions = adminAPI.NewGradeTransitionResource(api.Services.GradeTransition)
+	api.Settings = settingsAPI.NewResource(api.Services.HierarchicalSettings)
 	api.TimeTracking = timeTrackingAPI.NewResource(api.Services.WorkSession, api.Services.StaffAbsence, api.Services.Users)
 }
 
@@ -364,6 +378,9 @@ func (a *API) registerRoutesWithRateLimiting() {
 
 		// Mount admin resources
 		r.Mount("/admin/grade-transitions", a.GradeTransitions.Router())
+
+		// Mount settings resources (hierarchical settings)
+		r.Mount("/settings", a.Settings.Router())
 
 		// Add other resource routes here as they are implemented
 	})

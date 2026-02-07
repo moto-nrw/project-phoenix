@@ -15,40 +15,72 @@ import { useProfile } from "~/lib/profile-context";
 import { compressAvatar } from "~/lib/image-utils";
 import { navigationIcons } from "~/lib/navigation-icons";
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
+import {
+  clientFetchSettingsTabs,
+  clientFetchTabSettings,
+} from "~/lib/settings-api";
+import type {
+  SettingTab,
+  TabSettingsResponse,
+  Scope,
+} from "~/lib/settings-helpers";
+import { SettingsCategory } from "~/components/settings/settings-category";
 
-// Tab configuration
-interface Tab {
+// Hardcoded tabs that have special UI (not just settings)
+interface HardcodedTab {
   id: string;
   label: string;
   icon: string;
-  adminOnly?: boolean;
+  isHardcoded: true;
 }
 
-const tabs: Tab[] = [
+const hardcodedTabs: HardcodedTab[] = [
   {
     id: "profile",
     label: "Profil",
     icon: navigationIcons.profile,
+    isHardcoded: true,
   },
   {
     id: "security",
     label: "Sicherheit",
     icon: navigationIcons.security,
+    isHardcoded: true,
   },
 ];
 
-const adminTabs: Tab[] = [];
+// Icon mapping for backend tabs (SVG path data for common tab types)
+// These are used when backend tabs are registered with matching keys
+const tabIconMap: Record<string, string> = {
+  // Add icon mappings here when you register tabs with these keys
+  // Example: general: "M10.325 4.317c.426-1.756..."
+};
+
+// Combined tab type - unified structure for both hardcoded and backend tabs
+interface UnifiedTab {
+  id: string;
+  label: string;
+  icon: string;
+  isHardcoded: boolean;
+}
 
 function SettingsContent() {
   const { data: session, status } = useSession({ required: true });
   const { success: toastSuccess } = useToast();
   const { profile, updateProfileData, refreshProfile } = useProfile();
-  const [activeTab, setActiveTab] = useState<string | null>("profile");
+  const [activeTab, setActiveTab] = useState<string>("profile");
   const [showAlert, setShowAlert] = useState(false);
   const [alertMessage, setAlertMessage] = useState("");
   const [alertType, setAlertType] = useState<"success" | "error">("success");
   const [isMobile, setIsMobile] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
+
+  // Backend settings tabs
+  const [backendTabs, setBackendTabs] = useState<SettingTab[]>([]);
+  const [tabSettings, setTabSettings] = useState<TabSettingsResponse | null>(
+    null,
+  );
+  const [tabLoading, setTabLoading] = useState(false);
 
   // Profile editing state
   const [isEditing, setIsEditing] = useState(false);
@@ -59,6 +91,60 @@ function SettingsContent() {
     email: "",
   });
 
+  // Load backend tabs on mount
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadBackendTabs() {
+      const tabs = await clientFetchSettingsTabs();
+      if (isMounted) {
+        setBackendTabs(tabs);
+      }
+    }
+
+    void loadBackendTabs();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  // Load tab settings when selecting a backend tab
+  useEffect(() => {
+    if (!activeTab) return;
+
+    // Only load settings for backend tabs (not profile/security)
+    const isBackendTab = backendTabs.some((t) => t.key === activeTab);
+    if (!isBackendTab) {
+      setTabSettings(null);
+      return;
+    }
+
+    let isMounted = true;
+
+    async function loadTabSettings() {
+      setTabLoading(true);
+      try {
+        const settings = await clientFetchTabSettings(activeTab);
+        if (isMounted) {
+          setTabSettings(settings);
+        }
+      } catch (err) {
+        console.error("Error loading tab settings:", err);
+      } finally {
+        if (isMounted) {
+          setTabLoading(false);
+        }
+      }
+    }
+
+    void loadTabSettings();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [activeTab, backendTabs]);
+
   // Memoized callback for alert close to prevent re-renders from resetting timer
   const handleAlertClose = useCallback(() => {
     setShowAlert(false);
@@ -66,7 +152,7 @@ function SettingsContent() {
 
   // Handle back navigation on mobile
   const handleBackToList = useCallback(() => {
-    setActiveTab(null);
+    setActiveTab("");
   }, []);
 
   // Handle tab selection
@@ -82,10 +168,10 @@ function SettingsContent() {
 
       // Reset to list view when switching to mobile
       if (wasDesktop && isNowMobile) {
-        setActiveTab(null);
+        setActiveTab("");
       }
       // Set profile tab when switching to desktop
-      else if (!wasDesktop && !isNowMobile && activeTab === null) {
+      else if (!wasDesktop && !isNowMobile && activeTab === "") {
         setActiveTab("profile");
       }
     };
@@ -162,6 +248,13 @@ function SettingsContent() {
     }
   };
 
+  const handleSettingChanged = useCallback(() => {
+    // Refresh tab settings after a change
+    if (activeTab && backendTabs.some((t) => t.key === activeTab)) {
+      void clientFetchTabSettings(activeTab).then(setTabSettings);
+    }
+  }, [activeTab, backendTabs]);
+
   if (status === "loading") {
     return <Loading fullPage={false} />;
   }
@@ -170,7 +263,22 @@ function SettingsContent() {
     redirect("/");
   }
 
-  const allTabs = session?.user?.isAdmin ? [...tabs, ...adminTabs] : tabs;
+  // Combine hardcoded tabs with backend tabs (filter out duplicates)
+  const hardcodedTabIds = new Set(hardcodedTabs.map((t) => t.id));
+  const defaultIconPath =
+    "M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z";
+
+  const allTabs: UnifiedTab[] = [
+    ...hardcodedTabs,
+    ...backendTabs
+      .filter((t) => !hardcodedTabIds.has(t.key))
+      .map((t) => ({
+        id: t.key,
+        label: t.name,
+        icon: tabIconMap[t.key] ?? defaultIconPath,
+        isHardcoded: false,
+      })),
+  ];
 
   const renderTabContent = () => {
     switch (activeTab) {
@@ -368,30 +476,79 @@ function SettingsContent() {
         );
 
       default:
-        return null;
+        // Backend settings tab
+        if (tabLoading) {
+          return (
+            <div className="flex justify-center py-8">
+              <Loading fullPage={false} />
+            </div>
+          );
+        }
+
+        if (!tabSettings) {
+          return (
+            <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+              <p className="text-sm text-gray-600">
+                Keine Einstellungen verfügbar.
+              </p>
+            </div>
+          );
+        }
+
+        const scope: Scope = "system";
+
+        return (
+          <div className="space-y-6">
+            {tabSettings.categories.map((category) => (
+              <SettingsCategory
+                key={category.key}
+                category={category}
+                scope={scope}
+                onSettingChanged={handleSettingChanged}
+              />
+            ))}
+            {tabSettings.categories.length === 0 && (
+              <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+                <p className="text-sm text-gray-600">
+                  Keine Einstellungen in diesem Tab verfügbar.
+                </p>
+              </div>
+            )}
+          </div>
+        );
     }
   };
 
   return (
     <div className="-mt-1.5 w-full">
       {/* Header - Only show on mobile list view */}
-      {isMobile && activeTab === null && (
+      {isMobile && activeTab === "" && (
         <PageHeaderWithSearch title="Einstellungen" />
       )}
 
-      {/* Tab Navigation - Desktop with line variant */}
+      {/* Tab Navigation - Desktop with shadcn Tabs (line variant) */}
       {!isMobile && (
         <div className="mb-6 ml-6">
-          <Tabs value={activeTab ?? "profile"} onValueChange={setActiveTab}>
+          <Tabs value={activeTab} onValueChange={setActiveTab}>
             <TabsList variant="line">
               {allTabs.map((tab) => (
                 <TabsTrigger key={tab.id} value={tab.id}>
-                  {tab.label}
-                  {tab.adminOnly && (
-                    <span className="ml-1 rounded bg-gray-200 px-1.5 py-0.5 text-xs">
-                      Admin
-                    </span>
-                  )}
+                  <span className="flex items-center gap-2">
+                    <svg
+                      className="h-4 w-4"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d={tab.icon}
+                      />
+                    </svg>
+                    {tab.label}
+                  </span>
                 </TabsTrigger>
               ))}
             </TabsList>
@@ -403,7 +560,7 @@ function SettingsContent() {
       {isMobile && (
         <>
           {/* Mobile List View - iOS Style */}
-          {activeTab === null ? (
+          {activeTab === "" ? (
             <div className="flex flex-col space-y-6 pb-6">
               {/* Profile Card - iOS Apple ID Style */}
               <div className="mx-4">
@@ -453,17 +610,41 @@ function SettingsContent() {
                 </button>
               </div>
 
-              {/* Security Settings Section */}
+              {/* Other tabs */}
               <div className="space-y-2">
                 <div className="mx-4 overflow-hidden rounded-2xl bg-white shadow-sm">
-                  <button
-                    onClick={() => handleTabSelect("security")}
-                    className="flex w-full items-center justify-between px-4 py-3.5 transition-colors hover:bg-gray-50 active:bg-gray-100"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gray-100">
+                  {allTabs
+                    .filter((tab) => tab.id !== "profile")
+                    .map((tab, index, arr) => (
+                      <button
+                        key={tab.id}
+                        onClick={() => handleTabSelect(tab.id)}
+                        className={`flex w-full items-center justify-between px-4 py-3.5 transition-colors hover:bg-gray-50 active:bg-gray-100 ${
+                          index < arr.length - 1
+                            ? "border-b border-gray-100"
+                            : ""
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gray-100">
+                            <svg
+                              className="h-4 w-4 text-gray-600"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d={tab.icon}
+                              />
+                            </svg>
+                          </div>
+                          <p className="text-base text-gray-900">{tab.label}</p>
+                        </div>
                         <svg
-                          className="h-4 w-4 text-gray-600"
+                          className="h-5 w-5 text-gray-400"
                           fill="none"
                           viewBox="0 0 24 24"
                           stroke="currentColor"
@@ -472,26 +653,11 @@ function SettingsContent() {
                             strokeLinecap="round"
                             strokeLinejoin="round"
                             strokeWidth={2}
-                            d={navigationIcons.security}
+                            d="M9 5l7 7-7 7"
                           />
                         </svg>
-                      </div>
-                      <p className="text-base text-gray-900">Sicherheit</p>
-                    </div>
-                    <svg
-                      className="h-5 w-5 text-gray-400"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M9 5l7 7-7 7"
-                      />
-                    </svg>
-                  </button>
+                      </button>
+                    ))}
                 </div>
               </div>
             </div>
@@ -520,7 +686,7 @@ function SettingsContent() {
                   </svg>
                 </button>
                 <h2 className="text-lg font-semibold text-gray-900">
-                  {allTabs.find((t) => t.id === activeTab)?.label}
+                  {allTabs.find((t) => t.id === activeTab)?.label ?? ""}
                 </h2>
               </div>
               {/* Scrollable Content */}

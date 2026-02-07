@@ -40,15 +40,16 @@ func (rs *Resource) eventsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Step 2: Resolve staff member from JWT claims
-	staff, errMsg, statusCode := rs.resolveStaff(ctx)
+	staff, accountID, errMsg, statusCode := rs.resolveStaff(ctx)
 	if staff == nil {
 		http.Error(w, errMsg, statusCode)
 		return
 	}
 	conn.staffID = staff.ID
+	conn.userID = accountID
 
-	// Step 3: Build subscription topics (active groups + educational groups)
-	topics, err := rs.buildSubscriptionTopics(ctx, staff.ID)
+	// Step 3: Build subscription topics (active groups + educational groups + settings)
+	topics, err := rs.buildSubscriptionTopics(ctx, staff.ID, accountID)
 	if err != nil {
 		http.Error(w, "Failed to determine supervised groups", http.StatusInternalServerError)
 		return

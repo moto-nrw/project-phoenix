@@ -6,6 +6,9 @@ import (
 	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/applog"
 
+	// Import settings definitions to trigger init() registration
+	_ "github.com/moto-nrw/project-phoenix/settings/definitions"
+
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )

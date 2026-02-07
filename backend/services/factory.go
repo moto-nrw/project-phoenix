@@ -3,6 +3,7 @@ package services
 
 import (
 	"fmt"
+	"log"
 	"log/slog"
 	"strings"
 	"time"
@@ -14,6 +15,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize/policies"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/email"
+	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	importModels "github.com/moto-nrw/project-phoenix/models/import"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/active"
@@ -49,6 +51,7 @@ type Factory struct {
 	Suggestions              suggestions.Service
 	IoT                      iot.Service
 	Config                   config.Service
+	HierarchicalSettings     config.HierarchicalSettingsService
 	Schedule                 schedule.Service
 	PickupSchedule           schedule.PickupScheduleService
 	Users                    users.PersonService
@@ -225,6 +228,57 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		db,
 	)
 
+	// Initialize hierarchical settings service with ObjectRef resolver and action audit
+	objectRefResolver := config.NewDefaultObjectRefResolver(db)
+	hierarchicalSettingsService := config.NewHierarchicalSettingsService(
+		repos.SettingDefinition,
+		repos.SettingValue,
+		repos.SettingAudit,
+		repos.SettingTab,
+		db,
+		config.WithObjectRefResolver(objectRefResolver),
+		config.WithActionAuditRepo(repos.ActionAudit),
+	)
+
+	// Register builtin action handlers
+	config.RegisterBuiltinActionHandlers(hierarchicalSettingsService)
+
+	// Register change listener to log setting changes
+	hierarchicalSettingsService.AddChangeListener(func(event config.SettingChangeEvent) {
+		oldVal := "<nil>"
+		newVal := "<nil>"
+		if event.OldValue != nil {
+			oldVal = *event.OldValue
+		}
+		if event.NewValue != nil {
+			newVal = *event.NewValue
+		}
+		log.Printf("[Settings] %s changed: key=%s scope=%s old=%q new=%q",
+			event.Action, event.Key, event.Scope, oldVal, newVal)
+	})
+
+	// Register SSE broadcaster for settings changes (real-time notifications)
+	hierarchicalSettingsService.AddChangeListener(func(event config.SettingChangeEvent) {
+		// Determine SSE topic based on scope
+		var topic string
+		switch event.Scope {
+		case configModels.ScopeSystem:
+			topic = "settings:system"
+		case configModels.ScopeUser:
+			if event.ScopeID != nil {
+				topic = fmt.Sprintf("settings:user:%d", *event.ScopeID)
+			} else {
+				return // User scope without ID - skip
+			}
+		default:
+			return // Unknown scope - skip
+		}
+
+		// Broadcast setting change via SSE (fire-and-forget)
+		sseEvent := realtime.NewSettingChangedEvent(topic, event.Key, string(event.Scope))
+		_ = realtimeHub.BroadcastToTopic(topic, sseEvent)
+	})
+
 	// Initialize activities service
 	activitiesService, err := activities.NewService(
 		repos.ActivityCategory,
@@ -381,6 +435,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Suggestions:              suggestionsService,
 		IoT:                      iotService,
 		Config:                   configService,
+		HierarchicalSettings:     hierarchicalSettingsService,
 		Schedule:                 scheduleService,
 		PickupSchedule:           pickupScheduleService,
 		Users:                    usersService,
