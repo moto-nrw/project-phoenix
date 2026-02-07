@@ -383,10 +383,9 @@ describe("OperatorSuggestionDetailPage", () => {
     fireEvent.click(submitButton);
 
     await waitFor(() => {
-      expect(consoleError).toHaveBeenCalledWith(
-        "Failed to add comment:",
-        expect.any(Error),
-      );
+      expect(consoleError).toHaveBeenCalledWith("comment_add_failed", {
+        error: "API Error",
+      });
     });
 
     consoleError.mockRestore();
@@ -405,8 +404,8 @@ describe("OperatorSuggestionDetailPage", () => {
 
     await waitFor(() => {
       expect(consoleError).toHaveBeenCalledWith(
-        "Failed to update status:",
-        expect.any(Error),
+        "suggestion_status_update_failed",
+        { error: "API Error" },
       );
     });
 
@@ -431,10 +430,9 @@ describe("OperatorSuggestionDetailPage", () => {
     });
 
     await waitFor(() => {
-      expect(consoleError).toHaveBeenCalledWith(
-        "Failed to delete comment:",
-        expect.any(Error),
-      );
+      expect(consoleError).toHaveBeenCalledWith("comment_delete_failed", {
+        error: "API Error",
+      });
     });
 
     consoleError.mockRestore();

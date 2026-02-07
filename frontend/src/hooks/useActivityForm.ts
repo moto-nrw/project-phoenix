@@ -2,6 +2,9 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { getCategories, type ActivityCategory } from "~/lib/activity-api";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "useActivityForm" });
 
 /**
  * Activity form state shape.
@@ -72,7 +75,9 @@ export function useActivityForm(
       const categoriesData = await getCategories();
       setCategories(categoriesData ?? []);
     } catch (err) {
-      console.error("Failed to load categories:", err);
+      logger.error("failed to load categories", {
+        error: err instanceof Error ? err.message : String(err),
+      });
       setError("Failed to load categories");
     } finally {
       setLoading(false);

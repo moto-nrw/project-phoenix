@@ -6,6 +6,9 @@ import {
   createPutHandler,
   createDeleteHandler,
 } from "~/lib/route-wrapper";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "StaffDetailRoute" });
 
 /**
  * Type definition for staff member response from backend
@@ -78,7 +81,9 @@ export const GET = createGetHandler(
 
       // Handle null or undefined response
       if (!response?.data) {
-        console.warn("API returned null response for staff member");
+        logger.warn("API returned null response for staff member", {
+          staff_id: id,
+        });
         throw new Error("Staff member not found");
       }
 
@@ -111,7 +116,10 @@ export const GET = createGetHandler(
         person: staff.person,
       };
     } catch (error) {
-      console.error("Error fetching staff member:", error);
+      logger.error("staff member fetch failed", {
+        staff_id: id,
+        error: error instanceof Error ? error.message : String(error),
+      });
       throw error;
     }
   },
@@ -255,7 +263,10 @@ export const DELETE = createDeleteHandler(
     } catch (error) {
       // Check for permission errors (403 Forbidden)
       if (error instanceof Error && error.message.includes("403")) {
-        console.error("Permission denied when deleting staff:", error);
+        logger.error("permission denied when deleting staff", {
+          staff_id: id,
+          error: error instanceof Error ? error.message : String(error),
+        });
         throw new Error(
           "Permission denied: You need the 'users:delete' permission to delete staff members.",
         );

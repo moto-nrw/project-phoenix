@@ -625,8 +625,11 @@ describe("staff-api", () => {
 
       expect(result).toEqual([]);
       expect(consoleSpies.error).toHaveBeenCalledWith(
-        expect.stringContaining("Error fetching supervisions for staff 1"),
-        expect.any(Error),
+        "error fetching supervisions for staff",
+        expect.objectContaining({
+          staff_id: "1",
+          error: expect.stringContaining("Network error") as unknown,
+        }),
       );
     });
 
@@ -638,8 +641,11 @@ describe("staff-api", () => {
 
       expect(result).toEqual([]);
       expect(consoleSpies.error).toHaveBeenCalledWith(
-        expect.stringContaining("Error fetching supervisions for staff 1"),
-        expect.any(Error),
+        "error fetching supervisions for staff",
+        expect.objectContaining({
+          staff_id: "1",
+          error: expect.stringContaining("No authentication token") as unknown,
+        }),
       );
     });
 
@@ -655,8 +661,13 @@ describe("staff-api", () => {
 
       expect(result).toEqual([]);
       expect(consoleSpies.error).toHaveBeenCalledWith(
-        expect.stringContaining("Error fetching supervisions for staff 1"),
-        expect.any(Error),
+        "error fetching supervisions for staff",
+        expect.objectContaining({
+          staff_id: "1",
+          error: expect.stringContaining(
+            "Failed to fetch staff supervisions",
+          ) as unknown,
+        }),
       );
     });
 

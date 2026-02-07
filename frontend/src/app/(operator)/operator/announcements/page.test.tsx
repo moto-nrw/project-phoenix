@@ -615,10 +615,9 @@ describe("OperatorAnnouncementsPage", () => {
     fireEvent.click(createButton);
 
     await waitFor(() => {
-      expect(consoleError).toHaveBeenCalledWith(
-        "Failed to save announcement:",
-        expect.any(Error),
-      );
+      expect(consoleError).toHaveBeenCalledWith("announcement_save_failed", {
+        error: "API Error",
+      });
     });
 
     consoleError.mockRestore();

@@ -7,12 +7,11 @@ import type { ReactNode } from "react";
 vi.mock("~/components/ui/modal", () => ({
   Modal: ({
     isOpen,
-    _onClose,
     children,
     footer,
   }: {
     isOpen: boolean;
-    _onClose: () => void;
+    onClose: () => void;
     children: ReactNode;
     footer: ReactNode;
   }) =>
@@ -322,7 +321,12 @@ describe("AnnouncementModal", () => {
     fireEvent.click(dismissButton);
 
     await waitFor(() => {
-      expect(consoleErrorSpy).toHaveBeenCalled();
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        "announcement_dismiss_failed",
+        {
+          error: "Network error",
+        },
+      );
     });
 
     consoleErrorSpy.mockRestore();

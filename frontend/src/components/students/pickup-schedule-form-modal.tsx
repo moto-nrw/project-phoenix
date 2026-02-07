@@ -8,6 +8,9 @@ import type {
   PickupScheduleFormData,
 } from "@/lib/pickup-schedule-helpers";
 import { WEEKDAYS } from "@/lib/pickup-schedule-helpers";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "PickupScheduleForm" });
 
 interface PickupScheduleFormModalProps {
   readonly isOpen: boolean;
@@ -76,6 +79,9 @@ export function PickupScheduleFormModal({
     try {
       await onSubmit({ schedules: validSchedules });
     } catch (err) {
+      logger.error("pickup_schedule_save_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
       setError(
         err instanceof Error
           ? err.message

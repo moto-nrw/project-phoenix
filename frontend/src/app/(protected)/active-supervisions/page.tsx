@@ -24,11 +24,14 @@ import {
   SchoolClassIcon,
   GroupIcon,
 } from "~/components/students/student-card";
+import { createLogger } from "~/lib/logger";
 import { activeService } from "~/lib/active-api";
 import type { Student } from "~/lib/student-helpers";
 import { UnclaimedRooms } from "~/components/active";
 import { SSEErrorBoundary } from "~/components/sse/SSEErrorBoundary";
 import { useSWRAuth } from "~/lib/swr";
+
+const logger = createLogger({ component: "ActiveSupervisionsPage" });
 
 /** Minimal active group interface - compatible with both helper types */
 interface MinimalActiveGroup {
@@ -415,9 +418,7 @@ function MeinRaumPageContent() {
       } catch (error) {
         // Handle 403 Forbidden gracefully - user might not have group access
         if (error instanceof Error && error.message.includes("403")) {
-          console.warn(
-            `No permission to view group ${roomId} - returning empty list`,
-          );
+          logger.warn("no permission to view group", { group_id: roomId });
           return []; // Return empty array instead of throwing
         }
         // Re-throw other errors
@@ -469,7 +470,7 @@ function MeinRaumPageContent() {
   } = useSWRAuth<BFFDashboardResponse>(
     session?.user?.token ? `active-supervision-dashboard-${refreshKey}` : null,
     async () => {
-      console.log("⏱️ [Page] SWR fetching BFF data...");
+      logger.debug("SWR fetching BFF data");
       const start = performance.now();
 
       const response = await fetch("/api/active-supervision-dashboard", {
@@ -487,9 +488,9 @@ function MeinRaumPageContent() {
         data: BFFDashboardResponse;
       };
 
-      console.log(
-        `⏱️ [Page] SWR fetch complete: ${(performance.now() - start).toFixed(0)}ms`,
-      );
+      logger.debug("SWR fetch complete", {
+        duration_ms: Math.round(performance.now() - start),
+      });
       return bffData.data;
     },
     {
@@ -868,7 +869,7 @@ function MeinRaumPageContent() {
       if (mySupervision) {
         await activeService.endSupervision(mySupervision.id);
       } else {
-        console.warn("No active supervision found for current user");
+        logger.warn("no active supervision found for current user");
       }
 
       setShowReleaseModal(false);
@@ -876,7 +877,9 @@ function MeinRaumPageContent() {
       // Refresh the page to show updated state
       setRefreshKey((prev) => prev + 1);
     } catch (err) {
-      console.error("Failed to release Schulhof supervision:", err);
+      logger.error("failed to release Schulhof supervision", {
+        error: err instanceof Error ? err.message : String(err),
+      });
       setError("Fehler beim Abgeben der Schulhof-Aufsicht.");
     } finally {
       setIsReleasingSupervision(false);
@@ -897,7 +900,9 @@ function MeinRaumPageContent() {
       // when schulhofStatus actually updates, to avoid flickering
       setRefreshKey((prev) => prev + 1);
     } catch (err) {
-      console.error("Failed to toggle Schulhof supervision:", err);
+      logger.error("failed to toggle Schulhof supervision", {
+        error: err instanceof Error ? err.message : String(err),
+      });
       setError(
         schulhofStatus.isUserSupervising
           ? "Fehler beim Abgeben der Schulhof-Aufsicht."
@@ -925,9 +930,7 @@ function MeinRaumPageContent() {
     if (!isTogglingSchulhof) return;
 
     const timeout = setTimeout(() => {
-      console.warn(
-        "Schulhof toggle timeout: resetting loading state after 5s (SWR refresh may have failed)",
-      );
+      logger.warn("Schulhof toggle timeout: resetting loading state after 5s");
       setIsTogglingSchulhof(false);
     }, 5000);
 
@@ -974,7 +977,9 @@ function MeinRaumPageContent() {
         setStudents([]); // Show empty list instead of crashing
       } else {
         setError("Fehler beim Laden der Raumdaten.");
-        console.error("Error loading room data:", err);
+        logger.error("failed to load room data", {
+          error: err instanceof Error ? err.message : String(err),
+        });
       }
     } finally {
       setIsLoading(false);

@@ -2,6 +2,9 @@
 // API client for substitution-related operations
 
 import { sessionFetch } from "./session-cache";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "SubstitutionAPI" });
 import {
   type Substitution,
   type TeacherAvailability,
@@ -53,11 +56,11 @@ class SubstitutionService {
       } else if (data && typeof data === "object" && "data" in data) {
         return mapSubstitutionsResponse(data.data as BackendSubstitution[]);
       } else {
-        console.error("Unexpected response format:", data);
+        logger.error("unexpected response format for substitutions");
         return [];
       }
     } catch (error) {
-      console.error("Error fetching substitutions:", error);
+      logger.error("error fetching substitutions", { error: String(error) });
       throw error;
     }
   }
@@ -90,11 +93,13 @@ class SubstitutionService {
       } else if (data && typeof data === "object" && "data" in data) {
         return mapSubstitutionsResponse(data.data as BackendSubstitution[]);
       } else {
-        console.error("Unexpected response format:", data);
+        logger.error("unexpected response format for active substitutions");
         return [];
       }
     } catch (error) {
-      console.error("Error fetching active substitutions:", error);
+      logger.error("error fetching active substitutions", {
+        error: String(error),
+      });
       throw error;
     }
   }
@@ -140,11 +145,13 @@ class SubstitutionService {
           data.data as BackendStaffWithSubstitutionStatus[],
         );
       } else {
-        console.error("Unexpected response format:", data);
+        logger.error("unexpected response format for available teachers");
         return [];
       }
     } catch (error) {
-      console.error("Error fetching available teachers:", error);
+      logger.error("error fetching available teachers", {
+        error: String(error),
+      });
       throw error;
     }
   }
@@ -196,7 +203,10 @@ class SubstitutionService {
         return mapSubstitutionResponse(data as BackendSubstitution);
       }
     } catch (error) {
-      console.error("Error creating substitution:", error);
+      logger.error("error creating substitution", {
+        group_id: groupId,
+        error: String(error),
+      });
       throw error;
     }
   }
@@ -215,7 +225,10 @@ class SubstitutionService {
         );
       }
     } catch (error) {
-      console.error(`Error deleting substitution with ID ${id}:`, error);
+      logger.error("error deleting substitution", {
+        substitution_id: id,
+        error: String(error),
+      });
       throw error;
     }
   }
@@ -241,7 +254,10 @@ class SubstitutionService {
         return mapSubstitutionResponse(data as BackendSubstitution);
       }
     } catch (error) {
-      console.error(`Error fetching substitution with ID ${id}:`, error);
+      logger.error("error fetching substitution", {
+        substitution_id: id,
+        error: String(error),
+      });
       throw error;
     }
   }

@@ -12,6 +12,9 @@ import {
 } from "~/lib/permission-labels";
 import type { Role, Permission } from "~/lib/auth-helpers";
 import { getRoleDisplayName } from "~/lib/auth-helpers";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "RolePermissionManagementModal" });
 
 interface RolePermissionManagementModalProps {
   readonly isOpen: boolean;
@@ -64,8 +67,10 @@ export function RolePermissionManagementModal({
         authService.getRolePermissions(role.id),
       ]);
 
-      console.log("All permissions:", allPerms);
-      console.log("Role permissions:", rolePerms);
+      logger.debug("permissions loaded", {
+        all_count: allPerms.length,
+        role_count: rolePerms.length,
+      });
 
       setAllPermissions(allPerms);
       setRolePermissions(rolePerms);
@@ -76,7 +81,9 @@ export function RolePermissionManagementModal({
       setAssignedMap(map);
       setInitialAssignedMap(map);
     } catch (error) {
-      console.error("Error fetching permissions:", error);
+      logger.error("failed to fetch permissions", {
+        error: error instanceof Error ? error.message : String(error),
+      });
       showError("Fehler beim Laden der Berechtigungen");
     } finally {
       setLoading(false);
@@ -150,7 +157,9 @@ export function RolePermissionManagementModal({
       onUpdate();
       onClose();
     } catch (error) {
-      console.error("Error updating role permissions:", error);
+      logger.error("failed to update role permissions", {
+        error: error instanceof Error ? error.message : String(error),
+      });
       showError("Fehler beim Aktualisieren der Berechtigungen");
     } finally {
       setSaving(false);

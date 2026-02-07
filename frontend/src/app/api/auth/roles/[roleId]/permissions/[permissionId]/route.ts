@@ -1,6 +1,9 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { auth } from "~/server/auth";
 import { getServerApiUrl } from "~/lib/server-api-url";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "RolePermissionRoute" });
 
 // Error response interface
 interface ErrorResponse {
@@ -42,10 +45,10 @@ export async function POST(
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error(
-        `Assign permission to role error: ${response.status}`,
-        errorText,
-      );
+      logger.error("assign permission to role failed", {
+        status: response.status,
+        error: errorText,
+      });
       return NextResponse.json(
         {
           error: errorText || `Failed to assign permission: ${response.status}`,
@@ -56,7 +59,9 @@ export async function POST(
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("Assign permission to role route error:", error);
+    logger.error("assign permission to role error", {
+      error: error instanceof Error ? error.message : String(error),
+    });
     return NextResponse.json(
       { error: "Internal Server Error" } as ErrorResponse,
       { status: 500 },
@@ -99,10 +104,10 @@ export async function DELETE(
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error(
-        `Remove permission from role error: ${response.status}`,
-        errorText,
-      );
+      logger.error("remove permission from role failed", {
+        status: response.status,
+        error: errorText,
+      });
       return NextResponse.json(
         {
           error: errorText || `Failed to remove permission: ${response.status}`,
@@ -113,7 +118,9 @@ export async function DELETE(
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("Remove permission from role route error:", error);
+    logger.error("remove permission from role error", {
+      error: error instanceof Error ? error.message : String(error),
+    });
     return NextResponse.json(
       { error: "Internal Server Error" } as ErrorResponse,
       { status: 500 },

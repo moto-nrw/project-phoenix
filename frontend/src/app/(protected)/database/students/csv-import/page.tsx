@@ -8,6 +8,9 @@ import { Button } from "~/components/ui/button";
 import { Alert } from "~/components/ui/alert";
 import { UploadSection, StatsCards, StudentRowCard } from "~/components/import";
 import { useToast } from "~/contexts/ToastContext";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "CsvImportPage" });
 
 // Types matching backend API response
 interface ImportError {
@@ -140,6 +143,10 @@ export default function StudentCSVImportPage() {
       link.remove();
       URL.revokeObjectURL(url);
     } catch (err) {
+      logger.error("template_download_failed", {
+        error: err instanceof Error ? err.message : String(err),
+        format: templateFormat,
+      });
       setError(err instanceof Error ? err.message : "Unbekannter Fehler");
     }
   };
@@ -246,6 +253,9 @@ export default function StudentCSVImportPage() {
         setPreviewData(displayData);
         setImportResult(importData);
       } catch (err) {
+        logger.error("csv_preview_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
         setError(err instanceof Error ? err.message : "Unbekannter Fehler");
         setPreviewData([]);
       } finally {
@@ -324,6 +334,9 @@ export default function StudentCSVImportPage() {
         resetForm();
       }
     } catch (err) {
+      logger.error("csv_import_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
       setError(err instanceof Error ? err.message : "Unbekannter Fehler");
     } finally {
       setIsImporting(false);

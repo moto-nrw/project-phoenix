@@ -5,6 +5,9 @@ import { Modal } from "~/components/ui/modal";
 import { useToast } from "~/contexts/ToastContext";
 import { createSuggestion, updateSuggestion } from "~/lib/suggestions-api";
 import type { Suggestion } from "~/lib/suggestions-helpers";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "SuggestionForm" });
 
 interface SuggestionFormProps {
   readonly isOpen: boolean;
@@ -79,7 +82,11 @@ export function SuggestionForm({
       }
       onSuccess();
       onClose();
-    } catch {
+    } catch (err) {
+      logger.error("suggestion_submit_failed", {
+        error: err instanceof Error ? err.message : String(err),
+        is_edit: isEdit,
+      });
       const msg = isEdit
         ? "Fehler beim Aktualisieren des Beitrags."
         : "Fehler beim Einreichen des Beitrags.";

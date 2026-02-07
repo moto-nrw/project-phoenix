@@ -12,6 +12,7 @@ import { useScrollLock } from "~/hooks/useScrollLock";
 import { useModalAnimation } from "~/hooks/useModalAnimation";
 import { useModalBlurEffect } from "~/hooks/useModalBlurEffect";
 import { useActivityForm } from "~/hooks/useActivityForm";
+import { createLogger } from "~/lib/logger";
 import {
   scrollableContentClassName,
   getContentAnimationClassName,
@@ -22,6 +23,8 @@ import {
   getApiErrorMessage,
   ModalWrapper,
 } from "~/components/ui/modal-utils";
+
+const logger = createLogger({ component: "ActivityManagement" });
 
 interface ActivityManagementModalProps {
   readonly isOpen: boolean;
@@ -277,6 +280,10 @@ export function ActivityManagementModal({
         }
       }, 100);
     } catch (err) {
+      logger.error("activity_update_failed", {
+        error: err instanceof Error ? err.message : String(err),
+        activity_id: activity.id,
+      });
       // Don't console.error for expected errors (403 permission denied, etc.)
       // The error is shown to the user via the UI
       setError(
@@ -316,6 +323,10 @@ export function ActivityManagementModal({
         }
       }, 100);
     } catch (err) {
+      logger.error("activity_delete_failed", {
+        error: err instanceof Error ? err.message : String(err),
+        activity_id: activity.id,
+      });
       // Don't console.error for expected errors (403 permission denied, etc.)
       // The error is shown to the user via the UI
       setError(getDeleteErrorMessage(err));

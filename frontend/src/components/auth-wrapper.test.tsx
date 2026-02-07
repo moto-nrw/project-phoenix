@@ -40,18 +40,18 @@ vi.mock("~/lib/hooks/use-global-sse", () => ({
 }));
 
 describe("AuthWrapper", () => {
-  let consoleLogSpy: MockInstance<typeof console.log>;
+  let consoleDebugSpy: MockInstance<typeof console.debug>;
 
   beforeEach(() => {
     vi.clearAllMocks();
-    consoleLogSpy = vi
-      .spyOn(console, "log")
+    consoleDebugSpy = vi
+      .spyOn(console, "debug")
       .mockImplementation(() => undefined);
   });
 
   afterEach(() => {
     vi.unstubAllEnvs();
-    consoleLogSpy.mockRestore();
+    consoleDebugSpy.mockRestore();
   });
 
   it("renders children correctly", () => {
@@ -113,7 +113,7 @@ describe("AuthWrapper", () => {
 
     // Wait for useEffect
     await vi.waitFor(() => {
-      expect(consoleLogSpy).toHaveBeenCalled();
+      expect(consoleDebugSpy).toHaveBeenCalled();
     });
   });
 
@@ -131,8 +131,8 @@ describe("AuthWrapper", () => {
     await new Promise((r) => setTimeout(r, 50));
 
     // Should not log SSE status in production
-    const sseLogCalls = consoleLogSpy.mock.calls.filter((call: unknown[]) =>
-      String(call[0]).includes("[AuthWrapper]"),
+    const sseLogCalls = consoleDebugSpy.mock.calls.filter((call: unknown[]) =>
+      String(call[0]).includes("auth wrapper state"),
     );
     expect(sseLogCalls.length).toBe(0);
   });

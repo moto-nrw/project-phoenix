@@ -4,6 +4,9 @@ import { defineEntityConfig } from "../types";
 import { databaseThemes } from "@/components/ui/database/themes";
 import type { Group, BackendGroup } from "@/lib/group-helpers";
 import { mapGroupResponse } from "@/lib/group-helpers";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "GroupsConfig" });
 
 export const groupsConfig = defineEntityConfig<Group>({
   name: {
@@ -56,7 +59,7 @@ export const groupsConfig = defineEntityConfig<Group>({
                   })),
                 ];
               } catch (error) {
-                console.error("Failed to fetch rooms:", error);
+                logger.error("failed to fetch rooms", { error: String(error) });
                 return [{ value: "", label: "Kein Gruppenraum" }];
               }
             },
@@ -102,7 +105,9 @@ export const groupsConfig = defineEntityConfig<Group>({
                       : teacher.name,
                   }));
               } catch (error) {
-                console.error("Failed to fetch teachers:", error);
+                logger.error("failed to fetch teachers", {
+                  error: String(error),
+                });
                 return [];
               }
             },

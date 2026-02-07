@@ -9,6 +9,9 @@ import React, {
   useMemo,
 } from "react";
 import { useRouter, usePathname } from "next/navigation";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "OperatorAuthContext" });
 
 interface Operator {
   id: string;
@@ -70,7 +73,9 @@ export function OperatorAuthProvider({
           setOperator(null);
         }
       } catch (error) {
-        console.error("Failed to check operator auth:", error);
+        logger.error("operator_auth_check_failed", {
+          error: error instanceof Error ? error.message : String(error),
+        });
         setOperator(null);
       } finally {
         setIsLoading(false);
@@ -115,7 +120,9 @@ export function OperatorAuthProvider({
     try {
       await fetch("/api/operator/logout", { method: "POST" });
     } catch (error) {
-      console.error("Logout error:", error);
+      logger.error("operator_logout_error", {
+        error: error instanceof Error ? error.message : String(error),
+      });
     } finally {
       setOperator(null);
       router.push("/operator/login");

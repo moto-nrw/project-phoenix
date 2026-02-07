@@ -1,5 +1,6 @@
 "use client";
 
+import { createLogger } from "~/lib/logger";
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { PageHeader } from "@/components/dashboard";
@@ -26,6 +27,8 @@ function getAccessPolicyLabel(policy: string): string {
   return labels[policy] ?? "Manuell";
 }
 
+const logger = createLogger({ component: "CombinedGroupDetailPage" });
+
 export default function CombinedGroupDetailPage() {
   const router = useRouter();
   const params = useParams();
@@ -47,7 +50,9 @@ export default function CombinedGroupDetailPage() {
         setCombinedGroup(combinedGroupData);
         setError(null);
       } catch (err) {
-        console.error("Error fetching combined group details:", err);
+        logger.error("failed to fetch combined group details", {
+          error: err instanceof Error ? err.message : String(err),
+        });
         setError(
           "Fehler beim Laden der Gruppenkombination. Bitte versuchen Sie es später erneut.",
         );
@@ -76,7 +81,9 @@ export default function CombinedGroupDetailPage() {
       setCombinedGroup(updatedCombinedGroup);
       setIsEditing(false);
     } catch (err) {
-      console.error("Error updating combined group:", err);
+      logger.error("failed to update combined group", {
+        error: err instanceof Error ? err.message : String(err),
+      });
       setError(
         "Fehler beim Aktualisieren der Gruppenkombination. Bitte versuchen Sie es später erneut.",
       );
@@ -97,7 +104,9 @@ export default function CombinedGroupDetailPage() {
         await combinedGroupService.deleteCombinedGroup(combinedGroupId);
         router.push("/database/groups/combined");
       } catch (err) {
-        console.error("Error deleting combined group:", err);
+        logger.error("failed to delete combined group", {
+          error: err instanceof Error ? err.message : String(err),
+        });
         setError(
           "Fehler beim Löschen der Gruppenkombination. Bitte versuchen Sie es später erneut.",
         );
@@ -116,7 +125,9 @@ export default function CombinedGroupDetailPage() {
         await combinedGroupService.getCombinedGroup(combinedGroupId);
       setCombinedGroup(updatedCombinedGroup);
     } catch (err) {
-      console.error("Error adding group to combined group:", err);
+      logger.error("failed to add group to combined group", {
+        error: err instanceof Error ? err.message : String(err),
+      });
       setError(
         "Fehler beim Hinzufügen der Gruppe zur Kombination. Bitte versuchen Sie es später erneut.",
       );
@@ -138,7 +149,9 @@ export default function CombinedGroupDetailPage() {
         await combinedGroupService.getCombinedGroup(combinedGroupId);
       setCombinedGroup(updatedCombinedGroup);
     } catch (err) {
-      console.error("Error removing group from combined group:", err);
+      logger.error("failed to remove group from combined group", {
+        error: err instanceof Error ? err.message : String(err),
+      });
       setError(
         "Fehler beim Entfernen der Gruppe aus der Kombination. Bitte versuchen Sie es später erneut.",
       );

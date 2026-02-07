@@ -1,6 +1,9 @@
 import { type NextRequest } from "next/server";
 import { auth } from "~/server/auth";
 import { getServerApiUrl } from "~/lib/server-api-url";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "SSEEventsRoute" });
 
 // REQUIRED for streaming - must use Node.js runtime
 export const runtime = "nodejs";
@@ -41,11 +44,10 @@ export async function GET(request: NextRequest) {
 
     if (!backendResponse.ok) {
       const body = await backendResponse.text().catch(() => "");
-      console.error(
-        "SSE backend connection failed:",
-        backendResponse.status,
-        body,
-      );
+      logger.error("SSE backend connection failed", {
+        status: backendResponse.status,
+        error: body,
+      });
       // Propagate backend status to client for accurate diagnostics (e.g., 401/403)
       return new Response(body || "SSE connection failed", {
         status: backendResponse.status,
@@ -67,7 +69,9 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (error) {
-    console.error("SSE proxy error:", error);
+    logger.error("SSE proxy error", {
+      error: error instanceof Error ? error.message : String(error),
+    });
     return new Response("Internal server error", { status: 500 });
   }
 }

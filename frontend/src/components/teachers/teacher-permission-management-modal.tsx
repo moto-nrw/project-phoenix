@@ -7,6 +7,9 @@ import { useToast } from "~/contexts/ToastContext";
 import { authService } from "~/lib/auth-service";
 import type { Permission } from "~/lib/auth-helpers";
 import type { Teacher } from "~/lib/teacher-api";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "TeacherPermissionManagementModal" });
 
 interface TeacherPermissionManagementModalProps {
   readonly isOpen: boolean;
@@ -74,7 +77,9 @@ export function TeacherPermissionManagementModal({
       setAccountPermissions(accountPerms);
       setDirectPermissions(directPerms);
     } catch (error) {
-      console.error("Error fetching permissions:", error);
+      logger.error("failed to fetch permissions", {
+        error: error instanceof Error ? error.message : String(error),
+      });
       showError("Fehler beim Laden der Berechtigungen");
     } finally {
       setLoading(false);
@@ -157,7 +162,9 @@ export function TeacherPermissionManagementModal({
       await fetchPermissions();
       onUpdate();
     } catch (error) {
-      console.error("Error assigning permissions:", error);
+      logger.error("failed to assign permissions", {
+        error: error instanceof Error ? error.message : String(error),
+      });
       showError("Fehler beim Hinzufügen der Berechtigungen");
     } finally {
       setSaving(false);
@@ -179,7 +186,9 @@ export function TeacherPermissionManagementModal({
       await fetchPermissions();
       onUpdate();
     } catch (error) {
-      console.error("Error removing permission:", error);
+      logger.error("failed to remove permission", {
+        error: error instanceof Error ? error.message : String(error),
+      });
       showError("Fehler beim Entfernen der Berechtigung");
     } finally {
       setSaving(false);

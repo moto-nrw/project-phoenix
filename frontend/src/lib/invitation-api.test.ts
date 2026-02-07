@@ -313,8 +313,11 @@ describe("invitation-api", () => {
         "Einladung konnte nicht geprüft werden.",
       );
       expect(warnSpy).toHaveBeenCalledWith(
-        "Failed to parse invitation API error",
-        expect.any(Error),
+        "failed to parse invitation API error",
+        {
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+          error: expect.any(String),
+        },
       );
     });
 

@@ -3,6 +3,9 @@
 import { useState } from "react";
 import { PageHeader, SectionTitle } from "@/components/dashboard";
 import Link from "next/link";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "DataListPage" });
 
 // Base interface for all entities
 interface BaseEntity {
@@ -37,8 +40,10 @@ export function DataListPage<T extends BaseEntity>({
 }: DataListPageProps<T>) {
   const [internalSearchTerm, setInternalSearchTerm] = useState("");
 
-  console.log("DataListPage received data:", data);
-  console.log("DataListPage search term:", externalSearchTerm);
+  logger.debug("render state", {
+    data_count: data.length,
+    search_term: externalSearchTerm,
+  });
 
   // Use either the controlled or the internal search term
   const searchTerm = externalSearchTerm ?? internalSearchTerm;
@@ -65,7 +70,7 @@ export function DataListPage<T extends BaseEntity>({
         )
       : data; // If external search, don't filter data (already filtered by the parent)
 
-  console.log("DataListPage filtered data:", filteredData);
+  logger.debug("filtered data", { filtered_count: filteredData.length });
 
   // Default entity renderer
   const defaultRenderEntity = (entity: T) => (

@@ -2,7 +2,7 @@
 
 **ABSOLUTE RULE: All backend Go code MUST use `log/slog` for logging. Never use `logrus`, `log.Printf`, or any other logging library.**
 
-The project completed a full migration from logrus to Go's stdlib `log/slog`. The `sloglint` linter enforces conventions at build time.
+The project completed a full migration from logrus to Go's stdlib `log/slog`. The `sloglint` linter enforces conventions at build time. Use the `backend-structured-logging` skill for detailed usage instructions.
 
 ## How Logging Works
 

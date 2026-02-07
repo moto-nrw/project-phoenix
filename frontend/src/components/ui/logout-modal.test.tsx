@@ -215,8 +215,10 @@ describe("LogoutModal", () => {
     });
 
     expect(consoleErrorSpy).toHaveBeenCalledWith(
-      "Failed to sign out:",
-      expect.any(Error),
+      "failed to sign out",
+      expect.objectContaining({
+        error: "Sign out failed",
+      }),
     );
 
     consoleErrorSpy.mockRestore();

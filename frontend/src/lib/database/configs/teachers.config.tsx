@@ -4,6 +4,9 @@ import { defineEntityConfig } from "../types";
 import { databaseThemes } from "@/components/ui/database/themes";
 import type { Teacher, TeacherWithCredentials } from "@/lib/teacher-api";
 import { teacherService } from "@/lib/teacher-api";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "TeachersConfig" });
 
 // Map teacher response from backend to frontend format
 function mapTeacherResponse(data: unknown): Teacher {
@@ -37,15 +40,12 @@ function mapTeacherResponse(data: unknown): Teacher {
     (typedData.tag_id as string | null | undefined) ??
     (person?.tag_id as string | null | undefined);
 
-  // Debug logging to check account_id mapping
-  if (process.env.NODE_ENV === "development") {
-    console.log("Teacher mapping debug:", {
-      raw_data: typedData,
-      person_data: person,
-      extracted_account_id: accountId,
-      email: email,
-    });
-  }
+  logger.debug("teacher mapping debug", {
+    raw_data: JSON.stringify(typedData),
+    person_data: JSON.stringify(person),
+    extracted_account_id: accountId,
+    email: email,
+  });
 
   return {
     id: typedData.id?.toString() ?? "",
@@ -411,7 +411,7 @@ export const teachersConfig = defineEntityConfig<Teacher>({
     create: async (data) => {
       // Teacher creation requires multiple API calls (account, person, staff)
       // Use the teacher service which handles this complex flow
-      console.log("Creating teacher with data:", data);
+      logger.debug("creating teacher", { data: JSON.stringify(data) });
       const teacherData = data as Partial<Teacher> & { password?: string };
       const result = await teacherService.createTeacher(
         teacherData as Omit<

@@ -9,6 +9,9 @@ import React, {
   useMemo,
 } from "react";
 import { useSession } from "next-auth/react";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "SupervisionContext" });
 
 interface BackendEducationalGroup {
   id: number;
@@ -439,7 +442,11 @@ export function SupervisionProvider({
   useEffect(() => {
     // Only refresh when session actually changes (not on every render)
     if (session?.user?.token) {
-      refreshRef.current?.().catch(console.error);
+      refreshRef.current?.().catch((err: unknown) => {
+        logger.error("failed to refresh supervision context", {
+          error: String(err),
+        });
+      });
     } else {
       // Clear state when no session
       setState({

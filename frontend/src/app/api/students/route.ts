@@ -2,6 +2,9 @@
 import type { NextRequest } from "next/server";
 import { apiGet, apiPost, apiPut } from "~/lib/api-helpers";
 import { createGetHandler, createPostHandler } from "~/lib/route-wrapper";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "StudentsRoute" });
 import type { Student } from "~/lib/student-helpers";
 import { mapStudentResponse } from "~/lib/student-helpers";
 import {
@@ -93,7 +96,7 @@ export const GET = createGetHandler(
 
       // Handle null or undefined response
       if (!response) {
-        console.warn("API returned null response for students");
+        logger.warn("API returned null response for students");
         return {
           data: [],
           pagination: {
@@ -122,10 +125,7 @@ export const GET = createGetHandler(
       }
 
       // If the response doesn't have the expected structure, return empty paginated response
-      console.warn(
-        "API response does not have the expected structure:",
-        response,
-      );
+      logger.warn("students API response has unexpected structure");
       return {
         data: [],
         pagination: {
@@ -136,12 +136,9 @@ export const GET = createGetHandler(
         },
       };
     } catch (error) {
-      console.error("Error fetching students:", error);
-      // Log the specific error for debugging
-      if (error instanceof Error) {
-        console.error("Error message:", error.message);
-        console.error("Error stack:", error.stack);
-      }
+      logger.error("students fetch failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
       throw error; // Re-throw to let the error handler deal with it
     }
   },

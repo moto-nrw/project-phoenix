@@ -1,6 +1,9 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { auth } from "~/server/auth";
 import { getServerApiUrl } from "~/lib/server-api-url";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "PermissionDetailRoute" });
 
 // Backend model type (lowercase fields)
 interface BackendPermission {
@@ -60,7 +63,9 @@ export async function GET(
     const data = (await response.json()) as ApiResponse<BackendPermission>;
     return NextResponse.json(data);
   } catch (error) {
-    console.error("Get permission route error:", error);
+    logger.error("get permission failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
     return NextResponse.json(
       { error: "Internal Server Error" } as ErrorResponse,
       { status: 500 },
@@ -112,7 +117,9 @@ export async function PUT(
       | BackendPermission;
     return NextResponse.json(data);
   } catch (error) {
-    console.error("Update permission route error:", error);
+    logger.error("update permission failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
     return NextResponse.json(
       { error: "Internal Server Error" } as ErrorResponse,
       { status: 500 },
@@ -159,7 +166,9 @@ export async function DELETE(
     // Mirror a 204-style success so upstream code won't try to map a body
     return new NextResponse(null, { status: 204 });
   } catch (error) {
-    console.error("Delete permission route error:", error);
+    logger.error("delete permission failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
     return NextResponse.json(
       { error: "Internal Server Error" } as ErrorResponse,
       { status: 500 },

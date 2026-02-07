@@ -245,10 +245,9 @@ describe("DatabasePage", () => {
     render(<DatabasePage />);
 
     await waitFor(() => {
-      expect(consoleSpy).toHaveBeenCalledWith(
-        "Error fetching counts:",
-        expect.any(Error),
-      );
+      expect(consoleSpy).toHaveBeenCalledWith("failed to fetch counts", {
+        error: "Network error",
+      });
     });
 
     consoleSpy.mockRestore();

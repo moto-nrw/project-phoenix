@@ -30,6 +30,9 @@ import {
   getStudentActionType,
 } from "~/components/students/student-checkout-section";
 import { performImmediateCheckin } from "~/lib/checkin-api";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "StudentDetailPage" });
 import StudentGuardianManager from "~/components/guardians/student-guardian-manager";
 import PickupScheduleManager from "~/components/students/pickup-schedule-manager";
 import { fetchStudentPickupData } from "~/lib/pickup-schedule-api";
@@ -117,7 +120,9 @@ export default function StudentDetailPage() {
         const groupsWithRooms = groups.filter((g) => g.room?.name);
         setActiveGroups(groupsWithRooms);
       } catch (err) {
-        console.error("Failed to load active groups:", err);
+        logger.error("failed to load active groups", {
+          error: err instanceof Error ? err.message : String(err),
+        });
         setActiveGroups([]);
       } finally {
         setLoadingActiveGroups(false);
@@ -220,7 +225,10 @@ export default function StudentDetailPage() {
       setShowConfirmCheckout(false);
       toast.success(`${student.name} wurde erfolgreich abgemeldet`);
     } catch (err) {
-      console.error("Failed to checkout student:", err);
+      logger.error("failed to checkout student", {
+        student_id: studentId,
+        error: err instanceof Error ? err.message : String(err),
+      });
       toast.error("Fehler beim Abmelden des Kindes");
     } finally {
       setCheckingOut(false);
@@ -240,7 +248,10 @@ export default function StudentDetailPage() {
       setShowConfirmCheckin(false);
       toast.success(`${student.name} wurde erfolgreich angemeldet`);
     } catch (err) {
-      console.error("Failed to check in student:", err);
+      logger.error("failed to check in student", {
+        student_id: studentId,
+        error: err instanceof Error ? err.message : String(err),
+      });
       toast.error("Fehler beim Anmelden des Kindes");
     } finally {
       setCheckingIn(false);

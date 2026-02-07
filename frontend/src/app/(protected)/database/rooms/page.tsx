@@ -1,6 +1,9 @@
 "use client";
 
+import { createLogger } from "~/lib/logger";
 import { useState, useMemo } from "react";
+
+const logger = createLogger({ component: "DatabaseRoomsPage" });
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
 import { DatabasePageLayout } from "~/components/database/database-page-layout";
@@ -195,7 +198,9 @@ export default function RoomsPage() {
       setShowDetailModal(true);
       await mutate("database-rooms-list");
     } catch (e) {
-      console.error("Error updating room", e);
+      logger.error("failed to update room", {
+        error: e instanceof Error ? e.message : String(e),
+      });
       throw e;
     } finally {
       setDetailLoading(false);

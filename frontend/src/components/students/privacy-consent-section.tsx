@@ -3,6 +3,9 @@
 import { useState, useEffect } from "react";
 import { fetchStudentPrivacyConsent } from "~/lib/student-api";
 import type { PrivacyConsent } from "~/lib/student-helpers";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "PrivacyConsentSection" });
 
 interface PrivacyConsentSectionProps {
   readonly studentId: string;
@@ -20,7 +23,9 @@ export function PrivacyConsentSection({
         const consentData = await fetchStudentPrivacyConsent(studentId);
         setConsent(consentData);
       } catch (error) {
-        console.error("Error loading privacy consent:", error);
+        logger.error("failed to load privacy consent", {
+          error: error instanceof Error ? error.message : String(error),
+        });
       } finally {
         setLoading(false);
       }

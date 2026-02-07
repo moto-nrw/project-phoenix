@@ -20,6 +20,9 @@ import type { Staff } from "~/lib/usercontext-helpers";
 import { useToast } from "~/contexts/ToastContext";
 import { Loading } from "~/components/ui/loading";
 import { useSWRAuth } from "~/lib/swr";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "ActivitiesPage" });
 
 // SWR cache key for activities page data
 const ACTIVITIES_PAGE_KEY = "activities-page";
@@ -56,7 +59,12 @@ export default function ActivitiesPage() {
       const [activitiesData, categoriesData, staffData] = await Promise.all([
         fetchActivities(),
         getCategories(),
-        userContextService.getCurrentStaff().catch(() => null),
+        userContextService.getCurrentStaff().catch((err) => {
+          logger.debug("get_current_staff_failed", {
+            error: err instanceof Error ? err.message : String(err),
+          });
+          return null;
+        }),
       ]);
       return {
         activities: activitiesData,

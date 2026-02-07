@@ -1,6 +1,9 @@
 "use client";
 
+import { createLogger } from "~/lib/logger";
 import { useEffect, useMemo, useState, useCallback } from "react";
+
+const logger = createLogger({ component: "DatabaseRolesPage" });
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
 import { DatabasePageLayout } from "~/components/database/database-page-layout";
@@ -71,7 +74,9 @@ export default function RolesPage() {
       setRoles(arr);
       setError(null);
     } catch (err) {
-      console.error("Error fetching roles:", err);
+      logger.error("failed to fetch roles", {
+        error: err instanceof Error ? err.message : String(err),
+      });
       setError(
         "Fehler beim Laden der Rollen. Bitte versuchen Sie es später erneut.",
       );
