@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { operatorSuggestionsService } from "~/lib/operator/suggestions-api";
 import { BaseCommentAccordion } from "~/components/shared/base-comment-accordion";
 
@@ -20,6 +20,19 @@ export function OperatorCommentAccordion({
   const [localUnreadCount, setLocalUnreadCount] = useState(unreadCount ?? 0);
   const [localIsNew, setLocalIsNew] = useState(isNew ?? false);
   const markReadTriggered = useRef(false);
+
+  // Sync local state when props change (e.g. SWR polling brings new data)
+  useEffect(() => {
+    const newCount = unreadCount ?? 0;
+    setLocalUnreadCount(newCount);
+    if (newCount > 0) {
+      markReadTriggered.current = false;
+    }
+  }, [unreadCount]);
+
+  useEffect(() => {
+    setLocalIsNew(isNew ?? false);
+  }, [isNew]);
 
   const loadComments = useCallback(async (pid: string) => {
     const suggestion = await operatorSuggestionsService.fetchById(pid);

@@ -96,7 +96,7 @@ func (r *AnnouncementViewRepository) GetUnreadForUser(ctx context.Context, userI
 			AND a.published_at IS NOT NULL
 			AND a.published_at <= ?
 			AND (a.expires_at IS NULL OR a.expires_at > ?)
-			AND (v.seen_at IS NULL OR v.dismissed = false)
+			AND v.seen_at IS NULL
 			AND (a.target_roles = '{}' OR EXISTS (
 				SELECT 1 FROM unnest(a.target_roles) AS r WHERE r IN (?)))
 		ORDER BY a.published_at DESC
@@ -126,7 +126,7 @@ func (r *AnnouncementViewRepository) CountUnread(ctx context.Context, userID int
 			AND a.published_at IS NOT NULL
 			AND a.published_at <= ?
 			AND (a.expires_at IS NULL OR a.expires_at > ?)
-			AND (v.seen_at IS NULL OR v.dismissed = false)
+			AND v.seen_at IS NULL
 			AND (a.target_roles = '{}' OR EXISTS (
 				SELECT 1 FROM unnest(a.target_roles) AS r WHERE r IN (?)))
 	`, userID, now, now, bun.In(userRoles)).Scan(ctx, &count)
