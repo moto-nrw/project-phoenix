@@ -27,6 +27,16 @@ export async function operatorFetch<T>(
   });
 
   if (!response.ok) {
+    // Expired/invalid token → redirect to login immediately
+    if (
+      response.status === 401 &&
+      typeof window !== "undefined" &&
+      !window.location.pathname.startsWith("/operator/login")
+    ) {
+      window.location.href = "/operator/login";
+      throw new OperatorApiError("Session expired", 401);
+    }
+
     let errorMessage = response.statusText;
     try {
       const errorData = (await response.json()) as { error?: string };

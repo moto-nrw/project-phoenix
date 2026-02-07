@@ -3,6 +3,7 @@ package operator
 import (
 	"errors"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
@@ -103,8 +104,8 @@ func (rs *SuggestionsResource) ListSuggestions(w http.ResponseWriter, r *http.Re
 			UnreadCount:  post.UnreadCount,
 			IsNew:        post.IsNew,
 			AuthorName:   post.AuthorName,
-			CreatedAt:    post.CreatedAt.Format("2006-01-02T15:04:05Z"),
-			UpdatedAt:    post.UpdatedAt.Format("2006-01-02T15:04:05Z"),
+			CreatedAt:    post.CreatedAt.UTC().Format(time.RFC3339),
+			UpdatedAt:    post.UpdatedAt.UTC().Format(time.RFC3339),
 		})
 	}
 
@@ -135,7 +136,7 @@ func (rs *SuggestionsResource) GetSuggestion(w http.ResponseWriter, r *http.Requ
 			AuthorName: comment.AuthorName,
 			AuthorType: comment.AuthorType,
 			IsInternal: comment.IsInternal,
-			CreatedAt:  comment.CreatedAt.Format("2006-01-02T15:04:05Z"),
+			CreatedAt:  comment.CreatedAt.UTC().Format(time.RFC3339),
 		})
 	}
 
@@ -148,8 +149,8 @@ func (rs *SuggestionsResource) GetSuggestion(w http.ResponseWriter, r *http.Requ
 		Upvotes:          post.Upvotes,
 		Downvotes:        post.Downvotes,
 		AuthorName:       post.AuthorName,
-		CreatedAt:        post.CreatedAt.Format("2006-01-02T15:04:05Z"),
-		UpdatedAt:        post.UpdatedAt.Format("2006-01-02T15:04:05Z"),
+		CreatedAt:        post.CreatedAt.UTC().Format(time.RFC3339),
+		UpdatedAt:        post.UpdatedAt.UTC().Format(time.RFC3339),
 		CommentCount:     len(comments),
 		UnreadCount:      post.UnreadCount,
 		OperatorComments: commentResponses,

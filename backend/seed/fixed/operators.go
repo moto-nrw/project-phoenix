@@ -39,7 +39,6 @@ func (s *Seeder) seedOperators(ctx context.Context) error {
 			ModelTableExpr("platform.operators").
 			On("CONFLICT (email) DO UPDATE").
 			Set("display_name = EXCLUDED.display_name").
-			Set("password_hash = EXCLUDED.password_hash").
 			Set(SQLExcludedUpdatedAt).
 			Returning(SQLBaseColumns).
 			Exec(ctx)

@@ -8,7 +8,7 @@ import React, {
   useCallback,
   useMemo,
 } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 
 interface Operator {
   id: string;
@@ -54,6 +54,7 @@ export function OperatorAuthProvider({
   readonly children: React.ReactNode;
 }) {
   const router = useRouter();
+  const pathname = usePathname();
   const [operator, setOperator] = useState<Operator | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -78,6 +79,13 @@ export function OperatorAuthProvider({
 
     void checkAuth();
   }, []);
+
+  // Redirect to login when auth check completes and user is not authenticated
+  useEffect(() => {
+    if (!isLoading && !operator && pathname !== "/operator/login") {
+      router.push("/operator/login");
+    }
+  }, [isLoading, operator, pathname, router]);
 
   const login = useCallback(
     async (email: string, password: string) => {
