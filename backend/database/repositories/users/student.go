@@ -269,6 +269,40 @@ func (r *StudentRepository) CountWithOptions(ctx context.Context, options *model
 	return count, nil
 }
 
+// CountByGroupIDs counts students per group for multiple groups in a single query
+func (r *StudentRepository) CountByGroupIDs(ctx context.Context, groupIDs []int64) (map[int64]int, error) {
+	if len(groupIDs) == 0 {
+		return make(map[int64]int), nil
+	}
+
+	type countResult struct {
+		GroupID int64 `bun:"group_id"`
+		Count   int   `bun:"count"`
+	}
+
+	var results []countResult
+	err := r.db.NewSelect().
+		TableExpr("users.students").
+		ColumnExpr("group_id").
+		ColumnExpr("COUNT(*) AS count").
+		Where("group_id IN (?)", bun.In(groupIDs)).
+		GroupExpr("group_id").
+		Scan(ctx, &results)
+
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "count by group IDs",
+			Err: err,
+		}
+	}
+
+	counts := make(map[int64]int, len(results))
+	for _, r := range results {
+		counts[r.GroupID] = r.Count
+	}
+	return counts, nil
+}
+
 // FindWithPerson retrieves a student with their associated person data
 func (r *StudentRepository) FindWithPerson(ctx context.Context, id int64) (*users.Student, error) {
 	student := new(users.Student)

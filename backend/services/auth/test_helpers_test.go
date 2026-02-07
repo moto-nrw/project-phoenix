@@ -1126,6 +1126,10 @@ func (r *stubTeacherRepository) ListAllWithStaffAndPerson(context.Context) ([]*u
 	panic("ListAllWithStaffAndPerson not implemented")
 }
 
+func (r *stubTeacherRepository) FindWithStaffAndPersonByIDs(context.Context, []int64) ([]*userModel.Teacher, error) {
+	panic("FindWithStaffAndPersonByIDs not implemented")
+}
+
 // helper to build default email used in tests.
 func newDefaultFromEmail() email.Email {
 	return email.NewEmail("moto", "no-reply@moto.example")
