@@ -354,10 +354,14 @@ export default function OperatorAnnouncementsPage() {
         >
           {/* Title */}
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">
+            <label
+              htmlFor="announcement-title"
+              className="mb-1 block text-sm font-medium text-gray-700"
+            >
               Titel
             </label>
             <input
+              id="announcement-title"
               type="text"
               value={formData.title}
               onChange={(e) =>
@@ -370,10 +374,14 @@ export default function OperatorAnnouncementsPage() {
 
           {/* Content */}
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">
+            <label
+              htmlFor="announcement-content"
+              className="mb-1 block text-sm font-medium text-gray-700"
+            >
               Inhalt
             </label>
             <textarea
+              id="announcement-content"
               value={formData.content}
               onChange={(e) =>
                 setFormData((prev) => ({ ...prev, content: e.target.value }))
@@ -386,10 +394,17 @@ export default function OperatorAnnouncementsPage() {
 
           {/* Type */}
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">
+            <span
+              id="announcement-type-label"
+              className="mb-1 block text-sm font-medium text-gray-700"
+            >
               Typ
-            </label>
-            <div className="flex gap-2">
+            </span>
+            <div
+              className="flex gap-2"
+              role="group"
+              aria-labelledby="announcement-type-label"
+            >
               {(
                 Object.entries(TYPE_LABELS) as [AnnouncementType, string][]
               ).map(([value, label]) => (
@@ -413,10 +428,17 @@ export default function OperatorAnnouncementsPage() {
 
           {/* Severity */}
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">
+            <span
+              id="announcement-severity-label"
+              className="mb-1 block text-sm font-medium text-gray-700"
+            >
               Dringlichkeit
-            </label>
-            <div className="relative" ref={severityDropdownRef}>
+            </span>
+            <div
+              className="relative"
+              ref={severityDropdownRef}
+              aria-labelledby="announcement-severity-label"
+            >
               <button
                 type="button"
                 onClick={() => setSeverityDropdownOpen(!severityDropdownOpen)}
@@ -475,10 +497,14 @@ export default function OperatorAnnouncementsPage() {
           {/* Version (only for release type) */}
           {formData.type === "release" && (
             <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">
+              <label
+                htmlFor="announcement-version"
+                className="mb-1 block text-sm font-medium text-gray-700"
+              >
                 Version
               </label>
               <input
+                id="announcement-version"
                 type="text"
                 value={formData.version}
                 onChange={(e) =>
@@ -492,9 +518,12 @@ export default function OperatorAnnouncementsPage() {
 
           {/* Expires at */}
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">
+            <span
+              id="announcement-expires-label"
+              className="mb-1 block text-sm font-medium text-gray-700"
+            >
               Ablaufdatum (optional)
-            </label>
+            </span>
             <DatePicker
               value={formData.expiresAt ? new Date(formData.expiresAt) : null}
               onChange={(date) =>
@@ -509,13 +538,20 @@ export default function OperatorAnnouncementsPage() {
 
           {/* Target Roles */}
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">
+            <span
+              id="announcement-roles-label"
+              className="mb-1 block text-sm font-medium text-gray-700"
+            >
               Zielgruppen
-            </label>
+            </span>
             <p className="mb-2 text-xs text-gray-500">
               Leer = Alle Benutzer sehen die Ankündigung
             </p>
-            <div className="flex flex-wrap gap-3">
+            <div
+              className="flex flex-wrap gap-3"
+              role="group"
+              aria-labelledby="announcement-roles-label"
+            >
               {(["admin", "user", "guardian"] as const).map((role) => {
                 const isChecked = formData.targetRoles.includes(role);
                 return (

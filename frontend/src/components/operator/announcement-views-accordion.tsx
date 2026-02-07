@@ -70,7 +70,7 @@ export function AnnouncementViewsAccordion({
         className="flex w-full items-center justify-between py-3 text-sm text-gray-600 transition-colors hover:text-gray-900"
       >
         <span className="flex items-center gap-1.5 font-medium">
-          Lesebestätigungen
+          <span>Lesebestätigungen</span>
           <span className="text-xs font-normal text-gray-400">
             ({dismissedCount})
           </span>

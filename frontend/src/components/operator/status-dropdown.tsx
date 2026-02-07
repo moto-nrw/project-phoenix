@@ -108,6 +108,7 @@ export function StatusDropdown({
     <div
       ref={menuRef}
       role="listbox"
+      tabIndex={-1}
       className="fixed z-[9999] w-48 rounded-xl border border-gray-200 bg-white py-1 shadow-lg"
       style={{
         top: position.top,
