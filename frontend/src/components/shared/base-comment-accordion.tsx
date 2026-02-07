@@ -54,7 +54,6 @@ export function BaseCommentAccordion({
 
   const reloadComments = useCallback(
     async (silent = false) => {
-      if (loadedRef.current && !silent) return;
       if (!silent) setIsLoading(true);
       setError(null);
       try {
