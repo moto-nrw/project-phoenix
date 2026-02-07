@@ -3,7 +3,7 @@ import { renderHook, waitFor } from "@testing-library/react";
 import { OperatorAuthProvider, useOperatorAuth } from "./auth-context";
 import type { ReactNode } from "react";
 
-// Mock useRouter
+// Mock next/navigation
 const mockPush = vi.fn();
 vi.mock("next/navigation", () => ({
   useRouter: () => ({
@@ -11,6 +11,7 @@ vi.mock("next/navigation", () => ({
     refresh: vi.fn(),
     back: vi.fn(),
   }),
+  usePathname: () => "/operator/suggestions",
 }));
 
 // Mock global fetch
