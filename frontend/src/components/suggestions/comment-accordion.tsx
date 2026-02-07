@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   fetchComments,
   createComment,
@@ -25,6 +25,15 @@ export function CommentAccordion({
 }: CommentAccordionProps) {
   const [localUnreadCount, setLocalUnreadCount] = useState(unreadCount ?? 0);
   const markReadTriggered = useRef(false);
+
+  // Sync local state when props change (e.g. if parent adds polling later)
+  useEffect(() => {
+    const newCount = unreadCount ?? 0;
+    setLocalUnreadCount(newCount);
+    if (newCount > 0) {
+      markReadTriggered.current = false;
+    }
+  }, [unreadCount]);
 
   const handleOpen = useCallback(
     (pid: string) => {
