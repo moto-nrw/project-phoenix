@@ -392,5 +392,9 @@ func (a *API) registerRoutesWithRateLimiting() {
 	})
 
 	// Mount operator dashboard routes at root level (separate from tenant API)
+	// Apply the same auth rate limiter to operator login for brute-force protection
+	if rateLimitEnabled && authRateLimiter != nil {
+		a.Operator.SetAuthRateLimiter(authRateLimiter.Middleware())
+	}
 	a.Router.Mount("/operator", a.Operator.Router())
 }

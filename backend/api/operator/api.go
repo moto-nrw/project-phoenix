@@ -1,6 +1,8 @@
 package operator
 
 import (
+	"net/http"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
@@ -14,6 +16,7 @@ type Resource struct {
 	announcementsResource *AnnouncementsResource
 	profileResource       *ProfileResource
 	tokenAuth             *jwt.TokenAuth
+	authRateLimiter       func(http.Handler) http.Handler
 }
 
 // ResourceConfig holds dependencies for the operator resource
@@ -22,6 +25,11 @@ type ResourceConfig struct {
 	SuggestionsService   platformSvc.OperatorSuggestionsService
 	AnnouncementsService platformSvc.AnnouncementService
 	TokenAuth            *jwt.TokenAuth
+}
+
+// SetAuthRateLimiter sets the rate limiter middleware for operator auth endpoints.
+func (rs *Resource) SetAuthRateLimiter(mw func(http.Handler) http.Handler) {
+	rs.authRateLimiter = mw
 }
 
 // NewResource creates a new operator resource
@@ -46,8 +54,11 @@ func (rs *Resource) Router() chi.Router {
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 
-	// Public routes (no auth required)
+	// Public routes (no auth required) — apply auth rate limiter for brute-force protection
 	r.Route("/auth", func(r chi.Router) {
+		if rs.authRateLimiter != nil {
+			r.Use(rs.authRateLimiter)
+		}
 		r.Post("/login", rs.authResource.Login)
 	})
 
