@@ -38,13 +38,7 @@ func (rs *AnnouncementsResource) GetUnread(w http.ResponseWriter, r *http.Reques
 	claims := jwt.ClaimsFromCtx(r.Context())
 	userID := int64(claims.ID)
 
-	// Get the user's primary role (first role in the array)
-	userRole := ""
-	if len(claims.Roles) > 0 {
-		userRole = claims.Roles[0]
-	}
-
-	announcements, err := rs.announcementService.GetUnreadForUser(r.Context(), userID, userRole)
+	announcements, err := rs.announcementService.GetUnreadForUser(r.Context(), userID, claims.Roles)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("failed to retrieve announcements")))
 		return
@@ -75,13 +69,7 @@ func (rs *AnnouncementsResource) GetUnreadCount(w http.ResponseWriter, r *http.R
 	claims := jwt.ClaimsFromCtx(r.Context())
 	userID := int64(claims.ID)
 
-	// Get the user's primary role
-	userRole := ""
-	if len(claims.Roles) > 0 {
-		userRole = claims.Roles[0]
-	}
-
-	count, err := rs.announcementService.CountUnread(r.Context(), userID, userRole)
+	count, err := rs.announcementService.CountUnread(r.Context(), userID, claims.Roles)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("failed to count announcements")))
 		return

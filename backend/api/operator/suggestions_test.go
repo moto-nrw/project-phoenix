@@ -120,7 +120,7 @@ func TestListSuggestions_Success(t *testing.T) {
 		listAllPostsFn: func(ctx context.Context, operatorAccountID int64, status string, sortBy string) ([]*suggestions.Post, error) {
 			assert.Equal(t, testOperatorAccountID, operatorAccountID)
 			assert.Equal(t, "", status)
-			assert.Equal(t, "created_at", sortBy)
+			assert.Equal(t, "newest", sortBy)
 			post := &suggestions.Post{
 				Title:        "Test Suggestion",
 				Description:  "Test description",

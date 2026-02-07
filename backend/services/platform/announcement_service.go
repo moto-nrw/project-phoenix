@@ -26,8 +26,8 @@ type AnnouncementService interface {
 	UnpublishAnnouncement(ctx context.Context, id int64, operatorID int64, clientIP net.IP) error
 
 	// User-facing operations
-	GetUnreadForUser(ctx context.Context, userID int64, userRole string) ([]*platform.Announcement, error)
-	CountUnread(ctx context.Context, userID int64, userRole string) (int, error)
+	GetUnreadForUser(ctx context.Context, userID int64, userRoles []string) ([]*platform.Announcement, error)
+	CountUnread(ctx context.Context, userID int64, userRoles []string) (int, error)
 	MarkSeen(ctx context.Context, userID, announcementID int64) error
 	MarkDismissed(ctx context.Context, userID, announcementID int64) error
 
@@ -205,14 +205,14 @@ func (s *announcementService) UnpublishAnnouncement(ctx context.Context, id int6
 	return nil
 }
 
-// GetUnreadForUser retrieves unread announcements for a user filtered by role
-func (s *announcementService) GetUnreadForUser(ctx context.Context, userID int64, userRole string) ([]*platform.Announcement, error) {
-	return s.announcementViewRepo.GetUnreadForUser(ctx, userID, userRole)
+// GetUnreadForUser retrieves unread announcements for a user filtered by roles
+func (s *announcementService) GetUnreadForUser(ctx context.Context, userID int64, userRoles []string) ([]*platform.Announcement, error) {
+	return s.announcementViewRepo.GetUnreadForUser(ctx, userID, userRoles)
 }
 
-// CountUnread counts unread announcements for a user filtered by role
-func (s *announcementService) CountUnread(ctx context.Context, userID int64, userRole string) (int, error) {
-	return s.announcementViewRepo.CountUnread(ctx, userID, userRole)
+// CountUnread counts unread announcements for a user filtered by roles
+func (s *announcementService) CountUnread(ctx context.Context, userID int64, userRoles []string) (int, error) {
+	return s.announcementViewRepo.CountUnread(ctx, userID, userRoles)
 }
 
 // GetStats retrieves view statistics for an announcement

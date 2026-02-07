@@ -80,13 +80,13 @@ func (r *AnnouncementViewRepository) MarkDismissed(ctx context.Context, userID, 
 	return nil
 }
 
-// GetUnreadForUser retrieves all unread active announcements for a user filtered by role
-func (r *AnnouncementViewRepository) GetUnreadForUser(ctx context.Context, userID int64, userRole string) ([]*platform.Announcement, error) {
+// GetUnreadForUser retrieves all unread active announcements for a user filtered by roles
+func (r *AnnouncementViewRepository) GetUnreadForUser(ctx context.Context, userID int64, userRoles []string) ([]*platform.Announcement, error) {
 	var announcements []*platform.Announcement
 	now := time.Now()
 
 	// Use raw SQL for complex query with aliases to avoid BUN's quote escaping issues
-	// target_roles = '{}' means all roles can see it, otherwise check if userRole is in the array
+	// target_roles = '{}' means all roles can see it, otherwise check overlap with user's roles
 	err := r.db.NewRaw(`
 		SELECT a.*
 		FROM platform.announcements a
@@ -97,9 +97,10 @@ func (r *AnnouncementViewRepository) GetUnreadForUser(ctx context.Context, userI
 			AND a.published_at <= ?
 			AND (a.expires_at IS NULL OR a.expires_at > ?)
 			AND (v.seen_at IS NULL OR v.dismissed = false)
-			AND (a.target_roles = '{}' OR ? = ANY(a.target_roles))
+			AND (a.target_roles = '{}' OR EXISTS (
+				SELECT 1 FROM unnest(a.target_roles) AS r WHERE r IN (?)))
 		ORDER BY a.published_at DESC
-	`, userID, now, now, userRole).Scan(ctx, &announcements)
+	`, userID, now, now, bun.In(userRoles)).Scan(ctx, &announcements)
 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
@@ -111,8 +112,8 @@ func (r *AnnouncementViewRepository) GetUnreadForUser(ctx context.Context, userI
 	return announcements, nil
 }
 
-// CountUnread counts unread announcements for a user filtered by role
-func (r *AnnouncementViewRepository) CountUnread(ctx context.Context, userID int64, userRole string) (int, error) {
+// CountUnread counts unread announcements for a user filtered by roles
+func (r *AnnouncementViewRepository) CountUnread(ctx context.Context, userID int64, userRoles []string) (int, error) {
 	now := time.Now()
 
 	var count int
@@ -126,8 +127,9 @@ func (r *AnnouncementViewRepository) CountUnread(ctx context.Context, userID int
 			AND a.published_at <= ?
 			AND (a.expires_at IS NULL OR a.expires_at > ?)
 			AND (v.seen_at IS NULL OR v.dismissed = false)
-			AND (a.target_roles = '{}' OR ? = ANY(a.target_roles))
-	`, userID, now, now, userRole).Scan(ctx, &count)
+			AND (a.target_roles = '{}' OR EXISTS (
+				SELECT 1 FROM unnest(a.target_roles) AS r WHERE r IN (?)))
+	`, userID, now, now, bun.In(userRoles)).Scan(ctx, &count)
 
 	if err != nil {
 		return 0, &modelBase.DatabaseError{

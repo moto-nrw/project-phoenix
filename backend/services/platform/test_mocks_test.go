@@ -149,8 +149,8 @@ func (m *mockAnnouncementRepoShared) Unpublish(ctx context.Context, id int64) er
 
 // Shared mock for announcement view repository
 type mockAnnouncementViewRepoShared struct {
-	getUnreadForUserFn func(ctx context.Context, userID int64, userRole string) ([]*platform.Announcement, error)
-	countUnreadFn      func(ctx context.Context, userID int64, userRole string) (int, error)
+	getUnreadForUserFn func(ctx context.Context, userID int64, userRoles []string) ([]*platform.Announcement, error)
+	countUnreadFn      func(ctx context.Context, userID int64, userRoles []string) (int, error)
 	markSeenFn         func(ctx context.Context, userID, announcementID int64) error
 	markDismissedFn    func(ctx context.Context, userID, announcementID int64) error
 	getStatsFn         func(ctx context.Context, announcementID int64) (*platform.AnnouncementStats, error)
@@ -171,16 +171,16 @@ func (m *mockAnnouncementViewRepoShared) MarkDismissed(ctx context.Context, user
 	return nil
 }
 
-func (m *mockAnnouncementViewRepoShared) GetUnreadForUser(ctx context.Context, userID int64, userRole string) ([]*platform.Announcement, error) {
+func (m *mockAnnouncementViewRepoShared) GetUnreadForUser(ctx context.Context, userID int64, userRoles []string) ([]*platform.Announcement, error) {
 	if m.getUnreadForUserFn != nil {
-		return m.getUnreadForUserFn(ctx, userID, userRole)
+		return m.getUnreadForUserFn(ctx, userID, userRoles)
 	}
 	return []*platform.Announcement{}, nil
 }
 
-func (m *mockAnnouncementViewRepoShared) CountUnread(ctx context.Context, userID int64, userRole string) (int, error) {
+func (m *mockAnnouncementViewRepoShared) CountUnread(ctx context.Context, userID int64, userRoles []string) (int, error) {
 	if m.countUnreadFn != nil {
-		return m.countUnreadFn(ctx, userID, userRole)
+		return m.countUnreadFn(ctx, userID, userRoles)
 	}
 	return 0, nil
 }

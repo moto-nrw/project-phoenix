@@ -86,11 +86,11 @@ func (m *mockAnnouncementService) UnpublishAnnouncement(ctx context.Context, id 
 	return nil
 }
 
-func (m *mockAnnouncementService) GetUnreadForUser(ctx context.Context, userID int64, userRole string) ([]*platform.Announcement, error) {
+func (m *mockAnnouncementService) GetUnreadForUser(ctx context.Context, userID int64, userRoles []string) ([]*platform.Announcement, error) {
 	return nil, nil
 }
 
-func (m *mockAnnouncementService) CountUnread(ctx context.Context, userID int64, userRole string) (int, error) {
+func (m *mockAnnouncementService) CountUnread(ctx context.Context, userID int64, userRoles []string) (int, error) {
 	return 0, nil
 }
 

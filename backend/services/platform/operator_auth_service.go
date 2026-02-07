@@ -76,6 +76,8 @@ func (s *operatorAuthService) getLogger() *slog.Logger {
 
 // Login authenticates an operator and returns JWT tokens
 func (s *operatorAuthService) Login(ctx context.Context, email, password string, clientIP net.IP) (string, string, *platform.Operator, error) {
+	email = strings.ToLower(strings.TrimSpace(email))
+
 	// Find operator by email
 	operator, err := s.operatorRepo.FindByEmail(ctx, email)
 	if err != nil {
@@ -148,6 +150,8 @@ func (s *operatorAuthService) Login(ctx context.Context, email, password string,
 
 // ValidateOperator validates an operator's credentials without generating tokens
 func (s *operatorAuthService) ValidateOperator(ctx context.Context, email, password string) (*platform.Operator, error) {
+	email = strings.ToLower(strings.TrimSpace(email))
+
 	operator, err := s.operatorRepo.FindByEmail(ctx, email)
 	if err != nil {
 		return nil, err
