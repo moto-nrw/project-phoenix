@@ -479,3 +479,7 @@ openspec/
 .grepai/*.gob
 .grepai/*.db
 .grepai/callgraph/
+
+# Beads issue tracker (personal use)
+.beads/
+.gitattributes
