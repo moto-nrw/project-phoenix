@@ -17,7 +17,6 @@ func TestComment_Validate_ValidOperatorComment(t *testing.T) {
 		AuthorID:   42,
 		AuthorType: AuthorTypeOperator,
 		Content:    "Valid operator comment",
-		IsInternal: false,
 	}
 
 	err := c.Validate()
@@ -31,20 +30,6 @@ func TestComment_Validate_ValidUserComment(t *testing.T) {
 		AuthorID:   42,
 		AuthorType: AuthorTypeUser,
 		Content:    "Valid user comment",
-		IsInternal: false,
-	}
-
-	err := c.Validate()
-	assert.NoError(t, err)
-}
-
-func TestComment_Validate_ValidInternalOperatorComment(t *testing.T) {
-	c := &Comment{
-		PostID:     1,
-		AuthorID:   42,
-		AuthorType: AuthorTypeOperator,
-		Content:    "Internal operator note",
-		IsInternal: true,
 	}
 
 	err := c.Validate()
@@ -57,7 +42,6 @@ func TestComment_Validate_TrimWhitespace(t *testing.T) {
 		AuthorID:   42,
 		AuthorType: AuthorTypeUser,
 		Content:    "  Content with spaces  \n\t",
-		IsInternal: false,
 	}
 
 	err := c.Validate()
@@ -202,20 +186,6 @@ func TestComment_Validate_ContentExactly5000Chars(t *testing.T) {
 
 	err := c.Validate()
 	assert.NoError(t, err)
-}
-
-func TestComment_Validate_InternalCommentByUser(t *testing.T) {
-	c := &Comment{
-		PostID:     1,
-		AuthorID:   42,
-		AuthorType: AuthorTypeUser,
-		Content:    "Trying to create internal comment",
-		IsInternal: true,
-	}
-
-	err := c.Validate()
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "only operators can create internal comments")
 }
 
 // =============================================================================

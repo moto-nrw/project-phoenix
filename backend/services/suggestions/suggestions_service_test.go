@@ -103,7 +103,7 @@ func (m *mockVoteRepo) FindByPostAndVoter(ctx context.Context, postID, voterID i
 type mockCommentRepo struct {
 	createFn       func(ctx context.Context, comment *suggestions.Comment) error
 	findByIDFn     func(ctx context.Context, id int64) (*suggestions.Comment, error)
-	findByPostIDFn func(ctx context.Context, postID int64, includeInternal bool) ([]*suggestions.Comment, error)
+	findByPostIDFn func(ctx context.Context, postID int64) ([]*suggestions.Comment, error)
 	deleteFn       func(ctx context.Context, id int64) error
 }
 
@@ -121,9 +121,9 @@ func (m *mockCommentRepo) FindByID(ctx context.Context, id int64) (*suggestions.
 	return nil, nil
 }
 
-func (m *mockCommentRepo) FindByPostID(ctx context.Context, postID int64, includeInternal bool) ([]*suggestions.Comment, error) {
+func (m *mockCommentRepo) FindByPostID(ctx context.Context, postID int64) ([]*suggestions.Comment, error) {
 	if m.findByPostIDFn != nil {
-		return m.findByPostIDFn(ctx, postID, includeInternal)
+		return m.findByPostIDFn(ctx, postID)
 	}
 	return nil, nil
 }
@@ -652,7 +652,6 @@ func TestCreateComment_Success(t *testing.T) {
 	commentRepo := &mockCommentRepo{
 		createFn: func(ctx context.Context, comment *suggestions.Comment) error {
 			assert.Equal(t, suggestions.AuthorTypeUser, comment.AuthorType)
-			assert.False(t, comment.IsInternal)
 			assert.Equal(t, "Test comment", comment.Content)
 			return nil
 		},
@@ -669,7 +668,6 @@ func TestCreateComment_Success(t *testing.T) {
 	err := svc.CreateComment(ctx, comment)
 	require.NoError(t, err)
 	assert.Equal(t, suggestions.AuthorTypeUser, comment.AuthorType)
-	assert.False(t, comment.IsInternal)
 }
 
 func TestCreateComment_NilComment(t *testing.T) {
@@ -759,9 +757,8 @@ func TestGetComments_Success(t *testing.T) {
 	expectedComments := []*suggestions.Comment{{Content: "Test"}}
 
 	commentRepo := &mockCommentRepo{
-		findByPostIDFn: func(ctx context.Context, postID int64, includeInternal bool) ([]*suggestions.Comment, error) {
+		findByPostIDFn: func(ctx context.Context, postID int64) ([]*suggestions.Comment, error) {
 			assert.Equal(t, int64(456), postID)
-			assert.False(t, includeInternal)
 			return expectedComments, nil
 		},
 	}
@@ -778,7 +775,7 @@ func TestGetComments_RepoError(t *testing.T) {
 	expectedErr := errors.New("repo error")
 
 	commentRepo := &mockCommentRepo{
-		findByPostIDFn: func(ctx context.Context, postID int64, includeInternal bool) ([]*suggestions.Comment, error) {
+		findByPostIDFn: func(ctx context.Context, postID int64) ([]*suggestions.Comment, error) {
 			return nil, expectedErr
 		},
 	}

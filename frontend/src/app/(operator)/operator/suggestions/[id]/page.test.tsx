@@ -280,7 +280,7 @@ describe("OperatorSuggestionDetailPage", () => {
     fireEvent.click(submitButton);
 
     await waitFor(() => {
-      expect(mockAddComment).toHaveBeenCalledWith("1", "New comment", false);
+      expect(mockAddComment).toHaveBeenCalledWith("1", "New comment");
       expect(mockMutate).toHaveBeenCalled();
     });
   });

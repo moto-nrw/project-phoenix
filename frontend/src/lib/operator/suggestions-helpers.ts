@@ -28,7 +28,6 @@ export interface BackendOperatorComment {
   content: string;
   author_name: string;
   author_type: "operator" | "user";
-  is_internal: boolean;
   created_at: string;
 }
 
@@ -54,7 +53,6 @@ export interface OperatorComment {
   content: string;
   authorName: string;
   authorType: "operator" | "user";
-  isInternal: boolean;
   createdAt: string;
 }
 
@@ -66,7 +64,6 @@ export function mapOperatorComment(
     content: data.content,
     authorName: data.author_name,
     authorType: data.author_type,
-    isInternal: data.is_internal,
     createdAt: data.created_at,
   };
 }

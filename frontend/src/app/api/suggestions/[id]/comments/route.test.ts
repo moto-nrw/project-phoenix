@@ -43,7 +43,6 @@ describe("GET /api/suggestions/[id]/comments", () => {
         content: "Great idea!",
         author_name: "User 1",
         author_type: "teacher",
-        is_internal: false,
         created_at: "2024-01-01T00:00:00Z",
       },
       {
@@ -51,7 +50,6 @@ describe("GET /api/suggestions/[id]/comments", () => {
         content: "Internal note",
         author_name: "Admin",
         author_type: "operator",
-        is_internal: true,
         created_at: "2024-01-02T00:00:00Z",
       },
     ];

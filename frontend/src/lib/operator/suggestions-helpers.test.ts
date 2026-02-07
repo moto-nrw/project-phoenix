@@ -18,7 +18,6 @@ describe("mapOperatorComment", () => {
       content: "Test comment",
       author_name: "John Doe",
       author_type: "operator",
-      is_internal: true,
       created_at: "2024-01-15T10:30:00Z",
     };
 
@@ -28,7 +27,6 @@ describe("mapOperatorComment", () => {
     expect(result.content).toBe("Test comment");
     expect(result.authorName).toBe("John Doe");
     expect(result.authorType).toBe("operator");
-    expect(result.isInternal).toBe(true);
     expect(result.createdAt).toBe("2024-01-15T10:30:00Z");
   });
 
@@ -38,7 +36,6 @@ describe("mapOperatorComment", () => {
       content: "User feedback",
       author_name: "Jane Smith",
       author_type: "user",
-      is_internal: false,
       created_at: "2024-02-20T14:45:00Z",
     };
 
@@ -46,7 +43,6 @@ describe("mapOperatorComment", () => {
 
     expect(result.id).toBe("123");
     expect(result.authorType).toBe("user");
-    expect(result.isInternal).toBe(false);
   });
 });
 
@@ -72,7 +68,6 @@ describe("mapOperatorSuggestion", () => {
           content: "We'll look into this",
           author_name: "Operator",
           author_type: "operator",
-          is_internal: false,
           created_at: "2024-03-01T10:00:00Z",
         },
       ],
@@ -138,7 +133,6 @@ describe("mapOperatorSuggestion", () => {
           content: "Comment 1",
           author_name: "Op1",
           author_type: "operator",
-          is_internal: true,
           created_at: "2024-05-01T01:00:00Z",
         },
         {
@@ -146,7 +140,6 @@ describe("mapOperatorSuggestion", () => {
           content: "Comment 2",
           author_name: "User1",
           author_type: "user",
-          is_internal: false,
           created_at: "2024-05-01T02:00:00Z",
         },
       ],

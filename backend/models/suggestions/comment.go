@@ -25,7 +25,6 @@ type Comment struct {
 	AuthorID   int64      `bun:"author_id,notnull" json:"author_id"`
 	AuthorType string     `bun:"author_type,notnull" json:"author_type"`
 	Content    string     `bun:"content,notnull" json:"content"`
-	IsInternal bool       `bun:"is_internal,notnull,default:false" json:"is_internal"`
 	DeletedAt  *time.Time `bun:"deleted_at,soft_delete,nullzero" json:"-"`
 
 	// Resolved at query time, not stored
@@ -68,10 +67,6 @@ func (c *Comment) Validate() error {
 	}
 	if len(c.Content) > 5000 {
 		return errors.New("content must not exceed 5000 characters")
-	}
-	// Only operators can create internal comments
-	if c.IsInternal && c.AuthorType != AuthorTypeOperator {
-		return errors.New("only operators can create internal comments")
 	}
 	return nil
 }

@@ -78,10 +78,10 @@ func (r *CommentRepository) FindByID(ctx context.Context, id int64) (*suggestion
 }
 
 // FindByPostID retrieves all comments for a post with author names resolved via polymorphic joins.
-func (r *CommentRepository) FindByPostID(ctx context.Context, postID int64, includeInternal bool) ([]*suggestions.Comment, error) {
+func (r *CommentRepository) FindByPostID(ctx context.Context, postID int64) ([]*suggestions.Comment, error) {
 	var comments []*suggestions.Comment
 
-	query := r.db.NewSelect().
+	err := r.db.NewSelect().
 		Model(&comments).
 		ModelTableExpr(tableSuggestionsCommentsAlias).
 		ColumnExpr(`"comment".*`).
@@ -92,13 +92,9 @@ func (r *CommentRepository) FindByPostID(ctx context.Context, postID int64, incl
 		Join(`LEFT JOIN platform.operators AS "op" ON "comment".author_type = 'operator' AND "op".id = "comment".author_id`).
 		Join(`LEFT JOIN users.persons AS "person" ON "comment".author_type = 'user' AND "person".account_id = "comment".author_id`).
 		Where(`"comment".post_id = ?`, postID).
-		Where(`"comment".deleted_at IS NULL`)
-
-	if !includeInternal {
-		query = query.Where(`"comment".is_internal = false`)
-	}
-
-	err := query.OrderExpr(`"comment".created_at ASC`).Scan(ctx)
+		Where(`"comment".deleted_at IS NULL`).
+		OrderExpr(`"comment".created_at ASC`).
+		Scan(ctx)
 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{

@@ -106,11 +106,7 @@ func (m *mockOperatorSuggestionsService) DeleteComment(ctx context.Context, comm
 	return nil
 }
 
-func (m *mockOperatorSuggestionsService) GetComments(ctx context.Context, postID int64, includeInternal bool) ([]*suggestions.Comment, error) {
-	return nil, nil
-}
-
-func (m *mockOperatorSuggestionsService) GetPublicComments(ctx context.Context, postID int64) ([]*suggestions.Comment, error) {
+func (m *mockOperatorSuggestionsService) GetComments(ctx context.Context, postID int64) ([]*suggestions.Comment, error) {
 	return nil, nil
 }
 
@@ -248,7 +244,6 @@ func TestGetSuggestion_Success(t *testing.T) {
 				Content:    "Comment 1",
 				AuthorName: "Commenter",
 				AuthorType: "user",
-				IsInternal: false,
 			}
 			comment.ID = testPostID
 			comment.CreatedAt = now
@@ -381,7 +376,6 @@ func TestAddComment_Success(t *testing.T) {
 			assert.Equal(t, testPostID, comment.PostID)
 			assert.Equal(t, testOperatorAccountID123, comment.AuthorID)
 			assert.Equal(t, "Test comment", comment.Content)
-			assert.True(t, comment.IsInternal)
 			return nil
 		},
 	}
@@ -389,8 +383,7 @@ func TestAddComment_Success(t *testing.T) {
 	resource := operator.NewSuggestionsResource(mockService)
 
 	body := map[string]any{
-		"content":     "Test comment",
-		"is_internal": true,
+		"content": "Test comment",
 	}
 	jsonBody, _ := json.Marshal(body)
 	req := httptest.NewRequest(http.MethodPost, "/suggestions/1/comments", bytes.NewReader(jsonBody))

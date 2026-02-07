@@ -62,7 +62,6 @@ func createTestComment(t *testing.T, db *bun.DB, postID, authorID int64, content
 		AuthorID:   authorID,
 		AuthorType: suggestions.AuthorTypeUser,
 		Content:    content,
-		IsInternal: false,
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()

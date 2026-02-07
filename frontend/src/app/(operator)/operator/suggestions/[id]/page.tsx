@@ -68,7 +68,6 @@ export default function OperatorSuggestionDetailPage() {
         await operatorSuggestionsService.addComment(
           suggestion.id,
           commentText.trim(),
-          false,
         );
         setCommentText("");
         await mutate();

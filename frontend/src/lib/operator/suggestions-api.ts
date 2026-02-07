@@ -33,14 +33,10 @@ class OperatorSuggestionsService {
     });
   }
 
-  async addComment(
-    id: string,
-    content: string,
-    isInternal: boolean,
-  ): Promise<void> {
+  async addComment(id: string, content: string): Promise<void> {
     await operatorFetch<unknown>(`/api/operator/suggestions/${id}/comments`, {
       method: "POST",
-      body: { content, is_internal: isInternal },
+      body: { content },
     });
   }
 

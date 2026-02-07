@@ -163,27 +163,13 @@ describe("OperatorSuggestionsService", () => {
     it("calls POST endpoint with comment data", async () => {
       mockOperatorFetch.mockResolvedValue(undefined);
 
-      await operatorSuggestionsService.addComment("42", "Great idea!", false);
+      await operatorSuggestionsService.addComment("42", "Great idea!");
 
       expect(mockOperatorFetch).toHaveBeenCalledWith(
         "/api/operator/suggestions/42/comments",
         {
           method: "POST",
-          body: { content: "Great idea!", is_internal: false },
-        },
-      );
-    });
-
-    it("sends internal comment correctly", async () => {
-      mockOperatorFetch.mockResolvedValue(undefined);
-
-      await operatorSuggestionsService.addComment("42", "Internal note", true);
-
-      expect(mockOperatorFetch).toHaveBeenCalledWith(
-        "/api/operator/suggestions/42/comments",
-        {
-          method: "POST",
-          body: { content: "Internal note", is_internal: true },
+          body: { content: "Great idea!" },
         },
       );
     });

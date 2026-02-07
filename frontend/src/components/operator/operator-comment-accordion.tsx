@@ -40,7 +40,7 @@ export function OperatorCommentAccordion({
   }, []);
 
   const createComment = useCallback(async (pid: string, content: string) => {
-    await operatorSuggestionsService.addComment(pid, content, false);
+    await operatorSuggestionsService.addComment(pid, content);
   }, []);
 
   const deleteComment = useCallback(async (pid: string, commentId: string) => {

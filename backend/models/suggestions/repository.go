@@ -48,8 +48,7 @@ type CommentRepository interface {
 	FindByID(ctx context.Context, id int64) (*Comment, error)
 
 	// FindByPostID retrieves all comments for a post with author names resolved.
-	// If includeInternal is false, internal comments are excluded.
-	FindByPostID(ctx context.Context, postID int64, includeInternal bool) ([]*Comment, error)
+	FindByPostID(ctx context.Context, postID int64) ([]*Comment, error)
 
 	// Delete soft-deletes a comment by ID
 	Delete(ctx context.Context, id int64) error

@@ -65,7 +65,7 @@ func (m *mockPostRepo) RecalculateScore(ctx context.Context, postID int64) error
 }
 
 type mockCommentRepo struct {
-	findByPostIDFn func(ctx context.Context, postID int64, includeInternal bool) ([]*suggestions.Comment, error)
+	findByPostIDFn func(ctx context.Context, postID int64) ([]*suggestions.Comment, error)
 	findByIDFn     func(ctx context.Context, id int64) (*suggestions.Comment, error)
 	createFn       func(ctx context.Context, comment *suggestions.Comment) error
 	deleteFn       func(ctx context.Context, id int64) error
@@ -85,9 +85,9 @@ func (m *mockCommentRepo) FindByID(ctx context.Context, id int64) (*suggestions.
 	return nil, nil
 }
 
-func (m *mockCommentRepo) FindByPostID(ctx context.Context, postID int64, includeInternal bool) ([]*suggestions.Comment, error) {
+func (m *mockCommentRepo) FindByPostID(ctx context.Context, postID int64) ([]*suggestions.Comment, error) {
 	if m.findByPostIDFn != nil {
-		return m.findByPostIDFn(ctx, postID, includeInternal)
+		return m.findByPostIDFn(ctx, postID)
 	}
 	return nil, nil
 }
@@ -221,9 +221,8 @@ func TestGetPost_Success(t *testing.T) {
 	}
 
 	commentRepo := &mockCommentRepo{
-		findByPostIDFn: func(ctx context.Context, postID int64, includeInternal bool) ([]*suggestions.Comment, error) {
+		findByPostIDFn: func(ctx context.Context, postID int64) ([]*suggestions.Comment, error) {
 			assert.Equal(t, int64(456), postID)
-			assert.True(t, includeInternal)
 			return expectedComments, nil
 		},
 	}
@@ -307,7 +306,7 @@ func TestGetPost_RepoErrorOnFindByPostID(t *testing.T) {
 	}
 
 	commentRepo := &mockCommentRepo{
-		findByPostIDFn: func(ctx context.Context, postID int64, includeInternal bool) ([]*suggestions.Comment, error) {
+		findByPostIDFn: func(ctx context.Context, postID int64) ([]*suggestions.Comment, error) {
 			return nil, expectedErr
 		},
 	}
@@ -944,9 +943,8 @@ func TestGetComments_Success(t *testing.T) {
 	expectedComments := []*suggestions.Comment{{Content: "Test"}}
 
 	commentRepo := &mockCommentRepo{
-		findByPostIDFn: func(ctx context.Context, postID int64, includeInternal bool) ([]*suggestions.Comment, error) {
+		findByPostIDFn: func(ctx context.Context, postID int64) ([]*suggestions.Comment, error) {
 			assert.Equal(t, int64(456), postID)
-			assert.True(t, includeInternal)
 			return expectedComments, nil
 		},
 	}
@@ -960,7 +958,7 @@ func TestGetComments_Success(t *testing.T) {
 		Logger:          slog.Default(),
 	})
 
-	comments, err := svc.GetComments(ctx, 456, true)
+	comments, err := svc.GetComments(ctx, 456)
 	require.NoError(t, err)
 	assert.Equal(t, expectedComments, comments)
 }
@@ -970,7 +968,7 @@ func TestGetComments_RepoError(t *testing.T) {
 	expectedErr := errors.New("repo error")
 
 	commentRepo := &mockCommentRepo{
-		findByPostIDFn: func(ctx context.Context, postID int64, includeInternal bool) ([]*suggestions.Comment, error) {
+		findByPostIDFn: func(ctx context.Context, postID int64) ([]*suggestions.Comment, error) {
 			return nil, expectedErr
 		},
 	}
@@ -984,7 +982,7 @@ func TestGetComments_RepoError(t *testing.T) {
 		Logger:          slog.Default(),
 	})
 
-	comments, err := svc.GetComments(ctx, 456, true)
+	comments, err := svc.GetComments(ctx, 456)
 	assert.ErrorIs(t, err, expectedErr)
 	assert.Nil(t, comments)
 }
@@ -1096,54 +1094,4 @@ func TestDeleteComment_RepoErrorOnDelete(t *testing.T) {
 
 	err := svc.DeleteComment(ctx, 789, 123, clientIP)
 	assert.ErrorIs(t, err, expectedErr)
-}
-
-func TestGetPublicComments_Success(t *testing.T) {
-	ctx := context.Background()
-	expectedComments := []*suggestions.Comment{{Content: "Public comment"}}
-
-	commentRepo := &mockCommentRepo{
-		findByPostIDFn: func(ctx context.Context, postID int64, includeInternal bool) ([]*suggestions.Comment, error) {
-			assert.Equal(t, int64(456), postID)
-			assert.False(t, includeInternal)
-			return expectedComments, nil
-		},
-	}
-
-	svc := platformService.NewOperatorSuggestionsService(platformService.OperatorSuggestionsServiceConfig{
-		PostRepo:        &mockPostRepo{},
-		CommentRepo:     commentRepo,
-		CommentReadRepo: &mockCommentReadRepo{},
-		PostReadRepo:    &mockPostReadRepo{},
-		AuditLogRepo:    &mockAuditLogRepoShared{},
-		Logger:          slog.Default(),
-	})
-
-	comments, err := svc.GetPublicComments(ctx, 456)
-	require.NoError(t, err)
-	assert.Equal(t, expectedComments, comments)
-}
-
-func TestGetPublicComments_RepoError(t *testing.T) {
-	ctx := context.Background()
-	expectedErr := errors.New("repo error")
-
-	commentRepo := &mockCommentRepo{
-		findByPostIDFn: func(ctx context.Context, postID int64, includeInternal bool) ([]*suggestions.Comment, error) {
-			return nil, expectedErr
-		},
-	}
-
-	svc := platformService.NewOperatorSuggestionsService(platformService.OperatorSuggestionsServiceConfig{
-		PostRepo:        &mockPostRepo{},
-		CommentRepo:     commentRepo,
-		CommentReadRepo: &mockCommentReadRepo{},
-		PostReadRepo:    &mockPostReadRepo{},
-		AuditLogRepo:    &mockAuditLogRepoShared{},
-		Logger:          slog.Default(),
-	})
-
-	comments, err := svc.GetPublicComments(ctx, 456)
-	assert.ErrorIs(t, err, expectedErr)
-	assert.Nil(t, comments)
 }

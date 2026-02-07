@@ -178,9 +178,8 @@ func (s *suggestionsService) CreateComment(ctx context.Context, comment *suggest
 		return &InvalidDataError{Err: fmt.Errorf("comment cannot be nil")}
 	}
 
-	// User-facing comments are always from type "user" and never internal
+	// User-facing comments are always from type "user"
 	comment.AuthorType = suggestions.AuthorTypeUser
-	comment.IsInternal = false
 
 	// Verify post exists
 	post, err := s.postRepo.FindByID(ctx, comment.PostID)
@@ -198,9 +197,9 @@ func (s *suggestionsService) CreateComment(ctx context.Context, comment *suggest
 	return s.commentRepo.Create(ctx, comment)
 }
 
-// GetComments retrieves public (non-internal) comments for a post
+// GetComments retrieves comments for a post
 func (s *suggestionsService) GetComments(ctx context.Context, postID int64) ([]*suggestions.Comment, error) {
-	return s.commentRepo.FindByPostID(ctx, postID, false)
+	return s.commentRepo.FindByPostID(ctx, postID)
 }
 
 // DeleteComment deletes a user's own comment

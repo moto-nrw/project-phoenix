@@ -17,7 +17,7 @@ import (
 )
 
 // createTestComment creates a comment directly in the database for testing.
-func createTestComment(t *testing.T, db *bun.DB, postID, authorID int64, content string, isInternal bool, authorType string) *suggestions.Comment {
+func createTestComment(t *testing.T, db *bun.DB, postID, authorID int64, content string, authorType string) *suggestions.Comment {
 	t.Helper()
 
 	comment := &suggestions.Comment{
@@ -25,7 +25,6 @@ func createTestComment(t *testing.T, db *bun.DB, postID, authorID int64, content
 		AuthorID:   authorID,
 		AuthorType: authorType,
 		Content:    content,
-		IsInternal: isInternal,
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -132,31 +131,12 @@ func TestCommentRepository_Create(t *testing.T) {
 			AuthorID:   account.ID,
 			AuthorType: suggestions.AuthorTypeUser,
 			Content:    "Test comment content",
-			IsInternal: false,
 		}
 
 		err := repo.Create(ctx, comment)
 		require.NoError(t, err)
 		assert.Greater(t, comment.ID, int64(0))
 		assert.NotZero(t, comment.CreatedAt)
-		defer cleanupComments(t, db, comment.ID)
-	})
-
-	t.Run("creates internal operator comment", func(t *testing.T) {
-		operatorID := createTestOperator(t, db, "Test Operator")
-		defer cleanupOperators(t, db, operatorID)
-
-		comment := &suggestions.Comment{
-			PostID:     post.ID,
-			AuthorID:   operatorID,
-			AuthorType: suggestions.AuthorTypeOperator,
-			Content:    "Internal operator note",
-			IsInternal: true,
-		}
-
-		err := repo.Create(ctx, comment)
-		require.NoError(t, err)
-		assert.Greater(t, comment.ID, int64(0))
 		defer cleanupComments(t, db, comment.ID)
 	})
 
@@ -172,7 +152,6 @@ func TestCommentRepository_Create(t *testing.T) {
 			AuthorID:   account.ID,
 			AuthorType: suggestions.AuthorTypeUser,
 			Content:    "",
-			IsInternal: false,
 		}
 		err := repo.Create(ctx, comment)
 		require.Error(t, err)
@@ -185,24 +164,10 @@ func TestCommentRepository_Create(t *testing.T) {
 			AuthorID:   account.ID,
 			AuthorType: suggestions.AuthorTypeUser,
 			Content:    "Content",
-			IsInternal: false,
 		}
 		err := repo.Create(ctx, comment)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "post ID is required")
-	})
-
-	t.Run("rejects internal comment from non-operator", func(t *testing.T) {
-		comment := &suggestions.Comment{
-			PostID:     post.ID,
-			AuthorID:   account.ID,
-			AuthorType: suggestions.AuthorTypeUser,
-			Content:    "Trying to create internal comment",
-			IsInternal: true,
-		}
-		err := repo.Create(ctx, comment)
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "only operators can create internal comments")
 	})
 }
 
@@ -219,7 +184,7 @@ func TestCommentRepository_FindByID(t *testing.T) {
 	post := createTestPost(t, db, account.ID, fmt.Sprintf("Post %d", time.Now().UnixNano()), "Description")
 	defer cleanupPosts(t, db, post.ID)
 
-	comment := createTestComment(t, db, post.ID, account.ID, "Find me!", false, suggestions.AuthorTypeUser)
+	comment := createTestComment(t, db, post.ID, account.ID, "Find me!", suggestions.AuthorTypeUser)
 	defer cleanupComments(t, db, comment.ID)
 
 	t.Run("finds existing comment", func(t *testing.T) {
@@ -239,7 +204,7 @@ func TestCommentRepository_FindByID(t *testing.T) {
 	})
 
 	t.Run("returns nil for soft-deleted comment", func(t *testing.T) {
-		deletedComment := createTestComment(t, db, post.ID, account.ID, "To be deleted", false, suggestions.AuthorTypeUser)
+		deletedComment := createTestComment(t, db, post.ID, account.ID, "To be deleted", suggestions.AuthorTypeUser)
 		defer cleanupComments(t, db, deletedComment.ID)
 
 		err := repo.Delete(ctx, deletedComment.ID)
@@ -277,56 +242,49 @@ func TestCommentRepository_FindByPostID(t *testing.T) {
 	post := createTestPost(t, db, account.ID, fmt.Sprintf("Post %d", time.Now().UnixNano()), "Description")
 	defer cleanupPosts(t, db, post.ID)
 
-	comment1 := createTestComment(t, db, post.ID, account.ID, "First comment", false, suggestions.AuthorTypeUser)
-	comment2 := createTestComment(t, db, post.ID, account.ID, "Second comment", false, suggestions.AuthorTypeUser)
-	internalComment := createTestComment(t, db, post.ID, operatorID, "Internal note", true, suggestions.AuthorTypeOperator)
+	comment1 := createTestComment(t, db, post.ID, account.ID, "First comment", suggestions.AuthorTypeUser)
+	comment2 := createTestComment(t, db, post.ID, account.ID, "Second comment", suggestions.AuthorTypeUser)
+	internalComment := createTestComment(t, db, post.ID, operatorID, "Internal note", suggestions.AuthorTypeOperator)
 	defer cleanupComments(t, db, comment1.ID, comment2.ID, internalComment.ID)
 
-	t.Run("finds all non-internal comments", func(t *testing.T) {
-		comments, err := repo.FindByPostID(ctx, post.ID, false)
+	t.Run("finds all comments for a post", func(t *testing.T) {
+		comments, err := repo.FindByPostID(ctx, post.ID)
 		require.NoError(t, err)
-		assert.Len(t, comments, 2)
+		assert.Len(t, comments, 3)
 
 		assert.Equal(t, comment1.ID, comments[0].ID)
 		assert.Equal(t, comment2.ID, comments[1].ID)
 
 		assert.NotEmpty(t, comments[0].AuthorName)
 		assert.Contains(t, comments[0].AuthorName, "Comment")
-	})
 
-	t.Run("includes internal comments when requested", func(t *testing.T) {
-		comments, err := repo.FindByPostID(ctx, post.ID, true)
-		require.NoError(t, err)
-		assert.Len(t, comments, 3)
-
-		var foundInternal bool
+		var foundOperatorComment bool
 		for _, c := range comments {
 			if c.ID == internalComment.ID {
-				foundInternal = true
-				assert.True(t, c.IsInternal)
+				foundOperatorComment = true
 				assert.Equal(t, "Test Operator", c.AuthorName)
 			}
 		}
-		assert.True(t, foundInternal)
+		assert.True(t, foundOperatorComment)
 	})
 
 	t.Run("returns empty slice for post with no comments", func(t *testing.T) {
 		emptyPost := createTestPost(t, db, account.ID, fmt.Sprintf("Empty %d", time.Now().UnixNano()), "No comments")
 		defer cleanupPosts(t, db, emptyPost.ID)
 
-		comments, err := repo.FindByPostID(ctx, emptyPost.ID, false)
+		comments, err := repo.FindByPostID(ctx, emptyPost.ID)
 		require.NoError(t, err)
 		assert.Empty(t, comments)
 	})
 
 	t.Run("excludes soft-deleted comments", func(t *testing.T) {
-		deletedComment := createTestComment(t, db, post.ID, account.ID, "Will be deleted", false, suggestions.AuthorTypeUser)
+		deletedComment := createTestComment(t, db, post.ID, account.ID, "Will be deleted", suggestions.AuthorTypeUser)
 		defer cleanupComments(t, db, deletedComment.ID)
 
 		err := repo.Delete(ctx, deletedComment.ID)
 		require.NoError(t, err)
 
-		comments, err := repo.FindByPostID(ctx, post.ID, false)
+		comments, err := repo.FindByPostID(ctx, post.ID)
 		require.NoError(t, err)
 
 		for _, c := range comments {
@@ -349,7 +307,7 @@ func TestCommentRepository_Delete(t *testing.T) {
 	defer cleanupPosts(t, db, post.ID)
 
 	t.Run("soft-deletes comment successfully", func(t *testing.T) {
-		comment := createTestComment(t, db, post.ID, account.ID, "To be deleted", false, suggestions.AuthorTypeUser)
+		comment := createTestComment(t, db, post.ID, account.ID, "To be deleted", suggestions.AuthorTypeUser)
 		defer cleanupComments(t, db, comment.ID)
 
 		err := repo.Delete(ctx, comment.ID)
@@ -375,7 +333,7 @@ func TestCommentRepository_Delete(t *testing.T) {
 	})
 
 	t.Run("no error when deleting already deleted comment", func(t *testing.T) {
-		comment := createTestComment(t, db, post.ID, account.ID, "Already deleted", false, suggestions.AuthorTypeUser)
+		comment := createTestComment(t, db, post.ID, account.ID, "Already deleted", suggestions.AuthorTypeUser)
 		defer cleanupComments(t, db, comment.ID)
 
 		err := repo.Delete(ctx, comment.ID)
@@ -409,11 +367,11 @@ func TestCommentRepository_CountByPostID(t *testing.T) {
 	})
 
 	t.Run("counts all non-deleted comments", func(t *testing.T) {
-		comment1 := createTestComment(t, db, post.ID, account.ID, "Comment 1", false, suggestions.AuthorTypeUser)
-		comment2 := createTestComment(t, db, post.ID, account.ID, "Comment 2", false, suggestions.AuthorTypeUser)
+		comment1 := createTestComment(t, db, post.ID, account.ID, "Comment 1", suggestions.AuthorTypeUser)
+		comment2 := createTestComment(t, db, post.ID, account.ID, "Comment 2", suggestions.AuthorTypeUser)
 		operatorID := createTestOperator(t, db, "Operator")
 		defer cleanupOperators(t, db, operatorID)
-		comment3 := createTestComment(t, db, post.ID, operatorID, "Comment 3", true, suggestions.AuthorTypeOperator)
+		comment3 := createTestComment(t, db, post.ID, operatorID, "Comment 3", suggestions.AuthorTypeOperator)
 		defer cleanupComments(t, db, comment1.ID, comment2.ID, comment3.ID)
 
 		count, err := repo.CountByPostID(ctx, post.ID)
@@ -422,7 +380,7 @@ func TestCommentRepository_CountByPostID(t *testing.T) {
 	})
 
 	t.Run("excludes soft-deleted comments from count", func(t *testing.T) {
-		deletedComment := createTestComment(t, db, post.ID, account.ID, "To be deleted", false, suggestions.AuthorTypeUser)
+		deletedComment := createTestComment(t, db, post.ID, account.ID, "To be deleted", suggestions.AuthorTypeUser)
 		defer cleanupComments(t, db, deletedComment.ID)
 
 		countBefore, err := repo.CountByPostID(ctx, post.ID)

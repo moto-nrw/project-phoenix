@@ -19,7 +19,6 @@ type CommentResponse struct {
 	Content    string `json:"content"`
 	AuthorName string `json:"author_name"`
 	AuthorType string `json:"author_type"`
-	IsInternal bool   `json:"is_internal"`
 	CreatedAt  string `json:"created_at"`
 }
 
@@ -142,7 +141,6 @@ func newCommentResponse(c *suggestions.Comment) CommentResponse {
 		Content:    c.Content,
 		AuthorName: c.AuthorName,
 		AuthorType: c.AuthorType,
-		IsInternal: c.IsInternal,
 		CreatedAt:  c.CreatedAt.Format(time.RFC3339),
 	}
 }

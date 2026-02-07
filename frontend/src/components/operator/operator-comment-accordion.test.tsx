@@ -89,7 +89,6 @@ describe("OperatorCommentAccordion", () => {
         content: "Test comment",
         authorName: "User",
         authorType: "user",
-        isInternal: false,
         createdAt: "2024-01-01T00:00:00Z",
       },
     ];
@@ -122,7 +121,6 @@ describe("OperatorCommentAccordion", () => {
     expect(mockOperatorSuggestionsService.addComment).toHaveBeenCalledWith(
       "42",
       "New comment",
-      false,
     );
   });
 

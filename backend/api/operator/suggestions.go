@@ -48,7 +48,6 @@ type CommentResponse struct {
 	Content    string `json:"content"`
 	AuthorName string `json:"author_name"`
 	AuthorType string `json:"author_type"`
-	IsInternal bool   `json:"is_internal"`
 	CreatedAt  string `json:"created_at"`
 }
 
@@ -64,8 +63,7 @@ func (req *UpdateStatusRequest) Bind(r *http.Request) error {
 
 // AddCommentRequest represents the add comment request body
 type AddCommentRequest struct {
-	Content    string `json:"content"`
-	IsInternal bool   `json:"is_internal"`
+	Content string `json:"content"`
 }
 
 // Bind validates the add comment request
@@ -135,7 +133,6 @@ func (rs *SuggestionsResource) GetSuggestion(w http.ResponseWriter, r *http.Requ
 			Content:    comment.Content,
 			AuthorName: comment.AuthorName,
 			AuthorType: comment.AuthorType,
-			IsInternal: comment.IsInternal,
 			CreatedAt:  comment.CreatedAt.UTC().Format(time.RFC3339),
 		})
 	}
@@ -212,10 +209,9 @@ func (rs *SuggestionsResource) AddComment(w http.ResponseWriter, r *http.Request
 	}
 
 	comment := &suggestions.Comment{
-		PostID:     postID,
-		AuthorID:   operatorID,
-		Content:    req.Content,
-		IsInternal: req.IsInternal,
+		PostID:   postID,
+		AuthorID: operatorID,
+		Content:  req.Content,
 	}
 
 	clientIP := getClientIP(r)

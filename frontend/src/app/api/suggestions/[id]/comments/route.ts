@@ -11,7 +11,6 @@ interface BackendCommentResponse {
   content: string;
   author_name: string;
   author_type: string;
-  is_internal: boolean;
   created_at: string;
 }
 
