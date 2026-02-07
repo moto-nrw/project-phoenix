@@ -14,12 +14,14 @@ import {
 
 interface CommentAccordionProps {
   readonly postId: string;
+  readonly currentAccountId: string;
   readonly commentCount?: number;
   readonly unreadCount?: number;
 }
 
 export function CommentAccordion({
   postId,
+  currentAccountId,
   commentCount,
   unreadCount,
 }: CommentAccordionProps) {
@@ -59,8 +61,9 @@ export function CommentAccordion({
   );
 
   const canDeleteComment = useCallback(
-    (comment: BaseComment) => comment.authorType === "user",
-    [],
+    (comment: BaseComment) =>
+      comment.authorType === "user" && comment.authorId === currentAccountId,
+    [currentAccountId],
   );
 
   return (

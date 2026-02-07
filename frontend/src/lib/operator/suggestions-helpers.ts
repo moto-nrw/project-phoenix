@@ -26,6 +26,7 @@ export interface BackendOperatorSuggestion {
 export interface BackendOperatorComment {
   id: number;
   content: string;
+  author_id: number;
   author_name: string;
   author_type: "operator" | "user";
   created_at: string;
@@ -51,6 +52,7 @@ export interface OperatorSuggestion {
 export interface OperatorComment {
   id: string;
   content: string;
+  authorId: string;
   authorName: string;
   authorType: "operator" | "user";
   createdAt: string;
@@ -62,6 +64,7 @@ export function mapOperatorComment(
   return {
     id: data.id.toString(),
     content: data.content,
+    authorId: data.author_id.toString(),
     authorName: data.author_name,
     authorType: data.author_type,
     createdAt: data.created_at,

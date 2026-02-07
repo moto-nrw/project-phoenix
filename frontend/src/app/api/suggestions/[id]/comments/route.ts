@@ -9,6 +9,7 @@ import {
 interface BackendCommentResponse {
   id: number;
   content: string;
+  author_id: number;
   author_name: string;
   author_type: string;
   created_at: string;

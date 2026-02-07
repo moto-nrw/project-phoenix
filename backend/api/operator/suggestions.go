@@ -46,6 +46,7 @@ type SuggestionResponse struct {
 type CommentResponse struct {
 	ID         int64  `json:"id"`
 	Content    string `json:"content"`
+	AuthorID   int64  `json:"author_id"`
 	AuthorName string `json:"author_name"`
 	AuthorType string `json:"author_type"`
 	CreatedAt  string `json:"created_at"`
@@ -131,6 +132,7 @@ func (rs *SuggestionsResource) GetSuggestion(w http.ResponseWriter, r *http.Requ
 		commentResponses = append(commentResponses, &CommentResponse{
 			ID:         comment.ID,
 			Content:    comment.Content,
+			AuthorID:   comment.AuthorID,
 			AuthorName: comment.AuthorName,
 			AuthorType: comment.AuthorType,
 			CreatedAt:  comment.CreatedAt.UTC().Format(time.RFC3339),

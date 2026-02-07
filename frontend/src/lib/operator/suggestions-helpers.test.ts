@@ -16,6 +16,7 @@ describe("mapOperatorComment", () => {
     const backendComment: BackendOperatorComment = {
       id: 42,
       content: "Test comment",
+      author_id: 42,
       author_name: "John Doe",
       author_type: "operator",
       created_at: "2024-01-15T10:30:00Z",
@@ -25,6 +26,7 @@ describe("mapOperatorComment", () => {
 
     expect(result.id).toBe("42");
     expect(result.content).toBe("Test comment");
+    expect(result.authorId).toBe("42");
     expect(result.authorName).toBe("John Doe");
     expect(result.authorType).toBe("operator");
     expect(result.createdAt).toBe("2024-01-15T10:30:00Z");
@@ -34,6 +36,7 @@ describe("mapOperatorComment", () => {
     const backendComment: BackendOperatorComment = {
       id: 123,
       content: "User feedback",
+      author_id: 42,
       author_name: "Jane Smith",
       author_type: "user",
       created_at: "2024-02-20T14:45:00Z",
@@ -42,6 +45,7 @@ describe("mapOperatorComment", () => {
     const result = mapOperatorComment(backendComment);
 
     expect(result.id).toBe("123");
+    expect(result.authorId).toBe("42");
     expect(result.authorType).toBe("user");
   });
 });
@@ -66,6 +70,7 @@ describe("mapOperatorSuggestion", () => {
         {
           id: 1,
           content: "We'll look into this",
+          author_id: 42,
           author_name: "Operator",
           author_type: "operator",
           created_at: "2024-03-01T10:00:00Z",
@@ -131,6 +136,7 @@ describe("mapOperatorSuggestion", () => {
         {
           id: 10,
           content: "Comment 1",
+          author_id: 42,
           author_name: "Op1",
           author_type: "operator",
           created_at: "2024-05-01T01:00:00Z",
@@ -138,6 +144,7 @@ describe("mapOperatorSuggestion", () => {
         {
           id: 20,
           content: "Comment 2",
+          author_id: 42,
           author_name: "User1",
           author_type: "user",
           created_at: "2024-05-01T02:00:00Z",

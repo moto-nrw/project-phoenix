@@ -37,6 +37,7 @@ describe("BaseCommentAccordion", () => {
     {
       id: "1",
       content: "Test comment 1",
+      authorId: "42",
       authorName: "Alice",
       authorType: "operator",
       createdAt: "2024-01-01T10:00:00Z",
@@ -44,6 +45,7 @@ describe("BaseCommentAccordion", () => {
     {
       id: "2",
       content: "Test comment 2",
+      authorId: "42",
       authorName: "Bob",
       authorType: "user",
       createdAt: "2024-01-01T11:00:00Z",

@@ -8,6 +8,7 @@ import { getRelativeTime, getInitial } from "~/lib/format-utils";
 export interface BaseComment {
   id: string;
   content: string;
+  authorId: string;
   authorName: string;
   authorType: "operator" | "user";
   createdAt: string;

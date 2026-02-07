@@ -151,6 +151,7 @@ export function SuggestionCard({
       {/* Comment accordion */}
       <CommentAccordion
         postId={suggestion.id}
+        currentAccountId={currentAccountId}
         commentCount={suggestion.commentCount}
         unreadCount={suggestion.unreadCount}
       />

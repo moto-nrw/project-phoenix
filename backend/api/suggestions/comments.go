@@ -17,6 +17,7 @@ import (
 type CommentResponse struct {
 	ID         int64  `json:"id"`
 	Content    string `json:"content"`
+	AuthorID   int64  `json:"author_id"`
 	AuthorName string `json:"author_name"`
 	AuthorType string `json:"author_type"`
 	CreatedAt  string `json:"created_at"`
@@ -139,6 +140,7 @@ func newCommentResponse(c *suggestions.Comment) CommentResponse {
 	return CommentResponse{
 		ID:         c.ID,
 		Content:    c.Content,
+		AuthorID:   c.AuthorID,
 		AuthorName: c.AuthorName,
 		AuthorType: c.AuthorType,
 		CreatedAt:  c.CreatedAt.Format(time.RFC3339),

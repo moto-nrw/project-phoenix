@@ -79,6 +79,7 @@ vi.mock("~/components/shared/base-comment-accordion", async (importActual) => {
             canDeleteComment?.({
               id: "1",
               content: "Test",
+              authorId: "42",
               authorName: "User",
               authorType: "user",
               createdAt: "2024-01-01",
@@ -90,6 +91,7 @@ vi.mock("~/components/shared/base-comment-accordion", async (importActual) => {
             canDeleteComment?.({
               id: "2",
               content: "Test",
+              authorId: "42",
               authorName: "Operator",
               authorType: "operator",
               createdAt: "2024-01-01",
@@ -106,6 +108,7 @@ describe("CommentAccordion", () => {
     {
       id: "1",
       content: "Test comment",
+      authorId: "42",
       authorName: "Alice",
       authorType: "user",
       createdAt: "2024-01-01T10:00:00Z",
@@ -124,14 +127,21 @@ describe("CommentAccordion", () => {
   });
 
   it("renders BaseCommentAccordion with correct props", () => {
-    render(<CommentAccordion postId="123" commentCount={5} unreadCount={2} />);
+    render(
+      <CommentAccordion
+        postId="123"
+        currentAccountId="42"
+        commentCount={5}
+        unreadCount={2}
+      />,
+    );
 
     expect(screen.getByTestId("base-comment-accordion")).toBeInTheDocument();
     expect(screen.getByText(/Comments: 5, Unread: 2/)).toBeInTheDocument();
   });
 
   it("passes fetch/create/delete functions to BaseCommentAccordion", async () => {
-    render(<CommentAccordion postId="123" />);
+    render(<CommentAccordion postId="123" currentAccountId="42" />);
 
     // Test loadComments
     const toggleButton = screen.getByTestId("accordion-toggle");
@@ -159,7 +169,9 @@ describe("CommentAccordion", () => {
   });
 
   it("marks comments as read when accordion is opened with unread count", async () => {
-    render(<CommentAccordion postId="123" unreadCount={3} />);
+    render(
+      <CommentAccordion postId="123" currentAccountId="42" unreadCount={3} />,
+    );
 
     const toggleButton = screen.getByTestId("accordion-toggle");
     fireEvent.click(toggleButton);
@@ -170,7 +182,9 @@ describe("CommentAccordion", () => {
   });
 
   it("does not mark comments as read when unread count is 0", async () => {
-    render(<CommentAccordion postId="123" unreadCount={0} />);
+    render(
+      <CommentAccordion postId="123" currentAccountId="42" unreadCount={0} />,
+    );
 
     const toggleButton = screen.getByTestId("accordion-toggle");
     fireEvent.click(toggleButton);
@@ -183,7 +197,7 @@ describe("CommentAccordion", () => {
   });
 
   it("does not mark comments as read when no unread count is provided", async () => {
-    render(<CommentAccordion postId="123" />);
+    render(<CommentAccordion postId="123" currentAccountId="42" />);
 
     const toggleButton = screen.getByTestId("accordion-toggle");
     fireEvent.click(toggleButton);
@@ -196,7 +210,9 @@ describe("CommentAccordion", () => {
   });
 
   it("only marks comments as read once", async () => {
-    render(<CommentAccordion postId="123" unreadCount={2} />);
+    render(
+      <CommentAccordion postId="123" currentAccountId="42" unreadCount={2} />,
+    );
 
     const toggleButton = screen.getByTestId("accordion-toggle");
 
@@ -220,7 +236,9 @@ describe("CommentAccordion", () => {
   it("dispatches suggestions-unread-refresh event after marking as read", async () => {
     const dispatchEventSpy = vi.spyOn(window, "dispatchEvent");
 
-    render(<CommentAccordion postId="123" unreadCount={1} />);
+    render(
+      <CommentAccordion postId="123" currentAccountId="42" unreadCount={1} />,
+    );
 
     const toggleButton = screen.getByTestId("accordion-toggle");
     fireEvent.click(toggleButton);
@@ -243,7 +261,7 @@ describe("CommentAccordion", () => {
   it("marks comments as read and dispatches event after creating a comment", async () => {
     const dispatchEventSpy = vi.spyOn(window, "dispatchEvent");
 
-    render(<CommentAccordion postId="123" />);
+    render(<CommentAccordion postId="123" currentAccountId="42" />);
 
     const createButton = screen.getByTestId("create-comment");
     fireEvent.click(createButton);
@@ -265,7 +283,7 @@ describe("CommentAccordion", () => {
   });
 
   it("reloads comments after creating a comment", async () => {
-    render(<CommentAccordion postId="123" />);
+    render(<CommentAccordion postId="123" currentAccountId="42" />);
 
     const createButton = screen.getByTestId("create-comment");
     fireEvent.click(createButton);
@@ -281,13 +299,13 @@ describe("CommentAccordion", () => {
   });
 
   it("allows deletion of comments by user", () => {
-    render(<CommentAccordion postId="123" />);
+    render(<CommentAccordion postId="123" currentAccountId="42" />);
 
     expect(screen.getByTestId("can-delete-user")).toHaveTextContent("true");
   });
 
   it("does not allow deletion of comments by operator", () => {
-    render(<CommentAccordion postId="123" />);
+    render(<CommentAccordion postId="123" currentAccountId="42" />);
 
     expect(screen.getByTestId("can-delete-operator")).toHaveTextContent(
       "false",
@@ -296,7 +314,7 @@ describe("CommentAccordion", () => {
 
   it("updates local unread count after marking as read", async () => {
     const { rerender } = render(
-      <CommentAccordion postId="123" unreadCount={3} />,
+      <CommentAccordion postId="123" currentAccountId="42" unreadCount={3} />,
     );
 
     expect(screen.getByText(/Unread: 3/)).toBeInTheDocument();
@@ -309,7 +327,9 @@ describe("CommentAccordion", () => {
     });
 
     // After marking as read, unread count should be 0
-    rerender(<CommentAccordion postId="123" unreadCount={0} />);
+    rerender(
+      <CommentAccordion postId="123" currentAccountId="42" unreadCount={0} />,
+    );
     expect(screen.getByText(/Unread: 0/)).toBeInTheDocument();
   });
 });

@@ -102,6 +102,7 @@ export const STATUS_STYLES: Record<Suggestion["status"], string> = {
 export interface BackendComment {
   id: number;
   content: string;
+  author_id: number;
   author_name: string;
   author_type: "operator" | "user";
   created_at: string;
@@ -110,6 +111,7 @@ export interface BackendComment {
 export interface SuggestionComment {
   id: string;
   content: string;
+  authorId: string;
   authorName: string;
   authorType: "operator" | "user";
   createdAt: string;
@@ -119,6 +121,7 @@ export function mapCommentResponse(data: BackendComment): SuggestionComment {
   return {
     id: data.id.toString(),
     content: data.content,
+    authorId: data.author_id.toString(),
     authorName: data.author_name,
     authorType: data.author_type,
     createdAt: data.created_at,

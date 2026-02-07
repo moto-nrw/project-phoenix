@@ -87,6 +87,7 @@ describe("OperatorCommentAccordion", () => {
       {
         id: "1",
         content: "Test comment",
+        authorId: "42",
         authorName: "User",
         authorType: "user",
         createdAt: "2024-01-01T00:00:00Z",
