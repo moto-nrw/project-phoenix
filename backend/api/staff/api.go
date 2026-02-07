@@ -1052,71 +1052,61 @@ type StaffWithRoleResponse struct {
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
-// getStaffByRole handles GET /api/staff/by-role?role=user
+// getStaffByRole handles GET /api/staff/by-role?role=user or ?roles=teacher,staff,user
 // Returns staff members filtered by account role (useful for group transfer dropdowns)
-// Partially optimized: uses ListAllWithPerson to avoid N+1 for person data
-// Note: Account and role lookups still require per-staff queries (TODO: batch load accounts/roles)
 func (rs *Resource) getStaffByRole(w http.ResponseWriter, r *http.Request) {
-	roleName := r.URL.Query().Get("role")
-	if roleName == "" {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New("role parameter is required")))
+	// Support both ?role=teacher (singular, backward compat) and ?roles=teacher,staff,user (multi)
+	rolesParam := r.URL.Query().Get("roles")
+	roleParam := r.URL.Query().Get("role")
+
+	var roles []string
+	if rolesParam != "" {
+		// Parse comma-separated roles
+		for _, role := range strings.Split(rolesParam, ",") {
+			role = strings.TrimSpace(role)
+			if role != "" {
+				roles = append(roles, role)
+			}
+		}
+	} else if roleParam != "" {
+		roles = []string{strings.TrimSpace(roleParam)}
+	}
+
+	if len(roles) == 0 {
+		common.RenderError(w, r, ErrorInvalidRequest(errors.New("role or roles parameter is required")))
 		return
 	}
 
 	ctx := r.Context()
 
-	// Get all staff with person data in a single query (avoids N+1 for person loading)
-	staff, err := rs.StaffRepo.ListAllWithPerson(ctx)
+	staffByRoles, err := rs.StaffRepo.ListStaffByRoles(ctx, roles)
 	if err != nil {
 		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
-	results := rs.filterStaffByRoleOptimized(ctx, staff, roleName)
-	common.Respond(w, r, http.StatusOK, results, "Staff members with role retrieved successfully")
-}
-
-// filterStaffByRoleOptimized filters staff members by role using pre-loaded person data
-func (rs *Resource) filterStaffByRoleOptimized(ctx context.Context, staff []*users.Staff, roleName string) []StaffWithRoleResponse {
+	// Deduplicate by staff ID (a staff member with multiple matching roles appears once)
+	seen := make(map[int64]bool)
 	var results []StaffWithRoleResponse
-
-	for _, s := range staff {
-		entry := rs.buildStaffRoleEntryOptimized(ctx, s, roleName)
-		if entry != nil {
-			results = append(results, *entry)
+	for _, s := range staffByRoles {
+		if seen[s.StaffID] {
+			continue
 		}
-	}
-	return results
-}
-
-// buildStaffRoleEntryOptimized creates a role response entry using pre-loaded person data
-// Note: Account and role lookups still require DB queries (TODO: batch load)
-func (rs *Resource) buildStaffRoleEntryOptimized(ctx context.Context, s *users.Staff, roleName string) *StaffWithRoleResponse {
-	// Person is already loaded via ListAllWithPerson
-	if s.Person == nil || s.Person.AccountID == nil {
-		return nil
-	}
-
-	account, err := rs.AuthService.GetAccountByID(ctx, int(*s.Person.AccountID))
-	if err != nil || account == nil {
-		return nil
+		seen[s.StaffID] = true
+		results = append(results, StaffWithRoleResponse{
+			ID:        s.StaffID,
+			PersonID:  s.PersonID,
+			FirstName: s.FirstName,
+			LastName:  s.LastName,
+			FullName:  s.FirstName + " " + s.LastName,
+			AccountID: s.AccountID,
+			Email:     s.Email,
+			CreatedAt: s.CreatedAt,
+			UpdatedAt: s.UpdatedAt,
+		})
 	}
 
-	if !rs.accountHasRole(ctx, account.ID, roleName) {
-		return nil
-	}
-
-	return &StaffWithRoleResponse{
-		ID:        s.ID,
-		PersonID:  s.Person.ID,
-		FirstName: s.Person.FirstName,
-		LastName:  s.Person.LastName,
-		FullName:  s.Person.FirstName + " " + s.Person.LastName,
-		AccountID: *s.Person.AccountID,
-		Email:     account.Email,
-		CreatedAt: s.CreatedAt,
-		UpdatedAt: s.UpdatedAt,
-	}
+	common.Respond(w, r, http.StatusOK, results, "Staff members with role retrieved successfully")
 }
 
 // accountHasRole checks if an account has a specific role

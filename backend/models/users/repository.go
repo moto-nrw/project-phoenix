@@ -158,6 +158,10 @@ type StaffRepository interface {
 
 	// FindWithPerson retrieves a staff member with their associated person data
 	FindWithPerson(ctx context.Context, id int64) (*Staff, error)
+
+	// ListStaffByRoles retrieves staff members who have any of the specified roles,
+	// including their person data, account ID, and email, using a single JOIN query.
+	ListStaffByRoles(ctx context.Context, roles []string) ([]*StaffWithRoleInfo, error)
 }
 
 // TeacherRepository defines operations for managing teachers

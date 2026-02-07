@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
@@ -220,6 +221,44 @@ func (r *StaffRepository) FindWithPerson(ctx context.Context, id int64) (*users.
 	}
 
 	return staff, nil
+}
+
+// ListStaffByRoles retrieves staff members who have any of the specified roles,
+// including their person data, account ID, and email, using a single JOIN query.
+func (r *StaffRepository) ListStaffByRoles(ctx context.Context, roles []string) ([]*users.StaffWithRoleInfo, error) {
+	// Lowercase all role names for case-insensitive matching
+	lowerRoles := make([]string, len(roles))
+	for i, role := range roles {
+		lowerRoles[i] = strings.ToLower(role)
+	}
+
+	var results []*users.StaffWithRoleInfo
+
+	err := r.db.NewSelect().
+		ModelTableExpr(`users.staff AS "staff"`).
+		ColumnExpr(`"staff".id AS staff_id`).
+		ColumnExpr(`"staff".created_at`).
+		ColumnExpr(`"staff".updated_at`).
+		ColumnExpr(`"staff".person_id`).
+		ColumnExpr(`"person".first_name`).
+		ColumnExpr(`"person".last_name`).
+		ColumnExpr(`"account".id AS account_id`).
+		ColumnExpr(`"account".email`).
+		Join(`INNER JOIN users.persons AS "person" ON "person".id = "staff".person_id`).
+		Join(`INNER JOIN auth.accounts AS "account" ON "account".id = "person".account_id`).
+		Join(`INNER JOIN auth.account_roles AS "ar" ON "ar".account_id = "account".id`).
+		Join(`INNER JOIN auth.roles AS "role" ON "ar".role_id = "role".id`).
+		Where(`LOWER("role".name) IN (?)`, bun.In(lowerRoles)).
+		Scan(ctx, &results)
+
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "list staff by roles",
+			Err: err,
+		}
+	}
+
+	return results, nil
 }
 
 // AddNotes adds notes to a staff member's existing notes
