@@ -26,12 +26,13 @@ func TestAnnouncementRepository_Create(t *testing.T) {
 
 	t.Run("Success", func(t *testing.T) {
 		announcement := &platformModels.Announcement{
-			Title:     "Test Announcement",
-			Content:   "This is a test announcement",
-			Type:      platformModels.TypeAnnouncement,
-			Severity:  platformModels.SeverityInfo,
-			Active:    true,
-			CreatedBy: operator.ID,
+			Title:       "Test Announcement",
+			Content:     "This is a test announcement",
+			Type:        platformModels.TypeAnnouncement,
+			Severity:    platformModels.SeverityInfo,
+			Active:      true,
+			CreatedBy:   operator.ID,
+			TargetRoles: []string{"all"},
 		}
 
 		err := repo.Create(ctx, announcement)
@@ -51,11 +52,12 @@ func TestAnnouncementRepository_Create(t *testing.T) {
 
 	t.Run("ValidationError_EmptyTitle", func(t *testing.T) {
 		announcement := &platformModels.Announcement{
-			Title:     "",
-			Content:   "Content",
-			Type:      platformModels.TypeAnnouncement,
-			Severity:  platformModels.SeverityInfo,
-			CreatedBy: operator.ID,
+			Title:       "",
+			Content:     "Content",
+			Type:        platformModels.TypeAnnouncement,
+			Severity:    platformModels.SeverityInfo,
+			CreatedBy:   operator.ID,
+			TargetRoles: []string{"all"},
 		}
 
 		err := repo.Create(ctx, announcement)
@@ -65,11 +67,12 @@ func TestAnnouncementRepository_Create(t *testing.T) {
 
 	t.Run("ValidationError_InvalidType", func(t *testing.T) {
 		announcement := &platformModels.Announcement{
-			Title:     "Test",
-			Content:   "Content",
-			Type:      "invalid",
-			Severity:  platformModels.SeverityInfo,
-			CreatedBy: operator.ID,
+			Title:       "Test",
+			Content:     "Content",
+			Type:        "invalid",
+			Severity:    platformModels.SeverityInfo,
+			CreatedBy:   operator.ID,
+			TargetRoles: []string{"all"},
 		}
 
 		err := repo.Create(ctx, announcement)
@@ -370,12 +373,13 @@ func createTestAnnouncement(t *testing.T, db *bun.DB, title string, createdBy in
 	t.Helper()
 
 	announcement := &platformModels.Announcement{
-		Title:     title,
-		Content:   "Test content for " + title,
-		Type:      platformModels.TypeAnnouncement,
-		Severity:  platformModels.SeverityInfo,
-		Active:    true,
-		CreatedBy: createdBy,
+		Title:       title,
+		Content:     "Test content for " + title,
+		Type:        platformModels.TypeAnnouncement,
+		Severity:    platformModels.SeverityInfo,
+		Active:      true,
+		CreatedBy:   createdBy,
+		TargetRoles: []string{"all"},
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)

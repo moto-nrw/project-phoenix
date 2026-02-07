@@ -20,7 +20,7 @@ func TestAnnouncementService_CreateAnnouncement_Success(t *testing.T) {
 	ctx := context.Background()
 	announcementRepo := &mockAnnouncementRepoShared{
 		createFn: func(ctx context.Context, announcement *platform.Announcement) error {
-			announcement.ID = 1
+			announcement.ID = 42
 			return nil
 		},
 	}
@@ -42,9 +42,9 @@ func TestAnnouncementService_CreateAnnouncement_Success(t *testing.T) {
 		Severity: platform.SeverityInfo,
 	}
 
-	err := service.CreateAnnouncement(ctx, announcement, 1, net.ParseIP("127.0.0.1"))
+	err := service.CreateAnnouncement(ctx, announcement, 42, net.ParseIP("127.0.0.1"))
 	require.NoError(t, err)
-	assert.Equal(t, int64(1), announcement.CreatedBy)
+	assert.Equal(t, int64(42), announcement.CreatedBy)
 }
 
 func TestAnnouncementService_CreateAnnouncement_NilAnnouncement(t *testing.T) {
@@ -126,7 +126,7 @@ func TestAnnouncementService_GetAnnouncement_Success(t *testing.T) {
 		findByIDFn: func(ctx context.Context, id int64) (*platform.Announcement, error) {
 			return &platform.Announcement{
 				Model: base.Model{
-					ID: 1,
+					ID: 42,
 				},
 				Title:    "Test",
 				Content:  "Content",
@@ -146,10 +146,10 @@ func TestAnnouncementService_GetAnnouncement_Success(t *testing.T) {
 		Logger:               slog.Default(),
 	})
 
-	announcement, err := service.GetAnnouncement(ctx, 1)
+	announcement, err := service.GetAnnouncement(ctx, 42)
 	require.NoError(t, err)
 	assert.NotNil(t, announcement)
-	assert.Equal(t, int64(1), announcement.ID)
+	assert.Equal(t, int64(42), announcement.ID)
 }
 
 func TestAnnouncementService_GetAnnouncement_NotFound(t *testing.T) {
@@ -552,7 +552,7 @@ func TestAnnouncementService_GetStats_Success(t *testing.T) {
 		findByIDFn: func(ctx context.Context, id int64) (*platform.Announcement, error) {
 			return &platform.Announcement{
 				Model: base.Model{
-					ID: 1,
+					ID: 42,
 				},
 				Title:    "Test",
 				Content:  "Content",
@@ -581,10 +581,10 @@ func TestAnnouncementService_GetStats_Success(t *testing.T) {
 		Logger:               slog.Default(),
 	})
 
-	stats, err := service.GetStats(ctx, 1)
+	stats, err := service.GetStats(ctx, 42)
 	require.NoError(t, err)
 	assert.NotNil(t, stats)
-	assert.Equal(t, int64(1), stats.AnnouncementID)
+	assert.Equal(t, int64(42), stats.AnnouncementID)
 	assert.Equal(t, 100, stats.TargetCount)
 	assert.Equal(t, 50, stats.SeenCount)
 }
@@ -618,7 +618,7 @@ func TestAnnouncementService_GetViewDetails_Success(t *testing.T) {
 		findByIDFn: func(ctx context.Context, id int64) (*platform.Announcement, error) {
 			return &platform.Announcement{
 				Model: base.Model{
-					ID: 1,
+					ID: 42,
 				},
 				Title:    "Test",
 				Content:  "Content",
@@ -630,8 +630,8 @@ func TestAnnouncementService_GetViewDetails_Success(t *testing.T) {
 	viewRepo := &mockAnnouncementViewRepoShared{
 		getViewDetailsFn: func(ctx context.Context, announcementID int64) ([]*platform.AnnouncementViewDetail, error) {
 			return []*platform.AnnouncementViewDetail{
-				{UserID: 1, UserName: "User 1", SeenAt: time.Now(), Dismissed: false},
-				{UserID: 2, UserName: "User 2", SeenAt: time.Now(), Dismissed: true},
+				{UserID: 42, UserName: "User 1", SeenAt: time.Now(), Dismissed: false},
+				{UserID: 43, UserName: "User 2", SeenAt: time.Now(), Dismissed: true},
 			}, nil
 		},
 	}
@@ -645,10 +645,10 @@ func TestAnnouncementService_GetViewDetails_Success(t *testing.T) {
 		Logger:               slog.Default(),
 	})
 
-	details, err := service.GetViewDetails(ctx, 1)
+	details, err := service.GetViewDetails(ctx, 42)
 	require.NoError(t, err)
 	assert.Len(t, details, 2)
-	assert.Equal(t, int64(1), details[0].UserID)
+	assert.Equal(t, int64(42), details[0].UserID)
 	assert.Equal(t, "User 1", details[0].UserName)
 }
 

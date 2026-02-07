@@ -3,6 +3,7 @@ package suggestions_test
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -48,11 +49,22 @@ func createTestOperator(t *testing.T, db *bun.DB, displayName string) int64 {
 	defer cancel()
 
 	type operator struct {
-		ID          int64  `bun:"id,pk,autoincrement"`
-		DisplayName string `bun:"display_name"`
+		ID           int64  `bun:"id,pk,autoincrement"`
+		Email        string `bun:"email"`
+		DisplayName  string `bun:"display_name"`
+		PasswordHash string `bun:"password_hash"`
+		Active       bool   `bun:"active"`
 	}
 
-	op := &operator{DisplayName: displayName}
+	email := fmt.Sprintf("%s-%d@test.com",
+		strings.ReplaceAll(strings.ToLower(displayName), " ", ""),
+		time.Now().UnixNano())
+	op := &operator{
+		Email:        email,
+		DisplayName:  displayName,
+		PasswordHash: "dummy-hash",
+		Active:       true,
+	}
 	_, err := db.NewInsert().
 		Model(op).
 		ModelTableExpr("platform.operators").

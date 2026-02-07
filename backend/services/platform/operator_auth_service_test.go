@@ -147,7 +147,7 @@ func TestOperatorAuthService_GetOperator_Success(t *testing.T) {
 		findByIDFn: func(ctx context.Context, id int64) (*platform.Operator, error) {
 			return &platform.Operator{
 				Model: base.Model{
-					ID: 1,
+					ID: 42,
 				},
 				Email:       "operator@example.com",
 				DisplayName: "Test Operator",
@@ -165,10 +165,10 @@ func TestOperatorAuthService_GetOperator_Success(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	operator, err := service.GetOperator(ctx, 1)
+	operator, err := service.GetOperator(ctx, 42)
 	require.NoError(t, err)
 	assert.NotNil(t, operator)
-	assert.Equal(t, int64(1), operator.ID)
+	assert.Equal(t, int64(42), operator.ID)
 	assert.Equal(t, "operator@example.com", operator.Email)
 }
 
