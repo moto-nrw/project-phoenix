@@ -12,6 +12,7 @@ import { useBreadcrumb } from "~/lib/breadcrumb-context";
 
 // Import extracted components
 import { BrandLink, BreadcrumbDivider } from "./header/brand-link";
+import { RefreshButton } from "./header/refresh-button";
 import { SessionWarning } from "./header/session-warning";
 import { ProfileTrigger, ProfileDropdownMenu } from "./header/profile-dropdown";
 import {
@@ -132,6 +133,7 @@ export function Header() {
             {/* Desktop actions */}
             <div className="hidden items-center space-x-2 lg:flex">
               <SessionWarning isExpired={isSessionExpired} variant="desktop" />
+              <RefreshButton />
               <HelpButton
                 title={helpContent.title}
                 content={helpContent.content}
@@ -142,6 +144,7 @@ export function Header() {
             {/* Mobile actions */}
             <div className="flex items-center space-x-2 lg:hidden">
               <SessionWarning isExpired={isSessionExpired} variant="mobile" />
+              <RefreshButton />
             </div>
 
             {/* User menu */}
