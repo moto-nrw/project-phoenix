@@ -41,5 +41,8 @@ type Service interface {
 	// Authentication operations
 	GetDeviceByAPIKey(ctx context.Context, apiKey string) (*iot.Device, error)
 
+	// Targeted last-seen update (skips existence check and full-model update)
+	UpdateDeviceLastSeen(ctx context.Context, deviceID string) error
+
 	// Transaction support is provided by base.TransactionalService
 }
