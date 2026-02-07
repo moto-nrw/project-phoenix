@@ -35,6 +35,10 @@ import (
 	timeTrackingAPI "github.com/moto-nrw/project-phoenix/api/time-tracking"
 	usercontextAPI "github.com/moto-nrw/project-phoenix/api/usercontext"
 	usersAPI "github.com/moto-nrw/project-phoenix/api/users"
+
+	operatorAPI "github.com/moto-nrw/project-phoenix/api/operator"
+	platformAPI "github.com/moto-nrw/project-phoenix/api/platform"
+
 	"github.com/moto-nrw/project-phoenix/database"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	customMiddleware "github.com/moto-nrw/project-phoenix/middleware"
@@ -68,6 +72,10 @@ type API struct {
 	Database         *databaseAPI.Resource
 	GradeTransitions *adminAPI.GradeTransitionResource
 	TimeTracking     *timeTrackingAPI.Resource
+
+	// Operator Dashboard (platform domain)
+	Operator *operatorAPI.Resource
+	Platform *platformAPI.Resource
 }
 
 // New creates a new API instance
@@ -247,6 +255,18 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.Database = databaseAPI.NewResource(api.Services.Database)
 	api.GradeTransitions = adminAPI.NewGradeTransitionResource(api.Services.GradeTransition)
 	api.TimeTracking = timeTrackingAPI.NewResource(api.Services.WorkSession, api.Services.StaffAbsence, api.Services.Users)
+
+	// Initialize operator dashboard resources
+	api.Operator = operatorAPI.NewResource(operatorAPI.ResourceConfig{
+		AuthService:          api.Services.OperatorAuth,
+		SuggestionsService:   api.Services.OperatorSuggestions,
+		AnnouncementsService: api.Services.Announcement,
+		TokenAuth:            nil, // Created internally by operator API
+	})
+	api.Platform = platformAPI.NewResource(platformAPI.ResourceConfig{
+		AnnouncementsService: api.Services.Announcement,
+		TokenAuth:            nil, // Uses tenant auth middleware
+	})
 }
 
 // ServeHTTP implements the http.Handler interface for the API
@@ -365,6 +385,16 @@ func (a *API) registerRoutesWithRateLimiting() {
 		// Mount admin resources
 		r.Mount("/admin/grade-transitions", a.GradeTransitions.Router())
 
+		// Mount platform resources (user-facing announcements)
+		r.Mount("/platform", a.Platform.Router())
+
 		// Add other resource routes here as they are implemented
 	})
+
+	// Mount operator dashboard routes at root level (separate from tenant API)
+	// Apply the same auth rate limiter to operator login for brute-force protection
+	if rateLimitEnabled && authRateLimiter != nil {
+		a.Operator.SetAuthRateLimiter(authRateLimiter.Middleware())
+	}
+	a.Router.Mount("/operator", a.Operator.Router())
 }

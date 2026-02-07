@@ -3,74 +3,17 @@ import { NextResponse } from "next/server";
 import { auth } from "../server/auth";
 import type { ApiErrorResponse, ApiResponse } from "./api-helpers";
 import { apiDelete, apiGet, apiPut, handleApiError } from "./api-helpers";
+import {
+  type RouteContext,
+  buildQueryString,
+  extractParams,
+  parseRequestBody,
+  wrapInApiResponse,
+  createUnauthorizedResponse,
+  isStringParam,
+} from "./route-wrapper-utils";
 
-/**
- * Helper to build query string from request search params
- */
-function buildQueryString(request: NextRequest): string {
-  const queryParams = new URLSearchParams();
-  request.nextUrl.searchParams.forEach((value, key) => {
-    queryParams.append(key, value);
-  });
-  const queryString = queryParams.toString();
-  return queryString ? `?${queryString}` : "";
-}
-
-/**
- * Type guard to check if parameter exists and is a string
- */
-export function isStringParam(param: unknown): param is string {
-  return typeof param === "string";
-}
-
-/**
- * Extracts parameters from context and URL
- */
-async function extractParams(
-  request: NextRequest,
-  context: { params: Promise<Record<string, string | string[] | undefined>> },
-): Promise<Record<string, unknown>> {
-  const safeParams: Record<string, unknown> = {};
-
-  // Get params from context
-  const contextParams = await context.params;
-  if (contextParams) {
-    Object.entries(contextParams).forEach(([key, value]) => {
-      if (value !== undefined) {
-        safeParams[key] = value;
-      }
-    });
-  }
-
-  // Extract parameters from URL path
-  const url = new URL(request.url);
-  const pathParts = url.pathname.split("/");
-
-  // Try to extract ID from URL path parts if not already set
-  if (!safeParams.id) {
-    const potentialIds = pathParts.filter((part) => /^\d+$/.test(part));
-    if (potentialIds.length > 0) {
-      safeParams.id = potentialIds.at(-1);
-    }
-  }
-
-  // Extract search params
-  url.searchParams.forEach((value, key) => {
-    safeParams[key] = value;
-  });
-
-  return safeParams;
-}
-
-/**
- * Wraps data in ApiResponse format if not already wrapped
- */
-function wrapInApiResponse<T>(data: T): ApiResponse<T> {
-  if (typeof data === "object" && data !== null && "success" in data) {
-    return data as unknown as ApiResponse<T>;
-  }
-  return { success: true, message: "Success", data };
-}
+export { isStringParam } from "./route-wrapper-utils";
 
 /**
  * Checks if error is a 401 authentication error
@@ -125,18 +68,6 @@ function formatGetResponse<T>(
 }
 
 /**
- * Parses JSON body from request, returns empty object on failure
- */
-async function parseRequestBody<B>(request: NextRequest): Promise<B> {
-  try {
-    const text = await request.text();
-    return text ? (JSON.parse(text) as B) : ({} as B);
-  } catch {
-    return {} as B;
-  }
-}
-
-/**
  * Formats DELETE response, returning 204 for null/undefined data
  */
 function formatDeleteResponse<T>(data: T): ApiNextResponse<T> {
@@ -146,20 +77,6 @@ function formatDeleteResponse<T>(data: T): ApiNextResponse<T> {
   }
   return NextResponse.json(wrapInApiResponse(data));
 }
-
-/**
- * Creates an unauthorized response
- */
-function createUnauthorizedResponse(): NextResponse<ApiErrorResponse> {
-  return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-}
-
-/**
- * Route context type for Next.js 15+
- */
-type RouteContext = {
-  params: Promise<Record<string, string | string[] | undefined>>;
-};
 
 /**
  * Standard API response wrapped in NextResponse

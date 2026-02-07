@@ -143,6 +143,14 @@ import type {
 const today = new Date();
 const todayISO = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
 
+// WeekTable skips weekends (day 0=Sun, 6=Sat). When today is a weekend,
+// shift test dates to the nearest weekday (previous Friday) so rows render.
+const isWeekend = today.getDay() === 0 || today.getDay() === 6;
+const weekday = new Date(today);
+if (weekday.getDay() === 0) weekday.setDate(weekday.getDate() - 2); // Sun → Fri
+if (weekday.getDay() === 6) weekday.setDate(weekday.getDate() - 1); // Sat → Fri
+const weekdayISO = `${weekday.getFullYear()}-${String(weekday.getMonth() + 1).padStart(2, "0")}-${String(weekday.getDate()).padStart(2, "0")}`;
+
 const mockActiveSession: WorkSession = {
   id: "100",
   staffId: "10",
@@ -176,8 +184,11 @@ const mockHistorySession: WorkSessionHistory = {
 
 const mockHistorySessionWithEdits: WorkSessionHistory = {
   ...mockHistorySession,
+  date: weekdayISO,
+  checkInTime: `${weekdayISO}T08:00:00Z`,
+  checkOutTime: `${weekdayISO}T16:30:00Z`,
   editCount: 2,
-  updatedAt: `${todayISO}T17:00:00Z`,
+  updatedAt: `${weekdayISO}T17:00:00Z`,
 };
 
 const mockHistorySessionNonCompliant: WorkSessionHistory = {
@@ -196,7 +207,7 @@ const mockAbsence: StaffAbsence = {
   id: "200",
   staffId: "10",
   absenceType: "sick",
-  dateStart: todayISO,
+  dateStart: weekdayISO,
   dateEnd: todayISO,
   halfDay: false,
   note: "",
@@ -805,9 +816,9 @@ describe("TimeTrackingPage", () => {
       });
 
       await waitFor(() => {
-        // "Krank" appears in both the table and the confirmation modal
+        // "Krank" appears in the confirmation modal (and also in the table on weekdays)
         const krankTexts = screen.getAllByText(/Krank/);
-        expect(krankTexts.length).toBeGreaterThanOrEqual(2);
+        expect(krankTexts.length).toBeGreaterThanOrEqual(1);
       });
     });
   });
@@ -1438,9 +1449,9 @@ describe("TimeTrackingPage", () => {
     ): WorkSessionHistory {
       return {
         ...mockHistorySession,
-        date: todayISO,
-        checkInTime: `${todayISO}T08:00:00Z`,
-        checkOutTime: `${todayISO}T16:30:00Z`,
+        date: weekdayISO,
+        checkInTime: `${weekdayISO}T08:00:00Z`,
+        checkOutTime: `${weekdayISO}T16:30:00Z`,
         ...overrides,
       };
     }
@@ -1646,7 +1657,7 @@ describe("TimeTrackingPage", () => {
     });
 
     it("shows individual break durations when session has breaks", async () => {
-      const yISO = todayISO;
+      const yISO = weekdayISO;
       const sessionWithBreaks = makePastSession({
         breaks: [
           {
@@ -1677,7 +1688,7 @@ describe("TimeTrackingPage", () => {
     });
 
     it("saves with individual break changes when breaks exist", async () => {
-      const yISO = todayISO;
+      const yISO = weekdayISO;
       const mockToast = {
         success: vi.fn(),
         error: vi.fn(),
@@ -1735,7 +1746,7 @@ describe("TimeTrackingPage", () => {
     });
 
     it("modal title is 'Abwesenheit bearbeiten' for absence-only", async () => {
-      const yISO = todayISO;
+      const yISO = weekdayISO;
       const pastAbsence: StaffAbsence = {
         ...mockAbsence,
         dateStart: yISO,
@@ -1759,7 +1770,7 @@ describe("TimeTrackingPage", () => {
     });
 
     it("modal title is 'Tag bearbeiten' when both session and absence exist", async () => {
-      const yISO = todayISO;
+      const yISO = weekdayISO;
       const pastSession = makePastSession();
       const pastAbsence: StaffAbsence = {
         ...mockAbsence,
@@ -1774,7 +1785,7 @@ describe("TimeTrackingPage", () => {
     });
 
     it("shows tabs when both session and absence exist", async () => {
-      const yISO = todayISO;
+      const yISO = weekdayISO;
       const pastSession = makePastSession();
       const pastAbsence: StaffAbsence = {
         ...mockAbsence,
@@ -1788,7 +1799,7 @@ describe("TimeTrackingPage", () => {
     });
 
     it("switches to absence tab and shows absence fields", async () => {
-      const yISO = todayISO;
+      const yISO = weekdayISO;
       const pastSession = makePastSession();
       const pastAbsence: StaffAbsence = {
         ...mockAbsence,
@@ -1818,7 +1829,7 @@ describe("TimeTrackingPage", () => {
       };
       vi.mocked(useToast).mockReturnValue(mockToast);
 
-      const yISO = todayISO;
+      const yISO = weekdayISO;
       const pastSession = makePastSession();
       const pastAbsence: StaffAbsence = {
         ...mockAbsence,
@@ -1860,7 +1871,7 @@ describe("TimeTrackingPage", () => {
       };
       vi.mocked(useToast).mockReturnValue(mockToast);
 
-      const yISO = todayISO;
+      const yISO = weekdayISO;
       const pastSession = makePastSession();
       const pastAbsence: StaffAbsence = {
         ...mockAbsence,
@@ -1912,7 +1923,7 @@ describe("TimeTrackingPage", () => {
     });
 
     it("shows absence note textarea in absence tab", async () => {
-      const yISO = todayISO;
+      const yISO = weekdayISO;
       const pastSession = makePastSession();
       const pastAbsence: StaffAbsence = {
         ...mockAbsence,
@@ -1933,7 +1944,7 @@ describe("TimeTrackingPage", () => {
     });
 
     it("toggles half day switch in absence tab", async () => {
-      const yISO = todayISO;
+      const yISO = weekdayISO;
       const pastSession = makePastSession();
       const pastAbsence: StaffAbsence = {
         ...mockAbsence,
@@ -2191,6 +2202,7 @@ describe("TimeTrackingPage", () => {
 
   describe("WeekTable desktop - detailed branches", () => {
     it("shows active session with 'aktiv' badge and ... for end time", () => {
+      // "aktiv" badge only renders when today is a weekday (WeekTable skips weekends)
       const activeHistory: WorkSessionHistory = {
         ...mockHistorySession,
         date: todayISO,
@@ -2206,11 +2218,16 @@ describe("TimeTrackingPage", () => {
       render(<TimeTrackingPage />);
 
       const aktivBadges = screen.queryAllByText("aktiv");
-      expect(aktivBadges.length).toBeGreaterThan(0);
+      if (!isWeekend) {
+        expect(aktivBadges.length).toBeGreaterThan(0);
+      } else {
+        // On weekends, today's row is not rendered in WeekTable
+        expect(aktivBadges.length).toBe(0);
+      }
     });
 
     it("shows home_office badge as 'Homeoffice' in desktop table", () => {
-      const yISO = todayISO;
+      const yISO = weekdayISO;
       const hoSession: WorkSessionHistory = {
         ...mockHistorySession,
         date: yISO,
@@ -2227,7 +2244,7 @@ describe("TimeTrackingPage", () => {
     });
 
     it("shows 'In der OGS' badge for present status sessions", () => {
-      const yISO = todayISO;
+      const yISO = weekdayISO;
       const presentSession: WorkSessionHistory = {
         ...mockHistorySession,
         date: yISO,
@@ -2474,7 +2491,7 @@ describe("TimeTrackingPage", () => {
 
     it("shows 'Weitere Änderung vornehmen' button for editable sessions", async () => {
       // Need a past session with edits to show accordion with edit button
-      const yISO = todayISO;
+      const yISO = weekdayISO;
       const pastSessionWithEdits: WorkSessionHistory = {
         ...mockHistorySession,
         date: yISO,
@@ -2665,7 +2682,7 @@ describe("TimeTrackingPage", () => {
       };
       vi.mocked(useToast).mockReturnValue(mockToast);
 
-      const yISO = todayISO;
+      const yISO = weekdayISO;
       const pastSession: WorkSessionHistory = {
         ...mockHistorySession,
         date: yISO,
@@ -2725,7 +2742,7 @@ describe("TimeTrackingPage", () => {
       };
       vi.mocked(useToast).mockReturnValue(mockToast);
 
-      const yISO = todayISO;
+      const yISO = weekdayISO;
       const pastSession: WorkSessionHistory = {
         ...mockHistorySession,
         date: yISO,
@@ -2772,7 +2789,7 @@ describe("TimeTrackingPage", () => {
       };
       vi.mocked(useToast).mockReturnValue(mockToast);
 
-      const yISO = todayISO;
+      const yISO = weekdayISO;
       const pastAbsence: StaffAbsence = {
         ...mockAbsence,
         dateStart: yISO,
@@ -2820,7 +2837,7 @@ describe("TimeTrackingPage", () => {
       };
       vi.mocked(useToast).mockReturnValue(mockToast);
 
-      const yISO = todayISO;
+      const yISO = weekdayISO;
       const pastSession: WorkSessionHistory = {
         ...mockHistorySession,
         date: yISO,
@@ -2885,7 +2902,7 @@ describe("TimeTrackingPage", () => {
       };
       vi.mocked(useToast).mockReturnValue(mockToast);
 
-      const yISO = todayISO;
+      const yISO = weekdayISO;
       const pastAbsence: StaffAbsence = {
         ...mockAbsence,
         dateStart: yISO,
@@ -2931,7 +2948,7 @@ describe("TimeTrackingPage", () => {
       };
       vi.mocked(useToast).mockReturnValue(mockToast);
 
-      const yISO = todayISO;
+      const yISO = weekdayISO;
       const pastSession: WorkSessionHistory = {
         ...mockHistorySession,
         date: yISO,
@@ -2998,9 +3015,9 @@ describe("TimeTrackingPage", () => {
       });
 
       await waitFor(() => {
-        // "Urlaub" appears in both the table absence badge and confirmation modal text
+        // "Urlaub" appears in the confirmation modal (and also in the table on weekdays)
         const urlaubTexts = screen.queryAllByText(/Urlaub/);
-        expect(urlaubTexts.length).toBeGreaterThanOrEqual(2);
+        expect(urlaubTexts.length).toBeGreaterThanOrEqual(1);
       });
     });
 
@@ -3098,7 +3115,7 @@ describe("TimeTrackingPage", () => {
     });
 
     it("shows mobile card view with session data on small screens", () => {
-      const yISO = todayISO;
+      const yISO = weekdayISO;
       const pastSession: WorkSessionHistory = {
         ...mockHistorySession,
         date: yISO,
@@ -3115,7 +3132,7 @@ describe("TimeTrackingPage", () => {
     });
 
     it("shows absence-only card in mobile view", () => {
-      const yISO = todayISO;
+      const yISO = weekdayISO;
       const pastAbsence: StaffAbsence = {
         ...mockAbsence,
         dateStart: yISO,
@@ -3131,7 +3148,7 @@ describe("TimeTrackingPage", () => {
     });
 
     it("shows edit button in mobile card for past editable session", () => {
-      const yISO = todayISO;
+      const yISO = weekdayISO;
       const pastSession: WorkSessionHistory = {
         ...mockHistorySession,
         date: yISO,
@@ -3169,7 +3186,7 @@ describe("TimeTrackingPage", () => {
     });
 
     it("shows HO badge on mobile for home_office session", () => {
-      const yISO = todayISO;
+      const yISO = weekdayISO;
       const hoSession: WorkSessionHistory = {
         ...mockHistorySession,
         date: yISO,
@@ -3187,7 +3204,7 @@ describe("TimeTrackingPage", () => {
     });
 
     it("shows OGS badge on mobile for present session", () => {
-      const yISO = todayISO;
+      const yISO = weekdayISO;
       const presentSession: WorkSessionHistory = {
         ...mockHistorySession,
         date: yISO,
@@ -3205,7 +3222,7 @@ describe("TimeTrackingPage", () => {
     });
 
     it("shows edit history toggle on mobile for sessions with edits", () => {
-      const yISO = todayISO;
+      const yISO = weekdayISO;
       const sessionWithEdits: WorkSessionHistory = {
         ...mockHistorySession,
         date: yISO,
@@ -3294,7 +3311,7 @@ describe("TimeTrackingPage", () => {
       };
       vi.mocked(useToast).mockReturnValue(mockToast);
 
-      const yISO = todayISO;
+      const yISO = weekdayISO;
       const pastSession: WorkSessionHistory = {
         ...mockHistorySession,
         date: yISO,
@@ -3382,7 +3399,7 @@ describe("TimeTrackingPage", () => {
       };
       vi.mocked(useToast).mockReturnValue(mockToast);
 
-      const yISO = todayISO;
+      const yISO = weekdayISO;
       const pastAbsence: StaffAbsence = {
         ...mockAbsence,
         dateStart: yISO,
@@ -3433,7 +3450,7 @@ describe("TimeTrackingPage", () => {
     });
 
     it("shows absence badge alongside session data on mobile", () => {
-      const yISO = todayISO;
+      const yISO = weekdayISO;
       const pastSession: WorkSessionHistory = {
         ...mockHistorySession,
         date: yISO,

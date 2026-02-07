@@ -30,6 +30,8 @@ function createSuggestion(overrides?: Partial<Suggestion>): Suggestion {
     score: 3,
     upvotes: 4,
     downvotes: 1,
+    commentCount: 0,
+    unreadCount: 0,
     userVote: null,
     createdAt: "2025-01-01T00:00:00Z",
     updatedAt: "2025-01-01T00:00:00Z",

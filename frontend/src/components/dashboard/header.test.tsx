@@ -140,6 +140,19 @@ vi.mock("./header/breadcrumb-utils", () => ({
   }),
 }));
 
+vi.mock("~/lib/shell-auth-context", () => ({
+  useShellAuth: () => ({
+    user: { name: "Test User", email: "test@example.com", roles: ["admin"] },
+    profile: { firstName: "John", lastName: "Doe" },
+    status: "authenticated",
+    isSessionExpired: false,
+    logout: vi.fn(),
+    mode: "teacher",
+    homeUrl: "/dashboard",
+    settingsUrl: "/settings",
+  }),
+}));
+
 // Import component AFTER all mocks are defined
 import { Header } from "./header";
 

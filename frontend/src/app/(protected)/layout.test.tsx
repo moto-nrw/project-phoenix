@@ -9,10 +9,20 @@ vi.mock("~/lib/breadcrumb-context", () => ({
   ),
 }));
 
+vi.mock("~/lib/shell-auth-context", () => ({
+  TeacherShellProvider: ({ children }: { children: React.ReactNode }) => (
+    <div data-testid="teacher-shell-provider">{children}</div>
+  ),
+}));
+
 vi.mock("~/components/dashboard/app-shell", () => ({
   AppShell: ({ children }: { children: React.ReactNode }) => (
     <div data-testid="app-shell">{children}</div>
   ),
+}));
+
+vi.mock("~/components/platform/announcement-modal", () => ({
+  AnnouncementModal: () => <div data-testid="announcement-modal" />,
 }));
 
 describe("ProtectedLayout", () => {
@@ -23,6 +33,7 @@ describe("ProtectedLayout", () => {
       </ProtectedLayout>,
     );
 
+    expect(screen.getByTestId("teacher-shell-provider")).toBeInTheDocument();
     expect(screen.getByTestId("breadcrumb-provider")).toBeInTheDocument();
     expect(screen.getByTestId("app-shell")).toBeInTheDocument();
     expect(screen.getByTestId("child")).toBeInTheDocument();
