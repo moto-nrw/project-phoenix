@@ -27,16 +27,16 @@ func TestPostReadRepository_MarkViewed(t *testing.T) {
 	defer cleanupPosts(t, db, post.ID)
 
 	t.Run("marks post as viewed for first time", func(t *testing.T) {
-		err := repo.MarkViewed(ctx, account.ID, post.ID)
+		err := repo.MarkViewed(ctx, account.ID, post.ID, "user")
 		require.NoError(t, err)
 
-		isViewed, err := repo.IsViewed(ctx, account.ID, post.ID)
+		isViewed, err := repo.IsViewed(ctx, account.ID, post.ID, "user")
 		require.NoError(t, err)
 		assert.True(t, isViewed)
 	})
 
 	t.Run("updates viewed timestamp on subsequent views", func(t *testing.T) {
-		err := repo.MarkViewed(ctx, account.ID, post.ID)
+		err := repo.MarkViewed(ctx, account.ID, post.ID, "user")
 		require.NoError(t, err)
 
 		var firstViewTime time.Time
@@ -49,7 +49,7 @@ func TestPostReadRepository_MarkViewed(t *testing.T) {
 
 		time.Sleep(100 * time.Millisecond)
 
-		err = repo.MarkViewed(ctx, account.ID, post.ID)
+		err = repo.MarkViewed(ctx, account.ID, post.ID, "user")
 		require.NoError(t, err)
 
 		var secondViewTime time.Time
@@ -67,17 +67,17 @@ func TestPostReadRepository_MarkViewed(t *testing.T) {
 		account2 := testpkg.CreateTestAccount(t, db, fmt.Sprintf("post-read-op2-%d", time.Now().UnixNano()))
 		defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account2.ID)
 
-		err := repo.MarkViewed(ctx, account.ID, post.ID)
+		err := repo.MarkViewed(ctx, account.ID, post.ID, "user")
 		require.NoError(t, err)
 
-		err = repo.MarkViewed(ctx, account2.ID, post.ID)
+		err = repo.MarkViewed(ctx, account2.ID, post.ID, "user")
 		require.NoError(t, err)
 
-		isViewed1, err := repo.IsViewed(ctx, account.ID, post.ID)
+		isViewed1, err := repo.IsViewed(ctx, account.ID, post.ID, "user")
 		require.NoError(t, err)
 		assert.True(t, isViewed1)
 
-		isViewed2, err := repo.IsViewed(ctx, account2.ID, post.ID)
+		isViewed2, err := repo.IsViewed(ctx, account2.ID, post.ID, "user")
 		require.NoError(t, err)
 		assert.True(t, isViewed2)
 	})
@@ -97,22 +97,22 @@ func TestPostReadRepository_IsViewed(t *testing.T) {
 	defer cleanupPosts(t, db, post.ID)
 
 	t.Run("returns false when operator never viewed post", func(t *testing.T) {
-		isViewed, err := repo.IsViewed(ctx, account.ID, post.ID)
+		isViewed, err := repo.IsViewed(ctx, account.ID, post.ID, "user")
 		require.NoError(t, err)
 		assert.False(t, isViewed)
 	})
 
 	t.Run("returns true after operator viewed post", func(t *testing.T) {
-		err := repo.MarkViewed(ctx, account.ID, post.ID)
+		err := repo.MarkViewed(ctx, account.ID, post.ID, "user")
 		require.NoError(t, err)
 
-		isViewed, err := repo.IsViewed(ctx, account.ID, post.ID)
+		isViewed, err := repo.IsViewed(ctx, account.ID, post.ID, "user")
 		require.NoError(t, err)
 		assert.True(t, isViewed)
 	})
 
 	t.Run("returns false for non-existent post", func(t *testing.T) {
-		isViewed, err := repo.IsViewed(ctx, account.ID, 999999999)
+		isViewed, err := repo.IsViewed(ctx, account.ID, 999999999, "user")
 		require.NoError(t, err)
 		assert.False(t, isViewed)
 	})
@@ -121,10 +121,10 @@ func TestPostReadRepository_IsViewed(t *testing.T) {
 		account2 := testpkg.CreateTestAccount(t, db, fmt.Sprintf("post-read-op2-%d", time.Now().UnixNano()))
 		defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account2.ID)
 
-		err := repo.MarkViewed(ctx, account.ID, post.ID)
+		err := repo.MarkViewed(ctx, account.ID, post.ID, "user")
 		require.NoError(t, err)
 
-		isViewed, err := repo.IsViewed(ctx, account2.ID, post.ID)
+		isViewed, err := repo.IsViewed(ctx, account2.ID, post.ID, "user")
 		require.NoError(t, err)
 		assert.False(t, isViewed)
 	})
@@ -141,7 +141,7 @@ func TestPostReadRepository_CountUnviewed(t *testing.T) {
 	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
 
 	t.Run("returns 0 when no posts exist", func(t *testing.T) {
-		count, err := repo.CountUnviewed(ctx, account.ID)
+		count, err := repo.CountUnviewed(ctx, account.ID, "user")
 		require.NoError(t, err)
 		assert.Equal(t, 0, count)
 	})
@@ -151,7 +151,7 @@ func TestPostReadRepository_CountUnviewed(t *testing.T) {
 		post2 := createTestPost(t, db, account.ID, fmt.Sprintf("Post2 %d", time.Now().UnixNano()), "Desc2")
 		defer cleanupPosts(t, db, post1.ID, post2.ID)
 
-		count, err := repo.CountUnviewed(ctx, account.ID)
+		count, err := repo.CountUnviewed(ctx, account.ID, "user")
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, count, 2)
 	})
@@ -162,13 +162,13 @@ func TestPostReadRepository_CountUnviewed(t *testing.T) {
 		post3 := createTestPost(t, db, account.ID, fmt.Sprintf("Post3 %d", time.Now().UnixNano()), "Desc3")
 		defer cleanupPosts(t, db, post1.ID, post2.ID, post3.ID)
 
-		countBefore, err := repo.CountUnviewed(ctx, account.ID)
+		countBefore, err := repo.CountUnviewed(ctx, account.ID, "user")
 		require.NoError(t, err)
 
-		err = repo.MarkViewed(ctx, account.ID, post1.ID)
+		err = repo.MarkViewed(ctx, account.ID, post1.ID, "user")
 		require.NoError(t, err)
 
-		countAfter, err := repo.CountUnviewed(ctx, account.ID)
+		countAfter, err := repo.CountUnviewed(ctx, account.ID, "user")
 		require.NoError(t, err)
 
 		assert.Equal(t, countBefore-1, countAfter)
@@ -181,13 +181,13 @@ func TestPostReadRepository_CountUnviewed(t *testing.T) {
 		post := createTestPost(t, db, account.ID, fmt.Sprintf("Post %d", time.Now().UnixNano()), "Desc")
 		defer cleanupPosts(t, db, post.ID)
 
-		err := repo.MarkViewed(ctx, account.ID, post.ID)
+		err := repo.MarkViewed(ctx, account.ID, post.ID, "user")
 		require.NoError(t, err)
 
-		count1, err := repo.CountUnviewed(ctx, account.ID)
+		count1, err := repo.CountUnviewed(ctx, account.ID, "user")
 		require.NoError(t, err)
 
-		count2, err := repo.CountUnviewed(ctx, account2.ID)
+		count2, err := repo.CountUnviewed(ctx, account2.ID, "user")
 		require.NoError(t, err)
 
 		assert.NotEqual(t, count1, count2)
@@ -201,13 +201,13 @@ func TestPostReadRepository_CountUnviewed(t *testing.T) {
 		post2 := createTestPost(t, db, account3.ID, fmt.Sprintf("P2 %d", time.Now().UnixNano()), "D2")
 		defer cleanupPosts(t, db, post1.ID, post2.ID)
 
-		err := repo.MarkViewed(ctx, account3.ID, post1.ID)
+		err := repo.MarkViewed(ctx, account3.ID, post1.ID, "user")
 		require.NoError(t, err)
 
-		err = repo.MarkViewed(ctx, account3.ID, post2.ID)
+		err = repo.MarkViewed(ctx, account3.ID, post2.ID, "user")
 		require.NoError(t, err)
 
-		count, err := repo.CountUnviewed(ctx, account3.ID)
+		count, err := repo.CountUnviewed(ctx, account3.ID, "user")
 		require.NoError(t, err)
 		assert.Equal(t, 0, count)
 	})

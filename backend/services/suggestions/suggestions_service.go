@@ -47,7 +47,7 @@ func (s *suggestionsService) CreatePost(ctx context.Context, post *suggestions.P
 
 // GetPost retrieves a post by ID with author name and vote info
 func (s *suggestionsService) GetPost(ctx context.Context, id int64, accountID int64) (*suggestions.Post, error) {
-	post, err := s.postRepo.FindByIDWithVote(ctx, id, accountID)
+	post, err := s.postRepo.FindByIDWithVote(ctx, id, accountID, suggestions.ReaderTypeUser)
 	if err != nil {
 		return nil, err
 	}
@@ -107,7 +107,7 @@ func (s *suggestionsService) DeletePost(ctx context.Context, id int64, accountID
 
 // ListPosts returns all posts sorted as requested
 func (s *suggestionsService) ListPosts(ctx context.Context, accountID int64, sortBy string) ([]*suggestions.Post, error) {
-	return s.postRepo.List(ctx, accountID, sortBy)
+	return s.postRepo.List(ctx, accountID, suggestions.ReaderTypeUser, sortBy, "")
 }
 
 // Vote casts or changes a vote on a post, then recalculates score in a transaction
@@ -143,7 +143,7 @@ func (s *suggestionsService) Vote(ctx context.Context, postID int64, accountID i
 	}
 
 	// Return updated post (outside transaction — read-only)
-	return s.postRepo.FindByIDWithVote(ctx, postID, accountID)
+	return s.postRepo.FindByIDWithVote(ctx, postID, accountID, suggestions.ReaderTypeUser)
 }
 
 // RemoveVote removes a user's vote from a post, then recalculates score
@@ -169,7 +169,7 @@ func (s *suggestionsService) RemoveVote(ctx context.Context, postID int64, accou
 	}
 
 	// Return updated post (outside transaction — read-only)
-	return s.postRepo.FindByIDWithVote(ctx, postID, accountID)
+	return s.postRepo.FindByIDWithVote(ctx, postID, accountID, suggestions.ReaderTypeUser)
 }
 
 // CreateComment creates a new user-facing comment on a post
@@ -232,10 +232,10 @@ func (s *suggestionsService) MarkCommentsRead(ctx context.Context, postID int64,
 		return &PostNotFoundError{PostID: postID}
 	}
 
-	return s.commentReadRepo.Upsert(ctx, accountID, postID)
+	return s.commentReadRepo.Upsert(ctx, accountID, postID, suggestions.ReaderTypeUser)
 }
 
 // GetTotalUnreadCount returns the total number of unread comments across all posts
 func (s *suggestionsService) GetTotalUnreadCount(ctx context.Context, accountID int64) (int, error) {
-	return s.commentReadRepo.CountTotalUnread(ctx, accountID)
+	return s.commentReadRepo.CountTotalUnread(ctx, accountID, suggestions.ReaderTypeUser)
 }

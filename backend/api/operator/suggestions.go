@@ -80,7 +80,7 @@ func (rs *SuggestionsResource) ListSuggestions(w http.ResponseWriter, r *http.Re
 	status := r.URL.Query().Get("status")
 	sortBy := r.URL.Query().Get("sort")
 	if sortBy == "" {
-		sortBy = "created_at"
+		sortBy = "newest"
 	}
 
 	posts, err := rs.suggestionsService.ListAllPosts(r.Context(), operatorAccountID, status, sortBy)

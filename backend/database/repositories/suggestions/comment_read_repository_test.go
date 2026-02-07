@@ -28,29 +28,29 @@ func TestCommentReadRepository_Upsert(t *testing.T) {
 	defer cleanupPosts(t, db, post.ID)
 
 	t.Run("creates new comment read record", func(t *testing.T) {
-		err := repo.Upsert(ctx, account.ID, post.ID)
+		err := repo.Upsert(ctx, account.ID, post.ID, "user")
 		require.NoError(t, err)
 
-		lastRead, err := repo.GetLastReadAt(ctx, account.ID, post.ID)
+		lastRead, err := repo.GetLastReadAt(ctx, account.ID, post.ID, "user")
 		require.NoError(t, err)
 		require.NotNil(t, lastRead)
 		assert.WithinDuration(t, time.Now(), *lastRead, 5*time.Second)
 	})
 
 	t.Run("updates existing comment read record", func(t *testing.T) {
-		err := repo.Upsert(ctx, account.ID, post.ID)
+		err := repo.Upsert(ctx, account.ID, post.ID, "user")
 		require.NoError(t, err)
 
-		firstRead, err := repo.GetLastReadAt(ctx, account.ID, post.ID)
+		firstRead, err := repo.GetLastReadAt(ctx, account.ID, post.ID, "user")
 		require.NoError(t, err)
 		require.NotNil(t, firstRead)
 
 		time.Sleep(100 * time.Millisecond)
 
-		err = repo.Upsert(ctx, account.ID, post.ID)
+		err = repo.Upsert(ctx, account.ID, post.ID, "user")
 		require.NoError(t, err)
 
-		secondRead, err := repo.GetLastReadAt(ctx, account.ID, post.ID)
+		secondRead, err := repo.GetLastReadAt(ctx, account.ID, post.ID, "user")
 		require.NoError(t, err)
 		require.NotNil(t, secondRead)
 
@@ -61,17 +61,17 @@ func TestCommentReadRepository_Upsert(t *testing.T) {
 		account2 := testpkg.CreateTestAccount(t, db, fmt.Sprintf("comment-read-user2-%d", time.Now().UnixNano()))
 		defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account2.ID)
 
-		err := repo.Upsert(ctx, account.ID, post.ID)
+		err := repo.Upsert(ctx, account.ID, post.ID, "user")
 		require.NoError(t, err)
 
-		err = repo.Upsert(ctx, account2.ID, post.ID)
+		err = repo.Upsert(ctx, account2.ID, post.ID, "user")
 		require.NoError(t, err)
 
-		lastRead1, err := repo.GetLastReadAt(ctx, account.ID, post.ID)
+		lastRead1, err := repo.GetLastReadAt(ctx, account.ID, post.ID, "user")
 		require.NoError(t, err)
 		require.NotNil(t, lastRead1)
 
-		lastRead2, err := repo.GetLastReadAt(ctx, account2.ID, post.ID)
+		lastRead2, err := repo.GetLastReadAt(ctx, account2.ID, post.ID, "user")
 		require.NoError(t, err)
 		require.NotNil(t, lastRead2)
 	})
@@ -91,23 +91,23 @@ func TestCommentReadRepository_GetLastReadAt(t *testing.T) {
 	defer cleanupPosts(t, db, post.ID)
 
 	t.Run("returns nil when user never read comments", func(t *testing.T) {
-		lastRead, err := repo.GetLastReadAt(ctx, account.ID, post.ID)
+		lastRead, err := repo.GetLastReadAt(ctx, account.ID, post.ID, "user")
 		require.NoError(t, err)
 		assert.Nil(t, lastRead)
 	})
 
 	t.Run("returns timestamp after user reads comments", func(t *testing.T) {
-		err := repo.Upsert(ctx, account.ID, post.ID)
+		err := repo.Upsert(ctx, account.ID, post.ID, "user")
 		require.NoError(t, err)
 
-		lastRead, err := repo.GetLastReadAt(ctx, account.ID, post.ID)
+		lastRead, err := repo.GetLastReadAt(ctx, account.ID, post.ID, "user")
 		require.NoError(t, err)
 		require.NotNil(t, lastRead)
 		assert.WithinDuration(t, time.Now(), *lastRead, 5*time.Second)
 	})
 
 	t.Run("returns nil for non-existent post", func(t *testing.T) {
-		lastRead, err := repo.GetLastReadAt(ctx, account.ID, 999999999)
+		lastRead, err := repo.GetLastReadAt(ctx, account.ID, 999999999, "user")
 		require.NoError(t, err)
 		assert.Nil(t, lastRead)
 	})
@@ -127,7 +127,7 @@ func TestCommentReadRepository_CountUnreadByPost(t *testing.T) {
 	defer cleanupPosts(t, db, post.ID)
 
 	t.Run("returns 0 when no comments exist", func(t *testing.T) {
-		count, err := repo.CountUnreadByPost(ctx, account.ID, post.ID)
+		count, err := repo.CountUnreadByPost(ctx, account.ID, post.ID, "user")
 		require.NoError(t, err)
 		assert.Equal(t, 0, count)
 	})
@@ -137,7 +137,7 @@ func TestCommentReadRepository_CountUnreadByPost(t *testing.T) {
 		comment2 := createTestComment(t, db, post.ID, account.ID, "Comment 2", false, suggestions.AuthorTypeUser)
 		defer cleanupComments(t, db, comment1.ID, comment2.ID)
 
-		count, err := repo.CountUnreadByPost(ctx, account.ID, post.ID)
+		count, err := repo.CountUnreadByPost(ctx, account.ID, post.ID, "user")
 		require.NoError(t, err)
 		assert.Equal(t, 2, count)
 	})
@@ -146,7 +146,7 @@ func TestCommentReadRepository_CountUnreadByPost(t *testing.T) {
 		comment1 := createTestComment(t, db, post.ID, account.ID, "Comment 1", false, suggestions.AuthorTypeUser)
 		defer cleanupComments(t, db, comment1.ID)
 
-		err := repo.Upsert(ctx, account.ID, post.ID)
+		err := repo.Upsert(ctx, account.ID, post.ID, "user")
 		require.NoError(t, err)
 
 		time.Sleep(100 * time.Millisecond)
@@ -155,7 +155,7 @@ func TestCommentReadRepository_CountUnreadByPost(t *testing.T) {
 		comment3 := createTestComment(t, db, post.ID, account.ID, "Comment 3", false, suggestions.AuthorTypeUser)
 		defer cleanupComments(t, db, comment2.ID, comment3.ID)
 
-		count, err := repo.CountUnreadByPost(ctx, account.ID, post.ID)
+		count, err := repo.CountUnreadByPost(ctx, account.ID, post.ID, "user")
 		require.NoError(t, err)
 		assert.Equal(t, 2, count)
 	})
@@ -168,7 +168,7 @@ func TestCommentReadRepository_CountUnreadByPost(t *testing.T) {
 		err := commentRepo.Delete(ctx, comment.ID)
 		require.NoError(t, err)
 
-		count, err := repo.CountUnreadByPost(ctx, account.ID, post.ID)
+		count, err := repo.CountUnreadByPost(ctx, account.ID, post.ID, "user")
 		require.NoError(t, err)
 		assert.Equal(t, 0, count)
 	})
@@ -180,10 +180,10 @@ func TestCommentReadRepository_CountUnreadByPost(t *testing.T) {
 		comment := createTestComment(t, db, newPost.ID, account.ID, "Comment", false, suggestions.AuthorTypeUser)
 		defer cleanupComments(t, db, comment.ID)
 
-		err := repo.Upsert(ctx, account.ID, newPost.ID)
+		err := repo.Upsert(ctx, account.ID, newPost.ID, "user")
 		require.NoError(t, err)
 
-		count, err := repo.CountUnreadByPost(ctx, account.ID, newPost.ID)
+		count, err := repo.CountUnreadByPost(ctx, account.ID, newPost.ID, "user")
 		require.NoError(t, err)
 		assert.Equal(t, 0, count)
 	})
@@ -200,7 +200,7 @@ func TestCommentReadRepository_CountTotalUnread(t *testing.T) {
 	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
 
 	t.Run("returns 0 when no comments exist", func(t *testing.T) {
-		count, err := repo.CountTotalUnread(ctx, account.ID)
+		count, err := repo.CountTotalUnread(ctx, account.ID, "user")
 		require.NoError(t, err)
 		assert.Equal(t, 0, count)
 	})
@@ -215,7 +215,7 @@ func TestCommentReadRepository_CountTotalUnread(t *testing.T) {
 		comment3 := createTestComment(t, db, post2.ID, account.ID, "Another on post2", false, suggestions.AuthorTypeUser)
 		defer cleanupComments(t, db, comment1.ID, comment2.ID, comment3.ID)
 
-		count, err := repo.CountTotalUnread(ctx, account.ID)
+		count, err := repo.CountTotalUnread(ctx, account.ID, "user")
 		require.NoError(t, err)
 		assert.Equal(t, 3, count)
 	})
@@ -228,7 +228,7 @@ func TestCommentReadRepository_CountTotalUnread(t *testing.T) {
 		comment1 := createTestComment(t, db, post1.ID, account.ID, "Comment on post1", false, suggestions.AuthorTypeUser)
 		defer cleanupComments(t, db, comment1.ID)
 
-		err := repo.Upsert(ctx, account.ID, post1.ID)
+		err := repo.Upsert(ctx, account.ID, post1.ID, "user")
 		require.NoError(t, err)
 
 		time.Sleep(100 * time.Millisecond)
@@ -237,7 +237,7 @@ func TestCommentReadRepository_CountTotalUnread(t *testing.T) {
 		comment3 := createTestComment(t, db, post2.ID, account.ID, "Comment on post2", false, suggestions.AuthorTypeUser)
 		defer cleanupComments(t, db, comment2.ID, comment3.ID)
 
-		count, err := repo.CountTotalUnread(ctx, account.ID)
+		count, err := repo.CountTotalUnread(ctx, account.ID, "user")
 		require.NoError(t, err)
 		assert.Equal(t, 2, count)
 	})
@@ -249,14 +249,14 @@ func TestCommentReadRepository_CountTotalUnread(t *testing.T) {
 		comment := createTestComment(t, db, post.ID, account.ID, "To be deleted", false, suggestions.AuthorTypeUser)
 		defer cleanupComments(t, db, comment.ID)
 
-		countBefore, err := repo.CountTotalUnread(ctx, account.ID)
+		countBefore, err := repo.CountTotalUnread(ctx, account.ID, "user")
 		require.NoError(t, err)
 
 		commentRepo := repoSuggestions.NewCommentRepository(db)
 		err = commentRepo.Delete(ctx, comment.ID)
 		require.NoError(t, err)
 
-		countAfter, err := repo.CountTotalUnread(ctx, account.ID)
+		countAfter, err := repo.CountTotalUnread(ctx, account.ID, "user")
 		require.NoError(t, err)
 
 		assert.Equal(t, countBefore-1, countAfter)
@@ -272,14 +272,14 @@ func TestCommentReadRepository_CountTotalUnread(t *testing.T) {
 		comment := createTestComment(t, db, post.ID, account.ID, "Comment", false, suggestions.AuthorTypeUser)
 		defer cleanupComments(t, db, comment.ID)
 
-		err := repo.Upsert(ctx, account.ID, post.ID)
+		err := repo.Upsert(ctx, account.ID, post.ID, "user")
 		require.NoError(t, err)
 
-		count1, err := repo.CountTotalUnread(ctx, account.ID)
+		count1, err := repo.CountTotalUnread(ctx, account.ID, "user")
 		require.NoError(t, err)
 		assert.Equal(t, 0, count1)
 
-		count2, err := repo.CountTotalUnread(ctx, account2.ID)
+		count2, err := repo.CountTotalUnread(ctx, account2.ID, "user")
 		require.NoError(t, err)
 		assert.Equal(t, 1, count2)
 	})

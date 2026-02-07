@@ -17,10 +17,10 @@ import (
 type mockPostRepo struct {
 	createFn           func(ctx context.Context, post *suggestions.Post) error
 	findByIDFn         func(ctx context.Context, id int64) (*suggestions.Post, error)
-	findByIDWithVoteFn func(ctx context.Context, id int64, accountID int64) (*suggestions.Post, error)
+	findByIDWithVoteFn func(ctx context.Context, id int64, accountID int64, readerType string) (*suggestions.Post, error)
 	updateFn           func(ctx context.Context, post *suggestions.Post) error
 	deleteFn           func(ctx context.Context, id int64) error
-	listFn             func(ctx context.Context, accountID int64, sortBy string) ([]*suggestions.Post, error)
+	listFn             func(ctx context.Context, accountID int64, readerType string, sortBy string, status string) ([]*suggestions.Post, error)
 	recalculateScoreFn func(ctx context.Context, postID int64) error
 }
 
@@ -52,16 +52,16 @@ func (m *mockPostRepo) Delete(ctx context.Context, id int64) error {
 	return nil
 }
 
-func (m *mockPostRepo) List(ctx context.Context, accountID int64, sortBy string) ([]*suggestions.Post, error) {
+func (m *mockPostRepo) List(ctx context.Context, accountID int64, readerType string, sortBy string, status string) ([]*suggestions.Post, error) {
 	if m.listFn != nil {
-		return m.listFn(ctx, accountID, sortBy)
+		return m.listFn(ctx, accountID, readerType, sortBy, status)
 	}
 	return nil, nil
 }
 
-func (m *mockPostRepo) FindByIDWithVote(ctx context.Context, id int64, accountID int64) (*suggestions.Post, error) {
+func (m *mockPostRepo) FindByIDWithVote(ctx context.Context, id int64, accountID int64, readerType string) (*suggestions.Post, error) {
 	if m.findByIDWithVoteFn != nil {
-		return m.findByIDWithVoteFn(ctx, id, accountID)
+		return m.findByIDWithVoteFn(ctx, id, accountID, readerType)
 	}
 	return nil, nil
 }
@@ -140,36 +140,36 @@ func (m *mockCommentRepo) CountByPostID(ctx context.Context, postID int64) (int,
 }
 
 type mockCommentReadRepo struct {
-	upsertFn            func(ctx context.Context, accountID, postID int64) error
-	getLastReadAtFn     func(ctx context.Context, accountID, postID int64) (*time.Time, error)
-	countUnreadByPostFn func(ctx context.Context, accountID, postID int64) (int, error)
-	countTotalUnreadFn  func(ctx context.Context, accountID int64) (int, error)
+	upsertFn            func(ctx context.Context, accountID, postID int64, readerType string) error
+	getLastReadAtFn     func(ctx context.Context, accountID, postID int64, readerType string) (*time.Time, error)
+	countUnreadByPostFn func(ctx context.Context, accountID, postID int64, readerType string) (int, error)
+	countTotalUnreadFn  func(ctx context.Context, accountID int64, readerType string) (int, error)
 }
 
-func (m *mockCommentReadRepo) Upsert(ctx context.Context, accountID, postID int64) error {
+func (m *mockCommentReadRepo) Upsert(ctx context.Context, accountID, postID int64, readerType string) error {
 	if m.upsertFn != nil {
-		return m.upsertFn(ctx, accountID, postID)
+		return m.upsertFn(ctx, accountID, postID, readerType)
 	}
 	return nil
 }
 
-func (m *mockCommentReadRepo) GetLastReadAt(ctx context.Context, accountID, postID int64) (*time.Time, error) {
+func (m *mockCommentReadRepo) GetLastReadAt(ctx context.Context, accountID, postID int64, readerType string) (*time.Time, error) {
 	if m.getLastReadAtFn != nil {
-		return m.getLastReadAtFn(ctx, accountID, postID)
+		return m.getLastReadAtFn(ctx, accountID, postID, readerType)
 	}
 	return nil, nil
 }
 
-func (m *mockCommentReadRepo) CountUnreadByPost(ctx context.Context, accountID, postID int64) (int, error) {
+func (m *mockCommentReadRepo) CountUnreadByPost(ctx context.Context, accountID, postID int64, readerType string) (int, error) {
 	if m.countUnreadByPostFn != nil {
-		return m.countUnreadByPostFn(ctx, accountID, postID)
+		return m.countUnreadByPostFn(ctx, accountID, postID, readerType)
 	}
 	return 0, nil
 }
 
-func (m *mockCommentReadRepo) CountTotalUnread(ctx context.Context, accountID int64) (int, error) {
+func (m *mockCommentReadRepo) CountTotalUnread(ctx context.Context, accountID int64, readerType string) (int, error) {
 	if m.countTotalUnreadFn != nil {
-		return m.countTotalUnreadFn(ctx, accountID)
+		return m.countTotalUnreadFn(ctx, accountID, readerType)
 	}
 	return 0, nil
 }
@@ -260,9 +260,10 @@ func TestGetPost_Success(t *testing.T) {
 	expectedPost := &suggestions.Post{Title: "Test Post"}
 
 	postRepo := &mockPostRepo{
-		findByIDWithVoteFn: func(ctx context.Context, id int64, accountID int64) (*suggestions.Post, error) {
+		findByIDWithVoteFn: func(ctx context.Context, id int64, accountID int64, readerType string) (*suggestions.Post, error) {
 			assert.Equal(t, int64(456), id)
 			assert.Equal(t, int64(123), accountID)
+			assert.Equal(t, suggestions.ReaderTypeUser, readerType)
 			return expectedPost, nil
 		},
 	}
@@ -278,7 +279,8 @@ func TestGetPost_NotFound(t *testing.T) {
 	ctx := context.Background()
 
 	postRepo := &mockPostRepo{
-		findByIDWithVoteFn: func(ctx context.Context, id int64, accountID int64) (*suggestions.Post, error) {
+		findByIDWithVoteFn: func(ctx context.Context, id int64, accountID int64, readerType string) (*suggestions.Post, error) {
+			assert.Equal(t, suggestions.ReaderTypeUser, readerType)
 			return nil, nil
 		},
 	}
@@ -296,7 +298,8 @@ func TestGetPost_RepoError(t *testing.T) {
 	expectedErr := errors.New("repo error")
 
 	postRepo := &mockPostRepo{
-		findByIDWithVoteFn: func(ctx context.Context, id int64, accountID int64) (*suggestions.Post, error) {
+		findByIDWithVoteFn: func(ctx context.Context, id int64, accountID int64, readerType string) (*suggestions.Post, error) {
+			assert.Equal(t, suggestions.ReaderTypeUser, readerType)
 			return nil, expectedErr
 		},
 	}
@@ -528,8 +531,9 @@ func TestListPosts_Success(t *testing.T) {
 	expectedPosts := []*suggestions.Post{{}, {}}
 
 	postRepo := &mockPostRepo{
-		listFn: func(ctx context.Context, accountID int64, sortBy string) ([]*suggestions.Post, error) {
+		listFn: func(ctx context.Context, accountID int64, readerType string, sortBy string, status string) ([]*suggestions.Post, error) {
 			assert.Equal(t, int64(123), accountID)
+			assert.Equal(t, suggestions.ReaderTypeUser, readerType)
 			assert.Equal(t, "score", sortBy)
 			return expectedPosts, nil
 		},
@@ -547,7 +551,8 @@ func TestListPosts_RepoError(t *testing.T) {
 	expectedErr := errors.New("list error")
 
 	postRepo := &mockPostRepo{
-		listFn: func(ctx context.Context, accountID int64, sortBy string) ([]*suggestions.Post, error) {
+		listFn: func(ctx context.Context, accountID int64, readerType string, sortBy string, status string) ([]*suggestions.Post, error) {
+			assert.Equal(t, suggestions.ReaderTypeUser, readerType)
 			return nil, expectedErr
 		},
 	}
@@ -893,9 +898,10 @@ func TestMarkCommentsRead_Success(t *testing.T) {
 	}
 
 	commentReadRepo := &mockCommentReadRepo{
-		upsertFn: func(ctx context.Context, accountID, postID int64) error {
+		upsertFn: func(ctx context.Context, accountID, postID int64, readerType string) error {
 			assert.Equal(t, int64(123), accountID)
 			assert.Equal(t, int64(456), postID)
+			assert.Equal(t, suggestions.ReaderTypeUser, readerType)
 			return nil
 		},
 	}
@@ -933,7 +939,8 @@ func TestMarkCommentsRead_RepoError(t *testing.T) {
 	}
 
 	commentReadRepo := &mockCommentReadRepo{
-		upsertFn: func(ctx context.Context, accountID, postID int64) error {
+		upsertFn: func(ctx context.Context, accountID, postID int64, readerType string) error {
+			assert.Equal(t, suggestions.ReaderTypeUser, readerType)
 			return expectedErr
 		},
 	}
@@ -948,8 +955,9 @@ func TestGetTotalUnreadCount_Success(t *testing.T) {
 	ctx := context.Background()
 
 	commentReadRepo := &mockCommentReadRepo{
-		countTotalUnreadFn: func(ctx context.Context, accountID int64) (int, error) {
+		countTotalUnreadFn: func(ctx context.Context, accountID int64, readerType string) (int, error) {
 			assert.Equal(t, int64(123), accountID)
+			assert.Equal(t, suggestions.ReaderTypeUser, readerType)
 			return 42, nil
 		},
 	}
@@ -966,7 +974,8 @@ func TestGetTotalUnreadCount_RepoError(t *testing.T) {
 	expectedErr := errors.New("count error")
 
 	commentReadRepo := &mockCommentReadRepo{
-		countTotalUnreadFn: func(ctx context.Context, accountID int64) (int, error) {
+		countTotalUnreadFn: func(ctx context.Context, accountID int64, readerType string) (int, error) {
+			assert.Equal(t, suggestions.ReaderTypeUser, readerType)
 			return 0, expectedErr
 		},
 	}

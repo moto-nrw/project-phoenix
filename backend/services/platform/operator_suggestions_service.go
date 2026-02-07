@@ -86,12 +86,12 @@ func (s *operatorSuggestionsService) getLogger() *slog.Logger {
 
 // ListAllPosts returns all suggestion posts (for operators)
 func (s *operatorSuggestionsService) ListAllPosts(ctx context.Context, operatorAccountID int64, status string, sortBy string) ([]*suggestions.Post, error) {
-	return s.postRepo.List(ctx, operatorAccountID, sortBy)
+	return s.postRepo.List(ctx, operatorAccountID, suggestions.ReaderTypeOperator, sortBy, status)
 }
 
 // GetPost retrieves a single post with its comments (including internal)
 func (s *operatorSuggestionsService) GetPost(ctx context.Context, postID int64, operatorAccountID int64) (*suggestions.Post, []*suggestions.Comment, error) {
-	post, err := s.postRepo.FindByIDWithVote(ctx, postID, operatorAccountID)
+	post, err := s.postRepo.FindByIDWithVote(ctx, postID, operatorAccountID, suggestions.ReaderTypeOperator)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -118,12 +118,12 @@ func (s *operatorSuggestionsService) MarkCommentsRead(ctx context.Context, opera
 		return &PostNotFoundError{PostID: postID}
 	}
 
-	return s.commentReadRepo.Upsert(ctx, operatorAccountID, postID)
+	return s.commentReadRepo.Upsert(ctx, operatorAccountID, postID, suggestions.ReaderTypeOperator)
 }
 
 // GetTotalUnreadCount returns the total number of unread comments across all posts
 func (s *operatorSuggestionsService) GetTotalUnreadCount(ctx context.Context, operatorAccountID int64) (int, error) {
-	return s.commentReadRepo.CountTotalUnread(ctx, operatorAccountID)
+	return s.commentReadRepo.CountTotalUnread(ctx, operatorAccountID, suggestions.ReaderTypeOperator)
 }
 
 // MarkPostViewed marks a post as viewed by the operator
@@ -137,12 +137,12 @@ func (s *operatorSuggestionsService) MarkPostViewed(ctx context.Context, operato
 		return &PostNotFoundError{PostID: postID}
 	}
 
-	return s.postReadRepo.MarkViewed(ctx, operatorAccountID, postID)
+	return s.postReadRepo.MarkViewed(ctx, operatorAccountID, postID, suggestions.ReaderTypeOperator)
 }
 
 // GetUnviewedPostCount returns the count of posts the operator hasn't viewed yet
 func (s *operatorSuggestionsService) GetUnviewedPostCount(ctx context.Context, operatorAccountID int64) (int, error) {
-	return s.postReadRepo.CountUnviewed(ctx, operatorAccountID)
+	return s.postReadRepo.CountUnviewed(ctx, operatorAccountID, suggestions.ReaderTypeOperator)
 }
 
 // UpdatePostStatus updates the status of a suggestion post
@@ -168,7 +168,7 @@ func (s *operatorSuggestionsService) UpdatePostStatus(ctx context.Context, postI
 
 	// Mark post as viewed when operator changes status (they've interacted with it)
 	if s.postReadRepo != nil {
-		_ = s.postReadRepo.MarkViewed(ctx, operatorID, postID)
+		_ = s.postReadRepo.MarkViewed(ctx, operatorID, postID, suggestions.ReaderTypeOperator)
 	}
 
 	// Audit log

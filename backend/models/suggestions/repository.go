@@ -14,11 +14,14 @@ type PostRepository interface {
 
 	// List returns all posts with author name and current user's vote.
 	// accountID is used to resolve the user_vote column.
+	// readerType differentiates "operator" vs "user" in read-tracking subqueries.
 	// sortBy controls ordering: "score" (default), "newest", "status".
-	List(ctx context.Context, accountID int64, sortBy string) ([]*Post, error)
+	// status filters by post status when non-empty.
+	List(ctx context.Context, accountID int64, readerType string, sortBy string, status string) ([]*Post, error)
 
 	// FindByIDWithVote returns a single post with author name and current user's vote.
-	FindByIDWithVote(ctx context.Context, id int64, accountID int64) (*Post, error)
+	// readerType differentiates "operator" vs "user" in read-tracking subqueries.
+	FindByIDWithVote(ctx context.Context, id int64, accountID int64, readerType string) (*Post, error)
 
 	// RecalculateScore updates the denormalized score on a post from votes.
 	RecalculateScore(ctx context.Context, postID int64) error
@@ -55,29 +58,37 @@ type CommentRepository interface {
 	CountByPostID(ctx context.Context, postID int64) (int, error)
 }
 
+// Reader type constants for namespace isolation between operators and users.
+const (
+	ReaderTypeUser     = "user"
+	ReaderTypeOperator = "operator"
+)
+
 // CommentReadRepository defines operations for tracking unread comments
 type CommentReadRepository interface {
-	// Upsert creates or updates the last_read_at timestamp for a user on a post
-	Upsert(ctx context.Context, accountID, postID int64) error
+	// Upsert creates or updates the last_read_at timestamp for a reader on a post.
+	// readerType must be ReaderTypeUser or ReaderTypeOperator.
+	Upsert(ctx context.Context, accountID, postID int64, readerType string) error
 
-	// GetLastReadAt returns when a user last read comments on a post (nil if never)
-	GetLastReadAt(ctx context.Context, accountID, postID int64) (*time.Time, error)
+	// GetLastReadAt returns when a reader last read comments on a post (nil if never)
+	GetLastReadAt(ctx context.Context, accountID, postID int64, readerType string) (*time.Time, error)
 
-	// CountUnreadByPost counts comments on a post created after the user's last read time
-	CountUnreadByPost(ctx context.Context, accountID, postID int64) (int, error)
+	// CountUnreadByPost counts comments on a post created after the reader's last read time
+	CountUnreadByPost(ctx context.Context, accountID, postID int64, readerType string) (int, error)
 
-	// CountTotalUnread counts all unread comments across all posts for a user
-	CountTotalUnread(ctx context.Context, accountID int64) (int, error)
+	// CountTotalUnread counts all unread comments across all posts for a reader
+	CountTotalUnread(ctx context.Context, accountID int64, readerType string) (int, error)
 }
 
 // PostReadRepository defines operations for tracking viewed posts
 type PostReadRepository interface {
-	// MarkViewed marks a post as viewed by an operator
-	MarkViewed(ctx context.Context, accountID, postID int64) error
+	// MarkViewed marks a post as viewed by a reader.
+	// readerType must be ReaderTypeUser or ReaderTypeOperator.
+	MarkViewed(ctx context.Context, accountID, postID int64, readerType string) error
 
-	// IsViewed checks if an operator has viewed a post
-	IsViewed(ctx context.Context, accountID, postID int64) (bool, error)
+	// IsViewed checks if a reader has viewed a post
+	IsViewed(ctx context.Context, accountID, postID int64, readerType string) (bool, error)
 
-	// CountUnviewed counts posts that an operator has not yet viewed
-	CountUnviewed(ctx context.Context, accountID int64) (int, error)
+	// CountUnviewed counts posts that a reader has not yet viewed
+	CountUnviewed(ctx context.Context, accountID int64, readerType string) (int, error)
 }
