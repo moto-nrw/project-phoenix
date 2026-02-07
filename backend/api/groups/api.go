@@ -402,6 +402,7 @@ func (rs *Resource) buildStudentRoomStatus(
 	student *users.Student,
 	groupRoomID int64,
 	snapshot *common.StudentLocationSnapshot,
+	personMap map[int64]*users.Person,
 ) map[string]interface{} {
 	status := map[string]interface{}{
 		"in_group_room": false,
@@ -410,13 +411,19 @@ func (rs *Resource) buildStudentRoomStatus(
 
 	visit := rs.getStudentVisit(ctx, student.ID, snapshot)
 	if visit == nil {
-		rs.addPersonDataToStatus(ctx, status, student.PersonID)
+		if person, ok := personMap[student.PersonID]; ok {
+			status["first_name"] = person.FirstName
+			status["last_name"] = person.LastName
+		}
 		return status
 	}
 
 	activeGroup := rs.getVisitActiveGroup(ctx, visit, snapshot)
 	if activeGroup == nil {
-		rs.addPersonDataToStatus(ctx, status, student.PersonID)
+		if person, ok := personMap[student.PersonID]; ok {
+			status["first_name"] = person.FirstName
+			status["last_name"] = person.LastName
+		}
 		return status
 	}
 
@@ -430,17 +437,11 @@ func (rs *Resource) buildStudentRoomStatus(
 		status["reason"] = "in_different_room"
 	}
 
-	rs.addPersonDataToStatus(ctx, status, student.PersonID)
-	return status
-}
-
-// addPersonDataToStatus adds first_name and last_name to status map
-func (rs *Resource) addPersonDataToStatus(ctx context.Context, status map[string]interface{}, personID int64) {
-	person, err := rs.UserService.Get(ctx, personID)
-	if err == nil && person != nil {
+	if person, ok := personMap[student.PersonID]; ok {
 		status["first_name"] = person.FirstName
 		status["last_name"] = person.LastName
 	}
+	return status
 }
 
 // buildNoRoomResponse creates the response when group has no room assigned
@@ -818,9 +819,21 @@ func (rs *Resource) buildRoomStatusResponse(ctx context.Context, students []*use
 		snapshot = nil
 	}
 
+	// Batch-load all persons to avoid N+1 queries
+	personIDs := make([]int64, 0, len(students))
+	for _, student := range students {
+		personIDs = append(personIDs, student.PersonID)
+	}
+	personMap, personErr := rs.UserService.GetByIDs(ctx, personIDs)
+	if personErr != nil {
+		slog.Default().Warn("failed to batch load persons",
+			slog.String("error", personErr.Error()))
+		personMap = make(map[int64]*users.Person)
+	}
+
 	studentStatuses := make(map[string]interface{})
 	for _, student := range students {
-		studentStatuses[strconv.FormatInt(student.ID, 10)] = rs.buildStudentRoomStatus(ctx, student, groupRoomID, snapshot)
+		studentStatuses[strconv.FormatInt(student.ID, 10)] = rs.buildStudentRoomStatus(ctx, student, groupRoomID, snapshot, personMap)
 	}
 
 	result["student_room_status"] = studentStatuses

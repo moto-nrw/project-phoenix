@@ -249,7 +249,22 @@ func (s *userContextService) GetCurrentTeacher(ctx context.Context) (*users.Teac
 // GetMyGroups retrieves educational groups associated with the current user
 func (s *userContextService) GetMyGroups(ctx context.Context) ([]*education.Group, error) {
 	staff, staffErr := s.GetCurrentStaff(ctx)
-	teacher, teacherErr := s.GetCurrentTeacher(ctx)
+
+	// Derive teacher from the already-resolved staff to avoid duplicate identity queries.
+	// GetCurrentTeacher would call GetCurrentStaff again (which calls GetCurrentPerson),
+	// duplicating 2 DB round-trips. Instead, reuse the staff result directly.
+	var teacher *users.Teacher
+	var teacherErr error
+	if staffErr == nil && staff != nil {
+		teacher, teacherErr = s.teacherRepo.FindByStaffID(ctx, staff.ID)
+		if teacher == nil && teacherErr == nil {
+			teacherErr = &UserContextError{Op: "get current teacher", Err: ErrUserNotLinkedToTeacher}
+		} else if teacherErr != nil {
+			teacherErr = &UserContextError{Op: "get current teacher", Err: teacherErr}
+		}
+	} else {
+		teacherErr = staffErr
+	}
 
 	// Check for valid linkage and unexpected errors
 	valid, unexpectedErr := s.hasValidStaffOrTeacher(staffErr, teacherErr)
