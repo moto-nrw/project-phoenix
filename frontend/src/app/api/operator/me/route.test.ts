@@ -4,8 +4,16 @@ const { mockGetOperatorToken } = vi.hoisted(() => ({
   mockGetOperatorToken: vi.fn<() => Promise<string | undefined>>(),
 }));
 
+const { mockOperatorApiGet } = vi.hoisted(() => ({
+  mockOperatorApiGet: vi.fn(),
+}));
+
 vi.mock("~/lib/operator/cookies", () => ({
   getOperatorToken: mockGetOperatorToken,
+}));
+
+vi.mock("~/lib/operator/route-wrapper", () => ({
+  operatorApiGet: mockOperatorApiGet,
 }));
 
 import { GET } from "./route";
@@ -15,16 +23,13 @@ describe("GET /api/operator/me", () => {
     vi.clearAllMocks();
   });
 
-  it("returns operator data from valid token", async () => {
-    const payload = {
-      sub: "123",
-      username: "admin@test.com",
-      first_name: "Admin User",
-      scope: "operator",
-      exp: Math.floor(Date.now() / 1000) + 3600, // 1 hour from now
-    };
-    const token = `header.${Buffer.from(JSON.stringify(payload)).toString("base64url")}.signature`;
-    mockGetOperatorToken.mockResolvedValue(token);
+  it("returns operator data from backend profile", async () => {
+    mockGetOperatorToken.mockResolvedValue("valid-jwt-token");
+    mockOperatorApiGet.mockResolvedValue({
+      id: 123,
+      email: "admin@test.com",
+      display_name: "Admin User",
+    });
 
     const response = await GET();
 
@@ -39,6 +44,10 @@ describe("GET /api/operator/me", () => {
       email: "admin@test.com",
       displayName: "Admin User",
     });
+    expect(mockOperatorApiGet).toHaveBeenCalledWith(
+      "/operator/profile",
+      "valid-jwt-token",
+    );
   });
 
   it("returns 401 when no token present", async () => {
@@ -49,62 +58,19 @@ describe("GET /api/operator/me", () => {
     expect(response.status).toBe(401);
     const json = (await response.json()) as { error?: string };
     expect(json.error).toBe("Unauthorized");
+    expect(mockOperatorApiGet).not.toHaveBeenCalled();
   });
 
-  it("returns 401 for invalid token format", async () => {
-    mockGetOperatorToken.mockResolvedValue("invalid.token");
+  it("returns 401 when backend rejects token", async () => {
+    mockGetOperatorToken.mockResolvedValue("expired-or-invalid-token");
+    mockOperatorApiGet.mockRejectedValue(
+      new Error("API error (401): Unauthorized"),
+    );
 
     const response = await GET();
 
     expect(response.status).toBe(401);
     const json = (await response.json()) as { error?: string };
-    expect(json.error).toBe("Invalid token");
-  });
-
-  it("returns 401 for malformed JWT payload", async () => {
-    const token = "header.invalidbase64!@#.signature";
-    mockGetOperatorToken.mockResolvedValue(token);
-
-    const response = await GET();
-
-    expect(response.status).toBe(401);
-    const json = (await response.json()) as { error?: string };
-    expect(json.error).toBe("Invalid token");
-  });
-
-  it("returns 401 for expired token", async () => {
-    const payload = {
-      sub: "123",
-      username: "admin@test.com",
-      first_name: "Admin User",
-      scope: "operator",
-      exp: Math.floor(Date.now() / 1000) - 3600, // 1 hour ago
-    };
-    const token = `header.${Buffer.from(JSON.stringify(payload)).toString("base64url")}.signature`;
-    mockGetOperatorToken.mockResolvedValue(token);
-
-    const response = await GET();
-
-    expect(response.status).toBe(401);
-    const json = (await response.json()) as { error?: string };
-    expect(json.error).toBe("Token expired");
-  });
-
-  it("handles token with exactly current timestamp", async () => {
-    const payload = {
-      sub: "123",
-      username: "admin@test.com",
-      first_name: "Admin User",
-      scope: "operator",
-      exp: Math.floor(Date.now() / 1000), // Exactly now
-    };
-    const token = `header.${Buffer.from(JSON.stringify(payload)).toString("base64url")}.signature`;
-    mockGetOperatorToken.mockResolvedValue(token);
-
-    const response = await GET();
-
-    expect(response.status).toBe(401);
-    const json = (await response.json()) as { error?: string };
-    expect(json.error).toBe("Token expired");
+    expect(json.error).toBe("Unauthorized");
   });
 });

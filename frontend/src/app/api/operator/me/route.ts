@@ -1,25 +1,11 @@
 import { NextResponse } from "next/server";
 import { getOperatorToken } from "~/lib/operator/cookies";
+import { operatorApiGet } from "~/lib/operator/route-wrapper";
 
-interface JwtPayload {
-  sub: string;
-  username: string;
-  first_name: string;
-  scope: string;
-  exp: number;
-}
-
-function decodeJwtPayload(token: string): JwtPayload | null {
-  try {
-    const parts = token.split(".");
-    if (parts.length !== 3) return null;
-    const payload = parts[1];
-    if (!payload) return null;
-    const decoded = Buffer.from(payload, "base64url").toString("utf-8");
-    return JSON.parse(decoded) as JwtPayload;
-  } catch {
-    return null;
-  }
+interface ProfileResponse {
+  id: number;
+  email: string;
+  display_name: string;
 }
 
 export async function GET() {
@@ -28,19 +14,18 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const payload = decodeJwtPayload(token);
-  if (!payload) {
-    return NextResponse.json({ error: "Invalid token" }, { status: 401 });
-  }
+  try {
+    const profile = await operatorApiGet<ProfileResponse>(
+      "/operator/profile",
+      token,
+    );
 
-  // Check expiry
-  if (payload.exp * 1000 < Date.now()) {
-    return NextResponse.json({ error: "Token expired" }, { status: 401 });
+    return NextResponse.json({
+      id: String(profile.id),
+      email: profile.email,
+      displayName: profile.display_name,
+    });
+  } catch {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-
-  return NextResponse.json({
-    id: payload.sub,
-    email: payload.username,
-    displayName: payload.first_name,
-  });
 }
