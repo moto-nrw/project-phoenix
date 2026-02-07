@@ -30,12 +30,14 @@ interface PasswordChangeModalProps {
   readonly isOpen: boolean;
   readonly onClose: () => void;
   readonly onSuccess?: () => void;
+  readonly apiEndpoint?: string;
 }
 
 export function PasswordChangeModal({
   isOpen,
   onClose,
   onSuccess,
+  apiEndpoint = "/api/auth/password",
 }: PasswordChangeModalProps) {
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -77,7 +79,7 @@ export function PasswordChangeModal({
     setIsLoading(true);
 
     try {
-      const response = await fetch("/api/auth/password", {
+      const response = await fetch(apiEndpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

@@ -105,7 +105,9 @@ func (r *PostRepository) Delete(ctx context.Context, id int64) error {
 }
 
 // List returns all posts with author name and the current user's vote direction.
-func (r *PostRepository) List(ctx context.Context, accountID int64, sortBy string) ([]*suggestions.Post, error) {
+// readerType differentiates "operator" vs "user" in read-tracking subqueries.
+// status filters by post status when non-empty.
+func (r *PostRepository) List(ctx context.Context, accountID int64, readerType string, sortBy string, status string) ([]*suggestions.Post, error) {
 	var posts []*suggestions.Post
 
 	query := r.db.NewSelect().
@@ -114,9 +116,24 @@ func (r *PostRepository) List(ctx context.Context, accountID int64, sortBy strin
 		ColumnExpr(`COALESCE(CONCAT(p.first_name, ' ', LEFT(p.last_name, 1), '.'), 'Unbekannt') AS author_name`).
 		ColumnExpr(`(SELECT COUNT(*) FROM suggestions.votes WHERE post_id = "post".id AND direction = 'up') AS upvotes`).
 		ColumnExpr(`(SELECT COUNT(*) FROM suggestions.votes WHERE post_id = "post".id AND direction = 'down') AS downvotes`).
+		ColumnExpr(`(SELECT COUNT(*) FROM suggestions.comments WHERE post_id = "post".id AND deleted_at IS NULL) AS comment_count`).
+		ColumnExpr(`(SELECT COUNT(*) FROM suggestions.comments c
+			LEFT JOIN suggestions.comment_reads cr ON cr.post_id = c.post_id AND cr.account_id = ? AND cr.reader_type = ?
+			WHERE c.post_id = "post".id
+			AND c.deleted_at IS NULL
+			AND (cr.last_read_at IS NULL OR c.created_at > cr.last_read_at)
+		) AS unread_count`, accountID, readerType).
+		ColumnExpr(`NOT EXISTS (
+			SELECT 1 FROM suggestions.post_reads pr
+			WHERE pr.account_id = ? AND pr.post_id = "post".id AND pr.reader_type = ?
+		) AS is_new`, accountID, readerType).
 		ColumnExpr(`v.direction AS user_vote`).
 		Join(`LEFT JOIN users.persons AS p ON p.account_id = "post".author_id`).
 		Join(`LEFT JOIN suggestions.votes AS v ON v.post_id = "post".id AND v.voter_id = ?`, accountID)
+
+	if status != "" {
+		query = query.Where(`"post".status = ?`, status)
+	}
 
 	switch sortBy {
 	case "newest":
@@ -142,7 +159,8 @@ func (r *PostRepository) List(ctx context.Context, accountID int64, sortBy strin
 }
 
 // FindByIDWithVote returns a single post with author name and user's vote.
-func (r *PostRepository) FindByIDWithVote(ctx context.Context, id int64, accountID int64) (*suggestions.Post, error) {
+// readerType differentiates "operator" vs "user" in read-tracking subqueries.
+func (r *PostRepository) FindByIDWithVote(ctx context.Context, id int64, accountID int64, readerType string) (*suggestions.Post, error) {
 	post := new(suggestions.Post)
 
 	err := r.db.NewSelect().
@@ -151,6 +169,13 @@ func (r *PostRepository) FindByIDWithVote(ctx context.Context, id int64, account
 		ColumnExpr(`COALESCE(CONCAT(p.first_name, ' ', LEFT(p.last_name, 1), '.'), 'Unbekannt') AS author_name`).
 		ColumnExpr(`(SELECT COUNT(*) FROM suggestions.votes WHERE post_id = "post".id AND direction = 'up') AS upvotes`).
 		ColumnExpr(`(SELECT COUNT(*) FROM suggestions.votes WHERE post_id = "post".id AND direction = 'down') AS downvotes`).
+		ColumnExpr(`(SELECT COUNT(*) FROM suggestions.comments WHERE post_id = "post".id AND deleted_at IS NULL) AS comment_count`).
+		ColumnExpr(`(SELECT COUNT(*) FROM suggestions.comments c
+			LEFT JOIN suggestions.comment_reads cr ON cr.post_id = c.post_id AND cr.account_id = ? AND cr.reader_type = ?
+			WHERE c.post_id = "post".id
+			AND c.deleted_at IS NULL
+			AND (cr.last_read_at IS NULL OR c.created_at > cr.last_read_at)
+		) AS unread_count`, accountID, readerType).
 		ColumnExpr(`v.direction AS user_vote`).
 		Join(`LEFT JOIN users.persons AS p ON p.account_id = "post".author_id`).
 		Join(`LEFT JOIN suggestions.votes AS v ON v.post_id = "post".id AND v.voter_id = ?`, accountID).

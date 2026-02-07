@@ -41,6 +41,16 @@ func (s *Seeder) SeedAll(ctx context.Context) (*Result, error) {
 		return nil, fmt.Errorf("failed to seed admin account: %w", err)
 	}
 
+	// 3.5. Platform operators (no dependencies on tenant data)
+	if err := s.seedOperators(ctx); err != nil {
+		return nil, fmt.Errorf("failed to seed operators: %w", err)
+	}
+
+	// 3.6. Platform announcements (depends on operators)
+	if err := s.seedAnnouncements(ctx); err != nil {
+		return nil, fmt.Errorf("failed to seed announcements: %w", err)
+	}
+
 	// 4. Persons with RFID cards and accounts
 	if err := s.seedPersonsWithAccounts(ctx); err != nil {
 		return nil, fmt.Errorf("failed to seed persons: %w", err)
@@ -114,6 +124,11 @@ func (s *Seeder) SeedAll(ctx context.Context) (*Result, error) {
 	// 17. Work sessions for time tracking
 	if err := s.seedWorkSessions(ctx); err != nil {
 		return nil, fmt.Errorf("failed to seed work sessions: %w", err)
+	}
+
+	// 18. Suggestion posts with votes
+	if err := s.seedSuggestions(ctx); err != nil {
+		return nil, fmt.Errorf("failed to seed suggestions: %w", err)
 	}
 
 	if s.verbose {

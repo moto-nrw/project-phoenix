@@ -53,6 +53,19 @@ vi.mock("~/components/ui/drawer", () => ({
   ),
 }));
 
+vi.mock("~/lib/shell-auth-context", () => ({
+  useShellAuth: () => ({
+    user: { name: "Test User", email: "test@example.com", roles: [] },
+    profile: { firstName: "Test", lastName: "User" },
+    status: "authenticated",
+    isSessionExpired: false,
+    logout: vi.fn(),
+    mode: "teacher",
+    homeUrl: "/dashboard",
+    settingsUrl: "/settings",
+  }),
+}));
+
 // Import after mocks
 import { MobileBottomNav } from "./mobile-bottom-nav";
 import { usePathname, useSearchParams } from "next/navigation";

@@ -9,6 +9,9 @@ import { Input, Alert, HelpButton } from "~/components/ui";
 import { refreshToken } from "~/lib/auth-api";
 import { SmartRedirect } from "~/components/auth/smart-redirect";
 import { PasswordResetModal } from "~/components/ui/password-reset-modal";
+import { launchConfetti, clearConfetti } from "~/lib/confetti";
+import { PasswordToggleButton } from "~/components/shared/password-toggle-button";
+import { LoginHelpContent } from "~/components/shared/login-help-content";
 
 import { Loading } from "~/components/ui/loading";
 import { createLogger } from "~/lib/logger";
@@ -113,125 +116,6 @@ function LoginForm() {
     );
   }
 
-  const launchConfetti = () => {
-    // Create a simple CSS-based confetti effect
-    const confettiContainer = document.createElement("div");
-    confettiContainer.style.position = "fixed";
-    confettiContainer.style.width = "100%";
-    confettiContainer.style.height = "100%";
-    confettiContainer.style.top = "0";
-    confettiContainer.style.left = "0";
-    confettiContainer.style.pointerEvents = "none";
-    confettiContainer.style.zIndex = "9999";
-    document.body.appendChild(confettiContainer);
-
-    // Colors for the confetti
-    const colors = ["#FF3130", "#F78C10", "#83DC2D", "#5080D8"];
-
-    // Get the logo position (instead of the center of the screen)
-    const logoElement = document.querySelector(".mb-8.flex.justify-center img");
-    const logoRect = logoElement?.getBoundingClientRect();
-
-    // Use logo position or fallback to center if logo not found
-    const startX = logoRect
-      ? logoRect.left + logoRect.width / 2
-      : window.innerWidth / 2;
-    const startY = logoRect
-      ? logoRect.top + logoRect.height / 2
-      : window.innerHeight / 2;
-
-    // Create and animate 100 confetti pieces
-    for (let i = 0; i < 100; i++) {
-      // No delay for first 50 pieces, small delay for others
-      const delay = i < 50 ? 0 : Math.random() * 100;
-
-      setTimeout(() => {
-        // Guard: skip if document unavailable or container was removed (e.g., during tests)
-        if (typeof document === "undefined" || !confettiContainer.isConnected)
-          return;
-
-        const confetti = document.createElement("div");
-        const color = colors[Math.floor(Math.random() * colors.length)];
-
-        // Style the confetti piece
-        confetti.style.position = "absolute";
-        confetti.style.width = `${Math.random() * 8 + 3}px`;
-        confetti.style.height = `${Math.random() * 4 + 3}px`;
-        confetti.style.backgroundColor = color ?? "#FF3130";
-        confetti.style.borderRadius = Math.random() > 0.5 ? "50%" : "0";
-        confetti.style.opacity = "0.8";
-
-        // Position at the logo
-        confetti.style.left = `${startX}px`;
-        confetti.style.top = `${startY}px`;
-
-        // Calculate a direction that avoids the logo center
-        // This ensures confetti moves outward in all directions and doesn't fly back inward
-        let angle = 0;
-        // Divide the circle into 4 quadrants and pick a random angle within each quadrant
-        const quadrant = Math.floor(Math.random() * 4);
-        switch (quadrant) {
-          case 0:
-            angle = (Math.random() * Math.PI) / 2;
-            break; // Top-right quadrant
-          case 1:
-            angle = Math.PI / 2 + (Math.random() * Math.PI) / 2;
-            break; // Bottom-right quadrant
-          case 2:
-            angle = Math.PI + (Math.random() * Math.PI) / 2;
-            break; // Bottom-left quadrant
-          case 3:
-            angle = (3 * Math.PI) / 2 + (Math.random() * Math.PI) / 2;
-            break; // Top-left quadrant
-        }
-
-        // Calculate end position using the angle - guarantee outward motion
-        const distance = 150 + Math.random() * 200; // Between 150-350px from center
-        const endX = Math.cos(angle) * distance;
-        const endY = Math.sin(angle) * distance;
-
-        // Calculate a mid-point that's also moving outward
-        const midDistance = distance * 0.6;
-        const midX = Math.cos(angle) * midDistance;
-        const midY = Math.sin(angle) * midDistance;
-
-        // Add to container
-        confettiContainer.appendChild(confetti);
-
-        // Animate with more controlled outward trajectory
-        const animation = confetti.animate(
-          [
-            {
-              transform: "translate(-50%, -50%) rotate(0deg)",
-              opacity: 0.8,
-            },
-            {
-              transform: `translate(${midX}px, ${midY}px) rotate(${Math.random() * 360}deg)`,
-              opacity: 0.6,
-            },
-            {
-              transform: `translate(${endX}px, ${endY}px) rotate(${Math.random() * 720}deg)`,
-              opacity: 0,
-            },
-          ],
-          {
-            duration: Math.random() * 1500 + 1500, // 1.5-3 seconds, slightly slower
-            easing: "cubic-bezier(0.25, 0.46, 0.45, 0.94)", // More natural easing
-          },
-        );
-
-        // Remove element after animation completes
-        animation.onfinish = () => {
-          confetti.remove();
-          // Remove container when last animation finishes
-          if (confettiContainer.children.length === 0) {
-            confettiContainer.remove();
-          }
-        };
-      }, delay);
-    }
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
@@ -249,13 +133,7 @@ function LoginForm() {
       });
 
       if (result?.error) {
-        // If there's an error, clear existing confetti
-        const existingConfetti = document.querySelector(
-          'div[style*="z-index: 9999"]',
-        );
-        if (existingConfetti) {
-          existingConfetti.remove();
-        }
+        clearConfetti();
         setError("Ungültige E-Mail oder Passwort");
       } else {
         // Set flag to indicate we're awaiting redirect
@@ -264,14 +142,7 @@ function LoginForm() {
         router.refresh();
       }
     } catch (error) {
-      // Clear confetti if there's an error
-      const existingConfetti = document.querySelector(
-        'div[style*="z-index: 9999"]',
-      );
-      if (existingConfetti) {
-        existingConfetti.remove();
-      }
-
+      clearConfetti();
       setError("Anmeldefehler. Bitte versuchen Sie es erneut.");
       logger.error("login failed", {
         error: error instanceof Error ? error.message : String(error),
@@ -289,35 +160,11 @@ function LoginForm() {
           <HelpButton
             title="Hilfe"
             content={
-              <div>
-                <p>
-                  Melden Sie sich mit Ihrem <strong>moto-Account</strong> an:
-                </p>
-                <ul className="mt-3 space-y-2">
-                  <li>
-                    • <strong>E-Mail:</strong> Ihre registrierte E-Mail-Adresse
-                  </li>
-                  <li>
-                    • <strong>Passwort:</strong> Ihr persönliches Passwort
-                  </li>
-                </ul>
-                <p className="mt-4">
-                  <strong>Probleme beim Anmelden?</strong>
-                </p>
-                <ul className="mt-2 space-y-1 text-sm">
-                  <li>
-                    • Überprüfen Sie Ihre <strong>Internetverbindung</strong>
-                  </li>
-                  <li>
-                    • Stellen Sie sicher, dass <strong>Caps Lock</strong>{" "}
-                    deaktiviert ist
-                  </li>
-                  <li>
-                    • Kontaktieren Sie den <strong>Support</strong> bei
-                    anhaltenden Problemen
-                  </li>
-                </ul>
-              </div>
+              <LoginHelpContent
+                accountType="moto-Account"
+                emailLabel="Ihre registrierte E-Mail-Adresse"
+                passwordLabel="Ihr persönliches Passwort"
+              />
             }
           />
         </div>
@@ -383,50 +230,10 @@ function LoginForm() {
                   className="w-full pr-10"
                   label={""}
                 />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute top-1/2 right-3 -translate-y-1/2 text-gray-500 transition-colors hover:text-gray-700"
-                  aria-label={
-                    showPassword ? "Passwort verbergen" : "Passwort anzeigen"
-                  }
-                >
-                  {showPassword ? (
-                    <svg
-                      className="h-5 w-5"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"
-                      />
-                    </svg>
-                  ) : (
-                    <svg
-                      className="h-5 w-5"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-                      />
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
-                      />
-                    </svg>
-                  )}
-                </button>
+                <PasswordToggleButton
+                  showPassword={showPassword}
+                  onToggle={() => setShowPassword(!showPassword)}
+                />
               </div>
             </div>
 

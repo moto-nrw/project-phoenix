@@ -243,25 +243,25 @@ func TestPostRepository_List(t *testing.T) {
 	defer cleanupPosts(t, db, post1.ID, post2.ID)
 
 	t.Run("lists posts sorted by score", func(t *testing.T) {
-		posts, err := repo.List(ctx, account.ID, "score")
+		posts, err := repo.List(ctx, account.ID, suggestions.ReaderTypeUser, "score", "")
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, len(posts), 2)
 	})
 
 	t.Run("lists posts sorted by newest", func(t *testing.T) {
-		posts, err := repo.List(ctx, account.ID, "newest")
+		posts, err := repo.List(ctx, account.ID, suggestions.ReaderTypeUser, "newest", "")
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, len(posts), 2)
 	})
 
 	t.Run("lists posts sorted by status", func(t *testing.T) {
-		posts, err := repo.List(ctx, account.ID, "status")
+		posts, err := repo.List(ctx, account.ID, suggestions.ReaderTypeUser, "status", "")
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, len(posts), 2)
 	})
 
 	t.Run("resolves author name", func(t *testing.T) {
-		posts, err := repo.List(ctx, account.ID, "score")
+		posts, err := repo.List(ctx, account.ID, suggestions.ReaderTypeUser, "score", "")
 		require.NoError(t, err)
 
 		// Find our test posts
@@ -291,7 +291,7 @@ func TestPostRepository_FindByIDWithVote(t *testing.T) {
 	defer cleanupPosts(t, db, post.ID)
 
 	t.Run("returns nil user_vote when no vote exists", func(t *testing.T) {
-		found, err := repo.FindByIDWithVote(ctx, post.ID, account.ID)
+		found, err := repo.FindByIDWithVote(ctx, post.ID, account.ID, suggestions.ReaderTypeUser)
 		require.NoError(t, err)
 		require.NotNil(t, found)
 		assert.Nil(t, found.UserVote)
@@ -306,7 +306,7 @@ func TestPostRepository_FindByIDWithVote(t *testing.T) {
 		err := voteRepo.Upsert(ctx, vote)
 		require.NoError(t, err)
 
-		found, err := repo.FindByIDWithVote(ctx, post.ID, account.ID)
+		found, err := repo.FindByIDWithVote(ctx, post.ID, account.ID, suggestions.ReaderTypeUser)
 		require.NoError(t, err)
 		require.NotNil(t, found)
 		require.NotNil(t, found.UserVote)
@@ -314,7 +314,7 @@ func TestPostRepository_FindByIDWithVote(t *testing.T) {
 	})
 
 	t.Run("returns nil for non-existent post", func(t *testing.T) {
-		found, err := repo.FindByIDWithVote(ctx, 999999999, account.ID)
+		found, err := repo.FindByIDWithVote(ctx, 999999999, account.ID, suggestions.ReaderTypeUser)
 		require.NoError(t, err)
 		assert.Nil(t, found)
 	})

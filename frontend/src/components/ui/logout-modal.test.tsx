@@ -6,11 +6,21 @@ import { render, screen, fireEvent, act } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { LogoutModal } from "./logout-modal";
 
-// Mock next-auth/react
-const mockSignOut = vi.fn();
-vi.mock("next-auth/react", () => ({
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-return
-  signOut: () => mockSignOut(),
+// Mock logout function
+const mockLogout = vi.fn();
+
+// Mock shell auth context
+vi.mock("~/lib/shell-auth-context", () => ({
+  useShellAuth: () => ({
+    user: { name: "Test User", email: "test@example.com", roles: [] },
+    profile: { firstName: "Test", lastName: "User" },
+    status: "authenticated",
+    isSessionExpired: false,
+    logout: mockLogout,
+    mode: "teacher",
+    homeUrl: "/dashboard",
+    settingsUrl: "/settings",
+  }),
 }));
 
 // Mock Modal component
@@ -46,7 +56,7 @@ describe("LogoutModal", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.useFakeTimers({ shouldAdvanceTime: true });
-    mockSignOut.mockResolvedValue(undefined);
+    mockLogout.mockResolvedValue(undefined);
     Element.prototype.animate = mockAnimate;
   });
 
@@ -112,11 +122,11 @@ describe("LogoutModal", () => {
       await vi.runAllTimersAsync();
     });
 
-    expect(mockSignOut).toHaveBeenCalledTimes(1);
+    expect(mockLogout).toHaveBeenCalledTimes(1);
   });
 
   it("shows loading state after logout is triggered", async () => {
-    mockSignOut.mockImplementation(
+    mockLogout.mockImplementation(
       () => new Promise((resolve) => setTimeout(resolve, 1000)),
     );
 
@@ -137,7 +147,7 @@ describe("LogoutModal", () => {
   });
 
   it("disables close during logout", async () => {
-    mockSignOut.mockImplementation(
+    mockLogout.mockImplementation(
       () => new Promise((resolve) => setTimeout(resolve, 1000)),
     );
 
@@ -192,7 +202,7 @@ describe("LogoutModal", () => {
       .mockImplementation((_msg: unknown, ..._args: unknown[]) => {
         // suppress console.error in tests
       });
-    mockSignOut.mockRejectedValue(new Error("Sign out failed"));
+    mockLogout.mockRejectedValue(new Error("Sign out failed"));
 
     render(<LogoutModal isOpen={true} onClose={mockOnClose} />);
 

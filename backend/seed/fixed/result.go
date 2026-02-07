@@ -7,7 +7,9 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/models/iot"
+	"github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/models/suggestions"
 	"github.com/moto-nrw/project-phoenix/models/users"
 )
 
@@ -48,6 +50,13 @@ type Result struct {
 	// Time tracking
 	WorkSessions      []*active.WorkSession
 	WorkSessionBreaks []*active.WorkSessionBreak
+
+	// Platform (operator dashboard)
+	Operators     []*platform.Operator
+	Announcements []*platform.Announcement
+
+	// Suggestions
+	SuggestionPosts []*suggestions.Post
 
 	// Lookup maps for relationships
 	PersonByID        map[int64]*users.Person

@@ -3,14 +3,19 @@
 
 import { authFetch } from "./api-helpers";
 import type {
+  BackendComment,
   BackendSuggestion,
   CreateSuggestionRequest,
   Suggestion,
+  SuggestionComment,
   SortOption,
   UpdateSuggestionRequest,
   VoteRequest,
 } from "./suggestions-helpers";
-import { mapSuggestionResponse } from "./suggestions-helpers";
+import {
+  mapCommentResponse,
+  mapSuggestionResponse,
+} from "./suggestions-helpers";
 
 // Proxy route wrapper envelope: { success: true, data: <payload> }
 interface ProxyListResponse {
@@ -74,4 +79,57 @@ export async function removeVote(id: string): Promise<Suggestion> {
     { method: "DELETE" },
   );
   return mapSuggestionResponse(response.data);
+}
+
+// --- Comments ---
+
+interface ProxyCommentListResponse {
+  success: boolean;
+  data: BackendComment[];
+}
+
+export async function fetchComments(
+  postId: string,
+): Promise<SuggestionComment[]> {
+  const response = await authFetch<ProxyCommentListResponse>(
+    `/api/suggestions/${postId}/comments`,
+  );
+  return response.data.map(mapCommentResponse);
+}
+
+export async function createComment(
+  postId: string,
+  content: string,
+): Promise<void> {
+  await authFetch(`/api/suggestions/${postId}/comments`, {
+    method: "POST",
+    body: { content },
+  });
+}
+
+export async function deleteComment(
+  postId: string,
+  commentId: string,
+): Promise<void> {
+  await authFetch(`/api/suggestions/${postId}/comments/${commentId}`, {
+    method: "DELETE",
+  });
+}
+
+export async function markCommentsRead(postId: string): Promise<void> {
+  await authFetch(`/api/suggestions/${postId}/comments/read`, {
+    method: "POST",
+  });
+}
+
+interface ProxyUnreadCountResponse {
+  success: boolean;
+  data: { unread_count: number };
+}
+
+export async function fetchUnreadCount(): Promise<number> {
+  const response = await authFetch<ProxyUnreadCountResponse>(
+    "/api/suggestions/unread-count",
+  );
+  return response.data.unread_count;
 }

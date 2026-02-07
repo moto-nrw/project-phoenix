@@ -76,6 +76,7 @@ const (
 	SchemaActive     = "active"
 	SchemaConfig     = "config"
 	SchemaMeta       = "meta"
+	SchemaPlatform   = "platform"
 )
 
 // Pointer helper functions for creating pointers to primitive values in tests.

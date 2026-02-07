@@ -62,6 +62,8 @@ const editSuggestion: Suggestion = {
   score: 0,
   upvotes: 0,
   downvotes: 0,
+  commentCount: 0,
+  unreadCount: 0,
   userVote: null,
   createdAt: "2025-01-01T00:00:00Z",
   updatedAt: "2025-01-01T00:00:00Z",

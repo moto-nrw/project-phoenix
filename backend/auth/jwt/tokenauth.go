@@ -145,6 +145,11 @@ func ParseStructToMap(c any) (map[string]any, error) {
 		// Make sure permissions is explicitly set
 		claims["permissions"] = appClaims.Permissions
 
+		// Make sure scope is explicitly set (for operator/platform tokens)
+		if appClaims.Scope != "" {
+			claims["scope"] = appClaims.Scope
+		}
+
 		// Set common claims manually to ensure they're included
 		claims["exp"] = appClaims.ExpiresAt
 		claims["iat"] = appClaims.IssuedAt

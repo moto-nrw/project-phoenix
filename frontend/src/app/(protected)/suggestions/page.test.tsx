@@ -48,6 +48,10 @@ vi.mock("~/lib/suggestions-api", () => ({
   updateSuggestion: vi.fn(),
   voteSuggestion: vi.fn(),
   removeVote: vi.fn(),
+  fetchComments: vi.fn().mockResolvedValue([]),
+  createComment: vi.fn().mockResolvedValue(undefined),
+  deleteComment: vi.fn().mockResolvedValue(undefined),
+  markCommentsRead: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock("~/contexts/ToastContext", () => ({
@@ -183,6 +187,8 @@ const sampleSuggestion: Suggestion = {
   score: 5,
   upvotes: 7,
   downvotes: 2,
+  commentCount: 0,
+  unreadCount: 0,
   userVote: null,
   createdAt: new Date(Date.now() - 3600000).toISOString(),
   updatedAt: new Date().toISOString(),
@@ -198,6 +204,8 @@ const anotherSuggestion: Suggestion = {
   score: 3,
   upvotes: 4,
   downvotes: 1,
+  commentCount: 0,
+  unreadCount: 0,
   userVote: "up",
   createdAt: new Date(Date.now() - 7200000).toISOString(),
   updatedAt: new Date().toISOString(),

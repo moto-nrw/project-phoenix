@@ -44,7 +44,7 @@ export function SearchBar({
         placeholder={placeholder}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className={`w-full rounded-2xl border border-gray-200 bg-white text-gray-900 placeholder-gray-400 transition-all duration-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none ${sizeClasses[size]} ${value ? "pr-10" : ""} `}
+        className={`w-full rounded-2xl border border-gray-200 bg-white text-gray-900 placeholder-gray-400 transition-all duration-200 focus:border-gray-300 focus:ring-0 focus:outline-none ${sizeClasses[size]} ${value ? "pr-10" : ""} `}
       />
 
       {value && (
