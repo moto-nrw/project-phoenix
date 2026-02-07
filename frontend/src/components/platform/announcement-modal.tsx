@@ -4,6 +4,9 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import { Sparkles, Megaphone, Wrench } from "lucide-react";
 import { Modal } from "~/components/ui/modal";
 import { useAnnouncements } from "~/lib/hooks/use-announcements";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "AnnouncementModal" });
 
 // Contextual headers that create a positive, informative feeling
 // title = small subtitle, subtitle = large main header
@@ -74,7 +77,9 @@ export function AnnouncementModal() {
 
     // Send dismiss to backend (fire-and-forget, don't block UI)
     dismiss(current.id).catch((error) => {
-      console.error("Failed to dismiss announcement:", error);
+      logger.error("announcement_dismiss_failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
     });
 
     // Move to next or close

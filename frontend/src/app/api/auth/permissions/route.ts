@@ -1,6 +1,9 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { auth } from "~/server/auth";
 import { getServerApiUrl } from "~/lib/server-api-url";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "PermissionsRoute" });
 
 // Backend model type (lowercase fields)
 interface BackendPermission {
@@ -58,7 +61,9 @@ export async function GET(request: NextRequest) {
       | BackendPermission[];
     return NextResponse.json(data);
   } catch (error) {
-    console.error("Get permissions route error:", error);
+    logger.error("get permissions failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
     return NextResponse.json(
       { error: "Internal Server Error" } as ErrorResponse,
       { status: 500 },
@@ -95,7 +100,9 @@ export async function POST(request: NextRequest) {
     const data = (await response.json()) as ApiResponse<BackendPermission>;
     return NextResponse.json(data);
   } catch (error) {
-    console.error("Create permission route error:", error);
+    logger.error("create permission failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
     return NextResponse.json(
       { error: "Internal Server Error" } as ErrorResponse,
       { status: 500 },

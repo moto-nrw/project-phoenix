@@ -32,6 +32,9 @@ import type {
 } from "~/lib/operator/announcements-helpers";
 import { AnnouncementViewsAccordion } from "~/components/operator/announcement-views-accordion";
 import { getRelativeTime } from "~/lib/format-utils";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "OperatorAnnouncementsPage" });
 
 interface FormData {
   title: string;
@@ -155,7 +158,9 @@ export default function OperatorAnnouncementsPage() {
         setEditTarget(null);
         await mutate();
       } catch (error) {
-        console.error("Failed to save announcement:", error);
+        logger.error("announcement_save_failed", {
+          error: error instanceof Error ? error.message : String(error),
+        });
       } finally {
         setIsSaving(false);
       }
@@ -171,7 +176,9 @@ export default function OperatorAnnouncementsPage() {
       setDeleteTarget(null);
       await mutate();
     } catch (error) {
-      console.error("Failed to delete announcement:", error);
+      logger.error("announcement_delete_failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
     } finally {
       setIsDeleting(false);
     }
@@ -185,7 +192,9 @@ export default function OperatorAnnouncementsPage() {
       setPublishTarget(null);
       await mutate();
     } catch (error) {
-      console.error("Failed to publish announcement:", error);
+      logger.error("announcement_publish_failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
     } finally {
       setIsPublishing(false);
     }

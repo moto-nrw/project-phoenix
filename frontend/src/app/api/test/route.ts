@@ -2,12 +2,15 @@
 import { apiGet } from "~/lib/api-helpers";
 import { auth } from "~/server/auth";
 import { NextResponse } from "next/server";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "TestRoute" });
 
 export async function GET() {
   try {
     // Get the auth session
     const session = await auth();
-    console.log("Test: Auth session:", session);
+    logger.debug("test auth session retrieved");
 
     if (!session?.user?.token) {
       return NextResponse.json(
@@ -20,7 +23,7 @@ export async function GET() {
     const endpoint = `/api/groups`;
     const response = await apiGet(endpoint, session.user.token);
 
-    console.log("Test: Direct backend response:", response);
+    logger.debug("test backend response received");
 
     return NextResponse.json({
       session: {
@@ -31,7 +34,9 @@ export async function GET() {
       backendResponse: response,
     });
   } catch (error) {
-    console.error("Test: Error fetching groups:", error);
+    logger.error("test groups fetch failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
     const errorMessage =
       error instanceof Error ? error.message : "Unknown error";
     const errorDetails =

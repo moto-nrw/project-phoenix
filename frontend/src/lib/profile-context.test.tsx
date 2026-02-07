@@ -129,10 +129,10 @@ describe("ProfileContext", () => {
       });
 
       expect(result.current.profile).toBe(null);
-      expect(consoleErrorSpy).toHaveBeenCalledWith(
-        "Failed to load profile:",
-        expect.any(Error),
-      );
+      expect(consoleErrorSpy).toHaveBeenCalledWith("failed to load profile", {
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+        error: expect.any(String),
+      });
 
       consoleErrorSpy.mockRestore();
     });

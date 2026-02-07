@@ -1,6 +1,9 @@
 import { createGetHandler } from "@/lib/route-wrapper";
 import { apiGet } from "@/lib/api-client";
 import type { BackendRole } from "@/lib/auth-helpers";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "AccountRolesRoute" });
 
 interface RolesResponse {
   status: string;
@@ -15,7 +18,7 @@ export const GET = createGetHandler(async (request, token, params) => {
   }
 
   const accountId = params.accountId as string;
-  console.log("Fetching roles for account:", accountId);
+  logger.debug("fetching roles for account", { account_id: accountId });
 
   // Make the API call with the validated account ID
   const response = await apiGet<RolesResponse>(

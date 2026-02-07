@@ -1,6 +1,10 @@
 // lib/room-helpers.ts
 // Type definitions and helper functions for rooms
 
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "RoomHelpers" });
+
 // Backend types (from Go structs)
 export interface BackendRoom {
   id: number;
@@ -72,13 +76,15 @@ export function mapRoomsResponse(
     "data" in backendRooms &&
     Array.isArray(backendRooms.data)
   ) {
-    console.log("Handling nested API response for rooms");
+    logger.debug("handling nested API response for rooms");
     return backendRooms.data.map(mapRoomResponse);
   }
 
   // Handle null, undefined or non-array responses
   if (!backendRooms || !Array.isArray(backendRooms)) {
-    console.warn("Received invalid response format for rooms:", backendRooms);
+    logger.warn("received invalid response format for rooms", {
+      received: typeof backendRooms,
+    });
     return [];
   }
 

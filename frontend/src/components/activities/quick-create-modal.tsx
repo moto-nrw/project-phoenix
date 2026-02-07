@@ -18,6 +18,9 @@ import {
   getApiErrorMessage,
   ModalWrapper,
 } from "~/components/ui/modal-utils";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "QuickCreateActivityModal" });
 
 interface QuickCreateActivityModalProps {
   readonly isOpen: boolean;
@@ -138,7 +141,9 @@ export function QuickCreateActivityModal({
       // Close modal immediately - success alert will persist independently
       handleClose();
     } catch (err) {
-      console.error("Error creating activity:", err);
+      logger.error("activity creation failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
       setError(
         getApiErrorMessage(
           err,

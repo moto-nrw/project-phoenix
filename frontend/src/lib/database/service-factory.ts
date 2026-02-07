@@ -1,6 +1,9 @@
 // Generic CRUD Service Factory
 
 import { getSession } from "next-auth/react";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "ServiceFactory" });
 import type { EntityConfig, CrudService, PaginatedResponse } from "./types";
 
 // Helper functions extracted to reduce cognitive complexity (S3776)
@@ -103,7 +106,7 @@ export function createCrudService<T>(config: EntityConfig<T>): CrudService<T> {
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error(`API error: ${response.status}`, errorText);
+      logger.error("API error", { status: response.status, error: errorText });
       throw new Error(`API error: ${response.status} - ${errorText}`);
     }
 
@@ -195,10 +198,15 @@ export function createCrudService<T>(config: EntityConfig<T>): CrudService<T> {
         }
 
         // Fallback - return empty paginated response
-        console.warn("Unexpected response structure:", response);
+        logger.warn("unexpected response structure", {
+          response: JSON.stringify(response),
+        });
         return { data: [], pagination: createDefaultPagination(0) };
       } catch (error) {
-        console.error(`Error fetching ${config.name.plural}:`, error);
+        logger.error("error fetching entities", {
+          entity: config.name.plural,
+          error: String(error),
+        });
         throw error;
       }
     },
@@ -217,7 +225,11 @@ export function createCrudService<T>(config: EntityConfig<T>): CrudService<T> {
         const data = (response as { data?: unknown })?.data ?? response;
         return service?.mapResponse ? service.mapResponse(data) : (data as T);
       } catch (error) {
-        console.error(`Error fetching ${config.name.singular} ${id}:`, error);
+        logger.error("error fetching entity", {
+          entity: config.name.singular,
+          id,
+          error: String(error),
+        });
         throw error;
       }
     },
@@ -263,7 +275,10 @@ export function createCrudService<T>(config: EntityConfig<T>): CrudService<T> {
 
         return result;
       } catch (error) {
-        console.error(`Error creating ${config.name.singular}:`, error);
+        logger.error("error creating entity", {
+          entity: config.name.singular,
+          error: String(error),
+        });
         throw error;
       }
     },
@@ -310,7 +325,11 @@ export function createCrudService<T>(config: EntityConfig<T>): CrudService<T> {
 
         return result;
       } catch (error) {
-        console.error(`Error updating ${config.name.singular} ${id}:`, error);
+        logger.error("error updating entity", {
+          entity: config.name.singular,
+          id,
+          error: String(error),
+        });
         throw error;
       }
     },
@@ -336,7 +355,11 @@ export function createCrudService<T>(config: EntityConfig<T>): CrudService<T> {
           await config.hooks.afterDelete(id);
         }
       } catch (error) {
-        console.error(`Error deleting ${config.name.singular} ${id}:`, error);
+        logger.error("error deleting entity", {
+          entity: config.name.singular,
+          id,
+          error: String(error),
+        });
         throw error;
       }
     },

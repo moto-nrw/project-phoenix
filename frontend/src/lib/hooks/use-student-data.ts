@@ -6,6 +6,9 @@ import { useSWRAuth } from "~/lib/swr";
 import { studentService } from "~/lib/api";
 import type { Student, SupervisorContact } from "~/lib/student-helpers";
 import { userContextService } from "~/lib/usercontext-api";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "StudentData" });
 
 /**
  * Extended Student type with additional detail page fields
@@ -126,8 +129,18 @@ export function useStudentData(studentId: string): UseStudentDataResult {
       // Fetch student data and user context in parallel
       const [studentResponse, groups, supervisedGroups] = await Promise.all([
         studentService.getStudent(studentId),
-        userContextService.getMyEducationalGroups().catch(() => []),
-        userContextService.getMySupervisedGroups().catch(() => []),
+        userContextService.getMyEducationalGroups().catch((err) => {
+          logger.debug("fetch_educational_groups_failed", {
+            error: err instanceof Error ? err.message : String(err),
+          });
+          return [];
+        }),
+        userContextService.getMySupervisedGroups().catch((err) => {
+          logger.debug("fetch_supervised_groups_failed", {
+            error: err instanceof Error ? err.message : String(err),
+          });
+          return [];
+        }),
       ]);
 
       interface WrappedResponse {
@@ -166,8 +179,11 @@ export function useStudentData(studentId: string): UseStudentDataResult {
 
   // refreshData now uses SWR's mutate
   const refreshData = useCallback(() => {
-    mutate().catch(() => {
-      // Ignore revalidation errors
+    mutate().catch((err) => {
+      logger.debug("swr_revalidation_failed", {
+        error: err instanceof Error ? err.message : String(err),
+        scope: "student_detail",
+      });
     });
   }, [mutate]);
 

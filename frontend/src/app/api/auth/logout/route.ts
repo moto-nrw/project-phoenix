@@ -1,6 +1,9 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { auth } from "~/server/auth";
 import { getServerApiUrl } from "~/lib/server-api-url";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "AuthLogoutRoute" });
 
 export async function POST(_request: NextRequest) {
   try {
@@ -21,13 +24,18 @@ export async function POST(_request: NextRequest) {
 
     if (!response.ok && response.status !== 204) {
       const errorText = await response.text();
-      console.error(`Logout error: ${response.status}`, errorText);
+      logger.error("logout backend error", {
+        status: response.status,
+        error: errorText,
+      });
     }
 
     // Always return success to client
     return new NextResponse(null, { status: 204 });
   } catch (error) {
-    console.error("Logout route error:", error);
+    logger.error("logout failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
     // Still return success - logout should always succeed on client side
     return new NextResponse(null, { status: 204 });
   }

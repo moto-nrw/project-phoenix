@@ -3,6 +3,10 @@
  * Extracted to reduce cognitive complexity in route handlers
  */
 
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "StudentPrivacy" });
+
 /**
  * Privacy consent response structure
  */
@@ -61,10 +65,22 @@ export async function fetchPrivacyConsent(
       const is404or403 =
         e.message.includes("(404)") || e.message.includes("(403)");
       if (!is404or403) {
+        logger.error("privacy_consent_fetch_failed", {
+          error: e.message,
+          student_id: studentId,
+        });
         // Re-throw system/network errors
         throw e;
       }
+      logger.debug("privacy_consent_not_available", {
+        error: e.message,
+        student_id: studentId,
+      });
     } else {
+      logger.error("privacy_consent_fetch_failed", {
+        error: String(e),
+        student_id: studentId,
+      });
       throw e;
     }
     // For 404 or 403, fall through to defaults

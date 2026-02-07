@@ -2,6 +2,9 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { auth } from "@/server/auth";
 import { getServerApiUrl } from "~/lib/server-api-url";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "AccountRoleDetailRoute" });
 
 // Custom POST handler to handle 204 No Content responses
 export const POST = async (
@@ -19,7 +22,10 @@ export const POST = async (
     const accountId = contextParams.accountId as string;
     const roleId = contextParams.roleId as string;
 
-    console.log(`Assigning role ${roleId} to account ${accountId}`);
+    logger.info("assigning role to account", {
+      role_id: roleId,
+      account_id: accountId,
+    });
 
     // Call the API endpoint
     const response = await fetch(
@@ -45,10 +51,10 @@ export const POST = async (
     // If not a 2xx status, handle the error
     if (!response.ok) {
       const errorText = await response.text();
-      console.error(
-        `API error when assigning role: ${response.status}:`,
-        errorText,
-      );
+      logger.error("API error when assigning role", {
+        status: response.status,
+        error: errorText,
+      });
 
       // Check if the error contains a specific SQL issue with account_role table
       if (
@@ -79,7 +85,9 @@ export const POST = async (
       data,
     });
   } catch (error) {
-    console.error("Error assigning role:", error);
+    logger.error("failed to assign role", {
+      error: error instanceof Error ? error.message : String(error),
+    });
     return NextResponse.json(
       {
         error: error instanceof Error ? error.message : "Failed to assign role",
@@ -105,7 +113,10 @@ export const DELETE = async (
     const accountId = contextParams.accountId as string;
     const roleId = contextParams.roleId as string;
 
-    console.log(`Removing role ${roleId} from account ${accountId}`);
+    logger.info("removing role from account", {
+      role_id: roleId,
+      account_id: accountId,
+    });
 
     // Call the API endpoint
     const response = await fetch(
@@ -131,10 +142,10 @@ export const DELETE = async (
     // If not a 2xx status, handle the error
     if (!response.ok) {
       const errorText = await response.text();
-      console.error(
-        `API error when removing role: ${response.status}:`,
-        errorText,
-      );
+      logger.error("API error when removing role", {
+        status: response.status,
+        error: errorText,
+      });
 
       // Check if the error contains a specific SQL issue with account_role table
       if (
@@ -165,7 +176,9 @@ export const DELETE = async (
       data,
     });
   } catch (error) {
-    console.error("Error removing role:", error);
+    logger.error("failed to remove role", {
+      error: error instanceof Error ? error.message : String(error),
+    });
     return NextResponse.json(
       {
         error: error instanceof Error ? error.message : "Failed to remove role",

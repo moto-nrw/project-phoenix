@@ -9,6 +9,7 @@ interface RetryableRequestConfig extends AxiosRequestConfig {
   _retryCount?: number;
 }
 import { getSession } from "next-auth/react";
+import { createLogger } from "~/lib/logger";
 import { env } from "~/env";
 import { convertToBackendRoom, fetchWithRetry } from "./api-helpers";
 import {
@@ -59,12 +60,30 @@ interface RetryableRequestConfig extends AxiosRequestConfig {
   _retryCount?: number;
 }
 
+// Logger instance for API client
+const logger = createLogger({ component: "ApiClient" });
+
 // Helper function to safely handle errors
 function handleApiError(error: unknown, context: string): Error {
-  console.error(`${context}:`, error);
-  return new Error(
-    `${context}: ${error instanceof Error ? error.message : String(error)}`,
-  );
+  // Extract error details
+  const errorMessage = error instanceof Error ? error.message : String(error);
+  const status =
+    error &&
+    typeof error === "object" &&
+    "response" in error &&
+    error.response &&
+    typeof error.response === "object" &&
+    "status" in error.response
+      ? (error.response.status as number)
+      : undefined;
+
+  logger.error("api operation failed", {
+    context,
+    error: errorMessage,
+    status,
+  });
+
+  return new Error(`${context}: ${errorMessage}`);
 }
 
 // Paginated response interface for API responses with pagination metadata
@@ -274,10 +293,10 @@ function buildRoomQueryParams(filters?: {
  */
 function parseRoomsResponse(responseData: unknown): BackendRoom[] {
   if (!responseData || !Array.isArray(responseData)) {
-    console.warn(
-      "API returned invalid response format for rooms:",
-      responseData,
-    );
+    logger.warn("invalid response format for rooms", {
+      response_type: typeof responseData,
+      is_array: Array.isArray(responseData),
+    });
     return [];
   }
   return responseData as BackendRoom[];
@@ -304,7 +323,9 @@ function extractBackendRoom(responseData: unknown): BackendRoom {
     return convertToBackendRoom(data);
   }
 
-  console.warn("Unexpected room response format:", responseData);
+  logger.warn("unexpected room response format", {
+    response_type: typeof responseData,
+  });
   throw new Error("Unexpected room response format");
 }
 
@@ -440,12 +461,25 @@ api.interceptors.request.use(
       // If there's a token, add it to the headers
       if (session?.user?.token) {
         config.headers.Authorization = `Bearer ${session.user.token}`;
+        logger.debug("token injected in request", {
+          method: config.method?.toUpperCase(),
+          url: config.url,
+          has_token: true,
+        });
+      } else {
+        logger.debug("no token available for request", {
+          method: config.method?.toUpperCase(),
+          url: config.url,
+        });
       }
     }
 
     return config;
   },
   (error: Error) => {
+    logger.error("request interceptor error", {
+      error: error.message,
+    });
     return Promise.reject(error);
   },
 );
@@ -554,12 +588,19 @@ api.interceptors.response.use(
   async (error: AxiosError) => {
     const originalRequest = error.config as RetryableRequestConfig | undefined;
 
+    // Log non-401 errors
+    if (error.response?.status !== 401) {
+      logger.error("api request failed", {
+        method: originalRequest?.method?.toUpperCase(),
+        url: originalRequest?.url,
+        status: error.response?.status,
+        error: error.message,
+      });
+      throw error;
+    }
+
     // Only handle 401 errors that haven't been retried
-    if (
-      error.response?.status !== 401 ||
-      !originalRequest ||
-      originalRequest._retry
-    ) {
+    if (!originalRequest || originalRequest._retry) {
       throw error;
     }
 
@@ -567,14 +608,31 @@ api.interceptors.response.use(
     originalRequest._retry = true;
     originalRequest._retryCount = (originalRequest._retryCount ?? 0) + 1;
 
+    logger.info("token expired, attempting refresh", {
+      method: originalRequest.method?.toUpperCase(),
+      url: originalRequest.url,
+      retry_count: originalRequest._retryCount,
+      caller_id: callerId,
+    });
+
     // Limit retry attempts
     if (originalRequest._retryCount > 3) {
+      logger.warn("max token refresh retries reached", {
+        method: originalRequest.method?.toUpperCase(),
+        url: originalRequest.url,
+        retry_count: originalRequest._retryCount,
+        action: "redirecting to login",
+      });
       redirectToLogin();
       throw error;
     }
 
     // Queue request if refresh is already in progress
     if (isRefreshing) {
+      logger.debug("token refresh in progress, queueing request", {
+        caller_id: callerId,
+        url: originalRequest.url,
+      });
       return queueRequestForRefresh(originalRequest, callerId);
     }
 
@@ -583,15 +641,37 @@ api.interceptors.response.use(
     try {
       // Server-side refresh
       if (globalThis.window === undefined) {
+        logger.info("attempting server-side token refresh", {
+          caller_id: callerId,
+        });
         const result = await attemptServerSideRefresh(originalRequest);
-        if (result) return result;
+        if (result) {
+          logger.info("server-side token refresh successful", {
+            caller_id: callerId,
+          });
+          return result;
+        }
+        logger.error("server-side token refresh failed", {
+          caller_id: callerId,
+        });
         throw error;
       }
 
       // Client-side refresh
+      logger.info("attempting client-side token refresh", {
+        caller_id: callerId,
+      });
       const result = await attemptClientSideRefresh(originalRequest);
-      if (result) return result;
+      if (result) {
+        logger.info("client-side token refresh successful", {
+          caller_id: callerId,
+        });
+        return result;
+      }
 
+      logger.warn("client-side token refresh failed, redirecting", {
+        caller_id: callerId,
+      });
       redirectToLogin();
     } finally {
       isRefreshing = false;
@@ -743,7 +823,10 @@ export const studentService = {
 
         if (!response.ok) {
           const errorText = await response.text();
-          console.error(`API error: ${response.status}`, errorText);
+          logger.error("api error during fetch", {
+            status: response.status,
+            error_text: errorText.substring(0, 200), // Truncate long errors
+          });
           const detailedError = parseApiErrorMessage(errorText);
           throw new Error(
             detailedError
@@ -796,7 +879,10 @@ export const studentService = {
 
         if (!response.ok) {
           const errorText = await response.text();
-          console.error(`API error: ${response.status}`, errorText);
+          logger.error("api error during fetch", {
+            status: response.status,
+            error_text: errorText.substring(0, 200), // Truncate long errors
+          });
 
           // Try to parse error text as JSON for more detailed error
           try {
@@ -865,7 +951,10 @@ export const studentService = {
 
         if (!response.ok) {
           const errorText = await response.text();
-          console.error(`API error: ${response.status}`, errorText);
+          logger.error("api error during fetch", {
+            status: response.status,
+            error_text: errorText.substring(0, 200), // Truncate long errors
+          });
           throw new Error(`API error: ${response.status}`);
         }
 
@@ -923,7 +1012,9 @@ export const groupService = {
         response.data as PaginatedResponse<BackendGroup>;
       return mapGroupsResponse(paginatedResponse.data);
     } catch (error) {
-      console.error("Error fetching groups:", error);
+      logger.error("failed to fetch groups", {
+        error: error instanceof Error ? error.message : String(error),
+      });
       throw error;
     }
   },
@@ -960,7 +1051,10 @@ export const groupService = {
       const response = await api.get(url);
       return mapGroupResponse(response.data as BackendGroup);
     } catch (error) {
-      console.error(`Error fetching group ${id}:`, error);
+      logger.error("failed to fetch group", {
+        group_id: id,
+        error: error instanceof Error ? error.message : String(error),
+      });
       throw error;
     }
   },
@@ -998,7 +1092,10 @@ export const groupService = {
 
         if (!response.ok) {
           const errorText = await response.text();
-          console.error(`API error: ${response.status}`, errorText);
+          logger.error("api error during fetch", {
+            status: response.status,
+            error_text: errorText.substring(0, 200), // Truncate long errors
+          });
           // Try to parse error for more detailed message
           try {
             const errorJson = JSON.parse(errorText) as { error?: string };
@@ -1019,7 +1116,9 @@ export const groupService = {
         return mapSingleGroupResponse({ data: response.data as BackendGroup });
       }
     } catch (error) {
-      console.error(`Error creating group:`, error);
+      logger.error("failed to create group", {
+        error: error instanceof Error ? error.message : String(error),
+      });
       throw error;
     }
   },
@@ -1052,7 +1151,10 @@ export const groupService = {
 
         if (!response.ok) {
           const errorText = await response.text();
-          console.error(`API error: ${response.status}`, errorText);
+          logger.error("api error during fetch", {
+            status: response.status,
+            error_text: errorText.substring(0, 200), // Truncate long errors
+          });
 
           // Try to parse error text as JSON for more detailed error
           try {
@@ -1078,7 +1180,10 @@ export const groupService = {
         return mapSingleGroupResponse({ data: response.data as BackendGroup });
       }
     } catch (error) {
-      console.error(`Error updating group ${id}:`, error);
+      logger.error("failed to update group", {
+        group_id: id,
+        error: error instanceof Error ? error.message : String(error),
+      });
       throw error;
     }
   },
@@ -1109,7 +1214,10 @@ export const groupService = {
 
         if (!response.ok) {
           const errorText = await response.text();
-          console.error(`API error: ${response.status}`, errorText);
+          logger.error("api error during fetch", {
+            status: response.status,
+            error_text: errorText.substring(0, 200), // Truncate long errors
+          });
           const detailedError = extractApiError(errorText, knownErrorPatterns);
           throw new Error(detailedError ?? `API error: ${response.status}`);
         }
@@ -1127,7 +1235,10 @@ export const groupService = {
         throw axiosError;
       }
     } catch (error) {
-      console.error(`Error deleting group ${id}:`, error);
+      logger.error("failed to delete group", {
+        group_id: id,
+        error: error instanceof Error ? error.message : String(error),
+      });
       throw error;
     }
   },
@@ -1155,7 +1266,10 @@ export const groupService = {
 
         if (!response.ok) {
           const errorText = await response.text();
-          console.error(`API error: ${response.status}`, errorText);
+          logger.error("api error during fetch", {
+            status: response.status,
+            error_text: errorText.substring(0, 200), // Truncate long errors
+          });
           throw new Error(`API error: ${response.status}`);
         }
 
@@ -1220,7 +1334,10 @@ export const groupService = {
 
         if (!response.ok) {
           const errorText = await response.text();
-          console.error(`API error: ${response.status}`, errorText);
+          logger.error("api error during fetch", {
+            status: response.status,
+            error_text: errorText.substring(0, 200), // Truncate long errors
+          });
           throw new Error(`API error: ${response.status}`);
         }
 
@@ -1233,10 +1350,11 @@ export const groupService = {
         return;
       }
     } catch (error) {
-      console.error(
-        `Error adding supervisor ${supervisorId} to group ${groupId}:`,
-        error,
-      );
+      logger.error("failed to add supervisor to group", {
+        supervisor_id: supervisorId,
+        group_id: groupId,
+        error: error instanceof Error ? error.message : String(error),
+      });
       throw error;
     }
   },
@@ -1268,7 +1386,10 @@ export const groupService = {
 
         if (!response.ok) {
           const errorText = await response.text();
-          console.error(`API error: ${response.status}`, errorText);
+          logger.error("api error during fetch", {
+            status: response.status,
+            error_text: errorText.substring(0, 200), // Truncate long errors
+          });
           throw new Error(`API error: ${response.status}`);
         }
 
@@ -1279,10 +1400,11 @@ export const groupService = {
         return;
       }
     } catch (error) {
-      console.error(
-        `Error removing supervisor ${supervisorId} from group ${groupId}:`,
-        error,
-      );
+      logger.error("failed to remove supervisor from group", {
+        supervisor_id: supervisorId,
+        group_id: groupId,
+        error: error instanceof Error ? error.message : String(error),
+      });
       throw error;
     }
   },
@@ -1317,7 +1439,10 @@ export const groupService = {
 
         if (!response.ok) {
           const errorText = await response.text();
-          console.error(`API error: ${response.status}`, errorText);
+          logger.error("api error during fetch", {
+            status: response.status,
+            error_text: errorText.substring(0, 200), // Truncate long errors
+          });
           throw new Error(`API error: ${response.status}`);
         }
 
@@ -1330,10 +1455,11 @@ export const groupService = {
         return;
       }
     } catch (error) {
-      console.error(
-        `Error setting representative ${representativeId} for group ${groupId}:`,
-        error,
-      );
+      logger.error("failed to set representative for group", {
+        representative_id: representativeId,
+        group_id: groupId,
+        error: error instanceof Error ? error.message : String(error),
+      });
       throw error;
     }
   },
@@ -1364,7 +1490,10 @@ export const combinedGroupService = {
 
         if (!response.ok) {
           const errorText = await response.text();
-          console.error(`API error: ${response.status}`, errorText);
+          logger.error("api error during fetch", {
+            status: response.status,
+            error_text: errorText.substring(0, 200), // Truncate long errors
+          });
           throw new Error(`API error: ${response.status}`);
         }
 
@@ -1378,7 +1507,9 @@ export const combinedGroupService = {
         );
       }
     } catch (error) {
-      console.error("Error fetching combined groups:", error);
+      logger.error("failed to fetch combined groups", {
+        error: error instanceof Error ? error.message : String(error),
+      });
       throw error;
     }
   },
@@ -1406,7 +1537,10 @@ export const combinedGroupService = {
 
         if (!response.ok) {
           const errorText = await response.text();
-          console.error(`API error: ${response.status}`, errorText);
+          logger.error("api error during fetch", {
+            status: response.status,
+            error_text: errorText.substring(0, 200), // Truncate long errors
+          });
           throw new Error(`API error: ${response.status}`);
         }
 
@@ -1420,7 +1554,10 @@ export const combinedGroupService = {
         });
       }
     } catch (error) {
-      console.error(`Error fetching combined group ${id}:`, error);
+      logger.error("failed to fetch combined group", {
+        combined_group_id: id,
+        error: error instanceof Error ? error.message : String(error),
+      });
       throw error;
     }
   },
@@ -1463,7 +1600,10 @@ export const combinedGroupService = {
 
         if (!response.ok) {
           const errorText = await response.text();
-          console.error(`API error: ${response.status}`, errorText);
+          logger.error("api error during fetch", {
+            status: response.status,
+            error_text: errorText.substring(0, 200), // Truncate long errors
+          });
           throw new Error(`API error: ${response.status}`);
         }
 
@@ -1477,7 +1617,9 @@ export const combinedGroupService = {
         });
       }
     } catch (error) {
-      console.error(`Error creating combined group:`, error);
+      logger.error("failed to create combined group", {
+        error: error instanceof Error ? error.message : String(error),
+      });
       throw error;
     }
   },
@@ -1513,7 +1655,10 @@ export const combinedGroupService = {
 
         if (!response.ok) {
           const errorText = await response.text();
-          console.error(`API error: ${response.status}`, errorText);
+          logger.error("api error during fetch", {
+            status: response.status,
+            error_text: errorText.substring(0, 200), // Truncate long errors
+          });
           throw new Error(`API error: ${response.status}`);
         }
 
@@ -1527,7 +1672,10 @@ export const combinedGroupService = {
         });
       }
     } catch (error) {
-      console.error(`Error updating combined group ${id}:`, error);
+      logger.error("failed to update combined group", {
+        combined_group_id: id,
+        error: error instanceof Error ? error.message : String(error),
+      });
       throw error;
     }
   },
@@ -1556,7 +1704,10 @@ export const combinedGroupService = {
 
         if (!response.ok) {
           const errorText = await response.text();
-          console.error(`API error: ${response.status}`, errorText);
+          logger.error("api error during fetch", {
+            status: response.status,
+            error_text: errorText.substring(0, 200), // Truncate long errors
+          });
           throw new Error(`API error: ${response.status}`);
         }
 
@@ -1567,7 +1718,10 @@ export const combinedGroupService = {
         return;
       }
     } catch (error) {
-      console.error(`Error deleting combined group ${id}:`, error);
+      logger.error("failed to delete combined group", {
+        combined_group_id: id,
+        error: error instanceof Error ? error.message : String(error),
+      });
       throw error;
     }
   },
@@ -1600,7 +1754,10 @@ export const combinedGroupService = {
 
         if (!response.ok) {
           const errorText = await response.text();
-          console.error(`API error: ${response.status}`, errorText);
+          logger.error("api error during fetch", {
+            status: response.status,
+            error_text: errorText.substring(0, 200), // Truncate long errors
+          });
           throw new Error(`API error: ${response.status}`);
         }
 
@@ -1611,10 +1768,11 @@ export const combinedGroupService = {
         return;
       }
     } catch (error) {
-      console.error(
-        `Error adding group ${groupId} to combined group ${combinedGroupId}:`,
-        error,
-      );
+      logger.error("failed to add group to combined group", {
+        group_id: groupId,
+        combined_group_id: combinedGroupId,
+        error: error instanceof Error ? error.message : String(error),
+      });
       throw error;
     }
   },
@@ -1646,7 +1804,10 @@ export const combinedGroupService = {
 
         if (!response.ok) {
           const errorText = await response.text();
-          console.error(`API error: ${response.status}`, errorText);
+          logger.error("api error during fetch", {
+            status: response.status,
+            error_text: errorText.substring(0, 200), // Truncate long errors
+          });
           throw new Error(`API error: ${response.status}`);
         }
 
@@ -1657,10 +1818,11 @@ export const combinedGroupService = {
         return;
       }
     } catch (error) {
-      console.error(
-        `Error removing group ${groupId} from combined group ${combinedGroupId}:`,
-        error,
-      );
+      logger.error("failed to remove group from combined group", {
+        group_id: groupId,
+        combined_group_id: combinedGroupId,
+        error: error instanceof Error ? error.message : String(error),
+      });
       throw error;
     }
   },
@@ -1707,7 +1869,9 @@ export const roomService = {
       const rooms = parseRoomsResponse(response.data);
       return mapRoomsResponse(rooms);
     } catch (error) {
-      console.error("Error fetching rooms:", error);
+      logger.error("failed to fetch rooms", {
+        error: error instanceof Error ? error.message : String(error),
+      });
       throw error;
     }
   },
@@ -1745,7 +1909,10 @@ export const roomService = {
       const roomData = extractBackendRoom(response.data);
       return mapSingleRoomResponse({ data: roomData });
     } catch (error) {
-      console.error(`Error fetching room ${id}:`, error);
+      logger.error("failed to fetch room", {
+        room_id: id,
+        error: error instanceof Error ? error.message : String(error),
+      });
       throw error;
     }
   },
@@ -1780,7 +1947,10 @@ export const roomService = {
 
         if (!response.ok) {
           const errorText = await response.text();
-          console.error(`API error: ${response.status}`, errorText);
+          logger.error("api error during fetch", {
+            status: response.status,
+            error_text: errorText.substring(0, 200), // Truncate long errors
+          });
           const errorMessage = parseApiErrorMessage(errorText);
           throw new Error(
             errorMessage
@@ -1797,7 +1967,9 @@ export const roomService = {
       const response = await api.post(url, backendRoom);
       return mapSingleRoomResponse({ data: response.data as BackendRoom });
     } catch (error) {
-      console.error(`Error creating room:`, error);
+      logger.error("failed to create room", {
+        error: error instanceof Error ? error.message : String(error),
+      });
       throw error;
     }
   },
@@ -1830,7 +2002,10 @@ export const roomService = {
 
         if (!response.ok) {
           const errorText = await response.text();
-          console.error(`API error: ${response.status}`, errorText);
+          logger.error("api error during fetch", {
+            status: response.status,
+            error_text: errorText.substring(0, 200), // Truncate long errors
+          });
 
           // Try to parse error text as JSON for more detailed error
           try {
@@ -1856,7 +2031,10 @@ export const roomService = {
         return mapSingleRoomResponse({ data: response.data as BackendRoom });
       }
     } catch (error) {
-      console.error(`Error updating room ${id}:`, error);
+      logger.error("failed to update room", {
+        room_id: id,
+        error: error instanceof Error ? error.message : String(error),
+      });
       throw error;
     }
   },
@@ -1885,7 +2063,10 @@ export const roomService = {
 
         if (!response.ok) {
           const errorText = await response.text();
-          console.error(`API error: ${response.status}`, errorText);
+          logger.error("api error during fetch", {
+            status: response.status,
+            error_text: errorText.substring(0, 200), // Truncate long errors
+          });
           throw new Error(`API error: ${response.status}`);
         }
 
@@ -1896,7 +2077,10 @@ export const roomService = {
         return;
       }
     } catch (error) {
-      console.error(`Error deleting room ${id}:`, error);
+      logger.error("failed to delete room", {
+        room_id: id,
+        error: error instanceof Error ? error.message : String(error),
+      });
       throw error;
     }
   },
@@ -1924,7 +2108,10 @@ export const roomService = {
 
         if (!response.ok) {
           const errorText = await response.text();
-          console.error(`API error: ${response.status}`, errorText);
+          logger.error("api error during fetch", {
+            status: response.status,
+            error_text: errorText.substring(0, 200), // Truncate long errors
+          });
           throw new Error(`API error: ${response.status}`);
         }
 
@@ -1951,7 +2138,9 @@ export const roomService = {
         return result;
       }
     } catch (error) {
-      console.error("Error fetching rooms by category:", error);
+      logger.error("failed to fetch rooms by category", {
+        error: error instanceof Error ? error.message : String(error),
+      });
       throw error;
     }
   },

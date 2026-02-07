@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
 import { auth } from "~/server/auth";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "UpdateSessionRoute" });
 
 /**
  * This endpoint is used to trigger a session update
@@ -21,7 +24,9 @@ export async function GET() {
       tokenError: session.error,
     });
   } catch (error) {
-    console.error("Error updating session:", error);
+    logger.error("session update failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
     return NextResponse.json(
       { error: "Failed to update session" },
       { status: 500 },

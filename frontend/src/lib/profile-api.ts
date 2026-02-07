@@ -3,6 +3,9 @@ import {
   getCachedSession,
   clearSessionCache,
 } from "./session-cache";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "ProfileAPI" });
 import {
   mapProfileResponse,
   mapProfileUpdateRequest,
@@ -42,7 +45,7 @@ export async function fetchProfile(): Promise<Profile> {
     ) {
       throw error;
     }
-    console.error("Error fetching profile:", error);
+    logger.error("failed to fetch profile", { error: String(error) });
     throw new Error("Failed to fetch profile");
   }
 }
@@ -78,7 +81,7 @@ export async function updateProfile(
     ) {
       throw error;
     }
-    console.error("Error updating profile:", error);
+    logger.error("failed to update profile", { error: String(error) });
     throw new Error("Failed to update profile");
   }
 }
@@ -143,7 +146,7 @@ export async function uploadAvatar(file: File): Promise<Profile> {
 
     return mapProfileResponse(result.data);
   } catch (error) {
-    console.error("Error uploading avatar:", error);
+    logger.error("failed to upload avatar", { error: String(error) });
     throw new Error(
       error instanceof Error ? error.message : "Failed to upload avatar",
     );
@@ -177,7 +180,7 @@ export async function deleteAvatar(): Promise<Profile> {
     ) {
       throw error;
     }
-    console.error("Error deleting avatar:", error);
+    logger.error("failed to delete avatar", { error: String(error) });
     throw new Error("Failed to delete avatar");
   }
 }

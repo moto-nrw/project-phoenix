@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
 import { env } from "~/env";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "AuthConfigRoute" });
 
 /**
  * Endpoint to check the current authentication configuration
@@ -21,9 +24,7 @@ export async function GET() {
       "Tokens refresh automatically when access token has less than 10 minutes remaining",
   };
 
-  console.log("=== Current Auth Configuration ===");
-  console.log(JSON.stringify(config, null, 2));
-  console.log("=================================");
+  logger.debug("current auth configuration", { config });
 
   return NextResponse.json({
     success: true,

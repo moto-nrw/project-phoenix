@@ -1,6 +1,9 @@
 "use client";
 
+import { createLogger } from "~/lib/logger";
 import { useState, useMemo } from "react";
+
+const logger = createLogger({ component: "DatabaseTeachersPage" });
 import { useSession } from "next-auth/react";
 import { redirect, useRouter } from "next/navigation";
 import { DatabasePageLayout } from "~/components/database/database-page-layout";
@@ -152,7 +155,9 @@ export default function TeachersPage() {
       const freshData = await service.getOne(idToFetch);
       setSelectedTeacher(freshData);
     } catch (err) {
-      console.error("Error fetching teacher details:", err);
+      logger.error("failed to fetch teacher details", {
+        error: err instanceof Error ? err.message : String(err),
+      });
     } finally {
       setDetailLoading(false);
     }
@@ -171,7 +176,9 @@ export default function TeachersPage() {
       );
       await mutate("database-teachers-list");
     } catch (err) {
-      console.error("Error creating teacher:", err);
+      logger.error("failed to create teacher", {
+        error: err instanceof Error ? err.message : String(err),
+      });
       throw err;
     } finally {
       setCreateLoading(false);
@@ -195,7 +202,9 @@ export default function TeachersPage() {
       await mutate("database-teachers-list");
       setSelectedTeacher(null);
     } catch (err) {
-      console.error("Error updating teacher:", err);
+      logger.error("failed to update teacher", {
+        error: err instanceof Error ? err.message : String(err),
+      });
       throw err;
     } finally {
       setDetailLoading(false);
@@ -216,7 +225,9 @@ export default function TeachersPage() {
       await mutate("database-teachers-list");
       setSelectedTeacher(null);
     } catch (err) {
-      console.error("Error deleting teacher:", err);
+      logger.error("failed to delete teacher", {
+        error: err instanceof Error ? err.message : String(err),
+      });
       throw err;
     } finally {
       setDetailLoading(false);

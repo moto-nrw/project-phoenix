@@ -1,6 +1,9 @@
 "use client";
 
+import { createLogger } from "~/lib/logger";
 import { useEffect, useMemo, useState, useCallback } from "react";
+
+const logger = createLogger({ component: "DatabasePermissionsPage" });
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
 import { DatabasePageLayout } from "~/components/database/database-page-layout";
@@ -73,7 +76,9 @@ export default function PermissionsPage() {
       setPermissions(arr);
       setError(null);
     } catch (err) {
-      console.error("Error fetching permissions:", err);
+      logger.error("failed to fetch permissions", {
+        error: err instanceof Error ? err.message : String(err),
+      });
       setError(
         "Fehler beim Laden der Berechtigungen. Bitte versuchen Sie es später erneut.",
       );

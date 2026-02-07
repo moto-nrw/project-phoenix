@@ -76,6 +76,8 @@ services:
       # Skip env validation in Docker
       SKIP_ENV_VALIDATION: ${SKIP_ENV_VALIDATION:-"true"}
       NEXT_TELEMETRY_DISABLED: ${NEXT_TELEMETRY_DISABLED:-"1"}
+      # Frontend structured logging level (debug, info, warn, error)
+      NEXT_PUBLIC_LOG_LEVEL: ${NEXT_PUBLIC_LOG_LEVEL:-info}
     depends_on:
       - server
     volumes:

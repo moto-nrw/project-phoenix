@@ -10,6 +10,9 @@ import React, {
 } from "react";
 import { useSession } from "next-auth/react";
 import { fetchProfile as apiFetchProfile } from "~/lib/profile-api";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "ProfileContext" });
 import type { Profile } from "~/lib/profile-helpers";
 
 interface ProfileState {
@@ -84,7 +87,7 @@ export function ProfileProvider({
         };
       });
     } catch (error) {
-      console.error("Failed to load profile:", error);
+      logger.error("failed to load profile", { error: String(error) });
       setState((prev) => ({
         ...prev,
         profile: null,

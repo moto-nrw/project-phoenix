@@ -353,8 +353,10 @@ describe("OperatorSuggestionsPage", () => {
 
     await waitFor(() => {
       expect(consoleError).toHaveBeenCalledWith(
-        "Failed to update status:",
-        expect.any(Error),
+        "suggestion_status_update_failed",
+        {
+          error: "API Error",
+        },
       );
     });
 

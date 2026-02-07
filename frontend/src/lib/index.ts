@@ -57,3 +57,14 @@ export {
   formatActivityTimes,
   formatParticipantStatus,
 } from "./activity-helpers";
+
+// Export logger module
+export {
+  createLogger,
+  getLogger,
+  LogLevelValue,
+  type Logger,
+  type LogLevel,
+  type LogEntry,
+  type LoggerConfig,
+} from "./logger";

@@ -5,6 +5,9 @@ import type {
   BackendSubstitution,
   CreateSubstitutionRequest,
 } from "~/lib/substitution-helpers";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "SubstitutionsRoute" });
 
 /**
  * Type for paginated response from backend
@@ -41,8 +44,7 @@ export const GET = createGetHandler(
       token,
     );
 
-    // Log for debugging
-    console.log("Substitutions API Response:", paginatedResponse);
+    logger.debug("substitutions API response received");
 
     // Return just the data array
     return paginatedResponse.data || [];
@@ -57,11 +59,7 @@ export const POST = createPostHandler(
   async (req: NextRequest, body: CreateSubstitutionRequest, token: string) => {
     const endpoint = `/api/substitutions`;
 
-    // Log the request payload for debugging
-    console.log(
-      "Creating substitution with payload:",
-      JSON.stringify(body, null, 2),
-    );
+    logger.debug("creating substitution");
 
     // Create substitution via the API
     return await apiPost<BackendSubstitution>(endpoint, token, body);

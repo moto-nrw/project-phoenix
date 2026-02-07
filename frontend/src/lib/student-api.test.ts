@@ -353,8 +353,11 @@ describe("student-api", () => {
 
         expect(result).toEqual([]);
         expect(consoleSpies.error).toHaveBeenCalledWith(
-          "Error fetching groups:",
-          expect.any(Error),
+          "failed to fetch groups",
+          {
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+            error: expect.any(String),
+          },
         );
       });
     });
@@ -447,8 +450,12 @@ describe("student-api", () => {
 
       expect(result).toBeNull();
       expect(consoleSpies.error).toHaveBeenCalledWith(
-        "Error fetching privacy consent:",
-        expect.any(Error),
+        "failed to fetch privacy consent",
+        {
+          student_id: "123",
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+          error: expect.any(String),
+        },
       );
     });
   });

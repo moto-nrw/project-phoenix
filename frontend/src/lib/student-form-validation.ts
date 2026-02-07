@@ -4,6 +4,9 @@
  */
 
 import type { Student } from "~/lib/student-helpers";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "StudentFormValidation" });
 
 /**
  * Validates data retention days field
@@ -85,7 +88,7 @@ export async function handleStudentFormSubmit(
     setLoading(true);
     await onSubmit(formData);
   } catch (error) {
-    console.error("Error saving student:", error);
+    logger.error("error saving student", { error: String(error) });
     setErrors({
       submit: "Fehler beim Speichern. Bitte versuchen Sie es erneut.",
     });

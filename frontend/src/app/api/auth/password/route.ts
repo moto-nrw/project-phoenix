@@ -2,6 +2,9 @@ import { NextResponse, type NextRequest } from "next/server";
 import { auth } from "~/server/auth";
 import { apiPost } from "~/lib/api-helpers";
 import { isAxiosError } from "axios";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "AuthPasswordRoute" });
 
 interface ErrorResponse {
   message?: string;
@@ -49,7 +52,9 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("Password change error:", error);
+    logger.error("password change failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
 
     // Handle specific error messages from backend
     if (isAxiosError<ErrorResponse>(error)) {

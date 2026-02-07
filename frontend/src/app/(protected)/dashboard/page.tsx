@@ -1,5 +1,6 @@
 "use client";
 
+import { createLogger } from "~/lib/logger";
 import { useEffect, useState, useRef } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
@@ -15,6 +16,9 @@ import {
 import { isAdmin } from "~/lib/auth-utils";
 
 import { Loading } from "~/components/ui/loading";
+
+const logger = createLogger({ component: "DashboardPage" });
+
 // Helper function to get time-based greeting
 function getTimeBasedGreeting(): string {
   const hour = new Date().getHours();
@@ -260,7 +264,9 @@ function DashboardContent() {
         const response = await fetchWithAuth("/api/dashboard/analytics");
 
         if (!response.ok) {
-          console.error(`Dashboard API returned status ${response.status}`);
+          logger.error("dashboard API request failed", {
+            status: response.status,
+          });
           throw new Error("Failed to fetch dashboard data");
         }
 
@@ -269,7 +275,9 @@ function DashboardContent() {
         setError(null);
         hasLoadedOnce.current = true;
       } catch (err) {
-        console.error("Error fetching dashboard data:", err);
+        logger.error("failed to fetch dashboard data", {
+          error: err instanceof Error ? err.message : String(err),
+        });
         // For initial load, show full error
         if (!hasLoadedOnce.current) {
           setError("Fehler beim Laden der Dashboard-Daten");
@@ -282,7 +290,7 @@ function DashboardContent() {
 
     if (status === "authenticated" && session) {
       if (session.error === "RefreshTokenExpired") {
-        console.log("Session refresh token expired, redirecting to login");
+        logger.info("session refresh token expired, redirecting to login");
         router.push("/");
         return;
       }
@@ -290,7 +298,7 @@ function DashboardContent() {
       if (session.user?.token) {
         void fetchDashboardData();
       } else {
-        console.log("No valid token in session, redirecting to login");
+        logger.info("no valid token in session, redirecting to login");
         router.push("/");
       }
 

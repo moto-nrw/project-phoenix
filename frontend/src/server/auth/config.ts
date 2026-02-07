@@ -3,6 +3,10 @@ import DiscordProvider from "next-auth/providers/discord";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { env } from "~/env";
 import { getServerApiUrl } from "~/lib/server-api-url";
+import { createLogger } from "~/lib/logger";
+
+// Logger instance for NextAuth config
+const logger = createLogger({ component: "NextAuthConfig" });
 
 /**
  * JWT payload structure from backend tokens
@@ -25,13 +29,13 @@ interface JwtPayload {
 function parseJwtPayload(tokenString: string): JwtPayload | null {
   const tokenParts = tokenString.split(".");
   if (tokenParts.length !== 3) {
-    console.error("Invalid token format");
+    logger.error("invalid jwt token format", {});
     return null;
   }
 
   const payloadPart = tokenParts[1];
   if (!payloadPart) {
-    console.error("Invalid token part");
+    logger.error("invalid jwt token part", {});
     return null;
   }
 
@@ -40,7 +44,9 @@ function parseJwtPayload(tokenString: string): JwtPayload | null {
       Buffer.from(payloadPart, "base64").toString(),
     ) as JwtPayload;
   } catch (e) {
-    console.error("Error parsing JWT:", e);
+    logger.error("error parsing jwt", {
+      error: e instanceof Error ? e.message : String(e),
+    });
     return null;
   }
 }
@@ -98,7 +104,7 @@ async function performLogin(
   const apiUrl = getServerApiUrl();
 
   if (isDev) {
-    console.log(`Attempting login with API URL: ${apiUrl}/auth/login`);
+    logger.debug("attempting login", { api_url: `${apiUrl}/auth/login` });
   }
 
   try {
@@ -109,12 +115,12 @@ async function performLogin(
     });
 
     if (isDev) {
-      console.log(`Login response status: ${response.status}`);
+      logger.debug("login response received", { status: response.status });
     }
 
     if (!response.ok) {
       const text = await response.text();
-      console.error(`Login failed with status ${response.status}: ${text}`);
+      logger.error("login failed", { status: response.status, error: text });
       return null;
     }
 
@@ -124,12 +130,16 @@ async function performLogin(
     };
 
     if (isDev) {
-      console.log("Login response:", JSON.stringify(responseData));
+      logger.debug("login response parsed", {
+        has_tokens: !!responseData.access_token,
+      });
     }
 
     return responseData;
   } catch (error) {
-    console.error("Authentication error:", error);
+    logger.error("authentication error", {
+      error: error instanceof Error ? error.message : String(error),
+    });
     return null;
   }
 }
@@ -220,7 +230,7 @@ export const authConfig = {
           creds?.refreshToken
         ) {
           if (isDev) {
-            console.log("Handling internal token refresh");
+            logger.debug("handling internal token refresh", {});
           }
 
           const payload = parseJwtPayload(creds.token);
@@ -245,18 +255,15 @@ export const authConfig = {
 
         // Development logging for debugging
         if (isDev) {
-          console.log("Token payload:", payload);
+          logger.debug("token payload parsed", { has_roles: !!payload.roles });
           if (payload.roles && Array.isArray(payload.roles)) {
-            console.log("Found roles in token:", payload.roles);
+            logger.debug("found roles in token", { roles: payload.roles });
           } else {
-            console.warn(
-              "No roles found in token, this will cause authorization failures",
-            );
+            logger.warn("no roles found in token", {});
           }
-          console.log(
-            "Using display name:",
-            buildDisplayName(payload, creds.email),
-          );
+          logger.debug("display name", {
+            name: buildDisplayName(payload, creds.email),
+          });
         }
 
         return buildAuthUser(
@@ -286,18 +293,15 @@ export const authConfig = {
         const callerId = `jwt-callback-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
         const stack = new Error("Stack trace for caller identification").stack;
         const caller = stack?.split("\n")[3]?.trim() ?? "Unknown caller";
-        console.log(`\n=== [${callerId}] JWT Callback Invoked ===`);
-        console.log(
-          `[${callerId}] Triggered by: NextAuth internal (server-side session access)`,
-        );
-        console.log(`[${callerId}] Stack trace hint: ${caller}`);
-        console.log(`[${callerId}] Has user object: ${!!user}`);
-        console.log(
-          `[${callerId}] Current refresh token: ${token.refreshToken ? (token.refreshToken as string).substring(0, 50) + "..." : "none"}`,
-        );
-        console.log(
-          `[${callerId}] Token expiry: ${token.tokenExpiry ? new Date(token.tokenExpiry as number).toISOString() : "not set"}`,
-        );
+        logger.debug("jwt callback invoked", {
+          caller_id: callerId,
+          caller,
+          has_user: !!user,
+          has_refresh_token: !!token.refreshToken,
+          token_expiry: token.tokenExpiry
+            ? new Date(token.tokenExpiry as number).toISOString()
+            : "not set",
+        });
       }
 
       // Initial sign in
@@ -320,20 +324,16 @@ export const authConfig = {
 
         // Log token configuration for debugging (only in development)
         if (isDev) {
-          console.log("=== Authentication Token Configuration ===");
-          console.log(
-            `Access Token Expiry: ${env.AUTH_JWT_EXPIRY} (expires at ${new Date(token.tokenExpiry as number).toISOString()})`,
-          );
-          console.log(
-            `Refresh Token Expiry: ${env.AUTH_JWT_REFRESH_EXPIRY} (expires at ${new Date(token.refreshTokenExpiry as number).toISOString()})`,
-          );
-          console.log(
-            `NextAuth Session Length: ${env.AUTH_JWT_REFRESH_EXPIRY}`,
-          );
-          console.log(
-            `Token Refresh: Handled by axios interceptor on 401 errors`,
-          );
-          console.log("========================================");
+          logger.debug("authentication token configuration", {
+            access_token_expiry: env.AUTH_JWT_EXPIRY,
+            access_expires_at: new Date(
+              token.tokenExpiry as number,
+            ).toISOString(),
+            refresh_token_expiry: env.AUTH_JWT_REFRESH_EXPIRY,
+            refresh_expires_at: new Date(
+              token.refreshTokenExpiry as number,
+            ).toISOString(),
+          });
         }
       }
 
@@ -342,7 +342,11 @@ export const authConfig = {
         token.refreshTokenExpiry &&
         Date.now() > (token.refreshTokenExpiry as number)
       ) {
-        console.warn("Refresh token has expired, user needs to re-login");
+        logger.warn("refresh token expired", {
+          expires_at: new Date(
+            token.refreshTokenExpiry as number,
+          ).toISOString(),
+        });
         token.error = "RefreshTokenExpired";
         token.needsRefresh = true;
         // Keep user data for graceful degradation
@@ -353,9 +357,9 @@ export const authConfig = {
       // All token refresh is now handled by the axios interceptor when it receives 401 errors
       // This eliminates race conditions from multiple concurrent refresh attempts
       if (isDev) {
-        console.log(
-          "JWT callback completed - no refresh attempted (handled by axios interceptor)",
-        );
+        logger.debug("jwt callback completed", {
+          refresh_handled_by: "axios_interceptor",
+        });
       }
 
       return token;

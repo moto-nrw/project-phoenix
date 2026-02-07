@@ -2,6 +2,9 @@
 import type { NextRequest } from "next/server";
 import { apiGet } from "~/lib/api-helpers";
 import { createGetHandler } from "~/lib/route-wrapper";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "TimeframesRoute" });
 
 // Define the backend timeframe interface based on schedule.timeframes table
 interface BackendTimeframe {
@@ -92,11 +95,12 @@ export const GET = createGetHandler(
           .map(mapTimeframeResponse);
       }
 
-      // In case of other unexpected response format
-      console.error("Unexpected timeframe response format:", response);
+      logger.error("unexpected timeframe response format");
       return [];
     } catch (error) {
-      console.error("Error fetching timeframes:", error);
+      logger.error("timeframes fetch failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
       return [];
     }
   },

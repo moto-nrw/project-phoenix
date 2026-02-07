@@ -886,10 +886,9 @@ describe("StudentsPage", () => {
         capturedGroupsFetcher as unknown as () => Promise<unknown>
       )();
       expect(result).toEqual([]);
-      expect(consoleErrorSpy).toHaveBeenCalledWith(
-        "Failed to fetch groups:",
-        500,
-      );
+      expect(consoleErrorSpy).toHaveBeenCalledWith("failed to fetch groups", {
+        status: 500,
+      });
 
       consoleErrorSpy.mockRestore();
       vi.unstubAllGlobals();
@@ -939,8 +938,8 @@ describe("StudentsPage", () => {
       )();
       expect(result).toEqual([]);
       expect(consoleErrorSpy).toHaveBeenCalledWith(
-        "Unexpected groups response format:",
-        "unexpected string",
+        "unexpected groups response format",
+        { data_type: "string" },
       );
 
       consoleErrorSpy.mockRestore();

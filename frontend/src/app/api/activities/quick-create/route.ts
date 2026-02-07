@@ -2,6 +2,9 @@
 import type { NextRequest } from "next/server";
 import { apiPost } from "~/lib/api-helpers";
 import { createPostHandler } from "~/lib/route-wrapper";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "QuickCreateActivityRoute" });
 
 interface QuickCreateActivityRequest {
   name: string;
@@ -84,7 +87,9 @@ export const POST = createPostHandler<
         created_at: new Date().toISOString(),
       };
     } catch (error) {
-      console.error("Quick create activity error:", error);
+      logger.error("quick create activity failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
       throw error;
     }
   },

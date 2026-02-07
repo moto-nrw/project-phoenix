@@ -1,6 +1,9 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "DatabaseSelect" });
 
 interface SelectOption {
   readonly value: string;
@@ -71,7 +74,9 @@ export function DatabaseSelect({
         const loadedOptions = await loadOptions();
         setOptions(loadedOptions);
       } catch (err) {
-        console.error("Error loading options:", err);
+        logger.error("failed to load options", {
+          error: err instanceof Error ? err.message : String(err),
+        });
         setError("Fehler beim Laden der Optionen");
         setOptions([]);
       } finally {

@@ -3,7 +3,9 @@ import type { NextRequest } from "next/server";
 import { apiGet } from "~/lib/api-helpers";
 import { NextResponse } from "next/server";
 import { auth } from "~/server/auth";
-// No need for the ApiResponse type import anymore since we're using NextResponse directly
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "RoomHistoryRoute" });
 
 // Backend interface for room history entries
 export interface BackendRoomHistoryEntry {
@@ -64,7 +66,10 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ status: "success", data: [] });
     }
 
-    console.error(`Error fetching room history for room ${roomId}:`, apiError);
+    logger.error("room history fetch failed", {
+      room_id: roomId,
+      error: apiError instanceof Error ? apiError.message : String(apiError),
+    });
     const errorMessage =
       apiError instanceof Error ? apiError.message : String(apiError);
     return NextResponse.json(

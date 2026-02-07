@@ -1,6 +1,9 @@
 "use client";
 
+import { createLogger } from "~/lib/logger";
 import { useSession } from "next-auth/react";
+
+const logger = createLogger({ component: "CombinedGroupsPage" });
 import { redirect, useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import { DataListPage } from "@/components/dashboard";
@@ -41,22 +44,24 @@ export default function CombinedGroupsPage() {
         const data = await combinedGroupService.getCombinedGroups();
 
         if (data.length === 0) {
-          console.log(
-            "No combined groups returned from API, checking connection",
-          );
+          logger.debug("no combined groups returned from API");
         }
 
         setCombinedGroups(data);
         setError(null);
       } catch (error_) {
-        console.error("API error when fetching combined groups:", error_);
+        logger.error("API error fetching combined groups", {
+          error: error_ instanceof Error ? error_.message : String(error_),
+        });
         setError(
           "Fehler beim Laden der Gruppenkombinationen. Bitte versuchen Sie es später erneut.",
         );
         setCombinedGroups([]);
       }
     } catch (err) {
-      console.error("Error fetching combined groups:", err);
+      logger.error("failed to fetch combined groups", {
+        error: err instanceof Error ? err.message : String(err),
+      });
       setError(
         "Fehler beim Laden der Gruppenkombinationen. Bitte versuchen Sie es später erneut.",
       );

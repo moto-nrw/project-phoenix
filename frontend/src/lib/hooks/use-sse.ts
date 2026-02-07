@@ -5,6 +5,10 @@ import type {
   SSEHookState,
   ConnectionStatus,
 } from "../sse-types";
+import { createLogger } from "~/lib/logger";
+
+// Logger instance for SSE connection
+const logger = createLogger({ component: "SSE" });
 
 /**
  * React hook for Server-Sent Events (SSE) with auto-reconnection
@@ -72,7 +76,10 @@ export function useSSE(
 
     // Check if EventSource is supported
     if (typeof EventSource === "undefined") {
-      console.warn("EventSource not supported in this browser");
+      logger.warn("eventsource not supported", {
+        endpoint,
+        browser: navigator.userAgent.substring(0, 100),
+      });
       setError("Browser does not support Server-Sent Events");
       return;
     }
@@ -87,7 +94,11 @@ export function useSSE(
         const parsed = JSON.parse(String(messageEvent.data)) as SSEEvent;
         stableOnMessage(parsed);
       } catch (err) {
-        console.error(`Failed to parse ${eventType} event:`, err);
+        logger.error("failed to parse sse event", {
+          endpoint,
+          event_type: eventType,
+          error: err instanceof Error ? err.message : String(err),
+        });
         setError(`Ungültige Server-Event-Daten (${eventType})`);
       }
     };
@@ -121,7 +132,11 @@ export function useSSE(
             const parsed = JSON.parse(String(event.data)) as SSEEvent;
             stableOnMessage(parsed);
           } catch (err) {
-            console.error("Failed to parse SSE message:", err);
+            logger.error("failed to parse sse message", {
+              endpoint,
+              error: err instanceof Error ? err.message : String(err),
+              data_preview: String(event.data).substring(0, 100),
+            });
             setError("Ungültige Server-Event-Daten empfangen");
           }
         };
@@ -144,14 +159,14 @@ export function useSSE(
         eventSource.onerror = (err) => {
           if (!mountedRef.current) return;
 
-          // Log more detailed error information
-          const errorDetails = {
-            readyState: eventSource?.readyState,
-            url: endpoint,
-            type: err.type,
-            target: err.target,
-          };
-          console.error("SSE connection error:", errorDetails);
+          // Log detailed error information
+          logger.error("sse connection error", {
+            endpoint,
+            ready_state: eventSource?.readyState,
+            error_type: err.type,
+            is_online:
+              typeof navigator !== "undefined" ? navigator.onLine : true,
+          });
 
           setIsConnected(false);
           // classify likely causes
@@ -186,11 +201,17 @@ export function useSSE(
             reconnectTimeoutRef.current = setTimeout(attemptReconnect, delay);
           } else {
             setError("Max reconnection attempts reached");
-            console.error("SSE: Max reconnection attempts reached");
+            logger.warn("sse max reconnection attempts reached", {
+              endpoint,
+              max_attempts: maxReconnectAttempts,
+            });
           }
         };
       } catch (err) {
-        console.error("Failed to create EventSource:", err);
+        logger.error("failed to create eventsource", {
+          endpoint,
+          error: err instanceof Error ? err.message : String(err),
+        });
         setError("Failed to establish SSE connection");
       }
     };

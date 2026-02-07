@@ -11,6 +11,9 @@ import type {
   PendingInvitation,
 } from "~/lib/invitation-helpers";
 import type { ApiError } from "~/lib/auth-api";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "InvitationForm" });
 
 interface InvitationFormProps {
   readonly onCreated?: (invitation: PendingInvitation) => void;
@@ -60,7 +63,9 @@ export function InvitationForm({ onCreated }: InvitationFormProps) {
           .filter((role) => !Number.isNaN(role.id));
         setRoles(options);
       } catch (err) {
-        console.error("Failed to load roles", err);
+        logger.error("failed to load roles", {
+          error: err instanceof Error ? err.message : String(err),
+        });
         if (!cancelled) {
           setError(
             "Rollen konnten nicht geladen werden. Bitte aktualisiere die Seite.",

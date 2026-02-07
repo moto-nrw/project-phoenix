@@ -2,6 +2,9 @@ import { useState, useEffect, useRef } from "react";
 import type { Teacher } from "@/lib/teacher-api";
 import { authService } from "@/lib/auth-service";
 import { getRoleDisplayName } from "@/lib/auth-helpers";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "TeacherForm" });
 
 interface RoleOption {
   id: number;
@@ -80,7 +83,9 @@ export function TeacherForm({
 
         setRoles(options);
       } catch (err) {
-        console.error("Failed to load roles", err);
+        logger.error("failed to load roles", {
+          error: err instanceof Error ? err.message : String(err),
+        });
       } finally {
         if (!cancelled) {
           setIsLoadingRoles(false);
@@ -215,7 +220,9 @@ export function TeacherForm({
       // Submit the form
       await onSubmitAction(formData);
     } catch (err) {
-      console.error("Error submitting form:", err);
+      logger.error("failed to submit form", {
+        error: err instanceof Error ? err.message : String(err),
+      });
       setSubmitError(
         "Es ist ein Fehler aufgetreten. Bitte versuchen Sie es später erneut.",
       );

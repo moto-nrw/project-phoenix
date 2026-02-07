@@ -50,6 +50,9 @@ import {
 import { fetchBulkPickupTimes } from "~/lib/pickup-schedule-api";
 import type { BulkPickupTime } from "~/lib/pickup-schedule-api";
 import { Clock, AlertTriangle } from "lucide-react";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "OgsGroupsPage" });
 
 // Backend pickup time response (from BFF)
 interface BackendPickupTime {
@@ -201,7 +204,7 @@ function OGSGroupPageContent() {
   } = useSWRAuth<OGSDashboardBFFResponse>(
     session?.user?.token ? "ogs-dashboard" : null,
     async () => {
-      console.log("⏱️ [OGS-GROUPS] SWR fetching dashboard via BFF...");
+      logger.debug("SWR fetching dashboard via BFF");
       const start = performance.now();
 
       const response = await fetch("/api/ogs-dashboard", {
@@ -221,9 +224,9 @@ function OGSGroupPageContent() {
         data: OGSDashboardBFFResponse;
       };
 
-      console.log(
-        `⏱️ [OGS-GROUPS] SWR fetch complete: ${(performance.now() - start).toFixed(0)}ms`,
-      );
+      logger.debug("SWR fetch complete", {
+        duration_ms: (performance.now() - start).toFixed(0),
+      });
       return json.data;
     },
     {
@@ -483,7 +486,7 @@ function OGSGroupPageContent() {
       if (students.length > 0) {
         const studentIds = students.map((s) => s.id.toString());
         pickupTimesMap = await fetchBulkPickupTimes(studentIds).catch(() => {
-          console.error("Failed to fetch pickup times in SWR");
+          logger.error("failed to fetch pickup times in SWR");
           return new Map<string, BulkPickupTime>();
         });
       }
@@ -536,7 +539,9 @@ function OGSGroupPageContent() {
       const users = await groupTransferService.getAllAvailableStaff();
       setAvailableUsers(users);
     } catch (error) {
-      console.error("Error loading available users:", error);
+      logger.error("failed to load available users", {
+        error: error instanceof Error ? error.message : String(error),
+      });
       setAvailableUsers([]);
     }
   }, []);
@@ -552,7 +557,9 @@ function OGSGroupPageContent() {
         );
         setActiveTransfers(transfers);
       } catch (error) {
-        console.error("Error checking active transfers:", error);
+        logger.error("failed to check active transfers", {
+          error: error instanceof Error ? error.message : String(error),
+        });
         setActiveTransfers([]);
       }
     },
@@ -564,8 +571,16 @@ function OGSGroupPageContent() {
   // Otherwise setAllGroups() creates new object references and triggers this effect again
   useEffect(() => {
     if (showTransferModal && currentGroupId) {
-      loadAvailableUsers().catch(console.error);
-      checkActiveTransfers(currentGroupId).catch(console.error);
+      loadAvailableUsers().catch((err: unknown) =>
+        logger.error("failed to load available users", {
+          error: err instanceof Error ? err.message : String(err),
+        }),
+      );
+      checkActiveTransfers(currentGroupId).catch((err: unknown) =>
+        logger.error("failed to check active transfers", {
+          error: err instanceof Error ? err.message : String(err),
+        }),
+      );
     }
   }, [
     showTransferModal,
@@ -667,7 +682,9 @@ function OGSGroupPageContent() {
           }
         }
       } catch (error) {
-        console.error("Error loading group room status:", error);
+        logger.error("failed to load group room status", {
+          error: error instanceof Error ? error.message : String(error),
+        });
       }
     },
     [], // No dependencies - function is stable

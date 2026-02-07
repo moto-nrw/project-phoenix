@@ -1,6 +1,7 @@
 // Guardian API Client
 // Calls Next.js API routes which proxy to the Go backend
 
+import { createLogger } from "~/lib/logger";
 import type {
   Guardian,
   GuardianWithRelationship,
@@ -22,6 +23,8 @@ import {
   mapPhoneNumberCreateToBackend,
   mapPhoneNumberUpdateToBackend,
 } from "./guardian-helpers";
+
+const logger = createLogger({ component: "GuardianAPI" });
 
 // API Response Types
 interface ApiResponse<T> {
@@ -165,9 +168,14 @@ export async function fetchStudentGuardians(
   );
 
   if (!response.ok) {
-    const error: unknown = await response
-      .json()
-      .catch(() => ({ error: "Failed to fetch guardians" }));
+    const error: unknown = await response.json().catch((err) => {
+      logger.debug("json_parse_failed", {
+        error: err instanceof Error ? err.message : String(err),
+        status: response.status,
+        operation: "fetch_student_guardians",
+      });
+      return { error: "Failed to fetch guardians" };
+    });
     const errorMessage = isErrorResponse(error)
       ? error.error
       : `Failed to fetch guardians: ${response.statusText}`;
@@ -194,9 +202,14 @@ export async function fetchGuardianStudents(
   const response = await fetch(`/api/guardians/${guardianId}/students`);
 
   if (!response.ok) {
-    const error: unknown = await response
-      .json()
-      .catch(() => ({ error: "Failed to fetch students" }));
+    const error: unknown = await response.json().catch((err) => {
+      logger.debug("json_parse_failed", {
+        error: err instanceof Error ? err.message : String(err),
+        status: response.status,
+        operation: "fetch_guardian_students",
+      });
+      return { error: "Failed to fetch students" };
+    });
     const errorMessage = isErrorResponse(error)
       ? error.error
       : `Failed to fetch students: ${response.statusText}`;
@@ -229,9 +242,14 @@ export async function createGuardian(
   });
 
   if (!response.ok) {
-    const error: unknown = await response
-      .json()
-      .catch(() => ({ error: "Failed to create guardian" }));
+    const error: unknown = await response.json().catch((err) => {
+      logger.debug("json_parse_failed", {
+        error: err instanceof Error ? err.message : String(err),
+        status: response.status,
+        operation: "create_guardian",
+      });
+      return { error: "Failed to create guardian" };
+    });
     const errorMessage = isErrorResponse(error)
       ? translateApiError(error.error)
       : translateApiError(`Failed to create guardian: ${response.statusText}`);
@@ -267,9 +285,14 @@ export async function updateGuardian(
   });
 
   if (!response.ok) {
-    const error: unknown = await response
-      .json()
-      .catch(() => ({ error: "Failed to update guardian" }));
+    const error: unknown = await response.json().catch((err) => {
+      logger.debug("json_parse_failed", {
+        error: err instanceof Error ? err.message : String(err),
+        status: response.status,
+        operation: "update_guardian",
+      });
+      return { error: "Failed to update guardian" };
+    });
     const errorMessage = isErrorResponse(error)
       ? translateApiError(error.error)
       : translateApiError(`Failed to update guardian: ${response.statusText}`);
@@ -296,9 +319,14 @@ export async function deleteGuardian(guardianId: string): Promise<void> {
   });
 
   if (!response.ok) {
-    const error: unknown = await response
-      .json()
-      .catch(() => ({ error: "Failed to delete guardian" }));
+    const error: unknown = await response.json().catch((err) => {
+      logger.debug("json_parse_failed", {
+        error: err instanceof Error ? err.message : String(err),
+        status: response.status,
+        operation: "delete_guardian",
+      });
+      return { error: "Failed to delete guardian" };
+    });
     const errorMessage = isErrorResponse(error)
       ? error.error
       : `Failed to delete guardian: ${response.statusText}`;
@@ -339,9 +367,14 @@ export async function linkGuardianToStudent(
   );
 
   if (!response.ok) {
-    const error: unknown = await response
-      .json()
-      .catch(() => ({ error: "Failed to link guardian" }));
+    const error: unknown = await response.json().catch((err) => {
+      logger.debug("json_parse_failed", {
+        error: err instanceof Error ? err.message : String(err),
+        status: response.status,
+        operation: "link_guardian_to_student",
+      });
+      return { error: "Failed to link guardian" };
+    });
     const errorMessage = isErrorResponse(error)
       ? error.error
       : `Failed to link guardian: ${response.statusText}`;
@@ -395,9 +428,14 @@ export async function updateStudentGuardianRelationship(
   );
 
   if (!response.ok) {
-    const error: unknown = await response
-      .json()
-      .catch(() => ({ error: "Failed to update relationship" }));
+    const error: unknown = await response.json().catch((err) => {
+      logger.debug("json_parse_failed", {
+        error: err instanceof Error ? err.message : String(err),
+        status: response.status,
+        operation: "update_student_guardian_relationship",
+      });
+      return { error: "Failed to update relationship" };
+    });
     const errorMessage = isErrorResponse(error)
       ? error.error
       : `Failed to update relationship: ${response.statusText}`;
@@ -426,9 +464,14 @@ export async function removeGuardianFromStudent(
   );
 
   if (!response.ok) {
-    const error: unknown = await response
-      .json()
-      .catch(() => ({ error: "Failed to remove guardian" }));
+    const error: unknown = await response.json().catch((err) => {
+      logger.debug("json_parse_failed", {
+        error: err instanceof Error ? err.message : String(err),
+        status: response.status,
+        operation: "remove_guardian_from_student",
+      });
+      return { error: "Failed to remove guardian" };
+    });
     const errorMessage = isErrorResponse(error)
       ? error.error
       : `Failed to remove guardian: ${response.statusText}`;
@@ -457,9 +500,14 @@ export async function searchGuardians(query: string): Promise<Guardian[]> {
   );
 
   if (!response.ok) {
-    const error: unknown = await response
-      .json()
-      .catch(() => ({ error: "Failed to search guardians" }));
+    const error: unknown = await response.json().catch((err) => {
+      logger.debug("json_parse_failed", {
+        error: err instanceof Error ? err.message : String(err),
+        status: response.status,
+        operation: "search_guardians",
+      });
+      return { error: "Failed to search guardians" };
+    });
     const errorMessage = isErrorResponse(error)
       ? error.error
       : `Failed to search guardians: ${response.statusText}`;
@@ -489,9 +537,14 @@ export async function fetchGuardianPhoneNumbers(
   const response = await fetch(`/api/guardians/${guardianId}/phone-numbers`);
 
   if (!response.ok) {
-    const error: unknown = await response
-      .json()
-      .catch(() => ({ error: "Failed to fetch phone numbers" }));
+    const error: unknown = await response.json().catch((err) => {
+      logger.debug("json_parse_failed", {
+        error: err instanceof Error ? err.message : String(err),
+        status: response.status,
+        operation: "fetch_guardian_phone_numbers",
+      });
+      return { error: "Failed to fetch phone numbers" };
+    });
     const errorMessage = isErrorResponse(error)
       ? error.error
       : `Failed to fetch phone numbers: ${response.statusText}`;
@@ -525,9 +578,14 @@ export async function addGuardianPhoneNumber(
   });
 
   if (!response.ok) {
-    const error: unknown = await response
-      .json()
-      .catch(() => ({ error: "Failed to add phone number" }));
+    const error: unknown = await response.json().catch((err) => {
+      logger.debug("json_parse_failed", {
+        error: err instanceof Error ? err.message : String(err),
+        status: response.status,
+        operation: "add_guardian_phone_number",
+      });
+      return { error: "Failed to add phone number" };
+    });
     const errorMessage = isErrorResponse(error)
       ? translateApiError(error.error)
       : translateApiError(`Failed to add phone number: ${response.statusText}`);
@@ -567,9 +625,14 @@ export async function updateGuardianPhoneNumber(
   );
 
   if (!response.ok) {
-    const error: unknown = await response
-      .json()
-      .catch(() => ({ error: "Failed to update phone number" }));
+    const error: unknown = await response.json().catch((err) => {
+      logger.debug("json_parse_failed", {
+        error: err instanceof Error ? err.message : String(err),
+        status: response.status,
+        operation: "update_guardian_phone_number",
+      });
+      return { error: "Failed to update phone number" };
+    });
     const errorMessage = isErrorResponse(error)
       ? translateApiError(error.error)
       : translateApiError(
@@ -602,9 +665,14 @@ export async function deleteGuardianPhoneNumber(
   );
 
   if (!response.ok) {
-    const error: unknown = await response
-      .json()
-      .catch(() => ({ error: "Failed to delete phone number" }));
+    const error: unknown = await response.json().catch((err) => {
+      logger.debug("json_parse_failed", {
+        error: err instanceof Error ? err.message : String(err),
+        status: response.status,
+        operation: "delete_guardian_phone_number",
+      });
+      return { error: "Failed to delete phone number" };
+    });
     const errorMessage = isErrorResponse(error)
       ? error.error
       : `Failed to delete phone number: ${response.statusText}`;
@@ -638,9 +706,14 @@ export async function setGuardianPrimaryPhone(
   );
 
   if (!response.ok) {
-    const error: unknown = await response
-      .json()
-      .catch(() => ({ error: "Failed to set primary phone" }));
+    const error: unknown = await response.json().catch((err) => {
+      logger.debug("json_parse_failed", {
+        error: err instanceof Error ? err.message : String(err),
+        status: response.status,
+        operation: "set_guardian_primary_phone",
+      });
+      return { error: "Failed to set primary phone" };
+    });
     const errorMessage = isErrorResponse(error)
       ? error.error
       : `Failed to set primary phone: ${response.statusText}`;

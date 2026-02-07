@@ -9,6 +9,9 @@ import { validateInvitation } from "~/lib/invitation-api";
 import type { InvitationValidation } from "~/lib/invitation-helpers";
 import type { ApiError } from "~/lib/auth-api";
 import { Loading } from "~/components/ui/loading";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "InvitePage" });
 
 function LoadingState() {
   return <Loading fullPage={false} />;
@@ -41,11 +44,22 @@ function InvitationContent() {
       } catch (err) {
         if (cancelled) return;
         const apiError = err as ApiError | undefined;
-        if (apiError?.status === 410) {
+        const status = apiError?.status;
+        if (status === 410 || status === 404) {
+          logger.warn("invitation_validation_failed", {
+            error: err instanceof Error ? err.message : String(err),
+            status,
+          });
+        } else {
+          logger.error("invitation_validation_failed", {
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
+        if (status === 410) {
           setError(
             "Diese Einladung ist abgelaufen oder wurde bereits verwendet.",
           );
-        } else if (apiError?.status === 404) {
+        } else if (status === 404) {
           setError("Wir konnten diese Einladung nicht finden.");
         } else {
           setError(

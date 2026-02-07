@@ -4,6 +4,9 @@
  */
 
 import type { Student } from "~/lib/student-helpers";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "StudentRequestHelpers" });
 import { prepareStudentForBackend } from "~/lib/student-helpers";
 import { LOCATION_STATUSES } from "~/lib/location-helper";
 
@@ -219,12 +222,13 @@ export async function handlePrivacyConsentCreation(
       "POST Student",
     );
   } catch (consentError) {
-    console.error(
-      `[POST Student] Error creating privacy consent for student ${studentId}:`,
-      consentError,
-    );
-    console.warn(
-      "[POST Student] Student created but privacy consent failed. Admin can update later.",
+    logger.error("error creating privacy consent for student", {
+      student_id: studentId,
+      error: String(consentError),
+    });
+    logger.warn(
+      "student created but privacy consent failed, admin can update later",
+      { student_id: studentId },
     );
   }
 }
@@ -279,7 +283,9 @@ export async function buildStudentResponse(
 export function handleStudentCreationError(error: unknown): never {
   // Check for permission errors (403 Forbidden)
   if (error instanceof Error && error.message.includes("403")) {
-    console.error("Permission denied when creating student:", error);
+    logger.error("permission denied when creating student", {
+      error: String(error),
+    });
     throw new Error(
       "Permission denied: You need the 'users:create' permission to create students.",
     );
@@ -288,7 +294,9 @@ export function handleStudentCreationError(error: unknown): never {
   // Check for validation errors (400)
   if (error instanceof Error && error.message.includes("400")) {
     const errorMessage = error.message;
-    console.error("Validation error when creating student:", errorMessage);
+    logger.error("validation error when creating student", {
+      error: errorMessage,
+    });
 
     // Extract specific error messages
     const validationErrors: Record<string, string> = {

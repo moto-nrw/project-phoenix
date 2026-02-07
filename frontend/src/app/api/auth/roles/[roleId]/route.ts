@@ -1,6 +1,9 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { auth } from "~/server/auth";
 import { getServerApiUrl } from "~/lib/server-api-url";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "RoleDetailRoute" });
 
 // Define interface for Role based on backend models
 interface Permission {
@@ -63,7 +66,10 @@ export async function GET(
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error(`Get role error: ${response.status}`, errorText);
+      logger.error("get role failed", {
+        status: response.status,
+        error: errorText,
+      });
       return NextResponse.json({ error: errorText } as ErrorResponse, {
         status: response.status,
       });
@@ -72,7 +78,9 @@ export async function GET(
     const data = (await response.json()) as RoleResponse;
     return NextResponse.json(data);
   } catch (error) {
-    console.error("Get role route error:", error);
+    logger.error("get role error", {
+      error: error instanceof Error ? error.message : String(error),
+    });
     return NextResponse.json(
       { error: "Internal Server Error" } as ErrorResponse,
       { status: 500 },
@@ -115,7 +123,10 @@ export async function PUT(
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error(`Update role error: ${response.status}`, errorText);
+      logger.error("update role failed", {
+        status: response.status,
+        error: errorText,
+      });
       return NextResponse.json({ error: errorText } as ErrorResponse, {
         status: response.status,
       });
@@ -123,7 +134,9 @@ export async function PUT(
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("Update role route error:", error);
+    logger.error("update role error", {
+      error: error instanceof Error ? error.message : String(error),
+    });
     return NextResponse.json(
       { error: "Internal Server Error" } as ErrorResponse,
       { status: 500 },
@@ -164,7 +177,10 @@ export async function DELETE(
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error(`Delete role error: ${response.status}`, errorText);
+      logger.error("delete role failed", {
+        status: response.status,
+        error: errorText,
+      });
       return NextResponse.json({ error: errorText } as ErrorResponse, {
         status: response.status,
       });
@@ -172,7 +188,9 @@ export async function DELETE(
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("Delete role route error:", error);
+    logger.error("delete role error", {
+      error: error instanceof Error ? error.message : String(error),
+    });
     return NextResponse.json(
       { error: "Internal Server Error" } as ErrorResponse,
       { status: 500 },

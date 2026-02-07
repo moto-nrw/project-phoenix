@@ -17,6 +17,9 @@ import { operatorSuggestionsService } from "~/lib/operator/suggestions-api";
 import { OPERATOR_STATUS_LABELS } from "~/lib/operator/suggestions-helpers";
 import type { OperatorSuggestionStatus } from "~/lib/operator/suggestions-helpers";
 import { getRelativeTime, getInitials } from "~/lib/format-utils";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "OperatorSuggestionsPage" });
 
 export default function OperatorSuggestionsPage() {
   const { isAuthenticated } = useOperatorAuth();
@@ -104,7 +107,9 @@ export default function OperatorSuggestionsPage() {
           new CustomEvent("operator-suggestions-unviewed-refresh"),
         );
       } catch (error) {
-        console.error("Failed to update status:", error);
+        logger.error("suggestion_status_update_failed", {
+          error: error instanceof Error ? error.message : String(error),
+        });
       } finally {
         setStatusUpdating(null);
       }
