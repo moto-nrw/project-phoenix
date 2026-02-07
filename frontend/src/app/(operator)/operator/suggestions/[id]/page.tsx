@@ -154,7 +154,7 @@ export default function OperatorSuggestionDetailPage() {
       </button>
 
       {/* Main card */}
-      <div className="rounded-3xl border border-gray-100/50 bg-white/90 p-6 shadow-[0_8px_30px_rgb(0,0,0,0.12)]">
+      <div className="rounded-3xl border border-gray-100/50 bg-white/90 p-4 shadow-[0_8px_30px_rgb(0,0,0,0.12)] sm:p-6">
         {/* Status dropdown (prominent) */}
         <div className="mb-4 flex items-center justify-between">
           <StatusDropdown
@@ -192,7 +192,7 @@ export default function OperatorSuggestionDetailPage() {
       </div>
 
       {/* Comments section */}
-      <div className="rounded-3xl border border-gray-100/50 bg-white/90 p-6 shadow-[0_8px_30px_rgb(0,0,0,0.12)]">
+      <div className="rounded-3xl border border-gray-100/50 bg-white/90 p-4 shadow-[0_8px_30px_rgb(0,0,0,0.12)] sm:p-6">
         <h2 className="mb-4 text-lg font-semibold text-gray-900">
           Kommentare ({suggestion.operatorComments.length})
         </h2>
@@ -216,7 +216,7 @@ export default function OperatorSuggestionDetailPage() {
                   key={comment.id}
                   className={`rounded-xl border p-4 ${borderClass} ${bgClass}`}
                 >
-                  <div className="mb-1 flex items-center justify-between">
+                  <div className="mb-1 flex flex-wrap items-center justify-between gap-1">
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-medium text-gray-900">
                         {comment.authorName}

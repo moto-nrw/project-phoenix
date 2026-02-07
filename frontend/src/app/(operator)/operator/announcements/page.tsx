@@ -401,7 +401,7 @@ export default function OperatorAnnouncementsPage() {
               Typ
             </span>
             <div
-              className="flex gap-2"
+              className="flex flex-wrap gap-2"
               role="group"
               aria-labelledby="announcement-type-label"
             >

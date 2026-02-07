@@ -60,7 +60,7 @@ export default function OperatorLoginPage() {
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center p-4">
-      <div className="mx-auto w-full max-w-2xl rounded-2xl bg-white/80 p-10 text-center shadow-xl backdrop-blur-md transition-all duration-300 hover:bg-white/90 hover:shadow-2xl">
+      <div className="relative mx-auto w-full max-w-2xl rounded-2xl bg-white/80 p-6 text-center shadow-xl backdrop-blur-md transition-all duration-300 hover:bg-white/90 hover:shadow-2xl sm:p-10">
         {/* Help Button */}
         <div className="absolute top-4 right-4">
           <HelpButton
@@ -98,7 +98,9 @@ export default function OperatorLoginPage() {
         >
           Willkommen bei moto
         </h1>
-        <p className="mb-10 text-xl text-gray-700">Operator Dashboard</p>
+        <p className="mb-6 text-xl text-gray-700 sm:mb-10">
+          Operator Dashboard
+        </p>
 
         {/* Login Form */}
         <form onSubmit={handleSubmit} noValidate className="space-y-6">
