@@ -59,6 +59,10 @@ type GroupRepository interface {
 
 	// GetOccupiedActivityGroupIDs returns a set of activity group IDs that currently have active sessions
 	GetOccupiedActivityGroupIDs(ctx context.Context, groupIDs []int64) (map[int64]bool, error)
+
+	// EndSessionsByIDs ends multiple group sessions in a single query.
+	// Returns the number of sessions ended.
+	EndSessionsByIDs(ctx context.Context, ids []int64) (int64, error)
 }
 
 // VisitRepository defines operations for managing active visits
@@ -101,6 +105,10 @@ type VisitRepository interface {
 
 	// FindActiveVisits finds all visits with no exit time (currently active)
 	FindActiveVisits(ctx context.Context) ([]*Visit, error)
+
+	// EndVisitsByActiveGroupIDs ends all active visits for multiple group IDs in a single query.
+	// Returns the number of visits ended.
+	EndVisitsByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64) (int64, error)
 }
 
 // GroupSupervisorRepository defines operations for managing active group supervisors
@@ -127,6 +135,10 @@ type GroupSupervisorRepository interface {
 	// EndAllActiveByStaffID ends all active supervisions for a staff member (sets end_date = CURRENT_DATE)
 	// Returns the number of supervisions that were ended
 	EndAllActiveByStaffID(ctx context.Context, staffID int64) (int, error)
+
+	// EndSupervisionsByActiveGroupIDs ends all active supervisions for multiple group IDs in a single query.
+	// Returns the number of supervisions ended.
+	EndSupervisionsByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64) (int64, error)
 }
 
 // CombinedGroupRepository defines operations for managing active combined groups

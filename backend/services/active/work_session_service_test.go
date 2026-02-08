@@ -425,6 +425,10 @@ func (m *wsMockGroupSupervisorRepository) EndAllActiveByStaffID(ctx context.Cont
 	return 0, nil
 }
 
+func (m *wsMockGroupSupervisorRepository) EndSupervisionsByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64) (int64, error) {
+	return 0, nil
+}
+
 // ============================================================================
 // Helper to create test service
 // ============================================================================

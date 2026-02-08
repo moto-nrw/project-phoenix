@@ -133,6 +133,10 @@ func (m *mockGroupRepository) GetOccupiedActivityGroupIDs(ctx context.Context, g
 	return nil, nil
 }
 
+func (m *mockGroupRepository) EndSessionsByIDs(ctx context.Context, ids []int64) (int64, error) {
+	return 0, nil
+}
+
 // mockVisitRepository is a minimal mock implementation of active.VisitRepository
 type mockVisitRepository struct {
 	findByActiveGroupIDFunc func(ctx context.Context, activeGroupID int64) ([]*active.Visit, error)
@@ -213,6 +217,10 @@ func (m *mockVisitRepository) FindActiveVisits(ctx context.Context) ([]*active.V
 	return nil, nil
 }
 
+func (m *mockVisitRepository) EndVisitsByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64) (int64, error) {
+	return 0, nil
+}
+
 // mockGroupSupervisorRepository is a minimal mock implementation of active.GroupSupervisorRepository
 type mockGroupSupervisorRepository struct {
 	findByActiveGroupIDFunc func(ctx context.Context, activeGroupID int64, activeOnly bool) ([]*active.GroupSupervisor, error)
@@ -266,6 +274,10 @@ func (m *mockGroupSupervisorRepository) GetStaffIDsWithSupervisionToday(ctx cont
 }
 
 func (m *mockGroupSupervisorRepository) EndAllActiveByStaffID(ctx context.Context, staffID int64) (int, error) {
+	return 0, nil
+}
+
+func (m *mockGroupSupervisorRepository) EndSupervisionsByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64) (int64, error) {
 	return 0, nil
 }
 

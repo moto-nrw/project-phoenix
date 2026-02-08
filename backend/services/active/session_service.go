@@ -984,7 +984,7 @@ func (s *service) CleanupAbandonedSessions(ctx context.Context, threshold time.D
 	return cleanedCount, nil
 }
 
-// EndDailySessions ends all active sessions at the end of the day
+// EndDailySessions ends all active sessions at the end of the day using bulk UPDATEs
 func (s *service) EndDailySessions(ctx context.Context) (*DailySessionCleanupResult, error) {
 	result := &DailySessionCleanupResult{
 		ExecutedAt: time.Now(),
@@ -992,102 +992,56 @@ func (s *service) EndDailySessions(ctx context.Context) (*DailySessionCleanupRes
 		Errors:     make([]string, 0),
 	}
 
+	// 1. Get all active group IDs
 	activeGroups, err := s.groupRepo.List(ctx, nil)
 	if err != nil {
 		result.Success = false
 		return result, &ActiveError{Op: "EndDailySessions", Err: ErrDatabaseOperation}
 	}
 
-	for _, group := range activeGroups {
-		if group.IsActive() {
-			s.processGroupForDailyCleanup(ctx, group, result)
+	activeIDs := make([]int64, 0, len(activeGroups))
+	for _, g := range activeGroups {
+		if g.IsActive() {
+			activeIDs = append(activeIDs, g.ID)
 		}
 	}
 
-	// Clean up orphaned supervisors from previous days that the per-group loop wouldn't catch
-	// (e.g., supervisors whose groups were already ended but end_date was never set)
+	if len(activeIDs) == 0 {
+		s.cleanupOrphanedSupervisors(ctx, result)
+		return result, nil
+	}
+
+	// 2. Bulk end visits
+	visitsEnded, err := s.visitRepo.EndVisitsByActiveGroupIDs(ctx, activeIDs)
+	if err != nil {
+		result.Errors = append(result.Errors, fmt.Sprintf("Failed to bulk-end visits: %v", err))
+		result.Success = false
+	} else {
+		result.VisitsEnded = int(visitsEnded)
+	}
+
+	// 3. Bulk end sessions
+	sessionsEnded, err := s.groupRepo.EndSessionsByIDs(ctx, activeIDs)
+	if err != nil {
+		result.Errors = append(result.Errors, fmt.Sprintf("Failed to bulk-end sessions: %v", err))
+		result.Success = false
+	} else {
+		result.SessionsEnded = int(sessionsEnded)
+	}
+
+	// 4. Bulk end supervisors
+	supervisorsEnded, err := s.supervisorRepo.EndSupervisionsByActiveGroupIDs(ctx, activeIDs)
+	if err != nil {
+		result.Errors = append(result.Errors, fmt.Sprintf("Failed to bulk-end supervisors: %v", err))
+		result.Success = false
+	} else {
+		result.SupervisorsEnded = int(supervisorsEnded)
+	}
+
+	// 5. Keep orphaned supervisor cleanup (already efficient — single UPDATE)
 	s.cleanupOrphanedSupervisors(ctx, result)
 
 	return result, nil
-}
-
-// processGroupForDailyCleanup processes a single group for daily cleanup
-func (s *service) processGroupForDailyCleanup(ctx context.Context, group *active.Group, result *DailySessionCleanupResult) {
-	// Track error count before visit cleanup
-	errorCountBefore := len(result.Errors)
-
-	s.endActiveVisitsForGroup(ctx, group.ID, result)
-
-	// If visit cleanup failed (e.g., database error fetching visits),
-	// skip session and supervisor cleanup to maintain data consistency.
-	// We don't want to end the session/supervisors while visits remain active.
-	if len(result.Errors) > errorCountBefore {
-		return
-	}
-
-	s.endGroupSession(ctx, group, result)
-	s.endActiveSupervisorsForGroup(ctx, group.ID, result)
-}
-
-// endActiveVisitsForGroup ends all active visits for a group
-func (s *service) endActiveVisitsForGroup(ctx context.Context, groupID int64, result *DailySessionCleanupResult) {
-	visits, err := s.visitRepo.FindByActiveGroupID(ctx, groupID)
-	if err != nil {
-		errMsg := fmt.Sprintf("Failed to get visits for group %d: %v", groupID, err)
-		result.Errors = append(result.Errors, errMsg)
-		result.Success = false
-		return
-	}
-
-	for _, visit := range visits {
-		if !visit.IsActive() {
-			continue
-		}
-
-		visit.EndVisit()
-		if err := s.visitRepo.Update(ctx, visit); err != nil {
-			errMsg := fmt.Sprintf("Failed to end visit %d: %v", visit.ID, err)
-			result.Errors = append(result.Errors, errMsg)
-			result.Success = false
-		} else {
-			result.VisitsEnded++
-		}
-	}
-}
-
-// endGroupSession ends a group session
-func (s *service) endGroupSession(ctx context.Context, group *active.Group, result *DailySessionCleanupResult) {
-	group.EndSession()
-	if err := s.groupRepo.Update(ctx, group); err != nil {
-		errMsg := fmt.Sprintf("Failed to end group session %d: %v", group.ID, err)
-		result.Errors = append(result.Errors, errMsg)
-		result.Success = false
-	} else {
-		result.SessionsEnded++
-	}
-}
-
-// endActiveSupervisorsForGroup ends all active supervisors for a group
-func (s *service) endActiveSupervisorsForGroup(ctx context.Context, groupID int64, result *DailySessionCleanupResult) {
-	supervisors, err := s.supervisorRepo.FindByActiveGroupID(ctx, groupID, true)
-	if err != nil {
-		errMsg := fmt.Sprintf("Failed to get supervisors for group %d: %v", groupID, err)
-		result.Errors = append(result.Errors, errMsg)
-		result.Success = false
-		return
-	}
-
-	now := time.Now()
-	for _, supervisor := range supervisors {
-		supervisor.EndDate = &now
-		if err := s.supervisorRepo.Update(ctx, supervisor); err != nil {
-			errMsg := fmt.Sprintf("Failed to end supervisor %d: %v", supervisor.ID, err)
-			result.Errors = append(result.Errors, errMsg)
-			result.Success = false
-		} else {
-			result.SupervisorsEnded++
-		}
-	}
 }
 
 // cleanupOrphanedSupervisors closes supervisor records from previous days

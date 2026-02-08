@@ -900,6 +900,39 @@ func (r *GroupRepository) GetOccupiedRoomIDs(ctx context.Context, roomIDs []int6
 	return result, nil
 }
 
+// EndSessionsByIDs ends multiple group sessions in a single query.
+// Returns the number of sessions ended.
+func (r *GroupRepository) EndSessionsByIDs(ctx context.Context, ids []int64) (int64, error) {
+	if len(ids) == 0 {
+		return 0, nil
+	}
+
+	result, err := r.db.NewUpdate().
+		Model((*active.Group)(nil)).
+		ModelTableExpr(`active.groups AS "group"`).
+		Set("end_time = ?", time.Now()).
+		Where(`"group".id IN (?)`, bun.In(ids)).
+		Where(`"group".end_time IS NULL`).
+		Exec(ctx)
+
+	if err != nil {
+		return 0, &modelBase.DatabaseError{
+			Op:  "end sessions by IDs",
+			Err: err,
+		}
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return 0, &modelBase.DatabaseError{
+			Op:  "end sessions by IDs (rows affected)",
+			Err: err,
+		}
+	}
+
+	return rowsAffected, nil
+}
+
 // GetOccupiedActivityGroupIDs returns a set of activity group IDs that currently have active sessions
 // This is optimized for checking activity occupancy without fetching full group records
 func (r *GroupRepository) GetOccupiedActivityGroupIDs(ctx context.Context, groupIDs []int64) (map[int64]bool, error) {
