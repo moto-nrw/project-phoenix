@@ -106,6 +106,127 @@ describe("authConfig", () => {
       expect(result?.token).toBe("existing-token");
     });
 
+    it("should proactively refresh when access token near expiry", async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          access_token: "new-access-token",
+          refresh_token: "new-refresh-token",
+        }),
+      });
+
+      const token = {
+        id: "123",
+        token: "old-access-token",
+        refreshToken: "old-refresh-token",
+        tokenExpiry: Date.now() + 2 * 60 * 1000, // Expires in 2 min (within 5 min buffer)
+        refreshTokenExpiry: Date.now() + 7 * 24 * 60 * 60 * 1000, // 7 days out
+      };
+
+      const result = await authConfig.callbacks?.jwt?.({
+        token,
+        user: undefined as unknown as User,
+        account: null,
+        profile: undefined,
+        trigger: "update",
+        isNewUser: false,
+        session: undefined,
+      });
+
+      expect(mockFetch).toHaveBeenCalledOnce();
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.stringContaining("/auth/refresh"),
+        expect.objectContaining({
+          method: "POST",
+          headers: expect.objectContaining({
+            Authorization: "Bearer old-refresh-token",
+          }) as Record<string, string>,
+        }),
+      );
+      expect(result?.token).toBe("new-access-token");
+      expect(result?.refreshToken).toBe("new-refresh-token");
+      expect(result?.error).toBeUndefined();
+    });
+
+    it("should not refresh when access token is still fresh", async () => {
+      const token = {
+        id: "123",
+        token: "access-token",
+        refreshToken: "refresh-token",
+        tokenExpiry: Date.now() + 10 * 60 * 1000, // Expires in 10 min (outside 5 min buffer)
+        refreshTokenExpiry: Date.now() + 7 * 24 * 60 * 60 * 1000,
+      };
+
+      const result = await authConfig.callbacks?.jwt?.({
+        token,
+        user: undefined as unknown as User,
+        account: null,
+        profile: undefined,
+        trigger: "update",
+        isNewUser: false,
+        session: undefined,
+      });
+
+      expect(mockFetch).not.toHaveBeenCalled();
+      expect(result?.token).toBe("access-token");
+    });
+
+    it("should gracefully handle failed proactive refresh", async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+      });
+
+      const token = {
+        id: "123",
+        token: "old-access-token",
+        refreshToken: "old-refresh-token",
+        tokenExpiry: Date.now() + 2 * 60 * 1000, // Near expiry
+        refreshTokenExpiry: Date.now() + 7 * 24 * 60 * 60 * 1000,
+      };
+
+      const result = await authConfig.callbacks?.jwt?.({
+        token,
+        user: undefined as unknown as User,
+        account: null,
+        profile: undefined,
+        trigger: "update",
+        isNewUser: false,
+        session: undefined,
+      });
+
+      // Token stays unchanged — no error set, Axios interceptor handles fallback
+      expect(result?.token).toBe("old-access-token");
+      expect(result?.refreshToken).toBe("old-refresh-token");
+      expect(result?.error).toBeUndefined();
+    });
+
+    it("should gracefully handle network error during proactive refresh", async () => {
+      mockFetch.mockRejectedValueOnce(new Error("Network error"));
+
+      const token = {
+        id: "123",
+        token: "old-access-token",
+        refreshToken: "old-refresh-token",
+        tokenExpiry: Date.now() + 2 * 60 * 1000, // Near expiry
+        refreshTokenExpiry: Date.now() + 7 * 24 * 60 * 60 * 1000,
+      };
+
+      const result = await authConfig.callbacks?.jwt?.({
+        token,
+        user: undefined as unknown as User,
+        account: null,
+        profile: undefined,
+        trigger: "update",
+        isNewUser: false,
+        session: undefined,
+      });
+
+      // Token stays unchanged — no error set
+      expect(result?.token).toBe("old-access-token");
+      expect(result?.error).toBeUndefined();
+    });
+
     it("should mark token as expired when refresh token expired", async () => {
       const token = {
         id: "123",
