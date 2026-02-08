@@ -243,14 +243,17 @@ Operators koennen Tenants verwalten, neue OGS anlegen, Subdomains konfigurieren.
 - [ ] **4.6** Frontend: Neuen Tenant anlegen (Wizard: Name, Slug, Subdomain, Admin-Account)
 - [ ] **4.7** Backend: Tenant-Provisioning (Schema-Seed fuer neuen Tenant)
 - [ ] **4.8** Frontend: Cross-Tenant-Access Verwaltung (Ferienbetreuung)
-- [ ] **4.9** Backend: Impersonation-API (Operator loggt sich als Tenant-Admin ein)
-- [ ] **4.10** Frontend: "Als Schule einloggen" Button im Operator Dashboard
+- [ ] **4.9** Backend: OGS-spezifische Daten im Operator-Dashboard (Feedback, Statistiken per OGS)
+- [ ] **4.10** Frontend: OGS-Auswahl im Operator-Dashboard (Dropdown/Filter fuer OGS-spezifische Ansichten)
+- [ ] **4.11** Backend: Gezielte Announcements (an alle OGS oder bestimmte OGS)
+- [ ] **4.12** Frontend: Announcement-Targeting UI (OGS-Auswahl bei Erstellung)
 
 ### Deliverables
 - Tenant-Management CRUD
 - Tenant-Provisioning-Workflow
 - Cross-Tenant-Access UI
-- Impersonation-Feature
+- OGS-spezifische Operator-Ansichten
+- Gezieltes Announcement-Targeting
 
 ### Wer
 **Beliebiger Developer** (muss Backend + Frontend koennen)
