@@ -20,6 +20,7 @@ type Service interface {
 	UpdateGroup(ctx context.Context, group *education.Group) error
 	DeleteGroup(ctx context.Context, id int64) error
 	ListGroups(ctx context.Context, options *base.QueryOptions) ([]*education.Group, error)
+	CountGroups(ctx context.Context, options *base.QueryOptions) (int, error)
 	FindGroupByName(ctx context.Context, name string) (*education.Group, error)
 	FindGroupsByRoom(ctx context.Context, roomID int64) ([]*education.Group, error)
 	FindGroupWithRoom(ctx context.Context, groupID int64) (*education.Group, error)
@@ -31,6 +32,7 @@ type Service interface {
 	RemoveTeacherFromGroup(ctx context.Context, groupID, teacherID int64) error
 	UpdateGroupTeachers(ctx context.Context, groupID int64, teacherIDs []int64) error
 	GetGroupTeachers(ctx context.Context, groupID int64) ([]*users.Teacher, error)
+	GetTeachersForGroups(ctx context.Context, groupIDs []int64) (map[int64][]*users.Teacher, error)
 	GetTeacherGroups(ctx context.Context, teacherID int64) ([]*education.Group, error)
 
 	// Substitution operations

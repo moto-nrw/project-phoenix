@@ -500,34 +500,43 @@ func (rs *Resource) listGroups(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Build response
+	// Collect group IDs for batch operations
+	groupIDs := make([]int64, len(groups))
+	for i, g := range groups {
+		groupIDs[i] = g.ID
+	}
+
+	// Batch load student counts (1 query instead of N)
+	studentCounts, err := rs.StudentRepo.CountByGroupIDs(r.Context(), groupIDs)
+	if err != nil {
+		slog.Default().Warn("failed to batch load student counts", slog.String("error", err.Error()))
+		studentCounts = make(map[int64]int)
+	}
+
+	// Batch load teachers for all groups (2 queries instead of ~N*4)
+	teachersByGroup, err := rs.EducationService.GetTeachersForGroups(r.Context(), groupIDs)
+	if err != nil {
+		slog.Default().Warn("failed to batch load teachers", slog.String("error", err.Error()))
+		teachersByGroup = make(map[int64][]*users.Teacher)
+	}
+
+	// Build response using pre-loaded data
 	responses := make([]GroupResponse, 0, len(groups))
 	for _, group := range groups {
-		// If group has room ID but room isn't loaded, fetch the room details
-		if group.HasRoom() && group.Room == nil {
-			groupWithRoom, err := rs.EducationService.FindGroupWithRoom(r.Context(), group.ID)
-			if err == nil {
-				group = groupWithRoom
-			}
-		}
-
-		// Get teachers for this group to show representative in list
-		teachers, err := rs.EducationService.GetGroupTeachers(r.Context(), group.ID)
-		if err != nil {
-			// Log error but continue without teachers
-			slog.Default().Warn("failed to get teachers for group",
-				slog.Int64("group_id", group.ID),
-				slog.String("error", err.Error()))
-			teachers = []*users.Teacher{}
-		}
-
-		// Get student count for this group
-		studentCount := rs.getStudentCount(r.Context(), group.ID)
-
+		teachers := teachersByGroup[group.ID]
+		studentCount := studentCounts[group.ID]
 		responses = append(responses, newGroupResponse(group, teachers, studentCount))
 	}
 
-	common.RespondPaginated(w, r, http.StatusOK, responses, common.PaginationParams{Page: page, PageSize: pageSize, Total: len(responses)}, "Groups retrieved successfully")
+	// Count total for pagination (same filters, no LIMIT/OFFSET)
+	countOptions := base.NewQueryOptions()
+	countOptions.Filter = filter
+	total, countErr := rs.EducationService.CountGroups(r.Context(), countOptions)
+	if countErr != nil {
+		total = len(responses)
+	}
+
+	common.RespondPaginated(w, r, http.StatusOK, responses, common.PaginationParams{Page: page, PageSize: pageSize, Total: total}, "Groups retrieved successfully")
 }
 
 // getGroup handles getting a group by ID
