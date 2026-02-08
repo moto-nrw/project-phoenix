@@ -326,6 +326,67 @@ func TestAuthService_RefreshToken(t *testing.T) {
 	})
 }
 
+// TestAuthService_RefreshToken_ConcurrentSingleflight verifies that concurrent
+// refresh calls with the same token are deduplicated by singleflight.
+// Without singleflight, only the first goroutine succeeds (it deletes the old DB token),
+// and all others get "token not found". With singleflight, all goroutines succeed.
+func TestAuthService_RefreshToken_ConcurrentSingleflight(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupAuthService(t, db)
+	ctx := context.Background()
+
+	// ARRANGE: create account and get a refresh token
+	email, username := uniqueTestCredentials("singleflight")
+	account, err := service.Register(ctx, email, username, testPassword, nil)
+	require.NoError(t, err)
+	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+	_, refreshToken, err := service.Login(ctx, email, testPassword)
+	require.NoError(t, err)
+
+	// ACT: fire 5 concurrent refresh requests with the same token
+	const concurrency = 5
+	type result struct {
+		accessToken  string
+		refreshToken string
+		err          error
+	}
+	results := make(chan result, concurrency)
+
+	for range concurrency {
+		go func() {
+			at, rt, e := service.RefreshToken(ctx, refreshToken)
+			results <- result{at, rt, e}
+		}()
+	}
+
+	// ASSERT: all goroutines should succeed with the same tokens (deduplicated)
+	var successes int
+	var firstAccess, firstRefresh string
+	for range concurrency {
+		r := <-results
+		if r.err != nil {
+			t.Errorf("concurrent refresh failed: %v", r.err)
+			continue
+		}
+		successes++
+		assert.NotEmpty(t, r.accessToken, "access token should not be empty")
+		assert.NotEmpty(t, r.refreshToken, "refresh token should not be empty")
+
+		if firstAccess == "" {
+			firstAccess = r.accessToken
+			firstRefresh = r.refreshToken
+		} else {
+			// Singleflight returns the same result to all concurrent callers
+			assert.Equal(t, firstAccess, r.accessToken, "all callers should get same access token")
+			assert.Equal(t, firstRefresh, r.refreshToken, "all callers should get same refresh token")
+		}
+	}
+	assert.Equal(t, concurrency, successes, "all concurrent refresh calls should succeed")
+}
+
 // =============================================================================
 // Logout Tests
 // =============================================================================
