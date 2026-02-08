@@ -646,18 +646,40 @@ func (s *Service) createAndPersistNewToken(ctx context.Context, oldToken *auth.T
 	return newToken, nil
 }
 
-// RefreshTokenWithAudit generates new token pair from a refresh token with audit logging
+// refreshResult carries token pair through singleflight
+type refreshResult struct {
+	accessToken  string
+	refreshToken string
+}
+
+// RefreshTokenWithAudit generates new token pair from a refresh token with audit logging.
+// Concurrent calls with the same refresh token are deduplicated via singleflight.
 func (s *Service) RefreshTokenWithAudit(ctx context.Context, refreshTokenStr, ipAddress, userAgent string) (string, string, error) {
+	v, err, shared := s.refreshSF.Do(refreshTokenStr, func() (any, error) {
+		return s.doRefreshTokenWithAudit(ctx, refreshTokenStr, ipAddress, userAgent)
+	})
+	if shared {
+		s.getLogger().Info("concurrent_refresh_deduplicated", "shared", true)
+	}
+	if err != nil {
+		return "", "", err
+	}
+	r := v.(*refreshResult)
+	return r.accessToken, r.refreshToken, nil
+}
+
+// doRefreshTokenWithAudit performs the actual token refresh (called via singleflight)
+func (s *Service) doRefreshTokenWithAudit(ctx context.Context, refreshTokenStr, ipAddress, userAgent string) (*refreshResult, error) {
 	// Parse and validate refresh token claims
 	refreshClaims, err := s.parseRefreshTokenClaims(refreshTokenStr)
 	if err != nil {
-		return "", "", err
+		return nil, err
 	}
 
 	// Validate and refresh token in transaction
 	account, newToken, err := s.refreshTokenInTransaction(ctx, refreshClaims, ipAddress, userAgent)
 	if err != nil {
-		return "", "", err
+		return nil, err
 	}
 
 	// Load account metadata (roles, permissions, person info)
@@ -667,7 +689,11 @@ func (s *Service) RefreshTokenWithAudit(ctx context.Context, refreshTokenStr, ip
 	appClaims, newRefreshClaims := s.buildJWTClaims(account, newToken, metadata, account.Email)
 
 	// Generate token pair and log success as token refresh
-	return s.generateAndLogTokens(ctx, account.ID, appClaims, newRefreshClaims, ipAddress, userAgent, audit.EventTypeTokenRefresh)
+	accessToken, refreshToken, err := s.generateAndLogTokens(ctx, account.ID, appClaims, newRefreshClaims, ipAddress, userAgent, audit.EventTypeTokenRefresh)
+	if err != nil {
+		return nil, err
+	}
+	return &refreshResult{accessToken: accessToken, refreshToken: refreshToken}, nil
 }
 
 // Logout invalidates a refresh token
