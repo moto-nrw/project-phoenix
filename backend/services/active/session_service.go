@@ -1006,8 +1006,11 @@ func (s *service) EndDailySessions(ctx context.Context) (*DailySessionCleanupRes
 		}
 	}
 
+	// Always clean up orphaned supervisors from previous days, regardless of
+	// whether today's bulk steps succeed or are skipped.
+	defer s.cleanupOrphanedSupervisors(ctx, result)
+
 	if len(activeIDs) == 0 {
-		s.cleanupOrphanedSupervisors(ctx, result)
 		return result, nil
 	}
 
@@ -1038,9 +1041,6 @@ func (s *service) EndDailySessions(ctx context.Context) (*DailySessionCleanupRes
 	} else {
 		result.SupervisorsEnded = int(supervisorsEnded)
 	}
-
-	// 5. Keep orphaned supervisor cleanup (already efficient — single UPDATE)
-	s.cleanupOrphanedSupervisors(ctx, result)
 
 	return result, nil
 }
