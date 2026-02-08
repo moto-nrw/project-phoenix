@@ -1011,14 +1011,15 @@ func (s *service) EndDailySessions(ctx context.Context) (*DailySessionCleanupRes
 		return result, nil
 	}
 
-	// 2. Bulk end visits
+	// 2. Bulk end visits — abort remaining steps on failure to prevent
+	// sessions/supervisors being closed while visits remain active.
 	visitsEnded, err := s.visitRepo.EndVisitsByActiveGroupIDs(ctx, activeIDs)
 	if err != nil {
 		result.Errors = append(result.Errors, fmt.Sprintf("Failed to bulk-end visits: %v", err))
 		result.Success = false
-	} else {
-		result.VisitsEnded = int(visitsEnded)
+		return result, nil
 	}
+	result.VisitsEnded = int(visitsEnded)
 
 	// 3. Bulk end sessions
 	sessionsEnded, err := s.groupRepo.EndSessionsByIDs(ctx, activeIDs)
