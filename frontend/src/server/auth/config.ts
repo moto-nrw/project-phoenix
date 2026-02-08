@@ -213,7 +213,7 @@ let refreshCache: {
   result: RefreshResult;
   expiresAt: number;
 } | null = null;
-const REFRESH_CACHE_TTL_MS = 10_000; // 10s window for late-arriving callbacks
+const REFRESH_CACHE_TTL_MS = 5 * 60 * 1000; // Match REFRESH_BUFFER_MS — covers the full pre-expiry window
 
 /** @internal Reset module-level refresh state (test isolation only) */
 export function _resetRefreshState(): void {
