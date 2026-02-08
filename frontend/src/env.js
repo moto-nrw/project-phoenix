@@ -10,8 +10,8 @@ export const env = createEnv({
     API_URL: z.string().url().optional(),
     // Remove AUTH_SECRET or make it fully optional
     AUTH_SECRET: z.string().optional(),
-    AUTH_JWT_EXPIRY: z.string().default("15m"),
-    AUTH_JWT_REFRESH_EXPIRY: z.string().default("12h"),
+    AUTH_JWT_EXPIRY: z.string().default("1h"),
+    AUTH_JWT_REFRESH_EXPIRY: z.string().default("168h"),
     NODE_ENV: z
       .enum(["development", "test", "production"])
       .default("development"),
