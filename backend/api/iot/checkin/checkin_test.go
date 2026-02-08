@@ -1058,25 +1058,27 @@ func TestDeviceCheckin_CheckoutWithoutActiveVisit(t *testing.T) {
 // SCHULHOF AUTO-CREATE TESTS
 // =============================================================================
 
-// cleanupSchulhofInfrastructure removes any pre-existing Schulhof auto-created
-// data so tests start from a clean state. Uses individual statements in FK order.
-func cleanupSchulhofInfrastructure(t *testing.T, db *bun.DB) {
+// cleanupSchulhofInfrastructure removes Schulhof auto-created data for a specific
+// room ID so tests clean up only their own data. Uses individual statements in FK order.
+func cleanupSchulhofInfrastructure(t *testing.T, db *bun.DB, roomID int64) {
 	t.Helper()
 
 	dbCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// Delete in FK-safe order: child tables first, then parents
+	// Delete in FK-safe order: child tables first, then parents.
+	// All queries are scoped to the specific room ID to avoid interfering
+	// with Schulhof tests running in parallel from other packages.
 	stmts := []string{
-		`DELETE FROM active.attendance WHERE visit_id IN (SELECT v.id FROM active.visits v JOIN active.groups ag ON ag.id = v.active_group_id JOIN facilities.rooms r ON r.id = ag.room_id WHERE r.name = 'Schulhof')`,
-		`DELETE FROM active.visits WHERE active_group_id IN (SELECT ag.id FROM active.groups ag JOIN facilities.rooms r ON r.id = ag.room_id WHERE r.name = 'Schulhof')`,
-		`DELETE FROM active.group_supervisors WHERE active_group_id IN (SELECT ag.id FROM active.groups ag JOIN facilities.rooms r ON r.id = ag.room_id WHERE r.name = 'Schulhof')`,
-		`DELETE FROM active.groups WHERE room_id IN (SELECT id FROM facilities.rooms WHERE name = 'Schulhof')`,
-		`DELETE FROM activities.schedules WHERE group_id IN (SELECT id FROM activities.groups WHERE name = 'Schulhof Freispiel')`,
-		`DELETE FROM activities.student_enrollments WHERE group_id IN (SELECT id FROM activities.groups WHERE name = 'Schulhof Freispiel')`,
-		`DELETE FROM activities.groups WHERE name = 'Schulhof Freispiel'`,
-		`DELETE FROM activities.categories WHERE name = 'Schulhof'`,
-		`DELETE FROM facilities.rooms WHERE name = 'Schulhof'`,
+		fmt.Sprintf(`DELETE FROM active.attendance WHERE visit_id IN (SELECT v.id FROM active.visits v JOIN active.groups ag ON ag.id = v.active_group_id WHERE ag.room_id = %d)`, roomID),
+		fmt.Sprintf(`DELETE FROM active.visits WHERE active_group_id IN (SELECT id FROM active.groups WHERE room_id = %d)`, roomID),
+		fmt.Sprintf(`DELETE FROM active.group_supervisors WHERE group_id IN (SELECT id FROM active.groups WHERE room_id = %d)`, roomID),
+		fmt.Sprintf(`DELETE FROM active.groups WHERE room_id = %d`, roomID),
+		fmt.Sprintf(`DELETE FROM activities.schedules WHERE group_id IN (SELECT ag.id FROM activities.groups ag JOIN activities.categories ac ON ac.id = ag.category_id JOIN facilities.rooms r ON r.name = ac.name WHERE r.id = %d)`, roomID),
+		fmt.Sprintf(`DELETE FROM activities.student_enrollments WHERE group_id IN (SELECT ag.id FROM activities.groups ag JOIN activities.categories ac ON ac.id = ag.category_id JOIN facilities.rooms r ON r.name = ac.name WHERE r.id = %d)`, roomID),
+		fmt.Sprintf(`DELETE FROM activities.groups WHERE category_id IN (SELECT ac.id FROM activities.categories ac JOIN facilities.rooms r ON r.name = ac.name WHERE r.id = %d)`, roomID),
+		fmt.Sprintf(`DELETE FROM activities.categories WHERE name = (SELECT name FROM facilities.rooms WHERE id = %d)`, roomID),
+		fmt.Sprintf(`DELETE FROM facilities.rooms WHERE id = %d`, roomID),
 	}
 	for _, stmt := range stmts {
 		_, _ = db.ExecContext(dbCtx, stmt)
@@ -1087,8 +1089,6 @@ func cleanupSchulhofInfrastructure(t *testing.T, db *bun.DB) {
 // suffix) so the auto-create path in createSchulhofActiveGroupIfNeeded recognizes it.
 func createSchulhofRoom(t *testing.T, db *bun.DB) *facilities.Room {
 	t.Helper()
-
-	cleanupSchulhofInfrastructure(t, db)
 
 	dbCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -1137,8 +1137,8 @@ func TestDeviceCheckin_SchulhofAutoCreate(t *testing.T) {
 	// Create a room named exactly "Schulhof" (no suffix) so the auto-create
 	// path in createSchulhofActiveGroupIfNeeded recognizes it
 	room := createSchulhofRoom(t, ctx.db)
-	// Clean up all auto-created Schulhof infrastructure on teardown
-	defer cleanupSchulhofInfrastructure(t, ctx.db)
+	// Clean up all auto-created Schulhof infrastructure on teardown (scoped to this room)
+	defer cleanupSchulhofInfrastructure(t, ctx.db, room.ID)
 
 	router := chi.NewRouter()
 	router.Post("/checkin/checkin", ctx.resource.DeviceCheckinHandler())
@@ -1811,7 +1811,7 @@ func TestDeviceCheckin_SchulhofAutoCreateIdempotent(t *testing.T) {
 	testpkg.LinkRFIDToStudent(t, ctx.db, student2.PersonID, card2.ID)
 
 	room := createSchulhofRoom(t, ctx.db)
-	defer cleanupSchulhofInfrastructure(t, ctx.db)
+	defer cleanupSchulhofInfrastructure(t, ctx.db, room.ID)
 
 	router := chi.NewRouter()
 	router.Post("/checkin/checkin", ctx.resource.DeviceCheckinHandler())
