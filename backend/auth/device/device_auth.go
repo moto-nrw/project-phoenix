@@ -98,6 +98,7 @@ func extractAndValidateAPIKey(r *http.Request, iotService iotSvc.Service) (*iot.
 
 // updateDeviceLastSeen updates the device's last seen timestamp, logging any errors.
 func updateDeviceLastSeen(r *http.Request, iotService iotSvc.Service, device *iot.Device) {
+	device.UpdateLastSeen()
 	if err := iotService.UpdateDeviceLastSeen(r.Context(), device.DeviceID); err != nil {
 		slog.Warn("failed to update device last seen time",
 			slog.String("device_id", device.DeviceID),
