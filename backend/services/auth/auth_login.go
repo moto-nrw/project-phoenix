@@ -655,10 +655,12 @@ type refreshResult struct {
 // RefreshTokenWithAudit generates new token pair from a refresh token with audit logging.
 // Concurrent calls with the same refresh token are deduplicated via singleflight.
 func (s *Service) RefreshTokenWithAudit(ctx context.Context, refreshTokenStr, ipAddress, userAgent string) (string, string, error) {
-	// Detach from the caller's context so that if the first HTTP request is
-	// canceled, in-flight work shared with other callers isn't aborted.
-	// Apply an explicit 10s deadline so slow DB queries don't run unbounded.
-	sfCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+	// Use the caller's context so cancellation propagates to the DB transaction.
+	// If the first caller disconnects (e.g. frontend 5s timeout), the transaction
+	// rolls back and the old refresh token is preserved — callers retry safely.
+	// NOT using WithoutCancel: a transient retry for shared callers is far better
+	// than completing a token rotation the client never receives (permanent logout).
+	sfCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 	v, err, shared := s.refreshSF.Do(refreshTokenStr, func() (any, error) {
 		return s.doRefreshTokenWithAudit(sfCtx, refreshTokenStr, ipAddress, userAgent)
