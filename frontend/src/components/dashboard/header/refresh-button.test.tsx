@@ -1,6 +1,6 @@
 /**
  * Tests for RefreshButton Component
- * Tests data refresh trigger, loading state, and animation feedback
+ * Tests data refresh trigger, spin animation, success checkmark, and state transitions
  */
 import { render, screen, fireEvent, act } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
@@ -11,6 +11,20 @@ const mockMutate = vi.fn().mockResolvedValue(undefined);
 vi.mock("swr", () => ({
   useSWRConfig: () => ({ mutate: mockMutate }),
 }));
+
+/** Helper: find the RotateCw icon (no text-[#83CD2D] class) */
+function findRotateIcon(container: HTMLElement) {
+  return Array.from(container.querySelectorAll("svg")).find(
+    (svg) => !svg.classList.contains("text-[#83CD2D]"),
+  );
+}
+
+/** Helper: find the Check icon (has text-[#83CD2D] class) */
+function findCheckIcon(container: HTMLElement) {
+  return Array.from(container.querySelectorAll("svg")).find((svg) =>
+    svg.classList.contains("text-[#83CD2D]"),
+  );
+}
 
 describe("RefreshButton", () => {
   beforeEach(() => {
@@ -34,15 +48,19 @@ describe("RefreshButton", () => {
   it("renders RotateCw icon", () => {
     const { container } = render(<RefreshButton />);
 
-    const svg = container.querySelector("svg");
-    expect(svg).toBeInTheDocument();
+    expect(findRotateIcon(container)).toBeDefined();
   });
 
   it("does not show spin animation initially", () => {
     const { container } = render(<RefreshButton />);
 
-    const svg = container.querySelector("svg");
-    expect(svg).not.toHaveClass("animate-spin");
+    expect(findRotateIcon(container)).not.toHaveClass("animate-spin");
+  });
+
+  it("hides check icon initially", () => {
+    const { container } = render(<RefreshButton />);
+
+    expect(findCheckIcon(container)).toHaveClass("opacity-0");
   });
 
   it("calls SWR mutate on click", async () => {
@@ -60,7 +78,7 @@ describe("RefreshButton", () => {
   });
 
   it("shows spin animation during refresh", async () => {
-    render(<RefreshButton />);
+    const { container } = render(<RefreshButton />);
 
     await act(async () => {
       fireEvent.click(
@@ -68,9 +86,7 @@ describe("RefreshButton", () => {
       );
     });
 
-    const button = screen.getByRole("button", { name: "Daten aktualisieren" });
-    const svg = button.querySelector("svg");
-    expect(svg).toHaveClass("animate-spin");
+    expect(findRotateIcon(container)).toHaveClass("animate-spin");
   });
 
   it("disables button during refresh", async () => {
@@ -87,8 +103,8 @@ describe("RefreshButton", () => {
     ).toBeDisabled();
   });
 
-  it("re-enables button after timeout", async () => {
-    render(<RefreshButton />);
+  it("shows green checkmark after spin completes", async () => {
+    const { container } = render(<RefreshButton />);
 
     await act(async () => {
       fireEvent.click(
@@ -96,17 +112,45 @@ describe("RefreshButton", () => {
       );
     });
 
-    expect(
-      screen.getByRole("button", { name: "Daten aktualisieren" }),
-    ).toBeDisabled();
-
+    // Complete the rotation
+    const rotateIcon = findRotateIcon(container)!;
     await act(async () => {
-      vi.advanceTimersByTime(600);
+      fireEvent.animationIteration(rotateIcon);
     });
 
+    // Check icon should be visible
+    expect(findCheckIcon(container)).toHaveClass("opacity-100");
+    // Rotate icon should be hidden
+    expect(findRotateIcon(container)).toHaveClass("opacity-0");
+  });
+
+  it("returns to idle state after success timeout", async () => {
+    const { container } = render(<RefreshButton />);
+
+    await act(async () => {
+      fireEvent.click(
+        screen.getByRole("button", { name: "Daten aktualisieren" }),
+      );
+    });
+
+    const rotateIcon = findRotateIcon(container)!;
+    await act(async () => {
+      fireEvent.animationIteration(rotateIcon);
+    });
+
+    // Wait for success → idle transition
+    await act(async () => {
+      vi.advanceTimersByTime(800);
+    });
+
+    // Button should be enabled again
     expect(
       screen.getByRole("button", { name: "Daten aktualisieren" }),
     ).toBeEnabled();
+    // Check icon should be hidden again
+    expect(findCheckIcon(container)).toHaveClass("opacity-0");
+    // Rotate icon should be visible (no opacity-0)
+    expect(findRotateIcon(container)).not.toHaveClass("opacity-0");
   });
 
   it("prevents double-click during refresh", async () => {
