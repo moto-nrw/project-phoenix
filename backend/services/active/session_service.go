@@ -8,6 +8,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
+	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/uptrace/bun"
 )
@@ -742,19 +743,62 @@ func (s *service) collectActiveVisitsForSSE(ctx context.Context, sessionID int64
 		return nil, err
 	}
 
-	var result []visitSSEData
+	// Filter active visits and collect unique student IDs
+	var activeVisits []*active.Visit
+	studentIDSet := make(map[int64]struct{})
 	for _, visit := range visits {
 		if !visit.IsActive() {
 			continue
 		}
+		activeVisits = append(activeVisits, visit)
+		studentIDSet[visit.StudentID] = struct{}{}
+	}
+
+	if len(activeVisits) == 0 {
+		return nil, nil
+	}
+
+	// Batch-fetch all students (1 query instead of N)
+	studentIDs := make([]int64, 0, len(studentIDSet))
+	for id := range studentIDSet {
+		studentIDs = append(studentIDs, id)
+	}
+	studentsMap, err := s.studentRepo.FindByIDs(ctx, studentIDs)
+	if err != nil {
+		studentsMap = nil
+	}
+
+	// Collect unique person IDs from fetched students
+	personIDSet := make(map[int64]struct{})
+	for _, student := range studentsMap {
+		if student != nil {
+			personIDSet[student.PersonID] = struct{}{}
+		}
+	}
+
+	// Batch-fetch all persons (1 query instead of M)
+	var personsMap map[int64]*userModels.Person
+	if len(personIDSet) > 0 {
+		personIDs := make([]int64, 0, len(personIDSet))
+		for id := range personIDSet {
+			personIDs = append(personIDs, id)
+		}
+		personsMap, err = s.personRepo.FindByIDs(ctx, personIDs)
+		if err != nil {
+			personsMap = nil
+		}
+	}
+
+	// Build result using map lookups (O(1) per visit)
+	result := make([]visitSSEData, 0, len(activeVisits))
+	for _, visit := range activeVisits {
 		data := visitSSEData{
 			VisitID:   visit.ID,
 			StudentID: visit.StudentID,
 		}
-		// Query student name for SSE event
-		if student, err := s.studentRepo.FindByID(ctx, visit.StudentID); err == nil && student != nil {
+		if student, ok := studentsMap[visit.StudentID]; ok && student != nil {
 			data.Student = student
-			if person, err := s.personRepo.FindByID(ctx, student.PersonID); err == nil && person != nil {
+			if person, ok := personsMap[student.PersonID]; ok && person != nil {
 				data.Name = fmt.Sprintf("%s %s", person.FirstName, person.LastName)
 			}
 		}
