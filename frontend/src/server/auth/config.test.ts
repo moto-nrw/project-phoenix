@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { authConfig } from "./config";
+import { authConfig, _resetRefreshState } from "./config";
 import type { NextAuthConfig, User } from "next-auth";
 
 // Mock ~/env
@@ -18,6 +18,7 @@ describe("authConfig", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.stubGlobal("fetch", mockFetch);
+    _resetRefreshState();
   });
 
   afterEach(() => {
@@ -249,6 +250,159 @@ describe("authConfig", () => {
       // Proactive refresh should NOT fire — the dedicated refresh handler will handle it
       expect(mockFetch).not.toHaveBeenCalled();
       expect(result?.token).toBe("old-access-token");
+    });
+
+    it("should deduplicate late-arriving callbacks via cache", async () => {
+      // First call: triggers actual refresh and caches result
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          access_token: "new-access-1",
+          refresh_token: "new-refresh-1",
+        }),
+      });
+
+      const makeToken = () => ({
+        id: "123",
+        token: "old-access-token",
+        refreshToken: "dedup-refresh-token",
+        tokenExpiry: Date.now() + 2 * 60 * 1000,
+        refreshTokenExpiry: Date.now() + 7 * 24 * 60 * 60 * 1000,
+      });
+
+      const callJwt = (token: Record<string, unknown>) =>
+        authConfig.callbacks?.jwt?.({
+          token,
+          user: undefined as unknown as User,
+          account: null,
+          profile: undefined,
+          trigger: "update",
+          isNewUser: false,
+          session: undefined,
+        });
+
+      // First callback: performs the actual refresh
+      const result1 = await callJwt(makeToken());
+      expect(result1?.token).toBe("new-access-1");
+      expect(result1?.refreshToken).toBe("new-refresh-1");
+      expect(mockFetch).toHaveBeenCalledOnce();
+
+      // Late-arriving callback with same OLD refresh token: served from cache
+      const result2 = await callJwt(makeToken());
+      expect(result2?.token).toBe("new-access-1");
+      expect(result2?.refreshToken).toBe("new-refresh-1");
+      // Still only 1 fetch call — second was served from cache
+      expect(mockFetch).toHaveBeenCalledOnce();
+    });
+
+    it("should share in-flight refresh promise across concurrent callbacks", async () => {
+      // Single slow fetch that all concurrent calls share
+      let resolveRefresh: (value: unknown) => void;
+      mockFetch.mockReturnValueOnce(
+        new Promise((resolve) => {
+          resolveRefresh = resolve;
+        }),
+      );
+
+      const makeToken = () => ({
+        id: "123",
+        token: "old-access-token",
+        refreshToken: "concurrent-refresh-token",
+        tokenExpiry: Date.now() + 2 * 60 * 1000,
+        refreshTokenExpiry: Date.now() + 7 * 24 * 60 * 60 * 1000,
+      });
+
+      const callJwt = (token: Record<string, unknown>) =>
+        authConfig.callbacks?.jwt?.({
+          token,
+          user: undefined as unknown as User,
+          account: null,
+          profile: undefined,
+          trigger: "update",
+          isNewUser: false,
+          session: undefined,
+        });
+
+      // Fire 3 concurrent callbacks (simulates multiple SessionProvider refetches)
+      const p1 = callJwt(makeToken());
+      const p2 = callJwt(makeToken());
+      const p3 = callJwt(makeToken());
+
+      // Only 1 fetch should have been made
+      expect(mockFetch).toHaveBeenCalledOnce();
+
+      // Resolve the single fetch — all 3 callbacks get the same result
+      resolveRefresh!({
+        ok: true,
+        json: async () => ({
+          access_token: "shared-access",
+          refresh_token: "shared-refresh",
+        }),
+      });
+
+      const [r1, r2, r3] = await Promise.all([p1, p2, p3]);
+
+      expect(r1?.token).toBe("shared-access");
+      expect(r2?.token).toBe("shared-access");
+      expect(r3?.token).toBe("shared-access");
+      expect(r1?.refreshToken).toBe("shared-refresh");
+      expect(r2?.refreshToken).toBe("shared-refresh");
+      expect(r3?.refreshToken).toBe("shared-refresh");
+      // Confirm only 1 fetch across all 3 callbacks
+      expect(mockFetch).toHaveBeenCalledOnce();
+    });
+
+    it("should not use cache for a different refresh token", async () => {
+      // First: refresh with token-A
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          access_token: "access-A",
+          refresh_token: "refresh-A-new",
+        }),
+      });
+
+      const callJwt = (token: Record<string, unknown>) =>
+        authConfig.callbacks?.jwt?.({
+          token,
+          user: undefined as unknown as User,
+          account: null,
+          profile: undefined,
+          trigger: "update",
+          isNewUser: false,
+          session: undefined,
+        });
+
+      await callJwt({
+        id: "123",
+        token: "old",
+        refreshToken: "token-A",
+        tokenExpiry: Date.now() + 2 * 60 * 1000,
+        refreshTokenExpiry: Date.now() + 7 * 24 * 60 * 60 * 1000,
+      });
+      expect(mockFetch).toHaveBeenCalledOnce();
+
+      // Second: refresh with token-B (different token, must NOT use cache)
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          access_token: "access-B",
+          refresh_token: "refresh-B-new",
+        }),
+      });
+
+      const result = await callJwt({
+        id: "456",
+        token: "old",
+        refreshToken: "token-B",
+        tokenExpiry: Date.now() + 2 * 60 * 1000,
+        refreshTokenExpiry: Date.now() + 7 * 24 * 60 * 60 * 1000,
+      });
+
+      expect(result?.token).toBe("access-B");
+      expect(result?.refreshToken).toBe("refresh-B-new");
+      // Two separate fetches — cache was not used
+      expect(mockFetch).toHaveBeenCalledTimes(2);
     });
 
     it("should mark token as expired when refresh token expired", async () => {
