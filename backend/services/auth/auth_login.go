@@ -655,8 +655,11 @@ type refreshResult struct {
 // RefreshTokenWithAudit generates new token pair from a refresh token with audit logging.
 // Concurrent calls with the same refresh token are deduplicated via singleflight.
 func (s *Service) RefreshTokenWithAudit(ctx context.Context, refreshTokenStr, ipAddress, userAgent string) (string, string, error) {
+	// Detach from the caller's context so that if the first HTTP request is
+	// canceled, in-flight work shared with other callers isn't aborted.
+	sfCtx := context.WithoutCancel(ctx)
 	v, err, shared := s.refreshSF.Do(refreshTokenStr, func() (any, error) {
-		return s.doRefreshTokenWithAudit(ctx, refreshTokenStr, ipAddress, userAgent)
+		return s.doRefreshTokenWithAudit(sfCtx, refreshTokenStr, ipAddress, userAgent)
 	})
 	if shared {
 		s.getLogger().Info("concurrent_refresh_deduplicated", "shared", true)

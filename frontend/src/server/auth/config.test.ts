@@ -227,6 +227,30 @@ describe("authConfig", () => {
       expect(result?.error).toBeUndefined();
     });
 
+    it("should skip proactive refresh when access token already expired", async () => {
+      const token = {
+        id: "123",
+        token: "old-access-token",
+        refreshToken: "old-refresh-token",
+        tokenExpiry: Date.now() - 30 * 1000, // Expired 30 seconds ago
+        refreshTokenExpiry: Date.now() + 7 * 24 * 60 * 60 * 1000,
+      };
+
+      const result = await authConfig.callbacks?.jwt?.({
+        token,
+        user: undefined as unknown as User,
+        account: null,
+        profile: undefined,
+        trigger: "update",
+        isNewUser: false,
+        session: undefined,
+      });
+
+      // Proactive refresh should NOT fire — the dedicated refresh handler will handle it
+      expect(mockFetch).not.toHaveBeenCalled();
+      expect(result?.token).toBe("old-access-token");
+    });
+
     it("should mark token as expired when refresh token expired", async () => {
       const token = {
         id: "123",

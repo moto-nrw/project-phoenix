@@ -356,14 +356,21 @@ export const authConfig = {
       // Proactive token refresh: refresh access token before it expires.
       // SessionProvider.refetchInterval (4 min) ensures this runs regularly.
       // Backend singleflight protects against concurrent refresh calls.
+      // Only fires in the pre-expiry window (not after expiry) to avoid
+      // double-refreshing when the dedicated refresh handler (token-refresh.ts)
+      // calls auth() on an already-expired token.
       const REFRESH_BUFFER_MS = 5 * 60 * 1000; // 5 minutes before expiry
+      const REFRESH_TIMEOUT_MS = 5_000; // 5 second timeout
 
+      const now = Date.now();
+      const tokenExpiry = token.tokenExpiry as number;
       if (
         token.tokenExpiry &&
         token.refreshToken &&
         token.refreshTokenExpiry &&
-        Date.now() > (token.tokenExpiry as number) - REFRESH_BUFFER_MS &&
-        Date.now() < (token.refreshTokenExpiry as number)
+        now > tokenExpiry - REFRESH_BUFFER_MS &&
+        now < tokenExpiry && // Not yet expired — only pre-emptive
+        now < (token.refreshTokenExpiry as number)
       ) {
         try {
           const response = await fetch(`${getServerApiUrl()}/auth/refresh`, {
@@ -372,6 +379,7 @@ export const authConfig = {
               Authorization: `Bearer ${token.refreshToken as string}`,
               "Content-Type": "application/json",
             },
+            signal: AbortSignal.timeout(REFRESH_TIMEOUT_MS),
           });
 
           if (response.ok) {
