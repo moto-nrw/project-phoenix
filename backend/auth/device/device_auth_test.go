@@ -91,6 +91,10 @@ func (m *mockIoTService) GetDeviceTypeStatistics(_ context.Context) (map[string]
 }
 func (m *mockIoTService) DetectNewDevices(_ context.Context) ([]*iot.Device, error) { return nil, nil }
 func (m *mockIoTService) ScanNetwork(_ context.Context) (map[string]string, error)  { return nil, nil }
+func (m *mockIoTService) UpdateDeviceLastSeen(_ context.Context, _ string) error {
+	m.updateCalled = true
+	return m.updateError
+}
 
 // =============================================================================
 // Mock Person Service - not actually used by DeviceAuthenticator
