@@ -75,6 +75,29 @@ func (r *GroupRepository) FindActiveByGroupID(ctx context.Context, groupID int64
 	return groups, nil
 }
 
+// FindActiveByGroupIDs finds all active groups for multiple group IDs in a single query
+func (r *GroupRepository) FindActiveByGroupIDs(ctx context.Context, groupIDs []int64) ([]*active.Group, error) {
+	if len(groupIDs) == 0 {
+		return []*active.Group{}, nil
+	}
+
+	var groups []*active.Group
+	err := r.db.NewSelect().
+		Model(&groups).
+		ModelTableExpr(`active.groups AS "group"`).
+		Where(`"group".group_id IN (?) AND "group".end_time IS NULL`, bun.In(groupIDs)).
+		Scan(ctx)
+
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find active by group IDs",
+			Err: err,
+		}
+	}
+
+	return groups, nil
+}
+
 // FindByTimeRange finds all groups active during a specific time range
 func (r *GroupRepository) FindByTimeRange(ctx context.Context, start, end time.Time) ([]*active.Group, error) {
 	var groups []*active.Group

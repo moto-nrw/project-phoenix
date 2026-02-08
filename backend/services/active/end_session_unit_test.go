@@ -54,6 +54,10 @@ func (m *mockGroupRepository) FindActiveByGroupID(ctx context.Context, groupID i
 	return nil, nil
 }
 
+func (m *mockGroupRepository) FindActiveByGroupIDs(ctx context.Context, groupIDs []int64) ([]*active.Group, error) {
+	return nil, nil
+}
+
 func (m *mockGroupRepository) FindByTimeRange(ctx context.Context, start, end time.Time) ([]*active.Group, error) {
 	return nil, nil
 }

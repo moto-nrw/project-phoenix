@@ -17,6 +17,9 @@ type GroupRepository interface {
 	// FindActiveByGroupID finds all active instances of a specific activity group
 	FindActiveByGroupID(ctx context.Context, groupID int64) ([]*Group, error)
 
+	// FindActiveByGroupIDs finds all active groups for multiple group IDs in a single query
+	FindActiveByGroupIDs(ctx context.Context, groupIDs []int64) ([]*Group, error)
+
 	// FindByTimeRange finds all groups active during a specific time range
 	FindByTimeRange(ctx context.Context, start, end time.Time) ([]*Group, error)
 
