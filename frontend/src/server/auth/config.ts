@@ -202,6 +202,26 @@ function parseDurationToMs(duration: string): number {
 const accessTokenExpiry = parseDurationToMs(env.AUTH_JWT_EXPIRY);
 const refreshTokenExpiry = parseDurationToMs(env.AUTH_JWT_REFRESH_EXPIRY);
 
+// Frontend-side singleflight for proactive token refresh.
+// Deduplicates concurrent JWT callbacks that all try to refresh the same token.
+// The cache covers late-arriving callbacks after the in-flight promise resolves.
+type RefreshResult = { access_token: string; refresh_token: string };
+let activeRefreshPromise: Promise<RefreshResult | null> | null = null;
+let activeRefreshKey: string | null = null;
+let refreshCache: {
+  oldToken: string;
+  result: RefreshResult;
+  expiresAt: number;
+} | null = null;
+const REFRESH_CACHE_TTL_MS = 10_000; // 10s window for late-arriving callbacks
+
+/** @internal Reset module-level refresh state (test isolation only) */
+export function _resetRefreshState(): void {
+  activeRefreshPromise = null;
+  activeRefreshKey = null;
+  refreshCache = null;
+}
+
 /**
  * Options for NextAuth.js used to configure adapters, providers, callbacks, etc.
  *
@@ -356,6 +376,9 @@ export const authConfig = {
       // Proactive token refresh: refresh access token before it expires.
       // SessionProvider.refetchInterval (4 min) ensures this runs regularly.
       // Backend singleflight protects against concurrent refresh calls.
+      // Frontend singleflight + cache prevents stale token overwrites when
+      // multiple JWT callbacks race (the late-arriving callback would otherwise
+      // use the old refresh token, get 401, and overwrite good tokens).
       // Only fires in the pre-expiry window (not after expiry) to avoid
       // double-refreshing when the dedicated refresh handler (token-refresh.ts)
       // calls auth() on an already-expired token.
@@ -372,38 +395,86 @@ export const authConfig = {
         now < tokenExpiry && // Not yet expired — only pre-emptive
         now < (token.refreshTokenExpiry as number)
       ) {
-        try {
-          const response = await fetch(`${getServerApiUrl()}/auth/refresh`, {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${token.refreshToken as string}`,
-              "Content-Type": "application/json",
-            },
-            signal: AbortSignal.timeout(REFRESH_TIMEOUT_MS),
-          });
+        const currentRefreshToken = token.refreshToken as string;
 
-          if (response.ok) {
-            const tokens = (await response.json()) as {
-              access_token: string;
-              refresh_token: string;
-            };
-            token.token = tokens.access_token;
-            token.refreshToken = tokens.refresh_token;
+        // Check cache: this refresh token was recently rotated by another callback
+        if (
+          refreshCache?.oldToken === currentRefreshToken &&
+          Date.now() < (refreshCache?.expiresAt ?? 0)
+        ) {
+          token.token = refreshCache.result.access_token;
+          token.refreshToken = refreshCache.result.refresh_token;
+          token.tokenExpiry = Date.now() + accessTokenExpiry;
+          token.refreshTokenExpiry = Date.now() + refreshTokenExpiry;
+          token.error = undefined;
+          token.needsRefresh = undefined;
+          logger.info("proactive_token_refresh_deduplicated");
+          return token;
+        }
+
+        // Join in-flight refresh if one exists for this token
+        if (activeRefreshPromise && activeRefreshKey === currentRefreshToken) {
+          const result = await activeRefreshPromise;
+          if (result) {
+            token.token = result.access_token;
+            token.refreshToken = result.refresh_token;
             token.tokenExpiry = Date.now() + accessTokenExpiry;
             token.refreshTokenExpiry = Date.now() + refreshTokenExpiry;
             token.error = undefined;
             token.needsRefresh = undefined;
             logger.info("proactive_token_refresh_succeeded");
-          } else {
+          }
+          return token;
+        }
+
+        // Start new refresh and share via module-level promise
+        activeRefreshKey = currentRefreshToken;
+        activeRefreshPromise = (async (): Promise<RefreshResult | null> => {
+          try {
+            const response = await fetch(`${getServerApiUrl()}/auth/refresh`, {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${currentRefreshToken}`,
+                "Content-Type": "application/json",
+              },
+              signal: AbortSignal.timeout(REFRESH_TIMEOUT_MS),
+            });
+
+            if (response.ok) {
+              const tokens = (await response.json()) as RefreshResult;
+              // Cache result so late-arriving callbacks with the old token
+              // get the new tokens instead of sending a doomed request
+              refreshCache = {
+                oldToken: currentRefreshToken,
+                result: tokens,
+                expiresAt: Date.now() + REFRESH_CACHE_TTL_MS,
+              };
+              return tokens;
+            }
             logger.warn("proactive_token_refresh_failed", {
               status: response.status,
             });
-            // Don't set error — Axios interceptor handles as fallback
+            return null;
+          } catch (err) {
+            logger.warn("proactive_token_refresh_error", {
+              error: err instanceof Error ? err.message : String(err),
+            });
+            return null;
+          } finally {
+            activeRefreshPromise = null;
+            activeRefreshKey = null;
           }
-        } catch (err) {
-          logger.warn("proactive_token_refresh_error", {
-            error: err instanceof Error ? err.message : String(err),
-          });
+        })();
+
+        const result = await activeRefreshPromise;
+        if (result) {
+          token.token = result.access_token;
+          token.refreshToken = result.refresh_token;
+          token.tokenExpiry = Date.now() + accessTokenExpiry;
+          token.refreshTokenExpiry = Date.now() + refreshTokenExpiry;
+          token.error = undefined;
+          token.needsRefresh = undefined;
+          logger.info("proactive_token_refresh_succeeded");
         }
       }
 
