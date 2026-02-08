@@ -1054,6 +1054,10 @@ func (r *stubStaffRepository) ListAllWithPerson(context.Context) ([]*userModel.S
 	panic("ListAllWithPerson not implemented")
 }
 
+func (r *stubStaffRepository) ListStaffByRoles(context.Context, []string) ([]*userModel.StaffWithRoleInfo, error) {
+	panic("ListStaffByRoles not implemented")
+}
+
 // stubTeacherRepository provides a minimal test implementation.
 type stubTeacherRepository struct {
 	mu       sync.Mutex

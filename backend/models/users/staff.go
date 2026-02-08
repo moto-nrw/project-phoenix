@@ -85,5 +85,17 @@ func (m *Staff) GetUpdatedAt() time.Time {
 	return m.UpdatedAt
 }
 
+// StaffWithRoleInfo contains staff data with person info and account details for role-based queries
+type StaffWithRoleInfo struct {
+	StaffID   int64     `bun:"staff_id" json:"staff_id"`
+	CreatedAt time.Time `bun:"created_at" json:"created_at"`
+	UpdatedAt time.Time `bun:"updated_at" json:"updated_at"`
+	PersonID  int64     `bun:"person_id" json:"person_id"`
+	FirstName string    `bun:"first_name" json:"first_name"`
+	LastName  string    `bun:"last_name" json:"last_name"`
+	AccountID int64     `bun:"account_id" json:"account_id"`
+	Email     string    `bun:"email" json:"email"`
+}
+
 // PIN-related functionality has been moved to auth.Account model
 // This simplifies the architecture by centralizing all authentication data

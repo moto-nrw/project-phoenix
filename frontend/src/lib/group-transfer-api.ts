@@ -52,23 +52,36 @@ function mapStaffWithRole(data: BackendStaffWithRole): StaffWithRole {
 
 export const groupTransferService = {
   // Get all staff members available for group transfer
-  // Fetches from teacher, staff, and user roles and deduplicates by ID
+  // Uses multi-role endpoint to fetch all roles in a single request
   async getAllAvailableStaff(): Promise<StaffWithRole[]> {
-    const [teachers, staffMembers, users] = await Promise.all([
-      this.getStaffByRole("teacher").catch(() => []),
-      this.getStaffByRole("staff").catch(() => []),
-      this.getStaffByRole("user").catch(() => []),
-    ]);
+    try {
+      const response = await sessionFetch(
+        `/api/staff/by-role?roles=teacher,staff,user`,
+        { method: "GET" },
+      );
 
-    // Merge and deduplicate by staff ID
-    const uniqueUsers = new Map<string, StaffWithRole>();
-    for (const user of [...teachers, ...staffMembers, ...users]) {
-      if (!uniqueUsers.has(user.id)) {
-        uniqueUsers.set(user.id, user);
+      if (!response.ok) {
+        logger.error("fetch_staff_by_roles_failed", {
+          status: response.status,
+        });
+        return [];
       }
-    }
 
-    return Array.from(uniqueUsers.values());
+      const data = (await response.json()) as {
+        data: BackendStaffWithRole[] | null;
+      };
+
+      if (!data.data || !Array.isArray(data.data)) {
+        return [];
+      }
+
+      return data.data.map(mapStaffWithRole);
+    } catch (error) {
+      logger.error("fetch_all_available_staff_failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return [];
+    }
   },
 
   // Get staff members with a specific role (for dropdown)
