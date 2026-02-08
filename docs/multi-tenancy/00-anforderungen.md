@@ -19,24 +19,30 @@ Traeger (z.B. "Caritas Muenster")
 |
 +-- OGS Altenberge
 |   +-- Betreuer (N)
-|   +-- Kinder (N)
 |   +-- Buero-Mitarbeiter (N)
+|   +-- Kinder (N)
+|       +-- Eltern (ueber Kind verknuepft, nicht direkt der OGS zugeordnet)
 |
 +-- OGS Greven
 |   +-- Betreuer (N)
-|   +-- Kinder (N)
 |   +-- Buero-Mitarbeiter (N)
+|   +-- Kinder (N)
+|       +-- Eltern (ueber Kind verknuepft)
 |
 +-- OGS Emsdetten
     +-- Betreuer (N)
-    +-- Kinder (N)
     +-- Buero-Mitarbeiter (N)
+    +-- Kinder (N)
+        +-- Eltern (ueber Kind verknuepft)
 ```
 
 ### Regeln
 
 - 1 Traeger hat 1 bis N OGS
 - Jede OGS hat N Kinder, N Betreuer, N Buero-Mitarbeiter
+- Eltern sind **nicht direkt** einer OGS zugeordnet, sondern ueber die Einschreibung ihres Kindes verknuepft
+- Wenn ein Kind die OGS wechselt, wandert der Eltern-Zugriff automatisch mit
+- Ein Elternteil kann Kinder in verschiedenen OGS und sogar verschiedenen Traegern haben
 - Die OGS ist die **Daten-Isolationsgrenze** (ein Betreuer in OGS A darf NICHT die Daten von OGS B sehen)
 - Der Traeger ist die uebergeordnete Organisation ("Umbrella")
 
@@ -46,10 +52,13 @@ Traeger (z.B. "Caritas Muenster")
 
 ### 3.1 Betreuer (Caregiver)
 
-- Arbeitet im Alltag an **einer** OGS
-- Sieht nur Kinder, Gruppen, Raeume und Aktivitaeten dieser einen OGS
+- Arbeitet im **Regelfall** an einer OGS
+- Sieht nur Kinder, Gruppen, Raeume und Aktivitaeten dieser OGS
 - Darf KEINE Daten anderer OGS sehen (auch nicht innerhalb des gleichen Traegers)
-- **Ausnahme:** Ferienbetreuung (siehe 4.1)
+- **Ausnahmen innerhalb des gleichen Traegers:**
+  - Ferienbetreuung: temporaerer Zugriff auf Kinder anderer OGS (siehe 4.1)
+  - Vertretung/Aushilfe: Betreuer springt kurzfristig an einer anderen OGS ein (siehe 4.2)
+  - Dauerhaft an mehreren OGS: z.B. Mo-Mi OGS A, Do-Fr OGS B (siehe 4.2)
 
 ### 3.2 Buero-Mitarbeiter (Office Staff)
 
@@ -69,10 +78,13 @@ Traeger (z.B. "Caritas Muenster")
 ### 3.4 Eltern (Zukunft: Eltern-App)
 
 - Haben einen eigenen Account
+- Sind **nicht direkt** einer OGS zugeordnet, sondern ueber ihre Kinder verknuepft
 - Koennen 1 bis N Kinder haben
 - Kinder koennen in **verschiedenen OGS** sein (z.B. Geschwister an unterschiedlichen Schulen)
 - Kinder koennen sogar bei **verschiedenen Traegern** sein
+- Zugriff auf eine OGS ergibt sich automatisch aus der Einschreibung des Kindes
 - Kommunizieren mit Betreuern / Buero der jeweiligen OGS ihres Kindes
+- Sehen nur Daten des eigenen Kindes (nicht andere Kinder der OGS)
 
 ### 3.5 IoT-Geraete (PyrePortal)
 
@@ -98,12 +110,16 @@ Traeger (z.B. "Caritas Muenster")
 
 ### 4.2 Betreuer an mehreren OGS
 
-**Situation:** Ein Betreuer arbeitet an 2 OGS desselben Traegers (z.B. Mo-Mi in Altenberge, Do-Fr in Greven).
+**Situation A - Dauerhaft:** Ein Betreuer arbeitet regulaer an 2 OGS desselben Traegers (z.B. Mo-Mi in Altenberge, Do-Fr in Greven).
+
+**Situation B - Vertretung:** Ein Betreuer springt kurzfristig an einer anderen OGS ein (z.B. Kollegin krank, Betreuer faehrt fuer einen Tag nach Greven).
 
 **Anforderungen:**
 - Ein Account, ein Passwort
 - Kann zwischen OGS wechseln
 - Sieht in jeder OGS nur die jeweiligen Daten
+- Zugriff auf weitere OGS kann dauerhaft oder temporaer sein
+- Nur innerhalb des gleichen Traegers moeglich
 
 ### 4.3 Eltern mit Kindern in verschiedenen OGS/Traegern
 
