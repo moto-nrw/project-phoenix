@@ -353,13 +353,58 @@ export const authConfig = {
         return token;
       }
 
-      // JWT callback no longer handles token refresh
-      // All token refresh is now handled by the axios interceptor when it receives 401 errors
-      // This eliminates race conditions from multiple concurrent refresh attempts
-      if (isDev) {
-        logger.debug("jwt callback completed", {
-          refresh_handled_by: "axios_interceptor",
-        });
+      // Proactive token refresh: refresh access token before it expires.
+      // SessionProvider.refetchInterval (4 min) ensures this runs regularly.
+      // Backend singleflight protects against concurrent refresh calls.
+      // Only fires in the pre-expiry window (not after expiry) to avoid
+      // double-refreshing when the dedicated refresh handler (token-refresh.ts)
+      // calls auth() on an already-expired token.
+      const REFRESH_BUFFER_MS = 5 * 60 * 1000; // 5 minutes before expiry
+      const REFRESH_TIMEOUT_MS = 5_000; // 5 second timeout
+
+      const now = Date.now();
+      const tokenExpiry = token.tokenExpiry as number;
+      if (
+        token.tokenExpiry &&
+        token.refreshToken &&
+        token.refreshTokenExpiry &&
+        now > tokenExpiry - REFRESH_BUFFER_MS &&
+        now < tokenExpiry && // Not yet expired — only pre-emptive
+        now < (token.refreshTokenExpiry as number)
+      ) {
+        try {
+          const response = await fetch(`${getServerApiUrl()}/auth/refresh`, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${token.refreshToken as string}`,
+              "Content-Type": "application/json",
+            },
+            signal: AbortSignal.timeout(REFRESH_TIMEOUT_MS),
+          });
+
+          if (response.ok) {
+            const tokens = (await response.json()) as {
+              access_token: string;
+              refresh_token: string;
+            };
+            token.token = tokens.access_token;
+            token.refreshToken = tokens.refresh_token;
+            token.tokenExpiry = Date.now() + accessTokenExpiry;
+            token.refreshTokenExpiry = Date.now() + refreshTokenExpiry;
+            token.error = undefined;
+            token.needsRefresh = undefined;
+            logger.info("proactive_token_refresh_succeeded");
+          } else {
+            logger.warn("proactive_token_refresh_failed", {
+              status: response.status,
+            });
+            // Don't set error — Axios interceptor handles as fallback
+          }
+        } catch (err) {
+          logger.warn("proactive_token_refresh_error", {
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
       }
 
       return token;
