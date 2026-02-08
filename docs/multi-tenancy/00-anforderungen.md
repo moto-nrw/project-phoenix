@@ -17,29 +17,39 @@ Project Phoenix ist aktuell eine Single-Tenant-Anwendung fuer eine einzelne OGS.
 ```
 Traeger (z.B. "Caritas Muenster")
 |
++-- Traeger-Buero (0..N Mitarbeiter)
+|   Personalplanung, Lohnabrechnungen, Steuerung
+|   → sieht automatisch ALLE OGS des Traegers
+|
++-- OGS-Buero Ost (0..N Mitarbeiter)
+|   Operative Verwaltung: Vertretungen, Krankmeldungen, An-/Abmeldungen
+|   → verwaltet OGS Altenberge + OGS Greven
+|
 +-- OGS Altenberge
 |   +-- Betreuer (N)
-|   +-- Buero-Mitarbeiter (N)
 |   +-- Kinder (N)
 |       +-- Eltern (ueber Kind verknuepft, nicht direkt der OGS zugeordnet)
 |
 +-- OGS Greven
 |   +-- Betreuer (N)
-|   +-- Buero-Mitarbeiter (N)
 |   +-- Kinder (N)
 |       +-- Eltern (ueber Kind verknuepft)
 |
 +-- OGS Emsdetten
+    +-- Eigenes OGS-Buero (0..N Mitarbeiter)
     +-- Betreuer (N)
-    +-- Buero-Mitarbeiter (N)
     +-- Kinder (N)
         +-- Eltern (ueber Kind verknuepft)
 ```
 
 ### Regeln
 
-- 1 Traeger hat 1 bis N OGS
-- Jede OGS hat N Kinder, N Betreuer, N Buero-Mitarbeiter
+- 1 Traeger hat 1 bis N OGS (eine unabhaengige OGS ist selbst ihr eigener Traeger)
+- Jede OGS hat N Kinder, N Betreuer
+- **Buero-Mitarbeiter existieren auf zwei Ebenen** (nicht XOR, beides gleichzeitig moeglich):
+  - **Traeger-Buero:** Zugriff auf ALLE OGS des Traegers (automatisch, auch neue OGS)
+  - **OGS-Buero:** Zugriff auf 1 bis N spezifische OGS (individuell zugewiesen)
+- Ein Buero-Mitarbeiter kann einem Traeger-Buero ODER einem OGS-Buero zugeordnet sein
 - Eltern sind **nicht direkt** einer OGS zugeordnet, sondern ueber die Einschreibung ihres Kindes verknuepft
 - Wenn ein Kind die OGS wechselt, wandert der Eltern-Zugriff automatisch mit
 - Ein Elternteil kann Kinder in verschiedenen OGS und sogar verschiedenen Traegern haben
@@ -62,26 +72,44 @@ Traeger (z.B. "Caritas Muenster")
 
 ### 3.2 Buero-Mitarbeiter (Office Staff)
 
-- Gehoert zum Traeger, arbeitet aber mit spezifischen OGS
-- Kann Zugriff auf **1 bis N OGS** haben (NICHT zwangslaeufig alle OGS des Traegers!)
-- Muss zwischen OGS wechseln koennen ("OGS wechseln" Dropdown)
-- Braucht ggf. aggregierte Uebersichten ueber seine zugewiesenen OGS
-- Zugriff wird pro Buero-Mitarbeiter individuell festgelegt
+Buero-Mitarbeiter existieren auf **zwei Ebenen** - beide koennen gleichzeitig innerhalb eines Traegers vorkommen:
+
+**a) Traeger-Buero (Organization-Scope)**
+- Strategisch/administrativ: Personalplanung, Lohnabrechnungen, Steuerung
+- Hat automatisch Zugriff auf **ALLE OGS des Traegers** (auch neue, die spaeter hinzukommen)
+- Braucht uebergreifende Uebersichten (z.B. Personal ueber alle OGS)
+- Kann zwischen OGS wechseln oder aggregierte Ansichten sehen
+
+**b) OGS-Buero (Tenant-Scope)**
+- Operativ: Vertretungen, Krankmeldungen, An-/Abmeldungen
+- Hat Zugriff auf **1 bis N spezifische OGS** (individuell zugewiesen, NICHT zwangslaeufig alle)
+- Ein OGS-Buero kann auch mehrere OGS verwalten (z.B. "Buero Ost" verwaltet 3 von 5 OGS)
+- Muss zwischen zugewiesenen OGS wechseln koennen ("OGS wechseln" Dropdown)
+
+**Gemeinsam:**
+- Arbeitet **innerhalb eines Traegers** (nicht traeger-uebergreifend)
+- Ein Account, ein Passwort
+- Zugriff wird pro Buero-Mitarbeiter festgelegt (Traeger-weit oder individuell pro OGS)
 
 ### 3.3 Operator (Platform-Admin)
 
 - Sitzt ausserhalb der Tenant-Grenze
 - Verwaltet Traeger, OGS, Subdomains
-- Kann sich als OGS-Admin einloggen (Impersonation/Support)
+- Kann im Operator-Dashboard eine **bestimmte OGS auswaehlen** und deren Daten einsehen (z.B. Feedback, Statistiken)
+- Braucht **keine Impersonation** - bleibt immer in der Operator-Plattform
+- Kann Announcements / Release Notes an **alle OGS oder gezielt an bestimmte OGS** senden
 - Sieht uebergreifende Statistiken und Vorschlaege
 
 ### 3.4 Eltern (Zukunft: Eltern-App)
 
-- Haben einen eigenen Account
+- Haben einen eigenen Account (Email + Passwort, wie alle anderen Rollen)
 - Sind **nicht direkt** einer OGS zugeordnet, sondern ueber ihre Kinder verknuepft
+- Nutzen die **gleiche Subdomain** wie die OGS (z.B. `altenberge.{domain}`) - keine eigene Eltern-Subdomain
+- System erkennt Eltern-Rolle beim Login und zeigt die Eltern-Ansicht
 - Koennen 1 bis N Kinder haben
 - Kinder koennen in **verschiedenen OGS** sein (z.B. Geschwister an unterschiedlichen Schulen)
 - Kinder koennen sogar bei **verschiedenen Traegern** sein
+- Bei Kindern in mehreren OGS: **OGS-Switcher** zum Wechseln zwischen den OGS-Ansichten
 - Zugriff auf eine OGS ergibt sich automatisch aus der Einschreibung des Kindes
 - Kommunizieren mit Betreuern / Buero der jeweiligen OGS ihres Kindes
 - Sehen nur Daten des eigenen Kindes (nicht andere Kinder der OGS)
@@ -106,7 +134,7 @@ Traeger (z.B. "Caritas Muenster")
 - Buero-Mitarbeiter muessen die gemischte Gruppe ueberblicken koennen
 - Der Zugriff ist **zeitlich begrenzt** (z.B. "Sommerferien 2026: 01.07.-12.08.")
 - Nach Ablauf faellt der Zugriff automatisch weg
-- Nur innerhalb eines Traeger-Verbunds moeglich (nicht traeger-uebergreifend)
+- Moeglich innerhalb eines Traegers UND **traeger-uebergreifend** (maximale Flexibilitaet)
 
 ### 4.2 Betreuer an mehreren OGS
 
@@ -130,6 +158,8 @@ Traeger (z.B. "Caritas Muenster")
 - Kann zwischen den OGS-Ansichten wechseln
 - Sieht pro OGS nur die Daten des eigenen Kindes
 - Traeger-uebergreifend moeglich
+- Tenant-Zuordnung wird **automatisch** ueber Kind-Einschreibung gesteuert (kein manuelles Zuweisen)
+- Kind verlässt OGS → Eltern-Zugriff auf diesen Tenant faellt automatisch weg
 
 ### 4.4 Subdomain-Routing
 
@@ -187,14 +217,11 @@ Traeger (z.B. "Caritas Muenster")
 
 ---
 
-## 7. Offene Fragen
+## 7. Bewusste Abgrenzungen (nicht im initialen Rollout)
 
-- [ ] Koennen Buero-Mitarbeiter traeger-uebergreifend arbeiten? (z.B. Berater der fuer Caritas UND AWO taetig ist)
-- [ ] Gibt es OGS die keinem Traeger zugeordnet sind? (Einzelne, unabhaengige OGS)
-- [ ] Soll die Eltern-App eine eigene Subdomain haben? (z.B. `eltern.{domain}`)
-- [ ] Brauchen Eltern eine andere Auth als Betreuer? (z.B. Social Login, Magic Link)
-- [ ] Gibt es Daten die traeger-weit geteilt werden? (z.B. gemeinsame Aktivitaets-Kategorien, Vorlagen)
-- [ ] Soll ein OGS-Admin seinen eigenen Traeger sehen koennen, oder ist das nur Operator-Sache?
+- **Traeger-weit geteilte Daten:** Alles startet per-Tenant (OGS). Gemeinsame Kategorien, Vorlagen o.ae. auf Traeger-Ebene koennen spaeter nachgeruestet werden (Beziehung Tenant → Organization existiert bereits in der DB).
+- **OGS-Admin sieht Traeger-Infos:** OGS-Admins sollen ihren Traeger-Namen und Schwester-OGS (nur Namen, keine Daten) sehen koennen. Wird als Follow-up implementiert (org_id ist im JWT, minimaler Aufwand).
+- **OGS-Konfiguration / Feature-Toggles:** Verschiedene OGS-Modi (z.B. mit/ohne Gruppen) werden ueber `settings JSONB` pro Tenant abgebildet. Vorlagen/Templates koennen spaeter ergaenzt werden, wenn sich Muster zeigen.
 
 ---
 
@@ -203,3 +230,5 @@ Traeger (z.B. "Caritas Muenster")
 | Datum | Aenderung |
 |-------|-----------|
 | 2026-02-07 | Initiale Version mit allen bisherigen Anforderungen |
+| 2026-02-08 | Eltern in Hierarchie, Betreuer-Edge-Cases, Operator ohne Impersonation, Cross-OGS traeger-uebergreifend, alle offenen Fragen geklaert |
+| 2026-02-08 | Buero-Mitarbeiter auf zwei Ebenen (Traeger-Buero + OGS-Buero), Hierarchie-Diagramm aktualisiert |
