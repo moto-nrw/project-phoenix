@@ -1,0 +1,96 @@
+# Environment & Docker File Sync
+
+**RULE: When adding, removing, or renaming an environment variable, update ALL affected files.** A variable added in one place but missing from its counterparts causes silent misconfiguration or lefthook sync warnings.
+
+## File Inventory
+
+### Git-Tracked (templates/examples)
+
+| File | Purpose |
+|------|---------|
+| `.env.example` | Template for root `.env` (docker-compose variable substitution) |
+| `backend/dev.env.example` | Template for local backend dev (`go run main.go serve`) |
+| `frontend/.env.example` | Template for frontend (`.env.local`) |
+| `bruno/.env.bruno.example` | Template for Bruno API test secrets |
+| `docker-compose.example.yml` | Template for local `docker-compose.yml` |
+| `backend/Dockerfile` | Production backend image |
+| `backend/Dockerfile.dev` | Dev backend image (air hot reload) |
+| `frontend/Dockerfile` | Frontend dev image |
+| `frontend/Dockerfile.prod` | Production frontend image |
+
+### Git-Ignored (local secrets)
+
+| File | Purpose |
+|------|---------|
+| `.env` | Root env, **auto-loaded by docker-compose** for `${VAR}` interpolation |
+| `backend/dev.env` | Backend local dev env (loaded by viper) |
+| `frontend/.env.local` | Frontend local env (loaded by Next.js) |
+| `bruno/.env.bruno` | Bruno API test secrets |
+| `docker-compose.yml` | Local docker-compose config |
+
+## How Docker Compose Uses Environment Variables
+
+**Docker Compose auto-loads the root `.env` file** for `${VAR:-default}` substitution in `docker-compose.yml`. This is how all services receive their configuration when running `docker compose up`.
+
+The flow:
+```
+/.env  -->  docker-compose.yml (${VAR} substitution)  -->  container environment
+```
+
+- The `server` service `environment:` block maps root `.env` vars into the Go container
+- The `frontend` service `environment:` block maps root `.env` vars into the Next.js container
+- `backend/dev.env` is volume-mounted into the container (`./backend:/app`) but is secondary to the docker-compose environment block
+
+**`backend/dev.env` is for local-only development** (`go run main.go serve` outside Docker).
+
+## Critical: os.Getenv() vs viper.GetString()
+
+The backend has TWO env var access patterns with different behavior:
+
+| Access Pattern | Sees `docker-compose.yml` env block | Sees `backend/dev.env` |
+|---------------|--------------------------------------|------------------------|
+| `viper.GetString("key")` | Yes (via AutomaticEnv) | Yes (via config file) |
+| `os.Getenv("KEY")` | Yes | **NO** (not an OS env var) |
+
+**Code using `os.Getenv()` directly**: migrations (`OPERATOR_*`, `ADMIN_*`), scheduler (`CLEANUP_*`, `SESSION_*`), CORS, rate limiting, device auth.
+
+**Consequence**: Any var consumed by `os.Getenv()` **MUST** be in the `docker-compose.yml` `environment:` block to work in Docker. Having it only in `backend/dev.env` is insufficient.
+
+## Sync Pairs
+
+When modifying any file, update its counterpart:
+
+| Local File (git-ignored) | Template (git-tracked) |
+|--------------------------|------------------------|
+| `.env` | `.env.example` |
+| `backend/dev.env` | `backend/dev.env.example` |
+| `frontend/.env.local` | `frontend/.env.example` |
+| `bruno/.env.bruno` | `bruno/.env.bruno.example` |
+| `docker-compose.yml` | `docker-compose.example.yml` |
+
+## Adding a New Backend Env Var Checklist
+
+- [ ] Add to `backend/dev.env.example` (with safe default or placeholder)
+- [ ] Add to `docker-compose.example.yml` server `environment:` block (with `${VAR:-default}`)
+- [ ] Add to `.env.example` (with placeholder value)
+- [ ] If used by `os.Getenv()`: confirm it is in docker-compose `environment:` block (not just dev.env)
+
+## Adding a New Frontend Env Var Checklist
+
+- [ ] Add to `frontend/.env.example`
+- [ ] If needed in Docker: add to `docker-compose.example.yml` frontend `environment:` block
+- [ ] If needed in Docker: add to `.env.example`
+- [ ] If `NEXT_PUBLIC_*`: client-accessible, no server import restrictions
+- [ ] If server-only: use `getServerApiUrl()` pattern, don't import in mixed client/server files
+
+## Automated Sync Checks
+
+The lefthook `post-merge` hook runs `dotenv-linter diff` on three pairs and `dyff between` on docker-compose. These catch missing keys after `git pull`.
+
+```bash
+# Manual verification
+dotenv-linter diff .env .env.example
+dotenv-linter diff backend/dev.env backend/dev.env.example
+dotenv-linter diff frontend/.env.local frontend/.env.example
+dyff between --omit-header docker-compose.example.yml docker-compose.yml
+```
