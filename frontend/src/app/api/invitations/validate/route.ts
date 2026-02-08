@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { getServerApiUrl } from "~/lib/server-api-url";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "InvitationValidateRoute" });
 
 export async function GET(request: NextRequest) {
   const token = request.nextUrl.searchParams.get("token");
@@ -27,7 +30,9 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(payload ?? {}, { status: response.status });
   } catch (error) {
-    console.error("Invitation validation proxy error:", error);
+    logger.error("invitation validation failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
     return NextResponse.json(
       { error: "Internal Server Error" },
       { status: 500 },

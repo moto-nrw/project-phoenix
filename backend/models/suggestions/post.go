@@ -11,10 +11,12 @@ import (
 
 // Status constants for suggestion posts
 const (
-	StatusOpen     = "open"
-	StatusPlanned  = "planned"
-	StatusDone     = "done"
-	StatusRejected = "rejected"
+	StatusOpen       = "open"
+	StatusPlanned    = "planned"
+	StatusInProgress = "in_progress"
+	StatusDone       = "done"
+	StatusRejected   = "rejected"
+	StatusNeedInfo   = "need_info"
 )
 
 // tableSuggestionsPosts is the schema-qualified table name
@@ -30,9 +32,13 @@ type Post struct {
 	Score       int    `bun:"score,notnull,default:0" json:"score"`
 
 	// Resolved at query time, not stored
-	AuthorName string `bun:"author_name,scanonly" json:"author_name,omitempty"`
-	Upvotes    int    `bun:"upvotes,scanonly" json:"upvotes"`
-	Downvotes  int    `bun:"downvotes,scanonly" json:"downvotes"`
+	AuthorName   string `bun:"author_name,scanonly" json:"author_name,omitempty"`
+	Upvotes      int    `bun:"upvotes,scanonly" json:"upvotes"`
+	Downvotes    int    `bun:"downvotes,scanonly" json:"downvotes"`
+	CommentCount int    `bun:"comment_count,scanonly" json:"comment_count"`
+	UnreadCount  int    `bun:"unread_count,scanonly" json:"unread_count"`
+	// IsNew indicates the operator has never viewed this post
+	IsNew bool `bun:"is_new,scanonly" json:"is_new"`
 	// Per-user vote direction, resolved at query time
 	UserVote *string `bun:"user_vote,scanonly" json:"user_vote"`
 }
@@ -84,7 +90,7 @@ func (p *Post) Validate() error {
 // IsValidStatus checks if a status string is valid
 func IsValidStatus(status string) bool {
 	switch status {
-	case StatusOpen, StatusPlanned, StatusDone, StatusRejected:
+	case StatusOpen, StatusPlanned, StatusInProgress, StatusDone, StatusRejected, StatusNeedInfo:
 		return true
 	default:
 		return false

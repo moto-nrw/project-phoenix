@@ -63,6 +63,29 @@ func (r *GroupTeacherRepository) FindByTeacher(ctx context.Context, teacherID in
 	return groupTeachers, nil
 }
 
+// FindByGroupIDs retrieves all group-teacher relationships for multiple groups in a single query
+func (r *GroupTeacherRepository) FindByGroupIDs(ctx context.Context, groupIDs []int64) ([]*education.GroupTeacher, error) {
+	if len(groupIDs) == 0 {
+		return []*education.GroupTeacher{}, nil
+	}
+
+	var groupTeachers []*education.GroupTeacher
+	err := r.db.NewSelect().
+		Model(&groupTeachers).
+		ModelTableExpr(`education.group_teacher AS "group_teacher"`).
+		Where(`"group_teacher".group_id IN (?)`, bun.In(groupIDs)).
+		Scan(ctx)
+
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find by group IDs",
+			Err: err,
+		}
+	}
+
+	return groupTeachers, nil
+}
+
 // Create overrides the base Create method to handle validation
 func (r *GroupTeacherRepository) Create(ctx context.Context, groupTeacher *education.GroupTeacher) error {
 	if groupTeacher == nil {

@@ -539,3 +539,27 @@ func TestAppClaims_ParseClaims_NilValues(t *testing.T) {
 	assert.Empty(t, c.Permissions)
 	assert.False(t, c.IsAdmin)
 }
+
+// =============================================================================
+// IsPlatformScope Tests
+// =============================================================================
+
+func TestAppClaims_IsPlatformScope_True(t *testing.T) {
+	c := &AppClaims{Scope: "platform"}
+	assert.True(t, c.IsPlatformScope())
+}
+
+func TestAppClaims_IsPlatformScope_False_EmptyString(t *testing.T) {
+	c := &AppClaims{Scope: ""}
+	assert.False(t, c.IsPlatformScope())
+}
+
+func TestAppClaims_IsPlatformScope_False_Tenant(t *testing.T) {
+	c := &AppClaims{Scope: "tenant"}
+	assert.False(t, c.IsPlatformScope())
+}
+
+func TestAppClaims_IsPlatformScope_False_Other(t *testing.T) {
+	c := &AppClaims{Scope: "other"}
+	assert.False(t, c.IsPlatformScope())
+}

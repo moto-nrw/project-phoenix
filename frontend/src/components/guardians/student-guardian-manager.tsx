@@ -25,6 +25,9 @@ import {
   setGuardianPrimaryPhone,
 } from "@/lib/guardian-api";
 import { useToast } from "~/contexts/ToastContext";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "StudentGuardianManager" });
 
 interface StudentGuardianManagerProps {
   readonly studentId: string;
@@ -59,6 +62,10 @@ export default function StudentGuardianManager({
       const data = await fetchStudentGuardians(studentId);
       setGuardians(data);
     } catch (err) {
+      logger.error("guardians_load_failed", {
+        error: err instanceof Error ? err.message : String(err),
+        student_id: studentId,
+      });
       setError(
         err instanceof Error
           ? err.message
@@ -290,6 +297,10 @@ export default function StudentGuardianManager({
       setDeletingGuardian(undefined);
       toastSuccess(`${deletedName} wurde erfolgreich entfernt`);
     } catch (err) {
+      logger.error("guardian_remove_failed", {
+        error: err instanceof Error ? err.message : String(err),
+        student_id: studentId,
+      });
       alert(
         err instanceof Error
           ? err.message

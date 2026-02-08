@@ -5,6 +5,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
+import { getInitials } from "~/lib/format-utils";
 
 /**
  * User avatar with initials fallback
@@ -41,17 +42,6 @@ function UserAvatar({ avatarUrl, userName, size = "sm" }: UserAvatarProps) {
         initials
       )}
     </div>
-  );
-}
-
-function getInitials(userName: string): string {
-  return (
-    (userName?.trim() || "")
-      .split(" ")
-      .filter((n) => n.length > 0)
-      .map((n) => n[0])
-      .join("")
-      .toUpperCase() || "?"
   );
 }
 
@@ -191,6 +181,7 @@ interface ProfileDropdownMenuProps {
   readonly userEmail: string;
   readonly onClose: () => void;
   readonly onLogout: () => void;
+  readonly settingsUrl?: string | null;
 }
 
 export function ProfileDropdownMenu({
@@ -200,6 +191,7 @@ export function ProfileDropdownMenu({
   userEmail,
   onClose,
   onLogout,
+  settingsUrl,
 }: ProfileDropdownMenuProps) {
   const handleHelpClick = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -223,11 +215,11 @@ export function ProfileDropdownMenu({
 
   return (
     <>
-      {/* Backdrop for mobile - native button handles Enter/Space automatically */}
+      {/* Invisible backdrop to close dropdown on click outside */}
       {isOpen && (
         <button
           type="button"
-          className="fixed inset-0 z-40 cursor-default md:hidden"
+          className="fixed inset-0 z-40 cursor-default"
           onClick={onClose}
           aria-label="Menü schließen"
         />
@@ -262,14 +254,16 @@ export function ProfileDropdownMenu({
 
         {/* Menu items */}
         <div className="p-2">
-          <Link
-            href="/settings"
-            onClick={onClose}
-            className="group flex items-center rounded-xl px-3 py-2.5 text-sm font-medium text-gray-700 transition-all duration-200 ease-out hover:bg-gray-100 hover:text-gray-900 active:bg-gray-900 active:text-white"
-          >
-            <SettingsIcon />
-            Einstellungen
-          </Link>
+          {settingsUrl && (
+            <Link
+              href={settingsUrl}
+              onClick={onClose}
+              className="group flex items-center rounded-xl px-3 py-2.5 text-sm font-medium text-gray-700 transition-all duration-200 ease-out hover:bg-gray-100 hover:text-gray-900 active:bg-gray-900 active:text-white"
+            >
+              <SettingsIcon />
+              Einstellungen
+            </Link>
+          )}
 
           <button
             onClick={handleHelpClick}

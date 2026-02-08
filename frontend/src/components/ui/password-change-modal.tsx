@@ -4,6 +4,9 @@ import { useState } from "react";
 import { Modal } from "./modal";
 import { Alert } from "./alert";
 import { EyeIcon, EyeOffIcon, CheckIcon, SpinnerIcon } from "./icons";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "PasswordChange" });
 
 interface PasswordToggleProps {
   readonly show: boolean;
@@ -27,12 +30,14 @@ interface PasswordChangeModalProps {
   readonly isOpen: boolean;
   readonly onClose: () => void;
   readonly onSuccess?: () => void;
+  readonly apiEndpoint?: string;
 }
 
 export function PasswordChangeModal({
   isOpen,
   onClose,
   onSuccess,
+  apiEndpoint = "/api/auth/password",
 }: PasswordChangeModalProps) {
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -74,7 +79,7 @@ export function PasswordChangeModal({
     setIsLoading(true);
 
     try {
-      const response = await fetch("/api/auth/password", {
+      const response = await fetch(apiEndpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -95,6 +100,9 @@ export function PasswordChangeModal({
         handleClose();
       }, 2000);
     } catch (err) {
+      logger.error("password_change_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
       setError(
         err instanceof Error
           ? err.message

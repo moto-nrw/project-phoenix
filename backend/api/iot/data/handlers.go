@@ -94,7 +94,7 @@ func (rs *Resource) getTeacherStudents(w http.ResponseWriter, r *http.Request) {
 	uniqueStudents := rs.fetchStudentsForTeachers(r.Context(), teacherIDs)
 
 	// Build response from unique students
-	response := rs.buildStudentResponses(r.Context(), uniqueStudents)
+	response := rs.buildStudentResponses(uniqueStudents)
 
 	common.Respond(w, r, http.StatusOK, response, fmt.Sprintf("Found %d unique students", len(response)))
 }
@@ -269,17 +269,26 @@ func (rs *Resource) parseTeacherIDs(w http.ResponseWriter, r *http.Request) ([]i
 	return teacherIDs, true
 }
 
-// fetchStudentsForTeachers fetches unique students for all given teacher IDs
+// fetchStudentsForTeachers fetches unique students for all given teacher IDs.
+// Uses batch lookup to resolve staff IDs → teachers in a single query.
 func (rs *Resource) fetchStudentsForTeachers(ctx context.Context, teacherIDs []int64) map[int64]usersSvc.StudentWithGroup {
 	uniqueStudents := make(map[int64]usersSvc.StudentWithGroup)
 	teacherRepo := rs.UsersService.TeacherRepository()
 
+	// Batch resolve all staff IDs → teachers in one query (WHERE staff_id IN (?))
+	teacherMap, err := teacherRepo.FindByStaffIDs(ctx, teacherIDs)
+	if err != nil {
+		slog.Default().WarnContext(ctx, "failed to batch-find teachers by staff IDs",
+			slog.String("error", err.Error()),
+		)
+		return uniqueStudents
+	}
+
 	for _, staffID := range teacherIDs {
-		teacher, err := teacherRepo.FindByStaffID(ctx, staffID)
-		if err != nil || teacher == nil {
-			slog.Default().WarnContext(ctx, "failed to find teacher for staff",
+		teacher, ok := teacherMap[staffID]
+		if !ok || teacher == nil {
+			slog.Default().WarnContext(ctx, "no teacher found for staff",
 				slog.Int64("staff_id", staffID),
-				slog.String("error", fmt.Sprintf("%v", err)),
 			)
 			continue
 		}
@@ -302,30 +311,26 @@ func (rs *Resource) fetchStudentsForTeachers(ctx context.Context, teacherIDs []i
 	return uniqueStudents
 }
 
-// buildStudentResponses builds response array from unique students map
-func (rs *Resource) buildStudentResponses(ctx context.Context, uniqueStudents map[int64]usersSvc.StudentWithGroup) []TeacherStudentResponse {
+// buildStudentResponses builds response array from unique students map.
+// Person data is already loaded via JOINed queries — no additional DB calls needed.
+func (rs *Resource) buildStudentResponses(uniqueStudents map[int64]usersSvc.StudentWithGroup) []TeacherStudentResponse {
 	response := make([]TeacherStudentResponse, 0, len(uniqueStudents))
 
 	for _, swg := range uniqueStudents {
-		person, err := rs.UsersService.Get(ctx, swg.Student.PersonID)
-		if err != nil {
-			slog.Default().WarnContext(ctx, "failed to fetch person for student",
-				slog.Int64("student_id", swg.Student.ID),
-				slog.String("error", err.Error()),
-			)
+		if swg.Student == nil || swg.Student.Person == nil {
 			continue
 		}
 
 		rfidTag := ""
-		if person.TagID != nil {
-			rfidTag = *person.TagID
+		if swg.Student.Person.TagID != nil {
+			rfidTag = *swg.Student.Person.TagID
 		}
 
 		response = append(response, TeacherStudentResponse{
 			StudentID:   swg.Student.ID,
 			PersonID:    swg.Student.PersonID,
-			FirstName:   person.FirstName,
-			LastName:    person.LastName,
+			FirstName:   swg.Student.Person.FirstName,
+			LastName:    swg.Student.Person.LastName,
 			SchoolClass: swg.Student.SchoolClass,
 			GroupName:   swg.GroupName,
 			RFIDTag:     rfidTag,

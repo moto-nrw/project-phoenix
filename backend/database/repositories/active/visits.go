@@ -392,6 +392,38 @@ func (r *VisitRepository) GetCurrentByStudentIDs(ctx context.Context, studentIDs
 	return result, nil
 }
 
+// EndVisitsByActiveGroupIDs ends all active visits for multiple group IDs in a single query.
+// Returns the number of visits ended.
+func (r *VisitRepository) EndVisitsByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64) (int64, error) {
+	if len(activeGroupIDs) == 0 {
+		return 0, nil
+	}
+
+	result, err := r.db.NewUpdate().
+		Table(tableActiveVisits).
+		Set("exit_time = now()").
+		Where("active_group_id IN (?)", bun.In(activeGroupIDs)).
+		Where("exit_time IS NULL").
+		Exec(ctx)
+
+	if err != nil {
+		return 0, &modelBase.DatabaseError{
+			Op:  "end visits by active group IDs",
+			Err: err,
+		}
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return 0, &modelBase.DatabaseError{
+			Op:  "end visits by active group IDs (rows affected)",
+			Err: err,
+		}
+	}
+
+	return rowsAffected, nil
+}
+
 // FindActiveVisits finds all visits with no exit time (currently active)
 func (r *VisitRepository) FindActiveVisits(ctx context.Context) ([]*active.Visit, error) {
 	var visits []*active.Visit

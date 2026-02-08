@@ -1,5 +1,8 @@
 // lib/usercontext-api.ts
 import { getCachedSession } from "./session-cache";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "UserContextAPI" });
 import { env } from "~/env";
 import api from "./api";
 import { fetchWithAuth } from "./fetch-with-auth";
@@ -49,10 +52,10 @@ export const userContextService = {
 
         if (!response.ok) {
           const errorText = await response.text();
-          console.error(
-            `Get current user error: ${response.status}`,
-            errorText,
-          );
+          logger.error("get current user failed", {
+            status: response.status,
+            error: errorText,
+          });
           throw new Error(`Get current user failed: ${response.status}`);
         }
 
@@ -64,7 +67,7 @@ export const userContextService = {
         return mapUserProfileResponse(response.data.data);
       }
     } catch (error) {
-      console.error("Get current user error:", error);
+      logger.error("get current user error", { error: String(error) });
       throw error;
     }
   },
@@ -91,7 +94,10 @@ export const userContextService = {
           const errorText = await response.text();
           // Do not spam console for the common "not linked" case
           if (status !== 404) {
-            console.error(`Get current staff error: ${status}`, errorText);
+            logger.error("get current staff failed", {
+              status,
+              error: errorText,
+            });
           }
           throw new Error(`Get current staff failed: ${status}`);
         }
@@ -111,7 +117,7 @@ export const userContextService = {
           error.message.includes("Get current staff failed: 404")
         )
       ) {
-        console.error("Get current staff error:", error);
+        logger.error("get current staff error", { error: String(error) });
       }
       throw error;
     }
@@ -136,10 +142,10 @@ export const userContextService = {
 
         if (!response.ok) {
           const errorText = await response.text();
-          console.error(
-            `Get current teacher error: ${response.status}`,
-            errorText,
-          );
+          logger.error("get current teacher failed", {
+            status: response.status,
+            error: errorText,
+          });
           throw new Error(`Get current teacher failed: ${response.status}`);
         }
 
@@ -151,7 +157,7 @@ export const userContextService = {
         return mapTeacherResponse(response.data.data);
       }
     } catch (error) {
-      console.error("Get current teacher error:", error);
+      logger.error("get current teacher error", { error: String(error) });
       throw error;
     }
   },
@@ -184,10 +190,10 @@ export const userContextService = {
 
         if (!response.ok) {
           const errorText = await response.text();
-          console.error(
-            `Get educational groups error: ${response.status}`,
-            errorText,
-          );
+          logger.error("get educational groups failed", {
+            status: response.status,
+            error: errorText,
+          });
           throw new Error(`Get educational groups failed: ${response.status}`);
         }
 
@@ -209,7 +215,7 @@ export const userContextService = {
         return response.data.data.map(mapEducationalGroupResponse);
       }
     } catch (error) {
-      console.error("Get educational groups error:", error);
+      logger.error("get educational groups error", { error: String(error) });
       throw error;
     }
   },
@@ -233,10 +239,10 @@ export const userContextService = {
 
         if (!response.ok) {
           const errorText = await response.text();
-          console.error(
-            `Get activity groups error: ${response.status}`,
-            errorText,
-          );
+          logger.error("get activity groups failed", {
+            status: response.status,
+            error: errorText,
+          });
           throw new Error(`Get activity groups failed: ${response.status}`);
         }
 
@@ -250,7 +256,7 @@ export const userContextService = {
         return response.data.data.map(mapActivityGroupResponse);
       }
     } catch (error) {
-      console.error("Get activity groups error:", error);
+      logger.error("get activity groups error", { error: String(error) });
       throw error;
     }
   },
@@ -274,10 +280,10 @@ export const userContextService = {
 
         if (!response.ok) {
           const errorText = await response.text();
-          console.error(
-            `Get active groups error: ${response.status}`,
-            errorText,
-          );
+          logger.error("get active groups failed", {
+            status: response.status,
+            error: errorText,
+          });
           throw new Error(`Get active groups failed: ${response.status}`);
         }
 
@@ -297,7 +303,7 @@ export const userContextService = {
         return groups.map(mapActiveGroupResponse);
       }
     } catch (error) {
-      console.error("Get active groups error:", error);
+      logger.error("get active groups error", { error: String(error) });
       throw error;
     }
   },
@@ -321,10 +327,10 @@ export const userContextService = {
 
         if (!response.ok) {
           const errorText = await response.text();
-          console.error(
-            `Get supervised groups error: ${response.status}`,
-            errorText,
-          );
+          logger.error("get supervised groups failed", {
+            status: response.status,
+            error: errorText,
+          });
           throw new Error(`Get supervised groups failed: ${response.status}`);
         }
 
@@ -344,7 +350,7 @@ export const userContextService = {
         return groups.map(mapActiveGroupResponse);
       }
     } catch (error) {
-      console.error("Get supervised groups error:", error);
+      logger.error("get supervised groups error", { error: String(error) });
       throw error;
     }
   },
@@ -355,7 +361,9 @@ export const userContextService = {
       const groups = await userContextService.getMyEducationalGroups();
       return groups.length > 0;
     } catch (error) {
-      console.error("Error checking for educational groups:", error);
+      logger.error("error checking for educational groups", {
+        error: String(error),
+      });
       return false;
     }
   },

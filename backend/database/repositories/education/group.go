@@ -4,6 +4,7 @@ package education
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
@@ -220,15 +221,37 @@ func applyGroupFilterField(filter *modelBase.Filter, field string, value interfa
 	}
 }
 
+// groupWithRoom is used to scan LEFT JOIN results for group + room data
+type groupWithRoom struct {
+	Group *education.Group `bun:"group"`
+	Room  *facilities.Room `bun:"room"`
+}
+
 // ListWithOptions provides a type-safe way to list groups with query options
 func (r *GroupRepository) ListWithOptions(ctx context.Context, options *modelBase.QueryOptions) ([]*education.Group, error) {
-	var groups []*education.Group
+	var results []groupWithRoom
 	query := r.db.NewSelect().
-		Model(&groups).
-		ModelTableExpr(`education.groups AS "group"`)
+		Model(&results).
+		ModelTableExpr(`education.groups AS "group"`).
+		ColumnExpr(`"group".id AS "group__id", "group".created_at AS "group__created_at", "group".updated_at AS "group__updated_at"`).
+		ColumnExpr(`"group".name AS "group__name", "group".room_id AS "group__room_id"`).
+		ColumnExpr(`"room".id AS "room__id", "room".created_at AS "room__created_at", "room".updated_at AS "room__updated_at"`).
+		ColumnExpr(`"room".name AS "room__name", "room".building AS "room__building", "room".floor AS "room__floor"`).
+		ColumnExpr(`"room".capacity AS "room__capacity", "room".category AS "room__category", "room".color AS "room__color"`).
+		Join(`LEFT JOIN facilities.rooms AS "room" ON "room".id = "group".room_id`)
 
-	// Apply query options
+	// Apply query options (ensure table alias for JOINed queries to avoid ambiguous columns)
 	if options != nil {
+		if options.Filter != nil {
+			options.Filter.WithTableAlias("group")
+		}
+		if options.Sorting != nil {
+			for i, f := range options.Sorting.Fields {
+				if !strings.Contains(f.Field, ".") {
+					options.Sorting.Fields[i].Field = `group.` + f.Field
+				}
+			}
+		}
 		query = options.ApplyToQuery(query)
 	}
 
@@ -240,5 +263,40 @@ func (r *GroupRepository) ListWithOptions(ctx context.Context, options *modelBas
 		}
 	}
 
+	// Map results back to []*education.Group with room attached
+	groups := make([]*education.Group, len(results))
+	for i, result := range results {
+		groups[i] = result.Group
+		if result.Room != nil && result.Room.ID != 0 {
+			groups[i].Room = result.Room
+		}
+	}
+
 	return groups, nil
+}
+
+// CountWithOptions counts groups matching the query options (without pagination)
+func (r *GroupRepository) CountWithOptions(ctx context.Context, options *modelBase.QueryOptions) (int, error) {
+	query := r.db.NewSelect().
+		Model((*education.Group)(nil)).
+		ModelTableExpr(`education.groups AS "group"`).
+		Column("group.id")
+
+	// Apply only filters (not pagination) for counting
+	if options != nil {
+		if options.Filter != nil {
+			options.Filter.WithTableAlias("group")
+			query = options.Filter.ApplyToQuery(query)
+		}
+	}
+
+	count, err := query.Count(ctx)
+	if err != nil {
+		return 0, &modelBase.DatabaseError{
+			Op:  "count with options",
+			Err: err,
+		}
+	}
+
+	return count, nil
 }

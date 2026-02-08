@@ -4,15 +4,15 @@
 
 import { useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
-import { useSession } from "next-auth/react";
 import { HelpButton } from "@/components/ui/help_button";
 import { getHelpContent } from "@/lib/help-content";
 import { LogoutModal } from "~/components/ui/logout-modal";
-import { useProfile } from "~/lib/profile-context";
+import { useShellAuth } from "~/lib/shell-auth-context";
 import { useBreadcrumb } from "~/lib/breadcrumb-context";
 
 // Import extracted components
 import { BrandLink, BreadcrumbDivider } from "./header/brand-link";
+import { RefreshButton } from "./header/refresh-button";
 import { SessionWarning } from "./header/session-warning";
 import { ProfileTrigger, ProfileDropdownMenu } from "./header/profile-dropdown";
 import {
@@ -51,15 +51,25 @@ export function Header() {
   const pathname = usePathname();
   const helpContent = getHelpContent(pathname);
   const pageTitle = customPageTitle ?? getPageTitle(pathname);
-  const { data: session } = useSession();
-  const { profile } = useProfile();
+  const {
+    user,
+    profile,
+    isSessionExpired: sessionExpired,
+    mode,
+    homeUrl,
+    settingsUrl,
+  } = useShellAuth();
 
-  // Derive user info from session (previously passed as props from ResponsiveLayout)
-  // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing -- intentionally using || to treat empty strings as falsy
-  const userName = session?.user?.name?.trim() || "Benutzer";
-  const userEmail = session?.user?.email ?? "";
-  const userRoles = session?.user?.roles ?? [];
-  const userRole = userRoles.includes("admin") ? "Admin" : "Betreuer";
+  // Derive user info from ShellAuth context
+  const userName = user?.name ?? "Benutzer";
+  const userEmail = user?.email ?? "";
+  const userRoles = user?.roles ?? [];
+  const userRole =
+    mode === "operator"
+      ? "Operator"
+      : userRoles.includes("admin")
+        ? "Admin"
+        : "Betreuer";
 
   // Scroll effect for header shrinking
   useEffect(() => {
@@ -77,13 +87,13 @@ export function Header() {
   const historyType = getHistoryType(pathname);
   const subPageLabel = getSubPageLabel(pathname);
 
-  // Profile data from context or session
+  // Profile data from ShellAuth context
   const displayName = profile
     ? `${profile.firstName ?? ""} ${profile.lastName ?? ""}`.trim() || userName
     : userName;
   const displayAvatar = profile?.avatar;
 
-  const isSessionExpired = session?.error === "RefreshTokenExpired";
+  const isSessionExpired = sessionExpired;
 
   return (
     <header
@@ -99,7 +109,7 @@ export function Header() {
         >
           {/* Left section: Logo + Brand + Context */}
           <div className="flex flex-shrink-0 items-center space-x-4">
-            <BrandLink isScrolled={isScrolled} />
+            <BrandLink isScrolled={isScrolled} href={homeUrl} />
             <BreadcrumbDivider />
             <HeaderBreadcrumb
               pathname={pathname}
@@ -123,6 +133,7 @@ export function Header() {
             {/* Desktop actions */}
             <div className="hidden items-center space-x-2 lg:flex">
               <SessionWarning isExpired={isSessionExpired} variant="desktop" />
+              <RefreshButton />
               <HelpButton
                 title={helpContent.title}
                 content={helpContent.content}
@@ -133,6 +144,7 @@ export function Header() {
             {/* Mobile actions */}
             <div className="flex items-center space-x-2 lg:hidden">
               <SessionWarning isExpired={isSessionExpired} variant="mobile" />
+              <RefreshButton />
             </div>
 
             {/* User menu */}
@@ -149,6 +161,7 @@ export function Header() {
                 displayName={displayName}
                 displayAvatar={displayAvatar}
                 userEmail={userEmail}
+                settingsUrl={settingsUrl}
                 onClose={() => setIsProfileMenuOpen(false)}
                 onLogout={() => setIsLogoutModalOpen(true)}
               />

@@ -402,6 +402,7 @@ func (rs *Resource) buildStudentRoomStatus(
 	student *users.Student,
 	groupRoomID int64,
 	snapshot *common.StudentLocationSnapshot,
+	personMap map[int64]*users.Person,
 ) map[string]interface{} {
 	status := map[string]interface{}{
 		"in_group_room": false,
@@ -410,13 +411,19 @@ func (rs *Resource) buildStudentRoomStatus(
 
 	visit := rs.getStudentVisit(ctx, student.ID, snapshot)
 	if visit == nil {
-		rs.addPersonDataToStatus(ctx, status, student.PersonID)
+		if person, ok := personMap[student.PersonID]; ok {
+			status["first_name"] = person.FirstName
+			status["last_name"] = person.LastName
+		}
 		return status
 	}
 
 	activeGroup := rs.getVisitActiveGroup(ctx, visit, snapshot)
 	if activeGroup == nil {
-		rs.addPersonDataToStatus(ctx, status, student.PersonID)
+		if person, ok := personMap[student.PersonID]; ok {
+			status["first_name"] = person.FirstName
+			status["last_name"] = person.LastName
+		}
 		return status
 	}
 
@@ -430,17 +437,11 @@ func (rs *Resource) buildStudentRoomStatus(
 		status["reason"] = "in_different_room"
 	}
 
-	rs.addPersonDataToStatus(ctx, status, student.PersonID)
-	return status
-}
-
-// addPersonDataToStatus adds first_name and last_name to status map
-func (rs *Resource) addPersonDataToStatus(ctx context.Context, status map[string]interface{}, personID int64) {
-	person, err := rs.UserService.Get(ctx, personID)
-	if err == nil && person != nil {
+	if person, ok := personMap[student.PersonID]; ok {
 		status["first_name"] = person.FirstName
 		status["last_name"] = person.LastName
 	}
+	return status
 }
 
 // buildNoRoomResponse creates the response when group has no room assigned
@@ -500,34 +501,43 @@ func (rs *Resource) listGroups(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Build response
+	// Collect group IDs for batch operations
+	groupIDs := make([]int64, len(groups))
+	for i, g := range groups {
+		groupIDs[i] = g.ID
+	}
+
+	// Batch load student counts (1 query instead of N)
+	studentCounts, err := rs.StudentRepo.CountByGroupIDs(r.Context(), groupIDs)
+	if err != nil {
+		slog.Default().Warn("failed to batch load student counts", slog.String("error", err.Error()))
+		studentCounts = make(map[int64]int)
+	}
+
+	// Batch load teachers for all groups (2 queries instead of ~N*4)
+	teachersByGroup, err := rs.EducationService.GetTeachersForGroups(r.Context(), groupIDs)
+	if err != nil {
+		slog.Default().Warn("failed to batch load teachers", slog.String("error", err.Error()))
+		teachersByGroup = make(map[int64][]*users.Teacher)
+	}
+
+	// Build response using pre-loaded data
 	responses := make([]GroupResponse, 0, len(groups))
 	for _, group := range groups {
-		// If group has room ID but room isn't loaded, fetch the room details
-		if group.HasRoom() && group.Room == nil {
-			groupWithRoom, err := rs.EducationService.FindGroupWithRoom(r.Context(), group.ID)
-			if err == nil {
-				group = groupWithRoom
-			}
-		}
-
-		// Get teachers for this group to show representative in list
-		teachers, err := rs.EducationService.GetGroupTeachers(r.Context(), group.ID)
-		if err != nil {
-			// Log error but continue without teachers
-			slog.Default().Warn("failed to get teachers for group",
-				slog.Int64("group_id", group.ID),
-				slog.String("error", err.Error()))
-			teachers = []*users.Teacher{}
-		}
-
-		// Get student count for this group
-		studentCount := rs.getStudentCount(r.Context(), group.ID)
-
+		teachers := teachersByGroup[group.ID]
+		studentCount := studentCounts[group.ID]
 		responses = append(responses, newGroupResponse(group, teachers, studentCount))
 	}
 
-	common.RespondPaginated(w, r, http.StatusOK, responses, common.PaginationParams{Page: page, PageSize: pageSize, Total: len(responses)}, "Groups retrieved successfully")
+	// Count total for pagination (same filters, no LIMIT/OFFSET)
+	countOptions := base.NewQueryOptions()
+	countOptions.Filter = filter
+	total, countErr := rs.EducationService.CountGroups(r.Context(), countOptions)
+	if countErr != nil {
+		total = len(responses)
+	}
+
+	common.RespondPaginated(w, r, http.StatusOK, responses, common.PaginationParams{Page: page, PageSize: pageSize, Total: total}, "Groups retrieved successfully")
 }
 
 // getGroup handles getting a group by ID
@@ -818,9 +828,21 @@ func (rs *Resource) buildRoomStatusResponse(ctx context.Context, students []*use
 		snapshot = nil
 	}
 
+	// Batch-load all persons to avoid N+1 queries
+	personIDs := make([]int64, 0, len(students))
+	for _, student := range students {
+		personIDs = append(personIDs, student.PersonID)
+	}
+	personMap, personErr := rs.UserService.GetByIDs(ctx, personIDs)
+	if personErr != nil {
+		slog.Default().Warn("failed to batch load persons",
+			slog.String("error", personErr.Error()))
+		personMap = make(map[int64]*users.Person)
+	}
+
 	studentStatuses := make(map[string]interface{})
 	for _, student := range students {
-		studentStatuses[strconv.FormatInt(student.ID, 10)] = rs.buildStudentRoomStatus(ctx, student, groupRoomID, snapshot)
+		studentStatuses[strconv.FormatInt(student.ID, 10)] = rs.buildStudentRoomStatus(ctx, student, groupRoomID, snapshot, personMap)
 	}
 
 	result["student_room_status"] = studentStatuses

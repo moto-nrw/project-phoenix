@@ -1,12 +1,15 @@
 package suggestions
 
-import "errors"
+import (
+	"errors"
+)
 
 // Sentinel errors for the suggestions service
 var (
-	ErrPostNotFound = errors.New("suggestion post not found")
-	ErrForbidden    = errors.New("forbidden: you can only modify your own suggestions")
-	ErrInvalidData  = errors.New("invalid suggestion data")
+	ErrPostNotFound    = errors.New("suggestion post not found")
+	ErrCommentNotFound = errors.New("comment not found")
+	ErrForbidden       = errors.New("forbidden: you can only modify your own suggestions")
+	ErrInvalidData     = errors.New("invalid suggestion data")
 )
 
 // PostNotFoundError wraps post-not-found with additional context
@@ -20,6 +23,19 @@ func (e *PostNotFoundError) Error() string {
 
 func (e *PostNotFoundError) Unwrap() error {
 	return ErrPostNotFound
+}
+
+// CommentNotFoundError wraps comment-not-found with additional context
+type CommentNotFoundError struct {
+	CommentID int64
+}
+
+func (e *CommentNotFoundError) Error() string {
+	return ErrCommentNotFound.Error()
+}
+
+func (e *CommentNotFoundError) Unwrap() error {
+	return ErrCommentNotFound
 }
 
 // ForbiddenError wraps permission errors

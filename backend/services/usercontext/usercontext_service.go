@@ -249,7 +249,22 @@ func (s *userContextService) GetCurrentTeacher(ctx context.Context) (*users.Teac
 // GetMyGroups retrieves educational groups associated with the current user
 func (s *userContextService) GetMyGroups(ctx context.Context) ([]*education.Group, error) {
 	staff, staffErr := s.GetCurrentStaff(ctx)
-	teacher, teacherErr := s.GetCurrentTeacher(ctx)
+
+	// Derive teacher from the already-resolved staff to avoid duplicate identity queries.
+	// GetCurrentTeacher would call GetCurrentStaff again (which calls GetCurrentPerson),
+	// duplicating 2 DB round-trips. Instead, reuse the staff result directly.
+	var teacher *users.Teacher
+	var teacherErr error
+	if staffErr == nil && staff != nil {
+		teacher, teacherErr = s.teacherRepo.FindByStaffID(ctx, staff.ID)
+		if teacher == nil && teacherErr == nil {
+			teacherErr = &UserContextError{Op: "get current teacher", Err: ErrUserNotLinkedToTeacher}
+		} else if teacherErr != nil {
+			teacherErr = &UserContextError{Op: "get current teacher", Err: teacherErr}
+		}
+	} else {
+		teacherErr = staffErr
+	}
 
 	// Check for valid linkage and unexpected errors
 	valid, unexpectedErr := s.hasValidStaffOrTeacher(staffErr, teacherErr)
@@ -463,13 +478,13 @@ func (s *userContextService) getActiveGroupsFromActivities(ctx context.Context, 
 		return nil, &UserContextError{Op: "get my active groups - activity groups", Err: err}
 	}
 
-	var result []*active.Group
-	for _, group := range activityGroups {
-		activeGroups, err := s.activeGroupRepo.FindActiveByGroupID(ctx, group.ID)
-		if err != nil {
-			return nil, &UserContextError{Op: "get my active groups - activity active", Err: err}
-		}
-		result = append(result, activeGroups...)
+	groupIDs := make([]int64, len(activityGroups))
+	for i, group := range activityGroups {
+		groupIDs[i] = group.ID
+	}
+	result, err := s.activeGroupRepo.FindActiveByGroupIDs(ctx, groupIDs)
+	if err != nil {
+		return nil, &UserContextError{Op: "get my active groups - activity active", Err: err}
 	}
 	return result, nil
 }
@@ -629,16 +644,14 @@ func (s *userContextService) GetGroupStudents(ctx context.Context, groupID int64
 		return []*users.Student{}, nil
 	}
 
-	// Get students by IDs
-	var students []*users.Student
-	for _, id := range ids {
-		student, err := s.studentRepo.FindByID(ctx, id)
-		if err != nil {
-			return nil, &UserContextError{Op: opGetGroupStudents, Err: err}
-		}
-		if student != nil {
-			students = append(students, student)
-		}
+	// Get students by IDs in a single batch query
+	studentsMap, err := s.studentRepo.FindByIDs(ctx, ids)
+	if err != nil {
+		return nil, &UserContextError{Op: opGetGroupStudents, Err: err}
+	}
+	students := make([]*users.Student, 0, len(studentsMap))
+	for _, student := range studentsMap {
+		students = append(students, student)
 	}
 
 	return students, nil

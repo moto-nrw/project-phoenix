@@ -1,8 +1,5 @@
 "use client";
 
-import { useEffect } from "react";
-import { useSession } from "next-auth/react";
-import { useRouter } from "next/navigation";
 import { Header } from "./header";
 import { Sidebar } from "./sidebar";
 import { MobileBottomNav } from "./mobile-bottom-nav";
@@ -17,19 +14,6 @@ interface AppShellProps {
  * only the children (page content) swap.
  */
 export function AppShell({ children }: AppShellProps) {
-  const { data: session, status } = useSession();
-  const router = useRouter();
-
-  // Check for invalid session and redirect
-  useEffect(() => {
-    if (status === "loading") return;
-
-    // If session exists but token is empty, redirect to login
-    if (session && !session.user?.token) {
-      router.push("/");
-    }
-  }, [session, status, router]);
-
   return (
     <div className="relative min-h-screen">
       {/* Header - sticky positioning */}

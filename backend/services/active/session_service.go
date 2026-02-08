@@ -8,6 +8,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
+	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/uptrace/bun"
 )
@@ -742,19 +743,62 @@ func (s *service) collectActiveVisitsForSSE(ctx context.Context, sessionID int64
 		return nil, err
 	}
 
-	var result []visitSSEData
+	// Filter active visits and collect unique student IDs
+	var activeVisits []*active.Visit
+	studentIDSet := make(map[int64]struct{})
 	for _, visit := range visits {
 		if !visit.IsActive() {
 			continue
 		}
+		activeVisits = append(activeVisits, visit)
+		studentIDSet[visit.StudentID] = struct{}{}
+	}
+
+	if len(activeVisits) == 0 {
+		return nil, nil
+	}
+
+	// Batch-fetch all students (1 query instead of N)
+	studentIDs := make([]int64, 0, len(studentIDSet))
+	for id := range studentIDSet {
+		studentIDs = append(studentIDs, id)
+	}
+	studentsMap, err := s.studentRepo.FindByIDs(ctx, studentIDs)
+	if err != nil {
+		studentsMap = nil
+	}
+
+	// Collect unique person IDs from fetched students
+	personIDSet := make(map[int64]struct{})
+	for _, student := range studentsMap {
+		if student != nil {
+			personIDSet[student.PersonID] = struct{}{}
+		}
+	}
+
+	// Batch-fetch all persons (1 query instead of M)
+	var personsMap map[int64]*userModels.Person
+	if len(personIDSet) > 0 {
+		personIDs := make([]int64, 0, len(personIDSet))
+		for id := range personIDSet {
+			personIDs = append(personIDs, id)
+		}
+		personsMap, err = s.personRepo.FindByIDs(ctx, personIDs)
+		if err != nil {
+			personsMap = nil
+		}
+	}
+
+	// Build result using map lookups (O(1) per visit)
+	result := make([]visitSSEData, 0, len(activeVisits))
+	for _, visit := range activeVisits {
 		data := visitSSEData{
 			VisitID:   visit.ID,
 			StudentID: visit.StudentID,
 		}
-		// Query student name for SSE event
-		if student, err := s.studentRepo.FindByID(ctx, visit.StudentID); err == nil && student != nil {
+		if student, ok := studentsMap[visit.StudentID]; ok && student != nil {
 			data.Student = student
-			if person, err := s.personRepo.FindByID(ctx, student.PersonID); err == nil && person != nil {
+			if person, ok := personsMap[student.PersonID]; ok && person != nil {
 				data.Name = fmt.Sprintf("%s %s", person.FirstName, person.LastName)
 			}
 		}
@@ -940,7 +984,7 @@ func (s *service) CleanupAbandonedSessions(ctx context.Context, threshold time.D
 	return cleanedCount, nil
 }
 
-// EndDailySessions ends all active sessions at the end of the day
+// EndDailySessions ends all active sessions at the end of the day using bulk UPDATEs
 func (s *service) EndDailySessions(ctx context.Context) (*DailySessionCleanupResult, error) {
 	result := &DailySessionCleanupResult{
 		ExecutedAt: time.Now(),
@@ -948,102 +992,57 @@ func (s *service) EndDailySessions(ctx context.Context) (*DailySessionCleanupRes
 		Errors:     make([]string, 0),
 	}
 
+	// 1. Get all active group IDs
 	activeGroups, err := s.groupRepo.List(ctx, nil)
 	if err != nil {
 		result.Success = false
 		return result, &ActiveError{Op: "EndDailySessions", Err: ErrDatabaseOperation}
 	}
 
-	for _, group := range activeGroups {
-		if group.IsActive() {
-			s.processGroupForDailyCleanup(ctx, group, result)
+	activeIDs := make([]int64, 0, len(activeGroups))
+	for _, g := range activeGroups {
+		if g.IsActive() {
+			activeIDs = append(activeIDs, g.ID)
 		}
 	}
 
-	// Clean up orphaned supervisors from previous days that the per-group loop wouldn't catch
-	// (e.g., supervisors whose groups were already ended but end_date was never set)
-	s.cleanupOrphanedSupervisors(ctx, result)
+	// Always clean up orphaned supervisors from previous days, regardless of
+	// whether today's bulk steps succeed or are skipped.
+	defer s.cleanupOrphanedSupervisors(ctx, result)
 
-	return result, nil
-}
-
-// processGroupForDailyCleanup processes a single group for daily cleanup
-func (s *service) processGroupForDailyCleanup(ctx context.Context, group *active.Group, result *DailySessionCleanupResult) {
-	// Track error count before visit cleanup
-	errorCountBefore := len(result.Errors)
-
-	s.endActiveVisitsForGroup(ctx, group.ID, result)
-
-	// If visit cleanup failed (e.g., database error fetching visits),
-	// skip session and supervisor cleanup to maintain data consistency.
-	// We don't want to end the session/supervisors while visits remain active.
-	if len(result.Errors) > errorCountBefore {
-		return
+	if len(activeIDs) == 0 {
+		return result, nil
 	}
 
-	s.endGroupSession(ctx, group, result)
-	s.endActiveSupervisorsForGroup(ctx, group.ID, result)
-}
-
-// endActiveVisitsForGroup ends all active visits for a group
-func (s *service) endActiveVisitsForGroup(ctx context.Context, groupID int64, result *DailySessionCleanupResult) {
-	visits, err := s.visitRepo.FindByActiveGroupID(ctx, groupID)
+	// 2. Bulk end visits — abort remaining steps on failure to prevent
+	// sessions/supervisors being closed while visits remain active.
+	visitsEnded, err := s.visitRepo.EndVisitsByActiveGroupIDs(ctx, activeIDs)
 	if err != nil {
-		errMsg := fmt.Sprintf("Failed to get visits for group %d: %v", groupID, err)
-		result.Errors = append(result.Errors, errMsg)
+		result.Errors = append(result.Errors, fmt.Sprintf("Failed to bulk-end visits: %v", err))
 		result.Success = false
-		return
+		return result, nil
 	}
+	result.VisitsEnded = int(visitsEnded)
 
-	for _, visit := range visits {
-		if !visit.IsActive() {
-			continue
-		}
-
-		visit.EndVisit()
-		if err := s.visitRepo.Update(ctx, visit); err != nil {
-			errMsg := fmt.Sprintf("Failed to end visit %d: %v", visit.ID, err)
-			result.Errors = append(result.Errors, errMsg)
-			result.Success = false
-		} else {
-			result.VisitsEnded++
-		}
-	}
-}
-
-// endGroupSession ends a group session
-func (s *service) endGroupSession(ctx context.Context, group *active.Group, result *DailySessionCleanupResult) {
-	group.EndSession()
-	if err := s.groupRepo.Update(ctx, group); err != nil {
-		errMsg := fmt.Sprintf("Failed to end group session %d: %v", group.ID, err)
-		result.Errors = append(result.Errors, errMsg)
+	// 3. Bulk end sessions
+	sessionsEnded, err := s.groupRepo.EndSessionsByIDs(ctx, activeIDs)
+	if err != nil {
+		result.Errors = append(result.Errors, fmt.Sprintf("Failed to bulk-end sessions: %v", err))
 		result.Success = false
 	} else {
-		result.SessionsEnded++
+		result.SessionsEnded = int(sessionsEnded)
 	}
-}
 
-// endActiveSupervisorsForGroup ends all active supervisors for a group
-func (s *service) endActiveSupervisorsForGroup(ctx context.Context, groupID int64, result *DailySessionCleanupResult) {
-	supervisors, err := s.supervisorRepo.FindByActiveGroupID(ctx, groupID, true)
+	// 4. Bulk end supervisors
+	supervisorsEnded, err := s.supervisorRepo.EndSupervisionsByActiveGroupIDs(ctx, activeIDs)
 	if err != nil {
-		errMsg := fmt.Sprintf("Failed to get supervisors for group %d: %v", groupID, err)
-		result.Errors = append(result.Errors, errMsg)
+		result.Errors = append(result.Errors, fmt.Sprintf("Failed to bulk-end supervisors: %v", err))
 		result.Success = false
-		return
+	} else {
+		result.SupervisorsEnded = int(supervisorsEnded)
 	}
 
-	now := time.Now()
-	for _, supervisor := range supervisors {
-		supervisor.EndDate = &now
-		if err := s.supervisorRepo.Update(ctx, supervisor); err != nil {
-			errMsg := fmt.Sprintf("Failed to end supervisor %d: %v", supervisor.ID, err)
-			result.Errors = append(result.Errors, errMsg)
-			result.Success = false
-		} else {
-			result.SupervisorsEnded++
-		}
-	}
+	return result, nil
 }
 
 // cleanupOrphanedSupervisors closes supervisor records from previous days

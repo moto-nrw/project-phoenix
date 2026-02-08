@@ -36,6 +36,9 @@ func ErrorRenderer(err error) render.Renderer {
 	case errors.Is(err, suggestionsSvc.ErrPostNotFound):
 		renderer.HTTPStatusCode = http.StatusNotFound
 		renderer.StatusText = "Not Found"
+	case errors.Is(err, suggestionsSvc.ErrCommentNotFound):
+		renderer.HTTPStatusCode = http.StatusNotFound
+		renderer.StatusText = "Not Found"
 	case errors.Is(err, suggestionsSvc.ErrForbidden):
 		renderer.HTTPStatusCode = http.StatusForbidden
 		renderer.StatusText = "Forbidden"

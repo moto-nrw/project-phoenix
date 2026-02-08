@@ -389,6 +389,16 @@ func (s *service) ScanNetwork(_ context.Context) (map[string]string, error) {
 	return nil, &IoTError{Op: "ScanNetwork", Err: errors.New("network scanning not implemented")}
 }
 
+// UpdateDeviceLastSeen updates only the last_seen timestamp for a device.
+// This is a targeted update that skips existence checks and full-model validation,
+// intended for use in middleware where the device has already been authenticated.
+func (s *service) UpdateDeviceLastSeen(ctx context.Context, deviceID string) error {
+	if deviceID == "" {
+		return &IoTError{Op: "UpdateDeviceLastSeen", Err: errors.New(errDeviceIDEmpty)}
+	}
+	return s.deviceRepo.UpdateLastSeen(ctx, deviceID, time.Now())
+}
+
 // GetDeviceByAPIKey retrieves a device by its API key for authentication
 func (s *service) GetDeviceByAPIKey(ctx context.Context, apiKey string) (*iot.Device, error) {
 	if apiKey == "" {

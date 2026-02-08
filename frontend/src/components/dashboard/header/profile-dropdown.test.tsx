@@ -178,7 +178,25 @@ describe("ProfileDropdownMenu", () => {
     expect(screen.getByText("max@example.com")).toBeInTheDocument();
   });
 
-  it("renders settings link", () => {
+  it("renders settings link when settingsUrl is provided", () => {
+    const onClose = vi.fn();
+    const onLogout = vi.fn();
+    render(
+      <ProfileDropdownMenu
+        isOpen={true}
+        displayName="Max Mustermann"
+        userEmail="max@example.com"
+        onClose={onClose}
+        onLogout={onLogout}
+        settingsUrl="/settings"
+      />,
+    );
+
+    const settingsLink = screen.getByRole("link", { name: /einstellungen/i });
+    expect(settingsLink).toHaveAttribute("href", "/settings");
+  });
+
+  it("does not render settings link when settingsUrl is not provided", () => {
     const onClose = vi.fn();
     const onLogout = vi.fn();
     render(
@@ -191,8 +209,9 @@ describe("ProfileDropdownMenu", () => {
       />,
     );
 
-    const settingsLink = screen.getByRole("link", { name: /einstellungen/i });
-    expect(settingsLink).toHaveAttribute("href", "/settings");
+    expect(
+      screen.queryByRole("link", { name: /einstellungen/i }),
+    ).not.toBeInTheDocument();
   });
 
   it("renders help button", () => {
@@ -259,6 +278,7 @@ describe("ProfileDropdownMenu", () => {
         userEmail="max@example.com"
         onClose={onClose}
         onLogout={onLogout}
+        settingsUrl="/settings"
       />,
     );
 

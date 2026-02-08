@@ -42,6 +42,9 @@ import {
   getComplianceWarnings,
   calculateNetMinutes,
 } from "~/lib/time-tracking-helpers";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "TimeTrackingPage" });
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -3448,8 +3451,11 @@ function TimeTrackingContent() {
         currentSession.id,
       );
       setCurrentBreaks(breaks);
-    } catch {
-      // Silently handle — breaks will show empty
+    } catch (err) {
+      logger.error("fetch_breaks_failed", {
+        error: err instanceof Error ? err.message : String(err),
+        session_id: currentSession?.id,
+      });
     }
   }, [currentSession?.id, currentSession?.checkOutTime]);
 
@@ -3474,6 +3480,9 @@ function TimeTrackingContent() {
         await Promise.all([mutateCurrentSession(), mutateHistory()]);
         toast.success("Erfolgreich eingestempelt");
       } catch (err) {
+        logger.error("check_in_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
         toast.error(friendlyError(err, "Fehler beim Einstempeln"));
       }
     },
@@ -3498,6 +3507,9 @@ function TimeTrackingContent() {
       await Promise.all([mutateCurrentSession(), mutateHistory()]);
       toast.success("Erfolgreich ausgestempelt");
     } catch (err) {
+      logger.error("check_out_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
       toast.error(friendlyError(err, "Fehler beim Ausstempeln"));
     }
   }, [mutateCurrentSession, mutateHistory, toast]);
@@ -3508,6 +3520,9 @@ function TimeTrackingContent() {
         await timeTrackingService.startBreak(durationMinutes);
         await fetchBreaks();
       } catch (err) {
+        logger.error("start_break_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
         toast.error(friendlyError(err, "Fehler beim Starten der Pause"));
       }
     },
@@ -3519,6 +3534,9 @@ function TimeTrackingContent() {
       await timeTrackingService.endBreak();
       await Promise.all([mutateCurrentSession(), fetchBreaks()]);
     } catch (err) {
+      logger.error("end_break_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
       toast.error(friendlyError(err, "Fehler beim Beenden der Pause"));
     }
   }, [mutateCurrentSession, fetchBreaks, toast]);
@@ -3568,6 +3586,10 @@ function TimeTrackingContent() {
         }
         toast.success("Eintrag gespeichert");
       } catch (err) {
+        logger.error("session_edit_failed", {
+          error: err instanceof Error ? err.message : String(err),
+          session_id: id,
+        });
         toast.error(friendlyError(err, "Fehler beim Speichern"));
       }
     },
@@ -3587,7 +3609,11 @@ function TimeTrackingContent() {
       try {
         const edits = await timeTrackingService.getSessionEdits(sessionId);
         setExpandedEdits(edits);
-      } catch {
+      } catch (err) {
+        logger.debug("load_session_edits_failed", {
+          error: err instanceof Error ? err.message : String(err),
+          session_id: sessionId,
+        });
         setExpandedEdits([]);
       } finally {
         setEditsLoading(false);
@@ -3616,6 +3642,9 @@ function TimeTrackingContent() {
         toast.success("Abwesenheit eingetragen");
         setAbsenceModalOpen(false);
       } catch (err) {
+        logger.error("create_absence_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
         toast.error(
           friendlyError(err, "Fehler beim Eintragen der Abwesenheit"),
         );
@@ -3631,6 +3660,10 @@ function TimeTrackingContent() {
         await mutateAbsences();
         toast.success("Abwesenheit gelöscht");
       } catch (err) {
+        logger.error("delete_absence_failed", {
+          error: err instanceof Error ? err.message : String(err),
+          absence_id: id,
+        });
         toast.error(friendlyError(err, "Fehler beim Löschen der Abwesenheit"));
       }
     },
@@ -3653,6 +3686,10 @@ function TimeTrackingContent() {
         await mutateAbsences();
         toast.success("Abwesenheit aktualisiert");
       } catch (err) {
+        logger.error("update_absence_failed", {
+          error: err instanceof Error ? err.message : String(err),
+          absence_id: id,
+        });
         toast.error(
           friendlyError(err, "Fehler beim Aktualisieren der Abwesenheit"),
         );

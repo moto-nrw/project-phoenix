@@ -1,6 +1,9 @@
 // Staff API service for fetching all staff members and their supervision status
 
 import { sessionFetch } from "./session-cache";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "StaffAPI" });
 
 // Backend response types (already mapped by the API route handler)
 export interface BackendStaffResponse {
@@ -402,7 +405,10 @@ class StaffService {
 
       return [];
     } catch (error) {
-      console.error(`Error fetching supervisions for staff ${staffId}:`, error);
+      logger.error("error fetching supervisions for staff", {
+        staff_id: staffId,
+        error: String(error),
+      });
       return [];
     }
   }

@@ -7,6 +7,9 @@ import { Loading } from "~/components/ui/loading";
 import Link from "next/link";
 import { Input } from "~/components/ui";
 import { confirmPasswordReset, type ApiError } from "~/lib/auth-api";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "ResetPasswordPage" });
 
 function ResetPasswordForm() {
   const [password, setPassword] = useState("");
@@ -87,6 +90,17 @@ function ResetPasswordForm() {
       }, 3000);
     } catch (err) {
       const apiError = err as ApiError | undefined;
+      const status = apiError?.status;
+      if (status === 410 || status === 404) {
+        logger.warn("password_reset_failed", {
+          error: err instanceof Error ? err.message : String(err),
+          status,
+        });
+      } else {
+        logger.error("password_reset_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
       let message =
         apiError?.message ??
         "Ein Fehler ist aufgetreten. Bitte versuchen Sie es erneut.";

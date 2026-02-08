@@ -1,5 +1,6 @@
 "use client";
 
+import { createLogger } from "~/lib/logger";
 import { useState, useMemo } from "react";
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
@@ -23,6 +24,8 @@ import {
 import { ConfirmationModal } from "~/components/ui/modal";
 import { useDeleteConfirmation } from "~/hooks/useDeleteConfirmation";
 import { useSWRAuth, mutate } from "~/lib/swr";
+
+const logger = createLogger({ component: "DatabaseActivitiesPage" });
 
 export default function ActivitiesPage() {
   const [searchTerm, setSearchTerm] = useState("");
@@ -196,7 +199,9 @@ export default function ActivitiesPage() {
       setShowDetailModal(true);
       await mutate("database-activities-list");
     } catch (e) {
-      console.error("Error updating activity", e);
+      logger.error("failed to update activity", {
+        error: e instanceof Error ? e.message : String(e),
+      });
       throw e;
     } finally {
       setDetailLoading(false);

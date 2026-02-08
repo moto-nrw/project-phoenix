@@ -1,3 +1,7 @@
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "ProfileHelpers" });
+
 export interface Profile {
   id: string;
   firstName: string;
@@ -65,13 +69,9 @@ export function mapProfileResponse(data: BackendProfile): Profile {
       try {
         settings = JSON.parse(data.settings) as ProfileSettings;
       } catch (error) {
-        if (process.env.NODE_ENV === "development") {
-          console.warn(
-            "Failed to parse profile settings JSON:",
-            data.settings,
-            error,
-          );
-        }
+        logger.debug("failed to parse profile settings JSON", {
+          error: String(error),
+        });
         settings = undefined;
       }
     } else {

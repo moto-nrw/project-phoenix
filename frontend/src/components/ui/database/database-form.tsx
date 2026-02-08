@@ -5,6 +5,9 @@ import type { DatabaseTheme } from "./themes";
 import { getThemeClassNames } from "./themes";
 import { getAccentRing, getAccentText } from "./accents";
 import { Alert } from "~/components/ui/alert";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "DatabaseForm" });
 
 /** Privacy consent data structure */
 interface PrivacyConsent {
@@ -74,7 +77,9 @@ async function fetchPrivacyConsentForStudent(
     const responseData = (await response.json()) as unknown;
     return extractPrivacyConsent(responseData);
   } catch (error) {
-    console.error("Error fetching privacy consent:", error);
+    logger.error("failed to fetch privacy consent", {
+      error: error instanceof Error ? error.message : String(error),
+    });
     return null;
   }
 }
@@ -119,7 +124,7 @@ async function applyPrivacyConsent<T>(
   if (consent) {
     formData.privacy_consent_accepted = consent.accepted;
     formData.data_retention_days = consent.data_retention_days;
-    console.log("Set privacy consent fields:", {
+    logger.debug("set privacy consent fields", {
       privacy_consent_accepted: consent.accepted,
       data_retention_days: consent.data_retention_days,
     });
@@ -319,7 +324,10 @@ export function DatabaseForm<T = Record<string, unknown>>({
               const options = await field.options();
               setAsyncOptions((prev) => ({ ...prev, [field.name]: options }));
             } catch (error) {
-              console.error(`Error loading options for ${field.name}:`, error);
+              logger.error("failed to load field options", {
+                field: field.name,
+                error: error instanceof Error ? error.message : String(error),
+              });
               setAsyncOptions((prev) => ({ ...prev, [field.name]: [] }));
             } finally {
               setLoadingOptions((prev) => ({ ...prev, [field.name]: false }));
@@ -391,7 +399,9 @@ export function DatabaseForm<T = Record<string, unknown>>({
     try {
       await onSubmit(formData as T);
     } catch (err) {
-      console.error("Error submitting form:", err);
+      logger.error("failed to submit form", {
+        error: err instanceof Error ? err.message : String(err),
+      });
       const errorMessage =
         err instanceof Error
           ? err.message

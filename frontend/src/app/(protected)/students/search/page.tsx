@@ -26,6 +26,9 @@ import {
   StudentInfoRow,
 } from "~/components/students/student-card";
 import { useSWRAuth, useImmutableSWR } from "~/lib/swr";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "StudentSearchPage" });
 
 function SearchPageContent() {
   const router = useRouter();
@@ -95,7 +98,7 @@ function SearchPageContent() {
         return await groupService.getGroups();
       } catch {
         // User might not have groups:read permission - continue with empty list
-        console.warn("Could not load groups for filter");
+        logger.warn("could not load groups for filter");
         return [];
       }
     },

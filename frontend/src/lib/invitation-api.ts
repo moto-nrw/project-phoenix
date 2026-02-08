@@ -1,4 +1,8 @@
 import type { ApiError } from "~/lib/auth-api";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "InvitationAPI" });
+
 import type {
   InvitationValidation,
   InvitationAcceptRequest,
@@ -47,7 +51,9 @@ const createApiError = async (
       }
     }
   } catch (error) {
-    console.warn("Failed to parse invitation API error", error);
+    logger.warn("failed to parse invitation API error", {
+      error: String(error),
+    });
   }
 
   const apiError = new Error(message) as ApiError;

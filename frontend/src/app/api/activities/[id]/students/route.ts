@@ -1,6 +1,9 @@
 // app/api/activities/[id]/students/route.ts
 import type { NextRequest } from "next/server";
 import { apiGet, apiPut } from "~/lib/api-helpers";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "ActivityStudentsRoute" });
 import {
   createGetHandler,
   createPostHandler,
@@ -66,7 +69,9 @@ export const GET = createGetHandler(
 
         return availableStudents;
       } catch (error) {
-        console.error("Error fetching available students:", error);
+        logger.error("failed to fetch available students", {
+          error: error instanceof Error ? error.message : String(error),
+        });
         return []; // Return empty array on error
       }
     }
@@ -82,7 +87,9 @@ export const GET = createGetHandler(
       // Map the backend enrollment structure to frontend format
       return mapStudentEnrollmentsResponse(enrollments);
     } catch (error) {
-      console.error("Error fetching enrolled students:", error);
+      logger.error("failed to fetch enrolled students", {
+        error: error instanceof Error ? error.message : String(error),
+      });
       return []; // Return empty array on error
     }
   },

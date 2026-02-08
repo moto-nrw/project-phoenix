@@ -1,5 +1,8 @@
 import { createGetHandler } from "@/lib/route-wrapper";
 import { getServerApiUrl } from "~/lib/server-api-url";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "AccountDetailRoute" });
 
 interface UserData {
   account_id?: string;
@@ -11,10 +14,10 @@ interface UserData {
 // Handler to get account by ID
 export const GET = createGetHandler(async (request, token, params) => {
   const accountId = params.accountId as string;
-  console.log(`API Route - Fetching account for ID: ${accountId}`);
+  logger.debug("fetching account", { account_id: accountId });
 
   if (!accountId) {
-    console.error("Account ID is required but was not provided");
+    logger.error("account ID is required but was not provided");
     return {
       status: "error",
       message: "Account ID is required",
@@ -81,10 +84,10 @@ export const GET = createGetHandler(async (request, token, params) => {
       message: "Account retrieved successfully (fallback)",
     };
   } catch (error) {
-    console.error(
-      `Error processing account request for account ${accountId}:`,
-      error,
-    );
+    logger.error("failed to process account request", {
+      account_id: accountId,
+      error: error instanceof Error ? error.message : String(error),
+    });
 
     return {
       status: "error",

@@ -9,6 +9,9 @@ import { getRoleDisplayName } from "~/lib/auth-helpers";
 import { acceptInvitation } from "~/lib/invitation-api";
 import type { InvitationValidation } from "~/lib/invitation-helpers";
 import type { ApiError } from "~/lib/auth-api";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "InvitationAccept" });
 
 interface InvitationAcceptFormProps {
   readonly token: string;
@@ -126,12 +129,18 @@ export function InvitationAcceptForm({
     } catch (err) {
       // Distinguish network/offline from HTTP errors
       if (typeof navigator !== "undefined" && !navigator.onLine) {
+        logger.warn("invitation_accept_offline", {
+          error: "no_network_connection",
+        });
         setError(
           "Keine Netzwerkverbindung. Bitte überprüfe deine Internetverbindung und versuche es erneut.",
         );
         setIsSubmitting(false);
         return;
       }
+      logger.error("invitation_accept_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
       const apiError = err as ApiError | undefined;
       const errorMessage = getInvitationErrorMessage(apiError, err);
       setError(errorMessage);

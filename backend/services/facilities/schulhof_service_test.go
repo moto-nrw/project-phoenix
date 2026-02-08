@@ -308,12 +308,15 @@ func TestSchulhofService_GetSchulhofStatus_WithStudents(t *testing.T) {
 	require.NoError(t, err)
 	defer testpkg.CleanupActivityFixtures(t, db, activityGroup.ID, activityGroup.CategoryID, *activityGroup.PlannedRoomID)
 
-	// End all existing active groups for this room to get a fresh one
+	// End ALL existing active groups for this activity AND room to get a clean slate.
+	// This prevents flakiness from stale groups left by previous test runs that may
+	// reference different room IDs (each test creates its own infrastructure).
 	_, err = db.NewUpdate().
 		Model((*active.Group)(nil)).
 		ModelTableExpr(`active.groups AS "group"`).
 		Set("end_time = ?", time.Now()).
-		Where(`"group".room_id = ? AND "group".end_time IS NULL`, *activityGroup.PlannedRoomID).
+		Where(`"group".end_time IS NULL AND ("group".room_id = ? OR "group".group_id = ?)`,
+			*activityGroup.PlannedRoomID, activityGroup.ID).
 		Exec(ctx)
 	require.NoError(t, err)
 

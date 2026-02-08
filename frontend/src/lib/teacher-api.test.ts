@@ -121,8 +121,8 @@ describe("teacher-api", () => {
 
       expect(result).toEqual([]);
       expect(consoleSpies.error).toHaveBeenCalledWith(
-        "Unexpected response format:",
-        expect.anything(),
+        "unexpected response format for teachers",
+        undefined,
       );
     });
 
@@ -146,8 +146,8 @@ describe("teacher-api", () => {
         "Network error",
       );
       expect(consoleSpies.error).toHaveBeenCalledWith(
-        "Error fetching teachers:",
-        expect.any(Error),
+        "error fetching teachers",
+        { error: "Error: Network error" },
       );
     });
 
@@ -216,8 +216,8 @@ describe("teacher-api", () => {
 
       await expect(teacherService.getTeacher("1")).rejects.toThrow();
       expect(consoleSpies.error).toHaveBeenCalledWith(
-        "Error fetching teacher with ID 1:",
-        expect.any(Error),
+        "error fetching teacher",
+        { teacher_id: "1", error: expect.stringContaining("Network error") },
       );
     });
   });
@@ -407,8 +407,8 @@ describe("teacher-api", () => {
         }),
       ).rejects.toThrow("Failed to get account ID from response");
       expect(consoleSpies.error).toHaveBeenCalledWith(
-        "Failed to get account ID from response:",
-        expect.anything(),
+        "failed to get account ID from response",
+        undefined,
       );
     });
 
@@ -651,8 +651,8 @@ describe("teacher-api", () => {
 
       await expect(teacherService.deleteTeacher("1")).rejects.toThrow();
       expect(consoleSpies.error).toHaveBeenCalledWith(
-        "Error deleting teacher with ID 1:",
-        expect.any(Error),
+        "error deleting teacher",
+        { teacher_id: "1", error: expect.stringContaining("Network error") },
       );
     });
   });
@@ -663,7 +663,8 @@ describe("teacher-api", () => {
 
       expect(result).toEqual([]);
       expect(consoleSpies.warn).toHaveBeenCalledWith(
-        "Activities endpoint not implemented for staff/teachers",
+        "activities endpoint not implemented for staff/teachers",
+        undefined,
       );
     });
   });

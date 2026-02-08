@@ -1,6 +1,9 @@
 import { type NextRequest } from "next/server";
 import { createPostHandler } from "@/lib/route-wrapper";
 import { getServerApiUrl } from "~/lib/server-api-url";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "TeachersRoute" });
 
 // Extend the Teacher type to include password for creation
 interface TeacherCreationData {
@@ -169,7 +172,9 @@ export const POST = createPostHandler(
         data: teacher,
       };
     } catch (error) {
-      console.error("Error creating teacher:", error);
+      logger.error("teacher creation failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
       throw error instanceof Error
         ? error
         : new Error("Failed to create teacher");

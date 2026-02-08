@@ -10,6 +10,10 @@ import type { Suggestion } from "~/lib/suggestions-helpers";
 vi.mock("~/lib/suggestions-api", () => ({
   voteSuggestion: vi.fn(),
   removeVote: vi.fn(),
+  fetchComments: vi.fn().mockResolvedValue([]),
+  createComment: vi.fn().mockResolvedValue(undefined),
+  deleteComment: vi.fn().mockResolvedValue(undefined),
+  markCommentsRead: vi.fn().mockResolvedValue(undefined),
 }));
 
 // ============================================================================
@@ -27,6 +31,8 @@ function createSuggestion(overrides?: Partial<Suggestion>): Suggestion {
     score: 5,
     upvotes: 7,
     downvotes: 2,
+    commentCount: 0,
+    unreadCount: 0,
     userVote: null,
     createdAt: new Date(Date.now() - 3600000).toISOString(), // 1 hour ago
     updatedAt: new Date(Date.now() - 1800000).toISOString(),

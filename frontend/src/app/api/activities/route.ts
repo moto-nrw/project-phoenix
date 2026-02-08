@@ -2,6 +2,9 @@
 import type { NextRequest } from "next/server";
 import { apiGet, apiPost } from "~/lib/api-helpers";
 import { createGetHandler, createPostHandler } from "~/lib/route-wrapper";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "ActivitiesRoute" });
 import type {
   Activity,
   BackendActivity,
@@ -102,7 +105,9 @@ export const GET = createGetHandler(
         },
       };
     } catch (error) {
-      console.error("Error in activities route:", error);
+      logger.error("activities fetch failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
       throw error; // Rethrow to see the real error
     }
   },

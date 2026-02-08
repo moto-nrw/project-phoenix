@@ -6,6 +6,9 @@ import {
   createPutHandler,
   createDeleteHandler,
 } from "~/lib/route-wrapper";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "UserDetailRoute" });
 
 /**
  * Type definition for person response from backend
@@ -63,13 +66,16 @@ export const GET = createGetHandler(
 
       // Handle null or undefined response
       if (!response?.data) {
-        console.warn("API returned null response for person");
+        logger.warn("API returned null response for person", { person_id: id });
         throw new Error("Person not found");
       }
 
       return response.data;
     } catch (error) {
-      console.error("Error fetching person:", error);
+      logger.error("person fetch failed", {
+        person_id: id,
+        error: error instanceof Error ? error.message : String(error),
+      });
       throw error;
     }
   },
@@ -112,7 +118,10 @@ export const PUT = createPutHandler<BackendPersonResponse, PersonUpdateRequest>(
     } catch (error) {
       // Check for permission errors (403 Forbidden)
       if (error instanceof Error && error.message.includes("403")) {
-        console.error("Permission denied when updating person:", error);
+        logger.error("permission denied when updating person", {
+          person_id: id,
+          error: error instanceof Error ? error.message : String(error),
+        });
         throw new Error(
           "Permission denied: You need the 'users:update' permission to update persons.",
         );
@@ -121,7 +130,10 @@ export const PUT = createPutHandler<BackendPersonResponse, PersonUpdateRequest>(
       // Check for validation errors
       if (error instanceof Error && error.message.includes("400")) {
         const errorMessage = error.message;
-        console.error("Validation error when updating person:", errorMessage);
+        logger.error("validation error when updating person", {
+          person_id: id,
+          error: errorMessage,
+        });
 
         // Extract specific error message if possible
         if (errorMessage.includes("person not found")) {
@@ -160,7 +172,10 @@ export const DELETE = createDeleteHandler(
     } catch (error) {
       // Check for permission errors (403 Forbidden)
       if (error instanceof Error && error.message.includes("403")) {
-        console.error("Permission denied when deleting person:", error);
+        logger.error("permission denied when deleting person", {
+          person_id: id,
+          error: error instanceof Error ? error.message : String(error),
+        });
         throw new Error(
           "Permission denied: You need the 'users:delete' permission to delete persons.",
         );

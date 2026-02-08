@@ -4,6 +4,9 @@ import React, { useEffect, useState } from "react";
 import { Modal } from "./modal";
 import { Input, Alert } from "./index";
 import { requestPasswordReset, type ApiError } from "~/lib/auth-api";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "PasswordReset" });
 
 interface PasswordResetModalProps {
   readonly isOpen: boolean;
@@ -140,6 +143,9 @@ export function PasswordResetModal({
       const apiError = err as ApiError | undefined;
 
       if (apiError?.status === 429) {
+        logger.warn("password_reset_rate_limited", {
+          error: "rate_limit_exceeded",
+        });
         const retrySeconds =
           apiError.retryAfterSeconds && apiError.retryAfterSeconds > 0
             ? apiError.retryAfterSeconds
@@ -157,6 +163,9 @@ export function PasswordResetModal({
           `Zu viele Versuche. Bitte versuche es erneut in ${formatCountdown(retrySeconds)}.`,
         );
       } else {
+        logger.error("password_reset_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
         const errorMessage =
           apiError?.message ??
           "Ein Fehler ist aufgetreten. Bitte versuchen Sie es erneut.";

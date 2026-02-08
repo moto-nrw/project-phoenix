@@ -1,4 +1,7 @@
 import { handleAuthFailure } from "./auth-api";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "FetchWithAuth" });
 
 interface FetchOptions extends RequestInit {
   retry?: boolean;
@@ -30,7 +33,7 @@ export async function fetchWithAuth(
           return fetchWithAuth(url, { ...fetchOptions, retry: false });
         }
       } catch (error) {
-        console.error("Token refresh failed:", error);
+        logger.error("token refresh failed", { url, error: String(error) });
       }
     }
   }

@@ -372,6 +372,7 @@ describe("authFetch", () => {
     expect(mockFetch).toHaveBeenCalledWith("http://api.test/endpoint", {
       method: "GET",
       credentials: "include",
+      cache: "no-store",
       headers: {
         Authorization: "Bearer test-token",
         "Content-Type": "application/json",
@@ -391,6 +392,7 @@ describe("authFetch", () => {
     expect(mockFetch).toHaveBeenCalledWith("http://api.test/endpoint", {
       method: "GET",
       credentials: "include",
+      cache: "no-store",
       headers: undefined,
     });
   });
@@ -412,6 +414,7 @@ describe("authFetch", () => {
     expect(mockFetch).toHaveBeenCalledWith("http://api.test/endpoint", {
       method: "POST",
       credentials: "include",
+      cache: "no-store",
       headers: {
         "Content-Type": "application/json",
         Authorization: "Bearer test-token",

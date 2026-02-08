@@ -1054,6 +1054,10 @@ func (r *stubStaffRepository) ListAllWithPerson(context.Context) ([]*userModel.S
 	panic("ListAllWithPerson not implemented")
 }
 
+func (r *stubStaffRepository) ListStaffByRoles(context.Context, []string) ([]*userModel.StaffWithRoleInfo, error) {
+	panic("ListStaffByRoles not implemented")
+}
+
 // stubTeacherRepository provides a minimal test implementation.
 type stubTeacherRepository struct {
 	mu       sync.Mutex
@@ -1124,6 +1128,10 @@ func (r *stubTeacherRepository) FindWithStaffAndPerson(context.Context, int64) (
 
 func (r *stubTeacherRepository) ListAllWithStaffAndPerson(context.Context) ([]*userModel.Teacher, error) {
 	panic("ListAllWithStaffAndPerson not implemented")
+}
+
+func (r *stubTeacherRepository) FindWithStaffAndPersonByIDs(context.Context, []int64) ([]*userModel.Teacher, error) {
+	panic("FindWithStaffAndPersonByIDs not implemented")
 }
 
 // helper to build default email used in tests.

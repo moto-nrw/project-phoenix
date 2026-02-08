@@ -1,22 +1,9 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { AppShell } from "./app-shell";
-import { mockSessionData } from "~/test/mocks/next-auth";
-
-const mockPush = vi.fn();
 
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({
-    push: mockPush,
-  }),
   usePathname: () => "/dashboard",
-}));
-
-vi.mock("next-auth/react", () => ({
-  useSession: vi.fn(() => ({
-    data: mockSessionData(),
-    status: "authenticated",
-  })),
 }));
 
 vi.mock("./header", () => ({
@@ -34,24 +21,6 @@ vi.mock("./sidebar", () => ({
 vi.mock("./mobile-bottom-nav", () => ({
   MobileBottomNav: () => <nav data-testid="mobile-nav">Mobile Nav</nav>,
 }));
-
-vi.mock("~/lib/profile-context", () => ({
-  useProfile: () => ({
-    profile: null,
-    loading: false,
-    error: null,
-  }),
-}));
-
-vi.mock("~/lib/breadcrumb-context", () => ({
-  useBreadcrumb: vi.fn(() => ({ breadcrumb: {}, setBreadcrumb: vi.fn() })),
-  useSetBreadcrumb: vi.fn(),
-  BreadcrumbProvider: ({ children }: { children: React.ReactNode }) => (
-    <>{children}</>
-  ),
-}));
-
-import { useSession } from "next-auth/react";
 
 describe("AppShell", () => {
   beforeEach(() => {
@@ -91,59 +60,6 @@ describe("AppShell", () => {
     const sidebar = screen.getByTestId("sidebar");
     expect(sidebar.className).toContain("hidden");
     expect(sidebar.className).toContain("lg:block");
-  });
-
-  it("redirects to login when session has no token", async () => {
-    vi.mocked(useSession).mockReturnValue({
-      data: {
-        user: {
-          id: "3",
-          name: "User",
-          email: "user@example.com",
-          token: "",
-          roles: [],
-        },
-        expires: "",
-      },
-      status: "authenticated",
-      update: vi.fn(),
-    });
-
-    render(
-      <AppShell>
-        <div>Content</div>
-      </AppShell>,
-    );
-
-    await waitFor(() => {
-      expect(mockPush).toHaveBeenCalledWith("/");
-    });
-  });
-
-  it("does not redirect when session is loading", () => {
-    vi.mocked(useSession).mockReturnValue({
-      data: null,
-      status: "loading",
-      update: vi.fn(),
-    });
-
-    render(
-      <AppShell>
-        <div>Content</div>
-      </AppShell>,
-    );
-
-    expect(mockPush).not.toHaveBeenCalled();
-  });
-
-  it("does not redirect when session has valid token", () => {
-    render(
-      <AppShell>
-        <div>Content</div>
-      </AppShell>,
-    );
-
-    expect(mockPush).not.toHaveBeenCalled();
   });
 
   it("renders main content area with correct classes", () => {

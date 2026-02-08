@@ -10,6 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/email"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/uptrace/bun"
+	"golang.org/x/sync/singleflight"
 )
 
 const (
@@ -71,6 +72,7 @@ type Service struct {
 	txHandler           *base.TxHandler
 	db                  *bun.DB
 	logger              *slog.Logger
+	refreshSF           singleflight.Group // deduplicates concurrent token refresh calls
 }
 
 // NewService creates a new auth service with reduced parameter count

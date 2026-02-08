@@ -1,6 +1,9 @@
 "use client";
 
+import { createLogger } from "~/lib/logger";
 import { useSession } from "next-auth/react";
+
+const logger = createLogger({ component: "DatabasePage" });
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
@@ -238,10 +241,12 @@ function DatabaseContent() {
             canViewPermissions: false,
           });
         } else {
-          console.error("Failed to fetch counts:", response.status);
+          logger.error("failed to fetch counts", { status: response.status });
         }
       } catch (error) {
-        console.error("Error fetching counts:", error);
+        logger.error("failed to fetch counts", {
+          error: error instanceof Error ? error.message : String(error),
+        });
       } finally {
         setCountsLoading(false);
       }

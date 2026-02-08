@@ -26,6 +26,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/feedback"
 	importService "github.com/moto-nrw/project-phoenix/services/import"
 	"github.com/moto-nrw/project-phoenix/services/iot"
+	"github.com/moto-nrw/project-phoenix/services/platform"
 	"github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/services/suggestions"
 	"github.com/moto-nrw/project-phoenix/services/usercontext"
@@ -62,6 +63,11 @@ type Factory struct {
 	FrontendURL              string
 	InvitationTokenExpiry    time.Duration
 	PasswordResetTokenExpiry time.Duration
+
+	// Platform domain (operator dashboard)
+	OperatorAuth        platform.OperatorAuthService
+	Announcement        platform.AnnouncementService
+	OperatorSuggestions platform.OperatorSuggestionsService
 }
 
 // NewFactory creates a new services factory
@@ -82,6 +88,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	authLogger := logger.With("service", "auth")
 	facilitiesLogger := logger.With("service", "facilities")
 	databaseLogger := logger.With("service", "database")
+	platformLogger := logger.With("service", "platform")
 	emailLogger := logger.With("component", "email")
 
 	dispatcher := email.NewDispatcher(mailer, emailLogger)
@@ -210,6 +217,8 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	suggestionsService := suggestions.NewService(
 		repos.SuggestionPost,
 		repos.SuggestionVote,
+		repos.SuggestionComment,
+		repos.SuggestionCommentRead,
 		db,
 	)
 
@@ -366,6 +375,35 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	)
 	studentImportService := importService.NewImportService(studentImportConfig, db)
 
+	// Initialize platform services (operator dashboard)
+	operatorAuthService, err := platform.NewOperatorAuthService(platform.OperatorAuthServiceConfig{
+		OperatorRepo: repos.Operator,
+		AuditLogRepo: repos.OperatorAuditLog,
+		DB:           db,
+		Logger:       platformLogger,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create operator auth service: %w", err)
+	}
+
+	announcementService := platform.NewAnnouncementService(platform.AnnouncementServiceConfig{
+		AnnouncementRepo:     repos.Announcement,
+		AnnouncementViewRepo: repos.AnnouncementView,
+		AuditLogRepo:         repos.OperatorAuditLog,
+		DB:                   db,
+		Logger:               platformLogger,
+	})
+
+	operatorSuggestionsService := platform.NewOperatorSuggestionsService(platform.OperatorSuggestionsServiceConfig{
+		PostRepo:        repos.SuggestionPost,
+		CommentRepo:     repos.SuggestionComment,
+		CommentReadRepo: repos.SuggestionCommentRead,
+		PostReadRepo:    repos.SuggestionPostRead,
+		AuditLogRepo:    repos.OperatorAuditLog,
+		DB:              db,
+		Logger:          platformLogger,
+	})
+
 	return &Factory{
 		Auth:                     authService,
 		Active:                   activeService,
@@ -395,5 +433,10 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		FrontendURL:              frontendURL,
 		InvitationTokenExpiry:    invitationTokenExpiry,
 		PasswordResetTokenExpiry: passwordResetTokenExpiry,
+
+		// Platform services
+		OperatorAuth:        operatorAuthService,
+		Announcement:        announcementService,
+		OperatorSuggestions: operatorSuggestionsService,
 	}, nil
 }

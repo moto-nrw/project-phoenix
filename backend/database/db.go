@@ -4,7 +4,10 @@ package database
 import (
 	"context"
 	"database/sql"
+	"log/slog"
+	"time"
 
+	"github.com/spf13/viper"
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/dialect/pgdialect"
 	"github.com/uptrace/bun/driver/pgdriver"
@@ -16,6 +19,36 @@ func DBConn() (*bun.DB, error) {
 	dsn := GetDatabaseDSN()
 
 	sqldb := sql.OpenDB(pgdriver.NewConnector(pgdriver.WithDSN(dsn)))
+
+	// Connection pool configuration
+	maxOpen := viper.GetInt("db_max_open_conns")
+	if maxOpen == 0 {
+		maxOpen = 25
+	}
+	maxIdle := viper.GetInt("db_max_idle_conns")
+	if maxIdle == 0 {
+		maxIdle = 10
+	}
+	lifetime := viper.GetDuration("db_conn_max_lifetime")
+	if lifetime == 0 {
+		lifetime = 5 * time.Minute
+	}
+	idleTime := viper.GetDuration("db_conn_max_idle_time")
+	if idleTime == 0 {
+		idleTime = 1 * time.Minute
+	}
+
+	sqldb.SetMaxOpenConns(maxOpen)
+	sqldb.SetMaxIdleConns(maxIdle)
+	sqldb.SetConnMaxLifetime(lifetime)
+	sqldb.SetConnMaxIdleTime(idleTime)
+
+	slog.Info("database pool configured",
+		"max_open_conns", maxOpen,
+		"max_idle_conns", maxIdle,
+		"conn_max_lifetime", lifetime.String(),
+		"conn_max_idle_time", idleTime.String(),
+	)
 
 	db := bun.NewDB(sqldb, pgdialect.New())
 

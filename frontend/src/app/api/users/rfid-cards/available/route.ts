@@ -2,6 +2,9 @@
 import type { NextRequest } from "next/server";
 import { apiGet } from "~/lib/api-helpers";
 import { createGetHandler } from "~/lib/route-wrapper";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "RfidCardsAvailableRoute" });
 
 /**
  * Type definition for RFID card response from backend
@@ -35,15 +38,11 @@ export const GET = createGetHandler(
 
       // Handle null or undefined response
       if (!response) {
-        console.warn("API returned null response for available RFID cards");
+        logger.warn("API returned null response for available RFID cards");
         return [];
       }
 
-      // Debug output to check the response data
-      console.log(
-        "API available RFID cards response:",
-        JSON.stringify(response, null, 2),
-      );
+      logger.debug("available RFID cards response received");
 
       // Check if the response is already an array (common pattern)
       if (Array.isArray(response)) {
@@ -56,13 +55,12 @@ export const GET = createGetHandler(
       }
 
       // If the response doesn't have the expected structure, return an empty array
-      console.warn(
-        "API response does not have the expected structure:",
-        response,
-      );
+      logger.warn("RFID cards API response has unexpected structure");
       return [];
     } catch (error) {
-      console.error("Error fetching available RFID cards:", error);
+      logger.error("available RFID cards fetch failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
       // Return empty array instead of throwing error to avoid UI blocking
       return [];
     }

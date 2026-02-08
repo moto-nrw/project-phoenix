@@ -28,6 +28,19 @@ vi.mock("~/lib/auth-utils", () => ({
   isAdmin: vi.fn(),
 }));
 
+vi.mock("~/lib/shell-auth-context", () => ({
+  useShellAuth: vi.fn(() => ({
+    user: { name: "Test User", email: "test@example.com", roles: [] },
+    profile: { firstName: "Test", lastName: "User" },
+    status: "authenticated",
+    isSessionExpired: false,
+    logout: vi.fn(),
+    mode: "teacher",
+    homeUrl: "/dashboard",
+    settingsUrl: "/settings",
+  })),
+}));
+
 // Import after mocks
 import { Sidebar } from "./sidebar";
 import { usePathname, useSearchParams } from "next/navigation";

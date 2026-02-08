@@ -71,6 +71,8 @@ function getMainRouteTitle(pathname: string): string {
     "/invitations": "Einladungen",
     "/time-tracking": "Zeiterfassung",
     "/borndal_feedback": "Borndal Feedback",
+    "/operator/suggestions": "Vorschläge",
+    "/operator/announcements": "Ankündigungen",
   };
 
   return mainRoutes[pathname] ?? "Home";

@@ -10,17 +10,21 @@ import (
 )
 
 type suggestionsService struct {
-	postRepo  suggestions.PostRepository
-	voteRepo  suggestions.VoteRepository
-	txHandler *base.TxHandler
+	postRepo        suggestions.PostRepository
+	voteRepo        suggestions.VoteRepository
+	commentRepo     suggestions.CommentRepository
+	commentReadRepo suggestions.CommentReadRepository
+	txHandler       *base.TxHandler
 }
 
 // NewService creates a new suggestions service
-func NewService(postRepo suggestions.PostRepository, voteRepo suggestions.VoteRepository, db *bun.DB) Service {
+func NewService(postRepo suggestions.PostRepository, voteRepo suggestions.VoteRepository, commentRepo suggestions.CommentRepository, commentReadRepo suggestions.CommentReadRepository, db *bun.DB) Service {
 	return &suggestionsService{
-		postRepo:  postRepo,
-		voteRepo:  voteRepo,
-		txHandler: base.NewTxHandler(db),
+		postRepo:        postRepo,
+		voteRepo:        voteRepo,
+		commentRepo:     commentRepo,
+		commentReadRepo: commentReadRepo,
+		txHandler:       base.NewTxHandler(db),
 	}
 }
 
@@ -43,7 +47,7 @@ func (s *suggestionsService) CreatePost(ctx context.Context, post *suggestions.P
 
 // GetPost retrieves a post by ID with author name and vote info
 func (s *suggestionsService) GetPost(ctx context.Context, id int64, accountID int64) (*suggestions.Post, error) {
-	post, err := s.postRepo.FindByIDWithVote(ctx, id, accountID)
+	post, err := s.postRepo.FindByIDWithVote(ctx, id, accountID, suggestions.ReaderTypeUser)
 	if err != nil {
 		return nil, err
 	}
@@ -103,7 +107,7 @@ func (s *suggestionsService) DeletePost(ctx context.Context, id int64, accountID
 
 // ListPosts returns all posts sorted as requested
 func (s *suggestionsService) ListPosts(ctx context.Context, accountID int64, sortBy string) ([]*suggestions.Post, error) {
-	return s.postRepo.List(ctx, accountID, sortBy)
+	return s.postRepo.List(ctx, accountID, suggestions.ReaderTypeUser, sortBy, "")
 }
 
 // Vote casts or changes a vote on a post, then recalculates score in a transaction
@@ -139,7 +143,7 @@ func (s *suggestionsService) Vote(ctx context.Context, postID int64, accountID i
 	}
 
 	// Return updated post (outside transaction — read-only)
-	return s.postRepo.FindByIDWithVote(ctx, postID, accountID)
+	return s.postRepo.FindByIDWithVote(ctx, postID, accountID, suggestions.ReaderTypeUser)
 }
 
 // RemoveVote removes a user's vote from a post, then recalculates score
@@ -165,5 +169,72 @@ func (s *suggestionsService) RemoveVote(ctx context.Context, postID int64, accou
 	}
 
 	// Return updated post (outside transaction — read-only)
-	return s.postRepo.FindByIDWithVote(ctx, postID, accountID)
+	return s.postRepo.FindByIDWithVote(ctx, postID, accountID, suggestions.ReaderTypeUser)
+}
+
+// CreateComment creates a new user-facing comment on a post
+func (s *suggestionsService) CreateComment(ctx context.Context, comment *suggestions.Comment) error {
+	if comment == nil {
+		return &InvalidDataError{Err: fmt.Errorf("comment cannot be nil")}
+	}
+
+	// User-facing comments are always from type "user"
+	comment.AuthorType = suggestions.AuthorTypeUser
+
+	// Verify post exists
+	post, err := s.postRepo.FindByID(ctx, comment.PostID)
+	if err != nil {
+		return err
+	}
+	if post == nil {
+		return &PostNotFoundError{PostID: comment.PostID}
+	}
+
+	if err := comment.Validate(); err != nil {
+		return &InvalidDataError{Err: err}
+	}
+
+	return s.commentRepo.Create(ctx, comment)
+}
+
+// GetComments retrieves comments for a post
+func (s *suggestionsService) GetComments(ctx context.Context, postID int64) ([]*suggestions.Comment, error) {
+	return s.commentRepo.FindByPostID(ctx, postID)
+}
+
+// DeleteComment deletes a user's own comment
+func (s *suggestionsService) DeleteComment(ctx context.Context, commentID int64, accountID int64) error {
+	comment, err := s.commentRepo.FindByID(ctx, commentID)
+	if err != nil {
+		return err
+	}
+	if comment == nil {
+		return &CommentNotFoundError{CommentID: commentID}
+	}
+
+	// Users can only delete their own comments
+	if comment.AuthorType != suggestions.AuthorTypeUser || comment.AuthorID != accountID {
+		return &ForbiddenError{Reason: "you can only delete your own comments"}
+	}
+
+	return s.commentRepo.Delete(ctx, commentID)
+}
+
+// MarkCommentsRead marks all comments on a post as read for the user
+func (s *suggestionsService) MarkCommentsRead(ctx context.Context, postID int64, accountID int64) error {
+	// Verify post exists
+	post, err := s.postRepo.FindByID(ctx, postID)
+	if err != nil {
+		return err
+	}
+	if post == nil {
+		return &PostNotFoundError{PostID: postID}
+	}
+
+	return s.commentReadRepo.Upsert(ctx, accountID, postID, suggestions.ReaderTypeUser)
+}
+
+// GetTotalUnreadCount returns the total number of unread comments across all posts
+func (s *suggestionsService) GetTotalUnreadCount(ctx context.Context, accountID int64) (int, error) {
+	return s.commentReadRepo.CountTotalUnread(ctx, accountID, suggestions.ReaderTypeUser)
 }

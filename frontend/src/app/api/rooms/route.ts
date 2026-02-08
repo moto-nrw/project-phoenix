@@ -3,6 +3,9 @@ import type { NextRequest } from "next/server";
 import { apiGet, apiPost } from "~/lib/api-helpers";
 import { createGetHandler, createPostHandler } from "~/lib/route-wrapper";
 import type { BackendRoom } from "~/lib/room-helpers";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "RoomsRoute" });
 
 /**
  * Type definition for room creation request
@@ -75,12 +78,11 @@ export const GET = createGetHandler(
 
       // Handle null or undefined response
       if (!response) {
-        console.warn("API returned null response for rooms");
+        logger.warn("API returned null response for rooms");
         return [];
       }
 
-      // Debug output to check the response data
-      console.log("API rooms response:", JSON.stringify(response));
+      logger.debug("rooms API response received");
 
       // The response has a nested structure with the rooms in the data field
       if (response.status === "success" && Array.isArray(response.data)) {
@@ -93,11 +95,7 @@ export const GET = createGetHandler(
         };
       }
 
-      // If the response doesn't have the expected structure, return an empty array
-      console.warn(
-        "API response does not have the expected structure:",
-        response,
-      );
+      logger.warn("rooms API response has unexpected structure");
       return {
         data: [],
         pagination: {
@@ -108,7 +106,9 @@ export const GET = createGetHandler(
         },
       };
     } catch (error) {
-      console.error("Error fetching rooms:", error);
+      logger.error("rooms fetch failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
       // Return empty response with pagination
       return {
         data: [],
@@ -145,7 +145,9 @@ export const POST = createPostHandler<BackendRoom, RoomCreateRequest>(
     } catch (error) {
       // Check for permission errors (403 Forbidden)
       if (error instanceof Error && error.message.includes("403")) {
-        console.error("Permission denied when creating room:", error);
+        logger.error("permission denied when creating room", {
+          error: error instanceof Error ? error.message : String(error),
+        });
         throw new Error(
           "Permission denied: You need the 'rooms:create' permission to create rooms.",
         );
@@ -154,7 +156,9 @@ export const POST = createPostHandler<BackendRoom, RoomCreateRequest>(
       // Check for validation errors
       if (error instanceof Error && error.message.includes("400")) {
         const errorMessage = error.message;
-        console.error("Validation error when creating room:", errorMessage);
+        logger.error("validation error when creating room", {
+          error: errorMessage,
+        });
 
         // Extract specific error message if possible
         if (errorMessage.includes("name: cannot be blank")) {

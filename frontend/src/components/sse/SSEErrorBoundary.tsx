@@ -1,6 +1,9 @@
 "use client";
 
 import React from "react";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "SSEErrorBoundary" });
 
 interface SSEErrorBoundaryProps {
   readonly children: React.ReactNode;
@@ -25,7 +28,10 @@ export class SSEErrorBoundary extends React.Component<
   }
 
   componentDidCatch(error: unknown, errorInfo: unknown) {
-    console.error("SSE boundary caught an error:", error, errorInfo);
+    logger.error("SSE boundary caught an error", {
+      error: error instanceof Error ? error.message : String(error),
+      error_info: String(errorInfo),
+    });
   }
 
   render() {

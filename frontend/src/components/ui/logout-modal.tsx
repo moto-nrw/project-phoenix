@@ -1,8 +1,11 @@
 "use client";
 
 import React, { useState } from "react";
-import { signOut } from "next-auth/react";
+import { useShellAuth } from "~/lib/shell-auth-context";
 import { Modal } from "./modal";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "LogoutModal" });
 
 interface LogoutModalProps {
   readonly isOpen: boolean;
@@ -49,6 +52,7 @@ const LogOutIcon = ({ className }: { className?: string }) => (
 );
 
 export function LogoutModal({ isOpen, onClose }: LogoutModalProps) {
+  const { logout } = useShellAuth();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   const launchConfetti = () => {
@@ -137,9 +141,11 @@ export function LogoutModal({ isOpen, onClose }: LogoutModalProps) {
 
     try {
       // Allow NextAuth to perform the CSRF handshake before navigating away.
-      await signOut({ callbackUrl: "/" });
+      await logout();
     } catch (error) {
-      console.error("Failed to sign out:", error);
+      logger.error("failed to sign out", {
+        error: error instanceof Error ? error.message : String(error),
+      });
       setIsLoggingOut(false);
     }
   };
