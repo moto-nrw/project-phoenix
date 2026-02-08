@@ -50,6 +50,34 @@ func (r *StudentRepository) FindByPersonID(ctx context.Context, personID int64) 
 	return student, nil
 }
 
+// FindByIDs retrieves multiple students by their IDs in a single query
+func (r *StudentRepository) FindByIDs(ctx context.Context, ids []int64) (map[int64]*users.Student, error) {
+	if len(ids) == 0 {
+		return make(map[int64]*users.Student), nil
+	}
+
+	var students []*users.Student
+	err := r.db.NewSelect().
+		Model(&students).
+		ModelTableExpr(`users.students AS "student"`).
+		Where(`"student".id IN (?)`, bun.In(ids)).
+		Scan(ctx)
+
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find by IDs",
+			Err: err,
+		}
+	}
+
+	result := make(map[int64]*users.Student, len(students))
+	for _, student := range students {
+		result[student.ID] = student
+	}
+
+	return result, nil
+}
+
 // FindByGroupID retrieves students by their group ID
 func (r *StudentRepository) FindByGroupID(ctx context.Context, groupID int64) ([]*users.Student, error) {
 	var students []*users.Student
