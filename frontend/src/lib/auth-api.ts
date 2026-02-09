@@ -130,9 +130,11 @@ export async function handleAuthFailure(): Promise<boolean> {
     const newTokens = await refreshToken();
 
     if (newTokens) {
-      // Token refresh successful — the JWT callback already persisted
-      // the refreshed tokens in the session cookie when /api/auth/token
-      // called auth(). No need to call signIn() again.
+      // Token refresh successful. The /api/auth/token route called auth()
+      // which refreshed tokens via the JWT callback and cached them in
+      // refreshCache (module-level, 5-min TTL). The cookie is NOT updated
+      // here — callers must trigger getSession() (e.g. Axios interceptor,
+      // SessionProvider refetchInterval) to persist via Set-Cookie.
       sessionStorage.setItem("lastSuccessfulRefresh", Date.now().toString());
       return true;
     }
