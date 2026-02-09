@@ -423,6 +423,10 @@ export const authConfig = {
             token.error = undefined;
             token.needsRefresh = undefined;
             logger.info("proactive_token_refresh_succeeded");
+          } else if (now > tokenExpiry) {
+            token.error = "RefreshTokenError";
+            token.needsRefresh = true;
+            logger.warn("token_refresh_failed_post_expiry");
           }
           return token;
         }
@@ -475,6 +479,10 @@ export const authConfig = {
           token.error = undefined;
           token.needsRefresh = undefined;
           logger.info("proactive_token_refresh_succeeded");
+        } else if (now > tokenExpiry) {
+          token.error = "RefreshTokenError";
+          token.needsRefresh = true;
+          logger.warn("token_refresh_failed_post_expiry");
         }
       }
 

@@ -318,4 +318,51 @@ describe("JWT callback — refresh scenarios", () => {
     expect(result?.token).toBe("access-ok");
     expect(result?.error).toBeUndefined();
   });
+
+  // ── Scenario 13: Post-expiry refresh failure (backend 401) ─────────
+  it("scenario 13: post-expiry + backend 401 — error = RefreshTokenError", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 401,
+    });
+
+    const token = {
+      id: "13",
+      token: "expired-access",
+      refreshToken: "valid-refresh",
+      tokenExpiry: Date.now() - 30 * 1000, // expired 30s ago
+      refreshTokenExpiry: Date.now() + 60 * 60 * 1000,
+    };
+
+    const result = await callJwt(token);
+
+    expect(mockFetch).toHaveBeenCalledOnce();
+    expect(result?.token).toBe("expired-access"); // unchanged
+    expect(result?.error).toBe("RefreshTokenError");
+    expect(result?.needsRefresh).toBe(true);
+  });
+
+  // ── Scenario 14: Post-expiry refresh failure (network timeout) ─────
+  it("scenario 14: post-expiry + timeout — error = RefreshTokenError", async () => {
+    const abortError = new DOMException(
+      "The operation was aborted",
+      "AbortError",
+    );
+    mockFetch.mockRejectedValueOnce(abortError);
+
+    const token = {
+      id: "14",
+      token: "expired-access",
+      refreshToken: "valid-refresh",
+      tokenExpiry: Date.now() - 30 * 1000, // expired 30s ago
+      refreshTokenExpiry: Date.now() + 60 * 60 * 1000,
+    };
+
+    const result = await callJwt(token);
+
+    expect(mockFetch).toHaveBeenCalledOnce();
+    expect(result?.token).toBe("expired-access"); // unchanged
+    expect(result?.error).toBe("RefreshTokenError");
+    expect(result?.needsRefresh).toBe(true);
+  });
 });
