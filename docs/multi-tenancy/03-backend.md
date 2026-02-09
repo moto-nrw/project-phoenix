@@ -317,10 +317,31 @@ type RefreshClaims struct {
 ```
 1. User klickt "Zu OGS Greven wechseln"
 2. POST /auth/switch-tenant { tenant_slug: "greven" }
-3. Backend: Pruefe account_tenants fuer neuen Tenant
+3. Backend: Zugriffspruefung (siehe 6.3)
 4. Backend: Neues JWT mit neuem tenant_id
 5. Frontend: SWR-Cache invalidieren (Tenant-prefixed Keys)
 ```
+
+### 6.3 Tenant-Switch Zugriffspruefung (nach Scope)
+
+| Scope | Pruefung | Begruendung |
+|-------|----------|-------------|
+| `""` (normal) | `account_tenants WHERE account_id=? AND tenant_id=? AND status='active'` | Explizit zugewiesene Tenants |
+| `"org"` | `platform.schools WHERE id=? AND organization_id=user.org_id` | Traeger-Buero sieht **automatisch alle OGS** des Traegers, auch neue (00-anforderungen Sektion 3.2a) |
+
+**Warum unterschiedliche Pruefung:** 00-anforderungen fordert, dass Traeger-Buero-Mitarbeiter "automatisch Zugriff auf ALLE OGS des Traegers, auch neue die spaeter hinzukommen" haben. Wuerde man nur `account_tenants` pruefen, muessten bei jeder neuen OGS-Provisionierung manuell Eintraege fuer alle Traeger-Buero-User erstellt werden. Die direkte Pruefung gegen `schools.organization_id` ist wartungsfrei.
+
+### 6.4 Eltern Auto-Provisioning
+
+Eltern-Accounts werden **nicht manuell** einem Tenant zugewiesen. Stattdessen verwaltet der Service-Layer die `account_tenants`-Eintraege automatisch:
+
+| Event | Aktion |
+|-------|--------|
+| Kind wird an OGS eingeschrieben | `account_tenants` fuer alle Erziehungsberechtigten des Kindes erstellen (`status='active'`) |
+| Kind verlaesst OGS | Pruefen ob Elternteil noch andere Kinder an dieser OGS hat. Falls nein: `account_tenants.status = 'inactive'` |
+| Kind wechselt OGS | Alter Tenant deaktivieren (falls kein anderes Kind), neuer Tenant aktivieren |
+
+**Implementierung:** Im `EnrollmentService` bei `Enroll()`/`Disenroll()`. Nutzt `WithAdminTx` fuer Cross-Tenant-Zugriff auf Erziehungsberechtigte.
 
 ---
 
