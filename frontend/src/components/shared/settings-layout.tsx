@@ -157,7 +157,7 @@ function MobileBackHeader({
   );
 }
 
-export interface SettingsLayoutProps {
+interface SettingsLayoutProps {
   readonly profileTab: ReactNode;
   readonly mobileProfileCard: ReactNode;
   readonly extraTabs?: Tab[];
