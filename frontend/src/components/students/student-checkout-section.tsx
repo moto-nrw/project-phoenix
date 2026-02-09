@@ -1,7 +1,7 @@
 "use client";
 
 // Type for the action the user can perform
-export type StudentActionType = "checkout" | "checkin" | "none";
+type StudentActionType = "checkout" | "checkin" | "none";
 
 interface StudentCheckoutSectionProps {
   readonly onCheckoutClick: () => void;

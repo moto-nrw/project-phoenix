@@ -57,7 +57,7 @@ function getSickDisplayMode(
   return "additional";
 }
 
-export interface LocationBadgeProps {
+interface LocationBadgeProps {
   readonly student: StudentLocationContext;
   readonly displayMode: DisplayMode;
   readonly userGroups?: string[];

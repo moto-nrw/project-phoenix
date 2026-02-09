@@ -16,7 +16,7 @@ const logger = createLogger({ component: "ToastContext" });
 
 type ToastType = "success" | "error" | "info" | "warning";
 
-export interface ToastOptions {
+interface ToastOptions {
   id?: string;
   duration?: number; // ms
 }
