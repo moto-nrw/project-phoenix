@@ -655,7 +655,17 @@ function AnnouncementCard({
   readonly onPublish: (a: Announcement) => void;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+  const [isClamped, setIsClamped] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLParagraphElement>(null);
+
+  useEffect(() => {
+    const el = contentRef.current;
+    if (el) {
+      setIsClamped(el.scrollHeight > el.clientHeight);
+    }
+  }, [announcement.content]);
 
   // Close menu on click outside
   useEffect(() => {
@@ -767,9 +777,21 @@ function AnnouncementCard({
       )}
 
       {/* Content preview */}
-      <p className="mt-2 line-clamp-2 text-sm text-gray-600">
+      <p
+        ref={contentRef}
+        className={`mt-2 text-sm text-gray-600 ${expanded ? "" : "line-clamp-2"}`}
+      >
         {announcement.content}
       </p>
+      {(isClamped || expanded) && (
+        <button
+          type="button"
+          onClick={() => setExpanded((prev) => !prev)}
+          className="mt-1 text-xs font-medium text-gray-500 transition-colors hover:text-gray-700"
+        >
+          {expanded ? "Weniger anzeigen" : "Mehr anzeigen"}
+        </button>
+      )}
 
       {/* Footer with publish button for drafts */}
       {announcement.status === "draft" && (
