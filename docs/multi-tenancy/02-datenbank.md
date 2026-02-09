@@ -1,10 +1,11 @@
 # Multi-Tenancy: Datenbank-Schema & Migration
 
-Dieses Dokument beschreibt alle Datenbank-Aenderungen: Neue Tabellen, tenant_id Migration, Indexes, RLS-Policies und die Production-Migrationsstrategie.
+Dieses Dokument beschreibt alle Datenbank-Aenderungen: Neue Tabellen, tenant_id Migration, Indexes, RLS-Policies, Drei-Rollen-Architektur und die Production-Migrationsstrategie.
 
 **Verwandte Dokumente:**
 - [01-architektur.md](01-architektur.md) - Architektur-Entscheidungen (Shared Schema + RLS, Defense-in-Depth)
 - [03-backend.md](03-backend.md) - Backend-Code der diese Tabellen nutzt
+- [DEBATE.md](DEBATE.md) - Alle Diskussionspunkte und Entscheidungen
 
 ---
 
@@ -50,21 +51,32 @@ CREATE INDEX idx_schools_subdomain ON platform.schools(subdomain);
 CREATE INDEX idx_schools_organization ON platform.schools(organization_id);
 ```
 
-### 1.3 auth.account_tenants (Account -> Tenant N:M)
+### 1.3 auth.account_tenants (Account -> Tenant N:M) (D15)
 
-Ermoeglicht: Betreuer an mehreren OGS, Buero-Mitarbeiter mit Zugriff auf N OGS.
+Ermoeglicht: Ein Account, mehrere Tenants. Betreuer an mehreren OGS, Buero-Mitarbeiter mit Zugriff auf N OGS. Soft-Delete via `status = 'inactive'`.
 
 ```sql
 CREATE TABLE auth.account_tenants (
+    id                BIGSERIAL PRIMARY KEY,
     account_id        BIGINT NOT NULL REFERENCES auth.accounts(id) ON DELETE CASCADE,
     tenant_id         BIGINT NOT NULL REFERENCES platform.schools(id) ON DELETE CASCADE,
-    is_primary        BOOLEAN NOT NULL DEFAULT false,
+    status            TEXT NOT NULL DEFAULT 'active'
+                      CHECK (status IN ('pending', 'active', 'inactive')),
+    invited_at        TIMESTAMPTZ DEFAULT NOW(),
+    activated_at      TIMESTAMPTZ,
+    deactivated_at    TIMESTAMPTZ,
     created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    PRIMARY KEY (account_id, tenant_id)
+    updated_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE(account_id, tenant_id)
 );
+
+CREATE INDEX idx_account_tenants_account ON auth.account_tenants(account_id);
+CREATE INDEX idx_account_tenants_tenant ON auth.account_tenants(tenant_id);
+CREATE INDEX idx_account_tenants_active ON auth.account_tenants(account_id, tenant_id)
+    WHERE status = 'active';
 ```
 
-### 1.4 platform.cross_tenant_access (Ferienbetreuung etc.)
+### 1.4 platform.cross_tenant_access (Ferienbetreuung etc.) (D4)
 
 Zeitlich begrenzter Cross-Tenant-Zugriff, auch traeger-uebergreifend moeglich.
 
@@ -104,7 +116,44 @@ CREATE TABLE platform.operator_organizations (
 
 ## 2. tenant_id zu bestehenden Tabellen
 
-**Alle 49 Nicht-Platform-Tabellen** brauchen eine `tenant_id` Spalte. Migration in 3 Schritten:
+### 2.1 Welche Tabellen bekommen tenant_id?
+
+**Grundregel:** Tabellen mit OGS-spezifischen Daten bekommen `tenant_id`. Tabellen mit globalen Definitionen oder Account-Daten bleiben OHNE (D13, D15).
+
+**KEIN tenant_id (Global/Platform-Scope):**
+
+| Tabelle | Grund |
+|---------|-------|
+| `auth.accounts` | Globale Identitaet, ein Account fuer alle Tenants (D15) |
+| `auth.roles` | Systemweite Rollen-Definitionen (D13: globale Rollen) |
+| `auth.permissions` | Systemweite Permission-Definitionen (D13) |
+| `auth.role_permissions` | Systemweite Zuordnung Rolle → Permissions (D13) |
+| `auth.account_roles` | Globale Rollen-Zuweisung (D13: gleiche Rolle bei allen Tenants) |
+| `auth.account_permissions` | Globale Permission-Zuweisung (D13) |
+| `auth.password_reset_tokens` | Per-Account, nicht per-Tenant |
+| `auth.password_reset_rate_limits` | Per-Account Rate-Limiting |
+| `platform.*` | Platform-Tabellen haben per Definition kein RLS |
+
+**MIT tenant_id (Tenant-Scope, ~41 Tabellen):**
+
+| Schema | Tabellen | Anzahl |
+|--------|----------|--------|
+| auth | tokens, invitation_tokens, accounts_parents, guardian_invitations | 4 |
+| users | rfid_cards, persons, profiles, staff, teachers, guests, persons_guardians, students, guardian_profiles, students_guardians, privacy_consents, guardian_phone_numbers | 12 |
+| education | groups, group_teacher, group_substitution, grade_transitions, grade_transition_mappings, grade_transition_history | 6 |
+| facilities | rooms | 1 |
+| activities | categories, groups, schedules, supervisors, student_enrollments | 5 |
+| active | groups, visits, group_supervisors, combined_groups, group_mappings, attendance, scheduled_checkouts, work_sessions, work_session_breaks, staff_absences | 10 |
+| schedule | timeframes, dateframes, recurrence_rules, student_pickup_schedules, student_pickup_exceptions, student_pickup_notes | 6 |
+| iot | devices | 1 |
+| feedback | entries | 1 |
+| config | settings | 1 |
+| suggestions | posts, votes, comments, comment_reads, post_reads | 5 |
+| audit | data_deletions, auth_events, data_imports, work_session_edits | 4 |
+
+**Hinweis zu `auth.tokens`:** Refresh Tokens enthalten `tenant_id` in den JWT Claims (D12). Die DB-Spalte `tenant_id` ermoeglicht gezieltes Revoken aller Tokens fuer einen bestimmten Tenant (z.B. bei Zugriffsentzug).
+
+### 2.2 Migration (3 Schritte pro Tabelle)
 
 ```sql
 -- Schritt 1: Spalte hinzufuegen (nullable, non-blocking in PostgreSQL)
@@ -119,28 +168,10 @@ ALTER TABLE {schema}.{table}
     ALTER COLUMN tenant_id SET NOT NULL;
 ```
 
-### 2.1 Betroffene Tabellen nach Schema (49 total)
+### 2.3 Sonderfaelle
 
-| Schema | Tabellen | Anzahl |
-|--------|----------|--------|
-| auth | accounts, tokens, password_reset_tokens, roles, permissions, role_permissions, account_roles, account_permissions, accounts_parents, password_reset_rate_limits, invitation_tokens, guardian_invitations | 12 |
-| users | rfid_cards, persons, profiles, staff, teachers, guests, persons_guardians, students, guardian_profiles, students_guardians, privacy_consents, guardian_phone_numbers | 12 |
-| education | groups, group_teacher, group_substitution, grade_transitions, grade_transition_mappings, grade_transition_history | 6 |
-| facilities | rooms | 1 |
-| activities | categories, groups, schedules, supervisors, student_enrollments | 5 |
-| active | groups, visits, group_supervisors, combined_groups, group_mappings, attendance, scheduled_checkouts, work_sessions, work_session_breaks, staff_absences | 10 |
-| schedule | timeframes, dateframes, recurrence_rules, student_pickup_schedules, student_pickup_exceptions, student_pickup_notes | 6 |
-| iot | devices | 1 |
-| feedback | entries | 1 |
-| config | settings | 1 |
-| suggestions | posts, votes, comments, comment_reads, post_reads | 5 |
-| audit | data_deletions, auth_events, data_imports, work_session_edits | 4 |
-
-### 2.2 Sonderfaelle
-
-- **`auth.roles`, `auth.permissions`, `auth.role_permissions`**: Koennten global bleiben (systemweite Rollen). **Empfehlung:** tenant_id hinzufuegen fuer Custom-Rollen pro OGS, aber System-Rollen (`is_system = true`) sind global (tenant_id = NULL oder 0).
-- **`suggestions.comment_reads`, `suggestions.post_reads`, `platform.announcement_views`**: Composite-PKs muessen um tenant_id erweitert werden.
-- **`audit.*` Tabellen**: tenant_id fuer Zuordnung, aber RLS-Policy erlaubt Operator-Zugriff auf alle Audit-Daten.
+- **`suggestions.comment_reads`, `suggestions.post_reads`**: Composite-PKs muessen um tenant_id erweitert werden.
+- **`audit.*` Tabellen**: tenant_id fuer Zuordnung. Operators sehen alle Audit-Daten via `WithAdminTx` (D8).
 
 ---
 
@@ -159,34 +190,53 @@ CREATE INDEX idx_{table}_tenant_id ON {schema}.{table}(tenant_id, id);
 ### 3.1 Spezielle Composite-Indexes fuer Performance
 
 ```sql
--- Haeufigste Queries: Studenten einer OGS, aktive Besuche einer OGS
 CREATE INDEX idx_students_tenant_class ON users.students(tenant_id, school_class);
 CREATE INDEX idx_visits_tenant_active ON active.visits(tenant_id, exit_time) WHERE exit_time IS NULL;
 CREATE INDEX idx_attendance_tenant_date ON active.attendance(tenant_id, date);
 CREATE INDEX idx_devices_tenant ON iot.devices(tenant_id, status);
-CREATE INDEX idx_accounts_tenant_email ON auth.accounts(tenant_id, email);
 ```
 
 ---
 
-## 4. RLS-Policies
+## 4. Drei-Rollen-Architektur (D7, D8)
 
-### 4.1 Datenbank-Rollen Setup
+### 4.1 PostgreSQL-Rollen Setup
 
 ```sql
--- Migrations-Rolle (besitzt Tabellen, nur fuer DDL)
--- Dies ist der aktuelle DB-User - bleibt wie er ist
+-- Verbindungs-Rolle: LOGIN, aber KEINE eigenen Rechte (sicherster Default)
+CREATE ROLE phoenix_auth LOGIN NOINHERIT PASSWORD '...';
 
--- Applikations-Rolle (fuer den Go-Server)
-CREATE ROLE phoenix_app WITH LOGIN PASSWORD '...' NOBYPASSRLS;
-GRANT USAGE ON ALL SCHEMAS TO phoenix_app;
+-- Tenant-Rolle: Subject to RLS, alle CRUD-Rechte auf Tenant-Tabellen
+CREATE ROLE phoenix_tenant NOLOGIN;
+GRANT USAGE ON ALL SCHEMAS TO phoenix_tenant;
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA
     auth, users, education, facilities, activities, active,
-    schedule, iot, feedback, config, suggestions, audit, platform
-    TO phoenix_app;
+    schedule, iot, feedback, config, suggestions, audit TO phoenix_tenant;
+GRANT SELECT ON platform.schools TO phoenix_tenant;
+
+-- Admin-Rolle: Bypasses RLS (Operator, Migrations, Seeds, Cross-Tenant)
+CREATE ROLE phoenix_admin NOLOGIN BYPASSRLS;
+GRANT USAGE ON ALL SCHEMAS TO phoenix_admin;
+GRANT ALL ON ALL TABLES IN SCHEMA
+    auth, users, education, facilities, activities, active,
+    schedule, iot, feedback, config, suggestions, audit, platform TO phoenix_admin;
+
+-- Verbindungs-Rolle darf zu beiden switchen
+GRANT phoenix_tenant TO phoenix_auth;
+GRANT phoenix_admin TO phoenix_auth;
 ```
 
-### 4.2 RLS-Policy Template (fuer JEDE tenant-scoped Tabelle)
+**Sicherster Default:** `phoenix_auth` hat NOINHERIT → null Rechte. Vergessene Transaktion = Hard-Fail (Permission Denied), nicht stiller Bypass.
+
+### 4.2 Warum nicht `tenant_id=0` Bypass (D7)
+
+`tenant_id=0` Bypass ist fail-open — ein einziger Bug (vergessene Middleware, Default-Wert) gibt alle Daten frei. Kein ernstzunehmender Multi-Tenant-Anbieter nutzt Magic-Value-Bypasses. Stattdessen: `phoenix_admin` (BYPASSRLS) fuer Operator/Platform-Scope.
+
+---
+
+## 5. RLS-Policies
+
+### 5.1 RLS-Policy Template (fuer JEDE tenant-scoped Tabelle)
 
 ```sql
 ALTER TABLE {schema}.{table} ENABLE ROW LEVEL SECURITY;
@@ -196,25 +246,65 @@ CREATE POLICY tenant_isolation_{table}
     ON {schema}.{table}
     FOR ALL
     USING (
-        -- Platform scope (tenant_id=0) bypasses RLS (fuer Operator)
-        (SELECT current_setting('app.current_tenant_id', true))::bigint = 0
-        OR tenant_id = (SELECT current_setting('app.current_tenant_id', true))::bigint
+        tenant_id = NULLIF(
+            current_setting('app.current_tenant_id', true), ''
+        )::bigint
     );
 ```
 
-**Wichtig:** Der `(SELECT ...)` Wrapper erzwingt, dass PostgreSQL `current_setting()` als initPlan (einmalig) evaluiert statt pro Zeile. Das bringt laut Supabase >100x Performance-Verbesserung auf grossen Tabellen.
+**Kein `=0` Bypass in der Policy.** `NULLIF` verhindert Cast-Error bei leerem String → NULL → kein Match → zero rows. Fail-closed: Vergessenes `set_config` → kein Zugriff (sicher).
 
-### 4.3 Platform-Tabellen (kein RLS)
+**Performance:** Der `(SELECT ...)` Wrapper um `current_setting()` ist hier nicht noetig — PostgreSQL evaluiert `current_setting()` als stabilen Ausdruck bereits einmalig pro Scan (initPlan). Supabase empfiehlt den Wrapper fuer komplexere Ausdruecke wie `auth.uid()`, nicht fuer `current_setting()`.
 
-- `platform.organizations` - kein RLS, nur Operator-Zugriff
+### 5.2 Platform-Tabellen (kein RLS)
+
+- `platform.organizations` - kein RLS, nur Operator-Zugriff (via `WithAdminTx`)
 - `platform.operators` - kein RLS, nur Operator-Zugriff
-- `platform.schools` - kein RLS, aber App liest nur eigenen Tenant
+- `platform.schools` - kein RLS, aber `phoenix_tenant` hat nur SELECT-Recht
 - `platform.announcements` - kein RLS, separates Berechtigungssystem
 - `platform.operator_audit_log` - kein RLS, nur Operator-Zugriff
 
+### 5.3 Views mit security_invoker (D16)
+
+Alle Views auf tenant-scoped Tabellen MUESSEN `security_invoker = true` setzen, da Views standardmaessig als Owner ausgefuehrt werden (SECURITY DEFINER) und damit RLS bypassen.
+
+```sql
+-- Bestehende View fixen:
+CREATE OR REPLACE VIEW users.expired_privacy_consents
+WITH (security_invoker = true) AS
+SELECT pc.*, s.person_id
+FROM users.privacy_consents pc
+JOIN users.students s ON pc.student_id = s.id
+WHERE ...;
+```
+
+**Regel:** Keine neuen Views auf tenant-scoped Tabellen ohne `security_invoker = true`.
+
 ---
 
-## 5. RLS Rollout in 3 Phasen
+## 6. PostgreSQL-Anforderungen (D16)
+
+### 6.1 Mindestversion: PostgreSQL 17.6
+
+| CVE | Beschreibung | Gefixt in |
+|-----|-------------|-----------|
+| CVE-2024-10976 | Plan-Cache ignoriert Role-Wechsel bei Subqueries/CTEs + SET LOCAL ROLE | PG 17.1 |
+| CVE-2025-8713 | Optimizer-Statistiken leaken RLS-versteckte Daten | PG 17.6 |
+
+Docker-Compose und Deployment-Configs muessen `postgres:17.6` oder hoeher verwenden.
+
+### 6.2 Verbotene Patterns
+
+| Pattern | Grund |
+|---------|-------|
+| Materialized Views auf Tenant-Tabellen | Bypassen RLS komplett |
+| COPY FROM auf RLS-Tabellen | PostgreSQL blockiert es |
+| SECURITY DEFINER Funktionen mit BYPASSRLS-Owner | Bypassen RLS |
+| Views ohne `security_invoker = true` | Bypassen RLS |
+
+---
+
+## 7. RLS Rollout in 3 Phasen
 
 ```
 Phase 1 (Woche 1-2): ENABLE RLS + permissive Policy USING (true)
@@ -222,51 +312,55 @@ Phase 1 (Woche 1-2): ENABLE RLS + permissive Policy USING (true)
     -> Verifiziert: Kein Query bricht durch RLS-Aktivierung
 
 Phase 2 (Woche 3-4): Echte Policy + Logging bei Violations
-    -> SET LOCAL wird in allen Code-Paths gesetzt
+    -> SET LOCAL ROLE wird in allen Code-Paths gesetzt (WithTenantTx/WithAdminTx)
     -> Violations werden geloggt (nicht blockiert)
-    -> Ziel: 100% der Requests haben Tenant-Context
+    -> Ziel: 100% der Requests haben korrekten Transaktions-Context
 
 Phase 3 (Woche 5+): Strikte Enforcement
-    -> current_setting(..., false) statt true
-    -> Fehlender Tenant-Context = Error statt leeres Ergebnis
+    -> NULLIF-Policy aktiv (fehlender Context = zero rows)
+    -> phoenix_auth NOINHERIT erzwingt: ohne Transaktion = Permission Denied
     -> Permissive Fallbacks entfernt
 ```
 
 ---
 
-## 6. Migrations-Strategie fuer Production
+## 8. Migrations-Strategie fuer Production
 
-### 6.1 Reihenfolge (Zero-Downtime)
+### 8.1 Reihenfolge (Zero-Downtime)
 
 ```
  1. Migration: platform.organizations + platform.schools erstellen
  2. Migration: Default-Org und Default-School erstellen (ID=1)
- 3. Migration: tenant_id (NULLABLE) zu allen Tabellen hinzufuegen
+ 3. Migration: Drei PostgreSQL-Rollen erstellen (phoenix_auth, phoenix_tenant, phoenix_admin)
+ 4. Migration: tenant_id (NULLABLE) zu allen ~41 Tabellen hinzufuegen
     -> Non-blocking in PostgreSQL (nur Metadaten-Aenderung)
- 4. Migration: UPDATE ... SET tenant_id = 1 fuer alle bestehenden Rows
+ 5. Migration: UPDATE ... SET tenant_id = 1 fuer alle bestehenden Rows
     -> In Batches fuer grosse Tabellen (LIMIT + OFFSET)
- 5. Migration: tenant_id NOT NULL Constraint setzen
- 6. Migration: Indexes erstellen (CONCURRENTLY)
- 7. Migration: RLS Policies erstellen (Phase 1: permissive)
- 8. Migration: auth.account_tenants befuellen (alle Accounts -> Tenant 1)
- 9. Code-Deploy mit Tenant-Middleware
-10. Verification: Alle Queries funktionieren noch
-11. Migration: RLS auf strict umstellen (Phase 3)
+ 6. Migration: tenant_id NOT NULL Constraint setzen
+ 7. Migration: Indexes erstellen (CONCURRENTLY)
+ 8. Migration: Views mit security_invoker = true aktualisieren
+ 9. Migration: RLS Policies erstellen (Phase 1: permissive)
+10. Migration: auth.account_tenants befuellen (alle Accounts -> Tenant 1)
+11. Code-Deploy mit Tenant-Middleware + WithTenantTx/WithAdminTx
+12. Verification: Alle Queries funktionieren noch
+13. Migration: RLS auf strict umstellen (Phase 3)
 ```
 
-### 6.2 Rollback-Plan
+### 8.2 Rollback-Plan
 
 ```
-Bei Problemen nach Schritt 9:
+Bei Problemen nach Schritt 11:
 - Code-Rollback auf vorherige Version (ohne Tenant-Middleware)
 - tenant_id Spalten bleiben (stoeren nicht, da nullable oder default)
 - RLS-Policies auf USING(true) zuruecksetzen
+- Rollen bleiben bestehen (stoeren nicht)
 ```
 
 ---
 
-## 7. Aenderungshistorie
+## 9. Aenderungshistorie
 
 | Datum | Aenderung |
 |-------|-----------|
 | 2026-02-08 | Initiale Version basierend auf vollstaendiger Codebase-Analyse |
+| 2026-02-08 | Aktualisiert gemaess DEBATE-Entscheidungen: Drei-Rollen statt phoenix_app (D7/D8), RLS ohne tenant_id=0 Bypass (D7), account_tenants mit Status/Soft-Delete (D15), auth-Tabellen ohne tenant_id (D13), PG 17.6 (D16), security_invoker (D16) |
