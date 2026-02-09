@@ -130,35 +130,10 @@ export async function handleAuthFailure(): Promise<boolean> {
     const newTokens = await refreshToken();
 
     if (newTokens) {
-      // Token refresh successful
-
-      // Mark the time of successful refresh
+      // Token refresh successful — the JWT callback already persisted
+      // the refreshed tokens in the session cookie when /api/auth/token
+      // called auth(). No need to call signIn() again.
       sessionStorage.setItem("lastSuccessfulRefresh", Date.now().toString());
-
-      // IMPORTANT: Update the NextAuth session with new tokens
-      try {
-        // Use signIn with internalRefresh to update the session
-        const { signIn } = await import("next-auth/react");
-
-        const result = await signIn("credentials", {
-          internalRefresh: "true",
-          token: newTokens.access_token,
-          refreshToken: newTokens.refresh_token,
-          redirect: false,
-        });
-
-        if (result?.ok) {
-          logger.info("session updated with new tokens");
-        } else {
-          logger.error("failed to update session with new tokens", {
-            error: result?.error,
-          });
-        }
-      } catch (sessionError) {
-        logger.error("error updating session", { error: String(sessionError) });
-      }
-
-      // Return true to retry the original request regardless of session update
       return true;
     }
 

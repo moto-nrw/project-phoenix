@@ -149,4 +149,32 @@ describe("refreshSessionTokensOnServer", () => {
     // Should have called auth twice
     expect(mockAuth).toHaveBeenCalledTimes(2);
   });
+
+  it("should start fresh after a failed call (promise cleared on failure)", async () => {
+    // First call: auth() returns null (failure)
+    mockAuth.mockResolvedValueOnce(null);
+
+    const result1 = await refreshSessionTokensOnServer();
+    expect(result1).toBeNull();
+    expect(mockAuth).toHaveBeenCalledTimes(1);
+
+    // Second call: auth() succeeds — should NOT reuse the failed promise
+    mockAuth.mockResolvedValueOnce({
+      user: {
+        id: "456",
+        email: "test@example.com",
+        token: "recovered-access-token",
+        refreshToken: "recovered-refresh-token",
+      },
+      expires: "2099-12-31",
+    });
+
+    const result2 = await refreshSessionTokensOnServer();
+    expect(result2).toEqual({
+      accessToken: "recovered-access-token",
+      refreshToken: "recovered-refresh-token",
+    });
+    // auth() called again (promise was cleared after first failure)
+    expect(mockAuth).toHaveBeenCalledTimes(2);
+  });
 });
