@@ -55,6 +55,7 @@ Traeger (z.B. "Caritas Muenster")
 - Ein Elternteil kann Kinder in verschiedenen OGS und sogar verschiedenen Traegern haben
 - Die OGS ist die **Daten-Isolationsgrenze** (ein Betreuer in OGS A darf NICHT die Daten von OGS B sehen)
 - Der Traeger ist die uebergeordnete Organisation ("Umbrella")
+- **Rollen sind global** (D13): Eine Rolle gilt fuer alle Tenants, auf die ein Account Zugriff hat. Per-Tenant-Rollen (z.B. "Admin bei OGS A, Betreuer bei OGS B") werden nicht implementiert — YAGNI, nachruesten trivial via `account_tenants.role_id`
 
 ---
 
@@ -135,6 +136,8 @@ Buero-Mitarbeiter existieren auf **zwei Ebenen** - beide koennen gleichzeitig in
 - Der Zugriff ist **zeitlich begrenzt** (z.B. "Sommerferien 2026: 01.07.-12.08.")
 - Nach Ablauf faellt der Zugriff automatisch weg
 - Moeglich innerhalb eines Traegers UND **traeger-uebergreifend** (maximale Flexibilitaet)
+
+**Mechanismus (D4):** Tenant-Switch als Primaer-Mechanismus + gezielter Service-Level Cross-Tenant-Read fuer Ferienbetreuung. Admin erstellt Feriengruppe an Host-OGS, enrollt Kinder aus anderen OGS. Active-Service erkennt Cross-Tenant-Enrollments und holt nur die eingeschriebenen Kinder via privilegierten Read (Admin-Connection). RLS bleibt simpel: ein tenant_id pro Request, kein Array-Support.
 
 ### 4.2 Betreuer an mehreren OGS
 
@@ -232,3 +235,4 @@ Buero-Mitarbeiter existieren auf **zwei Ebenen** - beide koennen gleichzeitig in
 | 2026-02-07 | Initiale Version mit allen bisherigen Anforderungen |
 | 2026-02-08 | Eltern in Hierarchie, Betreuer-Edge-Cases, Operator ohne Impersonation, Cross-OGS traeger-uebergreifend, alle offenen Fragen geklaert |
 | 2026-02-08 | Buero-Mitarbeiter auf zwei Ebenen (Traeger-Buero + OGS-Buero), Hierarchie-Diagramm aktualisiert |
+| 2026-02-08 | D4-Mechanismus (Ferienbetreuung) und D13 (globale Rollen) ergaenzt |
