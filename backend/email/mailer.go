@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/jaytaylor/html2text"
+	"github.com/k3a/html2text"
 	"github.com/vanng822/go-premailer/premailer"
 )
 
@@ -49,11 +49,7 @@ func (m *Message) parse() error {
 	}
 	m.html = html
 
-	text, err := html2text.FromString(html, html2text.Options{PrettyTables: true})
-	if err != nil {
-		return err
-	}
-	m.text = text
+	m.text = html2text.HTML2Text(html)
 	return nil
 }
 
