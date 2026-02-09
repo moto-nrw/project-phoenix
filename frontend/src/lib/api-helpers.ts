@@ -80,16 +80,7 @@ async function serverFetchWithRetry<T>(
       cache: "no-store", // Prevent Next.js from caching API responses
     });
 
-  let response = await executeRequest(token);
-
-  if (response.status === 401) {
-    const { refreshSessionTokensOnServer } =
-      await import("~/server/auth/token-refresh");
-    const refreshed = await refreshSessionTokensOnServer();
-    if (refreshed?.accessToken) {
-      response = await executeRequest(refreshed.accessToken);
-    }
-  }
+  const response = await executeRequest(token);
 
   if (!response.ok) {
     const errorText = await response.text();

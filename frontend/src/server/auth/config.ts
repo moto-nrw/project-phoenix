@@ -379,9 +379,10 @@ export const authConfig = {
       // Frontend singleflight + cache prevents stale token overwrites when
       // multiple JWT callbacks race (the late-arriving callback would otherwise
       // use the old refresh token, get 401, and overwrite good tokens).
-      // Only fires in the pre-expiry window (not after expiry) to avoid
-      // double-refreshing when the dedicated refresh handler (token-refresh.ts)
-      // calls auth() on an already-expired token.
+      // Fires whenever the access token is within the pre-expiry buffer OR
+      // already expired, as long as the refresh token is still valid.
+      // After a successful refresh, tokenExpiry resets to now + 1h, so the
+      // condition won't re-fire until 55 minutes later.
       const REFRESH_BUFFER_MS = 5 * 60 * 1000; // 5 minutes before expiry
       const REFRESH_TIMEOUT_MS = 5_000; // 5 second timeout
 
@@ -392,7 +393,6 @@ export const authConfig = {
         token.refreshToken &&
         token.refreshTokenExpiry &&
         now > tokenExpiry - REFRESH_BUFFER_MS &&
-        now < tokenExpiry && // Not yet expired — only pre-emptive
         now < (token.refreshTokenExpiry as number)
       ) {
         const currentRefreshToken = token.refreshToken as string;
@@ -423,6 +423,10 @@ export const authConfig = {
             token.error = undefined;
             token.needsRefresh = undefined;
             logger.info("proactive_token_refresh_succeeded");
+          } else if (now > tokenExpiry) {
+            token.error = "RefreshTokenError";
+            token.needsRefresh = true;
+            logger.warn("token_refresh_failed_post_expiry");
           }
           return token;
         }
@@ -475,6 +479,10 @@ export const authConfig = {
           token.error = undefined;
           token.needsRefresh = undefined;
           logger.info("proactive_token_refresh_succeeded");
+        } else if (now > tokenExpiry) {
+          token.error = "RefreshTokenError";
+          token.needsRefresh = true;
+          logger.warn("token_refresh_failed_post_expiry");
         }
       }
 

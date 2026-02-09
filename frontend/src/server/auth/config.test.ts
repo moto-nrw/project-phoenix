@@ -228,7 +228,15 @@ describe("authConfig", () => {
       expect(result?.error).toBeUndefined();
     });
 
-    it("should skip proactive refresh when access token already expired", async () => {
+    it("should proactively refresh when access token already expired", async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          access_token: "refreshed-access-token",
+          refresh_token: "refreshed-refresh-token",
+        }),
+      });
+
       const token = {
         id: "123",
         token: "old-access-token",
@@ -247,9 +255,11 @@ describe("authConfig", () => {
         session: undefined,
       });
 
-      // Proactive refresh should NOT fire — the dedicated refresh handler will handle it
-      expect(mockFetch).not.toHaveBeenCalled();
-      expect(result?.token).toBe("old-access-token");
+      // JWT callback now handles post-expiry refresh too
+      expect(mockFetch).toHaveBeenCalledOnce();
+      expect(result?.token).toBe("refreshed-access-token");
+      expect(result?.refreshToken).toBe("refreshed-refresh-token");
+      expect(result?.error).toBeUndefined();
     });
 
     it("should deduplicate late-arriving callbacks via cache", async () => {
