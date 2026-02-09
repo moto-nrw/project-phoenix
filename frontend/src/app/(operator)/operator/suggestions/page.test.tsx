@@ -384,6 +384,160 @@ describe("OperatorSuggestionsPage", () => {
     });
   });
 
+  describe("expand/collapse description", () => {
+    it("does not show expand button when description fits within clamp", () => {
+      render(<OperatorSuggestionsPage />);
+
+      expect(screen.queryByText("Mehr anzeigen")).not.toBeInTheDocument();
+      expect(screen.queryByText("Weniger anzeigen")).not.toBeInTheDocument();
+    });
+
+    it("shows 'Mehr anzeigen' button when description overflows", () => {
+      // Mock scrollHeight > clientHeight to simulate overflow
+      const originalScrollHeight = Object.getOwnPropertyDescriptor(
+        HTMLElement.prototype,
+        "scrollHeight",
+      );
+      const originalClientHeight = Object.getOwnPropertyDescriptor(
+        HTMLElement.prototype,
+        "clientHeight",
+      );
+      Object.defineProperty(HTMLElement.prototype, "scrollHeight", {
+        configurable: true,
+        get() {
+          return 100;
+        },
+      });
+      Object.defineProperty(HTMLElement.prototype, "clientHeight", {
+        configurable: true,
+        get() {
+          return 40;
+        },
+      });
+
+      render(<OperatorSuggestionsPage />);
+
+      expect(screen.getByText("Mehr anzeigen")).toBeInTheDocument();
+
+      // Restore
+      if (originalScrollHeight) {
+        Object.defineProperty(
+          HTMLElement.prototype,
+          "scrollHeight",
+          originalScrollHeight,
+        );
+      }
+      if (originalClientHeight) {
+        Object.defineProperty(
+          HTMLElement.prototype,
+          "clientHeight",
+          originalClientHeight,
+        );
+      }
+    });
+
+    it("toggles between 'Mehr anzeigen' and 'Weniger anzeigen'", () => {
+      const originalScrollHeight = Object.getOwnPropertyDescriptor(
+        HTMLElement.prototype,
+        "scrollHeight",
+      );
+      const originalClientHeight = Object.getOwnPropertyDescriptor(
+        HTMLElement.prototype,
+        "clientHeight",
+      );
+      Object.defineProperty(HTMLElement.prototype, "scrollHeight", {
+        configurable: true,
+        get() {
+          return 100;
+        },
+      });
+      Object.defineProperty(HTMLElement.prototype, "clientHeight", {
+        configurable: true,
+        get() {
+          return 40;
+        },
+      });
+
+      render(<OperatorSuggestionsPage />);
+
+      // Initially shows "Mehr anzeigen"
+      const expandButton = screen.getByText("Mehr anzeigen");
+      expect(expandButton).toBeInTheDocument();
+
+      // Click to expand
+      fireEvent.click(expandButton);
+      expect(screen.getByText("Weniger anzeigen")).toBeInTheDocument();
+      expect(screen.queryByText("Mehr anzeigen")).not.toBeInTheDocument();
+
+      // Click to collapse
+      fireEvent.click(screen.getByText("Weniger anzeigen"));
+      expect(screen.getByText("Mehr anzeigen")).toBeInTheDocument();
+
+      // Restore
+      if (originalScrollHeight) {
+        Object.defineProperty(
+          HTMLElement.prototype,
+          "scrollHeight",
+          originalScrollHeight,
+        );
+      }
+      if (originalClientHeight) {
+        Object.defineProperty(
+          HTMLElement.prototype,
+          "clientHeight",
+          originalClientHeight,
+        );
+      }
+    });
+
+    it("removes line-clamp-2 class when expanded", () => {
+      const originalScrollHeight = Object.getOwnPropertyDescriptor(
+        HTMLElement.prototype,
+        "scrollHeight",
+      );
+      const originalClientHeight = Object.getOwnPropertyDescriptor(
+        HTMLElement.prototype,
+        "clientHeight",
+      );
+      Object.defineProperty(HTMLElement.prototype, "scrollHeight", {
+        configurable: true,
+        get() {
+          return 100;
+        },
+      });
+      Object.defineProperty(HTMLElement.prototype, "clientHeight", {
+        configurable: true,
+        get() {
+          return 40;
+        },
+      });
+
+      render(<OperatorSuggestionsPage />);
+
+      const description = screen.getByText("Test description");
+      expect(description).toHaveClass("line-clamp-2");
+
+      fireEvent.click(screen.getByText("Mehr anzeigen"));
+      expect(description).not.toHaveClass("line-clamp-2");
+
+      // Restore
+      if (originalScrollHeight) {
+        Object.defineProperty(
+          HTMLElement.prototype,
+          "scrollHeight",
+          originalScrollHeight,
+        );
+      }
+      if (originalClientHeight) {
+        Object.defineProperty(
+          HTMLElement.prototype,
+          "clientHeight",
+          originalClientHeight,
+        );
+      }
+    });
+  });
+
   it("filters by title, description, and author name", () => {
     const suggestions = [
       mockSuggestion,
