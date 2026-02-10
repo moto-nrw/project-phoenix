@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { NextRequest } from "next/server";
-import { middleware } from "./middleware";
+import { proxy } from "./proxy";
 
 // Use vi.hoisted for mock values referenced in vi.mock
 const { mockNext, mockRedirect } = vi.hoisted(() => ({
@@ -19,7 +19,7 @@ vi.mock("next/server", async (importOriginal) => {
   };
 });
 
-describe("middleware", () => {
+describe("proxy", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -45,7 +45,7 @@ describe("middleware", () => {
   it("allows access to operator login page without token", () => {
     const request = createRequest("/operator/login");
 
-    middleware(request);
+    proxy(request);
 
     expect(mockNext).toHaveBeenCalled();
     expect(mockRedirect).not.toHaveBeenCalled();
@@ -54,7 +54,7 @@ describe("middleware", () => {
   it("redirects to login when accessing operator route without token", () => {
     const request = createRequest("/operator/suggestions");
 
-    middleware(request);
+    proxy(request);
 
     expect(mockRedirect).toHaveBeenCalledWith(
       new URL("/operator/login", "http://localhost:3000/operator/suggestions"),
@@ -64,7 +64,7 @@ describe("middleware", () => {
   it("allows access to operator route with valid token", () => {
     const request = createRequest("/operator/suggestions", "valid-token");
 
-    middleware(request);
+    proxy(request);
 
     expect(mockNext).toHaveBeenCalled();
     expect(mockRedirect).not.toHaveBeenCalled();
@@ -73,7 +73,7 @@ describe("middleware", () => {
   it("allows access to non-operator routes without token", () => {
     const request = createRequest("/dashboard");
 
-    middleware(request);
+    proxy(request);
 
     expect(mockNext).toHaveBeenCalled();
     expect(mockRedirect).not.toHaveBeenCalled();
@@ -82,7 +82,7 @@ describe("middleware", () => {
   it("redirects to login for operator settings without token", () => {
     const request = createRequest("/operator/settings");
 
-    middleware(request);
+    proxy(request);
 
     expect(mockRedirect).toHaveBeenCalled();
   });
@@ -90,7 +90,7 @@ describe("middleware", () => {
   it("allows access to operator settings with token", () => {
     const request = createRequest("/operator/settings", "token-123");
 
-    middleware(request);
+    proxy(request);
 
     expect(mockNext).toHaveBeenCalled();
   });
@@ -98,7 +98,7 @@ describe("middleware", () => {
   it("does not redirect for operator login with token", () => {
     const request = createRequest("/operator/login", "existing-token");
 
-    middleware(request);
+    proxy(request);
 
     expect(mockNext).toHaveBeenCalled();
     expect(mockRedirect).not.toHaveBeenCalled();
@@ -107,7 +107,7 @@ describe("middleware", () => {
   it("redirects for nested operator routes without token", () => {
     const request = createRequest("/operator/suggestions/123");
 
-    middleware(request);
+    proxy(request);
 
     expect(mockRedirect).toHaveBeenCalled();
   });
@@ -115,7 +115,7 @@ describe("middleware", () => {
   it("allows nested operator routes with token", () => {
     const request = createRequest("/operator/suggestions/123", "token");
 
-    middleware(request);
+    proxy(request);
 
     expect(mockNext).toHaveBeenCalled();
   });
@@ -129,7 +129,7 @@ describe("middleware", () => {
       },
     } as unknown as NextRequest;
 
-    middleware(request);
+    proxy(request);
 
     expect(mockRedirect).toHaveBeenCalled();
   });
