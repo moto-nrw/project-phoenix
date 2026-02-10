@@ -410,9 +410,387 @@ api.{TENANT_DOMAIN}/api/iot/* → backend:8080/api/iot/*
 
 ---
 
-## 13. Aenderungshistorie
+## 13. Cookie-Security: Wildcard Domain Hardening (09-H4)
+
+**Problem:** Cookie mit `domain: .moto-app.de` bedeutet: XSS auf einer Subdomain kann Sessions fuer ALLE Subdomains stehlen. Das ist inherent zum Subdomain-Cookie-Design — ohne Wildcard-Cookie muessten User bei jedem Tenant-Switch neu einloggen.
+
+**Mitigations (Defense-in-Depth):**
+
+### 13.1 Content Security Policy (CSP) per Subdomain
+
+```typescript
+// middleware.ts — CSP-Header fuer jede Response
+const cspHeader = [
+    "default-src 'self'",
+    "script-src 'self' 'nonce-${nonce}'",      // Kein inline-script
+    "style-src 'self' 'unsafe-inline'",         // Tailwind braucht inline styles
+    "img-src 'self' data: blob:",
+    "connect-src 'self' wss:",                  // SSE/WebSocket
+    "frame-ancestors 'none'",                   // Kein Embedding
+    "base-uri 'self'",                          // Kein Base-Tag Hijacking
+    "form-action 'self'",                       // Kein Form-Redirect
+].join('; ');
+```
+
+### 13.2 Cookie-Schutzschichten
+
+| Schicht | Was sie schuetzt | Status |
+|---------|-----------------|--------|
+| `HttpOnly` | Kein JavaScript-Zugriff auf Cookie | Bereits gesetzt |
+| `SameSite=Lax` | Kein CSRF via Cross-Site POST | Bereits gesetzt |
+| `Secure` | Nur ueber HTTPS | Bereits gesetzt (Production) |
+| `__Secure-` Prefix | Browser erzwingt Secure-Flag | Bereits gesetzt |
+| JWT `tenant_id` | Cookie-Diebstahl gibt nur Zugang zum aktuellen Tenant | Architektur-inhaerent |
+| CSP | Verhindert XSS (primaerer Angriffsvektor) | NEU — muss implementiert werden |
+
+### 13.3 Warum `__Host-` Prefix NICHT funktioniert
+
+`__Host-` Prefix wuerde Cookie an exakte Origin binden (kein `domain` Attribut). Aber dann funktioniert Tenant-Switch nicht — Cookie von `altenberge.moto-app.de` waere bei `greven.moto-app.de` unsichtbar.
+
+**Akzeptiertes Restrisiko:** Wildcard-Cookie ist noetig fuer UX. XSS-Praevention via CSP ist die primaere Verteidigung. Subdomain-Takeover-Monitoring als operationale Massnahme.
+
+---
+
+## 14. Login-Validierung: Slug vs Subdomain (09-H5)
+
+**Problem:** Login sendet `tenant_slug` aus URL-Params im Body. Ohne Validierung:
+1. User besucht `altenberge.moto-app.de/login`
+2. Attacker intercepted Request, aendert Body zu `{ tenant_slug: "greven" }`
+3. Backend gibt JWT fuer Greven zurueck
+4. UI zeigt Altenberge-Branding, Daten kommen von Greven
+
+**Fix: Backend validiert Slug gegen Origin-Header**
+
+```go
+// backend/api/auth/login_handler.go
+func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
+    var req LoginRequest
+    // ... parse body ...
+
+    // NEU: Slug-Origin-Validierung (09-H5)
+    origin := r.Header.Get("Origin")
+    if origin != "" {
+        originURL, err := url.Parse(origin)
+        if err == nil {
+            expectedSlug := extractSubdomain(originURL.Hostname())
+            if expectedSlug != "" && expectedSlug != req.TenantSlug {
+                http.Error(w, "tenant_slug does not match origin", http.StatusBadRequest)
+                return
+            }
+        }
+    }
+
+    // ... normaler Login-Flow ...
+}
+```
+
+**Warum Origin statt Referer:** `Origin` ist bei POST-Requests immer gesetzt (Fetch Spec). `Referer` kann vom Browser oder Proxy gekuerzt werden. Fallback: Wenn `Origin` fehlt (alte Browser, Proxy), Login trotzdem erlauben — die CSP verhindert XSS-basierte Angriffe.
+
+---
+
+## 15. NextAuth Session: Tenant-Felder (09-H6)
+
+**Problem:** Aktuelles `JwtPayload` Interface hat keine Tenant-Felder. Nach Token-Refresh (alle 15 Minuten) geht der Tenant-Context verloren.
+
+### 15.1 Erweitertes JwtPayload
+
+```typescript
+// server/auth/config.ts
+interface JwtPayload {
+    // Bestehende Felder:
+    id: string | number;
+    sub?: string;
+    username?: string;
+    first_name?: string;
+    last_name?: string;
+    email?: string;
+    roles?: string[];
+    is_admin?: boolean;
+
+    // NEU: Tenant-Felder (D5, D12, D13 rev)
+    tenant_id?: number;
+    tenant_slug?: string;
+    org_id?: number;
+    scope?: string;            // "" | "org" | "platform"
+    permissions?: string[];    // Per-Tenant Permissions (D13 rev)
+}
+```
+
+### 15.2 parseJwtPayload Erweiterung
+
+```typescript
+function parseJwtPayload(token: string): JwtPayload {
+    const payload = jwtDecode<JwtPayload>(token);
+    return {
+        ...payload,
+        // Sicherstellen dass Tenant-Felder vorhanden sind
+        tenant_id: payload.tenant_id ?? undefined,
+        tenant_slug: payload.tenant_slug ?? undefined,
+        org_id: payload.org_id ?? undefined,
+        scope: payload.scope ?? '',
+        permissions: payload.permissions ?? [],
+    };
+}
+```
+
+### 15.3 Token-Refresh bewahrt Tenant-Context (D12)
+
+```typescript
+// auth-api.ts — Refresh-Flow
+async function refreshToken(refreshToken: string): Promise<TokenPair> {
+    // Backend re-validiert account_tenants Membership (D12)
+    // und gibt neuen JWT mit aktuellen tenant_id + permissions zurueck
+    const response = await fetch('/api/auth/refresh', {
+        method: 'POST',
+        body: JSON.stringify({ refresh_token: refreshToken }),
+    });
+    // Neuer JWT enthaelt garantiert tenant_id + tenant_slug + permissions
+    return response.json();
+}
+```
+
+---
+
+## 16. SWR + Session Cache: Vollstaendige Isolation (09-H7)
+
+### 16.1 useTenantSWR (bereits in §10)
+
+Alle 821 SWR-Calls muessen `useTenantSWR` nutzen. Migration:
+
+```typescript
+// VORHER (821 Stellen)
+useSWR('/api/students', fetcher)
+
+// NACHHER
+useTenantSWR('/api/students', fetcher)
+// → interner Key: "t42:/api/students"
+```
+
+### 16.2 Session Cache Invalidierung bei Tenant-Switch
+
+**Problem:** `session-cache.ts` cached die Session 10 Sekunden lang auf Modul-Ebene. Nach Tenant-Switch liefert der Cache den ALTEN JWT mit dem ALTEN `tenant_id`.
+
+```typescript
+// lib/session-cache.ts — NEU: Tenant-Awareness
+let cachedSession: CachedSession | null = null;
+let cachedTenantId: string | null = null;
+
+export function getCachedSession(currentTenantId: string): Session | null {
+    if (cachedTenantId !== currentTenantId) {
+        // Tenant gewechselt → Cache invalidieren
+        cachedSession = null;
+        cachedTenantId = currentTenantId;
+        return null;
+    }
+    if (cachedSession && Date.now() - cachedSession.timestamp < 10_000) {
+        return cachedSession.session;
+    }
+    return null;
+}
+```
+
+### 16.3 SWR-Cache Invalidierung bei Tenant-Switch
+
+Bereits in §9 dokumentiert (`mutate(() => true, undefined, { revalidate: false })`). Zusaetzlich:
+
+```typescript
+async function handleSwitch(slug: string) {
+    await switchTenant(slug);
+
+    // 1. SWR-Cache komplett invalidieren
+    mutate(() => true, undefined, { revalidate: false });
+
+    // 2. Session-Cache invalidieren
+    clearSessionCache();
+
+    // 3. Redirect zur neuen Subdomain (neuer Origin = neuer localStorage)
+    window.location.href = `https://${slug}.${TENANT_DOMAIN}/dashboard`;
+}
+```
+
+**Warum `window.location.href` statt `router.push`:** Hard-Navigation zu einer anderen Subdomain ist ein Origin-Wechsel. Der Browser erstellt einen neuen JS-Context — kein stale Cache, kein stale State.
+
+### 16.4 Browser HTTP Cache
+
+```typescript
+// lib/api.ts — Cache-Control Headers
+const axiosInstance = axios.create({
+    headers: {
+        'Cache-Control': 'no-store',  // Kein Browser-Cache fuer API-Responses
+    },
+});
+```
+
+API-Responses mit Tenant-Daten duerfen NICHT im Browser-Cache landen. `no-store` ist restriktiver als `no-cache` (kein Speichern, nicht mal mit Revalidierung).
+
+---
+
+## 17. Redirect-Pfade: Tenant-Prefix Pattern (09-H8)
+
+**Problem:** 40+ Stellen nutzen hardcoded Redirects (`"/dashboard"`, `"/rooms"`, `"/"`) ohne Tenant-Prefix. Nach der Migration zu `[tenant]/...` brechen alle.
+
+### 17.1 Tenant-Router Helper
+
+```typescript
+// lib/tenant-router.ts
+import { useTenant } from '@/components/tenant/tenant-provider';
+import { useRouter } from 'next/navigation';
+
+export function useTenantRouter() {
+    const { tenantSlug } = useTenant();
+    const router = useRouter();
+
+    return {
+        push: (path: string) => router.push(`/${tenantSlug}${path}`),
+        replace: (path: string) => router.replace(`/${tenantSlug}${path}`),
+    };
+}
+
+// Server-side Redirect Helper
+export function tenantRedirect(tenantSlug: string, path: string): string {
+    return `/${tenantSlug}${path}`;
+}
+```
+
+### 17.2 Betroffene Stellen (Audit)
+
+| Datei | Aktuell | Nachher |
+|-------|---------|---------|
+| `lib/api.ts:471` | `window.location.href = "/"` | `window.location.href = "/${slug}/login"` |
+| `lib/auth-api.ts:169` | `window.location.href = "/"` | `window.location.href = "/${slug}/login"` |
+| `server/auth/config.ts:403` | `pages: { signIn: "/" }` | `pages: { signIn: "/${slug}/login" }` |
+| `dashboard/page.tsx` | `router.replace("/")` | `tenantRouter.replace("/dashboard")` |
+| `sidebar.tsx` | `router.push("/ogs-groups")` | `tenantRouter.push("/ogs-groups")` |
+| `rooms/page.tsx` | `router.push("/rooms/${id}")` | `tenantRouter.push("/rooms/${id}")` |
+
+**Vollstaendige Migration:** Alle `router.push("/"...)` und `window.location.href = "/"` Aufrufe muessen auf `useTenantRouter()` bzw. `tenantRedirect()` umgestellt werden. CI-Lint-Rule um neue hardcoded Redirects zu verhindern:
+
+```javascript
+// eslint: no-restricted-syntax rule
+"no-restricted-syntax": [
+    "error",
+    {
+        selector: "CallExpression[callee.property.name='push'][arguments.0.value=/^\\/[^[]/]",
+        message: "Use useTenantRouter().push() instead of router.push() with hardcoded paths"
+    }
+]
+```
+
+---
+
+## 18. Tenant-Switch: NextAuth Session Update (09-M3)
+
+**Problem:** `switchTenant()` gibt einen neuen JWT zurueck, aber speichert ihn nicht in der NextAuth Session. Der Wildcard-Cookie traegt die ALTE Session zur neuen Subdomain. UI zeigt neuen Tenant, API-Calls nutzen alten JWT.
+
+**Fix:** Tenant-Switch muss NextAuth Session updaten BEVOR der Redirect passiert:
+
+```typescript
+async function handleSwitch(slug: string) {
+    // 1. Backend gibt neuen JWT zurueck
+    const { access_token, refresh_token } = await switchTenant(slug);
+
+    // 2. NextAuth Session mit neuem Token updaten
+    // signIn("credentials") mit dem neuen Token
+    await signIn('credentials', {
+        redirect: false,
+        access_token,
+        refresh_token,
+    });
+
+    // 3. Caches invalidieren (§16.3)
+    mutate(() => true, undefined, { revalidate: false });
+    clearSessionCache();
+
+    // 4. Hard-Navigate zur neuen Subdomain
+    window.location.href = `https://${slug}.${TENANT_DOMAIN}/dashboard`;
+}
+```
+
+**Alternativ (einfacher):** Da `window.location.href` einen Origin-Wechsel macht, reicht es wenn das Backend den neuen JWT direkt als Cookie setzt (via `Set-Cookie` Header in der Switch-Response). Die neue Subdomain empfaengt dann automatisch den neuen Cookie.
+
+---
+
+## 19. Lokale Entwicklungsumgebung fuer Subdomains (06-#8)
+
+### 19.1 Browser-Kompatibilitaet
+
+Moderne Browser unterstuetzen `*.localhost` nativ — kein `/etc/hosts`-Eintrag noetig:
+
+| Browser | `*.localhost` Support | Mindestversion |
+|---------|----------------------|----------------|
+| Chrome | Ja | 63+ (Dez 2017) |
+| Firefox | Ja | 84+ (Dez 2020) |
+| Edge | Ja | 79+ (Chromium-basiert) |
+| Safari | **Nein** | — (erfordert `/etc/hosts`) |
+
+### 19.2 URLs fuer lokale Entwicklung
+
+```bash
+# Tenant-spezifische Pages:
+http://school-a.localhost:3000/login
+http://school-b.localhost:3000/dashboard
+
+# Root-Domain (Tenant-Auswahl / Landing):
+http://localhost:3000/
+
+# Operator:
+http://operator.localhost:3000/operator/login
+# Alternativ ohne Subdomain (bestehende Route):
+http://localhost:3000/operator/login
+```
+
+### 19.3 Environment-Setup (dev.env / .env.local)
+
+```bash
+# backend/dev.env — CORS fuer Wildcard-Localhost
+CORS_ALLOWED_ORIGINS=http://localhost:3000,http://*.localhost:3000
+
+# frontend/.env.local
+TENANT_DOMAIN=localhost:3000
+NEXT_PUBLIC_API_URL=http://localhost:8080
+# API_URL: nicht setzen (localhost:8080 fuer Server + Client)
+```
+
+### 19.4 Seed-Daten fuer lokale Tenants
+
+```bash
+# Nach Migration: Default-Tenant + Test-Tenant erstellen
+go run main.go seed
+
+# Seeds erstellen automatisch:
+# - Organization "Traeger Test" (ID=1)
+# - School "school-a" (ID=1, Subdomain: school-a)
+# - School "school-b" (ID=2, Subdomain: school-b)
+# Damit sind http://school-a.localhost:3000/ und http://school-b.localhost:3000/ sofort nutzbar
+```
+
+### 19.5 Safari-Workaround (optional)
+
+Safari erkennt `*.localhost` nicht als Loopback. Workaround:
+
+```bash
+# /etc/hosts (nur fuer Safari-Entwickler)
+127.0.0.1  school-a.localhost school-b.localhost operator.localhost
+```
+
+### 19.6 Docker Compose
+
+Keine Aenderungen an `docker-compose.yml` noetig. Das Frontend laeuft auf Port 3000 und empfaengt Subdomains via Browser → `Host` Header → Middleware. Fuer containerisierte Entwicklung (Frontend im Container):
+
+```yaml
+# docker-compose.override.yml (optional)
+frontend:
+  environment:
+    TENANT_DOMAIN: "localhost:3000"
+```
+
+---
+
+## 20. Aenderungshistorie
 
 | Datum | Aenderung |
 |-------|-----------|
 | 2026-02-08 | Initiale Version basierend auf vollstaendiger Codebase-Analyse |
 | 2026-02-08 | Aktualisiert gemaess DEBATE-Entscheidungen: Rewrite Pattern statt Header (D11), TenantProvider + useTenant (D5), tenant_slug im Body (D6), [tenant]/layout.tsx Validation (D17), Tenant-Switch (D15), Tenant Resolve Endpoint (D5) |
+| 2026-02-10 | Security-Sektionen ergaenzt: Cookie Hardening mit CSP (§13, 09-H4), Login Slug-Origin-Validierung (§14, 09-H5), NextAuth JwtPayload Tenant-Felder (§15, 09-H6), SWR + Session Cache Isolation (§16, 09-H7), Tenant-Router Helper fuer Redirects (§17, 09-H8), NextAuth Session Update bei Tenant-Switch (§18, 09-M3) |
+| 2026-02-10 | Lokale Entwicklungsumgebung dokumentiert (§19, 06-#8): Browser-Kompatibilitaet, URLs, Environment-Setup, Seed-Daten, Safari-Workaround, Docker Compose. |

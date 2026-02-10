@@ -130,6 +130,8 @@ CREATE TABLE platform.operator_organizations (
 | `auth.password_reset_tokens` | Per-Account, nicht per-Tenant |
 | `auth.password_reset_rate_limits` | Per-Account Rate-Limiting |
 | `platform.*` | Platform-Tabellen haben per Definition kein RLS |
+| `suggestions.operator_comments` | Operator-Kommentare auf Suggestions — Operator ist Platform-Scope, kein tenant_id auf `platform.operators` |
+| `meta.migration_metadata` | Infrastruktur-Tabelle fuer Migrations-Tracking, kein Tenant-Bezug |
 
 **MIT tenant_id NULLABLE (Auth RBAC-Tabellen, D13 revidiert):**
 
@@ -152,7 +154,7 @@ CREATE POLICY tenant_isolation_roles ON auth.roles
     );
 ```
 
-**MIT tenant_id NOT NULL (Tenant-Scope, ~44 Tabellen):**
+**MIT tenant_id NOT NULL (Tenant-Scope, 58 Tabellen):**
 
 | Schema | Tabellen | Anzahl |
 |--------|----------|--------|
@@ -170,6 +172,17 @@ CREATE POLICY tenant_isolation_roles ON auth.roles
 | audit | data_deletions, auth_events, data_imports, work_session_edits | 4 |
 
 **Hinweis zu `auth.tokens`:** Refresh Tokens enthalten `tenant_id` in den JWT Claims (D12). Die DB-Spalte `tenant_id` ermoeglicht gezieltes Revoken aller Tokens fuer einen bestimmten Tenant (z.B. bei Zugriffsentzug).
+
+**Gesamtzaehlung (verifiziert gegen Migrations-Dateien):**
+
+| Kategorie | Anzahl |
+|-----------|--------|
+| Bestehende Tabellen (14 Schemas) | 70 |
+| Davon: MIT tenant_id NOT NULL | 58 |
+| Davon: MIT tenant_id NULLABLE | 1 (auth.roles) |
+| Davon: OHNE tenant_id | 11 (5× auth-global, 4× platform, meta, suggestions.operator_comments) |
+| Neue Tabellen (Multi-Tenancy) | 5 (organizations, schools, account_tenants, cross_tenant_access, operator_organizations) |
+| **Gesamt nach Migration** | **75** |
 
 ### 2.2 Migration (3 Schritte pro Tabelle)
 
@@ -190,6 +203,267 @@ ALTER TABLE {schema}.{table}
 
 - **`suggestions.comment_reads`, `suggestions.post_reads`**: Composite-PKs muessen um tenant_id erweitert werden.
 - **`audit.*` Tabellen**: tenant_id fuer Zuordnung. Operators sehen alle Audit-Daten via `WithAdminTx` (D8).
+
+### 2.4 UNIQUE Constraints Migration (C1, H2)
+
+**Problem:** Bestehende `UNIQUE`-Constraints sind single-tenant. Bei Multi-Tenancy koennen identische Werte in verschiedenen Tenants existieren (z.B. Raum "Turnhalle" bei jeder OGS). Ohne Migration brechen INSERTs ab dem zweiten Tenant.
+
+**Architektur-Entscheidung:** `auth.accounts` bleibt global (D15) — ein Login fuer alle Tenants. `users.persons`, `users.staff` etc. werden **per-Tenant** dupliziert. Ein Betreuer an 2 OGS hat einen Account aber zwei Person-Records.
+
+#### 2.4.1 MUST FIX — Funktional notwendig
+
+Constraint bricht ohne Aenderung, weil gleiche Werte bei verschiedenen Tenants auftreten:
+
+| Schema.Tabelle | Aktuell | Neu | Beispiel |
+|----------------|---------|-----|----------|
+| `facilities.rooms` | `UNIQUE(name)` | `UNIQUE(tenant_id, name)` | "Turnhalle" bei jeder OGS |
+| `education.groups` | `UNIQUE(name)` | `UNIQUE(tenant_id, name)` | "1a" bei jeder OGS |
+| `activities.categories` | `UNIQUE(name)` | `UNIQUE(tenant_id, name)` | "Sport" bei jeder OGS |
+| `config.settings` | `UNIQUE(key)` | `UNIQUE(tenant_id, key)` | "school_name" pro Tenant |
+| `users.persons` | `UNIQUE(account_id)` | `UNIQUE(tenant_id, account_id)` | Ein Account → N Person-Records |
+| `users.persons` | `UNIQUE(tag_id)` | `UNIQUE(tenant_id, tag_id)` | RFID-Tag in beiden Person-Records eines Betreuers an 2 OGS |
+| `users.profiles` | `UNIQUE(account_id)` | `UNIQUE(tenant_id, account_id)` | Ein Account → N Profile |
+| `users.guardian_profiles` | `UNIQUE(email)` | `UNIQUE(tenant_id, email)` | Elternteil bei mehreren OGS |
+| `users.guardian_profiles` | `UNIQUE(account_id)` | `UNIQUE(tenant_id, account_id)` | Ein Account → N Guardian-Profile |
+| `auth.accounts_parents` | `UNIQUE(email)` | `UNIQUE(tenant_id, email)` | Eltern-Email bei mehreren OGS |
+| `auth.accounts_parents` | `UNIQUE(username)` | `UNIQUE(tenant_id, username)` | Username pro Tenant |
+| `auth.account_roles` | `UNIQUE(account_id, role_id)` | `UNIQUE(account_id, role_id, tenant_id)` | Gleiche Rolle bei verschiedenen Tenants (D13) |
+| `auth.account_permissions` | `UNIQUE(account_id, permission_id)` | `UNIQUE(account_id, permission_id, tenant_id)` | Gleiche Direct-Permissions bei verschiedenen Tenants |
+
+**Sonderfall `auth.roles.name`** (nullable tenant_id):
+
+```sql
+-- System-Rollen (tenant_id IS NULL): Name global unique
+CREATE UNIQUE INDEX idx_roles_name_system
+    ON auth.roles(name) WHERE tenant_id IS NULL;
+
+-- Tenant-Rollen (tenant_id IS NOT NULL): Name unique pro Tenant
+CREATE UNIQUE INDEX idx_roles_name_tenant
+    ON auth.roles(tenant_id, name) WHERE tenant_id IS NOT NULL;
+
+-- Alter UNIQUE(name) Index entfernen
+DROP INDEX IF EXISTS auth.idx_roles_name;
+```
+
+#### 2.4.2 MUST FIX — Defense-in-Depth
+
+Constraint bricht technisch nicht (referenzierte IDs sind global-unique PKs), aber `tenant_id` wird fuer Konsistenz und Sicherheit ergaenzt:
+
+| Schema.Tabelle | Aktuell | Neu |
+|----------------|---------|-----|
+| `users.staff` | `UNIQUE(person_id)` | `UNIQUE(tenant_id, person_id)` |
+| `users.teachers` | `UNIQUE(staff_id)` | `UNIQUE(tenant_id, staff_id)` |
+| `users.guests` | `UNIQUE(staff_id)` | `UNIQUE(tenant_id, staff_id)` |
+| `users.students` | `UNIQUE(person_id)` | `UNIQUE(tenant_id, person_id)` |
+| `users.students_guardians` | `UNIQUE(student_id, guardian_profile_id)` | `UNIQUE(tenant_id, student_id, guardian_profile_id)` |
+| `users.persons_guardians` | `UNIQUE(person_id, guardian_account_id, relationship_type)` | `+ tenant_id` |
+| `education.group_teachers` | `UNIQUE(group_id, teacher_id)` | `UNIQUE(tenant_id, group_id, teacher_id)` |
+| `education.group_substitution` | Partial: `UNIQUE(group_id, substitute_staff_id, start_date)` | `+ tenant_id` |
+| `education.grade_transition_mappings` | `UNIQUE(transition_id, from_class)` | `+ tenant_id` |
+| `activities.student_enrollments` | `UNIQUE(student_id, activity_group_id)` | `+ tenant_id` |
+| `activities.supervisors_planned` | `UNIQUE(staff_id, group_id)` | `+ tenant_id` |
+| `activities.schedules` | Partial: `UNIQUE(weekday, timeframe_id, activity_group_id)` | `+ tenant_id` |
+| `active.group_supervisors` | Partial: `UNIQUE(staff_id, group_id, role)` | `+ tenant_id` |
+| `active.group_mappings` | `UNIQUE(active_combined_group_id, active_group_id)` | `+ tenant_id` |
+| `active.scheduled_checkouts` | Partial: `UNIQUE(student_id, status)` | `+ tenant_id` |
+| `schedule.pickup_schedules` | `UNIQUE(student_id, weekday)` | `+ tenant_id` |
+| `schedule.pickup_schedules` | `UNIQUE(student_id, exception_date)` | `+ tenant_id` |
+| `suggestions.votes` | `UNIQUE(post_id, voter_id)` | `+ tenant_id` |
+
+#### 2.4.3 OK — Keine Aenderung noetig
+
+| Schema.Tabelle | Constraint | Grund |
+|----------------|-----------|-------|
+| `auth.accounts` | `UNIQUE(email)`, `UNIQUE(username)` | Globale Tabelle, kein tenant_id (D15) |
+| `auth.permissions` | `UNIQUE(name)`, `UNIQUE(resource, action)` | Globale Definitionen |
+| `auth.role_permissions` | `UNIQUE(role_id, permission_id)` | Scoping durch Role-FK |
+| `auth.invitation_tokens` | `UNIQUE(token)` | Random Token, global unique |
+| `auth.guardian_invitations` | `UNIQUE(token)` | Random Token, global unique |
+| `iot.devices` | `UNIQUE(device_id)`, `UNIQUE(api_key)` | Hardware-ID / API-Key global unique |
+| `platform.organizations` | `UNIQUE(slug)` | Platform-Tabelle, kein RLS |
+| `platform.schools` | `UNIQUE(subdomain)` | Platform-Tabelle, kein RLS |
+| `platform.operators` | `UNIQUE(email)` | Platform-Tabelle, kein RLS |
+
+#### 2.4.4 Migration SQL Template
+
+```sql
+-- Schritt 1: Alten Constraint/Index entfernen
+DROP INDEX IF EXISTS {schema}.{old_index_name};
+-- oder: ALTER TABLE {schema}.{table} DROP CONSTRAINT {constraint_name};
+
+-- Schritt 2: Neuen Composite-Constraint erstellen
+CREATE UNIQUE INDEX {new_index_name}
+    ON {schema}.{table}(tenant_id, {columns});
+
+-- Fuer partielle Indexes:
+CREATE UNIQUE INDEX {new_index_name}
+    ON {schema}.{table}(tenant_id, {columns})
+    WHERE {condition};
+```
+
+#### 2.4.5 BUN Model Tag Aenderungen
+
+5 Models haben `bun:"...,unique"` Tags die entfernt werden muessen (Constraint wird via Migration-Index erzwungen, nicht via BUN):
+
+| Model | Datei | Tag entfernen |
+|-------|-------|---------------|
+| `Room` | `models/facilities/room.go` | `bun:"name,notnull,unique"` → `bun:"name,notnull"` |
+| `Group` | `models/education/group.go` | `bun:"name,notnull,unique"` → `bun:"name,notnull"` |
+| `Category` | `models/activities/category.go` | `bun:"name,notnull,unique"` → `bun:"name,notnull"` |
+| `Role` | `models/auth/role.go` | `bun:"name,notnull,unique"` → `bun:"name,notnull"` |
+| `Settings` | `models/config/settings.go` | `bun:"key,notnull,unique"` → `bun:"key,notnull"` |
+
+Zusaetzlich: `models/base/base.go` definiert `NameableUnique` (Zeile 57-59). Diese Struct wird zwar nicht direkt eingebettet, aber das Pattern wird in o.g. Models dupliziert. Bei kuenftigen Models **nicht** `NameableUnique` verwenden — stattdessen Composite-Index via Migration.
+
+**Hinweis:** `auth.accounts.username` und `auth.accounts.email` behalten ihre `unique`-Tags, da `auth.accounts` global bleibt (D15).
+
+### 2.5 Composite Foreign Keys (09-H3)
+
+**Problem:** Alle 64 FKs zwischen Tenant-scoped Tabellen pruefen nur `(id)`, nicht `(tenant_id, id)`. Ein Service-Bug koennte eine Gruppe in Tenant A auf einen Raum in Tenant B verlinken. RLS schuetzt bei SELECT, aber bei Admin-Ops (BYPASSRLS) oder direkten DB-Zugriffen gibt es keinen Schutz.
+
+**Entscheidung:** Composite FKs auf DB-Level. Jeder FK zwischen Tenant-scoped Tabellen wird zu `FK(tenant_id, column) → target(tenant_id, id)`.
+
+#### 2.5.1 Voraussetzung: UNIQUE(tenant_id, id) auf Ziel-Tabellen
+
+Composite FKs erfordern einen UNIQUE-Constraint auf `(tenant_id, id)` der referenzierten Tabelle. Da `id` bereits PK ist, ist `(tenant_id, id)` automatisch unique — PostgreSQL braucht trotzdem einen expliziten Index:
+
+```sql
+-- Fuer jede Tabelle die als FK-Ziel referenziert wird:
+CREATE UNIQUE INDEX idx_{table}_tenant_pk
+    ON {schema}.{table}(tenant_id, id);
+```
+
+**Betroffene Ziel-Tabellen (19):**
+
+| Schema | Tabelle | Referenziert von (Anzahl FKs) |
+|--------|---------|-------------------------------|
+| users | persons | 3 (staff, students, iot.devices) |
+| users | staff | 12 (active.*, activities.*, education.*, schedule.*) |
+| users | students | 8 (active.*, activities.*, schedule.*, feedback.*, audit.*) |
+| users | teachers | 1 (education.group_teacher) |
+| users | guardian_profiles | 2 (students_guardians, guardian_phone_numbers) |
+| users | rfid_cards | 1 (persons.tag_id) |
+| education | groups | 3 (group_teacher, students.group_id, group_substitution) |
+| education | grade_transitions | 2 (mappings, history) |
+| facilities | rooms | 3 (education.groups, activities.groups, active.groups) |
+| activities | categories | 1 (activities.groups) |
+| activities | groups | 4 (schedules, supervisors_planned, student_enrollments, active.groups) |
+| active | groups | 4 (visits, group_supervisors, group_mappings, combined_groups) |
+| active | combined_groups | 1 (group_mappings) |
+| active | work_sessions | 2 (breaks, edits) |
+| iot | devices | 2 (active.groups, active.attendance) |
+| schedule | timeframes | 1 (activities.schedules) |
+| suggestions | posts | 3 (comments, votes, reads) |
+| auth | accounts_parents | 2 (guardian_profiles, persons_guardians) |
+
+#### 2.5.2 FK-Migration nach Schema (64 FKs)
+
+**active Schema (16 FKs):**
+
+| Quelle | Spalte(n) | Ziel |
+|--------|-----------|------|
+| active.attendance | student_id | users.students |
+| active.attendance | checked_in_by | users.staff |
+| active.attendance | checked_out_by | users.staff |
+| active.attendance | device_id | iot.devices |
+| active.groups | group_id | activities.groups |
+| active.groups | device_id | iot.devices |
+| active.groups | room_id | facilities.rooms |
+| active.visits | student_id | users.students |
+| active.visits | active_group_id | active.groups |
+| active.group_supervisors | staff_id | users.staff |
+| active.group_supervisors | group_id | active.groups |
+| active.group_mappings | active_combined_group_id | active.combined_groups |
+| active.group_mappings | active_group_id | active.groups |
+| active.work_sessions | staff_id, created_by, updated_by | users.staff (3x) |
+| active.work_session_breaks | session_id | active.work_sessions |
+| active.work_session_edits | session_id | active.work_sessions |
+| active.staff_absences | staff_id, approved_by, created_by | users.staff (3x) |
+
+**activities Schema (7 FKs):**
+
+| Quelle | Spalte(n) | Ziel |
+|--------|-----------|------|
+| activities.groups | category_id | activities.categories |
+| activities.groups | planned_room_id | facilities.rooms |
+| activities.groups | created_by | users.staff |
+| activities.schedules | activity_group_id | activities.groups |
+| activities.schedules | timeframe_id | schedule.timeframes |
+| activities.supervisors_planned | staff_id, group_id | users.staff, activities.groups |
+| activities.student_enrollments | student_id, activity_group_id | users.students, activities.groups |
+
+**education Schema (7 FKs):**
+
+| Quelle | Spalte(n) | Ziel |
+|--------|-----------|------|
+| education.groups | room_id | facilities.rooms |
+| education.group_teacher | group_id, teacher_id | education.groups, users.teachers |
+| education.group_substitution | group_id | education.groups |
+| education.group_substitution | regular_staff_id, substitute_staff_id | users.staff (2x) |
+| education.grade_transition_mappings | transition_id | education.grade_transitions |
+| education.grade_transition_history | transition_id | education.grade_transitions |
+
+**users Schema (8 FKs):**
+
+| Quelle | Spalte(n) | Ziel |
+|--------|-----------|------|
+| users.staff | person_id | users.persons |
+| users.students | person_id | users.persons |
+| users.students | group_id | education.groups |
+| users.teachers | staff_id | users.staff |
+| users.persons | tag_id | users.rfid_cards |
+| users.persons_guardians | person_id | users.persons |
+| users.students_guardians | student_id, guardian_profile_id | users.students, users.guardian_profiles |
+| users.privacy_consents | student_id | users.students |
+| users.guardian_phone_numbers | guardian_profile_id | users.guardian_profiles |
+| users.guests | staff_id | users.staff |
+
+**schedule Schema (6 FKs):**
+
+| Quelle | Spalte(n) | Ziel |
+|--------|-----------|------|
+| schedule.pickup_schedules | student_id, created_by | users.students, users.staff |
+| schedule.pickup_exceptions | student_id, created_by | users.students, users.staff |
+| schedule.pickup_notes | student_id, created_by | users.students, users.staff |
+| schedule.scheduled_checkouts | student_id, scheduled_by, cancelled_by | users.students, users.staff (2x) |
+
+**Weitere (4 FKs):**
+
+| Quelle | Spalte(n) | Ziel |
+|--------|-----------|------|
+| feedback.entries | student_id | users.students |
+| audit.data_deletions | student_id | users.students |
+| iot.devices | registered_by_id | users.persons |
+| suggestions.comments, votes, reads | post_id | suggestions.posts (3x) |
+
+#### 2.5.3 Migration SQL Template
+
+```sql
+-- Schritt 1: UNIQUE(tenant_id, id) auf Ziel-Tabelle (falls nicht bereits vorhanden)
+CREATE UNIQUE INDEX CONCURRENTLY idx_students_tenant_pk
+    ON users.students(tenant_id, id);
+
+-- Schritt 2: Alten FK droppen
+ALTER TABLE active.visits DROP CONSTRAINT fk_active_visits_student;
+
+-- Schritt 3: Neuen Composite FK erstellen
+ALTER TABLE active.visits
+    ADD CONSTRAINT fk_active_visits_student
+    FOREIGN KEY (tenant_id, student_id)
+    REFERENCES users.students(tenant_id, id)
+    ON DELETE CASCADE;
+```
+
+**Reihenfolge:** Zuerst alle `UNIQUE(tenant_id, id)` Indexes erstellen (Schritt 1 fuer alle 19 Ziel-Tabellen), dann alle FKs migrieren. `CREATE INDEX CONCURRENTLY` vermeidet Locks auf Produktions-Tabellen.
+
+#### 2.5.4 Ausnahmen (KEIN Composite FK)
+
+| FK | Grund |
+|----|-------|
+| `→ auth.accounts` | Global, kein tenant_id (D15) |
+| `→ platform.schools` | Tenant-Tabelle selbst, referenced by tenant_id |
+| `→ auth.accounts_parents` | Abhaengig von Entscheidung ob global oder per-tenant |
+| `→ auth.permissions`, `auth.role_permissions` | System-Tabellen, global oder nullable tenant_id |
 
 ---
 
@@ -232,12 +506,39 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA
     schedule, iot, feedback, config, suggestions, audit TO phoenix_tenant;
 GRANT SELECT ON platform.schools TO phoenix_tenant;
 
+-- SEQUENCE-Rechte (09-H1): Ohne USAGE auf Sequences schlaegt jeder INSERT fehl
+-- (BIGSERIAL PKs erstellen implizite Sequences, 60+ im gesamten Schema)
+GRANT USAGE ON ALL SEQUENCES IN SCHEMA
+    auth, users, education, facilities, activities, active,
+    schedule, iot, feedback, config, suggestions, audit TO phoenix_tenant;
+
+-- Default Privileges: Zukuenftige Migrationen erben automatisch die Rechte
+ALTER DEFAULT PRIVILEGES IN SCHEMA
+    auth, users, education, facilities, activities, active,
+    schedule, iot, feedback, config, suggestions, audit
+    GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO phoenix_tenant;
+ALTER DEFAULT PRIVILEGES IN SCHEMA
+    auth, users, education, facilities, activities, active,
+    schedule, iot, feedback, config, suggestions, audit
+    GRANT USAGE ON SEQUENCES TO phoenix_tenant;
+
 -- Admin-Rolle: Bypasses RLS (Operator, Migrations, Seeds, Cross-Tenant)
 CREATE ROLE phoenix_admin NOLOGIN BYPASSRLS;
 GRANT USAGE ON ALL SCHEMAS TO phoenix_admin;
 GRANT ALL ON ALL TABLES IN SCHEMA
     auth, users, education, facilities, activities, active,
     schedule, iot, feedback, config, suggestions, audit, platform TO phoenix_admin;
+GRANT ALL ON ALL SEQUENCES IN SCHEMA
+    auth, users, education, facilities, activities, active,
+    schedule, iot, feedback, config, suggestions, audit, platform TO phoenix_admin;
+ALTER DEFAULT PRIVILEGES IN SCHEMA
+    auth, users, education, facilities, activities, active,
+    schedule, iot, feedback, config, suggestions, audit, platform
+    GRANT ALL ON TABLES TO phoenix_admin;
+ALTER DEFAULT PRIVILEGES IN SCHEMA
+    auth, users, education, facilities, activities, active,
+    schedule, iot, feedback, config, suggestions, audit, platform
+    GRANT ALL ON SEQUENCES TO phoenix_admin;
 
 -- Verbindungs-Rolle darf zu beiden switchen
 GRANT phoenix_tenant TO phoenix_auth;
@@ -307,9 +608,11 @@ WHERE ...;
 | CVE | Beschreibung | Gefixt in |
 |-----|-------------|-----------|
 | CVE-2024-10976 | Plan-Cache ignoriert Role-Wechsel bei Subqueries/CTEs + SET LOCAL ROLE | PG 17.1 |
-| CVE-2025-8713 | Optimizer-Statistiken leaken RLS-versteckte Daten | PG 17.6 |
+| CVE-2025-8713 | Optimizer-Statistiken leaken RLS-versteckte Daten | PG 17.6 (NICHT VERIFIZIERT — 09-M5) |
 
-Docker-Compose und Deployment-Configs muessen `postgres:17.6` oder hoeher verwenden.
+**Hinweis (09-M5):** CVE-2025-8713 konnte nicht verifiziert werden. Mindestversion ist PG 17.1 (fuer CVE-2024-10976, verifiziert). PG 17.6+ als Empfehlung beibehalten (neueste Patch-Version), aber hartes Requirement ist PG 17.1.
+
+Docker-Compose und Deployment-Configs sollten `postgres:17` (latest) oder mindestens `postgres:17.1` verwenden.
 
 ### 6.2 Verbotene Patterns
 
@@ -367,11 +670,18 @@ Phase 3 (Woche 5+): Strikte Enforcement
 ### 8.2 Rollback-Plan
 
 ```
-Bei Problemen nach Schritt 11:
+Bei Problemen nach Phase 1 (tenant_id nullable, RLS permissive):
 - Code-Rollback auf vorherige Version (ohne Tenant-Middleware)
-- tenant_id Spalten bleiben (stoeren nicht, da nullable oder default)
+- tenant_id Spalten bleiben (stoeren nicht, da nullable + default)
 - RLS-Policies auf USING(true) zuruecksetzen
 - Rollen bleiben bestehen (stoeren nicht)
+
+Bei Problemen nach Phase 2 (tenant_id NOT NULL):
+- Zusaetzlich: ALTER COLUMN tenant_id DROP NOT NULL fuer alle Tabellen
+- Sonst schlagen Inserts ohne tenant_id fehl
+- Script: SELECT 'ALTER TABLE ' || schemaname || '.' || tablename ||
+         ' ALTER COLUMN tenant_id DROP NOT NULL;'
+         FROM pg_tables WHERE schemaname NOT IN ('pg_catalog', 'information_schema');
 ```
 
 ---
@@ -383,3 +693,7 @@ Bei Problemen nach Schritt 11:
 | 2026-02-08 | Initiale Version basierend auf vollstaendiger Codebase-Analyse |
 | 2026-02-08 | Aktualisiert gemaess DEBATE-Entscheidungen: Drei-Rollen statt phoenix_app (D7/D8), RLS ohne tenant_id=0 Bypass (D7), account_tenants mit Status/Soft-Delete (D15), PG 17.6 (D16), security_invoker (D16) |
 | 2026-02-10 | D13 revidiert: auth.roles, auth.account_roles, auth.account_permissions bekommen tenant_id (Per-Tenant RBAC). Spezielle RLS-Policy fuer nullable tenant_id auf auth.roles. ~44 Tabellen mit tenant_id NOT NULL + 1 mit nullable. |
+| 2026-02-10 | UNIQUE Constraints Migration (Sektion 2.4): 13 funktional notwendige + 18 Defense-in-Depth + 1 Sonderfall (auth.roles nullable). 9 Constraints OK ohne Aenderung. BUN Model Tag Aenderungen dokumentiert. |
+| 2026-02-10 | SEQUENCE GRANTs ergaenzt (09-H1): `GRANT USAGE ON ALL SEQUENCES` fuer phoenix_tenant + phoenix_admin. `ALTER DEFAULT PRIVILEGES` fuer zukuenftige Migrationen. Ohne diese schlaegt jeder INSERT fehl (60+ Sequences durch BIGSERIAL PKs). |
+| 2026-02-10 | Composite Foreign Keys (Sektion 2.5, 09-H3): 64 FKs werden zu `FK(tenant_id, col) → target(tenant_id, id)`. 19 Ziel-Tabellen bekommen `UNIQUE(tenant_id, id)`. Vollstaendige Auflistung nach Schema. |
+| 2026-02-10 | Tabellen-Zaehlung korrigiert (06-#2): "~44" → 58 NOT NULL. Gesamtzaehlung gegen Migrations-Dateien verifiziert: 70 bestehende Tabellen in 14 Schemas. `suggestions.operator_comments` und `meta.migration_metadata` als OHNE tenant_id klassifiziert. |

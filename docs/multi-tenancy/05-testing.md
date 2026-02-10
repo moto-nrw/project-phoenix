@@ -294,7 +294,201 @@ Jeder PR der eine Repository-Methode aendert **MUSS** geprueft werden auf:
 
 ---
 
-## 8. Test-Datenbank Kompatibilitaet
+## 8. Frontend-Tests (06-#6)
+
+### 8.1 E2E-Tests: Subdomain-Routing + Login
+
+```typescript
+// e2e/tenant-routing.spec.ts (Playwright)
+test('tenant subdomain resolves correctly', async ({ page }) => {
+    await page.goto('http://school-a.localhost:3000/login');
+    // resolveTenant() muss "school-a" erkennen
+    await expect(page.locator('[data-testid="tenant-name"]')).toContainText('School A');
+});
+
+test('unknown subdomain shows not-found', async ({ page }) => {
+    await page.goto('http://nichtexistent.localhost:3000/dashboard');
+    await expect(page).toHaveTitle(/nicht gefunden|not found/i);
+});
+
+test('login sends tenant_slug in body', async ({ page }) => {
+    await page.goto('http://school-a.localhost:3000/login');
+    const [request] = await Promise.all([
+        page.waitForRequest('**/api/auth/login'),
+        page.fill('[name="email"]', 'admin@example.com'),
+        page.fill('[name="password"]', 'Test1234%'),
+        page.click('[type="submit"]'),
+    ]);
+    const body = JSON.parse(request.postData() || '{}');
+    expect(body.tenant_slug).toBe('school-a');
+});
+```
+
+### 8.2 E2E-Tests: Tenant-Switch
+
+```typescript
+test('tenant switch navigates to new subdomain', async ({ page, context }) => {
+    // Login bei School A
+    await loginAtTenant(page, 'school-a');
+
+    // Switch zu School B
+    await page.click('[data-testid="tenant-switcher"]');
+    await page.click('[data-testid="tenant-school-b"]');
+
+    // Neue URL muss school-b Subdomain haben
+    await expect(page).toHaveURL(/school-b\.localhost:3000\/dashboard/);
+
+    // Daten muessen von School B kommen (nicht gecacht von A)
+    const studentNames = await page.locator('[data-testid="student-name"]').allTextContents();
+    expect(studentNames).not.toContain('Student aus School A');
+});
+```
+
+### 8.3 SWR-Cache-Isolationstests
+
+```typescript
+// __tests__/use-tenant-swr.test.tsx (React Testing Library)
+test('useTenantSWR prefixes key with tenant ID', () => {
+    const { result } = renderHook(() => useTenantSWR('/api/students', fetcher), {
+        wrapper: ({ children }) => (
+            <TenantProvider value={{ tenantId: '42', tenantSlug: 'school-a', /* ... */ }}>
+                {children}
+            </TenantProvider>
+        ),
+    });
+    // Interner SWR-Key muss "t42:/api/students" sein
+    expect(cache.get('t42:/api/students')).toBeDefined();
+    expect(cache.get('/api/students')).toBeUndefined();
+});
+
+test('tenant switch invalidates SWR cache', async () => {
+    // Daten fuer Tenant 42 laden
+    await loadStudentsForTenant(42);
+    expect(cache.get('t42:/api/students')).toBeDefined();
+
+    // Tenant wechseln zu 99
+    await switchTenantTo(99);
+    // Alter Cache muss invalidiert sein
+    expect(cache.get('t42:/api/students')).toBeUndefined();
+});
+```
+
+### 8.4 Bruno API-Tests: Multi-Tenant-Szenarien
+
+```bash
+# bruno/multi-tenant/ — Neue Test-Suite
+# Reihenfolge: Setup → Isolation → Cross-Tenant → Cleanup
+
+# 01-setup.bru: Erstellt 2 Test-Tenants (School A, School B)
+# 02-isolation-students.bru: Student in A erstellen, bei B nicht sichtbar
+# 03-isolation-rooms.bru: Raum in A erstellen, bei B nicht sichtbar
+# 04-tenant-switch.bru: Login bei A, Switch zu B, verify new JWT
+# 05-cross-tenant-blocked.bru: B versucht A's Student zu updaten → 404/403
+# 06-iot-device-auth.bru: Device-Login mit API-Key + PIN → tenant_id im JWT
+# 99-cleanup.bru: Test-Tenants loeschen
+```
+
+**Performance-Baseline-Test:** Bruno-Suite mit `--env Multi-Tenant-100` (100 Tenants mit je 50 Students) um Regression durch RLS zu messen. Ziel: < 10% Overhead gegenueber Single-Tenant.
+
+---
+
+## 9. Org-Scope + Cross-Tenant Tests (06-#7)
+
+### 9.1 Org-Scope (D18)
+
+```go
+func TestOrgScope_SeesAllTenantsInOrg(t *testing.T) {
+    db := testpkg.SetupTestDB(t)
+
+    org := testpkg.CreateTestOrganization(t, db, "Traeger Nord")
+    tenantA := testpkg.CreateTestTenantInOrg(t, db, org.ID, "School A")
+    tenantB := testpkg.CreateTestTenantInOrg(t, db, org.ID, "School B")
+
+    testpkg.CreateTestStudentInTenant(t, db, tenantA.ID, "Max", "A", "1a")
+    testpkg.CreateTestStudentInTenant(t, db, tenantB.ID, "Anna", "B", "2b")
+
+    // OrgScopeService (WithAdminTx + org_id Filter) sieht beide
+    orgService := services.NewOrgScopeService(db)
+    students, err := orgService.ListStudents(context.Background(), org.ID)
+    require.NoError(t, err)
+    assert.Len(t, students, 2, "Org scope must see all tenants in org")
+}
+
+func TestOrgScope_DoesNotSeeOtherOrg(t *testing.T) {
+    db := testpkg.SetupTestDB(t)
+
+    orgNord := testpkg.CreateTestOrganization(t, db, "Traeger Nord")
+    orgSued := testpkg.CreateTestOrganization(t, db, "Traeger Sued")
+    tenantNord := testpkg.CreateTestTenantInOrg(t, db, orgNord.ID, "School Nord")
+    tenantSued := testpkg.CreateTestTenantInOrg(t, db, orgSued.ID, "School Sued")
+
+    testpkg.CreateTestStudentInTenant(t, db, tenantNord.ID, "Max", "Nord", "1a")
+    testpkg.CreateTestStudentInTenant(t, db, tenantSued.ID, "Anna", "Sued", "2b")
+
+    orgService := services.NewOrgScopeService(db)
+    students, err := orgService.ListStudents(context.Background(), orgNord.ID)
+    require.NoError(t, err)
+    assert.Len(t, students, 1, "Org scope must NOT see other org's tenants")
+    assert.Equal(t, "Max", students[0].FirstName)
+}
+
+func TestOrgScope_ReadOnly(t *testing.T) {
+    db := testpkg.SetupTestDB(t)
+
+    org := testpkg.CreateTestOrganization(t, db, "Traeger")
+    tenantA := testpkg.CreateTestTenantInOrg(t, db, org.ID, "School A")
+    student := testpkg.CreateTestStudentInTenant(t, db, tenantA.ID, "Max", "A", "1a")
+
+    // Org-Scope darf NICHT schreiben (D18: read-only)
+    orgService := services.NewOrgScopeService(db)
+    err := orgService.UpdateStudent(context.Background(), org.ID, student.ID, "2b")
+    require.Error(t, err, "Org scope must be read-only")
+}
+```
+
+### 9.2 Cross-Tenant Access (Ferienbetreuung, D4)
+
+```go
+func TestCrossTenantAccess_TemporaryReadAllowed(t *testing.T) {
+    db := testpkg.SetupTestDB(t)
+
+    tenantA := testpkg.CreateTestTenant(t, db, "Host OGS")
+    tenantB := testpkg.CreateTestTenant(t, db, "Guest OGS")
+    account := testpkg.CreateTestAccountInTenant(t, db, tenantB.ID, "betreuer@guest.de")
+
+    // Zeitlich begrenzter Zugriff: Guest-Betreuer darf Host-Daten lesen
+    testpkg.CreateCrossTenantAccess(t, db, account.ID, tenantB.ID, tenantA.ID,
+        time.Now().Add(-1*time.Hour), time.Now().Add(24*time.Hour))
+
+    // Betreuer kann Students am Host-OGS sehen
+    student := testpkg.CreateTestStudentInTenant(t, db, tenantA.ID, "Max", "Host", "1a")
+    students, err := crossTenantService.ListStudentsAtHost(context.Background(),
+        account.ID, tenantA.ID)
+    require.NoError(t, err)
+    assert.Len(t, students, 1)
+}
+
+func TestCrossTenantAccess_ExpiredDenied(t *testing.T) {
+    db := testpkg.SetupTestDB(t)
+
+    tenantA := testpkg.CreateTestTenant(t, db, "Host OGS")
+    tenantB := testpkg.CreateTestTenant(t, db, "Guest OGS")
+    account := testpkg.CreateTestAccountInTenant(t, db, tenantB.ID, "betreuer@guest.de")
+
+    // Abgelaufener Zugriff
+    testpkg.CreateCrossTenantAccess(t, db, account.ID, tenantB.ID, tenantA.ID,
+        time.Now().Add(-48*time.Hour), time.Now().Add(-24*time.Hour))
+
+    students, err := crossTenantService.ListStudentsAtHost(context.Background(),
+        account.ID, tenantA.ID)
+    require.NoError(t, err)
+    assert.Empty(t, students, "Expired cross-tenant access must return no data")
+}
+```
+
+---
+
+## 10. Test-Datenbank Kompatibilitaet
 
 Die bestehenden Test-Fixtures (`CreateTestStudent`, `CreateTestStaff` etc.) muessen weiterhin funktionieren. Strategie:
 
@@ -309,10 +503,12 @@ func CreateTestStudent(t *testing.T, db *bun.DB, first, last, class string) *use
 
 ---
 
-## 9. Aenderungshistorie
+## 11. Aenderungshistorie
 
 | Datum | Aenderung |
 |-------|-----------|
 | 2026-02-08 | Initiale Version basierend auf vollstaendiger Codebase-Analyse |
 | 2026-02-08 | Aktualisiert gemaess DEBATE-Entscheidungen: WithTenantTx/WithAdminTx statt Context (D8), kein tenant_id=0 (D7), RowsAffected-Tests (D16), Advisory Lock Tests (D16), PR-Checkliste erweitert |
 | 2026-02-10 | D13 revidiert: Per-Tenant Role Isolation Tests (Sektion 5), PR-Checkliste um Rollen-Checks erweitert |
+| 2026-02-10 | Frontend-Tests ergaenzt (§8, 06-#6): E2E Subdomain-Routing, Login mit tenant_slug, Tenant-Switch, SWR-Cache-Isolation, Bruno Multi-Tenant-Suite. |
+| 2026-02-10 | Org-Scope + Cross-Tenant Tests (§9, 06-#7): OrgScopeService Tests (sieht alle Tenants in Org, nicht andere Orgs, read-only), Ferienbetreuung Tests (temporaerer Zugriff, Ablauf). |

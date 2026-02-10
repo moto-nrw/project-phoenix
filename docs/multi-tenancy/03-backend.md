@@ -101,6 +101,77 @@ func WithAdminTx(ctx context.Context, db *bun.DB,
 
 **Sicherster Default:** Connection Pool verbindet als `phoenix_auth` (NOINHERIT, keine eigenen Rechte). Vergessene Transaktion → Hard-Fail (Permission Denied), nicht stiller Bypass.
 
+### 1.3 Transaction-Ownership Migration (09-C1)
+
+**Problem:** Die Codebase hat 51 `RunInTx`- und 110 `WithTx`-Calls. Services starten aktuell eigene Transaktionen (`s.db.RunInTx(...)`). Wenn `WithTenantTx` bereits eine Transaktion laufen hat und ein Service `s.db.RunInTx(...)` aufruft, startet BUN eine **zweite Transaktion auf einer anderen Pool-Connection** — ohne `SET LOCAL ROLE` → `phoenix_auth` (NOINHERIT) → Permission Denied.
+
+**Loesung: Transaction-Ownership wandert von Service auf Handler.**
+
+Es gibt pro Request genau EINE Transaktion, gestartet im Handler via `WithTenantTx`. Services und Repositories arbeiten innerhalb dieser Transaktion. Kein Service startet eigene Transaktionen.
+
+```
+VORHER (Service startet Transaktion):
+Handler → Service.DoWork() → s.db.RunInTx() → Repo.Create()
+
+NACHHER (Handler startet Transaktion):
+Handler → WithTenantTx() → Service.DoWork(ctx) → Repo.Create(ctx)
+                ↑                                        ↑
+        SET LOCAL ROLE hier                    getDB(ctx) = gleiche tx
+```
+
+**Handler-Beispiel:**
+
+```go
+func (rs *Resource) handleCheckIn(w http.ResponseWriter, r *http.Request) {
+    tenantID := tenant.FromContext(r.Context())
+    err := tenant.WithTenantTx(r.Context(), rs.db, tenantID,
+        func(ctx context.Context, tx bun.Tx) error {
+            return rs.activeService.CheckIn(ctx, studentID, groupID)
+        })
+    // HTTP response...
+}
+```
+
+**Service-Beispiel (kein eigener RunInTx mehr):**
+
+```go
+// VORHER:
+func (s *ActiveService) CheckIn(ctx context.Context, studentID, groupID int64) error {
+    return s.db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
+        visit, err := s.visitRepo.Create(ctx, tx, ...)
+        if err != nil { return err }
+        return s.attendanceRepo.Create(ctx, tx, ...)
+    })
+}
+
+// NACHHER:
+func (s *ActiveService) CheckIn(ctx context.Context, studentID, groupID int64) error {
+    // tx ist schon im ctx (von WithTenantTx im Handler)
+    visit, err := s.visitRepo.Create(ctx, ...)  // getDB(ctx) → tx
+    if err != nil { return err }
+    return s.attendanceRepo.Create(ctx, ...)     // gleiche tx
+}
+```
+
+**Migrationstabelle fuer bestehende Patterns:**
+
+| Pattern | Anzahl | Migration |
+|---------|--------|-----------|
+| `s.db.RunInTx(...)` in Service | ~51 | **Entfernen** — Service ist bereits in tx. Code ohne Wrapper ausfuehren |
+| `WithTx(tx)` Repository-Chains | ~110 | **Ersetzen** durch `getDB(ctx)` — tx kommt aus Context statt Parameter |
+| Cross-Service `tx`-Passing | ~5 | **Entfernen** — beide Services nutzen gleiche tx aus Context |
+| Echte Sub-Transaktionen (selten) | ~2-3 | `bun.TxFromContext(ctx).RunInTx(...)` — erzeugt SAVEPOINT innerhalb der laufenden tx |
+
+**Warum das kein Workaround ist:** PostgREST, Supabase und jedes middleware-first Framework nutzt dieses Pattern: Transaktion startet am Request-Boundary (wo der Tenant bekannt ist), alles darunter arbeitet innerhalb dieser Transaktion. Eine Transaktion pro Request, ein `SET LOCAL ROLE`, ein `set_config`.
+
+**Fail-Modes:**
+
+| Szenario | Verhalten |
+|----------|-----------|
+| Service wird ohne `WithTenantTx` aufgerufen | `getDB(ctx)` findet keine tx → faellt auf `r.DB` zurueck → `phoenix_auth` (NOINHERIT) → Permission Denied |
+| Service ruft versehentlich `s.db.RunInTx(...)` statt ctx zu nutzen | Neue tx ohne `SET LOCAL ROLE` → Permission Denied |
+| Zwei Handler-Calls in einer Go-Routine (z.B. Scheduler) | Jeder Call bekommt eigene tx via `WithTenantTx` — korrekt isoliert |
+
 ---
 
 ## 2. TenantModel Mixin (D2, D10)
@@ -470,51 +541,220 @@ func (s *ActiveService) GetVisit(ctx context.Context, visitID int64) (*Visit, er
 
 ---
 
-## 9. IoT Device-Auth Aenderungen
+## 9. IoT Device-Auth Aenderungen (D20)
+
+### 9.1 Two-Phase Lookup (analog D6 Login-Flow)
+
+Das Chicken-and-Egg-Problem: Device-Lookup braucht Tenant-Context, Tenant-Context kommt aus dem Device. Loesung: Exakt das D6-Login-Pattern — Phase 1 als Admin, Phase 2 als Tenant.
 
 ```go
-// NACHHER: Per-Tenant PIN aus platform.schools
-func (a *DeviceAuthenticator) authenticate(r *http.Request) error {
-    // 1. Device by API key finden (wie bisher)
-    device, err := a.iotService.GetDeviceByAPIKey(apiKey)
+// auth/device/device_auth.go
+func (a *DeviceAuthenticator) Authenticate(next http.Handler) http.Handler {
+    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        apiKey := extractBearerToken(r)
 
-    // 2. NEU: Tenant-Context aus Device ableiten
-    tenantID := device.TenantID
-    ctx = tenant.WithTenantID(r.Context(), tenantID)
+        // Phase 1: Device-Lookup via WithAdminTx (analog D6 Login)
+        var dev *iot.Device
+        err := tenant.WithAdminTx(r.Context(), a.db, func(ctx context.Context, tx bun.Tx) error {
+            var err error
+            dev, err = a.deviceRepo.FindByAPIKey(ctx, apiKey)
+            return err
+        })
+        if err != nil || dev.Status != iot.DeviceStatusActive {
+            http.Error(w, "device not found or inactive", http.StatusForbidden)
+            return
+        }
 
-    // 3. NEU: PIN gegen Tenant-spezifischen PIN pruefen
-    school, err := a.schoolService.FindByID(ctx, tenantID)
-    if !userpass.CheckPassword(staffPIN, school.DevicePINHash) {
-        return ErrInvalidPIN
-    }
+        // Phase 2: Per-Device PIN-Validierung (Argon2id)
+        pin := r.Header.Get("X-Staff-PIN")
+        if !verifyPINHash(dev.PINHash, pin) {
+            http.Error(w, "invalid PIN", http.StatusUnauthorized)
+            return
+        }
+
+        // Phase 3: Context mit Device + TenantID
+        ctx := context.WithValue(r.Context(), CtxDevice, dev)
+        ctx = context.WithValue(ctx, CtxTenantID, dev.TenantID)
+
+        // Check-In Handler nutzt WithTenantTx(dev.TenantID)
+        next.ServeHTTP(w, r.WithContext(ctx))
+    })
 }
 ```
+
+### 9.2 Aenderungen gegenueber aktueller Implementierung
+
+| Aspekt | Aktuell | Multi-Tenancy |
+|--------|---------|---------------|
+| Device-Lookup | Direkt `r.db` (kein Tx) | `WithAdminTx` (BYPASSRLS) |
+| PIN-Validierung | Globale Env-Var `OGS_DEVICE_PIN` | Per-Device `pin_hash` (Argon2id) in `iot.devices` |
+| Tenant-Context | Keiner | `dev.TenantID` → `WithTenantTx` fuer Check-In |
+| Blast-Radius bei PIN-Leak | Alle OGS | Ein einzelnes Geraet |
+
+### 9.3 Migration
+
+1. `iot.devices` bekommt `tenant_id` (bereits in 02-datenbank.md)
+2. `iot.devices` bekommt `pin_hash TEXT` Spalte
+3. Bestehende Devices: PIN aus `OGS_DEVICE_PIN` hashen und in `pin_hash` migrieren
+4. `OGS_DEVICE_PIN` Env-Var entfernen nach Migration
+5. Device-Registration-Endpoint: PIN wird beim Registrieren gesetzt (Admin generiert)
 
 **PyrePortal-Seite (separates Repository):** Keine Aenderungen noetig. PyrePortal sendet seinen API-Key, der Backend-Server leitet daraus den Tenant ab.
 
 ---
 
-## 10. SSE/Realtime: Tenant-Isolation
+## 10. SSE/Realtime: Tenant-Isolation (06-#12, 08-H3)
 
-Der aktuelle SSE-Hub (`realtime/hub.go`) broadcastet an alle Subscriber ohne Tenant-Filter.
+### 10.1 Problem
+
+Der aktuelle SSE-Hub (`realtime/hub.go`) nutzt `active_group_id` (stringified int64) als Map-Key fuer Event-Broadcasting. Mit Multi-Tenancy koennten zwei Tenants Groups mit derselben numerischen ID haben → Cross-Tenant Event-Leakage.
+
+### 10.2 Korrektur: Group-Level bleibt, Tenant-Guard kommt dazu
+
+**WICHTIG:** Der Hub bleibt group-level partitioniert — KEIN Tenant-Level-Broadcasting. Tenant-Level waere ein Rueckschritt: Jeder User einer OGS wuerde ALLE Events aller Groups bekommen, statt nur die Groups die ihn interessieren.
+
+**Zwei Aenderungen:**
+
+1. **Tenant-Validierung bei SSE-Connection:** JWT `tenant_id` muss zur Group's `tenant_id` passen
+2. **Tenant-prefixed Map-Keys:** Verhindert ID-Kollisionen zwischen Tenants
 
 ```go
-// NACHHER: Hub partitioniert nach Tenant
+// realtime/hub.go — KORRIGIERT
 type Hub struct {
-    tenantSubscriptions map[int64]map[*Subscriber]bool
+    // Key: "tenantID:groupID" statt nur "groupID"
+    groupClients map[string][]*Client
+    mu           sync.RWMutex
 }
 
-func (h *Hub) Broadcast(tenantID int64, event Event) {
-    subs := h.tenantSubscriptions[tenantID]
-    for sub := range subs {
-        sub.Send(event)
+// Subscribe prueft Tenant-Zugehoerigkeit bei Connection
+func (h *Hub) Subscribe(tenantID int64, groupID int64, client *Client) error {
+    // Guard: Group muss zu diesem Tenant gehoeren (einmalig bei Connect)
+    // Verhindert: User mit JWT fuer Tenant A subscribed auf Group von Tenant B
+    if !h.verifyGroupTenant(tenantID, groupID) {
+        return ErrForbidden
+    }
+
+    key := fmt.Sprintf("%d:%d", tenantID, groupID)
+    h.mu.Lock()
+    h.groupClients[key] = append(h.groupClients[key], client)
+    h.mu.Unlock()
+    return nil
+}
+
+// Broadcast sendet nur an Clients der korrekten Tenant+Group Kombination
+func (h *Hub) Broadcast(tenantID int64, groupID int64, event Event) {
+    key := fmt.Sprintf("%d:%d", tenantID, groupID)
+    h.mu.RLock()
+    clients := h.groupClients[key]
+    h.mu.RUnlock()
+
+    for _, c := range clients {
+        c.Send(event)
     }
 }
 ```
 
+### 10.3 SSE-Endpoint Aenderungen
+
+```go
+// api/sse/api.go
+func (rs *Resource) handleSSE(w http.ResponseWriter, r *http.Request) {
+    // Tenant aus JWT extrahieren (Middleware hat bereits validiert)
+    tenantID := tenant.FromContext(r.Context())
+    groupID := parseGroupID(r)
+
+    client := NewClient(w)
+    if err := rs.hub.Subscribe(tenantID, groupID, client); err != nil {
+        http.Error(w, "forbidden", http.StatusForbidden)
+        return
+    }
+    defer rs.hub.Unsubscribe(tenantID, groupID, client)
+
+    client.Listen(r.Context()) // Blockiert bis Disconnect
+}
+```
+
+### 10.4 Migration bestehender Clients
+
+Bestehende SSE-Connections nutzen nur `groupID` als Key. Nach der Migration:
+- Alle bestehenden Connections werden getrennt (Hub-Restart)
+- Clients reconnecten automatisch (SSE EventSource Retry)
+- Neue Connections nutzen `tenantID:groupID` Keys
+
 ---
 
-## 11. Factory-Pattern Aenderungen
+## 11. Scheduler/Background-Jobs: Tenant-Strategie (09-C2)
+
+Alle Scheduler-Jobs nutzen aktuell `context.Background()` ohne Tenant-Context. Mit `phoenix_auth` (NOINHERIT) fuehrt das zu Permission Denied.
+
+**Strategie: Hybrid — Cleanup als Admin, Business-Logic per Tenant.**
+
+### 11.1 Admin-Scope Jobs (WithAdminTx)
+
+Jobs die tenant-uebergreifend aufraeumen. RLS ist hier nicht noetig — die Jobs loeschen/bereinigen expired Daten systemweit.
+
+| Job | Datei | Begruendung Admin-Scope |
+|-----|-------|------------------------|
+| `CleanupExpiredTokens` | `token_cleanup.go` | Tokens sind global (auth.tokens), kein Tenant-Bezug |
+| `CleanupExpiredVisits` | `cleanup_service.go` | Loescht abgelaufene Daten systemweit, Tenant-Iteration waere ueberfluessig |
+| `CleanupStaleAttendance` | `cleanup_service.go` | Bereinigung verwaister Datensaetze |
+| `CleanupStaleSupervisors` | `cleanup_service.go` | Bereinigung verwaister Datensaetze |
+
+```go
+func (s *Scheduler) runCleanupExpiredVisits(ctx context.Context) {
+    err := tenant.WithAdminTx(ctx, s.db, func(ctx context.Context, tx bun.Tx) error {
+        return s.cleanupService.CleanupExpiredVisits(ctx)
+    })
+    if err != nil {
+        s.logger.Error("cleanup_expired_visits failed", "error", err)
+    }
+}
+```
+
+### 11.2 Tenant-Scope Jobs (Tenant-Iteration + WithTenantTx)
+
+Jobs die Geschaeftsdaten aendern. RLS MUSS aktiv sein — ein Bug im Job darf nicht Cross-Tenant-Daten korrumpieren.
+
+| Job | Datei | Begruendung Tenant-Scope |
+|-----|-------|--------------------------|
+| `EndDailySessions` | `session_service.go` | Aendert active.groups — Geschaetsdaten pro OGS |
+| `ProcessScheduledCheckouts` | `scheduled_checkout.go` | Aendert active.visits — Geschaetsdaten pro OGS |
+| `AutoEndExpiredBreaks` | `work_session_service.go` | Aendert work_sessions — Geschaetsdaten pro OGS |
+| `CleanupOpenSessions` | `work_session_service.go` | Aendert work_sessions — Geschaetsdaten pro OGS |
+
+```go
+func (s *Scheduler) runEndDailySessions(ctx context.Context) {
+    tenants, err := s.schoolRepo.ListActive(ctx) // WithAdminTx fuer Tenant-Liste
+    if err != nil {
+        s.logger.Error("failed to list tenants", "error", err)
+        return
+    }
+
+    for _, t := range tenants {
+        err := tenant.WithTenantTx(ctx, s.db, t.ID,
+            func(ctx context.Context, tx bun.Tx) error {
+                return s.sessionService.EndDailySessions(ctx)
+            })
+        if err != nil {
+            // Fehler in einem Tenant blockiert NICHT den naechsten
+            s.logger.Error("end_daily_sessions failed",
+                "tenant_id", t.ID, "tenant_name", t.Name, "error", err)
+            continue
+        }
+    }
+}
+```
+
+### 11.3 Fehlerbehandlung
+
+- Fehler in einem Tenant duerfen NICHT den naechsten blockieren (`continue` nach Error-Log)
+- Jeder Tenant-Job laeuft in eigener Transaktion — Rollback betrifft nur diesen Tenant
+- Metriken: Anzahl fehlgeschlagener Tenants pro Job-Run loggen
+- Bei >50% Tenant-Failures: Alert (deutet auf systemisches Problem hin, nicht Einzel-Tenant-Bug)
+
+---
+
+## 12. Factory-Pattern Aenderungen
 
 ```go
 // Connection Pool verbindet als phoenix_auth (D8)
@@ -530,16 +770,16 @@ func NewFactory(db *bun.DB) *Factory
 
 ---
 
-## 12. PostgreSQL-Anforderungen (D16)
+## 13. PostgreSQL-Anforderungen (D16)
 
-### 12.1 Mindestversion: PostgreSQL 17.6
+### 13.1 Mindestversion: PostgreSQL 17.6
 
 | CVE | Beschreibung | Gefixt in |
 |-----|-------------|-----------|
 | CVE-2024-10976 | Plan-Cache ignoriert Role-Wechsel bei Subqueries/CTEs + SET LOCAL ROLE | PG 17.1 |
 | CVE-2025-8713 | Optimizer-Statistiken leaken RLS-versteckte Daten | PG 17.6 |
 
-### 12.2 Advisory Lock: Zwei-Argument-Form
+### 13.2 Advisory Lock: Zwei-Argument-Form
 
 ```go
 // VORHER — Cross-Tenant-Blocking
@@ -549,7 +789,7 @@ _, err := tx.ExecContext(ctx, "SELECT pg_advisory_xact_lock(?)", activityID)
 _, err := tx.ExecContext(ctx, "SELECT pg_advisory_xact_lock(?, ?)", tenantID, activityID)
 ```
 
-### 12.3 Views mit security_invoker
+### 13.3 Views mit security_invoker
 
 ```sql
 -- Alle Views auf Tenant-Tabellen MUESSEN security_invoker setzen
@@ -557,7 +797,7 @@ CREATE OR REPLACE VIEW users.expired_privacy_consents
 WITH (security_invoker = true) AS ...
 ```
 
-### 12.4 Praeventions-Checkliste
+### 13.4 Praeventions-Checkliste
 
 | Regel | Grund |
 |-------|-------|
@@ -570,10 +810,77 @@ WITH (security_invoker = true) AS ...
 
 ---
 
-## 13. Aenderungshistorie
+## 14. Avatar-Uploads: Tenant-Namespacing (06-#16)
+
+**Aktuell:** User-Avatare werden in einem globalen Verzeichnis gespeichert:
+```
+public/uploads/avatars/{userID}_{random}.ext
+```
+
+Funktional kein Konflikt (userID + random ist unique), aber bei Tenant-Loeschung oder GDPR Art. 17 Cleanup muessen alle Avatare eines Tenants identifizierbar sein.
+
+### 14.1 Neue Pfadstruktur
+
+```
+public/uploads/avatars/{tenant_id}/{userID}_{random}.ext
+
+# Beispiel:
+public/uploads/avatars/42/1337_a8f3c2.jpg
+public/uploads/avatars/99/2048_b7e1d4.png
+```
+
+### 14.2 Code-Aenderungen
+
+```go
+// api/usercontext/api.go — Upload-Handler
+func (rs *resource) uploadAvatar(w http.ResponseWriter, r *http.Request) {
+    tenantID := tenant.FromContext(r.Context())
+
+    // NEU: Tenant-Subdirectory
+    uploadDir := filepath.Join("public", "uploads", "avatars", strconv.FormatInt(tenantID, 10))
+    if err := os.MkdirAll(uploadDir, 0o755); err != nil {
+        // ...
+    }
+
+    filename := fmt.Sprintf("%d_%s%s", userID, randomStr, ext)
+    filepath := filepath.Join(uploadDir, filename)
+    // ... save file ...
+}
+```
+
+**Betroffene Stellen:**
+- `api/usercontext/api.go:296` (Avatar-Upload)
+- `api/usercontext/api.go:392` (Avatar-Loeschung)
+- Avatar-URL in API-Responses muss `/{tenant_id}/` im Pfad haben
+
+### 14.3 Migration bestehender Avatare
+
+```bash
+# Alle bestehenden Avatare in Default-Tenant-Verzeichnis verschieben
+mkdir -p public/uploads/avatars/1/
+mv public/uploads/avatars/*.{jpg,jpeg,png,gif,webp} public/uploads/avatars/1/ 2>/dev/null || true
+```
+
+### 14.4 GDPR-Vorteil
+
+Tenant-Loeschung (Art. 17) kann Avatare per Verzeichnis loeschen statt per DB-Lookup:
+
+```go
+// Komplett-Loeschung aller Avatare eines Tenants
+os.RemoveAll(filepath.Join("public", "uploads", "avatars", strconv.FormatInt(tenantID, 10)))
+```
+
+---
+
+## 15. Aenderungshistorie
 
 | Datum | Aenderung |
 |-------|-----------|
 | 2026-02-08 | Initiale Version basierend auf vollstaendiger Codebase-Analyse |
 | 2026-02-08 | Aktualisiert gemaess DEBATE-Entscheidungen: SET LOCAL ROLE (D8), kein QueryHook (D9), kein BeforeAppendModel (D10), kein tenant_id=0 Bypass (D7), Body statt Header (D6), RefreshClaims (D12), Two-Tier Auth (D14), RowsAffected/PG 17.6 (D16) |
 | 2026-02-10 | D13 revidiert: Login-Flow und Tenant-Switch laden Rollen/Permissions pro Tenant. JWT enthaelt tenant-spezifische Permissions. |
+| 2026-02-10 | Transaction-Ownership Migration (Sektion 1.3, 09-C1): Handler starten Transaktionen, Services/Repos nutzen tx aus Context. Migrationstabelle fuer 51 RunInTx + 110 WithTx Calls. |
+| 2026-02-10 | Scheduler/Background-Jobs Tenant-Strategie (Sektion 11, 09-C2): Hybrid-Ansatz mit Admin-Scope und Tenant-Scope Jobs. |
+| 2026-02-10 | IoT Device-Auth ueberarbeitet (Sektion 9, D20): Two-Phase Lookup analog D6, per-Device PIN-Hash statt globaler Env-Var. |
+| 2026-02-10 | SSE Hub korrigiert (Sektion 10, 08-H3): Group-Level Broadcasting bleibt, Tenant-Guard bei Connection, tenant-prefixed Map-Keys statt falschem Tenant-Level-Partitioning. |
+| 2026-02-10 | Avatar-Uploads Tenant-Namespacing (Sektion 14, 06-#16): Pfadstruktur zu `avatars/{tenant_id}/` aendern, Migrationsskript fuer bestehende Dateien, GDPR-Cleanup per Verzeichnis. |

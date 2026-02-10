@@ -1095,6 +1095,363 @@ const RESERVED_SUBDOMAINS = ["www", "api", "admin", "operator", "app"];
 
 ---
 
+## D18: Org-Scope (Traeger-Buero) Implementierung
+
+**Status:** ENTSCHIEDEN | **Severity:** KRITISCH
+
+**Entscheidung:** Option B — Application-Layer mit `WithAdminTx` + org_id-Filter. Kein org-aware RLS.
+
+**Begruendung:**
+
+1. **RLS bleibt simpel:** Jede RLS-Policy hat genau eine Bedingung (`tenant_id = X`). Kein Subquery-Overhead, keine Performance-Risiken bei Index-Scans, keine Komplexitaet in der kritischsten Sicherheitsschicht.
+
+2. **Traeger-Buero ist eine Nischen-Nutzergruppe:** 3-10 User pro Traeger vs. Hunderte Betreuer. RLS fuer den 99%-Fall (Betreuer) optimieren, nicht fuer den 1%-Fall.
+
+3. **Maximale Flexibilitaet:** Aenderungen am Org-Scope betreffen nur Application-Code, nicht DB-Policies. Wenn sich die Business-Anforderungen aendern (z.B. Org-Scope nur fuer bestimmte Daten, nicht alle), ist das ein Service-Layer-Change, keine Migration.
+
+4. **Tagesgeschaeft per Tenant-Switch:** Traeger-Buero-User arbeiten im Regelfall an einer spezifischen OGS (Vertretungen planen, Krankmeldungen bearbeiten). Dafuer nutzen sie Tenant-Switch + `WithTenantTx` — voller RLS-Schutz wie jeder andere User.
+
+**Design:**
+
+```
+Traeger-Buero Workflow:
+
+1. Login → JWT mit tenant_id (primaere OGS) + org_id
+2. Tagesgeschaeft: Tenant-Switch zu spezifischer OGS (WithTenantTx, RLS aktiv)
+3. Aggregierte Ansichten: Dedizierte Org-Scope-Endpoints (WithAdminTx + org_id-Filter)
+```
+
+**Guardrails gegen BYPASSRLS-Missbrauch:**
+
+| Guardrail | Mechanismus |
+|-----------|------------|
+| **Dedizierter OrgScopeService** | Eigener Service mit eigenen Queries — kein bestehendes Repo wird mit `WithAdminTx` aufgerufen |
+| **Eigene Permission** | `org:dashboard:read` — nur Traeger-Buero-Rolle hat diese |
+| **Nur Read/Aggregate** | Org-Scope ist read-only. Schreib-Operationen IMMER per Tenant-Switch + `WithTenantTx` |
+| **Org-Filter als Pflicht** | Jede Query im OrgScopeService hat `WHERE tenant_id IN (SELECT id FROM platform.schools WHERE organization_id = ?)` |
+| **Audit-Logging** | Jeder Org-Scope-Zugriff wird in `audit.auth_events` protokolliert |
+
+**OrgScopeService-Konzept:**
+
+```go
+type OrgScopeService struct {
+    db     *bun.DB
+    logger *slog.Logger
+}
+
+// IMMER org-gefiltert, IMMER read-only, IMMER geloggt
+func (s *OrgScopeService) StaffOverview(ctx context.Context, orgID int64) ([]StaffSummary, error) {
+    var result []StaffSummary
+    err := tenant.WithAdminTx(ctx, s.db, func(ctx context.Context, tx bun.Tx) error {
+        return tx.NewSelect().
+            Model(&result).
+            Where("tenant_id IN (SELECT id FROM platform.schools WHERE organization_id = ?)", orgID).
+            Scan(ctx)
+    })
+    s.logger.Info("org_scope_access", "org_id", orgID, "action", "staff_overview")
+    return result, err
+}
+```
+
+**Was Org-Scope NICHT kann:**
+- Keine Schreib-Operationen (kein UPDATE/DELETE/INSERT ueber Org-Scope)
+- Kein Zugriff auf andere Organisationen (org_id kommt aus JWT, nicht aus Request)
+- Keine Impersonation (Traeger-Buero bleibt Traeger-Buero, wird nie als OGS-Admin behandelt)
+
+**Verworfene Alternativen:**
+
+| Alternative | Grund fuer Ablehnung |
+|-------------|---------------------|
+| Option A: Org-aware RLS | Subquery in jeder Policy (`OR tenant_id IN (SELECT ...)`) — Performance-Risiko bei Index-Scans, erhoehte Komplexitaet der kritischsten Sicherheitsschicht, schwerer zu testen und zu auditieren |
+| Option C: Nur Tenant-Switch | Keine aggregierten Ansichten moeglich, schlechte UX fuer Personalplanung/Lohnabrechnung die mehrere OGS ueberblicken muss |
+| Org-Scope per RLS spaeter nachrüsten | Wenn (b) funktioniert, gibt es keinen Grund auf (a) umzusteigen. (b) → (a) Migration ist moeglich aber unwahrscheinlich noetig |
+
+**Vermerkt in:** 03-backend.md, 06-offene-punkte.md
+
+---
+
+## D19: Eltern-Datenisolation (Kind-Level)
+
+**Status:** ENTSCHIEDEN | **Severity:** KRITISCH
+
+**Entscheidung:** Service-Layer-Filterung. Eltern-Endpoints filtern per `students_guardians`-Beziehung. Kein RLS auf Kind-Ebene.
+
+**Problem:**
+
+RLS isoliert auf Tenant-Ebene. Sobald ein Elternteil Zugang zu einem Tenant hat (Kind an OGS Altenberge eingeschrieben), sieht die RLS-Policy ALLE Rows des Tenants. Elternteil A koennte Kinderdaten von Familie B sehen — Name, Anwesenheit, Gesundheitsinfos, Notfallkontakte. Das ist ein GDPR Art. 33/34 meldepflichtiger Vorfall (Kinderdaten, Art. 8 besonderer Schutz).
+
+**Begruendung:**
+
+1. **Eltern-App hat eigene Endpoints:** Die Eltern-UI ist eine separate Ansicht (00-anforderungen.md Sektion 3.4). Eltern nutzen nicht die Betreuer-Endpoints. Dedizierte Parent-Endpoints koennen im Service-Layer per Guardian-Student-Beziehung filtern — kein RLS-Umbau noetig.
+
+2. **RLS fuer Kind-Level waere massiv overengineered:** Man muesste `app.current_guardian_id` als Session-Variable setzen und jede RLS-Policy um `OR (current_setting('app.current_role') = 'guardian' AND student_id IN (SELECT ...))` erweitern. Das verkompliziert JEDE Policy fuer einen einzigen User-Typ.
+
+3. **Bestehende Pattern als Vorlage:** Die `TeacherGroupPolicy` filtert bereits Lehrer auf ihre zugewiesenen Gruppen. Das gleiche Pattern funktioniert fuer Eltern → Kinder. Bewaehrtes Muster, kein neues Konzept.
+
+4. **Defense-in-Depth bleibt intakt:** RLS schuetzt weiterhin cross-tenant (Elternteil sieht nur Daten der OGS seines Kindes). Service-Layer schuetzt intra-tenant (Elternteil sieht nur eigenes Kind). Zwei Schichten, klar getrennt.
+
+**Design:**
+
+```go
+// Dedizierte Parent-Endpoints (NICHT die Betreuer-Endpoints!)
+// api/parent/api.go
+r.Route("/parent", func(r chi.Router) {
+    r.Use(authorize.RequiresRole("guardian"))
+
+    r.Get("/children", rs.listMyChildren)       // Nur eigene Kinder
+    r.Get("/children/{id}/visits", rs.childVisits) // Nur Besuche eigener Kinder
+    r.Get("/children/{id}/schedule", rs.childSchedule)
+})
+
+// services/parent/parent_service.go
+func (s *ParentService) ListMyChildren(ctx context.Context, guardianAccountID int64) ([]Child, error) {
+    var children []Child
+    err := tenant.WithTenantTx(ctx, s.db, tenant.FromContext(ctx),
+        func(ctx context.Context, tx bun.Tx) error {
+            // RLS filtert auf Tenant, Service filtert auf Guardian
+            return tx.NewSelect().
+                Model(&children).
+                Join("INNER JOIN users.students_guardians sg ON sg.student_id = student.id").
+                Join("INNER JOIN users.guardian_profiles gp ON gp.id = sg.guardian_profile_id").
+                Where("gp.account_id = ?", guardianAccountID).
+                Scan(ctx)
+        })
+    return children, err
+}
+```
+
+**Sicherheits-Schichten fuer Eltern:**
+
+| Schicht | Was sie schuetzt | Fail-Mode |
+|---------|-----------------|-----------|
+| 1. RLS | Eltern sehen nur Daten ihres Tenants (OGS) | Zero rows cross-tenant |
+| 2. `RequiresRole("guardian")` | Nur Eltern erreichen Parent-Endpoints | 403 Forbidden |
+| 3. Service-Layer JOIN | Nur eigene Kinder zurueckgegeben | Leere Liste |
+| 4. Policy Engine (optional) | `ParentChildPolicy` als zusaetzlicher Check | Deny + Audit-Log |
+
+**Wichtig:** Betreuer-Endpoints (`/api/students`, `/api/visits` etc.) sind fuer Eltern NICHT erreichbar — andere Permission (`students:read` vs. `parent:children:read`). Selbst wenn ein Elternteil die URL kennt, blockiert die Permission-Middleware.
+
+**Verworfene Alternativen:**
+
+| Alternative | Grund fuer Ablehnung |
+|-------------|---------------------|
+| RLS auf Kind-Ebene | Jede Policy wird um Guardian-Subquery erweitert. Massive Komplexitaet fuer einen einzigen User-Typ. Performance-Impact auf alle Queries, nicht nur Eltern-Queries |
+| Separate DB-Rolle fuer Eltern | Vierte PostgreSQL-Rolle (`phoenix_guardian`) mit eigener RLS-Policy. Erhoehte Komplexitaet bei `SET LOCAL ROLE`, kaum Vorteil gegenueber Service-Layer |
+| Eltern-Daten in separatem Schema | Physische Isolation. Overkill, dupliziert Daten, erschwert Betreuer-Zugriff auf Kind-Infos |
+
+**GDPR-Compliance:**
+
+- Art. 8 (Kinderdaten): Besonderer Schutz durch doppelte Isolation (RLS + Service-Layer)
+- Art. 25 (Privacy by Design): Eltern-Endpoints sind Default-Deny, nur eigene Kinder per JOIN
+- Art. 32 (Sicherheit): Zwei unabhaengige Schutzschichten, keine single-point-of-failure
+
+**Vermerkt in:** 03-backend.md, 06-offene-punkte.md
+
+---
+
+## D20: IoT Device Auth Bootstrap (Chicken-and-Egg)
+
+**Status:** ENTSCHIEDEN | **Severity:** KRITISCH
+
+**Entscheidung:** Two-Phase Lookup (analog D6 Login-Flow). Device-Lookup via `WithAdminTx`, danach `WithTenantTx` fuer Check-In Operations. Globaler PIN wird durch per-Device PIN-Hash ersetzt.
+
+**Problem:**
+
+IoT-Check-In ist die Kernfunktion. Der aktuelle Flow:
+1. Device sendet `Authorization: Bearer <api_key>` + `X-Staff-PIN`
+2. Backend sucht Device via `FindByAPIKey()` — **kein Tenant-Context**
+3. Device bestimmt den Tenant fuer den Check-In
+
+Mit RLS braucht der Device-Lookup (Schritt 2) einen Tenant-Context. Den Tenant-Context kennt man erst nach dem Lookup (Schritt 3). Chicken-and-Egg.
+
+Zusaetzlich: Der Staff-PIN ist aktuell eine einzelne Env-Var (`OGS_DEVICE_PIN`) — identisch fuer alle OGS. Mit Multi-Tenancy untragbar (PIN von OGS A funktioniert bei OGS B).
+
+**Begruendung:**
+
+1. **Exakt das D6-Login-Pattern:** Login sucht Account global via `WithAdminTx`, validiert Tenant-Membership, dann Switch zu `WithTenantTx`. IoT macht dasselbe — Device global suchen, `device.TenantID` extrahieren, dann `WithTenantTx` fuer den Check-In.
+
+2. **Devices gehoeren physisch zu einer OGS:** Ein RFID-Reader ist in einem Raum einer spezifischen OGS installiert. `tenant_id` auf `iot.devices` ist semantisch korrekt — nicht nur technisch noetig.
+
+3. **Per-Device PIN-Hash ist sicherer:** Aktuell teilen sich alle Devices und alle OGS einen einzigen PIN. Kompromittierung = alle OGS betroffen. Per-Device PIN (Argon2id-Hash in `iot.devices.pin_hash`) limitiert den Blast-Radius auf ein einzelnes Geraet.
+
+4. **`device_id` und `api_key` bleiben global UNIQUE:** Keine Aenderung an der globalen Eindeutigkeit. Ein Device kann nicht bei zwei OGS gleichzeitig registriert sein.
+
+**Design:**
+
+```go
+// auth/device/device_auth.go — Neuer Flow
+func (d *DeviceAuthenticator) Authenticate(next http.Handler) http.Handler {
+    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        apiKey := extractBearerToken(r)
+
+        // Phase 1: Device-Lookup via WithAdminTx (analog D6 Login)
+        var dev *iot.Device
+        err := tenant.WithAdminTx(r.Context(), d.db, func(ctx context.Context, tx bun.Tx) error {
+            var err error
+            dev, err = d.deviceRepo.FindByAPIKey(ctx, apiKey)
+            return err
+        })
+        if err != nil || dev.Status != iot.DeviceStatusActive {
+            http.Error(w, "device not found or inactive", http.StatusForbidden)
+            return
+        }
+
+        // Phase 2: PIN-Validierung (per-Device Hash)
+        pin := r.Header.Get("X-Staff-PIN")
+        if !verifyPINHash(dev.PINHash, pin) {
+            http.Error(w, "invalid PIN", http.StatusUnauthorized)
+            return
+        }
+
+        // Phase 3: Context mit Device + TenantID fuer nachfolgende Handler
+        ctx := context.WithValue(r.Context(), CtxDevice, dev)
+        ctx = context.WithValue(ctx, CtxTenantID, dev.TenantID)
+
+        // Check-In Handler nutzt WithTenantTx(dev.TenantID) fuer alle Operationen
+        next.ServeHTTP(w, r.WithContext(ctx))
+    })
+}
+```
+
+**Migrations-Aenderungen:**
+
+```sql
+-- 1. iot.devices bekommt tenant_id (bereits in 02-datenbank.md Migrationsliste)
+ALTER TABLE iot.devices ADD COLUMN tenant_id BIGINT
+    REFERENCES platform.schools(id);
+UPDATE iot.devices SET tenant_id = (SELECT id FROM platform.schools LIMIT 1);
+ALTER TABLE iot.devices ALTER COLUMN tenant_id SET NOT NULL;
+
+-- 2. Per-Device PIN-Hash
+ALTER TABLE iot.devices ADD COLUMN pin_hash TEXT;
+-- Bestehende Devices: PIN aus OGS_DEVICE_PIN env-var hashen und migrieren
+-- Danach: OGS_DEVICE_PIN env-var entfernen
+```
+
+**BUN Model Aenderung:**
+
+```go
+// models/iot/device.go
+type Device struct {
+    // ... bestehende Felder ...
+    TenantID int64  `bun:"tenant_id,notnull" json:"-"`
+    PINHash  string `bun:"pin_hash" json:"-"`
+}
+```
+
+**Verworfene Alternativen:**
+
+| Alternative | Grund fuer Ablehnung |
+|-------------|---------------------|
+| `iot.devices` von RLS ausnehmen | Sonderfall, bricht das einheitliche Muster. Jede Tabelle unter RLS ist sicherer als Ausnahmen |
+| Tenant in API-Key kodieren | Fragil, Key-Rotation wird komplex, Tenant-Wechsel eines Devices erfordert neuen Key |
+| Globalen PIN beibehalten | Ein kompromittierter PIN betrifft alle OGS. Unakzeptabel fuer GDPR-reguliertes System mit Kinderdaten |
+
+**Vermerkt in:** 03-backend.md
+
+---
+
+## D21: GDPR Art. 17 Erasure bei Shared Accounts (09-C7)
+
+**Status:** ENTSCHIEDEN | **Severity:** KRITISCH
+
+**Entscheidung:** Technisch geloest durch D15 (globale Accounts + `account_tenants`). Juristisch erfordert AVV + DPIA als separaten Workstream. Art. 28 Auftragsverarbeitung ist der korrekte und branchenuebliche Rechtsrahmen.
+
+**Problem:**
+
+D15 definiert: Ein Account, mehrere Tenants, Email global UNIQUE. Szenario:
+- Betreuerin Lisa arbeitet bei OGS A (Caritas) und OGS B (AWO)
+- Lisa kuendigt bei OGS A. Caritas muss auf Art. 17 Loeschantrag reagieren
+- Der Account (Email, Name, Password-Hash) liegt in `auth.accounts` — global, kein `tenant_id`
+- Caritas kann den Account nicht loeschen, weil AWO ihn noch braucht
+- `account_tenants.status = 'inactive'` allein ist keine Loeschung (EuGH C-553/07)
+
+**Warum Art. 28 (Auftragsverarbeitung) korrekt und branchenueblich ist:**
+
+1. **Jeder Traeger ist eigenstaendiger Data Controller** (Art. 4 Nr. 7) fuer seine Tenant-Daten
+2. **moto ist Auftragsverarbeiter** (Art. 28) — verarbeitet Daten im Auftrag der Controller
+3. **Art. 17 Loeschpflicht gilt nur fuer den jeweiligen Controller.** Wenn Caritas "loesche Lisa" sagt, bezieht sich das nur auf Caritas' Datenbestand. AWO ist ein unabhaengiger Controller mit eigener Rechtsgrundlage (Art. 6(1)(b) — Vertragserfuellung)
+4. **Kein Joint-Controller-Szenario** (Art. 26): Caritas und AWO bestimmen nicht gemeinsam Zweck und Mittel. Sie nutzen unabhaengig voneinander dieselbe SaaS-Plattform (vgl. EDPB Guidelines 07/2020, Reisebüro-Analogie)
+
+**Industrie-Praxis (exakt D15-Pattern):**
+
+| Plattform | Architektur | Loeschung |
+|-----------|-------------|-----------|
+| Auth0 | User global, Org-Membership per Junction | Member entfernen ≠ User loeschen |
+| WorkOS | "Users can belong to multiple tenants" | Membership loeschen ≠ User loeschen |
+| Microsoft Entra | "Use a single identity per person" | Zugang entziehen, Identity bleibt |
+| Okta | DPA: Controller-spezifische Loeschung | Processor loescht pro Controller-Auftrag |
+
+**Technische Loeschung bei Art. 17 Anfrage (Controller-Scope):**
+
+```
+Caritas sagt "Loesche Lisa":
+
+1. HARD DELETE: account_tenants Record fuer OGS A
+2. HARD DELETE: account_roles fuer OGS A (tenant_id = OGS_A)
+3. HARD DELETE: account_permissions fuer OGS A
+4. HARD DELETE: Alle Tenant-spezifischen Daten bei OGS A
+   (Activity Logs, Visits, Work Sessions, Audit Records etc.)
+5. auth.accounts Record BLEIBT — AWO hat eigene Rechtsgrundlage
+
+Wenn Lisa auch OGS B verlaesst (letzter account_tenants Record):
+6. Grace Period (30 Tage, D15)
+7. HARD DELETE: auth.accounts Record
+```
+
+**Self-Service Account-Loeschung (Pflicht):**
+
+Lisa muss ihren gesamten Account selbst loeschen koennen — unabhaengig von einzelnen Traegern. Dies ist ein direkter Art. 17 Anspruch gegen moto als Verantwortlichen fuer die Plattform-Identity-Daten.
+
+```go
+// api/account/api.go
+r.With(authorize.RequiresAuthentication).Delete("/me", rs.deleteMyAccount)
+
+// Loescht: auth.accounts + ALLE account_tenants + ALLE Tenant-Daten
+// Erfordert: Passwort-Bestaetigung + 72h Cooling-Off Period
+```
+
+**Juristischer Workstream (NICHT in technischen Docs loesbar):**
+
+| Dokument | Zweck | Verantwortlich |
+|----------|-------|---------------|
+| **AVV-Template** (Art. 28(3)) | Pro Traeger, definiert Loeschung = Controller-Scope | moto + Anwalt |
+| **Datenschutzerklaerung** | Erklaert Shared-Identity-Modell, Self-Service Loeschung | moto |
+| **DPIA** (Art. 35) | Wahrscheinlich Pflicht: Kinderdaten + RFID-Tracking + Skalierung | moto + DSB |
+| **Eltern-Information** | Template fuer Traeger, erklaert Datenverarbeitung | moto bereitstellen, Traeger verteilen |
+
+**Warum DPIA wahrscheinlich Pflicht:**
+- Kinderdaten (Recital 38, Art. 8 — besonderer Schutz)
+- Systematisches RFID-Standort-Tracking (Art. 35(3)(b) — Monitoring im grossen Umfang)
+- DSK DPIA-Muss-Liste: "Systematische Ueberwachung oeffentlich zugaenglicher Bereiche"
+- LDI NRW ist bei Bildungsdaten erfahrungsgemaess streng
+
+**Grauzone (Anwalt/DSB klaeren):**
+
+1. Welche Kinderdaten fallen unter SchulG NRW §120 (Schule als Controller) vs. Traeger-eigene Daten?
+2. Ist RFID-Tracking ein "systematisches Monitoring" nach Art. 35(3)(c)?
+3. Exakte Abgrenzung moto als Processor vs. Controller fuer Operator-Dashboard-Daten
+
+**Verworfene Alternativen:**
+
+| Alternative | Grund fuer Ablehnung |
+|-------------|---------------------|
+| Art. 26 Joint Controller | Traeger bestimmen nicht gemeinsam Zweck/Mittel. SaaS-Standard ist Art. 28, nicht Art. 26. Wuerde unnoetige vertragliche Komplexitaet schaffen |
+| Account-Splitting bei Loeschung | Account duplizieren, alten loeschen, neuen fuer verbleibende Tenants erstellen. Technisch komplex, Email-Eindeutigkeit problematisch, kein Industrie-Standard |
+| Soft-Delete als Loeschung deklarieren | EuGH C-553/07 interpretiert "erasure" als echte Loeschung. Soft-Delete allein reicht nicht. LDI NRW wuerde das beanstanden |
+
+**Quellen:**
+- EDPB Guidelines 07/2020 (Controller/Processor)
+- DSK Kurzpapier Nr. 13 (Auftragsverarbeitung)
+- EuGH C-553/07 (Erasure = echte Loeschung)
+- EuGH C-210/16 (Joint Controller Abgrenzung)
+- Auth0 GDPR Documentation
+- LDI NRW Bildungsdatenschutz
+
+**Vermerkt in:** 06-offene-punkte.md
+
+---
+
 ## Entscheidungs-Log
 
 | # | Punkt | Severity | Entscheidung | Datum |
@@ -1116,6 +1473,10 @@ const RESERVED_SUBDOMAINS = ["www", "api", "admin", "operator", "app"];
 | D15 | Email-Eindeutigkeit | HOCH | Ein Account, mehrere Tenants (Auth0/WorkOS-Pattern), Email global UNIQUE, account_tenants Junction | 2026-02-08 |
 | D16 | Raw SQL + Seed Tenant-Filterung | MITTEL | RLS filtert alle Query-Formen (Raw SQL, Relation, CTE). 6 gezielte Massnahmen: RowsAffected-Audit, PG 17.6+, Seeds, View security_invoker, Advisory Lock 2-arg, LEFT JOIN Review | 2026-02-08 |
 | D17 | Tenant-Validierung in Middleware | MITTEL | Middleware stateless (D11), Tenant-Validation im [tenant]/layout.tsx via resolveTenant() (D5), notFound() bei unbekanntem Slug | 2026-02-08 |
+| D18 | Org-Scope (Traeger-Buero) | KRITISCH | Application-Layer mit `WithAdminTx` + org_id-Filter. Dedizierter OrgScopeService, read-only, eigene Permission `org:dashboard:read` | 2026-02-10 |
+| D19 | Eltern-Datenisolation | KRITISCH | Service-Layer-Filterung per `students_guardians` JOIN. Eigene Parent-Endpoints, kein RLS auf Kind-Ebene | 2026-02-10 |
+| D20 | IoT Device Auth Bootstrap | KRITISCH | Two-Phase Lookup (WithAdminTx → WithTenantTx), per-Device PIN-Hash, analog D6 Login-Flow | 2026-02-10 |
+| D21 | GDPR Art. 17 Shared Accounts | KRITISCH | Art. 28 AV-Modell, Controller-Scope Loeschung, Self-Service Account-Loeschung, AVV + DPIA als juristischer Workstream | 2026-02-10 |
 
 ---
 
@@ -1138,6 +1499,11 @@ D11 (Rewrite vs. Header) ─────────────┼──→ D5 
                                        │     D17 (Middleware Validierung)
                                        │
 D12 (Refresh Token) ──────────────────┘
+
+D7 (BYPASSRLS) + D8 (WithAdminTx) ───→ D18 (Org-Scope)
+D14 (Policy Engine) + D15 (Accounts) ──→ D19 (Eltern-Isolation)
+D6 (Login Pattern) + D8 (WithAdminTx) ─→ D20 (IoT Device Auth)
+D15 (Email-Eindeutigkeit) ─────────────→ D21 (GDPR Art. 17 Erasure)
 ```
 
 **Empfohlene Reihenfolge:**
