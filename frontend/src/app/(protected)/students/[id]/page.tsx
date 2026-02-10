@@ -27,6 +27,7 @@ import { PersonalInfoFormModal } from "~/components/students/personal-info-form-
 import {
   StudentCheckoutSection,
   StudentCheckinSection,
+  StudentSickReportSection,
   getStudentActionType,
 } from "~/components/students/student-checkout-section";
 import { performImmediateCheckin } from "~/lib/checkin-api";
@@ -92,6 +93,10 @@ export default function StudentDetailPage() {
   // Check-in states
   const [showConfirmCheckin, setShowConfirmCheckin] = useState(false);
   const [checkingIn, setCheckingIn] = useState(false);
+
+  // Sick toggle state
+  const [showConfirmSick, setShowConfirmSick] = useState(false);
+  const [sickLoading, setSickLoading] = useState(false);
   const [selectedActiveGroupId, setSelectedActiveGroupId] =
     useState<string>("");
   const [activeGroups, setActiveGroups] = useState<ActiveGroup[]>([]);
@@ -258,6 +263,33 @@ export default function StudentDetailPage() {
     }
   };
 
+  const handleConfirmSickToggle = async () => {
+    if (!student) return;
+
+    setSickLoading(true);
+    try {
+      const newSickStatus = !(student.sick ?? false);
+      await studentService.updateStudent(studentId, {
+        sick: newSickStatus,
+      });
+      refreshData();
+      setShowConfirmSick(false);
+      toast.success(
+        newSickStatus
+          ? `${student.name} wurde krankgemeldet`
+          : `Krankmeldung für ${student.name} wurde aufgehoben`,
+      );
+    } catch (err) {
+      logger.error("sick_status_toggle_failed", {
+        student_id: studentId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      toast.error("Fehler beim Ändern des Krankheitsstatus");
+    } finally {
+      setSickLoading(false);
+    }
+  };
+
   // =============================================================================
   // COMPUTED VALUES
   // =============================================================================
@@ -363,6 +395,7 @@ export default function StudentDetailPage() {
             onClosePersonalInfoModal={() => setShowPersonalInfoModal(false)}
             onSavePersonal={handleSavePersonal}
             onRefreshData={refreshData}
+            onSickClick={() => setShowConfirmSick(true)}
           />
         ) : (
           <LimitedAccessView
@@ -418,6 +451,37 @@ export default function StudentDetailPage() {
             {renderRoomSelector()}
           </div>
         </div>
+      </ConfirmationModal>
+
+      {/* Sick Report Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={showConfirmSick}
+        onClose={() => setShowConfirmSick(false)}
+        onConfirm={handleConfirmSickToggle}
+        title={student.sick ? "Krankmeldung aufheben" : "Kind krankmelden"}
+        confirmText={
+          sickLoading
+            ? "Wird gespeichert..."
+            : student.sick
+              ? "Gesundmelden"
+              : "Krankmelden"
+        }
+        cancelText="Abbrechen"
+        isConfirmLoading={sickLoading}
+        confirmButtonClass="bg-gray-900 hover:bg-gray-700"
+      >
+        <p>
+          {student.sick ? (
+            <>
+              Möchten Sie die Krankmeldung für <strong>{student.name}</strong>{" "}
+              aufheben?
+            </>
+          ) : (
+            <>
+              Möchten Sie <strong>{student.name}</strong> als krank melden?
+            </>
+          )}
+        </p>
       </ConfirmationModal>
     </>
   );
@@ -482,6 +546,7 @@ interface FullAccessViewProps {
   onClosePersonalInfoModal: () => void;
   onSavePersonal: (student: ExtendedStudent) => Promise<void>;
   onRefreshData: () => void;
+  onSickClick: () => void;
 }
 
 function FullAccessView({
@@ -496,15 +561,26 @@ function FullAccessView({
   onClosePersonalInfoModal,
   onSavePersonal,
   onRefreshData,
+  onSickClick,
 }: Readonly<FullAccessViewProps>) {
   return (
     <>
-      {showCheckout && (
-        <StudentCheckoutSection onCheckoutClick={onCheckoutClick} />
-      )}
-      {showCheckin && <StudentCheckinSection onCheckinClick={onCheckinClick} />}
+      <div className="mb-4 grid grid-cols-1 gap-4 sm:mb-6 sm:grid-cols-2">
+        {showCheckout && (
+          <StudentCheckoutSection onCheckoutClick={onCheckoutClick} />
+        )}
+        {showCheckin && (
+          <StudentCheckinSection onCheckinClick={onCheckinClick} />
+        )}
+        <StudentSickReportSection
+          isSick={student.sick ?? false}
+          sickSince={student.sick_since}
+          onToggle={onSickClick}
+          isLoading={false}
+        />
+      </div>
 
-      <div className="mt-4 space-y-4 sm:mt-6 sm:space-y-6">
+      <div className="space-y-4 sm:space-y-6">
         <PickupScheduleManager
           studentId={studentId}
           readOnly={false}

@@ -1,5 +1,7 @@
 "use client";
 
+import { WarningIcon } from "./student-detail-components";
+
 // Type for the action the user can perform
 type StudentActionType = "checkout" | "checkin" | "none";
 
@@ -11,7 +13,7 @@ export function StudentCheckoutSection({
   onCheckoutClick,
 }: StudentCheckoutSectionProps) {
   return (
-    <div className="mb-6 rounded-2xl border border-gray-100 bg-white/50 p-4 backdrop-blur-sm sm:p-6">
+    <div className="rounded-2xl border border-gray-100 bg-white/50 p-4 backdrop-blur-sm sm:p-6">
       <div className="mb-4 flex items-center gap-3">
         <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-[#FF3130] text-white sm:h-10 sm:w-10">
           <svg
@@ -64,7 +66,7 @@ export function StudentCheckinSection({
   onCheckinClick,
 }: StudentCheckinSectionProps) {
   return (
-    <div className="mb-6 rounded-2xl border border-gray-100 bg-white/50 p-4 backdrop-blur-sm sm:p-6">
+    <div className="rounded-2xl border border-gray-100 bg-white/50 p-4 backdrop-blur-sm sm:p-6">
       <div className="mb-4 flex items-center gap-3">
         <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-[#83CD2D] text-white sm:h-10 sm:w-10">
           <svg
@@ -103,6 +105,69 @@ export function StudentCheckinSection({
           />
         </svg>
         Kind anmelden
+      </button>
+    </div>
+  );
+}
+
+// Component for sick report quick-action
+interface StudentSickReportSectionProps {
+  readonly isSick: boolean;
+  readonly sickSince?: string;
+  readonly onToggle: () => void;
+  readonly isLoading: boolean;
+}
+
+export function StudentSickReportSection({
+  isSick,
+  sickSince,
+  onToggle,
+  isLoading,
+}: StudentSickReportSectionProps) {
+  const sickSinceDisplay = sickSince
+    ? new Date(sickSince).toLocaleDateString("de-DE", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+      })
+    : null;
+
+  return (
+    <div
+      className={`rounded-2xl border p-4 backdrop-blur-sm sm:p-6 ${
+        isSick
+          ? "border-amber-200 bg-amber-50/80"
+          : "border-gray-100 bg-white/50"
+      }`}
+    >
+      <div className="mb-4 flex items-center gap-3">
+        <div
+          className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl text-white sm:h-10 sm:w-10 ${
+            isSick ? "bg-amber-500" : "bg-amber-400"
+          }`}
+        >
+          <WarningIcon className="h-5 w-5" />
+        </div>
+        <div>
+          <h3 className="text-base font-semibold text-gray-900 sm:text-lg">
+            Krankmeldung
+          </h3>
+          {isSick && sickSinceDisplay && (
+            <p className="text-xs text-amber-700">seit {sickSinceDisplay}</p>
+          )}
+        </div>
+      </div>
+      <button
+        onClick={onToggle}
+        disabled={isLoading}
+        className="flex w-full items-center justify-center gap-2 rounded-lg bg-gray-900 px-4 py-3 text-sm font-medium text-white transition-all duration-200 hover:scale-[1.01] hover:bg-gray-700 hover:shadow-lg active:scale-[0.99] disabled:opacity-50 sm:py-2.5"
+      >
+        <WarningIcon className="h-5 w-5" />
+        {isLoading
+          ? "Wird gespeichert..."
+          : isSick
+            ? "Kind gesundmelden"
+            : "Kind krankmelden"}
       </button>
     </div>
   );

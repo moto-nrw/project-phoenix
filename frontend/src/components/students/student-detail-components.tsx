@@ -502,10 +502,6 @@ export function PersonalInfoReadOnly({
           label="Abholstatus"
           value={student.pickup_status ?? "Nicht gesetzt"}
         />
-        <InfoItem
-          label="Krankheitsstatus"
-          value={<SicknessStatus student={student} />}
-        />
         {student.health_info && (
           <InfoItem
             label="Gesundheitsinformationen"
@@ -519,39 +515,6 @@ export function PersonalInfoReadOnly({
           <InfoItem label="Elternnotizen" value={student.extra_info} />
         )}
       </div>
-    </div>
-  );
-}
-
-function SicknessStatus({ student }: Readonly<{ student: ExtendedStudent }>) {
-  if (!student.sick) {
-    return (
-      <span className="inline-flex items-center gap-1.5 rounded-full bg-green-100 px-2.5 py-1 text-xs font-medium text-green-800">
-        <span className="h-2 w-2 rounded-full bg-green-500" />
-        <span>Nicht krankgemeldet</span>
-      </span>
-    );
-  }
-
-  return (
-    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-      <span
-        className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium text-white"
-        style={{ backgroundColor: "#EAB308" }}
-      >
-        <span className="h-2 w-2 rounded-full bg-white/80" />
-        <span>Krank</span>
-      </span>
-      {student.sick_since && (
-        <span className="text-sm text-gray-500">
-          seit{" "}
-          {new Date(student.sick_since).toLocaleDateString("de-DE", {
-            day: "2-digit",
-            month: "2-digit",
-            year: "numeric",
-          })}
-        </span>
-      )}
     </div>
   );
 }
