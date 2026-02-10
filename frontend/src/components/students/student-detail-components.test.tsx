@@ -532,52 +532,8 @@ describe("PersonalInfoReadOnly with showEditButton", () => {
     expect(screen.getByText("Elternnotiz hier")).toBeInTheDocument();
   });
 
-  it("shows 'Nicht krankgemeldet' when student is not sick", () => {
-    render(
-      <PersonalInfoReadOnly
-        student={mockStudent}
-        showEditButton={true}
-        onEditClick={vi.fn()}
-      />,
-    );
-    expect(screen.getByText("Nicht krankgemeldet")).toBeInTheDocument();
-  });
-
-  it("shows 'Krank' when student is sick", () => {
-    const sickStudent = {
-      ...mockStudent,
-      sick: true,
-      sick_since: "2024-01-10",
-    };
-    render(
-      <PersonalInfoReadOnly
-        student={sickStudent}
-        showEditButton={true}
-        onEditClick={vi.fn()}
-      />,
-    );
-    expect(screen.getByText("Krank")).toBeInTheDocument();
-  });
-
-  it("shows sick since date when student is sick", () => {
-    const sickSinceDate = "2024-01-10";
-    const sickStudent = {
-      ...mockStudent,
-      sick: true,
-      sick_since: sickSinceDate,
-    };
-    render(
-      <PersonalInfoReadOnly
-        student={sickStudent}
-        showEditButton={true}
-        onEditClick={vi.fn()}
-      />,
-    );
-    expect(screen.getByText(/seit/)).toBeInTheDocument();
-    // Use same formatting as component to ensure timezone-stable assertion
-    const expectedDate = formatDateLikeComponent(sickSinceDate);
-    expect(screen.getByText(new RegExp(expectedDate))).toBeInTheDocument();
-  });
+  // Note: Sick status display was moved to StudentSickReportSection (student-checkout-section.tsx)
+  // Tests for sick functionality are in student-checkout-section.test.tsx and page.test.tsx
 });
 
 // =============================================================================

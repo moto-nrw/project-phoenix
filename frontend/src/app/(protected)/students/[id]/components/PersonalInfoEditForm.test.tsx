@@ -109,37 +109,6 @@ describe("PersonalInfoEditForm", () => {
     expect(onStudentChange).toHaveBeenCalled();
   });
 
-  it("renders sick toggle", () => {
-    render(
-      <PersonalInfoEditForm
-        editedStudent={baseStudent}
-        onStudentChange={vi.fn()}
-        onSave={vi.fn()}
-        onCancel={vi.fn()}
-      />,
-    );
-
-    expect(screen.getByText("Kind krankmelden")).toBeInTheDocument();
-    expect(screen.getByRole("switch")).toBeInTheDocument();
-  });
-
-  it("toggles sick state when switch is clicked", () => {
-    const onStudentChange = vi.fn();
-    render(
-      <PersonalInfoEditForm
-        editedStudent={baseStudent}
-        onStudentChange={onStudentChange}
-        onSave={vi.fn()}
-        onCancel={vi.fn()}
-      />,
-    );
-
-    fireEvent.click(screen.getByRole("switch"));
-    expect(onStudentChange).toHaveBeenCalledWith(
-      expect.objectContaining({ sick: true }),
-    );
-  });
-
   describe("Date Input Edge Cases", () => {
     it("handles birthday with ISO timestamp (splits on T)", () => {
       const studentWithTimestamp = {
@@ -459,70 +428,6 @@ describe("PersonalInfoEditForm", () => {
     });
   });
 
-  describe("Sick Toggle Conditional Rendering", () => {
-    it("toggles sick state from true to false", () => {
-      const onStudentChange = vi.fn();
-      const sickStudent = { ...baseStudent, sick: true };
-
-      render(
-        <PersonalInfoEditForm
-          editedStudent={sickStudent}
-          onStudentChange={onStudentChange}
-          onSave={vi.fn()}
-          onCancel={vi.fn()}
-        />,
-      );
-
-      fireEvent.click(screen.getByRole("switch"));
-      expect(onStudentChange).toHaveBeenCalledWith(
-        expect.objectContaining({ sick: false }),
-      );
-    });
-
-    it("handles undefined sick status (defaults to false)", () => {
-      const studentNoSick = { ...baseStudent, sick: undefined };
-
-      render(
-        <PersonalInfoEditForm
-          editedStudent={studentNoSick}
-          onStudentChange={vi.fn()}
-          onSave={vi.fn()}
-          onCancel={vi.fn()}
-        />,
-      );
-
-      const sickSwitch = screen.getByRole("switch");
-      expect(sickSwitch).toHaveAttribute("aria-checked", "false");
-    });
-
-    it("displays amber styling when sick is true", () => {
-      const sickStudent = { ...baseStudent, sick: true };
-
-      render(
-        <PersonalInfoEditForm
-          editedStudent={sickStudent}
-          onStudentChange={vi.fn()}
-          onSave={vi.fn()}
-          onCancel={vi.fn()}
-        />,
-      );
-
-      const sickSwitch = screen.getByRole("switch");
-      expect(sickSwitch).toHaveClass("bg-amber-500");
-    });
-
-    it("displays gray styling when sick is false", () => {
-      render(
-        <PersonalInfoEditForm
-          editedStudent={baseStudent}
-          onStudentChange={vi.fn()}
-          onSave={vi.fn()}
-          onCancel={vi.fn()}
-        />,
-      );
-
-      const sickSwitch = screen.getByRole("switch");
-      expect(sickSwitch).toHaveClass("bg-gray-300");
-    });
-  });
+  // Note: Sick toggle was moved to StudentSickReportSection (student-checkout-section.tsx)
+  // Tests for sick functionality are in student-checkout-section.test.tsx and page.test.tsx
 });

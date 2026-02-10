@@ -192,23 +192,7 @@ describe("PersonalInfoFormModal", () => {
       expect(input.value).toBe("Neuer Name");
     });
 
-    it("toggles sick status", () => {
-      render(
-        <PersonalInfoFormModal
-          isOpen={true}
-          onClose={mockOnClose}
-          student={createMockStudent({ sick: false })}
-          onSave={mockOnSave}
-        />,
-      );
-
-      const toggle = screen.getByRole("switch");
-      expect(toggle).toHaveAttribute("aria-checked", "false");
-
-      fireEvent.click(toggle);
-
-      expect(toggle).toHaveAttribute("aria-checked", "true");
-    });
+    // Note: Sick toggle was moved to StudentSickReportSection (student-checkout-section.tsx)
   });
 
   describe("Save functionality", () => {
