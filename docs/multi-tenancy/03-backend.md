@@ -300,15 +300,23 @@ type RefreshClaims struct {
 ```
 1. POST /auth/login { email, password, tenant_slug: "altenberge" }
    (tenant_slug als Body-Parameter, KEIN X-Tenant-Slug Header)
-2. Tenant-Lookup: slug -> platform.schools.id
+2. Tenant-Lookup: slug -> platform.schools.id (= tenantID)
 3. Finde Account by email (global UNIQUE — D15)
 4. Pruefe: account_tenants WHERE account_id=? AND tenant_id=? AND status='active'
 5. Verifiziere Passwort
-6. Lade Rollen/Permissions
-7. Lade Organization-Info (schools.organization_id -> organizations)
-8. Lade Tenant-Settings (schools.settings JSONB) fuer Frontend-Branding (D5)
-9. Generiere JWT MIT tenant_id + org_id + scope
+6. Lade Rollen fuer DIESEN Tenant (D13 revidiert):
+   - System-Rollen (tenant_id IS NULL) + Tenant-Rollen (tenant_id = tenantID)
+   - via account_roles WHERE account_id=? AND tenant_id=tenantID
+7. Lade effektive Permissions fuer DIESEN Tenant:
+   - Permissions aus Rollen (role_permissions, gefiltert durch Rollen aus Schritt 6)
+   - Direct Permissions (account_permissions WHERE tenant_id=tenantID)
+   - Deny-Override: granted=false ueberschreibt Role-Grants
+8. Lade Organization-Info (schools.organization_id -> organizations)
+9. Lade Tenant-Settings (schools.settings JSONB) fuer Frontend-Branding (D5)
+10. Generiere JWT MIT tenant_id + org_id + scope + tenant-spezifische Permissions
 ```
+
+**Wichtig:** Permissions im JWT sind jetzt **tenant-spezifisch**. Bei Tenant-Switch (6.2) werden Rollen und Permissions fuer den Ziel-Tenant neu geladen.
 
 **Warum Body statt Header:** `tenant_slug` im Body ist Standard-REST (Auth0, WorkOS Pattern), leicht testbar mit curl/Bruno/Postman, keine Header-Fragilitaet bei Proxies/CDNs (D6).
 
@@ -318,9 +326,12 @@ type RefreshClaims struct {
 1. User klickt "Zu OGS Greven wechseln"
 2. POST /auth/switch-tenant { tenant_slug: "greven" }
 3. Backend: Zugriffspruefung (siehe 6.3)
-4. Backend: Neues JWT mit neuem tenant_id
-5. Frontend: SWR-Cache invalidieren (Tenant-prefixed Keys)
+4. Backend: Lade Rollen + Permissions fuer Ziel-Tenant (D13 revidiert)
+5. Backend: Neues JWT mit neuem tenant_id + tenant-spezifischen Permissions
+6. Frontend: SWR-Cache invalidieren (Tenant-prefixed Keys)
 ```
+
+**Wichtig:** Schritt 4 ist der Kern der D13-Revision. Maria kann Admin bei OGS Altenberge sein und Betreuerin bei OGS Greven — beim Switch aendert sich nicht nur der Tenant, sondern auch ihre Permissions.
 
 ### 6.3 Tenant-Switch Zugriffspruefung (nach Scope)
 
@@ -565,3 +576,4 @@ WITH (security_invoker = true) AS ...
 |-------|-----------|
 | 2026-02-08 | Initiale Version basierend auf vollstaendiger Codebase-Analyse |
 | 2026-02-08 | Aktualisiert gemaess DEBATE-Entscheidungen: SET LOCAL ROLE (D8), kein QueryHook (D9), kein BeforeAppendModel (D10), kein tenant_id=0 Bypass (D7), Body statt Header (D6), RefreshClaims (D12), Two-Tier Auth (D14), RowsAffected/PG 17.6 (D16) |
+| 2026-02-10 | D13 revidiert: Login-Flow und Tenant-Switch laden Rollen/Permissions pro Tenant. JWT enthaelt tenant-spezifische Permissions. |

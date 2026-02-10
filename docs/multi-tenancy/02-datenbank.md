@@ -118,27 +118,45 @@ CREATE TABLE platform.operator_organizations (
 
 ### 2.1 Welche Tabellen bekommen tenant_id?
 
-**Grundregel:** Tabellen mit OGS-spezifischen Daten bekommen `tenant_id`. Tabellen mit globalen Definitionen oder Account-Daten bleiben OHNE (D13, D15).
+**Grundregel:** Tabellen mit OGS-spezifischen Daten bekommen `tenant_id`. Tabellen mit globalen Definitionen oder Account-Daten bleiben OHNE (D15).
 
 **KEIN tenant_id (Global/Platform-Scope):**
 
 | Tabelle | Grund |
 |---------|-------|
 | `auth.accounts` | Globale Identitaet, ein Account fuer alle Tenants (D15) |
-| `auth.roles` | Systemweite Rollen-Definitionen (D13: globale Rollen) |
-| `auth.permissions` | Systemweite Permission-Definitionen (D13) |
-| `auth.role_permissions` | Systemweite Zuordnung Rolle → Permissions (D13) |
-| `auth.account_roles` | Globale Rollen-Zuweisung (D13: gleiche Rolle bei allen Tenants) |
-| `auth.account_permissions` | Globale Permission-Zuweisung (D13) |
+| `auth.permissions` | Systemweite Permission-Definitionen (Capabilities sind global) |
+| `auth.role_permissions` | Zuordnung Rolle → Permissions (Scoping durch Role-FK, nicht durch eigenen tenant_id) |
 | `auth.password_reset_tokens` | Per-Account, nicht per-Tenant |
 | `auth.password_reset_rate_limits` | Per-Account Rate-Limiting |
 | `platform.*` | Platform-Tabellen haben per Definition kein RLS |
 
-**MIT tenant_id (Tenant-Scope, ~41 Tabellen):**
+**MIT tenant_id NULLABLE (Auth RBAC-Tabellen, D13 revidiert):**
+
+| Tabelle | tenant_id | Grund |
+|---------|-----------|-------|
+| `auth.roles` | `BIGINT NULL` | NULL = System-Rolle (admin, user, guardian, guest), NOT NULL = Tenant-spezifische Rolle |
+| `auth.account_roles` | `BIGINT NOT NULL` | Rollenzuweisung gilt pro Tenant — gleicher Account kann verschiedene Rollen bei verschiedenen Tenants haben |
+| `auth.account_permissions` | `BIGINT NOT NULL` | Direct-Permission-Grants gelten pro Tenant (Sonderrechte) |
+
+**Hinweis:** `auth.permissions` und `auth.role_permissions` bleiben OHNE `tenant_id`. Permission-Definitionen (z.B. `students:read`) sind systemweit. Die Zuordnung welche Permissions eine Rolle hat, ist ebenfalls systemweit — Tenant-spezifische Rollen referenzieren die gleichen globalen Permission-Definitionen. Das Scoping erfolgt durch den `tenant_id` auf `auth.roles` selbst.
+
+**RLS-Policy fuer `auth.roles` (Sonderfall nullable tenant_id):**
+
+```sql
+CREATE POLICY tenant_isolation_roles ON auth.roles
+    FOR ALL
+    USING (
+        tenant_id IS NULL  -- System-Rollen sind ueberall sichtbar
+        OR tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::bigint
+    );
+```
+
+**MIT tenant_id NOT NULL (Tenant-Scope, ~44 Tabellen):**
 
 | Schema | Tabellen | Anzahl |
 |--------|----------|--------|
-| auth | tokens, invitation_tokens, accounts_parents, guardian_invitations | 4 |
+| auth | tokens, invitation_tokens, accounts_parents, guardian_invitations, account_roles, account_permissions | 6 |
 | users | rfid_cards, persons, profiles, staff, teachers, guests, persons_guardians, students, guardian_profiles, students_guardians, privacy_consents, guardian_phone_numbers | 12 |
 | education | groups, group_teacher, group_substitution, grade_transitions, grade_transition_mappings, grade_transition_history | 6 |
 | facilities | rooms | 1 |
@@ -363,4 +381,5 @@ Bei Problemen nach Schritt 11:
 | Datum | Aenderung |
 |-------|-----------|
 | 2026-02-08 | Initiale Version basierend auf vollstaendiger Codebase-Analyse |
-| 2026-02-08 | Aktualisiert gemaess DEBATE-Entscheidungen: Drei-Rollen statt phoenix_app (D7/D8), RLS ohne tenant_id=0 Bypass (D7), account_tenants mit Status/Soft-Delete (D15), auth-Tabellen ohne tenant_id (D13), PG 17.6 (D16), security_invoker (D16) |
+| 2026-02-08 | Aktualisiert gemaess DEBATE-Entscheidungen: Drei-Rollen statt phoenix_app (D7/D8), RLS ohne tenant_id=0 Bypass (D7), account_tenants mit Status/Soft-Delete (D15), PG 17.6 (D16), security_invoker (D16) |
+| 2026-02-10 | D13 revidiert: auth.roles, auth.account_roles, auth.account_permissions bekommen tenant_id (Per-Tenant RBAC). Spezielle RLS-Policy fuer nullable tenant_id auf auth.roles. ~44 Tabellen mit tenant_id NOT NULL + 1 mit nullable. |

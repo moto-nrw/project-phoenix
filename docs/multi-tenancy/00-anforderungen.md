@@ -55,7 +55,7 @@ Traeger (z.B. "Caritas Muenster")
 - Ein Elternteil kann Kinder in verschiedenen OGS und sogar verschiedenen Traegern haben
 - Die OGS ist die **Daten-Isolationsgrenze** (ein Betreuer in OGS A darf NICHT die Daten von OGS B sehen)
 - Der Traeger ist die uebergeordnete Organisation ("Umbrella")
-- **Rollen sind global** (D13): Eine Rolle gilt fuer alle Tenants, auf die ein Account Zugriff hat. Per-Tenant-Rollen (z.B. "Admin bei OGS A, Betreuer bei OGS B") werden nicht implementiert — YAGNI, nachruesten trivial via `account_tenants.role_id`
+- **Rollen sind per-Tenant** (D13, revidiert): Ein Account kann bei verschiedenen Tenants verschiedene Rollen haben (z.B. "Admin bei OGS A, Betreuerin bei OGS B"). System-Rollen (admin, user, guardian, guest) sind ueberall verfuegbar. OGS-Admins koennen zusaetzliche tenant-spezifische Rollen erstellen. Permissions im JWT sind tenant-spezifisch — bei Tenant-Switch werden sie neu geladen.
 
 ---
 
@@ -236,3 +236,4 @@ Buero-Mitarbeiter existieren auf **zwei Ebenen** - beide koennen gleichzeitig in
 | 2026-02-08 | Eltern in Hierarchie, Betreuer-Edge-Cases, Operator ohne Impersonation, Cross-OGS traeger-uebergreifend, alle offenen Fragen geklaert |
 | 2026-02-08 | Buero-Mitarbeiter auf zwei Ebenen (Traeger-Buero + OGS-Buero), Hierarchie-Diagramm aktualisiert |
 | 2026-02-08 | D4-Mechanismus (Ferienbetreuung) und D13 (globale Rollen) ergaenzt |
+| 2026-02-10 | D13 revidiert: Rollen sind per-Tenant (Admin bei OGS A, Betreuerin bei OGS B). System-Rollen + tenant-spezifische Rollen. |

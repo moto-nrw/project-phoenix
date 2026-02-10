@@ -577,28 +577,78 @@ if !hasAccess {
 
 ## D13: Per-Tenant Rollen vs. Globale Rollen
 
-**Status:** ENTSCHIEDEN | **Severity:** HOCH
+**Status:** REVIDIERT (2026-02-10) | **Severity:** HOCH
 
-**Entscheidung:** Option B — Globale Rollen beibehalten. Per-Tenant Rollen werden nicht implementiert.
+**Entscheidung:** Option A — Per-Tenant RBAC mit System-Rollen. Rollen- und Permission-Zuweisung erfolgt pro Tenant.
 
-**Begruendung:**
+**Begruendung fuer Revision:**
 
-1. **YAGNI:** Der Use Case "Admin bei OGS A, Betreuer bei OGS B" ist theoretisch, aber in der Praxis extrem selten:
-   - OGS-Buero-Mitarbeiter (Admin) arbeiten typischerweise an einer OGS
-   - Betreuer an mehreren OGS haben ueberall dieselbe Rolle
-   - Traeger-Buero hat `scope: "org"` — Rolle auf Traeger-Ebene, nicht OGS-Ebene
+Die urspruengliche Entscheidung (globale Rollen, YAGNI) wurde nach Review durch @yonnock (09-devils-advocate-findings C4, H10) und Codebase-Analyse revidiert. Drei Gruende:
 
-2. **RLS schuetzt sowieso:** Selbst ein "Admin bei OGS B" sieht nur OGS-B-Daten. Die Datenisolation ist durch RLS + WHERE garantiert, nicht durch Rollen.
+1. **Realer Use Case, kein Edge Case:** OGS-Buero-Mitarbeiterin Maria ist Admin bei OGS Altenberge (`users:manage`, `config:update`) und Betreuerin bei OGS Greven (nur `students:read`, `visits:read`). Mit globalen Rollen hat Maria ueberall Admin-Rechte — ueber-privilegiert bei Greven. Das ist der Standard-Betrieb bei jedem Traeger mit mehreren OGS.
 
-3. **Nachruesten ist trivial:** `account_tenants.role_id` kann jederzeit als optionale Spalte hinzugefuegt werden. Das Schema (`auth.account_tenants`) ist dafuer vorbereitet.
+2. **`admin:*` Wildcard + globale Rollen = Master Key:** Der `hasAdminWildcard`-Check in `permission.go:86-89` bypassed ALLE Permission-Middleware. Combined mit globalen Rollen: Admin bei einer OGS = Admin ueberall. RLS schuetzt die Daten, aber die Autorisierung (was ein User TUN darf) ist komplett offen. (09-devils-advocate H10)
 
-4. **Komplexitaetskosten von Per-Tenant Rollen waeren hoch:** Login-Flow, Permission-Loading, JWT-Claims, Policy Engine — alles muesste auf Per-Tenant-Rollen umgebaut werden. Nicht gerechtfertigt fuer einen seltenen Use Case.
+3. **OGS-Admin braucht Flexibilitaet:** Die urspruengliche Vision (Christian) war: Rollen als dynamische Permission-Bundles, verwaltet von OGS-Admins. Beispiel: "Vertretungs-Betreuer" mit Sonderrechten ab 12:30 wenn das Buero nicht mehr besetzt ist. Globale Rollen machen das unmoeglich.
+
+**Design:**
+
+```
+System-Rollen (tenant_id = NULL, is_system = true):
+  → admin, user, guardian, guest
+  → Vordefiniert, nicht loeschbar, ueberall verfuegbar
+  → Permission-Zuordnung global (role_permissions ohne tenant_id)
+
+Tenant-spezifische Rollen (tenant_id = X, is_system = false):
+  → Von OGS-Admins erstellte Rollen ("Vertretung", "Springer", etc.)
+  → Nur innerhalb des Tenants sichtbar und zuweisbar
+  → Permission-Zuordnung tenant-spezifisch
+```
+
+**Betroffene Tabellen:**
+
+| Tabelle | Aenderung | RLS |
+|---------|-----------|-----|
+| `auth.roles` | `tenant_id BIGINT NULL` hinzufuegen | `tenant_id IS NULL OR tenant_id = current_setting(...)` |
+| `auth.account_roles` | `tenant_id BIGINT NOT NULL` hinzufuegen | Standard-RLS |
+| `auth.account_permissions` | `tenant_id BIGINT NOT NULL` hinzufuegen | Standard-RLS |
+| `auth.permissions` | Bleibt global (keine Aenderung) | Kein RLS |
+| `auth.role_permissions` | Bleibt global (Scoping durch Role-FK) | Kein RLS |
+
+**Permission-Loading wird tenant-aware:**
+
+```go
+// Login/Refresh: Permissions fuer den aktuellen Tenant laden
+func (r *PermissionRepo) FindByAccountAndTenant(ctx context.Context, accountID, tenantID int64) ([]*Permission, error) {
+    // CTE 1: Direct permissions fuer diesen Tenant
+    // CTE 2: Permissions aus Rollen die diesem Account bei diesem Tenant zugewiesen sind
+    //         (System-Rollen mit tenant_id=NULL + Tenant-Rollen mit tenant_id=X)
+    // UNION → DISTINCT
+}
+```
+
+**JWT Claims aendern sich NICHT strukturell** — `Permissions []string` bleibt ein flaches Array. Aber der Inhalt ist jetzt pro Tenant unterschiedlich. Bei Tenant-Switch wird ein neuer Token mit den Permissions des Ziel-Tenants generiert.
+
+**Migration bestehender Daten:**
+
+```sql
+-- System-Rollen markieren
+UPDATE auth.roles SET is_system = true
+    WHERE name IN ('admin', 'user', 'guardian', 'guest');
+
+-- Bestehende account_roles dem Default-Tenant zuweisen
+UPDATE auth.account_roles SET tenant_id = 1;
+
+-- Bestehende account_permissions dem Default-Tenant zuweisen
+UPDATE auth.account_permissions SET tenant_id = 1;
+```
 
 **Verworfene Alternativen:**
 | Alternative | Grund fuer Ablehnung |
 |-------------|---------------------|
-| Option A: Per-Tenant Rollen | YAGNI, hoher Umbau-Aufwand fuer seltenen Use Case |
-| Option C: Hybrid (Global + Override) | Zwei Stellen fuer Rollen = verwirrend, Wartungs-Albtraum |
+| Option B: Globale Rollen (urspruengliche D13) | Admin bei einer OGS = Admin ueberall. OGS-spezifische Sonderrechte unmoeglich. Revidiert nach Review. |
+| Option C: Hybrid (Global + per-Tenant Override) | Zwei Stellen fuer Rollen = verwirrend, Merge-Logik komplex |
+| Per-Tenant Permissions ohne per-Tenant Roles | Deckt Sonderrechte ab, aber keine wiederverwendbaren Bundles. Halb-Loesung. |
 
 ---
 
@@ -1061,7 +1111,7 @@ const RESERVED_SUBDOMAINS = ["www", "api", "admin", "operator", "app"];
 | D10 | BeforeAppendModel Shadowing | HOCH | Kein Hook auf TenantModel, Service setzt tenant_id explizit, CI-Check | 2026-02-08 |
 | D11 | Rewrite vs. Header Pattern | HOCH | Rewrite Pattern (Vercel Platforms Starter Kit), kein headers() | 2026-02-08 |
 | D12 | Refresh Token Tenant-Validierung | HOCH | tenant_id in RefreshClaims + Re-Validierung gegen account_tenants bei Refresh | 2026-02-08 |
-| D13 | Per-Tenant Rollen | HOCH | Globale Rollen beibehalten, YAGNI fuer Per-Tenant Rollen | 2026-02-08 |
+| D13 | Per-Tenant Rollen | HOCH | ~~Globale Rollen~~ → Per-Tenant RBAC mit System-Rollen (revidiert 2026-02-10) | 2026-02-10 |
 | D14 | Policy Engine Tenant-Awareness | MITTEL | Two-Tier Auth: Middleware (statisch/JWT) + Service (dynamisch/DB), fail-closed Tenant-Assert in Engine | 2026-02-08 |
 | D15 | Email-Eindeutigkeit | HOCH | Ein Account, mehrere Tenants (Auth0/WorkOS-Pattern), Email global UNIQUE, account_tenants Junction | 2026-02-08 |
 | D16 | Raw SQL + Seed Tenant-Filterung | MITTEL | RLS filtert alle Query-Formen (Raw SQL, Relation, CTE). 6 gezielte Massnahmen: RowsAffected-Audit, PG 17.6+, Seeds, View security_invoker, Advisory Lock 2-arg, LEFT JOIN Review | 2026-02-08 |

@@ -137,7 +137,78 @@ func TestAdminScope_SeesAllTenants(t *testing.T) {
 
 ---
 
-## 5. RowsAffected-Tests (D16)
+## 5. Per-Tenant Role Isolation Test (D13 revidiert)
+
+```go
+func TestPerTenantRoles_DifferentPermissions(t *testing.T) {
+    db := testpkg.SetupTestDB(t)
+
+    tenantA := testpkg.CreateTestTenant(t, db, "School A")
+    tenantB := testpkg.CreateTestTenant(t, db, "School B")
+
+    // Account erstellen (global)
+    account := testpkg.CreateTestAccountInTenant(t, db, tenantA.ID, "maria@example.com")
+
+    // Maria ist Admin bei Tenant A, User bei Tenant B
+    adminRole := testpkg.GetSystemRole(t, db, "admin")
+    userRole := testpkg.GetSystemRole(t, db, "user")
+
+    testpkg.AssignRoleAtTenant(t, db, account.ID, adminRole.ID, tenantA.ID)
+    testpkg.AssignRoleAtTenant(t, db, account.ID, userRole.ID, tenantB.ID)
+
+    // Permissions bei Tenant A: Admin-Rechte
+    permsA := loadPermissionsForTenant(t, db, account.ID, tenantA.ID)
+    assert.Contains(t, permsA, "users:manage", "Admin at Tenant A must have users:manage")
+    assert.Contains(t, permsA, "config:update", "Admin at Tenant A must have config:update")
+
+    // Permissions bei Tenant B: Nur User-Rechte
+    permsB := loadPermissionsForTenant(t, db, account.ID, tenantB.ID)
+    assert.NotContains(t, permsB, "users:manage", "User at Tenant B must NOT have users:manage")
+    assert.NotContains(t, permsB, "config:update", "User at Tenant B must NOT have config:update")
+    assert.Contains(t, permsB, "students:read", "User at Tenant B must have students:read")
+}
+
+func TestTenantSpecificRole_NotVisibleInOtherTenant(t *testing.T) {
+    db := testpkg.SetupTestDB(t)
+
+    tenantA := testpkg.CreateTestTenant(t, db, "School A")
+    tenantB := testpkg.CreateTestTenant(t, db, "School B")
+
+    // OGS-Admin erstellt eine custom Role bei Tenant A
+    customRole := testpkg.CreateTestRoleInTenant(t, db, tenantA.ID, "vertretung")
+
+    // Custom Role ist bei Tenant A sichtbar
+    err := tenant.WithTenantTx(context.Background(), db, tenantA.ID,
+        func(ctx context.Context, tx bun.Tx) error {
+            roles, err := roleRepo.List(ctx)
+            require.NoError(t, err)
+            assert.True(t, containsRole(roles, "vertretung"),
+                "Custom role must be visible at own tenant")
+            return nil
+        })
+    require.NoError(t, err)
+
+    // Custom Role ist bei Tenant B NICHT sichtbar
+    err = tenant.WithTenantTx(context.Background(), db, tenantB.ID,
+        func(ctx context.Context, tx bun.Tx) error {
+            roles, err := roleRepo.List(ctx)
+            require.NoError(t, err)
+            assert.False(t, containsRole(roles, "vertretung"),
+                "Custom role must NOT be visible at other tenant")
+            // Aber System-Rollen sind sichtbar
+            assert.True(t, containsRole(roles, "admin"),
+                "System roles must be visible everywhere")
+            return nil
+        })
+    require.NoError(t, err)
+}
+```
+
+**Warum:** D13 (revidiert) erlaubt unterschiedliche Rollen pro Tenant. Diese Tests verifizieren: (1) gleicher Account, verschiedene Permissions je nach Tenant, (2) tenant-spezifische Rollen sind nur im eigenen Tenant sichtbar, System-Rollen ueberall.
+
+---
+
+## 6. RowsAffected-Tests (D16)
 
 ```go
 func TestRowsAffected_CrossTenantUpdateFails(t *testing.T) {
@@ -214,6 +285,8 @@ Jeder PR der eine Repository-Methode aendert **MUSS** geprueft werden auf:
 - [ ] Wird bei `Create` die `tenant_id` im Service via `SetTenantID()` gesetzt? (D10)
 - [ ] Wird `RowsAffected()` nach UPDATE/DELETE geprueft? (D16)
 - [ ] Gibt es einen Test der verifiziert, dass Tenant A nicht Daten von Tenant B sieht?
+- [ ] Werden Rollen pro Tenant zugewiesen (`account_roles.tenant_id`)? (D13 revidiert)
+- [ ] Sind Permission-Loads tenant-spezifisch (nicht global)? (D13 revidiert)
 - [ ] Bei Cross-Schema-Joins: Haben beide Seiten des JOINs einen `tenant_id` Filter?
 - [ ] Werden Audit-Logs mit der richtigen `tenant_id` geschrieben?
 - [ ] Sind SWR Cache-Keys im Frontend tenant-prefixed?
@@ -242,3 +315,4 @@ func CreateTestStudent(t *testing.T, db *bun.DB, first, last, class string) *use
 |-------|-----------|
 | 2026-02-08 | Initiale Version basierend auf vollstaendiger Codebase-Analyse |
 | 2026-02-08 | Aktualisiert gemaess DEBATE-Entscheidungen: WithTenantTx/WithAdminTx statt Context (D8), kein tenant_id=0 (D7), RowsAffected-Tests (D16), Advisory Lock Tests (D16), PR-Checkliste erweitert |
+| 2026-02-10 | D13 revidiert: Per-Tenant Role Isolation Tests (Sektion 5), PR-Checkliste um Rollen-Checks erweitert |
