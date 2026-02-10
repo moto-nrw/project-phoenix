@@ -14,19 +14,25 @@ export function StudentCheckoutSection({
 }: StudentCheckoutSectionProps) {
   return (
     <div className="rounded-2xl border border-gray-100 bg-white/50 p-4 backdrop-blur-sm">
-      <div className="mb-3 flex items-center gap-2.5">
-        <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-[#FF3130] text-white">
-          <Home className="h-4 w-4" />
+      <div className="mb-4 flex items-center gap-2 sm:gap-3">
+        <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-[#FF3130] text-white sm:h-10 sm:w-10">
+          <Home className="h-5 w-5" />
         </div>
-        <h3 className="text-sm font-semibold text-gray-900">Abmeldung</h3>
+        <h2 className="text-base font-semibold text-gray-900 sm:text-lg">
+          Abmeldung
+        </h2>
       </div>
-      <button
-        onClick={onCheckoutClick}
-        className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#FF3130] px-4 py-2.5 text-sm font-medium text-white transition-all hover:bg-[#e02b2a] hover:shadow-md active:scale-[0.98]"
-      >
-        <Home className="h-4 w-4" />
-        Geht nach Hause
-      </button>
+      <div className="flex items-center justify-center py-2">
+        <button
+          onClick={onCheckoutClick}
+          className="flex h-14 w-14 items-center justify-center rounded-full bg-[#FF3130] text-white shadow-sm transition-all hover:shadow-md active:scale-95"
+        >
+          <Home className="h-6 w-6" />
+        </button>
+      </div>
+      <p className="mt-2 text-center text-xs leading-relaxed text-gray-400">
+        Für heute aus der OGS abmelden
+      </p>
     </div>
   );
 }
@@ -41,19 +47,25 @@ export function StudentCheckinSection({
 }: StudentCheckinSectionProps) {
   return (
     <div className="rounded-2xl border border-gray-100 bg-white/50 p-4 backdrop-blur-sm">
-      <div className="mb-3 flex items-center gap-2.5">
-        <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-[#83CD2D] text-white">
-          <LogIn className="h-4 w-4" />
+      <div className="mb-4 flex items-center gap-2 sm:gap-3">
+        <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-[#83CD2D] text-white sm:h-10 sm:w-10">
+          <LogIn className="h-5 w-5" />
         </div>
-        <h3 className="text-sm font-semibold text-gray-900">Anmeldung</h3>
+        <h2 className="text-base font-semibold text-gray-900 sm:text-lg">
+          Anmeldung
+        </h2>
       </div>
-      <button
-        onClick={onCheckinClick}
-        className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#83CD2D] px-4 py-2.5 text-sm font-medium text-white transition-all hover:bg-[#70b525] hover:shadow-md active:scale-[0.98]"
-      >
-        <LogIn className="h-4 w-4" />
-        Kind anmelden
-      </button>
+      <div className="flex items-center justify-center py-2">
+        <button
+          onClick={onCheckinClick}
+          className="flex h-14 w-14 items-center justify-center rounded-full bg-[#83CD2D] text-white shadow-sm transition-all hover:shadow-md active:scale-95"
+        >
+          <LogIn className="h-6 w-6" />
+        </button>
+      </div>
+      <p className="mt-2 text-center text-xs leading-relaxed text-gray-400">
+        Für heute in der OGS anmelden
+      </p>
     </div>
   );
 }
@@ -88,47 +100,49 @@ export function StudentSickReportSection({
           : "border-gray-100 bg-white/50"
       }`}
     >
-      <div className="mb-3 flex items-center gap-2.5">
+      <div className="mb-4 flex items-center gap-2 sm:gap-3">
         <div
-          className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg text-white ${
+          className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg text-white sm:h-10 sm:w-10 ${
             isSick ? "bg-amber-500" : "bg-amber-400"
           }`}
         >
           {isSick ? (
-            <Check className="h-4 w-4" />
+            <Check className="h-5 w-5" />
           ) : (
-            <Thermometer className="h-4 w-4" />
+            <Thermometer className="h-5 w-5" />
           )}
         </div>
         <div className="min-w-0">
-          <h3 className="text-sm font-semibold text-gray-900">Krankmeldung</h3>
+          <h2 className="text-base font-semibold text-gray-900 sm:text-lg">
+            Krankmeldung
+          </h2>
           {isSick && sickSinceDisplay && (
             <p className="text-xs text-amber-600">seit {sickSinceDisplay}</p>
           )}
         </div>
       </div>
-      <button
-        onClick={onToggle}
-        disabled={isLoading}
-        className={`flex w-full items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium text-white transition-all hover:shadow-md active:scale-[0.98] disabled:opacity-50 ${
-          isSick
-            ? "bg-[#83CD2D] hover:bg-[#70b525]"
-            : "bg-amber-500 hover:bg-amber-600"
-        }`}
-      >
-        {isLoading ? (
-          <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-        ) : isSick ? (
-          <Check className="h-4 w-4" />
-        ) : (
-          <Thermometer className="h-4 w-4" />
-        )}
-        {isLoading
-          ? "Wird gespeichert..."
-          : isSick
-            ? "Gesundmelden"
-            : "Krankmelden"}
-      </button>
+      <div className="flex items-center justify-center py-2">
+        <button
+          onClick={onToggle}
+          disabled={isLoading}
+          className={`flex h-14 w-14 items-center justify-center rounded-full text-white shadow-sm transition-all hover:shadow-md active:scale-95 disabled:opacity-50 ${
+            isSick ? "bg-[#83CD2D]" : "bg-amber-500"
+          }`}
+        >
+          {isLoading ? (
+            <div className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent" />
+          ) : isSick ? (
+            <Check className="h-6 w-6" />
+          ) : (
+            <Thermometer className="h-6 w-6" />
+          )}
+        </button>
+      </div>
+      <p className="mt-2 text-center text-xs leading-relaxed text-gray-400">
+        {isSick
+          ? "Krankmeldung aufheben und gesund melden"
+          : "Als krank melden"}
+      </p>
     </div>
   );
 }
