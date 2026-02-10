@@ -566,6 +566,19 @@ useTenantSWR('/api/students', fetcher)
 // → interner Key: "t42:/api/students"
 ```
 
+**CI-Durchsetzung:** ESLint-Regel blockiert direkten `useSWR`-Import (analog zur `router.push`-Regel in §17):
+
+```javascript
+// eslint: no-restricted-imports
+"no-restricted-imports": ["error", {
+    "paths": [{
+        "name": "swr",
+        "importNames": ["default"],
+        "message": "Use useTenantSWR from @/lib/tenant-swr instead of useSWR directly. Direct useSWR bypasses tenant cache isolation."
+    }]
+}]
+```
+
 ### 16.2 Session Cache Invalidierung bei Tenant-Switch
 
 **Problem:** `session-cache.ts` cached die Session 10 Sekunden lang auf Modul-Ebene. Nach Tenant-Switch liefert der Cache den ALTEN JWT mit dem ALTEN `tenant_id`.

@@ -456,7 +456,7 @@ Request -> SecurityHeaders -> CORS -> JWT Verifier -> JWT Authenticator
         -> TenantMiddleware (NEU) -> PermissionCheck (Tier 1) -> Handler
 ```
 
-**Hinweis:** Die TenantMiddleware setzt nur den Context. Die eigentliche Transaktion (`WithTenantTx`/`WithAdminTx`) wird im Service-Layer gestartet (D8). Keine Transaktion in der Middleware — abgelehnte Requests verschwenden keine DB-Connections.
+**Hinweis:** Die TenantMiddleware setzt nur den Context. Die eigentliche Transaktion (`WithTenantTx`/`WithAdminTx`) wird im Handler gestartet (§1.3). Keine Transaktion in der Middleware — abgelehnte Requests verschwenden keine DB-Connections.
 
 ---
 
@@ -511,33 +511,28 @@ func (e *Engine) Authorize(ctx context.Context, authCtx *Context) (bool, error) 
 
 ```go
 func (s *ActiveService) GetVisit(ctx context.Context, visitID int64) (*Visit, error) {
-    var result *Visit
-    err := tenant.WithTenantTx(ctx, s.db, tenant.FromContext(ctx),
-        func(ctx context.Context, tx bun.Tx) error {
-            // 1. Resource laden (RLS aktiv, tenant-scoped)
-            visit, err := s.visitRepo.FindByID(ctx, visitID)
-            if err != nil { return err }
+    // tx ist schon im ctx (von WithTenantTx im Handler, siehe §1.3)
+    // 1. Resource laden (RLS aktiv, tenant-scoped)
+    visit, err := s.visitRepo.FindByID(ctx, visitID)
+    if err != nil { return nil, err }
 
-            // 2. Policy pruefen (Resource.TenantID aus geladener Entity)
-            authCtx := &policy.Context{
-                Subject:  policy.SubjectFromContext(ctx),
-                Resource: policy.Resource{
-                    Type: "visit", ID: visitID, TenantID: visit.TenantID,
-                },
-                Action: policy.ActionView,
-            }
-            if allowed, err := s.policyEngine.Authorize(ctx, authCtx); !allowed || err != nil {
-                return authorize.ErrForbidden
-            }
+    // 2. Policy pruefen (Resource.TenantID aus geladener Entity)
+    authCtx := &policy.Context{
+        Subject:  policy.SubjectFromContext(ctx),
+        Resource: policy.Resource{
+            Type: "visit", ID: visitID, TenantID: visit.TenantID,
+        },
+        Action: policy.ActionView,
+    }
+    if allowed, err := s.policyEngine.Authorize(ctx, authCtx); !allowed || err != nil {
+        return nil, authorize.ErrForbidden
+    }
 
-            result = visit
-            return nil
-        })
-    return result, err
+    return visit, nil
 }
 ```
 
-**Warum im Service statt Middleware:** D8 erzwingt es — `phoenix_auth` (NOINHERIT) hat keine Query-Rechte. Policy-Evaluation mit DB-Zugriff MUSS innerhalb von `WithTenantTx` laufen.
+**Warum im Service statt Middleware:** `phoenix_auth` (NOINHERIT) hat keine Query-Rechte. Policy-Evaluation mit DB-Zugriff MUSS innerhalb der Transaktion laufen — die bereits vom Handler via `WithTenantTx` gestartet wurde (§1.3).
 
 ---
 
