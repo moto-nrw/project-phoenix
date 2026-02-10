@@ -13,7 +13,6 @@ import { activeService } from "~/lib/active-service";
 import type { ActiveGroup } from "~/lib/active-helpers";
 import {
   useStudentData,
-  shouldShowCheckoutSection,
   type ExtendedStudent,
 } from "~/lib/hooks/use-student-data";
 import type { SupervisorContact } from "~/lib/student-helpers";
@@ -294,18 +293,13 @@ export default function StudentDetailPage() {
   // COMPUTED VALUES
   // =============================================================================
 
-  const showCheckout = shouldShowCheckoutSection(
-    student,
-    myGroups,
-    mySupervisedRooms,
-  );
-
-  // Determine if check-in should be shown (student is at home and user has access)
+  // Determine what action is available based on access (group membership / room supervision)
   const studentActionType = getStudentActionType(
     { group_id: student.group_id, current_location: student.current_location },
     myGroups,
     mySupervisedRooms,
   );
+  const showCheckout = studentActionType === "checkout";
   const showCheckin = studentActionType === "checkin";
 
   // =============================================================================
