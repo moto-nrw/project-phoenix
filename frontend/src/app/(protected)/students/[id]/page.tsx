@@ -565,7 +565,7 @@ function FullAccessView({
 }: Readonly<FullAccessViewProps>) {
   return (
     <>
-      <div className="mb-4 grid grid-cols-1 gap-4 sm:mb-6 sm:grid-cols-2">
+      <div className="mb-4 grid grid-cols-2 gap-3 sm:mb-6 sm:gap-4">
         {showCheckout && (
           <StudentCheckoutSection onCheckoutClick={onCheckoutClick} />
         )}

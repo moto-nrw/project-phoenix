@@ -1,6 +1,6 @@
 "use client";
 
-import { WarningIcon } from "./student-detail-components";
+import { Home, LogIn, Thermometer, Check } from "lucide-react";
 
 // Type for the action the user can perform
 type StudentActionType = "checkout" | "checkin" | "none";
@@ -13,46 +13,19 @@ export function StudentCheckoutSection({
   onCheckoutClick,
 }: StudentCheckoutSectionProps) {
   return (
-    <div className="rounded-2xl border border-gray-100 bg-white/50 p-4 backdrop-blur-sm sm:p-6">
-      <div className="mb-4 flex items-center gap-3">
-        <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-[#FF3130] text-white sm:h-10 sm:w-10">
-          <svg
-            className="h-5 w-5"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
-            />
-          </svg>
-        </div>
-        <h3 className="text-base font-semibold text-gray-900 sm:text-lg">
-          Abmeldung
-        </h3>
-      </div>
-      <button
-        onClick={onCheckoutClick}
-        className="flex w-full items-center justify-center gap-2 rounded-lg bg-gray-900 px-4 py-3 text-sm font-medium text-white transition-all duration-200 hover:scale-[1.01] hover:bg-gray-700 hover:shadow-lg active:scale-[0.99] sm:py-2.5"
-      >
-        <svg
-          className="h-5 w-5"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
+    <div className="rounded-2xl border border-gray-100 bg-white/50 p-4 backdrop-blur-sm">
+      <div className="flex flex-col items-center gap-3 py-2">
+        <button
+          onClick={onCheckoutClick}
+          className="flex h-16 w-16 items-center justify-center rounded-full border-2 border-[#FF3130] text-[#FF3130] transition-all hover:bg-[#FF3130]/5 active:scale-95"
+          aria-label="Kind abmelden"
         >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
-          />
-        </svg>
-        Geht nach Hause
-      </button>
+          <Home className="h-7 w-7" />
+        </button>
+        <span className="text-sm font-medium text-gray-700">
+          Geht nach Hause
+        </span>
+      </div>
     </div>
   );
 }
@@ -66,46 +39,17 @@ export function StudentCheckinSection({
   onCheckinClick,
 }: StudentCheckinSectionProps) {
   return (
-    <div className="rounded-2xl border border-gray-100 bg-white/50 p-4 backdrop-blur-sm sm:p-6">
-      <div className="mb-4 flex items-center gap-3">
-        <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-[#83CD2D] text-white sm:h-10 sm:w-10">
-          <svg
-            className="h-5 w-5"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"
-            />
-          </svg>
-        </div>
-        <h3 className="text-base font-semibold text-gray-900 sm:text-lg">
-          Anmeldung
-        </h3>
-      </div>
-      <button
-        onClick={onCheckinClick}
-        className="flex w-full items-center justify-center gap-2 rounded-lg bg-gray-900 px-4 py-3 text-sm font-medium text-white transition-all duration-200 hover:scale-[1.01] hover:bg-gray-700 hover:shadow-lg active:scale-[0.99] sm:py-2.5"
-      >
-        <svg
-          className="h-5 w-5"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
+    <div className="rounded-2xl border border-gray-100 bg-white/50 p-4 backdrop-blur-sm">
+      <div className="flex flex-col items-center gap-3 py-2">
+        <button
+          onClick={onCheckinClick}
+          className="flex h-16 w-16 items-center justify-center rounded-full border-2 border-[#83CD2D] text-[#83CD2D] transition-all hover:bg-[#83CD2D]/5 active:scale-95"
+          aria-label="Kind anmelden"
         >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"
-          />
-        </svg>
-        Kind anmelden
-      </button>
+          <LogIn className="h-7 w-7" />
+        </button>
+        <span className="text-sm font-medium text-gray-700">Anmelden</span>
+      </div>
     </div>
   );
 }
@@ -134,41 +78,40 @@ export function StudentSickReportSection({
 
   return (
     <div
-      className={`rounded-2xl border p-4 backdrop-blur-sm sm:p-6 ${
+      className={`rounded-2xl border p-4 backdrop-blur-sm ${
         isSick
           ? "border-amber-200 bg-amber-50/80"
           : "border-gray-100 bg-white/50"
       }`}
     >
-      <div className="mb-4 flex items-center gap-3">
-        <div
-          className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl text-white sm:h-10 sm:w-10 ${
-            isSick ? "bg-amber-500" : "bg-amber-400"
+      <div className="flex flex-col items-center gap-3 py-2">
+        <button
+          onClick={onToggle}
+          disabled={isLoading}
+          className={`flex h-16 w-16 items-center justify-center rounded-full border-2 transition-all active:scale-95 disabled:opacity-50 ${
+            isSick
+              ? "border-[#83CD2D] text-[#83CD2D] hover:bg-[#83CD2D]/5"
+              : "border-amber-400 text-amber-500 hover:bg-amber-50"
           }`}
+          aria-label={isSick ? "Kind gesundmelden" : "Kind krankmelden"}
         >
-          <WarningIcon className="h-5 w-5" />
-        </div>
-        <div>
-          <h3 className="text-base font-semibold text-gray-900 sm:text-lg">
-            Krankmeldung
-          </h3>
+          {isLoading ? (
+            <div className="h-5 w-5 animate-spin rounded-full border-2 border-current border-t-transparent" />
+          ) : isSick ? (
+            <Check className="h-7 w-7" />
+          ) : (
+            <Thermometer className="h-7 w-7" />
+          )}
+        </button>
+        <div className="text-center">
+          <span className="text-sm font-medium text-gray-700">
+            {isSick ? "Gesundmelden" : "Krankmelden"}
+          </span>
           {isSick && sickSinceDisplay && (
-            <p className="text-xs text-amber-700">seit {sickSinceDisplay}</p>
+            <p className="text-xs text-amber-600">seit {sickSinceDisplay}</p>
           )}
         </div>
       </div>
-      <button
-        onClick={onToggle}
-        disabled={isLoading}
-        className="flex w-full items-center justify-center gap-2 rounded-lg bg-gray-900 px-4 py-3 text-sm font-medium text-white transition-all duration-200 hover:scale-[1.01] hover:bg-gray-700 hover:shadow-lg active:scale-[0.99] disabled:opacity-50 sm:py-2.5"
-      >
-        <WarningIcon className="h-5 w-5" />
-        {isLoading
-          ? "Wird gespeichert..."
-          : isSick
-            ? "Kind gesundmelden"
-            : "Kind krankmelden"}
-      </button>
     </div>
   );
 }
