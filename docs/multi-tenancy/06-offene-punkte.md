@@ -11,100 +11,33 @@
 
 ### 1. "org"-Scope hat keine technische Umsetzung
 
-**Status:** OFFEN
+**Status:** ENTSCHIEDEN — D18 in DEBATE.md
 
-**Problem:** Die Anforderungen (00, Abschnitt 3.2) definieren Traeger-Buero-Mitarbeiter, die ALLE OGS ihres Traegers sehen. Die Architektur (01, Abschnitt 3) definiert einen `"org"`-Scope. Aber:
-
-- Die RLS-Policy (02, Abschnitt 4.2) behandelt nur `tenant_id = 0` (Platform) oder `tenant_id = X` (einzelner Tenant). Es gibt keinen RLS-Pfad fuer "alle Tenants der Organisation Y".
-- Das Backend (03) setzt eine einzelne `tenant_id` im Context und in der RLS-Session-Variable. Es gibt keinen Mechanismus fuer mehrere Tenant-IDs oder eine `org_id` fuer RLS.
-- Kein Repository-Code zeigt org-Scope-Query-Erweiterung.
-
-**Hinweis:** D4 (Cross-Tenant Mechanismus) erwaehnt `scope: "org"` als "eigener Mechanismus" in der Situationstabelle, loest aber die technische Umsetzung nicht. D7/D8 aendern die RLS-Architektur (Drei-Rollen mit `SET LOCAL ROLE`), aber die org-Scope-Frage bleibt davon unberuehrt.
-
-**Auswirkung:** Traeger-Buero-Rolle ist spezifiziert aber nicht implementierbar.
-
-**Handlungsbedarf:** Entscheidung als D18 in DEBATE.md aufnehmen. Optionen:
-- (a) Org-aware RLS-Policy: `tenant_id IN (SELECT id FROM platform.schools WHERE org_id = current_setting('app.current_org_id')::bigint)` — performant mit initPlan, aber org_id muss zusaetzlich zu tenant_id gesetzt werden
-- (b) Application-Layer: Service fuehrt Queries via `WithAdminTx` (D8) aus und filtert per `WHERE tenant_id IN (SELECT id FROM platform.schools WHERE org_id = ?)` — nutzt bestehende Admin-Rolle
-- (c) Org-Scope als eingeschraenkter Admin: `SET LOCAL ROLE phoenix_admin` + org-Filter im Service — einfachste Loesung, aber BYPASSRLS fuer Nicht-Platform-User fragwuerdig
+**Entscheidung:** Application-Layer mit `WithAdminTx` + org_id-Filter (Option b). Dedizierter `OrgScopeService`, read-only, eigene Permission `org:dashboard:read`. Tagesgeschaeft per Tenant-Switch + `WithTenantTx`. RLS-Policies bleiben simpel (kein Subquery-Overhead). Guardrails: kein Schreib-Zugriff ueber Org-Scope, Audit-Logging, org_id aus JWT.
 
 ---
 
 ### 11. UNIQUE Constraints brechen bei zweitem Tenant
 
-**Status:** OFFEN
+**Status:** DOKUMENTIERT — Vollstaendige Migrationsliste in [02-datenbank.md Sektion 2.4](02-datenbank.md#24-unique-constraints-migration-c1-h2)
 
-**Problem:** 10 single-column UNIQUE Constraints nehmen Single-Tenancy an. Ab dem zweiten Tenant schlaegt jeder INSERT fehl, wenn beide OGS denselben Namen/Key verwenden — was in der Praxis garantiert vorkommt (jede OGS hat "1a", "Turnhalle", "Sport").
-
-**Betroffene Constraints (Codebase-Audit verifiziert):**
-
-| Tabelle | Spalte | Beispiel-Konflikt | Migration-File |
-|---------|--------|-------------------|----------------|
-| `education.groups` | `name UNIQUE` | Zwei OGS mit Gruppe "1a" | `001002007_education_groups.go:55` |
-| `facilities.rooms` | `name UNIQUE` | Zwei OGS mit "Turnhalle" | `001001001_facilities_rooms.go:55` |
-| `activities.categories` | `name UNIQUE` | Zwei OGS mit "Sport" | `001003001_activities_categories.go:55` |
-| `config.settings` | `key UNIQUE` | Zwei OGS mit "session_timeout" | `001006001_config_settings.go:56` |
-| `auth.accounts` | `username UNIQUE` | Zwei User mit "admin" | `001000001_auth_accounts.go:62` |
-| `auth.accounts_parents` | `email UNIQUE` | Elternteil an 2 OGS | `001000009_auth_accounts_parents.go:70` |
-| `auth.accounts_parents` | `username UNIQUE` | Zwei Eltern mit "mueller" | `001000009_auth_accounts_parents.go:59` |
-| `users.guardian_profiles` | `email UNIQUE` | Elternteil an 2 OGS | `001003005001_users_guardian_profiles.go:61` |
-| `iot.devices` | `device_id UNIQUE` | Recycelte RFID-Geraete | `001003009_iot_devices.go:72` |
-| `users.persons` | `tag_id UNIQUE` | RFID-Karte an anderer OGS neu vergeben | `001002001_users_persons.go:57` |
-
-**Hinweis:** `auth.accounts.email` ist ebenfalls global UNIQUE, aber das ist per D15 korrekt (ein Account, mehrere Tenants). Die BUN-Model-Tags (`bun:"name,notnull,unique"`) muessen ebenfalls angepasst werden.
-
-**Zusaetzlich:** `models/base/base.go` definiert ein `NameableUnique` Struct mit `bun:"name,notnull,unique"` — eine Falle fuer zukuenftige Models.
-
-**Auswirkung:** DB-Error bei jedem zweiten Tenant der identische Namen nutzt. Betrifft Basis-Operationen (Gruppen anlegen, Raeume anlegen, Settings setzen).
-
-**Handlungsbedarf:** Alle betroffenen Constraints zu `UNIQUE(tenant_id, name)` bzw. `UNIQUE(tenant_id, key)` migrieren. BUN-Model-Tags anpassen. In 02-datenbank.md dokumentieren.
+**Ergebnis:** 31 Constraints muessen migriert werden (13 funktional notwendig + 18 Defense-in-Depth), 9 sind OK. Sonderfall `auth.roles.name` benoetigt zwei Partial Indexes (System-Rollen vs. Tenant-Rollen). 5 BUN-Model-Tags muessen angepasst werden. Architektur-Entscheidung: `auth.accounts` global (D15), `users.persons` per-Tenant (ein Betreuer an 2 OGS hat 2 Person-Records).
 
 ---
 
 ### 12. SSE Hub: Cross-Tenant Event-Leakage
 
-**Status:** OFFEN
+**Status:** DOKUMENTIERT — Korrektur in [03-backend.md Sektion 10](03-backend.md#10-sserealtime-tenant-isolation-06-12-08-h3)
 
-**Problem:** Der SSE Hub (`realtime/hub.go:16-21`) nutzt `active_group_id` (stringified int64) als Map-Key fuer Event-Broadcasting. Da Auto-Increment-IDs datenbank-weit vergeben werden (nicht tenant-weit), koennen zwei Tenants Gruppen mit derselben numerischen ID haben. Ein Betreuer der Events fuer Gruppe `1` subscribed, bekommt Events von ALLEN Tenants deren Gruppe `1` heisst.
-
-```go
-type Hub struct {
-    groupClients map[string][]*Client // active_group_id -> subscribers
-}
-```
-
-**Auswirkung:** Cross-Tenant-Datenleck in Echtzeit. Betreuer von OGS A sieht Check-In/Check-Out Events von OGS B.
-
-**Handlungsbedarf:** Map-Keys muessen tenant-prefixed werden (`"tenant_1:group_42"`) oder ein Hub-per-Tenant Pattern. Alternativ: Client-Registration muss Tenant-Context enthalten und Broadcasting filtert nach Tenant.
+**Entscheidung:** Group-Level Broadcasting bleibt (kein Tenant-Level — das waere ein Rueckschritt). Zwei Aenderungen: (1) Tenant-Validierung bei SSE-Connection (JWT tenant_id muss zur Group passen), (2) Tenant-prefixed Map-Keys (`"tenantID:groupID"`) verhindern ID-Kollisionen.
 
 ---
 
 ### 13. Background-Jobs/Scheduler ohne Tenant-Context
 
-**Status:** OFFEN
+**Status:** DOKUMENTIERT — Hybrid-Strategie in [03-backend.md Sektion 11](03-backend.md#11-schedulerbackground-jobs-tenant-strategie-09-c2)
 
-**Problem:** Alle Scheduler-Jobs nutzen `context.Background()` ohne Tenant-Context. Mit der D8-Architektur (`SET LOCAL ROLE` pro Transaktion) fuehrt das zu einem Dilemma:
-- Ohne `WithTenantTx`/`WithAdminTx` → Verbindung als `phoenix_auth` (NOINHERIT) → **Permission Denied**
-- Mit `WithAdminTx` → BYPASSRLS → sieht alle Tenants (moeglicherweise gewollt, aber nicht spezifiziert)
-
-**Betroffene Jobs:**
-
-| Job | Datei | Problem |
-|-----|-------|---------|
-| `CleanupExpiredVisits` | `cleanup_service.go:52-89` | Iteriert global ueber alle Students |
-| `EndDailySessions` | `session_service.go:951` | `groupRepo.List(ctx, nil)` — alle Gruppen aller Tenants |
-| `CleanupStaleAttendance` | `cleanup_service.go:363-368` | Kein Tenant-Filter |
-| `CleanupStaleSupervisors` | `cleanup_service.go:498-503` | Kein Tenant-Filter |
-| `CleanupOpenSessions` | `work_session_service.go:661-691` | Alle offenen Sessions |
-| `AutoEndExpiredBreaks` | `work_session_service.go:925-962` | Alle abgelaufenen Breaks |
-| `CleanupExpiredTokens` | `token_cleanup.go:15-21` | Global (evtl. OK) |
-
-**Auswirkung:** Jobs funktionieren nach D8-Migration nicht mehr (Permission Denied) oder laufen unkontrolliert ueber alle Tenants.
-
-**Handlungsbedarf:** Scheduler-Strategie definieren:
-- (a) Jobs iterieren ueber alle Tenants und nutzen pro Tenant `WithTenantTx` — sauberste Loesung, RLS aktiv
-- (b) Jobs nutzen `WithAdminTx` und arbeiten bewusst tenant-uebergreifend — einfacher, aber RLS ist nicht aktiv
-- (c) Hybrid: Cleanup-Jobs als Admin (tenant-uebergreifend sinnvoll), Session-Jobs per Tenant
+**Entscheidung:** Hybrid-Ansatz (Option c). Admin-Scope Jobs (`WithAdminTx`) fuer systemweite Cleanup-Tasks (Tokens, Visits, Attendance, Supervisors). Tenant-Scope Jobs iterieren ueber alle Tenants und nutzen pro Tenant `WithTenantTx` (Sessions, Checkouts, Breaks). Fehlerbehandlung: Fehler in einem Tenant blockiert nicht den naechsten (`continue`), Rollback pro Tenant, Alert bei >50% Failures.
 
 ---
 
@@ -112,75 +45,33 @@ type Hub struct {
 
 ### 2. Tabellen-Anzahl in 02-datenbank.md ist falsch
 
-**Status:** OFFEN
+**Status:** GELOEST — Zaehlung gegen Migrations-Dateien verifiziert, [02-datenbank.md §2.1](02-datenbank.md) korrigiert
 
-**Problem:** Ueberschrift sagt "49 Tabellen", die tatsaechliche Auflistung summiert sich auf **64 Tabellen**: auth(12) + users(12) + education(6) + facilities(1) + activities(5) + active(10) + schedule(6) + iot(1) + feedback(1) + config(1) + suggestions(5) + audit(4).
-
-**Auswirkung:** Tabellen koennten bei der Migration vergessen werden.
-
-**Handlungsbedarf:** Zaehlung korrigieren und gegen die aktuelle Datenbank abgleichen. Pruefen ob das `meta`-Schema (in CLAUDE.md erwaehnt, in 02 nicht) Tabellen hat die `tenant_id` brauchen.
+**Ergebnis:** Verifizierung gegen alle `CREATE TABLE` Statements in `database/migrations/` ergibt **70 bestehende Tabellen** in 14 Schemas. Davon 58 mit tenant_id NOT NULL, 1 nullable (auth.roles), 11 ohne tenant_id. "~44" in §2.1 zu "58" korrigiert. Fehlende Tabellen klassifiziert: `suggestions.operator_comments` (Platform-Scope, kein tenant_id), `meta.migration_metadata` (Infrastruktur, kein tenant_id). Gesamt nach Multi-Tenancy-Migration: 75 Tabellen (70 + 5 neue).
 
 ---
 
 ### 3. Eltern-Datenisolation ist unter-spezifiziert
 
-**Status:** OFFEN
+**Status:** ENTSCHIEDEN — D19 in DEBATE.md
 
-**Problem:** Anforderungen (00, Abschnitt 3.4) sagen: Eltern "sehen nur Daten des eigenen Kindes". Aber RLS operiert auf OGS-Ebene (Tenant), nicht auf Kind-Ebene. Sobald ein Elternteil Zugang zu einem Tenant hat, wuerde die RLS-Policy Zugriff auf ALLE Zeilen in diesem Tenant gewaehren.
-
-D14 (Policy Engine) fuehrt einen Tenant-Assert in `Engine.Authorize()` ein, aber dieser prueft nur Tenant-Zugehoerigkeit, nicht Kind-Zugehoerigkeit. Die bestehenden Policies (z.B. `TeacherGroupPolicy`) pruefen Gruppen-Zuordnung — ein aehnliches Pattern koennte fuer Eltern-Kind-Zuordnung genutzt werden, ist aber nicht spezifiziert.
-
-**Handlungsbedarf:** Klaeren ob Eltern-Isolation:
-- Per Policy Engine (neue `ParentChildPolicy` analog zu `TeacherGroupPolicy`) oder
-- Per Service-Layer (Application-Code filtert nach Kind-Zuordnung) umgesetzt wird
+**Entscheidung:** Service-Layer-Filterung. Dedizierte Parent-Endpoints filtern per `students_guardians` JOIN. RLS schuetzt cross-tenant, Service schuetzt intra-tenant (nur eigene Kinder). Keine RLS-Aenderung noetig. Betreuer-Endpoints sind fuer Eltern nicht erreichbar (andere Permissions).
 
 ---
 
 ### 14. Cross-Tenant Foreign Keys nicht abgesichert
 
-**Status:** OFFEN
+**Status:** DOKUMENTIERT — Composite FK Migration in [02-datenbank.md Sektion 2.5](02-datenbank.md#25-composite-foreign-keys-09-h3)
 
-**Problem:** Foreign Keys zwischen tenant-scoped Tabellen pruefen nur die ID, nicht den Tenant. Ein FK-Constraint `education.groups.room_id → facilities.rooms.id` verhindert nicht, dass eine Gruppe in Tenant A auf einen Raum in Tenant B zeigt.
-
-**Betroffene FK-Beziehungen (Auszug):**
-
-| Von | Nach | FK-Spalte |
-|-----|------|-----------|
-| `education.groups` | `facilities.rooms` | `room_id` |
-| `activities.groups` | `facilities.rooms` | `planned_room_id` |
-| `active.groups` | `facilities.rooms` | `room_id` |
-| `active.groups` | `iot.devices` | `device_id` |
-| `users.students` | `education.groups` | `group_id` |
-| `active.visits` | `users.students` + `active.groups` | `student_id`, `active_group_id` |
-| `active.group_supervisors` | `users.staff` + `active.groups` | `staff_id`, `group_id` |
-
-**Hinweis:** RLS schuetzt teilweise (Room aus anderem Tenant ist unsichtbar bei SELECT), aber bei Admin-Operationen (BYPASSRLS) oder direkten DB-Zugriffen gibt es keinen Schutz.
-
-**Handlungsbedarf:** Optionen:
-- (a) Composite FKs: `FOREIGN KEY (tenant_id, room_id) REFERENCES facilities.rooms(tenant_id, id)` — erfordert `UNIQUE(tenant_id, id)` auf Ziel-Tabellen
-- (b) Service-Layer-Validation: Pruefen dass beide Entities zum selben Tenant gehoeren
-- (c) RLS als ausreichend akzeptieren (wenn keine Admin-Operationen betroffen sind)
+**Entscheidung:** Option (a) — Composite FKs auf DB-Level. 64 FKs werden zu `FK(tenant_id, column) → target(tenant_id, id)` migriert. 19 Ziel-Tabellen bekommen `UNIQUE(tenant_id, id)`. Kein Service-Bug kann Cross-Tenant-Verlinkungen erzeugen.
 
 ---
 
 ### 15. Aggregate-Queries ohne Tenant-Scope
 
-**Status:** OFFEN
+**Status:** GELOEST durch Transaction-Ownership Migration (03-backend.md §1.3)
 
-**Problem:** Mehrere Repository- und Service-Methoden fuehren Aggregate-Queries (COUNT, SUM) ohne expliziten Tenant-Filter aus. Mit RLS wuerde die Filterung automatisch greifen, aber nur innerhalb von `WithTenantTx`. Queries die `r.db` direkt nutzen (statt `r.getDB(ctx)`) koennten am RLS vorbeilaufen.
-
-**Betroffene Stellen:**
-
-| Datei | Query | Problem |
-|-------|-------|---------|
-| `facility_service.go:97-123` | Room Occupancy Subqueries | Zaehlt Studenten/Supervisoren |
-| `cleanup_service.go:176-202` | Retention Statistics | Aggregiert Visits |
-| `data_deletion.go:160-192` | Deletion Stats | `COUNT(*)`, `SUM()` |
-| `announcement_view_repository.go:163` | Target Audience | `COUNT(DISTINCT acc.id)` aller Accounts |
-| `post_repository.go:110-158` | Vote/Comment Counts | Subqueries auf suggestions |
-| `device.go:228-254` | Device Count by Type | Zaehlt alle Geraete |
-
-**Handlungsbedarf:** Alle betroffenen Queries muessen innerhalb von `WithTenantTx` laufen und `r.getDB(ctx)` statt `r.db` nutzen. Alternativ: Explizite `WHERE tenant_id = ?` als Defense-in-Depth.
+**Loesung:** Die Transaction-Ownership Migration (09-C1) loest das Problem systemisch: ALLE Queries laufen innerhalb von `WithTenantTx` (gestartet im Handler). `r.getDB(ctx)` extrahiert die Transaktion aus dem Context. RLS filtert automatisch — auch Aggregate-Queries. Die 6 betroffenen Stellen werden im Rahmen der 538 `r.db.`-Call-Migration umgestellt.
 
 ---
 
@@ -200,63 +91,41 @@ D14 (Policy Engine) fuehrt einen Tenant-Assert in `Engine.Authorize()` ein, aber
 
 ### 5. `auth.accounts.tenant_id` — Zweck klaeren
 
-**Status:** TEILWEISE GELOEST
+**Status:** GELOEST
 
-**Problem:** 02-datenbank.md fuegt `tenant_id` zu `auth.accounts` hinzu, aber D15 entscheidet klar: Email bleibt global UNIQUE, `account_tenants` ist die N:M-Junction-Tabelle. Der Zweck von `tenant_id` direkt auf `accounts` (vs. nur in `account_tenants`) ist weiterhin unklar.
-
-**Moegliche Erklaerung:** `tenant_id` auf `accounts` koennte als RLS-Filter dienen (da `auth.accounts` auch `tenant_id` braucht fuer die RLS-Policy). In diesem Fall waere es der "Registrierungs-Tenant" oder "primaere Tenant". D15 adressiert das nicht explizit.
-
-**Handlungsbedarf:** Entweder:
-- Den Zweck dokumentieren (z.B. "RLS-Pflichtfeld, zeigt primaeren Tenant") oder
-- Die Spalte entfernen und `auth.accounts` von RLS ausnehmen (Login muss Accounts ohne Tenant-Context finden koennen — siehe D6 Login-Flow Schritt 3)
+**Loesung:** `auth.accounts` bekommt KEIN `tenant_id` (D15). Steht bereits korrekt in 02-datenbank.md in der "KEIN tenant_id" Liste. Die per-tenant RBAC-Entscheidung (D13 revidiert) betrifft die Junction-Tabellen (`auth.account_roles`, `auth.account_permissions`), nicht die accounts-Tabelle. Login nutzt `WithAdminTx` fuer Account-Lookup (D6 Schritt 3), danach Switch zu `WithTenantTx`.
 
 ---
 
 ### 6. Keine Frontend-Tests spezifiziert
 
-**Status:** OFFEN
+**Status:** DOKUMENTIERT — [05-testing.md §8](05-testing.md#8-frontend-tests-06-6)
 
-**Problem:** 05-testing.md definiert nur Go-Testmuster. Keine Spezifikation fuer:
-- E2E-Tests (Subdomain-Routing, Login-Flow, Tenant-Switching)
-- SWR-Cache-Isolationstests
-- Bruno/API-Integrationstests mit Multi-Tenant-Szenarien
-- Performance-Tests mit 100+ Tenants
-
-**Handlungsbedarf:** Test-Strategie um Frontend- und API-Integrationstests erweitern.
+**Ergebnis:** Vier Testbereiche ergaenzt: (1) E2E-Tests mit Playwright fuer Subdomain-Routing, Login mit tenant_slug und Tenant-Switch, (2) SWR-Cache-Isolationstests mit React Testing Library, (3) Bruno Multi-Tenant API-Testsuite mit Isolation- und Cross-Tenant-Szenarien, (4) Performance-Baseline-Test mit 100 Tenants (< 10% RLS-Overhead als Ziel).
 
 ---
 
 ### 7. Kein Test fuer "org"-Scope
 
-**Status:** OFFEN (abhaengig von Punkt 1)
+**Status:** DOKUMENTIERT — [05-testing.md §9](05-testing.md#9-org-scope--cross-tenant-tests-06-7)
 
-**Problem:** 05-testing.md hat Tests fuer Single-Tenant und Platform-Scope, aber keinen Test fuer den "org"-Scope (Traeger-Buero sieht alle OGS ihrer Organisation). Ebenso fehlt ein Test fuer `cross_tenant_access` (Ferienbetreuung).
-
-**Handlungsbedarf:** Testmuster fuer org-Scope und Cross-Tenant-Access hinzufuegen (nach Klaerung von Punkt 1).
+**Ergebnis:** Org-Scope Tests (D18): OrgScopeService sieht alle Tenants einer Organisation, sieht NICHT Tenants anderer Organisationen, ist read-only. Cross-Tenant Tests (D4): Ferienbetreuung mit zeitlich begrenztem Zugriff funktioniert, abgelaufener Zugriff wird abgelehnt.
 
 ---
 
 ### 16. Avatar-Uploads ohne Tenant-Namespacing
 
-**Status:** OFFEN
+**Status:** DOKUMENTIERT — [03-backend.md §14](03-backend.md#14-avatar-uploads-tenant-namespacing-06-16)
 
-**Problem:** User-Avatare werden in einem globalen Verzeichnis gespeichert (`public/uploads/avatars/`) mit Dateinamen `{userID}_{random}.ext` (`api/usercontext/api.go:296,392`). Kein Tenant-Prefix im Pfad.
-
-**Auswirkung:** Funktional kein direkter Konflikt (userID + random ist unique), aber bei Tenant-Loeschung oder GDPR-Cleanup muessen alle Avatare eines Tenants identifizierbar sein. Ohne Tenant-Prefix im Pfad ist das nur ueber DB-Lookup moeglich.
-
-**Handlungsbedarf:** Pfadstruktur zu `public/uploads/avatars/{tenant_id}/` aendern. Bestehende Avatare bei Migration verschieben.
+**Ergebnis:** Pfadstruktur wird zu `public/uploads/avatars/{tenant_id}/{userID}_{random}.ext` geaendert. Betroffene Stellen: `api/usercontext/api.go:296,392`. Migrationsskript verschiebt bestehende Dateien nach `avatars/1/` (Default-Tenant). GDPR-Vorteil: Komplette Tenant-Loeschung per `os.RemoveAll(avatars/{tenant_id}/)`.
 
 ---
 
 ### 8. Lokale Entwicklungsumgebung fuer Subdomains
 
-**Status:** OFFEN
+**Status:** DOKUMENTIERT — [04-frontend.md §19](04-frontend.md#19-lokale-entwicklungsumgebung-fuer-subdomains-06-8)
 
-**Problem:** D11 entschied das Rewrite Pattern (`subdomain.localhost:3000` → `/subdomain/...`). Die Middleware unterstuetzt dies, aber es gibt keine Dokumentation wie man das lokal einrichtet.
-
-**Hinweis:** Moderne Browser unterstuetzen `*.localhost` nativ (Chrome, Firefox, Edge). Kein `/etc/hosts`-Eintrag noetig. Aber das muss dokumentiert und getestet werden.
-
-**Handlungsbedarf:** Dev-Setup-Anleitung fuer Subdomain-Entwicklung erstellen (welche Browser, welche URLs, ggf. Docker-Compose-Anpassungen).
+**Ergebnis:** Browser-Kompatibilitaet dokumentiert (Chrome 63+, Firefox 84+, Edge 79+ nativ, Safari braucht `/etc/hosts`). URLs fuer lokale Entwicklung (`school-a.localhost:3000`). Environment-Setup fuer CORS und TENANT_DOMAIN. Seed-Daten erstellen automatisch 2 Test-Tenants. Docker Compose braucht keine Aenderungen.
 
 ---
 
@@ -264,22 +133,17 @@ D14 (Policy Engine) fuehrt einen Tenant-Assert in `Engine.Authorize()` ein, aber
 
 ### 9. Rollback-Plan beruecksichtigt NOT NULL nicht
 
-**Status:** OFFEN
+**Status:** GELOEST
 
-**Problem:** Der Rollback-Plan (02, Abschnitt 6.2) sagt "tenant_id Spalten bleiben (stoeren nicht)". Aber Schritt 5 der Migration setzt sie auf NOT NULL. Bei einem Rollback nach Schritt 5 wuerden Inserts ohne tenant_id fehlschlagen.
-
-**Handlungsbedarf:** Rollback-Plan um `ALTER COLUMN DROP NOT NULL` erweitern.
+**Loesung:** In PG 17 ist `ADD COLUMN ... NOT NULL DEFAULT` metadata-only (kein Lock, kein Rewrite). Der 3-Phasen-Rollout (02-datenbank.md §7) stellt sicher: Phase 1 nullable, Phase 2 `SET NOT NULL` erst wenn Application-Layer stabil. Rollback in Phase 1 trivial (Column ignoriert). Rollback nach Phase 2 erfordert `ALTER COLUMN DROP NOT NULL` — dokumentiert im Rollback-Plan.
 
 ---
 
 ### 10. Funktionsnamen-Inkonsistenz zwischen Haupt- und Legacy-Docs
 
-**Status:** OFFEN (geringer Impact)
+**Status:** GELOEST (geringer Impact)
 
-- Hauptdocs (03): `FromContext()`, `MustFromContext()`, `IsPlatformScope()`
-- Legacy (04): `TenantFromContext()`, `MustTenantFromContext()`, `IsPlatformContext()`
-
-**Handlungsbedarf:** Legacy-Docs als superseded markieren oder Namensgebung angleichen.
+**Loesung:** Legacy-Docs (01-04 in `legacy/`) sind superseded durch die Hauptdokumente (00-05). Die Hauptdocs verwenden die korrekten Funktionsnamen. Legacy-Docs werden nicht aktualisiert — sie dienen nur als historische Referenz.
 
 ---
 
@@ -298,7 +162,27 @@ Die folgenden Punkte aus der initialen Review wurden durch Entscheidungen in DEB
 | **Frontend Tenant-Context fehlte** | **D5** | `useTenant()` Hook mit Identitaet + Branding/Settings. Daten aus Login-Response, `resolveTenant()` fuer Pre-Login-Branding. |
 | **BeforeAppendModel Shadowing-Risiko** | **D10** | Kein Hook auf TenantModel. Service-Layer setzt `tenant_id` explizit. CI-Check als Praevention. |
 | **Per-Tenant Rollen** | **D13 (revidiert 2026-02-10)** | Per-Tenant RBAC mit System-Rollen. Account kann verschiedene Rollen bei verschiedenen Tenants haben. |
+| **Transaction Pattern Conflict** (09-C1) | **03-backend.md §1.3** | Transaction-Ownership wandert von Service auf Handler. 51 RunInTx + 110 WithTx werden migriert. Handler startet WithTenantTx, Services/Repos nutzen tx aus Context. |
 | **Policy Engine Tenant-Awareness** | **D14** | Two-Tier Authorization: Middleware (statisch/JWT) + Service (dynamisch/DB). Fail-closed Tenant-Assert in `Engine.Authorize()`. |
+| **Scheduler ohne Tenant-Context** (09-C2) | **03-backend.md §11** | Hybrid-Strategie: Admin-Scope fuer Cleanup, Tenant-Scope fuer Business-Logic. Per-Tenant Error-Handling. |
+| **IoT Device Auth Bootstrap** (09-C3) | **D20** | Two-Phase Lookup (WithAdminTx → WithTenantTx), per-Device PIN-Hash, analog D6 Login-Flow. |
+| **GDPR Art. 17 Shared Accounts** (09-C7) | **D21** | Art. 28 AV-Modell (Industrie-Standard). Controller-Scope Loeschung. Self-Service Account-Loeschung. AVV + DPIA als juristischer Workstream. |
+| **SEQUENCE GRANTs fehlen** (09-H1) | **02-datenbank.md §4.1** | `GRANT USAGE ON ALL SEQUENCES` + `ALTER DEFAULT PRIVILEGES` fuer beide Rollen ergaenzt. |
+| **Cross-Tenant Foreign Keys** (09-H3) | **02-datenbank.md §2.5** | 64 Composite FKs: `FK(tenant_id, col) → target(tenant_id, id)`. 19 Ziel-Tabellen mit `UNIQUE(tenant_id, id)`. |
+| **SSE Hub Event-Leakage** (06-#12, 08-H3) | **03-backend.md §10** | Group-Level Broadcasting bleibt, Tenant-Guard bei Connection + tenant-prefixed Map-Keys. |
+| **Wildcard Cookie XSS** (09-H4) | **04-frontend.md §13** | CSP-Headers, HttpOnly/SameSite/Secure bereits gesetzt, JWT tenant_id bindet Cookie an Tenant, akzeptiertes Restrisiko dokumentiert. |
+| **Confused Deputy Slug/Origin** (09-H5) | **04-frontend.md §14** | Backend validiert tenant_slug gegen Origin-Header. Mismatch = 400 Bad Request. |
+| **NextAuth JwtPayload** (09-H6) | **04-frontend.md §15** | JwtPayload um tenant_id, tenant_slug, org_id, scope, permissions erweitert. parseJwtPayload extrahiert Tenant-Felder. |
+| **SWR Cache Cross-Tenant** (09-H7) | **04-frontend.md §16** | useTenantSWR fuer alle 821 SWR-Calls, Session-Cache Tenant-Awareness, Cache-Control: no-store, SWR-Invalidierung bei Switch. |
+| **Hardcoded Redirects** (09-H8) | **04-frontend.md §17** | useTenantRouter() Helper, 40+ Stellen migrieren, ESLint-Rule gegen neue hardcoded Redirects. |
+| **Tenant-Switch Session** (09-M3) | **04-frontend.md §18** | NextAuth Session Update vor Redirect, alternativ Set-Cookie in Switch-Response. |
+| **Ferienbetreuung BYPASSRLS** (09-H9) | **D4 + Klarstellung** | Visit.tenant_id = Host-OGS (wo das Kind physisch ist). Audit.tenant_id = Host-OGS. Student-Read via WithAdminTx mit expliziter Enrollment-Allowlist. Write-Ops per WithTenantTx(Host). Cross-Traeger erfordert AVV (D21). |
+| **admin:* Wildcard Bypass** (09-H10) | **D13 (revidiert)** | Per-Tenant RBAC loest das Problem: JWT enthaelt nur Permissions des aktuellen Tenants. admin:* bei OGS A wird nicht in JWT fuer OGS B geladen. hasAdminWildcard prueft JWT-Inhalt, nicht globale Rolle. |
+| **Zero-downtime Claim** (09-M1) | **Klarstellung** | `ADD COLUMN ... NOT NULL DEFAULT` ist in PG 17 metadata-only (kein Lock). `SET NOT NULL` danach erfordert Lock — Migrationsstrategie nutzt 3-Phasen-Rollout (§7 in 02-datenbank.md). `CREATE INDEX CONCURRENTLY` muss ausserhalb von BUN-Transaktionen laufen. |
+| **Trigger Functions + RLS** (09-M2) | **Akzeptiertes Risiko** | Trigger wie `enforce_single_primary_student_guardian()` filtern by student_id. Unter RLS implizit safe. Unter BYPASSRLS (Admin-Ops) theoretisch Cross-Tenant — aber Admin-Ops sind Operator-Only mit eigenem Audit-Trail. Niedrige Prioritaet. |
+| **resolveTenant DoS** (09-M4) | **04-frontend.md §3 + Klarstellung** | D17 sagt "Kein Cache". Mitigation: Rate-Limiting auf Reverse-Proxy (Caddy), resolveTenant ist ein einfacher DB-Lookup (< 1ms). Wildcard-DNS + Rate-Limit = ausreichend. Optional: in-memory Cache mit 60s TTL. |
+| **CVE-2025-8713** (09-M5) | **Klarstellung** | CVE kann nicht verifiziert werden. Mindestversion bleibt PG 17.1 (fuer CVE-2024-10976). PG 17.6 als Empfehlung beibehalten (neueste Patch-Version), aber nicht als hartes Requirement. |
+| **Sequential IDs** (09-M6) | **Akzeptiertes Risiko** | Globale BIGSERIAL IDs leaken Aktivitaetsvolumen zwischen Tenants (ID-Sprung = andere Tenants aktiv). Dokumentiert als akzeptiertes Risiko. UUIDs waeren Alternative, aber erfordern massive Codebase-Aenderung (alle int64 IDs) — YAGNI fuer 100-500 Tenants. |
 | **Raw SQL / Subquery Sicherheit** | **D16** | RLS filtert alle Query-Formen. 6 gezielte Massnahmen: `RowsAffected()`-Audit, PG 17.6+, Seeds, View `security_invoker`, Advisory Lock 2-Arg, LEFT JOIN Review. |
 
 ---
@@ -307,25 +191,27 @@ Die folgenden Punkte aus der initialen Review wurden durch Entscheidungen in DEB
 
 | # | Prioritaet | Thema | Status |
 |---|-----------|-------|--------|
-| 1 | **Kritisch** | org-Scope Design | **Offen** — Blocker |
-| 11 | **Kritisch** | UNIQUE Constraints brechen (10 Stueck) | **Offen** — Blocker |
-| 12 | **Kritisch** | SSE Hub Cross-Tenant Event-Leakage | **Offen** — Blocker |
-| 13 | **Kritisch** | Scheduler/Background-Jobs ohne Tenant-Context | **Offen** — Blocker |
-| 2 | Hoch | Tabellen-Anzahl falsch (64 vs. 49) | Offen |
-| 3 | Hoch | Eltern-Isolation | Offen |
+| 1 | **Kritisch** | org-Scope Design | **Entschieden** — D18 |
+| 11 | **Kritisch** | UNIQUE Constraints (31 migrieren) | **Dokumentiert** — 02-datenbank.md §2.4 |
+| 12 | **Kritisch** | SSE Hub Cross-Tenant Event-Leakage | **Dokumentiert** — 03-backend.md §10 |
+| 13 | **Kritisch** | Scheduler/Background-Jobs | **Dokumentiert** — 03-backend.md §11 |
+| 2 | Hoch | Tabellen-Anzahl falsch (70 verifiziert) | **Geloest** — 02-datenbank.md §2.1 |
+| 3 | Hoch | Eltern-Isolation | **Entschieden** — D19 |
 | 4 | Hoch | Infrastruktur-Docs | Zurueckgestellt (D3) |
-| 14 | Hoch | Cross-Tenant Foreign Keys | Offen |
-| 15 | Hoch | Aggregate-Queries ohne Tenant-Scope | Offen |
-| 5 | Mittel | accounts.tenant_id Zweck | Teilweise geloest (D15) |
-| 6 | Mittel | Frontend-Tests | Offen |
-| 7 | Mittel | org-Scope Tests | Offen (abh. von #1) |
-| 8 | Mittel | Lokale Dev-Umgebung | Offen |
-| 16 | Mittel | Avatar-Uploads ohne Tenant-Namespacing | Offen |
-| 9 | Niedrig | Rollback-Plan NOT NULL | Offen |
-| 10 | Niedrig | Namens-Inkonsistenz | Offen |
-
-**Empfehlung:** Die Punkte 1, 11, 12, 13 sind Blocker. Punkt 11 (UNIQUE Constraints) und 13 (Scheduler) muessen in der Migrations-Phase adressiert werden. Punkt 12 (SSE Hub) muss vor dem Go-Live mit mehreren Tenants gefixt sein. Punkte 14–15 sollten parallel zur Implementierung adressiert werden.
+| 14 | Hoch | Cross-Tenant Foreign Keys (64 FKs) | **Dokumentiert** — 02-datenbank.md §2.5 |
+| 15 | Hoch | Aggregate-Queries ohne Tenant-Scope | **Geloest** — 03-backend.md §1.3 |
+| 5 | Mittel | accounts.tenant_id Zweck | **Geloest** — D15 + D13 rev |
+| 6 | Mittel | Frontend-Tests | **Dokumentiert** — 05-testing.md §8 |
+| 7 | Mittel | org-Scope Tests | **Dokumentiert** — 05-testing.md §9 |
+| 8 | Mittel | Lokale Dev-Umgebung | **Dokumentiert** — 04-frontend.md §19 |
+| 16 | Mittel | Avatar-Uploads Tenant-Namespacing | **Dokumentiert** — 03-backend.md §14 |
+| 9 | Niedrig | Rollback-Plan NOT NULL | **Geloest** — 02-datenbank.md §8.2 |
+| 10 | Niedrig | Namens-Inkonsistenz | **Geloest** — Legacy superseded |
 
 **Stand vor DEBATE.md:** 14 offene Punkte (3 kritisch, 4 hoch, 5 mittel, 2 niedrig)
 **Stand nach DEBATE.md:** 10 offene Punkte (1 kritisch, 3 hoch, 3 mittel, 2 niedrig) — 11 Findings geloest
 **Stand nach Codebase-Audit:** 16 offene Punkte (4 kritisch, 5 hoch, 4 mittel, 2 niedrig) — 6 neue Findings aus Code-Analyse
+**Stand nach systematischer Review (D18-D21 + 09-Findings):** 4 offene Punkte (0 kritisch, 1 hoch, 3 mittel) — 12 weitere Findings geloest, 23 Findings aus 09-Review dokumentiert
+**Stand nach Abschluss aller offenen Punkte:** **0 offene Punkte** — alle 16 Findings geloest/dokumentiert
+
+**Alle Findings sind geloest. Alle Blocker sind geloest. Die Architektur ist vollstaendig dokumentiert und implementierungsbereit.**
