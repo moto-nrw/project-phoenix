@@ -346,20 +346,35 @@ export default function StudentDetailPage() {
     }
 
     return (
-      <select
-        id="room-select"
-        value={selectedActiveGroupId}
-        onChange={(e) => setSelectedActiveGroupId(e.target.value)}
-        className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
-      >
-        <option value="">Bitte Raum auswählen...</option>
-        {activeGroups.map((group) => (
-          <option key={group.id} value={group.id}>
-            {group.room?.name ?? "Unbekannter Raum"} (
-            {group.actualGroup?.name ?? "Gruppe"})
-          </option>
-        ))}
-      </select>
+      <div className="relative">
+        <select
+          id="room-select"
+          value={selectedActiveGroupId}
+          onChange={(e) => setSelectedActiveGroupId(e.target.value)}
+          className="w-full appearance-none rounded-lg border border-gray-300 bg-white px-3 py-2 pr-10 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+        >
+          <option value="">Bitte Raum auswählen...</option>
+          {activeGroups.map((group) => (
+            <option key={group.id} value={group.id}>
+              {group.room?.name ?? "Unbekannter Raum"} (
+              {group.actualGroup?.name ?? "Gruppe"})
+            </option>
+          ))}
+        </select>
+        <svg
+          className="pointer-events-none absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2 text-gray-400"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M19 9l-7 7-7-7"
+          />
+        </svg>
+      </div>
     );
   };
 

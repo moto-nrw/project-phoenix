@@ -1,6 +1,6 @@
 "use client";
 
-import { Home, LogIn, Thermometer, Check } from "lucide-react";
+import { Home, LogIn, Thermometer, Heart } from "lucide-react";
 
 // Type for the action the user can perform
 type StudentActionType = "checkout" | "checkin" | "none";
@@ -13,27 +13,20 @@ export function StudentCheckoutSection({
   onCheckoutClick,
 }: StudentCheckoutSectionProps) {
   return (
-    <div className="rounded-2xl border border-gray-100 bg-white/50 p-4 backdrop-blur-sm">
-      <div className="mb-4 flex items-center gap-2 sm:gap-3">
-        <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-[#FF3130] text-white sm:h-10 sm:w-10">
-          <Home className="h-5 w-5" />
-        </div>
-        <h2 className="text-base font-semibold text-gray-900 sm:text-lg">
-          Abmeldung
-        </h2>
+    <button
+      onClick={onCheckoutClick}
+      className="flex flex-col items-center gap-3 rounded-3xl border border-gray-100/50 bg-white/90 px-3 py-4 shadow-[0_4px_20px_rgb(0,0,0,0.06)] backdrop-blur-md transition-all hover:shadow-[0_8px_30px_rgb(0,0,0,0.10)] active:scale-[0.97] sm:gap-4 sm:py-6"
+    >
+      <div className="flex h-12 w-12 items-center justify-center rounded-full border-2 border-[#FF3130] text-[#FF3130] sm:h-14 sm:w-14">
+        <Home className="h-5 w-5 sm:h-6 sm:w-6" />
       </div>
-      <div className="flex items-center justify-center py-2">
-        <button
-          onClick={onCheckoutClick}
-          className="flex h-14 w-14 items-center justify-center rounded-full bg-[#FF3130] text-white shadow-sm transition-all hover:shadow-md active:scale-95"
-        >
-          <Home className="h-6 w-6" />
-        </button>
+      <div className="text-center">
+        <p className="text-base font-semibold text-gray-900">Abmelden</p>
+        <p className="mt-0.5 hidden text-xs text-gray-400 sm:block">
+          Für heute aus der OGS abmelden
+        </p>
       </div>
-      <p className="mt-2 text-center text-xs leading-relaxed text-gray-400">
-        Für heute aus der OGS abmelden
-      </p>
-    </div>
+    </button>
   );
 }
 
@@ -46,27 +39,20 @@ export function StudentCheckinSection({
   onCheckinClick,
 }: StudentCheckinSectionProps) {
   return (
-    <div className="rounded-2xl border border-gray-100 bg-white/50 p-4 backdrop-blur-sm">
-      <div className="mb-4 flex items-center gap-2 sm:gap-3">
-        <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-[#83CD2D] text-white sm:h-10 sm:w-10">
-          <LogIn className="h-5 w-5" />
-        </div>
-        <h2 className="text-base font-semibold text-gray-900 sm:text-lg">
-          Anmeldung
-        </h2>
+    <button
+      onClick={onCheckinClick}
+      className="flex flex-col items-center gap-3 rounded-3xl border border-gray-100/50 bg-white/90 px-3 py-4 shadow-[0_4px_20px_rgb(0,0,0,0.06)] backdrop-blur-md transition-all hover:shadow-[0_8px_30px_rgb(0,0,0,0.10)] active:scale-[0.97] sm:gap-4 sm:py-6"
+    >
+      <div className="flex h-12 w-12 items-center justify-center rounded-full border-2 border-[#83CD2D] text-[#83CD2D] sm:h-14 sm:w-14">
+        <LogIn className="h-5 w-5 sm:h-6 sm:w-6" />
       </div>
-      <div className="flex items-center justify-center py-2">
-        <button
-          onClick={onCheckinClick}
-          className="flex h-14 w-14 items-center justify-center rounded-full bg-[#83CD2D] text-white shadow-sm transition-all hover:shadow-md active:scale-95"
-        >
-          <LogIn className="h-6 w-6" />
-        </button>
+      <div className="text-center">
+        <p className="text-base font-semibold text-gray-900">Anmelden</p>
+        <p className="mt-0.5 hidden text-xs text-gray-400 sm:block">
+          Für heute in der OGS anmelden
+        </p>
       </div>
-      <p className="mt-2 text-center text-xs leading-relaxed text-gray-400">
-        Für heute in der OGS anmelden
-      </p>
-    </div>
+    </button>
   );
 }
 
@@ -93,57 +79,37 @@ export function StudentSickReportSection({
     : null;
 
   return (
-    <div
-      className={`rounded-2xl border p-4 backdrop-blur-sm ${
-        isSick
-          ? "border-amber-200 bg-amber-50/80"
-          : "border-gray-100 bg-white/50"
-      }`}
+    <button
+      onClick={onToggle}
+      disabled={isLoading}
+      className="flex flex-col items-center gap-3 rounded-3xl border border-gray-100/50 bg-white/90 px-3 py-4 shadow-[0_4px_20px_rgb(0,0,0,0.06)] backdrop-blur-md transition-all hover:shadow-[0_8px_30px_rgb(0,0,0,0.10)] active:scale-[0.97] disabled:opacity-50 sm:gap-4 sm:py-6"
     >
-      <div className="mb-4 flex items-center gap-2 sm:gap-3">
-        <div
-          className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg text-white sm:h-10 sm:w-10 ${
-            isSick ? "bg-amber-500" : "bg-amber-400"
-          }`}
-        >
-          {isSick ? (
-            <Check className="h-5 w-5" />
-          ) : (
-            <Thermometer className="h-5 w-5" />
-          )}
-        </div>
-        <div className="min-w-0">
-          <h2 className="text-base font-semibold text-gray-900 sm:text-lg">
-            Krankmeldung
-          </h2>
-          {isSick && sickSinceDisplay && (
-            <p className="text-xs text-amber-600">seit {sickSinceDisplay}</p>
-          )}
-        </div>
+      <div
+        className={`flex h-12 w-12 items-center justify-center rounded-full border-2 sm:h-14 sm:w-14 ${
+          isSick
+            ? "border-[#83CD2D] text-[#83CD2D]"
+            : "border-amber-500 text-amber-500"
+        }`}
+      >
+        {isLoading ? (
+          <div className="h-5 w-5 animate-spin rounded-full border-2 border-current border-t-transparent" />
+        ) : isSick ? (
+          <Heart className="h-5 w-5 sm:h-6 sm:w-6" />
+        ) : (
+          <Thermometer className="h-5 w-5 sm:h-6 sm:w-6" />
+        )}
       </div>
-      <div className="flex items-center justify-center py-2">
-        <button
-          onClick={onToggle}
-          disabled={isLoading}
-          className={`flex h-14 w-14 items-center justify-center rounded-full text-white shadow-sm transition-all hover:shadow-md active:scale-95 disabled:opacity-50 ${
-            isSick ? "bg-[#83CD2D]" : "bg-amber-500"
-          }`}
-        >
-          {isLoading ? (
-            <div className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent" />
-          ) : isSick ? (
-            <Check className="h-6 w-6" />
-          ) : (
-            <Thermometer className="h-6 w-6" />
-          )}
-        </button>
+      <div className="text-center">
+        <p className="text-base font-semibold text-gray-900">
+          {isSick ? "Gesund melden" : "Krank melden"}
+        </p>
+        <p className="mt-0.5 hidden text-xs text-gray-400 sm:block">
+          {isSick && sickSinceDisplay
+            ? `Krank gemeldet seit ${sickSinceDisplay}`
+            : "Als krank melden"}
+        </p>
       </div>
-      <p className="mt-2 text-center text-xs leading-relaxed text-gray-400">
-        {isSick
-          ? "Krankmeldung aufheben und gesund melden"
-          : "Als krank melden"}
-      </p>
-    </div>
+    </button>
   );
 }
 
