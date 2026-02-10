@@ -270,6 +270,7 @@ export default function StudentDetailPage() {
       const newSickStatus = !(student.sick ?? false);
       await studentService.updateStudent(studentId, {
         sick: newSickStatus,
+        bus: student.buskind ?? false,
       });
       refreshData();
       setShowConfirmSick(false);
