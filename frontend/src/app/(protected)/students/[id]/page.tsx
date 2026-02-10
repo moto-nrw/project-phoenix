@@ -96,6 +96,11 @@ export default function StudentDetailPage() {
   // Sick toggle state
   const [showConfirmSick, setShowConfirmSick] = useState(false);
   const [sickLoading, setSickLoading] = useState(false);
+  const sickConfirmText = sickLoading
+    ? "Wird gespeichert..."
+    : student?.sick
+      ? "Gesundmelden"
+      : "Krankmelden";
   const [selectedActiveGroupId, setSelectedActiveGroupId] =
     useState<string>("");
   const [activeGroups, setActiveGroups] = useState<ActiveGroup[]>([]);
@@ -469,13 +474,7 @@ export default function StudentDetailPage() {
         onClose={() => setShowConfirmSick(false)}
         onConfirm={handleConfirmSickToggle}
         title={student.sick ? "Krankmeldung aufheben" : "Kind krankmelden"}
-        confirmText={
-          sickLoading
-            ? "Wird gespeichert..."
-            : student.sick
-              ? "Gesundmelden"
-              : "Krankmelden"
-        }
+        confirmText={sickConfirmText}
         cancelText="Abbrechen"
         isConfirmLoading={sickLoading}
         confirmButtonClass="bg-gray-900 hover:bg-gray-700"

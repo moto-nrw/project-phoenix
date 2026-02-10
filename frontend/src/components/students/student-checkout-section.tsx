@@ -78,6 +78,18 @@ export function StudentSickReportSection({
       })
     : null;
 
+  const renderSickIcon = () => {
+    if (isLoading) {
+      return (
+        <div className="h-5 w-5 animate-spin rounded-full border-2 border-current border-t-transparent" />
+      );
+    }
+    if (isSick) {
+      return <Heart className="h-5 w-5 sm:h-6 sm:w-6" />;
+    }
+    return <Thermometer className="h-5 w-5 sm:h-6 sm:w-6" />;
+  };
+
   return (
     <button
       onClick={onToggle}
@@ -91,13 +103,7 @@ export function StudentSickReportSection({
             : "border-amber-500 text-amber-500"
         }`}
       >
-        {isLoading ? (
-          <div className="h-5 w-5 animate-spin rounded-full border-2 border-current border-t-transparent" />
-        ) : isSick ? (
-          <Heart className="h-5 w-5 sm:h-6 sm:w-6" />
-        ) : (
-          <Thermometer className="h-5 w-5 sm:h-6 sm:w-6" />
-        )}
+        {renderSickIcon()}
       </div>
       <div className="text-center">
         <p className="text-base font-semibold text-gray-900">
