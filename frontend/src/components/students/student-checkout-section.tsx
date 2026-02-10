@@ -15,7 +15,7 @@ export function StudentCheckoutSection({
   return (
     <button
       onClick={onCheckoutClick}
-      className="flex flex-col items-center gap-3 rounded-3xl border border-gray-100/50 bg-white/90 px-3 py-4 shadow-[0_4px_20px_rgb(0,0,0,0.06)] backdrop-blur-md transition-all hover:shadow-[0_8px_30px_rgb(0,0,0,0.10)] active:scale-[0.97] sm:gap-4 sm:py-6"
+      className="flex flex-1 flex-col items-center gap-3 rounded-3xl border border-gray-100/50 bg-white/90 px-3 py-4 shadow-[0_4px_20px_rgb(0,0,0,0.06)] backdrop-blur-md transition-all hover:shadow-[0_8px_30px_rgb(0,0,0,0.10)] active:scale-[0.97] sm:gap-4 sm:py-6"
     >
       <div className="flex h-12 w-12 items-center justify-center rounded-full border-2 border-[#FF3130] text-[#FF3130] sm:h-14 sm:w-14">
         <Home className="h-5 w-5 sm:h-6 sm:w-6" />
@@ -41,7 +41,7 @@ export function StudentCheckinSection({
   return (
     <button
       onClick={onCheckinClick}
-      className="flex flex-col items-center gap-3 rounded-3xl border border-gray-100/50 bg-white/90 px-3 py-4 shadow-[0_4px_20px_rgb(0,0,0,0.06)] backdrop-blur-md transition-all hover:shadow-[0_8px_30px_rgb(0,0,0,0.10)] active:scale-[0.97] sm:gap-4 sm:py-6"
+      className="flex flex-1 flex-col items-center gap-3 rounded-3xl border border-gray-100/50 bg-white/90 px-3 py-4 shadow-[0_4px_20px_rgb(0,0,0,0.06)] backdrop-blur-md transition-all hover:shadow-[0_8px_30px_rgb(0,0,0,0.10)] active:scale-[0.97] sm:gap-4 sm:py-6"
     >
       <div className="flex h-12 w-12 items-center justify-center rounded-full border-2 border-[#83CD2D] text-[#83CD2D] sm:h-14 sm:w-14">
         <LogIn className="h-5 w-5 sm:h-6 sm:w-6" />
@@ -82,7 +82,7 @@ export function StudentSickReportSection({
     <button
       onClick={onToggle}
       disabled={isLoading}
-      className="flex flex-col items-center gap-3 rounded-3xl border border-gray-100/50 bg-white/90 px-3 py-4 shadow-[0_4px_20px_rgb(0,0,0,0.06)] backdrop-blur-md transition-all hover:shadow-[0_8px_30px_rgb(0,0,0,0.10)] active:scale-[0.97] disabled:opacity-50 sm:gap-4 sm:py-6"
+      className="flex flex-1 flex-col items-center gap-3 rounded-3xl border border-gray-100/50 bg-white/90 px-3 py-4 shadow-[0_4px_20px_rgb(0,0,0,0.06)] backdrop-blur-md transition-all hover:shadow-[0_8px_30px_rgb(0,0,0,0.10)] active:scale-[0.97] disabled:opacity-50 sm:gap-4 sm:py-6"
     >
       <div
         className={`flex h-12 w-12 items-center justify-center rounded-full border-2 sm:h-14 sm:w-14 ${

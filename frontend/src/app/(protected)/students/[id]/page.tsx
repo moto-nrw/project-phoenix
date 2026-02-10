@@ -519,10 +519,16 @@ function LimitedAccessView({
 }: Readonly<LimitedAccessViewProps>) {
   return (
     <div className="space-y-4 sm:space-y-6">
-      {showCheckout && (
-        <StudentCheckoutSection onCheckoutClick={onCheckoutClick} />
+      {(showCheckout || showCheckin) && (
+        <div className="flex gap-3 sm:gap-4">
+          {showCheckout && (
+            <StudentCheckoutSection onCheckoutClick={onCheckoutClick} />
+          )}
+          {showCheckin && (
+            <StudentCheckinSection onCheckinClick={onCheckinClick} />
+          )}
+        </div>
       )}
-      {showCheckin && <StudentCheckinSection onCheckinClick={onCheckinClick} />}
 
       <SupervisorsCard supervisors={supervisors} studentName={student.name} />
 
@@ -574,7 +580,7 @@ function FullAccessView({
 }: Readonly<FullAccessViewProps>) {
   return (
     <>
-      <div className="mb-4 grid grid-cols-2 gap-3 sm:mb-6 sm:gap-4">
+      <div className="mb-4 flex gap-3 sm:mb-6 sm:gap-4">
         {showCheckout && (
           <StudentCheckoutSection onCheckoutClick={onCheckoutClick} />
         )}
