@@ -297,7 +297,7 @@ Die folgenden Punkte aus der initialen Review wurden durch Entscheidungen in DEB
 | **Frontend Header vs. Rewrite Pattern** | **D11** | Rewrite Pattern (Vercel Platforms Starter Kit). Kein `headers()` → kein Dynamic Rendering Trap. |
 | **Frontend Tenant-Context fehlte** | **D5** | `useTenant()` Hook mit Identitaet + Branding/Settings. Daten aus Login-Response, `resolveTenant()` fuer Pre-Login-Branding. |
 | **BeforeAppendModel Shadowing-Risiko** | **D10** | Kein Hook auf TenantModel. Service-Layer setzt `tenant_id` explizit. CI-Check als Praevention. |
-| **Per-Tenant Rollen Komplexitaet** | **D13** | Globale Rollen beibehalten. YAGNI fuer Per-Tenant Rollen. |
+| **Per-Tenant Rollen** | **D13 (revidiert 2026-02-10)** | Per-Tenant RBAC mit System-Rollen. Account kann verschiedene Rollen bei verschiedenen Tenants haben. |
 | **Policy Engine Tenant-Awareness** | **D14** | Two-Tier Authorization: Middleware (statisch/JWT) + Service (dynamisch/DB). Fail-closed Tenant-Assert in `Engine.Authorize()`. |
 | **Raw SQL / Subquery Sicherheit** | **D16** | RLS filtert alle Query-Formen. 6 gezielte Massnahmen: `RowsAffected()`-Audit, PG 17.6+, Seeds, View `security_invoker`, Advisory Lock 2-Arg, LEFT JOIN Review. |
 
