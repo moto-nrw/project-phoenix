@@ -214,7 +214,6 @@ export default function StudentDetailPage() {
       supervisor_notes: editedStudent.supervisor_notes,
       extra_info: editedStudent.extra_info,
       pickup_status: editedStudent.pickup_status,
-      sick: editedStudent.sick ?? false,
     });
 
     refreshData();
