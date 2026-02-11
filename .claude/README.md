@@ -105,7 +105,6 @@ Comprehensive security guidelines covering:
 │   ├── quality-check.md
 │   ├── migrate-check.md
 │   ├── gendoc.md
-│   └── openspec/          # OpenSpec change management
 ├── hooks/                 # 4 automation scripts
 │   ├── format-go.sh
 │   ├── format-typescript.sh
@@ -121,7 +120,6 @@ Comprehensive security guidelines covering:
 │   ├── ralph-setup/
 │   └── agent-browser/
 └── rules/                 # 23 security guidelines
-    ├── openspec.md
     └── security/
 ```
 

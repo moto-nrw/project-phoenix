@@ -1,22 +1,3 @@
-<!-- OPENSPEC:START -->
-# OpenSpec Instructions
-
-These instructions are for AI assistants working in this project.
-
-Always open `@/openspec/AGENTS.md` when the request:
-- Mentions planning or proposals (words like proposal, spec, change, plan)
-- Introduces new capabilities, breaking changes, architecture shifts, or big performance/security work
-- Sounds ambiguous and you need the authoritative spec before coding
-
-Use `@/openspec/AGENTS.md` to learn:
-- How to create and apply change proposals
-- Spec format and conventions
-- Project structure and guidelines
-
-Keep this managed block so 'openspec update' can refresh the instructions.
-
-<!-- OPENSPEC:END -->
-
 # CLAUDE.md
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
@@ -561,3 +542,109 @@ if logging.Logger != nil {
 - **Memory**: ~10KB per connection (100 connections = ~1MB overhead)
 - **Latency**: <1ms per broadcast (non-blocking channel sends)
 - **Buffer**: 10 events per client (older events skipped if channel full)
+
+---
+
+## Backend Logging: Use slog Only (MANDATORY)
+
+**ABSOLUTE RULE: All backend Go code MUST use `log/slog` for logging. Never use `logrus`, `log.Printf`, or any other logging library.**
+
+The project completed a full migration from logrus to Go's stdlib `log/slog`. The `sloglint` linter enforces conventions at build time. Use the `backend-structured-logging` skill for detailed usage instructions.
+
+### How Logging Works
+
+1. `applog.New()` bootstraps a `*slog.Logger` at startup (`cmd/serve.go`)
+2. The logger is injected through the factory pattern: `services.NewFactory(repos, db, logger)`
+3. Services receive scoped loggers: `logger.With("service", "active")`
+4. Handlers receive loggers via their resource constructors
+
+### Rules
+
+**DO: Use injected logger**
+```go
+func NewService(repo SomeRepo, logger *slog.Logger) *Service {
+    return &Service{repo: repo, logger: logger}
+}
+
+func (s *Service) DoWork(ctx context.Context) error {
+    s.logger.Info("processing request", "item_id", id)
+    return nil
+}
+```
+
+**DO: Use key-value pairs (not positional strings)**
+```go
+// CORRECT
+slog.Info("user authenticated", "account_id", accountID, "method", "jwt")
+
+// WRONG
+slog.Info("user authenticated", accountID, "jwt")
+```
+
+**DO: Use snake_case for log keys**
+```go
+slog.Info("visit recorded", "student_id", sid, "group_id", gid)
+```
+
+**NEVER: Import logrus or use bare log.Printf**
+```go
+// FORBIDDEN
+logrus.Info("something")
+log.Printf("something")
+```
+
+**GDPR: Student names MUST NOT appear at Info level or above.**
+```go
+// CORRECT - use IDs at Info level
+s.logger.Info("student checked in", "student_id", studentID)
+
+// CORRECT - names only at Debug level
+s.logger.Debug("student details", "student_id", studentID, "name", name)
+```
+
+**Known Exceptions** (intentionally use `log.Printf`):
+- `auth/jwt/tokenauth.go` — startup config logging
+- `cmd/`, `seed/`, `simulator/` — routed through slog default at WARN level
+
+**Nil-Safe Logger Pattern:**
+```go
+func (s *MyStruct) getLogger() *slog.Logger {
+    if s.logger != nil {
+        return s.logger
+    }
+    return slog.Default()
+}
+```
+
+**Enforcement**: `sloglint` in `.golangci.yml` — `no-mixed-arguments`, `key-naming-case: snake`, `args-on-sep-lines`
+
+---
+
+## Cryptographic Security Guidelines
+
+### Banned Algorithms (NEVER use)
+- **Hash**: MD2, MD4, MD5, SHA-0, SHA-1
+- **Symmetric**: RC2, RC4, Blowfish, DES, 3DES, AES-CBC, AES-ECB
+- **Signature**: RSA with PKCS#1 v1.5 padding
+- **Key Exchange**: Static RSA, Anonymous Diffie-Hellman, DHE with weak primes
+
+**Use instead**: SHA-256+, AES-256-GCM, ChaCha20, ECDHE
+
+### Deprecated SSL/Crypto APIs (FORBIDDEN)
+- `AES_encrypt()`/`AES_decrypt()` → Use EVP APIs (`EVP_EncryptInit_ex`, etc.)
+- `RSA_new()`/`RSA_free()` → Use `EVP_PKEY_*` APIs
+- `SHA1_Init()`/`SHA1_Update()` → Use `EVP_Digest*` APIs
+- `HMAC()` with SHA1 → Use `EVP_Q_MAC()` with SHA-256+
+- `AES_wrap_key()`/`AES_unwrap_key()` → Use EVP key wrapping
+- `DSA_sign()`, `DH_check()` → Use corresponding EVP APIs
+
+---
+
+## Certificate Best Practices
+
+When encountering X.509 certificate data (PEM strings, `.pem`/`.crt`/`.cer` files, or crypto library calls), perform these checks:
+
+1. **Expiration**: Flag certificates expired before today as CRITICAL
+2. **Key Strength**: RSA < 2048 bits or EC < P-256 curves are weak — flag as High-Priority
+3. **Signature Algorithm**: MD5 or SHA-1 signatures are insecure — flag as High-Priority
+4. **Self-Signed**: Issuer == Subject — flag as Informational (dev/testing only)
