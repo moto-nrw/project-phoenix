@@ -564,14 +564,6 @@ func (s *MyStruct) getLogger() *slog.Logger {
 
 **Use instead**: SHA-256+, AES-256-GCM, ChaCha20, ECDHE
 
-### Deprecated SSL/Crypto APIs (FORBIDDEN)
-- `AES_encrypt()`/`AES_decrypt()` → Use EVP APIs (`EVP_EncryptInit_ex`, etc.)
-- `RSA_new()`/`RSA_free()` → Use `EVP_PKEY_*` APIs
-- `SHA1_Init()`/`SHA1_Update()` → Use `EVP_Digest*` APIs
-- `HMAC()` with SHA1 → Use `EVP_Q_MAC()` with SHA-256+
-- `AES_wrap_key()`/`AES_unwrap_key()` → Use EVP key wrapping
-- `DSA_sign()`, `DH_check()` → Use corresponding EVP APIs
-
 ---
 
 ## Certificate Best Practices
