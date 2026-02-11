@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { FormModal } from "~/components/ui/form-modal";
 import { useToast } from "~/contexts/ToastContext";
 import type { ExtendedStudent } from "~/lib/hooks/use-student-data";
-import { ChevronDownIcon, WarningIcon } from "./student-detail-components";
+import { ChevronDownIcon } from "./student-detail-components";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "PersonalInfoFormModal" });
@@ -136,10 +136,6 @@ export function PersonalInfoFormModal({
             },
             { value: "Wird abgeholt", label: "Wird abgeholt" },
           ]}
-        />
-        <SicknessToggle
-          isSick={editedStudent.sick ?? false}
-          onToggle={() => updateField("sick", !editedStudent.sick)}
         />
         <TextAreaInput
           id="modal-student-health-info"
@@ -298,66 +294,6 @@ function TextAreaInput({
         rows={rows}
         placeholder={placeholder}
       />
-    </div>
-  );
-}
-
-// =============================================================================
-// SICKNESS TOGGLE
-// =============================================================================
-
-interface SicknessToggleProps {
-  isSick: boolean;
-  onToggle: () => void;
-}
-
-function SicknessToggle({ isSick, onToggle }: Readonly<SicknessToggleProps>) {
-  const containerClass = isSick
-    ? "border-amber-200 bg-amber-50"
-    : "border-gray-200 bg-gray-50";
-
-  const iconBgClass = isSick
-    ? "bg-amber-100 text-amber-600"
-    : "bg-gray-200 text-gray-500";
-
-  const textClass = isSick ? "text-amber-900" : "text-gray-700";
-
-  const toggleClass = isSick ? "bg-amber-500" : "bg-gray-300";
-
-  const knobTransform = isSick ? "translate-x-6" : "translate-x-1";
-
-  return (
-    <div
-      className={`rounded-lg border p-4 transition-colors ${containerClass}`}
-    >
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div
-            className={`flex h-9 w-9 items-center justify-center rounded-lg ${iconBgClass}`}
-          >
-            <WarningIcon />
-          </div>
-          <div>
-            <p className={`text-sm font-medium ${textClass}`}>
-              Kind krankmelden
-            </p>
-            <p className="text-xs text-gray-500">
-              Wird beim nächsten Check-in zurückgesetzt
-            </p>
-          </div>
-        </div>
-        <button
-          type="button"
-          role="switch"
-          aria-checked={isSick}
-          onClick={onToggle}
-          className={`relative inline-flex h-7 w-12 flex-shrink-0 items-center rounded-full transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 ${toggleClass}`}
-        >
-          <span
-            className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-sm transition-transform duration-200 ${knobTransform}`}
-          />
-        </button>
-      </div>
     </div>
   );
 }
