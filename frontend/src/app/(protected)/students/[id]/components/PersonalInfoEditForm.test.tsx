@@ -428,6 +428,17 @@ describe("PersonalInfoEditForm", () => {
     });
   });
 
-  // Note: Sick toggle was moved to StudentSickReportSection (student-checkout-section.tsx)
-  // Tests for sick functionality are in student-checkout-section.test.tsx and page.test.tsx
+  it("does not render sick toggle (moved to StudentSickReportSection)", () => {
+    render(
+      <PersonalInfoEditForm
+        editedStudent={baseStudent}
+        onStudentChange={vi.fn()}
+        onSave={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+
+    expect(screen.queryByRole("switch")).not.toBeInTheDocument();
+    expect(screen.queryByText("Krankmeldung")).not.toBeInTheDocument();
+  });
 });

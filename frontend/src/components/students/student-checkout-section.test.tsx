@@ -233,22 +233,26 @@ describe("StudentSickReportSection", () => {
   });
 
   it("displays sick-since date when sick with sickSince", () => {
+    const sickSince = "2026-02-05T08:00:00Z";
+    const expectedDate = new Date(sickSince).toLocaleDateString("de-DE", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    });
     render(
       <StudentSickReportSection
         {...defaultProps}
         isSick={true}
-        sickSince="2026-02-05T08:00:00Z"
+        sickSince={sickSince}
       />,
     );
     expect(
-      screen.getByText("Krank gemeldet seit 05.02.2026"),
+      screen.getByText(`Krank gemeldet seit ${expectedDate}`),
     ).toBeInTheDocument();
   });
 
   it("renders 'Als krank melden' subtitle when sick but no sickSince", () => {
-    render(
-      <StudentSickReportSection {...defaultProps} isSick={true} />,
-    );
+    render(<StudentSickReportSection {...defaultProps} isSick={true} />);
     expect(screen.getByText("Als krank melden")).toBeInTheDocument();
   });
 
@@ -264,9 +268,7 @@ describe("StudentSickReportSection", () => {
   });
 
   it("disables button when loading", () => {
-    render(
-      <StudentSickReportSection {...defaultProps} isLoading={true} />,
-    );
+    render(<StudentSickReportSection {...defaultProps} isLoading={true} />);
     expect(screen.getByRole("button")).toBeDisabled();
   });
 

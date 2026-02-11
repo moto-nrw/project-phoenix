@@ -411,6 +411,7 @@ export default function StudentDetailPage() {
             onSavePersonal={handleSavePersonal}
             onRefreshData={refreshData}
             onSickClick={() => setShowConfirmSick(true)}
+            sickLoading={sickLoading}
           />
         ) : (
           <LimitedAccessView
@@ -562,6 +563,7 @@ interface FullAccessViewProps {
   onSavePersonal: (student: ExtendedStudent) => Promise<void>;
   onRefreshData: () => void;
   onSickClick: () => void;
+  sickLoading: boolean;
 }
 
 function FullAccessView({
@@ -577,6 +579,7 @@ function FullAccessView({
   onSavePersonal,
   onRefreshData,
   onSickClick,
+  sickLoading,
 }: Readonly<FullAccessViewProps>) {
   return (
     <>
@@ -591,7 +594,7 @@ function FullAccessView({
           isSick={student.sick ?? false}
           sickSince={student.sick_since}
           onToggle={onSickClick}
-          isLoading={false}
+          isLoading={sickLoading}
         />
       </div>
 

@@ -192,7 +192,19 @@ describe("PersonalInfoFormModal", () => {
       expect(input.value).toBe("Neuer Name");
     });
 
-    // Note: Sick toggle was moved to StudentSickReportSection (student-checkout-section.tsx)
+    it("does not render sick toggle (moved to StudentSickReportSection)", () => {
+      render(
+        <PersonalInfoFormModal
+          isOpen={true}
+          onClose={mockOnClose}
+          student={createMockStudent()}
+          onSave={mockOnSave}
+        />,
+      );
+
+      expect(screen.queryByRole("switch")).not.toBeInTheDocument();
+      expect(screen.queryByText("Krankmeldung")).not.toBeInTheDocument();
+    });
   });
 
   describe("Save functionality", () => {
