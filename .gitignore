@@ -460,7 +460,7 @@ gitleaks-report.json
 
 # Generated API documentation
 backend/routes.md
-docs/openapi.yaml
+backend/docs/openapi.yaml
 
 # OpenSpec local specification files
 openspec/
