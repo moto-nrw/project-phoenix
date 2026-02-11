@@ -133,7 +133,7 @@ CREATE TABLE platform.operator_organizations (
 | `suggestions.operator_comments` | Operator-Kommentare auf Suggestions — Operator ist Platform-Scope, kein tenant_id auf `platform.operators` |
 | `meta.migration_metadata` | Infrastruktur-Tabelle fuer Migrations-Tracking, kein Tenant-Bezug |
 
-**MIT tenant_id NULLABLE (Auth RBAC-Tabellen, D13 revidiert):**
+**Auth RBAC-Tabellen (D13 revidiert) — gemischte Nullable-Strategie:**
 
 | Tabelle | tenant_id | Grund |
 |---------|-----------|-------|
@@ -653,8 +653,9 @@ Phase 3 (Woche 5+): Strikte Enforcement
  1. Migration: platform.organizations + platform.schools erstellen
  2. Migration: Default-Org und Default-School erstellen (ID=1)
  3. Migration: Drei PostgreSQL-Rollen erstellen (phoenix_auth, phoenix_tenant, phoenix_admin)
- 4. Migration: tenant_id (NULLABLE) zu allen ~41 Tabellen hinzufuegen
+ 4. Migration: tenant_id (NULLABLE, DEFAULT 1) zu allen ~41 Tabellen hinzufuegen
     -> Non-blocking in PostgreSQL (nur Metadaten-Aenderung)
+    -> DEFAULT 1 verhindert NULL-Inserts zwischen Step 4 und 6
  5. Migration: UPDATE ... SET tenant_id = 1 fuer alle bestehenden Rows
     -> In Batches fuer grosse Tabellen (LIMIT + OFFSET)
  6. Migration: tenant_id NOT NULL Constraint setzen

@@ -533,7 +533,7 @@ if (subdomain && !RESERVED_SUBDOMAINS.includes(subdomain)) {
 
 2. **Minimaler Aufwand:** Der Refresh-Handler laedt bereits den Token aus `auth.tokens` und re-validiert Account-Status + Permissions. Ein zusaetzlicher `account_tenants.Exists()` Check ist eine Zeile.
 
-3. **Option B (DB-Spalte) ueberfluessig:** Der DB-Lookup auf `auth.tokens` passiert bereits beim Refresh. Die `tenant_id` kommt aus den RefreshClaims — kein Schema-Change auf `auth.tokens` noetig.
+3. **Option B (DB-Spalte) fuer Validierung ueberfluessig:** Der DB-Lookup auf `auth.tokens` passiert bereits beim Refresh. Die `tenant_id` kommt aus den RefreshClaims — fuer die Refresh-Validierung ist kein Schema-Change noetig. **Hinweis:** `auth.tokens` bekommt dennoch `tenant_id NOT NULL` (siehe 02-datenbank.md) — nicht fuer Validierung, sondern fuer gezieltes Per-Tenant-Revoken bei Zugriffsentzug.
 
 **Aenderungen:**
 ```go
