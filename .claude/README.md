@@ -34,13 +34,12 @@ claude
 | **typescript-lsp** | TypeScript language server |
 | **gopls-lsp** | Go language server |
 
-### Specialized Agents (6 available)
+### Specialized Agents (5 available)
 
 | Agent | When to Use |
 |-------|-------------|
 | **go-bun-expert** | BUN ORM queries, repository patterns, Chi router |
 | **nextjs-expert** | Next.js 15 + React 19, App Router, Server Components |
-| **api-tester** | Bruno API testing, authentication flows |
 | **prompt-engineer** | AI prompt optimization, agent design |
 | **deep-dive-investigator** | Complex debugging, tracing code execution paths |
 | **research-thinker** | Research topics, compare alternatives, gather info |
@@ -62,7 +61,6 @@ claude
 
 | Command | Description |
 |---------|-------------|
-| `/test-api [domain\|all]` | Run Bruno API tests |
 | `/rebuild-backend` | Rebuild Docker backend container |
 | `/quality-check` | Frontend lint + typecheck |
 | `/migrate-check` | Validate database migrations |
@@ -95,17 +93,14 @@ Comprehensive security guidelines covering:
 ├── agents/                # 6 specialized AI assistants
 │   ├── go-bun-expert.md
 │   ├── nextjs-expert.md
-│   ├── api-tester.md
 │   ├── prompt-engineer.md
 │   ├── deep-dive-investigator.md
 │   └── research-thinker.md
 ├── commands/              # 8 workflow shortcuts
-│   ├── test-api.md
 │   ├── rebuild-backend.md
 │   ├── quality-check.md
 │   ├── migrate-check.md
 │   ├── gendoc.md
-│   └── openspec/          # OpenSpec change management
 ├── hooks/                 # 4 automation scripts
 │   ├── format-go.sh
 │   ├── format-typescript.sh
@@ -121,7 +116,6 @@ Comprehensive security guidelines covering:
 │   ├── ralph-setup/
 │   └── agent-browser/
 └── rules/                 # 23 security guidelines
-    ├── openspec.md
     └── security/
 ```
 

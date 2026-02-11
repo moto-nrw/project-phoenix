@@ -16,16 +16,16 @@ title = "Project Phoenix Gitleaks Configuration"
 # These apply to all rules and have higher precedence than rule-specific lists
 
 # -----------------------------------------------------------------------------
-# Allowlist 1: Bruno Test Environment - Intentional Test Device API Keys
+# Allowlist 1: Seed Test Device API Keys
 # -----------------------------------------------------------------------------
 # These keys are INTENTIONALLY hardcoded for local development/testing only.
 # They are created by `go run main.go seed` and only work in seeded test databases.
-# See: backend/seed/fixed/devices.go:28 (comment: "Hardcoded for Bruno tests")
+# See: backend/seed/fixed/devices.go
 [[allowlists]]
-description = "Bruno test device API keys - intentional test data for local development"
+description = "Seed test device API keys - intentional test data for local development"
 regexTarget = "secret"
 regexes = [
-    # Test device API key used in Bruno Local environment and seed data
+    # Test device API key used in seed data
     '''ejpSOD5EEyMtbgsWBFNEoPU8MX0z553E''',
     # Legacy test API key found in old documentation/scripts
     '''9YUQWdt4dLa013foUTRKdnaeEUPBsWj7''',
@@ -62,7 +62,7 @@ regexes = [
 description = "Test credentials in documentation - development defaults only"
 regexTarget = "line"
 regexes = [
-    # Test password used in seed data and Bruno tests
+    # Test password used in seed data
     '''Test1234%''',
     # Default PIN examples
     '''staffPIN:\s*1234''',
@@ -77,8 +77,6 @@ regexes = [
 [[allowlists]]
 description = "Test and example file paths"
 paths = [
-    # Bruno test environment files
-    '''bruno/environments/.*\.bru$''',
     # Example configuration files
     '''\.example$''',
     '''\.example\.''',
@@ -118,7 +116,7 @@ paths = [
 [[allowlists]]
 description = "Historical commits with audited test data"
 commits = [
-    # Bruno environment and README with test API keys
+    # Historical test data commits
     "f1f9ec329079a4ff98b6c7ad9166bcb5b9d9d094",
     "33d3b7002defef8a359f6928e7e90f796b626873",
     # Deleted shell scripts (cleanup-visits.sh, cleanup-before-tests.sh, test-schulhof-workflow.sh)

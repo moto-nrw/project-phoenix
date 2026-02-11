@@ -433,9 +433,6 @@ docker-compose.prod.yml
 **/ssl/**/keys/
 config/ssl/**/certs/
 deployment/**/ssl/certs/
-# Bruno API testing
-/My API Tests
-bruno/.env.bruno
 
 # Test SQL files and scripts
 frontend/test-data*.sql
@@ -463,7 +460,7 @@ gitleaks-report.json
 
 # Generated API documentation
 backend/routes.md
-docs/openapi.yaml
+backend/docs/openapi.yaml
 
 # OpenSpec local specification files
 openspec/
@@ -475,11 +472,4 @@ openspec/
 .playwright/**/*
 .playwright-mcp
 .husky/
-# grepai semantic search (config committed, index ignored)
-.grepai/*.gob
-.grepai/*.db
-.grepai/callgraph/
-
-# Beads issue tracker (personal use)
-.beads/
 .gitattributes
