@@ -14,8 +14,8 @@
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen?style=flat-square)](CONTRIBUTING.md)
 [![Contributor Covenant](https://img.shields.io/badge/Contributor%20Covenant-3.0-4baaaa?style=flat-square)](CODE_OF_CONDUCT.md)
 
-[![Go](https://img.shields.io/badge/Go-1.23+-00ADD8?style=flat-square&logo=go&logoColor=white)](https://go.dev)
-[![Next.js](https://img.shields.io/badge/Next.js-15-black?style=flat-square&logo=next.js)](https://nextjs.org)
+[![Go](https://img.shields.io/badge/Go-1.25+-00ADD8?style=flat-square&logo=go&logoColor=white)](https://go.dev)
+[![Next.js](https://img.shields.io/badge/Next.js-16-black?style=flat-square&logo=next.js)](https://nextjs.org)
 [![React](https://img.shields.io/badge/React-19-61DAFB?style=flat-square&logo=react&logoColor=black)](https://react.dev)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-17-4169E1?style=flat-square&logo=postgresql&logoColor=white)](https://www.postgresql.org)
@@ -39,7 +39,7 @@ Project Phoenix is a comprehensive room and student management system designed f
 
 - **Privacy-First Design** — Built from the ground up with GDPR compliance, featuring configurable data retention, audit logging, and right-to-erasure support
 - **Real-Time Visibility** — Know instantly where students are, which rooms are occupied, and how spaces are being utilized
-- **Modern Stack** — Go backend with Next.js 15 frontend, designed for performance and developer experience
+- **Modern Stack** — Go backend with Next.js 16 frontend, designed for performance and developer experience
 - **Self-Hosted** — Your data stays on your infrastructure, with full control over security and compliance
 
 ---
@@ -195,8 +195,8 @@ The application will be available at:
 
 | Layer | Technology |
 |-------|-----------|
-| **Backend** | Go 1.23+, Chi Router, Bun ORM |
-| **Frontend** | Next.js 15, React 19, TypeScript 5 |
+| **Backend** | Go 1.25+, Chi Router, Bun ORM |
+| **Frontend** | Next.js 16, React 19, TypeScript 5 |
 | **Styling** | Tailwind CSS 4 |
 | **Database** | PostgreSQL 17 with SSL encryption |
 | **Auth** | JWT with refresh tokens, NextAuth.js |

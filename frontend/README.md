@@ -1,29 +1,80 @@
-# Create T3 App
+# Project Phoenix -- Frontend
 
-This is a [T3 Stack](https://create.t3.gg/) project bootstrapped with `create-t3-app`.
+Next.js web application for GDPR-compliant RFID student attendance and room management.
 
-## What's next? How do I make an app with this?
+## Tech Stack
 
-We try to keep this project as simple as possible, so you can start with just the scaffolding we set up for you, and add additional things later when they become necessary.
+- **Next.js 16** (App Router) with **React 19** and **TypeScript 5**
+- **Tailwind CSS 4** for styling
+- **NextAuth v5** (beta) for JWT authentication
+- **Axios** + **SWR** for API communication and caching
+- **Zod** for runtime validation (env vars via `@t3-oss/env-nextjs`)
+- **Recharts** for data visualization
+- **Framer Motion** for animations
+- **Vitest** + **Testing Library** for unit tests, **Playwright** for E2E
+- **pnpm 10** as package manager
 
-If you are not familiar with the different technologies used in this project, please refer to the respective docs. If you still are in the wind, please join our [Discord](https://t3.gg/discord) and ask for help.
+## Getting Started
 
-- [Next.js](https://nextjs.org)
-- [NextAuth.js](https://next-auth.js.org)
-- [Prisma](https://prisma.io)
-- [Drizzle](https://orm.drizzle.team)
-- [Tailwind CSS](https://tailwindcss.com)
-- [tRPC](https://trpc.io)
+```bash
+cp .env.example .env.local   # Configure environment variables
+pnpm install                  # Install dependencies
+pnpm run dev                  # Start dev server at http://localhost:3000
+```
 
-## Learn More
+## Environment Variables
 
-To learn more about the [T3 Stack](https://create.t3.gg/), take a look at the following resources:
+See `.env.example` for all required variables. Key ones:
 
-- [Documentation](https://create.t3.gg/)
-- [Learn the T3 Stack](https://create.t3.gg/en/faq#what-learning-resources-are-currently-available) — Check out these awesome tutorials
+| Variable | Purpose |
+|----------|---------|
+| `NEXT_PUBLIC_API_URL` | Backend API URL (default `http://localhost:8080`) |
+| `NEXTAUTH_URL` | Frontend URL for auth callbacks |
+| `NEXTAUTH_SECRET` | JWT signing secret (`openssl rand -base64 32`) |
+| `SKIP_ENV_VALIDATION` | Set `true` for Docker builds |
 
-You can check out the [create-t3-app GitHub repository](https://github.com/t3-oss/create-t3-app) — your feedback and contributions are welcome!
+## Scripts
 
-## How do I deploy this?
+| Command | Description |
+|---------|-------------|
+| `pnpm run dev` | Start development server |
+| `pnpm run build` | Production build |
+| `pnpm run start` | Start production server |
+| `pnpm run check` | Lint + typecheck (run before committing) |
+| `pnpm run lint` | ESLint (zero warnings policy) |
+| `pnpm run typecheck` | TypeScript type checking |
+| `pnpm run format:write` | Auto-format with Prettier |
+| `pnpm run test` | Run unit tests (Vitest) |
+| `pnpm run test:run` | Run tests once (CI mode) |
+| `pnpm run knip` | Detect unused dependencies and exports |
 
-Follow our deployment guides for [Vercel](https://create.t3.gg/en/deployment/vercel), [Netlify](https://create.t3.gg/en/deployment/netlify) and [Docker](https://create.t3.gg/en/deployment/docker) for more information.
+## Project Structure
+
+```
+src/
+  app/
+    (operator)/     # Operator-facing pages (separate auth context)
+    (protected)/    # Authenticated teacher/admin pages
+    (public)/       # Public pages (invitations, login)
+    api/            # Next.js route handlers (proxy to Go backend)
+    reset-password/ # Password reset flow
+  components/       # React components organized by domain
+  contexts/         # React context providers
+  hooks/            # Custom React hooks (SSE, SWR, etc.)
+  lib/              # API clients, helpers, utilities
+  server/           # Server-side auth configuration
+  styles/           # Global CSS
+  test/             # Test utilities, mocks, fixtures
+```
+
+## Docker
+
+Development and production Dockerfiles are provided (`Dockerfile`, `Dockerfile.prod`). Both use Node 20 Alpine with pnpm.
+
+```bash
+docker compose up frontend    # Run via docker-compose from project root
+```
+
+## More Information
+
+See the [root README](../README.md) for full project documentation, backend setup, and database configuration.
