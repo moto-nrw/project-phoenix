@@ -590,6 +590,151 @@ describe("OperatorAnnouncementsPage", () => {
     expect(screen.getByTestId("views-accordion")).toBeInTheDocument();
   });
 
+  describe("expand/collapse announcement content", () => {
+    it("does not show expand button when content fits within clamp", () => {
+      render(<OperatorAnnouncementsPage />);
+
+      expect(screen.queryByText("Mehr anzeigen")).not.toBeInTheDocument();
+      expect(screen.queryByText("Weniger anzeigen")).not.toBeInTheDocument();
+    });
+
+    it("shows 'Mehr anzeigen' button when content overflows", () => {
+      const originalScrollHeight = Object.getOwnPropertyDescriptor(
+        HTMLElement.prototype,
+        "scrollHeight",
+      );
+      const originalClientHeight = Object.getOwnPropertyDescriptor(
+        HTMLElement.prototype,
+        "clientHeight",
+      );
+      Object.defineProperty(HTMLElement.prototype, "scrollHeight", {
+        configurable: true,
+        get() {
+          return 100;
+        },
+      });
+      Object.defineProperty(HTMLElement.prototype, "clientHeight", {
+        configurable: true,
+        get() {
+          return 40;
+        },
+      });
+
+      render(<OperatorAnnouncementsPage />);
+
+      expect(screen.getByText("Mehr anzeigen")).toBeInTheDocument();
+
+      if (originalScrollHeight) {
+        Object.defineProperty(
+          HTMLElement.prototype,
+          "scrollHeight",
+          originalScrollHeight,
+        );
+      }
+      if (originalClientHeight) {
+        Object.defineProperty(
+          HTMLElement.prototype,
+          "clientHeight",
+          originalClientHeight,
+        );
+      }
+    });
+
+    it("toggles between 'Mehr anzeigen' and 'Weniger anzeigen'", () => {
+      const originalScrollHeight = Object.getOwnPropertyDescriptor(
+        HTMLElement.prototype,
+        "scrollHeight",
+      );
+      const originalClientHeight = Object.getOwnPropertyDescriptor(
+        HTMLElement.prototype,
+        "clientHeight",
+      );
+      Object.defineProperty(HTMLElement.prototype, "scrollHeight", {
+        configurable: true,
+        get() {
+          return 100;
+        },
+      });
+      Object.defineProperty(HTMLElement.prototype, "clientHeight", {
+        configurable: true,
+        get() {
+          return 40;
+        },
+      });
+
+      render(<OperatorAnnouncementsPage />);
+
+      const expandButton = screen.getByText("Mehr anzeigen");
+      fireEvent.click(expandButton);
+      expect(screen.getByText("Weniger anzeigen")).toBeInTheDocument();
+      expect(screen.queryByText("Mehr anzeigen")).not.toBeInTheDocument();
+
+      fireEvent.click(screen.getByText("Weniger anzeigen"));
+      expect(screen.getByText("Mehr anzeigen")).toBeInTheDocument();
+
+      if (originalScrollHeight) {
+        Object.defineProperty(
+          HTMLElement.prototype,
+          "scrollHeight",
+          originalScrollHeight,
+        );
+      }
+      if (originalClientHeight) {
+        Object.defineProperty(
+          HTMLElement.prototype,
+          "clientHeight",
+          originalClientHeight,
+        );
+      }
+    });
+
+    it("removes line-clamp-2 class when expanded", () => {
+      const originalScrollHeight = Object.getOwnPropertyDescriptor(
+        HTMLElement.prototype,
+        "scrollHeight",
+      );
+      const originalClientHeight = Object.getOwnPropertyDescriptor(
+        HTMLElement.prototype,
+        "clientHeight",
+      );
+      Object.defineProperty(HTMLElement.prototype, "scrollHeight", {
+        configurable: true,
+        get() {
+          return 100;
+        },
+      });
+      Object.defineProperty(HTMLElement.prototype, "clientHeight", {
+        configurable: true,
+        get() {
+          return 40;
+        },
+      });
+
+      render(<OperatorAnnouncementsPage />);
+
+      const content = screen.getByText("Test content");
+      expect(content).toHaveClass("line-clamp-2");
+
+      fireEvent.click(screen.getByText("Mehr anzeigen"));
+      expect(content).not.toHaveClass("line-clamp-2");
+
+      if (originalScrollHeight) {
+        Object.defineProperty(
+          HTMLElement.prototype,
+          "scrollHeight",
+          originalScrollHeight,
+        );
+      }
+      if (originalClientHeight) {
+        Object.defineProperty(
+          HTMLElement.prototype,
+          "clientHeight",
+          originalClientHeight,
+        );
+      }
+    });
+  });
+
   it("handles API errors gracefully", async () => {
     mockCreate.mockRejectedValue(new Error("API Error"));
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => {

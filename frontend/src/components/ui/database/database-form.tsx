@@ -229,7 +229,7 @@ export interface FormSection {
   iconPath?: string; // Optional small header icon (heroicons path)
 }
 
-export interface DatabaseFormProps<T = Record<string, unknown>> {
+interface DatabaseFormProps<T = Record<string, unknown>> {
   readonly theme: DatabaseTheme;
   readonly sections: FormSection[];
   readonly onSubmit: (data: T) => Promise<void>;

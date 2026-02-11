@@ -10,7 +10,6 @@ import (
 	suggestionsService "github.com/moto-nrw/project-phoenix/services/suggestions"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
 
 // Mock implementations
@@ -174,13 +173,6 @@ func (m *mockCommentReadRepo) CountTotalUnread(ctx context.Context, accountID in
 	return 0, nil
 }
 
-// Helper to create a test DB for transaction testing
-func createTestDB(t *testing.T) *bun.DB {
-	// Create an in-memory database for testing
-	// This is a minimal setup - in real tests you'd use a proper test database
-	return nil // TxHandler will handle nil DB gracefully in tests
-}
-
 func TestCreatePost_Success(t *testing.T) {
 	ctx := context.Background()
 
@@ -193,7 +185,7 @@ func TestCreatePost_Success(t *testing.T) {
 		},
 	}
 
-	svc := suggestionsService.NewService(postRepo, &mockVoteRepo{}, &mockCommentRepo{}, &mockCommentReadRepo{}, createTestDB(t))
+	svc := suggestionsService.NewService(postRepo, &mockVoteRepo{}, &mockCommentRepo{}, &mockCommentReadRepo{}, nil)
 
 	post := &suggestions.Post{
 		Title:       "Test Post",
@@ -210,7 +202,7 @@ func TestCreatePost_Success(t *testing.T) {
 func TestCreatePost_NilPost(t *testing.T) {
 	ctx := context.Background()
 
-	svc := suggestionsService.NewService(&mockPostRepo{}, &mockVoteRepo{}, &mockCommentRepo{}, &mockCommentReadRepo{}, createTestDB(t))
+	svc := suggestionsService.NewService(&mockPostRepo{}, &mockVoteRepo{}, &mockCommentRepo{}, &mockCommentReadRepo{}, nil)
 
 	err := svc.CreatePost(ctx, nil)
 	assert.Error(t, err)
@@ -220,7 +212,7 @@ func TestCreatePost_NilPost(t *testing.T) {
 func TestCreatePost_ValidationError(t *testing.T) {
 	ctx := context.Background()
 
-	svc := suggestionsService.NewService(&mockPostRepo{}, &mockVoteRepo{}, &mockCommentRepo{}, &mockCommentReadRepo{}, createTestDB(t))
+	svc := suggestionsService.NewService(&mockPostRepo{}, &mockVoteRepo{}, &mockCommentRepo{}, &mockCommentReadRepo{}, nil)
 
 	post := &suggestions.Post{
 		Title:       "", // Invalid: empty title
@@ -243,7 +235,7 @@ func TestCreatePost_RepoError(t *testing.T) {
 		},
 	}
 
-	svc := suggestionsService.NewService(postRepo, &mockVoteRepo{}, &mockCommentRepo{}, &mockCommentReadRepo{}, createTestDB(t))
+	svc := suggestionsService.NewService(postRepo, &mockVoteRepo{}, &mockCommentRepo{}, &mockCommentReadRepo{}, nil)
 
 	post := &suggestions.Post{
 		Title:       "Test Post",
@@ -268,7 +260,7 @@ func TestGetPost_Success(t *testing.T) {
 		},
 	}
 
-	svc := suggestionsService.NewService(postRepo, &mockVoteRepo{}, &mockCommentRepo{}, &mockCommentReadRepo{}, createTestDB(t))
+	svc := suggestionsService.NewService(postRepo, &mockVoteRepo{}, &mockCommentRepo{}, &mockCommentReadRepo{}, nil)
 
 	post, err := svc.GetPost(ctx, 456, 123)
 	require.NoError(t, err)
@@ -285,7 +277,7 @@ func TestGetPost_NotFound(t *testing.T) {
 		},
 	}
 
-	svc := suggestionsService.NewService(postRepo, &mockVoteRepo{}, &mockCommentRepo{}, &mockCommentReadRepo{}, createTestDB(t))
+	svc := suggestionsService.NewService(postRepo, &mockVoteRepo{}, &mockCommentRepo{}, &mockCommentReadRepo{}, nil)
 
 	post, err := svc.GetPost(ctx, 456, 123)
 	assert.Error(t, err)
@@ -304,7 +296,7 @@ func TestGetPost_RepoError(t *testing.T) {
 		},
 	}
 
-	svc := suggestionsService.NewService(postRepo, &mockVoteRepo{}, &mockCommentRepo{}, &mockCommentReadRepo{}, createTestDB(t))
+	svc := suggestionsService.NewService(postRepo, &mockVoteRepo{}, &mockCommentRepo{}, &mockCommentReadRepo{}, nil)
 
 	post, err := svc.GetPost(ctx, 456, 123)
 	assert.ErrorIs(t, err, expectedErr)
@@ -329,7 +321,7 @@ func TestUpdatePost_Success(t *testing.T) {
 		},
 	}
 
-	svc := suggestionsService.NewService(postRepo, &mockVoteRepo{}, &mockCommentRepo{}, &mockCommentReadRepo{}, createTestDB(t))
+	svc := suggestionsService.NewService(postRepo, &mockVoteRepo{}, &mockCommentRepo{}, &mockCommentReadRepo{}, nil)
 
 	post := &suggestions.Post{
 		Title:       "New Title",
@@ -344,7 +336,7 @@ func TestUpdatePost_Success(t *testing.T) {
 func TestUpdatePost_NilPost(t *testing.T) {
 	ctx := context.Background()
 
-	svc := suggestionsService.NewService(&mockPostRepo{}, &mockVoteRepo{}, &mockCommentRepo{}, &mockCommentReadRepo{}, createTestDB(t))
+	svc := suggestionsService.NewService(&mockPostRepo{}, &mockVoteRepo{}, &mockCommentRepo{}, &mockCommentReadRepo{}, nil)
 
 	err := svc.UpdatePost(ctx, nil, 123)
 	assert.Error(t, err)
@@ -360,7 +352,7 @@ func TestUpdatePost_PostNotFound(t *testing.T) {
 		},
 	}
 
-	svc := suggestionsService.NewService(postRepo, &mockVoteRepo{}, &mockCommentRepo{}, &mockCommentReadRepo{}, createTestDB(t))
+	svc := suggestionsService.NewService(postRepo, &mockVoteRepo{}, &mockCommentRepo{}, &mockCommentReadRepo{}, nil)
 
 	post := &suggestions.Post{
 		Title:       "New Title",
@@ -384,7 +376,7 @@ func TestUpdatePost_Forbidden(t *testing.T) {
 		},
 	}
 
-	svc := suggestionsService.NewService(postRepo, &mockVoteRepo{}, &mockCommentRepo{}, &mockCommentReadRepo{}, createTestDB(t))
+	svc := suggestionsService.NewService(postRepo, &mockVoteRepo{}, &mockCommentRepo{}, &mockCommentReadRepo{}, nil)
 
 	post := &suggestions.Post{
 		Title:       "New Title",
@@ -409,7 +401,7 @@ func TestUpdatePost_ValidationError(t *testing.T) {
 		},
 	}
 
-	svc := suggestionsService.NewService(postRepo, &mockVoteRepo{}, &mockCommentRepo{}, &mockCommentReadRepo{}, createTestDB(t))
+	svc := suggestionsService.NewService(postRepo, &mockVoteRepo{}, &mockCommentRepo{}, &mockCommentReadRepo{}, nil)
 
 	post := &suggestions.Post{
 		Title:       "", // Invalid: empty title
@@ -438,7 +430,7 @@ func TestUpdatePost_RepoErrorOnUpdate(t *testing.T) {
 		},
 	}
 
-	svc := suggestionsService.NewService(postRepo, &mockVoteRepo{}, &mockCommentRepo{}, &mockCommentReadRepo{}, createTestDB(t))
+	svc := suggestionsService.NewService(postRepo, &mockVoteRepo{}, &mockCommentRepo{}, &mockCommentReadRepo{}, nil)
 
 	post := &suggestions.Post{
 		Title:       "New Title",
@@ -465,7 +457,7 @@ func TestDeletePost_Success(t *testing.T) {
 		},
 	}
 
-	svc := suggestionsService.NewService(postRepo, &mockVoteRepo{}, &mockCommentRepo{}, &mockCommentReadRepo{}, createTestDB(t))
+	svc := suggestionsService.NewService(postRepo, &mockVoteRepo{}, &mockCommentRepo{}, &mockCommentReadRepo{}, nil)
 
 	err := svc.DeletePost(ctx, 456, 123)
 	require.NoError(t, err)
@@ -480,7 +472,7 @@ func TestDeletePost_PostNotFound(t *testing.T) {
 		},
 	}
 
-	svc := suggestionsService.NewService(postRepo, &mockVoteRepo{}, &mockCommentRepo{}, &mockCommentReadRepo{}, createTestDB(t))
+	svc := suggestionsService.NewService(postRepo, &mockVoteRepo{}, &mockCommentRepo{}, &mockCommentReadRepo{}, nil)
 
 	err := svc.DeletePost(ctx, 456, 123)
 	assert.Error(t, err)
@@ -498,7 +490,7 @@ func TestDeletePost_Forbidden(t *testing.T) {
 		},
 	}
 
-	svc := suggestionsService.NewService(postRepo, &mockVoteRepo{}, &mockCommentRepo{}, &mockCommentReadRepo{}, createTestDB(t))
+	svc := suggestionsService.NewService(postRepo, &mockVoteRepo{}, &mockCommentRepo{}, &mockCommentReadRepo{}, nil)
 
 	err := svc.DeletePost(ctx, 456, 123)
 	assert.Error(t, err)
@@ -520,7 +512,7 @@ func TestDeletePost_RepoError(t *testing.T) {
 		},
 	}
 
-	svc := suggestionsService.NewService(postRepo, &mockVoteRepo{}, &mockCommentRepo{}, &mockCommentReadRepo{}, createTestDB(t))
+	svc := suggestionsService.NewService(postRepo, &mockVoteRepo{}, &mockCommentRepo{}, &mockCommentReadRepo{}, nil)
 
 	err := svc.DeletePost(ctx, 456, 123)
 	assert.ErrorIs(t, err, expectedErr)
@@ -539,7 +531,7 @@ func TestListPosts_Success(t *testing.T) {
 		},
 	}
 
-	svc := suggestionsService.NewService(postRepo, &mockVoteRepo{}, &mockCommentRepo{}, &mockCommentReadRepo{}, createTestDB(t))
+	svc := suggestionsService.NewService(postRepo, &mockVoteRepo{}, &mockCommentRepo{}, &mockCommentReadRepo{}, nil)
 
 	posts, err := svc.ListPosts(ctx, 123, "score")
 	require.NoError(t, err)
@@ -557,23 +549,17 @@ func TestListPosts_RepoError(t *testing.T) {
 		},
 	}
 
-	svc := suggestionsService.NewService(postRepo, &mockVoteRepo{}, &mockCommentRepo{}, &mockCommentReadRepo{}, createTestDB(t))
+	svc := suggestionsService.NewService(postRepo, &mockVoteRepo{}, &mockCommentRepo{}, &mockCommentReadRepo{}, nil)
 
 	posts, err := svc.ListPosts(ctx, 123, "score")
 	assert.ErrorIs(t, err, expectedErr)
 	assert.Nil(t, posts)
 }
 
-func TestVote_Success(t *testing.T) {
-	t.Skip("Skipping transaction test - requires real database")
-	// Transaction tests require a real database
-	// This test would verify Vote() -> Upsert() + RecalculateScore() in transaction
-}
-
 func TestVote_InvalidDirection(t *testing.T) {
 	ctx := context.Background()
 
-	svc := suggestionsService.NewService(&mockPostRepo{}, &mockVoteRepo{}, &mockCommentRepo{}, &mockCommentReadRepo{}, createTestDB(t))
+	svc := suggestionsService.NewService(&mockPostRepo{}, &mockVoteRepo{}, &mockCommentRepo{}, &mockCommentReadRepo{}, nil)
 
 	post, err := svc.Vote(ctx, 456, 123, "invalid")
 	assert.Error(t, err)
@@ -590,27 +576,12 @@ func TestVote_PostNotFound(t *testing.T) {
 		},
 	}
 
-	svc := suggestionsService.NewService(postRepo, &mockVoteRepo{}, &mockCommentRepo{}, &mockCommentReadRepo{}, createTestDB(t))
+	svc := suggestionsService.NewService(postRepo, &mockVoteRepo{}, &mockCommentRepo{}, &mockCommentReadRepo{}, nil)
 
 	post, err := svc.Vote(ctx, 456, 123, suggestions.DirectionUp)
 	assert.Error(t, err)
 	assert.IsType(t, &suggestionsService.PostNotFoundError{}, err)
 	assert.Nil(t, post)
-}
-
-func TestVote_TransactionErrorOnUpsert(t *testing.T) {
-	t.Skip("Skipping transaction test - requires real database")
-	// Transaction tests require a real database
-}
-
-func TestVote_TransactionErrorOnRecalculateScore(t *testing.T) {
-	t.Skip("Skipping transaction test - requires real database")
-	// Transaction tests require a real database
-}
-
-func TestRemoveVote_Success(t *testing.T) {
-	t.Skip("Skipping transaction test - requires real database")
-	// Transaction tests require a real database
 }
 
 func TestRemoveVote_PostNotFound(t *testing.T) {
@@ -622,22 +593,12 @@ func TestRemoveVote_PostNotFound(t *testing.T) {
 		},
 	}
 
-	svc := suggestionsService.NewService(postRepo, &mockVoteRepo{}, &mockCommentRepo{}, &mockCommentReadRepo{}, createTestDB(t))
+	svc := suggestionsService.NewService(postRepo, &mockVoteRepo{}, &mockCommentRepo{}, &mockCommentReadRepo{}, nil)
 
 	post, err := svc.RemoveVote(ctx, 456, 123)
 	assert.Error(t, err)
 	assert.IsType(t, &suggestionsService.PostNotFoundError{}, err)
 	assert.Nil(t, post)
-}
-
-func TestRemoveVote_TransactionErrorOnDelete(t *testing.T) {
-	t.Skip("Skipping transaction test - requires real database")
-	// Transaction tests require a real database
-}
-
-func TestRemoveVote_TransactionErrorOnRecalculateScore(t *testing.T) {
-	t.Skip("Skipping transaction test - requires real database")
-	// Transaction tests require a real database
 }
 
 func TestCreateComment_Success(t *testing.T) {
@@ -657,7 +618,7 @@ func TestCreateComment_Success(t *testing.T) {
 		},
 	}
 
-	svc := suggestionsService.NewService(postRepo, &mockVoteRepo{}, commentRepo, &mockCommentReadRepo{}, createTestDB(t))
+	svc := suggestionsService.NewService(postRepo, &mockVoteRepo{}, commentRepo, &mockCommentReadRepo{}, nil)
 
 	comment := &suggestions.Comment{
 		PostID:   456,
@@ -673,7 +634,7 @@ func TestCreateComment_Success(t *testing.T) {
 func TestCreateComment_NilComment(t *testing.T) {
 	ctx := context.Background()
 
-	svc := suggestionsService.NewService(&mockPostRepo{}, &mockVoteRepo{}, &mockCommentRepo{}, &mockCommentReadRepo{}, createTestDB(t))
+	svc := suggestionsService.NewService(&mockPostRepo{}, &mockVoteRepo{}, &mockCommentRepo{}, &mockCommentReadRepo{}, nil)
 
 	err := svc.CreateComment(ctx, nil)
 	assert.Error(t, err)
@@ -689,7 +650,7 @@ func TestCreateComment_PostNotFound(t *testing.T) {
 		},
 	}
 
-	svc := suggestionsService.NewService(postRepo, &mockVoteRepo{}, &mockCommentRepo{}, &mockCommentReadRepo{}, createTestDB(t))
+	svc := suggestionsService.NewService(postRepo, &mockVoteRepo{}, &mockCommentRepo{}, &mockCommentReadRepo{}, nil)
 
 	comment := &suggestions.Comment{
 		PostID:   456,
@@ -711,7 +672,7 @@ func TestCreateComment_ValidationError(t *testing.T) {
 		},
 	}
 
-	svc := suggestionsService.NewService(postRepo, &mockVoteRepo{}, &mockCommentRepo{}, &mockCommentReadRepo{}, createTestDB(t))
+	svc := suggestionsService.NewService(postRepo, &mockVoteRepo{}, &mockCommentRepo{}, &mockCommentReadRepo{}, nil)
 
 	comment := &suggestions.Comment{
 		PostID:   456,
@@ -740,7 +701,7 @@ func TestCreateComment_RepoError(t *testing.T) {
 		},
 	}
 
-	svc := suggestionsService.NewService(postRepo, &mockVoteRepo{}, commentRepo, &mockCommentReadRepo{}, createTestDB(t))
+	svc := suggestionsService.NewService(postRepo, &mockVoteRepo{}, commentRepo, &mockCommentReadRepo{}, nil)
 
 	comment := &suggestions.Comment{
 		PostID:   456,
@@ -763,7 +724,7 @@ func TestGetComments_Success(t *testing.T) {
 		},
 	}
 
-	svc := suggestionsService.NewService(&mockPostRepo{}, &mockVoteRepo{}, commentRepo, &mockCommentReadRepo{}, createTestDB(t))
+	svc := suggestionsService.NewService(&mockPostRepo{}, &mockVoteRepo{}, commentRepo, &mockCommentReadRepo{}, nil)
 
 	comments, err := svc.GetComments(ctx, 456)
 	require.NoError(t, err)
@@ -780,7 +741,7 @@ func TestGetComments_RepoError(t *testing.T) {
 		},
 	}
 
-	svc := suggestionsService.NewService(&mockPostRepo{}, &mockVoteRepo{}, commentRepo, &mockCommentReadRepo{}, createTestDB(t))
+	svc := suggestionsService.NewService(&mockPostRepo{}, &mockVoteRepo{}, commentRepo, &mockCommentReadRepo{}, nil)
 
 	comments, err := svc.GetComments(ctx, 456)
 	assert.ErrorIs(t, err, expectedErr)
@@ -803,7 +764,7 @@ func TestDeleteComment_Success(t *testing.T) {
 		},
 	}
 
-	svc := suggestionsService.NewService(&mockPostRepo{}, &mockVoteRepo{}, commentRepo, &mockCommentReadRepo{}, createTestDB(t))
+	svc := suggestionsService.NewService(&mockPostRepo{}, &mockVoteRepo{}, commentRepo, &mockCommentReadRepo{}, nil)
 
 	err := svc.DeleteComment(ctx, 789, 123)
 	require.NoError(t, err)
@@ -818,7 +779,7 @@ func TestDeleteComment_CommentNotFound(t *testing.T) {
 		},
 	}
 
-	svc := suggestionsService.NewService(&mockPostRepo{}, &mockVoteRepo{}, commentRepo, &mockCommentReadRepo{}, createTestDB(t))
+	svc := suggestionsService.NewService(&mockPostRepo{}, &mockVoteRepo{}, commentRepo, &mockCommentReadRepo{}, nil)
 
 	err := svc.DeleteComment(ctx, 789, 123)
 	assert.Error(t, err)
@@ -837,7 +798,7 @@ func TestDeleteComment_ForbiddenWrongAuthorType(t *testing.T) {
 		},
 	}
 
-	svc := suggestionsService.NewService(&mockPostRepo{}, &mockVoteRepo{}, commentRepo, &mockCommentReadRepo{}, createTestDB(t))
+	svc := suggestionsService.NewService(&mockPostRepo{}, &mockVoteRepo{}, commentRepo, &mockCommentReadRepo{}, nil)
 
 	err := svc.DeleteComment(ctx, 789, 123)
 	assert.Error(t, err)
@@ -856,7 +817,7 @@ func TestDeleteComment_ForbiddenWrongAuthorID(t *testing.T) {
 		},
 	}
 
-	svc := suggestionsService.NewService(&mockPostRepo{}, &mockVoteRepo{}, commentRepo, &mockCommentReadRepo{}, createTestDB(t))
+	svc := suggestionsService.NewService(&mockPostRepo{}, &mockVoteRepo{}, commentRepo, &mockCommentReadRepo{}, nil)
 
 	err := svc.DeleteComment(ctx, 789, 123)
 	assert.Error(t, err)
@@ -879,7 +840,7 @@ func TestDeleteComment_RepoError(t *testing.T) {
 		},
 	}
 
-	svc := suggestionsService.NewService(&mockPostRepo{}, &mockVoteRepo{}, commentRepo, &mockCommentReadRepo{}, createTestDB(t))
+	svc := suggestionsService.NewService(&mockPostRepo{}, &mockVoteRepo{}, commentRepo, &mockCommentReadRepo{}, nil)
 
 	err := svc.DeleteComment(ctx, 789, 123)
 	assert.ErrorIs(t, err, expectedErr)
@@ -903,7 +864,7 @@ func TestMarkCommentsRead_Success(t *testing.T) {
 		},
 	}
 
-	svc := suggestionsService.NewService(postRepo, &mockVoteRepo{}, &mockCommentRepo{}, commentReadRepo, createTestDB(t))
+	svc := suggestionsService.NewService(postRepo, &mockVoteRepo{}, &mockCommentRepo{}, commentReadRepo, nil)
 
 	err := svc.MarkCommentsRead(ctx, 456, 123)
 	require.NoError(t, err)
@@ -918,7 +879,7 @@ func TestMarkCommentsRead_PostNotFound(t *testing.T) {
 		},
 	}
 
-	svc := suggestionsService.NewService(postRepo, &mockVoteRepo{}, &mockCommentRepo{}, &mockCommentReadRepo{}, createTestDB(t))
+	svc := suggestionsService.NewService(postRepo, &mockVoteRepo{}, &mockCommentRepo{}, &mockCommentReadRepo{}, nil)
 
 	err := svc.MarkCommentsRead(ctx, 456, 123)
 	assert.Error(t, err)
@@ -942,7 +903,7 @@ func TestMarkCommentsRead_RepoError(t *testing.T) {
 		},
 	}
 
-	svc := suggestionsService.NewService(postRepo, &mockVoteRepo{}, &mockCommentRepo{}, commentReadRepo, createTestDB(t))
+	svc := suggestionsService.NewService(postRepo, &mockVoteRepo{}, &mockCommentRepo{}, commentReadRepo, nil)
 
 	err := svc.MarkCommentsRead(ctx, 456, 123)
 	assert.ErrorIs(t, err, expectedErr)
@@ -959,7 +920,7 @@ func TestGetTotalUnreadCount_Success(t *testing.T) {
 		},
 	}
 
-	svc := suggestionsService.NewService(&mockPostRepo{}, &mockVoteRepo{}, &mockCommentRepo{}, commentReadRepo, createTestDB(t))
+	svc := suggestionsService.NewService(&mockPostRepo{}, &mockVoteRepo{}, &mockCommentRepo{}, commentReadRepo, nil)
 
 	count, err := svc.GetTotalUnreadCount(ctx, 123)
 	require.NoError(t, err)
@@ -977,7 +938,7 @@ func TestGetTotalUnreadCount_RepoError(t *testing.T) {
 		},
 	}
 
-	svc := suggestionsService.NewService(&mockPostRepo{}, &mockVoteRepo{}, &mockCommentRepo{}, commentReadRepo, createTestDB(t))
+	svc := suggestionsService.NewService(&mockPostRepo{}, &mockVoteRepo{}, &mockCommentRepo{}, commentReadRepo, nil)
 
 	count, err := svc.GetTotalUnreadCount(ctx, 123)
 	assert.ErrorIs(t, err, expectedErr)

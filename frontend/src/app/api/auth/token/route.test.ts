@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { Session } from "next-auth";
 import { NextRequest } from "next/server";
 
@@ -14,14 +14,12 @@ interface ExtendedSession extends Session {
 // Mocks
 // ============================================================================
 
-const { mockAuth, mockSignIn } = vi.hoisted(() => ({
+const { mockAuth } = vi.hoisted(() => ({
   mockAuth: vi.fn<() => Promise<ExtendedSession | null>>(),
-  mockSignIn: vi.fn(),
 }));
 
 vi.mock("~/server/auth", () => ({
   auth: mockAuth,
-  signIn: mockSignIn,
 }));
 
 vi.mock("~/env", () => ({
@@ -45,31 +43,13 @@ async function parseJsonResponse<T>(response: Response): Promise<T> {
   return (await response.json()) as T;
 }
 
-const defaultSession: ExtendedSession = {
-  user: {
-    id: "1",
-    token: "access-token",
-    refreshToken: "refresh-token",
-    name: "Test User",
-  },
-  expires: "2099-01-01",
-};
-
 // ============================================================================
 // Tests
 // ============================================================================
 
 describe("POST /api/auth/token", () => {
-  const originalFetch = global.fetch;
-
   beforeEach(() => {
     vi.clearAllMocks();
-    global.fetch = vi.fn();
-    mockAuth.mockResolvedValue(defaultSession);
-  });
-
-  afterEach(() => {
-    global.fetch = originalFetch;
   });
 
   it("returns 401 when no session exists", async () => {
@@ -97,89 +77,50 @@ describe("POST /api/auth/token", () => {
     expect(json.error).toBe("No refresh token found");
   });
 
-  it("successfully refreshes tokens", async () => {
-    const newTokens = {
-      access_token: "new-access-token",
-      refresh_token: "new-refresh-token",
-    };
-
-    vi.mocked(global.fetch).mockResolvedValueOnce(
-      new Response(JSON.stringify(newTokens), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      }),
-    );
-
-    mockSignIn.mockResolvedValueOnce({});
-
-    const request = createMockRequest("/api/auth/token");
-    const response = await POST(request);
-
-    expect(global.fetch).toHaveBeenCalledWith(
-      "http://localhost:8080/auth/refresh",
-      {
-        method: "POST",
-        headers: {
-          Authorization: "Bearer refresh-token",
-          "Content-Type": "application/json",
-        },
+  it("returns 401 when session has empty token", async () => {
+    mockAuth.mockResolvedValueOnce({
+      user: {
+        id: "1",
+        name: "Test User",
+        token: "",
+        refreshToken: "refresh-token",
       },
-    );
-
-    expect(mockSignIn).toHaveBeenCalledWith("credentials", {
-      redirect: false,
-      internalRefresh: "true",
-      token: "new-access-token",
-      refreshToken: "new-refresh-token",
+      expires: "2099-01-01",
     });
-
-    expect(response.status).toBe(200);
-    const json = await parseJsonResponse<typeof newTokens>(response);
-    expect(json.access_token).toBe("new-access-token");
-    expect(json.refresh_token).toBe("new-refresh-token");
-  });
-
-  it("returns error when backend refresh fails", async () => {
-    vi.mocked(global.fetch).mockResolvedValueOnce(
-      new Response(JSON.stringify({ error: "Invalid refresh token" }), {
-        status: 401,
-        headers: { "Content-Type": "application/json" },
-      }),
-    );
 
     const request = createMockRequest("/api/auth/token");
     const response = await POST(request);
 
     expect(response.status).toBe(401);
     const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toBe("Failed to refresh token");
+    expect(json.error).toBe("No refresh token found");
   });
 
-  it("returns 500 when signIn fails after token refresh", async () => {
-    const newTokens = {
-      access_token: "new-access-token",
-      refresh_token: "new-refresh-token",
-    };
-
-    vi.mocked(global.fetch).mockResolvedValueOnce(
-      new Response(JSON.stringify(newTokens), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      }),
-    );
-
-    mockSignIn.mockRejectedValueOnce(new Error("SignIn failed"));
+  it("successfully returns tokens from session", async () => {
+    mockAuth.mockResolvedValueOnce({
+      user: {
+        id: "1",
+        token: "current-access-token",
+        refreshToken: "current-refresh-token",
+        name: "Test User",
+      },
+      expires: "2099-01-01",
+    });
 
     const request = createMockRequest("/api/auth/token");
     const response = await POST(request);
 
-    expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toBe("Failed to refresh token");
+    expect(response.status).toBe(200);
+    const json = await parseJsonResponse<{
+      access_token: string;
+      refresh_token: string;
+    }>(response);
+    expect(json.access_token).toBe("current-access-token");
+    expect(json.refresh_token).toBe("current-refresh-token");
   });
 
   it("returns 500 on unexpected error", async () => {
-    vi.mocked(global.fetch).mockRejectedValueOnce(new Error("Network error"));
+    mockAuth.mockRejectedValueOnce(new Error("Unexpected failure"));
 
     const request = createMockRequest("/api/auth/token");
     const response = await POST(request);

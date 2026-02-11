@@ -5,10 +5,6 @@
 import "./src/env.js";
 
 /** @type {import("next").NextConfig} */
-const config = {
-  experimental: {
-    optimizePackageImports: ["lucide-react"],
-  },
-};
+const config = {};
 
 export default config;
