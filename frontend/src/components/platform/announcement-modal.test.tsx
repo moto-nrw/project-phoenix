@@ -161,9 +161,7 @@ describe("AnnouncementModal", () => {
     render(<AnnouncementModal />);
 
     await waitFor(() => {
-      expect(
-        screen.getByText("Wichtige Informationen für Sie"),
-      ).toBeInTheDocument();
+      expect(screen.getByText("Wichtige Informationen")).toBeInTheDocument();
     });
     expect(screen.getByText("Neuigkeiten")).toBeInTheDocument();
   });

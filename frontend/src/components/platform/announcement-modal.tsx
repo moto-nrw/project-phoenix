@@ -13,7 +13,7 @@ const logger = createLogger({ component: "AnnouncementModal" });
 const DEFAULT_HEADER = {
   icon: Megaphone,
   title: "Neuigkeiten",
-  subtitle: "Wichtige Informationen für Sie",
+  subtitle: "Wichtige Informationen",
 } as const;
 
 const TYPE_HEADERS: Record<
