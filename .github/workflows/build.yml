@@ -14,7 +14,6 @@ on:
       - '.github/workflows/build.yml'
       - '!**.md'
       - '!docs/**'
-      - '!bruno/**'
       - '!.vscode/**'
 
   # Demo: Build and deploy when PR with 'deploy-demo' label is merged

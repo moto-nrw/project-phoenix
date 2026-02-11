@@ -11,7 +11,6 @@
 | `.env.example` | Template for root `.env` (docker-compose variable substitution) |
 | `backend/dev.env.example` | Template for local backend dev (`go run main.go serve`) |
 | `frontend/.env.example` | Template for frontend (`.env.local`) |
-| `bruno/.env.bruno.example` | Template for Bruno API test secrets |
 | `docker-compose.example.yml` | Template for local `docker-compose.yml` |
 | `backend/Dockerfile` | Production backend image |
 | `backend/Dockerfile.dev` | Dev backend image (air hot reload) |
@@ -25,7 +24,6 @@
 | `.env` | Root env, **auto-loaded by docker-compose** for `${VAR}` interpolation |
 | `backend/dev.env` | Backend local dev env (loaded by viper) |
 | `frontend/.env.local` | Frontend local env (loaded by Next.js) |
-| `bruno/.env.bruno` | Bruno API test secrets |
 | `docker-compose.yml` | Local docker-compose config |
 
 ## How Docker Compose Uses Environment Variables
@@ -65,7 +63,6 @@ When modifying any file, update its counterpart:
 | `.env` | `.env.example` |
 | `backend/dev.env` | `backend/dev.env.example` |
 | `frontend/.env.local` | `frontend/.env.example` |
-| `bruno/.env.bruno` | `bruno/.env.bruno.example` |
 | `docker-compose.yml` | `docker-compose.example.yml` |
 
 ## Adding a New Backend Env Var Checklist

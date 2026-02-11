@@ -150,7 +150,7 @@ When you `cd` into the project, direnv automatically activates Devbox and you'll
 phoenix dev ready - go 1.25.5, node 20.20.0
 ```
 
-All tools (Go, Node, pnpm, golangci-lint, bruno-cli, etc.) are now available.
+All tools (Go, Node, pnpm, golangci-lint, etc.) are now available.
 
 The application will be available at:
 - **Frontend:** http://localhost:3000
@@ -282,9 +282,6 @@ cd backend && go test ./...
 
 # Frontend checks
 cd frontend && pnpm run check
-
-# API integration tests (Bruno)
-cd bruno && bru run --env Local 0*.bru
 ```
 
 ---

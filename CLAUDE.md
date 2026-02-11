@@ -12,7 +12,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | Frontend | Next.js 15+, React 19+, Tailwind 4+ |
 | Database | PostgreSQL 17+ (multi-schema, SSL) |
 | Auth | JWT (15min access, 1hr refresh) |
-| Testing | Go tests + Bruno API tests |
+| Testing | Go tests |
 | License | Source-Available (see [LICENSE](LICENSE)) |
 
 ---
@@ -191,7 +191,6 @@ devbox add <tool>@latest    # Add to devbox.json
 | Start backend | `cd backend && go run main.go serve` |
 | Start frontend | `cd frontend && pnpm run dev` |
 | Run backend tests | `go test ./...` |
-| Run API tests | `cd bruno && bru run --env Local 0*.bru` |
 | Quality check (frontend) | `pnpm run check` |
 | Generate API docs | `go run main.go gendoc --routes` |
 | Reset database | `go run main.go migrate reset && go run main.go seed` |
@@ -261,17 +260,6 @@ pnpm run format:write            # Auto-format with Prettier
 # Build
 pnpm run build                   # Production build
 pnpm run preview                 # Build + start production
-```
-
-### API Testing (Bruno)
-```bash
-cd bruno
-
-# Quick domain tests (recommended)
-./dev-test.sh groups            # ~44ms - 25 groups
-./dev-test.sh students          # ~50ms - 50 students
-./dev-test.sh rooms             # ~19ms - 24 rooms
-./dev-test.sh all               # ~252ms - Full suite
 ```
 
 ### Docker Operations
@@ -377,10 +365,9 @@ serviceFactory, err := services.NewFactory(repoFactory, db)  // Returns error
 
 ## Testing Strategy
 
-### Three-Layer Approach
+### Two-Layer Approach
 1. **Unit Tests** - Model validation, business logic (no DB)
 2. **Integration Tests** - Repository/Service with real test DB
-3. **API Tests** - Bruno end-to-end tests
 
 ### Hermetic Test Pattern
 ```go
@@ -409,15 +396,6 @@ func TestExample(t *testing.T) {
 | `CreateTestActivityGroup(t, db, name)` | Category + Activity |
 | `CreateTestRoom(t, db, name)` | Facilities Room |
 | `CreateTestDevice(t, db, deviceID)` | IoT Device |
-
-### Bruno API Tests
-```bash
-cd bruno
-bru run --env Local 0*.bru           # All tests (~270ms)
-bru run --env Local 05-sessions.bru  # Specific file
-```
-
-Test accounts: `admin@example.com` / `Test1234%`
 
 ### Common Test Issues
 
@@ -577,11 +555,7 @@ ColumnExpr(`"teacher".id AS "teacher__id"`)
 const { id } = await params;
 ```
 
-### 3. Bruno Token Expiry
-**Issue**: Tokens expire during test execution
-**Fix**: Use `dev-test.sh` which gets fresh tokens automatically
-
-### 4. SSL Certificate Expiration
+### 3. SSL Certificate Expiration
 **Issue**: Self-signed certs expire after 1 year
 **Fix**: Check expiry and regenerate:
 ```bash
@@ -589,7 +563,7 @@ const { id } = await params;
 ./config/ssl/postgres/create-certs.sh  # If expired
 ```
 
-### 5. Policy/Authorization Tests
+### 4. Policy/Authorization Tests
 **Pattern**: All policy tests use hermetic pattern with real database
 **Fixtures**: Use `CreateTestStudentWithAccount`, `CreateTestTeacherWithAccount` to create users with auth context, then test actual policy decisions against real relationships.
 
@@ -607,8 +581,7 @@ const { id } = await params;
 7. Create API handlers in `api/{domain}/`
 8. Add routes to `api/{domain}/api.go` with permission middleware
 9. Run migration: `go run main.go migrate`
-10. Test with Bruno: `cd bruno && ./dev-test.sh {domain}`
-11. Generate docs: `go run main.go gendoc`
+10. Generate docs: `go run main.go gendoc`
 
 ### Adding New Frontend Feature
 1. Check backend API in `docs/routes.md` or `go run main.go gendoc --routes`

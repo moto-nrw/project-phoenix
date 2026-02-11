@@ -433,9 +433,6 @@ docker-compose.prod.yml
 **/ssl/**/keys/
 config/ssl/**/certs/
 deployment/**/ssl/certs/
-# Bruno API testing
-/My API Tests
-bruno/.env.bruno
 
 # Test SQL files and scripts
 frontend/test-data*.sql
@@ -475,6 +472,4 @@ openspec/
 .playwright/**/*
 .playwright-mcp
 .husky/
-# Beads issue tracker (personal use)
-.beads/
 .gitattributes
