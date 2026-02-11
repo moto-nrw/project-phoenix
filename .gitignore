@@ -466,6 +466,9 @@ backend/docs/openapi.yaml
 openspec/
 .worktrees
 
+# Node modules (frontend manages its own via frontend/.gitignore)
+node_modules/
+
 # Devbox + direnv
 .devbox/
 .direnv/
