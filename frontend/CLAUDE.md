@@ -56,20 +56,6 @@ API_URL=                                    # Server-side API URL (optional, see
 SKIP_ENV_VALIDATION=true                    # Set for Docker builds
 ```
 
-### API URL: Server-Side vs Client-Side
-
-| Variable | Context | Purpose |
-|----------|---------|---------|
-| `NEXT_PUBLIC_API_URL` | **Client** (browser Axios) | Must be reachable from the user's browser |
-| `API_URL` | **Server** (API routes, auth, SSE) | Internal Docker network in production |
-
-- **Helper:** `getServerApiUrl()` from `~/lib/server-api-url` → returns `API_URL ?? NEXT_PUBLIC_API_URL`
-- **Server-only files** (API route handlers, auth config, token-refresh, SSE proxy, `api-helpers.ts`) must use `getServerApiUrl()`
-- **Mixed client/server files** (`lib/api.ts`, `lib/active-service.ts`, `lib/activity-api.ts`, `lib/student-api.ts`, `lib/usercontext-api.ts`, `lib/auth-service.ts`) must use `env.NEXT_PUBLIC_API_URL` — importing `getServerApiUrl()` in these files causes t3-env to throw "Attempted to access a server-side environment variable on the client"
-- **Axios `baseURL`** in `lib/api.ts` uses `env.NEXT_PUBLIC_API_URL` (client-side only)
-- **Local dev:** `API_URL` unset → falls back to `NEXT_PUBLIC_API_URL` (localhost:8080)
-- **Docker:** `API_URL=http://server:8080` → server calls stay inside Docker network
-
 ## Code Architecture
 
 ### High-Level Architecture
@@ -511,31 +497,6 @@ The frontend proxies all API calls through Next.js route handlers to the Go back
 5. Build UI components
 6. Always run `pnpm run check` before committing
 7. Handle errors gracefully with user feedback
-
-## Testing
-
-Currently, the project does not have testing infrastructure set up. When adding tests:
-- Consider React Testing Library for component tests
-- Use MSW (Mock Service Worker) for API mocking
-- Add test scripts to package.json
-- Configure Jest or Vitest as test runner
-
-## Performance Considerations
-
-- Use React 19's built-in optimizations (automatic batching, transitions)
-- Implement proper loading states with Suspense
-- Lazy load heavy components with dynamic imports
-- Use proper cache headers for API responses
-- Implement pagination for large lists
-
-## Security Best Practices
-
-- Never expose JWT tokens in client-side code
-- Use HTTP-only cookies for auth tokens when possible
-- Validate all user inputs on both frontend and backend
-- Sanitize data before rendering to prevent XSS
-- Use environment variables for sensitive configuration
-- Never commit `.env.local` file
 
 ---
 

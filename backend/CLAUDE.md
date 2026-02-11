@@ -106,95 +106,6 @@ This is the foundational pattern. Each layer has a distinct responsibility, and 
 
 **Domains in this codebase:** `auth`, `users`, `education`, `facilities`, `activities`, `active`, `schedule`, `iot`, `feedback`, `config`
 
-### Why This Matters
-
-| Principle | Benefit |
-|-----------|---------|
-| **Separation of Concerns** | Each layer has exactly one job, making code easier to understand and modify |
-| **Testability** | Services can be tested without HTTP, repositories can be mocked |
-| **Replaceability** | Swap database, change HTTP framework, or modify business rules independently |
-| **Maintainability** | Know exactly where to look when debugging or adding features |
-
-### Layer Philosophy
-
-**Handlers (api/)** are *adapters* — they translate between HTTP and the domain. They should be thin: parse the request, call a service, format the response. If you find yourself writing business logic here, something is wrong.
-
-**Services (services/)** are where the *interesting work* happens — business rules, orchestration of multiple repositories, transaction boundaries, domain validation. Services should be completely HTTP-agnostic; they work with domain concepts, not web concepts.
-
-**Repositories (database/repositories/)** are *data access only* — they translate between domain models and database queries. They should not make business decisions; they just fetch and persist data as instructed.
-
-**Models (models/)** define the *domain language* — entities, value objects, and the interfaces that repositories implement. They are shared across all layers.
-
-### Dependency Injection via Factory Pattern
-
-```go
-// Repository factory creates all repositories
-repoFactory := repositories.NewFactory(db)
-
-// Service factory creates all services (receives repo factory)
-serviceFactory := services.NewFactory(repoFactory, mailer)
-
-// Handlers receive services (never repositories directly)
-authHandler := auth.NewResource(serviceFactory.NewAuthService())
-```
-
-### Code Smells to Watch For
-
-When reviewing or writing code, Claude should notice when something *feels wrong* about the layer boundaries:
-
-- A handler growing beyond simple request/response translation
-- A service method that takes or returns HTTP types
-- A repository method with conditional logic that isn't purely query-related
-- Direct database access (BUN/SQL) outside the repository layer
-- Business validation happening in multiple layers instead of one
-
-### How to Respond to Violations
-
-When you notice code that diverges from these principles, **discuss it with the user**. Don't just silently accept it. Ask:
-
-- "I notice this handler contains business logic. Should this move to the service layer?"
-- "This service is accessing the database directly. Would you like me to add a repository method?"
-- "This repository seems to be making a business decision. Should this logic live in the service?"
-
-The goal is collaborative improvement, not rigid enforcement. There may be valid exceptions, but they should be conscious decisions.
-
-### Tools for Investigating Architecture
-
-When discussing architectural concerns, Claude can suggest running these tools to gather evidence:
-
-| Tool | What It Reveals | When to Suggest |
-|------|-----------------|-----------------|
-| `depth ./services/active` | Dependency tree for a package | "Let's check what this package depends on" |
-| `goda graph "./..." \| dot -Tsvg -o deps.svg` | Visual dependency graph | Investigating coupling between layers |
-| `gocyclo -top 10 ./...` | Functions with most branches (testability) | Handler or service growing too complex |
-| `gocognit -top 10 ./...` | Functions hardest to read | Nested conditionals, hard-to-follow logic |
-| `goconst ./...` | Duplicated strings | Magic strings that should be constants |
-| `golangci-lint run` | 50+ linters at once | General code quality check |
-
-**Installation (if not already installed):**
-```bash
-go install github.com/loov/goda@latest
-go install github.com/fzipp/gocyclo/cmd/gocyclo@latest
-go install github.com/uudashr/gocognit/cmd/gocognit@latest
-go install github.com/jgautheron/goconst/cmd/goconst@latest
-go install github.com/KyleBanks/depth/cmd/depth@latest
-brew install graphviz  # Required for goda SVG output
-```
-
-**Complexity Thresholds:**
-
-| Metric | Simple | Watch It | Refactor Soon | Refactor Now |
-|--------|--------|----------|---------------|--------------|
-| Cyclomatic (gocyclo) | 1-5 | 6-10 | 11-15 | 16+ |
-| Cognitive (gocognit) | 1-8 | 9-15 | 16-25 | 25+ |
-
-**Key insight:** Cyclomatic = "How many tests do I need?" / Cognitive = "How hard is this to read?"
-
-When a function exceeds thresholds, it's often a sign that:
-- A handler is doing too much (should delegate to service)
-- A service method should be split into smaller methods
-- Business logic is scattered across layers
-
 ## Email & Invitation Services
 
 - **Configuration**: SMTP delivery uses `EMAIL_SMTP_HOST`, `EMAIL_SMTP_PORT`, `EMAIL_SMTP_USER`, `EMAIL_SMTP_PASSWORD`, `EMAIL_FROM_NAME`, `EMAIL_FROM_ADDRESS`, `FRONTEND_URL`, `INVITATION_TOKEN_EXPIRY_HOURS` (default 48h) and `PASSWORD_RESET_TOKEN_EXPIRY_MINUTES` (default 30m). `services.NewFactory` clamps expiry values and enforces HTTPS-only `FRONTEND_URL` when `APP_ENV=production`.
@@ -293,6 +204,29 @@ PostgreSQL schemas separate domain concerns:
 - `iot`: RFID devices
 - `feedback`: User feedback entries
 - `config`: System settings
+
+## Domain Knowledge
+
+### RFID/IoT Integration
+- Two-layer auth: Device API key + Staff PIN
+- PINs stored in `auth.accounts` (Argon2id hashed)
+- Check-in/out tracked in `active.visits`
+
+### GDPR/Privacy Patterns
+- Teachers see FULL data for students in their assigned groups
+- Other staff see ONLY names + responsible person (no birthdays, addresses)
+- Admin accounts for GDPR tasks only (not day-to-day ops)
+- Data retention: 1-31 days per student (default 30, NULL = 30)
+- Automated cleanup runs daily at 2:00 AM; manual: `go run main.go cleanup --dry-run`
+- All deletions logged in `audit.data_deletions` table
+- Key files: `models/users/privacy_consent.go`, `services/active/cleanup_service.go`, `auth/authorize/`
+
+```go
+// Student-specific retention
+type Student struct {
+    DataRetentionDays *int `bun:"data_retention_days"`  // NULL = 30 days
+}
+```
 
 ## Migration System
 
