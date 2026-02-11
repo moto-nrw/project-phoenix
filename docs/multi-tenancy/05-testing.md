@@ -233,7 +233,7 @@ func TestRowsAffected_CrossTenantUpdateFails(t *testing.T) {
 
 ---
 
-## 6. Advisory Lock Tenant-Isolation (D16)
+## 7. Advisory Lock Tenant-Isolation (D16)
 
 ```go
 func TestAdvisoryLock_TenantIsolated(t *testing.T) {
@@ -276,7 +276,7 @@ func TestAdvisoryLock_TenantIsolated(t *testing.T) {
 
 ---
 
-## 7. PR-Checkliste (Code-Review Pflicht)
+## 8. PR-Checkliste (Code-Review Pflicht)
 
 Jeder PR der eine Repository-Methode aendert **MUSS** geprueft werden auf:
 
@@ -294,7 +294,7 @@ Jeder PR der eine Repository-Methode aendert **MUSS** geprueft werden auf:
 
 ---
 
-## 8. Frontend-Tests (06-#6)
+## 9. Frontend-Tests (06-#6)
 
 ### 8.1 E2E-Tests: Subdomain-Routing + Login
 
@@ -392,7 +392,7 @@ test('tenant switch invalidates SWR cache', async () => {
 
 ---
 
-## 9. Org-Scope + Cross-Tenant Tests (06-#7)
+## 10. Org-Scope + Cross-Tenant Tests (06-#7)
 
 ### 9.1 Org-Scope (D18)
 
@@ -488,7 +488,7 @@ func TestCrossTenantAccess_ExpiredDenied(t *testing.T) {
 
 ---
 
-## 10. Test-Datenbank Kompatibilitaet
+## 11. Test-Datenbank Kompatibilitaet
 
 Die bestehenden Test-Fixtures (`CreateTestStudent`, `CreateTestStaff` etc.) muessen weiterhin funktionieren. Strategie:
 
@@ -503,7 +503,7 @@ func CreateTestStudent(t *testing.T, db *bun.DB, first, last, class string) *use
 
 ---
 
-## 11. Aenderungshistorie
+## 12. Aenderungshistorie
 
 | Datum | Aenderung |
 |-------|-----------|

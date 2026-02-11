@@ -1,6 +1,6 @@
 # Multi-Tenancy: Architektur-Entscheidungen
 
-Dieses Dokument beschreibt die grundlegenden Architektur-Entscheidungen fuer die Multi-Tenancy-Implementierung. Es basiert auf einer vollstaendigen Codebase-Analyse (55 Tabellen, 54 Repositories, 100+ Frontend-Routes) und Best-Practice-Research (Supabase, PostgREST, Shopify, Slack, PostgreSQL RLS, BUN ORM, Next.js).
+Dieses Dokument beschreibt die grundlegenden Architektur-Entscheidungen fuer die Multi-Tenancy-Implementierung. Es basiert auf einer vollstaendigen Codebase-Analyse (70 Tabellen, 54 Repositories, 100+ Frontend-Routes) und Best-Practice-Research (Supabase, PostgREST, Shopify, Slack, PostgreSQL RLS, BUN ORM, Next.js).
 
 **Verwandte Dokumente:**
 - [00-anforderungen.md](00-anforderungen.md) - Business-Anforderungen
