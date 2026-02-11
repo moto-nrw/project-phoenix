@@ -56,6 +56,32 @@ API_URL=                                    # Server-side API URL (optional, see
 SKIP_ENV_VALIDATION=true                    # Set for Docker builds
 ```
 
+## API URL: Server-Side vs Client-Side
+
+| Variable | Scope | Default | Purpose |
+|----------|-------|---------|---------|
+| `NEXT_PUBLIC_API_URL` | Client + Server | `http://localhost:8080` | Browser-accessible backend URL, axios `baseURL` |
+| `API_URL` | Server only | *(none)* | Internal Docker network URL (`http://server:8080`) |
+
+**`getServerApiUrl()`** (`lib/server-api-url.ts`): Returns `API_URL ?? NEXT_PUBLIC_API_URL`. Used by all route handlers.
+
+**Local dev**: Only `NEXT_PUBLIC_API_URL` needed (defaults to `http://localhost:8080`).
+**Docker**: `API_URL=http://server:8080` (hardcoded, internal network). `NEXT_PUBLIC_API_URL` comes from root `.env`.
+
+### Dynamic Import Gotcha (t3-env)
+
+`getServerApiUrl` MUST be dynamically imported in files that could be included in client-side bundles:
+
+```typescript
+// CORRECT — dynamic import keeps server env out of client bundle
+const { getServerApiUrl } = await import("~/lib/server-api-url");
+
+// WRONG — static import pulls server env into client bundle
+import { getServerApiUrl } from "~/lib/server-api-url";
+```
+
+Both `api-helpers.ts` and `operator/route-wrapper.ts` use this pattern. The same applies to any server-only import (`auth`, `refreshSessionTokensOnServer`, etc.).
+
 ## Code Architecture
 
 ### High-Level Architecture
