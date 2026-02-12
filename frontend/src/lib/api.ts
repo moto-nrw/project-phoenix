@@ -52,14 +52,6 @@ export { mapRoomResponse } from "./room-helpers";
 import type { BackendRoom } from "./room-helpers";
 import { handleAuthFailure } from "./auth-api";
 
-/**
- * Extended request config with retry tracking properties
- */
-interface RetryableRequestConfig extends AxiosRequestConfig {
-  _retry?: boolean;
-  _retryCount?: number;
-}
-
 // Logger instance for API client
 const logger = createLogger({ component: "ApiClient" });
 
@@ -486,16 +478,28 @@ api.interceptors.request.use(
 
 // Track ongoing refresh attempts to prevent multiple simultaneous refreshes
 let isRefreshing = false;
-let refreshSubscribers: ((token: string) => void)[] = [];
+let refreshSubscribers: {
+  resolve: (token: string) => void;
+  reject: (error: Error) => void;
+}[] = [];
 
 // Subscribe to token refresh completion
-const subscribeTokenRefresh = (callback: (token: string) => void) => {
-  refreshSubscribers.push(callback);
+const subscribeTokenRefresh = (callbacks: {
+  resolve: (token: string) => void;
+  reject: (error: Error) => void;
+}) => {
+  refreshSubscribers.push(callbacks);
 };
 
 // Notify all subscribers when refresh is complete
 const onTokenRefreshed = (token: string) => {
-  refreshSubscribers.forEach((callback) => callback(token));
+  refreshSubscribers.forEach((subscriber) => subscriber.resolve(token));
+  refreshSubscribers = [];
+};
+
+// Reject all subscribers when refresh fails
+const onTokenRefreshFailed = (error: Error) => {
+  refreshSubscribers.forEach((subscriber) => subscriber.reject(error));
   refreshSubscribers = [];
 };
 
@@ -529,12 +533,14 @@ function queueRequestForRefresh(
   originalRequest: AxiosRequestConfig,
   _callerId: string,
 ): Promise<AxiosResponse> {
-  return new Promise((resolve) => {
-    subscribeTokenRefresh((token: string) => {
-      // Ensure headers object exists to prevent promise from hanging
-      originalRequest.headers ??= {};
-      originalRequest.headers.Authorization = `Bearer ${token}`;
-      resolve(api(originalRequest));
+  return new Promise((resolve, reject) => {
+    subscribeTokenRefresh({
+      resolve: (token: string) => {
+        originalRequest.headers ??= {};
+        originalRequest.headers.Authorization = `Bearer ${token}`;
+        resolve(api(originalRequest));
+      },
+      reject,
     });
   });
 }
@@ -675,6 +681,12 @@ api.interceptors.response.use(
       redirectToLogin();
     } finally {
       isRefreshing = false;
+      if (refreshSubscribers.length > 0) {
+        logger.warn("token_refresh_failed_rejecting_queued_requests", {
+          queued_count: refreshSubscribers.length,
+        });
+        onTokenRefreshFailed(new Error("Token refresh failed"));
+      }
     }
 
     throw error;
