@@ -175,6 +175,7 @@ describe("authService", () => {
       name: "New User",
       password: "password123",
       confirmPassword: "password123",
+      roleId: 2,
     };
 
     it("registers user in server context", async () => {

@@ -305,29 +305,36 @@ func (rs *Resource) register(w http.ResponseWriter, r *http.Request) {
 	common.Respond(w, r, http.StatusCreated, resp, "Account registered successfully")
 }
 
-// authorizeRoleAssignment checks if the caller is authorized to assign a role during registration.
-// Returns the authorized role ID and a boolean indicating if the handler should return early.
+// authorizeRoleAssignment checks if the caller is an authenticated admin and has provided a valid role_id.
+// Registration always requires admin authentication. Returns the authorized role ID and a boolean
+// indicating if the handler should return early (true = error was rendered, caller should return).
 func (rs *Resource) authorizeRoleAssignment(w http.ResponseWriter, r *http.Request, requestedRoleID *int64) (*int64, bool) {
-	if requestedRoleID == nil {
-		return nil, false
-	}
-
 	authHeader := r.Header.Get("Authorization")
 	if !isValidAuthHeader(authHeader) {
-		slog.Default().Warn("Security: Unauthenticated register attempt with role_id, ignoring role_id")
-		return nil, false
+		common.RenderError(w, r, ErrorUnauthorized(
+			errors.New("admin authentication required to create accounts")))
+		return nil, true
 	}
 
 	token := authHeader[7:]
 	callerAccount, err := rs.AuthService.ValidateToken(r.Context(), token)
 	if err != nil {
-		slog.Default().Warn("Security: Invalid token in register with role_id, ignoring role_id")
-		return nil, false
+		common.RenderError(w, r, ErrorUnauthorized(
+			errors.New("invalid or expired token")))
+		return nil, true
 	}
 
 	if !hasAdminRole(callerAccount.Roles) {
-		slog.Default().Warn("Security: Non-admin attempted to set role_id", slog.Int64("account_id", callerAccount.ID))
-		common.RenderError(w, r, ErrorUnauthorized(errors.New("only administrators can assign roles")))
+		slog.Default().Warn("Security: Non-admin attempted to register account",
+			slog.Int64("account_id", callerAccount.ID))
+		common.RenderError(w, r, ErrorUnauthorized(
+			errors.New("only administrators can create accounts")))
+		return nil, true
+	}
+
+	if requestedRoleID == nil || *requestedRoleID <= 0 {
+		common.RenderError(w, r, ErrorInvalidRequest(
+			errors.New("role_id is required when creating accounts")))
 		return nil, true
 	}
 

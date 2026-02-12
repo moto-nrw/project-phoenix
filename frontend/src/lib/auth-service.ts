@@ -542,6 +542,7 @@ export const authService = {
             name: data.name,
             password: data.password,
             confirm_password: data.confirmPassword,
+            ...(data.roleId ? { role_id: data.roleId } : {}),
           }),
         });
 
@@ -564,6 +565,7 @@ export const authService = {
           name: data.name,
           password: data.password,
           confirm_password: data.confirmPassword,
+          ...(data.roleId ? { role_id: data.roleId } : {}),
         });
         return mapAccountResponse(response.data.data);
       }

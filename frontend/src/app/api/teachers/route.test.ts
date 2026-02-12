@@ -152,6 +152,9 @@ describe("POST /api/teachers", () => {
 
     mockFetch
       .mockImplementationOnce(() =>
+        createMockFetchResponse({ data: [{ id: 4, name: "teacher" }] }),
+      )
+      .mockImplementationOnce(() =>
         createMockFetchResponse(mockAccountResponse),
       )
       .mockImplementationOnce(() => createMockFetchResponse(mockPersonResponse))
@@ -163,7 +166,7 @@ describe("POST /api/teachers", () => {
     });
     const response = await POST(request, createMockContext());
 
-    expect(mockFetch).toHaveBeenCalledTimes(3);
+    expect(mockFetch).toHaveBeenCalledTimes(4);
     expect(response.status).toBe(200);
 
     const json = await parseJsonResponse<{
@@ -210,6 +213,9 @@ describe("POST /api/teachers", () => {
 
     mockFetch
       .mockImplementationOnce(() =>
+        createMockFetchResponse({ data: [{ id: 4, name: "teacher" }] }),
+      )
+      .mockImplementationOnce(() =>
         createMockFetchResponse(mockAccountResponse),
       )
       .mockImplementationOnce(() => createMockFetchResponse(mockPersonResponse))
@@ -224,7 +230,7 @@ describe("POST /api/teachers", () => {
     expect(response.status).toBe(200);
 
     // Verify staff creation call excluded empty fields
-    const staffCall = mockFetch.mock.calls[2] as
+    const staffCall = mockFetch.mock.calls[3] as
       | [string, { body: string }]
       | undefined;
     const staffBody = JSON.parse(staffCall?.[1]?.body ?? "{}") as Record<
@@ -238,9 +244,13 @@ describe("POST /api/teachers", () => {
   });
 
   it("handles account creation failure", async () => {
-    mockFetch.mockImplementationOnce(() =>
-      createMockFetchResponse({ error: "Email already exists" }, false, 400),
-    );
+    mockFetch
+      .mockImplementationOnce(() =>
+        createMockFetchResponse({ data: [{ id: 4, name: "teacher" }] }),
+      )
+      .mockImplementationOnce(() =>
+        createMockFetchResponse({ error: "Email already exists" }, false, 400),
+      );
 
     const request = createMockRequest("/api/teachers", {
       method: "POST",
@@ -269,6 +279,9 @@ describe("POST /api/teachers", () => {
     };
 
     mockFetch
+      .mockImplementationOnce(() =>
+        createMockFetchResponse({ data: [{ id: 4, name: "teacher" }] }),
+      )
       .mockImplementationOnce(() =>
         createMockFetchResponse(mockAccountResponse),
       )
@@ -306,6 +319,9 @@ describe("POST /api/teachers", () => {
     };
 
     mockFetch
+      .mockImplementationOnce(() =>
+        createMockFetchResponse({ data: [{ id: 4, name: "teacher" }] }),
+      )
       .mockImplementationOnce(() =>
         createMockFetchResponse(mockAccountResponse),
       )
