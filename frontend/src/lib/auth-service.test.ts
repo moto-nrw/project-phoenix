@@ -218,7 +218,7 @@ describe("authService", () => {
       );
     });
 
-    it("registers user without roleId in browser context", async () => {
+    it("always includes role_id in browser registration request", async () => {
       vi.stubGlobal("window", {});
 
       const mockResponse = {
@@ -228,42 +228,44 @@ describe("authService", () => {
       const browserFetch = vi.fn().mockResolvedValueOnce(mockResponse);
       vi.stubGlobal("fetch", browserFetch);
 
-      const registerDataWithoutRole: RegisterRequest = {
+      const registerDataWithRole: RegisterRequest = {
         email: "new@example.com",
         username: "newuser",
         name: "New User",
         password: "password123",
         confirmPassword: "password123",
+        roleId: 2,
       };
 
-      await authService.register(registerDataWithoutRole);
+      await authService.register(registerDataWithRole);
 
       const fetchBody = JSON.parse(
         (browserFetch.mock.calls[0] as [string, { body: string }])[1].body,
       ) as Record<string, unknown>;
-      expect(fetchBody.role_id).toBeUndefined();
+      expect(fetchBody.role_id).toBe(2);
     });
 
-    it("registers user without roleId in server context", async () => {
+    it("always includes role_id in server registration request", async () => {
       mockedApiPost.mockResolvedValueOnce({
         data: { data: sampleBackendAccount },
       });
 
-      const registerDataWithoutRole: RegisterRequest = {
+      const registerDataWithRole: RegisterRequest = {
         email: "new@example.com",
         username: "newuser",
         name: "New User",
         password: "password123",
         confirmPassword: "password123",
+        roleId: 2,
       };
 
-      await authService.register(registerDataWithoutRole);
+      await authService.register(registerDataWithRole);
 
       const postBody = mockedApiPost.mock.calls[0]?.[1] as Record<
         string,
         unknown
       >;
-      expect(postBody.role_id).toBeUndefined();
+      expect(postBody.role_id).toBe(2);
     });
   });
 

@@ -717,6 +717,21 @@ func TestRegisterRequiresAdminAuth(t *testing.T) {
 		testutil.AssertBadRequest(t, rr)
 	})
 
+	t.Run("admin with non-existent role_id returns bad request", func(t *testing.T) {
+		adminToken, _ := loginAsAdmin(t, db, router)
+		body := map[string]interface{}{
+			"email":            fmt.Sprintf("badrole_%d@example.com", time.Now().UnixNano()),
+			"username":         fmt.Sprintf("badrole_%d", time.Now().UnixNano()),
+			"password":         "SecurePass123!",
+			"confirm_password": "SecurePass123!",
+			"role_id":          99999,
+		}
+		req := testutil.NewJSONRequest(t, "POST", "/auth/register", body)
+		req.Header.Set("Authorization", "Bearer "+adminToken)
+		rr := testutil.ExecuteRequest(router, req)
+		testutil.AssertBadRequest(t, rr)
+	})
+
 	t.Run("admin with valid role_id succeeds", func(t *testing.T) {
 		adminToken, validRoleID := loginAsAdmin(t, db, router)
 

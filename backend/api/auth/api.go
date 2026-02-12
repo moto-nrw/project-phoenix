@@ -338,6 +338,13 @@ func (rs *Resource) authorizeRoleAssignment(w http.ResponseWriter, r *http.Reque
 		return nil, true
 	}
 
+	// Verify the role actually exists in the database
+	if _, err := rs.AuthService.GetRoleByID(r.Context(), int(*requestedRoleID)); err != nil {
+		common.RenderError(w, r, ErrorInvalidRequest(
+			errors.New("specified role does not exist")))
+		return nil, true
+	}
+
 	return requestedRoleID, false
 }
 

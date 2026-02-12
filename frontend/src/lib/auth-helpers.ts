@@ -245,7 +245,7 @@ export interface RegisterRequest {
   name: string;
   password: string;
   confirmPassword: string;
-  roleId?: number;
+  roleId: number;
 }
 
 export interface TokenResponse {

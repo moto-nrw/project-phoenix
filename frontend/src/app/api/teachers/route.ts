@@ -59,23 +59,23 @@ interface StaffResponse {
 export const POST = createPostHandler(
   async (req: NextRequest, body: TeacherCreationData, token: string) => {
     try {
-      // Step 1: Look up the teacher role ID
+      // Step 1: Look up the user role ID
       const rolesResponse = await fetch(
-        `${getServerApiUrl()}/auth/roles?name=teacher`,
+        `${getServerApiUrl()}/auth/roles?name=user`,
         {
           headers: { Authorization: `Bearer ${token}` },
         },
       );
       if (!rolesResponse.ok) {
         const error = await rolesResponse.text();
-        throw new Error(`Failed to fetch teacher role: ${error}`);
+        throw new Error(`Failed to fetch user role: ${error}`);
       }
       const rolesResult = (await rolesResponse.json()) as {
         data: { id: number }[];
       };
-      const teacherRole = rolesResult.data[0];
-      if (!teacherRole) {
-        throw new Error("Teacher role not found");
+      const userRole = rolesResult.data[0];
+      if (!userRole) {
+        throw new Error("User role not found");
       }
 
       // Step 2: Create an account via backend API
@@ -93,7 +93,7 @@ export const POST = createPostHandler(
             name: `${body.first_name} ${body.last_name}`,
             password: body.password,
             confirm_password: body.password,
-            role_id: teacherRole.id,
+            role_id: userRole.id,
           }),
         },
       );
