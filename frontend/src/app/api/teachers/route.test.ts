@@ -364,7 +364,7 @@ describe("POST /api/teachers", () => {
 
     expect(response.status).toBe(500);
     const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toContain("Failed to fetch teacher role");
+    expect(json.error).toContain("Failed to fetch user role");
     expect(mockFetch).toHaveBeenCalledTimes(1);
   });
 
@@ -386,7 +386,7 @@ describe("POST /api/teachers", () => {
 
     expect(response.status).toBe(500);
     const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toContain("Teacher role not found");
+    expect(json.error).toContain("User role not found");
     expect(mockFetch).toHaveBeenCalledTimes(1);
   });
 
