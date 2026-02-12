@@ -150,6 +150,14 @@ func ParseStructToMap(c any) (map[string]any, error) {
 			claims["scope"] = appClaims.Scope
 		}
 
+		// Multi-tenancy fields (only include when non-zero)
+		if appClaims.TenantID != 0 {
+			claims["tenant_id"] = appClaims.TenantID
+		}
+		if appClaims.OrgID != 0 {
+			claims["org_id"] = appClaims.OrgID
+		}
+
 		// Set common claims manually to ensure they're included
 		claims["exp"] = appClaims.ExpiresAt
 		claims["iat"] = appClaims.IssuedAt
