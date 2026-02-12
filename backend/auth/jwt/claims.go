@@ -27,6 +27,9 @@ type AppClaims struct {
 	// "platform" = operator tokens (moto DevOps team)
 	// "" or "tenant" = regular user tokens
 	Scope string `json:"scope,omitempty"`
+	// Multi-tenancy fields (Phase 1)
+	TenantID int64 `json:"tenant_id,omitempty"` // School ID (tenant boundary)
+	OrgID    int64 `json:"org_id,omitempty"`    // Organization ID
 	CommonClaims
 }
 
@@ -80,6 +83,19 @@ func getOptionalBool(claims map[string]any, key string) bool {
 	}
 	b, _ := val.(bool)
 	return b
+}
+
+func getOptionalInt64(claims map[string]any, key string) int64 {
+	val, ok := claims[key]
+	if !ok || val == nil {
+		return 0
+	}
+	// JSON numbers are decoded as float64
+	f, ok := val.(float64)
+	if !ok {
+		return 0
+	}
+	return int64(f)
 }
 
 func getRequiredStringSlice(claims map[string]any, key string) ([]string, error) {
@@ -165,14 +181,17 @@ func (c *AppClaims) ParseClaims(claims map[string]any) error {
 	c.Permissions = getOptionalStringSlice(claims, "permissions")
 	c.IsAdmin = getOptionalBool(claims, "is_admin")
 	c.Scope = getOptionalString(claims, "scope")
+	c.TenantID = getOptionalInt64(claims, "tenant_id")
+	c.OrgID = getOptionalInt64(claims, "org_id")
 
 	return nil
 }
 
 // RefreshClaims represents the claims parsed from JWT refresh token.
 type RefreshClaims struct {
-	ID    int    `json:"id,omitempty"`
-	Token string `json:"token,omitempty"`
+	ID       int    `json:"id,omitempty"`
+	Token    string `json:"token,omitempty"`
+	TenantID int64  `json:"tenant_id,omitempty"` // Multi-tenancy: School ID
 	CommonClaims
 }
 
@@ -201,6 +220,9 @@ func (c *RefreshClaims) ParseClaims(claims map[string]any) error {
 		return errors.New("could not parse claim token")
 	}
 	c.Token = token.(string)
+
+	// Optional multi-tenancy field
+	c.TenantID = getOptionalInt64(claims, "tenant_id")
 
 	return nil
 }
