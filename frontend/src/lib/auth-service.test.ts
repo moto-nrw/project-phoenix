@@ -217,6 +217,54 @@ describe("authService", () => {
         "Registration failed: 400",
       );
     });
+
+    it("registers user without roleId in browser context", async () => {
+      vi.stubGlobal("window", {});
+
+      const mockResponse = {
+        ok: true,
+        json: async () => ({ data: sampleBackendAccount }),
+      };
+      const browserFetch = vi.fn().mockResolvedValueOnce(mockResponse);
+      vi.stubGlobal("fetch", browserFetch);
+
+      const registerDataWithoutRole: RegisterRequest = {
+        email: "new@example.com",
+        username: "newuser",
+        name: "New User",
+        password: "password123",
+        confirmPassword: "password123",
+      };
+
+      await authService.register(registerDataWithoutRole);
+
+      const fetchBody = JSON.parse(
+        (browserFetch.mock.calls[0] as [string, { body: string }])[1].body,
+      ) as Record<string, unknown>;
+      expect(fetchBody.role_id).toBeUndefined();
+    });
+
+    it("registers user without roleId in server context", async () => {
+      mockedApiPost.mockResolvedValueOnce({
+        data: { data: sampleBackendAccount },
+      });
+
+      const registerDataWithoutRole: RegisterRequest = {
+        email: "new@example.com",
+        username: "newuser",
+        name: "New User",
+        password: "password123",
+        confirmPassword: "password123",
+      };
+
+      await authService.register(registerDataWithoutRole);
+
+      const postBody = mockedApiPost.mock.calls[0]?.[1] as Record<
+        string,
+        unknown
+      >;
+      expect(postBody.role_id).toBeUndefined();
+    });
   });
 
   describe("logout", () => {

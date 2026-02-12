@@ -345,4 +345,68 @@ describe("POST /api/teachers", () => {
     const json = await parseJsonResponse<{ error: string }>(response);
     expect(json.error).toContain("Staff creation failed");
   });
+
+  it("handles role fetch failure", async () => {
+    mockFetch.mockImplementationOnce(() =>
+      createMockFetchResponse({ error: "Forbidden" }, false, 403),
+    );
+
+    const request = createMockRequest("/api/teachers", {
+      method: "POST",
+      body: {
+        first_name: "Test",
+        last_name: "User",
+        email: "test@example.com",
+        password: "Pass123!",
+      },
+    });
+    const response = await POST(request, createMockContext());
+
+    expect(response.status).toBe(500);
+    const json = await parseJsonResponse<{ error: string }>(response);
+    expect(json.error).toContain("Failed to fetch teacher role");
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("handles teacher role not found in response", async () => {
+    mockFetch.mockImplementationOnce(() =>
+      createMockFetchResponse({ data: [] }),
+    );
+
+    const request = createMockRequest("/api/teachers", {
+      method: "POST",
+      body: {
+        first_name: "Test",
+        last_name: "User",
+        email: "test@example.com",
+        password: "Pass123!",
+      },
+    });
+    const response = await POST(request, createMockContext());
+
+    expect(response.status).toBe(500);
+    const json = await parseJsonResponse<{ error: string }>(response);
+    expect(json.error).toContain("Teacher role not found");
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("handles non-Error thrown during creation", async () => {
+    // eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors
+    mockFetch.mockImplementationOnce(() => Promise.reject("network failure"));
+
+    const request = createMockRequest("/api/teachers", {
+      method: "POST",
+      body: {
+        first_name: "Test",
+        last_name: "User",
+        email: "test@example.com",
+        password: "Pass123!",
+      },
+    });
+    const response = await POST(request, createMockContext());
+
+    expect(response.status).toBe(500);
+    const json = await parseJsonResponse<{ error: string }>(response);
+    expect(json.error).toContain("Failed to create teacher");
+  });
 });
