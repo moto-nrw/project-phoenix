@@ -116,26 +116,15 @@ func (rs *Resource) createCombinedGroup(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	// Create combined group
+	// Create combined group atomically with all group mappings
 	group := &active.CombinedGroup{
 		StartTime: req.StartTime,
 		EndTime:   req.EndTime,
 	}
 
-	// Create combined group
-	if err := rs.ActiveService.CreateCombinedGroup(r.Context(), group); err != nil {
+	if err := rs.ActiveService.CreateCombinedGroupWithGroups(r.Context(), group, req.GroupIDs); err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
-	}
-
-	// Add groups to the combined group if provided
-	if len(req.GroupIDs) > 0 {
-		for _, groupID := range req.GroupIDs {
-			if rs.ActiveService.AddGroupToCombination(r.Context(), group.ID, groupID) != nil {
-				// Log error but continue (see #554 for partial failure handling)
-				continue
-			}
-		}
 	}
 
 	// Get the created combined group with all groups

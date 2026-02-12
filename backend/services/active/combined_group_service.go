@@ -129,6 +129,79 @@ func (s *service) GetCombinedGroupWithGroups(ctx context.Context, id int64) (*ac
 	return combinedGroup, nil
 }
 
+func (s *service) CreateCombinedGroupWithGroups(ctx context.Context, group *active.CombinedGroup, groupIDs []int64) error {
+	if group == nil || group.Validate() != nil {
+		return &ActiveError{Op: "CreateCombinedGroupWithGroups", Err: ErrInvalidData}
+	}
+
+	// No group IDs: delegate to simple creation
+	if len(groupIDs) == 0 {
+		return s.CreateCombinedGroup(ctx, group)
+	}
+
+	// Deduplicate upfront before touching the database
+	seen := make(map[int64]bool, len(groupIDs))
+	for _, gid := range groupIDs {
+		if seen[gid] {
+			return &ActiveError{Op: "CreateCombinedGroupWithGroups", Err: fmt.Errorf("%w: duplicate group ID %d", ErrInvalidData, gid)}
+		}
+		seen[gid] = true
+	}
+
+	// Use tx directly for real atomicity (repos use r.DB, not tx from context)
+	err := s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
+		// Step 1: Create the combined group
+		_, err := tx.NewInsert().
+			Model(group).
+			ModelTableExpr("active.combined_groups").
+			Exec(ctx)
+		if err != nil {
+			return fmt.Errorf("create combined group: %w", err)
+		}
+
+		// Step 2: Verify all active group IDs exist
+		var existCount int
+		err = tx.NewSelect().
+			TableExpr("active.groups").
+			ColumnExpr("COUNT(*)").
+			Where("id IN (?)", bun.In(groupIDs)).
+			Scan(ctx, &existCount)
+		if err != nil {
+			return fmt.Errorf("verify group IDs: %w", err)
+		}
+		if existCount != len(groupIDs) {
+			return fmt.Errorf("one or more group IDs do not exist (expected %d, found %d)", len(groupIDs), existCount)
+		}
+
+		// Step 3: Insert all group mappings
+		for _, gid := range groupIDs {
+			mapping := &active.GroupMapping{
+				ActiveCombinedGroupID: group.ID,
+				ActiveGroupID:         gid,
+			}
+			_, err := tx.NewInsert().
+				Model(mapping).
+				ModelTableExpr("active.group_mappings").
+				Exec(ctx)
+			if err != nil {
+				return fmt.Errorf("add group %d to combination: %w", gid, err)
+			}
+		}
+		return nil
+	})
+
+	if err != nil {
+		return &ActiveError{Op: "CreateCombinedGroupWithGroups", Err: fmt.Errorf("%w: %v", ErrDatabaseOperation, err)}
+	}
+
+	s.getLogger().Info("combined group created with groups",
+		"combined_group_id", group.ID,
+		"group_count", len(groupIDs),
+	)
+
+	return nil
+}
+
 // Group Mapping operations
 
 func (s *service) AddGroupToCombination(ctx context.Context, combinedGroupID, activeGroupID int64) error {
