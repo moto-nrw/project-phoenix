@@ -1058,6 +1058,9 @@ func (m *mockActiveService) EndCombinedGroup(_ context.Context, _ int64) error {
 func (m *mockActiveService) GetCombinedGroupWithGroups(_ context.Context, _ int64) (*active.CombinedGroup, error) {
 	return nil, nil
 }
+func (m *mockActiveService) CreateCombinedGroupWithGroups(_ context.Context, _ *active.CombinedGroup, _ []int64) error {
+	return nil
+}
 func (m *mockActiveService) AddGroupToCombination(_ context.Context, _, _ int64) error { return nil }
 func (m *mockActiveService) RemoveGroupFromCombination(_ context.Context, _, _ int64) error {
 	return nil

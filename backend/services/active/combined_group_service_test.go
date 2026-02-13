@@ -824,3 +824,126 @@ func TestActiveService_FindActiveCombinedGroups_ErrorPath(t *testing.T) {
 		require.Error(t, err)
 	})
 }
+
+// =============================================================================
+// CreateCombinedGroupWithGroups Tests
+// =============================================================================
+
+func TestActiveService_CreateCombinedGroupWithGroups(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := buildCombinedGroupService(t, db)
+	ctx := context.Background()
+
+	t.Run("creates group with multiple groups atomically", func(t *testing.T) {
+		// ARRANGE
+		activity1 := testpkg.CreateTestActivityGroup(t, db, "atomic-combo-1")
+		room1 := testpkg.CreateTestRoom(t, db, "Atomic Room 1")
+		activeGroup1 := testpkg.CreateTestActiveGroup(t, db, activity1.ID, room1.ID)
+
+		activity2 := testpkg.CreateTestActivityGroup(t, db, "atomic-combo-2")
+		room2 := testpkg.CreateTestRoom(t, db, "Atomic Room 2")
+		activeGroup2 := testpkg.CreateTestActiveGroup(t, db, activity2.ID, room2.ID)
+		defer testpkg.CleanupActivityFixtures(t, db, activity1.ID, room1.ID, activeGroup1.ID, activity2.ID, room2.ID, activeGroup2.ID)
+
+		now := time.Now()
+		combinedGroup := &activeModels.CombinedGroup{
+			StartTime: now,
+		}
+
+		// ACT
+		err := service.CreateCombinedGroupWithGroups(ctx, combinedGroup, []int64{activeGroup1.ID, activeGroup2.ID})
+
+		// ASSERT
+		require.NoError(t, err)
+		assert.Greater(t, combinedGroup.ID, int64(0))
+		defer testpkg.CleanupActivityFixtures(t, db, combinedGroup.ID)
+
+		// Verify both mappings exist
+		mappings, err := service.GetGroupMappingsByCombinedGroupID(ctx, combinedGroup.ID)
+		require.NoError(t, err)
+		assert.Len(t, mappings, 2)
+	})
+
+	t.Run("rolls back on invalid group ID", func(t *testing.T) {
+		// ARRANGE
+		activity := testpkg.CreateTestActivityGroup(t, db, "rollback-invalid")
+		room := testpkg.CreateTestRoom(t, db, "Rollback Room")
+		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
+		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID)
+
+		now := time.Now()
+		combinedGroup := &activeModels.CombinedGroup{
+			StartTime: now,
+		}
+
+		// ACT - include a non-existent group ID to trigger failure
+		err := service.CreateCombinedGroupWithGroups(ctx, combinedGroup, []int64{activeGroup.ID, 99999999})
+
+		// ASSERT
+		require.Error(t, err)
+
+		// Verify the combined group was NOT created (full rollback)
+		if combinedGroup.ID > 0 {
+			_, getErr := service.GetCombinedGroup(ctx, combinedGroup.ID)
+			assert.Error(t, getErr, "combined group should not exist after rollback")
+		}
+	})
+
+	t.Run("creates group without group IDs", func(t *testing.T) {
+		// ARRANGE
+		now := time.Now()
+		combinedGroup := &activeModels.CombinedGroup{
+			StartTime: now,
+		}
+
+		// ACT
+		err := service.CreateCombinedGroupWithGroups(ctx, combinedGroup, []int64{})
+
+		// ASSERT
+		require.NoError(t, err)
+		assert.Greater(t, combinedGroup.ID, int64(0))
+		defer testpkg.CleanupActivityFixtures(t, db, combinedGroup.ID)
+
+		// Verify no mappings exist
+		mappings, err := service.GetGroupMappingsByCombinedGroupID(ctx, combinedGroup.ID)
+		require.NoError(t, err)
+		assert.Empty(t, mappings)
+	})
+
+	t.Run("rolls back on duplicate group ID", func(t *testing.T) {
+		// ARRANGE
+		activity := testpkg.CreateTestActivityGroup(t, db, "rollback-dup")
+		room := testpkg.CreateTestRoom(t, db, "Rollback Dup Room")
+		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
+		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID)
+
+		now := time.Now()
+		combinedGroup := &activeModels.CombinedGroup{
+			StartTime: now,
+		}
+
+		// ACT - same group ID twice
+		err := service.CreateCombinedGroupWithGroups(ctx, combinedGroup, []int64{activeGroup.ID, activeGroup.ID})
+
+		// ASSERT
+		require.Error(t, err)
+
+		// Verify nothing was persisted (full rollback)
+		if combinedGroup.ID > 0 {
+			_, getErr := service.GetCombinedGroup(ctx, combinedGroup.ID)
+			assert.Error(t, getErr, "combined group should not exist after rollback")
+		}
+	})
+
+	t.Run("returns error for nil group", func(t *testing.T) {
+		// ACT
+		err := service.CreateCombinedGroupWithGroups(ctx, nil, []int64{1, 2})
+
+		// ASSERT
+		require.Error(t, err)
+		var activeErr *active.ActiveError
+		require.ErrorAs(t, err, &activeErr)
+	})
+}
