@@ -11,6 +11,17 @@
 | Database | PostgreSQL 17+ (multi-schema, SSL) |
 | Auth | JWT (15min access, 1hr refresh) |
 
+## Ecosystem
+
+Project Phoenix is part of a three-repo system. All repos live side-by-side (`../`):
+
+| Repo | Role | Relationship |
+|------|------|-------------|
+| **PyrePortal** (`../PyrePortal/`) | Raspberry Pi kiosk app (Tauri + React) | Consumes `/api/iot/*` endpoints with device API key + staff PIN auth |
+| **moto-balenaOS** (`../moto-balenaOS/`) | Balena OS deployment layer | Runs PyrePortal + Phoenix backend on Raspberry Pi hardware |
+
+**If you change IoT endpoints, error messages, or auth headers**: PyrePortal will break silently. Error messages are hardcoded in `PyrePortal/src/services/api.ts` and mapped to German UI text. Coordinate changes across repos.
+
 ## Core Architecture
 
 **Handler → Service → Repository → Database** (always, no exceptions)
