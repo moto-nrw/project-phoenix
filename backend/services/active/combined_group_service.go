@@ -170,7 +170,7 @@ func (s *service) CreateCombinedGroupWithGroups(ctx context.Context, group *acti
 			return fmt.Errorf("verify group IDs: %w", err)
 		}
 		if existCount != len(groupIDs) {
-			return fmt.Errorf("one or more group IDs do not exist (expected %d, found %d)", len(groupIDs), existCount)
+			return fmt.Errorf("%w: one or more group IDs do not exist (expected %d, found %d)", ErrInvalidData, len(groupIDs), existCount)
 		}
 
 		// Step 3: Insert all group mappings
@@ -191,6 +191,9 @@ func (s *service) CreateCombinedGroupWithGroups(ctx context.Context, group *acti
 	})
 
 	if err != nil {
+		if errors.Is(err, ErrInvalidData) {
+			return &ActiveError{Op: "CreateCombinedGroupWithGroups", Err: err}
+		}
 		return &ActiveError{Op: "CreateCombinedGroupWithGroups", Err: fmt.Errorf("%w: %v", ErrDatabaseOperation, err)}
 	}
 
