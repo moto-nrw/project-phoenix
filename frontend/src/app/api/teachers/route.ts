@@ -59,13 +59,33 @@ interface StaffResponse {
 export const POST = createPostHandler(
   async (req: NextRequest, body: TeacherCreationData, token: string) => {
     try {
-      // Step 1: Create an account via backend API
+      // Step 1: Look up the user role ID
+      const rolesResponse = await fetch(
+        `${getServerApiUrl()}/auth/roles?name=user`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
+      if (!rolesResponse.ok) {
+        const error = await rolesResponse.text();
+        throw new Error(`Failed to fetch user role: ${error}`);
+      }
+      const rolesResult = (await rolesResponse.json()) as {
+        data: { id: number }[];
+      };
+      const userRole = rolesResult.data[0];
+      if (!userRole) {
+        throw new Error("User role not found");
+      }
+
+      // Step 2: Create an account via backend API
       const accountResponse = await fetch(
         `${getServerApiUrl()}/auth/register`,
         {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({
             email: body.email,
@@ -73,6 +93,7 @@ export const POST = createPostHandler(
             name: `${body.first_name} ${body.last_name}`,
             password: body.password,
             confirm_password: body.password,
+            role_id: userRole.id,
           }),
         },
       );
@@ -85,7 +106,7 @@ export const POST = createPostHandler(
       const accountResult = (await accountResponse.json()) as AccountResponse;
       const account = accountResult.data;
 
-      // Step 2: Create a person linked to this account via backend API
+      // Step 3: Create a person linked to this account via backend API
       const personResponse = await fetch(`${getServerApiUrl()}/api/users`, {
         method: "POST",
         headers: {
@@ -108,7 +129,7 @@ export const POST = createPostHandler(
       const personResult = (await personResponse.json()) as PersonResponse;
       const person = personResult.data;
 
-      // Step 3: Create a staff record linked to this person
+      // Step 4: Create a staff record linked to this person
       const trimmedStaffNotes = body.staff_notes?.trim();
       const trimmedSpecialization = body.specialization?.trim();
       const trimmedRole = body.role?.trim();

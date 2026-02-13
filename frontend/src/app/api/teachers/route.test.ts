@@ -152,6 +152,9 @@ describe("POST /api/teachers", () => {
 
     mockFetch
       .mockImplementationOnce(() =>
+        createMockFetchResponse({ data: [{ id: 4, name: "teacher" }] }),
+      )
+      .mockImplementationOnce(() =>
         createMockFetchResponse(mockAccountResponse),
       )
       .mockImplementationOnce(() => createMockFetchResponse(mockPersonResponse))
@@ -163,7 +166,7 @@ describe("POST /api/teachers", () => {
     });
     const response = await POST(request, createMockContext());
 
-    expect(mockFetch).toHaveBeenCalledTimes(3);
+    expect(mockFetch).toHaveBeenCalledTimes(4);
     expect(response.status).toBe(200);
 
     const json = await parseJsonResponse<{
@@ -210,6 +213,9 @@ describe("POST /api/teachers", () => {
 
     mockFetch
       .mockImplementationOnce(() =>
+        createMockFetchResponse({ data: [{ id: 4, name: "teacher" }] }),
+      )
+      .mockImplementationOnce(() =>
         createMockFetchResponse(mockAccountResponse),
       )
       .mockImplementationOnce(() => createMockFetchResponse(mockPersonResponse))
@@ -224,7 +230,7 @@ describe("POST /api/teachers", () => {
     expect(response.status).toBe(200);
 
     // Verify staff creation call excluded empty fields
-    const staffCall = mockFetch.mock.calls[2] as
+    const staffCall = mockFetch.mock.calls[3] as
       | [string, { body: string }]
       | undefined;
     const staffBody = JSON.parse(staffCall?.[1]?.body ?? "{}") as Record<
@@ -238,9 +244,13 @@ describe("POST /api/teachers", () => {
   });
 
   it("handles account creation failure", async () => {
-    mockFetch.mockImplementationOnce(() =>
-      createMockFetchResponse({ error: "Email already exists" }, false, 400),
-    );
+    mockFetch
+      .mockImplementationOnce(() =>
+        createMockFetchResponse({ data: [{ id: 4, name: "teacher" }] }),
+      )
+      .mockImplementationOnce(() =>
+        createMockFetchResponse({ error: "Email already exists" }, false, 400),
+      );
 
     const request = createMockRequest("/api/teachers", {
       method: "POST",
@@ -269,6 +279,9 @@ describe("POST /api/teachers", () => {
     };
 
     mockFetch
+      .mockImplementationOnce(() =>
+        createMockFetchResponse({ data: [{ id: 4, name: "teacher" }] }),
+      )
       .mockImplementationOnce(() =>
         createMockFetchResponse(mockAccountResponse),
       )
@@ -307,6 +320,9 @@ describe("POST /api/teachers", () => {
 
     mockFetch
       .mockImplementationOnce(() =>
+        createMockFetchResponse({ data: [{ id: 4, name: "teacher" }] }),
+      )
+      .mockImplementationOnce(() =>
         createMockFetchResponse(mockAccountResponse),
       )
       .mockImplementationOnce(() => createMockFetchResponse(mockPersonResponse))
@@ -328,5 +344,69 @@ describe("POST /api/teachers", () => {
     expect(response.status).toBe(500);
     const json = await parseJsonResponse<{ error: string }>(response);
     expect(json.error).toContain("Staff creation failed");
+  });
+
+  it("handles role fetch failure", async () => {
+    mockFetch.mockImplementationOnce(() =>
+      createMockFetchResponse({ error: "Forbidden" }, false, 403),
+    );
+
+    const request = createMockRequest("/api/teachers", {
+      method: "POST",
+      body: {
+        first_name: "Test",
+        last_name: "User",
+        email: "test@example.com",
+        password: "Pass123!",
+      },
+    });
+    const response = await POST(request, createMockContext());
+
+    expect(response.status).toBe(500);
+    const json = await parseJsonResponse<{ error: string }>(response);
+    expect(json.error).toContain("Failed to fetch user role");
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("handles teacher role not found in response", async () => {
+    mockFetch.mockImplementationOnce(() =>
+      createMockFetchResponse({ data: [] }),
+    );
+
+    const request = createMockRequest("/api/teachers", {
+      method: "POST",
+      body: {
+        first_name: "Test",
+        last_name: "User",
+        email: "test@example.com",
+        password: "Pass123!",
+      },
+    });
+    const response = await POST(request, createMockContext());
+
+    expect(response.status).toBe(500);
+    const json = await parseJsonResponse<{ error: string }>(response);
+    expect(json.error).toContain("User role not found");
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("handles non-Error thrown during creation", async () => {
+    // eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors
+    mockFetch.mockImplementationOnce(() => Promise.reject("network failure"));
+
+    const request = createMockRequest("/api/teachers", {
+      method: "POST",
+      body: {
+        first_name: "Test",
+        last_name: "User",
+        email: "test@example.com",
+        password: "Pass123!",
+      },
+    });
+    const response = await POST(request, createMockContext());
+
+    expect(response.status).toBe(500);
+    const json = await parseJsonResponse<{ error: string }>(response);
+    expect(json.error).toContain("Failed to create teacher");
   });
 });
