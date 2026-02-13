@@ -15,7 +15,7 @@ const tableConfigSettings = "config.settings"
 // Setting represents a system configuration setting
 type Setting struct {
 	base.Model      `bun:"schema:config,table:settings"`
-	Key             string `bun:"key,notnull,unique" json:"key"`
+	Key             string `bun:"key,notnull" json:"key"`
 	Value           string `bun:"value,notnull" json:"value"`
 	Category        string `bun:"category,notnull" json:"category"`
 	Description     string `bun:"description" json:"description,omitempty"`

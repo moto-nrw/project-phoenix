@@ -16,7 +16,7 @@ const tableActivitiesCategories = "activities.categories"
 // Category represents a category for activities
 type Category struct {
 	base.Model  `bun:"schema:activities,table:categories"`
-	Name        string `bun:"name,notnull,unique" json:"name"`
+	Name        string `bun:"name,notnull" json:"name"`
 	Description string `bun:"description" json:"description,omitempty"`
 	Color       string `bun:"color" json:"color,omitempty"`
 }

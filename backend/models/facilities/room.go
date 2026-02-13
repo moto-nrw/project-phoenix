@@ -13,7 +13,7 @@ import (
 // Room represents a physical room in a facility
 type Room struct {
 	base.Model `bun:"schema:facilities,table:rooms"`
-	Name       string  `bun:"name,notnull,unique" json:"name"`
+	Name       string  `bun:"name,notnull" json:"name"`
 	Building   string  `bun:"building" json:"building,omitempty"`
 	Floor      *int    `bun:"floor" json:"floor,omitempty"`
 	Capacity   *int    `bun:"capacity" json:"capacity,omitempty"`
