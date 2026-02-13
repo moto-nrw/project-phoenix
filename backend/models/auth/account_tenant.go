@@ -35,13 +35,16 @@ type AccountTenant struct {
 
 func (at *AccountTenant) BeforeAppendModel(query any) error {
 	if q, ok := query.(*bun.SelectQuery); ok {
+		q.ModelTableExpr(`auth.account_tenants AS "account_tenant"`)
+	}
+	if q, ok := query.(*bun.InsertQuery); ok {
 		q.ModelTableExpr(tableAuthAccountTenants)
 	}
 	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(tableAuthAccountTenants)
+		q.ModelTableExpr(`auth.account_tenants AS "account_tenant"`)
 	}
 	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(tableAuthAccountTenants)
+		q.ModelTableExpr(`auth.account_tenants AS "account_tenant"`)
 	}
 	return nil
 }
