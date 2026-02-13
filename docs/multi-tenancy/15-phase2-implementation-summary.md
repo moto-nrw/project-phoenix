@@ -33,10 +33,10 @@ Creates the three-role architecture specified by DEBATE decisions D7 and D8:
 **Grants:**
 - `phoenix_auth` → can `SET ROLE` to either `phoenix_tenant` or `phoenix_admin`
 - `phoenix_tenant` → USAGE + CRUD on 12 schemas (`auth`, `users`, `education`, `facilities`, `activities`, `active`, `schedule`, `iot`, `feedback`, `config`, `suggestions`, `audit`) + SELECT on `platform.schools` + SEQUENCE usage
-- `phoenix_admin` → ALL on all 13 schemas (including `platform`)
+- `phoenix_admin` → ALL on all 14 schemas (including `platform` and `meta`)
 - `ALTER DEFAULT PRIVILEGES` set for both roles to cover future tables/sequences
 
-**Note:** The application does NOT connect as `phoenix_auth` yet — that migration happens in Phase 3/4. The `phoenix_auth_dev` password is a development placeholder.
+**Note:** The application does NOT connect as `phoenix_auth` yet — that migration happens in Phase 3/4. The `phoenix_auth` password is read from the `PHOENIX_AUTH_PASSWORD` environment variable at migration time, falling back to `phoenix_auth_dev` for local development.
 
 **Rollback:** Revokes all grants and default privileges, then drops all three roles.
 
@@ -208,6 +208,8 @@ This enables Phase 4 to create composite FKs like `FOREIGN KEY (tenant_id, perso
 
 **Standard indexes (59 tables):** `idx_{table}_tenant ON {schema}.{table}(tenant_id)` — ensures RLS filter `WHERE tenant_id = ?` can use an index scan.
 
+**Composite (tenant_id, id) indexes (41 tables):** `idx_{table}_tenant_id ON {schema}.{table}(tenant_id, id)` — for queries filtering on both tenant and primary key. The 18 FK-target tables from V1.14.4 already have `UNIQUE(tenant_id, id)` and are skipped here.
+
 **Performance composite indexes (4):**
 
 | Index | Table | Purpose |
@@ -221,7 +223,9 @@ This enables Phase 4 to create composite FKs like `FOREIGN KEY (tenant_id, perso
 
 ### WP 2.8 — BUN Model Tag Changes (Code-only)
 
-Removed `unique` from BUN struct tags in 5 model files. Uniqueness is now enforced by composite database indexes (tenant_id + name/key), not by single-column BUN ORM tags.
+Removed `unique` from BUN struct tags in 11 model files. Uniqueness is now enforced by composite database indexes (tenant_id + column), not by single-column BUN ORM tags.
+
+**Functionally necessary (§2.4.1 — names/keys that collide across tenants):**
 
 | File | Field | Old Tag | New Tag |
 |------|-------|---------|---------|
@@ -230,6 +234,19 @@ Removed `unique` from BUN struct tags in 5 model files. Uniqueness is now enforc
 | `models/activities/category.go` | Name | `bun:"name,notnull,unique"` | `bun:"name,notnull"` |
 | `models/auth/role.go` | Name | `bun:"name,notnull,unique"` | `bun:"name,notnull"` |
 | `models/config/settings.go` | Key | `bun:"key,notnull,unique"` | `bun:"key,notnull"` |
+| `models/users/profile.go` | AccountID | `bun:"account_id,notnull,unique"` | `bun:"account_id,notnull"` |
+| `models/auth/account_parent.go` | Username | `bun:"username,unique"` | `bun:"username"` |
+
+**Defense-in-depth (§2.4.2 — 1:1 FKs where composite uniqueness adds safety):**
+
+| File | Field | Old Tag | New Tag |
+|------|-------|---------|---------|
+| `models/users/staff.go` | PersonID | `bun:"person_id,notnull,unique"` | `bun:"person_id,notnull"` |
+| `models/users/teacher.go` | StaffID | `bun:"staff_id,notnull,unique"` | `bun:"staff_id,notnull"` |
+| `models/users/guest.go` | StaffID | `bun:"staff_id,notnull,unique"` | `bun:"staff_id,notnull"` |
+| `models/iot/device.go` | DeviceID | `bun:"device_id,notnull,unique"` | `bun:"device_id,notnull"` |
+
+**Note:** `iot.Device.APIKey` correctly keeps its `unique` tag — `api_key` stays globally unique per FIX-9.
 
 **Why:** BUN's `unique` tag creates a single-column UNIQUE constraint via `CreateTable`. Since uniqueness is now composite (tenant_id + column), the single-column tag would conflict. The composite indexes created in Migration V1.14.3 enforce the correct constraint.
 
@@ -265,7 +282,7 @@ Uses `ON CONFLICT DO NOTHING` for idempotency and `NOT IN (SELECT ...)` to skip 
 | `backend/database/migrations/001014006_populate_account_tenants.go` | 2.9 |
 | `docs/multi-tenancy/15-phase2-implementation-summary.md` | Docs |
 
-### Modified Files (5)
+### Modified Files (11)
 
 | File | WP | Change |
 |------|----|--------|
@@ -274,6 +291,12 @@ Uses `ON CONFLICT DO NOTHING` for idempotency and `NOT IN (SELECT ...)` to skip 
 | `backend/models/activities/category.go` | 2.8 | Remove `unique` from `name` tag |
 | `backend/models/auth/role.go` | 2.8 | Remove `unique` from `name` tag |
 | `backend/models/config/settings.go` | 2.8 | Remove `unique` from `key` tag |
+| `backend/models/users/staff.go` | 2.8 | Remove `unique` from `person_id` tag |
+| `backend/models/users/teacher.go` | 2.8 | Remove `unique` from `staff_id` tag |
+| `backend/models/users/guest.go` | 2.8 | Remove `unique` from `staff_id` tag |
+| `backend/models/users/profile.go` | 2.8 | Remove `unique` from `account_id` tag |
+| `backend/models/iot/device.go` | 2.8 | Remove `unique` from `device_id` tag (FIX-9; `api_key` keeps `unique`) |
+| `backend/models/auth/account_parent.go` | 2.8 | Remove `unique` from `username` tag |
 
 ### NOT Modified
 

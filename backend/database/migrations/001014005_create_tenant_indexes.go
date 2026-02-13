@@ -121,6 +121,33 @@ var allTenantScopedTables = []struct {
 	{"audit", "work_session_edits"},
 }
 
+// compositePKTableSet lists the 18 tables from V1.14.4 that already have UNIQUE(tenant_id, id).
+// Used to skip these when creating the regular (tenant_id, id) indexes.
+var compositePKTableSet = map[string]bool{
+	"users.persons":               true,
+	"users.staff":                 true,
+	"users.students":              true,
+	"users.teachers":              true,
+	"users.guardian_profiles":     true,
+	"users.rfid_cards":            true,
+	"education.groups":            true,
+	"education.grade_transitions": true,
+	"facilities.rooms":            true,
+	"activities.categories":       true,
+	"activities.groups":           true,
+	"active.groups":               true,
+	"active.combined_groups":      true,
+	"active.work_sessions":        true,
+	"iot.devices":                 true,
+	"schedule.timeframes":         true,
+	"suggestions.posts":           true,
+	"auth.accounts_parents":       true,
+}
+
+func isCompositePKTable(schema, table string) bool {
+	return compositePKTableSet[schema+"."+table]
+}
+
 func createTenantIndexes(ctx context.Context, db *bun.DB) error {
 	fmt.Println("Migration 1.14.5: Creating tenant indexes on all tenant-scoped tables...")
 
@@ -144,6 +171,25 @@ func createTenantIndexes(ctx context.Context, db *bun.DB) error {
 		`, indexName, fullTable))
 		if err != nil {
 			return fmt.Errorf("error creating tenant index on %s: %w", fullTable, err)
+		}
+	}
+
+	// Composite (tenant_id, id) indexes on tables NOT already covered by V1.14.4.
+	// V1.14.4 creates UNIQUE(tenant_id, id) on 18 FK-target tables. The remaining
+	// 41 tables get a regular composite index for queries filtering on both tenant and PK.
+	fmt.Println("  Creating composite (tenant_id, id) indexes on remaining tables...")
+	for _, t := range allTenantScopedTables {
+		if isCompositePKTable(t.schema, t.table) {
+			continue // Already has UNIQUE(tenant_id, id) from V1.14.4
+		}
+		indexName := fmt.Sprintf("idx_%s_tenant_id", t.table)
+		fullTable := fmt.Sprintf("%s.%s", t.schema, t.table)
+
+		_, err = tx.ExecContext(ctx, fmt.Sprintf(`
+			CREATE INDEX IF NOT EXISTS %s ON %s(tenant_id, id);
+		`, indexName, fullTable))
+		if err != nil {
+			return fmt.Errorf("error creating composite tenant+id index on %s: %w", fullTable, err)
 		}
 	}
 
@@ -193,6 +239,21 @@ func rollbackTenantIndexes(ctx context.Context, db *bun.DB) error {
 	`)
 	if err != nil {
 		return fmt.Errorf("error dropping performance composite indexes: %w", err)
+	}
+
+	// Drop composite (tenant_id, id) indexes on non-PK tables
+	for _, t := range allTenantScopedTables {
+		if isCompositePKTable(t.schema, t.table) {
+			continue // Owned by V1.14.4
+		}
+		indexName := fmt.Sprintf("idx_%s_tenant_id", t.table)
+
+		_, err = tx.ExecContext(ctx, fmt.Sprintf(`
+			DROP INDEX IF EXISTS %s.%s;
+		`, t.schema, indexName))
+		if err != nil {
+			return fmt.Errorf("error dropping composite tenant+id index on %s.%s: %w", t.schema, t.table, err)
+		}
 	}
 
 	// Drop standard tenant indexes

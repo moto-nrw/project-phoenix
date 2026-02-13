@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"os"
 
 	"github.com/uptrace/bun"
 )
@@ -45,13 +46,18 @@ func createTenantRoles(ctx context.Context, db *bun.DB) error {
 	}()
 
 	// Create connection role: LOGIN + NOINHERIT (zero privileges by default)
-	_, err = tx.ExecContext(ctx, `
+	// Password from environment variable; falls back to dev placeholder
+	authPassword := os.Getenv("PHOENIX_AUTH_PASSWORD")
+	if authPassword == "" {
+		authPassword = "phoenix_auth_dev"
+	}
+	_, err = tx.ExecContext(ctx, fmt.Sprintf(`
 		DO $$ BEGIN
 			IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'phoenix_auth') THEN
-				CREATE ROLE phoenix_auth LOGIN NOINHERIT PASSWORD 'phoenix_auth_dev';
+				CREATE ROLE phoenix_auth LOGIN NOINHERIT PASSWORD %s;
 			END IF;
 		END $$;
-	`)
+	`, quoteLiteral(authPassword)))
 	if err != nil {
 		return fmt.Errorf("error creating phoenix_auth role: %w", err)
 	}
@@ -124,18 +130,18 @@ func createTenantRoles(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error setting default privileges for phoenix_tenant: %w", err)
 	}
 
-	// phoenix_admin: ALL on everything including platform
+	// phoenix_admin: ALL on everything including platform and meta
 	_, err = tx.ExecContext(ctx, `
 		GRANT USAGE ON SCHEMA auth, users, education, facilities, activities, active,
-			schedule, iot, feedback, config, suggestions, audit, platform TO phoenix_admin;
+			schedule, iot, feedback, config, suggestions, audit, platform, meta TO phoenix_admin;
 
 		GRANT ALL ON ALL TABLES IN SCHEMA
 			auth, users, education, facilities, activities, active,
-			schedule, iot, feedback, config, suggestions, audit, platform TO phoenix_admin;
+			schedule, iot, feedback, config, suggestions, audit, platform, meta TO phoenix_admin;
 
 		GRANT ALL ON ALL SEQUENCES IN SCHEMA
 			auth, users, education, facilities, activities, active,
-			schedule, iot, feedback, config, suggestions, audit, platform TO phoenix_admin;
+			schedule, iot, feedback, config, suggestions, audit, platform, meta TO phoenix_admin;
 	`)
 	if err != nil {
 		return fmt.Errorf("error granting permissions to phoenix_admin: %w", err)
@@ -145,12 +151,12 @@ func createTenantRoles(ctx context.Context, db *bun.DB) error {
 	_, err = tx.ExecContext(ctx, `
 		ALTER DEFAULT PRIVILEGES IN SCHEMA
 			auth, users, education, facilities, activities, active,
-			schedule, iot, feedback, config, suggestions, audit, platform
+			schedule, iot, feedback, config, suggestions, audit, platform, meta
 			GRANT ALL ON TABLES TO phoenix_admin;
 
 		ALTER DEFAULT PRIVILEGES IN SCHEMA
 			auth, users, education, facilities, activities, active,
-			schedule, iot, feedback, config, suggestions, audit, platform
+			schedule, iot, feedback, config, suggestions, audit, platform, meta
 			GRANT ALL ON SEQUENCES TO phoenix_admin;
 	`)
 	if err != nil {
@@ -159,6 +165,21 @@ func createTenantRoles(ctx context.Context, db *bun.DB) error {
 
 	fmt.Println("Migration 1.14.1: Successfully created PostgreSQL roles for multi-tenancy")
 	return tx.Commit()
+}
+
+// quoteLiteral safely quotes a string for use as a PostgreSQL literal,
+// preventing SQL injection by escaping single quotes.
+func quoteLiteral(s string) string {
+	// Replace single quotes with doubled single quotes (PostgreSQL escaping)
+	escaped := ""
+	for _, c := range s {
+		if c == '\'' {
+			escaped += "''"
+		} else {
+			escaped += string(c)
+		}
+	}
+	return "'" + escaped + "'"
 }
 
 func rollbackTenantRoles(ctx context.Context, db *bun.DB) error {
@@ -178,12 +199,12 @@ func rollbackTenantRoles(ctx context.Context, db *bun.DB) error {
 	_, err = tx.ExecContext(ctx, `
 		ALTER DEFAULT PRIVILEGES IN SCHEMA
 			auth, users, education, facilities, activities, active,
-			schedule, iot, feedback, config, suggestions, audit, platform
+			schedule, iot, feedback, config, suggestions, audit, platform, meta
 			REVOKE ALL ON TABLES FROM phoenix_admin;
 
 		ALTER DEFAULT PRIVILEGES IN SCHEMA
 			auth, users, education, facilities, activities, active,
-			schedule, iot, feedback, config, suggestions, audit, platform
+			schedule, iot, feedback, config, suggestions, audit, platform, meta
 			REVOKE ALL ON SEQUENCES FROM phoenix_admin;
 
 		ALTER DEFAULT PRIVILEGES IN SCHEMA
@@ -204,12 +225,12 @@ func rollbackTenantRoles(ctx context.Context, db *bun.DB) error {
 	_, err = tx.ExecContext(ctx, `
 		REVOKE ALL ON ALL TABLES IN SCHEMA
 			auth, users, education, facilities, activities, active,
-			schedule, iot, feedback, config, suggestions, audit, platform FROM phoenix_admin;
+			schedule, iot, feedback, config, suggestions, audit, platform, meta FROM phoenix_admin;
 		REVOKE ALL ON ALL SEQUENCES IN SCHEMA
 			auth, users, education, facilities, activities, active,
-			schedule, iot, feedback, config, suggestions, audit, platform FROM phoenix_admin;
+			schedule, iot, feedback, config, suggestions, audit, platform, meta FROM phoenix_admin;
 		REVOKE USAGE ON SCHEMA auth, users, education, facilities, activities, active,
-			schedule, iot, feedback, config, suggestions, audit, platform FROM phoenix_admin;
+			schedule, iot, feedback, config, suggestions, audit, platform, meta FROM phoenix_admin;
 
 		REVOKE ALL ON ALL TABLES IN SCHEMA
 			auth, users, education, facilities, activities, active,
