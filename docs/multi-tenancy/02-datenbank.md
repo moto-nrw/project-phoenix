@@ -333,7 +333,7 @@ CREATE UNIQUE INDEX idx_{table}_tenant_pk
     ON {schema}.{table}(tenant_id, id);
 ```
 
-**Betroffene Ziel-Tabellen (19):**
+**Betroffene Ziel-Tabellen (18):**
 
 | Schema | Tabelle | Referenziert von (Anzahl FKs) |
 |--------|---------|-------------------------------|

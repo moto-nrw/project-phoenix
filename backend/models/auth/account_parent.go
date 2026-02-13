@@ -14,7 +14,7 @@ import (
 type AccountParent struct {
 	base.Model   `bun:"schema:auth,table:accounts_parents"`
 	Email        string     `bun:"email,notnull" json:"email"`
-	Username     *string    `bun:"username,unique" json:"username,omitempty"`
+	Username     *string    `bun:"username" json:"username,omitempty"`
 	Active       bool       `bun:"active,notnull,default:true" json:"active"`
 	PasswordHash *string    `bun:"password_hash" json:"-"`
 	LastLogin    *time.Time `bun:"last_login" json:"last_login,omitempty"`
