@@ -11,9 +11,6 @@ paths-ignore:
   - "**/*.spec.ts"
   - "**/*.spec.tsx"
 
-  # Bruno API testing environments and scripts
-  - "bruno/**"
-
   # Example environment files (templates, not real secrets)
   - "**/*.example"
   - "**/dev.env.example"

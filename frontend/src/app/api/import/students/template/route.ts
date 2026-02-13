@@ -1,6 +1,9 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { auth } from "~/server/auth";
 import { getServerApiUrl } from "~/lib/server-api-url";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "StudentTemplateRoute" });
 
 export async function GET(request: NextRequest) {
   try {
@@ -45,7 +48,9 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (error) {
-    console.error("Template download error:", error);
+    logger.error("template download failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 },

@@ -159,8 +159,10 @@ describe("PrivacyConsentSection", () => {
     });
 
     expect(consoleErrorSpy).toHaveBeenCalledWith(
-      "Error loading privacy consent:",
-      expect.any(Error),
+      "failed to load privacy consent",
+      expect.objectContaining({
+        error: "API Error",
+      }),
     );
 
     consoleErrorSpy.mockRestore();

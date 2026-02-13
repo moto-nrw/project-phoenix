@@ -81,8 +81,8 @@ describe("compressAvatar", () => {
     const result = await compressAvatar(originalFile);
 
     expect(consoleErrorSpy).toHaveBeenCalledWith(
-      "Avatar compression failed, using original:",
-      error,
+      "avatar compression failed, using original",
+      { error: String(error) },
     );
     expect(result).toBe(originalFile);
   });

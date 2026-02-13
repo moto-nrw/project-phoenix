@@ -53,7 +53,6 @@ Which behavior is correct? Should I:
 This rule applies to:
 - Unit tests
 - Integration tests
-- API tests (Bruno)
 - Any test file that existed before the current task began
 
 This rule does NOT prevent:

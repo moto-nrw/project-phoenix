@@ -1,6 +1,9 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { auth } from "~/server/auth";
 import { getServerApiUrl } from "~/lib/server-api-url";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "StudentImportRoute" });
 
 export async function POST(request: NextRequest) {
   try {
@@ -32,7 +35,9 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(data);
   } catch (error) {
-    console.error("Import error:", error);
+    logger.error("student import failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 },

@@ -1,6 +1,9 @@
 // Room API client functions
 
 import { apiGet } from "./api-client";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "RoomsAPI" });
 import { type BackendRoom, mapRoomsResponse, type Room } from "./rooms-helpers";
 
 export interface RoomsApiResponse {
@@ -19,7 +22,9 @@ export async function fetchRooms(token?: string): Promise<Room[]> {
       // response.data is RoomsApiResponse { status, data: BackendRoom[] }
       // response.data.data is the actual BackendRoom[]
       if (!response?.data || !Array.isArray(response.data.data)) {
-        console.error("Failed to fetch rooms:", response?.data);
+        logger.error("failed to fetch rooms from backend", {
+          response: typeof response?.data,
+        });
         return [];
       }
 
@@ -34,20 +39,20 @@ export async function fetchRooms(token?: string): Promise<Room[]> {
     });
 
     if (!response.ok) {
-      console.error("Failed to fetch rooms:", response.status);
+      logger.error("failed to fetch rooms", { status: response.status });
       return [];
     }
 
     const data = (await response.json()) as RoomsApiResponse;
 
     if (!data || !Array.isArray(data.data)) {
-      console.error("Invalid rooms response:", data);
+      logger.error("invalid rooms response format");
       return [];
     }
 
     return mapRoomsResponse(data.data);
   } catch (error) {
-    console.error("Error fetching rooms:", error);
+    logger.error("error fetching rooms", { error: String(error) });
     return [];
   }
 }

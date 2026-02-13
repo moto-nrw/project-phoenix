@@ -3,6 +3,10 @@ import DiscordProvider from "next-auth/providers/discord";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { env } from "~/env";
 import { getServerApiUrl } from "~/lib/server-api-url";
+import { createLogger } from "~/lib/logger";
+
+// Logger instance for NextAuth config
+const logger = createLogger({ component: "NextAuthConfig" });
 
 /**
  * JWT payload structure from backend tokens
@@ -25,13 +29,13 @@ interface JwtPayload {
 function parseJwtPayload(tokenString: string): JwtPayload | null {
   const tokenParts = tokenString.split(".");
   if (tokenParts.length !== 3) {
-    console.error("Invalid token format");
+    logger.error("invalid jwt token format", {});
     return null;
   }
 
   const payloadPart = tokenParts[1];
   if (!payloadPart) {
-    console.error("Invalid token part");
+    logger.error("invalid jwt token part", {});
     return null;
   }
 
@@ -40,7 +44,9 @@ function parseJwtPayload(tokenString: string): JwtPayload | null {
       Buffer.from(payloadPart, "base64").toString(),
     ) as JwtPayload;
   } catch (e) {
-    console.error("Error parsing JWT:", e);
+    logger.error("error parsing jwt", {
+      error: e instanceof Error ? e.message : String(e),
+    });
     return null;
   }
 }
@@ -98,7 +104,7 @@ async function performLogin(
   const apiUrl = getServerApiUrl();
 
   if (isDev) {
-    console.log(`Attempting login with API URL: ${apiUrl}/auth/login`);
+    logger.debug("attempting login", { api_url: `${apiUrl}/auth/login` });
   }
 
   try {
@@ -109,12 +115,12 @@ async function performLogin(
     });
 
     if (isDev) {
-      console.log(`Login response status: ${response.status}`);
+      logger.debug("login response received", { status: response.status });
     }
 
     if (!response.ok) {
       const text = await response.text();
-      console.error(`Login failed with status ${response.status}: ${text}`);
+      logger.error("login failed", { status: response.status, error: text });
       return null;
     }
 
@@ -124,12 +130,16 @@ async function performLogin(
     };
 
     if (isDev) {
-      console.log("Login response:", JSON.stringify(responseData));
+      logger.debug("login response parsed", {
+        has_tokens: !!responseData.access_token,
+      });
     }
 
     return responseData;
   } catch (error) {
-    console.error("Authentication error:", error);
+    logger.error("authentication error", {
+      error: error instanceof Error ? error.message : String(error),
+    });
     return null;
   }
 }
@@ -192,6 +202,26 @@ function parseDurationToMs(duration: string): number {
 const accessTokenExpiry = parseDurationToMs(env.AUTH_JWT_EXPIRY);
 const refreshTokenExpiry = parseDurationToMs(env.AUTH_JWT_REFRESH_EXPIRY);
 
+// Frontend-side singleflight for proactive token refresh.
+// Deduplicates concurrent JWT callbacks that all try to refresh the same token.
+// The cache covers late-arriving callbacks after the in-flight promise resolves.
+type RefreshResult = { access_token: string; refresh_token: string };
+let activeRefreshPromise: Promise<RefreshResult | null> | null = null;
+let activeRefreshKey: string | null = null;
+let refreshCache: {
+  oldToken: string;
+  result: RefreshResult;
+  expiresAt: number;
+} | null = null;
+const REFRESH_CACHE_TTL_MS = 5 * 60 * 1000; // Match REFRESH_BUFFER_MS — covers the full pre-expiry window
+
+/** @internal Reset module-level refresh state (test isolation only) */
+export function _resetRefreshState(): void {
+  activeRefreshPromise = null;
+  activeRefreshKey = null;
+  refreshCache = null;
+}
+
 /**
  * Options for NextAuth.js used to configure adapters, providers, callbacks, etc.
  *
@@ -220,7 +250,7 @@ export const authConfig = {
           creds?.refreshToken
         ) {
           if (isDev) {
-            console.log("Handling internal token refresh");
+            logger.debug("handling internal token refresh", {});
           }
 
           const payload = parseJwtPayload(creds.token);
@@ -245,18 +275,15 @@ export const authConfig = {
 
         // Development logging for debugging
         if (isDev) {
-          console.log("Token payload:", payload);
+          logger.debug("token payload parsed", { has_roles: !!payload.roles });
           if (payload.roles && Array.isArray(payload.roles)) {
-            console.log("Found roles in token:", payload.roles);
+            logger.debug("found roles in token", { roles: payload.roles });
           } else {
-            console.warn(
-              "No roles found in token, this will cause authorization failures",
-            );
+            logger.warn("no roles found in token", {});
           }
-          console.log(
-            "Using display name:",
-            buildDisplayName(payload, creds.email),
-          );
+          logger.debug("display name", {
+            name: buildDisplayName(payload, creds.email),
+          });
         }
 
         return buildAuthUser(
@@ -286,18 +313,15 @@ export const authConfig = {
         const callerId = `jwt-callback-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
         const stack = new Error("Stack trace for caller identification").stack;
         const caller = stack?.split("\n")[3]?.trim() ?? "Unknown caller";
-        console.log(`\n=== [${callerId}] JWT Callback Invoked ===`);
-        console.log(
-          `[${callerId}] Triggered by: NextAuth internal (server-side session access)`,
-        );
-        console.log(`[${callerId}] Stack trace hint: ${caller}`);
-        console.log(`[${callerId}] Has user object: ${!!user}`);
-        console.log(
-          `[${callerId}] Current refresh token: ${token.refreshToken ? (token.refreshToken as string).substring(0, 50) + "..." : "none"}`,
-        );
-        console.log(
-          `[${callerId}] Token expiry: ${token.tokenExpiry ? new Date(token.tokenExpiry as number).toISOString() : "not set"}`,
-        );
+        logger.debug("jwt callback invoked", {
+          caller_id: callerId,
+          caller,
+          has_user: !!user,
+          has_refresh_token: !!token.refreshToken,
+          token_expiry: token.tokenExpiry
+            ? new Date(token.tokenExpiry as number).toISOString()
+            : "not set",
+        });
       }
 
       // Initial sign in
@@ -320,20 +344,16 @@ export const authConfig = {
 
         // Log token configuration for debugging (only in development)
         if (isDev) {
-          console.log("=== Authentication Token Configuration ===");
-          console.log(
-            `Access Token Expiry: ${env.AUTH_JWT_EXPIRY} (expires at ${new Date(token.tokenExpiry as number).toISOString()})`,
-          );
-          console.log(
-            `Refresh Token Expiry: ${env.AUTH_JWT_REFRESH_EXPIRY} (expires at ${new Date(token.refreshTokenExpiry as number).toISOString()})`,
-          );
-          console.log(
-            `NextAuth Session Length: ${env.AUTH_JWT_REFRESH_EXPIRY}`,
-          );
-          console.log(
-            `Token Refresh: Handled by axios interceptor on 401 errors`,
-          );
-          console.log("========================================");
+          logger.debug("authentication token configuration", {
+            access_token_expiry: env.AUTH_JWT_EXPIRY,
+            access_expires_at: new Date(
+              token.tokenExpiry as number,
+            ).toISOString(),
+            refresh_token_expiry: env.AUTH_JWT_REFRESH_EXPIRY,
+            refresh_expires_at: new Date(
+              token.refreshTokenExpiry as number,
+            ).toISOString(),
+          });
         }
       }
 
@@ -342,20 +362,128 @@ export const authConfig = {
         token.refreshTokenExpiry &&
         Date.now() > (token.refreshTokenExpiry as number)
       ) {
-        console.warn("Refresh token has expired, user needs to re-login");
+        logger.warn("refresh token expired", {
+          expires_at: new Date(
+            token.refreshTokenExpiry as number,
+          ).toISOString(),
+        });
         token.error = "RefreshTokenExpired";
         token.needsRefresh = true;
         // Keep user data for graceful degradation
         return token;
       }
 
-      // JWT callback no longer handles token refresh
-      // All token refresh is now handled by the axios interceptor when it receives 401 errors
-      // This eliminates race conditions from multiple concurrent refresh attempts
-      if (isDev) {
-        console.log(
-          "JWT callback completed - no refresh attempted (handled by axios interceptor)",
-        );
+      // Proactive token refresh: refresh access token before it expires.
+      // SessionProvider.refetchInterval (4 min) ensures this runs regularly.
+      // Backend singleflight protects against concurrent refresh calls.
+      // Frontend singleflight + cache prevents stale token overwrites when
+      // multiple JWT callbacks race (the late-arriving callback would otherwise
+      // use the old refresh token, get 401, and overwrite good tokens).
+      // Fires whenever the access token is within the pre-expiry buffer OR
+      // already expired, as long as the refresh token is still valid.
+      // After a successful refresh, tokenExpiry resets to now + 1h, so the
+      // condition won't re-fire until 55 minutes later.
+      const REFRESH_BUFFER_MS = 5 * 60 * 1000; // 5 minutes before expiry
+      const REFRESH_TIMEOUT_MS = 5_000; // 5 second timeout
+
+      const now = Date.now();
+      const tokenExpiry = token.tokenExpiry as number;
+      if (
+        token.tokenExpiry &&
+        token.refreshToken &&
+        token.refreshTokenExpiry &&
+        now > tokenExpiry - REFRESH_BUFFER_MS &&
+        now < (token.refreshTokenExpiry as number)
+      ) {
+        const currentRefreshToken = token.refreshToken as string;
+
+        // Check cache: this refresh token was recently rotated by another callback
+        if (
+          refreshCache?.oldToken === currentRefreshToken &&
+          Date.now() < (refreshCache?.expiresAt ?? 0)
+        ) {
+          token.token = refreshCache.result.access_token;
+          token.refreshToken = refreshCache.result.refresh_token;
+          token.tokenExpiry = Date.now() + accessTokenExpiry;
+          token.refreshTokenExpiry = Date.now() + refreshTokenExpiry;
+          token.error = undefined;
+          token.needsRefresh = undefined;
+          logger.info("proactive_token_refresh_deduplicated");
+          return token;
+        }
+
+        // Join in-flight refresh if one exists for this token
+        if (activeRefreshPromise && activeRefreshKey === currentRefreshToken) {
+          const result = await activeRefreshPromise;
+          if (result) {
+            token.token = result.access_token;
+            token.refreshToken = result.refresh_token;
+            token.tokenExpiry = Date.now() + accessTokenExpiry;
+            token.refreshTokenExpiry = Date.now() + refreshTokenExpiry;
+            token.error = undefined;
+            token.needsRefresh = undefined;
+            logger.info("proactive_token_refresh_succeeded");
+          } else if (now > tokenExpiry) {
+            token.error = "RefreshTokenError";
+            token.needsRefresh = true;
+            logger.warn("token_refresh_failed_post_expiry");
+          }
+          return token;
+        }
+
+        // Start new refresh and share via module-level promise
+        activeRefreshKey = currentRefreshToken;
+        activeRefreshPromise = (async (): Promise<RefreshResult | null> => {
+          try {
+            const response = await fetch(`${getServerApiUrl()}/auth/refresh`, {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${currentRefreshToken}`,
+                "Content-Type": "application/json",
+              },
+              signal: AbortSignal.timeout(REFRESH_TIMEOUT_MS),
+            });
+
+            if (response.ok) {
+              const tokens = (await response.json()) as RefreshResult;
+              // Cache result so late-arriving callbacks with the old token
+              // get the new tokens instead of sending a doomed request
+              refreshCache = {
+                oldToken: currentRefreshToken,
+                result: tokens,
+                expiresAt: Date.now() + REFRESH_CACHE_TTL_MS,
+              };
+              return tokens;
+            }
+            logger.warn("proactive_token_refresh_failed", {
+              status: response.status,
+            });
+            return null;
+          } catch (err) {
+            logger.warn("proactive_token_refresh_error", {
+              error: err instanceof Error ? err.message : String(err),
+            });
+            return null;
+          } finally {
+            activeRefreshPromise = null;
+            activeRefreshKey = null;
+          }
+        })();
+
+        const result = await activeRefreshPromise;
+        if (result) {
+          token.token = result.access_token;
+          token.refreshToken = result.refresh_token;
+          token.tokenExpiry = Date.now() + accessTokenExpiry;
+          token.refreshTokenExpiry = Date.now() + refreshTokenExpiry;
+          token.error = undefined;
+          token.needsRefresh = undefined;
+          logger.info("proactive_token_refresh_succeeded");
+        } else if (now > tokenExpiry) {
+          token.error = "RefreshTokenError";
+          token.needsRefresh = true;
+          logger.warn("token_refresh_failed_post_expiry");
+        }
       }
 
       return token;

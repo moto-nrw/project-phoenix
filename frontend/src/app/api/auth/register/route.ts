@@ -2,6 +2,9 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { auth } from "~/server/auth";
 import { getServerApiUrl } from "~/lib/server-api-url";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "AuthRegisterRoute" });
 
 export async function POST(request: NextRequest) {
   try {
@@ -27,8 +30,7 @@ export async function POST(request: NextRequest) {
       body: JSON.stringify(requestBody),
     });
 
-    // Log the response status for debugging
-    console.log(`Registration response status: ${response.status}`);
+    logger.debug("registration response received", { status: response.status });
 
     // Check if the response has a body and is JSON
     let responseData: Record<string, unknown> | null = null;
@@ -38,7 +40,10 @@ export async function POST(request: NextRequest) {
       try {
         responseData = (await response.json()) as Record<string, unknown>;
       } catch (jsonError) {
-        console.error("Failed to parse JSON response:", jsonError);
+        logger.error("failed to parse JSON response", {
+          error:
+            jsonError instanceof Error ? jsonError.message : String(jsonError),
+        });
         responseData = {
           status: "error",
           error: (await response.text()) || "Failed to parse response",
@@ -53,11 +58,10 @@ export async function POST(request: NextRequest) {
       };
     }
 
-    // Log the actual response for debugging
     if (!response.ok) {
-      console.error("Registration failed:", {
+      logger.error("registration failed", {
         status: response.status,
-        contentType: contentType,
+        content_type: contentType,
       });
     }
 
@@ -66,7 +70,9 @@ export async function POST(request: NextRequest) {
       { status: response.status },
     );
   } catch (error) {
-    console.error("Registration error:", error);
+    logger.error("registration error", {
+      error: error instanceof Error ? error.message : String(error),
+    });
     return NextResponse.json(
       {
         message: "An error occurred during registration",

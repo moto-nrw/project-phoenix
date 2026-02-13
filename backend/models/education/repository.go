@@ -20,6 +20,7 @@ type GroupRepository interface {
 	FindByRoom(ctx context.Context, roomID int64) ([]*Group, error)
 	FindByTeacher(ctx context.Context, teacherID int64) ([]*Group, error)
 	FindWithRoom(ctx context.Context, groupID int64) (*Group, error)
+	CountWithOptions(ctx context.Context, options *base.QueryOptions) (int, error)
 }
 
 // GroupTeacherRepository defines operations for managing group-teacher relationships
@@ -31,6 +32,7 @@ type GroupTeacherRepository interface {
 	List(ctx context.Context, filters map[string]interface{}) ([]*GroupTeacher, error)
 	FindByGroup(ctx context.Context, groupID int64) ([]*GroupTeacher, error)
 	FindByTeacher(ctx context.Context, teacherID int64) ([]*GroupTeacher, error)
+	FindByGroupIDs(ctx context.Context, groupIDs []int64) ([]*GroupTeacher, error)
 }
 
 // GroupSubstitutionRepository defines operations for managing group substitutions

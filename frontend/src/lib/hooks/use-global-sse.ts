@@ -27,6 +27,9 @@ import { mutate } from "swr";
 import { useSession } from "next-auth/react";
 import { useSSE } from "~/lib/hooks/use-sse";
 import type { SSEEvent, SSEHookState } from "~/lib/sse-types";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "GlobalSSE" });
 
 const DEBOUNCE_MS = 500;
 
@@ -65,15 +68,21 @@ export function useGlobalSSE(): SSEHookState {
           typeof key === "string" && key.startsWith("supervision-visits-"),
         undefined,
         { revalidate: true },
-      ).catch(() => {
-        // Ignore revalidation errors - they're logged elsewhere
+      ).catch((err) => {
+        logger.debug("swr_revalidation_failed", {
+          error: err instanceof Error ? err.message : String(err),
+          scope: "supervision_visits",
+        });
       });
     }
 
     // Invalidate specific student detail caches
     for (const studentId of pendingStudentIds.current) {
-      mutate(`student-detail-${studentId}`).catch(() => {
-        // Ignore revalidation errors
+      mutate(`student-detail-${studentId}`).catch((err) => {
+        logger.debug("swr_revalidation_failed", {
+          error: err instanceof Error ? err.message : String(err),
+          scope: "student_detail",
+        });
       });
     }
 
@@ -86,8 +95,11 @@ export function useGlobalSSE(): SSEHookState {
             key.includes("dashboard")),
         undefined,
         { revalidate: true },
-      ).catch(() => {
-        // Ignore revalidation errors
+      ).catch((err) => {
+        logger.debug("swr_revalidation_failed", {
+          error: err instanceof Error ? err.message : String(err),
+          scope: "dashboard",
+        });
       });
     }
 
@@ -101,8 +113,11 @@ export function useGlobalSSE(): SSEHookState {
             key.includes("rooms")),
         undefined,
         { revalidate: true },
-      ).catch(() => {
-        // Ignore revalidation errors
+      ).catch((err) => {
+        logger.debug("swr_revalidation_failed", {
+          error: err instanceof Error ? err.message : String(err),
+          scope: "activity_supervision",
+        });
       });
     }
 

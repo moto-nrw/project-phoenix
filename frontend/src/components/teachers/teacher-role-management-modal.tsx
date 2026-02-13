@@ -11,6 +11,9 @@ import {
   getRoleDisplayDescription,
 } from "~/lib/auth-helpers";
 import type { Teacher } from "~/lib/teacher-api";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "TeacherRoleManagementModal" });
 
 // Extracted to reduce duplication - displays role name, description, and permission count
 // Exported for testing purposes
@@ -91,7 +94,9 @@ export function TeacherRoleManagementModal({
       setAllRoles(allRolesList);
       setAccountRoles(accountRolesList);
     } catch (error) {
-      console.error("Error fetching roles:", error);
+      logger.error("failed to fetch roles", {
+        error: error instanceof Error ? error.message : String(error),
+      });
       showError("Fehler beim Laden der Rollen");
     } finally {
       setLoading(false);
@@ -166,7 +171,9 @@ export function TeacherRoleManagementModal({
       await fetchRoles();
       onUpdate();
     } catch (error) {
-      console.error("Error assigning roles:", error);
+      logger.error("failed to assign roles", {
+        error: error instanceof Error ? error.message : String(error),
+      });
       showError("Fehler beim Hinzufügen der Rollen");
     } finally {
       setSaving(false);
@@ -188,7 +195,9 @@ export function TeacherRoleManagementModal({
       await fetchRoles();
       onUpdate();
     } catch (error) {
-      console.error("Error removing role:", error);
+      logger.error("failed to remove role", {
+        error: error instanceof Error ? error.message : String(error),
+      });
       showError("Fehler beim Entfernen der Rolle");
     } finally {
       setSaving(false);

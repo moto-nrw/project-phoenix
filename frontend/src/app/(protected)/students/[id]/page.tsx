@@ -13,7 +13,6 @@ import { activeService } from "~/lib/active-service";
 import type { ActiveGroup } from "~/lib/active-helpers";
 import {
   useStudentData,
-  shouldShowCheckoutSection,
   type ExtendedStudent,
 } from "~/lib/hooks/use-student-data";
 import type { SupervisorContact } from "~/lib/student-helpers";
@@ -27,9 +26,13 @@ import { PersonalInfoFormModal } from "~/components/students/personal-info-form-
 import {
   StudentCheckoutSection,
   StudentCheckinSection,
+  StudentSickReportSection,
   getStudentActionType,
 } from "~/components/students/student-checkout-section";
 import { performImmediateCheckin } from "~/lib/checkin-api";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "StudentDetailPage" });
 import StudentGuardianManager from "~/components/guardians/student-guardian-manager";
 import PickupScheduleManager from "~/components/students/pickup-schedule-manager";
 import { fetchStudentPickupData } from "~/lib/pickup-schedule-api";
@@ -89,6 +92,15 @@ export default function StudentDetailPage() {
   // Check-in states
   const [showConfirmCheckin, setShowConfirmCheckin] = useState(false);
   const [checkingIn, setCheckingIn] = useState(false);
+
+  // Sick toggle state
+  const [showConfirmSick, setShowConfirmSick] = useState(false);
+  const [sickLoading, setSickLoading] = useState(false);
+  const sickConfirmText = sickLoading
+    ? "Wird gespeichert..."
+    : student?.sick
+      ? "Gesundmelden"
+      : "Krankmelden";
   const [selectedActiveGroupId, setSelectedActiveGroupId] =
     useState<string>("");
   const [activeGroups, setActiveGroups] = useState<ActiveGroup[]>([]);
@@ -117,7 +129,9 @@ export default function StudentDetailPage() {
         const groupsWithRooms = groups.filter((g) => g.room?.name);
         setActiveGroups(groupsWithRooms);
       } catch (err) {
-        console.error("Failed to load active groups:", err);
+        logger.error("failed to load active groups", {
+          error: err instanceof Error ? err.message : String(err),
+        });
         setActiveGroups([]);
       } finally {
         setLoadingActiveGroups(false);
@@ -200,7 +214,6 @@ export default function StudentDetailPage() {
       supervisor_notes: editedStudent.supervisor_notes,
       extra_info: editedStudent.extra_info,
       pickup_status: editedStudent.pickup_status,
-      sick: editedStudent.sick ?? false,
     });
 
     refreshData();
@@ -220,7 +233,10 @@ export default function StudentDetailPage() {
       setShowConfirmCheckout(false);
       toast.success(`${student.name} wurde erfolgreich abgemeldet`);
     } catch (err) {
-      console.error("Failed to checkout student:", err);
+      logger.error("failed to checkout student", {
+        student_id: studentId,
+        error: err instanceof Error ? err.message : String(err),
+      });
       toast.error("Fehler beim Abmelden des Kindes");
     } finally {
       setCheckingOut(false);
@@ -240,10 +256,41 @@ export default function StudentDetailPage() {
       setShowConfirmCheckin(false);
       toast.success(`${student.name} wurde erfolgreich angemeldet`);
     } catch (err) {
-      console.error("Failed to check in student:", err);
+      logger.error("failed to check in student", {
+        student_id: studentId,
+        error: err instanceof Error ? err.message : String(err),
+      });
       toast.error("Fehler beim Anmelden des Kindes");
     } finally {
       setCheckingIn(false);
+    }
+  };
+
+  const handleConfirmSickToggle = async () => {
+    if (!student) return;
+
+    setSickLoading(true);
+    try {
+      const newSickStatus = !(student.sick ?? false);
+      await studentService.updateStudent(studentId, {
+        sick: newSickStatus,
+        bus: student.buskind ?? false,
+      });
+      refreshData();
+      setShowConfirmSick(false);
+      toast.success(
+        newSickStatus
+          ? `${student.name} wurde krankgemeldet`
+          : `Krankmeldung für ${student.name} wurde aufgehoben`,
+      );
+    } catch (err) {
+      logger.error("sick_status_toggle_failed", {
+        student_id: studentId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      toast.error("Fehler beim Ändern des Krankheitsstatus");
+    } finally {
+      setSickLoading(false);
     }
   };
 
@@ -251,18 +298,13 @@ export default function StudentDetailPage() {
   // COMPUTED VALUES
   // =============================================================================
 
-  const showCheckout = shouldShowCheckoutSection(
-    student,
-    myGroups,
-    mySupervisedRooms,
-  );
-
-  // Determine if check-in should be shown (student is at home and user has access)
+  // Determine what action is available based on access (group membership / room supervision)
   const studentActionType = getStudentActionType(
     { group_id: student.group_id, current_location: student.current_location },
     myGroups,
     mySupervisedRooms,
   );
+  const showCheckout = studentActionType === "checkout";
   const showCheckin = studentActionType === "checkin";
 
   // =============================================================================
@@ -303,20 +345,35 @@ export default function StudentDetailPage() {
     }
 
     return (
-      <select
-        id="room-select"
-        value={selectedActiveGroupId}
-        onChange={(e) => setSelectedActiveGroupId(e.target.value)}
-        className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
-      >
-        <option value="">Bitte Raum auswählen...</option>
-        {activeGroups.map((group) => (
-          <option key={group.id} value={group.id}>
-            {group.room?.name ?? "Unbekannter Raum"} (
-            {group.actualGroup?.name ?? "Gruppe"})
-          </option>
-        ))}
-      </select>
+      <div className="relative">
+        <select
+          id="room-select"
+          value={selectedActiveGroupId}
+          onChange={(e) => setSelectedActiveGroupId(e.target.value)}
+          className="w-full appearance-none rounded-lg border border-gray-300 bg-white px-3 py-2 pr-10 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+        >
+          <option value="">Bitte Raum auswählen...</option>
+          {activeGroups.map((group) => (
+            <option key={group.id} value={group.id}>
+              {group.room?.name ?? "Unbekannter Raum"} (
+              {group.actualGroup?.name ?? "Gruppe"})
+            </option>
+          ))}
+        </select>
+        <svg
+          className="pointer-events-none absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2 text-gray-400"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M19 9l-7 7-7-7"
+          />
+        </svg>
+      </div>
     );
   };
 
@@ -352,6 +409,8 @@ export default function StudentDetailPage() {
             onClosePersonalInfoModal={() => setShowPersonalInfoModal(false)}
             onSavePersonal={handleSavePersonal}
             onRefreshData={refreshData}
+            onSickClick={() => setShowConfirmSick(true)}
+            sickLoading={sickLoading}
           />
         ) : (
           <LimitedAccessView
@@ -408,6 +467,31 @@ export default function StudentDetailPage() {
           </div>
         </div>
       </ConfirmationModal>
+
+      {/* Sick Report Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={showConfirmSick}
+        onClose={() => setShowConfirmSick(false)}
+        onConfirm={handleConfirmSickToggle}
+        title={student.sick ? "Krankmeldung aufheben" : "Kind krankmelden"}
+        confirmText={sickConfirmText}
+        cancelText="Abbrechen"
+        isConfirmLoading={sickLoading}
+        confirmButtonClass="bg-gray-900 hover:bg-gray-700"
+      >
+        <p>
+          {student.sick ? (
+            <>
+              Möchten Sie die Krankmeldung für <strong>{student.name}</strong>{" "}
+              aufheben?
+            </>
+          ) : (
+            <>
+              Möchten Sie <strong>{student.name}</strong> als krank melden?
+            </>
+          )}
+        </p>
+      </ConfirmationModal>
     </>
   );
 }
@@ -435,10 +519,16 @@ function LimitedAccessView({
 }: Readonly<LimitedAccessViewProps>) {
   return (
     <div className="space-y-4 sm:space-y-6">
-      {showCheckout && (
-        <StudentCheckoutSection onCheckoutClick={onCheckoutClick} />
+      {(showCheckout || showCheckin) && (
+        <div className="flex gap-3 sm:gap-4">
+          {showCheckout && (
+            <StudentCheckoutSection onCheckoutClick={onCheckoutClick} />
+          )}
+          {showCheckin && (
+            <StudentCheckinSection onCheckinClick={onCheckinClick} />
+          )}
+        </div>
       )}
-      {showCheckin && <StudentCheckinSection onCheckinClick={onCheckinClick} />}
 
       <SupervisorsCard supervisors={supervisors} studentName={student.name} />
 
@@ -471,6 +561,8 @@ interface FullAccessViewProps {
   onClosePersonalInfoModal: () => void;
   onSavePersonal: (student: ExtendedStudent) => Promise<void>;
   onRefreshData: () => void;
+  onSickClick: () => void;
+  sickLoading: boolean;
 }
 
 function FullAccessView({
@@ -485,15 +577,27 @@ function FullAccessView({
   onClosePersonalInfoModal,
   onSavePersonal,
   onRefreshData,
+  onSickClick,
+  sickLoading,
 }: Readonly<FullAccessViewProps>) {
   return (
     <>
-      {showCheckout && (
-        <StudentCheckoutSection onCheckoutClick={onCheckoutClick} />
-      )}
-      {showCheckin && <StudentCheckinSection onCheckinClick={onCheckinClick} />}
+      <div className="mb-4 flex gap-3 sm:mb-6 sm:gap-4">
+        {showCheckout && (
+          <StudentCheckoutSection onCheckoutClick={onCheckoutClick} />
+        )}
+        {showCheckin && (
+          <StudentCheckinSection onCheckinClick={onCheckinClick} />
+        )}
+        <StudentSickReportSection
+          isSick={student.sick ?? false}
+          sickSince={student.sick_since}
+          onToggle={onSickClick}
+          isLoading={sickLoading}
+        />
+      </div>
 
-      <div className="mt-4 space-y-4 sm:mt-6 sm:space-y-6">
+      <div className="space-y-4 sm:space-y-6">
         <PickupScheduleManager
           studentId={studentId}
           readOnly={false}

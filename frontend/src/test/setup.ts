@@ -1,6 +1,29 @@
 import "@testing-library/jest-dom/vitest";
 import { vi } from "vitest";
 
+// Mock ~/lib/logger globally to prevent ClientLogger from:
+// - Accessing window.location.pathname (crashes in test env)
+// - Starting setInterval batch timers (leaks into tests)
+// - Making fetch calls to /api/logs
+// The mock passes through to console.* so existing spies still work.
+vi.mock("~/lib/logger", () => {
+  const createMockLogger = (): Record<string, unknown> => ({
+    debug: (msg: string, ctx?: Record<string, unknown>) =>
+      console.debug(msg, ctx),
+    info: (msg: string, ctx?: Record<string, unknown>) =>
+      console.info(msg, ctx),
+    warn: (msg: string, ctx?: Record<string, unknown>) =>
+      console.warn(msg, ctx),
+    error: (msg: string, ctx?: Record<string, unknown>) =>
+      console.error(msg, ctx),
+    child: () => createMockLogger(),
+  });
+  return {
+    createLogger: vi.fn(() => createMockLogger()),
+    getLogger: vi.fn(() => createMockLogger()),
+  };
+});
+
 // Mock ~/env globally to avoid Zod validation issues in tests
 vi.mock("~/env", () => ({
   env: {

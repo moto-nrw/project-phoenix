@@ -128,7 +128,7 @@ describe("GET /api/staff/by-role", () => {
 
     expect(response.status).toBe(500);
     const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toContain("Role parameter is required");
+    expect(json.error).toContain("Role or roles parameter is required");
   });
 
   it("fetches staff for different roles", async () => {

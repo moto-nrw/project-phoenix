@@ -21,8 +21,8 @@ services:
       DB_DSN: ${DB_DSN:-postgres://postgres:${POSTGRES_PASSWORD}@postgres:5432/postgres?sslmode=require}
       DB_DEBUG: ${DB_DEBUG:-"true"}
       AUTH_JWT_SECRET: ${AUTH_JWT_SECRET}
-      AUTH_JWT_EXPIRY: ${AUTH_JWT_EXPIRY:-15m}
-      AUTH_JWT_REFRESH_EXPIRY: ${AUTH_JWT_REFRESH_EXPIRY:-24h}
+      AUTH_JWT_EXPIRY: ${AUTH_JWT_EXPIRY:-1h}
+      AUTH_JWT_REFRESH_EXPIRY: ${AUTH_JWT_REFRESH_EXPIRY:-168h}
       ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@example.com}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD}
       EMAIL_FROM_ADDRESS: ${EMAIL_FROM_ADDRESS:-"no-reply@example.com"}
@@ -52,6 +52,9 @@ services:
       SESSION_CLEANUP_INTERVAL_MINUTES: ${SESSION_CLEANUP_INTERVAL_MINUTES:-15}
       SESSION_ABANDONED_THRESHOLD_MINUTES: ${SESSION_ABANDONED_THRESHOLD_MINUTES:-60}
       OGS_DEVICE_PIN: ${OGS_DEVICE_PIN:-1234}
+      OPERATOR_EMAIL: ${OPERATOR_EMAIL:-operator@example.com}
+      OPERATOR_PASSWORD: ${OPERATOR_PASSWORD}
+      OPERATOR_DISPLAY_NAME: ${OPERATOR_DISPLAY_NAME:-Administrator}
     # air handles the serve command via .air.toml
 
   frontend:
@@ -65,7 +68,7 @@ services:
       - "3000:3000"
     environment:
       TZ: ${TZ:-Europe/Berlin}
-      AUTH_JWT_REFRESH_EXPIRY: ${AUTH_JWT_REFRESH_EXPIRY:-24h}
+      AUTH_JWT_REFRESH_EXPIRY: ${AUTH_JWT_REFRESH_EXPIRY:-168h}
       # Server-side API URL (internal Docker network, never leaves container network)
       API_URL: "http://server:8080"
       # Client-side API URL (browser-accessible, must be reachable from user's browser)
@@ -76,6 +79,8 @@ services:
       # Skip env validation in Docker
       SKIP_ENV_VALIDATION: ${SKIP_ENV_VALIDATION:-"true"}
       NEXT_TELEMETRY_DISABLED: ${NEXT_TELEMETRY_DISABLED:-"1"}
+      # Frontend structured logging level (debug, info, warn, error)
+      NEXT_PUBLIC_LOG_LEVEL: ${NEXT_PUBLIC_LOG_LEVEL:-info}
     depends_on:
       - server
     volumes:

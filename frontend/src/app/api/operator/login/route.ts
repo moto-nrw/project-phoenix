@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { setOperatorTokens } from "~/lib/operator/cookies";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "OperatorLoginRoute" });
 
 interface LoginRequest {
   email: string;
@@ -72,7 +75,9 @@ export async function POST(request: NextRequest) {
       },
     });
   } catch (error) {
-    console.error("Operator login error:", error);
+    logger.error("operator_login_error", {
+      error: error instanceof Error ? error.message : String(error),
+    });
     return NextResponse.json(
       { error: "Anmeldefehler. Bitte versuchen Sie es erneut." },
       { status: 500 },

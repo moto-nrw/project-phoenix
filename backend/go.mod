@@ -12,8 +12,8 @@ require (
 	github.com/go-chi/render v1.0.3
 	github.com/go-ozzo/ozzo-validation v3.6.0+incompatible
 	github.com/gofrs/uuid v4.4.0+incompatible
-	github.com/jaytaylor/html2text v0.0.0-20230321000545-74c2419ad056
 	github.com/joho/godotenv v1.5.1
+	github.com/k3a/html2text v1.3.0
 	github.com/lestrrat-go/jwx/v2 v2.1.6
 	github.com/samber/slog-chi v1.18.0
 	github.com/spf13/cobra v1.10.2
@@ -26,6 +26,7 @@ require (
 	github.com/wneessen/go-mail v0.7.2
 	github.com/xuri/excelize/v2 v2.10.0
 	golang.org/x/crypto v0.46.0
+	golang.org/x/sync v0.19.0
 	golang.org/x/time v0.14.0
 	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.1
@@ -44,6 +45,7 @@ require (
 	github.com/goccy/go-json v0.10.4 // indirect
 	github.com/gorilla/css v1.0.1 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
+	github.com/jaytaylor/html2text v0.0.0-20230321000545-74c2419ad056 // indirect
 	github.com/jinzhu/inflection v1.0.0 // indirect
 	github.com/lestrrat-go/blackmagic v1.0.3 // indirect
 	github.com/lestrrat-go/httpcc v1.0.1 // indirect

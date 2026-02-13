@@ -23,6 +23,9 @@ import { useSWRAuth, useImmutableSWR } from "~/lib/swr";
 
 import { Loading } from "~/components/ui/loading";
 import { useToast } from "~/contexts/ToastContext";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "SubstitutionsPage" });
 
 // Helper function to resolve substitute teacher name
 function getSubstituteName(
@@ -266,7 +269,9 @@ function SubstitutionPageContent() {
 
       closePopup();
     } catch (err) {
-      console.error("Error creating substitution:", err);
+      logger.error("failed to create substitution", {
+        error: err instanceof Error ? err.message : String(err),
+      });
       setMutationError("Fehler beim Zuweisen der Vertretung.");
     } finally {
       setIsMutating(false);
@@ -303,7 +308,9 @@ function SubstitutionPageContent() {
       setShowEndConfirmation(false);
       setSubstitutionToEnd(null);
     } catch (err) {
-      console.error("Error ending substitution:", err);
+      logger.error("failed to end substitution", {
+        error: err instanceof Error ? err.message : String(err),
+      });
       setMutationError("Fehler beim Beenden der Vertretung.");
     } finally {
       setIsMutating(false);

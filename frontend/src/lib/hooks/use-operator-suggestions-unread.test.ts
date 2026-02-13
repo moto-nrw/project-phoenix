@@ -142,8 +142,8 @@ describe("useOperatorSuggestionsUnread", () => {
 
     expect(result.current.unreadCount).toBe(0);
     expect(consoleErrorSpy).toHaveBeenCalledWith(
-      "Failed to fetch operator unread counts:",
-      expect.any(Error),
+      "operator_unread_count_fetch_failed",
+      { error: "Network error" },
     );
 
     consoleErrorSpy.mockRestore();

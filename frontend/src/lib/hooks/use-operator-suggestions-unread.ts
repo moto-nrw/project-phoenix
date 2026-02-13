@@ -3,6 +3,9 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useShellAuth } from "~/lib/shell-auth-context";
 import { operatorSuggestionsService } from "~/lib/operator/suggestions-api";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "useOperatorSuggestionsUnread" });
 
 const CACHE_KEY = "operator_suggestions_unread_count";
 const CACHE_DURATION_MS = 60 * 1000; // 1 minute cache
@@ -92,7 +95,9 @@ export function useOperatorSuggestionsUnread() {
         setCachedCounts(unreadComments, unviewedPosts);
       } catch (error) {
         // Log error for debugging but don't crash
-        console.error("Failed to fetch operator unread counts:", error);
+        logger.error("operator_unread_count_fetch_failed", {
+          error: error instanceof Error ? error.message : String(error),
+        });
       } finally {
         isFetchingRef.current = false;
         setIsLoading(false);

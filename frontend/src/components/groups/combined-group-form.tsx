@@ -2,6 +2,9 @@
 
 import { useState, useEffect } from "react";
 import type { CombinedGroup } from "@/lib/api";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "CombinedGroupForm" });
 
 interface CombinedGroupFormProps {
   readonly initialData?: Partial<CombinedGroup>;
@@ -86,7 +89,9 @@ export default function CombinedGroupForm({
       // Call the provided submit function with form data
       await onSubmitAction(formData);
     } catch (err) {
-      console.error("Error submitting form:", err);
+      logger.error("failed to submit form", {
+        error: err instanceof Error ? err.message : String(err),
+      });
       setError(
         "Fehler beim Speichern der Gruppenkombination. Bitte versuchen Sie es später erneut.",
       );

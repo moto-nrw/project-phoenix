@@ -3,6 +3,9 @@ import type { NextRequest } from "next/server";
 import { apiGet, apiPut } from "~/lib/api-helpers";
 import { createGetHandler, createPutHandler } from "~/lib/route-wrapper";
 import { validatePinOrThrow } from "~/lib/pin";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "StaffPinRoute" });
 
 /**
  * Maps PIN update error messages to German user-friendly messages
@@ -89,15 +92,13 @@ function safeStringify(data: unknown): string {
 }
 
 /**
- * Logs a message only in non-production environments
+ * Logs a message at debug level (only emitted in non-production via log level config)
  */
 function logInDevelopment(message: string, data?: unknown): void {
-  if (process.env.NODE_ENV !== "production") {
-    if (data) {
-      console.log(message, safeStringify(data));
-    } else {
-      console.log(message);
-    }
+  if (data) {
+    logger.debug(message, { data: safeStringify(data) });
+  } else {
+    logger.debug(message);
   }
 }
 

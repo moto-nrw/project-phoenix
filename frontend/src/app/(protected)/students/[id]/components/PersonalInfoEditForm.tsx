@@ -88,10 +88,6 @@ export function PersonalInfoEditForm({
             { value: "Wird abgeholt", label: "Wird abgeholt" },
           ]}
         />
-        <SickToggle
-          isSick={editedStudent.sick ?? false}
-          onChange={(value) => updateField("sick", value)}
-        />
         <TextareaInput
           label="Gesundheitsinformationen"
           value={editedStudent.health_info ?? ""}
@@ -235,62 +231,6 @@ function TextareaInput({
   );
 }
 
-interface SickToggleProps {
-  readonly isSick: boolean;
-  readonly onChange: (value: boolean) => void;
-}
-
-function SickToggle({ isSick, onChange }: SickToggleProps) {
-  return (
-    <div
-      className={`rounded-lg border p-4 transition-colors ${
-        isSick ? "border-amber-200 bg-amber-50" : "border-gray-200 bg-gray-50"
-      }`}
-    >
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div
-            className={`flex h-9 w-9 items-center justify-center rounded-lg ${
-              isSick
-                ? "bg-amber-100 text-amber-600"
-                : "bg-gray-200 text-gray-500"
-            }`}
-          >
-            <WarningIcon />
-          </div>
-          <div>
-            <p
-              className={`text-sm font-medium ${
-                isSick ? "text-amber-900" : "text-gray-700"
-              }`}
-            >
-              Kind krankmelden
-            </p>
-            <p className="text-xs text-gray-500">
-              Wird beim nächsten Check-in zurückgesetzt
-            </p>
-          </div>
-        </div>
-        <button
-          type="button"
-          role="switch"
-          aria-checked={isSick}
-          onClick={() => onChange(!isSick)}
-          className={`relative inline-flex h-7 w-12 flex-shrink-0 items-center rounded-full transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 ${
-            isSick ? "bg-amber-500" : "bg-gray-300"
-          }`}
-        >
-          <span
-            className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-sm transition-transform duration-200 ${
-              isSick ? "translate-x-6" : "translate-x-1"
-            }`}
-          />
-        </button>
-      </div>
-    </div>
-  );
-}
-
 // Icons
 function PersonIcon() {
   return (
@@ -323,24 +263,6 @@ function ChevronDownIcon() {
         strokeLinejoin="round"
         strokeWidth={2}
         d="M19 9l-7 7-7-7"
-      />
-    </svg>
-  );
-}
-
-function WarningIcon() {
-  return (
-    <svg
-      className="h-5 w-5"
-      fill="none"
-      viewBox="0 0 24 24"
-      stroke="currentColor"
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth={2}
-        d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
       />
     </svg>
   );

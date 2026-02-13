@@ -10,7 +10,6 @@ import {
 // Mock next-auth/react
 vi.mock("next-auth/react", () => ({
   signOut: vi.fn(),
-  signIn: vi.fn(),
 }));
 
 // Mock auth-service
@@ -115,7 +114,9 @@ describe("auth-api", () => {
         const result = await refreshToken();
 
         expect(result).toBeNull();
-        expect(consoleSpy).toHaveBeenCalledWith("Token refresh failed:", 401);
+        expect(consoleSpy).toHaveBeenCalledWith("token refresh failed", {
+          status: 401,
+        });
       } finally {
         restore();
       }
@@ -133,10 +134,9 @@ describe("auth-api", () => {
         const result = await refreshToken();
 
         expect(result).toBeNull();
-        expect(consoleSpy).toHaveBeenCalledWith(
-          "Error refreshing token:",
-          networkError,
-        );
+        expect(consoleSpy).toHaveBeenCalledWith("error refreshing token", {
+          error: "Error: Network error",
+        });
       } finally {
         restore();
       }
@@ -152,7 +152,8 @@ describe("auth-api", () => {
 
         expect(result).toBeNull();
         expect(consoleSpy).toHaveBeenCalledWith(
-          "Token refresh attempted from server context",
+          "token refresh attempted from server context",
+          undefined,
         );
       } finally {
         restore();
@@ -273,13 +274,14 @@ describe("auth-api", () => {
         });
 
         const consoleSpy = vi
-          .spyOn(console, "log")
+          .spyOn(console, "debug")
           .mockImplementation(/* noop */ () => undefined);
         const result = await handleAuthFailure();
 
         expect(result).toBe(true);
         expect(consoleSpy).toHaveBeenCalledWith(
-          "Recently refreshed tokens, retrying request...",
+          "recently refreshed tokens, retrying request",
+          undefined,
         );
       } finally {
         restore();
@@ -312,24 +314,15 @@ describe("auth-api", () => {
           json: () => Promise.resolve(mockTokens),
         });
 
-        const { signIn } = await import("next-auth/react");
-        vi.mocked(signIn).mockResolvedValue({
-          ok: true,
-          error: undefined,
-          status: 200,
-          url: "",
-          code: undefined,
-        });
-
         const result = await handleAuthFailure();
 
         expect(result).toBe(true);
-        expect(signIn).toHaveBeenCalledWith("credentials", {
-          internalRefresh: "true",
-          token: "new-access-token",
-          refreshToken: "new-refresh-token",
-          redirect: false,
-        });
+        // After Fix 4: no signIn call — JWT callback already persisted tokens
+        // via auth() in /api/auth/token. Just verify sessionStorage was updated.
+        expect(setItemMock).toHaveBeenCalledWith(
+          "lastSuccessfulRefresh",
+          expect.any(String),
+        );
       } finally {
         restore();
       }
@@ -354,7 +347,7 @@ describe("auth-api", () => {
         vi.mocked(signOut).mockResolvedValue({ url: "/" });
 
         const consoleSpy = vi
-          .spyOn(console, "log")
+          .spyOn(console, "warn")
           .mockImplementation(/* noop */ () => undefined);
         vi.spyOn(console, "error").mockImplementation(
           /* noop */ () => undefined,
@@ -365,7 +358,8 @@ describe("auth-api", () => {
         expect(result).toBe(false);
         expect(signOut).toHaveBeenCalledWith({ redirect: false });
         expect(consoleSpy).toHaveBeenCalledWith(
-          "Token refresh failed, signing out",
+          "token refresh failed, signing out",
+          undefined,
         );
         expect(globalThis.window.location.href).toBe("/");
       } finally {
@@ -404,7 +398,7 @@ describe("auth-api", () => {
       }
     });
 
-    it("handles session update failure gracefully", async () => {
+    it("returns true without calling signIn after successful refresh", async () => {
       const restore = setupBrowserEnv();
       try {
         const mockTokens = {
@@ -412,7 +406,6 @@ describe("auth-api", () => {
           refresh_token: "new-refresh-token",
         };
 
-        // No recent refresh
         Object.defineProperty(globalThis, "sessionStorage", {
           value: {
             getItem: vi.fn().mockReturnValue(null),
@@ -427,25 +420,15 @@ describe("auth-api", () => {
           json: () => Promise.resolve(mockTokens),
         });
 
-        const { signIn } = await import("next-auth/react");
-        vi.mocked(signIn).mockResolvedValue({
-          ok: false,
-          error: "Session update failed",
-          status: 500,
-          url: "",
-          code: undefined,
-        });
-
-        const consoleSpy = vi
-          .spyOn(console, "error")
-          .mockImplementation(/* noop */ () => undefined);
         const result = await handleAuthFailure();
 
-        // Should still return true to retry, even if session update failed
+        // After Fix 4: signIn is never called — JWT callback already
+        // persisted tokens via the auth() call in /api/auth/token
         expect(result).toBe(true);
-        expect(consoleSpy).toHaveBeenCalledWith(
-          "Failed to update session with new tokens:",
-          "Session update failed",
+        // Verify fetch was called (to /api/auth/token)
+        expect(global.fetch).toHaveBeenCalledWith(
+          "/api/auth/token",
+          expect.any(Object),
         );
       } finally {
         restore();

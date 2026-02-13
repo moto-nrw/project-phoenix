@@ -50,6 +50,34 @@ func (r *StudentRepository) FindByPersonID(ctx context.Context, personID int64) 
 	return student, nil
 }
 
+// FindByIDs retrieves multiple students by their IDs in a single query
+func (r *StudentRepository) FindByIDs(ctx context.Context, ids []int64) (map[int64]*users.Student, error) {
+	if len(ids) == 0 {
+		return make(map[int64]*users.Student), nil
+	}
+
+	var students []*users.Student
+	err := r.db.NewSelect().
+		Model(&students).
+		ModelTableExpr(`users.students AS "student"`).
+		Where(`"student".id IN (?)`, bun.In(ids)).
+		Scan(ctx)
+
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find by IDs",
+			Err: err,
+		}
+	}
+
+	result := make(map[int64]*users.Student, len(students))
+	for _, student := range students {
+		result[student.ID] = student
+	}
+
+	return result, nil
+}
+
 // FindByGroupID retrieves students by their group ID
 func (r *StudentRepository) FindByGroupID(ctx context.Context, groupID int64) ([]*users.Student, error) {
 	var students []*users.Student
@@ -267,6 +295,40 @@ func (r *StudentRepository) CountWithOptions(ctx context.Context, options *model
 	}
 
 	return count, nil
+}
+
+// CountByGroupIDs counts students per group for multiple groups in a single query
+func (r *StudentRepository) CountByGroupIDs(ctx context.Context, groupIDs []int64) (map[int64]int, error) {
+	if len(groupIDs) == 0 {
+		return make(map[int64]int), nil
+	}
+
+	type countResult struct {
+		GroupID int64 `bun:"group_id"`
+		Count   int   `bun:"count"`
+	}
+
+	var results []countResult
+	err := r.db.NewSelect().
+		TableExpr("users.students").
+		ColumnExpr("group_id").
+		ColumnExpr("COUNT(*) AS count").
+		Where("group_id IN (?)", bun.In(groupIDs)).
+		GroupExpr("group_id").
+		Scan(ctx, &results)
+
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "count by group IDs",
+			Err: err,
+		}
+	}
+
+	counts := make(map[int64]int, len(results))
+	for _, r := range results {
+		counts[r.GroupID] = r.Count
+	}
+	return counts, nil
 }
 
 // FindWithPerson retrieves a student with their associated person data

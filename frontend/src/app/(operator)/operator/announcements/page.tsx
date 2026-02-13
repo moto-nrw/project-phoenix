@@ -32,6 +32,9 @@ import type {
 } from "~/lib/operator/announcements-helpers";
 import { AnnouncementViewsAccordion } from "~/components/operator/announcement-views-accordion";
 import { getRelativeTime } from "~/lib/format-utils";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "OperatorAnnouncementsPage" });
 
 interface FormData {
   title: string;
@@ -155,7 +158,9 @@ export default function OperatorAnnouncementsPage() {
         setEditTarget(null);
         await mutate();
       } catch (error) {
-        console.error("Failed to save announcement:", error);
+        logger.error("announcement_save_failed", {
+          error: error instanceof Error ? error.message : String(error),
+        });
       } finally {
         setIsSaving(false);
       }
@@ -171,7 +176,9 @@ export default function OperatorAnnouncementsPage() {
       setDeleteTarget(null);
       await mutate();
     } catch (error) {
-      console.error("Failed to delete announcement:", error);
+      logger.error("announcement_delete_failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
     } finally {
       setIsDeleting(false);
     }
@@ -185,7 +192,9 @@ export default function OperatorAnnouncementsPage() {
       setPublishTarget(null);
       await mutate();
     } catch (error) {
-      console.error("Failed to publish announcement:", error);
+      logger.error("announcement_publish_failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
     } finally {
       setIsPublishing(false);
     }
@@ -646,7 +655,17 @@ function AnnouncementCard({
   readonly onPublish: (a: Announcement) => void;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+  const [isClamped, setIsClamped] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLParagraphElement>(null);
+
+  useEffect(() => {
+    const el = contentRef.current;
+    if (el) {
+      setIsClamped(el.scrollHeight > el.clientHeight);
+    }
+  }, [announcement.content]);
 
   // Close menu on click outside
   useEffect(() => {
@@ -758,9 +777,21 @@ function AnnouncementCard({
       )}
 
       {/* Content preview */}
-      <p className="mt-2 line-clamp-2 text-sm text-gray-600">
+      <p
+        ref={contentRef}
+        className={`mt-2 text-sm text-gray-600 ${expanded ? "" : "line-clamp-2"}`}
+      >
         {announcement.content}
       </p>
+      {(isClamped || expanded) && (
+        <button
+          type="button"
+          onClick={() => setExpanded((prev) => !prev)}
+          className="mt-1 text-xs font-medium text-gray-500 transition-colors hover:text-gray-700"
+        >
+          {expanded ? "Weniger anzeigen" : "Mehr anzeigen"}
+        </button>
+      )}
 
       {/* Footer with publish button for drafts */}
       {announcement.status === "draft" && (

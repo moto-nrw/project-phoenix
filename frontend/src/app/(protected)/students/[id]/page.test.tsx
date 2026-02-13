@@ -192,9 +192,8 @@ vi.mock("~/components/students/personal-info-form-modal", () => ({
   },
 }));
 
-// Track whether checkout/checkin sections should be shown
-let showCheckoutSection = false;
-let showCheckinSection = false;
+// Track which action type getStudentActionType returns
+let mockActionType: "checkout" | "checkin" | "none" = "none";
 
 // Mock checkout section
 vi.mock("~/components/students/student-checkout-section", () => ({
@@ -220,7 +219,27 @@ vi.mock("~/components/students/student-checkout-section", () => ({
       </button>
     </div>
   ),
-  getStudentActionType: vi.fn(() => (showCheckinSection ? "checkin" : "none")),
+  StudentSickReportSection: ({
+    isSick,
+    onToggle,
+    isLoading,
+  }: {
+    isSick: boolean;
+    sickSince?: string;
+    onToggle: () => void;
+    isLoading: boolean;
+  }) => (
+    <div data-testid="sick-report-section">
+      <button
+        data-testid="sick-toggle-button"
+        onClick={onToggle}
+        disabled={isLoading}
+      >
+        {isSick ? "Gesund melden" : "Krank melden"}
+      </button>
+    </div>
+  ),
+  getStudentActionType: vi.fn(() => mockActionType),
 }));
 
 // Mock guardian manager
@@ -319,7 +338,6 @@ const mockUseStudentData = vi.fn();
 vi.mock("~/lib/hooks/use-student-data", () => ({
   useStudentData: (studentId: string): MockStudentDataResult =>
     mockUseStudentData(studentId) as MockStudentDataResult,
-  shouldShowCheckoutSection: vi.fn(() => showCheckoutSection),
 }));
 
 // Mock active service
@@ -395,8 +413,7 @@ describe("StudentDetailPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockSearchParams.delete("from");
-    showCheckoutSection = false;
-    showCheckinSection = false;
+    mockActionType = "none";
 
     // Default mock implementations
     mockUseStudentData.mockReturnValue({
@@ -660,7 +677,7 @@ describe("StudentDetailPage", () => {
 
   describe("Checkout Functionality", () => {
     beforeEach(() => {
-      showCheckoutSection = true;
+      mockActionType = "checkout";
     });
 
     it("shows checkout modal when checkout button is clicked", async () => {
@@ -743,7 +760,7 @@ describe("StudentDetailPage", () => {
 
   describe("Checkin Functionality", () => {
     beforeEach(() => {
-      showCheckinSection = true;
+      mockActionType = "checkin";
       // Mock student at home
       mockUseStudentData.mockReturnValue({
         student: mockStudentAtHome,
@@ -926,6 +943,231 @@ describe("StudentDetailPage", () => {
       await waitFor(() => {
         expect(mockRefreshData).toHaveBeenCalled();
       });
+    });
+  });
+
+  describe("Sick Report Functionality", () => {
+    it("renders sick report section in full access view", () => {
+      render(<StudentDetailPage />);
+
+      expect(screen.getByTestId("sick-report-section")).toBeInTheDocument();
+      expect(screen.getByTestId("sick-toggle-button")).toHaveTextContent(
+        "Krank melden",
+      );
+    });
+
+    it("shows sick confirmation modal when sick button is clicked", async () => {
+      render(<StudentDetailPage />);
+
+      const sickButton = screen.getByTestId("sick-toggle-button");
+      fireEvent.click(sickButton);
+
+      await waitFor(() => {
+        expect(
+          screen.getByTestId("modal-kind-krankmelden"),
+        ).toBeInTheDocument();
+      });
+    });
+
+    it("performs sick toggle successfully", async () => {
+      mockUpdateStudent.mockResolvedValue({});
+
+      render(<StudentDetailPage />);
+
+      const sickButton = screen.getByTestId("sick-toggle-button");
+      fireEvent.click(sickButton);
+
+      await waitFor(() => {
+        expect(
+          screen.getByTestId("modal-kind-krankmelden"),
+        ).toBeInTheDocument();
+      });
+
+      const confirmButton = screen.getByTestId("modal-confirm");
+      await act(async () => {
+        fireEvent.click(confirmButton);
+      });
+
+      await waitFor(() => {
+        expect(mockUpdateStudent).toHaveBeenCalledWith("1", {
+          sick: true,
+          bus: false,
+        });
+        expect(mockRefreshData).toHaveBeenCalled();
+        expect(mockToastSuccess).toHaveBeenCalled();
+      });
+    });
+
+    it("preserves bus flag when toggling sick status", async () => {
+      mockUpdateStudent.mockResolvedValue({});
+
+      // Student with buskind = true
+      mockUseStudentData.mockReturnValue({
+        student: { ...mockStudent, buskind: true },
+        loading: false,
+        error: null,
+        hasFullAccess: true,
+        supervisors: [],
+        myGroups: ["1"],
+        myGroupRooms: [],
+        mySupervisedRooms: [],
+        refreshData: mockRefreshData,
+      });
+
+      render(<StudentDetailPage />);
+
+      const sickButton = screen.getByTestId("sick-toggle-button");
+      fireEvent.click(sickButton);
+
+      await waitFor(() => {
+        expect(
+          screen.getByTestId("modal-kind-krankmelden"),
+        ).toBeInTheDocument();
+      });
+
+      const confirmButton = screen.getByTestId("modal-confirm");
+      await act(async () => {
+        fireEvent.click(confirmButton);
+      });
+
+      await waitFor(() => {
+        expect(mockUpdateStudent).toHaveBeenCalledWith("1", {
+          sick: true,
+          bus: true,
+        });
+      });
+    });
+
+    it("shows error toast when sick toggle fails", async () => {
+      mockUpdateStudent.mockRejectedValue(new Error("Toggle failed"));
+
+      render(<StudentDetailPage />);
+
+      const sickButton = screen.getByTestId("sick-toggle-button");
+      fireEvent.click(sickButton);
+
+      await waitFor(() => {
+        expect(
+          screen.getByTestId("modal-kind-krankmelden"),
+        ).toBeInTheDocument();
+      });
+
+      const confirmButton = screen.getByTestId("modal-confirm");
+      await act(async () => {
+        fireEvent.click(confirmButton);
+      });
+
+      await waitFor(() => {
+        expect(mockToastError).toHaveBeenCalled();
+      });
+    });
+
+    it("shows healthy-toggle modal when student is already sick", async () => {
+      mockUseStudentData.mockReturnValue({
+        student: { ...mockStudent, sick: true },
+        loading: false,
+        error: null,
+        hasFullAccess: true,
+        supervisors: [],
+        myGroups: ["1"],
+        myGroupRooms: [],
+        mySupervisedRooms: [],
+        refreshData: mockRefreshData,
+      });
+
+      render(<StudentDetailPage />);
+
+      const sickButton = screen.getByTestId("sick-toggle-button");
+      expect(sickButton).toHaveTextContent("Gesund melden");
+      fireEvent.click(sickButton);
+
+      await waitFor(() => {
+        expect(
+          screen.getByTestId("modal-krankmeldung-aufheben"),
+        ).toBeInTheDocument();
+      });
+    });
+
+    it("closes sick modal when cancel is clicked", async () => {
+      render(<StudentDetailPage />);
+
+      const sickButton = screen.getByTestId("sick-toggle-button");
+      fireEvent.click(sickButton);
+
+      await waitFor(() => {
+        expect(
+          screen.getByTestId("modal-kind-krankmelden"),
+        ).toBeInTheDocument();
+      });
+
+      const cancelButton = screen.getByTestId("modal-cancel");
+      fireEvent.click(cancelButton);
+
+      await waitFor(() => {
+        expect(
+          screen.queryByTestId("modal-kind-krankmelden"),
+        ).not.toBeInTheDocument();
+      });
+    });
+
+    it("does not show sick report in limited access view", () => {
+      mockUseStudentData.mockReturnValue({
+        student: mockStudent,
+        loading: false,
+        error: null,
+        hasFullAccess: false,
+        supervisors: [{ name: "Frau Schmidt" }],
+        myGroups: ["1"],
+        myGroupRooms: [],
+        mySupervisedRooms: [],
+        refreshData: mockRefreshData,
+      });
+
+      render(<StudentDetailPage />);
+
+      expect(
+        screen.queryByTestId("sick-report-section"),
+      ).not.toBeInTheDocument();
+    });
+  });
+
+  describe("Action Card Visibility", () => {
+    it("hides checkout and checkin when action type is none", () => {
+      mockActionType = "none";
+
+      render(<StudentDetailPage />);
+
+      expect(screen.queryByTestId("checkout-section")).not.toBeInTheDocument();
+      expect(screen.queryByTestId("checkin-section")).not.toBeInTheDocument();
+    });
+
+    it("shows checkout section when action type is checkout", () => {
+      mockActionType = "checkout";
+
+      render(<StudentDetailPage />);
+
+      expect(screen.getByTestId("checkout-section")).toBeInTheDocument();
+      expect(screen.queryByTestId("checkin-section")).not.toBeInTheDocument();
+    });
+
+    it("shows checkin section when action type is checkin", () => {
+      mockActionType = "checkin";
+      mockUseStudentData.mockReturnValue({
+        student: mockStudentAtHome,
+        loading: false,
+        error: null,
+        hasFullAccess: true,
+        supervisors: [],
+        myGroups: ["1"],
+        myGroupRooms: [],
+        mySupervisedRooms: [],
+        refreshData: mockRefreshData,
+      });
+
+      render(<StudentDetailPage />);
+
+      expect(screen.getByTestId("checkin-section")).toBeInTheDocument();
+      expect(screen.queryByTestId("checkout-section")).not.toBeInTheDocument();
     });
   });
 });

@@ -1,5 +1,8 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { getServerApiUrl } from "~/lib/server-api-url";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "PasswordResetConfirmRoute" });
 
 interface PasswordResetConfirmRequest {
   token: string;
@@ -41,10 +44,12 @@ export async function POST(request: NextRequest) {
           }
         }
       } catch (parseError) {
-        console.warn(
-          "Failed to parse password reset confirm error response",
-          parseError,
-        );
+        logger.warn("failed to parse password reset confirm error response", {
+          error:
+            parseError instanceof Error
+              ? parseError.message
+              : String(parseError),
+        });
       }
 
       return NextResponse.json({ error: message }, { status: response.status });
@@ -53,7 +58,9 @@ export async function POST(request: NextRequest) {
     const data = (await response.json()) as PasswordResetConfirmResponse;
     return NextResponse.json(data);
   } catch (error: unknown) {
-    console.error("Password reset confirm route error:", error);
+    logger.error("password reset confirm failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
     return NextResponse.json(
       { error: "Internal Server Error" },
       { status: 500 },

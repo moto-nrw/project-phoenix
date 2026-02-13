@@ -40,8 +40,8 @@ func init() {
 
 	viper.SetDefault("login_url", "http://localhost:8080/login")
 	viper.SetDefault("auth_jwt_secret", "random")
-	viper.SetDefault("auth_jwt_expiry", "15m")
-	viper.SetDefault("auth_jwt_refresh_expiry", "1h")
+	viper.SetDefault("auth_jwt_expiry", "1h")
+	viper.SetDefault("auth_jwt_refresh_expiry", "168h")
 
 	// Cobra supports Persistent Flags which will work for this command
 	// and all subcommands, e.g.:

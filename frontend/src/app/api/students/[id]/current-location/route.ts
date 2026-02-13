@@ -2,6 +2,9 @@
 import type { NextRequest } from "next/server";
 import { createGetHandler } from "~/lib/route-wrapper";
 import { apiGet } from "~/lib/api-client";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "StudentLocationRoute" });
 import type { BackendStudent } from "~/lib/student-helpers";
 import {
   LOCATION_STATUSES,
@@ -151,7 +154,10 @@ async function fetchStudentAndGroup(
       );
       groupRoomId = groupResponse.data.data.room_id;
     } catch (e) {
-      console.error("Error fetching group room ID:", e);
+      logger.error("failed to fetch group room ID", {
+        student_id: studentId,
+        error: e instanceof Error ? e.message : String(e),
+      });
     }
   }
 
@@ -248,7 +254,11 @@ async function tryGetStudentRoomStatus(
       check_in_time: status.check_in_time,
     };
   } catch (error) {
-    console.error("Error fetching room status (likely permissions):", error);
+    logger.error("failed to fetch room status (likely permissions)", {
+      group_id: groupId,
+      student_id: studentId,
+      error: error instanceof Error ? error.message : String(error),
+    });
     return null;
   }
 }
@@ -289,7 +299,10 @@ async function buildPresentLocationWithRoom(
       };
     }
   } catch (e) {
-    console.error("Error fetching room details:", e);
+    logger.error("failed to fetch room details", {
+      room_id: roomStatus.current_room_id,
+      error: e instanceof Error ? e.message : String(e),
+    });
   }
 
   // Fallback: room exists but couldn't fetch details
@@ -327,7 +340,9 @@ function buildTransitLocationResponse(
 
 // Handles location fetch errors and returns unknown response
 function handleLocationFetchError(error: unknown): LocationResponse {
-  console.error("Error fetching student current location:", error);
+  logger.error("failed to fetch student current location", {
+    error: error instanceof Error ? error.message : String(error),
+  });
 
   const errorCode = mapAxiosErrorToCode(error);
 

@@ -1,4 +1,7 @@
 import imageCompression from "browser-image-compression";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "ImageUtils" });
 
 /**
  * Compress avatar image before upload
@@ -37,7 +40,9 @@ export async function compressAvatar(file: File): Promise<File> {
 
     return compressedFile;
   } catch (error) {
-    console.error("Avatar compression failed, using original:", error);
+    logger.error("avatar compression failed, using original", {
+      error: String(error),
+    });
     // Fallback to original file if compression fails
     return file;
   }

@@ -14,6 +14,9 @@ import {
   formatDuration,
 } from "~/lib/date-helpers";
 import { formatFloor } from "~/lib/room-helpers";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "RoomDetailPage" });
 
 // Room interface
 interface Room {
@@ -250,7 +253,9 @@ export default function RoomDetailPage() {
           setRoomHistory(frontendHistoryEntries);
         }
       } catch (err) {
-        console.error("Error fetching data:", err);
+        logger.error("failed to fetch room data", {
+          error: err instanceof Error ? err.message : String(err),
+        });
         setError("Fehler beim Laden der Raumdaten.");
       } finally {
         setLoading(false);

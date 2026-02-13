@@ -1,92 +1,90 @@
+# Project Phoenix -- Backend
 
-# Go Restful API Boilerplate
+GDPR-compliant RFID student attendance and room management system for educational institutions.
 
-[![GoDoc Badge]][godoc] [![GoReportCard Badge]][goreportcard]
+## Tech Stack
 
-Easily extendible RESTful API boilerplate aiming to follow idiomatic go and best practice.
+| Component | Version / Library |
+|-----------|-------------------|
+| Language | Go 1.25+ |
+| Router | chi/v5 |
+| ORM | bun (pgdialect, pgdriver) |
+| Database | PostgreSQL 17+ (multi-schema, SSL) |
+| Auth | JWT via lestrrat-go/jwx/v2, chi/jwtauth |
+| Config | Viper + Cobra CLI |
+| Logging | log/slog (stdlib) |
+| Email | go-mail |
+| Real-time | Server-Sent Events (SSE) |
+| Excel | excelize/v2 |
+| Validation | ozzo-validation |
 
-The goal of this boiler is to have a solid and structured foundation to build upon on.
+## Architecture
 
-Any feedback and pull requests are welcome and highly appreciated. Feel free to open issues just for comments and discussions.
+```
+Handler -> Service -> Repository -> Database
+```
 
-## Features
+| Layer | Path | Responsibility |
+|-------|------|----------------|
+| Handlers | `api/{domain}/` | HTTP adapters (thin, no business logic) |
+| Services | `services/{domain}/` | Business logic, orchestration, transactions |
+| Repositories | `database/repositories/{domain}/` | Data access (Bun ORM) |
+| Models | `models/{domain}/` | Domain entities, shared across layers |
 
-The following feature set is a minimal selection of typical Web API requirements:
+Factory pattern for dependency injection:
+`repositories.NewFactory(db)` -> `services.NewFactory(repoFactory, db, logger)`
 
-- Configuration using [viper](https://github.com/spf13/viper)
-- CLI features using [cobra](https://github.com/spf13/cobra)
-- PostgreSQL support including migrations using [bun](https://github.com/uptrace/bun)
-- Structured logging with [Logrus](https://github.com/sirupsen/logrus)
-- Routing with [chi router](https://github.com/go-chi/chi) and middleware, following [chi rest example](https://github.com/go-chi/chi/tree/master/_examples/rest)
-- JWT Authentication using [lestrrat-go/jwx](https://github.com/lestrrat-go/jwx) with username/password authentication
-- Request data validation using [ozzo-validation](https://github.com/go-ozzo/ozzo-validation)
-- HTML emails with [go-mail](https://github.com/go-mail/mail)
+## CLI Commands
 
-## Start Application
+```bash
+go run main.go serve                # Start HTTP server
+go run main.go migrate              # Run pending migrations
+go run main.go migrate reset        # Drop and recreate all tables
+go run main.go migrate status       # Show migration status
+go run main.go migrate validate     # Validate migration dependencies
+go run main.go seed                 # Seed database with test data
+go run main.go seed --api           # Seed via API calls (smaller demo dataset)
+go run main.go cleanup visits       # Delete expired visit records (GDPR)
+go run main.go cleanup preview      # Dry-run cleanup
+go run main.go cleanup stats        # Data retention statistics
+go run main.go gendoc               # Generate route docs and OpenAPI spec
+go run main.go simulate             # Run IoT device simulator
+```
 
-- Clone and change into this repository
+## Setup
 
-### Local
+1. Copy and edit the environment file:
+   ```bash
+   cp dev.env.example dev.env
+   ```
+2. Start PostgreSQL (or use Docker Compose from the project root).
+3. Run migrations and start the server:
+   ```bash
+   go run main.go migrate
+   go run main.go serve
+   ```
 
-- Create a postgres database and adjust environment variables in dev.env
-- Run the application to see available commands: `go run main.go`
-- Run all migrations from database/migrate folder: `go run main.go migrate`
-- Run the application with command _serve_: `go run main.go serve`
+See `dev.env.example` for all available environment variables (database, auth, SMTP, rate limiting, scheduled tasks).
 
-### Using Docker Compose
+## Testing
 
-- First start the database only: `docker compose up -d postgres`
-- Once initialize the database by running all migrations in database/migrate folder: `docker compose run server ./main migrate`
-- Start the api server: `docker compose up`
+```bash
+go test ./...                              # Run all tests
+go test -v ./api/auth                      # Specific package, verbose
+go test -race ./...                        # With race detection
+APP_ENV=test go run main.go migrate reset  # Reset test DB (port 5433)
+```
 
-### Environment Variables
+Tests use a real PostgreSQL test database (port 5433) with hermetic fixtures. See `test/helpers.go` and `test/fixtures.go`.
 
-By default viper will look at dev.env for a config file. It contains the applications defaults if no environment variables are set otherwise.
+## Docker
 
-## API Routes
+```bash
+# Production build (multi-stage, non-root)
+docker build -f Dockerfile -t phoenix-backend .
 
-### Authentication
+# Development with hot reload (air)
+docker build -f Dockerfile.dev -t phoenix-backend-dev .
+```
 
-The application uses username/password authentication with the following routes:
-
-| Path                  | Method | Required JSON                           | Header                                | Description                                     |
-| --------------------- | ------ | --------------------------------------- | ------------------------------------- | ----------------------------------------------- |
-| /auth/login           | POST   | email, password                         |                                       | Login with email and password                   |
-| /auth/register        | POST   | email, name, password, confirm_password |                                       | Register a new account                          |
-| /auth/change-password | POST   | current_password, new_password, confirm_password | Authorization: "Bearer access_token" | Change password (must be authenticated)        |
-| /auth/refresh         | POST   |                                         | Authorization: "Bearer refresh_token" | Refresh JWTs                                    |
-| /auth/logout          | POST   |                                         | Authorization: "Bearer refresh_token" | Logout from this device                         |
-
-Passwords must meet complexity requirements: minimum 8 characters, uppercase, lowercase, numbers, and special characters.
-
-### Example API
-
-The example api follows the patterns from the [chi rest example](https://github.com/go-chi/chi/tree/master/_examples/rest). Besides _/auth_ routes the API provides two main routes for _/api_ and _/admin_ requests, the latter requires to be logged in as administrator by providing the respective JWT in Authorization Header.
-
-Check [routes.md](routes.md) for a generated overview of the provided API routes.
-
-### Testing
-
-Package auth/userpass contains example api tests using a mocked database. Run them with: `go test -v ./...`
-
-### Client API Access and CORS
-
-The server is configured to serve a Progressive Web App (PWA) client from _./public_ folder (this repo only serves an example index.html, see below for a demo PWA client to put here). In this case enabling CORS is not required, because the client is served from the same host as the api.
-
-If you want to access the api from a client that is served from a different host, including e.g. a development live reloading server with below demo client, you must enable CORS on the server first by setting environment variable _ENABLE_CORS=true_ on the server to allow api connections from clients served by other hosts.
-
-#### Demo client application
-
-A deployed version can also be found at [go-base.onrender.com](https://go-base.onrender.com) (takes up to 60 seconds to spin up if sleeping...)
-
-For demonstration of the login and account management features this API serves a demo [Vue.js](https://vuejs.org) PWA. The client's source code can be found [here](https://github.com/moto-nrw/project-phoenix-vue). Build and put it into the api's _./public_ folder, or use the live development server (requires ENABLE_CORS environment variable set to true).
-
-Use one of the following bootstrapped users for login:
-
-- <admin@example.com> (has access to admin panel)
-- <user@example.com>
-
-[godoc]: https://godoc.org/github.com/moto-nrw/project-phoenix
-[godoc badge]: https://godoc.org/github.com/moto-nrw/project-phoenix?status.svg
-[goreportcard]: https://goreportcard.com/report/github.com/moto-nrw/project-phoenix
-[goreportcard badge]: https://goreportcard.com/badge/github.com/moto-nrw/project-phoenix
+See the [root README](../README.md) for full Docker Compose setup.

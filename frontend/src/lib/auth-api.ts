@@ -2,6 +2,9 @@
 import { signOut } from "next-auth/react";
 // Import with alias for internal use
 import { authService as internalAuthService } from "./auth-service";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "AuthAPI" });
 
 // Singleton to manage token refresh and prevent concurrent refreshes
 class TokenRefreshManager {
@@ -16,8 +19,8 @@ class TokenRefreshManager {
   } | null> {
     // If a refresh is already in progress, return the existing promise
     if (this.refreshPromise) {
-      console.log(
-        "Token refresh already in progress, waiting for existing refresh",
+      logger.debug(
+        "token refresh already in progress, waiting for existing refresh",
       );
       return this.refreshPromise;
     }
@@ -41,7 +44,7 @@ class TokenRefreshManager {
     try {
       // Check if we're in a browser context
       if (globalThis.window === undefined) {
-        console.error("Token refresh attempted from server context");
+        logger.error("token refresh attempted from server context");
         return null;
       }
 
@@ -54,7 +57,7 @@ class TokenRefreshManager {
       });
 
       if (!response.ok) {
-        console.error("Token refresh failed:", response.status);
+        logger.error("token refresh failed", { status: response.status });
         return null;
       }
 
@@ -64,7 +67,7 @@ class TokenRefreshManager {
       };
       return data;
     } catch (error) {
-      console.error("Error refreshing token:", error);
+      logger.error("error refreshing token", { error: String(error) });
       return null;
     }
   }
@@ -97,10 +100,9 @@ export async function handleAuthFailure(): Promise<boolean> {
       const refreshed = await refreshSessionTokensOnServer();
       return Boolean(refreshed?.accessToken);
     } catch (serverError) {
-      console.error(
-        "Auth failure in server context - refresh attempt failed",
-        serverError,
-      );
+      logger.error("auth failure in server context, refresh attempt failed", {
+        error: String(serverError),
+      });
       return false;
     }
   }
@@ -119,7 +121,7 @@ export async function handleAuthFailure(): Promise<boolean> {
 
       // If we refreshed less than 5 seconds ago, just retry the request
       if (timeSinceRefresh < 5000) {
-        console.log("Recently refreshed tokens, retrying request...");
+        logger.debug("recently refreshed tokens, retrying request");
         return true;
       }
     }
@@ -128,41 +130,17 @@ export async function handleAuthFailure(): Promise<boolean> {
     const newTokens = await refreshToken();
 
     if (newTokens) {
-      // Token refresh successful
-
-      // Mark the time of successful refresh
+      // Token refresh successful. The /api/auth/token route called auth()
+      // which refreshed tokens via the JWT callback and cached them in
+      // refreshCache (module-level, 5-min TTL). The cookie is NOT updated
+      // here — callers must trigger getSession() (e.g. Axios interceptor,
+      // SessionProvider refetchInterval) to persist via Set-Cookie.
       sessionStorage.setItem("lastSuccessfulRefresh", Date.now().toString());
-
-      // IMPORTANT: Update the NextAuth session with new tokens
-      try {
-        // Use signIn with internalRefresh to update the session
-        const { signIn } = await import("next-auth/react");
-
-        const result = await signIn("credentials", {
-          internalRefresh: "true",
-          token: newTokens.access_token,
-          refreshToken: newTokens.refresh_token,
-          redirect: false,
-        });
-
-        if (result?.ok) {
-          console.log("Session updated with new tokens");
-        } else {
-          console.error(
-            "Failed to update session with new tokens:",
-            result?.error,
-          );
-        }
-      } catch (sessionError) {
-        console.error("Error updating session:", sessionError);
-      }
-
-      // Return true to retry the original request regardless of session update
       return true;
     }
 
     // If refresh failed, sign out
-    console.log("Token refresh failed, signing out");
+    logger.warn("token refresh failed, signing out");
     await signOut({ redirect: false });
 
     // Redirect to home page (login)
@@ -170,7 +148,7 @@ export async function handleAuthFailure(): Promise<boolean> {
 
     return false;
   } catch (error) {
-    console.error("Auth failure handling error:", error);
+    logger.error("auth failure handling error", { error: String(error) });
     if (globalThis.window !== undefined) {
       await signOut({ redirect: false });
     }
@@ -220,7 +198,9 @@ async function buildApiError(
       }
     }
   } catch (parseError) {
-    console.warn("Failed to parse error response", parseError);
+    logger.warn("failed to parse error response", {
+      error: String(parseError),
+    });
   }
 
   const apiError = new Error(message) as ApiError;
@@ -260,7 +240,7 @@ export async function requestPasswordReset(
 
     return (await response.json()) as { message: string };
   } catch (error) {
-    console.error("Password reset request error:", error);
+    logger.error("password reset request error", { error: String(error) });
     throw error;
   }
 }
@@ -283,7 +263,7 @@ export async function confirmPasswordReset(
       confirmPassword,
     });
   } catch (error) {
-    console.error("Password reset confirmation error:", error);
+    logger.error("password reset confirmation error", { error: String(error) });
     throw error;
   }
 }

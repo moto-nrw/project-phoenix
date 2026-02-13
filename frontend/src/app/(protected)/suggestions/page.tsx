@@ -17,6 +17,9 @@ import { fetchSuggestions, deleteSuggestion } from "~/lib/suggestions-api";
 import { useToast } from "~/contexts/ToastContext";
 import { STATUS_LABELS } from "~/lib/suggestions-helpers";
 import type { Suggestion, SortOption } from "~/lib/suggestions-helpers";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "SuggestionsPage" });
 
 function SuggestionsPageContent() {
   const router = useRouter();
@@ -111,7 +114,11 @@ function SuggestionsPageContent() {
       toastSuccess("Beitrag wurde gelöscht.");
       setDeleteTarget(null);
       mutate().catch(() => undefined);
-    } catch {
+    } catch (err) {
+      logger.error("delete_suggestion_failed", {
+        error: err instanceof Error ? err.message : String(err),
+        suggestion_id: deleteTarget.id,
+      });
       toastError("Fehler beim Löschen des Beitrags.");
     } finally {
       setIsDeleting(false);

@@ -12,6 +12,9 @@ import type { OperatorSuggestionStatus } from "~/lib/operator/suggestions-helper
 import { ConfirmationModal } from "~/components/ui/modal";
 import { Skeleton } from "~/components/ui/skeleton";
 import { getRelativeTime } from "~/lib/format-utils";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "OperatorSuggestionDetailPage" });
 
 export default function OperatorSuggestionDetailPage() {
   const params = useParams();
@@ -51,7 +54,9 @@ export default function OperatorSuggestionDetailPage() {
           { revalidate: false },
         );
       } catch (error) {
-        console.error("Failed to update status:", error);
+        logger.error("suggestion_status_update_failed", {
+          error: error instanceof Error ? error.message : String(error),
+        });
       } finally {
         setStatusUpdating(false);
       }
@@ -72,7 +77,9 @@ export default function OperatorSuggestionDetailPage() {
         setCommentText("");
         await mutate();
       } catch (error) {
-        console.error("Failed to add comment:", error);
+        logger.error("comment_add_failed", {
+          error: error instanceof Error ? error.message : String(error),
+        });
       } finally {
         setIsSubmitting(false);
       }
@@ -91,7 +98,9 @@ export default function OperatorSuggestionDetailPage() {
       setDeleteCommentId(null);
       await mutate();
     } catch (error) {
-      console.error("Failed to delete comment:", error);
+      logger.error("comment_delete_failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
     } finally {
       setIsDeletingComment(false);
     }

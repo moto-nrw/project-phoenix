@@ -4,6 +4,9 @@ import type {
   DashboardAnalyticsResponse,
 } from "./dashboard-helpers";
 import { mapDashboardAnalyticsResponse } from "./dashboard-helpers";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "DashboardAPI" });
 
 /**
  * Fetches dashboard analytics data from the backend
@@ -22,7 +25,9 @@ export async function fetchDashboardAnalytics(
     // The response is wrapped in a data property by common.Respond
     return mapDashboardAnalyticsResponse(response.data);
   } catch (error) {
-    console.error("Error fetching dashboard analytics:", error);
+    logger.error("failed to fetch dashboard analytics", {
+      error: String(error),
+    });
     // Re-throw the original error to preserve the 401 status
     throw error;
   }

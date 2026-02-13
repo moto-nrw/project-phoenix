@@ -1,6 +1,9 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { auth } from "~/server/auth";
 import { getServerApiUrl } from "~/lib/server-api-url";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "AuthAccountRoute" });
 
 export async function GET(_request: NextRequest) {
   try {
@@ -28,7 +31,9 @@ export async function GET(_request: NextRequest) {
     const data: unknown = await response.json();
     return NextResponse.json(data);
   } catch (error) {
-    console.error("Get account route error:", error);
+    logger.error("get account failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
     return NextResponse.json(
       { error: "Internal Server Error" },
       { status: 500 },

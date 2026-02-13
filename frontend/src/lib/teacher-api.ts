@@ -1,6 +1,9 @@
 // This file contains the Teacher API service and related types
 
 import { sessionFetch } from "./session-cache";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "TeacherAPI" });
 import type { Activity } from "./activity-helpers";
 
 /**
@@ -153,11 +156,11 @@ class TeacherService {
       ) {
         return data.data;
       } else {
-        console.error("Unexpected response format:", data);
+        logger.error("unexpected response format for teachers");
         return [];
       }
     } catch (error) {
-      console.error("Error fetching teachers:", error);
+      logger.error("error fetching teachers", { error: String(error) });
       throw error;
     }
   }
@@ -184,7 +187,10 @@ class TeacherService {
       // Direct teacher object
       return data;
     } catch (error) {
-      console.error(`Error fetching teacher with ID ${id}:`, error);
+      logger.error("error fetching teacher", {
+        teacher_id: id,
+        error: String(error),
+      });
       throw error;
     }
   }
@@ -276,7 +282,7 @@ class TeacherService {
     const accountId = extractIdFromResponse(data);
 
     if (!accountId) {
-      console.error("Failed to get account ID from response:", data);
+      logger.error("failed to get account ID from response");
       throw new Error("Failed to get account ID from response");
     }
 
@@ -317,7 +323,7 @@ class TeacherService {
     const personId = extractPersonId(data);
 
     if (!personId) {
-      console.error("Unexpected person response format:", data);
+      logger.error("unexpected person response format");
       throw new Error("Failed to get person ID from response");
     }
 
@@ -533,7 +539,10 @@ class TeacherService {
         throw new Error(`Failed to delete teacher: ${response.statusText}`);
       }
     } catch (error) {
-      console.error(`Error deleting teacher with ID ${id}:`, error);
+      logger.error("error deleting teacher", {
+        teacher_id: id,
+        error: String(error),
+      });
       throw error;
     }
   }
@@ -543,13 +552,13 @@ class TeacherService {
     try {
       // For now, activities endpoint is not implemented for staff
       // Return empty array until implemented on the backend
-      console.warn(`Activities endpoint not implemented for staff/teachers`);
+      logger.warn("activities endpoint not implemented for staff/teachers");
       return [];
     } catch (error) {
-      console.error(
-        `Error fetching activities for teacher with ID ${id}:`,
-        error,
-      );
+      logger.error("error fetching activities for teacher", {
+        teacher_id: id,
+        error: String(error),
+      });
       throw error;
     }
   }

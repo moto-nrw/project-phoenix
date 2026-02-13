@@ -84,6 +84,9 @@ type StudentRepository interface {
 	// FindByID retrieves a student by their ID
 	FindByID(ctx context.Context, id interface{}) (*Student, error)
 
+	// FindByIDs retrieves multiple students by their IDs in a single query
+	FindByIDs(ctx context.Context, ids []int64) (map[int64]*Student, error)
+
 	// FindByPersonID retrieves a student by their person ID
 	FindByPersonID(ctx context.Context, personID int64) (*Student, error)
 
@@ -110,6 +113,9 @@ type StudentRepository interface {
 
 	// CountWithOptions counts students matching the query options
 	CountWithOptions(ctx context.Context, options *base.QueryOptions) (int, error)
+
+	// CountByGroupIDs counts students per group for multiple groups in a single query
+	CountByGroupIDs(ctx context.Context, groupIDs []int64) (map[int64]int, error)
 
 	// AssignToGroup assigns a student to a group
 	AssignToGroup(ctx context.Context, studentID int64, groupID int64) error
@@ -158,6 +164,10 @@ type StaffRepository interface {
 
 	// FindWithPerson retrieves a staff member with their associated person data
 	FindWithPerson(ctx context.Context, id int64) (*Staff, error)
+
+	// ListStaffByRoles retrieves staff members who have any of the specified roles,
+	// including their person data, account ID, and email, using a single JOIN query.
+	ListStaffByRoles(ctx context.Context, roles []string) ([]*StaffWithRoleInfo, error)
 }
 
 // TeacherRepository defines operations for managing teachers
@@ -201,6 +211,9 @@ type TeacherRepository interface {
 
 	// ListAllWithStaffAndPerson retrieves all teachers with their staff and person data in a single query
 	ListAllWithStaffAndPerson(ctx context.Context) ([]*Teacher, error)
+
+	// FindWithStaffAndPersonByIDs retrieves teachers with staff and person data for multiple IDs
+	FindWithStaffAndPersonByIDs(ctx context.Context, ids []int64) ([]*Teacher, error)
 }
 
 // GuestRepository defines operations for managing guests

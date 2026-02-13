@@ -287,6 +287,15 @@ func (s *service) ListGroups(ctx context.Context, options *base.QueryOptions) ([
 	return groups, nil
 }
 
+// CountGroups counts groups matching the query options (filters only, no pagination)
+func (s *service) CountGroups(ctx context.Context, options *base.QueryOptions) (int, error) {
+	count, err := s.groupRepo.CountWithOptions(ctx, options)
+	if err != nil {
+		return 0, &EducationError{Op: "CountGroups", Err: err}
+	}
+	return count, nil
+}
+
 // FindGroupByName finds a group by its name
 func (s *service) FindGroupByName(ctx context.Context, name string) (*education.Group, error) {
 	group, err := s.groupRepo.FindByName(ctx, name)
@@ -572,6 +581,67 @@ func (s *service) GetGroupTeachers(ctx context.Context, groupID int64) ([]*users
 	}
 
 	return filteredTeachers, nil
+}
+
+// GetTeachersForGroups batch-loads all teachers for multiple groups in 2 queries
+func (s *service) GetTeachersForGroups(ctx context.Context, groupIDs []int64) (map[int64][]*users.Teacher, error) {
+	if len(groupIDs) == 0 {
+		return make(map[int64][]*users.Teacher), nil
+	}
+
+	// 1. Batch fetch all group-teacher relationships (1 query)
+	relations, err := s.groupTeacherRepo.FindByGroupIDs(ctx, groupIDs)
+	if err != nil {
+		return nil, &EducationError{Op: "GetTeachersForGroups", Err: err}
+	}
+
+	// 2. Collect unique teacher IDs
+	teacherIDSet := make(map[int64]bool)
+	for _, rel := range relations {
+		teacherIDSet[rel.TeacherID] = true
+	}
+
+	teacherIDs := make([]int64, 0, len(teacherIDSet))
+	for id := range teacherIDSet {
+		teacherIDs = append(teacherIDs, id)
+	}
+
+	if len(teacherIDs) == 0 {
+		result := make(map[int64][]*users.Teacher)
+		for _, gid := range groupIDs {
+			result[gid] = []*users.Teacher{}
+		}
+		return result, nil
+	}
+
+	// 3. Batch fetch all teachers with staff+person (1 query)
+	teachers, err := s.teacherRepo.FindWithStaffAndPersonByIDs(ctx, teacherIDs)
+	if err != nil {
+		return nil, &EducationError{Op: "GetTeachersForGroups", Err: err}
+	}
+
+	// 4. Build teacher lookup map
+	teacherMap := make(map[int64]*users.Teacher, len(teachers))
+	for _, t := range teachers {
+		teacherMap[t.ID] = t
+	}
+
+	// 5. Build result: groupID -> []Teacher
+	result := make(map[int64][]*users.Teacher, len(groupIDs))
+	for _, rel := range relations {
+		if teacher, ok := teacherMap[rel.TeacherID]; ok {
+			result[rel.GroupID] = append(result[rel.GroupID], teacher)
+		}
+	}
+
+	// Ensure all requested group IDs have an entry
+	for _, gid := range groupIDs {
+		if _, ok := result[gid]; !ok {
+			result[gid] = []*users.Teacher{}
+		}
+	}
+
+	return result, nil
 }
 
 // GetTeacherGroups gets all groups for a teacher

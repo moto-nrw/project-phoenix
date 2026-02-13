@@ -15,8 +15,14 @@ import { useOperatorAuth } from "~/lib/operator/auth-context";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { operatorSuggestionsService } from "~/lib/operator/suggestions-api";
 import { OPERATOR_STATUS_LABELS } from "~/lib/operator/suggestions-helpers";
-import type { OperatorSuggestionStatus } from "~/lib/operator/suggestions-helpers";
+import type {
+  OperatorSuggestion,
+  OperatorSuggestionStatus,
+} from "~/lib/operator/suggestions-helpers";
 import { getRelativeTime, getInitials } from "~/lib/format-utils";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "OperatorSuggestionsPage" });
 
 export default function OperatorSuggestionsPage() {
   const { isAuthenticated } = useOperatorAuth();
@@ -104,7 +110,9 @@ export default function OperatorSuggestionsPage() {
           new CustomEvent("operator-suggestions-unviewed-refresh"),
         );
       } catch (error) {
-        console.error("Failed to update status:", error);
+        logger.error("suggestion_status_update_failed", {
+          error: error instanceof Error ? error.message : String(error),
+        });
       } finally {
         setStatusUpdating(null);
       }
@@ -188,75 +196,111 @@ export default function OperatorSuggestionsPage() {
                   transition={{ type: "spring", stiffness: 500, damping: 35 }}
                   className={`relative ${openDropdownId === suggestion.id ? "z-10" : "z-0"}`}
                 >
-                  <div className="rounded-3xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md">
-                    <div className="p-5">
-                      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                        <h3 className="flex items-center gap-2 text-base font-semibold text-gray-900">
-                          {suggestion.title}
-                          {suggestion.isNew && (
-                            <span className="shrink-0 rounded-full bg-blue-500 px-2 py-0.5 text-[10px] font-semibold text-white">
-                              Neu
-                            </span>
-                          )}
-                        </h3>
-                        <div className="flex shrink-0 items-center gap-2">
-                          <div className="flex items-center gap-2">
-                            <span className="flex items-center gap-1 text-[#83CD2D]">
-                              <ThumbsUp
-                                className="h-4 w-4"
-                                fill="currentColor"
-                              />
-                              <span className="text-xs font-bold">
-                                {suggestion.upvotes}
-                              </span>
-                            </span>
-                            <span className="flex items-center gap-1 text-red-500">
-                              <ThumbsDown
-                                className="h-4 w-4"
-                                fill="currentColor"
-                              />
-                              <span className="text-xs font-bold">
-                                {suggestion.downvotes}
-                              </span>
-                            </span>
-                          </div>
-                          <StatusDropdown
-                            value={suggestion.status}
-                            onChange={(newStatus) =>
-                              void handleStatusChange(suggestion.id, newStatus)
-                            }
-                            disabled={statusUpdating === suggestion.id}
-                            onOpenChange={(open) =>
-                              setOpenDropdownId(open ? suggestion.id : null)
-                            }
-                          />
-                        </div>
-                      </div>
-                      <p className="mt-1 line-clamp-2 text-sm text-gray-600">
-                        {suggestion.description}
-                      </p>
-                      <div className="mt-3 flex items-center gap-2 text-xs text-gray-500">
-                        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-100 text-[10px] font-medium text-blue-700">
-                          {getInitials(suggestion.authorName)}
-                        </span>
-                        <span>{suggestion.authorName}</span>
-                        <span>·</span>
-                        <span>{getRelativeTime(suggestion.createdAt)}</span>
-                      </div>
-                    </div>
-                    <OperatorCommentAccordion
-                      postId={suggestion.id}
-                      commentCount={suggestion.commentCount}
-                      unreadCount={suggestion.unreadCount}
-                      isNew={suggestion.isNew}
-                    />
-                  </div>
+                  <OperatorSuggestionCard
+                    suggestion={suggestion}
+                    statusUpdating={statusUpdating === suggestion.id}
+                    onStatusChange={(newStatus) =>
+                      void handleStatusChange(suggestion.id, newStatus)
+                    }
+                    onDropdownOpenChange={(open) =>
+                      setOpenDropdownId(open ? suggestion.id : null)
+                    }
+                  />
                 </motion.div>
               ))}
             </AnimatePresence>
           </div>
         </LayoutGroup>
       )}
+    </div>
+  );
+}
+
+function OperatorSuggestionCard({
+  suggestion,
+  statusUpdating,
+  onStatusChange,
+  onDropdownOpenChange,
+}: {
+  readonly suggestion: OperatorSuggestion;
+  readonly statusUpdating: boolean;
+  readonly onStatusChange: (status: OperatorSuggestionStatus) => void;
+  readonly onDropdownOpenChange: (open: boolean) => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const [isClamped, setIsClamped] = useState(false);
+  const descRef = useRef<HTMLParagraphElement>(null);
+
+  useEffect(() => {
+    const el = descRef.current;
+    if (el) {
+      setIsClamped(el.scrollHeight > el.clientHeight);
+    }
+  }, [suggestion.description]);
+
+  return (
+    <div className="rounded-3xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md">
+      <div className="p-5">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+          <h3 className="flex items-center gap-2 text-base font-semibold text-gray-900">
+            {suggestion.title}
+            {suggestion.isNew && (
+              <span className="shrink-0 rounded-full bg-blue-500 px-2 py-0.5 text-[10px] font-semibold text-white">
+                Neu
+              </span>
+            )}
+          </h3>
+          <div className="flex shrink-0 items-center gap-2">
+            <div className="flex items-center gap-2">
+              <span className="flex items-center gap-1 text-[#83CD2D]">
+                <ThumbsUp className="h-4 w-4" fill="currentColor" />
+                <span className="text-xs font-bold">{suggestion.upvotes}</span>
+              </span>
+              <span className="flex items-center gap-1 text-red-500">
+                <ThumbsDown className="h-4 w-4" fill="currentColor" />
+                <span className="text-xs font-bold">
+                  {suggestion.downvotes}
+                </span>
+              </span>
+            </div>
+            <StatusDropdown
+              value={suggestion.status}
+              onChange={onStatusChange}
+              disabled={statusUpdating}
+              onOpenChange={onDropdownOpenChange}
+            />
+          </div>
+        </div>
+        <p
+          ref={descRef}
+          className={`mt-1 text-sm text-gray-600 ${expanded ? "" : "line-clamp-2"}`}
+        >
+          {suggestion.description}
+        </p>
+        {(isClamped || expanded) && (
+          <button
+            type="button"
+            onClick={() => setExpanded((prev) => !prev)}
+            className="mt-1 text-xs font-medium text-gray-500 transition-colors hover:text-gray-700"
+          >
+            {expanded ? "Weniger anzeigen" : "Mehr anzeigen"}
+          </button>
+        )}
+        <div className="mt-3 flex items-center gap-2 text-xs text-gray-500">
+          <span className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-100 text-[10px] font-medium text-blue-700">
+            {getInitials(suggestion.authorName)}
+          </span>
+          <span>{suggestion.authorName}</span>
+          <span>·</span>
+          <span>{getRelativeTime(suggestion.createdAt)}</span>
+        </div>
+      </div>
+      <OperatorCommentAccordion
+        postId={suggestion.id}
+        commentCount={suggestion.commentCount}
+        unreadCount={suggestion.unreadCount}
+        isNew={suggestion.isNew}
+      />
     </div>
   );
 }

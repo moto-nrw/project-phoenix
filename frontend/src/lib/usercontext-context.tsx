@@ -9,6 +9,9 @@ import React, {
 } from "react";
 import { useSession } from "next-auth/react";
 import { usePathname } from "next/navigation";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "UserContextContext" });
 import { useSupervision } from "./supervision-context";
 import {
   mapEducationalGroupResponse,
@@ -62,7 +65,9 @@ export function UserContextProvider({ children }: UserContextProviderProps) {
     try {
       await refresh();
     } catch (err) {
-      console.error("Failed to refresh supervision context:", err);
+      logger.error("failed to refresh supervision context", {
+        error: String(err),
+      });
     }
   }, [refresh]);
 

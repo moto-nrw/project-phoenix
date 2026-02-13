@@ -3,6 +3,9 @@ import { createFileUploadHandler } from "~/lib/file-upload-wrapper";
 import { createDeleteHandler } from "~/lib/route-wrapper";
 import type { BackendProfile } from "~/lib/profile-helpers";
 import { getServerApiUrl } from "~/lib/server-api-url";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "AvatarRoute" });
 
 interface ProfileResponse {
   success: boolean;
@@ -73,10 +76,10 @@ export const POST = createFileUploadHandler<BackendProfile>(
         (avatarFile.type === "image/jpeg" || avatarFile.type === "image/jpg");
 
       if (!isJpegVariant) {
-        console.warn(
-          `File type mismatch: declared=${avatarFile.type}, detected=${detectedType}`,
-        );
-        // Don't throw error, just log warning - let backend handle final validation
+        logger.warn("file type mismatch", {
+          declared: avatarFile.type,
+          detected: detectedType,
+        });
       }
     }
 

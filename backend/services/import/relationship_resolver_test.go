@@ -354,6 +354,9 @@ func (m *mockGroupRepo) FindByTeacher(_ context.Context, _ int64) ([]*education.
 func (m *mockGroupRepo) FindWithRoom(_ context.Context, _ int64) (*education.Group, error) {
 	return nil, nil
 }
+func (m *mockGroupRepo) CountWithOptions(_ context.Context, _ *base.QueryOptions) (int, error) {
+	return len(m.groups), nil
+}
 
 func TestRelationshipResolver_PreloadGroups(t *testing.T) {
 	ctx := context.Background()

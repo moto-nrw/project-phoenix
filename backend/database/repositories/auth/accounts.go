@@ -212,11 +212,9 @@ func (r *AccountRepository) FindAccountsWithRolesAndPermissions(ctx context.Cont
 			return err
 		}
 
-		// For each account, load roles and permissions
-		for _, account := range accounts {
-			if err := r.loadAccountRolesAndPermissions(ctx, tx, account); err != nil {
-				return err
-			}
+		// Batch-load roles and permissions for all accounts (3 queries instead of 3N)
+		if err := r.loadAllAccountRolesAndPermissions(ctx, tx, accounts); err != nil {
+			return err
 		}
 
 		return nil
@@ -245,76 +243,104 @@ func (r *AccountRepository) loadAccountsByFilters(ctx context.Context, tx bun.Tx
 	return query.Scan(ctx)
 }
 
-// loadAccountRolesAndPermissions loads roles and permissions for a single account
-func (r *AccountRepository) loadAccountRolesAndPermissions(ctx context.Context, tx bun.Tx, account *auth.Account) error {
-	// Load roles
-	if err := r.loadAccountRoles(ctx, tx, account); err != nil {
-		return err
-	}
-
-	// Load and merge permissions
-	return r.loadAccountPermissions(ctx, tx, account)
+// accountRole is a result struct for batch-loading roles with their account association.
+type accountRole struct {
+	AccountID int64 `bun:"account_id"`
+	auth.Role `bun:"role,extend"`
 }
 
-// loadAccountRoles loads roles for an account
-func (r *AccountRepository) loadAccountRoles(ctx context.Context, tx bun.Tx, account *auth.Account) error {
-	var roles []*auth.Role
-	err := tx.NewSelect().
-		Model(&roles).
-		ModelTableExpr(`auth.roles AS "role"`).
-		Join(`JOIN auth.account_roles ar ON ar.role_id = "role".id`).
-		Where("ar.account_id = ?", account.ID).
-		Scan(ctx)
+// accountPermission is a result struct for batch-loading permissions with their account association.
+type accountPermission struct {
+	AccountID       int64 `bun:"account_id"`
+	auth.Permission `bun:"permission,extend"`
+}
 
+// loadAllAccountRolesAndPermissions batch-loads roles and permissions for all accounts
+// using 3 queries instead of 3 per account.
+func (r *AccountRepository) loadAllAccountRolesAndPermissions(ctx context.Context, tx bun.Tx, accounts []*auth.Account) error {
+	if len(accounts) == 0 {
+		return nil
+	}
+
+	// Collect all account IDs
+	accountIDs := make([]int64, len(accounts))
+	for i, a := range accounts {
+		accountIDs[i] = a.ID
+	}
+
+	// 1. Batch-load roles for all accounts
+	// Select only columns mapped in auth.Role to avoid scanning unmapped DB columns (e.g. metadata)
+	var roleResults []accountRole
+	err := tx.NewSelect().
+		TableExpr(`auth.roles AS "role"`).
+		ColumnExpr(`ar.account_id`).
+		ColumnExpr(`"role".id, "role".created_at, "role".updated_at, "role".name, "role".description, "role".is_system`).
+		Join(`JOIN auth.account_roles AS ar ON ar.role_id = "role".id`).
+		Where("ar.account_id IN (?)", bun.In(accountIDs)).
+		Scan(ctx, &roleResults)
 	if err != nil {
 		return err
 	}
-	account.Roles = roles
+
+	rolesByAccount := make(map[int64][]*auth.Role, len(accounts))
+	for i := range roleResults {
+		ar := roleResults[i]
+		role := ar.Role
+		rolesByAccount[ar.AccountID] = append(rolesByAccount[ar.AccountID], &role)
+	}
+
+	// 2. Batch-load direct permissions for all accounts
+	var directPermResults []accountPermission
+	err = tx.NewSelect().
+		TableExpr(`auth.permissions AS "permission"`).
+		ColumnExpr(`ap.account_id`).
+		ColumnExpr(`"permission".id, "permission".created_at, "permission".updated_at, "permission".name, "permission".description, "permission".resource, "permission".action`).
+		Join(`JOIN auth.account_permissions AS ap ON ap.permission_id = "permission".id`).
+		Where("ap.account_id IN (?)", bun.In(accountIDs)).
+		Where("ap.granted = true").
+		Scan(ctx, &directPermResults)
+	if err != nil {
+		return err
+	}
+
+	directPermsByAccount := make(map[int64][]*auth.Permission, len(accounts))
+	for i := range directPermResults {
+		p := directPermResults[i]
+		perm := p.Permission
+		directPermsByAccount[p.AccountID] = append(directPermsByAccount[p.AccountID], &perm)
+	}
+
+	// 3. Batch-load role-based permissions for all accounts
+	var rolePermResults []accountPermission
+	err = tx.NewSelect().
+		TableExpr(`auth.permissions AS "permission"`).
+		ColumnExpr(`ar.account_id`).
+		ColumnExpr(`"permission".id, "permission".created_at, "permission".updated_at, "permission".name, "permission".description, "permission".resource, "permission".action`).
+		Join(`JOIN auth.role_permissions AS rp ON rp.permission_id = "permission".id`).
+		Join(`JOIN auth.account_roles AS ar ON ar.role_id = rp.role_id`).
+		Where("ar.account_id IN (?)", bun.In(accountIDs)).
+		Scan(ctx, &rolePermResults)
+	if err != nil {
+		return err
+	}
+
+	rolePermsByAccount := make(map[int64][]*auth.Permission, len(accounts))
+	for i := range rolePermResults {
+		p := rolePermResults[i]
+		perm := p.Permission
+		rolePermsByAccount[p.AccountID] = append(rolePermsByAccount[p.AccountID], &perm)
+	}
+
+	// 4. Assign results to each account
+	for _, account := range accounts {
+		account.Roles = rolesByAccount[account.ID]
+		account.Permissions = r.mergePermissions(
+			directPermsByAccount[account.ID],
+			rolePermsByAccount[account.ID],
+		)
+	}
+
 	return nil
-}
-
-// loadAccountPermissions loads and merges direct and role-based permissions for an account
-func (r *AccountRepository) loadAccountPermissions(ctx context.Context, tx bun.Tx, account *auth.Account) error {
-	// Load direct permissions
-	directPermissions, err := r.loadDirectPermissions(ctx, tx, account.ID)
-	if err != nil {
-		return err
-	}
-
-	// Load role-based permissions
-	rolePermissions, err := r.loadRoleBasedPermissions(ctx, tx, account.ID)
-	if err != nil {
-		return err
-	}
-
-	// Merge permissions (avoid duplicates)
-	account.Permissions = r.mergePermissions(directPermissions, rolePermissions)
-	return nil
-}
-
-// loadDirectPermissions loads direct permissions for an account
-func (r *AccountRepository) loadDirectPermissions(ctx context.Context, tx bun.Tx, accountID int64) ([]*auth.Permission, error) {
-	var permissions []*auth.Permission
-	err := tx.NewSelect().
-		Model(&permissions).
-		ModelTableExpr(`auth.permissions AS "permission"`).
-		Join(`JOIN auth.account_permissions ap ON ap.permission_id = "permission".id`).
-		Where("ap.account_id = ? AND ap.granted = true", accountID).
-		Scan(ctx)
-	return permissions, err
-}
-
-// loadRoleBasedPermissions loads role-based permissions for an account
-func (r *AccountRepository) loadRoleBasedPermissions(ctx context.Context, tx bun.Tx, accountID int64) ([]*auth.Permission, error) {
-	var permissions []*auth.Permission
-	err := tx.NewSelect().
-		Model(&permissions).
-		ModelTableExpr(`auth.permissions AS "permission"`).
-		Join(`JOIN auth.role_permissions rp ON rp.permission_id = "permission".id`).
-		Join("JOIN auth.account_roles ar ON ar.role_id = rp.role_id").
-		Where("ar.account_id = ?", accountID).
-		Scan(ctx)
-	return permissions, err
 }
 
 // mergePermissions combines direct and role-based permissions, avoiding duplicates

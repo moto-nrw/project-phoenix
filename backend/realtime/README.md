@@ -76,7 +76,7 @@ pnpm run test:run
 
 ### Manual Testing Approach
 
-Since SSE requires persistent HTTP connections that Bruno/curl cannot easily simulate, integration testing is best done manually with browser DevTools:
+Since SSE requires persistent HTTP connections, integration testing is best done manually with browser DevTools:
 
 #### Step 1: Start Services
 
@@ -106,11 +106,7 @@ You should see a connection to `/api/sse/events` with:
 
 #### Step 4: Trigger Events via Check-In
 
-```bash
-# Terminal 3: Run Bruno check-in test
-cd bruno
-bru run --env Local 06-checkins.bru
-```
+Trigger a check-in via the IoT API endpoint (e.g., using curl or the frontend UI).
 
 #### Step 5: Verify Event Flow
 
@@ -213,7 +209,7 @@ INFO SSE client disconnected user_id=1 total_clients=0
 ### Testing No Subscribers (Silent Broadcast)
 
 1. Ensure no active SSE connections (no browser tabs open)
-2. Trigger check-in via Bruno
+2. Trigger a check-in via the IoT API endpoint
 3. Check backend logs:
 
 ```

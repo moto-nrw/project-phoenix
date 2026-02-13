@@ -185,7 +185,7 @@ func (s *Seeder) seedPersonsWithAccounts(ctx context.Context) error {
 		rfidCard := &users.RFIDCard{
 			Active: true,
 		}
-		// Use hardcoded RFID tags for first 3 students (for Bruno tests)
+		// Use hardcoded RFID tags for first 3 students (for integration tests)
 		switch i {
 		case 30:
 			rfidCard.ID = "E83BE72F" // Leon Huber

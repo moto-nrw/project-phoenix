@@ -86,8 +86,8 @@ describe("OperatorAuthProvider", () => {
       });
 
       expect(consoleErrorSpy).toHaveBeenCalledWith(
-        "Failed to check operator auth:",
-        expect.any(Error),
+        "operator_auth_check_failed",
+        { error: "Network error" },
       );
       expect(result.current.isAuthenticated).toBe(false);
 
@@ -232,10 +232,9 @@ describe("OperatorAuthProvider", () => {
 
       await result.current.logout();
 
-      expect(consoleErrorSpy).toHaveBeenCalledWith(
-        "Logout error:",
-        expect.any(Error),
-      );
+      expect(consoleErrorSpy).toHaveBeenCalledWith("operator_logout_error", {
+        error: "Network error",
+      });
 
       await waitFor(() => {
         expect(result.current.operator).toBeNull();
