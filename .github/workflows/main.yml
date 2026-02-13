@@ -7,11 +7,6 @@ on:
       - develop
       - development
   pull_request:
-    branches:
-      - main
-      - master
-      - develop
-      - development
 permissions: {}
 
 concurrency:
