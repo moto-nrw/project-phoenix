@@ -478,6 +478,7 @@ api.interceptors.request.use(
 
 // Track ongoing refresh attempts to prevent multiple simultaneous refreshes
 let isRefreshing = false;
+let lastRefreshedToken: string | null = null;
 let refreshSubscribers: {
   resolve: (token: string) => void;
   reject: (error: Error) => void;
@@ -493,6 +494,7 @@ const subscribeTokenRefresh = (callbacks: {
 
 // Notify all subscribers when refresh is complete
 const onTokenRefreshed = (token: string) => {
+  lastRefreshedToken = token;
   refreshSubscribers.forEach((subscriber) => subscriber.resolve(token));
   refreshSubscribers = [];
 };
@@ -643,6 +645,7 @@ api.interceptors.response.use(
     }
 
     isRefreshing = true;
+    lastRefreshedToken = null;
 
     try {
       // Server-side refresh
@@ -682,11 +685,21 @@ api.interceptors.response.use(
     } finally {
       isRefreshing = false;
       if (refreshSubscribers.length > 0) {
-        logger.warn("token_refresh_failed_rejecting_queued_requests", {
-          queued_count: refreshSubscribers.length,
-        });
-        onTokenRefreshFailed(new Error("Token refresh failed"));
+        if (lastRefreshedToken) {
+          // Late arrivals queued after onTokenRefreshed but before finally —
+          // the refresh succeeded, so resolve them with the valid token.
+          logger.info("resolving_late_queued_requests", {
+            queued_count: refreshSubscribers.length,
+          });
+          onTokenRefreshed(lastRefreshedToken);
+        } else {
+          logger.warn("token_refresh_failed_rejecting_queued_requests", {
+            queued_count: refreshSubscribers.length,
+          });
+          onTokenRefreshFailed(new Error("Token refresh failed"));
+        }
       }
+      lastRefreshedToken = null;
     }
 
     throw error;
