@@ -1980,30 +1980,31 @@ func CreateTestAccountTenant(tb testing.TB, db *bun.DB, accountID, tenantID int6
 }
 
 // CleanupTenantFixtures removes tenant-related test data from the database.
-// Pass organization IDs and/or school IDs — schools are deleted first (FK order).
-func CleanupTenantFixtures(tb testing.TB, db *bun.DB, ids ...int64) {
+// Pass school IDs first, then organization IDs — deletions happen in FK-safe order:
+// account_tenants (by school ID) → schools → organizations.
+func CleanupTenantFixtures(tb testing.TB, db *bun.DB, schoolIDs []int64, orgIDs []int64) {
 	tb.Helper()
 
-	if len(ids) == 0 {
-		return
-	}
-
-	for _, id := range ids {
-		// Delete account_tenants referencing these IDs as tenant_id
+	// Delete account_tenants referencing the school IDs as tenant_id
+	for _, id := range schoolIDs {
 		cleanupDelete(tb, db.NewDelete().
 			Model((*interface{})(nil)).
 			Table("auth.account_tenants").
 			Where("tenant_id = ?", id),
 			"auth.account_tenants")
+	}
 
-		// Delete schools referencing these IDs as organization_id or direct school ID
+	// Delete schools by ID
+	for _, id := range schoolIDs {
 		cleanupDelete(tb, db.NewDelete().
 			Model((*interface{})(nil)).
 			Table("platform.schools").
-			Where("id = ? OR organization_id = ?", id, id),
+			Where(whereIDEquals, id),
 			"platform.schools")
+	}
 
-		// Delete organizations
+	// Delete organizations by ID
+	for _, id := range orgIDs {
 		cleanupDelete(tb, db.NewDelete().
 			Model((*interface{})(nil)).
 			Table("platform.organizations").

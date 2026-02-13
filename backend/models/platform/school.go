@@ -35,13 +35,16 @@ type School struct {
 
 func (s *School) BeforeAppendModel(query any) error {
 	if q, ok := query.(*bun.SelectQuery); ok {
+		q.ModelTableExpr(`platform.schools AS "school"`)
+	}
+	if q, ok := query.(*bun.InsertQuery); ok {
 		q.ModelTableExpr(tablePlatformSchools)
 	}
 	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(tablePlatformSchools)
+		q.ModelTableExpr(`platform.schools AS "school"`)
 	}
 	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(tablePlatformSchools)
+		q.ModelTableExpr(`platform.schools AS "school"`)
 	}
 	return nil
 }
@@ -69,11 +72,17 @@ func (s *School) Validate() error {
 	if len(s.Slug) > 100 {
 		return errors.New("slug must not exceed 100 characters")
 	}
+	if !slugRegex.MatchString(s.Slug) {
+		return errors.New("slug must contain only lowercase letters, numbers, and hyphens (no leading/trailing hyphens)")
+	}
 	if s.Subdomain == "" {
 		return errors.New("subdomain is required")
 	}
-	if len(s.Subdomain) > 100 {
-		return errors.New("subdomain must not exceed 100 characters")
+	if len(s.Subdomain) > 63 {
+		return errors.New("subdomain must not exceed 63 characters (DNS label limit)")
+	}
+	if !slugRegex.MatchString(s.Subdomain) {
+		return errors.New("subdomain must be a valid DNS label: lowercase letters, numbers, and hyphens (no leading/trailing hyphens)")
 	}
 	if s.OrganizationID == 0 {
 		return errors.New("organization_id is required")

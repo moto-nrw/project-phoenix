@@ -2,12 +2,16 @@ package platform
 
 import (
 	"errors"
+	"regexp"
 	"strings"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/uptrace/bun"
 )
+
+// slugRegex validates URL-safe slugs: lowercase alphanumeric with hyphens, no leading/trailing hyphens.
+var slugRegex = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]*[a-z0-9])?$`)
 
 // tablePlatformOrganizations is the schema-qualified table name
 const tablePlatformOrganizations = "platform.organizations"
@@ -23,13 +27,16 @@ type Organization struct {
 
 func (o *Organization) BeforeAppendModel(query any) error {
 	if q, ok := query.(*bun.SelectQuery); ok {
+		q.ModelTableExpr(`platform.organizations AS "organization"`)
+	}
+	if q, ok := query.(*bun.InsertQuery); ok {
 		q.ModelTableExpr(tablePlatformOrganizations)
 	}
 	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(tablePlatformOrganizations)
+		q.ModelTableExpr(`platform.organizations AS "organization"`)
 	}
 	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(tablePlatformOrganizations)
+		q.ModelTableExpr(`platform.organizations AS "organization"`)
 	}
 	return nil
 }
@@ -55,6 +62,9 @@ func (o *Organization) Validate() error {
 	}
 	if len(o.Slug) > 100 {
 		return errors.New("slug must not exceed 100 characters")
+	}
+	if !slugRegex.MatchString(o.Slug) {
+		return errors.New("slug must contain only lowercase letters, numbers, and hyphens (no leading/trailing hyphens)")
 	}
 	return nil
 }
