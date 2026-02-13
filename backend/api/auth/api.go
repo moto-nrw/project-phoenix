@@ -340,8 +340,17 @@ func (rs *Resource) authorizeRoleAssignment(w http.ResponseWriter, r *http.Reque
 
 	// Verify the role actually exists in the database
 	if _, err := rs.AuthService.GetRoleByID(r.Context(), int(*requestedRoleID)); err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(
-			errors.New("specified role does not exist")))
+		if errors.Is(err, sql.ErrNoRows) {
+			common.RenderError(w, r, ErrorInvalidRequest(
+				errors.New("specified role does not exist")))
+		} else {
+			slog.Default().Error("role lookup failed",
+				"role_id", *requestedRoleID,
+				"error", err,
+			)
+			common.RenderError(w, r, ErrorInternalServer(
+				errors.New("failed to verify role")))
+		}
 		return nil, true
 	}
 
