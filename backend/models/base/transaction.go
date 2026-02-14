@@ -32,13 +32,14 @@ func ContextWithTx(ctx context.Context, tx *bun.Tx) context.Context {
 	return context.WithValue(ctx, txKey{}, tx)
 }
 
-// TxFromContext extracts a transaction from context if present
+// TxFromContext extracts a transaction from context if present.
+// ContextWithTx stores *bun.Tx, so the type assertion must match.
 func TxFromContext(ctx context.Context) (*bun.Tx, bool) {
-	tx, ok := ctx.Value(txKey{}).(bun.Tx)
-	if !ok {
+	tx, ok := ctx.Value(txKey{}).(*bun.Tx)
+	if !ok || tx == nil {
 		return nil, false
 	}
-	return &tx, true
+	return tx, true
 }
 
 // TxHandler provides common transaction handling functionality for services
