@@ -96,9 +96,10 @@ func createTenantRoles(ctx context.Context, db *bun.DB) error {
 	}
 
 	// phoenix_tenant: CRUD on all tenant-scoped schemas + SELECT on platform.schools
+	// USAGE on platform schema required for SELECT on platform.schools to work
 	_, err = tx.ExecContext(ctx, `
 		GRANT USAGE ON SCHEMA auth, users, education, facilities, activities, active,
-			schedule, iot, feedback, config, suggestions, audit TO phoenix_tenant;
+			schedule, iot, feedback, config, suggestions, audit, platform TO phoenix_tenant;
 
 		GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA
 			auth, users, education, facilities, activities, active,
@@ -240,7 +241,7 @@ func rollbackTenantRoles(ctx context.Context, db *bun.DB) error {
 			schedule, iot, feedback, config, suggestions, audit FROM phoenix_tenant;
 		REVOKE SELECT ON platform.schools FROM phoenix_tenant;
 		REVOKE USAGE ON SCHEMA auth, users, education, facilities, activities, active,
-			schedule, iot, feedback, config, suggestions, audit FROM phoenix_tenant;
+			schedule, iot, feedback, config, suggestions, audit, platform FROM phoenix_tenant;
 
 		REVOKE phoenix_tenant FROM phoenix_auth;
 		REVOKE phoenix_admin FROM phoenix_auth;

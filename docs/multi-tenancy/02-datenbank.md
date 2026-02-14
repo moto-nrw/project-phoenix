@@ -454,7 +454,7 @@ ALTER TABLE active.visits
     ON DELETE CASCADE;
 ```
 
-**Reihenfolge:** Zuerst alle `UNIQUE(tenant_id, id)` Indexes erstellen (Schritt 1 fuer alle 19 Ziel-Tabellen), dann alle FKs migrieren. `CREATE INDEX CONCURRENTLY` vermeidet Locks auf Produktions-Tabellen.
+**Reihenfolge:** Zuerst alle `UNIQUE(tenant_id, id)` Indexes erstellen (Schritt 1 fuer alle 18 Ziel-Tabellen), dann alle FKs migrieren. `CREATE INDEX CONCURRENTLY` vermeidet Locks auf Produktions-Tabellen.
 
 #### 2.5.4 Ausnahmen (KEIN Composite FK)
 
@@ -696,5 +696,5 @@ Bei Problemen nach Phase 2 (tenant_id NOT NULL):
 | 2026-02-10 | D13 revidiert: auth.roles, auth.account_roles, auth.account_permissions bekommen tenant_id (Per-Tenant RBAC). Spezielle RLS-Policy fuer nullable tenant_id auf auth.roles. ~44 Tabellen mit tenant_id NOT NULL + 1 mit nullable. |
 | 2026-02-10 | UNIQUE Constraints Migration (Sektion 2.4): 13 funktional notwendige + 18 Defense-in-Depth + 1 Sonderfall (auth.roles nullable). 9 Constraints OK ohne Aenderung. BUN Model Tag Aenderungen dokumentiert. |
 | 2026-02-10 | SEQUENCE GRANTs ergaenzt (09-H1): `GRANT USAGE ON ALL SEQUENCES` fuer phoenix_tenant + phoenix_admin. `ALTER DEFAULT PRIVILEGES` fuer zukuenftige Migrationen. Ohne diese schlaegt jeder INSERT fehl (60+ Sequences durch BIGSERIAL PKs). |
-| 2026-02-10 | Composite Foreign Keys (Sektion 2.5, 09-H3): 64 FKs werden zu `FK(tenant_id, col) → target(tenant_id, id)`. 19 Ziel-Tabellen bekommen `UNIQUE(tenant_id, id)`. Vollstaendige Auflistung nach Schema. |
+| 2026-02-10 | Composite Foreign Keys (Sektion 2.5, 09-H3): 64 FKs werden zu `FK(tenant_id, col) → target(tenant_id, id)`. 18 Ziel-Tabellen bekommen `UNIQUE(tenant_id, id)`. Vollstaendige Auflistung nach Schema. |
 | 2026-02-10 | Tabellen-Zaehlung korrigiert (06-#2): "~44" → 58 NOT NULL. Gesamtzaehlung gegen Migrations-Dateien verifiziert: 70 bestehende Tabellen in 14 Schemas. `suggestions.operator_comments` und `meta.migration_metadata` als OHNE tenant_id klassifiziert. |
