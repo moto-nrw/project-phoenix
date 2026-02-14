@@ -73,6 +73,8 @@ jobs:
           # Multi-tenancy Phase 1 foundation primitives — wired in Phases 2-3
           EXCLUSIONS=(
             "cmd/root.go:.*Execute"
+            "tenant/context.go:.*IsOrgScope"
+            "tenant/context.go:.*NewContext"
             "tenant/tx.go:.*WithAdminTx"
             "database/repositories/base/helpers.go:.*AssertRowsAffected"
             "database/repositories/base/tenant_db.go:.*GetDB"
