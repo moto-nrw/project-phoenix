@@ -129,6 +129,22 @@ func addTenantIDToAllTables(ctx context.Context, db *bun.DB) error {
 		}
 	}()
 
+	// Ensure default organization and school exist BEFORE adding FK constraints.
+	// The FK REFERENCES platform.schools(id) with DEFAULT 1 requires school id=1
+	// to exist, otherwise PostgreSQL rejects existing rows on FK validation.
+	_, err = tx.ExecContext(ctx, `
+		INSERT INTO platform.organizations (id, name, slug, active)
+		VALUES (1, 'Default Organization', 'default', true)
+		ON CONFLICT (id) DO NOTHING;
+
+		INSERT INTO platform.schools (id, organization_id, name, slug, subdomain, active)
+		VALUES (1, 1, 'Default School', 'default', 'default', true)
+		ON CONFLICT (id) DO NOTHING;
+	`)
+	if err != nil {
+		return fmt.Errorf("error ensuring default school for FK target: %w", err)
+	}
+
 	// Add NOT NULL tenant_id to 58 tables using the safe 5-step pattern
 	for _, table := range tablesWithNotNullTenantID {
 		fmt.Printf("  Adding tenant_id to %s...\n", table)
