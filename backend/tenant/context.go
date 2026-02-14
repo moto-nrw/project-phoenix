@@ -12,9 +12,12 @@ const (
 )
 
 // Scope constants for distinguishing token types.
+// Empty string ("") is the default scope for regular tenant users (existing JWTs have no scope field).
+// ScopeTenant is intentionally "" to match this convention.
 const (
-	ScopeTenant   = "tenant"
-	ScopePlatform = "platform"
+	ScopeTenant   = ""         // Regular user within a single school
+	ScopeOrg      = "org"      // Organization-level user (sees all schools in org)
+	ScopePlatform = "platform" // Platform operator (moto DevOps, sees everything)
 )
 
 // WithTenantID returns a new context with the tenant ID set.
@@ -65,4 +68,17 @@ func ScopeFromContext(ctx context.Context) string {
 // IsPlatformScope returns true if the context scope is "platform".
 func IsPlatformScope(ctx context.Context) bool {
 	return ScopeFromContext(ctx) == ScopePlatform
+}
+
+// IsOrgScope returns true if the context scope is "org".
+func IsOrgScope(ctx context.Context) bool {
+	return ScopeFromContext(ctx) == ScopeOrg
+}
+
+// NewContext returns a context pre-populated with tenant ID and org ID.
+// Use this when spawning goroutines that need tenant context from a parent request.
+func NewContext(ctx context.Context, tenantID, orgID int64) context.Context {
+	ctx = WithTenantID(ctx, tenantID)
+	ctx = WithOrgID(ctx, orgID)
+	return ctx
 }

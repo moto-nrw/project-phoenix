@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/uptrace/bun"
 )
 
@@ -32,6 +33,9 @@ func WithTenantTx(ctx context.Context, db *bun.DB, tenantID int64, fn func(ctx c
 			return fmt.Errorf("tenant: set_config app.current_tenant_id: %w", err)
 		}
 
+		// Store tx in context so GetDB(ctx, r.db) finds it (CRIT-1 bridge)
+		ctx = modelBase.ContextWithTx(ctx, &tx)
+
 		return fn(ctx, tx)
 	})
 }
@@ -46,6 +50,9 @@ func WithAdminTx(ctx context.Context, db *bun.DB, fn func(ctx context.Context, t
 		if _, err := tx.ExecContext(ctx, "SET LOCAL ROLE phoenix_admin"); err != nil {
 			return fmt.Errorf("tenant: SET LOCAL ROLE phoenix_admin: %w", err)
 		}
+
+		// Store tx in context so GetDB(ctx, r.db) finds it (CRIT-1 bridge)
+		ctx = modelBase.ContextWithTx(ctx, &tx)
 
 		return fn(ctx, tx)
 	})

@@ -76,7 +76,8 @@ func TestIsPlatformScope(t *testing.T) {
 		expected bool
 	}{
 		{"platform scope", tenant.ScopePlatform, true},
-		{"tenant scope", tenant.ScopeTenant, false},
+		{"tenant scope (empty)", tenant.ScopeTenant, false},
+		{"org scope", tenant.ScopeOrg, false},
 		{"empty scope", "", false},
 		{"unknown scope", "unknown", false},
 	}
@@ -89,14 +90,47 @@ func TestIsPlatformScope(t *testing.T) {
 	}
 }
 
+func TestIsOrgScope(t *testing.T) {
+	tests := []struct {
+		name     string
+		scope    string
+		expected bool
+	}{
+		{"org scope", tenant.ScopeOrg, true},
+		{"platform scope", tenant.ScopePlatform, false},
+		{"tenant scope (empty)", tenant.ScopeTenant, false},
+		{"empty scope", "", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := tenant.WithScope(context.Background(), tt.scope)
+			assert.Equal(t, tt.expected, tenant.IsOrgScope(ctx))
+		})
+	}
+}
+
+func TestScopeTenantIsEmptyString(t *testing.T) {
+	// Per architecture plan: "" is the default tenant scope.
+	// Existing JWTs have no scope field, which parses as "".
+	assert.Equal(t, "", tenant.ScopeTenant)
+}
+
 func TestMultipleContextValues(t *testing.T) {
 	ctx := context.Background()
 	ctx = tenant.WithTenantID(ctx, 10)
 	ctx = tenant.WithOrgID(ctx, 20)
-	ctx = tenant.WithScope(ctx, tenant.ScopeTenant)
+	ctx = tenant.WithScope(ctx, tenant.ScopePlatform)
 
 	assert.Equal(t, int64(10), tenant.FromContext(ctx))
 	assert.Equal(t, int64(20), tenant.OrgFromContext(ctx))
-	assert.Equal(t, tenant.ScopeTenant, tenant.ScopeFromContext(ctx))
-	assert.False(t, tenant.IsPlatformScope(ctx))
+	assert.Equal(t, tenant.ScopePlatform, tenant.ScopeFromContext(ctx))
+	assert.True(t, tenant.IsPlatformScope(ctx))
+}
+
+func TestNewContext(t *testing.T) {
+	ctx := tenant.NewContext(context.Background(), 42, 7)
+
+	assert.Equal(t, int64(42), tenant.FromContext(ctx))
+	assert.Equal(t, int64(7), tenant.OrgFromContext(ctx))
 }
