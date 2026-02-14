@@ -563,3 +563,103 @@ func TestAppClaims_IsPlatformScope_False_Other(t *testing.T) {
 	c := &AppClaims{Scope: "other"}
 	assert.False(t, c.IsPlatformScope())
 }
+
+// =============================================================================
+// Multi-Tenancy Claims Tests (Phase 1)
+// =============================================================================
+
+func TestGetOptionalInt64(t *testing.T) {
+	t.Run("present value", func(t *testing.T) {
+		claims := map[string]any{"tenant_id": float64(42)}
+		val := getOptionalInt64(claims, "tenant_id")
+		assert.Equal(t, int64(42), val)
+	})
+
+	t.Run("missing key returns zero", func(t *testing.T) {
+		claims := map[string]any{}
+		val := getOptionalInt64(claims, "tenant_id")
+		assert.Equal(t, int64(0), val)
+	})
+
+	t.Run("nil value returns zero", func(t *testing.T) {
+		claims := map[string]any{"tenant_id": nil}
+		val := getOptionalInt64(claims, "tenant_id")
+		assert.Equal(t, int64(0), val)
+	})
+
+	t.Run("wrong type returns zero", func(t *testing.T) {
+		claims := map[string]any{"tenant_id": "not-a-number"}
+		val := getOptionalInt64(claims, "tenant_id")
+		assert.Equal(t, int64(0), val)
+	})
+
+	t.Run("zero float returns zero", func(t *testing.T) {
+		claims := map[string]any{"tenant_id": float64(0)}
+		val := getOptionalInt64(claims, "tenant_id")
+		assert.Equal(t, int64(0), val)
+	})
+}
+
+func TestAppClaims_ParseClaims_WithTenantFields(t *testing.T) {
+	claims := map[string]any{
+		"id":        float64(1),
+		"sub":       "test@test.com",
+		"roles":     []any{"user"},
+		"tenant_id": float64(100),
+		"org_id":    float64(10),
+		"scope":     "tenant",
+	}
+
+	var c AppClaims
+	err := c.ParseClaims(claims)
+	require.NoError(t, err)
+
+	assert.Equal(t, int64(100), c.TenantID)
+	assert.Equal(t, int64(10), c.OrgID)
+	assert.Equal(t, "tenant", c.Scope)
+}
+
+func TestAppClaims_ParseClaims_BackwardCompatNoTenantFields(t *testing.T) {
+	// Old tokens without tenant fields should still parse fine (zero values)
+	claims := map[string]any{
+		"id":    float64(1),
+		"sub":   "test@test.com",
+		"roles": []any{"user"},
+	}
+
+	var c AppClaims
+	err := c.ParseClaims(claims)
+	require.NoError(t, err)
+
+	assert.Equal(t, int64(0), c.TenantID)
+	assert.Equal(t, int64(0), c.OrgID)
+	assert.Equal(t, "", c.Scope)
+}
+
+func TestRefreshClaims_ParseClaims_WithTenantID(t *testing.T) {
+	claims := map[string]any{
+		"id":        float64(1),
+		"token":     "refresh-token",
+		"tenant_id": float64(42),
+	}
+
+	var c RefreshClaims
+	err := c.ParseClaims(claims)
+	require.NoError(t, err)
+
+	assert.Equal(t, int64(42), c.TenantID)
+}
+
+func TestRefreshClaims_ParseClaims_BackwardCompatNoTenantID(t *testing.T) {
+	// Old refresh tokens without tenant_id should still parse fine
+	claims := map[string]any{
+		"id":    float64(1),
+		"token": "refresh-token",
+	}
+
+	var c RefreshClaims
+	err := c.ParseClaims(claims)
+	require.NoError(t, err)
+
+	assert.Equal(t, int64(0), c.TenantID)
+}

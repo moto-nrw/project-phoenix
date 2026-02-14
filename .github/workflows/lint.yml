@@ -68,10 +68,25 @@ jobs:
           # Run deadcode and capture output
           DEADCODE_OUTPUT=$(deadcode -test ./... 2>&1 || true)
 
-          # Define exclusion patterns (false positives)
+          # Define exclusion patterns (false positives or planned-but-unwired code)
           # cmd/root.go:Execute is the Cobra CLI entry point called by main()
+          # Multi-tenancy Phase 1 foundation primitives — wired in Phases 2-3
           EXCLUSIONS=(
             "cmd/root.go:.*Execute"
+            "tenant/context.go:.*IsOrgScope"
+            "tenant/context.go:.*NewContext"
+            "tenant/tx.go:.*WithAdminTx"
+            "database/repositories/base/helpers.go:.*AssertRowsAffected"
+            "database/repositories/base/tenant_db.go:.*GetDB"
+            "models/base/tenant.go:.*TenantModel"
+            "models/platform/organization.go:.*Organization"
+            "models/platform/school.go:.*School"
+            "models/auth/account_tenant.go:.*AccountTenant"
+            "test/fixtures.go:.*CreateTestOrganization"
+            "test/fixtures.go:.*CreateTestSchool"
+            "test/fixtures.go:.*CreateTestSchoolForOrg"
+            "test/fixtures.go:.*CreateTestAccountTenant"
+            "test/fixtures.go:.*CleanupTenantFixtures"
           )
 
           # Build grep exclusion pattern
