@@ -14,6 +14,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	iotCommon "github.com/moto-nrw/project-phoenix/api/iot/common"
 	"github.com/moto-nrw/project-phoenix/auth/device"
+	"github.com/moto-nrw/project-phoenix/constants"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
@@ -154,6 +155,19 @@ func (rs *Resource) getAvailableRoomsForDevice(w http.ResponseWriter, r *http.Re
 		if cap, err := strconv.Atoi(capacityStr); err == nil && cap > 0 {
 			capacity = cap
 		}
+	}
+
+	// Ensure WC room exists (auto-create on first query)
+	if _, err := rs.FacilityService.FindRoomByName(r.Context(), constants.WCRoomName); err != nil {
+		wcCapacity := constants.WCRoomCapacity
+		wcCategory := constants.WCCategoryName
+		wcColor := constants.WCColor
+		_ = rs.FacilityService.CreateRoom(r.Context(), &facilities.Room{
+			Name:     constants.WCRoomName,
+			Capacity: &wcCapacity,
+			Category: &wcCategory,
+			Color:    &wcColor,
+		})
 	}
 
 	// Get available rooms with occupancy status from facility service
