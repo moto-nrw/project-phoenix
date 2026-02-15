@@ -478,16 +478,25 @@ func (s *Service) assignRoleToNewAccount(ctx context.Context, txService *Service
 		return nil
 	}
 
+	// Require tenant context for role assignment. BUN always writes
+	// TenantModel.TenantID (even when 0), so the DB DEFAULT won't apply.
+	// Public routes (Register) have no tenant — skip role creation and
+	// defer it to when the account is mapped to a tenant.
+	tid := tenant.FromContext(ctx)
+	if tid == 0 {
+		s.getLogger().Warn("skipping role assignment — no tenant context",
+			slog.Int64("account_id", accountID),
+			slog.Int64("role_id", targetRoleID),
+		)
+		return nil
+	}
+
 	// Create account role mapping
 	accountRole := &auth.AccountRole{
 		AccountID: accountID,
 		RoleID:    targetRoleID,
 	}
-	// Only set tenant if available — Register is a public route where
-	// tenant.FromContext(ctx) returns 0. Omitting lets the DB default apply.
-	if tid := tenant.FromContext(ctx); tid > 0 {
-		accountRole.SetTenantID(tid)
-	}
+	accountRole.SetTenantID(tid)
 
 	if err := txService.repos.AccountRole.Create(ctx, accountRole); err != nil {
 		s.getLogger().Error("failed to create account role", "error", err)
