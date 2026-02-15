@@ -20,8 +20,10 @@ type StudentGuardianRepository struct {
 
 // NewStudentGuardianRepository creates a new StudentGuardianRepository
 func NewStudentGuardianRepository(db *bun.DB) users.StudentGuardianRepository {
+	repo := base.NewRepository[*users.StudentGuardian](db, "users.students_guardians", "StudentGuardian")
+	repo.TenantScoped = true
 	return &StudentGuardianRepository{
-		Repository: base.NewRepository[*users.StudentGuardian](db, "users.students_guardians", "StudentGuardian"),
+		Repository: repo,
 		db:         db,
 	}
 }
@@ -29,12 +31,16 @@ func NewStudentGuardianRepository(db *bun.DB) users.StudentGuardianRepository {
 // FindByStudentID retrieves relationships by student ID
 func (r *StudentGuardianRepository) FindByStudentID(ctx context.Context, studentID int64) ([]*users.StudentGuardian, error) {
 	var relationships []*users.StudentGuardian
-	err := base.GetDB(ctx, r.db).NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&relationships).
 		ModelTableExpr(`users.students_guardians AS "student_guardian"`).
-		Where(`"student_guardian".student_id = ?`, studentID).
-		Scan(ctx)
+		Where(`"student_guardian".student_id = ?`, studentID)
 
+	if where, val, ok := base.TenantWhere(ctx, "student_guardian"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.Scan(ctx)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by student ID",
@@ -48,12 +54,16 @@ func (r *StudentGuardianRepository) FindByStudentID(ctx context.Context, student
 // FindByGuardianProfileID retrieves relationships by guardian profile ID
 func (r *StudentGuardianRepository) FindByGuardianProfileID(ctx context.Context, guardianProfileID int64) ([]*users.StudentGuardian, error) {
 	var relationships []*users.StudentGuardian
-	err := base.GetDB(ctx, r.db).NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&relationships).
 		ModelTableExpr(`users.students_guardians AS "student_guardian"`).
-		Where(`"student_guardian".guardian_profile_id = ?`, guardianProfileID).
-		Scan(ctx)
+		Where(`"student_guardian".guardian_profile_id = ?`, guardianProfileID)
 
+	if where, val, ok := base.TenantWhere(ctx, "student_guardian"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.Scan(ctx)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by guardian profile ID",
@@ -67,12 +77,16 @@ func (r *StudentGuardianRepository) FindByGuardianProfileID(ctx context.Context,
 // FindPrimaryByStudentID retrieves the primary guardian for a student
 func (r *StudentGuardianRepository) FindPrimaryByStudentID(ctx context.Context, studentID int64) (*users.StudentGuardian, error) {
 	relationship := new(users.StudentGuardian)
-	err := base.GetDB(ctx, r.db).NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(relationship).
 		ModelTableExpr(`users.students_guardians AS "student_guardian"`).
-		Where(`"student_guardian".student_id = ? AND "student_guardian".is_primary = TRUE`, studentID).
-		Scan(ctx)
+		Where(`"student_guardian".student_id = ? AND "student_guardian".is_primary = TRUE`, studentID)
 
+	if where, val, ok := base.TenantWhere(ctx, "student_guardian"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.Scan(ctx)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find primary by student ID",
@@ -86,12 +100,16 @@ func (r *StudentGuardianRepository) FindPrimaryByStudentID(ctx context.Context, 
 // FindEmergencyContactsByStudentID retrieves all emergency contacts for a student
 func (r *StudentGuardianRepository) FindEmergencyContactsByStudentID(ctx context.Context, studentID int64) ([]*users.StudentGuardian, error) {
 	var relationships []*users.StudentGuardian
-	err := base.GetDB(ctx, r.db).NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&relationships).
 		ModelTableExpr(`users.students_guardians AS "student_guardian"`).
-		Where(`"student_guardian".student_id = ? AND "student_guardian".is_emergency_contact = TRUE`, studentID).
-		Scan(ctx)
+		Where(`"student_guardian".student_id = ? AND "student_guardian".is_emergency_contact = TRUE`, studentID)
 
+	if where, val, ok := base.TenantWhere(ctx, "student_guardian"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.Scan(ctx)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find emergency contacts by student ID",
@@ -105,12 +123,16 @@ func (r *StudentGuardianRepository) FindEmergencyContactsByStudentID(ctx context
 // FindPickupAuthoritiesByStudentID retrieves all guardians who can pickup a student
 func (r *StudentGuardianRepository) FindPickupAuthoritiesByStudentID(ctx context.Context, studentID int64) ([]*users.StudentGuardian, error) {
 	var relationships []*users.StudentGuardian
-	err := base.GetDB(ctx, r.db).NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&relationships).
 		ModelTableExpr(`users.students_guardians AS "student_guardian"`).
-		Where(`"student_guardian".student_id = ? AND "student_guardian".can_pickup = TRUE`, studentID).
-		Scan(ctx)
+		Where(`"student_guardian".student_id = ? AND "student_guardian".can_pickup = TRUE`, studentID)
 
+	if where, val, ok := base.TenantWhere(ctx, "student_guardian"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.Scan(ctx)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find pickup authorities by student ID",
@@ -124,12 +146,16 @@ func (r *StudentGuardianRepository) FindPickupAuthoritiesByStudentID(ctx context
 // FindByRelationshipType retrieves relationships by relationship type
 func (r *StudentGuardianRepository) FindByRelationshipType(ctx context.Context, studentID int64, relationshipType string) ([]*users.StudentGuardian, error) {
 	var relationships []*users.StudentGuardian
-	err := base.GetDB(ctx, r.db).NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&relationships).
 		ModelTableExpr(`users.students_guardians AS "student_guardian"`).
-		Where(`"student_guardian".student_id = ? AND "student_guardian".relationship_type = ?`, studentID, relationshipType).
-		Scan(ctx)
+		Where(`"student_guardian".student_id = ? AND "student_guardian".relationship_type = ?`, studentID, relationshipType)
 
+	if where, val, ok := base.TenantWhere(ctx, "student_guardian"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.Scan(ctx)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by relationship type",
@@ -144,13 +170,17 @@ func (r *StudentGuardianRepository) FindByRelationshipType(ctx context.Context, 
 func (r *StudentGuardianRepository) SetPrimary(ctx context.Context, id int64, isPrimary bool) error {
 	// Database has a trigger that automatically manages the primary status
 	// Just update the current relationship
-	_, err := base.GetDB(ctx, r.db).NewUpdate().
+	query := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*users.StudentGuardian)(nil)).
 		ModelTableExpr(`users.students_guardians AS "student_guardian"`).
 		Set("is_primary = ?", isPrimary).
-		Where(`"student_guardian".id = ?`, id).
-		Exec(ctx)
+		Where(`"student_guardian".id = ?`, id)
 
+	if where, val, ok := base.TenantWhere(ctx, "student_guardian"); ok {
+		query = query.Where(where, val)
+	}
+
+	result, err := query.Exec(ctx)
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "set primary",
@@ -158,18 +188,22 @@ func (r *StudentGuardianRepository) SetPrimary(ctx context.Context, id int64, is
 		}
 	}
 
-	return nil
+	return base.AssertRowsAffected(result, 1, "set primary student_guardian")
 }
 
 // SetEmergencyContact sets whether a guardian is an emergency contact
 func (r *StudentGuardianRepository) SetEmergencyContact(ctx context.Context, id int64, isEmergencyContact bool) error {
-	_, err := base.GetDB(ctx, r.db).NewUpdate().
+	query := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*users.StudentGuardian)(nil)).
 		ModelTableExpr(`users.students_guardians AS "student_guardian"`).
 		Set("is_emergency_contact = ?", isEmergencyContact).
-		Where(`"student_guardian".id = ?`, id).
-		Exec(ctx)
+		Where(`"student_guardian".id = ?`, id)
 
+	if where, val, ok := base.TenantWhere(ctx, "student_guardian"); ok {
+		query = query.Where(where, val)
+	}
+
+	result, err := query.Exec(ctx)
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "set emergency contact",
@@ -177,18 +211,22 @@ func (r *StudentGuardianRepository) SetEmergencyContact(ctx context.Context, id 
 		}
 	}
 
-	return nil
+	return base.AssertRowsAffected(result, 1, "set emergency contact student_guardian")
 }
 
 // SetCanPickup sets whether a guardian can pickup a student
 func (r *StudentGuardianRepository) SetCanPickup(ctx context.Context, id int64, canPickup bool) error {
-	_, err := base.GetDB(ctx, r.db).NewUpdate().
+	query := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*users.StudentGuardian)(nil)).
 		ModelTableExpr(`users.students_guardians AS "student_guardian"`).
 		Set("can_pickup = ?", canPickup).
-		Where(`"student_guardian".id = ?`, id).
-		Exec(ctx)
+		Where(`"student_guardian".id = ?`, id)
 
+	if where, val, ok := base.TenantWhere(ctx, "student_guardian"); ok {
+		query = query.Where(where, val)
+	}
+
+	result, err := query.Exec(ctx)
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "set can pickup",
@@ -196,7 +234,7 @@ func (r *StudentGuardianRepository) SetCanPickup(ctx context.Context, id int64, 
 		}
 	}
 
-	return nil
+	return base.AssertRowsAffected(result, 1, "set can pickup student_guardian")
 }
 
 // UpdatePermissions updates a guardian's permissions
@@ -207,13 +245,17 @@ func (r *StudentGuardianRepository) UpdatePermissions(ctx context.Context, id in
 		return fmt.Errorf("invalid permissions JSON format: %w", err)
 	}
 
-	_, err := base.GetDB(ctx, r.db).NewUpdate().
+	query := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*users.StudentGuardian)(nil)).
 		ModelTableExpr(`users.students_guardians AS "student_guardian"`).
 		Set("permissions = ?", permissions).
-		Where(`"student_guardian".id = ?`, id).
-		Exec(ctx)
+		Where(`"student_guardian".id = ?`, id)
 
+	if where, val, ok := base.TenantWhere(ctx, "student_guardian"); ok {
+		query = query.Where(where, val)
+	}
+
+	result, err := query.Exec(ctx)
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "update permissions",
@@ -221,7 +263,7 @@ func (r *StudentGuardianRepository) UpdatePermissions(ctx context.Context, id in
 		}
 	}
 
-	return nil
+	return base.AssertRowsAffected(result, 1, "update permissions student_guardian")
 }
 
 // Create overrides the base Create method to handle validation
@@ -292,6 +334,10 @@ func (r *StudentGuardianRepository) ListWithOptions(ctx context.Context, options
 		Model(&relationships).
 		ModelTableExpr(`users.students_guardians AS "student_guardian"`)
 
+	if where, val, ok := base.TenantWhere(ctx, "student_guardian"); ok {
+		query = query.Where(where, val)
+	}
+
 	// Apply query options
 	if options != nil {
 		if options.Filter != nil {
@@ -314,13 +360,17 @@ func (r *StudentGuardianRepository) ListWithOptions(ctx context.Context, options
 // FindWithStudent retrieves a student guardian relationship with its associated student
 func (r *StudentGuardianRepository) FindWithStudent(ctx context.Context, id int64) (*users.StudentGuardian, error) {
 	relationship := new(users.StudentGuardian)
-	err := base.GetDB(ctx, r.db).NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(relationship).
 		ModelTableExpr(`users.students_guardians AS "student_guardian"`).
 		Relation("Student").
-		Where(`"student_guardian".id = ?`, id).
-		Scan(ctx)
+		Where(`"student_guardian".id = ?`, id)
 
+	if where, val, ok := base.TenantWhere(ctx, "student_guardian"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.Scan(ctx)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find with student",
@@ -334,14 +384,18 @@ func (r *StudentGuardianRepository) FindWithStudent(ctx context.Context, id int6
 // FindWithStudentAndPerson retrieves a student guardian relationship with its associated student and person
 func (r *StudentGuardianRepository) FindWithStudentAndPerson(ctx context.Context, id int64) (*users.StudentGuardian, error) {
 	relationship := new(users.StudentGuardian)
-	err := base.GetDB(ctx, r.db).NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(relationship).
 		ModelTableExpr(`users.students_guardians AS "student_guardian"`).
 		Relation("Student").
 		Relation("Student.Person").
-		Where(`"student_guardian".id = ?`, id).
-		Scan(ctx)
+		Where(`"student_guardian".id = ?`, id)
 
+	if where, val, ok := base.TenantWhere(ctx, "student_guardian"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.Scan(ctx)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find with student and person",

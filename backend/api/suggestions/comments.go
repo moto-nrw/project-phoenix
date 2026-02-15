@@ -1,6 +1,7 @@
 package suggestions
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"strconv"
@@ -11,6 +12,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/models/suggestions"
+	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/uptrace/bun"
 )
 
 // CommentResponse represents a comment in API responses
@@ -84,7 +87,10 @@ func (rs *Resource) createComment(w http.ResponseWriter, r *http.Request) {
 		Content:  req.Content,
 	}
 
-	if err := rs.SuggestionsService.CreateComment(r.Context(), comment); err != nil {
+	tenantID := tenant.FromContext(r.Context())
+	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		return rs.SuggestionsService.CreateComment(ctx, comment)
+	}); err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
@@ -108,7 +114,10 @@ func (rs *Resource) deleteComment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := rs.SuggestionsService.DeleteComment(r.Context(), commentID, accountID); err != nil {
+	tenantID := tenant.FromContext(r.Context())
+	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		return rs.SuggestionsService.DeleteComment(ctx, commentID, accountID)
+	}); err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
@@ -127,7 +136,10 @@ func (rs *Resource) markCommentsRead(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := rs.SuggestionsService.MarkCommentsRead(r.Context(), postID, accountID); err != nil {
+	tenantID := tenant.FromContext(r.Context())
+	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		return rs.SuggestionsService.MarkCommentsRead(ctx, postID, accountID)
+	}); err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}

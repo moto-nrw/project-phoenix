@@ -8,6 +8,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -25,8 +26,10 @@ type CategoryRepository struct {
 
 // NewCategoryRepository creates a new CategoryRepository
 func NewCategoryRepository(db *bun.DB) activities.CategoryRepository {
+	repo := base.NewRepository[*activities.Category](db, tableActivitiesCategories, "Category")
+	repo.TenantScoped = true
 	return &CategoryRepository{
-		Repository: base.NewRepository[*activities.Category](db, tableActivitiesCategories, "Category"),
+		Repository: repo,
 		db:         db,
 	}
 }
@@ -34,11 +37,16 @@ func NewCategoryRepository(db *bun.DB) activities.CategoryRepository {
 // FindByName finds a category by its name
 func (r *CategoryRepository) FindByName(ctx context.Context, name string) (*activities.Category, error) {
 	category := new(activities.Category)
-	err := base.GetDB(ctx, r.db).NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(category).
 		ModelTableExpr(tableExprActivitiesCategoriesAsCat).
-		Where("LOWER(name) = LOWER(?)", name).
-		Scan(ctx)
+		Where("LOWER(name) = LOWER(?)", name)
+
+	if where, val, ok := base.TenantWhere(ctx, "category"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.Scan(ctx)
 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
@@ -53,9 +61,15 @@ func (r *CategoryRepository) FindByName(ctx context.Context, name string) (*acti
 // ListAll returns all categories
 func (r *CategoryRepository) ListAll(ctx context.Context) ([]*activities.Category, error) {
 	var categories []*activities.Category
-	err := base.GetDB(ctx, r.db).NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&categories).
-		ModelTableExpr(tableExprActivitiesCategoriesAsCat).
+		ModelTableExpr(tableExprActivitiesCategoriesAsCat)
+
+	if where, val, ok := base.TenantWhere(ctx, "category"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.
 		Order("name ASC").
 		Scan(ctx)
 
@@ -101,8 +115,12 @@ func (r *CategoryRepository) Update(ctx context.Context, category *activities.Ca
 		Where("id = ?", category.ID).
 		ModelTableExpr(tableActivitiesCategories)
 
+	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
+		query = query.Where("tenant_id = ?", tenantID)
+	}
+
 	// Execute the query
-	_, err := query.Exec(ctx)
+	result, err := query.Exec(ctx)
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "update",
@@ -110,7 +128,7 @@ func (r *CategoryRepository) Update(ctx context.Context, category *activities.Ca
 		}
 	}
 
-	return nil
+	return base.AssertRowsAffected(result, 1, "update category")
 }
 
 // List overrides the base List method to accept the new QueryOptions type
@@ -119,6 +137,10 @@ func (r *CategoryRepository) List(ctx context.Context, options *modelBase.QueryO
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&categories).
 		ModelTableExpr(`activities.categories AS "category"`)
+
+	if where, val, ok := base.TenantWhere(ctx, "category"); ok {
+		query = query.Where(where, val)
+	}
 
 	// Apply query options
 	if options != nil {

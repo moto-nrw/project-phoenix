@@ -8,7 +8,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/tenant"
-	"github.com/uptrace/bun"
 )
 
 // ======== Schedule Methods ========
@@ -68,29 +67,17 @@ func (s *Service) GetGroupSchedules(ctx context.Context, groupID int64) ([]*acti
 
 // DeleteSchedule deletes a schedule
 func (s *Service) DeleteSchedule(ctx context.Context, id int64) error {
-	// Execute in transaction for consistency
-	err := s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
-		// Get transactional service
-		txService := s.WithTx(tx).(ActivityService)
-
-		// Check if schedule exists
-		_, err := txService.(*Service).scheduleRepo.FindByID(ctx, id)
-		if err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
-				return ErrScheduleNotFound
-			}
-			return &ActivityError{Op: "find schedule", Err: err}
-		}
-
-		// Delete the schedule
-		if err := txService.(*Service).scheduleRepo.Delete(ctx, id); err != nil {
-			return &ActivityError{Op: "delete schedule", Err: err}
-		}
-
-		return nil
-	})
-
+	// Check if schedule exists
+	_, err := s.scheduleRepo.FindByID(ctx, id)
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return &ActivityError{Op: "delete schedule", Err: ErrScheduleNotFound}
+		}
+		return &ActivityError{Op: "delete schedule", Err: err}
+	}
+
+	// Delete the schedule
+	if err := s.scheduleRepo.Delete(ctx, id); err != nil {
 		return &ActivityError{Op: "delete schedule", Err: err}
 	}
 
@@ -99,51 +86,35 @@ func (s *Service) DeleteSchedule(ctx context.Context, id int64) error {
 
 // UpdateSchedule updates an existing schedule
 func (s *Service) UpdateSchedule(ctx context.Context, schedule *activities.Schedule) (*activities.Schedule, error) {
-	// Execute in transaction for consistency
-	var result *activities.Schedule
-
-	err := s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
-		// Get transactional service
-		txService := s.WithTx(tx).(ActivityService)
-
-		// Check if schedule exists
-		existingSchedule, err := txService.(*Service).scheduleRepo.FindByID(ctx, schedule.ID)
-		if err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
-				return ErrScheduleNotFound
-			}
-			return &ActivityError{Op: "find schedule", Err: err}
+	// Check if schedule exists
+	existingSchedule, err := s.scheduleRepo.FindByID(ctx, schedule.ID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, &ActivityError{Op: opUpdateSchedule, Err: ErrScheduleNotFound}
 		}
+		return nil, &ActivityError{Op: opUpdateSchedule, Err: err}
+	}
 
-		// Validate the schedule
-		if err := schedule.Validate(); err != nil {
-			return &ActivityError{Op: opValidateSchedule, Err: err}
-		}
+	// Validate the schedule
+	if err := schedule.Validate(); err != nil {
+		return nil, &ActivityError{Op: opUpdateSchedule, Err: err}
+	}
 
-		// Make sure the relationship to group is preserved
-		if schedule.ActivityGroupID != existingSchedule.ActivityGroupID {
-			return &ActivityError{Op: opUpdateSchedule, Err: errors.New("cannot change activity group for a schedule")}
-		}
+	// Make sure the relationship to group is preserved
+	if schedule.ActivityGroupID != existingSchedule.ActivityGroupID {
+		return nil, &ActivityError{Op: opUpdateSchedule, Err: errors.New("cannot change activity group for a schedule")}
+	}
 
-		// Update the schedule
-		if err := txService.(*Service).scheduleRepo.Update(ctx, schedule); err != nil {
-			return &ActivityError{Op: opUpdateSchedule, Err: err}
-		}
+	// Update the schedule
+	if err := s.scheduleRepo.Update(ctx, schedule); err != nil {
+		return nil, &ActivityError{Op: opUpdateSchedule, Err: err}
+	}
 
-		// Get the updated schedule
-		updatedSchedule, err := txService.(*Service).scheduleRepo.FindByID(ctx, schedule.ID)
-		if err != nil {
-			return &ActivityError{Op: "retrieve updated schedule", Err: err}
-		}
-
-		// Store result for returning after transaction completes
-		result = updatedSchedule
-		return nil
-	})
-
+	// Get the updated schedule
+	updatedSchedule, err := s.scheduleRepo.FindByID(ctx, schedule.ID)
 	if err != nil {
 		return nil, &ActivityError{Op: opUpdateSchedule, Err: err}
 	}
 
-	return result, nil
+	return updatedSchedule, nil
 }

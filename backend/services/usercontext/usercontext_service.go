@@ -16,7 +16,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/auth"
-	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -60,7 +59,6 @@ type userContextService struct {
 	profileRepo        users.ProfileRepository
 	substitutionRepo   education.GroupSubstitutionRepository
 	db                 *bun.DB
-	txHandler          *base.TxHandler
 	logger             *slog.Logger
 }
 
@@ -88,76 +86,7 @@ func NewUserContextServiceWithRepos(repos UserContextRepositories, db *bun.DB, l
 		profileRepo:        repos.ProfileRepo,
 		substitutionRepo:   repos.SubstitutionRepo,
 		db:                 db,
-		txHandler:          base.NewTxHandler(db),
 		logger:             logger,
-	}
-}
-
-// WithTx returns a new service that uses the provided transaction
-func (s *userContextService) WithTx(tx bun.Tx) interface{} {
-	// Get repositories with transaction
-	var accountRepo = s.accountRepo
-	var personRepo = s.personRepo
-	var staffRepo = s.staffRepo
-	var teacherRepo = s.teacherRepo
-	var studentRepo = s.studentRepo
-	var educationGroupRepo = s.educationGroupRepo
-	var activityGroupRepo = s.activityGroupRepo
-	var activeGroupRepo = s.activeGroupRepo
-	var visitsRepo = s.visitsRepo
-	var supervisorRepo = s.supervisorRepo
-	var profileRepo = s.profileRepo
-
-	// Apply transaction to repositories that implement TransactionalRepository
-	if txRepo, ok := s.accountRepo.(base.TransactionalRepository); ok {
-		accountRepo = txRepo.WithTx(tx).(auth.AccountRepository)
-	}
-	if txRepo, ok := s.personRepo.(base.TransactionalRepository); ok {
-		personRepo = txRepo.WithTx(tx).(users.PersonRepository)
-	}
-	if txRepo, ok := s.staffRepo.(base.TransactionalRepository); ok {
-		staffRepo = txRepo.WithTx(tx).(users.StaffRepository)
-	}
-	if txRepo, ok := s.teacherRepo.(base.TransactionalRepository); ok {
-		teacherRepo = txRepo.WithTx(tx).(users.TeacherRepository)
-	}
-	if txRepo, ok := s.studentRepo.(base.TransactionalRepository); ok {
-		studentRepo = txRepo.WithTx(tx).(users.StudentRepository)
-	}
-	if txRepo, ok := s.educationGroupRepo.(base.TransactionalRepository); ok {
-		educationGroupRepo = txRepo.WithTx(tx).(education.GroupRepository)
-	}
-	if txRepo, ok := s.activityGroupRepo.(base.TransactionalRepository); ok {
-		activityGroupRepo = txRepo.WithTx(tx).(activities.GroupRepository)
-	}
-	if txRepo, ok := s.activeGroupRepo.(base.TransactionalRepository); ok {
-		activeGroupRepo = txRepo.WithTx(tx).(active.GroupRepository)
-	}
-	if txRepo, ok := s.visitsRepo.(base.TransactionalRepository); ok {
-		visitsRepo = txRepo.WithTx(tx).(active.VisitRepository)
-	}
-	if txRepo, ok := s.supervisorRepo.(base.TransactionalRepository); ok {
-		supervisorRepo = txRepo.WithTx(tx).(active.GroupSupervisorRepository)
-	}
-	if txRepo, ok := s.profileRepo.(base.TransactionalRepository); ok {
-		profileRepo = txRepo.WithTx(tx).(users.ProfileRepository)
-	}
-
-	// Return a new service with the transaction
-	return &userContextService{
-		accountRepo:        accountRepo,
-		personRepo:         personRepo,
-		staffRepo:          staffRepo,
-		teacherRepo:        teacherRepo,
-		studentRepo:        studentRepo,
-		educationGroupRepo: educationGroupRepo,
-		activityGroupRepo:  activityGroupRepo,
-		activeGroupRepo:    activeGroupRepo,
-		visitsRepo:         visitsRepo,
-		supervisorRepo:     supervisorRepo,
-		profileRepo:        profileRepo,
-		db:                 s.db,
-		txHandler:          s.txHandler.WithTx(tx),
 	}
 }
 
@@ -771,19 +700,15 @@ func (s *userContextService) UpdateCurrentProfile(ctx context.Context, updates m
 
 	person, personErr := s.GetCurrentPerson(ctx)
 
-	err = s.txHandler.RunInTx(ctx, func(txCtx context.Context, tx bun.Tx) error {
-		if err := s.updatePersonDataInTx(txCtx, account, person, personErr, updates); err != nil {
-			return err
-		}
+	if err := s.updatePersonDataInTx(ctx, account, person, personErr, updates); err != nil {
+		return nil, &UserContextError{Op: "update current profile", Err: err}
+	}
 
-		if err := s.updateAccountUsernameInTx(txCtx, account, updates); err != nil {
-			return err
-		}
+	if err := s.updateAccountUsernameInTx(ctx, account, updates); err != nil {
+		return nil, &UserContextError{Op: "update current profile", Err: err}
+	}
 
-		return s.updateProfileBioInTx(txCtx, account.ID, updates)
-	})
-
-	if err != nil {
+	if err := s.updateProfileBioInTx(ctx, account.ID, updates); err != nil {
 		return nil, &UserContextError{Op: "update current profile", Err: err}
 	}
 
@@ -897,14 +822,7 @@ func (s *userContextService) UpdateAvatar(ctx context.Context, avatarURL string)
 		return nil, &UserContextError{Op: "update avatar", Err: err}
 	}
 
-	var oldAvatarPath string
-
-	err = s.txHandler.RunInTx(ctx, func(txCtx context.Context, tx bun.Tx) error {
-		var updateErr error
-		oldAvatarPath, updateErr = s.updateAvatarInTx(txCtx, account.ID, avatarURL)
-		return updateErr
-	})
-
+	oldAvatarPath, err := s.updateAvatarInTx(ctx, account.ID, avatarURL)
 	if err != nil {
 		return nil, &UserContextError{Op: "update avatar", Err: err}
 	}

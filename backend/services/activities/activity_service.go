@@ -22,7 +22,6 @@ type Service struct {
 	enrollmentRepo  activities.StudentEnrollmentRepository
 	activeGroupRepo activeModels.GroupRepository
 	db              *bun.DB
-	txHandler       *base.TxHandler
 }
 
 // NewService creates a new activity service
@@ -43,7 +42,6 @@ func NewService(
 		enrollmentRepo:  enrollmentRepo,
 		activeGroupRepo: activeGroupRepo,
 		db:              db,
-		txHandler:       base.NewTxHandler(db),
 	}, nil
 }
 
@@ -65,45 +63,6 @@ const (
 	opDeleteSupervisor     = "delete supervisor"
 	opCheckPermissions     = "check permissions"
 )
-
-// WithTx returns a new service that uses the provided transaction
-func (s *Service) WithTx(tx bun.Tx) interface{} {
-	// Get repositories with transaction if they implement the TransactionalRepository interface
-	var categoryRepo = s.categoryRepo
-	var groupRepo = s.groupRepo
-	var scheduleRepo = s.scheduleRepo
-	var supervisorRepo = s.supervisorRepo
-	var enrollmentRepo = s.enrollmentRepo
-
-	// Try to cast repositories to TransactionalRepository and apply the transaction
-	if txRepo, ok := s.categoryRepo.(base.TransactionalRepository); ok {
-		categoryRepo = txRepo.WithTx(tx).(activities.CategoryRepository)
-	}
-	if txRepo, ok := s.groupRepo.(base.TransactionalRepository); ok {
-		groupRepo = txRepo.WithTx(tx).(activities.GroupRepository)
-	}
-	if txRepo, ok := s.scheduleRepo.(base.TransactionalRepository); ok {
-		scheduleRepo = txRepo.WithTx(tx).(activities.ScheduleRepository)
-	}
-	if txRepo, ok := s.supervisorRepo.(base.TransactionalRepository); ok {
-		supervisorRepo = txRepo.WithTx(tx).(activities.SupervisorPlannedRepository)
-	}
-	if txRepo, ok := s.enrollmentRepo.(base.TransactionalRepository); ok {
-		enrollmentRepo = txRepo.WithTx(tx).(activities.StudentEnrollmentRepository)
-	}
-
-	// Return a new service with the transaction
-	return &Service{
-		categoryRepo:    categoryRepo,
-		groupRepo:       groupRepo,
-		scheduleRepo:    scheduleRepo,
-		supervisorRepo:  supervisorRepo,
-		enrollmentRepo:  enrollmentRepo,
-		activeGroupRepo: s.activeGroupRepo,
-		db:              s.db,
-		txHandler:       s.txHandler.WithTx(tx),
-	}
-}
 
 // ======== Category Methods ========
 
@@ -194,34 +153,22 @@ func (s *Service) CreateGroup(ctx context.Context, group *activities.Group, supe
 		return nil, err
 	}
 
-	var result *activities.Group
-	err := s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
-		txService := s.WithTx(tx).(ActivityService)
-
-		group.SetTenantID(tenant.FromContext(ctx))
-		if err := txService.(*Service).groupRepo.Create(ctx, group); err != nil {
-			return &ActivityError{Op: "create group", Err: err}
-		}
-
-		if err := s.createSupervisorsInTx(ctx, txService, group.ID, supervisorIDs); err != nil {
-			return err
-		}
-
-		if err := s.createSchedulesInTx(ctx, txService, group.ID, schedules); err != nil {
-			return err
-		}
-
-		var err error
-		result, err = txService.(*Service).groupRepo.FindByID(ctx, group.ID)
-		if err != nil {
-			return &ActivityError{Op: "retrieve created group", Err: err}
-		}
-
-		return nil
-	})
-
-	if err != nil {
+	group.SetTenantID(tenant.FromContext(ctx))
+	if err := s.groupRepo.Create(ctx, group); err != nil {
 		return nil, &ActivityError{Op: "create group", Err: err}
+	}
+
+	if err := s.createSupervisorsInTx(ctx, s, group.ID, supervisorIDs); err != nil {
+		return nil, &ActivityError{Op: "create group", Err: err}
+	}
+
+	if err := s.createSchedulesInTx(ctx, s, group.ID, schedules); err != nil {
+		return nil, &ActivityError{Op: "create group", Err: err}
+	}
+
+	result, err := s.groupRepo.FindByID(ctx, group.ID)
+	if err != nil {
+		return nil, &ActivityError{Op: "retrieve created group", Err: err}
 	}
 
 	return result, nil
@@ -336,27 +283,21 @@ func (s *Service) DeleteGroup(ctx context.Context, id int64, requestingStaffID i
 		return &ActivityError{Op: "delete group", Err: ErrNotOwner}
 	}
 
-	err = s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
-		txService := s.WithTx(tx).(*Service)
+	// Delete all related records
+	if err := deleteGroupEnrollments(ctx, s, id); err != nil {
+		return &ActivityError{Op: "delete group transaction", Err: err}
+	}
 
-		// Delete all related records
-		if err := deleteGroupEnrollments(ctx, txService, id); err != nil {
-			return err
-		}
+	if err := deleteGroupSupervisors(ctx, s, id); err != nil {
+		return &ActivityError{Op: "delete group transaction", Err: err}
+	}
 
-		if err := deleteGroupSupervisors(ctx, txService, id); err != nil {
-			return err
-		}
+	if err := deleteGroupSchedules(ctx, s, id); err != nil {
+		return &ActivityError{Op: "delete group transaction", Err: err}
+	}
 
-		if err := deleteGroupSchedules(ctx, txService, id); err != nil {
-			return err
-		}
-
-		// Finally delete the group
-		return txService.groupRepo.Delete(ctx, id)
-	})
-
-	if err != nil {
+	// Finally delete the group
+	if err := s.groupRepo.Delete(ctx, id); err != nil {
 		return &ActivityError{Op: "delete group transaction", Err: err}
 	}
 

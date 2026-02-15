@@ -17,8 +17,6 @@ type ActivityGroupWithOccupancy struct {
 
 // ActivityService defines operations for activity management
 type ActivityService interface {
-	base.TransactionalService
-
 	// Category operations
 	CreateCategory(ctx context.Context, category *activities.Category) (*activities.Category, error)
 	GetCategory(ctx context.Context, id int64) (*activities.Category, error)

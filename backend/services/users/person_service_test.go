@@ -1561,36 +1561,6 @@ func TestPersonService_Update_WithChangedRFID(t *testing.T) {
 	})
 }
 
-func TestPersonService_WithTx_TransactionBinding(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	service := setupPersonService(t, db)
-	ctx := context.Background()
-
-	t.Run("returns service bound to transaction", func(t *testing.T) {
-		// Start a transaction
-		tx, err := db.BeginTx(ctx, nil)
-		require.NoError(t, err)
-		defer func() { _ = tx.Rollback() }()
-
-		// ACT - create transaction-bound service
-		txService := service.WithTx(tx)
-
-		// ASSERT - should return a valid PersonService
-		require.NotNil(t, txService)
-
-		// Cast to interface and verify it works
-		ps, ok := txService.(users.PersonService)
-		require.True(t, ok, "WithTx should return PersonService interface")
-
-		// Verify the tx-bound service can perform read operations
-		// (we test read since writes would leave data if not rolled back)
-		_, err = ps.List(ctx, nil)
-		require.NoError(t, err, "Transaction-bound service should be able to list")
-	})
-}
-
 func TestPersonService_LinkToAccount_SamePersonRelink(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()

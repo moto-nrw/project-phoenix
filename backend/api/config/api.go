@@ -1,6 +1,7 @@
 package config
 
 import (
+	"context"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -17,19 +18,23 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/services/active"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
+	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/uptrace/bun"
 )
 
 // Resource defines the config API resource
 type Resource struct {
 	ConfigService  configSvc.Service
 	CleanupService active.CleanupService
+	db             *bun.DB
 }
 
 // NewResource creates a new config resource
-func NewResource(configService configSvc.Service, cleanupService active.CleanupService) *Resource {
+func NewResource(configService configSvc.Service, cleanupService active.CleanupService, db *bun.DB) *Resource {
 	return &Resource{
 		ConfigService:  configService,
 		CleanupService: cleanupService,
+		db:             db,
 	}
 }
 
@@ -280,7 +285,11 @@ func (rs *Resource) createSetting(w http.ResponseWriter, r *http.Request) {
 		RequiresDBReset: req.RequiresDBReset,
 	}
 
-	if err := rs.ConfigService.CreateSetting(r.Context(), setting); err != nil {
+	tenantID := tenant.FromContext(r.Context())
+	err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		return rs.ConfigService.CreateSetting(ctx, setting)
+	})
+	if err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
@@ -320,7 +329,11 @@ func (rs *Resource) updateSetting(w http.ResponseWriter, r *http.Request) {
 	setting.RequiresDBReset = req.RequiresDBReset
 
 	// Update setting
-	if err := rs.ConfigService.UpdateSetting(r.Context(), setting); err != nil {
+	tenantID := tenant.FromContext(r.Context())
+	err = tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		return rs.ConfigService.UpdateSetting(ctx, setting)
+	})
+	if err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
@@ -345,7 +358,11 @@ func (rs *Resource) updateSettingValue(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Update setting value
-	if err := rs.ConfigService.UpdateSettingValue(r.Context(), key, req.Value); err != nil {
+	tenantID := tenant.FromContext(r.Context())
+	err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		return rs.ConfigService.UpdateSettingValue(ctx, key, req.Value)
+	})
+	if err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
@@ -370,7 +387,11 @@ func (rs *Resource) deleteSetting(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Delete setting
-	if err := rs.ConfigService.DeleteSetting(r.Context(), id); err != nil {
+	tenantID := tenant.FromContext(r.Context())
+	err = tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		return rs.ConfigService.DeleteSetting(ctx, id)
+	})
+	if err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
@@ -401,7 +422,14 @@ func (rs *Resource) importSettings(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Import settings
-	errors, err := rs.ConfigService.ImportSettings(r.Context(), settings)
+	tenantID := tenant.FromContext(r.Context())
+	var importErrors []error
+	err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		var txErr error
+		importErrors, txErr = rs.ConfigService.ImportSettings(ctx, settings)
+		return txErr
+	})
+	errors := importErrors
 	if err != nil {
 		// If we have individual errors, include them in the response
 		if len(errors) > 0 {
@@ -427,7 +455,11 @@ func (rs *Resource) importSettings(w http.ResponseWriter, r *http.Request) {
 // initializeDefaults handles initializing default settings
 func (rs *Resource) initializeDefaults(w http.ResponseWriter, r *http.Request) {
 	// Initialize default settings
-	if err := rs.ConfigService.InitializeDefaultSettings(r.Context()); err != nil {
+	tenantID := tenant.FromContext(r.Context())
+	err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		return rs.ConfigService.InitializeDefaultSettings(ctx)
+	})
+	if err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
@@ -575,6 +607,7 @@ func (rs *Resource) updateRetentionSettings(w http.ResponseWriter, r *http.Reque
 
 	// Update or create the setting
 	setting, err := rs.ConfigService.GetSettingByKey(r.Context(), "default_visit_retention_days")
+	tenantID := tenant.FromContext(r.Context())
 	if err != nil {
 		// Create new setting
 		setting = &config.Setting{
@@ -583,15 +616,21 @@ func (rs *Resource) updateRetentionSettings(w http.ResponseWriter, r *http.Reque
 			Category:    "privacy",
 			Description: "Default number of days to retain visit data (1-31)",
 		}
-		if err := rs.ConfigService.CreateSetting(r.Context(), setting); err != nil {
-			common.RenderError(w, r, ErrorRenderer(err))
+		txErr := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+			return rs.ConfigService.CreateSetting(ctx, setting)
+		})
+		if txErr != nil {
+			common.RenderError(w, r, ErrorRenderer(txErr))
 			return
 		}
 	} else {
 		// Update existing setting
 		setting.Value = strconv.Itoa(req.VisitRetentionDays)
-		if err := rs.ConfigService.UpdateSetting(r.Context(), setting); err != nil {
-			common.RenderError(w, r, ErrorRenderer(err))
+		txErr := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+			return rs.ConfigService.UpdateSetting(ctx, setting)
+		})
+		if txErr != nil {
+			common.RenderError(w, r, ErrorRenderer(txErr))
 			return
 		}
 	}
@@ -608,7 +647,13 @@ func (rs *Resource) triggerRetentionCleanup(w http.ResponseWriter, r *http.Reque
 	}
 
 	// Run cleanup
-	result, err := rs.CleanupService.CleanupExpiredVisits(r.Context())
+	tenantID := tenant.FromContext(r.Context())
+	var result *active.CleanupResult
+	err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		var txErr error
+		result, txErr = rs.CleanupService.CleanupExpiredVisits(ctx)
+		return txErr
+	})
 	if err != nil {
 		common.RenderError(w, r, ErrorInternalServer(err))
 		return
@@ -625,12 +670,18 @@ func (rs *Resource) triggerRetentionCleanup(w http.ResponseWriter, r *http.Reque
 	}
 	lastCleanupSetting.Value = time.Now().Format(time.RFC3339)
 	if lastCleanupSetting.ID == 0 {
-		if err := rs.ConfigService.CreateSetting(r.Context(), lastCleanupSetting); err != nil {
-			slog.Default().Warn("failed to record cleanup timestamp", slog.String("error", err.Error()))
+		txErr := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+			return rs.ConfigService.CreateSetting(ctx, lastCleanupSetting)
+		})
+		if txErr != nil {
+			slog.Default().Warn("failed to record cleanup timestamp", slog.String("error", txErr.Error()))
 		}
 	} else {
-		if err := rs.ConfigService.UpdateSetting(r.Context(), lastCleanupSetting); err != nil {
-			slog.Default().Warn("failed to update cleanup timestamp", slog.String("error", err.Error()))
+		txErr := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+			return rs.ConfigService.UpdateSetting(ctx, lastCleanupSetting)
+		})
+		if txErr != nil {
+			slog.Default().Warn("failed to update cleanup timestamp", slog.String("error", txErr.Error()))
 		}
 	}
 

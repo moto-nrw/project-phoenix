@@ -38,7 +38,7 @@ func setupTestContext(t *testing.T) *testContext {
 	t.Helper()
 
 	db, svc := testutil.SetupAPITest(t)
-	resource := adminAPI.NewGradeTransitionResource(svc.GradeTransition)
+	resource := adminAPI.NewGradeTransitionResource(svc.GradeTransition, db)
 
 	t.Cleanup(func() {
 		if err := db.Close(); err != nil {

@@ -3,13 +3,11 @@ package config
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/config"
 )
 
 // Service defines the configuration service operations
 type Service interface {
-	base.TransactionalService
 	// Core operations
 	CreateSetting(ctx context.Context, setting *config.Setting) error
 	GetSettingByID(ctx context.Context, id int64) (*config.Setting, error)
@@ -41,7 +39,4 @@ type Service interface {
 	GetTimeoutSettings(ctx context.Context) (*config.TimeoutSettings, error)
 	UpdateTimeoutSettings(ctx context.Context, settings *config.TimeoutSettings) error
 	GetDeviceTimeoutSettings(ctx context.Context, deviceID int64) (*config.TimeoutSettings, error)
-
-	// Transaction support
-	// WithTx is already defined in base.TransactionalService
 }

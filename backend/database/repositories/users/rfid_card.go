@@ -22,8 +22,10 @@ type RFIDCardRepository struct {
 
 // NewRFIDCardRepository creates a new RFIDCardRepository
 func NewRFIDCardRepository(db *bun.DB) users.RFIDCardRepository {
+	repo := base.NewRepository[*users.RFIDCard](db, "users.rfid_cards", "RFIDCard")
+	repo.TenantScoped = true
 	return &RFIDCardRepository{
-		Repository: base.NewRepository[*users.RFIDCard](db, "users.rfid_cards", "RFIDCard"),
+		Repository: repo,
 		db:         db,
 	}
 }
@@ -33,12 +35,16 @@ func (r *RFIDCardRepository) Delete(ctx context.Context, id string) error {
 	// Normalize the tag ID to match stored format
 	normalizedID := normalizeRFIDTagID(id)
 
-	_, err := base.GetDB(ctx, r.db).NewDelete().
+	query := base.GetDB(ctx, r.db).NewDelete().
 		Model((*users.RFIDCard)(nil)).
 		ModelTableExpr(`users.rfid_cards AS "rfid_card"`).
-		Where(`"rfid_card".id = ?`, normalizedID).
-		Exec(ctx)
+		Where(`"rfid_card".id = ?`, normalizedID)
 
+	if where, val, ok := base.TenantWhere(ctx, "rfid_card"); ok {
+		query = query.Where(where, val)
+	}
+
+	result, err := query.Exec(ctx)
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "delete",
@@ -46,7 +52,7 @@ func (r *RFIDCardRepository) Delete(ctx context.Context, id string) error {
 		}
 	}
 
-	return nil
+	return base.AssertRowsAffected(result, 1, "delete rfid_card")
 }
 
 // normalizeRFIDTagID normalizes RFID tag ID format (same logic as RFIDCard.Validate)
@@ -69,11 +75,16 @@ func (r *RFIDCardRepository) FindByID(ctx context.Context, id string) (*users.RF
 	normalizedID := normalizeRFIDTagID(id)
 
 	card := new(users.RFIDCard)
-	err := base.GetDB(ctx, r.db).NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(card).
 		ModelTableExpr(`users.rfid_cards AS "rfid_card"`).
-		Where(`"rfid_card".id = ?`, normalizedID).
-		Scan(ctx)
+		Where(`"rfid_card".id = ?`, normalizedID)
+
+	if where, val, ok := base.TenantWhere(ctx, "rfid_card"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.Scan(ctx)
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -93,13 +104,17 @@ func (r *RFIDCardRepository) Activate(ctx context.Context, id string) error {
 	// Normalize the tag ID to match stored format
 	normalizedID := normalizeRFIDTagID(id)
 
-	_, err := base.GetDB(ctx, r.db).NewUpdate().
+	query := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*users.RFIDCard)(nil)).
 		ModelTableExpr(`users.rfid_cards AS "rfid_card"`).
 		Set("active = ?", true).
-		Where(`"rfid_card".id = ?`, normalizedID).
-		Exec(ctx)
+		Where(`"rfid_card".id = ?`, normalizedID)
 
+	if where, val, ok := base.TenantWhere(ctx, "rfid_card"); ok {
+		query = query.Where(where, val)
+	}
+
+	result, err := query.Exec(ctx)
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "activate",
@@ -107,7 +122,7 @@ func (r *RFIDCardRepository) Activate(ctx context.Context, id string) error {
 		}
 	}
 
-	return nil
+	return base.AssertRowsAffected(result, 1, "activate rfid_card")
 }
 
 // Deactivate sets an RFID card as inactive
@@ -115,13 +130,17 @@ func (r *RFIDCardRepository) Deactivate(ctx context.Context, id string) error {
 	// Normalize the tag ID to match stored format
 	normalizedID := normalizeRFIDTagID(id)
 
-	_, err := base.GetDB(ctx, r.db).NewUpdate().
+	query := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*users.RFIDCard)(nil)).
 		ModelTableExpr(`users.rfid_cards AS "rfid_card"`).
 		Set("active = ?", false).
-		Where(`"rfid_card".id = ?`, normalizedID).
-		Exec(ctx)
+		Where(`"rfid_card".id = ?`, normalizedID)
 
+	if where, val, ok := base.TenantWhere(ctx, "rfid_card"); ok {
+		query = query.Where(where, val)
+	}
+
+	result, err := query.Exec(ctx)
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "deactivate",
@@ -129,7 +148,7 @@ func (r *RFIDCardRepository) Deactivate(ctx context.Context, id string) error {
 		}
 	}
 
-	return nil
+	return base.AssertRowsAffected(result, 1, "deactivate rfid_card")
 }
 
 // Create overrides the base Create method to handle validation
@@ -192,6 +211,10 @@ func (r *RFIDCardRepository) ListWithOptions(ctx context.Context, options *model
 		Model(&cards).
 		ModelTableExpr(`users.rfid_cards AS "rfid_card"`)
 
+	if where, val, ok := base.TenantWhere(ctx, "rfid_card"); ok {
+		query = query.Where(where, val)
+	}
+
 	// Apply query options
 	if options != nil {
 		query = options.ApplyToQuery(query)
@@ -221,11 +244,16 @@ func (r *RFIDCardRepository) FindCardWithPerson(ctx context.Context, id string) 
 
 	// Then find the person associated with this card
 	person := new(users.Person)
-	err = base.GetDB(ctx, r.db).NewSelect().
+	personQuery := base.GetDB(ctx, r.db).NewSelect().
 		Model(person).
 		ModelTableExpr(`users.persons AS "person"`).
-		Where(`"person".tag_id = ?`, normalizedID).
-		Scan(ctx)
+		Where(`"person".tag_id = ?`, normalizedID)
+
+	if where, val, ok := base.TenantWhere(ctx, "person"); ok {
+		personQuery = personQuery.Where(where, val)
+	}
+
+	err = personQuery.Scan(ctx)
 
 	// It's OK if we don't find a person (not an error)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {

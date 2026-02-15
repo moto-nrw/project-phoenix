@@ -34,7 +34,7 @@ func setupIntegrationService(t *testing.T) (*bun.DB, suggestionsService.Service,
 	commentRepo := repoSuggestions.NewCommentRepository(db)
 	commentReadRepo := repoSuggestions.NewCommentReadRepository(db)
 
-	svc := suggestionsService.NewService(postRepo, voteRepo, commentRepo, commentReadRepo, db)
+	svc := suggestionsService.NewService(postRepo, voteRepo, commentRepo, commentReadRepo)
 
 	account := testpkg.CreateTestAccount(t, db, "svc-vote-test")
 	person := testpkg.CreateTestPersonWithAccountID(t, db, "Vote", "Tester", account.ID)

@@ -24,8 +24,10 @@ type AccountPermissionRepository struct {
 
 // NewAccountPermissionRepository creates a new AccountPermissionRepository
 func NewAccountPermissionRepository(db *bun.DB) auth.AccountPermissionRepository {
+	repo := base.NewRepository[*auth.AccountPermission](db, accountPermissionTable, "AccountPermission")
+	repo.TenantScoped = true
 	return &AccountPermissionRepository{
-		Repository: base.NewRepository[*auth.AccountPermission](db, accountPermissionTable, "AccountPermission"),
+		Repository: repo,
 		db:         db,
 	}
 }
@@ -33,11 +35,16 @@ func NewAccountPermissionRepository(db *bun.DB) auth.AccountPermissionRepository
 // FindByAccountID retrieves all account-permission mappings for an account
 func (r *AccountPermissionRepository) FindByAccountID(ctx context.Context, accountID int64) ([]*auth.AccountPermission, error) {
 	var accountPermissions []*auth.AccountPermission
-	err := base.GetDB(ctx, r.db).NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&accountPermissions).
 		ModelTableExpr(accountPermissionTableAlias).
-		Where(`"account_permission".account_id = ?`, accountID).
-		Scan(ctx)
+		Where(`"account_permission".account_id = ?`, accountID)
+
+	if where, val, ok := base.TenantWhere(ctx, "account_permission"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.Scan(ctx)
 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
@@ -52,11 +59,16 @@ func (r *AccountPermissionRepository) FindByAccountID(ctx context.Context, accou
 // FindByPermissionID retrieves all account-permission mappings for a permission
 func (r *AccountPermissionRepository) FindByPermissionID(ctx context.Context, permissionID int64) ([]*auth.AccountPermission, error) {
 	var accountPermissions []*auth.AccountPermission
-	err := base.GetDB(ctx, r.db).NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&accountPermissions).
 		ModelTableExpr(accountPermissionTableAlias).
-		Where(`"account_permission".permission_id = ?`, permissionID).
-		Scan(ctx)
+		Where(`"account_permission".permission_id = ?`, permissionID)
+
+	if where, val, ok := base.TenantWhere(ctx, "account_permission"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.Scan(ctx)
 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
@@ -71,11 +83,16 @@ func (r *AccountPermissionRepository) FindByPermissionID(ctx context.Context, pe
 // FindByAccountAndPermission retrieves a specific account-permission mapping
 func (r *AccountPermissionRepository) FindByAccountAndPermission(ctx context.Context, accountID, permissionID int64) (*auth.AccountPermission, error) {
 	accountPermission := new(auth.AccountPermission)
-	err := base.GetDB(ctx, r.db).NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(accountPermission).
 		ModelTableExpr(accountPermissionTableAlias).
-		Where(`"account_permission".account_id = ? AND "account_permission".permission_id = ?`, accountID, permissionID).
-		Scan(ctx)
+		Where(`"account_permission".account_id = ? AND "account_permission".permission_id = ?`, accountID, permissionID)
+
+	if where, val, ok := base.TenantWhere(ctx, "account_permission"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.Scan(ctx)
 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
@@ -92,11 +109,16 @@ func (r *AccountPermissionRepository) GrantPermission(ctx context.Context, accou
 	db := base.GetDB(ctx, r.db)
 
 	// Check if the permission mapping already exists
-	exists, err := db.NewSelect().
+	existsQuery := db.NewSelect().
 		Model((*auth.AccountPermission)(nil)).
 		ModelTableExpr(accountPermissionTableAlias).
-		Where(`"account_permission".account_id = ? AND "account_permission".permission_id = ?`, accountID, permissionID).
-		Exists(ctx)
+		Where(`"account_permission".account_id = ? AND "account_permission".permission_id = ?`, accountID, permissionID)
+
+	if where, val, ok := base.TenantWhere(ctx, "account_permission"); ok {
+		existsQuery = existsQuery.Where(where, val)
+	}
+
+	exists, err := existsQuery.Exists(ctx)
 
 	if err != nil {
 		return &modelBase.DatabaseError{
@@ -107,12 +129,17 @@ func (r *AccountPermissionRepository) GrantPermission(ctx context.Context, accou
 
 	if exists {
 		// Update the existing mapping to grant the permission
-		_, err = db.NewUpdate().
+		updateQuery := db.NewUpdate().
 			Model((*auth.AccountPermission)(nil)).
 			ModelTableExpr(accountPermissionTableAlias).
 			Set("granted = ?", true).
-			Where(`"account_permission".account_id = ? AND "account_permission".permission_id = ?`, accountID, permissionID).
-			Exec(ctx)
+			Where(`"account_permission".account_id = ? AND "account_permission".permission_id = ?`, accountID, permissionID)
+
+		if where, val, ok := base.TenantWhere(ctx, "account_permission"); ok {
+			updateQuery = updateQuery.Where(where, val)
+		}
+
+		_, err = updateQuery.Exec(ctx)
 	} else {
 		// Create a new permission mapping
 		perm := &auth.AccountPermission{
@@ -142,11 +169,16 @@ func (r *AccountPermissionRepository) DenyPermission(ctx context.Context, accoun
 	db := base.GetDB(ctx, r.db)
 
 	// Check if the permission mapping already exists
-	exists, err := db.NewSelect().
+	existsQuery := db.NewSelect().
 		Model((*auth.AccountPermission)(nil)).
 		ModelTableExpr(accountPermissionTableAlias).
-		Where(`"account_permission".account_id = ? AND "account_permission".permission_id = ?`, accountID, permissionID).
-		Exists(ctx)
+		Where(`"account_permission".account_id = ? AND "account_permission".permission_id = ?`, accountID, permissionID)
+
+	if where, val, ok := base.TenantWhere(ctx, "account_permission"); ok {
+		existsQuery = existsQuery.Where(where, val)
+	}
+
+	exists, err := existsQuery.Exists(ctx)
 
 	if err != nil {
 		return &modelBase.DatabaseError{
@@ -157,12 +189,17 @@ func (r *AccountPermissionRepository) DenyPermission(ctx context.Context, accoun
 
 	if exists {
 		// Update the existing mapping to deny the permission
-		_, err = db.NewUpdate().
+		updateQuery := db.NewUpdate().
 			Model((*auth.AccountPermission)(nil)).
 			ModelTableExpr(accountPermissionTableAlias).
 			Set("granted = ?", false).
-			Where(`"account_permission".account_id = ? AND "account_permission".permission_id = ?`, accountID, permissionID).
-			Exec(ctx)
+			Where(`"account_permission".account_id = ? AND "account_permission".permission_id = ?`, accountID, permissionID)
+
+		if where, val, ok := base.TenantWhere(ctx, "account_permission"); ok {
+			updateQuery = updateQuery.Where(where, val)
+		}
+
+		_, err = updateQuery.Exec(ctx)
 	} else {
 		// Create a new permission mapping with denied status
 		// Use raw SQL to ensure granted=false is explicitly set (BUN may skip zero values with defaults)
@@ -184,11 +221,16 @@ func (r *AccountPermissionRepository) DenyPermission(ctx context.Context, accoun
 
 // RemovePermission removes a permission mapping for an account
 func (r *AccountPermissionRepository) RemovePermission(ctx context.Context, accountID, permissionID int64) error {
-	_, err := base.GetDB(ctx, r.db).NewDelete().
+	query := base.GetDB(ctx, r.db).NewDelete().
 		Model((*auth.AccountPermission)(nil)).
 		ModelTableExpr(accountPermissionTableAlias).
-		Where(`"account_permission".account_id = ? AND "account_permission".permission_id = ?`, accountID, permissionID).
-		Exec(ctx)
+		Where(`"account_permission".account_id = ? AND "account_permission".permission_id = ?`, accountID, permissionID)
+
+	if where, val, ok := base.TenantWhere(ctx, "account_permission"); ok {
+		query = query.Where(where, val)
+	}
+
+	result, err := query.Exec(ctx)
 
 	if err != nil {
 		return &modelBase.DatabaseError{
@@ -197,16 +239,21 @@ func (r *AccountPermissionRepository) RemovePermission(ctx context.Context, acco
 		}
 	}
 
-	return nil
+	return base.AssertRowsAffected(result, 1, "remove permission")
 }
 
 // DeleteByPermissionID deletes all account-permission mappings for a permission
 func (r *AccountPermissionRepository) DeleteByPermissionID(ctx context.Context, permissionID int64) error {
-	_, err := base.GetDB(ctx, r.db).NewDelete().
+	query := base.GetDB(ctx, r.db).NewDelete().
 		Model((*auth.AccountPermission)(nil)).
 		ModelTableExpr(accountPermissionTableAlias).
-		Where(`"account_permission".permission_id = ?`, permissionID).
-		Exec(ctx)
+		Where(`"account_permission".permission_id = ?`, permissionID)
+
+	if where, val, ok := base.TenantWhere(ctx, "account_permission"); ok {
+		query = query.Where(where, val)
+	}
+
+	_, err := query.Exec(ctx)
 
 	if err != nil {
 		return &modelBase.DatabaseError{
@@ -254,11 +301,16 @@ func (r *AccountPermissionRepository) Update(ctx context.Context, accountPermiss
 		return err
 	}
 
-	_, err := base.GetDB(ctx, r.db).NewUpdate().
+	query := base.GetDB(ctx, r.db).NewUpdate().
 		Model(accountPermission).
 		Where("id = ?", accountPermission.ID).
-		ModelTableExpr(accountPermissionTable).
-		Exec(ctx)
+		ModelTableExpr(accountPermissionTable)
+
+	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
+		query = query.Where("tenant_id = ?", tenantID)
+	}
+
+	result, err := query.Exec(ctx)
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "update",
@@ -266,7 +318,7 @@ func (r *AccountPermissionRepository) Update(ctx context.Context, accountPermiss
 		}
 	}
 
-	return nil
+	return base.AssertRowsAffected(result, 1, "update account_permission")
 }
 
 // List retrieves account-permission mappings matching the provided filters
@@ -275,6 +327,10 @@ func (r *AccountPermissionRepository) List(ctx context.Context, filters map[stri
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&accountPermissions).
 		ModelTableExpr(accountPermissionTableAlias)
+
+	if where, val, ok := base.TenantWhere(ctx, "account_permission"); ok {
+		query = query.Where(where, val)
+	}
 
 	// Apply filters with proper table alias prefix
 	for field, value := range filters {
@@ -310,6 +366,10 @@ func (r *AccountPermissionRepository) FindAccountPermissionsWithDetails(ctx cont
 		ColumnExpr(`"permission".id AS "permission__id", "permission".name AS "permission__name", "permission".description AS "permission__description", "permission".resource AS "permission__resource", "permission".action AS "permission__action", "permission".created_at AS "permission__created_at", "permission".updated_at AS "permission__updated_at"`).
 		Join(`LEFT JOIN auth.accounts AS "account" ON "account".id = "account_permission".account_id`).
 		Join(`LEFT JOIN auth.permissions AS "permission" ON "permission".id = "account_permission".permission_id`)
+
+	if where, val, ok := base.TenantWhere(ctx, "account_permission"); ok {
+		query = query.Where(where, val)
+	}
 
 	// Apply filters with proper table alias prefix
 	for field, value := range filters {

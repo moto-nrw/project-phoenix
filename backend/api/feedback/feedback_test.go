@@ -28,7 +28,7 @@ func setupTestContext(t *testing.T) *testContext {
 
 	db, svc := testutil.SetupAPITest(t)
 
-	resource := feedbackAPI.NewResource(svc.Feedback)
+	resource := feedbackAPI.NewResource(svc.Feedback, db)
 
 	return &testContext{
 		db:       db,

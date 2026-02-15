@@ -1,6 +1,7 @@
 package students
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -14,6 +15,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/uptrace/bun"
 )
 
 // dateFormatISO is the standard date format (YYYY-MM-DD) used for pickup schedules.
@@ -384,7 +387,10 @@ func (rs *Resource) updateStudentPickupSchedules(w http.ResponseWriter, r *http.
 		})
 	}
 
-	if err := rs.PickupScheduleService.UpsertBulkStudentPickupSchedules(r.Context(), student.ID, schedules); err != nil {
+	tenantID := tenant.FromContext(r.Context())
+	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		return rs.PickupScheduleService.UpsertBulkStudentPickupSchedules(ctx, student.ID, schedules)
+	}); err != nil {
 		renderError(w, r, ErrorInternalServer(err))
 		return
 	}
@@ -433,7 +439,10 @@ func (rs *Resource) createStudentPickupException(w http.ResponseWriter, r *http.
 		exception.PickupTime = &pickupTime
 	}
 
-	if err := rs.PickupScheduleService.CreateStudentPickupException(r.Context(), exception); err != nil {
+	tenantID := tenant.FromContext(r.Context())
+	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		return rs.PickupScheduleService.CreateStudentPickupException(ctx, exception)
+	}); err != nil {
 		renderError(w, r, ErrorInternalServer(err))
 		return
 	}
@@ -483,7 +492,10 @@ func (rs *Resource) updateStudentPickupException(w http.ResponseWriter, r *http.
 		exception.PickupTime = &pickupTime
 	}
 
-	if err := rs.PickupScheduleService.UpdateStudentPickupException(r.Context(), exception); err != nil {
+	tenantID := tenant.FromContext(r.Context())
+	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		return rs.PickupScheduleService.UpdateStudentPickupException(ctx, exception)
+	}); err != nil {
 		renderError(w, r, ErrorInternalServer(err))
 		return
 	}
@@ -507,7 +519,10 @@ func (rs *Resource) deleteStudentPickupException(w http.ResponseWriter, r *http.
 		return
 	}
 
-	if err := rs.PickupScheduleService.DeleteStudentPickupException(r.Context(), exceptionID); err != nil {
+	tenantID := tenant.FromContext(r.Context())
+	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		return rs.PickupScheduleService.DeleteStudentPickupException(ctx, exceptionID)
+	}); err != nil {
 		renderError(w, r, ErrorInternalServer(err))
 		return
 	}
@@ -542,7 +557,10 @@ func (rs *Resource) createStudentPickupNote(w http.ResponseWriter, r *http.Reque
 		CreatedBy: staffID,
 	}
 
-	if err := rs.PickupScheduleService.CreateStudentPickupNote(r.Context(), note); err != nil {
+	tenantID := tenant.FromContext(r.Context())
+	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		return rs.PickupScheduleService.CreateStudentPickupNote(ctx, note)
+	}); err != nil {
 		renderError(w, r, ErrorInternalServer(err))
 		return
 	}
@@ -583,7 +601,10 @@ func (rs *Resource) updateStudentPickupNote(w http.ResponseWriter, r *http.Reque
 	note.ID = noteID
 	note.CreatedAt = existingNote.CreatedAt // Preserve original creation timestamp
 
-	if err := rs.PickupScheduleService.UpdateStudentPickupNote(r.Context(), note); err != nil {
+	tenantID := tenant.FromContext(r.Context())
+	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		return rs.PickupScheduleService.UpdateStudentPickupNote(ctx, note)
+	}); err != nil {
 		renderError(w, r, ErrorInternalServer(err))
 		return
 	}
@@ -608,7 +629,10 @@ func (rs *Resource) deleteStudentPickupNote(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	if err := rs.PickupScheduleService.DeleteStudentPickupNote(r.Context(), noteID); err != nil {
+	tenantID := tenant.FromContext(r.Context())
+	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		return rs.PickupScheduleService.DeleteStudentPickupNote(ctx, noteID)
+	}); err != nil {
 		renderError(w, r, ErrorInternalServer(err))
 		return
 	}

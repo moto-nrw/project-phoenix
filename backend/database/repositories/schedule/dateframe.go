@@ -25,8 +25,10 @@ type DateframeRepository struct {
 
 // NewDateframeRepository creates a new DateframeRepository
 func NewDateframeRepository(db *bun.DB) schedule.DateframeRepository {
+	repo := repoBase.NewRepository[*schedule.Dateframe](db, "schedule.dateframes", "Dateframe")
+	repo.TenantScoped = true
 	return &DateframeRepository{
-		Repository: repoBase.NewRepository[*schedule.Dateframe](db, "schedule.dateframes", "Dateframe"),
+		Repository: repo,
 		db:         db,
 	}
 }
@@ -34,11 +36,16 @@ func NewDateframeRepository(db *bun.DB) schedule.DateframeRepository {
 // FindByName finds a dateframe by its name
 func (r *DateframeRepository) FindByName(ctx context.Context, name string) (*schedule.Dateframe, error) {
 	dateframe := new(schedule.Dateframe)
-	err := repoBase.GetDB(ctx, r.db).NewSelect().
+	query := repoBase.GetDB(ctx, r.db).NewSelect().
 		Model(dateframe).
 		ModelTableExpr(tableExprDateframesAsDF).
-		Where("LOWER(name) = LOWER(?)", name).
-		Scan(ctx)
+		Where("LOWER(name) = LOWER(?)", name)
+
+	if where, val, ok := repoBase.TenantWhere(ctx, "dateframe"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.Scan(ctx)
 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
@@ -57,11 +64,16 @@ func (r *DateframeRepository) FindByDate(ctx context.Context, date time.Time) ([
 	// Normalize the date to ignore time component
 	normalizedDate := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, date.Location())
 
-	err := repoBase.GetDB(ctx, r.db).NewSelect().
+	query := repoBase.GetDB(ctx, r.db).NewSelect().
 		Model(&dateframes).
 		ModelTableExpr(tableExprDateframesAsDF).
-		Where("start_date <= ? AND end_date >= ?", normalizedDate, normalizedDate).
-		Scan(ctx)
+		Where("start_date <= ? AND end_date >= ?", normalizedDate, normalizedDate)
+
+	if where, val, ok := repoBase.TenantWhere(ctx, "dateframe"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.Scan(ctx)
 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
@@ -81,11 +93,16 @@ func (r *DateframeRepository) FindOverlapping(ctx context.Context, startDate, en
 	normalizedStartDate := time.Date(startDate.Year(), startDate.Month(), startDate.Day(), 0, 0, 0, 0, startDate.Location())
 	normalizedEndDate := time.Date(endDate.Year(), endDate.Month(), endDate.Day(), 0, 0, 0, 0, endDate.Location())
 
-	err := repoBase.GetDB(ctx, r.db).NewSelect().
+	query := repoBase.GetDB(ctx, r.db).NewSelect().
 		Model(&dateframes).
 		ModelTableExpr(tableExprDateframesAsDF).
-		Where("start_date <= ? AND end_date >= ?", normalizedEndDate, normalizedStartDate).
-		Scan(ctx)
+		Where("start_date <= ? AND end_date >= ?", normalizedEndDate, normalizedStartDate)
+
+	if where, val, ok := repoBase.TenantWhere(ctx, "dateframe"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.Scan(ctx)
 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
@@ -131,6 +148,10 @@ func (r *DateframeRepository) Update(ctx context.Context, dateframe *schedule.Da
 func (r *DateframeRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*schedule.Dateframe, error) {
 	dateframes := make([]*schedule.Dateframe, 0)
 	query := repoBase.GetDB(ctx, r.db).NewSelect().Model(&dateframes).ModelTableExpr(tableExprDateframesAsDF)
+
+	if where, val, ok := repoBase.TenantWhere(ctx, "dateframe"); ok {
+		query = query.Where(where, val)
+	}
 
 	// Apply query options
 	if options != nil {

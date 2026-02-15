@@ -17,6 +17,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/base"
 	modelEducation "github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/services/education"
+	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/uptrace/bun"
 )
 
 // Constants for date formats and error messages (S1192 - avoid duplicate string literals)
@@ -28,11 +30,13 @@ const (
 
 type Resource struct {
 	Service education.Service
+	db      *bun.DB
 }
 
-func NewResource(educationService education.Service) *Resource {
+func NewResource(educationService education.Service, db *bun.DB) *Resource {
 	return &Resource{
 		Service: educationService,
+		db:      db,
 	}
 }
 
@@ -266,7 +270,10 @@ func (rs *Resource) create(w http.ResponseWriter, r *http.Request) {
 	// This enables flexible team-based supervision of groups.
 
 	// Create the substitution
-	if err := rs.Service.CreateSubstitution(r.Context(), substitution); err != nil {
+	tenantID := tenant.FromContext(r.Context())
+	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		return rs.Service.CreateSubstitution(ctx, substitution)
+	}); err != nil {
 		common.RespondWithError(w, r, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -333,7 +340,10 @@ func (rs *Resource) update(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Perform update
-	if err := rs.Service.UpdateSubstitution(r.Context(), &substitution); err != nil {
+	tenantID := tenant.FromContext(r.Context())
+	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		return rs.Service.UpdateSubstitution(ctx, &substitution)
+	}); err != nil {
 		common.RespondWithError(w, r, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -420,7 +430,10 @@ func (rs *Resource) delete(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Delete the substitution
-	if err := rs.Service.DeleteSubstitution(r.Context(), id); err != nil {
+	tenantID := tenant.FromContext(r.Context())
+	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		return rs.Service.DeleteSubstitution(ctx, id)
+	}); err != nil {
 		common.RespondWithError(w, r, http.StatusInternalServerError, err.Error())
 		return
 	}

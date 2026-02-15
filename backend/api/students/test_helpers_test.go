@@ -46,6 +46,7 @@ func setupTestContext(t *testing.T) *testContext {
 		IoTService:            svc.IoT,
 		PrivacyConsentRepo:    repoFactory.PrivacyConsent,
 		PickupScheduleService: svc.PickupSchedule,
+		DB:                    db,
 	})
 
 	t.Cleanup(func() {

@@ -8,6 +8,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/iot"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -26,8 +27,10 @@ type DeviceRepository struct {
 
 // NewDeviceRepository creates a new DeviceRepository
 func NewDeviceRepository(db *bun.DB) iot.DeviceRepository {
+	repo := base.NewRepository[*iot.Device](db, tableIoTDevices, "Device")
+	repo.TenantScoped = true
 	return &DeviceRepository{
-		Repository: base.NewRepository[*iot.Device](db, tableIoTDevices, "Device"),
+		Repository: repo,
 		db:         db,
 	}
 }
@@ -35,11 +38,16 @@ func NewDeviceRepository(db *bun.DB) iot.DeviceRepository {
 // FindByDeviceID retrieves a device by its deviceID
 func (r *DeviceRepository) FindByDeviceID(ctx context.Context, deviceID string) (*iot.Device, error) {
 	device := new(iot.Device)
-	err := base.GetDB(ctx, r.db).NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(device).
 		ModelTableExpr(`iot.devices AS "device"`).
-		Where(whereDeviceIDEqual, deviceID).
-		Scan(ctx)
+		Where(whereDeviceIDEqual, deviceID)
+
+	if where, val, ok := base.TenantWhere(ctx, "device"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.Scan(ctx)
 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
@@ -54,11 +62,16 @@ func (r *DeviceRepository) FindByDeviceID(ctx context.Context, deviceID string) 
 // FindByAPIKey retrieves a device by its API key
 func (r *DeviceRepository) FindByAPIKey(ctx context.Context, apiKey string) (*iot.Device, error) {
 	device := new(iot.Device)
-	err := base.GetDB(ctx, r.db).NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(device).
 		ModelTableExpr(`iot.devices AS "device"`).
-		Where("api_key = ?", apiKey).
-		Scan(ctx)
+		Where("api_key = ?", apiKey)
+
+	if where, val, ok := base.TenantWhere(ctx, "device"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.Scan(ctx)
 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
@@ -73,11 +86,16 @@ func (r *DeviceRepository) FindByAPIKey(ctx context.Context, apiKey string) (*io
 // FindByType retrieves devices by their type
 func (r *DeviceRepository) FindByType(ctx context.Context, deviceType string) ([]*iot.Device, error) {
 	var devices []*iot.Device
-	err := base.GetDB(ctx, r.db).NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&devices).
 		ModelTableExpr(`iot.devices AS "device"`).
-		Where("device_type = ?", deviceType).
-		Scan(ctx)
+		Where("device_type = ?", deviceType)
+
+	if where, val, ok := base.TenantWhere(ctx, "device"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.Scan(ctx)
 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
@@ -92,11 +110,16 @@ func (r *DeviceRepository) FindByType(ctx context.Context, deviceType string) ([
 // FindByStatus retrieves devices by their status
 func (r *DeviceRepository) FindByStatus(ctx context.Context, status iot.DeviceStatus) ([]*iot.Device, error) {
 	var devices []*iot.Device
-	err := base.GetDB(ctx, r.db).NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&devices).
 		ModelTableExpr(`iot.devices AS "device"`).
-		Where(whereStatusEqual, status).
-		Scan(ctx)
+		Where(whereStatusEqual, status)
+
+	if where, val, ok := base.TenantWhere(ctx, "device"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.Scan(ctx)
 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
@@ -111,11 +134,16 @@ func (r *DeviceRepository) FindByStatus(ctx context.Context, status iot.DeviceSt
 // FindByRegisteredBy retrieves devices registered by a specific person
 func (r *DeviceRepository) FindByRegisteredBy(ctx context.Context, personID int64) ([]*iot.Device, error) {
 	var devices []*iot.Device
-	err := base.GetDB(ctx, r.db).NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&devices).
 		ModelTableExpr(`iot.devices AS "device"`).
-		Where("registered_by_id = ?", personID).
-		Scan(ctx)
+		Where("registered_by_id = ?", personID)
+
+	if where, val, ok := base.TenantWhere(ctx, "device"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.Scan(ctx)
 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
@@ -129,12 +157,17 @@ func (r *DeviceRepository) FindByRegisteredBy(ctx context.Context, personID int6
 
 // UpdateLastSeen updates the last seen timestamp for a device
 func (r *DeviceRepository) UpdateLastSeen(ctx context.Context, deviceID string, lastSeen time.Time) error {
-	_, err := base.GetDB(ctx, r.db).NewUpdate().
+	query := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*iot.Device)(nil)).
 		ModelTableExpr(tableIoTDevices).
 		Set("last_seen = ?", lastSeen).
-		Where(whereDeviceIDEqual, deviceID).
-		Exec(ctx)
+		Where(whereDeviceIDEqual, deviceID)
+
+	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
+		query = query.Where("tenant_id = ?", tenantID)
+	}
+
+	result, err := query.Exec(ctx)
 
 	if err != nil {
 		return &modelBase.DatabaseError{
@@ -143,17 +176,22 @@ func (r *DeviceRepository) UpdateLastSeen(ctx context.Context, deviceID string, 
 		}
 	}
 
-	return nil
+	return base.AssertRowsAffected(result, 1, "update last seen")
 }
 
 // UpdateStatus updates the status for a device
 func (r *DeviceRepository) UpdateStatus(ctx context.Context, deviceID string, status iot.DeviceStatus) error {
-	_, err := base.GetDB(ctx, r.db).NewUpdate().
+	query := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*iot.Device)(nil)).
 		ModelTableExpr(tableIoTDevices).
 		Set(whereStatusEqual, status).
-		Where(whereDeviceIDEqual, deviceID).
-		Exec(ctx)
+		Where(whereDeviceIDEqual, deviceID)
+
+	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
+		query = query.Where("tenant_id = ?", tenantID)
+	}
+
+	result, err := query.Exec(ctx)
 
 	if err != nil {
 		return &modelBase.DatabaseError{
@@ -162,17 +200,22 @@ func (r *DeviceRepository) UpdateStatus(ctx context.Context, deviceID string, st
 		}
 	}
 
-	return nil
+	return base.AssertRowsAffected(result, 1, "update status")
 }
 
 // FindActiveDevices retrieves all active devices
 func (r *DeviceRepository) FindActiveDevices(ctx context.Context) ([]*iot.Device, error) {
 	var devices []*iot.Device
-	err := base.GetDB(ctx, r.db).NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&devices).
 		ModelTableExpr(`iot.devices AS "device"`).
-		Where(whereStatusEqual, iot.DeviceStatusActive).
-		Scan(ctx)
+		Where(whereStatusEqual, iot.DeviceStatusActive)
+
+	if where, val, ok := base.TenantWhere(ctx, "device"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.Scan(ctx)
 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
@@ -187,11 +230,16 @@ func (r *DeviceRepository) FindActiveDevices(ctx context.Context) ([]*iot.Device
 // FindDevicesRequiringMaintenance retrieves all devices requiring maintenance
 func (r *DeviceRepository) FindDevicesRequiringMaintenance(ctx context.Context) ([]*iot.Device, error) {
 	var devices []*iot.Device
-	err := base.GetDB(ctx, r.db).NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&devices).
 		ModelTableExpr(`iot.devices AS "device"`).
-		Where(whereStatusEqual, iot.DeviceStatusMaintenance).
-		Scan(ctx)
+		Where(whereStatusEqual, iot.DeviceStatusMaintenance)
+
+	if where, val, ok := base.TenantWhere(ctx, "device"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.Scan(ctx)
 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
@@ -208,11 +256,16 @@ func (r *DeviceRepository) FindOfflineDevices(ctx context.Context, offlineSince 
 	cutoffTime := time.Now().Add(-offlineSince)
 
 	var devices []*iot.Device
-	err := base.GetDB(ctx, r.db).NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&devices).
 		ModelTableExpr(`iot.devices AS "device"`).
-		Where("last_seen < ? OR (last_seen IS NULL AND created_at < ?)", cutoffTime, cutoffTime).
-		Scan(ctx)
+		Where("last_seen < ? OR (last_seen IS NULL AND created_at < ?)", cutoffTime, cutoffTime)
+
+	if where, val, ok := base.TenantWhere(ctx, "device"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.Scan(ctx)
 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
@@ -232,11 +285,17 @@ func (r *DeviceRepository) CountDevicesByType(ctx context.Context) (map[string]i
 	}
 
 	var counts []countResult
-	err := base.GetDB(ctx, r.db).NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model((*iot.Device)(nil)).
 		ModelTableExpr(`iot.devices AS "device"`).
 		Column("device_type").
-		ColumnExpr("COUNT(*) AS count").
+		ColumnExpr("COUNT(*) AS count")
+
+	if where, val, ok := base.TenantWhere(ctx, "device"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.
 		Group("device_type").
 		Order("count DESC").
 		Scan(ctx, &counts)
@@ -291,6 +350,10 @@ func (r *DeviceRepository) Update(ctx context.Context, device *iot.Device) error
 func (r *DeviceRepository) List(ctx context.Context, filters map[string]interface{}) ([]*iot.Device, error) {
 	var devices []*iot.Device
 	query := base.GetDB(ctx, r.db).NewSelect().Model(&devices).ModelTableExpr(`iot.devices AS "device"`)
+
+	if where, val, ok := base.TenantWhere(ctx, "device"); ok {
+		query = query.Where(where, val)
+	}
 
 	// Apply filters
 	for field, value := range filters {

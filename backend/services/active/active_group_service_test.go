@@ -845,33 +845,6 @@ func TestActiveService_CleanupAbandonedSessions(t *testing.T) {
 	})
 }
 
-// =============================================================================
-// Transaction Support Tests
-// =============================================================================
-
-func TestActiveService_WithTx(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	service := createActiveService(t, db)
-	ctx := context.Background()
-
-	t.Run("returns service instance with transaction", func(t *testing.T) {
-		// ARRANGE
-		tx, err := db.BeginTx(ctx, nil)
-		require.NoError(t, err)
-		defer func() { _ = tx.Rollback() }()
-
-		// ACT
-		txService := service.WithTx(tx)
-
-		// ASSERT - should return a service that implements the interface
-		require.NotNil(t, txService)
-		_, ok := txService.(active.Service)
-		assert.True(t, ok, "WithTx should return a Service interface")
-	})
-}
-
 // Helper for unique test names
 func uniqueName(prefix string) string {
 	return fmt.Sprintf("%s-%d", prefix, time.Now().UnixNano())

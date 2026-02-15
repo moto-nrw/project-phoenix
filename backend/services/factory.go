@@ -219,7 +219,6 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		repos.SuggestionVote,
 		repos.SuggestionComment,
 		repos.SuggestionCommentRead,
-		db,
 	)
 
 	// Initialize IoT service

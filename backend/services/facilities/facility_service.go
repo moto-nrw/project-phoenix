@@ -27,7 +27,6 @@ type service struct {
 	roomRepo        facilities.RoomRepository
 	activeGroupRepo active.GroupRepository
 	db              *bun.DB
-	txHandler       *base.TxHandler
 }
 
 // NewService creates a new facilities service
@@ -36,31 +35,6 @@ func NewService(roomRepo facilities.RoomRepository, activeGroupRepo active.Group
 		roomRepo:        roomRepo,
 		activeGroupRepo: activeGroupRepo,
 		db:              db,
-		txHandler:       base.NewTxHandler(db),
-	}
-}
-
-// WithTx returns a new service that uses the provided transaction
-func (s *service) WithTx(tx bun.Tx) interface{} {
-	// Get repository with transaction if it implements the TransactionalRepository interface
-	var roomRepo = s.roomRepo
-	var activeGroupRepo = s.activeGroupRepo
-
-	// Try to cast repository to TransactionalRepository and apply the transaction
-	if txRepo, ok := s.roomRepo.(base.TransactionalRepository); ok {
-		roomRepo = txRepo.WithTx(tx).(facilities.RoomRepository)
-	}
-
-	if txRepo, ok := s.activeGroupRepo.(base.TransactionalRepository); ok {
-		activeGroupRepo = txRepo.WithTx(tx).(active.GroupRepository)
-	}
-
-	// Return a new service with the transaction
-	return &service{
-		roomRepo:        roomRepo,
-		activeGroupRepo: activeGroupRepo,
-		db:              s.db,
-		txHandler:       s.txHandler.WithTx(tx),
 	}
 }
 

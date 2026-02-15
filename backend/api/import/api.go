@@ -19,6 +19,7 @@ import (
 	importModels "github.com/moto-nrw/project-phoenix/models/import"
 	importService "github.com/moto-nrw/project-phoenix/services/import"
 	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/uptrace/bun"
 )
 
 const (
@@ -35,13 +36,15 @@ const (
 type Resource struct {
 	studentImportService *importService.ImportService[importModels.StudentImportRow]
 	auditRepo            audit.DataImportRepository
+	db                   *bun.DB
 }
 
 // NewResource creates a new import resource
-func NewResource(studentImportService *importService.ImportService[importModels.StudentImportRow], auditRepo audit.DataImportRepository) *Resource {
+func NewResource(studentImportService *importService.ImportService[importModels.StudentImportRow], auditRepo audit.DataImportRepository, db *bun.DB) *Resource {
 	return &Resource{
 		studentImportService: studentImportService,
 		auditRepo:            auditRepo,
+		db:                   db,
 	}
 }
 
@@ -306,7 +309,6 @@ func (rs *Resource) importStudents(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Run actual import
-	ctx := r.Context()
 	request := importModels.ImportRequest[importModels.StudentImportRow]{
 		Rows:            uploadResult.Rows,
 		Mode:            importModels.ImportModeCreate, // Create-only: duplicates will error
@@ -316,8 +318,13 @@ func (rs *Resource) importStudents(w http.ResponseWriter, r *http.Request) {
 		SkipInvalidRows: true, // Skip invalid rows, import valid ones
 	}
 
-	result, err := rs.studentImportService.Import(ctx, request)
-	if err != nil {
+	tenantID := tenant.FromContext(r.Context())
+	var result *importModels.ImportResult[importModels.StudentImportRow]
+	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		var txErr error
+		result, txErr = rs.studentImportService.Import(ctx, request)
+		return txErr
+	}); err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(fmt.Errorf("import fehlgeschlagen: %s", err.Error())))
 		return
 	}
