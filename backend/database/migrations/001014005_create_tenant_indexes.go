@@ -121,6 +121,13 @@ var allTenantScopedTables = []struct {
 	{"audit", "work_session_edits"},
 }
 
+// noIDColumnTables lists tables that have composite primary keys without a BIGSERIAL id column.
+// These must be skipped when creating (tenant_id, id) indexes.
+var noIDColumnTables = map[string]bool{
+	"suggestions.comment_reads": true, // PK: (account_id, post_id, reader_type)
+	"suggestions.post_reads":    true, // PK: (account_id, post_id, reader_type)
+}
+
 // compositePKTableSet lists the 18 tables from V1.14.4 that already have UNIQUE(tenant_id, id).
 // Used to skip these when creating the regular (tenant_id, id) indexes.
 var compositePKTableSet = map[string]bool{
@@ -179,11 +186,14 @@ func createTenantIndexes(ctx context.Context, db *bun.DB) error {
 	// 41 tables get a regular composite index for queries filtering on both tenant and PK.
 	fmt.Println("  Creating composite (tenant_id, id) indexes on remaining tables...")
 	for _, t := range allTenantScopedTables {
+		fullTable := fmt.Sprintf("%s.%s", t.schema, t.table)
 		if isCompositePKTable(t.schema, t.table) {
 			continue // Already has UNIQUE(tenant_id, id) from V1.14.4
 		}
+		if noIDColumnTables[fullTable] {
+			continue // Table has composite PK without id column
+		}
 		indexName := fmt.Sprintf("idx_%s_tenant_id", t.table)
-		fullTable := fmt.Sprintf("%s.%s", t.schema, t.table)
 
 		_, err = tx.ExecContext(ctx, fmt.Sprintf(`
 			CREATE INDEX IF NOT EXISTS %s ON %s(tenant_id, id);
@@ -243,8 +253,12 @@ func rollbackTenantIndexes(ctx context.Context, db *bun.DB) error {
 
 	// Drop composite (tenant_id, id) indexes on non-PK tables
 	for _, t := range allTenantScopedTables {
+		fullTable := fmt.Sprintf("%s.%s", t.schema, t.table)
 		if isCompositePKTable(t.schema, t.table) {
 			continue // Owned by V1.14.4
+		}
+		if noIDColumnTables[fullTable] {
+			continue // Table has no id column
 		}
 		indexName := fmt.Sprintf("idx_%s_tenant_id", t.table)
 
