@@ -105,14 +105,11 @@ func rollbackPopulateAccountTenants(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error removing account_tenants entries: %w", err)
 	}
 
-	// Remove default school and organization (only if they were created by this migration)
-	_, err = tx.ExecContext(ctx, `
-		DELETE FROM platform.schools WHERE id = 1 AND slug = 'default';
-		DELETE FROM platform.organizations WHERE id = 1 AND slug = 'default';
-	`)
-	if err != nil {
-		return fmt.Errorf("error removing default organization/school: %w", err)
-	}
+	// NOTE: Do NOT delete platform.schools/organizations here.
+	// The default school (id=1) was created by V1.14.2, not this migration.
+	// Deleting it here would cause FK violations because 58 tables still
+	// have tenant_id=1 REFERENCES platform.schools(id) (ON DELETE RESTRICT).
+	// V1.14.2's rollback handles cleanup via DROP COLUMN ... CASCADE.
 
 	fmt.Println("Migration 1.14.6: Successfully removed default tenant mappings")
 	return tx.Commit()

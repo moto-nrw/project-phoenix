@@ -50,6 +50,7 @@ func createTenantRoles(ctx context.Context, db *bun.DB) error {
 	authPassword := os.Getenv("PHOENIX_AUTH_PASSWORD")
 	if authPassword == "" {
 		authPassword = "phoenix_auth_dev"
+		log.Println("WARNING: PHOENIX_AUTH_PASSWORD not set, using dev fallback. Set this variable in production!")
 	}
 	_, err = tx.ExecContext(ctx, fmt.Sprintf(`
 		DO $$ BEGIN
