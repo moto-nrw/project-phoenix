@@ -483,7 +483,11 @@ func (s *Service) assignRoleToNewAccount(ctx context.Context, txService *Service
 		AccountID: accountID,
 		RoleID:    targetRoleID,
 	}
-	accountRole.SetTenantID(tenant.FromContext(ctx))
+	// Only set tenant if available — Register is a public route where
+	// tenant.FromContext(ctx) returns 0. Omitting lets the DB default apply.
+	if tid := tenant.FromContext(ctx); tid > 0 {
+		accountRole.SetTenantID(tid)
+	}
 
 	if err := txService.repos.AccountRole.Create(ctx, accountRole); err != nil {
 		s.getLogger().Error("failed to create account role", "error", err)
