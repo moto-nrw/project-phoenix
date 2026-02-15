@@ -1122,12 +1122,23 @@ func createSchulhofRoom(t *testing.T, db *bun.DB) *facilities.Room {
 		Name:     "Schulhof",
 		Building: "Test Building",
 	}
+	room.SetTenantID(1)
 
 	err = db.NewInsert().
 		Model(room).
 		ModelTableExpr("facilities.rooms").
+		On("CONFLICT (tenant_id, name) DO NOTHING").
+		Exec(dbCtx)
+	require.NoError(t, err, "Failed to ensure Schulhof room")
+
+	// Fetch the actual room (either just created or existing)
+	err = db.NewSelect().
+		Model(room).
+		ModelTableExpr(`facilities.rooms AS "room"`).
+		Where(`"room".name = ?`, "Schulhof").
+		Where(`"room".tenant_id = ?`, 1).
 		Scan(dbCtx)
-	require.NoError(t, err, "Failed to create Schulhof room")
+	require.NoError(t, err, "Failed to fetch Schulhof room")
 
 	return room
 }

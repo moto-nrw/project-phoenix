@@ -34,9 +34,6 @@ type School struct {
 }
 
 func (s *School) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.SelectQuery); ok {
-		q.ModelTableExpr(`platform.schools AS "school"`)
-	}
 	if q, ok := query.(*bun.InsertQuery); ok {
 		q.ModelTableExpr(tablePlatformSchools)
 	}

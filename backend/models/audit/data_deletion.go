@@ -9,15 +9,15 @@ import (
 
 // DataDeletion represents a record of deleted data for GDPR compliance
 type DataDeletion struct {
-	ID               int64 `bun:"id,pk,autoincrement" json:"id"`
-	base.TenantModel `bun:",extend"`
-	StudentID        int64                  `bun:"student_id,notnull" json:"student_id"`
-	DeletionType     string                 `bun:"deletion_type,notnull" json:"deletion_type"` // 'visit_retention', 'manual', 'gdpr_request'
-	RecordsDeleted   int                    `bun:"records_deleted,notnull" json:"records_deleted"`
-	DeletionReason   string                 `bun:"deletion_reason" json:"deletion_reason,omitempty"`
-	DeletedBy        string                 `bun:"deleted_by,notnull" json:"deleted_by"` // 'system' or account username
-	DeletedAt        time.Time              `bun:"deleted_at,notnull,default:now()" json:"deleted_at"`
-	Metadata         map[string]interface{} `bun:"metadata,type:jsonb" json:"metadata,omitempty"`
+	ID int64 `bun:"id,pk,autoincrement" json:"id"`
+	base.TenantModel
+	StudentID      int64                  `bun:"student_id,notnull" json:"student_id"`
+	DeletionType   string                 `bun:"deletion_type,notnull" json:"deletion_type"` // 'visit_retention', 'manual', 'gdpr_request'
+	RecordsDeleted int                    `bun:"records_deleted,notnull" json:"records_deleted"`
+	DeletionReason string                 `bun:"deletion_reason" json:"deletion_reason,omitempty"`
+	DeletedBy      string                 `bun:"deleted_by,notnull" json:"deleted_by"` // 'system' or account username
+	DeletedAt      time.Time              `bun:"deleted_at,notnull,default:now()" json:"deleted_at"`
+	Metadata       map[string]interface{} `bun:"metadata,type:jsonb" json:"metadata,omitempty"`
 }
 
 // DeletionType constants

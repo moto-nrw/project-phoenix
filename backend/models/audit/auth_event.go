@@ -9,16 +9,16 @@ import (
 
 // AuthEvent represents an authentication event for security auditing
 type AuthEvent struct {
-	ID               int64 `bun:"id,pk,autoincrement" json:"id"`
-	base.TenantModel `bun:",extend"`
-	AccountID        int64                  `bun:"account_id,notnull" json:"account_id"`
-	EventType        string                 `bun:"event_type,notnull" json:"event_type"`
-	Success          bool                   `bun:"success,notnull" json:"success"`
-	IPAddress        string                 `bun:"ip_address,notnull" json:"ip_address"`
-	UserAgent        string                 `bun:"user_agent" json:"user_agent,omitempty"`
-	ErrorMessage     string                 `bun:"error_message" json:"error_message,omitempty"`
-	Metadata         map[string]interface{} `bun:"metadata,type:jsonb" json:"metadata,omitempty"`
-	CreatedAt        time.Time              `bun:"created_at,notnull,default:now()" json:"created_at"`
+	ID int64 `bun:"id,pk,autoincrement" json:"id"`
+	base.TenantModel
+	AccountID    int64                  `bun:"account_id,notnull" json:"account_id"`
+	EventType    string                 `bun:"event_type,notnull" json:"event_type"`
+	Success      bool                   `bun:"success,notnull" json:"success"`
+	IPAddress    string                 `bun:"ip_address,notnull" json:"ip_address"`
+	UserAgent    string                 `bun:"user_agent" json:"user_agent,omitempty"`
+	ErrorMessage string                 `bun:"error_message" json:"error_message,omitempty"`
+	Metadata     map[string]interface{} `bun:"metadata,type:jsonb" json:"metadata,omitempty"`
+	CreatedAt    time.Time              `bun:"created_at,notnull,default:now()" json:"created_at"`
 }
 
 // EventType constants

@@ -565,6 +565,7 @@ func (r *GroupRepository) FindActiveSessionsOlderThan(ctx context.Context, cutof
 		ID             int64      `bun:"id"`
 		CreatedAt      time.Time  `bun:"created_at"`
 		UpdatedAt      time.Time  `bun:"updated_at"`
+		TenantID       int64      `bun:"tenant_id"`
 		StartTime      time.Time  `bun:"start_time"`
 		EndTime        *time.Time `bun:"end_time"`
 		LastActivity   time.Time  `bun:"last_activity"`
@@ -588,7 +589,7 @@ func (r *GroupRepository) FindActiveSessionsOlderThan(ctx context.Context, cutof
 	// Use explicit JOIN with schema-qualified table name (BUN Relation() doesn't work with multi-schema)
 	query := base.GetDB(ctx, r.db).NewSelect().
 		TableExpr(tableExprActiveGroupsAG).
-		ColumnExpr("ag.id, ag.created_at, ag.updated_at, ag.start_time, ag.end_time").
+		ColumnExpr("ag.id, ag.created_at, ag.updated_at, ag.tenant_id, ag.start_time, ag.end_time").
 		ColumnExpr("ag.last_activity, ag.timeout_minutes, ag.group_id, ag.device_id, ag.room_id").
 		ColumnExpr(`d.id AS "device__id", d.created_at AS "device__created_at", d.updated_at AS "device__updated_at"`).
 		ColumnExpr(`d.device_id AS "device__device_id", d.device_type AS "device__device_type"`).

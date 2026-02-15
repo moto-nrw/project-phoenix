@@ -45,10 +45,10 @@ func TestMustFromContext_Success(t *testing.T) {
 
 func TestWithOrgID_RoundTrip(t *testing.T) {
 	ctx := context.Background()
-	ctx = tenant.WithOrgID(ctx, 7)
+	ctx = tenant.WithOrgID(ctx, 77)
 
 	got := tenant.OrgFromContext(ctx)
-	assert.Equal(t, int64(7), got)
+	assert.Equal(t, int64(77), got)
 }
 
 func TestOrgFromContext_EmptyContext(t *testing.T) {
@@ -129,8 +129,8 @@ func TestMultipleContextValues(t *testing.T) {
 }
 
 func TestNewContext(t *testing.T) {
-	ctx := tenant.NewContext(context.Background(), 42, 7)
+	ctx := tenant.NewContext(context.Background(), 42, 77)
 
 	assert.Equal(t, int64(42), tenant.FromContext(ctx))
-	assert.Equal(t, int64(7), tenant.OrgFromContext(ctx))
+	assert.Equal(t, int64(77), tenant.OrgFromContext(ctx))
 }

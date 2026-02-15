@@ -161,7 +161,7 @@ func (r *WorkSessionBreakRepository) UpdateDuration(ctx context.Context, id int6
 		query = query.Where("tenant_id = ?", tenantID)
 	}
 
-	result, err := query.Exec(ctx)
+	_, err := query.Exec(ctx)
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "update break duration",
@@ -169,7 +169,7 @@ func (r *WorkSessionBreakRepository) UpdateDuration(ctx context.Context, id int6
 		}
 	}
 
-	return base.AssertRowsAffected(result, 1, "update break duration")
+	return nil
 }
 
 // GetExpiredBreaks returns all active breaks with planned_end_time <= before

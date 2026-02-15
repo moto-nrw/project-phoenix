@@ -12,10 +12,10 @@ import (
 
 // Group represents an educational group/class
 type Group struct {
-	base.Model       `bun:"schema:education,table:groups"`
-	base.TenantModel `bun:",extend"`
-	Name             string `bun:"name,notnull" json:"name"`
-	RoomID           *int64 `bun:"room_id" json:"room_id,omitempty"`
+	base.Model `bun:"schema:education,table:groups"`
+	base.TenantModel
+	Name   string `bun:"name,notnull" json:"name"`
+	RoomID *int64 `bun:"room_id" json:"room_id,omitempty"`
 
 	// Relations not stored in the database
 	Room *facilities.Room `bun:"rel:belongs-to,join:room_id=id" json:"room,omitempty"`
@@ -25,9 +25,6 @@ type Group struct {
 
 // BeforeAppendModel lets us modify query before it's executed
 func (g *Group) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.SelectQuery); ok {
-		q.ModelTableExpr(`education.groups AS "group"`)
-	}
 	if q, ok := query.(*bun.UpdateQuery); ok {
 		q.ModelTableExpr(`education.groups AS "group"`)
 	}

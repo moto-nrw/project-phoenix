@@ -142,7 +142,7 @@ func (r *StudentPickupScheduleRepository) UpsertSchedule(ctx context.Context, s 
 	_, err := base.GetDB(ctx, r.db).NewInsert().
 		Model(s).
 		ModelTableExpr(tablePickupSchedules).
-		On("CONFLICT (student_id, weekday) DO UPDATE").
+		On("CONFLICT (tenant_id, student_id, weekday) DO UPDATE").
 		Set("pickup_time = EXCLUDED.pickup_time").
 		Set("notes = EXCLUDED.notes").
 		Set("updated_at = NOW()").

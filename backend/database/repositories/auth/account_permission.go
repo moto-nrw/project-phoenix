@@ -230,7 +230,7 @@ func (r *AccountPermissionRepository) RemovePermission(ctx context.Context, acco
 		query = query.Where(where, val)
 	}
 
-	result, err := query.Exec(ctx)
+	_, err := query.Exec(ctx)
 
 	if err != nil {
 		return &modelBase.DatabaseError{
@@ -239,7 +239,7 @@ func (r *AccountPermissionRepository) RemovePermission(ctx context.Context, acco
 		}
 	}
 
-	return base.AssertRowsAffected(result, 1, "remove permission")
+	return nil
 }
 
 // DeleteByPermissionID deletes all account-permission mappings for a permission

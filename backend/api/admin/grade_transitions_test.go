@@ -118,6 +118,7 @@ func createTestRouterWithPermissions(tc *testContext) chi.Router {
 func createAdminClaims(accountID int) jwt.AppClaims {
 	return jwt.AppClaims{
 		ID:          accountID,
+		TenantID:    1,
 		Sub:         "admin@example.com",
 		Username:    "admin",
 		FirstName:   "Admin",

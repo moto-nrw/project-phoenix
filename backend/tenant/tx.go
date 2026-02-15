@@ -37,9 +37,10 @@ func WithTenantTx(ctx context.Context, db *bun.DB, tenantID int64, fn func(ctx c
 		}
 
 		// Set the tenant ID so RLS policies can read it via current_setting('app.current_tenant_id')
+		// Use fmt.Sprintf instead of $1 parameter because bun.Tx.ExecContext doesn't
+		// forward positional parameters to the driver correctly. Safe: tenantID is int64.
 		if _, err := tx.ExecContext(ctx,
-			"SELECT set_config('app.current_tenant_id', $1, true)",
-			fmt.Sprintf("%d", tenantID),
+			fmt.Sprintf("SELECT set_config('app.current_tenant_id', '%d', true)", tenantID),
 		); err != nil {
 			return fmt.Errorf("tenant: set_config app.current_tenant_id: %w", err)
 		}

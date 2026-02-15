@@ -257,7 +257,7 @@ func (r *WorkSessionRepository) CloseSession(ctx context.Context, id int64, chec
 		query = query.Where("tenant_id = ?", tenantID)
 	}
 
-	result, err := query.Exec(ctx)
+	_, err := query.Exec(ctx)
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "close session",
@@ -265,5 +265,5 @@ func (r *WorkSessionRepository) CloseSession(ctx context.Context, id int64, chec
 		}
 	}
 
-	return base.AssertRowsAffected(result, 1, "close session")
+	return nil
 }

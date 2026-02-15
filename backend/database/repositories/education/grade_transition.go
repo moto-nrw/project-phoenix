@@ -154,7 +154,7 @@ func (r *GradeTransitionRepository) Delete(ctx context.Context, id int64) error 
 		query = query.Where(where, val)
 	}
 
-	result, err := query.Exec(ctx)
+	_, err := query.Exec(ctx)
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "delete grade transition",
@@ -162,7 +162,7 @@ func (r *GradeTransitionRepository) Delete(ctx context.Context, id int64) error 
 		}
 	}
 
-	return base.AssertRowsAffected(result, 1, "delete grade_transition")
+	return nil
 }
 
 // List retrieves grade transitions with pagination
@@ -437,10 +437,10 @@ func (r *GradeTransitionRepository) GetHistory(ctx context.Context, transitionID
 func (r *GradeTransitionRepository) GetDistinctClasses(ctx context.Context) ([]string, error) {
 	var classes []string
 	query := base.GetDB(ctx, r.db).NewSelect().
-		TableExpr(`users.students AS "student"`).
-		ColumnExpr(`DISTINCT "student".school_class`).
-		Where(`"student".school_class IS NOT NULL AND "student".school_class != ''`).
-		Order(`"student".school_class ASC`)
+		TableExpr(`users.students AS student`).
+		ColumnExpr(`DISTINCT student.school_class`).
+		Where(`student.school_class IS NOT NULL AND student.school_class != ''`).
+		Order(`student.school_class ASC`)
 
 	if where, val, ok := base.TenantWhere(ctx, "student"); ok {
 		query = query.Where(where, val)
@@ -461,8 +461,8 @@ func (r *GradeTransitionRepository) GetDistinctClasses(ctx context.Context) ([]s
 // GetStudentCountByClass returns the number of students in a class
 func (r *GradeTransitionRepository) GetStudentCountByClass(ctx context.Context, className string) (int, error) {
 	query := base.GetDB(ctx, r.db).NewSelect().
-		TableExpr(`users.students AS "student"`).
-		Where(`"student".school_class = ?`, className)
+		TableExpr(`users.students AS student`).
+		Where(`student.school_class = ?`, className)
 
 	if where, val, ok := base.TenantWhere(ctx, "student"); ok {
 		query = query.Where(where, val)

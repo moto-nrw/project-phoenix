@@ -11,9 +11,8 @@ import (
 
 func TestWithTenantTx_RejectsZeroTenantID(t *testing.T) {
 	// WithTenantTx should reject tenantID == 0 before even touching the DB.
-	// We pass a nil *bun.DB because the function should error before using it.
-	var db *bun.DB
-	err := tenant.WithTenantTx(context.Background(), db, 0, func(_ context.Context, _ bun.Tx) error {
+	// We pass nil because the function should error before using it (mock-like unit test).
+	err := tenant.WithTenantTx(context.Background(), nil, 0, func(_ context.Context, _ bun.Tx) error {
 		t.Fatal("callback should not be called with zero tenant ID")
 		return nil
 	})

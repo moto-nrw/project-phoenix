@@ -11,8 +11,8 @@ import (
 
 // GuardianInvitation represents an invitation sent to create a guardian account
 type GuardianInvitation struct {
-	base.Model       `bun:"schema:auth,table:guardian_invitations"`
-	base.TenantModel `bun:",extend"`
+	base.Model `bun:"schema:auth,table:guardian_invitations"`
+	base.TenantModel
 
 	Token             string     `bun:"token,notnull,unique" json:"token"`
 	GuardianProfileID int64      `bun:"guardian_profile_id,notnull" json:"guardian_profile_id"`
@@ -37,8 +37,6 @@ func (i *GuardianInvitation) BeforeAppendModel(query any) error {
 	const tableExpr = `auth.guardian_invitations AS "guardian_invitation"`
 
 	switch q := query.(type) {
-	case *bun.SelectQuery:
-		q.ModelTableExpr(tableExpr)
 	case *bun.InsertQuery:
 		q.ModelTableExpr(tableExpr)
 	case *bun.UpdateQuery:

@@ -64,6 +64,7 @@ func CreateTestActivityCategory(tb testing.TB, db *bun.DB, name string) *activit
 		Name:  uniqueName,
 		Color: "#CCCCCC",
 	}
+	category.SetTenantID(1)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -99,6 +100,7 @@ func CreateTestActivityGroup(tb testing.TB, db *bun.DB, name string) *activities
 		CategoryID:      category.ID,
 		CreatedBy:       &staff.ID,
 	}
+	group.SetTenantID(1)
 
 	err := db.NewInsert().
 		Model(group).
@@ -124,6 +126,7 @@ func CreateTestRoom(tb testing.TB, db *bun.DB, name string) *facilities.Room {
 		Building: "Test Building",
 		Capacity: intPtr(30),
 	}
+	room.SetTenantID(1)
 
 	err := db.NewInsert().
 		Model(room).
@@ -151,6 +154,7 @@ func CreateTestDevice(tb testing.TB, db *bun.DB, deviceID string) *iot.Device {
 		Status:     iot.DeviceStatusActive,
 		APIKey:     stringPtr("test-api-key-" + uniqueDeviceID),
 	}
+	device.SetTenantID(1)
 
 	err := db.NewInsert().
 		Model(device).
@@ -178,11 +182,12 @@ func EnsureWebManualDevice(tb testing.TB, db *bun.DB) *iot.Device {
 		Name:       stringPtr("Web-Portal (Manuell)"),
 		Status:     iot.DeviceStatusActive,
 	}
+	device.SetTenantID(1)
 
 	_, err := db.NewInsert().
 		Model(device).
 		ModelTableExpr(`iot.devices`).
-		On("CONFLICT (device_id) DO NOTHING").
+		On("CONFLICT (tenant_id, device_id) DO NOTHING").
 		Exec(ctx)
 	require.NoError(tb, err, "Failed to ensure web manual device")
 
@@ -209,6 +214,7 @@ func CreateTestPerson(tb testing.TB, db *bun.DB, firstName, lastName string) *us
 		FirstName: firstName,
 		LastName:  lastName,
 	}
+	person.SetTenantID(1)
 
 	err := db.NewInsert().
 		Model(person).
@@ -234,6 +240,7 @@ func CreateTestStaff(tb testing.TB, db *bun.DB, firstName, lastName string) *use
 	staff := &users.Staff{
 		PersonID: person.ID,
 	}
+	staff.SetTenantID(1)
 
 	err := db.NewInsert().
 		Model(staff).
@@ -258,6 +265,7 @@ func CreateTestStaffForPerson(tb testing.TB, db *bun.DB, personID int64) *users.
 	staff := &users.Staff{
 		PersonID: personID,
 	}
+	staff.SetTenantID(1)
 
 	err := db.NewInsert().
 		Model(staff).
@@ -284,6 +292,7 @@ func CreateTestStudent(tb testing.TB, db *bun.DB, firstName, lastName, schoolCla
 		PersonID:    person.ID,
 		SchoolClass: schoolClass,
 	}
+	student.SetTenantID(1)
 
 	err := db.NewInsert().
 		Model(student).
@@ -319,6 +328,7 @@ func CreateTestAttendance(tb testing.TB, db *bun.DB, studentID, staffID, deviceI
 		CheckedInBy:  staffID,
 		DeviceID:     deviceID,
 	}
+	attendance.SetTenantID(1)
 
 	err := db.NewInsert().
 		Model(attendance).
@@ -651,6 +661,7 @@ func CreateTestEducationGroup(tb testing.TB, db *bun.DB, name string) *education
 	group := &education.Group{
 		Name: uniqueName,
 	}
+	group.SetTenantID(1)
 
 	err := db.NewInsert().
 		Model(group).
@@ -676,6 +687,7 @@ func CreateTestTeacher(tb testing.TB, db *bun.DB, firstName, lastName string) *u
 	teacher := &users.Teacher{
 		StaffID: staff.ID,
 	}
+	teacher.SetTenantID(1)
 
 	err := db.NewInsert().
 		Model(teacher).
@@ -700,6 +712,7 @@ func CreateTestGroupTeacher(tb testing.TB, db *bun.DB, groupID, teacherID int64)
 		GroupID:   groupID,
 		TeacherID: teacherID,
 	}
+	gt.SetTenantID(1)
 
 	err := db.NewInsert().
 		Model(gt).
@@ -731,6 +744,7 @@ func CreateTestActiveGroup(tb testing.TB, db *bun.DB, activityGroupID, roomID in
 		LastActivity:   now,
 		TimeoutMinutes: 30,
 	}
+	activeGroup.SetTenantID(1)
 
 	err := db.NewInsert().
 		Model(activeGroup).
@@ -755,6 +769,7 @@ func CreateTestVisit(tb testing.TB, db *bun.DB, studentID, activeGroupID int64, 
 		EntryTime:     entryTime,
 		ExitTime:      exitTime,
 	}
+	visit.SetTenantID(1)
 
 	err := db.NewInsert().
 		Model(visit).
@@ -779,6 +794,7 @@ func CreateTestGroupSupervisor(tb testing.TB, db *bun.DB, staffID, activeGroupID
 		Role:      role,
 		StartDate: time.Now(),
 	}
+	supervisor.SetTenantID(1)
 
 	err := db.NewInsert().
 		Model(supervisor).
@@ -960,6 +976,7 @@ func CreateTestPersonWithAccountID(tb testing.TB, db *bun.DB, firstName, lastNam
 		LastName:  lastName,
 		AccountID: &accountID,
 	}
+	person.SetTenantID(1)
 
 	err := db.NewInsert().
 		Model(person).
@@ -1079,6 +1096,7 @@ func CreateTestPersonWithAccount(tb testing.TB, db *bun.DB, firstName, lastName 
 		LastName:  lastName,
 		AccountID: &account.ID,
 	}
+	person.SetTenantID(1)
 
 	err := db.NewInsert().
 		Model(person).
@@ -1105,6 +1123,7 @@ func CreateTestStudentWithAccount(tb testing.TB, db *bun.DB, firstName, lastName
 		PersonID:    person.ID,
 		SchoolClass: schoolClass,
 	}
+	student.SetTenantID(1)
 
 	err := db.NewInsert().
 		Model(student).
@@ -1129,6 +1148,7 @@ func CreateTestStaffWithAccount(tb testing.TB, db *bun.DB, firstName, lastName s
 	staff := &users.Staff{
 		PersonID: person.ID,
 	}
+	staff.SetTenantID(1)
 
 	err := db.NewInsert().
 		Model(staff).
@@ -1157,6 +1177,7 @@ func CreateTestTeacherWithAccount(tb testing.TB, db *bun.DB, firstName, lastName
 	teacher := &users.Teacher{
 		StaffID: staff.ID,
 	}
+	teacher.SetTenantID(1)
 
 	err := db.NewInsert().
 		Model(teacher).
@@ -1301,6 +1322,7 @@ func CreateTestToken(tb testing.TB, db *bun.DB, accountID int64, tokenType strin
 		FamilyID:   fmt.Sprintf("family-%d", time.Now().UnixNano()),
 		Generation: 0,
 	}
+	token.SetTenantID(1)
 
 	err := db.NewInsert().
 		Model(token).
@@ -1330,6 +1352,7 @@ func CreateTestRFIDCard(tb testing.TB, db *bun.DB, tagID string) *users.RFIDCard
 		Active: true,
 	}
 	card.ID = uniqueTagID
+	card.SetTenantID(1)
 
 	err := db.NewInsert().
 		Model(card).
@@ -1373,6 +1396,7 @@ func CreateTestGuardianProfile(tb testing.TB, db *bun.DB, email string) *users.G
 		PreferredContactMethod: "email",
 		LanguagePreference:     "de",
 	}
+	profile.SetTenantID(1)
 
 	err := db.NewInsert().
 		Model(profile).
@@ -1403,6 +1427,7 @@ func CreateTestGroupSubstitution(tb testing.TB, db *bun.DB, groupID int64, regul
 		EndDate:           endDate,
 		Reason:            "Test substitution",
 	}
+	substitution.SetTenantID(1)
 
 	err := db.NewInsert().
 		Model(substitution).
@@ -1429,6 +1454,7 @@ func CreateTestGuest(tb testing.TB, db *bun.DB, expertise string) *users.Guest {
 		ActivityExpertise: expertise,
 		Organization:      "Test Organization",
 	}
+	guest.SetTenantID(1)
 
 	err := db.NewInsert().
 		Model(guest).
@@ -1459,6 +1485,7 @@ func CreateTestProfile(tb testing.TB, db *bun.DB, prefix string) *users.Profile 
 		Bio:       "Test bio for " + prefix,
 		Settings:  `{"theme": "dark"}`,
 	}
+	profile.SetTenantID(1)
 
 	err := db.NewInsert().
 		Model(profile).
@@ -1497,6 +1524,7 @@ func CreateTestPrivacyConsent(tb testing.TB, db *bun.DB, prefix string) *users.P
 		RenewalRequired:   false,
 		DataRetentionDays: 30,
 	}
+	consent.SetTenantID(1)
 
 	err := db.NewInsert().
 		Model(consent).
@@ -1526,6 +1554,7 @@ func CreateTestParentAccount(tb testing.TB, db *bun.DB, email string) *auth.Acco
 		Username: &username,
 		Active:   true,
 	}
+	account.SetTenantID(1)
 
 	err := db.NewInsert().
 		Model(account).
@@ -1551,6 +1580,7 @@ func CreateTestPersonGuardian(tb testing.TB, db *bun.DB, personID, guardianAccou
 		IsPrimary:         true,
 		Permissions:       "{}", // Valid empty JSON object
 	}
+	pg.SetTenantID(1)
 
 	err := db.NewInsert().
 		Model(pg).
@@ -1586,6 +1616,7 @@ func CreateTestTimeframe(tb testing.TB, db *bun.DB, description string) *schedul
 		IsActive:    true,
 		Description: uniqueDesc,
 	}
+	timeframe.SetTenantID(1)
 
 	err := db.NewInsert().
 		Model(timeframe).
@@ -1642,6 +1673,7 @@ func CreateTestInvitationToken(tb testing.TB, db *bun.DB, email string, roleID, 
 		CreatedBy: createdBy,
 		ExpiresAt: expiresAt,
 	}
+	invitation.SetTenantID(1)
 
 	err := db.NewInsert().
 		Model(invitation).
@@ -1675,6 +1707,7 @@ func CreateTestInvitationTokenWithOptions(tb testing.TB, db *bun.DB, email strin
 		invitation.FirstName = opts.FirstName
 		invitation.LastName = opts.LastName
 	}
+	invitation.SetTenantID(1)
 
 	err := db.NewInsert().
 		Model(invitation).
@@ -1775,6 +1808,7 @@ func CreateTestJWT(tb testing.TB, accountID int64, permissions []string) string 
 		Sub:         fmt.Sprintf("%d", accountID), // Required claim - subject identifier
 		Roles:       []string{"user"},
 		Permissions: permissions,
+		TenantID:    1, // Default test tenant
 	}
 
 	token, err := tokenAuth.CreateJWT(claims)
@@ -1799,6 +1833,7 @@ func CreateTestGradeTransition(tb testing.TB, db *bun.DB, academicYear string, c
 		Status:       education.TransitionStatusDraft,
 		CreatedBy:    createdBy,
 	}
+	transition.SetTenantID(1)
 
 	err := db.NewInsert().
 		Model(transition).
@@ -1821,6 +1856,7 @@ func CreateTestGradeTransitionMapping(tb testing.TB, db *bun.DB, transitionID in
 		FromClass:    fromClass,
 		ToClass:      toClass,
 	}
+	mapping.SetTenantID(1)
 
 	err := db.NewInsert().
 		Model(mapping).
@@ -1865,6 +1901,33 @@ func CleanupGradeTransitionFixtures(tb testing.TB, db *bun.DB, transitionIDs ...
 // ============================================================================
 // Multi-Tenancy Isolation Test Fixtures (WP 3.19)
 // ============================================================================
+
+// EnsureTestTenant creates the platform.organizations and platform.schools
+// rows required by the FK constraint on tenant_id. Uses ON CONFLICT DO NOTHING
+// so it's safe to call multiple times with the same ID.
+func EnsureTestTenant(tb testing.TB, db *bun.DB, tenantID int64) {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	_, err := db.ExecContext(ctx, `
+		INSERT INTO platform.organizations (id, name, slug, active)
+		VALUES (?, ?, ?, true)
+		ON CONFLICT (id) DO NOTHING`,
+		tenantID, fmt.Sprintf("Test Org %d", tenantID), fmt.Sprintf("test-org-%d", tenantID))
+	require.NoError(tb, err, "Failed to ensure test organization")
+
+	_, err = db.ExecContext(ctx, `
+		INSERT INTO platform.schools (id, organization_id, name, slug, subdomain, active)
+		VALUES (?, ?, ?, ?, ?, true)
+		ON CONFLICT (id) DO NOTHING`,
+		tenantID, tenantID,
+		fmt.Sprintf("Test School %d", tenantID),
+		fmt.Sprintf("test-school-%d", tenantID),
+		fmt.Sprintf("t%d", tenantID))
+	require.NoError(tb, err, "Failed to ensure test school")
+}
 
 // CreateTestPersonForTenant creates a person belonging to a specific tenant.
 func CreateTestPersonForTenant(tb testing.TB, db *bun.DB, tenantID int64, firstName, lastName string) *users.Person {

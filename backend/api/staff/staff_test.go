@@ -657,6 +657,7 @@ func TestGetPINStatus_Success(t *testing.T) {
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/staff/pin", nil,
 		testutil.WithClaims(jwt.AppClaims{
 			ID:       int(*person.AccountID),
+			TenantID: 1,
 			Username: "pintest",
 		}),
 	)
@@ -712,6 +713,7 @@ func TestUpdatePIN_InvalidPINFormat(t *testing.T) {
 	req := testutil.NewAuthenticatedRequest(t, "PUT", "/staff/pin", body,
 		testutil.WithClaims(jwt.AppClaims{
 			ID:       int(*person.AccountID),
+			TenantID: 1,
 			Username: "updatepin",
 		}),
 	)
@@ -744,6 +746,7 @@ func TestUpdatePIN_NonDigitPIN(t *testing.T) {
 	req := testutil.NewAuthenticatedRequest(t, "PUT", "/staff/pin", body,
 		testutil.WithClaims(jwt.AppClaims{
 			ID:       int(*person.AccountID),
+			TenantID: 1,
 			Username: "nondigitpin",
 		}),
 	)
@@ -773,6 +776,7 @@ func TestUpdatePIN_MissingNewPIN(t *testing.T) {
 	req := testutil.NewAuthenticatedRequest(t, "PUT", "/staff/pin", body,
 		testutil.WithClaims(jwt.AppClaims{
 			ID:       int(*person.AccountID),
+			TenantID: 1,
 			Username: "missingpin",
 		}),
 	)
@@ -827,6 +831,7 @@ func TestUpdatePIN_Success_FirstTime(t *testing.T) {
 	req := testutil.NewAuthenticatedRequest(t, "PUT", "/staff/pin", body,
 		testutil.WithClaims(jwt.AppClaims{
 			ID:       int(*person.AccountID),
+			TenantID: 1,
 			Username: "firstpinsetup",
 		}),
 	)

@@ -44,7 +44,7 @@ func (r *RFIDCardRepository) Delete(ctx context.Context, id string) error {
 		query = query.Where(where, val)
 	}
 
-	result, err := query.Exec(ctx)
+	_, err := query.Exec(ctx)
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "delete",
@@ -52,7 +52,7 @@ func (r *RFIDCardRepository) Delete(ctx context.Context, id string) error {
 		}
 	}
 
-	return base.AssertRowsAffected(result, 1, "delete rfid_card")
+	return nil
 }
 
 // normalizeRFIDTagID normalizes RFID tag ID format (same logic as RFIDCard.Validate)

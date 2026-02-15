@@ -28,6 +28,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	authModel "github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/services"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -126,6 +127,9 @@ func setupProtectedRouter(t *testing.T) (*testContext, chi.Router) {
 func executeWithAuth(router chi.Router, req *http.Request, claims jwt.AppClaims, permissions []string) *httptest.ResponseRecorder {
 	ctx := context.WithValue(req.Context(), jwt.CtxClaims, claims)
 	ctx = context.WithValue(ctx, jwt.CtxPermissions, permissions)
+	if claims.TenantID != 0 {
+		ctx = tenant.WithTenantID(ctx, claims.TenantID)
+	}
 	req = req.WithContext(ctx)
 
 	rr := httptest.NewRecorder()
@@ -882,6 +886,7 @@ func TestGetAccount(t *testing.T) {
 	t.Run("success with valid claims", func(t *testing.T) {
 		claims := jwt.AppClaims{
 			ID:          int(account.ID),
+			TenantID:    1,
 			Sub:         account.Email,
 			Username:    "testuser",
 			Roles:       []string{"user"},
@@ -903,6 +908,7 @@ func TestGetAccount(t *testing.T) {
 	t.Run("returns permissions from claims", func(t *testing.T) {
 		claims := jwt.AppClaims{
 			ID:          int(account.ID),
+			TenantID:    1,
 			Sub:         account.Email,
 			Username:    "testuser",
 			Roles:       []string{"admin"},
@@ -934,6 +940,7 @@ func TestChangePassword(t *testing.T) {
 
 		claims := jwt.AppClaims{
 			ID:          int(account.ID),
+			TenantID:    1,
 			Sub:         account.Email,
 			Roles:       []string{"user"},
 			Permissions: []string{},
@@ -957,6 +964,7 @@ func TestChangePassword(t *testing.T) {
 
 		claims := jwt.AppClaims{
 			ID:          int(account.ID),
+			TenantID:    1,
 			Sub:         account.Email,
 			Roles:       []string{"user"},
 			Permissions: []string{},
@@ -980,6 +988,7 @@ func TestChangePassword(t *testing.T) {
 
 		claims := jwt.AppClaims{
 			ID:          int(account.ID),
+			TenantID:    1,
 			Sub:         account.Email,
 			Roles:       []string{"user"},
 			Permissions: []string{},
