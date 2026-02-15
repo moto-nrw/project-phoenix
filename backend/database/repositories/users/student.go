@@ -34,7 +34,7 @@ func NewStudentRepository(db *bun.DB) users.StudentRepository {
 // FindByPersonID retrieves a student by their person ID
 func (r *StudentRepository) FindByPersonID(ctx context.Context, personID int64) (*users.Student, error) {
 	student := new(users.Student)
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(student).
 		ModelTableExpr(tableExprUsersStudentsAsStudent).
 		Where("person_id = ?", personID).
@@ -57,7 +57,7 @@ func (r *StudentRepository) FindByIDs(ctx context.Context, ids []int64) (map[int
 	}
 
 	var students []*users.Student
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&students).
 		ModelTableExpr(`users.students AS "student"`).
 		Where(`"student".id IN (?)`, bun.In(ids)).
@@ -81,7 +81,7 @@ func (r *StudentRepository) FindByIDs(ctx context.Context, ids []int64) (map[int
 // FindByGroupID retrieves students by their group ID
 func (r *StudentRepository) FindByGroupID(ctx context.Context, groupID int64) ([]*users.Student, error) {
 	var students []*users.Student
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&students).
 		ModelTableExpr(tableExprUsersStudentsAsStudent).
 		Where("group_id = ?", groupID).
@@ -104,7 +104,7 @@ func (r *StudentRepository) FindByGroupIDs(ctx context.Context, groupIDs []int64
 	}
 
 	var students []*users.Student
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&students).
 		ModelTableExpr(tableExprUsersStudentsAsStudent).
 		Where("group_id IN (?)", bun.In(groupIDs)).
@@ -123,7 +123,7 @@ func (r *StudentRepository) FindByGroupIDs(ctx context.Context, groupIDs []int64
 // FindBySchoolClass retrieves students by their school class
 func (r *StudentRepository) FindBySchoolClass(ctx context.Context, schoolClass string) ([]*users.Student, error) {
 	var students []*users.Student
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&students).
 		ModelTableExpr(tableExprUsersStudentsAsStudent).
 		Where("LOWER(school_class) = LOWER(?)", schoolClass).
@@ -141,7 +141,7 @@ func (r *StudentRepository) FindBySchoolClass(ctx context.Context, schoolClass s
 
 // AssignToGroup assigns a student to a group
 func (r *StudentRepository) AssignToGroup(ctx context.Context, studentID int64, groupID int64) error {
-	_, err := r.db.NewUpdate().
+	_, err := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*users.Student)(nil)).
 		Set("group_id = ?", groupID).
 		Where("id = ?", studentID).
@@ -159,7 +159,7 @@ func (r *StudentRepository) AssignToGroup(ctx context.Context, studentID int64, 
 
 // RemoveFromGroup removes a student from their group
 func (r *StudentRepository) RemoveFromGroup(ctx context.Context, studentID int64) error {
-	_, err := r.db.NewUpdate().
+	_, err := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*users.Student)(nil)).
 		Set("group_id = NULL").
 		Where("id = ?", studentID).
@@ -244,7 +244,7 @@ func applyStudentStringLikeFilter(filter *modelBase.Filter, column string, value
 // ListWithOptions provides a type-safe way to list students with query options
 func (r *StudentRepository) ListWithOptions(ctx context.Context, options *modelBase.QueryOptions) ([]*users.Student, error) {
 	var students []*users.Student
-	query := r.db.NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&students).
 		ModelTableExpr(tableExprUsersStudentsAsStudent)
 
@@ -269,7 +269,7 @@ func (r *StudentRepository) ListWithOptions(ctx context.Context, options *modelB
 
 // CountWithOptions counts students matching the query options
 func (r *StudentRepository) CountWithOptions(ctx context.Context, options *modelBase.QueryOptions) (int, error) {
-	query := r.db.NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model((*users.Student)(nil)).
 		ModelTableExpr(tableExprUsersStudentsAsStudent).
 		Column("student.id")
@@ -309,7 +309,7 @@ func (r *StudentRepository) CountByGroupIDs(ctx context.Context, groupIDs []int6
 	}
 
 	var results []countResult
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		TableExpr("users.students").
 		ColumnExpr("group_id").
 		ColumnExpr("COUNT(*) AS count").
@@ -334,7 +334,7 @@ func (r *StudentRepository) CountByGroupIDs(ctx context.Context, groupIDs []int6
 // FindWithPerson retrieves a student with their associated person data
 func (r *StudentRepository) FindWithPerson(ctx context.Context, id int64) (*users.Student, error) {
 	student := new(users.Student)
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(student).
 		Relation("Person").
 		Where("users.students.id = ?", id).
@@ -353,7 +353,7 @@ func (r *StudentRepository) FindWithPerson(ctx context.Context, id int64) (*user
 // FindByGuardianEmail finds students with a specific guardian email
 func (r *StudentRepository) FindByGuardianEmail(ctx context.Context, email string) ([]*users.Student, error) {
 	var students []*users.Student
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&students).
 		Where("LOWER(guardian_email) = LOWER(?)", email).
 		Scan(ctx)
@@ -371,7 +371,7 @@ func (r *StudentRepository) FindByGuardianEmail(ctx context.Context, email strin
 // FindByGuardianPhone finds students with a specific guardian phone
 func (r *StudentRepository) FindByGuardianPhone(ctx context.Context, phone string) ([]*users.Student, error) {
 	var students []*users.Student
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&students).
 		Where("guardian_phone = ?", phone).
 		Scan(ctx)
@@ -396,7 +396,7 @@ func (r *StudentRepository) FindByTeacherID(ctx context.Context, teacherID int64
 	}
 
 	var results []*studentWithPersonAndGroup
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&results).
 		ModelTableExpr(`users.students AS "student"`).
 		// Student columns with proper aliasing
@@ -453,8 +453,8 @@ type studentWithPersonAndGroup struct {
 
 // newStudentWithGroupQuery returns a select query pre-configured with student+person column
 // expressions and the person JOIN. Callers add group JOIN, WHERE, and ORDER as needed.
-func (r *StudentRepository) newStudentWithGroupQuery(results *[]*studentWithPersonAndGroup) *bun.SelectQuery {
-	return r.db.NewSelect().
+func (r *StudentRepository) newStudentWithGroupQuery(ctx context.Context, results *[]*studentWithPersonAndGroup) *bun.SelectQuery {
+	return base.GetDB(ctx, r.db).NewSelect().
 		Model(results).
 		ModelTableExpr(`users.students AS "student"`).
 		ColumnExpr(`"student".id AS "student__id", "student".created_at AS "student__created_at", "student".updated_at AS "student__updated_at"`).
@@ -490,7 +490,7 @@ func mapStudentGroupResults(results []*studentWithPersonAndGroup) []*users.Stude
 // FindByTeacherIDWithGroups retrieves students with group names supervised by a teacher
 func (r *StudentRepository) FindByTeacherIDWithGroups(ctx context.Context, teacherID int64) ([]*users.StudentWithGroupInfo, error) {
 	var results []*studentWithPersonAndGroup
-	err := r.newStudentWithGroupQuery(&results).
+	err := r.newStudentWithGroupQuery(ctx, &results).
 		ColumnExpr(`"group".name AS "group_name"`).
 		Join(`INNER JOIN education.groups AS "group" ON "group".id = "student".group_id`).
 		Join(`INNER JOIN education.group_teacher AS "gt" ON "gt".group_id = "group".id`).
@@ -512,7 +512,7 @@ func (r *StudentRepository) FindByTeacherIDWithGroups(ctx context.Context, teach
 // Uses LEFT JOIN on groups so students without a group assignment are included.
 func (r *StudentRepository) FindAllWithGroups(ctx context.Context) ([]*users.StudentWithGroupInfo, error) {
 	var results []*studentWithPersonAndGroup
-	err := r.newStudentWithGroupQuery(&results).
+	err := r.newStudentWithGroupQuery(ctx, &results).
 		ColumnExpr(`COALESCE("group".name, '') AS "group_name"`).
 		Join(`LEFT JOIN education.groups AS "group" ON "group".id = "student".group_id`).
 		OrderExpr(`"person".last_name, "person".first_name`).
@@ -531,7 +531,7 @@ func (r *StudentRepository) FindAllWithGroups(ctx context.Context) ([]*users.Stu
 // FindByNameAndClass retrieves students by first name, last name, and school class (for import duplicate detection)
 func (r *StudentRepository) FindByNameAndClass(ctx context.Context, firstName, lastName, schoolClass string) ([]*users.Student, error) {
 	var students []*users.Student
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&students).
 		ModelTableExpr(`users.students AS "student"`).
 		Join(`INNER JOIN users.persons AS "person" ON "person".id = "student".person_id`).

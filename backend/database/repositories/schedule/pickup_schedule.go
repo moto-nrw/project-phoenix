@@ -52,7 +52,7 @@ func NewStudentPickupScheduleRepository(db *bun.DB) schedule.StudentPickupSchedu
 // FindByStudentID finds all pickup schedules for a student
 func (r *StudentPickupScheduleRepository) FindByStudentID(ctx context.Context, studentID int64) ([]*schedule.StudentPickupSchedule, error) {
 	var schedules []*schedule.StudentPickupSchedule
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&schedules).
 		ModelTableExpr(`schedule.student_pickup_schedules AS "student_pickup_schedule"`).
 		Where(`"student_pickup_schedule".student_id = ?`, studentID).
@@ -72,7 +72,7 @@ func (r *StudentPickupScheduleRepository) FindByStudentID(ctx context.Context, s
 // FindByStudentIDAndWeekday finds a pickup schedule for a specific student and weekday
 func (r *StudentPickupScheduleRepository) FindByStudentIDAndWeekday(ctx context.Context, studentID int64, weekday int) (*schedule.StudentPickupSchedule, error) {
 	var pickupSchedule schedule.StudentPickupSchedule
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&pickupSchedule).
 		ModelTableExpr(`schedule.student_pickup_schedules AS "student_pickup_schedule"`).
 		Where(`"student_pickup_schedule".student_id = ?`, studentID).
@@ -99,7 +99,7 @@ func (r *StudentPickupScheduleRepository) FindByStudentIDsAndWeekday(ctx context
 	}
 
 	var schedules []*schedule.StudentPickupSchedule
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&schedules).
 		ModelTableExpr(`schedule.student_pickup_schedules AS "student_pickup_schedule"`).
 		Where(`"student_pickup_schedule".student_id IN (?)`, bun.In(studentIDs)).
@@ -126,7 +126,7 @@ func (r *StudentPickupScheduleRepository) UpsertSchedule(ctx context.Context, s 
 		return err
 	}
 
-	_, err := r.db.NewInsert().
+	_, err := base.GetDB(ctx, r.db).NewInsert().
 		Model(s).
 		ModelTableExpr(tablePickupSchedules).
 		On("CONFLICT (student_id, weekday) DO UPDATE").
@@ -148,7 +148,7 @@ func (r *StudentPickupScheduleRepository) UpsertSchedule(ctx context.Context, s 
 
 // DeleteByStudentID deletes all pickup schedules for a student
 func (r *StudentPickupScheduleRepository) DeleteByStudentID(ctx context.Context, studentID int64) error {
-	_, err := r.db.NewDelete().
+	_, err := base.GetDB(ctx, r.db).NewDelete().
 		Model((*schedule.StudentPickupSchedule)(nil)).
 		ModelTableExpr(tablePickupSchedules).
 		Where(whereStudentID, studentID).
@@ -193,7 +193,7 @@ func (r *StudentPickupScheduleRepository) Update(ctx context.Context, s *schedul
 // List retrieves pickup schedules matching the provided query options
 func (r *StudentPickupScheduleRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*schedule.StudentPickupSchedule, error) {
 	var schedules []*schedule.StudentPickupSchedule
-	query := r.db.NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&schedules).
 		ModelTableExpr(`schedule.student_pickup_schedules AS "student_pickup_schedule"`)
 
@@ -216,7 +216,7 @@ func (r *StudentPickupScheduleRepository) List(ctx context.Context, options *mod
 func (r *StudentPickupScheduleRepository) FindByID(ctx context.Context, id any) (*schedule.StudentPickupSchedule, error) {
 	var pickupSchedule schedule.StudentPickupSchedule
 
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&pickupSchedule).
 		ModelTableExpr(`schedule.student_pickup_schedules AS "student_pickup_schedule"`).
 		Where(`"student_pickup_schedule".id = ?`, id).
@@ -248,7 +248,7 @@ func NewStudentPickupExceptionRepository(db *bun.DB) schedule.StudentPickupExcep
 // FindByStudentID finds all pickup exceptions for a student
 func (r *StudentPickupExceptionRepository) FindByStudentID(ctx context.Context, studentID int64) ([]*schedule.StudentPickupException, error) {
 	var exceptions []*schedule.StudentPickupException
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&exceptions).
 		ModelTableExpr(`schedule.student_pickup_exceptions AS "student_pickup_exception"`).
 		Where(`"student_pickup_exception".student_id = ?`, studentID).
@@ -270,7 +270,7 @@ func (r *StudentPickupExceptionRepository) FindUpcomingByStudentID(ctx context.C
 	var exceptions []*schedule.StudentPickupException
 	today := timezone.Today()
 
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&exceptions).
 		ModelTableExpr(`schedule.student_pickup_exceptions AS "student_pickup_exception"`).
 		Where(`"student_pickup_exception".student_id = ?`, studentID).
@@ -293,7 +293,7 @@ func (r *StudentPickupExceptionRepository) FindByStudentIDAndDate(ctx context.Co
 	var exception schedule.StudentPickupException
 	dateOnly := timezone.DateOfUTC(date) // Use UTC to avoid day shift in PostgreSQL DATE comparison
 
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&exception).
 		ModelTableExpr(`schedule.student_pickup_exceptions AS "student_pickup_exception"`).
 		Where(`"student_pickup_exception".student_id = ?`, studentID).
@@ -322,7 +322,7 @@ func (r *StudentPickupExceptionRepository) FindByStudentIDsAndDate(ctx context.C
 	dateOnly := timezone.DateOfUTC(date) // Use UTC to avoid day shift in PostgreSQL DATE comparison
 	var exceptions []*schedule.StudentPickupException
 
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&exceptions).
 		ModelTableExpr(`schedule.student_pickup_exceptions AS "student_pickup_exception"`).
 		Where(`"student_pickup_exception".student_id IN (?)`, bun.In(studentIDs)).
@@ -341,7 +341,7 @@ func (r *StudentPickupExceptionRepository) FindByStudentIDsAndDate(ctx context.C
 
 // DeleteByStudentID deletes all pickup exceptions for a student
 func (r *StudentPickupExceptionRepository) DeleteByStudentID(ctx context.Context, studentID int64) error {
-	_, err := r.db.NewDelete().
+	_, err := base.GetDB(ctx, r.db).NewDelete().
 		Model((*schedule.StudentPickupException)(nil)).
 		ModelTableExpr(tablePickupExceptions).
 		Where(whereStudentID, studentID).
@@ -359,7 +359,7 @@ func (r *StudentPickupExceptionRepository) DeleteByStudentID(ctx context.Context
 
 // DeletePastExceptions deletes all exceptions older than the given date
 func (r *StudentPickupExceptionRepository) DeletePastExceptions(ctx context.Context, beforeDate time.Time) (int64, error) {
-	result, err := r.db.NewDelete().
+	result, err := base.GetDB(ctx, r.db).NewDelete().
 		Model((*schedule.StudentPickupException)(nil)).
 		ModelTableExpr(tablePickupExceptions).
 		Where("exception_date < ?", beforeDate).
@@ -409,7 +409,7 @@ func (r *StudentPickupExceptionRepository) Update(ctx context.Context, e *schedu
 // List retrieves pickup exceptions matching the provided query options
 func (r *StudentPickupExceptionRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*schedule.StudentPickupException, error) {
 	var exceptions []*schedule.StudentPickupException
-	query := r.db.NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&exceptions).
 		ModelTableExpr(`schedule.student_pickup_exceptions AS "student_pickup_exception"`)
 
@@ -432,7 +432,7 @@ func (r *StudentPickupExceptionRepository) List(ctx context.Context, options *mo
 func (r *StudentPickupExceptionRepository) FindByID(ctx context.Context, id any) (*schedule.StudentPickupException, error) {
 	var exception schedule.StudentPickupException
 
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&exception).
 		ModelTableExpr(`schedule.student_pickup_exceptions AS "student_pickup_exception"`).
 		Where(`"student_pickup_exception".id = ?`, id).
@@ -464,7 +464,7 @@ func NewStudentPickupNoteRepository(db *bun.DB) schedule.StudentPickupNoteReposi
 // FindByStudentID finds all pickup notes for a student
 func (r *StudentPickupNoteRepository) FindByStudentID(ctx context.Context, studentID int64) ([]*schedule.StudentPickupNote, error) {
 	var notes []*schedule.StudentPickupNote
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&notes).
 		ModelTableExpr(`schedule.student_pickup_notes AS "student_pickup_note"`).
 		Where(`"student_pickup_note".student_id = ?`, studentID).
@@ -486,7 +486,7 @@ func (r *StudentPickupNoteRepository) FindByStudentIDAndDate(ctx context.Context
 	dateOnly := timezone.DateOfUTC(date)
 	var notes []*schedule.StudentPickupNote
 
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&notes).
 		ModelTableExpr(`schedule.student_pickup_notes AS "student_pickup_note"`).
 		Where(`"student_pickup_note".student_id = ?`, studentID).
@@ -513,7 +513,7 @@ func (r *StudentPickupNoteRepository) FindByStudentIDsAndDate(ctx context.Contex
 	dateOnly := timezone.DateOfUTC(date)
 	var notes []*schedule.StudentPickupNote
 
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&notes).
 		ModelTableExpr(`schedule.student_pickup_notes AS "student_pickup_note"`).
 		Where(`"student_pickup_note".student_id IN (?)`, bun.In(studentIDs)).
@@ -533,7 +533,7 @@ func (r *StudentPickupNoteRepository) FindByStudentIDsAndDate(ctx context.Contex
 
 // DeleteByStudentID deletes all pickup notes for a student
 func (r *StudentPickupNoteRepository) DeleteByStudentID(ctx context.Context, studentID int64) error {
-	_, err := r.db.NewDelete().
+	_, err := base.GetDB(ctx, r.db).NewDelete().
 		Model((*schedule.StudentPickupNote)(nil)).
 		ModelTableExpr(tablePickupNotes).
 		Where(whereStudentID, studentID).
@@ -551,7 +551,7 @@ func (r *StudentPickupNoteRepository) DeleteByStudentID(ctx context.Context, stu
 
 // DeletePastNotes deletes all notes older than the given date
 func (r *StudentPickupNoteRepository) DeletePastNotes(ctx context.Context, beforeDate time.Time) (int64, error) {
-	result, err := r.db.NewDelete().
+	result, err := base.GetDB(ctx, r.db).NewDelete().
 		Model((*schedule.StudentPickupNote)(nil)).
 		ModelTableExpr(tablePickupNotes).
 		Where("note_date < ?", beforeDate).
@@ -601,7 +601,7 @@ func (r *StudentPickupNoteRepository) Update(ctx context.Context, n *schedule.St
 // List retrieves pickup notes matching the provided query options
 func (r *StudentPickupNoteRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*schedule.StudentPickupNote, error) {
 	var notes []*schedule.StudentPickupNote
-	query := r.db.NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&notes).
 		ModelTableExpr(`schedule.student_pickup_notes AS "student_pickup_note"`)
 
@@ -624,7 +624,7 @@ func (r *StudentPickupNoteRepository) List(ctx context.Context, options *modelBa
 func (r *StudentPickupNoteRepository) FindByID(ctx context.Context, id any) (*schedule.StudentPickupNote, error) {
 	var note schedule.StudentPickupNote
 
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&note).
 		ModelTableExpr(`schedule.student_pickup_notes AS "student_pickup_note"`).
 		Where(`"student_pickup_note".id = ?`, id).

@@ -58,6 +58,13 @@ type AnnouncementViewRepository interface {
 	GetViewDetails(ctx context.Context, announcementID int64) ([]*AnnouncementViewDetail, error)
 }
 
+// SchoolRepository defines read operations for school (tenant) records.
+type SchoolRepository interface {
+	FindByID(ctx context.Context, id int64) (*School, error)
+	FindBySlug(ctx context.Context, slug string) (*School, error)
+	ListActive(ctx context.Context) ([]School, error)
+}
+
 // OperatorAuditLogRepository defines operations for the audit log
 type OperatorAuditLogRepository interface {
 	// Create a new audit log entry

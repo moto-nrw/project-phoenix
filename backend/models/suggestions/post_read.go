@@ -3,12 +3,14 @@ package suggestions
 import (
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/uptrace/bun"
 )
 
 // PostRead tracks when an operator viewed a post
 type PostRead struct {
-	bun.BaseModel `bun:"table:suggestions.post_reads"`
+	bun.BaseModel    `bun:"table:suggestions.post_reads"`
+	base.TenantModel `bun:",extend"`
 
 	AccountID  int64     `bun:"account_id,pk"`
 	PostID     int64     `bun:"post_id,pk"`

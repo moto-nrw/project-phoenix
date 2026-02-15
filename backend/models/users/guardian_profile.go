@@ -14,7 +14,8 @@ import (
 // GuardianProfile represents a guardian's personal information
 // Guardians can exist with or without portal accounts
 type GuardianProfile struct {
-	base.Model `bun:"schema:users,table:guardian_profiles"`
+	base.Model       `bun:"schema:users,table:guardian_profiles"`
+	base.TenantModel `bun:",extend"`
 
 	// Personal Information (optional - may be empty for imported guardians)
 	FirstName string `bun:"first_name" json:"first_name"`

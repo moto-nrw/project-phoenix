@@ -5,7 +5,6 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"fmt"
-	"strings"
 	"testing"
 	"time"
 
@@ -19,7 +18,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/models/iot"
-	"github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/stretchr/testify/require"
@@ -1860,155 +1858,4 @@ func CleanupGradeTransitionFixtures(tb testing.TB, db *bun.DB, transitionIDs ...
 		TableExpr(tableEducationGradeTransition).
 		Where(whereIDIn, bun.In(transitionIDs)).
 		Exec(ctx)
-}
-
-// ============================================================================
-// Multi-Tenancy Domain Fixtures (Organizations, Schools, Account-Tenants)
-// ============================================================================
-
-// CreateTestOrganization creates a platform.Organization for testing.
-func CreateTestOrganization(tb testing.TB, db *bun.DB, name string) *platform.Organization {
-	tb.Helper()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	uniqueName := fmt.Sprintf("%s-%d", name, time.Now().UnixNano())
-	slug := fmt.Sprintf("%s-%d", strings.ToLower(strings.ReplaceAll(name, " ", "-")), time.Now().UnixNano())
-
-	org := &platform.Organization{
-		Name:   uniqueName,
-		Slug:   slug,
-		Active: true,
-	}
-
-	err := db.NewInsert().
-		Model(org).
-		ModelTableExpr(`platform.organizations`).
-		Scan(ctx)
-	require.NoError(tb, err, "Failed to create test organization")
-
-	return org
-}
-
-// CreateTestSchool creates a platform.School for testing.
-// It also creates the parent organization automatically.
-func CreateTestSchool(tb testing.TB, db *bun.DB, name string) *platform.School {
-	tb.Helper()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	// Create parent organization
-	org := CreateTestOrganization(tb, db, fmt.Sprintf("Org-%s", name))
-
-	uniqueName := fmt.Sprintf("%s-%d", name, time.Now().UnixNano())
-	slug := fmt.Sprintf("%s-%d", strings.ToLower(strings.ReplaceAll(name, " ", "-")), time.Now().UnixNano())
-	subdomain := fmt.Sprintf("%s-%d", strings.ToLower(strings.ReplaceAll(name, " ", "")), time.Now().UnixNano())
-
-	school := &platform.School{
-		OrganizationID: org.ID,
-		Name:           uniqueName,
-		Slug:           slug,
-		Subdomain:      subdomain,
-		Active:         true,
-	}
-
-	err := db.NewInsert().
-		Model(school).
-		ModelTableExpr(`platform.schools`).
-		Scan(ctx)
-	require.NoError(tb, err, "Failed to create test school")
-
-	// Store org reference for convenience
-	school.Organization = org
-
-	return school
-}
-
-// CreateTestSchoolForOrg creates a platform.School under an existing organization.
-func CreateTestSchoolForOrg(tb testing.TB, db *bun.DB, orgID int64, name string) *platform.School {
-	tb.Helper()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	uniqueName := fmt.Sprintf("%s-%d", name, time.Now().UnixNano())
-	slug := fmt.Sprintf("%s-%d", strings.ToLower(strings.ReplaceAll(name, " ", "-")), time.Now().UnixNano())
-	subdomain := fmt.Sprintf("%s-%d", strings.ToLower(strings.ReplaceAll(name, " ", "")), time.Now().UnixNano())
-
-	school := &platform.School{
-		OrganizationID: orgID,
-		Name:           uniqueName,
-		Slug:           slug,
-		Subdomain:      subdomain,
-		Active:         true,
-	}
-
-	err := db.NewInsert().
-		Model(school).
-		ModelTableExpr(`platform.schools`).
-		Scan(ctx)
-	require.NoError(tb, err, "Failed to create test school for org")
-
-	return school
-}
-
-// CreateTestAccountTenant links an account to a tenant (school) for testing.
-func CreateTestAccountTenant(tb testing.TB, db *bun.DB, accountID, tenantID int64) *auth.AccountTenant {
-	tb.Helper()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	now := time.Now()
-	at := &auth.AccountTenant{
-		AccountID:   accountID,
-		TenantID:    tenantID,
-		Status:      auth.AccountTenantStatusActive,
-		InvitedAt:   &now,
-		ActivatedAt: &now,
-	}
-
-	err := db.NewInsert().
-		Model(at).
-		ModelTableExpr(`auth.account_tenants`).
-		Scan(ctx)
-	require.NoError(tb, err, "Failed to create test account tenant")
-
-	return at
-}
-
-// CleanupTenantFixtures removes tenant-related test data from the database.
-// Pass school IDs first, then organization IDs — deletions happen in FK-safe order:
-// account_tenants (by school ID) → schools → organizations.
-func CleanupTenantFixtures(tb testing.TB, db *bun.DB, schoolIDs []int64, orgIDs []int64) {
-	tb.Helper()
-
-	// Delete account_tenants referencing the school IDs as tenant_id
-	for _, id := range schoolIDs {
-		cleanupDelete(tb, db.NewDelete().
-			Model((*interface{})(nil)).
-			Table("auth.account_tenants").
-			Where("tenant_id = ?", id),
-			"auth.account_tenants")
-	}
-
-	// Delete schools by ID
-	for _, id := range schoolIDs {
-		cleanupDelete(tb, db.NewDelete().
-			Model((*interface{})(nil)).
-			Table("platform.schools").
-			Where(whereIDEquals, id),
-			"platform.schools")
-	}
-
-	// Delete organizations by ID
-	for _, id := range orgIDs {
-		cleanupDelete(tb, db.NewDelete().
-			Model((*interface{})(nil)).
-			Table("platform.organizations").
-			Where(whereIDEquals, id),
-			"platform.organizations")
-	}
 }

@@ -31,7 +31,7 @@ func NewStaffRepository(db *bun.DB) users.StaffRepository {
 // FindByPersonID retrieves a staff member by their person ID
 func (r *StaffRepository) FindByPersonID(ctx context.Context, personID int64) (*users.Staff, error) {
 	staff := new(users.Staff)
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(staff).
 		ModelTableExpr(`users.staff AS "staff"`).
 		Where(`"staff".person_id = ?`, personID).
@@ -49,7 +49,7 @@ func (r *StaffRepository) FindByPersonID(ctx context.Context, personID int64) (*
 
 // UpdateNotes updates staff notes
 func (r *StaffRepository) UpdateNotes(ctx context.Context, id int64, notes string) error {
-	_, err := r.db.NewUpdate().
+	_, err := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*users.Staff)(nil)).
 		ModelTableExpr(`users.staff AS "staff"`).
 		Set(`staff_notes = ?`, notes).
@@ -116,7 +116,7 @@ func (r *StaffRepository) List(ctx context.Context, filters map[string]interface
 // ListWithOptions provides a type-safe way to list staff with query options
 func (r *StaffRepository) ListWithOptions(ctx context.Context, options *modelBase.QueryOptions) ([]*users.Staff, error) {
 	var staffMembers []*users.Staff
-	query := r.db.NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&staffMembers).
 		ModelTableExpr(`users.staff AS "staff"`)
 
@@ -145,7 +145,7 @@ func (r *StaffRepository) ListAllWithPerson(ctx context.Context) ([]*users.Staff
 
 	var results []staffResult
 
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&results).
 		ModelTableExpr(`users.staff AS "staff"`).
 		ColumnExpr(`"staff".id AS "staff__id"`).
@@ -186,7 +186,7 @@ func (r *StaffRepository) ListAllWithPerson(ctx context.Context) ([]*users.Staff
 func (r *StaffRepository) FindWithPerson(ctx context.Context, id int64) (*users.Staff, error) {
 	// First get the staff member
 	staff := new(users.Staff)
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(staff).
 		ModelTableExpr(`users.staff AS "staff"`).
 		Where(`"staff".id = ?`, id).
@@ -202,7 +202,7 @@ func (r *StaffRepository) FindWithPerson(ctx context.Context, id int64) (*users.
 	// Then get the person if exists
 	if staff.PersonID > 0 {
 		person := new(users.Person)
-		personErr := r.db.NewSelect().
+		personErr := base.GetDB(ctx, r.db).NewSelect().
 			Model(person).
 			ModelTableExpr(`users.persons AS "person"`).
 			Where(`"person".id = ?`, staff.PersonID).
@@ -234,7 +234,7 @@ func (r *StaffRepository) ListStaffByRoles(ctx context.Context, roles []string) 
 
 	var results []*users.StaffWithRoleInfo
 
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		ModelTableExpr(`users.staff AS "staff"`).
 		ColumnExpr(`"staff".id AS staff_id`).
 		ColumnExpr(`"staff".created_at`).
@@ -273,7 +273,7 @@ func (r *StaffRepository) AddNotes(ctx context.Context, id int64, notes string) 
 	staff.AddNotes(notes)
 
 	// Update the staff record
-	_, err = r.db.NewUpdate().
+	_, err = base.GetDB(ctx, r.db).NewUpdate().
 		Model(staff).
 		ModelTableExpr(`users.staff AS "staff"`).
 		Column(`"staff".staff_notes`).

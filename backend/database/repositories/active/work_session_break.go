@@ -47,7 +47,7 @@ func (r *WorkSessionBreakRepository) Create(ctx context.Context, brk *active.Wor
 // List overrides base List to use QueryOptions
 func (r *WorkSessionBreakRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*active.WorkSessionBreak, error) {
 	var breaks []*active.WorkSessionBreak
-	query := r.db.NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&breaks).
 		ModelTableExpr(tableExprActiveWorkSessionBreaksAsWorkSessionBreak)
 
@@ -69,7 +69,7 @@ func (r *WorkSessionBreakRepository) List(ctx context.Context, options *modelBas
 // GetBySessionID returns all breaks for a given session ordered by started_at
 func (r *WorkSessionBreakRepository) GetBySessionID(ctx context.Context, sessionID int64) ([]*active.WorkSessionBreak, error) {
 	var breaks []*active.WorkSessionBreak
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&breaks).
 		ModelTableExpr(tableExprActiveWorkSessionBreaksAsWorkSessionBreak).
 		Where(`"work_session_break".session_id = ?`, sessionID).
@@ -89,7 +89,7 @@ func (r *WorkSessionBreakRepository) GetBySessionID(ctx context.Context, session
 // GetActiveBySessionID returns the currently active break for a session, or nil if none
 func (r *WorkSessionBreakRepository) GetActiveBySessionID(ctx context.Context, sessionID int64) (*active.WorkSessionBreak, error) {
 	brk := new(active.WorkSessionBreak)
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(brk).
 		ModelTableExpr(tableExprActiveWorkSessionBreaksAsWorkSessionBreak).
 		Where(`"work_session_break".session_id = ?`, sessionID).
@@ -111,7 +111,7 @@ func (r *WorkSessionBreakRepository) GetActiveBySessionID(ctx context.Context, s
 
 // EndBreak sets ended_at and duration_minutes on a break
 func (r *WorkSessionBreakRepository) EndBreak(ctx context.Context, id int64, endedAt time.Time, durationMinutes int) error {
-	_, err := r.db.NewUpdate().
+	_, err := base.GetDB(ctx, r.db).NewUpdate().
 		Table(tableActiveWorkSessionBreaks).
 		Set("ended_at = ?", endedAt).
 		Set("duration_minutes = ?", durationMinutes).
@@ -131,7 +131,7 @@ func (r *WorkSessionBreakRepository) EndBreak(ctx context.Context, id int64, end
 
 // UpdateDuration updates the duration and ended_at of a completed break
 func (r *WorkSessionBreakRepository) UpdateDuration(ctx context.Context, id int64, durationMinutes int, endedAt time.Time) error {
-	_, err := r.db.NewUpdate().
+	_, err := base.GetDB(ctx, r.db).NewUpdate().
 		Table(tableActiveWorkSessionBreaks).
 		Set("duration_minutes = ?", durationMinutes).
 		Set("ended_at = ?", endedAt).
@@ -152,7 +152,7 @@ func (r *WorkSessionBreakRepository) UpdateDuration(ctx context.Context, id int6
 // GetExpiredBreaks returns all active breaks with planned_end_time <= before
 func (r *WorkSessionBreakRepository) GetExpiredBreaks(ctx context.Context, before time.Time) ([]*active.WorkSessionBreak, error) {
 	var breaks []*active.WorkSessionBreak
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&breaks).
 		ModelTableExpr(tableExprActiveWorkSessionBreaksAsWorkSessionBreak).
 		Where(`"work_session_break".ended_at IS NULL`).

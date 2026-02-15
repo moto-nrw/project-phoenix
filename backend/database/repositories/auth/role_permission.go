@@ -32,7 +32,7 @@ func NewRolePermissionRepository(db *bun.DB) auth.RolePermissionRepository {
 // FindByRoleID retrieves all role-permission mappings for a role
 func (r *RolePermissionRepository) FindByRoleID(ctx context.Context, roleID int64) ([]*auth.RolePermission, error) {
 	var rolePermissions []*auth.RolePermission
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&rolePermissions).
 		ModelTableExpr(rolePermissionTableAlias).
 		Where(`"role_permission".role_id = ?`, roleID).
@@ -51,7 +51,7 @@ func (r *RolePermissionRepository) FindByRoleID(ctx context.Context, roleID int6
 // FindByPermissionID retrieves all role-permission mappings for a permission
 func (r *RolePermissionRepository) FindByPermissionID(ctx context.Context, permissionID int64) ([]*auth.RolePermission, error) {
 	var rolePermissions []*auth.RolePermission
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&rolePermissions).
 		ModelTableExpr(rolePermissionTableAlias).
 		Where(`"role_permission".permission_id = ?`, permissionID).
@@ -70,7 +70,7 @@ func (r *RolePermissionRepository) FindByPermissionID(ctx context.Context, permi
 // FindByRoleAndPermission retrieves a specific role-permission mapping
 func (r *RolePermissionRepository) FindByRoleAndPermission(ctx context.Context, roleID, permissionID int64) (*auth.RolePermission, error) {
 	rolePermission := new(auth.RolePermission)
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(rolePermission).
 		ModelTableExpr(rolePermissionTableAlias).
 		Where(`"role_permission".role_id = ? AND "role_permission".permission_id = ?`, roleID, permissionID).
@@ -112,23 +112,11 @@ func (r *RolePermissionRepository) Update(ctx context.Context, rolePermission *a
 		return err
 	}
 
-	// Get the query builder - detect if we're in a transaction
-	query := r.db.NewUpdate().
+	_, err := base.GetDB(ctx, r.db).NewUpdate().
 		Model(rolePermission).
 		Where("id = ?", rolePermission.ID).
-		ModelTableExpr(rolePermissionTable)
-
-	// Extract transaction from context if it exists
-	if tx, ok := ctx.Value("tx").(*bun.Tx); ok && tx != nil {
-		// Use the transaction if available
-		query = tx.NewUpdate().
-			Model(rolePermission).
-			Where("id = ?", rolePermission.ID).
-			ModelTableExpr(rolePermissionTable)
-	}
-
-	// Execute the query
-	_, err := query.Exec(ctx)
+		ModelTableExpr(rolePermissionTable).
+		Exec(ctx)
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "update",
@@ -141,7 +129,7 @@ func (r *RolePermissionRepository) Update(ctx context.Context, rolePermission *a
 
 // DeleteByRoleAndPermission deletes a specific role-permission mapping
 func (r *RolePermissionRepository) DeleteByRoleAndPermission(ctx context.Context, roleID, permissionID int64) error {
-	_, err := r.db.NewDelete().
+	_, err := base.GetDB(ctx, r.db).NewDelete().
 		Model((*auth.RolePermission)(nil)).
 		ModelTableExpr(rolePermissionTable).
 		Where("role_id = ? AND permission_id = ?", roleID, permissionID).
@@ -159,7 +147,7 @@ func (r *RolePermissionRepository) DeleteByRoleAndPermission(ctx context.Context
 
 // DeleteByRoleID deletes all role-permission mappings for a role
 func (r *RolePermissionRepository) DeleteByRoleID(ctx context.Context, roleID int64) error {
-	_, err := r.db.NewDelete().
+	_, err := base.GetDB(ctx, r.db).NewDelete().
 		Model((*auth.RolePermission)(nil)).
 		ModelTableExpr(rolePermissionTable).
 		Where("role_id = ?", roleID).
@@ -177,7 +165,7 @@ func (r *RolePermissionRepository) DeleteByRoleID(ctx context.Context, roleID in
 
 // DeleteByPermissionID deletes all role-permission mappings for a permission
 func (r *RolePermissionRepository) DeleteByPermissionID(ctx context.Context, permissionID int64) error {
-	_, err := r.db.NewDelete().
+	_, err := base.GetDB(ctx, r.db).NewDelete().
 		Model((*auth.RolePermission)(nil)).
 		ModelTableExpr(rolePermissionTable).
 		Where("permission_id = ?", permissionID).
@@ -196,7 +184,7 @@ func (r *RolePermissionRepository) DeleteByPermissionID(ctx context.Context, per
 // List retrieves role-permission mappings matching the provided filters
 func (r *RolePermissionRepository) List(ctx context.Context, filters map[string]any) ([]*auth.RolePermission, error) {
 	var rolePermissions []*auth.RolePermission
-	query := r.db.NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&rolePermissions).
 		ModelTableExpr(rolePermissionTableAlias)
 
@@ -221,7 +209,7 @@ func (r *RolePermissionRepository) List(ctx context.Context, filters map[string]
 // FindRolePermissionsWithDetails retrieves role-permission mappings with role and permission details
 func (r *RolePermissionRepository) FindRolePermissionsWithDetails(ctx context.Context, filters map[string]any) ([]*auth.RolePermission, error) {
 	var rolePermissions []*auth.RolePermission
-	query := r.db.NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&rolePermissions).
 		ModelTableExpr(rolePermissionTableAlias).
 		ColumnExpr(`"role_permission".*`).

@@ -178,6 +178,12 @@ type InvitationTokenRepository interface {
 	List(ctx context.Context, filters map[string]interface{}) ([]*InvitationToken, error)
 }
 
+// AccountTenantRepository defines operations for querying account-tenant mappings.
+type AccountTenantRepository interface {
+	FindActiveByAccountID(ctx context.Context, accountID int64) ([]AccountTenant, error)
+	ExistsByAccountAndTenant(ctx context.Context, accountID, tenantID int64) (bool, error)
+}
+
 // GuardianInvitationRepository defines operations for managing guardian invitations.
 type GuardianInvitationRepository interface {
 	// Create inserts a new guardian invitation

@@ -16,12 +16,13 @@ import (
 
 // sseConnection holds all state for an active SSE connection
 type sseConnection struct {
-	writer  http.ResponseWriter
-	flusher http.Flusher
-	staffID int64
-	client  *realtime.Client
-	topics  *sseTopics
-	logger  *slog.Logger
+	writer   http.ResponseWriter
+	flusher  http.Flusher
+	staffID  int64
+	tenantID int64
+	client   *realtime.Client
+	topics   *sseTopics
+	logger   *slog.Logger
 }
 
 // sseTopics holds subscription topic information
@@ -221,9 +222,10 @@ func (rs *Resource) createAndRegisterClient(conn *sseConnection) {
 	conn.client = &realtime.Client{
 		Channel:          make(chan realtime.Event, 10), // Buffer up to 10 events
 		UserID:           conn.staffID,
+		TenantID:         conn.tenantID,
 		SubscribedGroups: make(map[string]bool),
 	}
-	rs.hub.Register(conn.client, conn.topics.allTopics)
+	rs.hub.Register(conn.client, conn.tenantID, conn.topics.allTopics)
 }
 
 // runEventLoop runs the main SSE event streaming loop

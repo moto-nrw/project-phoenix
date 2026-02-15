@@ -28,7 +28,7 @@ func NewTimeframeRepository(db *bun.DB) schedule.TimeframeRepository {
 // FindActive finds all active timeframes
 func (r *TimeframeRepository) FindActive(ctx context.Context) ([]*schedule.Timeframe, error) {
 	var timeframes []*schedule.Timeframe
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&timeframes).
 		ModelTableExpr(`schedule.timeframes AS "timeframe"`).
 		Where("is_active = ?", true).
@@ -48,7 +48,7 @@ func (r *TimeframeRepository) FindActive(ctx context.Context) ([]*schedule.Timef
 func (r *TimeframeRepository) FindByTimeRange(ctx context.Context, startTime, endTime time.Time) ([]*schedule.Timeframe, error) {
 	var timeframes []*schedule.Timeframe
 
-	query := r.db.NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&timeframes).
 		ModelTableExpr(`schedule.timeframes AS "timeframe"`).
 		Where("start_time <= ?", endTime)
@@ -70,7 +70,7 @@ func (r *TimeframeRepository) FindByTimeRange(ctx context.Context, startTime, en
 // FindByDescription finds timeframes with matching description
 func (r *TimeframeRepository) FindByDescription(ctx context.Context, description string) ([]*schedule.Timeframe, error) {
 	var timeframes []*schedule.Timeframe
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&timeframes).
 		ModelTableExpr(`schedule.timeframes AS "timeframe"`).
 		Where("LOWER(description) LIKE LOWER(?)", "%"+description+"%").
@@ -119,7 +119,7 @@ func (r *TimeframeRepository) Update(ctx context.Context, timeframe *schedule.Ti
 // List retrieves timeframes matching the provided query options
 func (r *TimeframeRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*schedule.Timeframe, error) {
 	var timeframes []*schedule.Timeframe
-	query := r.db.NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&timeframes).
 		ModelTableExpr(`schedule.timeframes AS "timeframe"`)
 
@@ -143,7 +143,7 @@ func (r *TimeframeRepository) List(ctx context.Context, options *modelBase.Query
 func (r *TimeframeRepository) FindByID(ctx context.Context, id interface{}) (*schedule.Timeframe, error) {
 	var timeframe schedule.Timeframe
 
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&timeframe).
 		ModelTableExpr(`schedule.timeframes AS "timeframe"`).
 		Where(`"timeframe".id = ?`, id).

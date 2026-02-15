@@ -7,6 +7,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -29,6 +30,7 @@ func (s *Service) AddSchedule(ctx context.Context, groupID int64, schedule *acti
 	}
 
 	// Create the schedule
+	schedule.SetTenantID(tenant.FromContext(ctx))
 	if err := s.scheduleRepo.Create(ctx, schedule); err != nil {
 		return nil, &ActivityError{Op: "create schedule", Err: err}
 	}

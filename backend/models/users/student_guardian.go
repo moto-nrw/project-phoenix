@@ -12,6 +12,7 @@ import (
 // StudentGuardian represents the relationship between a student and their guardian
 type StudentGuardian struct {
 	base.Model         `bun:"schema:users,table:students_guardians"`
+	base.TenantModel   `bun:",extend"`
 	StudentID          int64                  `bun:"student_id,notnull" json:"student_id"`
 	GuardianProfileID  int64                  `bun:"guardian_profile_id,notnull" json:"guardian_profile_id"`
 	RelationshipType   string                 `bun:"relationship_type,notnull" json:"relationship_type"`

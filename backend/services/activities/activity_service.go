@@ -9,6 +9,7 @@ import (
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -112,7 +113,8 @@ func (s *Service) CreateCategory(ctx context.Context, category *activities.Categ
 		return nil, &ActivityError{Op: "create category", Err: err}
 	}
 
-	// Use queryOptions with ModelTableExpr for schema qualification
+	// Set tenant ID from context
+	category.SetTenantID(tenant.FromContext(ctx))
 	if err := s.categoryRepo.Create(ctx, category); err != nil {
 		return nil, &ActivityError{Op: "create category", Err: err}
 	}
@@ -196,6 +198,7 @@ func (s *Service) CreateGroup(ctx context.Context, group *activities.Group, supe
 	err := s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
 		txService := s.WithTx(tx).(ActivityService)
 
+		group.SetTenantID(tenant.FromContext(ctx))
 		if err := txService.(*Service).groupRepo.Create(ctx, group); err != nil {
 			return &ActivityError{Op: "create group", Err: err}
 		}
@@ -255,6 +258,7 @@ func (s *Service) createSupervisorsInTx(ctx context.Context, txService ActivityS
 			return &ActivityError{Op: opValidateSupervisor, Err: err}
 		}
 
+		supervisor.SetTenantID(tenant.FromContext(ctx))
 		if err := txService.(*Service).supervisorRepo.Create(ctx, supervisor); err != nil {
 			return &ActivityError{Op: opCreateSupervisor, Err: err}
 		}
@@ -271,6 +275,7 @@ func (s *Service) createSchedulesInTx(ctx context.Context, txService ActivitySer
 			return &ActivityError{Op: opValidateSchedule, Err: err}
 		}
 
+		schedule.SetTenantID(tenant.FromContext(ctx))
 		if err := txService.(*Service).scheduleRepo.Create(ctx, schedule); err != nil {
 			return &ActivityError{Op: "create schedule", Err: err}
 		}

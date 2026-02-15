@@ -49,6 +49,8 @@ import (
 type API struct {
 	Services *services.Factory
 	Router   chi.Router
+	DB       *bun.DB
+	Repos    *repositories.Factory
 
 	// API Resources
 	Auth             *authAPI.Resource
@@ -103,6 +105,8 @@ func New(enableCORS bool, logger *slog.Logger) (*API, error) {
 	api := &API{
 		Services: serviceFactory,
 		Router:   chi.NewRouter(),
+		DB:       db,
+		Repos:    repoFactory,
 	}
 
 	// Setup router middleware

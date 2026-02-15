@@ -11,6 +11,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/iot"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -80,6 +81,11 @@ func (s *service) CreateDevice(ctx context.Context, device *iot.Device) error {
 	existingDevice, err := s.deviceRepo.FindByDeviceID(ctx, device.DeviceID)
 	if err == nil && existingDevice != nil && existingDevice.ID > 0 {
 		return &IoTError{Op: "CreateDevice", Err: &DuplicateDeviceIDError{DeviceID: device.DeviceID}}
+	}
+
+	// Set tenant ID from context
+	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
+		device.SetTenantID(tenantID)
 	}
 
 	// Generate API key if not provided

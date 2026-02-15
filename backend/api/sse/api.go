@@ -7,6 +7,7 @@ import (
 	"github.com/go-chi/jwtauth/v5"
 
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // Router returns a configured router for SSE endpoints
@@ -20,6 +21,7 @@ func (rs *Resource) Router() chi.Router {
 	r.Group(func(r chi.Router) {
 		r.Use(jwtauth.Verifier(tokenAuth.JwtAuth))
 		r.Use(jwt.Authenticator)
+		r.Use(jwt.TenantMiddleware)
 
 		r.Get("/events", rs.eventsHandler)
 	})
@@ -39,7 +41,10 @@ func (rs *Resource) eventsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Step 2: Resolve staff member from JWT claims
+	// Step 2: Extract tenant ID from JWT context (set by TenantMiddleware)
+	conn.tenantID = tenant.FromContext(ctx)
+
+	// Step 3: Resolve staff member from JWT claims
 	staff, errMsg, statusCode := rs.resolveStaff(ctx)
 	if staff == nil {
 		http.Error(w, errMsg, statusCode)
@@ -47,7 +52,7 @@ func (rs *Resource) eventsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	conn.staffID = staff.ID
 
-	// Step 3: Build subscription topics (active groups + educational groups)
+	// Step 4: Build subscription topics (active groups + educational groups)
 	topics, err := rs.buildSubscriptionTopics(ctx, staff.ID)
 	if err != nil {
 		http.Error(w, "Failed to determine supervised groups", http.StatusInternalServerError)
@@ -55,19 +60,19 @@ func (rs *Resource) eventsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	conn.topics = topics
 
-	// Step 4: Send initial "connected" event
+	// Step 5: Send initial "connected" event
 	if conn.sendConnectedEvent(topics) != nil {
 		http.Error(w, "Failed to initialize SSE stream", http.StatusInternalServerError)
 		return
 	}
 
-	// Step 5: Run appropriate event loop based on subscription state
+	// Step 6: Run appropriate event loop based on subscription state
 	if len(topics.allTopics) == 0 {
 		conn.runHeartbeatOnlyLoop(ctx)
 		return
 	}
 
-	// Step 6: Register client and run main event loop
+	// Step 7: Register client and run main event loop
 	rs.createAndRegisterClient(conn)
 	rs.runEventLoop(ctx, conn)
 }

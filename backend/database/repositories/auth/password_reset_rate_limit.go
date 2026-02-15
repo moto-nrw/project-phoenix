@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	modelAuth "github.com/moto-nrw/project-phoenix/models/auth"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/uptrace/bun"
@@ -27,7 +28,7 @@ func NewPasswordResetRateLimitRepository(db *bun.DB) modelAuth.PasswordResetRate
 // CheckRateLimit returns the current rate limit state for the provided email.
 func (r *PasswordResetRateLimitRepository) CheckRateLimit(ctx context.Context, email string) (*modelAuth.RateLimitState, error) {
 	record := new(modelAuth.PasswordResetRateLimit)
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(record).
 		ModelTableExpr(`auth.password_reset_rate_limits AS "password_reset_rate_limit"`).
 		Where(`"password_reset_rate_limit".email = ?`, email).
@@ -79,7 +80,7 @@ func (r *PasswordResetRateLimitRepository) IncrementAttempts(ctx context.Context
 		SELECT attempts, retry_at FROM upsert
 	`
 
-	if err := r.db.NewRaw(query, email).Scan(ctx, &state); err != nil {
+	if err := base.GetDB(ctx, r.db).NewRaw(query, email).Scan(ctx, &state); err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "increment password reset rate limit",
 			Err: err,
@@ -94,7 +95,7 @@ func (r *PasswordResetRateLimitRepository) IncrementAttempts(ctx context.Context
 
 // CleanupExpired removes rate limit records older than 24 hours to keep the table compact.
 func (r *PasswordResetRateLimitRepository) CleanupExpired(ctx context.Context) (int, error) {
-	res, err := r.db.NewDelete().
+	res, err := base.GetDB(ctx, r.db).NewDelete().
 		Table("auth.password_reset_rate_limits").
 		Where("window_start < NOW() - INTERVAL '24 hours'").
 		Exec(ctx)

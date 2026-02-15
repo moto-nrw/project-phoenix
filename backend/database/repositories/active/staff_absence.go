@@ -47,7 +47,7 @@ func (r *StaffAbsenceRepository) Create(ctx context.Context, absence *active.Sta
 // List overrides base List to use QueryOptions
 func (r *StaffAbsenceRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*active.StaffAbsence, error) {
 	var absences []*active.StaffAbsence
-	query := r.db.NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&absences).
 		ModelTableExpr(tableExprActiveStaffAbsencesAsStaffAbsence)
 
@@ -69,7 +69,7 @@ func (r *StaffAbsenceRepository) List(ctx context.Context, options *modelBase.Qu
 // GetByStaffAndDateRange returns absences for a staff member overlapping the given date range
 func (r *StaffAbsenceRepository) GetByStaffAndDateRange(ctx context.Context, staffID int64, from, to time.Time) ([]*active.StaffAbsence, error) {
 	var absences []*active.StaffAbsence
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&absences).
 		ModelTableExpr(tableExprActiveStaffAbsencesAsStaffAbsence).
 		Where(`"staff_absence".staff_id = ?`, staffID).
@@ -91,7 +91,7 @@ func (r *StaffAbsenceRepository) GetByStaffAndDateRange(ctx context.Context, sta
 // GetByStaffAndDate returns an absence for a staff member on a specific date, or nil
 func (r *StaffAbsenceRepository) GetByStaffAndDate(ctx context.Context, staffID int64, date time.Time) (*active.StaffAbsence, error) {
 	absence := new(active.StaffAbsence)
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(absence).
 		ModelTableExpr(tableExprActiveStaffAbsencesAsStaffAbsence).
 		Where(`"staff_absence".staff_id = ?`, staffID).
@@ -117,7 +117,7 @@ func (r *StaffAbsenceRepository) GetByStaffAndDate(ctx context.Context, staffID 
 // Priority order when multiple absences exist: sick > training > vacation > other
 func (r *StaffAbsenceRepository) GetTodayAbsenceMap(ctx context.Context) (map[int64]string, error) {
 	var absences []*active.StaffAbsence
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&absences).
 		ModelTableExpr(tableExprActiveStaffAbsencesAsStaffAbsence).
 		Where(`"staff_absence".date_start <= CURRENT_DATE`).
@@ -153,7 +153,7 @@ func (r *StaffAbsenceRepository) GetTodayAbsenceMap(ctx context.Context) (map[in
 // GetByDateRange returns all absences overlapping the given date range
 func (r *StaffAbsenceRepository) GetByDateRange(ctx context.Context, from, to time.Time) ([]*active.StaffAbsence, error) {
 	var absences []*active.StaffAbsence
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&absences).
 		ModelTableExpr(tableExprActiveStaffAbsencesAsStaffAbsence).
 		Where(`"staff_absence".date_start <= ?`, to).

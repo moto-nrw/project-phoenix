@@ -34,7 +34,7 @@ func NewCategoryRepository(db *bun.DB) activities.CategoryRepository {
 // FindByName finds a category by its name
 func (r *CategoryRepository) FindByName(ctx context.Context, name string) (*activities.Category, error) {
 	category := new(activities.Category)
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(category).
 		ModelTableExpr(tableExprActivitiesCategoriesAsCat).
 		Where("LOWER(name) = LOWER(?)", name).
@@ -53,7 +53,7 @@ func (r *CategoryRepository) FindByName(ctx context.Context, name string) (*acti
 // ListAll returns all categories
 func (r *CategoryRepository) ListAll(ctx context.Context) ([]*activities.Category, error) {
 	var categories []*activities.Category
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&categories).
 		ModelTableExpr(tableExprActivitiesCategoriesAsCat).
 		Order("name ASC").
@@ -95,20 +95,11 @@ func (r *CategoryRepository) Update(ctx context.Context, category *activities.Ca
 		return err
 	}
 
-	// Get the query builder - detect if we're in a transaction
-	query := r.db.NewUpdate().
+	// Get the query builder - GetDB handles transaction extraction from context
+	query := base.GetDB(ctx, r.db).NewUpdate().
 		Model(category).
 		Where("id = ?", category.ID).
 		ModelTableExpr(tableActivitiesCategories)
-
-	// Extract transaction from context if it exists
-	if tx, ok := ctx.Value("tx").(*bun.Tx); ok && tx != nil {
-		// Use the transaction if available
-		query = tx.NewUpdate().
-			Model(category).
-			Where("id = ?", category.ID).
-			ModelTableExpr(tableActivitiesCategories)
-	}
 
 	// Execute the query
 	_, err := query.Exec(ctx)
@@ -125,7 +116,7 @@ func (r *CategoryRepository) Update(ctx context.Context, category *activities.Ca
 // List overrides the base List method to accept the new QueryOptions type
 func (r *CategoryRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*activities.Category, error) {
 	var categories []*activities.Category
-	query := r.db.NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&categories).
 		ModelTableExpr(`activities.categories AS "category"`)
 

@@ -37,7 +37,7 @@ func NewGroupMappingRepository(db *bun.DB) active.GroupMappingRepository {
 // FindByActiveCombinedGroupID finds all mappings for a specific combined group
 func (r *GroupMappingRepository) FindByActiveCombinedGroupID(ctx context.Context, combinedGroupID int64) ([]*active.GroupMapping, error) {
 	mappings := make([]*active.GroupMapping, 0)
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&mappings).
 		ModelTableExpr(tableExprGroupMappingsAsGM).
 		Where("active_combined_group_id = ?", combinedGroupID).
@@ -56,7 +56,7 @@ func (r *GroupMappingRepository) FindByActiveCombinedGroupID(ctx context.Context
 // FindByActiveGroupID finds all mappings for a specific active group
 func (r *GroupMappingRepository) FindByActiveGroupID(ctx context.Context, activeGroupID int64) ([]*active.GroupMapping, error) {
 	mappings := make([]*active.GroupMapping, 0)
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&mappings).
 		ModelTableExpr(tableExprGroupMappingsAsGM).
 		Where("active_group_id = ?", activeGroupID).
@@ -75,7 +75,7 @@ func (r *GroupMappingRepository) FindByActiveGroupID(ctx context.Context, active
 // AddGroupToCombination adds an active group to a combined group
 func (r *GroupMappingRepository) AddGroupToCombination(ctx context.Context, combinedGroupID, activeGroupID int64) error {
 	// Check if the mapping already exists
-	exists, err := r.db.NewSelect().
+	exists, err := base.GetDB(ctx, r.db).NewSelect().
 		Model((*active.GroupMapping)(nil)).
 		ModelTableExpr(tableExprGroupMappingsAsGM).
 		Where("active_combined_group_id = ? AND active_group_id = ?", combinedGroupID, activeGroupID).
@@ -103,7 +103,7 @@ func (r *GroupMappingRepository) AddGroupToCombination(ctx context.Context, comb
 		return err
 	}
 
-	_, err = r.db.NewInsert().
+	_, err = base.GetDB(ctx, r.db).NewInsert().
 		Model(mapping).
 		ModelTableExpr(tableActiveGroupMappings).
 		Exec(ctx)
@@ -120,7 +120,7 @@ func (r *GroupMappingRepository) AddGroupToCombination(ctx context.Context, comb
 
 // RemoveGroupFromCombination removes an active group from a combined group
 func (r *GroupMappingRepository) RemoveGroupFromCombination(ctx context.Context, combinedGroupID, activeGroupID int64) error {
-	_, err := r.db.NewDelete().
+	_, err := base.GetDB(ctx, r.db).NewDelete().
 		Model((*active.GroupMapping)(nil)).
 		ModelTableExpr(tableActiveGroupMappings).
 		Where("active_combined_group_id = ? AND active_group_id = ?", combinedGroupID, activeGroupID).
@@ -154,7 +154,7 @@ func (r *GroupMappingRepository) Create(ctx context.Context, mapping *active.Gro
 // List overrides the base List method to accept the new QueryOptions type
 func (r *GroupMappingRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*active.GroupMapping, error) {
 	mappings := make([]*active.GroupMapping, 0)
-	query := r.db.NewSelect().Model(&mappings).ModelTableExpr(tableExprGroupMappingsAsGM)
+	query := base.GetDB(ctx, r.db).NewSelect().Model(&mappings).ModelTableExpr(tableExprGroupMappingsAsGM)
 
 	// Apply query options
 	if options != nil {
@@ -175,7 +175,7 @@ func (r *GroupMappingRepository) List(ctx context.Context, options *modelBase.Qu
 // FindWithRelations retrieves a mapping with its associated relations
 func (r *GroupMappingRepository) FindWithRelations(ctx context.Context, id int64) (*active.GroupMapping, error) {
 	mapping := new(active.GroupMapping)
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(mapping).
 		ModelTableExpr(tableExprGroupMappingsAsGM).
 		Where(whereIDEquals, id).
@@ -191,7 +191,7 @@ func (r *GroupMappingRepository) FindWithRelations(ctx context.Context, id int64
 	// Load CombinedGroup relation separately (multi-schema)
 	if mapping.ActiveCombinedGroupID > 0 {
 		combinedGroup := new(active.CombinedGroup)
-		cgErr := r.db.NewSelect().
+		cgErr := base.GetDB(ctx, r.db).NewSelect().
 			Model(combinedGroup).
 			ModelTableExpr(`active.combined_groups AS "combined_group"`).
 			Where(whereIDEquals, mapping.ActiveCombinedGroupID).
@@ -210,7 +210,7 @@ func (r *GroupMappingRepository) FindWithRelations(ctx context.Context, id int64
 	// Load ActiveGroup relation separately (multi-schema)
 	if mapping.ActiveGroupID > 0 {
 		activeGroup := new(active.Group)
-		agErr := r.db.NewSelect().
+		agErr := base.GetDB(ctx, r.db).NewSelect().
 			Model(activeGroup).
 			ModelTableExpr(`active.groups AS "group"`).
 			Where(whereIDEquals, mapping.ActiveGroupID).

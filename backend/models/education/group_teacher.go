@@ -11,9 +11,10 @@ import (
 
 // GroupTeacher represents the many-to-many relationship between groups and teachers
 type GroupTeacher struct {
-	base.Model `bun:"schema:education,table:group_teacher"`
-	GroupID    int64 `bun:"group_id,notnull" json:"group_id"`
-	TeacherID  int64 `bun:"teacher_id,notnull" json:"teacher_id"`
+	base.Model       `bun:"schema:education,table:group_teacher"`
+	base.TenantModel `bun:",extend"`
+	GroupID          int64 `bun:"group_id,notnull" json:"group_id"`
+	TeacherID        int64 `bun:"teacher_id,notnull" json:"teacher_id"`
 
 	// Relations not stored in the database
 	Group   *Group         `bun:"-" json:"group,omitempty"`

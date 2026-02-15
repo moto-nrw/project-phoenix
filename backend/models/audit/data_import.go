@@ -3,13 +3,15 @@ package audit
 import (
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/uptrace/bun"
 )
 
 // DataImport tracks CSV/Excel import operations for GDPR compliance (Article 30)
 // Records who imported what data, when, and the results
 type DataImport struct {
-	bun.BaseModel `bun:"table:audit.data_imports,alias:data_import"`
+	bun.BaseModel    `bun:"table:audit.data_imports,alias:data_import"`
+	base.TenantModel `bun:",extend"`
 
 	ID           int64      `bun:"id,pk,autoincrement" json:"id"`
 	EntityType   string     `bun:"entity_type,notnull" json:"entity_type"`               // student, teacher, room, etc.

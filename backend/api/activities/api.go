@@ -60,6 +60,7 @@ func (rs *Resource) Router() chi.Router {
 	r.Group(func(r chi.Router) {
 		r.Use(tokenAuth.Verifier())
 		r.Use(jwt.Authenticator)
+		r.Use(jwt.TenantMiddleware)
 
 		// Basic Activity Group operations (Read) - All authenticated users can read
 		r.Get("/", rs.listActivities)

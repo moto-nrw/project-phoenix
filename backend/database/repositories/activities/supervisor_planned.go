@@ -90,17 +90,8 @@ func NewSupervisorPlannedRepository(db *bun.DB) activities.SupervisorPlannedRepo
 func (r *SupervisorPlannedRepository) FindByID(ctx context.Context, id interface{}) (*activities.SupervisorPlanned, error) {
 	var supervisor activities.SupervisorPlanned
 
-	var query *bun.SelectQuery
-
-	// Extract transaction from context if it exists
-	if tx, ok := modelBase.TxFromContext(ctx); ok && tx != nil {
-		query = (*tx).NewSelect()
-	} else {
-		query = r.db.NewSelect()
-	}
-
 	// Use the same alias as base repository: "supervisor_planned"
-	err := query.
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&supervisor).
 		ModelTableExpr(`activities.supervisors AS "supervisor_planned"`).
 		Where(`"supervisor_planned".id = ?`, id).
@@ -120,7 +111,7 @@ func (r *SupervisorPlannedRepository) FindByID(ctx context.Context, id interface
 func (r *SupervisorPlannedRepository) FindByStaffID(ctx context.Context, staffID int64) ([]*activities.SupervisorPlanned, error) {
 	// First get the supervisors
 	supervisors := make([]*activities.SupervisorPlanned, 0)
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&supervisors).
 		ModelTableExpr(tableExprSupervisorPlanned).
 		Where("staff_id = ?", staffID).
@@ -138,7 +129,7 @@ func (r *SupervisorPlannedRepository) FindByStaffID(ctx context.Context, staffID
 	for _, sup := range supervisors {
 		if sup.GroupID > 0 {
 			group := new(activities.Group)
-			groupErr := r.db.NewSelect().
+			groupErr := base.GetDB(ctx, r.db).NewSelect().
 				Model(group).
 				ModelTableExpr(`activities.groups AS "group"`).
 				Where(whereSupervisorIDEquals, sup.GroupID).
@@ -156,7 +147,7 @@ func (r *SupervisorPlannedRepository) FindByStaffID(ctx context.Context, staffID
 func (r *SupervisorPlannedRepository) FindByGroupID(ctx context.Context, groupID int64) ([]*activities.SupervisorPlanned, error) {
 	var results []supervisorResult
 
-	query := applySupervisorColumnMapping(r.db.NewSelect().Model(&results)).
+	query := applySupervisorColumnMapping(base.GetDB(ctx, r.db).NewSelect().Model(&results)).
 		Where(`"supervisor".group_id = ?`, groupID).
 		Order("supervisor.is_primary DESC")
 
@@ -178,7 +169,7 @@ func (r *SupervisorPlannedRepository) FindByGroupIDs(ctx context.Context, groupI
 
 	var results []supervisorResult
 
-	query := applySupervisorColumnMapping(r.db.NewSelect().Model(&results)).
+	query := applySupervisorColumnMapping(base.GetDB(ctx, r.db).NewSelect().Model(&results)).
 		Where(`"supervisor".group_id IN (?)`, bun.In(groupIDs)).
 		Order("supervisor.is_primary DESC")
 
@@ -196,7 +187,7 @@ func (r *SupervisorPlannedRepository) FindByGroupIDs(ctx context.Context, groupI
 func (r *SupervisorPlannedRepository) FindPrimaryByGroupID(ctx context.Context, groupID int64) (*activities.SupervisorPlanned, error) {
 	var result supervisorResult
 
-	query := applySupervisorColumnMapping(r.db.NewSelect().Model(&result)).
+	query := applySupervisorColumnMapping(base.GetDB(ctx, r.db).NewSelect().Model(&result)).
 		Where(`"supervisor".group_id = ? AND "supervisor".is_primary = true`, groupID)
 
 	if err := query.Scan(ctx); err != nil {
@@ -224,7 +215,7 @@ func (r *SupervisorPlannedRepository) FindPrimaryByGroupID(ctx context.Context, 
 // SetPrimary sets a supervisor as the primary supervisor for a group
 func (r *SupervisorPlannedRepository) SetPrimary(ctx context.Context, id int64) error {
 	// We rely on the database trigger to ensure only one primary supervisor per group
-	_, err := r.db.NewUpdate().
+	_, err := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*activities.SupervisorPlanned)(nil)).
 		ModelTableExpr(`activities.supervisors AS "supervisor"`).
 		Set("is_primary = true").
@@ -267,17 +258,8 @@ func (r *SupervisorPlannedRepository) Update(ctx context.Context, supervisor *ac
 		return err
 	}
 
-	var query *bun.UpdateQuery
-
-	// Extract transaction from context if it exists
-	if tx, ok := modelBase.TxFromContext(ctx); ok && tx != nil {
-		query = (*tx).NewUpdate()
-	} else {
-		query = r.db.NewUpdate()
-	}
-
-	// Configure the query with schema-qualified table
-	query = query.
+	// Configure the query with schema-qualified table - GetDB handles transaction extraction from context
+	query := base.GetDB(ctx, r.db).NewUpdate().
 		Model(supervisor).
 		ModelTableExpr(tableSupervisorPlanned).
 		Where(whereSupervisorIDEquals, supervisor.ID)
@@ -296,17 +278,9 @@ func (r *SupervisorPlannedRepository) Update(ctx context.Context, supervisor *ac
 
 // Delete overrides the base Delete method to handle transactions
 func (r *SupervisorPlannedRepository) Delete(ctx context.Context, id interface{}) error {
-	var query *bun.DeleteQuery
-
-	// Extract transaction from context if it exists
-	if tx, ok := modelBase.TxFromContext(ctx); ok && tx != nil {
-		query = (*tx).NewDelete()
-	} else {
-		query = r.db.NewDelete()
-	}
-
 	// Use the same alias as base repository: "supervisor_planned"
-	_, err := query.
+	// GetDB handles transaction extraction from context
+	_, err := base.GetDB(ctx, r.db).NewDelete().
 		Model((*activities.SupervisorPlanned)(nil)).
 		ModelTableExpr(`activities.supervisors AS "supervisor_planned"`).
 		Where(`"supervisor_planned".id = ?`, id).
@@ -325,7 +299,7 @@ func (r *SupervisorPlannedRepository) Delete(ctx context.Context, id interface{}
 // List overrides the base List method to accept the new QueryOptions type
 func (r *SupervisorPlannedRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*activities.SupervisorPlanned, error) {
 	supervisors := make([]*activities.SupervisorPlanned, 0)
-	query := r.db.NewSelect().Model(&supervisors).ModelTableExpr(tableExprSupervisorPlanned)
+	query := base.GetDB(ctx, r.db).NewSelect().Model(&supervisors).ModelTableExpr(tableExprSupervisorPlanned)
 
 	// Apply query options
 	if options != nil {

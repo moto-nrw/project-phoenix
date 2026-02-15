@@ -6,6 +6,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/uptrace/bun"
@@ -36,7 +37,7 @@ func (r *AnnouncementViewRepository) MarkSeen(ctx context.Context, userID, annou
 		Dismissed:      false,
 	}
 
-	_, err := r.db.NewInsert().
+	_, err := base.GetDB(ctx, r.db).NewInsert().
 		Model(view).
 		ModelTableExpr(tablePlatformAnnouncementViews).
 		On("CONFLICT (user_id, announcement_id) DO UPDATE").
@@ -62,7 +63,7 @@ func (r *AnnouncementViewRepository) MarkDismissed(ctx context.Context, userID, 
 		Dismissed:      true,
 	}
 
-	_, err := r.db.NewInsert().
+	_, err := base.GetDB(ctx, r.db).NewInsert().
 		Model(view).
 		ModelTableExpr(tablePlatformAnnouncementViews).
 		On("CONFLICT (user_id, announcement_id) DO UPDATE").
@@ -87,7 +88,7 @@ func (r *AnnouncementViewRepository) GetUnreadForUser(ctx context.Context, userI
 
 	// Use raw SQL for complex query with aliases to avoid BUN's quote escaping issues
 	// target_roles = '{}' means all roles can see it, otherwise check overlap with user's roles
-	err := r.db.NewRaw(`
+	err := base.GetDB(ctx, r.db).NewRaw(`
 		SELECT a.*
 		FROM platform.announcements a
 		LEFT JOIN platform.announcement_views v
@@ -117,7 +118,7 @@ func (r *AnnouncementViewRepository) CountUnread(ctx context.Context, userID int
 	now := time.Now()
 
 	var count int
-	err := r.db.NewRaw(`
+	err := base.GetDB(ctx, r.db).NewRaw(`
 		SELECT COUNT(*)
 		FROM platform.announcements a
 		LEFT JOIN platform.announcement_views v
@@ -149,7 +150,7 @@ func (r *AnnouncementViewRepository) GetStats(ctx context.Context, announcementI
 
 	// Get the target_roles for this announcement
 	var targetRoles []string
-	err := r.db.NewRaw(`
+	err := base.GetDB(ctx, r.db).NewRaw(`
 		SELECT COALESCE(target_roles, '{}') FROM platform.announcements WHERE id = ?
 	`, announcementID).Scan(ctx, &targetRoles)
 	if err != nil {
@@ -162,14 +163,14 @@ func (r *AnnouncementViewRepository) GetStats(ctx context.Context, announcementI
 	// Count target users (users with matching roles)
 	if len(targetRoles) == 0 {
 		// All users can see it - count all accounts with roles
-		err = r.db.NewRaw(`
+		err = base.GetDB(ctx, r.db).NewRaw(`
 			SELECT COUNT(DISTINCT acc.id)
 			FROM auth.accounts acc
 			WHERE acc.id IS NOT NULL
 		`).Scan(ctx, &stats.TargetCount)
 	} else {
 		// Only users with matching roles
-		err = r.db.NewRaw(`
+		err = base.GetDB(ctx, r.db).NewRaw(`
 			SELECT COUNT(DISTINCT acc.id)
 			FROM auth.accounts acc
 			JOIN auth.account_roles ar ON ar.account_id = acc.id
@@ -185,7 +186,7 @@ func (r *AnnouncementViewRepository) GetStats(ctx context.Context, announcementI
 	}
 
 	// Count seen and dismissed
-	err = r.db.NewRaw(`
+	err = base.GetDB(ctx, r.db).NewRaw(`
 		SELECT
 			COALESCE(SUM(CASE WHEN seen_at IS NOT NULL THEN 1 ELSE 0 END), 0) as seen_count,
 			COALESCE(SUM(CASE WHEN dismissed = true THEN 1 ELSE 0 END), 0) as dismissed_count
@@ -206,7 +207,7 @@ func (r *AnnouncementViewRepository) GetStats(ctx context.Context, announcementI
 // HasSeen checks if a user has seen a specific announcement
 func (r *AnnouncementViewRepository) HasSeen(ctx context.Context, userID, announcementID int64) (bool, error) {
 	view := new(platform.AnnouncementView)
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(view).
 		ModelTableExpr(tablePlatformAnnouncementViewsAlias).
 		Where(`"view".user_id = ?`, userID).
@@ -232,7 +233,7 @@ func (r *AnnouncementViewRepository) GetViewDetails(ctx context.Context, announc
 
 	// Join with auth.accounts and users.persons to get user names
 	// Persons are linked directly to accounts via person.account_id
-	err := r.db.NewRaw(`
+	err := base.GetDB(ctx, r.db).NewRaw(`
 		SELECT
 			v.user_id,
 			COALESCE(

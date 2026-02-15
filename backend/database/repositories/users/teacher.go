@@ -31,7 +31,7 @@ func NewTeacherRepository(db *bun.DB) users.TeacherRepository {
 // Returns (nil, nil) if no teacher record exists for the given staff ID
 func (r *TeacherRepository) FindByStaffID(ctx context.Context, staffID int64) (*users.Teacher, error) {
 	teacher := new(users.Teacher)
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(teacher).
 		ModelTableExpr(`users.teachers AS "teacher"`).
 		Where("staff_id = ?", staffID).
@@ -58,7 +58,7 @@ func (r *TeacherRepository) FindByStaffIDs(ctx context.Context, staffIDs []int64
 	}
 
 	var teachers []*users.Teacher
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&teachers).
 		ModelTableExpr(`users.teachers AS "teacher"`).
 		Where(`"teacher".staff_id IN (?)`, bun.In(staffIDs)).
@@ -83,7 +83,7 @@ func (r *TeacherRepository) FindByStaffIDs(ctx context.Context, staffIDs []int64
 // FindBySpecialization retrieves teachers by their specialization
 func (r *TeacherRepository) FindBySpecialization(ctx context.Context, specialization string) ([]*users.Teacher, error) {
 	var teachers []*users.Teacher
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&teachers).
 		ModelTableExpr(`users.teachers AS "teacher"`).
 		Where("LOWER(specialization) = LOWER(?)", specialization).
@@ -102,7 +102,7 @@ func (r *TeacherRepository) FindBySpecialization(ctx context.Context, specializa
 // FindByGroupID retrieves teachers assigned to a group
 func (r *TeacherRepository) FindByGroupID(ctx context.Context, groupID int64) ([]*users.Teacher, error) {
 	var teachers []*users.Teacher
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&teachers).
 		ModelTableExpr(`users.teachers AS "teacher"`).
 		Join("JOIN education.group_teacher gt ON gt.teacher_id = teacher.id").
@@ -121,7 +121,7 @@ func (r *TeacherRepository) FindByGroupID(ctx context.Context, groupID int64) ([
 
 // UpdateQualifications updates a teacher's qualifications
 func (r *TeacherRepository) UpdateQualifications(ctx context.Context, id int64, qualifications string) error {
-	_, err := r.db.NewUpdate().
+	_, err := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*users.Teacher)(nil)).
 		ModelTableExpr(`users.teachers AS "teacher"`).
 		Set("qualifications = ?", qualifications).
@@ -207,7 +207,7 @@ func applyTeacherStringLikeFilter(filter *modelBase.Filter, column string, value
 // ListWithOptions provides a type-safe way to list teachers with query options
 func (r *TeacherRepository) ListWithOptions(ctx context.Context, options *modelBase.QueryOptions) ([]*users.Teacher, error) {
 	var teachers []*users.Teacher
-	query := r.db.NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&teachers).
 		ModelTableExpr(`users.teachers AS "teacher"`)
 
@@ -230,7 +230,7 @@ func (r *TeacherRepository) ListWithOptions(ctx context.Context, options *modelB
 // FindWithStaff retrieves a teacher with their associated staff data
 func (r *TeacherRepository) FindWithStaff(ctx context.Context, id int64) (*users.Teacher, error) {
 	teacher := new(users.Teacher)
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(teacher).
 		ModelTableExpr(`users.teachers AS "teacher"`).
 		Relation("Staff").
@@ -262,7 +262,7 @@ func (r *TeacherRepository) FindWithStaffAndPerson(ctx context.Context, id int64
 		Person:  new(users.Person),
 	}
 
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(result).
 		ModelTableExpr(`users.teachers AS "teacher"`).
 		// Teacher columns with proper aliasing
@@ -311,7 +311,7 @@ func (r *TeacherRepository) ListAllWithStaffAndPerson(ctx context.Context) ([]*u
 
 	var results []teacherResult
 
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&results).
 		ModelTableExpr(`users.teachers AS "teacher"`).
 		// Teacher columns with proper aliasing
@@ -366,7 +366,7 @@ func (r *TeacherRepository) FindWithStaffAndPersonByIDs(ctx context.Context, ids
 
 	var results []teacherResult
 
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&results).
 		ModelTableExpr(`users.teachers AS "teacher"`).
 		// Teacher columns with proper aliasing

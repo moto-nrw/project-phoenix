@@ -27,7 +27,7 @@ func NewProfileRepository(db *bun.DB) users.ProfileRepository {
 // FindByAccountID retrieves a profile by account ID
 func (r *ProfileRepository) FindByAccountID(ctx context.Context, accountID int64) (*users.Profile, error) {
 	profile := new(users.Profile)
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(profile).
 		ModelTableExpr(`users.profiles AS "profile"`).
 		Where(`"profile".account_id = ?`, accountID).
@@ -45,7 +45,7 @@ func (r *ProfileRepository) FindByAccountID(ctx context.Context, accountID int64
 
 // UpdateAvatar updates a profile's avatar
 func (r *ProfileRepository) UpdateAvatar(ctx context.Context, id int64, avatar string) error {
-	_, err := r.db.NewUpdate().
+	_, err := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*users.Profile)(nil)).
 		ModelTableExpr(`users.profiles AS "profile"`).
 		Set("avatar = ?", avatar).
@@ -64,7 +64,7 @@ func (r *ProfileRepository) UpdateAvatar(ctx context.Context, id int64, avatar s
 
 // UpdateBio updates a profile's bio
 func (r *ProfileRepository) UpdateBio(ctx context.Context, id int64, bio string) error {
-	_, err := r.db.NewUpdate().
+	_, err := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*users.Profile)(nil)).
 		ModelTableExpr(`users.profiles AS "profile"`).
 		Set("bio = ?", bio).
@@ -83,7 +83,7 @@ func (r *ProfileRepository) UpdateBio(ctx context.Context, id int64, bio string)
 
 // UpdateSettings updates a profile's settings
 func (r *ProfileRepository) UpdateSettings(ctx context.Context, id int64, settings string) error {
-	_, err := r.db.NewUpdate().
+	_, err := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*users.Profile)(nil)).
 		ModelTableExpr(`users.profiles AS "profile"`).
 		Set("settings = ?", settings).
@@ -138,7 +138,7 @@ func (r *ProfileRepository) Delete(ctx context.Context, id interface{}) error {
 // List retrieves profiles matching the provided filters
 func (r *ProfileRepository) List(ctx context.Context, filters map[string]interface{}) ([]*users.Profile, error) {
 	var profiles []*users.Profile
-	query := r.db.NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&profiles).
 		ModelTableExpr(`users.profiles AS "profile"`)
 

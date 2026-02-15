@@ -9,6 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -137,6 +138,7 @@ func (s *service) CreateGroup(ctx context.Context, group *education.Group) error
 	}
 
 	// Create the group
+	group.SetTenantID(tenant.FromContext(ctx))
 	if err := s.groupRepo.Create(ctx, group); err != nil {
 		return &EducationError{Op: "CreateGroup", Err: err}
 	}
@@ -400,6 +402,7 @@ func (s *service) AddTeacherToGroup(ctx context.Context, groupID, teacherID int6
 		GroupID:   groupID,
 		TeacherID: teacher.ID,
 	}
+	groupTeacher.SetTenantID(tenant.FromContext(ctx))
 
 	if err := s.groupTeacherRepo.Create(ctx, groupTeacher); err != nil {
 		return &EducationError{Op: "AddTeacherToGroup", Err: err}
@@ -508,6 +511,7 @@ func (s *service) addTeacherToGroup(ctx context.Context, groupID, teacherID int6
 		GroupID:   groupID,
 		TeacherID: teacherID,
 	}
+	relation.SetTenantID(tenant.FromContext(ctx))
 
 	if err := s.groupTeacherRepo.Create(ctx, relation); err != nil {
 		return &EducationError{Op: "UpdateGroupTeachers", Err: err}
@@ -700,6 +704,7 @@ func (s *service) CreateSubstitution(ctx context.Context, substitution *educatio
 	// This enables a staff member to supervise multiple groups simultaneously.
 
 	// Create the substitution
+	substitution.SetTenantID(tenant.FromContext(ctx))
 	if err := s.substitutionRepo.Create(ctx, substitution); err != nil {
 		return &EducationError{Op: "CreateSubstitution", Err: err}
 	}

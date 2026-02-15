@@ -19,6 +19,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/education"
 	"github.com/moto-nrw/project-phoenix/services/users"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -295,6 +296,7 @@ func (s *service) CreateActiveGroup(ctx context.Context, group *active.Group) er
 		}
 	}
 
+	group.SetTenantID(tenant.FromContext(ctx))
 	if err := s.groupRepo.Create(ctx, group); err != nil {
 		return &ActiveError{Op: "CreateActiveGroup", Err: fmt.Errorf("create failed: %w", err)}
 	}
@@ -480,6 +482,7 @@ func (s *service) CreateVisit(ctx context.Context, visit *active.Visit) error {
 		txService.autoClearStudentSickness(txCtx, visit.StudentID)
 
 		// Create the visit record
+		visit.SetTenantID(tenant.FromContext(txCtx))
 		if txService.visitRepo.Create(txCtx, visit) != nil {
 			return &ActiveError{Op: "CreateVisit", Err: ErrDatabaseOperation}
 		}
@@ -676,17 +679,17 @@ func (s *service) broadcastVisitCheckout(ctx context.Context, endedVisit *active
 		},
 	)
 
-	s.broadcastWithLogging(activeGroupID, studentID, event, "student_checkout")
-	s.broadcastToEducationalGroup(studentRec, event)
+	s.broadcastWithLogging(ctx, activeGroupID, studentID, event, "student_checkout")
+	s.broadcastToEducationalGroup(ctx, studentRec, event)
 }
 
 // broadcastToEducationalGroup mirrors active-group broadcasts to the student's OGS group topic
-func (s *service) broadcastToEducationalGroup(student *userModels.Student, event realtime.Event) {
+func (s *service) broadcastToEducationalGroup(ctx context.Context, student *userModels.Student, event realtime.Event) {
 	if s.broadcaster == nil || student == nil || student.GroupID == nil {
 		return
 	}
 	groupID := fmt.Sprintf("edu:%d", *student.GroupID)
-	if err := s.broadcaster.BroadcastToGroup(groupID, event); err != nil {
+	if err := s.broadcaster.BroadcastToGroup(tenant.FromContext(ctx), groupID, event); err != nil {
 		studentID := ""
 		if event.Data.StudentID != nil {
 			studentID = *event.Data.StudentID
@@ -702,7 +705,7 @@ func (s *service) broadcastToEducationalGroup(student *userModels.Student, event
 
 // broadcastStudentCheckoutEvents sends checkout SSE events for each visit.
 // This helper reduces cognitive complexity in session timeout processing.
-func (s *service) broadcastStudentCheckoutEvents(sessionIDStr string, visitsToNotify []visitSSEData) {
+func (s *service) broadcastStudentCheckoutEvents(ctx context.Context, sessionIDStr string, visitsToNotify []visitSSEData) {
 	for _, visitData := range visitsToNotify {
 		studentIDStr := fmt.Sprintf("%d", visitData.StudentID)
 		studentName := visitData.Name
@@ -716,8 +719,8 @@ func (s *service) broadcastStudentCheckoutEvents(sessionIDStr string, visitsToNo
 			},
 		)
 
-		s.broadcastWithLogging(sessionIDStr, studentIDStr, checkoutEvent, "student_checkout")
-		s.broadcastToEducationalGroup(visitData.Student, checkoutEvent)
+		s.broadcastWithLogging(ctx, sessionIDStr, studentIDStr, checkoutEvent, "student_checkout")
+		s.broadcastToEducationalGroup(ctx, visitData.Student, checkoutEvent)
 	}
 }
 
@@ -743,12 +746,12 @@ func (s *service) broadcastActivityEndEvent(ctx context.Context, sessionID int64
 		},
 	)
 
-	s.broadcastWithLogging(sessionIDStr, "", event, "activity_end")
+	s.broadcastWithLogging(ctx, sessionIDStr, "", event, "activity_end")
 }
 
 // broadcastWithLogging broadcasts an event and logs any errors.
-func (s *service) broadcastWithLogging(activeGroupID, studentID string, event realtime.Event, eventType string) {
-	if err := s.broadcaster.BroadcastToGroup(activeGroupID, event); err != nil {
+func (s *service) broadcastWithLogging(ctx context.Context, activeGroupID, studentID string, event realtime.Event, eventType string) {
+	if err := s.broadcaster.BroadcastToGroup(tenant.FromContext(ctx), activeGroupID, event); err != nil {
 		attrs := []slog.Attr{
 			slog.String("error", err.Error()),
 			slog.String("event_type", eventType),
@@ -846,6 +849,7 @@ func (s *service) CreateGroupSupervisor(ctx context.Context, supervisor *active.
 		}
 	}
 
+	supervisor.SetTenantID(tenant.FromContext(ctx))
 	if s.supervisorRepo.Create(ctx, supervisor) != nil {
 		return &ActiveError{Op: "CreateGroupSupervisor", Err: ErrDatabaseOperation}
 	}

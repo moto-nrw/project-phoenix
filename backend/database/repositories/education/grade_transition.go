@@ -43,13 +43,7 @@ func (r *GradeTransitionRepository) Create(ctx context.Context, t *education.Gra
 		return err
 	}
 
-	// Use transaction from context if available
-	var db bun.IDB = r.db
-	if tx, ok := modelBase.TxFromContext(ctx); ok && tx != nil {
-		db = tx
-	}
-
-	_, err := db.NewInsert().
+	_, err := base.GetDB(ctx, r.db).NewInsert().
 		Model(t).
 		ModelTableExpr(tableGradeTransitions).
 		Exec(ctx)
@@ -66,7 +60,7 @@ func (r *GradeTransitionRepository) Create(ctx context.Context, t *education.Gra
 // FindByID retrieves a grade transition by ID
 func (r *GradeTransitionRepository) FindByID(ctx context.Context, id int64) (*education.GradeTransition, error) {
 	t := new(education.GradeTransition)
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(t).
 		ModelTableExpr(tableGradeTransitions+` AS "grade_transition"`).
 		Where(`"grade_transition".id = ?`, id).
@@ -85,7 +79,7 @@ func (r *GradeTransitionRepository) FindByID(ctx context.Context, id int64) (*ed
 // FindByIDWithMappings retrieves a grade transition with its mappings
 func (r *GradeTransitionRepository) FindByIDWithMappings(ctx context.Context, id int64) (*education.GradeTransition, error) {
 	t := new(education.GradeTransition)
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(t).
 		ModelTableExpr(tableGradeTransitions+` AS "grade_transition"`).
 		Where(`"grade_transition".id = ?`, id).
@@ -118,13 +112,7 @@ func (r *GradeTransitionRepository) Update(ctx context.Context, t *education.Gra
 		return err
 	}
 
-	// Use transaction from context if available
-	var db bun.IDB = r.db
-	if tx, ok := modelBase.TxFromContext(ctx); ok && tx != nil {
-		db = tx
-	}
-
-	_, err := db.NewUpdate().
+	_, err := base.GetDB(ctx, r.db).NewUpdate().
 		Model(t).
 		ModelTableExpr(tableGradeTransitions + ` AS "grade_transition"`).
 		WherePK().
@@ -141,13 +129,7 @@ func (r *GradeTransitionRepository) Update(ctx context.Context, t *education.Gra
 
 // Delete deletes a grade transition
 func (r *GradeTransitionRepository) Delete(ctx context.Context, id int64) error {
-	// Use transaction from context if available
-	var db bun.IDB = r.db
-	if tx, ok := modelBase.TxFromContext(ctx); ok && tx != nil {
-		db = tx
-	}
-
-	_, err := db.NewDelete().
+	_, err := base.GetDB(ctx, r.db).NewDelete().
 		Model((*education.GradeTransition)(nil)).
 		ModelTableExpr(tableGradeTransitions+` AS "grade_transition"`).
 		Where(`"grade_transition".id = ?`, id).
@@ -166,12 +148,12 @@ func (r *GradeTransitionRepository) Delete(ctx context.Context, id int64) error 
 func (r *GradeTransitionRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*education.GradeTransition, int, error) {
 	var transitions []*education.GradeTransition
 
-	query := r.db.NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		TableExpr(tableGradeTransitions).
 		ColumnExpr("*")
 
 	// Build count query with same filters (but without pagination)
-	countQuery := r.db.NewSelect().
+	countQuery := base.GetDB(ctx, r.db).NewSelect().
 		TableExpr(tableGradeTransitions)
 
 	// Apply query options (filters + pagination to data query, filters only to count query)
@@ -207,7 +189,7 @@ func (r *GradeTransitionRepository) List(ctx context.Context, options *modelBase
 // FindByAcademicYear retrieves grade transitions for a specific academic year
 func (r *GradeTransitionRepository) FindByAcademicYear(ctx context.Context, year string) ([]*education.GradeTransition, error) {
 	var transitions []*education.GradeTransition
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		TableExpr(tableGradeTransitions).
 		ColumnExpr("*").
 		Where("academic_year = ?", year).
@@ -227,7 +209,7 @@ func (r *GradeTransitionRepository) FindByAcademicYear(ctx context.Context, year
 // FindByStatus retrieves grade transitions with a specific status
 func (r *GradeTransitionRepository) FindByStatus(ctx context.Context, status string) ([]*education.GradeTransition, error) {
 	var transitions []*education.GradeTransition
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		TableExpr(tableGradeTransitions).
 		ColumnExpr("*").
 		Where("status = ?", status).
@@ -254,13 +236,7 @@ func (r *GradeTransitionRepository) CreateMapping(ctx context.Context, m *educat
 		return err
 	}
 
-	// Use transaction from context if available
-	var db bun.IDB = r.db
-	if tx, ok := modelBase.TxFromContext(ctx); ok && tx != nil {
-		db = tx
-	}
-
-	_, err := db.NewInsert().
+	_, err := base.GetDB(ctx, r.db).NewInsert().
 		Model(m).
 		ModelTableExpr(tableGradeTransitionMappings).
 		Exec(ctx)
@@ -287,13 +263,7 @@ func (r *GradeTransitionRepository) CreateMappings(ctx context.Context, mappings
 		}
 	}
 
-	// Use transaction from context if available
-	var db bun.IDB = r.db
-	if tx, ok := modelBase.TxFromContext(ctx); ok && tx != nil {
-		db = tx
-	}
-
-	_, err := db.NewInsert().
+	_, err := base.GetDB(ctx, r.db).NewInsert().
 		Model(&mappings).
 		ModelTableExpr(tableGradeTransitionMappings).
 		Exec(ctx)
@@ -309,13 +279,7 @@ func (r *GradeTransitionRepository) CreateMappings(ctx context.Context, mappings
 
 // DeleteMappings deletes all mappings for a transition
 func (r *GradeTransitionRepository) DeleteMappings(ctx context.Context, transitionID int64) error {
-	// Use transaction from context if available
-	var db bun.IDB = r.db
-	if tx, ok := modelBase.TxFromContext(ctx); ok && tx != nil {
-		db = tx
-	}
-
-	_, err := db.NewDelete().
+	_, err := base.GetDB(ctx, r.db).NewDelete().
 		TableExpr(tableGradeTransitionMappings).
 		Where(whereTransitionID, transitionID).
 		Exec(ctx)
@@ -332,7 +296,7 @@ func (r *GradeTransitionRepository) DeleteMappings(ctx context.Context, transiti
 // GetMappings retrieves all mappings for a transition
 func (r *GradeTransitionRepository) GetMappings(ctx context.Context, transitionID int64) ([]*education.GradeTransitionMapping, error) {
 	var mappings []*education.GradeTransitionMapping
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		TableExpr(tableGradeTransitionMappings).
 		ColumnExpr("*").
 		Where(whereTransitionID, transitionID).
@@ -359,13 +323,7 @@ func (r *GradeTransitionRepository) CreateHistory(ctx context.Context, h *educat
 		return err
 	}
 
-	// Use transaction from context if available
-	var db bun.IDB = r.db
-	if tx, ok := modelBase.TxFromContext(ctx); ok && tx != nil {
-		db = tx
-	}
-
-	_, err := db.NewInsert().
+	_, err := base.GetDB(ctx, r.db).NewInsert().
 		Model(h).
 		ModelTableExpr(tableGradeTransitionHistory).
 		Exec(ctx)
@@ -392,13 +350,7 @@ func (r *GradeTransitionRepository) CreateHistoryBatch(ctx context.Context, hist
 		}
 	}
 
-	// Use transaction from context if available
-	var db bun.IDB = r.db
-	if tx, ok := modelBase.TxFromContext(ctx); ok && tx != nil {
-		db = tx
-	}
-
-	_, err := db.NewInsert().
+	_, err := base.GetDB(ctx, r.db).NewInsert().
 		Model(&history).
 		ModelTableExpr(tableGradeTransitionHistory).
 		Exec(ctx)
@@ -415,7 +367,7 @@ func (r *GradeTransitionRepository) CreateHistoryBatch(ctx context.Context, hist
 // GetHistory retrieves all history records for a transition
 func (r *GradeTransitionRepository) GetHistory(ctx context.Context, transitionID int64) ([]*education.GradeTransitionHistory, error) {
 	var history []*education.GradeTransitionHistory
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		TableExpr(tableGradeTransitionHistory).
 		ColumnExpr("*").
 		Where(whereTransitionID, transitionID).
@@ -435,7 +387,7 @@ func (r *GradeTransitionRepository) GetHistory(ctx context.Context, transitionID
 // GetDistinctClasses retrieves all distinct school_class values from students
 func (r *GradeTransitionRepository) GetDistinctClasses(ctx context.Context) ([]string, error) {
 	var classes []string
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		TableExpr(`users.students`).
 		ColumnExpr(`DISTINCT school_class`).
 		Where(`school_class IS NOT NULL AND school_class != ''`).
@@ -454,7 +406,7 @@ func (r *GradeTransitionRepository) GetDistinctClasses(ctx context.Context) ([]s
 
 // GetStudentCountByClass returns the number of students in a class
 func (r *GradeTransitionRepository) GetStudentCountByClass(ctx context.Context, className string) (int, error) {
-	count, err := r.db.NewSelect().
+	count, err := base.GetDB(ctx, r.db).NewSelect().
 		TableExpr(`users.students`).
 		Where(`school_class = ?`, className).
 		Count(ctx)
@@ -479,14 +431,8 @@ func (r *GradeTransitionRepository) GetStudentsByClasses(ctx context.Context, cl
 		return []*education.StudentClassInfo{}, nil
 	}
 
-	// Use transaction from context if available
-	var db bun.IDB = r.db
-	if tx, ok := modelBase.TxFromContext(ctx); ok && tx != nil {
-		db = tx
-	}
-
 	var students []*education.StudentClassInfo
-	err := db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		ColumnExpr(`s.id AS student_id`).
 		ColumnExpr(`s.person_id`).
 		ColumnExpr(`CONCAT(p.first_name, ' ', p.last_name) AS person_name`).
@@ -510,14 +456,8 @@ func (r *GradeTransitionRepository) GetStudentsByClasses(ctx context.Context, cl
 // UpdateStudentClasses updates student classes based on transition mappings
 // This is a join-based UPDATE for efficiency
 func (r *GradeTransitionRepository) UpdateStudentClasses(ctx context.Context, transitionID int64) (int64, error) {
-	// Use transaction from context if available
-	var db bun.IDB = r.db
-	if tx, ok := modelBase.TxFromContext(ctx); ok && tx != nil {
-		db = tx
-	}
-
 	// Execute bulk UPDATE using JOIN on mappings
-	result, err := db.ExecContext(ctx, `
+	result, err := base.GetDB(ctx, r.db).ExecContext(ctx, `
 		UPDATE users.students s
 		SET school_class = m.to_class,
 		    updated_at = NOW()
@@ -551,13 +491,7 @@ func (r *GradeTransitionRepository) DeleteStudentsByClasses(ctx context.Context,
 		return 0, nil
 	}
 
-	// Use transaction from context if available
-	var db bun.IDB = r.db
-	if tx, ok := modelBase.TxFromContext(ctx); ok && tx != nil {
-		db = tx
-	}
-
-	result, err := db.NewDelete().
+	result, err := base.GetDB(ctx, r.db).NewDelete().
 		Model((*struct{})(nil)).
 		ModelTableExpr(`users.students`).
 		Where(`school_class IN (?)`, bun.In(classes)).

@@ -9,6 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -235,6 +236,7 @@ func (s *pickupScheduleService) CreateStudentPickupException(ctx context.Context
 		return &ScheduleError{Op: opCreateStudentPickupException, Err: errors.New("exception already exists for this date")}
 	}
 
+	exception.SetTenantID(tenant.FromContext(ctx))
 	if err := s.exceptionRepo.Create(ctx, exception); err != nil {
 		return &ScheduleError{Op: opCreateStudentPickupException, Err: err}
 	}
@@ -313,6 +315,7 @@ func (s *pickupScheduleService) CreateStudentPickupNote(ctx context.Context, not
 		return &ScheduleError{Op: "create student pickup note", Err: err}
 	}
 
+	note.SetTenantID(tenant.FromContext(ctx))
 	if err := s.noteRepo.Create(ctx, note); err != nil {
 		return &ScheduleError{Op: "create student pickup note", Err: err}
 	}

@@ -59,6 +59,7 @@ func NewResource(service usercontext.UserContextService, substitutionRepo educat
 	// Setup routes with proper authentication chain
 	r.router.Use(tokenAuth.Verifier())
 	r.router.Use(jwt.Authenticator)
+	r.router.Use(jwt.TenantMiddleware)
 
 	// User profile endpoints
 	r.router.Get("/", r.getCurrentUser)

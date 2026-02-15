@@ -35,7 +35,7 @@ func (r *AttendanceRepository) FindByStudentAndDate(ctx context.Context, student
 	// This ensures consistency with CURRENT_DATE queries (PostgreSQL timezone = Europe/Berlin).
 	dateOnly := timezone.DateOf(date)
 
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&attendance).
 		ModelTableExpr(`active.attendance AS "attendance"`).
 		Where(`"attendance".student_id = ? AND "attendance".date = ?`, studentID, dateOnly).
@@ -56,7 +56,7 @@ func (r *AttendanceRepository) FindByStudentAndDate(ctx context.Context, student
 func (r *AttendanceRepository) FindLatestByStudent(ctx context.Context, studentID int64) (*active.Attendance, error) {
 	attendance := new(active.Attendance)
 
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(attendance).
 		ModelTableExpr(`active.attendance AS "attendance"`).
 		Where(`"attendance".student_id = ?`, studentID).
@@ -83,7 +83,7 @@ func (r *AttendanceRepository) GetStudentCurrentStatus(ctx context.Context, stud
 	// This ensures the date comparison matches records created via CreateVisit,
 	// which also uses timezone.Today().
 	today := timezone.Today()
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(attendance).
 		ModelTableExpr(`active.attendance AS "attendance"`).
 		Where(`"attendance".student_id = ? AND "attendance".date = ?`, studentID, today).
@@ -162,7 +162,7 @@ func (r *AttendanceRepository) GetTodayByStudentIDs(ctx context.Context, student
 	// This ensures the date comparison matches records created via CreateVisit.
 	today := timezone.Today()
 	var attendances []*active.Attendance
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&attendances).
 		ModelTableExpr(`active.attendance AS "attendance"`).
 		Where(`"attendance".student_id IN (?)`, bun.In(uniqueIDs)).
@@ -194,7 +194,7 @@ func (r *AttendanceRepository) FindForDate(ctx context.Context, date time.Time) 
 	// This ensures consistency with CURRENT_DATE queries (PostgreSQL timezone = Europe/Berlin).
 	dateOnly := timezone.DateOf(date)
 
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&attendance).
 		ModelTableExpr(`active.attendance AS "attendance"`).
 		Where(`"attendance".date = ?`, dateOnly).

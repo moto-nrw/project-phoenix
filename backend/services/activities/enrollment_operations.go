@@ -9,6 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -49,6 +50,7 @@ func (s *Service) EnrollStudent(ctx context.Context, groupID, studentID int64) e
 			ActivityGroupID: groupID,
 			EnrollmentDate:  time.Now(),
 		}
+		enrollment.SetTenantID(tenant.FromContext(ctx))
 
 		if err := txService.(*Service).enrollmentRepo.Create(ctx, enrollment); err != nil {
 			return &ActivityError{Op: "create enrollment", Err: err}
@@ -179,6 +181,7 @@ func (s *Service) addNewEnrollmentsInTx(ctx context.Context, txService ActivityS
 				ActivityGroupID: groupID,
 				EnrollmentDate:  time.Now(),
 			}
+			enrollment.SetTenantID(tenant.FromContext(ctx))
 
 			if err := txService.(*Service).enrollmentRepo.Create(ctx, enrollment); err != nil {
 				return &ActivityError{Op: "create enrollment", Err: err}

@@ -10,6 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/active"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -65,6 +66,7 @@ func (s *service) assignSupervisorNonCritical(ctx context.Context, groupID, staf
 		Role:      "Supervisor",
 		StartDate: startDate,
 	}
+	supervisor.SetTenantID(tenant.FromContext(ctx))
 	if err := s.supervisorRepo.Create(ctx, supervisor); err != nil {
 		s.getLogger().WarnContext(ctx, "supervisor assignment failed",
 			slog.Int64("staff_id", staffID),
@@ -112,7 +114,7 @@ func (s *service) broadcastActivityStartEvent(ctx context.Context, group *active
 		},
 	)
 
-	s.broadcastWithLogging(activeGroupID, "", event, "activity_start")
+	s.broadcastWithLogging(ctx, activeGroupID, "", event, "activity_start")
 }
 
 // validateSupervisorIDs validates that all supervisor IDs exist as staff members
@@ -229,6 +231,7 @@ func (s *service) assignMultipleSupervisorsNonCritical(ctx context.Context, grou
 			Role:      "supervisor",
 			StartDate: startDate,
 		}
+		supervisor.SetTenantID(tenant.FromContext(ctx))
 		if err := s.supervisorRepo.Create(ctx, supervisor); err != nil {
 			s.getLogger().WarnContext(ctx, "supervisor assignment failed",
 				slog.Int64("staff_id", staffID),
@@ -303,6 +306,7 @@ func (s *service) createSessionBase(ctx context.Context, activityID, deviceID, r
 		RoomID:         roomID,
 	}
 
+	newGroup.SetTenantID(tenant.FromContext(ctx))
 	if err := s.groupRepo.Create(ctx, newGroup); err != nil {
 		return nil, 0, err
 	}
@@ -552,6 +556,7 @@ func (s *service) createNewSupervisor(ctx context.Context, activeGroupID, superv
 		Role:      "supervisor",
 		StartDate: now,
 	}
+	supervisor.SetTenantID(tenant.FromContext(ctx))
 	return s.supervisorRepo.Create(ctx, supervisor)
 }
 
@@ -667,7 +672,7 @@ func (s *service) EndActivitySession(ctx context.Context, activeGroupID int64) e
 	// Broadcast SSE events (fire-and-forget, outside transaction)
 	if s.broadcaster != nil {
 		activeGroupIDStr := fmt.Sprintf("%d", activeGroupID)
-		s.broadcastStudentCheckoutEvents(activeGroupIDStr, visitsToNotify)
+		s.broadcastStudentCheckoutEvents(ctx, activeGroupIDStr, visitsToNotify)
 		s.broadcastActivityEndEvent(ctx, activeGroupID, activeGroupIDStr)
 	}
 
@@ -856,7 +861,7 @@ func (s *service) ProcessSessionTimeoutByID(ctx context.Context, sessionID int64
 	// Broadcast SSE events (fire-and-forget, outside transaction)
 	if s.broadcaster != nil && result != nil {
 		sessionIDStr := fmt.Sprintf("%d", sessionID)
-		s.broadcastStudentCheckoutEvents(sessionIDStr, visitsToNotify)
+		s.broadcastStudentCheckoutEvents(ctx, sessionIDStr, visitsToNotify)
 		s.broadcastActivityEndEvent(ctx, sessionID, sessionIDStr)
 	}
 

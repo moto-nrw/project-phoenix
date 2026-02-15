@@ -25,6 +25,7 @@ const rfidCardTableName = "users.rfid_cards"
 // RFIDCard represents a physical RFID card used for identification and access
 type RFIDCard struct {
 	base.StringIDModel `bun:"schema:users,table:rfid_cards"`
+	base.TenantModel   `bun:",extend"`
 	Active             bool `bun:"active,notnull,default:true" json:"active"`
 }
 

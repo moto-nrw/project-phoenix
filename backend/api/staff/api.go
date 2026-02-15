@@ -68,6 +68,7 @@ func (rs *Resource) Router() chi.Router {
 	r.Group(func(r chi.Router) {
 		r.Use(tokenAuth.Verifier())
 		r.Use(jwt.Authenticator)
+		r.Use(jwt.TenantMiddleware)
 
 		// Read operations only require users:read permission
 		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/", rs.listStaff)
