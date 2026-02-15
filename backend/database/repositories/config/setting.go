@@ -37,7 +37,7 @@ func NewSettingRepository(db *bun.DB) config.SettingRepository {
 // Returns (nil, nil) if no setting is found
 func (r *SettingRepository) FindByID(ctx context.Context, id interface{}) (*config.Setting, error) {
 	setting := new(config.Setting)
-	err := r.db.NewSelect().
+	err := repoBase.GetDB(ctx, r.db).NewSelect().
 		Model(setting).
 		ModelTableExpr(tableConfigSettingsAlias).
 		Where(`"setting".id = ?`, id).
@@ -64,7 +64,7 @@ func (r *SettingRepository) FindByKey(ctx context.Context, key string) (*config.
 	key = strings.ToLower(strings.ReplaceAll(key, " ", "_"))
 
 	setting := new(config.Setting)
-	err := r.db.NewSelect().
+	err := repoBase.GetDB(ctx, r.db).NewSelect().
 		Model(setting).
 		ModelTableExpr(tableConfigSettingsAlias).
 		Where("key = ?", key).
@@ -90,7 +90,7 @@ func (r *SettingRepository) FindByCategory(ctx context.Context, category string)
 	category = strings.ToLower(category)
 
 	var settings []*config.Setting
-	err := r.db.NewSelect().
+	err := repoBase.GetDB(ctx, r.db).NewSelect().
 		Model(&settings).
 		ModelTableExpr(tableConfigSettingsAlias).
 		Where("category = ?", category).
@@ -115,7 +115,7 @@ func (r *SettingRepository) FindByKeyAndCategory(ctx context.Context, key string
 	category = strings.ToLower(category)
 
 	setting := new(config.Setting)
-	err := r.db.NewSelect().
+	err := repoBase.GetDB(ctx, r.db).NewSelect().
 		Model(setting).
 		ModelTableExpr(tableConfigSettingsAlias).
 		Where("key = ? AND category = ?", key, category).
@@ -140,7 +140,7 @@ func (r *SettingRepository) UpdateValue(ctx context.Context, key string, value s
 	// Normalize key to follow the project convention
 	key = strings.ToLower(strings.ReplaceAll(key, " ", "_"))
 
-	_, err := r.db.NewUpdate().
+	_, err := repoBase.GetDB(ctx, r.db).NewUpdate().
 		Model((*config.Setting)(nil)).
 		ModelTableExpr(tableConfigSettingsAlias).
 		Set("value = ?", value).
@@ -239,7 +239,7 @@ func (r *SettingRepository) Update(ctx context.Context, setting *config.Setting)
 // List retrieves settings matching the provided filters
 func (r *SettingRepository) List(ctx context.Context, filters map[string]interface{}) ([]*config.Setting, error) {
 	var settings []*config.Setting
-	query := r.db.NewSelect().Model(&settings).ModelTableExpr(tableConfigSettingsAlias)
+	query := repoBase.GetDB(ctx, r.db).NewSelect().Model(&settings).ModelTableExpr(tableConfigSettingsAlias)
 
 	// Apply filters
 	for field, value := range filters {

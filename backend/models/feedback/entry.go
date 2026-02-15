@@ -22,12 +22,13 @@ const tableFeedbackEntries = "feedback.entries"
 
 // Entry represents a feedback entry from a student
 type Entry struct {
-	base.Model      `bun:"schema:feedback,table:entries"`
-	Value           string    `bun:"value,notnull" json:"value"`
-	Day             time.Time `bun:"day,notnull" json:"day"`
-	Time            time.Time `bun:"time,notnull" json:"time"`
-	StudentID       int64     `bun:"student_id,notnull" json:"student_id"`
-	IsMensaFeedback bool      `bun:"is_mensa_feedback,notnull,default:false" json:"is_mensa_feedback"`
+	base.Model       `bun:"schema:feedback,table:entries"`
+	base.TenantModel `bun:",extend"`
+	Value            string    `bun:"value,notnull" json:"value"`
+	Day              time.Time `bun:"day,notnull" json:"day"`
+	Time             time.Time `bun:"time,notnull" json:"time"`
+	StudentID        int64     `bun:"student_id,notnull" json:"student_id"`
+	IsMensaFeedback  bool      `bun:"is_mensa_feedback,notnull,default:false" json:"is_mensa_feedback"`
 
 	// Relations not stored in the database
 	Student *users.Student `bun:"-" json:"student,omitempty"`

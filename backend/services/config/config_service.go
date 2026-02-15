@@ -9,6 +9,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/config"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -55,6 +56,11 @@ func (s *service) CreateSetting(ctx context.Context, setting *config.Setting) er
 	// Validate setting data
 	if err := setting.Validate(); err != nil {
 		return &ConfigError{Op: "CreateSetting", Err: err}
+	}
+
+	// Set tenant ID from context
+	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
+		setting.SetTenantID(tenantID)
 	}
 
 	// Check if a setting with the same key exists

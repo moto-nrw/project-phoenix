@@ -7,6 +7,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -68,6 +69,7 @@ func (s *Service) addSupervisorInTx(ctx context.Context, txService ActivityServi
 		return nil, err
 	}
 
+	supervisor.SetTenantID(tenant.FromContext(ctx))
 	if err := txService.(*Service).supervisorRepo.Create(ctx, supervisor); err != nil {
 		return nil, &ActivityError{Op: opCreateSupervisor, Err: err}
 	}
@@ -460,6 +462,7 @@ func (s *Service) addNewSupervisorsInTx(ctx context.Context, txService ActivityS
 				StaffID:   staffID,
 				IsPrimary: isPrimary,
 			}
+			supervisor.SetTenantID(tenant.FromContext(ctx))
 
 			if err := txService.(*Service).supervisorRepo.Create(ctx, supervisor); err != nil {
 				return &ActivityError{Op: opCreateSupervisor, Err: err}

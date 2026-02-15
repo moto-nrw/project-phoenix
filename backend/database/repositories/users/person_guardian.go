@@ -38,7 +38,7 @@ func NewPersonGuardianRepository(db *bun.DB) users.PersonGuardianRepository {
 // FindByPersonID retrieves relationships by person ID
 func (r *PersonGuardianRepository) FindByPersonID(ctx context.Context, personID int64) ([]*users.PersonGuardian, error) {
 	var relationships []*users.PersonGuardian
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&relationships).
 		ModelTableExpr(tableExprPersonsGuardiansAsPG).
 		Where(`"person_guardian".person_id = ?`, personID).
@@ -57,7 +57,7 @@ func (r *PersonGuardianRepository) FindByPersonID(ctx context.Context, personID 
 // FindByGuardianID retrieves relationships by guardian account ID
 func (r *PersonGuardianRepository) FindByGuardianID(ctx context.Context, guardianID int64) ([]*users.PersonGuardian, error) {
 	var relationships []*users.PersonGuardian
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&relationships).
 		ModelTableExpr(tableExprPersonsGuardiansAsPG).
 		Where(`"person_guardian".guardian_account_id = ?`, guardianID).
@@ -76,7 +76,7 @@ func (r *PersonGuardianRepository) FindByGuardianID(ctx context.Context, guardia
 // FindPrimaryByPersonID retrieves the primary guardian for a person
 func (r *PersonGuardianRepository) FindPrimaryByPersonID(ctx context.Context, personID int64) (*users.PersonGuardian, error) {
 	relationship := new(users.PersonGuardian)
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(relationship).
 		ModelTableExpr(tableExprPersonsGuardiansAsPG).
 		Where(`"person_guardian".person_id = ? AND "person_guardian".is_primary = TRUE`, personID).
@@ -95,7 +95,7 @@ func (r *PersonGuardianRepository) FindPrimaryByPersonID(ctx context.Context, pe
 // FindByRelationshipType retrieves relationships by relationship type
 func (r *PersonGuardianRepository) FindByRelationshipType(ctx context.Context, personID int64, relationshipType users.RelationshipType) ([]*users.PersonGuardian, error) {
 	var relationships []*users.PersonGuardian
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&relationships).
 		ModelTableExpr(tableExprPersonsGuardiansAsPG).
 		Where(`"person_guardian".person_id = ? AND "person_guardian".relationship_type = ?`, personID, relationshipType).
@@ -115,7 +115,7 @@ func (r *PersonGuardianRepository) FindByRelationshipType(ctx context.Context, p
 func (r *PersonGuardianRepository) SetPrimary(ctx context.Context, id int64, isPrimary bool) error {
 	// Database has a trigger that automatically manages the primary status
 	// Just update the current relationship
-	_, err := r.db.NewUpdate().
+	_, err := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*users.PersonGuardian)(nil)).
 		ModelTableExpr(tableExprPersonsGuardiansAsPG).
 		Set("is_primary = ?", isPrimary).
@@ -134,7 +134,7 @@ func (r *PersonGuardianRepository) SetPrimary(ctx context.Context, id int64, isP
 
 // UpdatePermissions updates a guardian's permissions
 func (r *PersonGuardianRepository) UpdatePermissions(ctx context.Context, id int64, permissions string) error {
-	_, err := r.db.NewUpdate().
+	_, err := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*users.PersonGuardian)(nil)).
 		ModelTableExpr(tableExprPersonsGuardiansAsPG).
 		Set("permissions = ?", permissions).
@@ -211,7 +211,7 @@ func (r *PersonGuardianRepository) List(ctx context.Context, filters map[string]
 // ListWithOptions provides a type-safe way to list person guardian relationships with query options
 func (r *PersonGuardianRepository) ListWithOptions(ctx context.Context, options *modelBase.QueryOptions) ([]*users.PersonGuardian, error) {
 	var relationships []*users.PersonGuardian
-	query := r.db.NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&relationships).
 		ModelTableExpr(tableExprPersonsGuardiansAsPG)
 
@@ -238,7 +238,7 @@ func (r *PersonGuardianRepository) ListWithOptions(ctx context.Context, options 
 func (r *PersonGuardianRepository) FindWithPerson(ctx context.Context, id int64) (*users.PersonGuardian, error) {
 	// First get the person guardian relationship
 	relationship := new(users.PersonGuardian)
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(relationship).
 		ModelTableExpr(tableExprPersonsGuardiansAsPG).
 		Where(wherePersonGuardianIDEquals, id).
@@ -254,7 +254,7 @@ func (r *PersonGuardianRepository) FindWithPerson(ctx context.Context, id int64)
 	// Then load the person if PersonID is set
 	if relationship.PersonID > 0 {
 		person := new(users.Person)
-		personErr := r.db.NewSelect().
+		personErr := base.GetDB(ctx, r.db).NewSelect().
 			Model(person).
 			ModelTableExpr(`users.persons AS "person"`).
 			Where(`"person".id = ?`, relationship.PersonID).
@@ -289,7 +289,7 @@ func (r *PersonGuardianRepository) GrantPermissionToGuardian(ctx context.Context
 	}
 
 	// Update the relationship
-	_, err = r.db.NewUpdate().
+	_, err = base.GetDB(ctx, r.db).NewUpdate().
 		Model(relationship).
 		ModelTableExpr(tableExprPersonsGuardiansAsPG).
 		Column("permissions").
@@ -320,7 +320,7 @@ func (r *PersonGuardianRepository) RevokePermissionFromGuardian(ctx context.Cont
 	}
 
 	// Update the relationship
-	_, err = r.db.NewUpdate().
+	_, err = base.GetDB(ctx, r.db).NewUpdate().
 		Model(relationship).
 		ModelTableExpr(tableExprPersonsGuardiansAsPG).
 		Column("permissions").

@@ -9,6 +9,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -27,6 +28,7 @@ func (s *service) CreateCombinedGroup(ctx context.Context, group *active.Combine
 		return &ActiveError{Op: "CreateCombinedGroup", Err: ErrInvalidData}
 	}
 
+	group.SetTenantID(tenant.FromContext(ctx))
 	if s.combinedGroupRepo.Create(ctx, group) != nil {
 		return &ActiveError{Op: "CreateCombinedGroup", Err: ErrDatabaseOperation}
 	}
@@ -151,6 +153,7 @@ func (s *service) CreateCombinedGroupWithGroups(ctx context.Context, group *acti
 	// Use tx directly for real atomicity (repos use r.DB, not tx from context)
 	err := s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
 		// Step 1: Create the combined group
+		group.SetTenantID(tenant.FromContext(ctx))
 		_, err := tx.NewInsert().
 			Model(group).
 			ModelTableExpr("active.combined_groups").
@@ -179,6 +182,7 @@ func (s *service) CreateCombinedGroupWithGroups(ctx context.Context, group *acti
 				ActiveCombinedGroupID: group.ID,
 				ActiveGroupID:         gid,
 			}
+			mapping.SetTenantID(tenant.FromContext(ctx))
 			_, err := tx.NewInsert().
 				Model(mapping).
 				ModelTableExpr("active.group_mappings").

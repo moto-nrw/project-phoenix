@@ -11,6 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -148,6 +149,8 @@ func (s *gradeTransitionService) Create(ctx context.Context, req CreateTransitio
 	if err := transition.Validate(); err != nil {
 		return nil, err
 	}
+
+	transition.SetTenantID(tenant.FromContext(ctx))
 
 	// Execute in transaction
 	err := s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {

@@ -32,7 +32,7 @@ func NewAccountPermissionRepository(db *bun.DB) auth.AccountPermissionRepository
 // FindByAccountID retrieves all account-permission mappings for an account
 func (r *AccountPermissionRepository) FindByAccountID(ctx context.Context, accountID int64) ([]*auth.AccountPermission, error) {
 	var accountPermissions []*auth.AccountPermission
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&accountPermissions).
 		ModelTableExpr(accountPermissionTableAlias).
 		Where(`"account_permission".account_id = ?`, accountID).
@@ -51,7 +51,7 @@ func (r *AccountPermissionRepository) FindByAccountID(ctx context.Context, accou
 // FindByPermissionID retrieves all account-permission mappings for a permission
 func (r *AccountPermissionRepository) FindByPermissionID(ctx context.Context, permissionID int64) ([]*auth.AccountPermission, error) {
 	var accountPermissions []*auth.AccountPermission
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&accountPermissions).
 		ModelTableExpr(accountPermissionTableAlias).
 		Where(`"account_permission".permission_id = ?`, permissionID).
@@ -70,7 +70,7 @@ func (r *AccountPermissionRepository) FindByPermissionID(ctx context.Context, pe
 // FindByAccountAndPermission retrieves a specific account-permission mapping
 func (r *AccountPermissionRepository) FindByAccountAndPermission(ctx context.Context, accountID, permissionID int64) (*auth.AccountPermission, error) {
 	accountPermission := new(auth.AccountPermission)
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(accountPermission).
 		ModelTableExpr(accountPermissionTableAlias).
 		Where(`"account_permission".account_id = ? AND "account_permission".permission_id = ?`, accountID, permissionID).
@@ -88,11 +88,7 @@ func (r *AccountPermissionRepository) FindByAccountAndPermission(ctx context.Con
 
 // GrantPermission grants a permission to an account
 func (r *AccountPermissionRepository) GrantPermission(ctx context.Context, accountID, permissionID int64) error {
-	// Get the database connection (or transaction if in context)
-	var db bun.IDB = r.db
-	if tx, ok := modelBase.TxFromContext(ctx); ok && tx != nil {
-		db = tx
-	}
+	db := base.GetDB(ctx, r.db)
 
 	// Check if the permission mapping already exists
 	exists, err := db.NewSelect().
@@ -140,11 +136,7 @@ func (r *AccountPermissionRepository) GrantPermission(ctx context.Context, accou
 
 // DenyPermission explicitly denies a permission to an account
 func (r *AccountPermissionRepository) DenyPermission(ctx context.Context, accountID, permissionID int64) error {
-	// Get the database connection (or transaction if in context)
-	var db bun.IDB = r.db
-	if tx, ok := modelBase.TxFromContext(ctx); ok && tx != nil {
-		db = tx
-	}
+	db := base.GetDB(ctx, r.db)
 
 	// Check if the permission mapping already exists
 	exists, err := db.NewSelect().
@@ -189,13 +181,7 @@ func (r *AccountPermissionRepository) DenyPermission(ctx context.Context, accoun
 
 // RemovePermission removes a permission mapping for an account
 func (r *AccountPermissionRepository) RemovePermission(ctx context.Context, accountID, permissionID int64) error {
-	// Get the database connection (or transaction if in context)
-	var db bun.IDB = r.db
-	if tx, ok := modelBase.TxFromContext(ctx); ok && tx != nil {
-		db = tx
-	}
-
-	_, err := db.NewDelete().
+	_, err := base.GetDB(ctx, r.db).NewDelete().
 		Model((*auth.AccountPermission)(nil)).
 		ModelTableExpr(accountPermissionTableAlias).
 		Where(`"account_permission".account_id = ? AND "account_permission".permission_id = ?`, accountID, permissionID).
@@ -213,7 +199,7 @@ func (r *AccountPermissionRepository) RemovePermission(ctx context.Context, acco
 
 // DeleteByPermissionID deletes all account-permission mappings for a permission
 func (r *AccountPermissionRepository) DeleteByPermissionID(ctx context.Context, permissionID int64) error {
-	_, err := r.db.NewDelete().
+	_, err := base.GetDB(ctx, r.db).NewDelete().
 		Model((*auth.AccountPermission)(nil)).
 		ModelTableExpr(accountPermissionTableAlias).
 		Where(`"account_permission".permission_id = ?`, permissionID).
@@ -240,21 +226,10 @@ func (r *AccountPermissionRepository) Create(ctx context.Context, accountPermiss
 		return err
 	}
 
-	// Get the query builder - detect if we're in a transaction
-	query := r.db.NewInsert().
+	_, err := base.GetDB(ctx, r.db).NewInsert().
 		Model(accountPermission).
-		ModelTableExpr(accountPermissionTable)
-
-	// Extract transaction from context if it exists
-	if tx, ok := ctx.Value("tx").(*bun.Tx); ok && tx != nil {
-		// Use the transaction if available
-		query = tx.NewInsert().
-			Model(accountPermission).
-			ModelTableExpr(accountPermissionTable)
-	}
-
-	// Execute the query
-	_, err := query.Exec(ctx)
+		ModelTableExpr(accountPermissionTable).
+		Exec(ctx)
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "create",
@@ -276,23 +251,11 @@ func (r *AccountPermissionRepository) Update(ctx context.Context, accountPermiss
 		return err
 	}
 
-	// Get the query builder - detect if we're in a transaction
-	query := r.db.NewUpdate().
+	_, err := base.GetDB(ctx, r.db).NewUpdate().
 		Model(accountPermission).
 		Where("id = ?", accountPermission.ID).
-		ModelTableExpr(accountPermissionTable)
-
-	// Extract transaction from context if it exists
-	if tx, ok := ctx.Value("tx").(*bun.Tx); ok && tx != nil {
-		// Use the transaction if available
-		query = tx.NewUpdate().
-			Model(accountPermission).
-			Where("id = ?", accountPermission.ID).
-			ModelTableExpr(accountPermissionTable)
-	}
-
-	// Execute the query
-	_, err := query.Exec(ctx)
+		ModelTableExpr(accountPermissionTable).
+		Exec(ctx)
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "update",
@@ -306,7 +269,7 @@ func (r *AccountPermissionRepository) Update(ctx context.Context, accountPermiss
 // List retrieves account-permission mappings matching the provided filters
 func (r *AccountPermissionRepository) List(ctx context.Context, filters map[string]interface{}) ([]*auth.AccountPermission, error) {
 	var accountPermissions []*auth.AccountPermission
-	query := r.db.NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&accountPermissions).
 		ModelTableExpr(accountPermissionTableAlias)
 
@@ -336,7 +299,7 @@ func (r *AccountPermissionRepository) List(ctx context.Context, filters map[stri
 // FindAccountPermissionsWithDetails retrieves account-permission mappings with account and permission details
 func (r *AccountPermissionRepository) FindAccountPermissionsWithDetails(ctx context.Context, filters map[string]interface{}) ([]*auth.AccountPermission, error) {
 	var accountPermissions []*auth.AccountPermission
-	query := r.db.NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&accountPermissions).
 		ModelTableExpr(accountPermissionTableAlias).
 		ColumnExpr(`"account_permission".*`).

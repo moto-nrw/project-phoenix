@@ -13,9 +13,10 @@ const tableActiveCombinedGroups = "active.combined_groups"
 
 // CombinedGroup represents a combination of multiple active groups
 type CombinedGroup struct {
-	base.Model `bun:"schema:active,table:combined_groups"`
-	StartTime  time.Time  `bun:"start_time,notnull" json:"start_time"`
-	EndTime    *time.Time `bun:"end_time" json:"end_time,omitempty"`
+	base.Model       `bun:"schema:active,table:combined_groups"`
+	base.TenantModel `bun:",extend"`
+	StartTime        time.Time  `bun:"start_time,notnull" json:"start_time"`
+	EndTime          *time.Time `bun:"end_time" json:"end_time,omitempty"`
 
 	// Relations - these would be populated when using the ORM's relations
 	GroupMappings []*GroupMapping `bun:"rel:has-many,join:id=active_combined_group_id" json:"group_mappings,omitempty"`

@@ -40,7 +40,7 @@ func NewGroupRepository(db *bun.DB) active.GroupRepository {
 // FindActiveByRoomID finds all active groups in a specific room
 func (r *GroupRepository) FindActiveByRoomID(ctx context.Context, roomID int64) ([]*active.Group, error) {
 	var groups []*active.Group
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&groups).
 		ModelTableExpr(`active.groups AS "group"`).
 		Where(`"group".room_id = ? AND "group".end_time IS NULL`, roomID).
@@ -59,7 +59,7 @@ func (r *GroupRepository) FindActiveByRoomID(ctx context.Context, roomID int64) 
 // FindActiveByGroupID finds all active instances of a specific activity group
 func (r *GroupRepository) FindActiveByGroupID(ctx context.Context, groupID int64) ([]*active.Group, error) {
 	var groups []*active.Group
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&groups).
 		ModelTableExpr(`active.groups AS "group"`).
 		Where(`"group".group_id = ? AND "group".end_time IS NULL`, groupID).
@@ -82,7 +82,7 @@ func (r *GroupRepository) FindActiveByGroupIDs(ctx context.Context, groupIDs []i
 	}
 
 	var groups []*active.Group
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&groups).
 		ModelTableExpr(`active.groups AS "group"`).
 		Where(`"group".group_id IN (?) AND "group".end_time IS NULL`, bun.In(groupIDs)).
@@ -101,7 +101,7 @@ func (r *GroupRepository) FindActiveByGroupIDs(ctx context.Context, groupIDs []i
 // FindByTimeRange finds all groups active during a specific time range
 func (r *GroupRepository) FindByTimeRange(ctx context.Context, start, end time.Time) ([]*active.Group, error) {
 	var groups []*active.Group
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&groups).
 		ModelTableExpr(`active.groups AS "group"`).
 		Where("start_time <= ? AND (end_time IS NULL OR end_time >= ?)", end, start).
@@ -119,7 +119,7 @@ func (r *GroupRepository) FindByTimeRange(ctx context.Context, start, end time.T
 
 // EndSession marks a group session as ended at the current time
 func (r *GroupRepository) EndSession(ctx context.Context, id int64) error {
-	_, err := r.db.NewUpdate().
+	_, err := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*active.Group)(nil)).
 		ModelTableExpr(`active.groups AS "group"`).
 		Set("end_time = ?", time.Now()).
@@ -154,7 +154,7 @@ func (r *GroupRepository) Create(ctx context.Context, group *active.Group) error
 // List overrides the base List method to accept the new QueryOptions type
 func (r *GroupRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*active.Group, error) {
 	var groups []*active.Group
-	query := r.db.NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&groups).
 		ModelTableExpr(`active.groups AS "group"`)
 
@@ -180,7 +180,7 @@ func (r *GroupRepository) List(ctx context.Context, options *modelBase.QueryOpti
 // FindWithRelations retrieves a group with its associated relations
 func (r *GroupRepository) FindWithRelations(ctx context.Context, id int64) (*active.Group, error) {
 	group := new(active.Group)
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(group).
 		ModelTableExpr(`active.groups AS "group"`).
 		Where(`"group".id = ?`, id).
@@ -200,7 +200,7 @@ func (r *GroupRepository) FindWithRelations(ctx context.Context, id int64) (*act
 func (r *GroupRepository) FindWithVisits(ctx context.Context, id int64) (*active.Group, error) {
 	// First get the group
 	group := new(active.Group)
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(group).
 		ModelTableExpr(`active.groups AS "group"`).
 		Where(`"group".id = ?`, id).
@@ -215,7 +215,7 @@ func (r *GroupRepository) FindWithVisits(ctx context.Context, id int64) (*active
 
 	// Then get the visits separately (Relation() doesn't work with multi-schema)
 	var visits []*active.Visit
-	err = r.db.NewSelect().
+	err = base.GetDB(ctx, r.db).NewSelect().
 		Model(&visits).
 		ModelTableExpr(`active.visits AS "visit"`).
 		Where(`"visit".active_group_id = ?`, id).
@@ -236,7 +236,7 @@ func (r *GroupRepository) FindWithVisits(ctx context.Context, id int64) (*active
 func (r *GroupRepository) FindWithSupervisors(ctx context.Context, id int64) (*active.Group, error) {
 	// First get the group
 	group := new(active.Group)
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(group).
 		ModelTableExpr(`active.groups AS "group"`).
 		Where(`"group".id = ?`, id).
@@ -251,7 +251,7 @@ func (r *GroupRepository) FindWithSupervisors(ctx context.Context, id int64) (*a
 
 	// Then get the supervisors
 	var supervisors []*active.GroupSupervisor
-	err = r.db.NewSelect().
+	err = base.GetDB(ctx, r.db).NewSelect().
 		Model(&supervisors).
 		ModelTableExpr(`active.group_supervisors AS "group_supervisor"`).
 		Where(`"group_supervisor".group_id = ?`, id).
@@ -276,7 +276,7 @@ func (r *GroupRepository) FindWithSupervisors(ctx context.Context, id int64) (*a
 // FindActiveByGroupIDWithDevice finds all active instances of a specific activity group with device information
 func (r *GroupRepository) FindActiveByGroupIDWithDevice(ctx context.Context, groupID int64) ([]*active.Group, error) {
 	var groups []*active.Group
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&groups).
 		ModelTableExpr(`active.groups AS "group"`).
 		Where(`"group".group_id = ? AND "group".end_time IS NULL`, groupID).
@@ -308,7 +308,7 @@ func (r *GroupRepository) FindActiveByDeviceID(ctx context.Context, deviceID int
 	}
 
 	var result basicGroup
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		TableExpr(tableExprActiveGroupsAG).
 		ColumnExpr("ag.id, ag.start_time, ag.end_time, ag.last_activity, ag.timeout_minutes").
 		ColumnExpr("ag.group_id, ag.device_id, ag.room_id, ag.created_at, ag.updated_at").
@@ -372,7 +372,7 @@ func (r *GroupRepository) FindActiveByDeviceIDWithNames(ctx context.Context, dev
 
 	// Use facilities service pattern: TableExpr with explicit schema.table names
 	// This avoids BUN model hooks that cause "groups does not exist" errors
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		TableExpr(tableExprActiveGroupsAG).
 		ColumnExpr("ag.id, ag.start_time, ag.end_time, ag.last_activity, ag.timeout_minutes").
 		ColumnExpr("ag.group_id, ag.device_id, ag.room_id, ag.created_at, ag.updated_at").
@@ -432,7 +432,7 @@ func (r *GroupRepository) FindActiveByDeviceIDWithNames(ctx context.Context, dev
 // CheckRoomConflict checks if a room is already occupied by another active group
 func (r *GroupRepository) CheckRoomConflict(ctx context.Context, roomID int64, excludeGroupID int64) (bool, *active.Group, error) {
 	var group active.Group
-	query := r.db.NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&group).
 		ModelTableExpr(`active.groups AS "group"`).
 		Where(`"group".room_id = ? AND "group".end_time IS NULL`, roomID)
@@ -460,7 +460,7 @@ func (r *GroupRepository) CheckRoomConflict(ctx context.Context, roomID int64, e
 // UpdateLastActivity updates the last activity timestamp for a session
 func (r *GroupRepository) UpdateLastActivity(ctx context.Context, id int64, lastActivity time.Time) error {
 	// Use the base repository's transaction support
-	query := r.db.NewUpdate().
+	query := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*active.Group)(nil)).
 		ModelTableExpr(`active.groups AS "group"`).
 		Set("last_activity = ?", lastActivity).
@@ -522,7 +522,7 @@ func (r *GroupRepository) FindActiveSessionsOlderThan(ctx context.Context, cutof
 	var results []sessionWithDevice
 
 	// Use explicit JOIN with schema-qualified table name (BUN Relation() doesn't work with multi-schema)
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		TableExpr(tableExprActiveGroupsAG).
 		ColumnExpr("ag.id, ag.created_at, ag.updated_at, ag.start_time, ag.end_time").
 		ColumnExpr("ag.last_activity, ag.timeout_minutes, ag.group_id, ag.device_id, ag.room_id").
@@ -588,7 +588,7 @@ func (r *GroupRepository) FindInactiveSessions(ctx context.Context, inactiveDura
 	cutoffTime := time.Now().Add(-inactiveDuration)
 
 	var groups []*active.Group
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&groups).
 		ModelTableExpr(`active.groups AS "group"`).
 		Where("end_time IS NULL").              // Only active sessions
@@ -613,7 +613,7 @@ func (r *GroupRepository) FindInactiveSessions(ctx context.Context, inactiveDura
 // FindActiveGroups finds all groups with no end time (currently active)
 func (r *GroupRepository) FindActiveGroups(ctx context.Context) ([]*active.Group, error) {
 	var groups []*active.Group
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&groups).
 		ModelTableExpr(`active.groups AS "group"`).
 		Where(`"group".end_time IS NULL`).
@@ -666,7 +666,7 @@ func deduplicateIDs(ids []int64) []int64 {
 // queryGroupsByIDs fetches groups by their IDs
 func (r *GroupRepository) queryGroupsByIDs(ctx context.Context, ids []int64) ([]*active.Group, error) {
 	var groups []*active.Group
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&groups).
 		ModelTableExpr(`active.groups AS "group"`).
 		Where(`"group".id IN (?)`, bun.In(ids)).
@@ -711,7 +711,7 @@ func collectRoomIDs(groups []*active.Group) []int64 {
 // queryRoomsByIDs fetches rooms by their IDs
 func (r *GroupRepository) queryRoomsByIDs(ctx context.Context, ids []int64, op string) ([]*facilities.Room, error) {
 	var rooms []*facilities.Room
-	if err := r.db.NewSelect().
+	if err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&rooms).
 		ModelTableExpr(`facilities.rooms AS "room"`).
 		Where(`"room".id IN (?)`, bun.In(ids)).
@@ -762,7 +762,7 @@ func (r *GroupRepository) FindUnclaimed(ctx context.Context) ([]*active.Group, e
 // queryUnclaimedGroups fetches unclaimed groups from the database
 func (r *GroupRepository) queryUnclaimedGroups(ctx context.Context) ([]*active.Group, error) {
 	var groups []*active.Group
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&groups).
 		ModelTableExpr(`active.groups AS "group"`).
 		Join(`LEFT JOIN active.group_supervisors AS "sup" ON "sup"."group_id" = "group"."id" AND ("sup"."end_date" IS NULL OR "sup"."end_date" > CURRENT_DATE)`).
@@ -845,7 +845,7 @@ func (r *GroupRepository) loadAndAssignActivityGroups(ctx context.Context, group
 // queryActivityGroupsByIDs fetches activity groups by their IDs
 func (r *GroupRepository) queryActivityGroupsByIDs(ctx context.Context, ids []int64) ([]*activities.Group, error) {
 	var groups []*activities.Group
-	if err := r.db.NewSelect().
+	if err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&groups).
 		ModelTableExpr(`activities.groups AS "group"`).
 		Where(`"group".id IN (?)`, bun.In(ids)).
@@ -877,7 +877,7 @@ func (r *GroupRepository) GetOccupiedRoomIDs(ctx context.Context, roomIDs []int6
 
 	// Only fetch the room_id column for active groups in the specified rooms
 	var occupiedRoomIDs []int64
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		TableExpr(tableExprActiveGroupsAG).
 		ColumnExpr("DISTINCT ag.room_id").
 		Where("ag.room_id IN (?)", bun.In(roomIDs)).
@@ -907,7 +907,7 @@ func (r *GroupRepository) EndSessionsByIDs(ctx context.Context, ids []int64) (in
 		return 0, nil
 	}
 
-	result, err := r.db.NewUpdate().
+	result, err := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*active.Group)(nil)).
 		ModelTableExpr(`active.groups AS "group"`).
 		Set("end_time = ?", time.Now()).
@@ -942,7 +942,7 @@ func (r *GroupRepository) GetOccupiedActivityGroupIDs(ctx context.Context, group
 
 	// Only fetch the group_id column for active groups with the specified activity group IDs
 	var occupiedGroupIDs []int64
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		TableExpr(tableExprActiveGroupsAG).
 		ColumnExpr("DISTINCT ag.group_id").
 		Where("ag.group_id IN (?)", bun.In(groupIDs)).

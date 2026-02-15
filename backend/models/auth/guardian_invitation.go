@@ -11,7 +11,8 @@ import (
 
 // GuardianInvitation represents an invitation sent to create a guardian account
 type GuardianInvitation struct {
-	base.Model `bun:"schema:auth,table:guardian_invitations"`
+	base.Model       `bun:"schema:auth,table:guardian_invitations"`
+	base.TenantModel `bun:",extend"`
 
 	Token             string     `bun:"token,notnull,unique" json:"token"`
 	GuardianProfileID int64      `bun:"guardian_profile_id,notnull" json:"guardian_profile_id"`

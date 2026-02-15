@@ -100,6 +100,7 @@ func (rs *Resource) Router() chi.Router {
 	r.Group(func(r chi.Router) {
 		r.Use(tokenAuth.Verifier())
 		r.Use(jwt.Authenticator)
+		r.Use(jwt.TenantMiddleware)
 
 		// Mount devices sub-router (handles device CRUD and admin operations)
 		// All device routes require JWT authentication with IOT permissions

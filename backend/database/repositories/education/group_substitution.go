@@ -36,7 +36,7 @@ func NewGroupSubstitutionRepository(db *bun.DB) education.GroupSubstitutionRepos
 // FindByGroup retrieves all substitutions for a specific group
 func (r *GroupSubstitutionRepository) FindByGroup(ctx context.Context, groupID int64) ([]*education.GroupSubstitution, error) {
 	var substitutions []*education.GroupSubstitution
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&substitutions).
 		ModelTableExpr(tableGroupSubstitution).
 		Where("group_id = ?", groupID).
@@ -55,7 +55,7 @@ func (r *GroupSubstitutionRepository) FindByGroup(ctx context.Context, groupID i
 // FindByRegularStaff retrieves all substitutions for a regular staff member
 func (r *GroupSubstitutionRepository) FindByRegularStaff(ctx context.Context, staffID int64) ([]*education.GroupSubstitution, error) {
 	var substitutions []*education.GroupSubstitution
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&substitutions).
 		ModelTableExpr(tableGroupSubstitution).
 		Where("regular_staff_id = ?", staffID).
@@ -74,7 +74,7 @@ func (r *GroupSubstitutionRepository) FindByRegularStaff(ctx context.Context, st
 // FindBySubstituteStaff retrieves all substitutions where a staff member is substituting
 func (r *GroupSubstitutionRepository) FindBySubstituteStaff(ctx context.Context, staffID int64) ([]*education.GroupSubstitution, error) {
 	var substitutions []*education.GroupSubstitution
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&substitutions).
 		ModelTableExpr(tableGroupSubstitution).
 		Where("substitute_staff_id = ?", staffID).
@@ -93,7 +93,7 @@ func (r *GroupSubstitutionRepository) FindBySubstituteStaff(ctx context.Context,
 // FindActive retrieves all active substitutions for a specific date
 func (r *GroupSubstitutionRepository) FindActive(ctx context.Context, date time.Time) ([]*education.GroupSubstitution, error) {
 	var substitutions []*education.GroupSubstitution
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&substitutions).
 		ModelTableExpr(tableGroupSubstitution).
 		Where(dateRangeContainsCondition, date, date).
@@ -112,7 +112,7 @@ func (r *GroupSubstitutionRepository) FindActive(ctx context.Context, date time.
 // FindActiveBySubstitute retrieves all active substitutions for a staff member and date
 func (r *GroupSubstitutionRepository) FindActiveBySubstitute(ctx context.Context, substituteStaffID int64, date time.Time) ([]*education.GroupSubstitution, error) {
 	var substitutions []*education.GroupSubstitution
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&substitutions).
 		ModelTableExpr(tableGroupSubstitution).
 		Where("substitute_staff_id = ?", substituteStaffID).
@@ -132,7 +132,7 @@ func (r *GroupSubstitutionRepository) FindActiveBySubstitute(ctx context.Context
 // FindActiveByGroup retrieves all active substitutions for a specific group and date
 func (r *GroupSubstitutionRepository) FindActiveByGroup(ctx context.Context, groupID int64, date time.Time) ([]*education.GroupSubstitution, error) {
 	var substitutions []*education.GroupSubstitution
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&substitutions).
 		ModelTableExpr(tableGroupSubstitution).
 		Where("group_id = ? AND start_date <= ? AND end_date >= ?", groupID, date, date).
@@ -151,7 +151,7 @@ func (r *GroupSubstitutionRepository) FindActiveByGroup(ctx context.Context, gro
 // FindOverlapping finds all substitutions that overlap with the given date range for a staff member
 func (r *GroupSubstitutionRepository) FindOverlapping(ctx context.Context, staffID int64, startDate time.Time, endDate time.Time) ([]*education.GroupSubstitution, error) {
 	var substitutions []*education.GroupSubstitution
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&substitutions).
 		ModelTableExpr(tableGroupSubstitution).
 		Where("(regular_staff_id = ? OR substitute_staff_id = ?)", staffID, staffID).
@@ -251,7 +251,7 @@ func applyReasonLikeFilter(filter *modelBase.Filter, value interface{}) {
 // ListWithOptions provides a type-safe way to list group substitutions with query options
 func (r *GroupSubstitutionRepository) ListWithOptions(ctx context.Context, options *modelBase.QueryOptions) ([]*education.GroupSubstitution, error) {
 	var substitutions []*education.GroupSubstitution
-	query := r.db.NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&substitutions).
 		ModelTableExpr(tableGroupSubstitution)
 
@@ -275,7 +275,7 @@ func (r *GroupSubstitutionRepository) ListWithOptions(ctx context.Context, optio
 func (r *GroupSubstitutionRepository) FindByIDWithRelations(ctx context.Context, id int64) (*education.GroupSubstitution, error) {
 	var substitution education.GroupSubstitution
 
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&substitution).
 		ModelTableExpr(tableGroupSubstitution).
 		Where("id = ?", id).
@@ -291,7 +291,7 @@ func (r *GroupSubstitutionRepository) FindByIDWithRelations(ctx context.Context,
 	// Load group
 	if substitution.GroupID > 0 {
 		var group education.Group
-		err = r.db.NewSelect().
+		err = base.GetDB(ctx, r.db).NewSelect().
 			Model(&group).
 			ModelTableExpr(`education.groups AS "group"`).
 			Where(`"group".id = ?`, substitution.GroupID).
@@ -311,7 +311,7 @@ func (r *GroupSubstitutionRepository) FindByIDWithRelations(ctx context.Context,
 		}
 		var result staffWithPerson
 
-		err = r.db.NewSelect().
+		err = base.GetDB(ctx, r.db).NewSelect().
 			Model(&result).
 			ModelTableExpr(`users.staff AS "staff"`).
 			ColumnExpr(`"staff".id AS "staff__id"`).
@@ -338,7 +338,7 @@ func (r *GroupSubstitutionRepository) FindByIDWithRelations(ctx context.Context,
 		}
 		var result staffWithPerson
 
-		err = r.db.NewSelect().
+		err = base.GetDB(ctx, r.db).NewSelect().
 			Model(&result).
 			ModelTableExpr(`users.staff AS "staff"`).
 			ColumnExpr(`"staff".id AS "staff__id"`).
@@ -408,7 +408,7 @@ func (r *GroupSubstitutionRepository) loadGroupsByIDs(ctx context.Context, group
 	groupIDSlice := mapKeysToSlice(groupIDs)
 
 	var groups []*education.Group
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&groups).
 		ModelTableExpr(`education.groups AS "group"`).
 		Where(`"group".id IN (?)`, bun.In(groupIDSlice)).
@@ -434,7 +434,7 @@ func (r *GroupSubstitutionRepository) loadStaffWithPersonsByIDs(ctx context.Cont
 
 	// Load staff records
 	var staffList []*users.Staff
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&staffList).
 		ModelTableExpr(`users.staff AS "staff"`).
 		Where(`"staff".id IN (?)`, bun.In(staffIDSlice)).
@@ -466,7 +466,7 @@ func (r *GroupSubstitutionRepository) linkPersonsToStaff(ctx context.Context, st
 	}
 
 	var persons []*users.Person
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&persons).
 		ModelTableExpr(`users.persons AS "person"`).
 		Where(`"person".id IN (?)`, bun.In(personIDs)).

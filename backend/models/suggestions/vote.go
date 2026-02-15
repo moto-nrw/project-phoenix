@@ -19,10 +19,11 @@ const tableSuggestionsVotes = "suggestions.votes"
 
 // Vote represents a user's vote on a suggestion post
 type Vote struct {
-	base.Model `bun:"schema:suggestions,table:votes"`
-	PostID     int64  `bun:"post_id,notnull" json:"post_id"`
-	VoterID    int64  `bun:"voter_id,notnull" json:"voter_id"`
-	Direction  string `bun:"direction,notnull" json:"direction"`
+	base.Model       `bun:"schema:suggestions,table:votes"`
+	base.TenantModel `bun:",extend"`
+	PostID           int64  `bun:"post_id,notnull" json:"post_id"`
+	VoterID          int64  `bun:"voter_id,notnull" json:"voter_id"`
+	Direction        string `bun:"direction,notnull" json:"direction"`
 }
 
 func (v *Vote) BeforeAppendModel(query any) error {

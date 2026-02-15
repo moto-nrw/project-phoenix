@@ -33,7 +33,7 @@ func (r *RFIDCardRepository) Delete(ctx context.Context, id string) error {
 	// Normalize the tag ID to match stored format
 	normalizedID := normalizeRFIDTagID(id)
 
-	_, err := r.db.NewDelete().
+	_, err := base.GetDB(ctx, r.db).NewDelete().
 		Model((*users.RFIDCard)(nil)).
 		ModelTableExpr(`users.rfid_cards AS "rfid_card"`).
 		Where(`"rfid_card".id = ?`, normalizedID).
@@ -69,7 +69,7 @@ func (r *RFIDCardRepository) FindByID(ctx context.Context, id string) (*users.RF
 	normalizedID := normalizeRFIDTagID(id)
 
 	card := new(users.RFIDCard)
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(card).
 		ModelTableExpr(`users.rfid_cards AS "rfid_card"`).
 		Where(`"rfid_card".id = ?`, normalizedID).
@@ -93,7 +93,7 @@ func (r *RFIDCardRepository) Activate(ctx context.Context, id string) error {
 	// Normalize the tag ID to match stored format
 	normalizedID := normalizeRFIDTagID(id)
 
-	_, err := r.db.NewUpdate().
+	_, err := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*users.RFIDCard)(nil)).
 		ModelTableExpr(`users.rfid_cards AS "rfid_card"`).
 		Set("active = ?", true).
@@ -115,7 +115,7 @@ func (r *RFIDCardRepository) Deactivate(ctx context.Context, id string) error {
 	// Normalize the tag ID to match stored format
 	normalizedID := normalizeRFIDTagID(id)
 
-	_, err := r.db.NewUpdate().
+	_, err := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*users.RFIDCard)(nil)).
 		ModelTableExpr(`users.rfid_cards AS "rfid_card"`).
 		Set("active = ?", false).
@@ -188,7 +188,7 @@ func (r *RFIDCardRepository) List(ctx context.Context, filters map[string]interf
 // ListWithOptions provides a type-safe way to list RFID cards with query options
 func (r *RFIDCardRepository) ListWithOptions(ctx context.Context, options *modelBase.QueryOptions) ([]*users.RFIDCard, error) {
 	var cards []*users.RFIDCard
-	query := r.db.NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&cards).
 		ModelTableExpr(`users.rfid_cards AS "rfid_card"`)
 
@@ -221,7 +221,7 @@ func (r *RFIDCardRepository) FindCardWithPerson(ctx context.Context, id string) 
 
 	// Then find the person associated with this card
 	person := new(users.Person)
-	err = r.db.NewSelect().
+	err = base.GetDB(ctx, r.db).NewSelect().
 		Model(person).
 		ModelTableExpr(`users.persons AS "person"`).
 		Where(`"person".tag_id = ?`, normalizedID).

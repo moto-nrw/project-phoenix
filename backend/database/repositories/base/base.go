@@ -42,7 +42,7 @@ func (r *Repository[T]) Create(ctx context.Context, entity T) error {
 	}
 
 	// Explicitly set the table name with schema
-	_, err := r.DB.NewInsert().
+	_, err := GetDB(ctx, r.DB).NewInsert().
 		Model(entity).
 		ModelTableExpr(r.TableName).
 		Exec(ctx)
@@ -75,7 +75,7 @@ func (r *Repository[T]) FindByID(ctx context.Context, id interface{}) (T, error)
 	entityName := toSnakeCase(strings.TrimPrefix(r.EntityName, "*"))
 	tableExpr := fmt.Sprintf(`%s AS "%s"`, r.TableName, entityName)
 
-	err := r.DB.NewSelect().
+	err := GetDB(ctx, r.DB).NewSelect().
 		Model(entityVal).
 		ModelTableExpr(tableExpr).
 		Where(fmt.Sprintf(`"%s".id = ?`, entityName), id).
@@ -109,7 +109,7 @@ func (r *Repository[T]) Update(ctx context.Context, entity T) error {
 	entityName := toSnakeCase(strings.TrimPrefix(r.EntityName, "*"))
 	tableExpr := fmt.Sprintf(`%s AS "%s"`, r.TableName, entityName)
 
-	_, err := r.DB.NewUpdate().
+	_, err := GetDB(ctx, r.DB).NewUpdate().
 		Model(entity).
 		ModelTableExpr(tableExpr).
 		WherePK().
@@ -141,7 +141,7 @@ func (r *Repository[T]) Delete(ctx context.Context, id interface{}) error {
 	entityName := toSnakeCase(strings.TrimPrefix(r.EntityName, "*"))
 	tableExpr := fmt.Sprintf(`%s AS "%s"`, r.TableName, entityName)
 
-	_, err := r.DB.NewDelete().
+	_, err := GetDB(ctx, r.DB).NewDelete().
 		Model(entityVal).
 		ModelTableExpr(tableExpr).
 		Where(fmt.Sprintf(`"%s".id = ?`, entityName), id).
@@ -165,7 +165,7 @@ func (r *Repository[T]) List(ctx context.Context, filters map[string]interface{}
 	entityName := toSnakeCase(strings.TrimPrefix(r.EntityName, "*"))
 	tableExpr := fmt.Sprintf(`%s AS "%s"`, r.TableName, entityName)
 
-	query := r.DB.NewSelect().
+	query := GetDB(ctx, r.DB).NewSelect().
 		Model(&entities).
 		ModelTableExpr(tableExpr)
 
@@ -204,7 +204,7 @@ func (r *Repository[T]) Count(ctx context.Context, filters map[string]interface{
 	entityName := strings.ToLower(strings.TrimPrefix(r.EntityName, "*"))
 	tableExpr := fmt.Sprintf(`%s AS "%s"`, r.TableName, entityName)
 
-	query := r.DB.NewSelect().
+	query := GetDB(ctx, r.DB).NewSelect().
 		Model(entityVal).
 		ModelTableExpr(tableExpr).
 		Column("id")

@@ -17,6 +17,7 @@ const (
 // GroupMapping represents a mapping between a combined group and an active group
 type GroupMapping struct {
 	base.Model            `bun:"schema:active,table:group_mappings"`
+	base.TenantModel      `bun:",extend"`
 	ActiveCombinedGroupID int64 `bun:"active_combined_group_id,notnull" json:"active_combined_group_id"`
 	ActiveGroupID         int64 `bun:"active_group_id,notnull" json:"active_group_id"`
 

@@ -36,7 +36,7 @@ func (r *AccountParentRepository) FindByEmail(ctx context.Context, email string)
 	account := new(auth.AccountParent)
 
 	// Explicitly specify the schema and table
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(account).
 		ModelTableExpr(accountParentTableAlias).
 		Where(`LOWER("account_parent".email) = LOWER(?)`, email).
@@ -57,7 +57,7 @@ func (r *AccountParentRepository) FindByUsername(ctx context.Context, username s
 	account := new(auth.AccountParent)
 
 	// Explicitly specify the schema and table
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(account).
 		ModelTableExpr(accountParentTableAlias).
 		Where(`LOWER("account_parent".username) = LOWER(?)`, username).
@@ -75,7 +75,7 @@ func (r *AccountParentRepository) FindByUsername(ctx context.Context, username s
 
 // UpdateLastLogin updates the last login timestamp for a parent account
 func (r *AccountParentRepository) UpdateLastLogin(ctx context.Context, id int64) error {
-	_, err := r.db.NewUpdate().
+	_, err := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*auth.AccountParent)(nil)).
 		ModelTableExpr(accountParentTable).
 		Set("last_login = ?", time.Now()).
@@ -94,7 +94,7 @@ func (r *AccountParentRepository) UpdateLastLogin(ctx context.Context, id int64)
 
 // UpdatePassword updates the password hash for a parent account
 func (r *AccountParentRepository) UpdatePassword(ctx context.Context, id int64, passwordHash string) error {
-	_, err := r.db.NewUpdate().
+	_, err := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*auth.AccountParent)(nil)).
 		ModelTableExpr(accountParentTable).
 		Set("password_hash = ?", passwordHash).
@@ -114,7 +114,7 @@ func (r *AccountParentRepository) UpdatePassword(ctx context.Context, id int64, 
 // List retrieves parent accounts matching the provided filters
 func (r *AccountParentRepository) List(ctx context.Context, filters map[string]interface{}) ([]*auth.AccountParent, error) {
 	var accounts []*auth.AccountParent
-	query := r.db.NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&accounts).
 		ModelTableExpr(accountParentTableAlias)
 
@@ -181,21 +181,10 @@ func (r *AccountParentRepository) Create(ctx context.Context, account *auth.Acco
 		return err
 	}
 
-	// Get the query builder - detect if we're in a transaction
-	query := r.db.NewInsert().
+	_, err := base.GetDB(ctx, r.db).NewInsert().
 		Model(account).
-		ModelTableExpr(accountParentTable)
-
-	// Extract transaction from context if it exists
-	if tx, ok := ctx.Value("tx").(*bun.Tx); ok && tx != nil {
-		// Use the transaction if available
-		query = tx.NewInsert().
-			Model(account).
-			ModelTableExpr(accountParentTable)
-	}
-
-	// Execute the query
-	_, err := query.Exec(ctx)
+		ModelTableExpr(accountParentTable).
+		Exec(ctx)
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "create",
@@ -217,23 +206,11 @@ func (r *AccountParentRepository) Update(ctx context.Context, account *auth.Acco
 		return err
 	}
 
-	// Get the query builder - detect if we're in a transaction
-	query := r.db.NewUpdate().
+	_, err := base.GetDB(ctx, r.db).NewUpdate().
 		Model(account).
 		Where(whereID, account.ID).
-		ModelTableExpr(accountParentTable)
-
-	// Extract transaction from context if it exists
-	if tx, ok := ctx.Value("tx").(*bun.Tx); ok && tx != nil {
-		// Use the transaction if available
-		query = tx.NewUpdate().
-			Model(account).
-			Where(whereID, account.ID).
-			ModelTableExpr(accountParentTable)
-	}
-
-	// Execute the query
-	_, err := query.Exec(ctx)
+		ModelTableExpr(accountParentTable).
+		Exec(ctx)
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "update",

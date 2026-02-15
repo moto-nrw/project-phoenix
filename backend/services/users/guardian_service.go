@@ -15,6 +15,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -163,6 +164,7 @@ func (s *guardianService) CreateGuardian(ctx context.Context, req GuardianCreate
 		profile.LanguagePreference = "de"
 	}
 
+	profile.SetTenantID(tenant.FromContext(ctx))
 	if err := s.guardianProfileRepo.Create(ctx, profile); err != nil {
 		return nil, fmt.Errorf("failed to create guardian profile: %w", err)
 	}
@@ -305,21 +307,24 @@ func (s *guardianService) SendInvitation(ctx context.Context, req GuardianInvita
 		CreatedBy:         req.CreatedBy,
 		ExpiresAt:         time.Now().Add(s.invitationExpiry),
 	}
+	invitation.SetTenantID(tenant.FromContext(ctx))
 
 	if err := s.guardianInvitationRepo.Create(ctx, invitation); err != nil {
 		return nil, fmt.Errorf("failed to create invitation: %w", err)
 	}
 
-	// Send invitation email asynchronously
+	// Send invitation email asynchronously — pass tenant context for DB calls
 	if s.dispatcher != nil && profile.Email != nil {
-		go s.sendInvitationEmail(invitation, profile)
+		tenantCtx := tenant.WithTenantID(context.Background(), tenant.FromContext(ctx))
+		go s.sendInvitationEmail(tenantCtx, invitation, profile)
 	}
 
 	return invitation, nil
 }
 
-// sendInvitationEmail sends the invitation email (called asynchronously)
-func (s *guardianService) sendInvitationEmail(invitation *authModels.GuardianInvitation, profile *users.GuardianProfile) {
+// sendInvitationEmail sends the invitation email (called asynchronously).
+// ctx should carry tenant context but NOT a transaction (use tenant.WithTenantID on Background).
+func (s *guardianService) sendInvitationEmail(ctx context.Context, invitation *authModels.GuardianInvitation, profile *users.GuardianProfile) {
 	if s.dispatcher == nil || profile.Email == nil {
 		return
 	}
@@ -330,7 +335,7 @@ func (s *guardianService) sendInvitationEmail(invitation *authModels.GuardianInv
 	// P2 FIX: Handle errors gracefully in async email context
 	// If we can't load student names, log the error but continue with empty list
 	// (better to send the invitation without student names than to fail completely)
-	studentNames, err := s.getStudentNamesForGuardian(context.Background(), profile.ID)
+	studentNames, err := s.getStudentNamesForGuardian(ctx, profile.ID)
 	if err != nil {
 		slog.Warn("failed to load student names for guardian invitation email",
 			slog.Int64("guardian_id", profile.ID),
@@ -362,7 +367,7 @@ func (s *guardianService) sendInvitationEmail(invitation *authModels.GuardianInv
 	}
 
 	if s.dispatcher != nil {
-		s.dispatcher.Dispatch(context.Background(), email.DeliveryRequest{
+		s.dispatcher.Dispatch(ctx, email.DeliveryRequest{
 			Message:  message,
 			Metadata: meta,
 		})
@@ -370,7 +375,7 @@ func (s *guardianService) sendInvitationEmail(invitation *authModels.GuardianInv
 
 	// Update email status
 	now := time.Now()
-	_ = s.guardianInvitationRepo.UpdateEmailStatus(context.Background(), invitation.ID, &now, nil, 0)
+	_ = s.guardianInvitationRepo.UpdateEmailStatus(ctx, invitation.ID, &now, nil, 0)
 }
 
 // getStudentNamesForGuardian retrieves the full names of all students linked to a guardian
@@ -537,6 +542,7 @@ func (s *guardianService) createGuardianAccountFromInvitation(ctx context.Contex
 		PasswordHash: &passwordHash,
 		Active:       true,
 	}
+	account.SetTenantID(tenant.FromContext(ctx))
 
 	if err := s.accountParentRepo.Create(ctx, account); err != nil {
 		return nil, fmt.Errorf("failed to create account: %w", err)
@@ -633,6 +639,7 @@ func (s *guardianService) LinkGuardianToStudent(ctx context.Context, req Student
 		PickupNotes:        req.PickupNotes,
 		EmergencyPriority:  req.EmergencyPriority,
 	}
+	relationship.SetTenantID(tenant.FromContext(ctx))
 
 	if err := s.studentGuardianRepo.Create(ctx, relationship); err != nil {
 		return nil, fmt.Errorf("failed to create relationship: %w", err)
@@ -775,6 +782,7 @@ func (s *guardianService) AddPhoneNumber(ctx context.Context, guardianID int64, 
 		IsPrimary:         isPrimary,
 		Priority:          priority,
 	}
+	phone.SetTenantID(tenant.FromContext(ctx))
 
 	// If setting as primary, wrap unset + create in transaction to avoid orphan state
 	if isPrimary && count > 0 {

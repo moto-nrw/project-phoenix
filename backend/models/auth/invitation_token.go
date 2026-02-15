@@ -11,7 +11,8 @@ import (
 
 // InvitationToken represents an invitation sent to create a new account.
 type InvitationToken struct {
-	base.Model `bun:"schema:auth,table:invitation_tokens"`
+	base.Model       `bun:"schema:auth,table:invitation_tokens"`
+	base.TenantModel `bun:",extend"`
 
 	Email           string     `bun:"email,notnull" json:"email"`
 	Token           string     `bun:"token,notnull" json:"token"`

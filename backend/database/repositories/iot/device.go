@@ -35,7 +35,7 @@ func NewDeviceRepository(db *bun.DB) iot.DeviceRepository {
 // FindByDeviceID retrieves a device by its deviceID
 func (r *DeviceRepository) FindByDeviceID(ctx context.Context, deviceID string) (*iot.Device, error) {
 	device := new(iot.Device)
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(device).
 		ModelTableExpr(`iot.devices AS "device"`).
 		Where(whereDeviceIDEqual, deviceID).
@@ -54,7 +54,7 @@ func (r *DeviceRepository) FindByDeviceID(ctx context.Context, deviceID string) 
 // FindByAPIKey retrieves a device by its API key
 func (r *DeviceRepository) FindByAPIKey(ctx context.Context, apiKey string) (*iot.Device, error) {
 	device := new(iot.Device)
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(device).
 		ModelTableExpr(`iot.devices AS "device"`).
 		Where("api_key = ?", apiKey).
@@ -73,7 +73,7 @@ func (r *DeviceRepository) FindByAPIKey(ctx context.Context, apiKey string) (*io
 // FindByType retrieves devices by their type
 func (r *DeviceRepository) FindByType(ctx context.Context, deviceType string) ([]*iot.Device, error) {
 	var devices []*iot.Device
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&devices).
 		ModelTableExpr(`iot.devices AS "device"`).
 		Where("device_type = ?", deviceType).
@@ -92,7 +92,7 @@ func (r *DeviceRepository) FindByType(ctx context.Context, deviceType string) ([
 // FindByStatus retrieves devices by their status
 func (r *DeviceRepository) FindByStatus(ctx context.Context, status iot.DeviceStatus) ([]*iot.Device, error) {
 	var devices []*iot.Device
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&devices).
 		ModelTableExpr(`iot.devices AS "device"`).
 		Where(whereStatusEqual, status).
@@ -111,7 +111,7 @@ func (r *DeviceRepository) FindByStatus(ctx context.Context, status iot.DeviceSt
 // FindByRegisteredBy retrieves devices registered by a specific person
 func (r *DeviceRepository) FindByRegisteredBy(ctx context.Context, personID int64) ([]*iot.Device, error) {
 	var devices []*iot.Device
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&devices).
 		ModelTableExpr(`iot.devices AS "device"`).
 		Where("registered_by_id = ?", personID).
@@ -129,7 +129,7 @@ func (r *DeviceRepository) FindByRegisteredBy(ctx context.Context, personID int6
 
 // UpdateLastSeen updates the last seen timestamp for a device
 func (r *DeviceRepository) UpdateLastSeen(ctx context.Context, deviceID string, lastSeen time.Time) error {
-	_, err := r.db.NewUpdate().
+	_, err := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*iot.Device)(nil)).
 		ModelTableExpr(tableIoTDevices).
 		Set("last_seen = ?", lastSeen).
@@ -148,7 +148,7 @@ func (r *DeviceRepository) UpdateLastSeen(ctx context.Context, deviceID string, 
 
 // UpdateStatus updates the status for a device
 func (r *DeviceRepository) UpdateStatus(ctx context.Context, deviceID string, status iot.DeviceStatus) error {
-	_, err := r.db.NewUpdate().
+	_, err := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*iot.Device)(nil)).
 		ModelTableExpr(tableIoTDevices).
 		Set(whereStatusEqual, status).
@@ -168,7 +168,7 @@ func (r *DeviceRepository) UpdateStatus(ctx context.Context, deviceID string, st
 // FindActiveDevices retrieves all active devices
 func (r *DeviceRepository) FindActiveDevices(ctx context.Context) ([]*iot.Device, error) {
 	var devices []*iot.Device
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&devices).
 		ModelTableExpr(`iot.devices AS "device"`).
 		Where(whereStatusEqual, iot.DeviceStatusActive).
@@ -187,7 +187,7 @@ func (r *DeviceRepository) FindActiveDevices(ctx context.Context) ([]*iot.Device
 // FindDevicesRequiringMaintenance retrieves all devices requiring maintenance
 func (r *DeviceRepository) FindDevicesRequiringMaintenance(ctx context.Context) ([]*iot.Device, error) {
 	var devices []*iot.Device
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&devices).
 		ModelTableExpr(`iot.devices AS "device"`).
 		Where(whereStatusEqual, iot.DeviceStatusMaintenance).
@@ -208,7 +208,7 @@ func (r *DeviceRepository) FindOfflineDevices(ctx context.Context, offlineSince 
 	cutoffTime := time.Now().Add(-offlineSince)
 
 	var devices []*iot.Device
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&devices).
 		ModelTableExpr(`iot.devices AS "device"`).
 		Where("last_seen < ? OR (last_seen IS NULL AND created_at < ?)", cutoffTime, cutoffTime).
@@ -232,7 +232,7 @@ func (r *DeviceRepository) CountDevicesByType(ctx context.Context) (map[string]i
 	}
 
 	var counts []countResult
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model((*iot.Device)(nil)).
 		ModelTableExpr(`iot.devices AS "device"`).
 		Column("device_type").
@@ -290,7 +290,7 @@ func (r *DeviceRepository) Update(ctx context.Context, device *iot.Device) error
 // List retrieves devices matching the provided filters
 func (r *DeviceRepository) List(ctx context.Context, filters map[string]interface{}) ([]*iot.Device, error) {
 	var devices []*iot.Device
-	query := r.db.NewSelect().Model(&devices).ModelTableExpr(`iot.devices AS "device"`)
+	query := base.GetDB(ctx, r.db).NewSelect().Model(&devices).ModelTableExpr(`iot.devices AS "device"`)
 
 	// Apply filters
 	for field, value := range filters {

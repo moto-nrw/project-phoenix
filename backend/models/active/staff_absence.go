@@ -44,17 +44,18 @@ var ValidAbsenceStatuses = []string{
 
 // StaffAbsence represents a staff absence record (sick, vacation, etc.)
 type StaffAbsence struct {
-	base.Model  `bun:"schema:active,table:staff_absences"`
-	StaffID     int64      `bun:"staff_id,notnull" json:"staff_id"`
-	AbsenceType string     `bun:"absence_type,notnull" json:"absence_type"`
-	DateStart   time.Time  `bun:"date_start,notnull,type:date" json:"date_start"`
-	DateEnd     time.Time  `bun:"date_end,notnull,type:date" json:"date_end"`
-	HalfDay     bool       `bun:"half_day,notnull,default:false" json:"half_day"`
-	Note        string     `bun:"note" json:"note,omitempty"`
-	Status      string     `bun:"status,notnull,default:'reported'" json:"status"`
-	ApprovedBy  *int64     `bun:"approved_by" json:"approved_by,omitempty"`
-	ApprovedAt  *time.Time `bun:"approved_at" json:"approved_at,omitempty"`
-	CreatedBy   int64      `bun:"created_by,notnull" json:"created_by"`
+	base.Model       `bun:"schema:active,table:staff_absences"`
+	base.TenantModel `bun:",extend"`
+	StaffID          int64      `bun:"staff_id,notnull" json:"staff_id"`
+	AbsenceType      string     `bun:"absence_type,notnull" json:"absence_type"`
+	DateStart        time.Time  `bun:"date_start,notnull,type:date" json:"date_start"`
+	DateEnd          time.Time  `bun:"date_end,notnull,type:date" json:"date_end"`
+	HalfDay          bool       `bun:"half_day,notnull,default:false" json:"half_day"`
+	Note             string     `bun:"note" json:"note,omitempty"`
+	Status           string     `bun:"status,notnull,default:'reported'" json:"status"`
+	ApprovedBy       *int64     `bun:"approved_by" json:"approved_by,omitempty"`
+	ApprovedAt       *time.Time `bun:"approved_at" json:"approved_at,omitempty"`
+	CreatedBy        int64      `bun:"created_by,notnull" json:"created_by"`
 
 	Staff *users.Staff `bun:"rel:belongs-to,join:staff_id=id" json:"staff,omitempty"`
 }

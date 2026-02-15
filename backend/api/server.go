@@ -55,6 +55,8 @@ func NewServer(logger *slog.Logger) (*Server, error) {
 	// Note: Session cleanup is now handled by the scheduler's scheduleSessionCleanupTask()
 	if api.Services != nil && api.Services.ActiveCleanup != nil && api.Services.Active != nil {
 		srv.scheduler = scheduler.NewScheduler(api.Services.Active, api.Services.ActiveCleanup, api.Services.Auth, api.Services.Invitation, logger.With("service", "scheduler"))
+		srv.scheduler.SetDB(api.DB)
+		srv.scheduler.SetSchoolRepo(api.Repos.School)
 		if api.Services.WorkSession != nil {
 			srv.scheduler.SetWorkSessionCleaner(api.Services.WorkSession)
 			srv.scheduler.SetBreakAutoEnder(api.Services.WorkSession)

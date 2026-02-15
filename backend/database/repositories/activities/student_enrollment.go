@@ -36,7 +36,7 @@ func NewStudentEnrollmentRepository(db *bun.DB) activities.StudentEnrollmentRepo
 // FindByStudentID finds all enrollments for a specific student
 func (r *StudentEnrollmentRepository) FindByStudentID(ctx context.Context, studentID int64) ([]*activities.StudentEnrollment, error) {
 	enrollments := make([]*activities.StudentEnrollment, 0)
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&enrollments).
 		ModelTableExpr(tableExprActivitiesEnrollmentsAsEnrollment).
 		// Note: Relation() doesn't work with multi-schema tables
@@ -66,7 +66,7 @@ func (r *StudentEnrollmentRepository) FindByGroupID(ctx context.Context, groupID
 	var results []enrollmentResult
 
 	// Use explicit joins with schema qualification
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&results).
 		ModelTableExpr(tableExprActivitiesEnrollmentsAsEnrollment).
 		// Explicit column mapping for each table
@@ -124,7 +124,7 @@ func (r *StudentEnrollmentRepository) FindByGroupID(ctx context.Context, groupID
 
 // CountByGroupID counts the number of students enrolled in a specific group
 func (r *StudentEnrollmentRepository) CountByGroupID(ctx context.Context, groupID int64) (int, error) {
-	count, err := r.db.NewSelect().
+	count, err := base.GetDB(ctx, r.db).NewSelect().
 		Model((*activities.StudentEnrollment)(nil)).
 		ModelTableExpr(tableExprActivitiesEnrollmentsAsEnrollment).
 		Where("activity_group_id = ?", groupID).
@@ -143,7 +143,7 @@ func (r *StudentEnrollmentRepository) CountByGroupID(ctx context.Context, groupI
 // FindByEnrollmentDateRange finds enrollments within a date range
 func (r *StudentEnrollmentRepository) FindByEnrollmentDateRange(ctx context.Context, start, end time.Time) ([]*activities.StudentEnrollment, error) {
 	enrollments := make([]*activities.StudentEnrollment, 0)
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&enrollments).
 		ModelTableExpr(tableExprActivitiesEnrollmentsAsEnrollment).
 		// Note: Relation() doesn't work with multi-schema tables
@@ -169,7 +169,7 @@ func (r *StudentEnrollmentRepository) UpdateAttendanceStatus(ctx context.Context
 		return fmt.Errorf("invalid attendance status: %s", *status)
 	}
 
-	_, err := r.db.NewUpdate().
+	_, err := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*activities.StudentEnrollment)(nil)).
 		ModelTableExpr(tableExprActivitiesEnrollmentsAsEnrollment).
 		Set("attendance_status = ?", status).
@@ -212,20 +212,11 @@ func (r *StudentEnrollmentRepository) Update(ctx context.Context, enrollment *ac
 		return err
 	}
 
-	// Get the query builder - detect if we're in a transaction
-	query := r.db.NewUpdate().
+	// Get the query builder - GetDB handles transaction extraction from context
+	query := base.GetDB(ctx, r.db).NewUpdate().
 		Model(enrollment).
 		Where(whereIDEquals, enrollment.ID).
 		ModelTableExpr(tableActivitiesStudentEnrollments)
-
-	// Extract transaction from context if it exists
-	if tx, ok := ctx.Value("tx").(*bun.Tx); ok && tx != nil {
-		// Use the transaction if available
-		query = tx.NewUpdate().
-			Model(enrollment).
-			Where(whereIDEquals, enrollment.ID).
-			ModelTableExpr(tableActivitiesStudentEnrollments)
-	}
 
 	// Execute the query
 	_, err := query.Exec(ctx)
@@ -242,7 +233,7 @@ func (r *StudentEnrollmentRepository) Update(ctx context.Context, enrollment *ac
 // List overrides the base List method to accept the new QueryOptions type
 func (r *StudentEnrollmentRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*activities.StudentEnrollment, error) {
 	enrollments := make([]*activities.StudentEnrollment, 0)
-	query := r.db.NewSelect().Model(&enrollments).ModelTableExpr(tableExprActivitiesEnrollmentsAsEnrollment)
+	query := base.GetDB(ctx, r.db).NewSelect().Model(&enrollments).ModelTableExpr(tableExprActivitiesEnrollmentsAsEnrollment)
 
 	// Apply query options
 	if options != nil {

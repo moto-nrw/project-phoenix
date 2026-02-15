@@ -36,7 +36,7 @@ func NewGuestRepository(db *bun.DB) users.GuestRepository {
 // FindByStaffID retrieves a guest by their staff ID
 func (r *GuestRepository) FindByStaffID(ctx context.Context, staffID int64) (*users.Guest, error) {
 	guest := new(users.Guest)
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(guest).
 		ModelTableExpr(tableExprGuestsAsGuest).
 		Where("staff_id = ?", staffID).
@@ -55,7 +55,7 @@ func (r *GuestRepository) FindByStaffID(ctx context.Context, staffID int64) (*us
 // FindByOrganization retrieves guests by their organization
 func (r *GuestRepository) FindByOrganization(ctx context.Context, organization string) ([]*users.Guest, error) {
 	var guests []*users.Guest
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&guests).
 		ModelTableExpr(tableExprGuestsAsGuest).
 		Where("LOWER(organization) = LOWER(?)", organization).
@@ -74,7 +74,7 @@ func (r *GuestRepository) FindByOrganization(ctx context.Context, organization s
 // FindByExpertise retrieves guests by their activity expertise
 func (r *GuestRepository) FindByExpertise(ctx context.Context, expertise string) ([]*users.Guest, error) {
 	var guests []*users.Guest
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&guests).
 		ModelTableExpr(tableExprGuestsAsGuest).
 		Where("LOWER(activity_expertise) LIKE LOWER(?)", "%"+expertise+"%").
@@ -95,7 +95,7 @@ func (r *GuestRepository) FindActive(ctx context.Context) ([]*users.Guest, error
 	var guests []*users.Guest
 	now := time.Now()
 
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&guests).
 		ModelTableExpr(tableExprGuestsAsGuest).
 		Where("(start_date IS NULL OR start_date <= ?) AND (end_date IS NULL OR end_date >= ?)", now, now).
@@ -113,7 +113,7 @@ func (r *GuestRepository) FindActive(ctx context.Context) ([]*users.Guest, error
 
 // SetDateRange sets a guest's start and end dates
 func (r *GuestRepository) SetDateRange(ctx context.Context, id int64, startDate, endDate time.Time) error {
-	_, err := r.db.NewUpdate().
+	_, err := base.GetDB(ctx, r.db).NewUpdate().
 		Table(tableUsersGuests).
 		Set("start_date = ?", startDate).
 		Set("end_date = ?", endDate).
@@ -231,7 +231,7 @@ func applyHasOrganizationFilter(filter *modelBase.Filter, value interface{}) {
 // ListWithOptions provides a type-safe way to list guests with query options
 func (r *GuestRepository) ListWithOptions(ctx context.Context, options *modelBase.QueryOptions) ([]*users.Guest, error) {
 	var guests []*users.Guest
-	query := r.db.NewSelect().Model(&guests).ModelTableExpr(tableExprGuestsAsGuest)
+	query := base.GetDB(ctx, r.db).NewSelect().Model(&guests).ModelTableExpr(tableExprGuestsAsGuest)
 
 	// Apply query options
 	if options != nil {
@@ -252,7 +252,7 @@ func (r *GuestRepository) ListWithOptions(ctx context.Context, options *modelBas
 // FindWithStaff retrieves a guest with their associated staff data
 func (r *GuestRepository) FindWithStaff(ctx context.Context, id int64) (*users.Guest, error) {
 	guest := new(users.Guest)
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(guest).
 		Relation("Staff").
 		Where(whereGuestIDEquals, id).
@@ -271,7 +271,7 @@ func (r *GuestRepository) FindWithStaff(ctx context.Context, id int64) (*users.G
 // FindWithStaffAndPerson retrieves a guest with their associated staff and person data
 func (r *GuestRepository) FindWithStaffAndPerson(ctx context.Context, id int64) (*users.Guest, error) {
 	guest := new(users.Guest)
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(guest).
 		Relation("Staff").
 		Relation("Staff.Person").

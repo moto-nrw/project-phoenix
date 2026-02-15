@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/uptrace/bun"
@@ -27,7 +28,7 @@ func NewOperatorAuditLogRepository(db *bun.DB) platform.OperatorAuditLogReposito
 
 // Create inserts a new audit log entry
 func (r *OperatorAuditLogRepository) Create(ctx context.Context, entry *platform.OperatorAuditLog) error {
-	_, err := r.db.NewInsert().
+	_, err := base.GetDB(ctx, r.db).NewInsert().
 		Model(entry).
 		ModelTableExpr(tablePlatformOperatorAuditLog).
 		Exec(ctx)
@@ -45,7 +46,7 @@ func (r *OperatorAuditLogRepository) Create(ctx context.Context, entry *platform
 // FindByOperatorID retrieves audit logs by operator ID
 func (r *OperatorAuditLogRepository) FindByOperatorID(ctx context.Context, operatorID int64, limit int) ([]*platform.OperatorAuditLog, error) {
 	var entries []*platform.OperatorAuditLog
-	query := r.db.NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&entries).
 		ModelTableExpr(tablePlatformOperatorAuditLogAlias).
 		Where(`"log".operator_id = ?`, operatorID).
@@ -69,7 +70,7 @@ func (r *OperatorAuditLogRepository) FindByOperatorID(ctx context.Context, opera
 // FindByResourceType retrieves audit logs by resource type
 func (r *OperatorAuditLogRepository) FindByResourceType(ctx context.Context, resourceType string, limit int) ([]*platform.OperatorAuditLog, error) {
 	var entries []*platform.OperatorAuditLog
-	query := r.db.NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&entries).
 		ModelTableExpr(tablePlatformOperatorAuditLogAlias).
 		Where(`"log".resource_type = ?`, resourceType).
@@ -93,7 +94,7 @@ func (r *OperatorAuditLogRepository) FindByResourceType(ctx context.Context, res
 // FindByDateRange retrieves audit logs within a date range
 func (r *OperatorAuditLogRepository) FindByDateRange(ctx context.Context, start, end time.Time, limit int) ([]*platform.OperatorAuditLog, error) {
 	var entries []*platform.OperatorAuditLog
-	query := r.db.NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&entries).
 		ModelTableExpr(tablePlatformOperatorAuditLogAlias).
 		Where(`"log".created_at >= ?`, start).

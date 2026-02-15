@@ -24,10 +24,11 @@ const tableActivitiesSchedules = "activities.schedules"
 
 // Schedule represents a scheduled time for an activity group
 type Schedule struct {
-	base.Model      `bun:"schema:activities,table:schedules"`
-	Weekday         int    `bun:"weekday,notnull" json:"weekday"`
-	TimeframeID     *int64 `bun:"timeframe_id" json:"timeframe_id,omitempty"`
-	ActivityGroupID int64  `bun:"activity_group_id,notnull" json:"activity_group_id"`
+	base.Model       `bun:"schema:activities,table:schedules"`
+	base.TenantModel `bun:",extend"`
+	Weekday          int    `bun:"weekday,notnull" json:"weekday"`
+	TimeframeID      *int64 `bun:"timeframe_id" json:"timeframe_id,omitempty"`
+	ActivityGroupID  int64  `bun:"activity_group_id,notnull" json:"activity_group_id"`
 
 	// Relations - these would be populated when using the ORM's relations
 	// ActivityGroup *Group `bun:"rel:belongs-to,join:activity_group_id=id" json:"activity_group,omitempty"`

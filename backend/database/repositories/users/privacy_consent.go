@@ -30,7 +30,7 @@ func NewPrivacyConsentRepository(db *bun.DB) users.PrivacyConsentRepository {
 // FindByStudentID retrieves privacy consents for a student
 func (r *PrivacyConsentRepository) FindByStudentID(ctx context.Context, studentID int64) ([]*users.PrivacyConsent, error) {
 	var consents []*users.PrivacyConsent
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&consents).
 		ModelTableExpr(`users.privacy_consents AS "privacy_consent"`).
 		Where(`"privacy_consent".student_id = ?`, studentID).
@@ -49,7 +49,7 @@ func (r *PrivacyConsentRepository) FindByStudentID(ctx context.Context, studentI
 // FindByStudentIDAndPolicyVersion retrieves a privacy consent for a student and policy version
 func (r *PrivacyConsentRepository) FindByStudentIDAndPolicyVersion(ctx context.Context, studentID int64, policyVersion string) (*users.PrivacyConsent, error) {
 	consent := new(users.PrivacyConsent)
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(consent).
 		ModelTableExpr(`users.privacy_consents AS "privacy_consent"`).
 		Where(`"privacy_consent".student_id = ? AND "privacy_consent".policy_version = ?`, studentID, policyVersion).
@@ -70,7 +70,7 @@ func (r *PrivacyConsentRepository) FindActiveByStudentID(ctx context.Context, st
 	var consents []*users.PrivacyConsent
 	now := time.Now()
 
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&consents).
 		ModelTableExpr(`users.privacy_consents AS "privacy_consent"`).
 		Where(`"privacy_consent".student_id = ? AND "privacy_consent".accepted = TRUE AND ("privacy_consent".expires_at IS NULL OR "privacy_consent".expires_at > ?)`, studentID, now).
@@ -91,7 +91,7 @@ func (r *PrivacyConsentRepository) FindExpired(ctx context.Context) ([]*users.Pr
 	var consents []*users.PrivacyConsent
 	now := time.Now()
 
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&consents).
 		ModelTableExpr(`users.privacy_consents AS "privacy_consent"`).
 		Where(`"privacy_consent".expires_at < ? AND "privacy_consent".accepted = TRUE`, now).
@@ -111,7 +111,7 @@ func (r *PrivacyConsentRepository) FindExpired(ctx context.Context) ([]*users.Pr
 func (r *PrivacyConsentRepository) FindNeedingRenewal(ctx context.Context) ([]*users.PrivacyConsent, error) {
 	var consents []*users.PrivacyConsent
 
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&consents).
 		ModelTableExpr(`users.privacy_consents AS "privacy_consent"`).
 		Where(`"privacy_consent".renewal_required = TRUE AND "privacy_consent".accepted = TRUE`).
@@ -129,7 +129,7 @@ func (r *PrivacyConsentRepository) FindNeedingRenewal(ctx context.Context) ([]*u
 
 // Accept marks a privacy consent as accepted
 func (r *PrivacyConsentRepository) Accept(ctx context.Context, id int64, acceptedAt time.Time) error {
-	_, err := r.db.NewUpdate().
+	_, err := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*users.PrivacyConsent)(nil)).
 		ModelTableExpr(`users.privacy_consents AS "privacy_consent"`).
 		Set("accepted = TRUE").
@@ -149,7 +149,7 @@ func (r *PrivacyConsentRepository) Accept(ctx context.Context, id int64, accepte
 
 // Revoke revokes a privacy consent
 func (r *PrivacyConsentRepository) Revoke(ctx context.Context, id int64) error {
-	_, err := r.db.NewUpdate().
+	_, err := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*users.PrivacyConsent)(nil)).
 		ModelTableExpr(`users.privacy_consents AS "privacy_consent"`).
 		Set("accepted = FALSE").
@@ -168,7 +168,7 @@ func (r *PrivacyConsentRepository) Revoke(ctx context.Context, id int64) error {
 
 // SetExpiryDate sets the expiry date for a privacy consent
 func (r *PrivacyConsentRepository) SetExpiryDate(ctx context.Context, id int64, expiresAt time.Time) error {
-	_, err := r.db.NewUpdate().
+	_, err := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*users.PrivacyConsent)(nil)).
 		ModelTableExpr(`users.privacy_consents AS "privacy_consent"`).
 		Set("expires_at = ?", expiresAt).
@@ -187,7 +187,7 @@ func (r *PrivacyConsentRepository) SetExpiryDate(ctx context.Context, id int64, 
 
 // SetRenewalRequired sets whether renewal is required for a privacy consent
 func (r *PrivacyConsentRepository) SetRenewalRequired(ctx context.Context, id int64, renewalRequired bool) error {
-	_, err := r.db.NewUpdate().
+	_, err := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*users.PrivacyConsent)(nil)).
 		ModelTableExpr(`users.privacy_consents AS "privacy_consent"`).
 		Set("renewal_required = ?", renewalRequired).
@@ -212,7 +212,7 @@ func (r *PrivacyConsentRepository) UpdateDetails(ctx context.Context, id int64, 
 		return fmt.Errorf("invalid details JSON format: %w", err)
 	}
 
-	_, err := r.db.NewUpdate().
+	_, err := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*users.PrivacyConsent)(nil)).
 		ModelTableExpr(`users.privacy_consents AS "privacy_consent"`).
 		Set("details = ?", details).
@@ -256,7 +256,7 @@ func (r *PrivacyConsentRepository) Update(ctx context.Context, consent *users.Pr
 	}
 
 	// Execute update with correct table alias
-	_, err := r.db.NewUpdate().
+	_, err := base.GetDB(ctx, r.db).NewUpdate().
 		Model(consent).
 		ModelTableExpr(`users.privacy_consents AS "privacy_consent"`).
 		WherePK().
@@ -320,7 +320,7 @@ func applyPrivacyConsentFilterField(filter *modelBase.Filter, field string, valu
 // ListWithOptions provides a type-safe way to list privacy consents with query options
 func (r *PrivacyConsentRepository) ListWithOptions(ctx context.Context, options *modelBase.QueryOptions) ([]*users.PrivacyConsent, error) {
 	var consents []*users.PrivacyConsent
-	query := r.db.NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&consents).
 		ModelTableExpr(`users.privacy_consents AS "privacy_consent"`)
 
@@ -343,7 +343,7 @@ func (r *PrivacyConsentRepository) ListWithOptions(ctx context.Context, options 
 // FindWithStudent retrieves a privacy consent with its associated student
 func (r *PrivacyConsentRepository) FindWithStudent(ctx context.Context, id int64) (*users.PrivacyConsent, error) {
 	consent := new(users.PrivacyConsent)
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(consent).
 		ModelTableExpr(`users.privacy_consents AS "privacy_consent"`).
 		Relation("Student").
@@ -363,7 +363,7 @@ func (r *PrivacyConsentRepository) FindWithStudent(ctx context.Context, id int64
 // FindWithStudentAndPerson retrieves a privacy consent with its associated student and person
 func (r *PrivacyConsentRepository) FindWithStudentAndPerson(ctx context.Context, id int64) (*users.PrivacyConsent, error) {
 	consent := new(users.PrivacyConsent)
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(consent).
 		ModelTableExpr(`users.privacy_consents AS "privacy_consent"`).
 		Relation("Student").
@@ -387,7 +387,7 @@ func (r *PrivacyConsentRepository) MarkAutoRenewals(ctx context.Context, daysBef
 	thresholdDate := time.Now().AddDate(0, 0, daysBeforeExpiry)
 
 	// Set renewal_required for all consents approaching expiration
-	res, err := r.db.NewUpdate().
+	res, err := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*users.PrivacyConsent)(nil)).
 		ModelTableExpr(`users.privacy_consents AS "privacy_consent"`).
 		Set("renewal_required = TRUE").

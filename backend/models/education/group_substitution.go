@@ -11,6 +11,7 @@ import (
 // GroupSubstitution represents a temporary substitution of a staff member for another in a group
 type GroupSubstitution struct {
 	base.Model        `bun:"schema:education,table:group_substitution"`
+	base.TenantModel  `bun:",extend"`
 	GroupID           int64     `bun:"group_id,notnull" json:"group_id"`
 	RegularStaffID    *int64    `bun:"regular_staff_id" json:"regular_staff_id,omitempty"`
 	SubstituteStaffID int64     `bun:"substitute_staff_id,notnull" json:"substitute_staff_id"`

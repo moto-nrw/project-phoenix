@@ -9,6 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -185,8 +186,8 @@ func (s *personService) Create(ctx context.Context, person *userModels.Person) e
 		return &UsersError{Op: opCreatePerson, Err: err}
 	}
 
-	// Note: Removed the requirement for TagID or AccountID
-	// Students can be created without either identifier
+	// Set tenant ID from context
+	person.SetTenantID(tenant.FromContext(ctx))
 
 	// Check if the account exists if AccountID is set
 	if person.AccountID != nil {
@@ -407,6 +408,7 @@ func (s *personService) LinkToRFIDCard(ctx context.Context, personID int64, tagI
 			StringIDModel: base.StringIDModel{ID: tagID},
 			Active:        true,
 		}
+		newCard.SetTenantID(tenant.FromContext(ctx))
 		if err := s.rfidRepo.Create(ctx, newCard); err != nil {
 			return &UsersError{Op: opLinkToRFIDCard, Err: err}
 		}

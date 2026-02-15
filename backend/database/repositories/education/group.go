@@ -30,7 +30,7 @@ func NewGroupRepository(db *bun.DB) education.GroupRepository {
 // FindByName retrieves a group by its name
 func (r *GroupRepository) FindByName(ctx context.Context, name string) (*education.Group, error) {
 	group := new(education.Group)
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(group).
 		ModelTableExpr(`education.groups AS "group"`).
 		Where("LOWER(name) = LOWER(?)", name).
@@ -49,7 +49,7 @@ func (r *GroupRepository) FindByName(ctx context.Context, name string) (*educati
 // FindByRoom retrieves groups by their room ID
 func (r *GroupRepository) FindByRoom(ctx context.Context, roomID int64) ([]*education.Group, error) {
 	var groups []*education.Group
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&groups).
 		ModelTableExpr(`education.groups AS "group"`).
 		Where("room_id = ?", roomID).
@@ -72,7 +72,7 @@ func (r *GroupRepository) FindByIDs(ctx context.Context, ids []int64) (map[int64
 	}
 
 	var groups []*education.Group
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&groups).
 		ModelTableExpr(`education.groups AS "group"`).
 		Where(`"group".id IN (?)`, bun.In(ids)).
@@ -97,7 +97,7 @@ func (r *GroupRepository) FindByIDs(ctx context.Context, ids []int64) (map[int64
 // FindByTeacher retrieves groups by their teacher ID (via group_teacher table)
 func (r *GroupRepository) FindByTeacher(ctx context.Context, teacherID int64) ([]*education.Group, error) {
 	var groups []*education.Group
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&groups).
 		ModelTableExpr(`education.groups AS "group"`).
 		Join("JOIN education.group_teacher gt ON gt.group_id = \"group\".id").
@@ -125,7 +125,7 @@ func (r *GroupRepository) FindWithRoom(ctx context.Context, groupID int64) (*edu
 	}
 
 	result := new(Result)
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(result).
 		ModelTableExpr(`education.groups AS "group"`).
 		ColumnExpr(`"group".*`).
@@ -230,7 +230,7 @@ type groupWithRoom struct {
 // ListWithOptions provides a type-safe way to list groups with query options
 func (r *GroupRepository) ListWithOptions(ctx context.Context, options *modelBase.QueryOptions) ([]*education.Group, error) {
 	var results []groupWithRoom
-	query := r.db.NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&results).
 		ModelTableExpr(`education.groups AS "group"`).
 		ColumnExpr(`"group".id AS "group__id", "group".created_at AS "group__created_at", "group".updated_at AS "group__updated_at"`).
@@ -277,7 +277,7 @@ func (r *GroupRepository) ListWithOptions(ctx context.Context, options *modelBas
 
 // CountWithOptions counts groups matching the query options (without pagination)
 func (r *GroupRepository) CountWithOptions(ctx context.Context, options *modelBase.QueryOptions) (int, error) {
-	query := r.db.NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model((*education.Group)(nil)).
 		ModelTableExpr(`education.groups AS "group"`).
 		Column("group.id")

@@ -15,6 +15,7 @@ import (
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -179,6 +180,7 @@ func (s *invitationService) CreateInvitation(ctx context.Context, req Invitation
 	}
 
 	invitation := s.buildInvitationToken(emailAddress, req)
+	invitation.SetTenantID(tenant.FromContext(ctx))
 	if err := s.invitationRepo.Create(ctx, invitation); err != nil {
 		return nil, &AuthError{Op: opCreateInvitation, Err: err}
 	}
@@ -479,6 +481,7 @@ func (s *invitationService) assignRole(ctx context.Context, accountID, roleID in
 		AccountID: accountID,
 		RoleID:    roleID,
 	}
+	accountRole.SetTenantID(tenant.FromContext(ctx))
 	if err := s.accountRoleRepo.Create(ctx, accountRole); err != nil {
 		return &AuthError{Op: "assign role", Err: err}
 	}

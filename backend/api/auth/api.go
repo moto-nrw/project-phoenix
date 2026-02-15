@@ -78,6 +78,7 @@ func (rs *Resource) Router() chi.Router {
 	r.Group(func(r chi.Router) {
 		r.Use(jwtauth.Verifier(tokenAuth.JwtAuth))
 		r.Use(jwt.Authenticator)
+		r.Use(jwt.TenantMiddleware)
 
 		// Current user routes
 		r.Get("/account", rs.getAccount)

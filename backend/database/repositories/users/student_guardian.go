@@ -29,7 +29,7 @@ func NewStudentGuardianRepository(db *bun.DB) users.StudentGuardianRepository {
 // FindByStudentID retrieves relationships by student ID
 func (r *StudentGuardianRepository) FindByStudentID(ctx context.Context, studentID int64) ([]*users.StudentGuardian, error) {
 	var relationships []*users.StudentGuardian
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&relationships).
 		ModelTableExpr(`users.students_guardians AS "student_guardian"`).
 		Where(`"student_guardian".student_id = ?`, studentID).
@@ -48,7 +48,7 @@ func (r *StudentGuardianRepository) FindByStudentID(ctx context.Context, student
 // FindByGuardianProfileID retrieves relationships by guardian profile ID
 func (r *StudentGuardianRepository) FindByGuardianProfileID(ctx context.Context, guardianProfileID int64) ([]*users.StudentGuardian, error) {
 	var relationships []*users.StudentGuardian
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&relationships).
 		ModelTableExpr(`users.students_guardians AS "student_guardian"`).
 		Where(`"student_guardian".guardian_profile_id = ?`, guardianProfileID).
@@ -67,7 +67,7 @@ func (r *StudentGuardianRepository) FindByGuardianProfileID(ctx context.Context,
 // FindPrimaryByStudentID retrieves the primary guardian for a student
 func (r *StudentGuardianRepository) FindPrimaryByStudentID(ctx context.Context, studentID int64) (*users.StudentGuardian, error) {
 	relationship := new(users.StudentGuardian)
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(relationship).
 		ModelTableExpr(`users.students_guardians AS "student_guardian"`).
 		Where(`"student_guardian".student_id = ? AND "student_guardian".is_primary = TRUE`, studentID).
@@ -86,7 +86,7 @@ func (r *StudentGuardianRepository) FindPrimaryByStudentID(ctx context.Context, 
 // FindEmergencyContactsByStudentID retrieves all emergency contacts for a student
 func (r *StudentGuardianRepository) FindEmergencyContactsByStudentID(ctx context.Context, studentID int64) ([]*users.StudentGuardian, error) {
 	var relationships []*users.StudentGuardian
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&relationships).
 		ModelTableExpr(`users.students_guardians AS "student_guardian"`).
 		Where(`"student_guardian".student_id = ? AND "student_guardian".is_emergency_contact = TRUE`, studentID).
@@ -105,7 +105,7 @@ func (r *StudentGuardianRepository) FindEmergencyContactsByStudentID(ctx context
 // FindPickupAuthoritiesByStudentID retrieves all guardians who can pickup a student
 func (r *StudentGuardianRepository) FindPickupAuthoritiesByStudentID(ctx context.Context, studentID int64) ([]*users.StudentGuardian, error) {
 	var relationships []*users.StudentGuardian
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&relationships).
 		ModelTableExpr(`users.students_guardians AS "student_guardian"`).
 		Where(`"student_guardian".student_id = ? AND "student_guardian".can_pickup = TRUE`, studentID).
@@ -124,7 +124,7 @@ func (r *StudentGuardianRepository) FindPickupAuthoritiesByStudentID(ctx context
 // FindByRelationshipType retrieves relationships by relationship type
 func (r *StudentGuardianRepository) FindByRelationshipType(ctx context.Context, studentID int64, relationshipType string) ([]*users.StudentGuardian, error) {
 	var relationships []*users.StudentGuardian
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&relationships).
 		ModelTableExpr(`users.students_guardians AS "student_guardian"`).
 		Where(`"student_guardian".student_id = ? AND "student_guardian".relationship_type = ?`, studentID, relationshipType).
@@ -144,7 +144,7 @@ func (r *StudentGuardianRepository) FindByRelationshipType(ctx context.Context, 
 func (r *StudentGuardianRepository) SetPrimary(ctx context.Context, id int64, isPrimary bool) error {
 	// Database has a trigger that automatically manages the primary status
 	// Just update the current relationship
-	_, err := r.db.NewUpdate().
+	_, err := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*users.StudentGuardian)(nil)).
 		ModelTableExpr(`users.students_guardians AS "student_guardian"`).
 		Set("is_primary = ?", isPrimary).
@@ -163,7 +163,7 @@ func (r *StudentGuardianRepository) SetPrimary(ctx context.Context, id int64, is
 
 // SetEmergencyContact sets whether a guardian is an emergency contact
 func (r *StudentGuardianRepository) SetEmergencyContact(ctx context.Context, id int64, isEmergencyContact bool) error {
-	_, err := r.db.NewUpdate().
+	_, err := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*users.StudentGuardian)(nil)).
 		ModelTableExpr(`users.students_guardians AS "student_guardian"`).
 		Set("is_emergency_contact = ?", isEmergencyContact).
@@ -182,7 +182,7 @@ func (r *StudentGuardianRepository) SetEmergencyContact(ctx context.Context, id 
 
 // SetCanPickup sets whether a guardian can pickup a student
 func (r *StudentGuardianRepository) SetCanPickup(ctx context.Context, id int64, canPickup bool) error {
-	_, err := r.db.NewUpdate().
+	_, err := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*users.StudentGuardian)(nil)).
 		ModelTableExpr(`users.students_guardians AS "student_guardian"`).
 		Set("can_pickup = ?", canPickup).
@@ -207,7 +207,7 @@ func (r *StudentGuardianRepository) UpdatePermissions(ctx context.Context, id in
 		return fmt.Errorf("invalid permissions JSON format: %w", err)
 	}
 
-	_, err := r.db.NewUpdate().
+	_, err := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*users.StudentGuardian)(nil)).
 		ModelTableExpr(`users.students_guardians AS "student_guardian"`).
 		Set("permissions = ?", permissions).
@@ -288,7 +288,7 @@ func (r *StudentGuardianRepository) List(ctx context.Context, filters map[string
 // ListWithOptions provides a type-safe way to list student guardian relationships with query options
 func (r *StudentGuardianRepository) ListWithOptions(ctx context.Context, options *modelBase.QueryOptions) ([]*users.StudentGuardian, error) {
 	var relationships []*users.StudentGuardian
-	query := r.db.NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&relationships).
 		ModelTableExpr(`users.students_guardians AS "student_guardian"`)
 
@@ -314,7 +314,7 @@ func (r *StudentGuardianRepository) ListWithOptions(ctx context.Context, options
 // FindWithStudent retrieves a student guardian relationship with its associated student
 func (r *StudentGuardianRepository) FindWithStudent(ctx context.Context, id int64) (*users.StudentGuardian, error) {
 	relationship := new(users.StudentGuardian)
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(relationship).
 		ModelTableExpr(`users.students_guardians AS "student_guardian"`).
 		Relation("Student").
@@ -334,7 +334,7 @@ func (r *StudentGuardianRepository) FindWithStudent(ctx context.Context, id int6
 // FindWithStudentAndPerson retrieves a student guardian relationship with its associated student and person
 func (r *StudentGuardianRepository) FindWithStudentAndPerson(ctx context.Context, id int64) (*users.StudentGuardian, error) {
 	relationship := new(users.StudentGuardian)
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(relationship).
 		ModelTableExpr(`users.students_guardians AS "student_guardian"`).
 		Relation("Student").

@@ -19,7 +19,7 @@ const errPersonNotFound = "no person found with ID %d"
 
 // unlinkField sets a person's field to NULL and handles common error patterns
 func (r *PersonRepository) unlinkField(ctx context.Context, personID int64, fieldName, opName string) error {
-	result, err := r.db.NewUpdate().
+	result, err := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*users.Person)(nil)).
 		ModelTableExpr(`users.persons AS "person"`).
 		Set(fieldName+" = NULL").
@@ -70,7 +70,7 @@ func (r *PersonRepository) FindByTagID(ctx context.Context, tagID string) (*user
 	normalizedTagID := normalizeTagID(tagID)
 
 	person := new(users.Person)
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(person).
 		ModelTableExpr(`users.persons AS "person"`).
 		Where(`"person".tag_id = ?`, normalizedTagID).
@@ -93,7 +93,7 @@ func (r *PersonRepository) FindByTagID(ctx context.Context, tagID string) (*user
 // FindByAccountID retrieves a person by their account ID
 func (r *PersonRepository) FindByAccountID(ctx context.Context, accountID int64) (*users.Person, error) {
 	person := new(users.Person)
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(person).
 		ModelTableExpr(`users.persons AS "person"`).
 		Where(`"person".account_id = ?`, accountID).
@@ -120,7 +120,7 @@ func (r *PersonRepository) FindByIDs(ctx context.Context, ids []int64) (map[int6
 	}
 
 	var persons []*users.Person
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&persons).
 		ModelTableExpr(`users.persons AS "person"`).
 		Where(`"person".id IN (?)`, bun.In(ids)).
@@ -144,7 +144,7 @@ func (r *PersonRepository) FindByIDs(ctx context.Context, ids []int64) (map[int6
 
 // LinkToAccount associates a person with an account
 func (r *PersonRepository) LinkToAccount(ctx context.Context, personID int64, accountID int64) error {
-	result, err := r.db.NewUpdate().
+	result, err := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*users.Person)(nil)).
 		ModelTableExpr(`users.persons AS "person"`).
 		Set("account_id = ?", accountID).
@@ -200,7 +200,7 @@ func (r *PersonRepository) LinkToRFIDCard(ctx context.Context, personID int64, t
 	// Normalize the tag ID to match RFID card format
 	normalizedTagID := normalizeTagID(tagID)
 
-	result, err := r.db.NewUpdate().
+	result, err := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*users.Person)(nil)).
 		ModelTableExpr(`users.persons AS "person"`).
 		Set("tag_id = ?", normalizedTagID).
@@ -264,7 +264,7 @@ func (r *PersonRepository) Update(ctx context.Context, person *users.Person) err
 	}
 
 	// Explicitly update all person fields (including NULL values)
-	_, err := r.db.NewUpdate().
+	_, err := base.GetDB(ctx, r.db).NewUpdate().
 		Model(person).
 		ModelTableExpr(`users.persons AS "person"`).
 		Column("first_name", "last_name", "birthday", "tag_id", "account_id").
@@ -280,7 +280,7 @@ func (r *PersonRepository) Update(ctx context.Context, person *users.Person) err
 // ListWithOptions retrieves persons matching the provided query options
 func (r *PersonRepository) ListWithOptions(ctx context.Context, options *modelBase.QueryOptions) ([]*users.Person, error) {
 	var persons []*users.Person
-	query := r.db.NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&persons).
 		ModelTableExpr(`users.persons AS "person"`)
 
@@ -313,7 +313,7 @@ func (r *PersonRepository) FindWithAccount(ctx context.Context, id int64) (*user
 		Account: new(modelAuth.Account),
 	}
 
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(result).
 		ModelTableExpr(`users.persons AS "person"`).
 		// Person columns with proper aliasing
@@ -359,7 +359,7 @@ func (r *PersonRepository) FindWithRFIDCard(ctx context.Context, id int64) (*use
 		RFIDCard: new(users.RFIDCard),
 	}
 
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(result).
 		ModelTableExpr(`users.persons AS "person"`).
 		// Person columns with proper aliasing

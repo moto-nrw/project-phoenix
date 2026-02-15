@@ -34,7 +34,7 @@ func NewRecurrenceRuleRepository(db *bun.DB) schedule.RecurrenceRuleRepository {
 // FindByFrequency finds all recurrence rules with the specified frequency
 func (r *RecurrenceRuleRepository) FindByFrequency(ctx context.Context, frequency string) ([]*schedule.RecurrenceRule, error) {
 	var rules []*schedule.RecurrenceRule
-	err := r.db.NewSelect().
+	err := repoBase.GetDB(ctx, r.db).NewSelect().
 		Model(&rules).
 		ModelTableExpr(tableExprRecurrenceAsRR).
 		Where("LOWER(frequency) = LOWER(?)", frequency).
@@ -60,7 +60,7 @@ func (r *RecurrenceRuleRepository) FindByWeekday(ctx context.Context, weekday st
 		upperWeekday = weekday
 	}
 
-	err := r.db.NewSelect().
+	err := repoBase.GetDB(ctx, r.db).NewSelect().
 		Model(&rules).
 		ModelTableExpr(tableExprRecurrenceAsRR).
 		Where("? = ANY(weekdays)", upperWeekday).
@@ -80,7 +80,7 @@ func (r *RecurrenceRuleRepository) FindByWeekday(ctx context.Context, weekday st
 func (r *RecurrenceRuleRepository) FindByMonthDay(ctx context.Context, day int) ([]*schedule.RecurrenceRule, error) {
 	var rules []*schedule.RecurrenceRule
 
-	err := r.db.NewSelect().
+	err := repoBase.GetDB(ctx, r.db).NewSelect().
 		Model(&rules).
 		ModelTableExpr(tableExprRecurrenceAsRR).
 		Where("? = ANY(month_days)", day).
@@ -100,7 +100,7 @@ func (r *RecurrenceRuleRepository) FindByMonthDay(ctx context.Context, day int) 
 func (r *RecurrenceRuleRepository) FindByDateRange(ctx context.Context, startDate, _ time.Time) ([]*schedule.RecurrenceRule, error) {
 	var rules []*schedule.RecurrenceRule
 
-	err := r.db.NewSelect().
+	err := repoBase.GetDB(ctx, r.db).NewSelect().
 		Model(&rules).
 		ModelTableExpr(tableExprRecurrenceAsRR).
 		Where("(end_date IS NULL OR end_date >= ?)", startDate).
@@ -157,7 +157,7 @@ func (r *RecurrenceRuleRepository) Update(ctx context.Context, rule *schedule.Re
 // List retrieves recurrence rules matching the provided query options
 func (r *RecurrenceRuleRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*schedule.RecurrenceRule, error) {
 	rules := make([]*schedule.RecurrenceRule, 0)
-	query := r.db.NewSelect().Model(&rules).ModelTableExpr(tableExprRecurrenceAsRR)
+	query := repoBase.GetDB(ctx, r.db).NewSelect().Model(&rules).ModelTableExpr(tableExprRecurrenceAsRR)
 
 	// Apply query options
 	if options != nil {

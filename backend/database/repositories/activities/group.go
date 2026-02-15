@@ -37,7 +37,7 @@ func NewGroupRepository(db *bun.DB) activities.GroupRepository {
 // FindByCategory finds all groups in a specific category
 func (r *GroupRepository) FindByCategory(ctx context.Context, categoryID int64) ([]*activities.Group, error) {
 	var groups []*activities.Group
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&groups).
 		ModelTableExpr(tableExprActivitiesGroupsAsGrp).
 		Where("category_id = ?", categoryID).
@@ -57,7 +57,7 @@ func (r *GroupRepository) FindByCategory(ctx context.Context, categoryID int64) 
 // FindOpenGroups finds all groups that are open for enrollment
 func (r *GroupRepository) FindOpenGroups(ctx context.Context) ([]*activities.Group, error) {
 	var groups []*activities.Group
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&groups).
 		ModelTableExpr(tableExprActivitiesGroupsAsGrp).
 		Where("is_open = ?", true).
@@ -77,7 +77,7 @@ func (r *GroupRepository) FindOpenGroups(ctx context.Context) ([]*activities.Gro
 // FindWithEnrollmentCounts returns groups with their current enrollment counts
 func (r *GroupRepository) FindWithEnrollmentCounts(ctx context.Context) ([]*activities.Group, map[int64]int, error) {
 	var groups []*activities.Group
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&groups).
 		ModelTableExpr(tableExprActivitiesGroupsAsGrp).
 		Order(orderByNameAsc).
@@ -107,7 +107,7 @@ func (r *GroupRepository) FindWithEnrollmentCounts(ctx context.Context) ([]*acti
 		Count   int   `bun:"count"`
 	}
 	var counts []countResult
-	err = r.db.NewSelect().
+	err = base.GetDB(ctx, r.db).NewSelect().
 		ModelTableExpr("activities.student_enrollments").
 		Column("activity_group_id").
 		ColumnExpr("COUNT(*) AS count").
@@ -138,7 +138,7 @@ func (r *GroupRepository) loadStaffWithPerson(ctx context.Context, sup *activiti
 	}
 
 	staff := new(users.Staff)
-	staffErr := r.db.NewSelect().
+	staffErr := base.GetDB(ctx, r.db).NewSelect().
 		Model(staff).
 		ModelTableExpr(`users.staff AS "staff"`).
 		Where(whereIDEquals, sup.StaffID).
@@ -154,7 +154,7 @@ func (r *GroupRepository) loadStaffWithPerson(ctx context.Context, sup *activiti
 	}
 
 	person := new(users.Person)
-	personErr := r.db.NewSelect().
+	personErr := base.GetDB(ctx, r.db).NewSelect().
 		Model(person).
 		ModelTableExpr(`users.persons AS "person"`).
 		Where(whereIDEquals, staff.PersonID).
@@ -169,7 +169,7 @@ func (r *GroupRepository) loadStaffWithPerson(ctx context.Context, sup *activiti
 func (r *GroupRepository) FindWithSupervisors(ctx context.Context, groupID int64) (*activities.Group, []*activities.SupervisorPlanned, error) {
 	// First get the group
 	group := new(activities.Group)
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(group).
 		ModelTableExpr(tableExprActivitiesGroupsAsGrp).
 		Where(whereIDEquals, groupID).
@@ -184,7 +184,7 @@ func (r *GroupRepository) FindWithSupervisors(ctx context.Context, groupID int64
 
 	// Then get the supervisors
 	var supervisors []*activities.SupervisorPlanned
-	err = r.db.NewSelect().
+	err = base.GetDB(ctx, r.db).NewSelect().
 		Model(&supervisors).
 		ModelTableExpr(`activities.supervisors AS "supervisor_planned"`).
 		Where("group_id = ?", groupID).
@@ -210,7 +210,7 @@ func (r *GroupRepository) FindWithSupervisors(ctx context.Context, groupID int64
 func (r *GroupRepository) FindWithSchedules(ctx context.Context, groupID int64) (*activities.Group, []*activities.Schedule, error) {
 	// First get the group
 	group := new(activities.Group)
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(group).
 		ModelTableExpr(tableExprActivitiesGroupsAsGrp).
 		Where(whereIDEquals, groupID).
@@ -227,7 +227,7 @@ func (r *GroupRepository) FindWithSchedules(ctx context.Context, groupID int64) 
 	// Note: Timeframe relation is commented out in Schedule model, so we can't use Relation()
 	// The caller should load Timeframe separately if needed
 	schedules := make([]*activities.Schedule, 0)
-	err = r.db.NewSelect().
+	err = base.GetDB(ctx, r.db).NewSelect().
 		Model(&schedules).
 		ModelTableExpr(tableExprActivitiesSchedulesAsSch).
 		Where("activity_group_id = ?", groupID).
@@ -248,7 +248,7 @@ func (r *GroupRepository) FindWithSchedules(ctx context.Context, groupID int64) 
 // FindByStaffSupervisor finds all activity groups where a staff member is a supervisor
 func (r *GroupRepository) FindByStaffSupervisor(ctx context.Context, staffID int64) ([]*activities.Group, error) {
 	var groups []*activities.Group
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&groups).
 		ModelTableExpr(tableExprActivitiesGroupsAsGrp).
 		Join("JOIN activities.supervisors AS s ON s.group_id = \"group\".id").
@@ -268,7 +268,7 @@ func (r *GroupRepository) FindByStaffSupervisor(ctx context.Context, staffID int
 // FindByStaffSupervisorToday finds all activity groups where a staff member is a supervisor
 func (r *GroupRepository) FindByStaffSupervisorToday(ctx context.Context, staffID int64) ([]*activities.Group, error) {
 	var groups []*activities.Group
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&groups).
 		ModelTableExpr(tableExprActivitiesGroupsAsGrp).
 		Join(`JOIN activities.supervisors AS s ON s.group_id = "group".id`).
@@ -313,20 +313,11 @@ func (r *GroupRepository) Update(ctx context.Context, group *activities.Group) e
 		return err
 	}
 
-	// Get the query builder - detect if we're in a transaction
-	query := r.db.NewUpdate().
+	// Get the query builder - GetDB handles transaction extraction from context
+	query := base.GetDB(ctx, r.db).NewUpdate().
 		Model(group).
 		Where(whereIDEquals, group.ID).
 		ModelTableExpr(tableActivitiesGroups)
-
-	// Extract transaction from context if it exists
-	if tx, ok := ctx.Value("tx").(*bun.Tx); ok && tx != nil {
-		// Use the transaction if available
-		query = tx.NewUpdate().
-			Model(group).
-			Where(whereIDEquals, group.ID).
-			ModelTableExpr(tableActivitiesGroups)
-	}
 
 	// Execute the query
 	_, err := query.Exec(ctx)
@@ -343,7 +334,7 @@ func (r *GroupRepository) Update(ctx context.Context, group *activities.Group) e
 // List overrides the base List method to accept the new QueryOptions type
 func (r *GroupRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*activities.Group, error) {
 	var groups []*activities.Group
-	query := r.db.NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&groups).
 		ModelTableExpr(tableExprActivitiesGroupsAsGrp).
 		ColumnExpr(`"group".*`).

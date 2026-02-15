@@ -55,6 +55,7 @@ func (rs *Resource) Router() chi.Router {
 	r.Group(func(r chi.Router) {
 		r.Use(tokenAuth.Verifier())
 		r.Use(jwt.Authenticator)
+		r.Use(jwt.TenantMiddleware)
 
 		// Current dateframe endpoint - requires schedules:read permission
 		r.With(authorize.RequiresPermission(permissions.SchedulesRead)).Get("/current-dateframe", rs.getCurrentDateframe)

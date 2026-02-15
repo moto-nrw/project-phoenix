@@ -6,6 +6,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/feedback"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -54,6 +55,11 @@ func (s *feedbackService) CreateEntry(ctx context.Context, entry *feedback.Entry
 	// Validate entry
 	if err := entry.Validate(); err != nil {
 		return &InvalidEntryDataError{Err: err}
+	}
+
+	// Set tenant ID from context
+	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
+		entry.SetTenantID(tenantID)
 	}
 
 	// Create entry

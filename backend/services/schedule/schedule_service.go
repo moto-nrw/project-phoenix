@@ -9,6 +9,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -88,6 +89,7 @@ func (s *service) CreateDateframe(ctx context.Context, dateframe *schedule.Datef
 		return &ScheduleError{Op: "create dateframe", Err: err}
 	}
 
+	dateframe.SetTenantID(tenant.FromContext(ctx))
 	if err := s.dateframeRepo.Create(ctx, dateframe); err != nil {
 		return &ScheduleError{Op: "create dateframe", Err: err}
 	}
@@ -170,6 +172,7 @@ func (s *service) CreateTimeframe(ctx context.Context, timeframe *schedule.Timef
 		return &ScheduleError{Op: "create timeframe", Err: err}
 	}
 
+	timeframe.SetTenantID(tenant.FromContext(ctx))
 	if err := s.timeframeRepo.Create(ctx, timeframe); err != nil {
 		return &ScheduleError{Op: "create timeframe", Err: err}
 	}
@@ -251,6 +254,7 @@ func (s *service) CreateRecurrenceRule(ctx context.Context, rule *schedule.Recur
 		return &ScheduleError{Op: "create recurrence rule", Err: err}
 	}
 
+	rule.SetTenantID(tenant.FromContext(ctx))
 	if err := s.recurrenceRuleRepo.Create(ctx, rule); err != nil {
 		return &ScheduleError{Op: "create recurrence rule", Err: err}
 	}

@@ -10,6 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -130,6 +131,7 @@ func (s *cleanupService) CleanupVisitsForStudent(ctx context.Context, studentID 
 				int(deletedCount),
 				"system",
 			)
+			deletion.SetTenantID(tenant.FromContext(ctx))
 			deletion.DeletionReason = fmt.Sprintf("Data retention policy: %d days", consent.GetDataRetentionDays())
 			deletion.SetMetadata("retention_days", consent.GetDataRetentionDays())
 			deletion.SetMetadata("consent_id", consent.ID)
@@ -326,6 +328,7 @@ func (s *cleanupService) processStudent(ctx context.Context, student studentWith
 				int(deletedCount),
 				"system",
 			)
+			deletion.SetTenantID(tenant.FromContext(ctx))
 			deletion.DeletionReason = fmt.Sprintf("Automated retention policy: %d days", student.DataRetentionDays)
 			deletion.SetMetadata("retention_days", student.DataRetentionDays)
 			deletion.SetMetadata("batch_cleanup", true)

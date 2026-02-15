@@ -26,6 +26,7 @@ const personGuardianTableName = "users.persons_guardians"
 // PersonGuardian represents the relationship between a person and their guardian
 type PersonGuardian struct {
 	base.Model        `bun:"schema:users,table:persons_guardians"`
+	base.TenantModel  `bun:",extend"`
 	PersonID          int64            `bun:"person_id,notnull" json:"person_id"`
 	GuardianAccountID int64            `bun:"guardian_account_id,notnull" json:"guardian_account_id"`
 	RelationshipType  RelationshipType `bun:"relationship_type,notnull" json:"relationship_type"`

@@ -33,7 +33,7 @@ func NewInvitationTokenRepository(db *bun.DB) modelAuth.InvitationTokenRepositor
 // FindByToken fetches an invitation by its token value.
 func (r *InvitationTokenRepository) FindByToken(ctx context.Context, token string) (*modelAuth.InvitationToken, error) {
 	entity := new(modelAuth.InvitationToken)
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(entity).
 		ModelTableExpr(invitationTableAlias).
 		Where(`"invitation_token".token = ?`, token).
@@ -51,7 +51,7 @@ func (r *InvitationTokenRepository) FindByToken(ctx context.Context, token strin
 // FindByID retrieves an invitation token by primary key.
 func (r *InvitationTokenRepository) FindByID(ctx context.Context, id interface{}) (*modelAuth.InvitationToken, error) {
 	entity := new(modelAuth.InvitationToken)
-	if err := r.db.NewSelect().
+	if err := base.GetDB(ctx, r.db).NewSelect().
 		Model(entity).
 		ModelTableExpr(invitationTableAlias).
 		Where(`"invitation_token".id = ?`, id).
@@ -70,7 +70,7 @@ func (r *InvitationTokenRepository) Update(ctx context.Context, token *modelAuth
 		return fmt.Errorf("invitation token cannot be nil")
 	}
 
-	if _, err := r.db.NewUpdate().
+	if _, err := base.GetDB(ctx, r.db).NewUpdate().
 		Model(token).
 		ModelTableExpr(invitationTableAlias).
 		WherePK().
@@ -86,7 +86,7 @@ func (r *InvitationTokenRepository) Update(ctx context.Context, token *modelAuth
 // FindValidByToken returns an invitation if it is not expired or used.
 func (r *InvitationTokenRepository) FindValidByToken(ctx context.Context, token string, now time.Time) (*modelAuth.InvitationToken, error) {
 	entity := new(modelAuth.InvitationToken)
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(entity).
 		ModelTableExpr(invitationTableAlias).
 		Where(`"invitation_token".token = ?`, token).
@@ -106,7 +106,7 @@ func (r *InvitationTokenRepository) FindValidByToken(ctx context.Context, token 
 // FindByEmail returns invitations associated with an email address.
 func (r *InvitationTokenRepository) FindByEmail(ctx context.Context, email string) ([]*modelAuth.InvitationToken, error) {
 	var tokens []*modelAuth.InvitationToken
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&tokens).
 		ModelTableExpr(invitationTableAlias).
 		Where(`LOWER("invitation_token".email) = LOWER(?)`, email).
@@ -122,7 +122,7 @@ func (r *InvitationTokenRepository) FindByEmail(ctx context.Context, email strin
 
 // MarkAsUsed sets the used_at timestamp for a token.
 func (r *InvitationTokenRepository) MarkAsUsed(ctx context.Context, id int64) error {
-	_, err := r.db.NewUpdate().
+	_, err := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*modelAuth.InvitationToken)(nil)).
 		ModelTableExpr(invitationTable).
 		Set(`used_at = NOW()`).
@@ -139,7 +139,7 @@ func (r *InvitationTokenRepository) MarkAsUsed(ctx context.Context, id int64) er
 
 // InvalidateByEmail marks all invitations for an email as used.
 func (r *InvitationTokenRepository) InvalidateByEmail(ctx context.Context, email string) (int, error) {
-	res, err := r.db.NewUpdate().
+	res, err := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*modelAuth.InvitationToken)(nil)).
 		ModelTableExpr(invitationTable).
 		Set(`used_at = NOW()`).
@@ -163,7 +163,7 @@ func (r *InvitationTokenRepository) InvalidateByEmail(ctx context.Context, email
 
 // DeleteExpired removes invitations that can no longer be used.
 func (r *InvitationTokenRepository) DeleteExpired(ctx context.Context, now time.Time) (int, error) {
-	res, err := r.db.NewDelete().
+	res, err := base.GetDB(ctx, r.db).NewDelete().
 		Model((*modelAuth.InvitationToken)(nil)).
 		ModelTableExpr(invitationTable).
 		Where(`expires_at <= ?`, now).
@@ -186,7 +186,7 @@ func (r *InvitationTokenRepository) DeleteExpired(ctx context.Context, now time.
 // List returns invitations filtered by the provided criteria.
 func (r *InvitationTokenRepository) List(ctx context.Context, filters map[string]interface{}) ([]*modelAuth.InvitationToken, error) {
 	var tokens []*modelAuth.InvitationToken
-	query := r.db.NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&tokens).
 		ModelTableExpr(invitationTableAlias).
 		ColumnExpr(`"invitation_token".*`).
@@ -274,7 +274,7 @@ func (r *InvitationTokenRepository) applyUsedFilter(query *bun.SelectQuery, valu
 
 // UpdateDeliveryResult updates the email delivery metadata for an invitation token.
 func (r *InvitationTokenRepository) UpdateDeliveryResult(ctx context.Context, id int64, sentAt *time.Time, emailError *string, retryCount int) error {
-	update := r.db.NewUpdate().
+	update := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*modelAuth.InvitationToken)(nil)).
 		ModelTableExpr(invitationTable).
 		Where(`id = ?`, id).

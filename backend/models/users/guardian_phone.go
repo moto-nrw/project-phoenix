@@ -34,6 +34,7 @@ const tableGuardianPhoneNumbers = "users.guardian_phone_numbers"
 // GuardianPhoneNumber represents a phone number associated with a guardian
 type GuardianPhoneNumber struct {
 	base.Model        `bun:"schema:users,table:guardian_phone_numbers"`
+	base.TenantModel  `bun:",extend"`
 	GuardianProfileID int64     `bun:"guardian_profile_id,notnull" json:"guardian_profile_id"`
 	PhoneNumber       string    `bun:"phone_number,notnull" json:"phone_number"`
 	PhoneType         PhoneType `bun:"phone_type,notnull,default:'mobile'" json:"phone_type"`

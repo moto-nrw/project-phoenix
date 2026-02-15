@@ -12,13 +12,14 @@ import (
 
 // Room represents a physical room in a facility
 type Room struct {
-	base.Model `bun:"schema:facilities,table:rooms"`
-	Name       string  `bun:"name,notnull" json:"name"`
-	Building   string  `bun:"building" json:"building,omitempty"`
-	Floor      *int    `bun:"floor" json:"floor,omitempty"`
-	Capacity   *int    `bun:"capacity" json:"capacity,omitempty"`
-	Category   *string `bun:"category" json:"category,omitempty"`
-	Color      *string `bun:"color" json:"color,omitempty"`
+	base.Model       `bun:"schema:facilities,table:rooms"`
+	base.TenantModel `bun:",extend"`
+	Name             string  `bun:"name,notnull" json:"name"`
+	Building         string  `bun:"building" json:"building,omitempty"`
+	Floor            *int    `bun:"floor" json:"floor,omitempty"`
+	Capacity         *int    `bun:"capacity" json:"capacity,omitempty"`
+	Category         *string `bun:"category" json:"category,omitempty"`
+	Color            *string `bun:"color" json:"color,omitempty"`
 }
 
 // TableName returns the database table name

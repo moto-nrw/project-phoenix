@@ -10,6 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/realtime"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // Attendance tracking operations
@@ -227,6 +228,7 @@ func (s *service) performCheckIn(ctx context.Context, studentID, staffID, device
 		DeviceID:    deviceID,
 	}
 
+	attendance.SetTenantID(tenant.FromContext(ctx))
 	if err := s.attendanceRepo.Create(ctx, attendance); err != nil {
 		return nil, &ActiveError{Op: "ToggleStudentAttendance", Err: err}
 	}

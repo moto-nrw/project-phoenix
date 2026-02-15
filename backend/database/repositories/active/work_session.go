@@ -49,7 +49,7 @@ func (r *WorkSessionRepository) Create(ctx context.Context, session *active.Work
 // GetByStaffAndDate returns the work session for a staff member on a given date
 func (r *WorkSessionRepository) GetByStaffAndDate(ctx context.Context, staffID int64, date time.Time) (*active.WorkSession, error) {
 	session := new(active.WorkSession)
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(session).
 		ModelTableExpr(tableExprActiveWorkSessionsAsSession).
 		Where(`"work_session".staff_id = ?`, staffID).
@@ -71,7 +71,7 @@ func (r *WorkSessionRepository) GetCurrentByStaffID(ctx context.Context, staffID
 	session := new(active.WorkSession)
 	today := timezone.TodayUTC() // Use TodayUTC for consistency with session creation in service
 
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(session).
 		ModelTableExpr(tableExprActiveWorkSessionsAsSession).
 		Where(`"work_session".staff_id = ?`, staffID).
@@ -92,7 +92,7 @@ func (r *WorkSessionRepository) GetCurrentByStaffID(ctx context.Context, staffID
 // GetHistoryByStaffID returns work sessions for a staff member in a date range
 func (r *WorkSessionRepository) GetHistoryByStaffID(ctx context.Context, staffID int64, from, to time.Time) ([]*active.WorkSession, error) {
 	var sessions []*active.WorkSession
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&sessions).
 		ModelTableExpr(tableExprActiveWorkSessionsAsSession).
 		Where(`"work_session".staff_id = ?`, staffID).
@@ -114,7 +114,7 @@ func (r *WorkSessionRepository) GetHistoryByStaffID(ctx context.Context, staffID
 // GetOpenSessions returns all sessions without check-out before a given date
 func (r *WorkSessionRepository) GetOpenSessions(ctx context.Context, beforeDate time.Time) ([]*active.WorkSession, error) {
 	var sessions []*active.WorkSession
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&sessions).
 		ModelTableExpr(tableExprActiveWorkSessionsAsSession).
 		Where(`"work_session".date < ?`, beforeDate.Format(dateFormatISO)).
@@ -141,7 +141,7 @@ func (r *WorkSessionRepository) GetTodayPresenceMap(ctx context.Context) (map[in
 		CheckOutTime *time.Time `bun:"check_out_time"`
 	}
 
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		TableExpr(tableExprActiveWorkSessionsAsSession).
 		ColumnExpr(`"work_session".staff_id`).
 		ColumnExpr(`"work_session".status`).
@@ -175,7 +175,7 @@ func (r *WorkSessionRepository) GetTodayPresenceMap(ctx context.Context) (map[in
 // List overrides base List to use QueryOptions and proper table alias
 func (r *WorkSessionRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*active.WorkSession, error) {
 	var sessions []*active.WorkSession
-	query := r.db.NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&sessions).
 		ModelTableExpr(tableExprActiveWorkSessionsAsSession)
 
@@ -196,7 +196,7 @@ func (r *WorkSessionRepository) List(ctx context.Context, options *modelBase.Que
 
 // UpdateBreakMinutes sets the break_minutes cache field on a session
 func (r *WorkSessionRepository) UpdateBreakMinutes(ctx context.Context, id int64, breakMinutes int) error {
-	_, err := r.db.NewUpdate().
+	_, err := base.GetDB(ctx, r.db).NewUpdate().
 		Table(tableActiveWorkSessions).
 		Set("break_minutes = ?", breakMinutes).
 		Set("updated_at = ?", time.Now()).
@@ -215,7 +215,7 @@ func (r *WorkSessionRepository) UpdateBreakMinutes(ctx context.Context, id int64
 
 // CloseSession sets the check-out time and auto_checked_out flag
 func (r *WorkSessionRepository) CloseSession(ctx context.Context, id int64, checkOutTime time.Time, autoCheckedOut bool) error {
-	_, err := r.db.NewUpdate().
+	_, err := base.GetDB(ctx, r.db).NewUpdate().
 		Table(tableActiveWorkSessions).
 		Set("check_out_time = ?", checkOutTime).
 		Set("auto_checked_out = ?", autoCheckedOut).

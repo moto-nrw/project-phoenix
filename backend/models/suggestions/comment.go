@@ -20,12 +20,13 @@ const tableSuggestionsComments = "suggestions.comments"
 
 // Comment represents a comment on a suggestion post
 type Comment struct {
-	base.Model `bun:"schema:suggestions,table:comments"`
-	PostID     int64      `bun:"post_id,notnull" json:"post_id"`
-	AuthorID   int64      `bun:"author_id,notnull" json:"author_id"`
-	AuthorType string     `bun:"author_type,notnull" json:"author_type"`
-	Content    string     `bun:"content,notnull" json:"content"`
-	DeletedAt  *time.Time `bun:"deleted_at,soft_delete,nullzero" json:"-"`
+	base.Model       `bun:"schema:suggestions,table:comments"`
+	base.TenantModel `bun:",extend"`
+	PostID           int64      `bun:"post_id,notnull" json:"post_id"`
+	AuthorID         int64      `bun:"author_id,notnull" json:"author_id"`
+	AuthorType       string     `bun:"author_type,notnull" json:"author_type"`
+	Content          string     `bun:"content,notnull" json:"content"`
+	DeletedAt        *time.Time `bun:"deleted_at,soft_delete,nullzero" json:"-"`
 
 	// Resolved at query time, not stored
 	AuthorName string `bun:"author_name,scanonly" json:"author_name,omitempty"`

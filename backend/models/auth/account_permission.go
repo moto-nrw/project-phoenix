@@ -13,10 +13,11 @@ const tableAuthAccountPermissions = "auth.account_permissions"
 
 // AccountPermission represents a direct permission assignment to an account
 type AccountPermission struct {
-	base.Model   `bun:"schema:auth,table:account_permissions"`
-	AccountID    int64 `bun:"account_id,notnull" json:"account_id"`
-	PermissionID int64 `bun:"permission_id,notnull" json:"permission_id"`
-	Granted      bool  `bun:"granted,notnull,default:true" json:"granted"`
+	base.Model       `bun:"schema:auth,table:account_permissions"`
+	base.TenantModel `bun:",extend"`
+	AccountID        int64 `bun:"account_id,notnull" json:"account_id"`
+	PermissionID     int64 `bun:"permission_id,notnull" json:"permission_id"`
+	Granted          bool  `bun:"granted,notnull,default:true" json:"granted"`
 
 	// Relations
 	Account    *Account    `bun:"rel:belongs-to,join:account_id=id" json:"account,omitempty"`

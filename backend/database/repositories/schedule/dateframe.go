@@ -34,7 +34,7 @@ func NewDateframeRepository(db *bun.DB) schedule.DateframeRepository {
 // FindByName finds a dateframe by its name
 func (r *DateframeRepository) FindByName(ctx context.Context, name string) (*schedule.Dateframe, error) {
 	dateframe := new(schedule.Dateframe)
-	err := r.db.NewSelect().
+	err := repoBase.GetDB(ctx, r.db).NewSelect().
 		Model(dateframe).
 		ModelTableExpr(tableExprDateframesAsDF).
 		Where("LOWER(name) = LOWER(?)", name).
@@ -57,7 +57,7 @@ func (r *DateframeRepository) FindByDate(ctx context.Context, date time.Time) ([
 	// Normalize the date to ignore time component
 	normalizedDate := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, date.Location())
 
-	err := r.db.NewSelect().
+	err := repoBase.GetDB(ctx, r.db).NewSelect().
 		Model(&dateframes).
 		ModelTableExpr(tableExprDateframesAsDF).
 		Where("start_date <= ? AND end_date >= ?", normalizedDate, normalizedDate).
@@ -81,7 +81,7 @@ func (r *DateframeRepository) FindOverlapping(ctx context.Context, startDate, en
 	normalizedStartDate := time.Date(startDate.Year(), startDate.Month(), startDate.Day(), 0, 0, 0, 0, startDate.Location())
 	normalizedEndDate := time.Date(endDate.Year(), endDate.Month(), endDate.Day(), 0, 0, 0, 0, endDate.Location())
 
-	err := r.db.NewSelect().
+	err := repoBase.GetDB(ctx, r.db).NewSelect().
 		Model(&dateframes).
 		ModelTableExpr(tableExprDateframesAsDF).
 		Where("start_date <= ? AND end_date >= ?", normalizedEndDate, normalizedStartDate).
@@ -130,7 +130,7 @@ func (r *DateframeRepository) Update(ctx context.Context, dateframe *schedule.Da
 // List retrieves dateframes matching the provided query options
 func (r *DateframeRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*schedule.Dateframe, error) {
 	dateframes := make([]*schedule.Dateframe, 0)
-	query := r.db.NewSelect().Model(&dateframes).ModelTableExpr(tableExprDateframesAsDF)
+	query := repoBase.GetDB(ctx, r.db).NewSelect().Model(&dateframes).ModelTableExpr(tableExprDateframesAsDF)
 
 	// Apply query options
 	if options != nil {

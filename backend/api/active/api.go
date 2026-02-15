@@ -60,6 +60,7 @@ func (rs *Resource) Router() chi.Router {
 	r.Group(func(r chi.Router) {
 		r.Use(tokenAuth.Verifier())
 		r.Use(jwt.Authenticator)
+		r.Use(jwt.TenantMiddleware)
 
 		// Active Groups
 		r.Route("/groups", func(r chi.Router) {
