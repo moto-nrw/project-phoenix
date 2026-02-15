@@ -20,7 +20,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/models/feedback"
 	"github.com/moto-nrw/project-phoenix/models/iot"
-	"github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/stretchr/testify/require"
@@ -1866,57 +1865,6 @@ func CleanupGradeTransitionFixtures(tb testing.TB, db *bun.DB, transitionIDs ...
 // ============================================================================
 // Multi-Tenancy Isolation Test Fixtures (WP 3.19)
 // ============================================================================
-
-// CreateTestOrganization creates a test organization in the platform schema.
-// Organizations are the top-level tenant grouping (e.g. a school district).
-func CreateTestOrganization(tb testing.TB, db *bun.DB, name, slug string) *platform.Organization {
-	tb.Helper()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	uniqueSlug := fmt.Sprintf("%s-%d", slug, time.Now().UnixNano())
-
-	org := &platform.Organization{
-		Name:   name,
-		Slug:   uniqueSlug,
-		Active: true,
-	}
-
-	err := db.NewInsert().
-		Model(org).
-		Scan(ctx)
-	require.NoError(tb, err, "Failed to create test organization")
-
-	return org
-}
-
-// CreateTestSchool creates a test school (tenant) in the platform schema.
-// The school ID is used as tenant_id throughout the system.
-func CreateTestSchool(tb testing.TB, db *bun.DB, orgID int64, name, slug string) *platform.School {
-	tb.Helper()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	uniqueSlug := fmt.Sprintf("%s-%d", slug, time.Now().UnixNano())
-	uniqueSubdomain := fmt.Sprintf("t%d", time.Now().UnixNano())
-
-	school := &platform.School{
-		OrganizationID: orgID,
-		Name:           name,
-		Slug:           uniqueSlug,
-		Subdomain:      uniqueSubdomain,
-		Active:         true,
-	}
-
-	err := db.NewInsert().
-		Model(school).
-		Scan(ctx)
-	require.NoError(tb, err, "Failed to create test school")
-
-	return school
-}
 
 // CreateTestPersonForTenant creates a person belonging to a specific tenant.
 func CreateTestPersonForTenant(tb testing.TB, db *bun.DB, tenantID int64, firstName, lastName string) *users.Person {

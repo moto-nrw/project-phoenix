@@ -29,9 +29,6 @@ const (
 	orderCreatedAtASC   = "created_at ASC"
 )
 
-// Common query clauses to avoid string duplication.
-const whereStudentID = "student_id = ?"
-
 // errScheduleNil is returned when a nil schedule is passed to a repository method.
 var errScheduleNil = fmt.Errorf("schedule cannot be nil")
 
