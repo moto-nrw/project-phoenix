@@ -46,11 +46,12 @@ func createTenantRoles(ctx context.Context, db *bun.DB) error {
 	}()
 
 	// Create connection role: LOGIN + NOINHERIT (zero privileges by default)
-	// Password from environment variable; falls back to dev placeholder
+	// Password MUST be set via environment variable — no hardcoded fallback.
 	authPassword := os.Getenv("PHOENIX_AUTH_PASSWORD")
 	if authPassword == "" {
-		authPassword = "phoenix_auth_dev"
-		log.Println("WARNING: PHOENIX_AUTH_PASSWORD not set, using dev fallback. Set this variable in production!")
+		return fmt.Errorf("PHOENIX_AUTH_PASSWORD environment variable is required but not set. " +
+			"Add it to your dev.env (local) or .env (Docker) file. " +
+			"See dev.env.example for the expected format")
 	}
 	_, err = tx.ExecContext(ctx, fmt.Sprintf(`
 		DO $$ BEGIN
