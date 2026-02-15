@@ -47,6 +47,7 @@ func (rs *GradeTransitionResource) Router() chi.Router {
 	r.Group(func(r chi.Router) {
 		r.Use(tokenAuth.Verifier())
 		r.Use(jwt.Authenticator)
+		r.Use(jwt.TenantMiddleware)
 
 		// Read operations
 		r.With(authorize.RequiresPermission(permissions.GradeTransitionsRead)).

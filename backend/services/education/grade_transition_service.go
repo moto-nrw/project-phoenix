@@ -182,6 +182,11 @@ func (s *gradeTransitionService) createMappingsIfProvided(
 		return err
 	}
 
+	tenantID := tenant.FromContext(ctx)
+	for _, m := range mappings {
+		m.SetTenantID(tenantID)
+	}
+
 	if err := s.transitionRepo.CreateMappings(ctx, mappings); err != nil {
 		return fmt.Errorf("failed to create mappings: %w", err)
 	}
@@ -269,6 +274,11 @@ func (s *gradeTransitionService) replaceMappingsIfProvided(
 	mappings, err := s.buildMappings(transition.ID, reqMappings)
 	if err != nil {
 		return err
+	}
+
+	tenantID := tenant.FromContext(ctx)
+	for _, m := range mappings {
+		m.SetTenantID(tenantID)
 	}
 
 	if err := s.transitionRepo.CreateMappings(ctx, mappings); err != nil {
@@ -514,6 +524,11 @@ func (s *gradeTransitionService) recordTransitionHistory(
 
 	classMapping := buildClassMapping(mappings)
 	historyRecords := buildHistoryRecords(transitionID, students, classMapping)
+
+	tenantID := tenant.FromContext(ctx)
+	for _, h := range historyRecords {
+		h.SetTenantID(tenantID)
+	}
 
 	if err := s.transitionRepo.CreateHistoryBatch(ctx, historyRecords); err != nil {
 		return fmt.Errorf("failed to create history: %w", err)
