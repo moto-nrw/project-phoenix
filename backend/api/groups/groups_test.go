@@ -55,6 +55,7 @@ func setupTestContext(t *testing.T) *testContext {
 		svc.UserContext,
 		repoFactory.Student,
 		repoFactory.GroupSubstitution,
+		db,
 	)
 
 	t.Cleanup(func() {

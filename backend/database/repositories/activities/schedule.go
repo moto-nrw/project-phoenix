@@ -8,6 +8,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -25,8 +26,10 @@ type ScheduleRepository struct {
 
 // NewScheduleRepository creates a new ScheduleRepository
 func NewScheduleRepository(db *bun.DB) activities.ScheduleRepository {
+	repo := base.NewRepository[*activities.Schedule](db, tableActivitiesSchedules, "Schedule")
+	repo.TenantScoped = true
 	return &ScheduleRepository{
-		Repository: base.NewRepository[*activities.Schedule](db, tableActivitiesSchedules, "Schedule"),
+		Repository: repo,
 		db:         db,
 	}
 }
@@ -34,11 +37,17 @@ func NewScheduleRepository(db *bun.DB) activities.ScheduleRepository {
 // FindByGroupID finds all schedules for a specific group
 func (r *ScheduleRepository) FindByGroupID(ctx context.Context, groupID int64) ([]*activities.Schedule, error) {
 	var schedules []*activities.Schedule
-	err := base.GetDB(ctx, r.db).NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&schedules).
 		ModelTableExpr(tableExprActivitiesSchedulesAsSch).
 		// Removed Timeframe relation since it's not properly defined in the model
-		Where("activity_group_id = ?", groupID).
+		Where("activity_group_id = ?", groupID)
+
+	if where, val, ok := base.TenantWhere(ctx, "schedule"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.
 		Order("weekday").
 		Order("timeframe_id").
 		Scan(ctx)
@@ -56,12 +65,18 @@ func (r *ScheduleRepository) FindByGroupID(ctx context.Context, groupID int64) (
 // FindByWeekday finds all schedules for a specific weekday
 func (r *ScheduleRepository) FindByWeekday(ctx context.Context, weekday string) ([]*activities.Schedule, error) {
 	var schedules []*activities.Schedule
-	err := base.GetDB(ctx, r.db).NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&schedules).
 		ModelTableExpr(tableExprActivitiesSchedulesAsSch).
 		// Note: ActivityGroup relation is commented out in model, so we can't use Relation()
 		// The caller should load ActivityGroup separately if needed
-		Where("weekday = ?", weekday).
+		Where("weekday = ?", weekday)
+
+	if where, val, ok := base.TenantWhere(ctx, "schedule"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.
 		Order("timeframe_id").
 		Scan(ctx)
 
@@ -78,12 +93,18 @@ func (r *ScheduleRepository) FindByWeekday(ctx context.Context, weekday string) 
 // FindByTimeframeID finds all schedules for a specific timeframe
 func (r *ScheduleRepository) FindByTimeframeID(ctx context.Context, timeframeID int64) ([]*activities.Schedule, error) {
 	schedules := make([]*activities.Schedule, 0)
-	err := base.GetDB(ctx, r.db).NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&schedules).
 		ModelTableExpr(tableExprActivitiesSchedulesAsSch).
 		// Note: ActivityGroup relation is commented out in model, so we can't use Relation()
 		// The caller should load ActivityGroup separately if needed
-		Where("timeframe_id = ?", timeframeID).
+		Where("timeframe_id = ?", timeframeID)
+
+	if where, val, ok := base.TenantWhere(ctx, "schedule"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.
 		Order("weekday").
 		Scan(ctx)
 
@@ -129,8 +150,12 @@ func (r *ScheduleRepository) Update(ctx context.Context, schedule *activities.Sc
 		Where(whereIDEquals, schedule.ID).
 		ModelTableExpr(tableActivitiesSchedules)
 
+	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
+		query = query.Where("tenant_id = ?", tenantID)
+	}
+
 	// Execute the query
-	_, err := query.Exec(ctx)
+	result, err := query.Exec(ctx)
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "update",
@@ -138,13 +163,17 @@ func (r *ScheduleRepository) Update(ctx context.Context, schedule *activities.Sc
 		}
 	}
 
-	return nil
+	return base.AssertRowsAffected(result, 1, "update schedule")
 }
 
 // List overrides the base List method to accept the new QueryOptions type
 func (r *ScheduleRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*activities.Schedule, error) {
 	var schedules []*activities.Schedule
 	query := base.GetDB(ctx, r.db).NewSelect().Model(&schedules).ModelTableExpr(tableExprActivitiesSchedulesAsSch)
+
+	if where, val, ok := base.TenantWhere(ctx, "schedule"); ok {
+		query = query.Where(where, val)
+	}
 
 	// Apply query options
 	if options != nil {

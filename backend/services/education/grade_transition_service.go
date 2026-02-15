@@ -111,7 +111,6 @@ type gradeTransitionService struct {
 	studentRepo    users.StudentRepository
 	personRepo     users.PersonRepository
 	db             *bun.DB
-	txHandler      *base.TxHandler
 }
 
 // GradeTransitionServiceDependencies contains dependencies for the service
@@ -129,7 +128,6 @@ func NewGradeTransitionService(deps GradeTransitionServiceDependencies) GradeTra
 		studentRepo:    deps.StudentRepo,
 		personRepo:     deps.PersonRepo,
 		db:             deps.DB,
-		txHandler:      base.NewTxHandler(deps.DB),
 	}
 }
 
@@ -152,15 +150,11 @@ func (s *gradeTransitionService) Create(ctx context.Context, req CreateTransitio
 
 	transition.SetTenantID(tenant.FromContext(ctx))
 
-	// Execute in transaction
-	err := s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
-		if err := s.transitionRepo.Create(ctx, transition); err != nil {
-			return fmt.Errorf("failed to create transition: %w", err)
-		}
-		return s.createMappingsIfProvided(ctx, transition, req.Mappings)
-	})
+	if err := s.transitionRepo.Create(ctx, transition); err != nil {
+		return nil, fmt.Errorf("failed to create transition: %w", err)
+	}
 
-	if err != nil {
+	if err := s.createMappingsIfProvided(ctx, transition, req.Mappings); err != nil {
 		return nil, err
 	}
 
@@ -228,14 +222,11 @@ func (s *gradeTransitionService) Update(ctx context.Context, id int64, req Updat
 		return nil, err
 	}
 
-	err = s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
-		if err := s.transitionRepo.Update(ctx, transition); err != nil {
-			return fmt.Errorf("failed to update transition: %w", err)
-		}
-		return s.replaceMappingsIfProvided(ctx, transition, req.Mappings)
-	})
+	if err := s.transitionRepo.Update(ctx, transition); err != nil {
+		return nil, fmt.Errorf("failed to update transition: %w", err)
+	}
 
-	if err != nil {
+	if err := s.replaceMappingsIfProvided(ctx, transition, req.Mappings); err != nil {
 		return nil, err
 	}
 
@@ -443,11 +434,7 @@ func (s *gradeTransitionService) Apply(ctx context.Context, id int64, accountID 
 		Warnings:     make([]string, 0),
 	}
 
-	err = s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
-		return s.executeApply(ctx, transition, accountID, result)
-	})
-
-	if err != nil {
+	if err := s.executeApply(ctx, transition, accountID, result); err != nil {
 		return nil, err
 	}
 
@@ -662,11 +649,7 @@ func (s *gradeTransitionService) Revert(ctx context.Context, id int64, accountID
 		Warnings:     make([]string, 0),
 	}
 
-	err = s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
-		return s.executeRevert(ctx, transition, accountID, history, result)
-	})
-
-	if err != nil {
+	if err := s.executeRevert(ctx, transition, accountID, history, result); err != nil {
 		return nil, err
 	}
 

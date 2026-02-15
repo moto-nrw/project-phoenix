@@ -16,6 +16,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
+	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/uptrace/bun"
 )
 
 // Error message constants
@@ -26,14 +28,16 @@ type Resource struct {
 	WorkSessionService  activeSvc.WorkSessionService
 	StaffAbsenceService activeSvc.StaffAbsenceService
 	PersonService       usersSvc.PersonService
+	db                  *bun.DB
 }
 
 // NewResource creates a new time-tracking resource
-func NewResource(workSessionService activeSvc.WorkSessionService, staffAbsenceService activeSvc.StaffAbsenceService, personService usersSvc.PersonService) *Resource {
+func NewResource(workSessionService activeSvc.WorkSessionService, staffAbsenceService activeSvc.StaffAbsenceService, personService usersSvc.PersonService, db *bun.DB) *Resource {
 	return &Resource{
 		WorkSessionService:  workSessionService,
 		StaffAbsenceService: staffAbsenceService,
 		PersonService:       personService,
+		db:                  db,
 	}
 }
 
@@ -156,8 +160,13 @@ func (rs *Resource) checkIn(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Call service to check in
-	session, err := rs.WorkSessionService.CheckIn(r.Context(), staffID, req.Status)
-	if err != nil {
+	tenantID := tenant.FromContext(r.Context())
+	var session interface{}
+	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		var txErr error
+		session, txErr = rs.WorkSessionService.CheckIn(ctx, staffID, req.Status)
+		return txErr
+	}); err != nil {
 		common.RenderError(w, r, classifyServiceError(err))
 		return
 	}
@@ -176,8 +185,13 @@ func (rs *Resource) checkOut(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Call service to check out
-	session, err := rs.WorkSessionService.CheckOut(r.Context(), staffID)
-	if err != nil {
+	tenantID := tenant.FromContext(r.Context())
+	var session interface{}
+	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		var txErr error
+		session, txErr = rs.WorkSessionService.CheckOut(ctx, staffID)
+		return txErr
+	}); err != nil {
 		common.RenderError(w, r, classifyServiceError(err))
 		return
 	}
@@ -257,8 +271,13 @@ func (rs *Resource) updateSession(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Call service to update session
-	session, err := rs.WorkSessionService.UpdateSession(r.Context(), staffID, sessionID, updates)
-	if err != nil {
+	tenantID := tenant.FromContext(r.Context())
+	var session interface{}
+	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		var txErr error
+		session, txErr = rs.WorkSessionService.UpdateSession(ctx, staffID, sessionID, updates)
+		return txErr
+	}); err != nil {
 		common.RenderError(w, r, classifyServiceError(err))
 		return
 	}
@@ -291,8 +310,13 @@ func (rs *Resource) startBreak(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Call service to start break
-	brk, err := rs.WorkSessionService.StartBreak(r.Context(), staffID, req.PlannedDurationMinutes)
-	if err != nil {
+	tenantID := tenant.FromContext(r.Context())
+	var brk interface{}
+	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		var txErr error
+		brk, txErr = rs.WorkSessionService.StartBreak(ctx, staffID, req.PlannedDurationMinutes)
+		return txErr
+	}); err != nil {
 		common.RenderError(w, r, classifyServiceError(err))
 		return
 	}
@@ -311,8 +335,13 @@ func (rs *Resource) endBreak(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Call service to end break
-	session, err := rs.WorkSessionService.EndBreak(r.Context(), staffID)
-	if err != nil {
+	tenantID := tenant.FromContext(r.Context())
+	var session interface{}
+	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		var txErr error
+		session, txErr = rs.WorkSessionService.EndBreak(ctx, staffID)
+		return txErr
+	}); err != nil {
 		common.RenderError(w, r, classifyServiceError(err))
 		return
 	}
@@ -457,8 +486,13 @@ func (rs *Resource) createAbsence(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	absence, err := rs.StaffAbsenceService.CreateAbsence(r.Context(), staffID, req)
-	if err != nil {
+	tenantID := tenant.FromContext(r.Context())
+	var absence interface{}
+	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		var txErr error
+		absence, txErr = rs.StaffAbsenceService.CreateAbsence(ctx, staffID, req)
+		return txErr
+	}); err != nil {
 		common.RenderError(w, r, classifyAbsenceError(err))
 		return
 	}
@@ -488,8 +522,13 @@ func (rs *Resource) updateAbsence(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	absence, err := rs.StaffAbsenceService.UpdateAbsence(r.Context(), staffID, absenceID, req)
-	if err != nil {
+	tenantID := tenant.FromContext(r.Context())
+	var absence interface{}
+	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		var txErr error
+		absence, txErr = rs.StaffAbsenceService.UpdateAbsence(ctx, staffID, absenceID, req)
+		return txErr
+	}); err != nil {
 		common.RenderError(w, r, classifyAbsenceError(err))
 		return
 	}
@@ -513,7 +552,10 @@ func (rs *Resource) deleteAbsence(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := rs.StaffAbsenceService.DeleteAbsence(r.Context(), staffID, absenceID); err != nil {
+	tenantID := tenant.FromContext(r.Context())
+	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		return rs.StaffAbsenceService.DeleteAbsence(ctx, staffID, absenceID)
+	}); err != nil {
 		common.RenderError(w, r, classifyAbsenceError(err))
 		return
 	}

@@ -19,8 +19,10 @@ type TimeframeRepository struct {
 
 // NewTimeframeRepository creates a new TimeframeRepository
 func NewTimeframeRepository(db *bun.DB) schedule.TimeframeRepository {
+	repo := base.NewRepository[*schedule.Timeframe](db, "schedule.timeframes", "Timeframe")
+	repo.TenantScoped = true
 	return &TimeframeRepository{
-		Repository: base.NewRepository[*schedule.Timeframe](db, "schedule.timeframes", "Timeframe"),
+		Repository: repo,
 		db:         db,
 	}
 }
@@ -28,11 +30,16 @@ func NewTimeframeRepository(db *bun.DB) schedule.TimeframeRepository {
 // FindActive finds all active timeframes
 func (r *TimeframeRepository) FindActive(ctx context.Context) ([]*schedule.Timeframe, error) {
 	var timeframes []*schedule.Timeframe
-	err := base.GetDB(ctx, r.db).NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&timeframes).
 		ModelTableExpr(`schedule.timeframes AS "timeframe"`).
-		Where("is_active = ?", true).
-		Scan(ctx)
+		Where("is_active = ?", true)
+
+	if where, val, ok := base.TenantWhere(ctx, "timeframe"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.Scan(ctx)
 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
@@ -53,6 +60,10 @@ func (r *TimeframeRepository) FindByTimeRange(ctx context.Context, startTime, en
 		ModelTableExpr(`schedule.timeframes AS "timeframe"`).
 		Where("start_time <= ?", endTime)
 
+	if where, val, ok := base.TenantWhere(ctx, "timeframe"); ok {
+		query = query.Where(where, val)
+	}
+
 	// Handle open-ended timeframes (no end_time) differently
 	query = query.Where("(end_time IS NULL OR end_time >= ?)", startTime)
 
@@ -70,11 +81,16 @@ func (r *TimeframeRepository) FindByTimeRange(ctx context.Context, startTime, en
 // FindByDescription finds timeframes with matching description
 func (r *TimeframeRepository) FindByDescription(ctx context.Context, description string) ([]*schedule.Timeframe, error) {
 	var timeframes []*schedule.Timeframe
-	err := base.GetDB(ctx, r.db).NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&timeframes).
 		ModelTableExpr(`schedule.timeframes AS "timeframe"`).
-		Where("LOWER(description) LIKE LOWER(?)", "%"+description+"%").
-		Scan(ctx)
+		Where("LOWER(description) LIKE LOWER(?)", "%"+description+"%")
+
+	if where, val, ok := base.TenantWhere(ctx, "timeframe"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.Scan(ctx)
 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
@@ -123,6 +139,10 @@ func (r *TimeframeRepository) List(ctx context.Context, options *modelBase.Query
 		Model(&timeframes).
 		ModelTableExpr(`schedule.timeframes AS "timeframe"`)
 
+	if where, val, ok := base.TenantWhere(ctx, "timeframe"); ok {
+		query = query.Where(where, val)
+	}
+
 	// Apply query options
 	if options != nil {
 		query = options.ApplyToQuery(query)
@@ -143,11 +163,16 @@ func (r *TimeframeRepository) List(ctx context.Context, options *modelBase.Query
 func (r *TimeframeRepository) FindByID(ctx context.Context, id interface{}) (*schedule.Timeframe, error) {
 	var timeframe schedule.Timeframe
 
-	err := base.GetDB(ctx, r.db).NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&timeframe).
 		ModelTableExpr(`schedule.timeframes AS "timeframe"`).
-		Where(`"timeframe".id = ?`, id).
-		Scan(ctx)
+		Where(`"timeframe".id = ?`, id)
+
+	if where, val, ok := base.TenantWhere(ctx, "timeframe"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.Scan(ctx)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by id",

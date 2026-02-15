@@ -41,6 +41,7 @@ func setupTestContext(t *testing.T) *testContext {
 		svc.Schedule,
 		svc.Users,
 		svc.UserContext,
+		db,
 	)
 
 	return &testContext{

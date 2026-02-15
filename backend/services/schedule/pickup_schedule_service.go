@@ -86,7 +86,6 @@ type pickupScheduleService struct {
 	exceptionRepo schedule.StudentPickupExceptionRepository
 	noteRepo      schedule.StudentPickupNoteRepository
 	db            *bun.DB
-	txHandler     *base.TxHandler
 }
 
 // NewPickupScheduleService creates a new pickup schedule service
@@ -101,7 +100,6 @@ func NewPickupScheduleService(
 		exceptionRepo: exceptionRepo,
 		noteRepo:      noteRepo,
 		db:            db,
-		txHandler:     base.NewTxHandler(db),
 	}
 }
 
@@ -142,38 +140,42 @@ func (s *pickupScheduleService) UpsertStudentPickupSchedule(ctx context.Context,
 }
 
 // UpsertBulkStudentPickupSchedules replaces all pickup schedules for a student.
-// This deletes existing schedules and inserts the new ones in a transaction,
+// This deletes existing schedules and inserts the new ones atomically,
 // ensuring that cleared weekdays are properly removed.
 func (s *pickupScheduleService) UpsertBulkStudentPickupSchedules(ctx context.Context, studentID int64, schedules []*schedule.StudentPickupSchedule) error {
-	return s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
-		// Delete all existing schedules for this student first
-		_, err := tx.NewDelete().
-			Model((*schedule.StudentPickupSchedule)(nil)).
+	// Use transaction from context if available (handler's WithTenantTx), otherwise fall back to db
+	var db bun.IDB = s.db
+	if tx, ok := base.TxFromContext(ctx); ok && tx != nil {
+		db = tx
+	}
+
+	// Delete all existing schedules for this student first
+	_, err := db.NewDelete().
+		Model((*schedule.StudentPickupSchedule)(nil)).
+		ModelTableExpr("schedule.student_pickup_schedules").
+		Where("student_id = ?", studentID).
+		Exec(ctx)
+	if err != nil {
+		return &ScheduleError{Op: opUpsertBulkStudentPickupSchedules, Err: fmt.Errorf("failed to delete existing schedules: %w", err)}
+	}
+
+	// Insert new schedules
+	for _, sched := range schedules {
+		sched.StudentID = studentID
+		if err := sched.Validate(); err != nil {
+			return &ScheduleError{Op: opUpsertBulkStudentPickupSchedules, Err: fmt.Errorf("invalid schedule for weekday %d: %w", sched.Weekday, err)}
+		}
+
+		_, err := db.NewInsert().
+			Model(sched).
 			ModelTableExpr("schedule.student_pickup_schedules").
-			Where("student_id = ?", studentID).
+			Returning("id").
 			Exec(ctx)
 		if err != nil {
-			return &ScheduleError{Op: opUpsertBulkStudentPickupSchedules, Err: fmt.Errorf("failed to delete existing schedules: %w", err)}
+			return &ScheduleError{Op: opUpsertBulkStudentPickupSchedules, Err: err}
 		}
-
-		// Insert new schedules
-		for _, sched := range schedules {
-			sched.StudentID = studentID
-			if err := sched.Validate(); err != nil {
-				return &ScheduleError{Op: opUpsertBulkStudentPickupSchedules, Err: fmt.Errorf("invalid schedule for weekday %d: %w", sched.Weekday, err)}
-			}
-
-			_, err := tx.NewInsert().
-				Model(sched).
-				ModelTableExpr("schedule.student_pickup_schedules").
-				Returning("id").
-				Exec(ctx)
-			if err != nil {
-				return &ScheduleError{Op: opUpsertBulkStudentPickupSchedules, Err: err}
-			}
-		}
-		return nil
-	})
+	}
+	return nil
 }
 
 // DeleteStudentPickupSchedule deletes a pickup schedule by ID

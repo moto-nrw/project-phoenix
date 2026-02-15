@@ -11,7 +11,6 @@ import (
 
 // Service defines operations for managing schedules
 type Service interface {
-	base.TransactionalService
 	// Dateframe operations
 	GetDateframe(ctx context.Context, id int64) (*schedule.Dateframe, error)
 	CreateDateframe(ctx context.Context, dateframe *schedule.Dateframe) error

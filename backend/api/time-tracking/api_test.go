@@ -276,7 +276,7 @@ func defaultPersonSvc() *mockPersonService {
 }
 
 func testResource(wsSvc *mockWorkSessionService, absSvc *mockStaffAbsenceService, pSvc *mockPersonService) *Resource {
-	return NewResource(wsSvc, absSvc, pSvc)
+	return NewResource(wsSvc, absSvc, pSvc, nil)
 }
 
 func withClaims(r *http.Request, claims jwt.AppClaims) *http.Request {
@@ -340,7 +340,7 @@ func TestCheckInRequest_Bind(t *testing.T) {
 // --- NewResource ---
 
 func TestNewResource(t *testing.T) {
-	rs := NewResource(&mockWorkSessionService{}, &mockStaffAbsenceService{}, defaultPersonSvc())
+	rs := NewResource(&mockWorkSessionService{}, &mockStaffAbsenceService{}, defaultPersonSvc(), nil)
 	assert.NotNil(t, rs)
 	assert.NotNil(t, rs.WorkSessionService)
 	assert.NotNil(t, rs.StaffAbsenceService)

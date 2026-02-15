@@ -705,33 +705,6 @@ func TestFeedbackService_CreateEntries(t *testing.T) {
 }
 
 // ============================================================================
-// Transaction Tests
-// ============================================================================
-
-func TestFeedbackService_WithTx(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	service := setupFeedbackService(t, db)
-	ctx := context.Background()
-
-	t.Run("WithTx returns transactional service", func(t *testing.T) {
-		// ARRANGE
-		tx, err := db.BeginTx(ctx, nil)
-		require.NoError(t, err)
-		defer func() { _ = tx.Rollback() }()
-
-		// ACT
-		txService := service.WithTx(tx)
-
-		// ASSERT
-		require.NotNil(t, txService)
-		_, ok := txService.(feedbackSvc.Service)
-		assert.True(t, ok, "WithTx should return Service interface")
-	})
-}
-
-// ============================================================================
 // Error Type Tests
 // ============================================================================
 

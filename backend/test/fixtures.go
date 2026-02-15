@@ -15,9 +15,12 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/auth"
+	"github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
+	"github.com/moto-nrw/project-phoenix/models/feedback"
 	"github.com/moto-nrw/project-phoenix/models/iot"
+	"github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/stretchr/testify/require"
@@ -1858,4 +1861,339 @@ func CleanupGradeTransitionFixtures(tb testing.TB, db *bun.DB, transitionIDs ...
 		TableExpr(tableEducationGradeTransition).
 		Where(whereIDIn, bun.In(transitionIDs)).
 		Exec(ctx)
+}
+
+// ============================================================================
+// Multi-Tenancy Isolation Test Fixtures (WP 3.19)
+// ============================================================================
+
+// CreateTestOrganization creates a test organization in the platform schema.
+// Organizations are the top-level tenant grouping (e.g. a school district).
+func CreateTestOrganization(tb testing.TB, db *bun.DB, name, slug string) *platform.Organization {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	uniqueSlug := fmt.Sprintf("%s-%d", slug, time.Now().UnixNano())
+
+	org := &platform.Organization{
+		Name:   name,
+		Slug:   uniqueSlug,
+		Active: true,
+	}
+
+	err := db.NewInsert().
+		Model(org).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to create test organization")
+
+	return org
+}
+
+// CreateTestSchool creates a test school (tenant) in the platform schema.
+// The school ID is used as tenant_id throughout the system.
+func CreateTestSchool(tb testing.TB, db *bun.DB, orgID int64, name, slug string) *platform.School {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	uniqueSlug := fmt.Sprintf("%s-%d", slug, time.Now().UnixNano())
+	uniqueSubdomain := fmt.Sprintf("t%d", time.Now().UnixNano())
+
+	school := &platform.School{
+		OrganizationID: orgID,
+		Name:           name,
+		Slug:           uniqueSlug,
+		Subdomain:      uniqueSubdomain,
+		Active:         true,
+	}
+
+	err := db.NewInsert().
+		Model(school).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to create test school")
+
+	return school
+}
+
+// CreateTestPersonForTenant creates a person belonging to a specific tenant.
+func CreateTestPersonForTenant(tb testing.TB, db *bun.DB, tenantID int64, firstName, lastName string) *users.Person {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	person := &users.Person{
+		FirstName: firstName,
+		LastName:  lastName,
+	}
+	person.SetTenantID(tenantID)
+
+	err := db.NewInsert().
+		Model(person).
+		ModelTableExpr(`users.persons`).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to create test person for tenant")
+
+	return person
+}
+
+// CreateTestStudentForTenant creates a student (and person) belonging to a specific tenant.
+func CreateTestStudentForTenant(tb testing.TB, db *bun.DB, tenantID int64, firstName, lastName, className string) *users.Student {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Create person first (Student has FK to Person)
+	person := CreateTestPersonForTenant(tb, db, tenantID, firstName, lastName)
+
+	student := &users.Student{
+		PersonID:    person.ID,
+		SchoolClass: className,
+	}
+	student.SetTenantID(tenantID)
+
+	err := db.NewInsert().
+		Model(student).
+		ModelTableExpr(`users.students`).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to create test student for tenant")
+
+	student.Person = person
+	return student
+}
+
+// CreateTestRoomForTenant creates a room belonging to a specific tenant.
+func CreateTestRoomForTenant(tb testing.TB, db *bun.DB, tenantID int64, name string) *facilities.Room {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	uniqueName := fmt.Sprintf("%s-%d", name, time.Now().UnixNano())
+
+	room := &facilities.Room{
+		Name:     uniqueName,
+		Building: "Test Building",
+		Capacity: intPtr(30),
+	}
+	room.SetTenantID(tenantID)
+
+	err := db.NewInsert().
+		Model(room).
+		ModelTableExpr(`facilities.rooms`).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to create test room for tenant")
+
+	return room
+}
+
+// CreateTestEducationGroupForTenant creates an education group belonging to a specific tenant.
+func CreateTestEducationGroupForTenant(tb testing.TB, db *bun.DB, tenantID int64, name string) *education.Group {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	uniqueName := fmt.Sprintf("%s-%d", name, time.Now().UnixNano())
+
+	group := &education.Group{
+		Name: uniqueName,
+	}
+	group.SetTenantID(tenantID)
+
+	err := db.NewInsert().
+		Model(group).
+		ModelTableExpr(`education.groups`).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to create test education group for tenant")
+
+	return group
+}
+
+// CreateTestTimeframeForTenant creates a timeframe belonging to a specific tenant.
+func CreateTestTimeframeForTenant(tb testing.TB, db *bun.DB, tenantID int64, description string) *schedule.Timeframe {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	uniqueDesc := fmt.Sprintf("%s-%d", description, time.Now().UnixNano())
+
+	now := time.Now()
+	startTime := time.Date(now.Year(), now.Month(), now.Day(), 8, 0, 0, 0, now.Location())
+	endTime := time.Date(now.Year(), now.Month(), now.Day(), 16, 0, 0, 0, now.Location())
+
+	timeframe := &schedule.Timeframe{
+		StartTime:   startTime,
+		EndTime:     &endTime,
+		IsActive:    true,
+		Description: uniqueDesc,
+	}
+	timeframe.SetTenantID(tenantID)
+
+	err := db.NewInsert().
+		Model(timeframe).
+		ModelTableExpr(`schedule.timeframes`).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to create test timeframe for tenant")
+
+	return timeframe
+}
+
+// CreateTestSettingForTenant creates a config setting belonging to a specific tenant.
+func CreateTestSettingForTenant(tb testing.TB, db *bun.DB, tenantID int64, key, value, category string) *config.Setting {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	uniqueKey := fmt.Sprintf("%s_%d", key, time.Now().UnixNano())
+
+	setting := &config.Setting{
+		Key:      uniqueKey,
+		Value:    value,
+		Category: category,
+	}
+	setting.SetTenantID(tenantID)
+
+	err := db.NewInsert().
+		Model(setting).
+		ModelTableExpr(`config.settings`).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to create test setting for tenant")
+
+	return setting
+}
+
+// CreateTestDeviceForTenant creates an IoT device belonging to a specific tenant.
+func CreateTestDeviceForTenant(tb testing.TB, db *bun.DB, tenantID int64, deviceID string) *iot.Device {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	uniqueDeviceID := fmt.Sprintf("%s-%d", deviceID, time.Now().UnixNano())
+
+	device := &iot.Device{
+		DeviceID:   uniqueDeviceID,
+		DeviceType: "rfid_reader",
+		Name:       stringPtr("Test Device " + uniqueDeviceID),
+		Status:     iot.DeviceStatusActive,
+		APIKey:     stringPtr("test-api-key-" + uniqueDeviceID),
+	}
+	device.SetTenantID(tenantID)
+
+	err := db.NewInsert().
+		Model(device).
+		ModelTableExpr(`iot.devices`).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to create test device for tenant")
+
+	return device
+}
+
+// CreateTestTokenForTenant creates an auth token belonging to a specific tenant.
+// Requires an existing account ID (accounts are not tenant-scoped).
+func CreateTestTokenForTenant(tb testing.TB, db *bun.DB, tenantID int64, accountID int64) *auth.Token {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	tokenValue := fmt.Sprintf("test-token-t%d-%d", tenantID, time.Now().UnixNano())
+
+	token := &auth.Token{
+		AccountID:  accountID,
+		Token:      tokenValue,
+		Expiry:     time.Now().Add(24 * time.Hour),
+		Mobile:     false,
+		FamilyID:   fmt.Sprintf("family-t%d-%d", tenantID, time.Now().UnixNano()),
+		Generation: 0,
+	}
+	token.SetTenantID(tenantID)
+
+	err := db.NewInsert().
+		Model(token).
+		ModelTableExpr(`auth.tokens`).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to create test token for tenant")
+
+	return token
+}
+
+// CreateTestFeedbackEntryForTenant creates a feedback entry belonging to a specific tenant.
+// Requires an existing student ID within the same tenant.
+func CreateTestFeedbackEntryForTenant(tb testing.TB, db *bun.DB, tenantID int64, studentID int64) *feedback.Entry {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	now := time.Now()
+
+	entry := &feedback.Entry{
+		Value:     feedback.ValuePositive,
+		Day:       now,
+		Time:      now,
+		StudentID: studentID,
+	}
+	entry.SetTenantID(tenantID)
+
+	err := db.NewInsert().
+		Model(entry).
+		ModelTableExpr(`feedback.entries`).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to create test feedback entry for tenant")
+
+	return entry
+}
+
+// CleanupTenantTestData removes all test data for the specified tenant IDs
+// from all tenant-scoped tables, in FK-safe order.
+func CleanupTenantTestData(tb testing.TB, db *bun.DB, tenantIDs ...int64) {
+	tb.Helper()
+
+	if len(tenantIDs) == 0 {
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// Delete in reverse-FK order (children before parents).
+	// Each delete is best-effort; failures are logged but do not fail the test.
+	tables := []string{
+		"feedback.entries",
+		"auth.tokens",
+		"config.settings",
+		"schedule.timeframes",
+		"iot.devices",
+		"active.visits",
+		"active.group_supervisors",
+		"active.groups",
+		"activities.student_enrollments",
+		"activities.groups",
+		"activities.categories",
+		"education.group_teacher",
+		"education.group_substitution",
+		"education.groups",
+		"users.students",
+		"users.staff",
+		"users.persons",
+		"facilities.rooms",
+	}
+
+	for _, table := range tables {
+		_, err := db.NewDelete().
+			TableExpr(table).
+			Where("tenant_id IN (?)", bun.In(tenantIDs)).
+			Exec(ctx)
+		if err != nil {
+			tb.Logf("cleanup %s for tenants %v: %v", table, tenantIDs, err)
+		}
+	}
 }

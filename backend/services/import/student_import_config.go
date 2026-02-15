@@ -324,28 +324,25 @@ func (c *StudentImportConfig) FindExisting(ctx context.Context, row importModels
 
 // Create creates a new student with all related entities
 func (c *StudentImportConfig) Create(ctx context.Context, row importModels.StudentImportRow) (int64, error) {
-	var studentID int64
+	person, err := c.createPersonFromRow(ctx, row)
+	if err != nil {
+		return 0, err
+	}
 
-	err := c.txHandler.RunInTx(ctx, func(txCtx context.Context, tx bun.Tx) error {
-		person, err := c.createPersonFromRow(txCtx, row)
-		if err != nil {
-			return err
-		}
+	student, err := c.createStudentFromRow(ctx, person.ID, row)
+	if err != nil {
+		return 0, err
+	}
 
-		student, err := c.createStudentFromRow(txCtx, person.ID, row)
-		if err != nil {
-			return err
-		}
-		studentID = student.ID
+	if err := c.createGuardianRelationships(ctx, student.ID, row.Guardians); err != nil {
+		return 0, err
+	}
 
-		if err := c.createGuardianRelationships(txCtx, studentID, row.Guardians); err != nil {
-			return err
-		}
+	if err := c.createPrivacyConsentIfNeeded(ctx, student.ID, row); err != nil {
+		return 0, err
+	}
 
-		return c.createPrivacyConsentIfNeeded(txCtx, studentID, row)
-	})
-
-	return studentID, err
+	return student.ID, nil
 }
 
 // createPersonFromRow creates a person from import row

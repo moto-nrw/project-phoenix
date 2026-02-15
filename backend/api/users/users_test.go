@@ -34,7 +34,7 @@ func setupTestContext(t *testing.T) *testContext {
 	t.Helper()
 
 	db, svc := testutil.SetupAPITest(t)
-	resource := usersAPI.NewResource(svc.Users)
+	resource := usersAPI.NewResource(svc.Users, db)
 
 	t.Cleanup(func() {
 		if err := db.Close(); err != nil {

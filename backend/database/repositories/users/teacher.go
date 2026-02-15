@@ -21,8 +21,10 @@ type TeacherRepository struct {
 
 // NewTeacherRepository creates a new TeacherRepository
 func NewTeacherRepository(db *bun.DB) users.TeacherRepository {
+	repo := base.NewRepository[*users.Teacher](db, "users.teachers", "Teacher")
+	repo.TenantScoped = true
 	return &TeacherRepository{
-		Repository: base.NewRepository[*users.Teacher](db, "users.teachers", "Teacher"),
+		Repository: repo,
 		db:         db,
 	}
 }
@@ -31,11 +33,16 @@ func NewTeacherRepository(db *bun.DB) users.TeacherRepository {
 // Returns (nil, nil) if no teacher record exists for the given staff ID
 func (r *TeacherRepository) FindByStaffID(ctx context.Context, staffID int64) (*users.Teacher, error) {
 	teacher := new(users.Teacher)
-	err := base.GetDB(ctx, r.db).NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(teacher).
 		ModelTableExpr(`users.teachers AS "teacher"`).
-		Where("staff_id = ?", staffID).
-		Scan(ctx)
+		Where(`"teacher".staff_id = ?`, staffID)
+
+	if where, val, ok := base.TenantWhere(ctx, "teacher"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.Scan(ctx)
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -58,11 +65,16 @@ func (r *TeacherRepository) FindByStaffIDs(ctx context.Context, staffIDs []int64
 	}
 
 	var teachers []*users.Teacher
-	err := base.GetDB(ctx, r.db).NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&teachers).
 		ModelTableExpr(`users.teachers AS "teacher"`).
-		Where(`"teacher".staff_id IN (?)`, bun.In(staffIDs)).
-		Scan(ctx)
+		Where(`"teacher".staff_id IN (?)`, bun.In(staffIDs))
+
+	if where, val, ok := base.TenantWhere(ctx, "teacher"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.Scan(ctx)
 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
@@ -83,11 +95,16 @@ func (r *TeacherRepository) FindByStaffIDs(ctx context.Context, staffIDs []int64
 // FindBySpecialization retrieves teachers by their specialization
 func (r *TeacherRepository) FindBySpecialization(ctx context.Context, specialization string) ([]*users.Teacher, error) {
 	var teachers []*users.Teacher
-	err := base.GetDB(ctx, r.db).NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&teachers).
 		ModelTableExpr(`users.teachers AS "teacher"`).
-		Where("LOWER(specialization) = LOWER(?)", specialization).
-		Scan(ctx)
+		Where("LOWER(specialization) = LOWER(?)", specialization)
+
+	if where, val, ok := base.TenantWhere(ctx, "teacher"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.Scan(ctx)
 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
@@ -102,12 +119,17 @@ func (r *TeacherRepository) FindBySpecialization(ctx context.Context, specializa
 // FindByGroupID retrieves teachers assigned to a group
 func (r *TeacherRepository) FindByGroupID(ctx context.Context, groupID int64) ([]*users.Teacher, error) {
 	var teachers []*users.Teacher
-	err := base.GetDB(ctx, r.db).NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&teachers).
 		ModelTableExpr(`users.teachers AS "teacher"`).
-		Join("JOIN education.group_teacher gt ON gt.teacher_id = teacher.id").
-		Where("gt.group_id = ?", groupID).
-		Scan(ctx)
+		Join(`JOIN education.group_teacher gt ON gt.teacher_id = "teacher".id`).
+		Where("gt.group_id = ?", groupID)
+
+	if where, val, ok := base.TenantWhere(ctx, "teacher"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.Scan(ctx)
 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
@@ -121,13 +143,17 @@ func (r *TeacherRepository) FindByGroupID(ctx context.Context, groupID int64) ([
 
 // UpdateQualifications updates a teacher's qualifications
 func (r *TeacherRepository) UpdateQualifications(ctx context.Context, id int64, qualifications string) error {
-	_, err := base.GetDB(ctx, r.db).NewUpdate().
+	query := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*users.Teacher)(nil)).
 		ModelTableExpr(`users.teachers AS "teacher"`).
 		Set("qualifications = ?", qualifications).
-		Where("id = ?", id).
-		Exec(ctx)
+		Where(`"teacher".id = ?`, id)
 
+	if where, val, ok := base.TenantWhere(ctx, "teacher"); ok {
+		query = query.Where(where, val)
+	}
+
+	result, err := query.Exec(ctx)
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "update qualifications",
@@ -135,7 +161,7 @@ func (r *TeacherRepository) UpdateQualifications(ctx context.Context, id int64, 
 		}
 	}
 
-	return nil
+	return base.AssertRowsAffected(result, 1, "update qualifications")
 }
 
 // Create overrides the base Create method to handle validation
@@ -211,6 +237,10 @@ func (r *TeacherRepository) ListWithOptions(ctx context.Context, options *modelB
 		Model(&teachers).
 		ModelTableExpr(`users.teachers AS "teacher"`)
 
+	if where, val, ok := base.TenantWhere(ctx, "teacher"); ok {
+		query = query.Where(where, val)
+	}
+
 	// Apply query options
 	if options != nil {
 		query = options.ApplyToQuery(query)
@@ -230,12 +260,17 @@ func (r *TeacherRepository) ListWithOptions(ctx context.Context, options *modelB
 // FindWithStaff retrieves a teacher with their associated staff data
 func (r *TeacherRepository) FindWithStaff(ctx context.Context, id int64) (*users.Teacher, error) {
 	teacher := new(users.Teacher)
-	err := base.GetDB(ctx, r.db).NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(teacher).
 		ModelTableExpr(`users.teachers AS "teacher"`).
 		Relation("Staff").
-		Where("id = ?", id).
-		Scan(ctx)
+		Where(`"teacher".id = ?`, id)
+
+	if where, val, ok := base.TenantWhere(ctx, "teacher"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.Scan(ctx)
 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
@@ -262,7 +297,7 @@ func (r *TeacherRepository) FindWithStaffAndPerson(ctx context.Context, id int64
 		Person:  new(users.Person),
 	}
 
-	err := base.GetDB(ctx, r.db).NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(result).
 		ModelTableExpr(`users.teachers AS "teacher"`).
 		// Teacher columns with proper aliasing
@@ -279,9 +314,13 @@ func (r *TeacherRepository) FindWithStaffAndPerson(ctx context.Context, id int64
 		// JOINs
 		Join(`INNER JOIN users.staff AS "staff" ON "staff".id = "teacher".staff_id`).
 		Join(`INNER JOIN users.persons AS "person" ON "person".id = "staff".person_id`).
-		Where(`"teacher".id = ?`, id).
-		Scan(ctx)
+		Where(`"teacher".id = ?`, id)
 
+	if where, val, ok := base.TenantWhere(ctx, "teacher"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.Scan(ctx)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find with staff and person",
@@ -311,7 +350,7 @@ func (r *TeacherRepository) ListAllWithStaffAndPerson(ctx context.Context) ([]*u
 
 	var results []teacherResult
 
-	err := base.GetDB(ctx, r.db).NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&results).
 		ModelTableExpr(`users.teachers AS "teacher"`).
 		// Teacher columns with proper aliasing
@@ -327,9 +366,13 @@ func (r *TeacherRepository) ListAllWithStaffAndPerson(ctx context.Context) ([]*u
 		ColumnExpr(`"person".tag_id AS "person__tag_id", "person".account_id AS "person__account_id"`).
 		// JOINs
 		Join(`INNER JOIN users.staff AS "staff" ON "staff".id = "teacher".staff_id`).
-		Join(`INNER JOIN users.persons AS "person" ON "person".id = "staff".person_id`).
-		Scan(ctx)
+		Join(`INNER JOIN users.persons AS "person" ON "person".id = "staff".person_id`)
 
+	if where, val, ok := base.TenantWhere(ctx, "teacher"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.Scan(ctx)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "list all with staff and person",
@@ -366,7 +409,7 @@ func (r *TeacherRepository) FindWithStaffAndPersonByIDs(ctx context.Context, ids
 
 	var results []teacherResult
 
-	err := base.GetDB(ctx, r.db).NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&results).
 		ModelTableExpr(`users.teachers AS "teacher"`).
 		// Teacher columns with proper aliasing
@@ -383,9 +426,13 @@ func (r *TeacherRepository) FindWithStaffAndPersonByIDs(ctx context.Context, ids
 		// JOINs
 		Join(`INNER JOIN users.staff AS "staff" ON "staff".id = "teacher".staff_id`).
 		Join(`INNER JOIN users.persons AS "person" ON "person".id = "staff".person_id`).
-		Where(`"teacher".id IN (?)`, bun.In(ids)).
-		Scan(ctx)
+		Where(`"teacher".id IN (?)`, bun.In(ids))
 
+	if where, val, ok := base.TenantWhere(ctx, "teacher"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.Scan(ctx)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find with staff and person by IDs",

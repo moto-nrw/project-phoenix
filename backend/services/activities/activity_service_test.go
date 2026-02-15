@@ -2634,35 +2634,6 @@ func TestActivityService_CreateGroup_InvalidCategoryID(t *testing.T) {
 	})
 }
 
-func TestActivityService_WithTx_TransactionBinding(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	service := setupActivityService(t, db)
-	ctx := context.Background()
-
-	t.Run("returns service bound to transaction", func(t *testing.T) {
-		// Start a transaction
-		tx, err := db.BeginTx(ctx, nil)
-		require.NoError(t, err)
-		defer func() { _ = tx.Rollback() }()
-
-		// ACT - create transaction-bound service
-		txService := service.WithTx(tx)
-
-		// ASSERT - should return a valid ActivityService
-		require.NotNil(t, txService)
-
-		// Cast to interface and verify it works
-		actSvc, ok := txService.(activities.ActivityService)
-		require.True(t, ok, "WithTx should return ActivityService interface")
-
-		// Verify the tx-bound service can perform read operations
-		_, err = actSvc.ListCategories(ctx)
-		require.NoError(t, err, "Transaction-bound service should be able to list")
-	})
-}
-
 // TestActivityService_AddSupervisor_PrimaryReplacement tests that adding a new primary
 // supervisor unsets the previous primary supervisor (tests unsetPrimarySupervisorsInTx)
 func TestActivityService_AddSupervisor_PrimaryReplacement(t *testing.T) {

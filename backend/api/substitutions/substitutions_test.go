@@ -35,7 +35,7 @@ func setupTestContext(t *testing.T) *testContext {
 
 	db, svc := testutil.SetupAPITest(t)
 
-	resource := substitutionsAPI.NewResource(svc.Education)
+	resource := substitutionsAPI.NewResource(svc.Education, db)
 
 	return &testContext{
 		db:       db,

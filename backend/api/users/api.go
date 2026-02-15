@@ -9,17 +9,20 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
+	"github.com/uptrace/bun"
 )
 
 // Resource defines the users API resource
 type Resource struct {
 	PersonService usersSvc.PersonService
+	db            *bun.DB
 }
 
 // NewResource creates a new users resource
-func NewResource(personService usersSvc.PersonService) *Resource {
+func NewResource(personService usersSvc.PersonService, db *bun.DB) *Resource {
 	return &Resource{
 		PersonService: personService,
+		db:            db,
 	}
 }
 

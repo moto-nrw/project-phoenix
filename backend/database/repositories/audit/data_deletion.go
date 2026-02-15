@@ -8,6 +8,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/models/audit"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -25,8 +26,10 @@ type DataDeletionRepository struct {
 
 // NewDataDeletionRepository creates a new DataDeletionRepository
 func NewDataDeletionRepository(db *bun.DB) audit.DataDeletionRepository {
+	repo := base.NewRepository[*audit.DataDeletion](db, "audit.data_deletions", "DataDeletion")
+	repo.TenantScoped = true
 	return &DataDeletionRepository{
-		Repository: base.NewRepository[*audit.DataDeletion](db, "audit.data_deletions", "DataDeletion"),
+		Repository: repo,
 		db:         db,
 	}
 }
@@ -55,12 +58,16 @@ func (r *DataDeletionRepository) Create(ctx context.Context, deletion *audit.Dat
 // FindByStudentID finds all deletion records for a specific student
 func (r *DataDeletionRepository) FindByStudentID(ctx context.Context, studentID int64) ([]*audit.DataDeletion, error) {
 	var deletions []*audit.DataDeletion
-	err := base.GetDB(ctx, r.db).NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&deletions).
 		ModelTableExpr(`audit.data_deletions AS "data_deletion"`).
-		Where("student_id = ?", studentID).
-		Order(orderByDeletedAtDesc).
-		Scan(ctx)
+		Where("student_id = ?", studentID)
+
+	if where, val, ok := base.TenantWhere(ctx, "data_deletion"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.Order(orderByDeletedAtDesc).Scan(ctx)
 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
@@ -75,13 +82,17 @@ func (r *DataDeletionRepository) FindByStudentID(ctx context.Context, studentID 
 // FindByDateRange finds all deletion records within a date range
 func (r *DataDeletionRepository) FindByDateRange(ctx context.Context, startDate, endDate time.Time) ([]*audit.DataDeletion, error) {
 	var deletions []*audit.DataDeletion
-	err := base.GetDB(ctx, r.db).NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&deletions).
 		ModelTableExpr(`audit.data_deletions AS "data_deletion"`).
 		Where("deleted_at >= ?", startDate).
-		Where("deleted_at <= ?", endDate).
-		Order(orderByDeletedAtDesc).
-		Scan(ctx)
+		Where("deleted_at <= ?", endDate)
+
+	if where, val, ok := base.TenantWhere(ctx, "data_deletion"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.Order(orderByDeletedAtDesc).Scan(ctx)
 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
@@ -96,12 +107,16 @@ func (r *DataDeletionRepository) FindByDateRange(ctx context.Context, startDate,
 // FindByType finds all deletion records of a specific type
 func (r *DataDeletionRepository) FindByType(ctx context.Context, deletionType string) ([]*audit.DataDeletion, error) {
 	var deletions []*audit.DataDeletion
-	err := base.GetDB(ctx, r.db).NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&deletions).
 		ModelTableExpr(`audit.data_deletions AS "data_deletion"`).
-		Where(whereDeletionTypeEquals, deletionType).
-		Order(orderByDeletedAtDesc).
-		Scan(ctx)
+		Where(whereDeletionTypeEquals, deletionType)
+
+	if where, val, ok := base.TenantWhere(ctx, "data_deletion"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.Order(orderByDeletedAtDesc).Scan(ctx)
 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
@@ -118,8 +133,13 @@ func (r *DataDeletionRepository) List(ctx context.Context, filters map[string]in
 	var deletions []*audit.DataDeletion
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&deletions).
-		ModelTableExpr(`audit.data_deletions AS "data_deletion"`).
-		Order(orderByDeletedAtDesc)
+		ModelTableExpr(`audit.data_deletions AS "data_deletion"`)
+
+	if where, val, ok := base.TenantWhere(ctx, "data_deletion"); ok {
+		query = query.Where(where, val)
+	}
+
+	query = query.Order(orderByDeletedAtDesc)
 
 	// Apply filters
 	for field, value := range filters {
@@ -156,15 +176,24 @@ func (r *DataDeletionRepository) GetDeletionStats(ctx context.Context, startDate
 		UniqueStudents      int64 `bun:"unique_students"`
 	}
 
+	tenantID := tenant.FromContext(ctx)
+
 	var stats deletionStats
-	err := base.GetDB(ctx, r.db).NewRaw(`
-		SELECT 
+	statsQuery := `
+		SELECT
 			COUNT(*) as total_deletions,
-			SUM(records_deleted) as total_records_deleted,
+			COALESCE(SUM(records_deleted), 0) as total_records_deleted,
 			COUNT(DISTINCT student_id) as unique_students
 		FROM audit.data_deletions
-		WHERE deleted_at >= ?
-	`, startDate).Scan(ctx, &stats)
+		WHERE deleted_at >= ?`
+
+	var err error
+	if tenantID > 0 {
+		statsQuery += ` AND tenant_id = ?`
+		err = base.GetDB(ctx, r.db).NewRaw(statsQuery, startDate, tenantID).Scan(ctx, &stats)
+	} else {
+		err = base.GetDB(ctx, r.db).NewRaw(statsQuery, startDate).Scan(ctx, &stats)
+	}
 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
@@ -181,15 +210,23 @@ func (r *DataDeletionRepository) GetDeletionStats(ctx context.Context, startDate
 	}
 
 	var typeBreakdown []typeStats
-	err = base.GetDB(ctx, r.db).NewRaw(`
-		SELECT 
+	typeQuery := `
+		SELECT
 			deletion_type,
 			COUNT(*) as count,
-			SUM(records_deleted) as records_deleted
+			COALESCE(SUM(records_deleted), 0) as records_deleted
 		FROM audit.data_deletions
-		WHERE deleted_at >= ?
-		GROUP BY deletion_type
-	`, startDate).Scan(ctx, &typeBreakdown)
+		WHERE deleted_at >= ?`
+
+	if tenantID > 0 {
+		typeQuery += ` AND tenant_id = ?
+		GROUP BY deletion_type`
+		err = base.GetDB(ctx, r.db).NewRaw(typeQuery, startDate, tenantID).Scan(ctx, &typeBreakdown)
+	} else {
+		typeQuery += `
+		GROUP BY deletion_type`
+		err = base.GetDB(ctx, r.db).NewRaw(typeQuery, startDate).Scan(ctx, &typeBreakdown)
+	}
 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
@@ -211,12 +248,17 @@ func (r *DataDeletionRepository) GetDeletionStats(ctx context.Context, startDate
 
 // CountByType counts deletion records of a specific type since a given date
 func (r *DataDeletionRepository) CountByType(ctx context.Context, deletionType string, since time.Time) (int64, error) {
-	count, err := base.GetDB(ctx, r.db).NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model((*audit.DataDeletion)(nil)).
 		ModelTableExpr(`audit.data_deletions AS "data_deletion"`).
 		Where(whereDeletionTypeEquals, deletionType).
-		Where("deleted_at >= ?", since).
-		Count(ctx)
+		Where("deleted_at >= ?", since)
+
+	if where, val, ok := base.TenantWhere(ctx, "data_deletion"); ok {
+		query = query.Where(where, val)
+	}
+
+	count, err := query.Count(ctx)
 
 	if err != nil {
 		return 0, &modelBase.DatabaseError{

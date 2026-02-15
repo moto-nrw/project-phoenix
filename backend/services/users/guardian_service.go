@@ -61,7 +61,6 @@ type guardianService struct {
 	defaultFrom             email.Email
 	invitationExpiry        time.Duration
 	db                      *bun.DB
-	txHandler               *base.TxHandler
 }
 
 // NewGuardianService creates a new GuardianService instance
@@ -85,56 +84,6 @@ func NewGuardianService(deps GuardianServiceDependencies) GuardianService {
 		defaultFrom:             deps.DefaultFrom,
 		invitationExpiry:        deps.InvitationExpiry,
 		db:                      deps.DB,
-		txHandler:               base.NewTxHandler(deps.DB),
-	}
-}
-
-// WithTx returns a new service instance with repositories bound to the transaction
-func (s *guardianService) WithTx(tx bun.Tx) interface{} {
-	var guardianProfileRepo = s.guardianProfileRepo
-	var guardianPhoneNumberRepo = s.guardianPhoneNumberRepo
-	var studentGuardianRepo = s.studentGuardianRepo
-	var guardianInvitationRepo = s.guardianInvitationRepo
-	var accountParentRepo = s.accountParentRepo
-	var studentRepo = s.studentRepo
-	var personRepo = s.personRepo
-
-	if txRepo, ok := s.guardianProfileRepo.(base.TransactionalRepository); ok {
-		guardianProfileRepo = txRepo.WithTx(tx).(users.GuardianProfileRepository)
-	}
-	if txRepo, ok := s.guardianPhoneNumberRepo.(base.TransactionalRepository); ok {
-		guardianPhoneNumberRepo = txRepo.WithTx(tx).(users.GuardianPhoneNumberRepository)
-	}
-	if txRepo, ok := s.studentGuardianRepo.(base.TransactionalRepository); ok {
-		studentGuardianRepo = txRepo.WithTx(tx).(users.StudentGuardianRepository)
-	}
-	if txRepo, ok := s.guardianInvitationRepo.(base.TransactionalRepository); ok {
-		guardianInvitationRepo = txRepo.WithTx(tx).(authModels.GuardianInvitationRepository)
-	}
-	if txRepo, ok := s.accountParentRepo.(base.TransactionalRepository); ok {
-		accountParentRepo = txRepo.WithTx(tx).(authModels.AccountParentRepository)
-	}
-	if txRepo, ok := s.studentRepo.(base.TransactionalRepository); ok {
-		studentRepo = txRepo.WithTx(tx).(users.StudentRepository)
-	}
-	if txRepo, ok := s.personRepo.(base.TransactionalRepository); ok {
-		personRepo = txRepo.WithTx(tx).(users.PersonRepository)
-	}
-
-	return &guardianService{
-		guardianProfileRepo:     guardianProfileRepo,
-		guardianPhoneNumberRepo: guardianPhoneNumberRepo,
-		studentGuardianRepo:     studentGuardianRepo,
-		guardianInvitationRepo:  guardianInvitationRepo,
-		accountParentRepo:       accountParentRepo,
-		studentRepo:             studentRepo,
-		personRepo:              personRepo,
-		dispatcher:              s.dispatcher,
-		frontendURL:             s.frontendURL,
-		defaultFrom:             s.defaultFrom,
-		invitationExpiry:        s.invitationExpiry,
-		db:                      s.db,
-		txHandler:               s.txHandler.WithTx(tx),
 	}
 }
 
@@ -184,33 +133,16 @@ func (s *guardianService) CreateGuardianWithInvitation(ctx context.Context, req 
 		return nil, nil, fmt.Errorf("guardian with this email already has an account")
 	}
 
-	var profile *users.GuardianProfile
-	var invitation *authModels.GuardianInvitation
+	profile, err := s.CreateGuardian(ctx, req)
+	if err != nil {
+		return nil, nil, err
+	}
 
-	// Run in transaction
-	err := s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
-		svc := s.WithTx(tx).(*guardianService)
-
-		// Create guardian profile
-		var err error
-		profile, err = svc.CreateGuardian(ctx, req)
-		if err != nil {
-			return err
-		}
-
-		// Create invitation
-		invitationReq := GuardianInvitationRequest{
-			GuardianProfileID: profile.ID,
-			CreatedBy:         createdBy,
-		}
-		invitation, err = svc.SendInvitation(ctx, invitationReq)
-		if err != nil {
-			return err
-		}
-
-		return nil
-	})
-
+	invitationReq := GuardianInvitationRequest{
+		GuardianProfileID: profile.ID,
+		CreatedBy:         createdBy,
+	}
+	invitation, err := s.SendInvitation(ctx, invitationReq)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -453,24 +385,17 @@ func (s *guardianService) AcceptInvitation(ctx context.Context, req GuardianInvi
 		return nil, err
 	}
 
-	var account *authModels.AccountParent
-	err := s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
-		svc := s.WithTx(tx).(*guardianService)
-
-		invitation, profile, err := svc.validateInvitationAndProfile(ctx, req.Token)
-		if err != nil {
-			return err
-		}
-
-		account, err = svc.createGuardianAccountFromInvitation(ctx, profile, req.Password, invitation.TenantID)
-		if err != nil {
-			return err
-		}
-
-		return svc.finalizeInvitationAcceptance(ctx, invitation.ID, profile.ID, account.ID)
-	})
-
+	invitation, profile, err := s.validateInvitationAndProfile(ctx, req.Token)
 	if err != nil {
+		return nil, err
+	}
+
+	account, err := s.createGuardianAccountFromInvitation(ctx, profile, req.Password, invitation.TenantID)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := s.finalizeInvitationAcceptance(ctx, invitation.ID, profile.ID, account.ID); err != nil {
 		return nil, err
 	}
 
@@ -786,20 +711,13 @@ func (s *guardianService) AddPhoneNumber(ctx context.Context, guardianID int64, 
 	}
 	phone.SetTenantID(tenant.FromContext(ctx))
 
-	// If setting as primary, wrap unset + create in transaction to avoid orphan state
+	// If setting as primary, unset existing primaries first
 	if isPrimary && count > 0 {
-		err := s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
-			svc := s.WithTx(tx).(*guardianService)
-			if err := svc.guardianPhoneNumberRepo.UnsetAllPrimary(ctx, guardianID); err != nil {
-				return fmt.Errorf("failed to unset existing primary: %w", err)
-			}
-			if err := svc.guardianPhoneNumberRepo.Create(ctx, phone); err != nil {
-				return fmt.Errorf("failed to create phone number: %w", err)
-			}
-			return nil
-		})
-		if err != nil {
-			return nil, err
+		if err := s.guardianPhoneNumberRepo.UnsetAllPrimary(ctx, guardianID); err != nil {
+			return nil, fmt.Errorf("failed to unset existing primary: %w", err)
+		}
+		if err := s.guardianPhoneNumberRepo.Create(ctx, phone); err != nil {
+			return nil, fmt.Errorf("failed to create phone number: %w", err)
 		}
 		return phone, nil
 	}
@@ -835,16 +753,13 @@ func (s *guardianService) UpdatePhoneNumber(ctx context.Context, phoneID int64, 
 		phone.Priority = *req.Priority
 	}
 
-	// Handle primary flag change - wrap in transaction to avoid orphan state
+	// Handle primary flag change
 	if req.IsPrimary != nil && *req.IsPrimary && !phone.IsPrimary {
 		phone.IsPrimary = true
-		return s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
-			svc := s.WithTx(tx).(*guardianService)
-			if err := svc.guardianPhoneNumberRepo.UnsetAllPrimary(ctx, phone.GuardianProfileID); err != nil {
-				return fmt.Errorf("failed to unset existing primary: %w", err)
-			}
-			return svc.guardianPhoneNumberRepo.Update(ctx, phone)
-		})
+		if err := s.guardianPhoneNumberRepo.UnsetAllPrimary(ctx, phone.GuardianProfileID); err != nil {
+			return fmt.Errorf("failed to unset existing primary: %w", err)
+		}
+		return s.guardianPhoneNumberRepo.Update(ctx, phone)
 	} else if req.IsPrimary != nil && !*req.IsPrimary && phone.IsPrimary {
 		// Unsetting primary - need to promote another number
 		phone.IsPrimary = false

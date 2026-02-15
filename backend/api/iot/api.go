@@ -23,6 +23,7 @@ import (
 	feedbackSvc "github.com/moto-nrw/project-phoenix/services/feedback"
 	iotSvc "github.com/moto-nrw/project-phoenix/services/iot"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
+	"github.com/uptrace/bun"
 )
 
 // delegateHandler creates an http.HandlerFunc that delegates to a subrouter.
@@ -44,6 +45,7 @@ type ServiceDependencies struct {
 	EducationService  educationSvc.Service
 	FeedbackService   feedbackSvc.Service
 	Logger            *slog.Logger
+	DB                *bun.DB
 }
 
 // Resource defines the IoT API resource
@@ -57,6 +59,7 @@ type Resource struct {
 	EducationService  educationSvc.Service
 	FeedbackService   feedbackSvc.Service
 	logger            *slog.Logger
+	db                *bun.DB
 }
 
 // NewResource creates a new IoT resource
@@ -71,6 +74,7 @@ func NewResource(deps ServiceDependencies) *Resource {
 		EducationService:  deps.EducationService,
 		FeedbackService:   deps.FeedbackService,
 		logger:            deps.Logger,
+		db:                deps.DB,
 	}
 }
 

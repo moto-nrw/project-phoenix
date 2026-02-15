@@ -22,7 +22,6 @@ type service struct {
 	teacherRepo      users.TeacherRepository
 	staffRepo        users.StaffRepository
 	db               *bun.DB
-	txHandler        *base.TxHandler
 }
 
 // NewService creates a new education service instance
@@ -43,50 +42,6 @@ func NewService(
 		teacherRepo:      teacherRepo,
 		staffRepo:        staffRepo,
 		db:               db,
-		txHandler:        base.NewTxHandler(db),
-	}
-}
-
-// WithTx returns a new service that uses the provided transaction
-func (s *service) WithTx(tx bun.Tx) interface{} {
-	// Get repositories with transaction if they implement the TransactionalRepository interface
-	var groupRepo = s.groupRepo
-	var groupTeacherRepo = s.groupTeacherRepo
-	var substitutionRepo = s.substitutionRepo
-	var roomRepo = s.roomRepo
-	var teacherRepo = s.teacherRepo
-	var staffRepo = s.staffRepo
-
-	// Try to cast repositories to TransactionalRepository and apply the transaction
-	if txRepo, ok := s.groupRepo.(base.TransactionalRepository); ok {
-		groupRepo = txRepo.WithTx(tx).(education.GroupRepository)
-	}
-	if txRepo, ok := s.groupTeacherRepo.(base.TransactionalRepository); ok {
-		groupTeacherRepo = txRepo.WithTx(tx).(education.GroupTeacherRepository)
-	}
-	if txRepo, ok := s.substitutionRepo.(base.TransactionalRepository); ok {
-		substitutionRepo = txRepo.WithTx(tx).(education.GroupSubstitutionRepository)
-	}
-	if txRepo, ok := s.roomRepo.(base.TransactionalRepository); ok {
-		roomRepo = txRepo.WithTx(tx).(facilities.RoomRepository)
-	}
-	if txRepo, ok := s.teacherRepo.(base.TransactionalRepository); ok {
-		teacherRepo = txRepo.WithTx(tx).(users.TeacherRepository)
-	}
-	if txRepo, ok := s.staffRepo.(base.TransactionalRepository); ok {
-		staffRepo = txRepo.WithTx(tx).(users.StaffRepository)
-	}
-
-	// Return a new service with the transaction
-	return &service{
-		groupRepo:        groupRepo,
-		groupTeacherRepo: groupTeacherRepo,
-		substitutionRepo: substitutionRepo,
-		roomRepo:         roomRepo,
-		teacherRepo:      teacherRepo,
-		staffRepo:        staffRepo,
-		db:               s.db,
-		txHandler:        s.txHandler.WithTx(tx),
 	}
 }
 
@@ -225,22 +180,15 @@ func (s *service) DeleteGroup(ctx context.Context, id int64) error {
 		return &EducationError{Op: "DeleteGroup", Err: ErrGroupNotFound}
 	}
 
-	err := s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
-		txService := s.WithTx(tx).(Service)
+	if err := deleteGroupTeacherRelations(ctx, s, id); err != nil {
+		return &EducationError{Op: "DeleteGroup", Err: err}
+	}
 
-		if err := deleteGroupTeacherRelations(ctx, txService, id); err != nil {
-			return err
-		}
+	if err := deleteGroupSubstitutions(ctx, s, id); err != nil {
+		return &EducationError{Op: "DeleteGroup", Err: err}
+	}
 
-		if err := deleteGroupSubstitutions(ctx, txService, id); err != nil {
-			return err
-		}
-
-		// Use transaction-bound repo for delete to maintain consistency
-		return txService.(*service).groupRepo.Delete(ctx, id)
-	})
-
-	if err != nil {
+	if err := s.groupRepo.Delete(ctx, id); err != nil {
 		return &EducationError{Op: "DeleteGroup", Err: err}
 	}
 

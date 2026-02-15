@@ -10,56 +10,42 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
-	"github.com/uptrace/bun"
 )
 
 // ======== Enrollment Methods ========
 
 // EnrollStudent enrolls a student in an activity group
 func (s *Service) EnrollStudent(ctx context.Context, groupID, studentID int64) error {
-	// Execute in transaction to ensure consistency
-	err := s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
-		// Get transactional service
-		txService := s.WithTx(tx).(ActivityService)
-
-		// Check if group exists
-		_, err := txService.(*Service).groupRepo.FindByID(ctx, groupID)
-		if err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
-				return ErrGroupNotFound
-			}
-			return &ActivityError{Op: opFindGroup, Err: err}
-		}
-
-		// Check if student is already enrolled
-		enrollments, err := txService.(*Service).enrollmentRepo.FindByGroupID(ctx, groupID)
-		if err != nil {
-			return &ActivityError{Op: "check existing enrollment", Err: err}
-		}
-
-		// Check if student is already enrolled
-		for _, enrollment := range enrollments {
-			if enrollment.StudentID == studentID {
-				return ErrStudentAlreadyEnrolled
-			}
-		}
-
-		// Create enrollment
-		enrollment := &activities.StudentEnrollment{
-			StudentID:       studentID,
-			ActivityGroupID: groupID,
-			EnrollmentDate:  time.Now(),
-		}
-		enrollment.SetTenantID(tenant.FromContext(ctx))
-
-		if err := txService.(*Service).enrollmentRepo.Create(ctx, enrollment); err != nil {
-			return &ActivityError{Op: "create enrollment", Err: err}
-		}
-
-		return nil
-	})
-
+	// Check if group exists
+	_, err := s.groupRepo.FindByID(ctx, groupID)
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return &ActivityError{Op: "enroll student", Err: ErrGroupNotFound}
+		}
+		return &ActivityError{Op: "enroll student", Err: err}
+	}
+
+	// Check if student is already enrolled
+	enrollments, err := s.enrollmentRepo.FindByGroupID(ctx, groupID)
+	if err != nil {
+		return &ActivityError{Op: "enroll student", Err: err}
+	}
+
+	for _, enrollment := range enrollments {
+		if enrollment.StudentID == studentID {
+			return &ActivityError{Op: "enroll student", Err: ErrStudentAlreadyEnrolled}
+		}
+	}
+
+	// Create enrollment
+	enrollment := &activities.StudentEnrollment{
+		StudentID:       studentID,
+		ActivityGroupID: groupID,
+		EnrollmentDate:  time.Now(),
+	}
+	enrollment.SetTenantID(tenant.FromContext(ctx))
+
+	if err := s.enrollmentRepo.Create(ctx, enrollment); err != nil {
 		return &ActivityError{Op: "enroll student", Err: err}
 	}
 
@@ -68,31 +54,21 @@ func (s *Service) EnrollStudent(ctx context.Context, groupID, studentID int64) e
 
 // UnenrollStudent removes a student from an activity group
 func (s *Service) UnenrollStudent(ctx context.Context, groupID, studentID int64) error {
-	err := s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
-		txService := s.WithTx(tx).(ActivityService)
+	if err := s.validateGroupExists(ctx, s, groupID); err != nil {
+		return &ActivityError{Op: "unenroll student", Err: err}
+	}
 
-		if err := s.validateGroupExists(ctx, txService, groupID); err != nil {
-			return err
-		}
-
-		enrollments, err := txService.(*Service).enrollmentRepo.FindByGroupID(ctx, groupID)
-		if err != nil {
-			return &ActivityError{Op: "find enrollments", Err: err}
-		}
-
-		enrollmentID, err := s.findEnrollmentID(enrollments, studentID)
-		if err != nil {
-			return err
-		}
-
-		if err := txService.(*Service).enrollmentRepo.Delete(ctx, enrollmentID); err != nil {
-			return &ActivityError{Op: "delete enrollment", Err: err}
-		}
-
-		return nil
-	})
-
+	enrollments, err := s.enrollmentRepo.FindByGroupID(ctx, groupID)
 	if err != nil {
+		return &ActivityError{Op: "unenroll student", Err: err}
+	}
+
+	enrollmentID, err := s.findEnrollmentID(enrollments, studentID)
+	if err != nil {
+		return &ActivityError{Op: "unenroll student", Err: err}
+	}
+
+	if err := s.enrollmentRepo.Delete(ctx, enrollmentID); err != nil {
 		return &ActivityError{Op: "unenroll student", Err: err}
 	}
 
@@ -117,28 +93,18 @@ func (s *Service) UpdateGroupEnrollments(ctx context.Context, groupID int64, stu
 		return &ActivityError{Op: "UpdateGroupEnrollments", Err: ErrGroupNotFound}
 	}
 
-	err = s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
-		txService := s.WithTx(tx).(ActivityService)
-
-		enrollments, err := txService.(*Service).enrollmentRepo.FindByGroupID(ctx, groupID)
-		if err != nil {
-			return &ActivityError{Op: "get current enrollments", Err: err}
-		}
-
-		currentStudentIDs, newStudentIDs := s.buildEnrollmentMaps(enrollments, studentIDs)
-
-		if err := s.removeUnwantedEnrollmentsInTx(ctx, txService, currentStudentIDs, newStudentIDs); err != nil {
-			return err
-		}
-
-		if err := s.addNewEnrollmentsInTx(ctx, txService, groupID, currentStudentIDs, studentIDs); err != nil {
-			return err
-		}
-
-		return nil
-	})
-
+	enrollments, err := s.enrollmentRepo.FindByGroupID(ctx, groupID)
 	if err != nil {
+		return &ActivityError{Op: "update group enrollments", Err: err}
+	}
+
+	currentStudentIDs, newStudentIDs := s.buildEnrollmentMaps(enrollments, studentIDs)
+
+	if err := s.removeUnwantedEnrollmentsInTx(ctx, s, currentStudentIDs, newStudentIDs); err != nil {
+		return &ActivityError{Op: "update group enrollments", Err: err}
+	}
+
+	if err := s.addNewEnrollmentsInTx(ctx, s, groupID, currentStudentIDs, studentIDs); err != nil {
 		return &ActivityError{Op: "update group enrollments", Err: err}
 	}
 
@@ -213,60 +179,43 @@ func (s *Service) GetEnrolledStudents(ctx context.Context, groupID int64) ([]*us
 
 // GetStudentEnrollments retrieves all groups a student is enrolled in
 func (s *Service) GetStudentEnrollments(ctx context.Context, studentID int64) ([]*activities.Group, error) {
-	var result []*activities.Group
-
-	// Use transaction to ensure consistent data
-	err := s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
-		// Get transactional service
-		txService := s.WithTx(tx).(ActivityService)
-
-		// Get all enrollments for this student
-		enrollments, err := txService.(*Service).enrollmentRepo.FindByStudentID(ctx, studentID)
-		if err != nil {
-			return &ActivityError{Op: "find student enrollments", Err: err}
-		}
-
-		// Extract group IDs from enrollments
-		groupIDs := make([]int64, 0, len(enrollments))
-		for _, enrollment := range enrollments {
-			groupIDs = append(groupIDs, enrollment.ActivityGroupID)
-		}
-
-		// If no enrollments found, return empty slice
-		if len(groupIDs) == 0 {
-			result = []*activities.Group{}
-			return nil
-		}
-
-		// Create a filter to get groups by IDs
-		options := base.NewQueryOptions()
-		filter := base.NewFilter()
-
-		// Convert int64 slice to []interface{}
-		interfaceIDs := make([]interface{}, len(groupIDs))
-		for i, id := range groupIDs {
-			interfaceIDs[i] = id
-		}
-
-		filter.In("id", interfaceIDs...)
-		options.Filter = filter
-
-		// Get groups using List method
-		groups, err := txService.(*Service).groupRepo.List(ctx, options)
-		if err != nil {
-			return &ActivityError{Op: "get groups by ids", Err: err}
-		}
-
-		// Store result for returning after transaction completes
-		result = groups
-		return nil
-	})
-
+	// Get all enrollments for this student
+	enrollments, err := s.enrollmentRepo.FindByStudentID(ctx, studentID)
 	if err != nil {
 		return nil, &ActivityError{Op: "get student enrollments", Err: err}
 	}
 
-	return result, nil
+	// Extract group IDs from enrollments
+	groupIDs := make([]int64, 0, len(enrollments))
+	for _, enrollment := range enrollments {
+		groupIDs = append(groupIDs, enrollment.ActivityGroupID)
+	}
+
+	// If no enrollments found, return empty slice
+	if len(groupIDs) == 0 {
+		return []*activities.Group{}, nil
+	}
+
+	// Create a filter to get groups by IDs
+	options := base.NewQueryOptions()
+	filter := base.NewFilter()
+
+	// Convert int64 slice to []interface{}
+	interfaceIDs := make([]interface{}, len(groupIDs))
+	for i, id := range groupIDs {
+		interfaceIDs[i] = id
+	}
+
+	filter.In("id", interfaceIDs...)
+	options.Filter = filter
+
+	// Get groups using List method
+	groups, err := s.groupRepo.List(ctx, options)
+	if err != nil {
+		return nil, &ActivityError{Op: "get student enrollments", Err: err}
+	}
+
+	return groups, nil
 }
 
 // GetAvailableGroups retrieves all groups a student can enroll in (not already enrolled)
@@ -302,29 +251,17 @@ func (s *Service) GetAvailableGroups(ctx context.Context, studentID int64) ([]*a
 
 // UpdateAttendanceStatus updates the attendance status for an enrollment
 func (s *Service) UpdateAttendanceStatus(ctx context.Context, enrollmentID int64, status *string) error {
-	// Execute in transaction for consistency
-	err := s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
-		// Get transactional service
-		txService := s.WithTx(tx).(ActivityService)
-
-		// Check if enrollment exists
-		_, err := txService.(*Service).enrollmentRepo.FindByID(ctx, enrollmentID)
-		if err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
-				return ErrEnrollmentNotFound
-			}
-			return &ActivityError{Op: "find enrollment", Err: err}
-		}
-
-		// Update the status
-		if err := txService.(*Service).enrollmentRepo.UpdateAttendanceStatus(ctx, enrollmentID, status); err != nil {
-			return &ActivityError{Op: "update attendance status", Err: err}
-		}
-
-		return nil
-	})
-
+	// Check if enrollment exists
+	_, err := s.enrollmentRepo.FindByID(ctx, enrollmentID)
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return &ActivityError{Op: "update attendance status", Err: ErrEnrollmentNotFound}
+		}
+		return &ActivityError{Op: "update attendance status", Err: err}
+	}
+
+	// Update the status
+	if err := s.enrollmentRepo.UpdateAttendanceStatus(ctx, enrollmentID, status); err != nil {
 		return &ActivityError{Op: "update attendance status", Err: err}
 	}
 

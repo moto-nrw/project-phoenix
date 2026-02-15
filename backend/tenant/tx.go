@@ -14,9 +14,20 @@ import (
 //  2. Sets app.current_tenant_id via set_config (visible to RLS policies)
 //
 // The role and config are LOCAL to the transaction and automatically reset on commit/rollback.
+// Nested-safe: if the context already contains a tenant tx with the same tenantID, the existing
+// tx is reused instead of opening a new one. Mismatched tenantIDs return an error.
 func WithTenantTx(ctx context.Context, db *bun.DB, tenantID int64, fn func(ctx context.Context, tx bun.Tx) error) error {
 	if tenantID == 0 {
 		return fmt.Errorf("tenant: WithTenantTx requires a non-zero tenant_id")
+	}
+
+	// Nested-safe: if already in a tenant tx, reuse it
+	if tx, ok := modelBase.TxFromContext(ctx); ok && tx != nil {
+		existingTenantID := FromContext(ctx)
+		if existingTenantID != tenantID {
+			return fmt.Errorf("tenant: nested WithTenantTx with mismatched tenant_id (%d vs %d)", existingTenantID, tenantID)
+		}
+		return fn(ctx, *tx)
 	}
 
 	return db.RunInTx(ctx, &sql.TxOptions{}, func(ctx context.Context, tx bun.Tx) error {

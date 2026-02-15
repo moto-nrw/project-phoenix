@@ -21,8 +21,10 @@ type GroupRepository struct {
 
 // NewGroupRepository creates a new GroupRepository
 func NewGroupRepository(db *bun.DB) education.GroupRepository {
+	repo := base.NewRepository[*education.Group](db, "education.groups", "Group")
+	repo.TenantScoped = true
 	return &GroupRepository{
-		Repository: base.NewRepository[*education.Group](db, "education.groups", "Group"),
+		Repository: repo,
 		db:         db,
 	}
 }
@@ -30,12 +32,16 @@ func NewGroupRepository(db *bun.DB) education.GroupRepository {
 // FindByName retrieves a group by its name
 func (r *GroupRepository) FindByName(ctx context.Context, name string) (*education.Group, error) {
 	group := new(education.Group)
-	err := base.GetDB(ctx, r.db).NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(group).
 		ModelTableExpr(`education.groups AS "group"`).
-		Where("LOWER(name) = LOWER(?)", name).
-		Scan(ctx)
+		Where("LOWER(name) = LOWER(?)", name)
 
+	if where, val, ok := base.TenantWhere(ctx, "group"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.Scan(ctx)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by name",
@@ -49,12 +55,16 @@ func (r *GroupRepository) FindByName(ctx context.Context, name string) (*educati
 // FindByRoom retrieves groups by their room ID
 func (r *GroupRepository) FindByRoom(ctx context.Context, roomID int64) ([]*education.Group, error) {
 	var groups []*education.Group
-	err := base.GetDB(ctx, r.db).NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&groups).
 		ModelTableExpr(`education.groups AS "group"`).
-		Where("room_id = ?", roomID).
-		Scan(ctx)
+		Where("room_id = ?", roomID)
 
+	if where, val, ok := base.TenantWhere(ctx, "group"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.Scan(ctx)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by room",
@@ -72,12 +82,16 @@ func (r *GroupRepository) FindByIDs(ctx context.Context, ids []int64) (map[int64
 	}
 
 	var groups []*education.Group
-	err := base.GetDB(ctx, r.db).NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&groups).
 		ModelTableExpr(`education.groups AS "group"`).
-		Where(`"group".id IN (?)`, bun.In(ids)).
-		Scan(ctx)
+		Where(`"group".id IN (?)`, bun.In(ids))
 
+	if where, val, ok := base.TenantWhere(ctx, "group"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.Scan(ctx)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by IDs",
@@ -97,13 +111,17 @@ func (r *GroupRepository) FindByIDs(ctx context.Context, ids []int64) (map[int64
 // FindByTeacher retrieves groups by their teacher ID (via group_teacher table)
 func (r *GroupRepository) FindByTeacher(ctx context.Context, teacherID int64) ([]*education.Group, error) {
 	var groups []*education.Group
-	err := base.GetDB(ctx, r.db).NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&groups).
 		ModelTableExpr(`education.groups AS "group"`).
 		Join("JOIN education.group_teacher gt ON gt.group_id = \"group\".id").
-		Where("gt.teacher_id = ?", teacherID).
-		Scan(ctx)
+		Where("gt.teacher_id = ?", teacherID)
 
+	if where, val, ok := base.TenantWhere(ctx, "group"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.Scan(ctx)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by teacher",
@@ -125,7 +143,7 @@ func (r *GroupRepository) FindWithRoom(ctx context.Context, groupID int64) (*edu
 	}
 
 	result := new(Result)
-	err := base.GetDB(ctx, r.db).NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(result).
 		ModelTableExpr(`education.groups AS "group"`).
 		ColumnExpr(`"group".*`).
@@ -133,8 +151,13 @@ func (r *GroupRepository) FindWithRoom(ctx context.Context, groupID int64) (*edu
 		ColumnExpr(`"room".name AS "room__name", "room".building AS "room__building", "room".floor AS "room__floor"`).
 		ColumnExpr(`"room".capacity AS "room__capacity", "room".category AS "room__category", "room".color AS "room__color"`).
 		Join(`LEFT JOIN facilities.rooms AS "room" ON "room".id = "group".room_id`).
-		Where(`"group".id = ?`, groupID).
-		Scan(ctx)
+		Where(`"group".id = ?`, groupID)
+
+	if where, val, ok := base.TenantWhere(ctx, "group"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.Scan(ctx)
 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
@@ -240,6 +263,10 @@ func (r *GroupRepository) ListWithOptions(ctx context.Context, options *modelBas
 		ColumnExpr(`"room".capacity AS "room__capacity", "room".category AS "room__category", "room".color AS "room__color"`).
 		Join(`LEFT JOIN facilities.rooms AS "room" ON "room".id = "group".room_id`)
 
+	if where, val, ok := base.TenantWhere(ctx, "group"); ok {
+		query = query.Where(where, val)
+	}
+
 	// Apply query options (ensure table alias for JOINed queries to avoid ambiguous columns)
 	if options != nil {
 		if options.Filter != nil {
@@ -281,6 +308,10 @@ func (r *GroupRepository) CountWithOptions(ctx context.Context, options *modelBa
 		Model((*education.Group)(nil)).
 		ModelTableExpr(`education.groups AS "group"`).
 		Column("group.id")
+
+	if where, val, ok := base.TenantWhere(ctx, "group"); ok {
+		query = query.Where(where, val)
+	}
 
 	// Apply only filters (not pagination) for counting
 	if options != nil {

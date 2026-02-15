@@ -1,6 +1,7 @@
 package users
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"time"
@@ -10,6 +11,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/uptrace/bun"
 )
 
 // Constants for response messages (S1192 - avoid duplicate string literals)
@@ -305,7 +308,11 @@ func (rs *Resource) createPerson(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Create person using service
-	if err := rs.PersonService.Create(r.Context(), person); err != nil {
+	tenantID := tenant.FromContext(r.Context())
+	err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		return rs.PersonService.Create(ctx, person)
+	})
+	if err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
@@ -352,7 +359,11 @@ func (rs *Resource) updatePerson(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Update person using service
-	if err := rs.PersonService.Update(r.Context(), person); err != nil {
+	tenantID := tenant.FromContext(r.Context())
+	err = tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		return rs.PersonService.Update(ctx, person)
+	})
+	if err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
@@ -370,7 +381,11 @@ func (rs *Resource) deletePerson(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Delete person using service
-	if err := rs.PersonService.Delete(r.Context(), id); err != nil {
+	tenantID := tenant.FromContext(r.Context())
+	err = tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		return rs.PersonService.Delete(ctx, id)
+	})
+	if err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
@@ -395,7 +410,11 @@ func (rs *Resource) linkRFID(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Link RFID card to person
-	if err := rs.PersonService.LinkToRFIDCard(r.Context(), id, req.TagID); err != nil {
+	tenantID := tenant.FromContext(r.Context())
+	err = tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		return rs.PersonService.LinkToRFIDCard(ctx, id, req.TagID)
+	})
+	if err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
@@ -420,7 +439,11 @@ func (rs *Resource) unlinkRFID(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Unlink RFID card from person
-	if err := rs.PersonService.UnlinkFromRFIDCard(r.Context(), id); err != nil {
+	tenantID := tenant.FromContext(r.Context())
+	err = tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		return rs.PersonService.UnlinkFromRFIDCard(ctx, id)
+	})
+	if err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
@@ -452,7 +475,11 @@ func (rs *Resource) linkAccount(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Link account to person
-	if err := rs.PersonService.LinkToAccount(r.Context(), id, req.AccountID); err != nil {
+	tenantID := tenant.FromContext(r.Context())
+	err = tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		return rs.PersonService.LinkToAccount(ctx, id, req.AccountID)
+	})
+	if err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
@@ -477,7 +504,11 @@ func (rs *Resource) unlinkAccount(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Unlink account from person
-	if err := rs.PersonService.UnlinkFromAccount(r.Context(), id); err != nil {
+	tenantID := tenant.FromContext(r.Context())
+	err = tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		return rs.PersonService.UnlinkFromAccount(ctx, id)
+	})
+	if err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}

@@ -11,6 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -28,8 +29,10 @@ type CombinedGroupRepository struct {
 
 // NewCombinedGroupRepository creates a new CombinedGroupRepository
 func NewCombinedGroupRepository(db *bun.DB) active.CombinedGroupRepository {
+	repo := base.NewRepository[*active.CombinedGroup](db, "active.combined_groups", "CombinedGroup")
+	repo.TenantScoped = true
 	return &CombinedGroupRepository{
-		Repository: base.NewRepository[*active.CombinedGroup](db, "active.combined_groups", "CombinedGroup"),
+		Repository: repo,
 		db:         db,
 	}
 }
@@ -37,12 +40,16 @@ func NewCombinedGroupRepository(db *bun.DB) active.CombinedGroupRepository {
 // FindActive finds all currently active combined groups
 func (r *CombinedGroupRepository) FindActive(ctx context.Context) ([]*active.CombinedGroup, error) {
 	var groups []*active.CombinedGroup
-	err := base.GetDB(ctx, r.db).NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&groups).
 		ModelTableExpr(tableExprCombinedGroupsAsCG).
-		Where("end_time IS NULL").
-		Scan(ctx)
+		Where("end_time IS NULL")
 
+	if where, val, ok := base.TenantWhere(ctx, "combined_group"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.Scan(ctx)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find active",
@@ -56,12 +63,16 @@ func (r *CombinedGroupRepository) FindActive(ctx context.Context) ([]*active.Com
 // FindByTimeRange finds all combined groups active during a specific time range
 func (r *CombinedGroupRepository) FindByTimeRange(ctx context.Context, start, end time.Time) ([]*active.CombinedGroup, error) {
 	var groups []*active.CombinedGroup
-	err := base.GetDB(ctx, r.db).NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&groups).
 		ModelTableExpr(tableExprCombinedGroupsAsCG).
-		Where("start_time <= ? AND (end_time IS NULL OR end_time >= ?)", end, start).
-		Scan(ctx)
+		Where("start_time <= ? AND (end_time IS NULL OR end_time >= ?)", end, start)
 
+	if where, val, ok := base.TenantWhere(ctx, "combined_group"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.Scan(ctx)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by time range",
@@ -74,12 +85,16 @@ func (r *CombinedGroupRepository) FindByTimeRange(ctx context.Context, start, en
 
 // EndCombination marks a combined group as ended at the current time
 func (r *CombinedGroupRepository) EndCombination(ctx context.Context, id int64) error {
-	_, err := base.GetDB(ctx, r.db).NewUpdate().
+	query := base.GetDB(ctx, r.db).NewUpdate().
 		Table(tableCombinedGroups).
 		Set("end_time = ?", time.Now()).
-		Where("id = ? AND end_time IS NULL", id).
-		Exec(ctx)
+		Where("id = ? AND end_time IS NULL", id)
 
+	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
+		query = query.Where("tenant_id = ?", tenantID)
+	}
+
+	result, err := query.Exec(ctx)
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "end combination",
@@ -87,18 +102,22 @@ func (r *CombinedGroupRepository) EndCombination(ctx context.Context, id int64) 
 		}
 	}
 
-	return nil
+	return base.AssertRowsAffected(result, 1, "end combination")
 }
 
 // FindWithGroups finds a combined group with all its associated active groups
 func (r *CombinedGroupRepository) FindWithGroups(ctx context.Context, id int64) (*active.CombinedGroup, error) {
 	combinedGroup := new(active.CombinedGroup)
-	err := base.GetDB(ctx, r.db).NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(combinedGroup).
 		ModelTableExpr(tableExprCombinedGroupsAsCG).
-		Where("id = ?", id).
-		Scan(ctx)
+		Where("id = ?", id)
 
+	if where, val, ok := base.TenantWhere(ctx, "combined_group"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.Scan(ctx)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find combined group",
@@ -108,12 +127,16 @@ func (r *CombinedGroupRepository) FindWithGroups(ctx context.Context, id int64) 
 
 	// Load group mappings (multi-schema requires explicit ModelTableExpr)
 	groupMappings := make([]*active.GroupMapping, 0)
-	err = base.GetDB(ctx, r.db).NewSelect().
+	mappingQuery := base.GetDB(ctx, r.db).NewSelect().
 		Model(&groupMappings).
 		ModelTableExpr(`active.group_mappings AS "group_mapping"`).
-		Where("active_combined_group_id = ?", id).
-		Scan(ctx)
+		Where("active_combined_group_id = ?", id)
 
+	if where, val, ok := base.TenantWhere(ctx, "group_mapping"); ok {
+		mappingQuery = mappingQuery.Where(where, val)
+	}
+
+	err = mappingQuery.Scan(ctx)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find group mappings",
@@ -125,11 +148,16 @@ func (r *CombinedGroupRepository) FindWithGroups(ctx context.Context, id int64) 
 	for _, mapping := range groupMappings {
 		if mapping.ActiveGroupID > 0 {
 			activeGroup := new(active.Group)
-			agErr := base.GetDB(ctx, r.db).NewSelect().
+			agQuery := base.GetDB(ctx, r.db).NewSelect().
 				Model(activeGroup).
 				ModelTableExpr(`active.groups AS "group"`).
-				Where("id = ?", mapping.ActiveGroupID).
-				Scan(ctx)
+				Where("id = ?", mapping.ActiveGroupID)
+
+			if where, val, ok := base.TenantWhere(ctx, "group"); ok {
+				agQuery = agQuery.Where(where, val)
+			}
+
+			agErr := agQuery.Scan(ctx)
 			if agErr == nil {
 				mapping.ActiveGroup = activeGroup
 			} else if !errors.Is(agErr, sql.ErrNoRows) {
@@ -200,6 +228,10 @@ func (r *CombinedGroupRepository) applyActiveOnlyFilter(query *bun.SelectQuery, 
 func (r *CombinedGroupRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*active.CombinedGroup, error) {
 	var groups []*active.CombinedGroup
 	query := base.GetDB(ctx, r.db).NewSelect().Model(&groups).ModelTableExpr(tableExprCombinedGroupsAsCG)
+
+	if where, val, ok := base.TenantWhere(ctx, "combined_group"); ok {
+		query = query.Where(where, val)
+	}
 
 	if options != nil {
 		if options.Filter != nil {

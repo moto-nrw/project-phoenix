@@ -35,7 +35,7 @@ func setupTestContext(t *testing.T) *testContext {
 
 	db, svc := testutil.SetupAPITest(t)
 
-	resource := schedulesAPI.NewResource(svc.Schedule)
+	resource := schedulesAPI.NewResource(svc.Schedule, db)
 
 	return &testContext{
 		db:       db,

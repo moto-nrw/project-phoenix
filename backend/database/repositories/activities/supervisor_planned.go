@@ -10,6 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -80,8 +81,10 @@ type SupervisorPlannedRepository struct {
 
 // NewSupervisorPlannedRepository creates a new SupervisorPlannedRepository
 func NewSupervisorPlannedRepository(db *bun.DB) activities.SupervisorPlannedRepository {
+	repo := base.NewRepository[*activities.SupervisorPlanned](db, "activities.supervisors", "supervisor_planned")
+	repo.TenantScoped = true
 	return &SupervisorPlannedRepository{
-		Repository: base.NewRepository[*activities.SupervisorPlanned](db, "activities.supervisors", "supervisor_planned"),
+		Repository: repo,
 		db:         db,
 	}
 }
@@ -91,11 +94,16 @@ func (r *SupervisorPlannedRepository) FindByID(ctx context.Context, id interface
 	var supervisor activities.SupervisorPlanned
 
 	// Use the same alias as base repository: "supervisor_planned"
-	err := base.GetDB(ctx, r.db).NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&supervisor).
 		ModelTableExpr(`activities.supervisors AS "supervisor_planned"`).
-		Where(`"supervisor_planned".id = ?`, id).
-		Scan(ctx)
+		Where(`"supervisor_planned".id = ?`, id)
+
+	if where, val, ok := base.TenantWhere(ctx, "supervisor_planned"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.Scan(ctx)
 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
@@ -111,10 +119,16 @@ func (r *SupervisorPlannedRepository) FindByID(ctx context.Context, id interface
 func (r *SupervisorPlannedRepository) FindByStaffID(ctx context.Context, staffID int64) ([]*activities.SupervisorPlanned, error) {
 	// First get the supervisors
 	supervisors := make([]*activities.SupervisorPlanned, 0)
-	err := base.GetDB(ctx, r.db).NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&supervisors).
 		ModelTableExpr(tableExprSupervisorPlanned).
-		Where("staff_id = ?", staffID).
+		Where("staff_id = ?", staffID)
+
+	if where, val, ok := base.TenantWhere(ctx, "supervisor_planned"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.
 		Order("is_primary DESC").
 		Scan(ctx)
 
@@ -151,6 +165,10 @@ func (r *SupervisorPlannedRepository) FindByGroupID(ctx context.Context, groupID
 		Where(`"supervisor".group_id = ?`, groupID).
 		Order("supervisor.is_primary DESC")
 
+	if where, val, ok := base.TenantWhere(ctx, "supervisor"); ok {
+		query = query.Where(where, val)
+	}
+
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by group ID",
@@ -173,6 +191,10 @@ func (r *SupervisorPlannedRepository) FindByGroupIDs(ctx context.Context, groupI
 		Where(`"supervisor".group_id IN (?)`, bun.In(groupIDs)).
 		Order("supervisor.is_primary DESC")
 
+	if where, val, ok := base.TenantWhere(ctx, "supervisor"); ok {
+		query = query.Where(where, val)
+	}
+
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by group IDs",
@@ -189,6 +211,10 @@ func (r *SupervisorPlannedRepository) FindPrimaryByGroupID(ctx context.Context, 
 
 	query := applySupervisorColumnMapping(base.GetDB(ctx, r.db).NewSelect().Model(&result)).
 		Where(`"supervisor".group_id = ? AND "supervisor".is_primary = true`, groupID)
+
+	if where, val, ok := base.TenantWhere(ctx, "supervisor"); ok {
+		query = query.Where(where, val)
+	}
 
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{
@@ -215,12 +241,17 @@ func (r *SupervisorPlannedRepository) FindPrimaryByGroupID(ctx context.Context, 
 // SetPrimary sets a supervisor as the primary supervisor for a group
 func (r *SupervisorPlannedRepository) SetPrimary(ctx context.Context, id int64) error {
 	// We rely on the database trigger to ensure only one primary supervisor per group
-	_, err := base.GetDB(ctx, r.db).NewUpdate().
+	query := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*activities.SupervisorPlanned)(nil)).
 		ModelTableExpr(`activities.supervisors AS "supervisor"`).
 		Set("is_primary = true").
-		Where(whereSupervisorIDEquals, id).
-		Exec(ctx)
+		Where(whereSupervisorIDEquals, id)
+
+	if where, val, ok := base.TenantWhere(ctx, "supervisor"); ok {
+		query = query.Where(where, val)
+	}
+
+	result, err := query.Exec(ctx)
 
 	if err != nil {
 		return &modelBase.DatabaseError{
@@ -229,7 +260,7 @@ func (r *SupervisorPlannedRepository) SetPrimary(ctx context.Context, id int64) 
 		}
 	}
 
-	return nil
+	return base.AssertRowsAffected(result, 1, "set primary")
 }
 
 // Create overrides the base Create method to handle validation
@@ -264,8 +295,12 @@ func (r *SupervisorPlannedRepository) Update(ctx context.Context, supervisor *ac
 		ModelTableExpr(tableSupervisorPlanned).
 		Where(whereSupervisorIDEquals, supervisor.ID)
 
+	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
+		query = query.Where("tenant_id = ?", tenantID)
+	}
+
 	// Execute the query
-	_, err := query.Exec(ctx)
+	result, err := query.Exec(ctx)
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "update",
@@ -273,18 +308,23 @@ func (r *SupervisorPlannedRepository) Update(ctx context.Context, supervisor *ac
 		}
 	}
 
-	return nil
+	return base.AssertRowsAffected(result, 1, "update supervisor")
 }
 
 // Delete overrides the base Delete method to handle transactions
 func (r *SupervisorPlannedRepository) Delete(ctx context.Context, id interface{}) error {
 	// Use the same alias as base repository: "supervisor_planned"
 	// GetDB handles transaction extraction from context
-	_, err := base.GetDB(ctx, r.db).NewDelete().
+	query := base.GetDB(ctx, r.db).NewDelete().
 		Model((*activities.SupervisorPlanned)(nil)).
 		ModelTableExpr(`activities.supervisors AS "supervisor_planned"`).
-		Where(`"supervisor_planned".id = ?`, id).
-		Exec(ctx)
+		Where(`"supervisor_planned".id = ?`, id)
+
+	if where, val, ok := base.TenantWhere(ctx, "supervisor_planned"); ok {
+		query = query.Where(where, val)
+	}
+
+	result, err := query.Exec(ctx)
 
 	if err != nil {
 		return &modelBase.DatabaseError{
@@ -293,13 +333,17 @@ func (r *SupervisorPlannedRepository) Delete(ctx context.Context, id interface{}
 		}
 	}
 
-	return nil
+	return base.AssertRowsAffected(result, 1, "delete supervisor")
 }
 
 // List overrides the base List method to accept the new QueryOptions type
 func (r *SupervisorPlannedRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*activities.SupervisorPlanned, error) {
 	supervisors := make([]*activities.SupervisorPlanned, 0)
 	query := base.GetDB(ctx, r.db).NewSelect().Model(&supervisors).ModelTableExpr(tableExprSupervisorPlanned)
+
+	if where, val, ok := base.TenantWhere(ctx, "supervisor_planned"); ok {
+		query = query.Where(where, val)
+	}
 
 	// Apply query options
 	if options != nil {
