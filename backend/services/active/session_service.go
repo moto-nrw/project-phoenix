@@ -171,6 +171,11 @@ func (s *service) executeSessionStart(ctx context.Context, activityID, deviceID 
 		if _, err := (*tx).ExecContext(ctx, "SELECT pg_advisory_xact_lock(?)", activityID); err != nil {
 			return &ActiveError{Op: operation, Err: fmt.Errorf("failed to acquire activity lock: %w", err)}
 		}
+	} else {
+		s.logger.Warn("advisory lock skipped: no transaction in context",
+			"activity_id", activityID,
+			"operation", operation,
+		)
 	}
 
 	// Check for conflicts inside the transaction with the lock held

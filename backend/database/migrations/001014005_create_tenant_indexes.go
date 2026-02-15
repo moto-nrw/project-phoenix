@@ -75,7 +75,7 @@ var allTenantScopedTables = []struct {
 	{"activities", "categories"},
 	{"activities", "groups"},
 	{"activities", "schedules"},
-	{"activities", "supervisors_planned"},
+	{"activities", "supervisors"},
 	{"activities", "student_enrollments"},
 
 	// active (10)
@@ -141,7 +141,7 @@ var v1143IndexedTables = map[string]bool{
 	"education.group_teacher":             true, // V1.14.3: UNIQUE(tenant_id, group_id, teacher_id)
 	"education.grade_transition_mappings": true, // V1.14.3: UNIQUE(tenant_id, transition_id, from_class)
 	"activities.student_enrollments":      true, // V1.14.3: UNIQUE(tenant_id, student_id, activity_group_id)
-	"activities.supervisors_planned":      true, // V1.14.3: UNIQUE(tenant_id, staff_id, group_id)
+	"activities.supervisors":              true, // V1.14.3: UNIQUE(tenant_id, staff_id, group_id)
 	"active.group_mappings":               true, // V1.14.3: UNIQUE(tenant_id, ..., active_group_id)
 	"suggestions.votes":                   true, // V1.14.3: UNIQUE(tenant_id, post_id, voter_id)
 }

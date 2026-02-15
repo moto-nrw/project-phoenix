@@ -14,6 +14,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -161,7 +162,7 @@ func (rs *Resource) checkIn(w http.ResponseWriter, r *http.Request) {
 
 	// Call service to check in
 	tenantID := tenant.FromContext(r.Context())
-	var session interface{}
+	var session *activeModels.WorkSession
 	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		var txErr error
 		session, txErr = rs.WorkSessionService.CheckIn(ctx, staffID, req.Status)
@@ -186,7 +187,7 @@ func (rs *Resource) checkOut(w http.ResponseWriter, r *http.Request) {
 
 	// Call service to check out
 	tenantID := tenant.FromContext(r.Context())
-	var session interface{}
+	var session *activeModels.WorkSession
 	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		var txErr error
 		session, txErr = rs.WorkSessionService.CheckOut(ctx, staffID)
@@ -272,7 +273,7 @@ func (rs *Resource) updateSession(w http.ResponseWriter, r *http.Request) {
 
 	// Call service to update session
 	tenantID := tenant.FromContext(r.Context())
-	var session interface{}
+	var session *activeModels.WorkSession
 	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		var txErr error
 		session, txErr = rs.WorkSessionService.UpdateSession(ctx, staffID, sessionID, updates)
@@ -311,7 +312,7 @@ func (rs *Resource) startBreak(w http.ResponseWriter, r *http.Request) {
 
 	// Call service to start break
 	tenantID := tenant.FromContext(r.Context())
-	var brk interface{}
+	var brk *activeModels.WorkSessionBreak
 	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		var txErr error
 		brk, txErr = rs.WorkSessionService.StartBreak(ctx, staffID, req.PlannedDurationMinutes)
@@ -336,7 +337,7 @@ func (rs *Resource) endBreak(w http.ResponseWriter, r *http.Request) {
 
 	// Call service to end break
 	tenantID := tenant.FromContext(r.Context())
-	var session interface{}
+	var session *activeModels.WorkSession
 	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		var txErr error
 		session, txErr = rs.WorkSessionService.EndBreak(ctx, staffID)
@@ -487,7 +488,7 @@ func (rs *Resource) createAbsence(w http.ResponseWriter, r *http.Request) {
 	}
 
 	tenantID := tenant.FromContext(r.Context())
-	var absence interface{}
+	var absence *activeSvc.StaffAbsenceResponse
 	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		var txErr error
 		absence, txErr = rs.StaffAbsenceService.CreateAbsence(ctx, staffID, req)
@@ -523,7 +524,7 @@ func (rs *Resource) updateAbsence(w http.ResponseWriter, r *http.Request) {
 	}
 
 	tenantID := tenant.FromContext(r.Context())
-	var absence interface{}
+	var absence *activeSvc.StaffAbsenceResponse
 	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		var txErr error
 		absence, txErr = rs.StaffAbsenceService.UpdateAbsence(ctx, staffID, absenceID, req)
