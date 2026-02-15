@@ -462,7 +462,7 @@ func (s *guardianService) AcceptInvitation(ctx context.Context, req GuardianInvi
 			return err
 		}
 
-		account, err = svc.createGuardianAccountFromInvitation(ctx, profile, req.Password)
+		account, err = svc.createGuardianAccountFromInvitation(ctx, profile, req.Password, invitation.TenantID)
 		if err != nil {
 			return err
 		}
@@ -530,8 +530,10 @@ func (s *guardianService) validateInvitationStatus(invitation *authModels.Guardi
 	return fmt.Errorf("invitation is no longer valid")
 }
 
-// createGuardianAccountFromInvitation creates a new guardian account with hashed password
-func (s *guardianService) createGuardianAccountFromInvitation(ctx context.Context, profile *users.GuardianProfile, password string) (*authModels.AccountParent, error) {
+// createGuardianAccountFromInvitation creates a new guardian account with hashed password.
+// tenantID is passed explicitly because guardian invitation acceptance is a public route
+// where tenant.FromContext(ctx) would return 0.
+func (s *guardianService) createGuardianAccountFromInvitation(ctx context.Context, profile *users.GuardianProfile, password string, tenantID int64) (*authModels.AccountParent, error) {
 	passwordHash, err := userpass.HashPassword(password, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to hash password: %w", err)
@@ -542,7 +544,7 @@ func (s *guardianService) createGuardianAccountFromInvitation(ctx context.Contex
 		PasswordHash: &passwordHash,
 		Active:       true,
 	}
-	account.SetTenantID(tenant.FromContext(ctx))
+	account.SetTenantID(tenantID)
 
 	if err := s.accountParentRepo.Create(ctx, account); err != nil {
 		return nil, fmt.Errorf("failed to create account: %w", err)
