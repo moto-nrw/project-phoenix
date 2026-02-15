@@ -13,7 +13,7 @@ import (
 // Group represents an educational group/class
 type Group struct {
 	base.Model `bun:"schema:education,table:groups"`
-	Name       string `bun:"name,notnull,unique" json:"name"`
+	Name       string `bun:"name,notnull" json:"name"`
 	RoomID     *int64 `bun:"room_id" json:"room_id,omitempty"`
 
 	// Relations not stored in the database

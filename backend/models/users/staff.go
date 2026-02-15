@@ -11,7 +11,7 @@ import (
 // Staff represents a staff member in the system
 type Staff struct {
 	base.Model `bun:"schema:users,table:staff"`
-	PersonID   int64  `bun:"person_id,notnull,unique" json:"person_id"`
+	PersonID   int64  `bun:"person_id,notnull" json:"person_id"`
 	StaffNotes string `bun:"staff_notes" json:"staff_notes,omitempty"`
 
 	// Relations

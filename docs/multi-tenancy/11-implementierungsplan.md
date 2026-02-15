@@ -190,7 +190,7 @@ git rebase feature/multi-tenancy
 | 2.3 | Backfill: `UPDATE SET tenant_id = 1` | Teil von 2.2 | 2.2 |
 | 2.4 | `CHECK NOT VALID` + `VALIDATE` + `SET NOT NULL` | Teil von 2.2 | 2.3 |
 | 2.5 | UNIQUE Constraints migrieren (31 Constraints) | 1-2 Migrations | 2.2 |
-| 2.6 | `UNIQUE(tenant_id, id)` auf 19 Ziel-Tabellen (Vorbereitung fuer Composite FKs) | 1 Migration | 2.2 |
+| 2.6 | `UNIQUE(tenant_id, id)` auf 18 Ziel-Tabellen (Vorbereitung fuer Composite FKs) | 1 Migration | 2.2 |
 | 2.7 | Indexes erstellen (`idx_{table}_tenant`) | 1 Migration | 2.2 |
 | 2.8 | BUN Model Tags anpassen (5 Models: `unique` entfernen) | 5 Dateien | 2.5 |
 | 2.9 | `account_tenants` befuellen (alle bestehenden Accounts → Tenant 1) | 1 Migration | 1.4, 2.2 |
