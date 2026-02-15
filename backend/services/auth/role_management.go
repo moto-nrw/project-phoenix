@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/models/auth"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // Role Management
@@ -107,6 +108,7 @@ func (s *Service) AssignRoleToAccount(ctx context.Context, accountID, roleID int
 		AccountID: int64(accountID),
 		RoleID:    int64(roleID),
 	}
+	accountRole.SetTenantID(tenant.FromContext(ctx))
 
 	if err := s.repos.AccountRole.Create(ctx, accountRole); err != nil {
 		return &AuthError{Op: "assign role to account", Err: err}

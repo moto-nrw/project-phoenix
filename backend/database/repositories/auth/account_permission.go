@@ -7,6 +7,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/models/auth"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -114,12 +115,14 @@ func (r *AccountPermissionRepository) GrantPermission(ctx context.Context, accou
 			Exec(ctx)
 	} else {
 		// Create a new permission mapping
+		perm := &auth.AccountPermission{
+			AccountID:    accountID,
+			PermissionID: permissionID,
+			Granted:      true,
+		}
+		perm.SetTenantID(tenant.FromContext(ctx))
 		_, err = db.NewInsert().
-			Model(&auth.AccountPermission{
-				AccountID:    accountID,
-				PermissionID: permissionID,
-				Granted:      true,
-			}).
+			Model(perm).
 			ModelTableExpr(accountPermissionTable).
 			Exec(ctx)
 	}
@@ -164,8 +167,8 @@ func (r *AccountPermissionRepository) DenyPermission(ctx context.Context, accoun
 		// Create a new permission mapping with denied status
 		// Use raw SQL to ensure granted=false is explicitly set (BUN may skip zero values with defaults)
 		_, err = db.NewRaw(
-			"INSERT INTO auth.account_permissions (account_id, permission_id, granted) VALUES (?, ?, false)",
-			accountID, permissionID,
+			"INSERT INTO auth.account_permissions (account_id, permission_id, granted, tenant_id) VALUES (?, ?, false, ?)",
+			accountID, permissionID, tenant.FromContext(ctx),
 		).Exec(ctx)
 	}
 

@@ -19,6 +19,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // Operation name constants to avoid string duplication
@@ -816,6 +817,7 @@ func (s *userContextService) createPersonFromUpdates(ctx context.Context, accoun
 		FirstName: firstName,
 		LastName:  lastName,
 	}
+	person.SetTenantID(tenant.FromContext(ctx))
 
 	return s.personRepo.Create(ctx, person)
 }
