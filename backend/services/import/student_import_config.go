@@ -10,6 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/base"
 	importModels "github.com/moto-nrw/project-phoenix/models/import"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -356,6 +357,7 @@ func (c *StudentImportConfig) createPersonFromRow(ctx context.Context, row impor
 		Birthday:  birthday,
 		TagID:     nil, // RFID cards not supported in CSV import
 	}
+	person.SetTenantID(tenant.FromContext(ctx))
 
 	if err := c.personRepo.Create(ctx, person); err != nil {
 		return nil, fmt.Errorf("create person: %w", err)
@@ -375,6 +377,7 @@ func (c *StudentImportConfig) createStudentFromRow(ctx context.Context, personID
 		HealthInfo:      stringPtr(row.HealthInfo),
 		PickupStatus:    stringPtr(row.PickupStatus),
 	}
+	student.SetTenantID(tenant.FromContext(ctx))
 
 	if err := c.studentRepo.Create(ctx, student); err != nil {
 		return nil, fmt.Errorf("create student: %w", err)
@@ -408,6 +411,7 @@ func (c *StudentImportConfig) createSingleGuardianRelationship(ctx context.Conte
 		IsEmergencyContact: guardianData.IsEmergencyContact,
 		CanPickup:          guardianData.CanPickup,
 	}
+	relationship.SetTenantID(tenant.FromContext(ctx))
 
 	if err := c.relationRepo.Create(ctx, relationship); err != nil {
 		return fmt.Errorf("create relationship %d: %w", index, err)

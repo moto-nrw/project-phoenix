@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/models/auth"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // Parent Account Management
@@ -47,6 +48,7 @@ func (s *Service) CreateParentAccount(ctx context.Context, email, username, pass
 		Active:       true,
 		PasswordHash: &passwordHash,
 	}
+	parentAccount.SetTenantID(tenant.FromContext(ctx))
 
 	if err := s.repos.AccountParent.Create(ctx, parentAccount); err != nil {
 		return nil, &AuthError{Op: opCreateParentAccount, Err: err}

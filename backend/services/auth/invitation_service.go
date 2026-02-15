@@ -421,7 +421,7 @@ func (s *invitationService) createAccountWithRole(
 	invitation *authModels.InvitationToken,
 	passwordHash, firstName, lastName string,
 ) (*authModels.Account, error) {
-	person, err := s.createPerson(ctx, firstName, lastName)
+	person, err := s.createPerson(ctx, firstName, lastName, invitation.TenantID)
 	if err != nil {
 		return nil, err
 	}
@@ -450,12 +450,14 @@ func (s *invitationService) createAccountWithRole(
 	return account, nil
 }
 
-// createPerson creates a new person record.
-func (s *invitationService) createPerson(ctx context.Context, firstName, lastName string) (*userModels.Person, error) {
+// createPerson creates a new person record with the given tenant ID.
+// tenantID is passed explicitly because invitation acceptance is a public route.
+func (s *invitationService) createPerson(ctx context.Context, firstName, lastName string, tenantID int64) (*userModels.Person, error) {
 	person := &userModels.Person{
 		FirstName: firstName,
 		LastName:  lastName,
 	}
+	person.SetTenantID(tenantID)
 	if err := s.personRepo.Create(ctx, person); err != nil {
 		return nil, &AuthError{Op: "create person", Err: err}
 	}
@@ -502,11 +504,13 @@ func (s *invitationService) createStaffAndTeacherIfSystemRole(
 	}
 
 	staff := &userModels.Staff{PersonID: personID}
+	staff.SetTenantID(invitation.TenantID)
 	if err := s.staffRepo.Create(ctx, staff); err != nil {
 		return &AuthError{Op: "create staff", Err: err}
 	}
 
 	teacher := &userModels.Teacher{StaffID: staff.ID}
+	teacher.SetTenantID(invitation.TenantID)
 	if invitation.Position != nil {
 		teacher.Role = *invitation.Position
 	}
