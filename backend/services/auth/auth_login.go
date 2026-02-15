@@ -481,6 +481,7 @@ func (s *Service) assignRoleToNewAccount(ctx context.Context, txService *Service
 		AccountID: accountID,
 		RoleID:    targetRoleID,
 	}
+	accountRole.SetTenantID(tenant.FromContext(ctx))
 
 	if err := txService.repos.AccountRole.Create(ctx, accountRole); err != nil {
 		s.getLogger().Error("failed to create account role", "error", err)
