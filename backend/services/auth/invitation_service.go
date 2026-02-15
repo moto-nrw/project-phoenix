@@ -435,7 +435,7 @@ func (s *invitationService) createAccountWithRole(
 		return nil, &AuthError{Op: "link person to account", Err: err}
 	}
 
-	if err := s.assignRole(ctx, account.ID, invitation.RoleID); err != nil {
+	if err := s.assignRole(ctx, account.ID, invitation.RoleID, invitation.TenantID); err != nil {
 		return nil, err
 	}
 
@@ -475,13 +475,15 @@ func (s *invitationService) createAccount(ctx context.Context, email, passwordHa
 	return account, nil
 }
 
-// assignRole assigns a role to an account.
-func (s *invitationService) assignRole(ctx context.Context, accountID, roleID int64) error {
+// assignRole assigns a role to an account with the given tenant ID.
+// tenantID is passed explicitly because invitation acceptance is a public route
+// where tenant.FromContext(ctx) would return 0.
+func (s *invitationService) assignRole(ctx context.Context, accountID, roleID, tenantID int64) error {
 	accountRole := &authModels.AccountRole{
 		AccountID: accountID,
 		RoleID:    roleID,
 	}
-	accountRole.SetTenantID(tenant.FromContext(ctx))
+	accountRole.SetTenantID(tenantID)
 	if err := s.accountRoleRepo.Create(ctx, accountRole); err != nil {
 		return &AuthError{Op: "assign role", Err: err}
 	}

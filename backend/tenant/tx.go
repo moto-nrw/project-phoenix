@@ -33,6 +33,10 @@ func WithTenantTx(ctx context.Context, db *bun.DB, tenantID int64, fn func(ctx c
 			return fmt.Errorf("tenant: set_config app.current_tenant_id: %w", err)
 		}
 
+		// Store tenant ID in Go context so tenant.FromContext(ctx) works
+		// inside services called from scheduler or other non-HTTP contexts
+		ctx = WithTenantID(ctx, tenantID)
+
 		// Store tx in context so GetDB(ctx, r.db) finds it (CRIT-1 bridge)
 		ctx = modelBase.ContextWithTx(ctx, &tx)
 
