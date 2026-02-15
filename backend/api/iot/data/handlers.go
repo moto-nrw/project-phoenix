@@ -157,17 +157,21 @@ func (rs *Resource) getAvailableRoomsForDevice(w http.ResponseWriter, r *http.Re
 		}
 	}
 
-	// Ensure WC room exists (auto-create on first query)
+	// Ensure WC room exists (auto-create on first query — bootstraps the Toilette button in PyrePortal)
 	if _, err := rs.FacilityService.FindRoomByName(r.Context(), constants.WCRoomName); err != nil {
 		wcCapacity := constants.WCRoomCapacity
 		wcCategory := constants.WCCategoryName
 		wcColor := constants.WCColor
-		_ = rs.FacilityService.CreateRoom(r.Context(), &facilities.Room{
+		if err := rs.FacilityService.CreateRoom(r.Context(), &facilities.Room{
 			Name:     constants.WCRoomName,
 			Capacity: &wcCapacity,
 			Category: &wcCategory,
 			Color:    &wcColor,
-		})
+		}); err != nil {
+			slog.Default().WarnContext(r.Context(), "failed to auto-create WC room",
+				slog.String("error", err.Error()),
+			)
+		}
 	}
 
 	// Get available rooms with occupancy status from facility service

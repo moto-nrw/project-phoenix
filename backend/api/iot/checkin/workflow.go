@@ -629,7 +629,14 @@ func (rs *Resource) createSpecialRoomActiveGroupIfNeeded(ctx context.Context, w 
 			slog.String("room_name", room.Name),
 			slog.String("error", err.Error()),
 		)
-		iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(fmt.Errorf("failed to create %s session", room.Name)))
+		switch room.Name {
+		case constants.SchulhofRoomName:
+			iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(errors.New("failed to create Schulhof session")))
+		case constants.WCRoomName:
+			iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(errors.New("failed to create WC session")))
+		default:
+			iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(errors.New("failed to create session")))
+		}
 		return 0, "", err
 	}
 
