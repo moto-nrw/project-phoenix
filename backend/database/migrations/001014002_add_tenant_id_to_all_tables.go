@@ -140,6 +140,15 @@ func addTenantIDToAllTables(ctx context.Context, db *bun.DB) error {
 		INSERT INTO platform.schools (id, organization_id, name, slug, subdomain, active)
 		VALUES (1, 1, 'Default School', 'default', 'default', true)
 		ON CONFLICT (id) DO NOTHING;
+
+		-- Advance sequences past the explicitly inserted id=1 so that future
+		-- auto-generated IDs (nextval) do not collide with the default rows.
+		SELECT setval(pg_get_serial_sequence('platform.organizations', 'id'),
+			GREATEST(nextval(pg_get_serial_sequence('platform.organizations', 'id')),
+				(SELECT COALESCE(MAX(id), 1) FROM platform.organizations)));
+		SELECT setval(pg_get_serial_sequence('platform.schools', 'id'),
+			GREATEST(nextval(pg_get_serial_sequence('platform.schools', 'id')),
+				(SELECT COALESCE(MAX(id), 1) FROM platform.schools)));
 	`)
 	if err != nil {
 		return fmt.Errorf("error ensuring default school for FK target: %w", err)
