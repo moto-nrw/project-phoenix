@@ -128,6 +128,24 @@ var noIDColumnTables = map[string]bool{
 	"suggestions.post_reads":    true, // PK: (account_id, post_id, reader_type)
 }
 
+// v1143IndexedTables lists tables where V1.14.3 already created a UNIQUE index with
+// tenant_id as the LEADING column. PostgreSQL can use the leftmost prefix of a composite
+// index for WHERE tenant_id = X, so a separate (tenant_id) index is redundant.
+// These must be skipped to avoid name collisions and accidental drops on rollback.
+//
+// NOT included: auth.account_roles, auth.account_permissions — V1.14.3 puts tenant_id
+// LAST in those indexes, so they need a separate tenant-leading index with a distinct name.
+var v1143IndexedTables = map[string]bool{
+	"users.students_guardians":            true, // V1.14.3: UNIQUE(tenant_id, student_id, guardian_profile_id)
+	"users.persons_guardians":             true, // V1.14.3: UNIQUE(tenant_id, person_id, guardian_account_id, ...)
+	"education.group_teacher":             true, // V1.14.3: UNIQUE(tenant_id, group_id, teacher_id)
+	"education.grade_transition_mappings": true, // V1.14.3: UNIQUE(tenant_id, transition_id, from_class)
+	"activities.student_enrollments":      true, // V1.14.3: UNIQUE(tenant_id, student_id, activity_group_id)
+	"activities.supervisors_planned":      true, // V1.14.3: UNIQUE(tenant_id, staff_id, group_id)
+	"active.group_mappings":               true, // V1.14.3: UNIQUE(tenant_id, ..., active_group_id)
+	"suggestions.votes":                   true, // V1.14.3: UNIQUE(tenant_id, post_id, voter_id)
+}
+
 // compositePKTableSet lists the 18 tables from V1.14.4 that already have UNIQUE(tenant_id, id).
 // Used to skip these when creating the regular (tenant_id, id) indexes.
 var compositePKTableSet = map[string]bool{
@@ -168,10 +186,15 @@ func createTenantIndexes(ctx context.Context, db *bun.DB) error {
 		}
 	}()
 
-	// Standard tenant_id index on every table
+	// Standard tenant_id index on every table.
+	// Skip tables where V1.14.3 already created a UNIQUE index with tenant_id as the
+	// leading column — that index already serves as an efficient tenant filter.
 	for _, t := range allTenantScopedTables {
-		indexName := fmt.Sprintf("idx_%s_tenant", t.table)
 		fullTable := fmt.Sprintf("%s.%s", t.schema, t.table)
+		if v1143IndexedTables[fullTable] {
+			continue // V1.14.3 UNIQUE index with tenant_id leading is sufficient
+		}
+		indexName := fmt.Sprintf("idx_%s_tenant", t.table)
 
 		_, err = tx.ExecContext(ctx, fmt.Sprintf(`
 			CREATE INDEX IF NOT EXISTS %s ON %s(tenant_id);
@@ -179,6 +202,20 @@ func createTenantIndexes(ctx context.Context, db *bun.DB) error {
 		if err != nil {
 			return fmt.Errorf("error creating tenant index on %s: %w", fullTable, err)
 		}
+	}
+
+	// auth.account_roles and auth.account_permissions: V1.14.3 created UNIQUE indexes
+	// with tenant_id LAST (account_id, role_id, tenant_id). These don't help RLS
+	// WHERE tenant_id = X queries, so we need a separate tenant-leading index.
+	// Use a distinct name to avoid colliding with V1.14.3's idx_account_roles_tenant.
+	_, err = tx.ExecContext(ctx, `
+		CREATE INDEX IF NOT EXISTS idx_account_roles_tenant_lead
+			ON auth.account_roles(tenant_id);
+		CREATE INDEX IF NOT EXISTS idx_account_permissions_tenant_lead
+			ON auth.account_permissions(tenant_id);
+	`)
+	if err != nil {
+		return fmt.Errorf("error creating tenant-leading indexes for account_roles/permissions: %w", err)
 	}
 
 	// Composite (tenant_id, id) indexes on tables NOT already covered by V1.14.4.
@@ -270,8 +307,22 @@ func rollbackTenantIndexes(ctx context.Context, db *bun.DB) error {
 		}
 	}
 
-	// Drop standard tenant indexes
+	// Drop tenant-leading indexes for account_roles/permissions (distinct names from V1.14.3)
+	_, err = tx.ExecContext(ctx, `
+		DROP INDEX IF EXISTS auth.idx_account_roles_tenant_lead;
+		DROP INDEX IF EXISTS auth.idx_account_permissions_tenant_lead;
+	`)
+	if err != nil {
+		return fmt.Errorf("error dropping tenant-leading indexes for account_roles/permissions: %w", err)
+	}
+
+	// Drop standard tenant indexes.
+	// Skip tables owned by V1.14.3 — their indexes must survive a V1.14.5-only rollback.
 	for _, t := range allTenantScopedTables {
+		fullTable := fmt.Sprintf("%s.%s", t.schema, t.table)
+		if v1143IndexedTables[fullTable] {
+			continue // Owned by V1.14.3, do not drop
+		}
 		indexName := fmt.Sprintf("idx_%s_tenant", t.table)
 
 		_, err = tx.ExecContext(ctx, fmt.Sprintf(`
