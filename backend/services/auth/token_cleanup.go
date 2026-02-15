@@ -71,8 +71,16 @@ func (s *Service) GetActiveTokens(ctx context.Context, accountID int) ([]*auth.T
 // logAuthEvent logs an authentication event for audit purposes
 func (s *Service) logAuthEvent(ctx context.Context, accountID int64, eventType string, success bool, ipAddress, userAgent string, errorMessage string) {
 	event := audit.NewAuthEvent(accountID, eventType, success, ipAddress)
+
+	// Login/refresh/logout are public routes — tenant.FromContext is 0.
+	// Resolve from account_tenants so audit events get the correct tenant.
 	tenantID := tenant.FromContext(ctx)
-	event.SetTenantID(tenantID)
+	if tenantID == 0 && accountID > 0 {
+		tenantID, _ = s.resolveAccountTenant(ctx, accountID)
+	}
+	if tenantID > 0 {
+		event.SetTenantID(tenantID)
+	}
 	event.UserAgent = userAgent
 	if errorMessage != "" {
 		event.ErrorMessage = errorMessage
