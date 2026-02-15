@@ -607,8 +607,15 @@ func (s *Service) refreshTokenInTransaction(ctx context.Context, refreshClaims *
 			return err
 		}
 
-		// Create and persist new token with tenant from refresh claims
-		newToken, err = s.createAndPersistNewToken(ctx, dbToken, account.ID, tenantID)
+		// Backward compat: pre-migration tokens have tenantID=0 in their claims.
+		// Resolve from account_tenants so the rotated token gets the correct value.
+		effectiveTenantID := tenantID
+		if effectiveTenantID == 0 {
+			effectiveTenantID, _ = s.resolveAccountTenant(ctx, account.ID)
+		}
+
+		// Create and persist new token with resolved tenant
+		newToken, err = s.createAndPersistNewToken(ctx, dbToken, account.ID, effectiveTenantID)
 		if err != nil {
 			return err
 		}
