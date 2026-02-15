@@ -27,9 +27,6 @@ func (r *Role) TableName() string {
 }
 
 func (r *Role) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.SelectQuery); ok {
-		q.ModelTableExpr(`auth.roles AS "role"`)
-	}
 	if q, ok := query.(*bun.UpdateQuery); ok {
 		q.ModelTableExpr(`auth.roles AS "role"`)
 	}

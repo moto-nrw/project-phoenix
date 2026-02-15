@@ -15,17 +15,14 @@ const tableActivitiesCategories = "activities.categories"
 
 // Category represents a category for activities
 type Category struct {
-	base.Model       `bun:"schema:activities,table:categories"`
-	base.TenantModel `bun:",extend"`
-	Name             string `bun:"name,notnull" json:"name"`
-	Description      string `bun:"description" json:"description,omitempty"`
-	Color            string `bun:"color" json:"color,omitempty"`
+	base.Model `bun:"schema:activities,table:categories"`
+	base.TenantModel
+	Name        string `bun:"name,notnull" json:"name"`
+	Description string `bun:"description" json:"description,omitempty"`
+	Color       string `bun:"color" json:"color,omitempty"`
 }
 
 func (c *Category) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.SelectQuery); ok {
-		q.ModelTableExpr(tableActivitiesCategories)
-	}
 	if q, ok := query.(*bun.UpdateQuery); ok {
 		q.ModelTableExpr(tableActivitiesCategories)
 	}

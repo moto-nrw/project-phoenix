@@ -43,7 +43,8 @@ func setupUserContextService(t *testing.T, db *bun.DB) usercontextSvc.UserContex
 // contextWithClaims creates a context with JWT claims
 func contextWithClaims(userID int) context.Context {
 	claims := jwt.AppClaims{
-		ID: userID,
+		ID:       userID,
+		TenantID: 1,
 	}
 	return context.WithValue(context.Background(), jwt.CtxClaims, claims)
 }

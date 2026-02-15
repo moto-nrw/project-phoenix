@@ -258,6 +258,7 @@ func TestUnclaimedGroups_Integration(t *testing.T) {
 		// Create claims with the account ID
 		staffClaims := jwt.AppClaims{
 			ID:          int(account.ID),
+			TenantID:    1,
 			Sub:         fmt.Sprintf("%d", account.ID),
 			Roles:       []string{"staff"},
 			Permissions: []string{permissions.GroupsUpdate},
@@ -568,6 +569,7 @@ func TestActiveGroups_Integration(t *testing.T) {
 		// Create claims with the account ID
 		staffClaims := jwt.AppClaims{
 			ID:          int(account.ID),
+			TenantID:    1,
 			Sub:         fmt.Sprintf("%d", account.ID),
 			Roles:       []string{"staff"},
 			Permissions: []string{permissions.GroupsRead},

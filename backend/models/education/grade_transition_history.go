@@ -17,14 +17,14 @@ const (
 
 // GradeTransitionHistory records individual student changes during a grade transition
 type GradeTransitionHistory struct {
-	base.Model       `bun:"schema:education,table:grade_transition_history"`
-	base.TenantModel `bun:",extend"`
-	TransitionID     int64   `bun:"transition_id,notnull" json:"transition_id"`
-	StudentID        int64   `bun:"student_id,notnull" json:"student_id"`   // Keep even if student deleted
-	PersonName       string  `bun:"person_name,notnull" json:"person_name"` // Snapshot for audit trail
-	FromClass        string  `bun:"from_class,notnull" json:"from_class"`
-	ToClass          *string `bun:"to_class" json:"to_class,omitempty"` // NULL = graduated/deleted
-	Action           string  `bun:"action,notnull" json:"action"`       // 'promoted', 'graduated', 'unchanged'
+	base.Model `bun:"schema:education,table:grade_transition_history"`
+	base.TenantModel
+	TransitionID int64   `bun:"transition_id,notnull" json:"transition_id"`
+	StudentID    int64   `bun:"student_id,notnull" json:"student_id"`   // Keep even if student deleted
+	PersonName   string  `bun:"person_name,notnull" json:"person_name"` // Snapshot for audit trail
+	FromClass    string  `bun:"from_class,notnull" json:"from_class"`
+	ToClass      *string `bun:"to_class" json:"to_class,omitempty"` // NULL = graduated/deleted
+	Action       string  `bun:"action,notnull" json:"action"`       // 'promoted', 'graduated', 'unchanged'
 }
 
 // TableName returns the database table name

@@ -14,6 +14,7 @@ import (
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/services/auth"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
@@ -1630,6 +1631,7 @@ func TestAuthService_DenyPermissionToAccount(t *testing.T) {
 
 	service := setupAuthService(t, db)
 	ctx := context.Background()
+	ctx = tenant.WithTenantID(ctx, 1)
 
 	t.Run("returns error for non-existent account", func(t *testing.T) {
 		// ARRANGE

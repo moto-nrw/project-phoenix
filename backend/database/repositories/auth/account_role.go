@@ -174,7 +174,7 @@ func (r *AccountRoleRepository) DeleteByAccountAndRole(ctx context.Context, acco
 		query = query.Where(where, val)
 	}
 
-	result, err := query.Exec(ctx)
+	_, err := query.Exec(ctx)
 
 	if err != nil {
 		return &modelBase.DatabaseError{
@@ -183,7 +183,7 @@ func (r *AccountRoleRepository) DeleteByAccountAndRole(ctx context.Context, acco
 		}
 	}
 
-	return base.AssertRowsAffected(result, 1, "delete by account and role")
+	return nil
 }
 
 // DeleteByAccountID deletes all account-role mappings for an account

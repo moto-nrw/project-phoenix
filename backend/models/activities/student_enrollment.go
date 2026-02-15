@@ -19,14 +19,13 @@ const (
 
 // Table name constants for BUN ORM schema qualification
 const (
-	tableActivitiesStudentEnrollments       = "activities.student_enrollments"
-	tableExprStudentEnrollmentsAsEnrollment = `activities.student_enrollments AS "student_enrollment"`
+	tableActivitiesStudentEnrollments = "activities.student_enrollments"
 )
 
 // StudentEnrollment represents a student enrolled in an activity group
 type StudentEnrollment struct {
-	base.Model       `bun:"schema:activities,table:student_enrollments"`
-	base.TenantModel `bun:",extend"`
+	base.Model `bun:"schema:activities,table:student_enrollments"`
+	base.TenantModel
 	StudentID        int64     `bun:"student_id,notnull" json:"student_id"`
 	ActivityGroupID  int64     `bun:"activity_group_id,notnull" json:"activity_group_id"`
 	EnrollmentDate   time.Time `bun:"enrollment_date,notnull" json:"enrollment_date"`
@@ -38,9 +37,6 @@ type StudentEnrollment struct {
 }
 
 func (se *StudentEnrollment) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.SelectQuery); ok {
-		q.ModelTableExpr(tableExprStudentEnrollmentsAsEnrollment)
-	}
 	if q, ok := query.(*bun.UpdateQuery); ok {
 		q.ModelTableExpr(tableActivitiesStudentEnrollments)
 	}

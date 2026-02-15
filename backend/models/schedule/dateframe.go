@@ -13,18 +13,15 @@ const tableScheduleDateframes = "schedule.dateframes"
 
 // Dateframe represents a date range for scheduling
 type Dateframe struct {
-	base.Model       `bun:"schema:schedule,table:dateframes"`
-	base.TenantModel `bun:",extend"`
-	StartDate        time.Time `bun:"start_date,notnull" json:"start_date"`
-	EndDate          time.Time `bun:"end_date,notnull" json:"end_date"`
-	Name             string    `bun:"name" json:"name,omitempty"`
-	Description      string    `bun:"description" json:"description,omitempty"`
+	base.Model `bun:"schema:schedule,table:dateframes"`
+	base.TenantModel
+	StartDate   time.Time `bun:"start_date,notnull" json:"start_date"`
+	EndDate     time.Time `bun:"end_date,notnull" json:"end_date"`
+	Name        string    `bun:"name" json:"name,omitempty"`
+	Description string    `bun:"description" json:"description,omitempty"`
 }
 
 func (d *Dateframe) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.SelectQuery); ok {
-		q.ModelTableExpr(tableScheduleDateframes)
-	}
 	if q, ok := query.(*bun.UpdateQuery); ok {
 		q.ModelTableExpr(tableScheduleDateframes)
 	}

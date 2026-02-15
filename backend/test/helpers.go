@@ -111,6 +111,14 @@ For CI, set TEST_DB_DSN as an environment variable.`)
 	db, err := database.DBConn()
 	require.NoError(t, err, "Failed to connect to test database")
 
+	// Ensure default fallback room exists (ID 1).
+	// session_service.go:determineRoomIDWithStrategy uses hardcoded fallback to room 1
+	// when no room is specified and no planned room exists.
+	_, _ = db.ExecContext(context.Background(), `
+		INSERT INTO facilities.rooms (id, tenant_id, name, building)
+		VALUES (1, 1, 'Default Room', 'Default')
+		ON CONFLICT (id) DO NOTHING`)
+
 	return db
 }
 

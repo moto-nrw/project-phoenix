@@ -21,9 +21,6 @@ type AnnouncementView struct {
 }
 
 func (v *AnnouncementView) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.SelectQuery); ok {
-		q.ModelTableExpr(tablePlatformAnnouncementViews)
-	}
 	if q, ok := query.(*bun.UpdateQuery); ok {
 		q.ModelTableExpr(tablePlatformAnnouncementViews)
 	}

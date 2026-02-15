@@ -25,8 +25,8 @@ const personGuardianTableName = "users.persons_guardians"
 
 // PersonGuardian represents the relationship between a person and their guardian
 type PersonGuardian struct {
-	base.Model        `bun:"schema:users,table:persons_guardians"`
-	base.TenantModel  `bun:",extend"`
+	base.Model `bun:"schema:users,table:persons_guardians"`
+	base.TenantModel
 	PersonID          int64            `bun:"person_id,notnull" json:"person_id"`
 	GuardianAccountID int64            `bun:"guardian_account_id,notnull" json:"guardian_account_id"`
 	RelationshipType  RelationshipType `bun:"relationship_type,notnull" json:"relationship_type"`
@@ -42,9 +42,6 @@ type PersonGuardian struct {
 }
 
 func (pg *PersonGuardian) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.SelectQuery); ok {
-		q.ModelTableExpr(personGuardianTableName)
-	}
 	if q, ok := query.(*bun.UpdateQuery); ok {
 		q.ModelTableExpr(personGuardianTableName)
 	}

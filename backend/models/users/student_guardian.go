@@ -11,8 +11,8 @@ import (
 
 // StudentGuardian represents the relationship between a student and their guardian
 type StudentGuardian struct {
-	base.Model         `bun:"schema:users,table:students_guardians"`
-	base.TenantModel   `bun:",extend"`
+	base.Model `bun:"schema:users,table:students_guardians"`
+	base.TenantModel
 	StudentID          int64                  `bun:"student_id,notnull" json:"student_id"`
 	GuardianProfileID  int64                  `bun:"guardian_profile_id,notnull" json:"guardian_profile_id"`
 	RelationshipType   string                 `bun:"relationship_type,notnull" json:"relationship_type"`
@@ -29,9 +29,6 @@ type StudentGuardian struct {
 }
 
 func (sg *StudentGuardian) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.SelectQuery); ok {
-		q.ModelTableExpr(`users.students_guardians AS "student_guardian"`)
-	}
 	if q, ok := query.(*bun.UpdateQuery); ok {
 		q.ModelTableExpr(`users.students_guardians AS "student_guardian"`)
 	}

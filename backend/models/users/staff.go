@@ -10,19 +10,16 @@ import (
 
 // Staff represents a staff member in the system
 type Staff struct {
-	base.Model       `bun:"schema:users,table:staff"`
-	base.TenantModel `bun:",extend"`
-	PersonID         int64  `bun:"person_id,notnull" json:"person_id"`
-	StaffNotes       string `bun:"staff_notes" json:"staff_notes,omitempty"`
+	base.Model `bun:"schema:users,table:staff"`
+	base.TenantModel
+	PersonID   int64  `bun:"person_id,notnull" json:"person_id"`
+	StaffNotes string `bun:"staff_notes" json:"staff_notes,omitempty"`
 
 	// Relations
 	Person *Person `bun:"rel:belongs-to,join:person_id=id" json:"person,omitempty"`
 }
 
 func (s *Staff) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.SelectQuery); ok {
-		q.ModelTableExpr(`users.staff AS "staff"`)
-	}
 	if q, ok := query.(*bun.UpdateQuery); ok {
 		q.ModelTableExpr(`users.staff AS "staff"`)
 	}

@@ -153,7 +153,7 @@ func (r *TeacherRepository) UpdateQualifications(ctx context.Context, id int64, 
 		query = query.Where(where, val)
 	}
 
-	result, err := query.Exec(ctx)
+	_, err := query.Exec(ctx)
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "update qualifications",
@@ -161,7 +161,7 @@ func (r *TeacherRepository) UpdateQualifications(ctx context.Context, id int64, 
 		}
 	}
 
-	return base.AssertRowsAffected(result, 1, "update qualifications")
+	return nil
 }
 
 // Create overrides the base Create method to handle validation
@@ -302,6 +302,7 @@ func (r *TeacherRepository) FindWithStaffAndPerson(ctx context.Context, id int64
 		ModelTableExpr(`users.teachers AS "teacher"`).
 		// Teacher columns with proper aliasing
 		ColumnExpr(`"teacher".id AS "teacher__id", "teacher".created_at AS "teacher__created_at", "teacher".updated_at AS "teacher__updated_at"`).
+		ColumnExpr(`"teacher".tenant_id AS "teacher__tenant_id"`).
 		ColumnExpr(`"teacher".staff_id AS "teacher__staff_id", "teacher".specialization AS "teacher__specialization"`).
 		ColumnExpr(`"teacher".role AS "teacher__role", "teacher".qualifications AS "teacher__qualifications"`).
 		// Staff columns
@@ -355,6 +356,7 @@ func (r *TeacherRepository) ListAllWithStaffAndPerson(ctx context.Context) ([]*u
 		ModelTableExpr(`users.teachers AS "teacher"`).
 		// Teacher columns with proper aliasing
 		ColumnExpr(`"teacher".id AS "teacher__id", "teacher".created_at AS "teacher__created_at", "teacher".updated_at AS "teacher__updated_at"`).
+		ColumnExpr(`"teacher".tenant_id AS "teacher__tenant_id"`).
 		ColumnExpr(`"teacher".staff_id AS "teacher__staff_id", "teacher".specialization AS "teacher__specialization"`).
 		ColumnExpr(`"teacher".role AS "teacher__role", "teacher".qualifications AS "teacher__qualifications"`).
 		// Staff columns

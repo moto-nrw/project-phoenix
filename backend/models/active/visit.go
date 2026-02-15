@@ -15,12 +15,12 @@ const tableActiveVisits = "active.visits"
 
 // Visit represents a student visit to an active group
 type Visit struct {
-	base.Model       `bun:"schema:active,table:visits"`
-	base.TenantModel `bun:",extend"`
-	StudentID        int64      `bun:"student_id,notnull" json:"student_id"`
-	ActiveGroupID    int64      `bun:"active_group_id,notnull" json:"active_group_id"`
-	EntryTime        time.Time  `bun:"entry_time,notnull" json:"entry_time"`
-	ExitTime         *time.Time `bun:"exit_time" json:"exit_time,omitempty"`
+	base.Model `bun:"schema:active,table:visits"`
+	base.TenantModel
+	StudentID     int64      `bun:"student_id,notnull" json:"student_id"`
+	ActiveGroupID int64      `bun:"active_group_id,notnull" json:"active_group_id"`
+	EntryTime     time.Time  `bun:"entry_time,notnull" json:"entry_time"`
+	ExitTime      *time.Time `bun:"exit_time" json:"exit_time,omitempty"`
 
 	// Relations - these would be populated when using the ORM's relations
 	Student     *users.Student `bun:"rel:belongs-to,join:student_id=id" json:"student,omitempty"`
@@ -28,9 +28,6 @@ type Visit struct {
 }
 
 func (v *Visit) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.SelectQuery); ok {
-		q.ModelTableExpr(tableActiveVisits)
-	}
 	if q, ok := query.(*bun.UpdateQuery); ok {
 		q.ModelTableExpr(tableActiveVisits)
 	}

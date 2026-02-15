@@ -257,7 +257,7 @@ func (r *GroupRepository) ListWithOptions(ctx context.Context, options *modelBas
 		Model(&results).
 		ModelTableExpr(`education.groups AS "group"`).
 		ColumnExpr(`"group".id AS "group__id", "group".created_at AS "group__created_at", "group".updated_at AS "group__updated_at"`).
-		ColumnExpr(`"group".name AS "group__name", "group".room_id AS "group__room_id"`).
+		ColumnExpr(`"group".tenant_id AS "group__tenant_id", "group".name AS "group__name", "group".room_id AS "group__room_id"`).
 		ColumnExpr(`"room".id AS "room__id", "room".created_at AS "room__created_at", "room".updated_at AS "room__updated_at"`).
 		ColumnExpr(`"room".name AS "room__name", "room".building AS "room__building", "room".floor AS "room__floor"`).
 		ColumnExpr(`"room".capacity AS "room__capacity", "room".category AS "room__category", "room".color AS "room__color"`).

@@ -9,8 +9,8 @@ import (
 
 // PostRead tracks when an operator viewed a post
 type PostRead struct {
-	bun.BaseModel    `bun:"table:suggestions.post_reads"`
-	base.TenantModel `bun:",extend"`
+	bun.BaseModel `bun:"table:suggestions.post_reads"`
+	base.TenantModel
 
 	AccountID  int64     `bun:"account_id,pk"`
 	PostID     int64     `bun:"post_id,pk"`

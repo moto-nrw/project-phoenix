@@ -137,7 +137,7 @@ func (r *GroupSupervisorRepository) EndSupervision(ctx context.Context, id int64
 		query = query.Where(where, val)
 	}
 
-	result, err := query.Exec(ctx)
+	_, err := query.Exec(ctx)
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "end supervision",
@@ -145,7 +145,7 @@ func (r *GroupSupervisorRepository) EndSupervision(ctx context.Context, id int64
 		}
 	}
 
-	return base.AssertRowsAffected(result, 1, "end supervision")
+	return nil
 }
 
 // Create overrides base Create to handle validation

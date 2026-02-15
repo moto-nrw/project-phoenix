@@ -359,6 +359,7 @@ func (r *PersonRepository) FindWithAccount(ctx context.Context, id int64) (*user
 		ModelTableExpr(`users.persons AS "person"`).
 		// Person columns with proper aliasing
 		ColumnExpr(`"person".id AS "person__id", "person".created_at AS "person__created_at", "person".updated_at AS "person__updated_at"`).
+		ColumnExpr(`"person".tenant_id AS "person__tenant_id"`).
 		ColumnExpr(`"person".first_name AS "person__first_name", "person".last_name AS "person__last_name"`).
 		ColumnExpr(`"person".birthday AS "person__birthday"`).
 		ColumnExpr(`"person".tag_id AS "person__tag_id", "person".account_id AS "person__account_id"`).
@@ -410,6 +411,7 @@ func (r *PersonRepository) FindWithRFIDCard(ctx context.Context, id int64) (*use
 		ModelTableExpr(`users.persons AS "person"`).
 		// Person columns with proper aliasing
 		ColumnExpr(`"person".id AS "person__id", "person".created_at AS "person__created_at", "person".updated_at AS "person__updated_at"`).
+		ColumnExpr(`"person".tenant_id AS "person__tenant_id"`).
 		ColumnExpr(`"person".first_name AS "person__first_name", "person".last_name AS "person__last_name"`).
 		ColumnExpr(`"person".tag_id AS "person__tag_id", "person".account_id AS "person__account_id"`).
 		// RFID card columns

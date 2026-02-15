@@ -45,6 +45,8 @@ func TestTenantIsolation_StudentVisibility(t *testing.T) {
 	db := SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 	defer CleanupTenantTestData(t, db, tenantA, tenantB)
+	EnsureTestTenant(t, db, tenantA)
+	EnsureTestTenant(t, db, tenantB)
 
 	// Arrange: create one student per tenant
 	sA := CreateTestStudentForTenant(t, db, tenantA, "TenantA", "Student", "1a")
@@ -91,6 +93,8 @@ func TestTenantIsolation_EducationGroupVisibility(t *testing.T) {
 	db := SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 	defer CleanupTenantTestData(t, db, tenantA, tenantB)
+	EnsureTestTenant(t, db, tenantA)
+	EnsureTestTenant(t, db, tenantB)
 
 	gA := CreateTestEducationGroupForTenant(t, db, tenantA, "GroupA")
 	gB := CreateTestEducationGroupForTenant(t, db, tenantB, "GroupB")
@@ -136,6 +140,8 @@ func TestTenantIsolation_RoomVisibility(t *testing.T) {
 	db := SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 	defer CleanupTenantTestData(t, db, tenantA, tenantB)
+	EnsureTestTenant(t, db, tenantA)
+	EnsureTestTenant(t, db, tenantB)
 
 	rA := CreateTestRoomForTenant(t, db, tenantA, "RoomA")
 	rB := CreateTestRoomForTenant(t, db, tenantB, "RoomB")
@@ -181,6 +187,8 @@ func TestTenantIsolation_TimeframeVisibility(t *testing.T) {
 	db := SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 	defer CleanupTenantTestData(t, db, tenantA, tenantB)
+	EnsureTestTenant(t, db, tenantA)
+	EnsureTestTenant(t, db, tenantB)
 
 	tfA := CreateTestTimeframeForTenant(t, db, tenantA, "TimeframeA")
 	tfB := CreateTestTimeframeForTenant(t, db, tenantB, "TimeframeB")
@@ -226,6 +234,8 @@ func TestTenantIsolation_SettingVisibility(t *testing.T) {
 	db := SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 	defer CleanupTenantTestData(t, db, tenantA, tenantB)
+	EnsureTestTenant(t, db, tenantA)
+	EnsureTestTenant(t, db, tenantB)
 
 	setA := CreateTestSettingForTenant(t, db, tenantA, "test_key_a", "valueA", "general")
 	setB := CreateTestSettingForTenant(t, db, tenantB, "test_key_b", "valueB", "general")
@@ -274,6 +284,8 @@ func TestTenantIsolation_DeviceVisibility(t *testing.T) {
 	db := SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 	defer CleanupTenantTestData(t, db, tenantA, tenantB)
+	EnsureTestTenant(t, db, tenantA)
+	EnsureTestTenant(t, db, tenantB)
 
 	dA := CreateTestDeviceForTenant(t, db, tenantA, "DEV-A")
 	dB := CreateTestDeviceForTenant(t, db, tenantB, "DEV-B")
@@ -319,6 +331,8 @@ func TestTenantIsolation_TokenVisibility(t *testing.T) {
 	db := SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 	defer CleanupTenantTestData(t, db, tenantA, tenantB)
+	EnsureTestTenant(t, db, tenantA)
+	EnsureTestTenant(t, db, tenantB)
 
 	// Tokens require an account (accounts are not tenant-scoped).
 	acctA := CreateTestAccount(t, db, "token-isolation-a")
@@ -369,6 +383,8 @@ func TestTenantIsolation_FeedbackEntryVisibility(t *testing.T) {
 	db := SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 	defer CleanupTenantTestData(t, db, tenantA, tenantB)
+	EnsureTestTenant(t, db, tenantA)
+	EnsureTestTenant(t, db, tenantB)
 
 	// Feedback entries require students (which require persons).
 	sA := CreateTestStudentForTenant(t, db, tenantA, "FeedbackA", "Student", "2a")

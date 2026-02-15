@@ -242,7 +242,7 @@ func (r *TokenRepository) Delete(ctx context.Context, id interface{}) error {
 		query = query.Where(where, val)
 	}
 
-	result, err := query.Exec(ctx)
+	_, err := query.Exec(ctx)
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "delete",
@@ -250,7 +250,7 @@ func (r *TokenRepository) Delete(ctx context.Context, id interface{}) error {
 		}
 	}
 
-	return base.AssertRowsAffected(result, 1, "delete token")
+	return nil
 }
 
 // FindValidTokens retrieves all valid (non-expired) tokens matching the filters

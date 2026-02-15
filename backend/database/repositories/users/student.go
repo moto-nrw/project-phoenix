@@ -469,6 +469,7 @@ func (r *StudentRepository) FindByTeacherID(ctx context.Context, teacherID int64
 		ModelTableExpr(`users.students AS "student"`).
 		// Student columns with proper aliasing
 		ColumnExpr(`"student".id AS "student__id", "student".created_at AS "student__created_at", "student".updated_at AS "student__updated_at"`).
+		ColumnExpr(`"student".tenant_id AS "student__tenant_id"`).
 		ColumnExpr(`"student".person_id AS "student__person_id", "student".school_class AS "student__school_class"`).
 		ColumnExpr(`"student".guardian_name AS "student__guardian_name", "student".guardian_contact AS "student__guardian_contact"`).
 		ColumnExpr(`"student".guardian_email AS "student__guardian_email", "student".guardian_phone AS "student__guardian_phone"`).
@@ -531,6 +532,7 @@ func (r *StudentRepository) newStudentWithGroupQuery(ctx context.Context, result
 		Model(results).
 		ModelTableExpr(`users.students AS "student"`).
 		ColumnExpr(`"student".id AS "student__id", "student".created_at AS "student__created_at", "student".updated_at AS "student__updated_at"`).
+		ColumnExpr(`"student".tenant_id AS "student__tenant_id"`).
 		ColumnExpr(`"student".person_id AS "student__person_id", "student".school_class AS "student__school_class"`).
 		ColumnExpr(`"student".guardian_name AS "student__guardian_name", "student".guardian_contact AS "student__guardian_contact"`).
 		ColumnExpr(`"student".guardian_email AS "student__guardian_email", "student".guardian_phone AS "student__guardian_phone"`).

@@ -482,6 +482,7 @@ func (rs *Resource) updateStudentPickupException(w http.ResponseWriter, r *http.
 	}
 	exception.ID = exceptionID
 	exception.CreatedAt = existingException.CreatedAt // Preserve original creation timestamp
+	exception.SetTenantID(existingException.TenantID)
 
 	if req.Reason != nil {
 		exception.Reason = req.Reason
@@ -600,6 +601,7 @@ func (rs *Resource) updateStudentPickupNote(w http.ResponseWriter, r *http.Reque
 	}
 	note.ID = noteID
 	note.CreatedAt = existingNote.CreatedAt // Preserve original creation timestamp
+	note.SetTenantID(existingNote.TenantID)
 
 	tenantID := tenant.FromContext(r.Context())
 	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {

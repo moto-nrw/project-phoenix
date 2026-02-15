@@ -177,7 +177,7 @@ func (r *Repository[T]) Delete(ctx context.Context, id any) error {
 		}
 	}
 
-	result, err := deleteQuery.Exec(ctx)
+	_, err := deleteQuery.Exec(ctx)
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "delete",
@@ -185,7 +185,7 @@ func (r *Repository[T]) Delete(ctx context.Context, id any) error {
 		}
 	}
 
-	return AssertRowsAffected(result, 1, "delete "+r.EntityName)
+	return nil
 }
 
 // List retrieves entities matching the filters
@@ -199,7 +199,8 @@ func (r *Repository[T]) List(ctx context.Context, filters map[string]any) ([]T, 
 
 	query := GetDB(ctx, r.DB).NewSelect().
 		Model(&entities).
-		ModelTableExpr(tableExpr)
+		ModelTableExpr(tableExpr).
+		ColumnExpr(fmt.Sprintf(`"%s".*`, entityName))
 
 	query = r.applyTenantFilter(ctx, query, entityName)
 

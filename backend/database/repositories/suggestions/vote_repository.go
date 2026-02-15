@@ -34,7 +34,7 @@ func (r *VoteRepository) Upsert(ctx context.Context, vote *suggestions.Vote) err
 	_, err := base.GetDB(ctx, r.db).NewInsert().
 		Model(vote).
 		ModelTableExpr(tableVotes).
-		On("CONFLICT (post_id, voter_id) DO UPDATE").
+		On("CONFLICT (tenant_id, post_id, voter_id) DO UPDATE").
 		Set("direction = EXCLUDED.direction").
 		Set("updated_at = NOW()").
 		Returning("*").

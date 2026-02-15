@@ -9,6 +9,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/services/schedule"
@@ -224,9 +225,15 @@ func TestPickupScheduleService_UpsertBulkStudentPickupSchedules(t *testing.T) {
 			},
 		}
 
-		err := service.UpsertBulkStudentPickupSchedules(ctx, student.ID, schedules)
+		// Wrap in transaction so partial writes are rolled back on error
+		tx, err := db.BeginTx(ctx, nil)
+		require.NoError(t, err)
+		txCtx := base.ContextWithTx(ctx, &tx)
+
+		err = service.UpsertBulkStudentPickupSchedules(txCtx, student.ID, schedules)
 
 		require.Error(t, err)
+		require.NoError(t, tx.Rollback())
 
 		results, err := service.GetStudentPickupSchedules(ctx, student.ID)
 		require.NoError(t, err)

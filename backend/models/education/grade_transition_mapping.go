@@ -10,11 +10,11 @@ import (
 
 // GradeTransitionMapping represents a class-to-class mapping for a grade transition
 type GradeTransitionMapping struct {
-	base.Model       `bun:"schema:education,table:grade_transition_mappings"`
-	base.TenantModel `bun:",extend"`
-	TransitionID     int64   `bun:"transition_id,notnull" json:"transition_id"`
-	FromClass        string  `bun:"from_class,notnull" json:"from_class"`
-	ToClass          *string `bun:"to_class" json:"to_class,omitempty"` // NULL = graduate/delete
+	base.Model `bun:"schema:education,table:grade_transition_mappings"`
+	base.TenantModel
+	TransitionID int64   `bun:"transition_id,notnull" json:"transition_id"`
+	FromClass    string  `bun:"from_class,notnull" json:"from_class"`
+	ToClass      *string `bun:"to_class" json:"to_class,omitempty"` // NULL = graduate/delete
 }
 
 // TableName returns the database table name

@@ -166,6 +166,7 @@ func (r *StaffRepository) ListAllWithPerson(ctx context.Context) ([]*users.Staff
 		ColumnExpr(`"staff".id AS "staff__id"`).
 		ColumnExpr(`"staff".created_at AS "staff__created_at"`).
 		ColumnExpr(`"staff".updated_at AS "staff__updated_at"`).
+		ColumnExpr(`"staff".tenant_id AS "staff__tenant_id"`).
 		ColumnExpr(`"staff".person_id AS "staff__person_id"`).
 		ColumnExpr(`"staff".staff_notes AS "staff__staff_notes"`).
 		ColumnExpr(`"person".id AS "person__id"`).

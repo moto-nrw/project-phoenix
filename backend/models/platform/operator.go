@@ -23,9 +23,6 @@ type Operator struct {
 }
 
 func (o *Operator) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.SelectQuery); ok {
-		q.ModelTableExpr(tablePlatformOperators)
-	}
 	if q, ok := query.(*bun.UpdateQuery); ok {
 		q.ModelTableExpr(tablePlatformOperators)
 	}

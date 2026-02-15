@@ -18,28 +18,25 @@ const (
 )
 
 type WorkSession struct {
-	base.Model       `bun:"schema:active,table:work_sessions"`
-	base.TenantModel `bun:",extend"`
-	StaffID          int64      `bun:"staff_id,notnull" json:"staff_id"`
-	Date             time.Time  `bun:"date,notnull,type:date" json:"date"`
-	Status           string     `bun:"status,notnull,default:'present'" json:"status"`
-	CheckInTime      time.Time  `bun:"check_in_time,notnull" json:"check_in_time"`
-	CheckOutTime     *time.Time `bun:"check_out_time" json:"check_out_time,omitempty"`
-	BreakMinutes     int        `bun:"break_minutes,notnull,default:0" json:"break_minutes"`
-	Notes            string     `bun:"notes" json:"notes,omitempty"`
-	AutoCheckedOut   bool       `bun:"auto_checked_out,notnull,default:false" json:"auto_checked_out"`
-	CreatedBy        int64      `bun:"created_by,notnull" json:"created_by"`
-	UpdatedBy        *int64     `bun:"updated_by" json:"updated_by,omitempty"`
+	base.Model `bun:"schema:active,table:work_sessions"`
+	base.TenantModel
+	StaffID        int64      `bun:"staff_id,notnull" json:"staff_id"`
+	Date           time.Time  `bun:"date,notnull,type:date" json:"date"`
+	Status         string     `bun:"status,notnull,default:'present'" json:"status"`
+	CheckInTime    time.Time  `bun:"check_in_time,notnull" json:"check_in_time"`
+	CheckOutTime   *time.Time `bun:"check_out_time" json:"check_out_time,omitempty"`
+	BreakMinutes   int        `bun:"break_minutes,notnull,default:0" json:"break_minutes"`
+	Notes          string     `bun:"notes" json:"notes,omitempty"`
+	AutoCheckedOut bool       `bun:"auto_checked_out,notnull,default:false" json:"auto_checked_out"`
+	CreatedBy      int64      `bun:"created_by,notnull" json:"created_by"`
+	UpdatedBy      *int64     `bun:"updated_by" json:"updated_by,omitempty"`
 
 	Staff *users.Staff `bun:"rel:belongs-to,join:staff_id=id" json:"staff,omitempty"`
 }
 
 // BeforeAppendModel implements the model hook for schema-qualified queries
-// Must handle ALL query types: SelectQuery, UpdateQuery, DeleteQuery, InsertQuery
+// Must handle ALL query types: UpdateQuery, DeleteQuery, InsertQuery
 func (ws *WorkSession) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.SelectQuery); ok {
-		q.ModelTableExpr(tableActiveWorkSessions)
-	}
 	if q, ok := query.(*bun.UpdateQuery); ok {
 		q.ModelTableExpr(tableActiveWorkSessions)
 	}

@@ -144,6 +144,13 @@ func (res *Resource) updateCurrentProfile(w http.ResponseWriter, r *http.Request
 		updates["bio"] = *req.Bio
 	}
 
+	// Check for authentication before tenant transaction
+	claims := jwt.ClaimsFromCtx(r.Context())
+	if claims.ID == 0 {
+		common.RenderError(w, r, common.ErrorUnauthorized(errors.New("authentication required")))
+		return
+	}
+
 	// Update profile
 	tenantID := tenant.FromContext(r.Context())
 	var profile interface{}

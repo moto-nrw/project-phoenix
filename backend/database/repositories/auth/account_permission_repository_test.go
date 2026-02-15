@@ -6,6 +6,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/models/auth"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -194,6 +195,7 @@ func TestAccountPermissionRepository_GrantPermission(t *testing.T) {
 
 	repo := repositories.NewFactory(db).AccountPermission
 	ctx := context.Background()
+	ctx = tenant.WithTenantID(ctx, 1)
 
 	t.Run("grants new permission", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "grant_new")
@@ -237,6 +239,7 @@ func TestAccountPermissionRepository_DenyPermission(t *testing.T) {
 
 	repo := repositories.NewFactory(db).AccountPermission
 	ctx := context.Background()
+	ctx = tenant.WithTenantID(ctx, 1)
 
 	t.Run("denies new permission", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "deny_new")

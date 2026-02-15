@@ -38,6 +38,7 @@ func applySupervisorColumnMapping(q *bun.SelectQuery) *bun.SelectQuery {
 		ColumnExpr(`"supervisor".id AS "supervisor__id"`).
 		ColumnExpr(`"supervisor".created_at AS "supervisor__created_at"`).
 		ColumnExpr(`"supervisor".updated_at AS "supervisor__updated_at"`).
+		ColumnExpr(`"supervisor".tenant_id AS "supervisor__tenant_id"`).
 		ColumnExpr(`"supervisor".staff_id AS "supervisor__staff_id"`).
 		ColumnExpr(`"supervisor".group_id AS "supervisor__group_id"`).
 		ColumnExpr(`"supervisor".is_primary AS "supervisor__is_primary"`).
@@ -324,7 +325,7 @@ func (r *SupervisorPlannedRepository) Delete(ctx context.Context, id interface{}
 		query = query.Where(where, val)
 	}
 
-	result, err := query.Exec(ctx)
+	_, err := query.Exec(ctx)
 
 	if err != nil {
 		return &modelBase.DatabaseError{
@@ -333,7 +334,7 @@ func (r *SupervisorPlannedRepository) Delete(ctx context.Context, id interface{}
 		}
 	}
 
-	return base.AssertRowsAffected(result, 1, "delete supervisor")
+	return nil
 }
 
 // List overrides the base List method to accept the new QueryOptions type

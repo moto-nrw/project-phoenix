@@ -12,13 +12,13 @@ import (
 
 // Person represents a physical person in the system
 type Person struct {
-	base.Model       `bun:"schema:users,table:persons"`
-	base.TenantModel `bun:",extend"`
-	FirstName        string     `bun:"first_name,notnull" json:"first_name"`
-	LastName         string     `bun:"last_name,notnull" json:"last_name"`
-	Birthday         *time.Time `bun:"birthday,type:date" json:"birthday,omitempty"`
-	TagID            *string    `bun:"tag_id" json:"tag_id,omitempty"`
-	AccountID        *int64     `bun:"account_id" json:"account_id,omitempty"`
+	base.Model `bun:"schema:users,table:persons"`
+	base.TenantModel
+	FirstName string     `bun:"first_name,notnull" json:"first_name"`
+	LastName  string     `bun:"last_name,notnull" json:"last_name"`
+	Birthday  *time.Time `bun:"birthday,type:date" json:"birthday,omitempty"`
+	TagID     *string    `bun:"tag_id" json:"tag_id,omitempty"`
+	AccountID *int64     `bun:"account_id" json:"account_id,omitempty"`
 
 	// Relations not stored in the database
 	Account  *auth.Account `bun:"rel:belongs-to,join:account_id=id" json:"account,omitempty"`
@@ -26,9 +26,6 @@ type Person struct {
 }
 
 func (p *Person) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.SelectQuery); ok {
-		q.ModelTableExpr(`users.persons AS "person"`)
-	}
 	if q, ok := query.(*bun.UpdateQuery); ok {
 		q.ModelTableExpr(`users.persons AS "person"`)
 	}

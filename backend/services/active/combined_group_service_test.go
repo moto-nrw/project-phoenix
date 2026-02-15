@@ -12,6 +12,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/services/active"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -852,11 +853,18 @@ func TestActiveService_CreateCombinedGroupWithGroups(t *testing.T) {
 			StartTime: now,
 		}
 
-		// ACT
-		err := service.CreateCombinedGroupWithGroups(ctx, combinedGroup, []int64{activeGroup1.ID, activeGroup2.ID})
+		// ACT — provide tenant + transaction context required by the service
+		txCtx := tenant.WithTenantID(ctx, 1)
+		tx, err := db.BeginTx(txCtx, nil)
+		require.NoError(t, err)
+		defer func() { _ = tx.Rollback() }()
+		txCtx = base.ContextWithTx(txCtx, &tx)
+
+		err = service.CreateCombinedGroupWithGroups(txCtx, combinedGroup, []int64{activeGroup1.ID, activeGroup2.ID})
 
 		// ASSERT
 		require.NoError(t, err)
+		require.NoError(t, tx.Commit())
 		assert.Greater(t, combinedGroup.ID, int64(0))
 		defer testpkg.CleanupActivityFixtures(t, db, combinedGroup.ID)
 
@@ -878,11 +886,17 @@ func TestActiveService_CreateCombinedGroupWithGroups(t *testing.T) {
 			StartTime: now,
 		}
 
-		// ACT - include a non-existent group ID to trigger failure
-		err := service.CreateCombinedGroupWithGroups(ctx, combinedGroup, []int64{activeGroup.ID, 99999999})
+		// ACT — provide tenant + transaction context, include a non-existent group ID to trigger failure
+		txCtx := tenant.WithTenantID(ctx, 1)
+		tx, err := db.BeginTx(txCtx, nil)
+		require.NoError(t, err)
+		txCtx = base.ContextWithTx(txCtx, &tx)
+
+		err = service.CreateCombinedGroupWithGroups(txCtx, combinedGroup, []int64{activeGroup.ID, 99999999})
 
 		// ASSERT
 		require.Error(t, err)
+		require.NoError(t, tx.Rollback())
 
 		// Verify the combined group was NOT created (full rollback)
 		if combinedGroup.ID > 0 {
