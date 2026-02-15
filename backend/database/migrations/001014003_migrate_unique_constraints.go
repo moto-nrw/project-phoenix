@@ -286,13 +286,13 @@ func migrateUniqueConstraints(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error migrating activities.student_enrollments unique constraint: %w", err)
 	}
 
-	// 11. activities.supervisors_planned: UNIQUE(staff_id, group_id) → +tenant_id
+	// 11. activities.supervisors: UNIQUE(staff_id, group_id) → +tenant_id
 	_, err = tx.ExecContext(ctx, `
-		ALTER TABLE activities.supervisors_planned DROP CONSTRAINT IF EXISTS uq_activity_supervisors_staff_group;
-		CREATE UNIQUE INDEX idx_supervisors_planned_tenant ON activities.supervisors_planned(tenant_id, staff_id, group_id);
+		ALTER TABLE activities.supervisors DROP CONSTRAINT IF EXISTS uq_activity_supervisors_staff_group;
+		CREATE UNIQUE INDEX idx_supervisors_planned_tenant ON activities.supervisors(tenant_id, staff_id, group_id);
 	`)
 	if err != nil {
-		return fmt.Errorf("error migrating activities.supervisors_planned unique constraint: %w", err)
+		return fmt.Errorf("error migrating activities.supervisors unique constraint: %w", err)
 	}
 
 	// 12. activities.schedules: Partial UNIQUE(weekday, timeframe_id, activity_group_id) → +tenant_id
@@ -474,13 +474,13 @@ func rollbackUniqueConstraints(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error restoring activities.schedules constraint: %w", err)
 	}
 
-	// 11. activities.supervisors_planned
+	// 11. activities.supervisors
 	_, err = tx.ExecContext(ctx, `
 		DROP INDEX IF EXISTS activities.idx_supervisors_planned_tenant;
-		ALTER TABLE activities.supervisors_planned ADD CONSTRAINT uq_activity_supervisors_staff_group UNIQUE (staff_id, group_id);
+		ALTER TABLE activities.supervisors ADD CONSTRAINT uq_activity_supervisors_staff_group UNIQUE (staff_id, group_id);
 	`)
 	if err != nil {
-		return fmt.Errorf("error restoring activities.supervisors_planned constraint: %w", err)
+		return fmt.Errorf("error restoring activities.supervisors constraint: %w", err)
 	}
 
 	// 10. activities.student_enrollments
