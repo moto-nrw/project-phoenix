@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/go-chi/render"
@@ -605,7 +606,11 @@ func (rs *Resource) createSpecialRoomActiveGroupIfNeeded(ctx context.Context, w 
 			rs.getLogger().ErrorContext(ctx, "failed to find WC activity",
 				slog.String("error", err.Error()),
 			)
-			iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(errors.New("WC activity not configured")))
+			errMsg := "WC activity not configured"
+			if strings.Contains(err.Error(), "staff context") {
+				errMsg = "WC activity auto-create requires staff context"
+			}
+			iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(errors.New(errMsg)))
 			return 0, "", err
 		}
 	default:

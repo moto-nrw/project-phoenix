@@ -38,6 +38,11 @@ func (rs *Resource) ensureWCRoom(ctx context.Context) (*facilities.Room, error) 
 	}
 
 	if err := rs.FacilityService.CreateRoom(ctx, newRoom); err != nil {
+		// Retry: concurrent request may have created it
+		room, retryErr := rs.FacilityService.FindRoomByName(ctx, constants.WCRoomName)
+		if retryErr == nil && room != nil {
+			return room, nil
+		}
 		return nil, fmt.Errorf("failed to auto-create WC room: %w", err)
 	}
 
@@ -75,6 +80,15 @@ func (rs *Resource) ensureWCCategory(ctx context.Context) (*activities.Category,
 
 	createdCategory, err := rs.ActivitiesService.CreateCategory(ctx, newCategory)
 	if err != nil {
+		// Retry: concurrent request may have created it
+		retryCategories, retryErr := rs.ActivitiesService.ListCategories(ctx)
+		if retryErr == nil {
+			for _, cat := range retryCategories {
+				if cat.Name == constants.WCCategoryName {
+					return cat, nil
+				}
+			}
+		}
 		return nil, fmt.Errorf("failed to auto-create WC category: %w", err)
 	}
 
@@ -142,6 +156,15 @@ func (rs *Resource) wcActivityGroup(ctx context.Context) (*activities.Group, err
 	// CreateGroup requires supervisorIDs and schedules - pass empty slices for auto-created activity
 	createdActivity, err := rs.ActivitiesService.CreateGroup(ctx, newActivity, []int64{}, []*activities.Schedule{})
 	if err != nil {
+		// Retry: concurrent request may have created it
+		retryOptions := base.NewQueryOptions()
+		retryFilter := base.NewFilter()
+		retryFilter.Equal("name", constants.WCActivityName)
+		retryOptions.Filter = retryFilter
+		retryGroups, retryErr := rs.ActivitiesService.ListGroups(ctx, retryOptions)
+		if retryErr == nil && len(retryGroups) > 0 {
+			return retryGroups[0], nil
+		}
 		return nil, fmt.Errorf("failed to auto-create WC activity: %w", err)
 	}
 
