@@ -1087,18 +1087,42 @@ func cleanupSchulhofInfrastructure(t *testing.T, db *bun.DB, roomID int64) {
 
 // createSchulhofRoom creates a room with the exact name "Schulhof" (no timestamp
 // suffix) so the auto-create path in createSchulhofActiveGroupIfNeeded recognizes it.
+// If a Schulhof room already exists (e.g. from seed data), it cleans up and recreates it
+// to ensure the test owns the full lifecycle.
 func createSchulhofRoom(t *testing.T, db *bun.DB) *facilities.Room {
 	t.Helper()
 
-	dbCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	dbCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
+
+	// Clean up any pre-existing Schulhof room and its infrastructure (from seed data or prior tests)
+	var existingID int64
+	err := db.NewSelect().
+		TableExpr("facilities.rooms").
+		Column("id").
+		Where("name = ?", "Schulhof").
+		Scan(dbCtx, &existingID)
+	if err == nil && existingID > 0 {
+		cleanupSchulhofInfrastructure(t, db, existingID)
+	}
+
+	// Also clean up any pre-existing Schulhof activity and category (auto-created artifacts)
+	schulhofCleanupStmts := []string{
+		`DELETE FROM activities.schedules WHERE group_id IN (SELECT id FROM activities.groups WHERE name = 'Schulhof Freispiel')`,
+		`DELETE FROM activities.student_enrollments WHERE group_id IN (SELECT id FROM activities.groups WHERE name = 'Schulhof Freispiel')`,
+		`DELETE FROM activities.groups WHERE name = 'Schulhof Freispiel'`,
+		`DELETE FROM activities.categories WHERE name = 'Schulhof'`,
+	}
+	for _, stmt := range schulhofCleanupStmts {
+		_, _ = db.ExecContext(dbCtx, stmt)
+	}
 
 	room := &facilities.Room{
 		Name:     "Schulhof",
 		Building: "Test Building",
 	}
 
-	err := db.NewInsert().
+	err = db.NewInsert().
 		Model(room).
 		ModelTableExpr("facilities.rooms").
 		Scan(dbCtx)
@@ -1780,6 +1804,324 @@ func TestDeviceCheckin_UpdatesSessionActivity(t *testing.T) {
 
 	assert.True(t, updatedLastActivity.After(initialLastActivity) || updatedLastActivity.Equal(initialLastActivity),
 		"last_activity should be updated after checkin")
+}
+
+// =============================================================================
+// WC AUTO-CREATE TESTS
+// =============================================================================
+
+// cleanupWCInfrastructure removes WC auto-created data for a specific
+// room ID so tests clean up only their own data. Uses individual statements in FK order.
+func cleanupWCInfrastructure(t *testing.T, db *bun.DB, roomID int64) {
+	t.Helper()
+
+	dbCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// Delete in FK-safe order: child tables first, then parents.
+	stmts := []string{
+		fmt.Sprintf(`DELETE FROM active.attendance WHERE visit_id IN (SELECT v.id FROM active.visits v JOIN active.groups ag ON ag.id = v.active_group_id WHERE ag.room_id = %d)`, roomID),
+		fmt.Sprintf(`DELETE FROM active.visits WHERE active_group_id IN (SELECT id FROM active.groups WHERE room_id = %d)`, roomID),
+		fmt.Sprintf(`DELETE FROM active.group_supervisors WHERE group_id IN (SELECT id FROM active.groups WHERE room_id = %d)`, roomID),
+		fmt.Sprintf(`DELETE FROM active.groups WHERE room_id = %d`, roomID),
+		fmt.Sprintf(`DELETE FROM activities.schedules WHERE group_id IN (SELECT ag.id FROM activities.groups ag JOIN activities.categories ac ON ac.id = ag.category_id JOIN facilities.rooms r ON r.name = ac.name WHERE r.id = %d)`, roomID),
+		fmt.Sprintf(`DELETE FROM activities.student_enrollments WHERE group_id IN (SELECT ag.id FROM activities.groups ag JOIN activities.categories ac ON ac.id = ag.category_id JOIN facilities.rooms r ON r.name = ac.name WHERE r.id = %d)`, roomID),
+		fmt.Sprintf(`DELETE FROM activities.groups WHERE category_id IN (SELECT ac.id FROM activities.categories ac JOIN facilities.rooms r ON r.name = ac.name WHERE r.id = %d)`, roomID),
+		fmt.Sprintf(`DELETE FROM activities.categories WHERE name = (SELECT name FROM facilities.rooms WHERE id = %d)`, roomID),
+		fmt.Sprintf(`DELETE FROM facilities.rooms WHERE id = %d`, roomID),
+	}
+	for _, stmt := range stmts {
+		_, _ = db.ExecContext(dbCtx, stmt)
+	}
+}
+
+// createWCRoom creates a room with the exact name "WC" (no timestamp
+// suffix) so the auto-create path in createSpecialRoomActiveGroupIfNeeded recognizes it.
+// If a WC room already exists (e.g. from seed data), it cleans up and recreates it
+// to ensure the test owns the full lifecycle.
+func createWCRoom(t *testing.T, db *bun.DB) *facilities.Room {
+	t.Helper()
+
+	dbCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// Clean up any pre-existing WC room and its infrastructure (from seed data or prior tests)
+	var existingID int64
+	err := db.NewSelect().
+		TableExpr("facilities.rooms").
+		Column("id").
+		Where("name = ?", "WC").
+		Scan(dbCtx, &existingID)
+	if err == nil && existingID > 0 {
+		cleanupWCInfrastructure(t, db, existingID)
+	}
+
+	// Also clean up any pre-existing WC activity and category (auto-created artifacts)
+	wcCleanupStmts := []string{
+		`DELETE FROM activities.schedules WHERE group_id IN (SELECT id FROM activities.groups WHERE name = 'WC')`,
+		`DELETE FROM activities.student_enrollments WHERE group_id IN (SELECT id FROM activities.groups WHERE name = 'WC')`,
+		`DELETE FROM activities.groups WHERE name = 'WC'`,
+		`DELETE FROM activities.categories WHERE name = 'WC'`,
+	}
+	for _, stmt := range wcCleanupStmts {
+		_, _ = db.ExecContext(dbCtx, stmt)
+	}
+
+	room := &facilities.Room{
+		Name:     "WC",
+		Building: "Test Building",
+	}
+
+	err = db.NewInsert().
+		Model(room).
+		ModelTableExpr("facilities.rooms").
+		Scan(dbCtx)
+	require.NoError(t, err, "Failed to create WC room")
+
+	return room
+}
+
+// TestDeviceCheckin_WCAutoCreate verifies that checking a student into a
+// room named "WC" with no existing active group triggers automatic
+// infrastructure creation (category, activity group, and active group).
+func TestDeviceCheckin_WCAutoCreate(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	device := testpkg.CreateTestDevice(t, ctx.db, "wc-auto")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
+
+	staff := testpkg.CreateTestStaff(t, ctx.db, "WC", "Staff")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, staff.ID)
+
+	student := testpkg.CreateTestStudent(t, ctx.db, "WC", "Student", "1a")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
+
+	tagID := fmt.Sprintf("WC%d", time.Now().UnixNano())
+	card := testpkg.CreateTestRFIDCard(t, ctx.db, tagID)
+	defer testpkg.CleanupRFIDCards(t, ctx.db, card.ID)
+	testpkg.LinkRFIDToStudent(t, ctx.db, student.PersonID, card.ID)
+
+	room := createWCRoom(t, ctx.db)
+	defer cleanupWCInfrastructure(t, ctx.db, room.ID)
+
+	router := chi.NewRouter()
+	router.Post("/checkin/checkin", ctx.resource.DeviceCheckinHandler())
+
+	body := map[string]interface{}{
+		"student_rfid": card.ID,
+		"action":       "checkin",
+		"room_id":      room.ID,
+	}
+
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/checkin", body,
+		testutil.WithDeviceContext(createTestDeviceContext(device)),
+		testutil.WithStaffContext(staff),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	// The WC auto-create flow should succeed:
+	// 1. No active group in room → detect room name is "WC"
+	// 2. wcActivityGroup() queries for existing WC activity
+	// 3. Activity not found → auto-create category, activity group, active group
+	// 4. Student is checked in to the auto-created active group
+	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+
+	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+	data, ok := response["data"].(map[string]interface{})
+	assert.True(t, ok, "Response should have data field")
+	assert.Equal(t, "checked_in", data["action"])
+	assert.Equal(t, "WC", data["room_name"])
+}
+
+// TestDeviceCheckin_WCAutoCreateIdempotent verifies that the WC
+// auto-create flow is idempotent: a second checkin reuses the already-created
+// activity group instead of failing or creating duplicates.
+func TestDeviceCheckin_WCAutoCreateIdempotent(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	device := testpkg.CreateTestDevice(t, ctx.db, "wc-idem")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
+
+	staff := testpkg.CreateTestStaff(t, ctx.db, "WCIdem", "Staff")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, staff.ID)
+
+	// First student
+	student1 := testpkg.CreateTestStudent(t, ctx.db, "First", "WC", "1a")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, student1.ID)
+
+	tag1 := fmt.Sprintf("WC1%d", time.Now().UnixNano())
+	card1 := testpkg.CreateTestRFIDCard(t, ctx.db, tag1)
+	defer testpkg.CleanupRFIDCards(t, ctx.db, card1.ID)
+	testpkg.LinkRFIDToStudent(t, ctx.db, student1.PersonID, card1.ID)
+
+	// Second student
+	student2 := testpkg.CreateTestStudent(t, ctx.db, "Second", "WC", "1b")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, student2.ID)
+
+	tag2 := fmt.Sprintf("WC2%d", time.Now().UnixNano())
+	card2 := testpkg.CreateTestRFIDCard(t, ctx.db, tag2)
+	defer testpkg.CleanupRFIDCards(t, ctx.db, card2.ID)
+	testpkg.LinkRFIDToStudent(t, ctx.db, student2.PersonID, card2.ID)
+
+	room := createWCRoom(t, ctx.db)
+	defer cleanupWCInfrastructure(t, ctx.db, room.ID)
+
+	router := chi.NewRouter()
+	router.Post("/checkin/checkin", ctx.resource.DeviceCheckinHandler())
+
+	// First checkin - triggers auto-create
+	body1 := map[string]interface{}{
+		"student_rfid": card1.ID,
+		"action":       "checkin",
+		"room_id":      room.ID,
+	}
+
+	req1 := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/checkin", body1,
+		testutil.WithDeviceContext(createTestDeviceContext(device)),
+		testutil.WithStaffContext(staff),
+	)
+
+	rr1 := testutil.ExecuteRequest(router, req1)
+	testutil.AssertSuccessResponse(t, rr1, http.StatusOK)
+
+	// Second checkin - should reuse the existing active group (not fail)
+	body2 := map[string]interface{}{
+		"student_rfid": card2.ID,
+		"action":       "checkin",
+		"room_id":      room.ID,
+	}
+
+	req2 := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/checkin", body2,
+		testutil.WithDeviceContext(createTestDeviceContext(device)),
+		testutil.WithStaffContext(staff),
+	)
+
+	rr2 := testutil.ExecuteRequest(router, req2)
+	testutil.AssertSuccessResponse(t, rr2, http.StatusOK)
+
+	response := testutil.ParseJSONResponse(t, rr2.Body.Bytes())
+	data, ok := response["data"].(map[string]interface{})
+	assert.True(t, ok, "Response should have data field")
+	assert.Equal(t, "checked_in", data["action"])
+	assert.Equal(t, "WC", data["room_name"])
+}
+
+// TestDeviceCheckin_WCCheckoutFromWC verifies the full WC visit lifecycle:
+// check in to WC room, then check out.
+func TestDeviceCheckin_WCCheckoutFromWC(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	device := testpkg.CreateTestDevice(t, ctx.db, "wc-checkout")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
+
+	staff := testpkg.CreateTestStaff(t, ctx.db, "WCOut", "Staff")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, staff.ID)
+
+	student := testpkg.CreateTestStudent(t, ctx.db, "WCOut", "Student", "2a")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
+
+	tagID := fmt.Sprintf("WCOUT%d", time.Now().UnixNano())
+	card := testpkg.CreateTestRFIDCard(t, ctx.db, tagID)
+	defer testpkg.CleanupRFIDCards(t, ctx.db, card.ID)
+	testpkg.LinkRFIDToStudent(t, ctx.db, student.PersonID, card.ID)
+
+	room := createWCRoom(t, ctx.db)
+	defer cleanupWCInfrastructure(t, ctx.db, room.ID)
+
+	router := chi.NewRouter()
+	router.Post("/checkin/checkin", ctx.resource.DeviceCheckinHandler())
+
+	// Step 1: Check in to WC room (triggers auto-create)
+	checkinBody := map[string]interface{}{
+		"student_rfid": card.ID,
+		"action":       "checkin",
+		"room_id":      room.ID,
+	}
+
+	checkinReq := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/checkin", checkinBody,
+		testutil.WithDeviceContext(createTestDeviceContext(device)),
+		testutil.WithStaffContext(staff),
+	)
+
+	checkinRR := testutil.ExecuteRequest(router, checkinReq)
+	testutil.AssertSuccessResponse(t, checkinRR, http.StatusOK)
+
+	checkinResponse := testutil.ParseJSONResponse(t, checkinRR.Body.Bytes())
+	checkinData, ok := checkinResponse["data"].(map[string]interface{})
+	assert.True(t, ok, "Checkin response should have data field")
+	assert.Equal(t, "checked_in", checkinData["action"])
+
+	// Step 2: Check out from WC room
+	checkoutBody := map[string]interface{}{
+		"student_rfid": card.ID,
+		"action":       "checkout",
+	}
+
+	checkoutReq := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/checkin", checkoutBody,
+		testutil.WithDeviceContext(createTestDeviceContext(device)),
+	)
+
+	checkoutRR := testutil.ExecuteRequest(router, checkoutReq)
+	testutil.AssertSuccessResponse(t, checkoutRR, http.StatusOK)
+
+	checkoutResponse := testutil.ParseJSONResponse(t, checkoutRR.Body.Bytes())
+	checkoutData, ok := checkoutResponse["data"].(map[string]interface{})
+	assert.True(t, ok, "Checkout response should have data field")
+	assert.Equal(t, "checked_out", checkoutData["action"])
+}
+
+// TestDeviceCheckin_WCAutoCreateWithoutStaff verifies that attempting WC checkin
+// without staff context returns a 500 error because WC activity auto-creation
+// requires staff context (the created_by FK constraint).
+// Covers: wc.go:143-145 (staff nil check) + workflow.go:605-614 (WC error handling
+// with "staff context" string detection).
+func TestDeviceCheckin_WCAutoCreateWithoutStaff(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	device := testpkg.CreateTestDevice(t, ctx.db, "wc-no-staff")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
+
+	student := testpkg.CreateTestStudent(t, ctx.db, "WCNoStaff", "Student", "1a")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
+
+	tagID := fmt.Sprintf("WCNS%d", time.Now().UnixNano())
+	card := testpkg.CreateTestRFIDCard(t, ctx.db, tagID)
+	defer testpkg.CleanupRFIDCards(t, ctx.db, card.ID)
+	testpkg.LinkRFIDToStudent(t, ctx.db, student.PersonID, card.ID)
+
+	room := createWCRoom(t, ctx.db)
+	defer cleanupWCInfrastructure(t, ctx.db, room.ID)
+
+	router := chi.NewRouter()
+	router.Post("/checkin/checkin", ctx.resource.DeviceCheckinHandler())
+
+	body := map[string]interface{}{
+		"student_rfid": card.ID,
+		"action":       "checkin",
+		"room_id":      room.ID,
+	}
+
+	// Deliberately omit WithStaffContext to trigger the staff nil check
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/checkin", body,
+		testutil.WithDeviceContext(createTestDeviceContext(device)),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	// Should return 500 because WC activity auto-create requires staff context
+	assert.Equal(t, http.StatusInternalServerError, rr.Code,
+		"Expected 500 when WC auto-create has no staff context. Body: %s", rr.Body.String())
+
+	// Verify the error message mentions staff context
+	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+	errMsg, ok := response["error"].(string)
+	assert.True(t, ok, "Response should have error field")
+	assert.Contains(t, errMsg, "staff context", "Error should mention staff context requirement")
 }
 
 func TestDeviceCheckin_SchulhofAutoCreateIdempotent(t *testing.T) {

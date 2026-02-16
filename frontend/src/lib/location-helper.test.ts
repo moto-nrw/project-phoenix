@@ -93,9 +93,13 @@ describe("normalizeLocation", () => {
   });
 
   it("handles WC/bathroom status", () => {
-    expect(normalizeLocation("wc")).toBe("Anwesend - WC");
-    expect(normalizeLocation("bathroom")).toBe("Anwesend - WC");
-    expect(normalizeLocation("toilette")).toBe("Anwesend - WC");
+    expect(normalizeLocation("wc")).toBe("Anwesend - Toilette");
+    expect(normalizeLocation("bathroom")).toBe("Anwesend - Toilette");
+    expect(normalizeLocation("toilette")).toBe("Anwesend - Toilette");
+  });
+
+  it("normalizes compound WC location from backend", () => {
+    expect(normalizeLocation("Anwesend - WC")).toBe("Anwesend - Toilette");
   });
 });
 
