@@ -119,6 +119,11 @@ For CI, set TEST_DB_DSN as an environment variable.`)
 		VALUES (1, 1, 'Default Room', 'Default')
 		ON CONFLICT (id) DO NOTHING`)
 
+	// Sync the BIGSERIAL sequence past any explicitly-inserted IDs.
+	// Without this, nextval() can return 1 which collides with the row above.
+	_, _ = db.ExecContext(context.Background(),
+		`SELECT setval('facilities.rooms_id_seq', COALESCE((SELECT MAX(id) FROM facilities.rooms), 1))`)
+
 	return db
 }
 
