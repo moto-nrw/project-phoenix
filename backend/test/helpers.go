@@ -119,10 +119,15 @@ For CI, set TEST_DB_DSN as an environment variable.`)
 		VALUES (1, 1, 'Default Room', 'Default')
 		ON CONFLICT (id) DO NOTHING`)
 
-	// Sync the BIGSERIAL sequence past any explicitly-inserted IDs.
-	// Without this, nextval() can return 1 which collides with the row above.
-	_, _ = db.ExecContext(context.Background(),
-		`SELECT setval('facilities.rooms_id_seq', COALESCE((SELECT MAX(id) FROM facilities.rooms), 1))`)
+	// Advance the BIGSERIAL sequence past any explicitly-inserted IDs.
+	// Uses nextval (atomic, never goes backwards) instead of setval to avoid
+	// races when parallel test packages call SetupTestDB concurrently.
+	_, _ = db.ExecContext(context.Background(), `
+		DO $$ DECLARE max_id bigint;
+		BEGIN
+			SELECT COALESCE(MAX(id), 0) INTO max_id FROM facilities.rooms;
+			WHILE nextval('facilities.rooms_id_seq') < max_id LOOP END LOOP;
+		END $$`)
 
 	return db
 }
