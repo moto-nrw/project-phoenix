@@ -14,6 +14,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	repoActive "github.com/moto-nrw/project-phoenix/database/repositories/active"
+	repoActivities "github.com/moto-nrw/project-phoenix/database/repositories/activities"
+	repoAudit "github.com/moto-nrw/project-phoenix/database/repositories/audit"
 	repoAuth "github.com/moto-nrw/project-phoenix/database/repositories/auth"
 	repoConfig "github.com/moto-nrw/project-phoenix/database/repositories/config"
 	repoEducation "github.com/moto-nrw/project-phoenix/database/repositories/education"
@@ -21,6 +24,7 @@ import (
 	repoFeedback "github.com/moto-nrw/project-phoenix/database/repositories/feedback"
 	repoIot "github.com/moto-nrw/project-phoenix/database/repositories/iot"
 	repoSchedule "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
+	repoSuggestions "github.com/moto-nrw/project-phoenix/database/repositories/suggestions"
 	repoUsers "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -427,4 +431,205 @@ func TestTenantIsolation_FeedbackEntryVisibility(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Nil(t, result,
 		"cross-tenant FindByID should return nil: tenant B must not see tenant A feedback %d", feA.ID)
+}
+
+// ============================================================================
+// Active Domain
+// ============================================================================
+
+func TestTenantIsolation_ActiveGroupVisibility(t *testing.T) {
+	db := SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+	defer CleanupTenantTestData(t, db, tenantA, tenantB)
+	EnsureTestTenant(t, db, tenantA)
+	EnsureTestTenant(t, db, tenantB)
+
+	agA := CreateTestActiveGroupForTenant(t, db, tenantA)
+	agB := CreateTestActiveGroupForTenant(t, db, tenantB)
+
+	repo := repoActive.NewGroupRepository(db)
+
+	// --- Tenant A ---
+	ctx42 := ctxForTenant(tenantA)
+
+	groups, err := repo.List(ctx42, nil)
+	require.NoError(t, err)
+
+	for _, g := range groups {
+		assert.Equal(t, tenantA, g.TenantID,
+			"cross-tenant leak: tenant B active group visible to tenant A (List)")
+	}
+
+	_, err = repo.FindByID(ctx42, agB.ID)
+	assert.Error(t, err,
+		"cross-tenant FindByID should fail: tenant A must not see tenant B active group %d", agB.ID)
+
+	// --- Tenant B ---
+	ctx43 := ctxForTenant(tenantB)
+
+	groups, err = repo.List(ctx43, nil)
+	require.NoError(t, err)
+
+	for _, g := range groups {
+		assert.Equal(t, tenantB, g.TenantID,
+			"cross-tenant leak: tenant A active group visible to tenant B (List)")
+	}
+
+	_, err = repo.FindByID(ctx43, agA.ID)
+	assert.Error(t, err,
+		"cross-tenant FindByID should fail: tenant B must not see tenant A active group %d", agA.ID)
+}
+
+// ============================================================================
+// Activities Domain
+// ============================================================================
+
+func TestTenantIsolation_ActivityCategoryVisibility(t *testing.T) {
+	db := SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+	defer CleanupTenantTestData(t, db, tenantA, tenantB)
+	EnsureTestTenant(t, db, tenantA)
+	EnsureTestTenant(t, db, tenantB)
+
+	catA := CreateTestActivityCategoryForTenant(t, db, tenantA, "CatA")
+	catB := CreateTestActivityCategoryForTenant(t, db, tenantB, "CatB")
+
+	repo := repoActivities.NewCategoryRepository(db)
+
+	// --- Tenant A ---
+	ctx42 := ctxForTenant(tenantA)
+
+	categories, err := repo.List(ctx42, nil)
+	require.NoError(t, err)
+
+	for _, c := range categories {
+		assert.Equal(t, tenantA, c.TenantID,
+			"cross-tenant leak: tenant B category visible to tenant A (List)")
+	}
+
+	_, err = repo.FindByID(ctx42, catB.ID)
+	assert.Error(t, err,
+		"cross-tenant FindByID should fail: tenant A must not see tenant B category %d", catB.ID)
+
+	// --- Tenant B ---
+	ctx43 := ctxForTenant(tenantB)
+
+	categories, err = repo.List(ctx43, nil)
+	require.NoError(t, err)
+
+	for _, c := range categories {
+		assert.Equal(t, tenantB, c.TenantID,
+			"cross-tenant leak: tenant A category visible to tenant B (List)")
+	}
+
+	_, err = repo.FindByID(ctx43, catA.ID)
+	assert.Error(t, err,
+		"cross-tenant FindByID should fail: tenant B must not see tenant A category %d", catA.ID)
+}
+
+// ============================================================================
+// Suggestions Domain
+// ============================================================================
+
+func TestTenantIsolation_SuggestionPostVisibility(t *testing.T) {
+	db := SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+	defer CleanupTenantTestData(t, db, tenantA, tenantB)
+	EnsureTestTenant(t, db, tenantA)
+	EnsureTestTenant(t, db, tenantB)
+
+	// Posts require an author (account_id). Accounts are not tenant-scoped.
+	acctA := CreateTestAccount(t, db, "suggestion-isolation-a")
+	acctB := CreateTestAccount(t, db, "suggestion-isolation-b")
+	defer CleanupAuthFixtures(t, db, acctA.ID, acctB.ID)
+
+	postA := CreateTestSuggestionPostForTenant(t, db, tenantA, acctA.ID)
+	postB := CreateTestSuggestionPostForTenant(t, db, tenantB, acctB.ID)
+
+	repo := repoSuggestions.NewPostRepository(db)
+
+	// --- Tenant A ---
+	ctx42 := ctxForTenant(tenantA)
+
+	resultA, err := repo.FindByID(ctx42, postB.ID)
+	assert.NoError(t, err, "PostRepository.FindByID returns nil on not-found, not error")
+	assert.Nil(t, resultA,
+		"cross-tenant FindByID should return nil: tenant A must not see tenant B post %d", postB.ID)
+
+	// List has unusual signature (accountID, readerType, sortBy, status)
+	posts, err := repo.List(ctx42, acctA.ID, "operator", "score", "")
+	require.NoError(t, err)
+
+	for _, p := range posts {
+		assert.Equal(t, tenantA, p.TenantID,
+			"cross-tenant leak: tenant B post visible to tenant A (List)")
+	}
+
+	// --- Tenant B ---
+	ctx43 := ctxForTenant(tenantB)
+
+	resultB, err := repo.FindByID(ctx43, postA.ID)
+	assert.NoError(t, err)
+	assert.Nil(t, resultB,
+		"cross-tenant FindByID should return nil: tenant B must not see tenant A post %d", postA.ID)
+
+	posts, err = repo.List(ctx43, acctB.ID, "operator", "score", "")
+	require.NoError(t, err)
+
+	for _, p := range posts {
+		assert.Equal(t, tenantB, p.TenantID,
+			"cross-tenant leak: tenant A post visible to tenant B (List)")
+	}
+}
+
+// ============================================================================
+// Audit Domain
+// ============================================================================
+
+func TestTenantIsolation_DataDeletionVisibility(t *testing.T) {
+	db := SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+	defer CleanupTenantTestData(t, db, tenantA, tenantB)
+	EnsureTestTenant(t, db, tenantA)
+	EnsureTestTenant(t, db, tenantB)
+
+	// Data deletions require students (which require persons).
+	sA := CreateTestStudentForTenant(t, db, tenantA, "AuditA", "Student", "3a")
+	sB := CreateTestStudentForTenant(t, db, tenantB, "AuditB", "Student", "3a")
+
+	ddA := CreateTestDataDeletionForTenant(t, db, tenantA, sA.ID)
+	ddB := CreateTestDataDeletionForTenant(t, db, tenantB, sB.ID)
+
+	repo := repoAudit.NewDataDeletionRepository(db)
+
+	// --- Tenant A ---
+	ctx42 := ctxForTenant(tenantA)
+
+	deletions, err := repo.List(ctx42, nil)
+	require.NoError(t, err)
+
+	for _, d := range deletions {
+		assert.Equal(t, tenantA, d.TenantID,
+			"cross-tenant leak: tenant B data deletion visible to tenant A (List)")
+	}
+
+	// DataDeletionRepository uses base.Repository — FindByID returns error on not-found
+	_, err = repo.FindByID(ctx42, ddB.ID)
+	assert.Error(t, err,
+		"cross-tenant FindByID should fail: tenant A must not see tenant B data deletion %d", ddB.ID)
+
+	// --- Tenant B ---
+	ctx43 := ctxForTenant(tenantB)
+
+	deletions, err = repo.List(ctx43, nil)
+	require.NoError(t, err)
+
+	for _, d := range deletions {
+		assert.Equal(t, tenantB, d.TenantID,
+			"cross-tenant leak: tenant A data deletion visible to tenant B (List)")
+	}
+
+	_, err = repo.FindByID(ctx43, ddA.ID)
+	assert.Error(t, err,
+		"cross-tenant FindByID should fail: tenant B must not see tenant A data deletion %d", ddA.ID)
 }

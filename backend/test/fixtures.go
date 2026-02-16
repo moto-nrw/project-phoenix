@@ -14,6 +14,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/activities"
+	"github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/models/education"
@@ -21,6 +22,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/feedback"
 	"github.com/moto-nrw/project-phoenix/models/iot"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/models/suggestions"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -2163,6 +2165,163 @@ func CreateTestFeedbackEntryForTenant(tb testing.TB, db *bun.DB, tenantID int64,
 	return entry
 }
 
+// CreateTestStaffForTenant creates a staff member (and person) belonging to a specific tenant.
+func CreateTestStaffForTenant(tb testing.TB, db *bun.DB, tenantID int64, firstName, lastName string) *users.Staff {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	person := CreateTestPersonForTenant(tb, db, tenantID, firstName, lastName)
+
+	staff := &users.Staff{
+		PersonID: person.ID,
+	}
+	staff.SetTenantID(tenantID)
+
+	err := db.NewInsert().
+		Model(staff).
+		ModelTableExpr(`users.staff`).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to create test staff for tenant")
+
+	staff.Person = person
+	return staff
+}
+
+// CreateTestActivityCategoryForTenant creates an activity category belonging to a specific tenant.
+func CreateTestActivityCategoryForTenant(tb testing.TB, db *bun.DB, tenantID int64, name string) *activities.Category {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	uniqueName := fmt.Sprintf("%s-%d", name, time.Now().UnixNano())
+	category := &activities.Category{
+		Name:  uniqueName,
+		Color: "#CCCCCC",
+	}
+	category.SetTenantID(tenantID)
+
+	err := db.NewInsert().
+		Model(category).
+		ModelTableExpr(`activities.categories`).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to create test activity category for tenant")
+
+	return category
+}
+
+// CreateTestActivityGroupForTenant creates an activity group belonging to a specific tenant.
+// Automatically creates a category and staff (creator) for the tenant.
+func CreateTestActivityGroupForTenant(tb testing.TB, db *bun.DB, tenantID int64, name string) *activities.Group {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	category := CreateTestActivityCategoryForTenant(tb, db, tenantID, fmt.Sprintf("Cat-%s", name))
+	staff := CreateTestStaffForTenant(tb, db, tenantID, "Creator", name)
+
+	group := &activities.Group{
+		Name:            name,
+		MaxParticipants: 20,
+		IsOpen:          true,
+		CategoryID:      category.ID,
+		CreatedBy:       staff.ID,
+	}
+	group.SetTenantID(tenantID)
+
+	err := db.NewInsert().
+		Model(group).
+		ModelTableExpr(`activities.groups AS "group"`).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to create test activity group for tenant")
+
+	return group
+}
+
+// CreateTestActiveGroupForTenant creates an active group (session) belonging to a specific tenant.
+// Self-contained: creates its own room and activity group dependencies.
+func CreateTestActiveGroupForTenant(tb testing.TB, db *bun.DB, tenantID int64) *active.Group {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	room := CreateTestRoomForTenant(tb, db, tenantID, "IsolationRoom")
+	activityGroup := CreateTestActivityGroupForTenant(tb, db, tenantID, "IsolationActivity")
+
+	now := time.Now()
+	activeGroup := &active.Group{
+		GroupID:        activityGroup.ID,
+		RoomID:         room.ID,
+		StartTime:      now,
+		LastActivity:   now,
+		TimeoutMinutes: 30,
+	}
+	activeGroup.SetTenantID(tenantID)
+
+	err := db.NewInsert().
+		Model(activeGroup).
+		ModelTableExpr(`active.groups`).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to create test active group for tenant")
+
+	return activeGroup
+}
+
+// CreateTestSuggestionPostForTenant creates a suggestion post belonging to a specific tenant.
+func CreateTestSuggestionPostForTenant(tb testing.TB, db *bun.DB, tenantID int64, accountID int64) *suggestions.Post {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	post := &suggestions.Post{
+		Title:       fmt.Sprintf("Isolation Post T%d-%d", tenantID, time.Now().UnixNano()),
+		Description: "Test suggestion post for tenant isolation",
+		AuthorID:    accountID,
+		Status:      suggestions.StatusOpen,
+	}
+	post.SetTenantID(tenantID)
+
+	_, err := db.NewInsert().
+		Model(post).
+		ModelTableExpr(`suggestions.posts`).
+		Returning("*").
+		Exec(ctx)
+	require.NoError(tb, err, "Failed to create test suggestion post for tenant")
+
+	return post
+}
+
+// CreateTestDataDeletionForTenant creates a data deletion audit record belonging to a specific tenant.
+func CreateTestDataDeletionForTenant(tb testing.TB, db *bun.DB, tenantID int64, studentID int64) *audit.DataDeletion {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	deletion := audit.NewDataDeletion(
+		studentID,
+		audit.DeletionTypeManual,
+		10,
+		"test-system",
+	)
+	deletion.SetTenantID(tenantID)
+	deletion.DeletionReason = "Tenant isolation test"
+
+	_, err := db.NewInsert().
+		Model(deletion).
+		ModelTableExpr(`audit.data_deletions`).
+		Returning("*").
+		Exec(ctx)
+	require.NoError(tb, err, "Failed to create test data deletion for tenant")
+
+	return deletion
+}
+
 // CleanupTenantTestData removes all test data for the specified tenant IDs
 // from all tenant-scoped tables, in FK-safe order.
 func CleanupTenantTestData(tb testing.TB, db *bun.DB, tenantIDs ...int64) {
@@ -2183,6 +2342,11 @@ func CleanupTenantTestData(tb testing.TB, db *bun.DB, tenantIDs ...int64) {
 		"config.settings",
 		"schedule.timeframes",
 		"iot.devices",
+		"suggestions.votes",
+		"suggestions.comments",
+		"suggestions.posts",
+		"audit.data_deletions",
+		"audit.auth_events",
 		"active.visits",
 		"active.group_supervisors",
 		"active.groups",

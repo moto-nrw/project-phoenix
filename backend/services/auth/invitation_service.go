@@ -358,6 +358,9 @@ func (s *invitationService) AcceptInvitation(ctx context.Context, token string, 
 		return nil, err
 	}
 
+	// Phase 3 deviation: RunInTx retained because invitation acceptance is a public route (no JWT/tenant context).
+	// Handler-level WithTenantTx requires authenticated tenant context, which doesn't exist
+	// at invitation acceptance time. Tenant is resolved from the invitation token.
 	var createdAccount *authModels.Account
 	err = s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
 		txService := s.WithTx(tx).(*invitationService)
