@@ -113,7 +113,9 @@ func (s *cleanupService) CleanupVisitsForStudent(ctx context.Context, studentID 
 		}
 	}
 
-	// Execute cleanup in transaction
+	// Phase 3 deviation: RunInTx retained because cleanup runs from the scheduler's forEachTenant loop,
+	// which already injects tenant context per-iteration. Handler-level WithTenantTx is not applicable
+	// because there is no HTTP handler or JWT involved in scheduled cleanup.
 	var deletedCount int64
 	err = s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
 		// Delete expired visits
@@ -309,6 +311,9 @@ func (s *cleanupService) processBatch(ctx context.Context, students []studentWit
 	return result
 }
 
+// Phase 3 deviation: RunInTx retained because processStudent runs from the scheduler's forEachTenant loop,
+// which already injects tenant context per-iteration. Handler-level WithTenantTx is not applicable
+// because there is no HTTP handler or JWT involved in scheduled batch cleanup.
 func (s *cleanupService) processStudent(ctx context.Context, student studentWithConsent) (int64, error) {
 	var deletedCount int64
 

@@ -127,6 +127,10 @@ func (s *Service) newRefreshToken(accountID int64) *auth.Token {
 }
 
 // persistTokenInTransaction saves the token and updates last login in a transaction
+//
+// Phase 3 deviation: RunInTx retained because this is a public login route (no JWT/tenant context).
+// Handler-level WithTenantTx requires authenticated tenant context, which doesn't exist
+// at login time. Tenant is resolved from DB during the transaction.
 func (s *Service) persistTokenInTransaction(ctx context.Context, account *auth.Account, token *auth.Token, tenantID int64) error {
 	return s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
 		txService := s.WithTx(tx).(*Service)
@@ -452,6 +456,10 @@ func (s *Service) createAccountObject(email, username, password string) (*auth.A
 }
 
 // persistAccountWithRole saves account and assigns role in a transaction
+//
+// Phase 3 deviation: RunInTx retained because this is a public registration route (no JWT/tenant context).
+// Handler-level WithTenantTx requires authenticated tenant context, which doesn't exist
+// at registration time. Tenant is resolved from DB during the transaction.
 func (s *Service) persistAccountWithRole(ctx context.Context, account *auth.Account, roleID *int64) error {
 	return s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
 		txService := s.WithTx(tx).(*Service)
@@ -582,6 +590,10 @@ func (s *Service) parseRefreshTokenClaims(refreshTokenStr string) (*jwt.RefreshC
 }
 
 // refreshTokenInTransaction validates and refreshes token in a transaction
+//
+// Phase 3 deviation: RunInTx retained because token refresh is a pre-authentication flow.
+// Handler-level WithTenantTx requires authenticated tenant context, which doesn't exist
+// until the refresh completes. Tenant is resolved from the existing token during the transaction.
 func (s *Service) refreshTokenInTransaction(ctx context.Context, refreshClaims *jwt.RefreshClaims, ipAddress, userAgent string, tenantID int64) (*auth.Account, *auth.Token, error) {
 	var dbToken *auth.Token
 	var account *auth.Account
