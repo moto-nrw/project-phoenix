@@ -1087,18 +1087,42 @@ func cleanupSchulhofInfrastructure(t *testing.T, db *bun.DB, roomID int64) {
 
 // createSchulhofRoom creates a room with the exact name "Schulhof" (no timestamp
 // suffix) so the auto-create path in createSchulhofActiveGroupIfNeeded recognizes it.
+// If a Schulhof room already exists (e.g. from seed data), it cleans up and recreates it
+// to ensure the test owns the full lifecycle.
 func createSchulhofRoom(t *testing.T, db *bun.DB) *facilities.Room {
 	t.Helper()
 
-	dbCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	dbCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
+
+	// Clean up any pre-existing Schulhof room and its infrastructure (from seed data or prior tests)
+	var existingID int64
+	err := db.NewSelect().
+		TableExpr("facilities.rooms").
+		Column("id").
+		Where("name = ?", "Schulhof").
+		Scan(dbCtx, &existingID)
+	if err == nil && existingID > 0 {
+		cleanupSchulhofInfrastructure(t, db, existingID)
+	}
+
+	// Also clean up any pre-existing Schulhof activity and category (auto-created artifacts)
+	schulhofCleanupStmts := []string{
+		`DELETE FROM activities.schedules WHERE group_id IN (SELECT id FROM activities.groups WHERE name = 'Schulhof Freispiel')`,
+		`DELETE FROM activities.student_enrollments WHERE group_id IN (SELECT id FROM activities.groups WHERE name = 'Schulhof Freispiel')`,
+		`DELETE FROM activities.groups WHERE name = 'Schulhof Freispiel'`,
+		`DELETE FROM activities.categories WHERE name = 'Schulhof'`,
+	}
+	for _, stmt := range schulhofCleanupStmts {
+		_, _ = db.ExecContext(dbCtx, stmt)
+	}
 
 	room := &facilities.Room{
 		Name:     "Schulhof",
 		Building: "Test Building",
 	}
 
-	err := db.NewInsert().
+	err = db.NewInsert().
 		Model(room).
 		ModelTableExpr("facilities.rooms").
 		Scan(dbCtx)
@@ -2048,6 +2072,56 @@ func TestDeviceCheckin_WCCheckoutFromWC(t *testing.T) {
 	checkoutData, ok := checkoutResponse["data"].(map[string]interface{})
 	assert.True(t, ok, "Checkout response should have data field")
 	assert.Equal(t, "checked_out", checkoutData["action"])
+}
+
+// TestDeviceCheckin_WCAutoCreateWithoutStaff verifies that attempting WC checkin
+// without staff context returns a 500 error because WC activity auto-creation
+// requires staff context (the created_by FK constraint).
+// Covers: wc.go:143-145 (staff nil check) + workflow.go:605-614 (WC error handling
+// with "staff context" string detection).
+func TestDeviceCheckin_WCAutoCreateWithoutStaff(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	device := testpkg.CreateTestDevice(t, ctx.db, "wc-no-staff")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
+
+	student := testpkg.CreateTestStudent(t, ctx.db, "WCNoStaff", "Student", "1a")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
+
+	tagID := fmt.Sprintf("WCNS%d", time.Now().UnixNano())
+	card := testpkg.CreateTestRFIDCard(t, ctx.db, tagID)
+	defer testpkg.CleanupRFIDCards(t, ctx.db, card.ID)
+	testpkg.LinkRFIDToStudent(t, ctx.db, student.PersonID, card.ID)
+
+	room := createWCRoom(t, ctx.db)
+	defer cleanupWCInfrastructure(t, ctx.db, room.ID)
+
+	router := chi.NewRouter()
+	router.Post("/checkin/checkin", ctx.resource.DeviceCheckinHandler())
+
+	body := map[string]interface{}{
+		"student_rfid": card.ID,
+		"action":       "checkin",
+		"room_id":      room.ID,
+	}
+
+	// Deliberately omit WithStaffContext to trigger the staff nil check
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/checkin", body,
+		testutil.WithDeviceContext(createTestDeviceContext(device)),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	// Should return 500 because WC activity auto-create requires staff context
+	assert.Equal(t, http.StatusInternalServerError, rr.Code,
+		"Expected 500 when WC auto-create has no staff context. Body: %s", rr.Body.String())
+
+	// Verify the error message mentions staff context
+	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+	errMsg, ok := response["error"].(string)
+	assert.True(t, ok, "Response should have error field")
+	assert.Contains(t, errMsg, "staff context", "Error should mention staff context requirement")
 }
 
 func TestDeviceCheckin_SchulhofAutoCreateIdempotent(t *testing.T) {
