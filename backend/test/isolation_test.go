@@ -633,3 +633,88 @@ func TestTenantIsolation_DataDeletionVisibility(t *testing.T) {
 	assert.Error(t, err,
 		"cross-tenant FindByID should fail: tenant B must not see tenant A data deletion %d", ddA.ID)
 }
+
+// ============================================================================
+// Cross-Tenant Write Tests (RowsAffected guard)
+// ============================================================================
+
+// TestCrossTenantWrite_RowsAffectedGuard verifies that UPDATE and DELETE
+// operations across tenant boundaries are blocked or silently ignored.
+//
+// The defense-in-depth strategy adds WHERE tenant_id = ? (from context) to
+// every tenant-scoped write. When tenant A's context targets tenant B's row,
+// the WHERE matches zero rows:
+//   - Update / AssignToGroup: AssertRowsAffected(result, 1) returns an error
+//   - Delete: no AssertRowsAffected call → silent no-op (0 rows deleted)
+func TestCrossTenantWrite_RowsAffectedGuard(t *testing.T) {
+	db := SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+	defer CleanupTenantTestData(t, db, tenantA, tenantB)
+	EnsureTestTenant(t, db, tenantA)
+	EnsureTestTenant(t, db, tenantB)
+
+	// Arrange: create one record per tenant in each domain
+	studentA := CreateTestStudentForTenant(t, db, tenantA, "WriteA", "Student", "1a")
+	roomA := CreateTestRoomForTenant(t, db, tenantA, "WriteRoomA")
+	groupA := CreateTestEducationGroupForTenant(t, db, tenantA, "WriteGroupA")
+
+	ctxA := ctxForTenant(tenantA)
+	ctxB := ctxForTenant(tenantB)
+
+	// ------------------------------------------------------------------
+	// 1. base.Repository.Update across 3 domains
+	// ------------------------------------------------------------------
+
+	t.Run("student update blocked", func(t *testing.T) {
+		repo := repoUsers.NewStudentRepository(db)
+		err := repo.Update(ctxB, studentA)
+		require.Error(t, err, "cross-tenant student update must fail")
+		assert.Contains(t, err.Error(), "rows affected",
+			"error should mention rows affected guard")
+	})
+
+	t.Run("room update blocked", func(t *testing.T) {
+		repo := repoFacilities.NewRoomRepository(db)
+		err := repo.Update(ctxB, roomA)
+		require.Error(t, err, "cross-tenant room update must fail")
+		assert.Contains(t, err.Error(), "rows affected",
+			"error should mention rows affected guard")
+	})
+
+	t.Run("education group update blocked", func(t *testing.T) {
+		repo := repoEducation.NewGroupRepository(db)
+		err := repo.Update(ctxB, groupA)
+		require.Error(t, err, "cross-tenant group update must fail")
+		assert.Contains(t, err.Error(), "rows affected",
+			"error should mention rows affected guard")
+	})
+
+	// ------------------------------------------------------------------
+	// 4. Custom TenantWhere + AssertRowsAffected path
+	// ------------------------------------------------------------------
+
+	t.Run("student AssignToGroup blocked", func(t *testing.T) {
+		repo := repoUsers.NewStudentRepository(db)
+		err := repo.AssignToGroup(ctxB, studentA.ID, groupA.ID)
+		require.Error(t, err, "cross-tenant AssignToGroup must fail")
+		assert.Contains(t, err.Error(), "rows affected",
+			"error should mention rows affected guard")
+	})
+
+	// ------------------------------------------------------------------
+	// 5. Delete: silent no-op (no AssertRowsAffected in base.Delete)
+	// ------------------------------------------------------------------
+
+	t.Run("delete is silent no-op", func(t *testing.T) {
+		repo := repoFacilities.NewRoomRepository(db)
+
+		// Attempt cross-tenant delete: ctxB tries to delete roomA (tenant A)
+		err := repo.Delete(ctxB, roomA.ID)
+		assert.NoError(t, err, "cross-tenant delete should not error (silent no-op)")
+
+		// Verify the room still exists from tenant A's perspective
+		found, err := repo.FindByID(ctxA, roomA.ID)
+		require.NoError(t, err, "room should still be accessible to its own tenant")
+		assert.Equal(t, roomA.ID, found.ID, "room must survive cross-tenant delete attempt")
+	})
+}
