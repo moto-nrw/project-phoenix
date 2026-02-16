@@ -90,6 +90,8 @@ devbox add <tool>@latest # Add to devbox.json — never rely on global installs
 | Reset + seed DB | `cd backend && go run main.go migrate reset && go run main.go seed` |
 | Generate docs | `cd backend && go run main.go gendoc --routes` |
 
+**Seeder is DEV-ONLY**: `go run main.go seed` creates fake test data and must NEVER run on staging or production. Production infrastructure (system rooms, categories, activities) must be created via data migrations or admin UI — never via the seeder.
+
 ### Test Database (port 5433)
 ```bash
 docker compose --profile test up -d postgres-test  # Start (isolated network)
