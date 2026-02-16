@@ -49,6 +49,8 @@ import (
 type API struct {
 	Services *services.Factory
 	Router   chi.Router
+	db       *bun.DB
+	repos    *repositories.Factory
 
 	// API Resources
 	Auth             *authAPI.Resource
@@ -103,6 +105,8 @@ func New(enableCORS bool, logger *slog.Logger) (*API, error) {
 	api := &API{
 		Services: serviceFactory,
 		Router:   chi.NewRouter(),
+		db:       db,
+		repos:    repoFactory,
 	}
 
 	// Setup router middleware
@@ -216,7 +220,7 @@ func parsePositiveInt(envVar string, defaultValue int) int {
 // initializeAPIResources initializes all API resource instances
 func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun.DB, logger *slog.Logger) {
 	api.Auth = authAPI.NewResource(api.Services.Auth, api.Services.Invitation)
-	api.Rooms = roomsAPI.NewResource(api.Services.Facilities)
+	api.Rooms = roomsAPI.NewResource(api.Services.Facilities, db)
 	api.Students = studentsAPI.NewResource(studentsAPI.ResourceConfig{
 		PersonService:         api.Services.Users,
 		StudentRepo:           repoFactory.Student,
@@ -226,16 +230,17 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		IoTService:            api.Services.IoT,
 		PrivacyConsentRepo:    repoFactory.PrivacyConsent,
 		PickupScheduleService: api.Services.PickupSchedule,
+		DB:                    db,
 	})
-	api.Groups = groupsAPI.NewResource(api.Services.Education, api.Services.Active, api.Services.Users, api.Services.UserContext, repoFactory.Student, repoFactory.GroupSubstitution)
-	api.Guardians = guardiansAPI.NewResource(api.Services.Guardian, api.Services.Users, api.Services.Education, api.Services.UserContext, repoFactory.Student)
-	api.Import = importAPI.NewResource(api.Services.Import, repoFactory.DataImport)
-	api.Activities = activitiesAPI.NewResource(api.Services.Activities, api.Services.Schedule, api.Services.Users, api.Services.UserContext)
-	api.Staff = staffAPI.NewResource(api.Services.Users, api.Services.Education, api.Services.Auth, repoFactory.GroupSupervisor, api.Services.WorkSession, repoFactory.StaffAbsence)
-	api.Feedback = feedbackAPI.NewResource(api.Services.Feedback)
-	api.Suggestions = suggestionsAPI.NewResource(api.Services.Suggestions)
-	api.Schedules = schedulesAPI.NewResource(api.Services.Schedule)
-	api.Config = configAPI.NewResource(api.Services.Config, api.Services.ActiveCleanup)
+	api.Groups = groupsAPI.NewResource(api.Services.Education, api.Services.Active, api.Services.Users, api.Services.UserContext, repoFactory.Student, repoFactory.GroupSubstitution, db)
+	api.Guardians = guardiansAPI.NewResource(api.Services.Guardian, api.Services.Users, api.Services.Education, api.Services.UserContext, repoFactory.Student, db)
+	api.Import = importAPI.NewResource(api.Services.Import, repoFactory.DataImport, db)
+	api.Activities = activitiesAPI.NewResource(api.Services.Activities, api.Services.Schedule, api.Services.Users, api.Services.UserContext, db)
+	api.Staff = staffAPI.NewResource(api.Services.Users, api.Services.Education, api.Services.Auth, repoFactory.GroupSupervisor, api.Services.WorkSession, repoFactory.StaffAbsence, db)
+	api.Feedback = feedbackAPI.NewResource(api.Services.Feedback, db)
+	api.Suggestions = suggestionsAPI.NewResource(api.Services.Suggestions, db)
+	api.Schedules = schedulesAPI.NewResource(api.Services.Schedule, db)
+	api.Config = configAPI.NewResource(api.Services.Config, api.Services.ActiveCleanup, db)
 	api.Active = activeAPI.NewResource(api.Services.Active, api.Services.Users, api.Services.Schulhof, api.Services.UserContext, db, logger.With("handler", "active"))
 	api.IoT = iotAPI.NewResource(iotAPI.ServiceDependencies{
 		IoTService:        api.Services.IoT,
@@ -247,14 +252,15 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		EducationService:  api.Services.Education,
 		FeedbackService:   api.Services.Feedback,
 		Logger:            logger.With("handler", "iot"),
+		DB:                db,
 	})
 	api.SSE = sseAPI.NewResource(api.Services.RealtimeHub, api.Services.Active, api.Services.Users, api.Services.UserContext, logger.With("handler", "sse"))
-	api.Users = usersAPI.NewResource(api.Services.Users)
-	api.UserContext = usercontextAPI.NewResource(api.Services.UserContext, repoFactory.GroupSubstitution)
-	api.Substitutions = substitutionsAPI.NewResource(api.Services.Education)
+	api.Users = usersAPI.NewResource(api.Services.Users, db)
+	api.UserContext = usercontextAPI.NewResource(api.Services.UserContext, repoFactory.GroupSubstitution, db)
+	api.Substitutions = substitutionsAPI.NewResource(api.Services.Education, db)
 	api.Database = databaseAPI.NewResource(api.Services.Database)
-	api.GradeTransitions = adminAPI.NewGradeTransitionResource(api.Services.GradeTransition)
-	api.TimeTracking = timeTrackingAPI.NewResource(api.Services.WorkSession, api.Services.StaffAbsence, api.Services.Users)
+	api.GradeTransitions = adminAPI.NewGradeTransitionResource(api.Services.GradeTransition, db)
+	api.TimeTracking = timeTrackingAPI.NewResource(api.Services.WorkSession, api.Services.StaffAbsence, api.Services.Users, db)
 
 	// Initialize operator dashboard resources
 	api.Operator = operatorAPI.NewResource(operatorAPI.ResourceConfig{

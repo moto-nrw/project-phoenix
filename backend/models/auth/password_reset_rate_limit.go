@@ -24,8 +24,6 @@ func (m *PasswordResetRateLimit) BeforeAppendModel(query any) error {
 	const tableExpr = `auth.password_reset_rate_limits AS "password_reset_rate_limit"`
 
 	switch q := query.(type) {
-	case *bun.SelectQuery:
-		q.ModelTableExpr(tableExpr)
 	case *bun.InsertQuery:
 		q.ModelTableExpr(tableExpr)
 	case *bun.UpdateQuery:

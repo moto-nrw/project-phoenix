@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 
+	repoBase "github.com/moto-nrw/project-phoenix/database/repositories/base"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/uptrace/bun"
@@ -55,7 +56,7 @@ func (r *GuardianPhoneNumberRepository) Create(ctx context.Context, phone *users
 func (r *GuardianPhoneNumberRepository) FindByID(ctx context.Context, id int64) (*users.GuardianPhoneNumber, error) {
 	phone := new(users.GuardianPhoneNumber)
 
-	err := r.db.NewSelect().
+	err := repoBase.GetDB(ctx, r.db).NewSelect().
 		Model(phone).
 		ModelTableExpr(`users.guardian_phone_numbers AS "guardian_phone_number"`).
 		Where(`"guardian_phone_number".id = ?`, id).
@@ -75,7 +76,7 @@ func (r *GuardianPhoneNumberRepository) FindByID(ctx context.Context, id int64) 
 func (r *GuardianPhoneNumberRepository) FindByGuardianID(ctx context.Context, guardianProfileID int64) ([]*users.GuardianPhoneNumber, error) {
 	var phones []*users.GuardianPhoneNumber
 
-	err := r.db.NewSelect().
+	err := repoBase.GetDB(ctx, r.db).NewSelect().
 		Model(&phones).
 		ModelTableExpr(`users.guardian_phone_numbers AS "guardian_phone_number"`).
 		Where(`"guardian_phone_number".guardian_profile_id = ?`, guardianProfileID).
@@ -93,7 +94,7 @@ func (r *GuardianPhoneNumberRepository) FindByGuardianID(ctx context.Context, gu
 func (r *GuardianPhoneNumberRepository) GetPrimary(ctx context.Context, guardianProfileID int64) (*users.GuardianPhoneNumber, error) {
 	phone := new(users.GuardianPhoneNumber)
 
-	err := r.db.NewSelect().
+	err := repoBase.GetDB(ctx, r.db).NewSelect().
 		Model(phone).
 		ModelTableExpr(`users.guardian_phone_numbers AS "guardian_phone_number"`).
 		Where(`"guardian_phone_number".guardian_profile_id = ?`, guardianProfileID).
@@ -117,7 +118,7 @@ func (r *GuardianPhoneNumberRepository) Update(ctx context.Context, phone *users
 		return fmt.Errorf("validation failed: %w", err)
 	}
 
-	result, err := r.db.NewUpdate().
+	result, err := repoBase.GetDB(ctx, r.db).NewUpdate().
 		Model(phone).
 		ModelTableExpr(`users.guardian_phone_numbers AS "guardian_phone_number"`).
 		Where(`"guardian_phone_number".id = ?`, phone.ID).
@@ -141,7 +142,7 @@ func (r *GuardianPhoneNumberRepository) Update(ctx context.Context, phone *users
 
 // Delete removes a phone number
 func (r *GuardianPhoneNumberRepository) Delete(ctx context.Context, id int64) error {
-	result, err := r.db.NewDelete().
+	result, err := repoBase.GetDB(ctx, r.db).NewDelete().
 		Model((*users.GuardianPhoneNumber)(nil)).
 		ModelTableExpr(`users.guardian_phone_numbers AS "guardian_phone_number"`).
 		Where(`"guardian_phone_number".id = ?`, id).
@@ -211,7 +212,7 @@ func (r *GuardianPhoneNumberRepository) SetPrimary(ctx context.Context, id int64
 
 // UnsetAllPrimary unsets primary flag for all phone numbers of a guardian
 func (r *GuardianPhoneNumberRepository) UnsetAllPrimary(ctx context.Context, guardianProfileID int64) error {
-	_, err := r.db.NewUpdate().
+	_, err := repoBase.GetDB(ctx, r.db).NewUpdate().
 		Model((*users.GuardianPhoneNumber)(nil)).
 		ModelTableExpr(`users.guardian_phone_numbers AS "guardian_phone_number"`).
 		Set(sqlSetIsPrimary, false).
@@ -227,7 +228,7 @@ func (r *GuardianPhoneNumberRepository) UnsetAllPrimary(ctx context.Context, gua
 
 // CountByGuardianID returns the number of phone numbers for a guardian
 func (r *GuardianPhoneNumberRepository) CountByGuardianID(ctx context.Context, guardianProfileID int64) (int, error) {
-	count, err := r.db.NewSelect().
+	count, err := repoBase.GetDB(ctx, r.db).NewSelect().
 		Model((*users.GuardianPhoneNumber)(nil)).
 		ModelTableExpr(`users.guardian_phone_numbers AS "guardian_phone_number"`).
 		Where(`"guardian_phone_number".guardian_profile_id = ?`, guardianProfileID).
@@ -242,7 +243,7 @@ func (r *GuardianPhoneNumberRepository) CountByGuardianID(ctx context.Context, g
 
 // DeleteByGuardianID removes all phone numbers for a guardian
 func (r *GuardianPhoneNumberRepository) DeleteByGuardianID(ctx context.Context, guardianProfileID int64) error {
-	_, err := r.db.NewDelete().
+	_, err := repoBase.GetDB(ctx, r.db).NewDelete().
 		Model((*users.GuardianPhoneNumber)(nil)).
 		ModelTableExpr(`users.guardian_phone_numbers AS "guardian_phone_number"`).
 		Where(`"guardian_phone_number".guardian_profile_id = ?`, guardianProfileID).
@@ -259,7 +260,7 @@ func (r *GuardianPhoneNumberRepository) DeleteByGuardianID(ctx context.Context, 
 func (r *GuardianPhoneNumberRepository) GetNextPriority(ctx context.Context, guardianProfileID int64) (int, error) {
 	var maxPriority int
 
-	err := r.db.NewSelect().
+	err := repoBase.GetDB(ctx, r.db).NewSelect().
 		Model((*users.GuardianPhoneNumber)(nil)).
 		ModelTableExpr(`users.guardian_phone_numbers AS "guardian_phone_number"`).
 		ColumnExpr("COALESCE(MAX(priority), 0)").

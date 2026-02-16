@@ -20,6 +20,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/services"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -40,7 +41,7 @@ func setupTestContext(t *testing.T) *testContext {
 	svc, err := services.NewFactory(repoFactory, db, slog.Default())
 	require.NoError(t, err, "Failed to create service factory")
 
-	resource := roomsAPI.NewResource(svc.Facilities)
+	resource := roomsAPI.NewResource(svc.Facilities, db)
 
 	t.Cleanup(func() {
 		if err := db.Close(); err != nil {
@@ -74,6 +75,9 @@ func setupRouter(handler http.HandlerFunc, urlParam string) chi.Router {
 func executeWithAuth(router chi.Router, req *http.Request, claims jwt.AppClaims, permissions []string) *httptest.ResponseRecorder {
 	ctx := context.WithValue(req.Context(), jwt.CtxClaims, claims)
 	ctx = context.WithValue(ctx, jwt.CtxPermissions, permissions)
+	if claims.TenantID != 0 {
+		ctx = tenant.WithTenantID(ctx, claims.TenantID)
+	}
 	req = req.WithContext(ctx)
 	rr := httptest.NewRecorder()
 	router.ServeHTTP(rr, req)

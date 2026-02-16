@@ -5,5 +5,5 @@ package realtime
 type Broadcaster interface {
 	// BroadcastToGroup sends an event to all clients subscribed to the given active group ID.
 	// This is a fire-and-forget operation - errors are logged but don't affect service execution.
-	BroadcastToGroup(activeGroupID string, event Event) error
+	BroadcastToGroup(tenantID int64, activeGroupID string, event Event) error
 }

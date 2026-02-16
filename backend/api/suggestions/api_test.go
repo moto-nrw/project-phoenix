@@ -41,7 +41,7 @@ func setupRouter(t *testing.T) (*bun.DB, chi.Router) {
 
 	db, serviceFactory := testutil.SetupAPITest(t)
 
-	resource := apiSuggestions.NewResource(serviceFactory.Suggestions)
+	resource := apiSuggestions.NewResource(serviceFactory.Suggestions, db)
 	router := chi.NewRouter()
 	router.Mount("/suggestions", resource.Router())
 

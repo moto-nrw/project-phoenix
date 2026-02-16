@@ -30,6 +30,7 @@ func setupDatabaseService(t *testing.T) (*repositories.Factory, databaseSvc.Data
 func contextWithPermissions(userID int, perms ...string) context.Context {
 	claims := jwt.AppClaims{
 		ID:          userID,
+		TenantID:    1,
 		Permissions: perms,
 	}
 	return context.WithValue(context.Background(), jwt.CtxClaims, claims)

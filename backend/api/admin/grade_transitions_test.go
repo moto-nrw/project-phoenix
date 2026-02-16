@@ -38,7 +38,7 @@ func setupTestContext(t *testing.T) *testContext {
 	t.Helper()
 
 	db, svc := testutil.SetupAPITest(t)
-	resource := adminAPI.NewGradeTransitionResource(svc.GradeTransition)
+	resource := adminAPI.NewGradeTransitionResource(svc.GradeTransition, db)
 
 	t.Cleanup(func() {
 		if err := db.Close(); err != nil {
@@ -118,6 +118,7 @@ func createTestRouterWithPermissions(tc *testContext) chi.Router {
 func createAdminClaims(accountID int) jwt.AppClaims {
 	return jwt.AppClaims{
 		ID:          accountID,
+		TenantID:    1,
 		Sub:         "admin@example.com",
 		Username:    "admin",
 		FirstName:   "Admin",

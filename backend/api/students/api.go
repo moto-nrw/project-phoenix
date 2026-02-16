@@ -24,6 +24,8 @@ import (
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 	userContextService "github.com/moto-nrw/project-phoenix/services/usercontext"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
+	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/uptrace/bun"
 )
 
 // renderError writes an error response to the HTTP response writer
@@ -44,6 +46,7 @@ type Resource struct {
 	IoTService            iotSvc.Service
 	PrivacyConsentRepo    users.PrivacyConsentRepository
 	PickupScheduleService scheduleService.PickupScheduleService
+	db                    *bun.DB
 }
 
 // ResourceConfig holds all dependencies for creating a students Resource.
@@ -57,6 +60,7 @@ type ResourceConfig struct {
 	IoTService            iotSvc.Service
 	PrivacyConsentRepo    users.PrivacyConsentRepository
 	PickupScheduleService scheduleService.PickupScheduleService
+	DB                    *bun.DB
 }
 
 // NewResource creates a new students resource from the provided configuration.
@@ -70,6 +74,7 @@ func NewResource(cfg ResourceConfig) *Resource {
 		IoTService:            cfg.IoTService,
 		PrivacyConsentRepo:    cfg.PrivacyConsentRepo,
 		PickupScheduleService: cfg.PickupScheduleService,
+		db:                    cfg.DB,
 	}
 }
 
@@ -85,6 +90,7 @@ func (rs *Resource) Router() chi.Router {
 	r.Group(func(r chi.Router) {
 		r.Use(tokenAuth.Verifier())
 		r.Use(jwt.Authenticator)
+		r.Use(jwt.TenantMiddleware)
 
 		// Routes requiring users:read permission
 		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/", rs.listStudents)
@@ -470,18 +476,24 @@ func (rs *Resource) createStudent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Create person - validation occurs at the model layer
-	if err := rs.PersonService.Create(r.Context(), person); err != nil {
-		renderError(w, r, ErrorInternalServer(err))
-		return
-	}
+	// Create person and student in tenant transaction
+	student := createStudentFromRequest(req, 0) // personID set after create
 
-	// Create student with the person ID
-	student := createStudentFromRequest(req, person.ID)
+	tenantID := tenant.FromContext(r.Context())
+	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		// Create person - validation occurs at the model layer
+		if err := rs.PersonService.Create(ctx, person); err != nil {
+			return err
+		}
 
-	// Create student
-	if err := rs.StudentRepo.Create(r.Context(), student); err != nil {
-		rs.cleanupPersonAfterStudentFailure(r.Context(), person.ID)
+		// Create student with the person ID
+		student.PersonID = person.ID
+		if err := rs.StudentRepo.Create(ctx, student); err != nil {
+			rs.cleanupPersonAfterStudentFailure(ctx, person.ID)
+			return err
+		}
+		return nil
+	}); err != nil {
 		renderError(w, r, ErrorInternalServer(err))
 		return
 	}
@@ -684,19 +696,19 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Persist person updates if any fields changed
-	if personResult.updated {
-		if err := rs.PersonService.Update(r.Context(), person); err != nil {
-			renderError(w, r, ErrorInternalServer(err))
-			return
-		}
-	}
-
 	// Update student fields using helper function
 	applyStudentFieldUpdates(req, student)
 
-	// Update student
-	if err := rs.StudentRepo.Update(r.Context(), student); err != nil {
+	// Persist person and student updates in tenant transaction
+	tenantID := tenant.FromContext(r.Context())
+	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		if personResult.updated {
+			if err := rs.PersonService.Update(ctx, person); err != nil {
+				return err
+			}
+		}
+		return rs.StudentRepo.Update(ctx, student)
+	}); err != nil {
 		renderError(w, r, ErrorInternalServer(err))
 		return
 	}
@@ -743,18 +755,25 @@ func (rs *Resource) deleteStudent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Delete the student first
-	if err := rs.StudentRepo.Delete(r.Context(), student.ID); err != nil {
+	// Delete the student and associated person record in tenant transaction
+	tenantID := tenant.FromContext(r.Context())
+	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		// Delete the student first
+		if err := rs.StudentRepo.Delete(ctx, student.ID); err != nil {
+			return err
+		}
+
+		// Then delete the associated person record
+		if err := rs.PersonService.Delete(ctx, student.PersonID); err != nil {
+			// Log the error but don't fail the request since student is already deleted
+			slog.Default().Error("failed to delete associated person record",
+				slog.Int64("person_id", student.PersonID),
+				slog.String("error", err.Error()))
+		}
+		return nil
+	}); err != nil {
 		renderError(w, r, ErrorInternalServer(err))
 		return
-	}
-
-	// Then delete the associated person record
-	if err := rs.PersonService.Delete(r.Context(), student.PersonID); err != nil {
-		// Log the error but don't fail the request since student is already deleted
-		slog.Default().Error("failed to delete associated person record",
-			slog.Int64("person_id", student.PersonID),
-			slog.String("error", err.Error()))
 	}
 
 	common.Respond(w, r, http.StatusOK, nil, "Student deleted successfully")

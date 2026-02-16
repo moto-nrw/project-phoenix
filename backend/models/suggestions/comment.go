@@ -21,6 +21,7 @@ const tableSuggestionsComments = "suggestions.comments"
 // Comment represents a comment on a suggestion post
 type Comment struct {
 	base.Model `bun:"schema:suggestions,table:comments"`
+	base.TenantModel
 	PostID     int64      `bun:"post_id,notnull" json:"post_id"`
 	AuthorID   int64      `bun:"author_id,notnull" json:"author_id"`
 	AuthorType string     `bun:"author_type,notnull" json:"author_type"`
@@ -32,9 +33,6 @@ type Comment struct {
 }
 
 func (c *Comment) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.SelectQuery); ok {
-		q.ModelTableExpr(tableSuggestionsComments)
-	}
 	if q, ok := query.(*bun.UpdateQuery); ok {
 		q.ModelTableExpr(tableSuggestionsComments)
 	}

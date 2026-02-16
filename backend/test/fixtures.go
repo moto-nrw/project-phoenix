@@ -5,7 +5,6 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"fmt"
-	"strings"
 	"testing"
 	"time"
 
@@ -15,12 +14,15 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/activities"
+	"github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/models/auth"
+	"github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
+	"github.com/moto-nrw/project-phoenix/models/feedback"
 	"github.com/moto-nrw/project-phoenix/models/iot"
-	"github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/models/suggestions"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -64,6 +66,7 @@ func CreateTestActivityCategory(tb testing.TB, db *bun.DB, name string) *activit
 		Name:  uniqueName,
 		Color: "#CCCCCC",
 	}
+	category.SetTenantID(1)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -99,6 +102,7 @@ func CreateTestActivityGroup(tb testing.TB, db *bun.DB, name string) *activities
 		CategoryID:      category.ID,
 		CreatedBy:       staff.ID,
 	}
+	group.SetTenantID(1)
 
 	err := db.NewInsert().
 		Model(group).
@@ -124,6 +128,7 @@ func CreateTestRoom(tb testing.TB, db *bun.DB, name string) *facilities.Room {
 		Building: "Test Building",
 		Capacity: intPtr(30),
 	}
+	room.SetTenantID(1)
 
 	err := db.NewInsert().
 		Model(room).
@@ -151,6 +156,7 @@ func CreateTestDevice(tb testing.TB, db *bun.DB, deviceID string) *iot.Device {
 		Status:     iot.DeviceStatusActive,
 		APIKey:     stringPtr("test-api-key-" + uniqueDeviceID),
 	}
+	device.SetTenantID(1)
 
 	err := db.NewInsert().
 		Model(device).
@@ -178,11 +184,12 @@ func EnsureWebManualDevice(tb testing.TB, db *bun.DB) *iot.Device {
 		Name:       stringPtr("Web-Portal (Manuell)"),
 		Status:     iot.DeviceStatusActive,
 	}
+	device.SetTenantID(1)
 
 	_, err := db.NewInsert().
 		Model(device).
 		ModelTableExpr(`iot.devices`).
-		On("CONFLICT (device_id) DO NOTHING").
+		On("CONFLICT (tenant_id, device_id) DO NOTHING").
 		Exec(ctx)
 	require.NoError(tb, err, "Failed to ensure web manual device")
 
@@ -209,6 +216,7 @@ func CreateTestPerson(tb testing.TB, db *bun.DB, firstName, lastName string) *us
 		FirstName: firstName,
 		LastName:  lastName,
 	}
+	person.SetTenantID(1)
 
 	err := db.NewInsert().
 		Model(person).
@@ -234,6 +242,7 @@ func CreateTestStaff(tb testing.TB, db *bun.DB, firstName, lastName string) *use
 	staff := &users.Staff{
 		PersonID: person.ID,
 	}
+	staff.SetTenantID(1)
 
 	err := db.NewInsert().
 		Model(staff).
@@ -258,6 +267,7 @@ func CreateTestStaffForPerson(tb testing.TB, db *bun.DB, personID int64) *users.
 	staff := &users.Staff{
 		PersonID: personID,
 	}
+	staff.SetTenantID(1)
 
 	err := db.NewInsert().
 		Model(staff).
@@ -284,6 +294,7 @@ func CreateTestStudent(tb testing.TB, db *bun.DB, firstName, lastName, schoolCla
 		PersonID:    person.ID,
 		SchoolClass: schoolClass,
 	}
+	student.SetTenantID(1)
 
 	err := db.NewInsert().
 		Model(student).
@@ -319,6 +330,7 @@ func CreateTestAttendance(tb testing.TB, db *bun.DB, studentID, staffID, deviceI
 		CheckedInBy:  staffID,
 		DeviceID:     deviceID,
 	}
+	attendance.SetTenantID(1)
 
 	err := db.NewInsert().
 		Model(attendance).
@@ -651,6 +663,7 @@ func CreateTestEducationGroup(tb testing.TB, db *bun.DB, name string) *education
 	group := &education.Group{
 		Name: uniqueName,
 	}
+	group.SetTenantID(1)
 
 	err := db.NewInsert().
 		Model(group).
@@ -676,6 +689,7 @@ func CreateTestTeacher(tb testing.TB, db *bun.DB, firstName, lastName string) *u
 	teacher := &users.Teacher{
 		StaffID: staff.ID,
 	}
+	teacher.SetTenantID(1)
 
 	err := db.NewInsert().
 		Model(teacher).
@@ -700,6 +714,7 @@ func CreateTestGroupTeacher(tb testing.TB, db *bun.DB, groupID, teacherID int64)
 		GroupID:   groupID,
 		TeacherID: teacherID,
 	}
+	gt.SetTenantID(1)
 
 	err := db.NewInsert().
 		Model(gt).
@@ -731,6 +746,7 @@ func CreateTestActiveGroup(tb testing.TB, db *bun.DB, activityGroupID, roomID in
 		LastActivity:   now,
 		TimeoutMinutes: 30,
 	}
+	activeGroup.SetTenantID(1)
 
 	err := db.NewInsert().
 		Model(activeGroup).
@@ -755,6 +771,7 @@ func CreateTestVisit(tb testing.TB, db *bun.DB, studentID, activeGroupID int64, 
 		EntryTime:     entryTime,
 		ExitTime:      exitTime,
 	}
+	visit.SetTenantID(1)
 
 	err := db.NewInsert().
 		Model(visit).
@@ -779,6 +796,7 @@ func CreateTestGroupSupervisor(tb testing.TB, db *bun.DB, staffID, activeGroupID
 		Role:      role,
 		StartDate: time.Now(),
 	}
+	supervisor.SetTenantID(1)
 
 	err := db.NewInsert().
 		Model(supervisor).
@@ -960,6 +978,7 @@ func CreateTestPersonWithAccountID(tb testing.TB, db *bun.DB, firstName, lastNam
 		LastName:  lastName,
 		AccountID: &accountID,
 	}
+	person.SetTenantID(1)
 
 	err := db.NewInsert().
 		Model(person).
@@ -1079,6 +1098,7 @@ func CreateTestPersonWithAccount(tb testing.TB, db *bun.DB, firstName, lastName 
 		LastName:  lastName,
 		AccountID: &account.ID,
 	}
+	person.SetTenantID(1)
 
 	err := db.NewInsert().
 		Model(person).
@@ -1105,6 +1125,7 @@ func CreateTestStudentWithAccount(tb testing.TB, db *bun.DB, firstName, lastName
 		PersonID:    person.ID,
 		SchoolClass: schoolClass,
 	}
+	student.SetTenantID(1)
 
 	err := db.NewInsert().
 		Model(student).
@@ -1129,6 +1150,7 @@ func CreateTestStaffWithAccount(tb testing.TB, db *bun.DB, firstName, lastName s
 	staff := &users.Staff{
 		PersonID: person.ID,
 	}
+	staff.SetTenantID(1)
 
 	err := db.NewInsert().
 		Model(staff).
@@ -1157,6 +1179,7 @@ func CreateTestTeacherWithAccount(tb testing.TB, db *bun.DB, firstName, lastName
 	teacher := &users.Teacher{
 		StaffID: staff.ID,
 	}
+	teacher.SetTenantID(1)
 
 	err := db.NewInsert().
 		Model(teacher).
@@ -1301,6 +1324,7 @@ func CreateTestToken(tb testing.TB, db *bun.DB, accountID int64, tokenType strin
 		FamilyID:   fmt.Sprintf("family-%d", time.Now().UnixNano()),
 		Generation: 0,
 	}
+	token.SetTenantID(1)
 
 	err := db.NewInsert().
 		Model(token).
@@ -1330,6 +1354,7 @@ func CreateTestRFIDCard(tb testing.TB, db *bun.DB, tagID string) *users.RFIDCard
 		Active: true,
 	}
 	card.ID = uniqueTagID
+	card.SetTenantID(1)
 
 	err := db.NewInsert().
 		Model(card).
@@ -1373,6 +1398,7 @@ func CreateTestGuardianProfile(tb testing.TB, db *bun.DB, email string) *users.G
 		PreferredContactMethod: "email",
 		LanguagePreference:     "de",
 	}
+	profile.SetTenantID(1)
 
 	err := db.NewInsert().
 		Model(profile).
@@ -1403,6 +1429,7 @@ func CreateTestGroupSubstitution(tb testing.TB, db *bun.DB, groupID int64, regul
 		EndDate:           endDate,
 		Reason:            "Test substitution",
 	}
+	substitution.SetTenantID(1)
 
 	err := db.NewInsert().
 		Model(substitution).
@@ -1429,6 +1456,7 @@ func CreateTestGuest(tb testing.TB, db *bun.DB, expertise string) *users.Guest {
 		ActivityExpertise: expertise,
 		Organization:      "Test Organization",
 	}
+	guest.SetTenantID(1)
 
 	err := db.NewInsert().
 		Model(guest).
@@ -1459,6 +1487,7 @@ func CreateTestProfile(tb testing.TB, db *bun.DB, prefix string) *users.Profile 
 		Bio:       "Test bio for " + prefix,
 		Settings:  `{"theme": "dark"}`,
 	}
+	profile.SetTenantID(1)
 
 	err := db.NewInsert().
 		Model(profile).
@@ -1497,6 +1526,7 @@ func CreateTestPrivacyConsent(tb testing.TB, db *bun.DB, prefix string) *users.P
 		RenewalRequired:   false,
 		DataRetentionDays: 30,
 	}
+	consent.SetTenantID(1)
 
 	err := db.NewInsert().
 		Model(consent).
@@ -1526,6 +1556,7 @@ func CreateTestParentAccount(tb testing.TB, db *bun.DB, email string) *auth.Acco
 		Username: &username,
 		Active:   true,
 	}
+	account.SetTenantID(1)
 
 	err := db.NewInsert().
 		Model(account).
@@ -1551,6 +1582,7 @@ func CreateTestPersonGuardian(tb testing.TB, db *bun.DB, personID, guardianAccou
 		IsPrimary:         true,
 		Permissions:       "{}", // Valid empty JSON object
 	}
+	pg.SetTenantID(1)
 
 	err := db.NewInsert().
 		Model(pg).
@@ -1586,6 +1618,7 @@ func CreateTestTimeframe(tb testing.TB, db *bun.DB, description string) *schedul
 		IsActive:    true,
 		Description: uniqueDesc,
 	}
+	timeframe.SetTenantID(1)
 
 	err := db.NewInsert().
 		Model(timeframe).
@@ -1642,6 +1675,7 @@ func CreateTestInvitationToken(tb testing.TB, db *bun.DB, email string, roleID, 
 		CreatedBy: createdBy,
 		ExpiresAt: expiresAt,
 	}
+	invitation.SetTenantID(1)
 
 	err := db.NewInsert().
 		Model(invitation).
@@ -1675,6 +1709,7 @@ func CreateTestInvitationTokenWithOptions(tb testing.TB, db *bun.DB, email strin
 		invitation.FirstName = opts.FirstName
 		invitation.LastName = opts.LastName
 	}
+	invitation.SetTenantID(1)
 
 	err := db.NewInsert().
 		Model(invitation).
@@ -1775,6 +1810,7 @@ func CreateTestJWT(tb testing.TB, accountID int64, permissions []string) string 
 		Sub:         fmt.Sprintf("%d", accountID), // Required claim - subject identifier
 		Roles:       []string{"user"},
 		Permissions: permissions,
+		TenantID:    1, // Default test tenant
 	}
 
 	token, err := tokenAuth.CreateJWT(claims)
@@ -1799,6 +1835,7 @@ func CreateTestGradeTransition(tb testing.TB, db *bun.DB, academicYear string, c
 		Status:       education.TransitionStatusDraft,
 		CreatedBy:    createdBy,
 	}
+	transition.SetTenantID(1)
 
 	err := db.NewInsert().
 		Model(transition).
@@ -1821,6 +1858,7 @@ func CreateTestGradeTransitionMapping(tb testing.TB, db *bun.DB, transitionID in
 		FromClass:    fromClass,
 		ToClass:      toClass,
 	}
+	mapping.SetTenantID(1)
 
 	err := db.NewInsert().
 		Model(mapping).
@@ -1863,152 +1901,474 @@ func CleanupGradeTransitionFixtures(tb testing.TB, db *bun.DB, transitionIDs ...
 }
 
 // ============================================================================
-// Multi-Tenancy Domain Fixtures (Organizations, Schools, Account-Tenants)
+// Multi-Tenancy Isolation Test Fixtures (WP 3.19)
 // ============================================================================
 
-// CreateTestOrganization creates a platform.Organization for testing.
-func CreateTestOrganization(tb testing.TB, db *bun.DB, name string) *platform.Organization {
+// EnsureTestTenant creates the platform.organizations and platform.schools
+// rows required by the FK constraint on tenant_id. Uses ON CONFLICT DO NOTHING
+// so it's safe to call multiple times with the same ID.
+func EnsureTestTenant(tb testing.TB, db *bun.DB, tenantID int64) {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	_, err := db.ExecContext(ctx, `
+		INSERT INTO platform.organizations (id, name, slug, active)
+		VALUES (?, ?, ?, true)
+		ON CONFLICT (id) DO NOTHING`,
+		tenantID, fmt.Sprintf("Test Org %d", tenantID), fmt.Sprintf("test-org-%d", tenantID))
+	require.NoError(tb, err, "Failed to ensure test organization")
+
+	_, err = db.ExecContext(ctx, `
+		INSERT INTO platform.schools (id, organization_id, name, slug, subdomain, active)
+		VALUES (?, ?, ?, ?, ?, true)
+		ON CONFLICT (id) DO NOTHING`,
+		tenantID, tenantID,
+		fmt.Sprintf("Test School %d", tenantID),
+		fmt.Sprintf("test-school-%d", tenantID),
+		fmt.Sprintf("t%d", tenantID))
+	require.NoError(tb, err, "Failed to ensure test school")
+}
+
+// CreateTestPersonForTenant creates a person belonging to a specific tenant.
+func CreateTestPersonForTenant(tb testing.TB, db *bun.DB, tenantID int64, firstName, lastName string) *users.Person {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	person := &users.Person{
+		FirstName: firstName,
+		LastName:  lastName,
+	}
+	person.SetTenantID(tenantID)
+
+	err := db.NewInsert().
+		Model(person).
+		ModelTableExpr(`users.persons`).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to create test person for tenant")
+
+	return person
+}
+
+// CreateTestStudentForTenant creates a student (and person) belonging to a specific tenant.
+func CreateTestStudentForTenant(tb testing.TB, db *bun.DB, tenantID int64, firstName, lastName, className string) *users.Student {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Create person first (Student has FK to Person)
+	person := CreateTestPersonForTenant(tb, db, tenantID, firstName, lastName)
+
+	student := &users.Student{
+		PersonID:    person.ID,
+		SchoolClass: className,
+	}
+	student.SetTenantID(tenantID)
+
+	err := db.NewInsert().
+		Model(student).
+		ModelTableExpr(`users.students`).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to create test student for tenant")
+
+	student.Person = person
+	return student
+}
+
+// CreateTestRoomForTenant creates a room belonging to a specific tenant.
+func CreateTestRoomForTenant(tb testing.TB, db *bun.DB, tenantID int64, name string) *facilities.Room {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	uniqueName := fmt.Sprintf("%s-%d", name, time.Now().UnixNano())
-	slug := fmt.Sprintf("%s-%d", strings.ToLower(strings.ReplaceAll(name, " ", "-")), time.Now().UnixNano())
 
-	org := &platform.Organization{
-		Name:   uniqueName,
-		Slug:   slug,
-		Active: true,
+	room := &facilities.Room{
+		Name:     uniqueName,
+		Building: "Test Building",
+		Capacity: intPtr(30),
 	}
+	room.SetTenantID(tenantID)
 
 	err := db.NewInsert().
-		Model(org).
-		ModelTableExpr(`platform.organizations`).
+		Model(room).
+		ModelTableExpr(`facilities.rooms`).
 		Scan(ctx)
-	require.NoError(tb, err, "Failed to create test organization")
+	require.NoError(tb, err, "Failed to create test room for tenant")
 
-	return org
+	return room
 }
 
-// CreateTestSchool creates a platform.School for testing.
-// It also creates the parent organization automatically.
-func CreateTestSchool(tb testing.TB, db *bun.DB, name string) *platform.School {
-	tb.Helper()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	// Create parent organization
-	org := CreateTestOrganization(tb, db, fmt.Sprintf("Org-%s", name))
-
-	uniqueName := fmt.Sprintf("%s-%d", name, time.Now().UnixNano())
-	slug := fmt.Sprintf("%s-%d", strings.ToLower(strings.ReplaceAll(name, " ", "-")), time.Now().UnixNano())
-	subdomain := fmt.Sprintf("%s-%d", strings.ToLower(strings.ReplaceAll(name, " ", "")), time.Now().UnixNano())
-
-	school := &platform.School{
-		OrganizationID: org.ID,
-		Name:           uniqueName,
-		Slug:           slug,
-		Subdomain:      subdomain,
-		Active:         true,
-	}
-
-	err := db.NewInsert().
-		Model(school).
-		ModelTableExpr(`platform.schools`).
-		Scan(ctx)
-	require.NoError(tb, err, "Failed to create test school")
-
-	// Store org reference for convenience
-	school.Organization = org
-
-	return school
-}
-
-// CreateTestSchoolForOrg creates a platform.School under an existing organization.
-func CreateTestSchoolForOrg(tb testing.TB, db *bun.DB, orgID int64, name string) *platform.School {
+// CreateTestEducationGroupForTenant creates an education group belonging to a specific tenant.
+func CreateTestEducationGroupForTenant(tb testing.TB, db *bun.DB, tenantID int64, name string) *education.Group {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	uniqueName := fmt.Sprintf("%s-%d", name, time.Now().UnixNano())
-	slug := fmt.Sprintf("%s-%d", strings.ToLower(strings.ReplaceAll(name, " ", "-")), time.Now().UnixNano())
-	subdomain := fmt.Sprintf("%s-%d", strings.ToLower(strings.ReplaceAll(name, " ", "")), time.Now().UnixNano())
 
-	school := &platform.School{
-		OrganizationID: orgID,
-		Name:           uniqueName,
-		Slug:           slug,
-		Subdomain:      subdomain,
-		Active:         true,
+	group := &education.Group{
+		Name: uniqueName,
 	}
+	group.SetTenantID(tenantID)
 
 	err := db.NewInsert().
-		Model(school).
-		ModelTableExpr(`platform.schools`).
+		Model(group).
+		ModelTableExpr(`education.groups`).
 		Scan(ctx)
-	require.NoError(tb, err, "Failed to create test school for org")
+	require.NoError(tb, err, "Failed to create test education group for tenant")
 
-	return school
+	return group
 }
 
-// CreateTestAccountTenant links an account to a tenant (school) for testing.
-func CreateTestAccountTenant(tb testing.TB, db *bun.DB, accountID, tenantID int64) *auth.AccountTenant {
+// CreateTestTimeframeForTenant creates a timeframe belonging to a specific tenant.
+func CreateTestTimeframeForTenant(tb testing.TB, db *bun.DB, tenantID int64, description string) *schedule.Timeframe {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	uniqueDesc := fmt.Sprintf("%s-%d", description, time.Now().UnixNano())
+
+	now := time.Now()
+	startTime := time.Date(now.Year(), now.Month(), now.Day(), 8, 0, 0, 0, now.Location())
+	endTime := time.Date(now.Year(), now.Month(), now.Day(), 16, 0, 0, 0, now.Location())
+
+	timeframe := &schedule.Timeframe{
+		StartTime:   startTime,
+		EndTime:     &endTime,
+		IsActive:    true,
+		Description: uniqueDesc,
+	}
+	timeframe.SetTenantID(tenantID)
+
+	err := db.NewInsert().
+		Model(timeframe).
+		ModelTableExpr(`schedule.timeframes`).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to create test timeframe for tenant")
+
+	return timeframe
+}
+
+// CreateTestSettingForTenant creates a config setting belonging to a specific tenant.
+func CreateTestSettingForTenant(tb testing.TB, db *bun.DB, tenantID int64, key, value, category string) *config.Setting {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	uniqueKey := fmt.Sprintf("%s_%d", key, time.Now().UnixNano())
+
+	setting := &config.Setting{
+		Key:      uniqueKey,
+		Value:    value,
+		Category: category,
+	}
+	setting.SetTenantID(tenantID)
+
+	err := db.NewInsert().
+		Model(setting).
+		ModelTableExpr(`config.settings`).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to create test setting for tenant")
+
+	return setting
+}
+
+// CreateTestDeviceForTenant creates an IoT device belonging to a specific tenant.
+func CreateTestDeviceForTenant(tb testing.TB, db *bun.DB, tenantID int64, deviceID string) *iot.Device {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	uniqueDeviceID := fmt.Sprintf("%s-%d", deviceID, time.Now().UnixNano())
+
+	device := &iot.Device{
+		DeviceID:   uniqueDeviceID,
+		DeviceType: "rfid_reader",
+		Name:       stringPtr("Test Device " + uniqueDeviceID),
+		Status:     iot.DeviceStatusActive,
+		APIKey:     stringPtr("test-api-key-" + uniqueDeviceID),
+	}
+	device.SetTenantID(tenantID)
+
+	err := db.NewInsert().
+		Model(device).
+		ModelTableExpr(`iot.devices`).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to create test device for tenant")
+
+	return device
+}
+
+// CreateTestTokenForTenant creates an auth token belonging to a specific tenant.
+// Requires an existing account ID (accounts are not tenant-scoped).
+func CreateTestTokenForTenant(tb testing.TB, db *bun.DB, tenantID int64, accountID int64) *auth.Token {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	tokenValue := fmt.Sprintf("test-token-t%d-%d", tenantID, time.Now().UnixNano())
+
+	token := &auth.Token{
+		AccountID:  accountID,
+		Token:      tokenValue,
+		Expiry:     time.Now().Add(24 * time.Hour),
+		Mobile:     false,
+		FamilyID:   fmt.Sprintf("family-t%d-%d", tenantID, time.Now().UnixNano()),
+		Generation: 0,
+	}
+	token.SetTenantID(tenantID)
+
+	err := db.NewInsert().
+		Model(token).
+		ModelTableExpr(`auth.tokens`).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to create test token for tenant")
+
+	return token
+}
+
+// CreateTestFeedbackEntryForTenant creates a feedback entry belonging to a specific tenant.
+// Requires an existing student ID within the same tenant.
+func CreateTestFeedbackEntryForTenant(tb testing.TB, db *bun.DB, tenantID int64, studentID int64) *feedback.Entry {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	now := time.Now()
-	at := &auth.AccountTenant{
-		AccountID:   accountID,
-		TenantID:    tenantID,
-		Status:      auth.AccountTenantStatusActive,
-		InvitedAt:   &now,
-		ActivatedAt: &now,
+
+	entry := &feedback.Entry{
+		Value:     feedback.ValuePositive,
+		Day:       now,
+		Time:      now,
+		StudentID: studentID,
 	}
+	entry.SetTenantID(tenantID)
 
 	err := db.NewInsert().
-		Model(at).
-		ModelTableExpr(`auth.account_tenants`).
+		Model(entry).
+		ModelTableExpr(`feedback.entries`).
 		Scan(ctx)
-	require.NoError(tb, err, "Failed to create test account tenant")
+	require.NoError(tb, err, "Failed to create test feedback entry for tenant")
 
-	return at
+	return entry
 }
 
-// CleanupTenantFixtures removes tenant-related test data from the database.
-// Pass school IDs first, then organization IDs — deletions happen in FK-safe order:
-// account_tenants (by school ID) → schools → organizations.
-func CleanupTenantFixtures(tb testing.TB, db *bun.DB, schoolIDs []int64, orgIDs []int64) {
+// CreateTestStaffForTenant creates a staff member (and person) belonging to a specific tenant.
+func CreateTestStaffForTenant(tb testing.TB, db *bun.DB, tenantID int64, firstName, lastName string) *users.Staff {
 	tb.Helper()
 
-	// Delete account_tenants referencing the school IDs as tenant_id
-	for _, id := range schoolIDs {
-		cleanupDelete(tb, db.NewDelete().
-			Model((*interface{})(nil)).
-			Table("auth.account_tenants").
-			Where("tenant_id = ?", id),
-			"auth.account_tenants")
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	person := CreateTestPersonForTenant(tb, db, tenantID, firstName, lastName)
+
+	staff := &users.Staff{
+		PersonID: person.ID,
+	}
+	staff.SetTenantID(tenantID)
+
+	err := db.NewInsert().
+		Model(staff).
+		ModelTableExpr(`users.staff`).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to create test staff for tenant")
+
+	staff.Person = person
+	return staff
+}
+
+// CreateTestActivityCategoryForTenant creates an activity category belonging to a specific tenant.
+func CreateTestActivityCategoryForTenant(tb testing.TB, db *bun.DB, tenantID int64, name string) *activities.Category {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	uniqueName := fmt.Sprintf("%s-%d", name, time.Now().UnixNano())
+	category := &activities.Category{
+		Name:  uniqueName,
+		Color: "#CCCCCC",
+	}
+	category.SetTenantID(tenantID)
+
+	err := db.NewInsert().
+		Model(category).
+		ModelTableExpr(`activities.categories`).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to create test activity category for tenant")
+
+	return category
+}
+
+// CreateTestActivityGroupForTenant creates an activity group belonging to a specific tenant.
+// Automatically creates a category and staff (creator) for the tenant.
+func CreateTestActivityGroupForTenant(tb testing.TB, db *bun.DB, tenantID int64, name string) *activities.Group {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	category := CreateTestActivityCategoryForTenant(tb, db, tenantID, fmt.Sprintf("Cat-%s", name))
+	staff := CreateTestStaffForTenant(tb, db, tenantID, "Creator", name)
+
+	group := &activities.Group{
+		Name:            name,
+		MaxParticipants: 20,
+		IsOpen:          true,
+		CategoryID:      category.ID,
+		CreatedBy:       staff.ID,
+	}
+	group.SetTenantID(tenantID)
+
+	err := db.NewInsert().
+		Model(group).
+		ModelTableExpr(`activities.groups AS "group"`).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to create test activity group for tenant")
+
+	return group
+}
+
+// CreateTestActiveGroupForTenant creates an active group (session) belonging to a specific tenant.
+// Self-contained: creates its own room and activity group dependencies.
+func CreateTestActiveGroupForTenant(tb testing.TB, db *bun.DB, tenantID int64) *active.Group {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	room := CreateTestRoomForTenant(tb, db, tenantID, "IsolationRoom")
+	activityGroup := CreateTestActivityGroupForTenant(tb, db, tenantID, "IsolationActivity")
+
+	now := time.Now()
+	activeGroup := &active.Group{
+		GroupID:        activityGroup.ID,
+		RoomID:         room.ID,
+		StartTime:      now,
+		LastActivity:   now,
+		TimeoutMinutes: 30,
+	}
+	activeGroup.SetTenantID(tenantID)
+
+	err := db.NewInsert().
+		Model(activeGroup).
+		ModelTableExpr(`active.groups`).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to create test active group for tenant")
+
+	return activeGroup
+}
+
+// CreateTestSuggestionPostForTenant creates a suggestion post belonging to a specific tenant.
+func CreateTestSuggestionPostForTenant(tb testing.TB, db *bun.DB, tenantID int64, accountID int64) *suggestions.Post {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	post := &suggestions.Post{
+		Title:       fmt.Sprintf("Isolation Post T%d-%d", tenantID, time.Now().UnixNano()),
+		Description: "Test suggestion post for tenant isolation",
+		AuthorID:    accountID,
+		Status:      suggestions.StatusOpen,
+	}
+	post.SetTenantID(tenantID)
+
+	_, err := db.NewInsert().
+		Model(post).
+		ModelTableExpr(`suggestions.posts`).
+		Returning("*").
+		Exec(ctx)
+	require.NoError(tb, err, "Failed to create test suggestion post for tenant")
+
+	return post
+}
+
+// CreateTestDataDeletionForTenant creates a data deletion audit record belonging to a specific tenant.
+func CreateTestDataDeletionForTenant(tb testing.TB, db *bun.DB, tenantID int64, studentID int64) *audit.DataDeletion {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	deletion := audit.NewDataDeletion(
+		studentID,
+		audit.DeletionTypeManual,
+		10,
+		"test-system",
+	)
+	deletion.SetTenantID(tenantID)
+	deletion.DeletionReason = "Tenant isolation test"
+
+	_, err := db.NewInsert().
+		Model(deletion).
+		ModelTableExpr(`audit.data_deletions`).
+		Returning("*").
+		Exec(ctx)
+	require.NoError(tb, err, "Failed to create test data deletion for tenant")
+
+	return deletion
+}
+
+// CleanupTenantTestData removes all test data for the specified tenant IDs
+// from all tenant-scoped tables, in FK-safe order.
+func CleanupTenantTestData(tb testing.TB, db *bun.DB, tenantIDs ...int64) {
+	tb.Helper()
+
+	if len(tenantIDs) == 0 {
+		return
 	}
 
-	// Delete schools by ID
-	for _, id := range schoolIDs {
-		cleanupDelete(tb, db.NewDelete().
-			Model((*interface{})(nil)).
-			Table("platform.schools").
-			Where(whereIDEquals, id),
-			"platform.schools")
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// Delete in reverse-FK order (children before parents).
+	// Each delete is best-effort; failures are logged but do not fail the test.
+	tables := []string{
+		"feedback.entries",
+		"auth.tokens",
+		"config.settings",
+		"schedule.timeframes",
+		"iot.devices",
+		"suggestions.votes",
+		"suggestions.comments",
+		"suggestions.posts",
+		"audit.data_deletions",
+		"audit.auth_events",
+		"active.visits",
+		"active.group_supervisors",
+		"active.groups",
+		"activities.student_enrollments",
+		"activities.groups",
+		"activities.categories",
+		"education.group_teacher",
+		"education.group_substitution",
+		"education.groups",
+		"users.students",
+		"users.staff",
+		"users.persons",
+		"facilities.rooms",
 	}
 
-	// Delete organizations by ID
-	for _, id := range orgIDs {
-		cleanupDelete(tb, db.NewDelete().
-			Model((*interface{})(nil)).
-			Table("platform.organizations").
-			Where(whereIDEquals, id),
-			"platform.organizations")
+	for _, table := range tables {
+		_, err := db.NewDelete().
+			TableExpr(table).
+			Where("tenant_id IN (?)", bun.In(tenantIDs)).
+			Exec(ctx)
+		if err != nil {
+			tb.Logf("cleanup %s for tenants %v: %v", table, tenantIDs, err)
+		}
 	}
 }

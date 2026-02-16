@@ -6,15 +6,12 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/auth"
-	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/users"
 )
 
 // UserContextService defines operations available in the user context service layer
 type UserContextService interface {
-	base.TransactionalService
-
 	// GetCurrentUser retrieves the currently authenticated user account
 	GetCurrentUser(ctx context.Context) (*auth.Account, error)
 

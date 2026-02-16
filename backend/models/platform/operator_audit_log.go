@@ -47,9 +47,6 @@ type OperatorAuditLog struct {
 }
 
 func (l *OperatorAuditLog) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.SelectQuery); ok {
-		q.ModelTableExpr(tablePlatformOperatorAuditLog)
-	}
 	if q, ok := query.(*bun.UpdateQuery); ok {
 		q.ModelTableExpr(tablePlatformOperatorAuditLog)
 	}

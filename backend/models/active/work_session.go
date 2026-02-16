@@ -18,7 +18,8 @@ const (
 )
 
 type WorkSession struct {
-	base.Model     `bun:"schema:active,table:work_sessions"`
+	base.Model `bun:"schema:active,table:work_sessions"`
+	base.TenantModel
 	StaffID        int64      `bun:"staff_id,notnull" json:"staff_id"`
 	Date           time.Time  `bun:"date,notnull,type:date" json:"date"`
 	Status         string     `bun:"status,notnull,default:'present'" json:"status"`
@@ -34,11 +35,8 @@ type WorkSession struct {
 }
 
 // BeforeAppendModel implements the model hook for schema-qualified queries
-// Must handle ALL query types: SelectQuery, UpdateQuery, DeleteQuery, InsertQuery
+// Must handle ALL query types: UpdateQuery, DeleteQuery, InsertQuery
 func (ws *WorkSession) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.SelectQuery); ok {
-		q.ModelTableExpr(tableActiveWorkSessions)
-	}
 	if q, ok := query.(*bun.UpdateQuery); ok {
 		q.ModelTableExpr(tableActiveWorkSessions)
 	}

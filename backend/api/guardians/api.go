@@ -10,6 +10,7 @@ import (
 	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
 	userContextSvc "github.com/moto-nrw/project-phoenix/services/usercontext"
 	guardianSvc "github.com/moto-nrw/project-phoenix/services/users"
+	"github.com/uptrace/bun"
 )
 
 // Resource defines the guardians API resource
@@ -19,6 +20,7 @@ type Resource struct {
 	EducationService   educationSvc.Service
 	UserContextService userContextSvc.UserContextService
 	StudentRepo        users.StudentRepository
+	db                 *bun.DB
 }
 
 // NewResource creates a new guardians resource
@@ -28,6 +30,7 @@ func NewResource(
 	educationService educationSvc.Service,
 	userContextService userContextSvc.UserContextService,
 	studentRepo users.StudentRepository,
+	db *bun.DB,
 ) *Resource {
 	return &Resource{
 		GuardianService:    guardianService,
@@ -35,6 +38,7 @@ func NewResource(
 		EducationService:   educationService,
 		UserContextService: userContextService,
 		StudentRepo:        studentRepo,
+		db:                 db,
 	}
 }
 
@@ -54,6 +58,7 @@ func (rs *Resource) Router() chi.Router {
 	r.Group(func(r chi.Router) {
 		r.Use(tokenAuth.Verifier())
 		r.Use(jwt.Authenticator)
+		r.Use(jwt.TenantMiddleware)
 
 		// Guardian profile CRUD operations
 		// Read operations require users:read permission

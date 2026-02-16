@@ -13,7 +13,8 @@ import (
 
 // Group represents an active group session in a room
 type Group struct {
-	base.Model     `bun:"schema:active,table:groups"`
+	base.Model `bun:"schema:active,table:groups"`
+	base.TenantModel
 	StartTime      time.Time  `bun:"start_time,notnull" json:"start_time"`
 	EndTime        *time.Time `bun:"end_time" json:"end_time,omitempty"`
 	LastActivity   time.Time  `bun:"last_activity,notnull" json:"last_activity"`      // Activity tracking for timeout

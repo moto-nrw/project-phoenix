@@ -51,6 +51,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/iot"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/services"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -92,9 +93,14 @@ func WithPermissions(permissions ...string) RequestOption {
 }
 
 // WithClaims adds JWT claims to the request context.
+// Also injects tenant context (mirroring TenantMiddleware) so that
+// handler-level WithTenantTx can read the tenant ID.
 func WithClaims(claims jwt.AppClaims) RequestOption {
 	return func(req *http.Request) {
 		ctx := context.WithValue(req.Context(), jwt.CtxClaims, claims)
+		if claims.TenantID != 0 {
+			ctx = tenant.WithTenantID(ctx, claims.TenantID)
+		}
 		*req = *req.WithContext(ctx)
 	}
 }
@@ -298,6 +304,7 @@ func DefaultTestClaims() jwt.AppClaims {
 		Roles:       []string{"admin"},
 		Permissions: []string{"admin:*"},
 		IsAdmin:     true,
+		TenantID:    1,
 	}
 }
 
@@ -311,6 +318,7 @@ func TeacherTestClaims(accountID int) jwt.AppClaims {
 		LastName:    "Teacher",
 		Roles:       []string{"user"},
 		Permissions: []string{"students:read", "groups:read", "groups:update", "groups:list", "visits:read", "visits:create", "visits:update", "visits:delete", "visits:list", "activities:update", "activities:delete", "activities:list", "activities:manage", "activities:enroll", "activities:assign", "users:list", "rooms:list", "schedules:read", "schedules:list", "feedback:read", "feedback:list", "substitutions:read"},
+		TenantID:    1,
 	}
 }
 
@@ -325,5 +333,6 @@ func AdminTestClaims(accountID int) jwt.AppClaims {
 		Roles:       []string{"admin"},
 		Permissions: []string{"admin:*"},
 		IsAdmin:     true,
+		TenantID:    1,
 	}
 }

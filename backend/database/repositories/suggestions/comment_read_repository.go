@@ -6,6 +6,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/suggestions"
 	"github.com/uptrace/bun"
@@ -32,7 +33,7 @@ func (r *CommentReadRepository) Upsert(ctx context.Context, accountID, postID in
 		LastReadAt: time.Now(),
 	}
 
-	_, err := r.db.NewInsert().
+	_, err := base.GetDB(ctx, r.db).NewInsert().
 		Model(cr).
 		On("CONFLICT (account_id, post_id, reader_type) DO UPDATE").
 		Set("last_read_at = EXCLUDED.last_read_at").
@@ -46,7 +47,7 @@ func (r *CommentReadRepository) Upsert(ctx context.Context, accountID, postID in
 // GetLastReadAt returns when a reader last read comments on a post (nil if never)
 func (r *CommentReadRepository) GetLastReadAt(ctx context.Context, accountID, postID int64, readerType string) (*time.Time, error) {
 	cr := new(suggestions.CommentRead)
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(cr).
 		ModelTableExpr(tableCommentReadsAlias).
 		Where(`"cr".account_id = ?`, accountID).
@@ -64,7 +65,7 @@ func (r *CommentReadRepository) GetLastReadAt(ctx context.Context, accountID, po
 
 // CountUnreadByPost counts comments on a post created after the reader's last read time
 func (r *CommentReadRepository) CountUnreadByPost(ctx context.Context, accountID, postID int64, readerType string) (int, error) {
-	count, err := r.db.NewSelect().
+	count, err := base.GetDB(ctx, r.db).NewSelect().
 		TableExpr("suggestions.comments AS c").
 		Where("c.post_id = ?", postID).
 		Where("c.deleted_at IS NULL").
@@ -82,7 +83,7 @@ func (r *CommentReadRepository) CountUnreadByPost(ctx context.Context, accountID
 
 // CountTotalUnread counts all unread comments across all posts for a reader
 func (r *CommentReadRepository) CountTotalUnread(ctx context.Context, accountID int64, readerType string) (int, error) {
-	count, err := r.db.NewSelect().
+	count, err := base.GetDB(ctx, r.db).NewSelect().
 		TableExpr("suggestions.comments AS c").
 		Where("c.deleted_at IS NULL").
 		Where(`c.created_at > COALESCE(

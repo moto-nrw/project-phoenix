@@ -25,7 +25,8 @@ const tableIoTDevices = "iot.devices"
 
 // Device represents an IoT device in the system
 type Device struct {
-	base.Model     `bun:"schema:iot,table:devices"`
+	base.Model `bun:"schema:iot,table:devices"`
+	base.TenantModel
 	DeviceID       string       `bun:"device_id,notnull" json:"device_id"`
 	DeviceType     string       `bun:"device_type,notnull" json:"device_type"`
 	Name           *string      `bun:"name" json:"name,omitempty"`
@@ -39,9 +40,6 @@ type Device struct {
 }
 
 func (d *Device) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.SelectQuery); ok {
-		q.ModelTableExpr(tableIoTDevices)
-	}
 	if q, ok := query.(*bun.UpdateQuery); ok {
 		q.ModelTableExpr(tableIoTDevices)
 	}

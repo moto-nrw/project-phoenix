@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/uptrace/bun"
 )
@@ -32,7 +33,7 @@ func (r *GuardianInvitationRepository) Create(ctx context.Context, invitation *a
 		return fmt.Errorf("validation failed: %w", err)
 	}
 
-	_, err := r.db.NewInsert().
+	_, err := base.GetDB(ctx, r.db).NewInsert().
 		Model(invitation).
 		ModelTableExpr(`auth.guardian_invitations AS "guardian_invitation"`).
 		Exec(ctx)
@@ -50,7 +51,7 @@ func (r *GuardianInvitationRepository) Update(ctx context.Context, invitation *a
 		return fmt.Errorf("validation failed: %w", err)
 	}
 
-	result, err := r.db.NewUpdate().
+	result, err := base.GetDB(ctx, r.db).NewUpdate().
 		Model(invitation).
 		ModelTableExpr(`auth.guardian_invitations AS "guardian_invitation"`).
 		Where(`"guardian_invitation".id = ?`, invitation.ID).
@@ -76,7 +77,7 @@ func (r *GuardianInvitationRepository) Update(ctx context.Context, invitation *a
 func (r *GuardianInvitationRepository) FindByID(ctx context.Context, id int64) (*auth.GuardianInvitation, error) {
 	invitation := new(auth.GuardianInvitation)
 
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(invitation).
 		ModelTableExpr(`auth.guardian_invitations AS "guardian_invitation"`).
 		Where(`"guardian_invitation".id = ?`, id).
@@ -96,7 +97,7 @@ func (r *GuardianInvitationRepository) FindByID(ctx context.Context, id int64) (
 func (r *GuardianInvitationRepository) FindByToken(ctx context.Context, token string) (*auth.GuardianInvitation, error) {
 	invitation := new(auth.GuardianInvitation)
 
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(invitation).
 		ModelTableExpr(`auth.guardian_invitations AS "guardian_invitation"`).
 		Where(`"guardian_invitation".token = ?`, token).
@@ -116,7 +117,7 @@ func (r *GuardianInvitationRepository) FindByToken(ctx context.Context, token st
 func (r *GuardianInvitationRepository) FindByGuardianProfileID(ctx context.Context, guardianProfileID int64) ([]*auth.GuardianInvitation, error) {
 	var invitations []*auth.GuardianInvitation
 
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&invitations).
 		ModelTableExpr(`auth.guardian_invitations AS "guardian_invitation"`).
 		Where(`"guardian_invitation".guardian_profile_id = ?`, guardianProfileID).
@@ -134,7 +135,7 @@ func (r *GuardianInvitationRepository) FindByGuardianProfileID(ctx context.Conte
 func (r *GuardianInvitationRepository) FindPending(ctx context.Context) ([]*auth.GuardianInvitation, error) {
 	var invitations []*auth.GuardianInvitation
 
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&invitations).
 		ModelTableExpr(`auth.guardian_invitations AS "guardian_invitation"`).
 		Where(`"guardian_invitation".accepted_at IS NULL`).
@@ -153,7 +154,7 @@ func (r *GuardianInvitationRepository) FindPending(ctx context.Context) ([]*auth
 func (r *GuardianInvitationRepository) FindExpired(ctx context.Context) ([]*auth.GuardianInvitation, error) {
 	var invitations []*auth.GuardianInvitation
 
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&invitations).
 		ModelTableExpr(`auth.guardian_invitations AS "guardian_invitation"`).
 		Where(`"guardian_invitation".accepted_at IS NULL`).
@@ -172,7 +173,7 @@ func (r *GuardianInvitationRepository) FindExpired(ctx context.Context) ([]*auth
 func (r *GuardianInvitationRepository) MarkAsAccepted(ctx context.Context, id int64) error {
 	now := time.Now()
 
-	result, err := r.db.NewUpdate().
+	result, err := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*auth.GuardianInvitation)(nil)).
 		ModelTableExpr(`auth.guardian_invitations AS "guardian_invitation"`).
 		Set("accepted_at = ?", now).
@@ -197,7 +198,7 @@ func (r *GuardianInvitationRepository) MarkAsAccepted(ctx context.Context, id in
 
 // UpdateEmailStatus updates the email delivery status
 func (r *GuardianInvitationRepository) UpdateEmailStatus(ctx context.Context, id int64, sentAt *time.Time, emailError *string, retryCount int) error {
-	result, err := r.db.NewUpdate().
+	result, err := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*auth.GuardianInvitation)(nil)).
 		ModelTableExpr(`auth.guardian_invitations AS "guardian_invitation"`).
 		Set("email_sent_at = ?", sentAt).
@@ -224,7 +225,7 @@ func (r *GuardianInvitationRepository) UpdateEmailStatus(ctx context.Context, id
 
 // DeleteExpired deletes expired invitations
 func (r *GuardianInvitationRepository) DeleteExpired(ctx context.Context) (int, error) {
-	result, err := r.db.NewDelete().
+	result, err := base.GetDB(ctx, r.db).NewDelete().
 		Model((*auth.GuardianInvitation)(nil)).
 		ModelTableExpr(`auth.guardian_invitations AS "guardian_invitation"`).
 		Where(`"guardian_invitation".accepted_at IS NULL`).
@@ -245,7 +246,7 @@ func (r *GuardianInvitationRepository) DeleteExpired(ctx context.Context) (int, 
 
 // Count returns the total number of guardian invitations
 func (r *GuardianInvitationRepository) Count(ctx context.Context) (int, error) {
-	count, err := r.db.NewSelect().
+	count, err := base.GetDB(ctx, r.db).NewSelect().
 		Model((*auth.GuardianInvitation)(nil)).
 		ModelTableExpr(`auth.guardian_invitations AS "guardian_invitation"`).
 		Count(ctx)

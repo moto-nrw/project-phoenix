@@ -16,6 +16,9 @@ import (
 // Table name constant to avoid string literal duplication
 const tableGroupSubstitution = "education.group_substitution"
 
+// Aliased table expression for custom queries with tenant filtering
+const tableExprGroupSubstitutionAsGS = `education.group_substitution AS "group_substitution"`
+
 // Query constants (S1192 - avoid duplicate string literals)
 const dateRangeContainsCondition = "start_date <= ? AND end_date >= ?"
 
@@ -27,8 +30,10 @@ type GroupSubstitutionRepository struct {
 
 // NewGroupSubstitutionRepository creates a new GroupSubstitutionRepository
 func NewGroupSubstitutionRepository(db *bun.DB) education.GroupSubstitutionRepository {
+	repo := base.NewRepository[*education.GroupSubstitution](db, tableGroupSubstitution, "group_substitution")
+	repo.TenantScoped = true
 	return &GroupSubstitutionRepository{
-		Repository: base.NewRepository[*education.GroupSubstitution](db, tableGroupSubstitution, "group_substitution"),
+		Repository: repo,
 		db:         db,
 	}
 }
@@ -36,12 +41,16 @@ func NewGroupSubstitutionRepository(db *bun.DB) education.GroupSubstitutionRepos
 // FindByGroup retrieves all substitutions for a specific group
 func (r *GroupSubstitutionRepository) FindByGroup(ctx context.Context, groupID int64) ([]*education.GroupSubstitution, error) {
 	var substitutions []*education.GroupSubstitution
-	err := r.db.NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&substitutions).
-		ModelTableExpr(tableGroupSubstitution).
-		Where("group_id = ?", groupID).
-		Scan(ctx)
+		ModelTableExpr(tableExprGroupSubstitutionAsGS).
+		Where(`"group_substitution".group_id = ?`, groupID)
 
+	if where, val, ok := base.TenantWhere(ctx, "group_substitution"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.Scan(ctx)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by group",
@@ -55,12 +64,16 @@ func (r *GroupSubstitutionRepository) FindByGroup(ctx context.Context, groupID i
 // FindByRegularStaff retrieves all substitutions for a regular staff member
 func (r *GroupSubstitutionRepository) FindByRegularStaff(ctx context.Context, staffID int64) ([]*education.GroupSubstitution, error) {
 	var substitutions []*education.GroupSubstitution
-	err := r.db.NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&substitutions).
-		ModelTableExpr(tableGroupSubstitution).
-		Where("regular_staff_id = ?", staffID).
-		Scan(ctx)
+		ModelTableExpr(tableExprGroupSubstitutionAsGS).
+		Where(`"group_substitution".regular_staff_id = ?`, staffID)
 
+	if where, val, ok := base.TenantWhere(ctx, "group_substitution"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.Scan(ctx)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by regular staff",
@@ -74,12 +87,16 @@ func (r *GroupSubstitutionRepository) FindByRegularStaff(ctx context.Context, st
 // FindBySubstituteStaff retrieves all substitutions where a staff member is substituting
 func (r *GroupSubstitutionRepository) FindBySubstituteStaff(ctx context.Context, staffID int64) ([]*education.GroupSubstitution, error) {
 	var substitutions []*education.GroupSubstitution
-	err := r.db.NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&substitutions).
-		ModelTableExpr(tableGroupSubstitution).
-		Where("substitute_staff_id = ?", staffID).
-		Scan(ctx)
+		ModelTableExpr(tableExprGroupSubstitutionAsGS).
+		Where(`"group_substitution".substitute_staff_id = ?`, staffID)
 
+	if where, val, ok := base.TenantWhere(ctx, "group_substitution"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.Scan(ctx)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by substitute staff",
@@ -93,12 +110,16 @@ func (r *GroupSubstitutionRepository) FindBySubstituteStaff(ctx context.Context,
 // FindActive retrieves all active substitutions for a specific date
 func (r *GroupSubstitutionRepository) FindActive(ctx context.Context, date time.Time) ([]*education.GroupSubstitution, error) {
 	var substitutions []*education.GroupSubstitution
-	err := r.db.NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&substitutions).
-		ModelTableExpr(tableGroupSubstitution).
-		Where(dateRangeContainsCondition, date, date).
-		Scan(ctx)
+		ModelTableExpr(tableExprGroupSubstitutionAsGS).
+		Where(`"group_substitution".`+dateRangeContainsCondition, date, date)
 
+	if where, val, ok := base.TenantWhere(ctx, "group_substitution"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.Scan(ctx)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find active",
@@ -112,13 +133,17 @@ func (r *GroupSubstitutionRepository) FindActive(ctx context.Context, date time.
 // FindActiveBySubstitute retrieves all active substitutions for a staff member and date
 func (r *GroupSubstitutionRepository) FindActiveBySubstitute(ctx context.Context, substituteStaffID int64, date time.Time) ([]*education.GroupSubstitution, error) {
 	var substitutions []*education.GroupSubstitution
-	err := r.db.NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&substitutions).
-		ModelTableExpr(tableGroupSubstitution).
-		Where("substitute_staff_id = ?", substituteStaffID).
-		Where(dateRangeContainsCondition, date, date).
-		Scan(ctx)
+		ModelTableExpr(tableExprGroupSubstitutionAsGS).
+		Where(`"group_substitution".substitute_staff_id = ?`, substituteStaffID).
+		Where(`"group_substitution".`+dateRangeContainsCondition, date, date)
 
+	if where, val, ok := base.TenantWhere(ctx, "group_substitution"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.Scan(ctx)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find active by substitute",
@@ -132,12 +157,16 @@ func (r *GroupSubstitutionRepository) FindActiveBySubstitute(ctx context.Context
 // FindActiveByGroup retrieves all active substitutions for a specific group and date
 func (r *GroupSubstitutionRepository) FindActiveByGroup(ctx context.Context, groupID int64, date time.Time) ([]*education.GroupSubstitution, error) {
 	var substitutions []*education.GroupSubstitution
-	err := r.db.NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&substitutions).
-		ModelTableExpr(tableGroupSubstitution).
-		Where("group_id = ? AND start_date <= ? AND end_date >= ?", groupID, date, date).
-		Scan(ctx)
+		ModelTableExpr(tableExprGroupSubstitutionAsGS).
+		Where(`"group_substitution".group_id = ? AND "group_substitution".start_date <= ? AND "group_substitution".end_date >= ?`, groupID, date, date)
 
+	if where, val, ok := base.TenantWhere(ctx, "group_substitution"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.Scan(ctx)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find active by group",
@@ -151,13 +180,17 @@ func (r *GroupSubstitutionRepository) FindActiveByGroup(ctx context.Context, gro
 // FindOverlapping finds all substitutions that overlap with the given date range for a staff member
 func (r *GroupSubstitutionRepository) FindOverlapping(ctx context.Context, staffID int64, startDate time.Time, endDate time.Time) ([]*education.GroupSubstitution, error) {
 	var substitutions []*education.GroupSubstitution
-	err := r.db.NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&substitutions).
-		ModelTableExpr(tableGroupSubstitution).
-		Where("(regular_staff_id = ? OR substitute_staff_id = ?)", staffID, staffID).
-		Where("start_date <= ? AND end_date >= ?", endDate, startDate).
-		Scan(ctx)
+		ModelTableExpr(tableExprGroupSubstitutionAsGS).
+		Where(`("group_substitution".regular_staff_id = ? OR "group_substitution".substitute_staff_id = ?)`, staffID, staffID).
+		Where(`"group_substitution".start_date <= ? AND "group_substitution".end_date >= ?`, endDate, startDate)
 
+	if where, val, ok := base.TenantWhere(ctx, "group_substitution"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.Scan(ctx)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find overlapping",
@@ -251,9 +284,13 @@ func applyReasonLikeFilter(filter *modelBase.Filter, value interface{}) {
 // ListWithOptions provides a type-safe way to list group substitutions with query options
 func (r *GroupSubstitutionRepository) ListWithOptions(ctx context.Context, options *modelBase.QueryOptions) ([]*education.GroupSubstitution, error) {
 	var substitutions []*education.GroupSubstitution
-	query := r.db.NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&substitutions).
-		ModelTableExpr(tableGroupSubstitution)
+		ModelTableExpr(tableExprGroupSubstitutionAsGS)
+
+	if where, val, ok := base.TenantWhere(ctx, "group_substitution"); ok {
+		query = query.Where(where, val)
+	}
 
 	// Apply query options
 	if options != nil {
@@ -275,11 +312,16 @@ func (r *GroupSubstitutionRepository) ListWithOptions(ctx context.Context, optio
 func (r *GroupSubstitutionRepository) FindByIDWithRelations(ctx context.Context, id int64) (*education.GroupSubstitution, error) {
 	var substitution education.GroupSubstitution
 
-	err := r.db.NewSelect().
+	mainQuery := base.GetDB(ctx, r.db).NewSelect().
 		Model(&substitution).
-		ModelTableExpr(tableGroupSubstitution).
-		Where("id = ?", id).
-		Scan(ctx)
+		ModelTableExpr(tableExprGroupSubstitutionAsGS).
+		Where(`"group_substitution".id = ?`, id)
+
+	if where, val, ok := base.TenantWhere(ctx, "group_substitution"); ok {
+		mainQuery = mainQuery.Where(where, val)
+	}
+
+	err := mainQuery.Scan(ctx)
 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
@@ -291,7 +333,7 @@ func (r *GroupSubstitutionRepository) FindByIDWithRelations(ctx context.Context,
 	// Load group
 	if substitution.GroupID > 0 {
 		var group education.Group
-		err = r.db.NewSelect().
+		err = base.GetDB(ctx, r.db).NewSelect().
 			Model(&group).
 			ModelTableExpr(`education.groups AS "group"`).
 			Where(`"group".id = ?`, substitution.GroupID).
@@ -311,7 +353,7 @@ func (r *GroupSubstitutionRepository) FindByIDWithRelations(ctx context.Context,
 		}
 		var result staffWithPerson
 
-		err = r.db.NewSelect().
+		err = base.GetDB(ctx, r.db).NewSelect().
 			Model(&result).
 			ModelTableExpr(`users.staff AS "staff"`).
 			ColumnExpr(`"staff".id AS "staff__id"`).
@@ -338,7 +380,7 @@ func (r *GroupSubstitutionRepository) FindByIDWithRelations(ctx context.Context,
 		}
 		var result staffWithPerson
 
-		err = r.db.NewSelect().
+		err = base.GetDB(ctx, r.db).NewSelect().
 			Model(&result).
 			ModelTableExpr(`users.staff AS "staff"`).
 			ColumnExpr(`"staff".id AS "staff__id"`).
@@ -408,12 +450,16 @@ func (r *GroupSubstitutionRepository) loadGroupsByIDs(ctx context.Context, group
 	groupIDSlice := mapKeysToSlice(groupIDs)
 
 	var groups []*education.Group
-	err := r.db.NewSelect().
+	groupQuery := base.GetDB(ctx, r.db).NewSelect().
 		Model(&groups).
 		ModelTableExpr(`education.groups AS "group"`).
-		Where(`"group".id IN (?)`, bun.In(groupIDSlice)).
-		Scan(ctx)
+		Where(`"group".id IN (?)`, bun.In(groupIDSlice))
 
+	if where, val, ok := base.TenantWhere(ctx, "group"); ok {
+		groupQuery = groupQuery.Where(where, val)
+	}
+
+	err := groupQuery.Scan(ctx)
 	if err == nil {
 		for _, group := range groups {
 			groupMap[group.ID] = group
@@ -434,11 +480,16 @@ func (r *GroupSubstitutionRepository) loadStaffWithPersonsByIDs(ctx context.Cont
 
 	// Load staff records
 	var staffList []*users.Staff
-	err := r.db.NewSelect().
+	staffQuery := base.GetDB(ctx, r.db).NewSelect().
 		Model(&staffList).
 		ModelTableExpr(`users.staff AS "staff"`).
-		Where(`"staff".id IN (?)`, bun.In(staffIDSlice)).
-		Scan(ctx)
+		Where(`"staff".id IN (?)`, bun.In(staffIDSlice))
+
+	if where, val, ok := base.TenantWhere(ctx, "staff"); ok {
+		staffQuery = staffQuery.Where(where, val)
+	}
+
+	err := staffQuery.Scan(ctx)
 
 	if err != nil || len(staffList) == 0 {
 		return staffMap
@@ -466,11 +517,16 @@ func (r *GroupSubstitutionRepository) linkPersonsToStaff(ctx context.Context, st
 	}
 
 	var persons []*users.Person
-	err := r.db.NewSelect().
+	personQuery := base.GetDB(ctx, r.db).NewSelect().
 		Model(&persons).
 		ModelTableExpr(`users.persons AS "person"`).
-		Where(`"person".id IN (?)`, bun.In(personIDs)).
-		Scan(ctx)
+		Where(`"person".id IN (?)`, bun.In(personIDs))
+
+	if where, val, ok := base.TenantWhere(ctx, "person"); ok {
+		personQuery = personQuery.Where(where, val)
+	}
+
+	err := personQuery.Scan(ctx)
 
 	if err != nil {
 		return

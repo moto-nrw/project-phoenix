@@ -9,6 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -27,8 +28,10 @@ type WorkSessionRepository struct {
 
 // NewWorkSessionRepository creates a new WorkSessionRepository
 func NewWorkSessionRepository(db *bun.DB) active.WorkSessionRepository {
+	repo := base.NewRepository[*active.WorkSession](db, tableActiveWorkSessions, "WorkSession")
+	repo.TenantScoped = true
 	return &WorkSessionRepository{
-		Repository: base.NewRepository[*active.WorkSession](db, tableActiveWorkSessions, "WorkSession"),
+		Repository: repo,
 		db:         db,
 	}
 }
@@ -49,13 +52,17 @@ func (r *WorkSessionRepository) Create(ctx context.Context, session *active.Work
 // GetByStaffAndDate returns the work session for a staff member on a given date
 func (r *WorkSessionRepository) GetByStaffAndDate(ctx context.Context, staffID int64, date time.Time) (*active.WorkSession, error) {
 	session := new(active.WorkSession)
-	err := r.db.NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(session).
 		ModelTableExpr(tableExprActiveWorkSessionsAsSession).
 		Where(`"work_session".staff_id = ?`, staffID).
-		Where(`"work_session".date = ?`, date.Format(dateFormatISO)).
-		Scan(ctx)
+		Where(`"work_session".date = ?`, date.Format(dateFormatISO))
 
+	if where, val, ok := base.TenantWhere(ctx, "work_session"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.Scan(ctx)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "get by staff and date",
@@ -71,14 +78,18 @@ func (r *WorkSessionRepository) GetCurrentByStaffID(ctx context.Context, staffID
 	session := new(active.WorkSession)
 	today := timezone.TodayUTC() // Use TodayUTC for consistency with session creation in service
 
-	err := r.db.NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(session).
 		ModelTableExpr(tableExprActiveWorkSessionsAsSession).
 		Where(`"work_session".staff_id = ?`, staffID).
 		Where(`"work_session".date = ?`, today).
-		Where(`"work_session".check_out_time IS NULL`).
-		Scan(ctx)
+		Where(`"work_session".check_out_time IS NULL`)
 
+	if where, val, ok := base.TenantWhere(ctx, "work_session"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.Scan(ctx)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "get current by staff ID",
@@ -92,15 +103,19 @@ func (r *WorkSessionRepository) GetCurrentByStaffID(ctx context.Context, staffID
 // GetHistoryByStaffID returns work sessions for a staff member in a date range
 func (r *WorkSessionRepository) GetHistoryByStaffID(ctx context.Context, staffID int64, from, to time.Time) ([]*active.WorkSession, error) {
 	var sessions []*active.WorkSession
-	err := r.db.NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&sessions).
 		ModelTableExpr(tableExprActiveWorkSessionsAsSession).
 		Where(`"work_session".staff_id = ?`, staffID).
 		Where(`"work_session".date >= ?`, from.Format(dateFormatISO)).
 		Where(`"work_session".date <= ?`, to.Format(dateFormatISO)).
-		OrderExpr(`"work_session".date ASC`).
-		Scan(ctx)
+		OrderExpr(`"work_session".date ASC`)
 
+	if where, val, ok := base.TenantWhere(ctx, "work_session"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.Scan(ctx)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "get history by staff ID",
@@ -114,13 +129,17 @@ func (r *WorkSessionRepository) GetHistoryByStaffID(ctx context.Context, staffID
 // GetOpenSessions returns all sessions without check-out before a given date
 func (r *WorkSessionRepository) GetOpenSessions(ctx context.Context, beforeDate time.Time) ([]*active.WorkSession, error) {
 	var sessions []*active.WorkSession
-	err := r.db.NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&sessions).
 		ModelTableExpr(tableExprActiveWorkSessionsAsSession).
 		Where(`"work_session".date < ?`, beforeDate.Format(dateFormatISO)).
-		Where(`"work_session".check_out_time IS NULL`).
-		Scan(ctx)
+		Where(`"work_session".check_out_time IS NULL`)
 
+	if where, val, ok := base.TenantWhere(ctx, "work_session"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.Scan(ctx)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "get open sessions",
@@ -141,14 +160,18 @@ func (r *WorkSessionRepository) GetTodayPresenceMap(ctx context.Context) (map[in
 		CheckOutTime *time.Time `bun:"check_out_time"`
 	}
 
-	err := r.db.NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		TableExpr(tableExprActiveWorkSessionsAsSession).
 		ColumnExpr(`"work_session".staff_id`).
 		ColumnExpr(`"work_session".status`).
 		ColumnExpr(`"work_session".check_out_time`).
-		Where(`"work_session".date = ?`, today).
-		Scan(ctx, &results)
+		Where(`"work_session".date = ?`, today)
 
+	if where, val, ok := base.TenantWhere(ctx, "work_session"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.Scan(ctx, &results)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "get today presence map",
@@ -175,9 +198,13 @@ func (r *WorkSessionRepository) GetTodayPresenceMap(ctx context.Context) (map[in
 // List overrides base List to use QueryOptions and proper table alias
 func (r *WorkSessionRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*active.WorkSession, error) {
 	var sessions []*active.WorkSession
-	query := r.db.NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&sessions).
 		ModelTableExpr(tableExprActiveWorkSessionsAsSession)
+
+	if where, val, ok := base.TenantWhere(ctx, "work_session"); ok {
+		query = query.Where(where, val)
+	}
 
 	if options != nil {
 		query = options.ApplyToQuery(query)
@@ -196,13 +223,17 @@ func (r *WorkSessionRepository) List(ctx context.Context, options *modelBase.Que
 
 // UpdateBreakMinutes sets the break_minutes cache field on a session
 func (r *WorkSessionRepository) UpdateBreakMinutes(ctx context.Context, id int64, breakMinutes int) error {
-	_, err := r.db.NewUpdate().
+	query := base.GetDB(ctx, r.db).NewUpdate().
 		Table(tableActiveWorkSessions).
 		Set("break_minutes = ?", breakMinutes).
 		Set("updated_at = ?", time.Now()).
-		Where("id = ?", id).
-		Exec(ctx)
+		Where("id = ?", id)
 
+	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
+		query = query.Where("tenant_id = ?", tenantID)
+	}
+
+	result, err := query.Exec(ctx)
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "update break minutes",
@@ -210,19 +241,23 @@ func (r *WorkSessionRepository) UpdateBreakMinutes(ctx context.Context, id int64
 		}
 	}
 
-	return nil
+	return base.AssertRowsAffected(result, 1, "update break minutes")
 }
 
 // CloseSession sets the check-out time and auto_checked_out flag
 func (r *WorkSessionRepository) CloseSession(ctx context.Context, id int64, checkOutTime time.Time, autoCheckedOut bool) error {
-	_, err := r.db.NewUpdate().
+	query := base.GetDB(ctx, r.db).NewUpdate().
 		Table(tableActiveWorkSessions).
 		Set("check_out_time = ?", checkOutTime).
 		Set("auto_checked_out = ?", autoCheckedOut).
 		Set("updated_at = ?", time.Now()).
-		Where("id = ? AND check_out_time IS NULL", id).
-		Exec(ctx)
+		Where("id = ? AND check_out_time IS NULL", id)
 
+	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
+		query = query.Where("tenant_id = ?", tenantID)
+	}
+
+	_, err := query.Exec(ctx)
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "close session",

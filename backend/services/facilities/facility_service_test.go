@@ -1093,63 +1093,6 @@ func TestFacilitiesService_GetRoomHistory(t *testing.T) {
 	})
 }
 
-// ============================================================================
-// Transaction Tests
-// ============================================================================
-
-func TestFacilitiesService_WithTx(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	service := setupFacilitiesService(t, db)
-	ctx := context.Background()
-
-	t.Run("WithTx returns transactional service", func(t *testing.T) {
-		// ARRANGE
-		tx, err := db.BeginTx(ctx, nil)
-		require.NoError(t, err)
-		defer func() { _ = tx.Rollback() }()
-
-		// ACT
-		txService := service.WithTx(tx)
-
-		// ASSERT
-		require.NotNil(t, txService)
-		_, ok := txService.(facilitiesSvc.Service)
-		assert.True(t, ok, "WithTx should return a Service interface")
-	})
-
-	t.Run("transactional service can perform operations", func(t *testing.T) {
-		// ARRANGE
-		capacity := 20
-		room := &facilities.Room{
-			Name:     "TxOp-" + time.Now().Format("20060102150405.000"),
-			Building: "Test Building",
-			Capacity: &capacity,
-		}
-
-		tx, err := db.BeginTx(ctx, nil)
-		require.NoError(t, err)
-
-		txService := service.WithTx(tx).(facilitiesSvc.Service)
-
-		// ACT: Create room in transaction
-		err = txService.CreateRoom(ctx, room)
-		require.NoError(t, err)
-		assert.NotZero(t, room.ID)
-
-		// Commit the transaction
-		err = tx.Commit()
-		require.NoError(t, err)
-
-		// ASSERT: Room should exist after commit
-		defer testpkg.CleanupActivityFixtures(t, db, room.ID)
-		result, err := service.GetRoom(ctx, room.ID)
-		require.NoError(t, err)
-		assert.Equal(t, room.Name, result.Name)
-	})
-}
-
 // Helper function to create int pointer
 func intPtr(i int) *int {
 	return &i

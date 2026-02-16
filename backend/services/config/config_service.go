@@ -7,8 +7,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/config"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -16,7 +16,6 @@ import (
 type service struct {
 	settingRepo config.SettingRepository
 	db          *bun.DB
-	txHandler   *base.TxHandler
 }
 
 // NewService creates a new config service
@@ -24,25 +23,6 @@ func NewService(settingRepo config.SettingRepository, db *bun.DB) Service {
 	return &service{
 		settingRepo: settingRepo,
 		db:          db,
-		txHandler:   base.NewTxHandler(db),
-	}
-}
-
-// WithTx returns a new service that uses the provided transaction
-func (s *service) WithTx(tx bun.Tx) interface{} {
-	// Get repositories with transaction if they implement the TransactionalRepository interface
-	var settingRepo = s.settingRepo
-
-	// Try to cast repository to TransactionalRepository and apply the transaction
-	if txRepo, ok := s.settingRepo.(base.TransactionalRepository); ok {
-		settingRepo = txRepo.WithTx(tx).(config.SettingRepository)
-	}
-
-	// Return a new service with the transaction
-	return &service{
-		settingRepo: settingRepo,
-		db:          s.db,
-		txHandler:   s.txHandler.WithTx(tx),
 	}
 }
 
@@ -55,6 +35,11 @@ func (s *service) CreateSetting(ctx context.Context, setting *config.Setting) er
 	// Validate setting data
 	if err := setting.Validate(); err != nil {
 		return &ConfigError{Op: "CreateSetting", Err: err}
+	}
+
+	// Set tenant ID from context
+	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
+		setting.SetTenantID(tenantID)
 	}
 
 	// Check if a setting with the same key exists
@@ -332,17 +317,13 @@ func (s *service) ImportSettings(ctx context.Context, settings []*config.Setting
 
 	var errors []error
 
-	err := s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
-		txService := s.WithTx(tx).(Service)
-
-		for _, setting := range settings {
-			if err := processSettingImport(ctx, txService, setting); err != nil {
-				errors = append(errors, &ConfigError{Op: "ImportSettings", Err: err})
-			}
+	for _, setting := range settings {
+		if err := processSettingImport(ctx, s, setting); err != nil {
+			errors = append(errors, &ConfigError{Op: "ImportSettings", Err: err})
 		}
+	}
 
-		return checkImportErrors(errors)
-	})
+	err := checkImportErrors(errors)
 
 	return handleImportResult(errors, err)
 }
@@ -512,23 +493,17 @@ func (s *service) InitializeDefaultSettings(ctx context.Context) error {
 		},
 	}
 
-	// Execute in transaction using txHandler
-	return s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
-		// Get transactional service
-		txService := s.WithTx(tx).(Service)
-
-		for _, setting := range defaultSettings {
-			// Check if setting exists
-			existingSetting, err := txService.GetSettingByKeyAndCategory(ctx, setting.Key, setting.Category)
-			if err != nil || existingSetting == nil || existingSetting.ID <= 0 {
-				// Create if it doesn't exist
-				if err := txService.CreateSetting(ctx, setting); err != nil {
-					return &ConfigError{Op: "InitializeDefaultSettings", Err: err}
-				}
+	for _, setting := range defaultSettings {
+		// Check if setting exists
+		existingSetting, err := s.GetSettingByKeyAndCategory(ctx, setting.Key, setting.Category)
+		if err != nil || existingSetting == nil || existingSetting.ID <= 0 {
+			// Create if it doesn't exist
+			if err := s.CreateSetting(ctx, setting); err != nil {
+				return &ConfigError{Op: "InitializeDefaultSettings", Err: err}
 			}
 		}
-		return nil
-	})
+	}
+	return nil
 }
 
 // RequiresRestart checks if any modified settings require a system restart
@@ -609,27 +584,22 @@ func (s *service) UpdateTimeoutSettings(ctx context.Context, settings *config.Ti
 		return &ConfigError{Op: "UpdateTimeoutSettings", Err: fmt.Errorf("invalid timeout settings: %w", err)}
 	}
 
-	// Update settings using transactions to ensure atomicity
-	return s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
-		txService := s.WithTx(tx).(Service)
+	// Update global timeout
+	if err := s.UpdateSettingValue(ctx, "session_timeout_minutes", strconv.Itoa(settings.GlobalTimeoutMinutes)); err != nil {
+		return fmt.Errorf("failed to update global timeout: %w", err)
+	}
 
-		// Update global timeout
-		if err := txService.UpdateSettingValue(ctx, "session_timeout_minutes", strconv.Itoa(settings.GlobalTimeoutMinutes)); err != nil {
-			return fmt.Errorf("failed to update global timeout: %w", err)
-		}
+	// Update warning threshold
+	if err := s.UpdateSettingValue(ctx, "session_warning_threshold_minutes", strconv.Itoa(settings.WarningThresholdMinutes)); err != nil {
+		return fmt.Errorf("failed to update warning threshold: %w", err)
+	}
 
-		// Update warning threshold
-		if err := txService.UpdateSettingValue(ctx, "session_warning_threshold_minutes", strconv.Itoa(settings.WarningThresholdMinutes)); err != nil {
-			return fmt.Errorf("failed to update warning threshold: %w", err)
-		}
+	// Update check interval
+	if err := s.UpdateSettingValue(ctx, "session_check_interval_seconds", strconv.Itoa(settings.CheckIntervalSeconds)); err != nil {
+		return fmt.Errorf("failed to update check interval: %w", err)
+	}
 
-		// Update check interval
-		if err := txService.UpdateSettingValue(ctx, "session_check_interval_seconds", strconv.Itoa(settings.CheckIntervalSeconds)); err != nil {
-			return fmt.Errorf("failed to update check interval: %w", err)
-		}
-
-		return nil
-	})
+	return nil
 }
 
 // GetDeviceTimeoutSettings retrieves timeout settings for a specific device

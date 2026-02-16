@@ -2,6 +2,7 @@ package scheduler
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"os"
 	"strconv"
@@ -9,7 +10,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/services/active"
+	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/uptrace/bun"
 )
 
 // AuthCleanup exposes the cleanup routines required from the auth service.
@@ -48,6 +52,8 @@ type Scheduler struct {
 	invitationCleanup  InvitationCleaner
 	workSessionCleanup WorkSessionCleaner
 	breakAutoEnder     BreakAutoEnder
+	db                 *bun.DB
+	schoolRepo         platform.SchoolRepository
 	cleanupJobs        []CleanupJob
 	tasks              map[string]*ScheduledTask
 	mu                 sync.RWMutex
@@ -104,6 +110,52 @@ func (s *Scheduler) SetWorkSessionCleaner(wsc WorkSessionCleaner) {
 // SetBreakAutoEnder sets the break auto-end service (optional).
 func (s *Scheduler) SetBreakAutoEnder(bae BreakAutoEnder) {
 	s.breakAutoEnder = bae
+}
+
+// SetDB sets the database connection for tenant-aware operations.
+func (s *Scheduler) SetDB(db *bun.DB) {
+	s.db = db
+}
+
+// SetSchoolRepo sets the school repository for tenant iteration.
+func (s *Scheduler) SetSchoolRepo(repo platform.SchoolRepository) {
+	s.schoolRepo = repo
+}
+
+// forEachTenant executes fn for each active tenant inside a WithTenantTx.
+// If schoolRepo or db is not set, falls back to running fn with plain ctx (non-tenant-aware mode).
+func (s *Scheduler) forEachTenant(ctx context.Context, opName string, fn func(ctx context.Context) error) error {
+	if s.db == nil || s.schoolRepo == nil {
+		s.getLogger().Warn("tenant iteration not configured, running without tenant context",
+			slog.String("operation", opName))
+		return fn(ctx)
+	}
+
+	// List active tenants using admin context
+	var schools []platform.School
+	err := tenant.WithAdminTx(ctx, s.db, func(txCtx context.Context, tx bun.Tx) error {
+		var listErr error
+		schools, listErr = s.schoolRepo.ListActive(txCtx)
+		return listErr
+	})
+	if err != nil {
+		return fmt.Errorf("scheduler: list active tenants for %s: %w", opName, err)
+	}
+
+	for _, school := range schools {
+		tenantErr := tenant.WithTenantTx(ctx, s.db, school.ID, func(txCtx context.Context, tx bun.Tx) error {
+			return fn(txCtx)
+		})
+		if tenantErr != nil {
+			s.getLogger().Error("tenant operation failed, continuing to next tenant",
+				slog.String("operation", opName),
+				slog.Int64("tenant_id", school.ID),
+				slog.Any("error", tenantErr))
+			continue
+		}
+	}
+
+	return nil
 }
 
 // Start begins the scheduler
@@ -256,56 +308,78 @@ func (s *Scheduler) executeCleanup(task *ScheduledTask) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeoutMinutes)*time.Minute)
 	defer cancel()
 
-	result, err := s.cleanupService.CleanupExpiredVisits(ctx)
-	if err != nil {
-		s.getLogger().Error("scheduled cleanup failed", "error", err)
+	// Tenant-scoped: cleanup expired visits
+	cleanupErr := s.forEachTenant(ctx, "cleanup-visits", func(tenantCtx context.Context) error {
+		result, err := s.cleanupService.CleanupExpiredVisits(tenantCtx)
+		if err != nil {
+			return err
+		}
+
+		s.getLogger().Info("scheduled cleanup completed",
+			slog.Int("students_processed", result.StudentsProcessed),
+			slog.Int64("records_deleted", result.RecordsDeleted),
+			slog.Bool("success", result.Success))
+
+		if len(result.Errors) > 0 {
+			s.getLogger().Warn("cleanup completed with errors",
+				slog.Int("error_count", len(result.Errors)))
+			for i, err := range result.Errors {
+				if i < 10 { // Log first 10 errors
+					s.getLogger().Warn("cleanup error",
+						slog.Int64("student_id", err.StudentID),
+						slog.String("error", err.Error))
+				}
+			}
+			if len(result.Errors) > 10 {
+				s.getLogger().Warn("additional cleanup errors",
+					slog.Int("count", len(result.Errors)-10))
+			}
+		}
+
+		return nil
+	})
+	if cleanupErr != nil {
+		s.getLogger().Error("scheduled cleanup failed", "error", cleanupErr)
 		return
 	}
 
-	duration := time.Since(startTime)
-	s.getLogger().Info("scheduled cleanup completed",
-		slog.Duration("duration", duration.Round(time.Second)),
-		slog.Int("students_processed", result.StudentsProcessed),
-		slog.Int64("records_deleted", result.RecordsDeleted),
-		slog.Bool("success", result.Success))
-
-	if len(result.Errors) > 0 {
-		s.getLogger().Warn("cleanup completed with errors",
-			slog.Int("error_count", len(result.Errors)))
-		for i, err := range result.Errors {
-			if i < 10 { // Log first 10 errors
-				s.getLogger().Warn("cleanup error",
-					slog.Int64("student_id", err.StudentID),
-					slog.String("error", err.Error))
-			}
+	// Tenant-scoped: clean up stale supervisor records from previous days
+	supervisorErr := s.forEachTenant(ctx, "cleanup-supervisors", func(tenantCtx context.Context) error {
+		supervisorResult, err := s.cleanupService.CleanupStaleSupervisors(tenantCtx)
+		if err != nil {
+			return err
 		}
-		if len(result.Errors) > 10 {
-			s.getLogger().Warn("additional cleanup errors",
-				slog.Int("count", len(result.Errors)-10))
-		}
-	}
-
-	// Clean up stale supervisor records from previous days
-	supervisorResult, err := s.cleanupService.CleanupStaleSupervisors(ctx)
-	if err != nil {
-		s.getLogger().Error("scheduled supervisor cleanup failed", "error", err)
-	} else {
 		s.getLogger().Info("supervisor cleanup completed",
 			slog.Int("records_closed", supervisorResult.RecordsClosed),
 			slog.Int("staff_affected", supervisorResult.StaffAffected),
 			slog.Bool("success", supervisorResult.Success))
+		return nil
+	})
+	if supervisorErr != nil {
+		s.getLogger().Error("scheduled supervisor cleanup failed", "error", supervisorErr)
 	}
 
-	// Clean up open work sessions from previous days (auto-checkout at end of day)
+	// Tenant-scoped: clean up open work sessions from previous days (auto-checkout at end of day)
 	if s.workSessionCleanup != nil {
-		closedCount, wsErr := s.workSessionCleanup.CleanupOpenSessions(ctx)
+		wsErr := s.forEachTenant(ctx, "cleanup-work-sessions", func(tenantCtx context.Context) error {
+			closedCount, err := s.workSessionCleanup.CleanupOpenSessions(tenantCtx)
+			if err != nil {
+				return err
+			}
+			if closedCount > 0 {
+				s.getLogger().Info("work session cleanup completed",
+					slog.Int("sessions_closed", closedCount))
+			}
+			return nil
+		})
 		if wsErr != nil {
 			s.getLogger().Error("work session cleanup failed", "error", wsErr)
-		} else if closedCount > 0 {
-			s.getLogger().Info("work session cleanup completed",
-				slog.Int("sessions_closed", closedCount))
 		}
 	}
+
+	duration := time.Since(startTime)
+	s.getLogger().Info("scheduled cleanup finished",
+		slog.Duration("duration", duration.Round(time.Second)))
 }
 
 // scheduleTokenCleanupTask schedules hourly token cleanup
@@ -393,7 +467,17 @@ func (s *Scheduler) RunCleanupJobs() error {
 			continue
 		}
 
-		count, err := job.Run(ctx)
+		var count int
+		var err error
+		if s.db != nil {
+			err = tenant.WithAdminTx(ctx, s.db, func(txCtx context.Context, tx bun.Tx) error {
+				var runErr error
+				count, runErr = job.Run(txCtx)
+				return runErr
+			})
+		} else {
+			count, err = job.Run(ctx)
+		}
 		if err != nil {
 			s.getLogger().Error("cleanup job failed",
 				slog.String("job", job.Description),
@@ -574,36 +658,45 @@ func (s *Scheduler) executeSessionEnd(task *ScheduledTask) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeoutMinutes)*time.Minute)
 	defer cancel()
 
-	// Call the active service to end all daily sessions
-	result, err := s.activeService.EndDailySessions(ctx)
-	if err != nil {
-		s.getLogger().Error("scheduled session end failed", "error", err)
+	// Tenant-scoped: end all daily sessions
+	sessionEndErr := s.forEachTenant(ctx, "session-end", func(tenantCtx context.Context) error {
+		result, err := s.activeService.EndDailySessions(tenantCtx)
+		if err != nil {
+			return err
+		}
+
+		s.getLogger().Info("scheduled session end completed",
+			slog.Int("sessions_ended", result.SessionsEnded),
+			slog.Int("visits_ended", result.VisitsEnded),
+			slog.Int("supervisors_ended", result.SupervisorsEnded),
+			slog.Bool("success", result.Success))
+
+		if len(result.Errors) > 0 {
+			s.getLogger().Warn("session end completed with errors",
+				slog.Int("error_count", len(result.Errors)))
+			for i, errMsg := range result.Errors {
+				if i < 10 { // Log first 10 errors
+					s.getLogger().Warn("session end error",
+						slog.Int("error_number", i+1),
+						slog.String("message", errMsg))
+				}
+			}
+			if len(result.Errors) > 10 {
+				s.getLogger().Warn("additional session end errors",
+					slog.Int("count", len(result.Errors)-10))
+			}
+		}
+
+		return nil
+	})
+	if sessionEndErr != nil {
+		s.getLogger().Error("scheduled session end failed", "error", sessionEndErr)
 		return
 	}
 
 	duration := time.Since(startTime)
-	s.getLogger().Info("scheduled session end completed",
-		slog.Duration("duration", duration.Round(time.Second)),
-		slog.Int("sessions_ended", result.SessionsEnded),
-		slog.Int("visits_ended", result.VisitsEnded),
-		slog.Int("supervisors_ended", result.SupervisorsEnded),
-		slog.Bool("success", result.Success))
-
-	if len(result.Errors) > 0 {
-		s.getLogger().Warn("session end completed with errors",
-			slog.Int("error_count", len(result.Errors)))
-		for i, errMsg := range result.Errors {
-			if i < 10 { // Log first 10 errors
-				s.getLogger().Warn("session end error",
-					slog.Int("error_number", i+1),
-					slog.String("message", errMsg))
-			}
-		}
-		if len(result.Errors) > 10 {
-			s.getLogger().Warn("additional session end errors",
-				slog.Int("count", len(result.Errors)-10))
-		}
-	}
+	s.getLogger().Info("scheduled session end finished",
+		slog.Duration("duration", duration.Round(time.Second)))
 }
 
 // scheduleSessionCleanupTask schedules the abandoned session cleanup task
@@ -699,17 +792,23 @@ func (s *Scheduler) executeSessionCleanup(task *ScheduledTask, intervalMinutes, 
 
 	threshold := time.Duration(thresholdMinutes) * time.Minute
 
-	// Call the active service cleanup method
-	count, err := s.activeService.CleanupAbandonedSessions(ctx, threshold)
-	if err != nil {
-		s.getLogger().Error("session cleanup failed", "error", err)
-		return
-	}
+	// Tenant-scoped: cleanup abandoned sessions
+	sessionCleanupErr := s.forEachTenant(ctx, "session-cleanup", func(tenantCtx context.Context) error {
+		count, err := s.activeService.CleanupAbandonedSessions(tenantCtx, threshold)
+		if err != nil {
+			return err
+		}
 
-	if count > 0 {
-		s.getLogger().Info("session cleanup completed",
-			slog.Int("abandoned_sessions", count),
-			slog.Int("threshold_minutes", thresholdMinutes))
+		if count > 0 {
+			s.getLogger().Info("session cleanup completed",
+				slog.Int("abandoned_sessions", count),
+				slog.Int("threshold_minutes", thresholdMinutes))
+		}
+		return nil
+	})
+	if sessionCleanupErr != nil {
+		s.getLogger().Error("session cleanup failed", "error", sessionCleanupErr)
+		return
 	}
 }
 
@@ -799,14 +898,21 @@ func (s *Scheduler) executeBreakAutoEnd(task *ScheduledTask, intervalSeconds int
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	count, err := s.breakAutoEnder.AutoEndExpiredBreaks(ctx)
-	if err != nil {
-		s.getLogger().Error("break auto-end failed", "error", err)
-		return
-	}
+	// Tenant-scoped: auto-end expired breaks
+	breakErr := s.forEachTenant(ctx, "break-auto-end", func(tenantCtx context.Context) error {
+		count, err := s.breakAutoEnder.AutoEndExpiredBreaks(tenantCtx)
+		if err != nil {
+			return err
+		}
 
-	if count > 0 {
-		s.getLogger().Info("break auto-end completed",
-			slog.Int("breaks_ended", count))
+		if count > 0 {
+			s.getLogger().Info("break auto-end completed",
+				slog.Int("breaks_ended", count))
+		}
+		return nil
+	})
+	if breakErr != nil {
+		s.getLogger().Error("break auto-end failed", "error", breakErr)
+		return
 	}
 }

@@ -15,7 +15,8 @@ const guestTableName = "users.guests"
 
 // Guest represents a guest instructor in the system
 type Guest struct {
-	base.Model        `bun:"schema:users,table:guests"`
+	base.Model `bun:"schema:users,table:guests"`
+	base.TenantModel
 	StaffID           int64      `bun:"staff_id,notnull" json:"staff_id"`
 	Organization      string     `bun:"organization" json:"organization,omitempty"`
 	ContactEmail      string     `bun:"contact_email" json:"contact_email,omitempty"`
@@ -30,9 +31,6 @@ type Guest struct {
 }
 
 func (s *Guest) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.SelectQuery); ok {
-		q.ModelTableExpr(guestTableName)
-	}
 	if q, ok := query.(*bun.UpdateQuery); ok {
 		q.ModelTableExpr(guestTableName)
 	}

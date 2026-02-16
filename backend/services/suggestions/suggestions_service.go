@@ -4,9 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/suggestions"
-	"github.com/uptrace/bun"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 type suggestionsService struct {
@@ -14,17 +13,15 @@ type suggestionsService struct {
 	voteRepo        suggestions.VoteRepository
 	commentRepo     suggestions.CommentRepository
 	commentReadRepo suggestions.CommentReadRepository
-	txHandler       *base.TxHandler
 }
 
 // NewService creates a new suggestions service
-func NewService(postRepo suggestions.PostRepository, voteRepo suggestions.VoteRepository, commentRepo suggestions.CommentRepository, commentReadRepo suggestions.CommentReadRepository, db *bun.DB) Service {
+func NewService(postRepo suggestions.PostRepository, voteRepo suggestions.VoteRepository, commentRepo suggestions.CommentRepository, commentReadRepo suggestions.CommentReadRepository) Service {
 	return &suggestionsService{
 		postRepo:        postRepo,
 		voteRepo:        voteRepo,
 		commentRepo:     commentRepo,
 		commentReadRepo: commentReadRepo,
-		txHandler:       base.NewTxHandler(db),
 	}
 }
 
@@ -37,6 +34,7 @@ func (s *suggestionsService) CreatePost(ctx context.Context, post *suggestions.P
 	// Force default status for new posts
 	post.Status = suggestions.StatusOpen
 	post.Score = 0
+	post.SetTenantID(tenant.FromContext(ctx))
 
 	if err := post.Validate(); err != nil {
 		return &InvalidDataError{Err: err}
@@ -125,24 +123,21 @@ func (s *suggestionsService) Vote(ctx context.Context, postID int64, accountID i
 		return nil, &PostNotFoundError{PostID: postID}
 	}
 
-	// Run vote upsert + score recalculation atomically
-	if err := s.txHandler.RunInTx(ctx, func(txCtx context.Context, _ bun.Tx) error {
-		vote := &suggestions.Vote{
-			PostID:    postID,
-			VoterID:   int64(accountID),
-			Direction: direction,
-		}
+	vote := &suggestions.Vote{
+		PostID:    postID,
+		VoterID:   int64(accountID),
+		Direction: direction,
+	}
+	vote.SetTenantID(tenant.FromContext(ctx))
 
-		if err := s.voteRepo.Upsert(txCtx, vote); err != nil {
-			return err
-		}
-
-		return s.postRepo.RecalculateScore(txCtx, postID)
-	}); err != nil {
+	if err := s.voteRepo.Upsert(ctx, vote); err != nil {
 		return nil, err
 	}
 
-	// Return updated post (outside transaction — read-only)
+	if err := s.postRepo.RecalculateScore(ctx, postID); err != nil {
+		return nil, err
+	}
+
 	return s.postRepo.FindByIDWithVote(ctx, postID, accountID, suggestions.ReaderTypeUser)
 }
 
@@ -157,18 +152,14 @@ func (s *suggestionsService) RemoveVote(ctx context.Context, postID int64, accou
 		return nil, &PostNotFoundError{PostID: postID}
 	}
 
-	// Run vote deletion + score recalculation atomically
-	if err := s.txHandler.RunInTx(ctx, func(txCtx context.Context, _ bun.Tx) error {
-		if err := s.voteRepo.DeleteByPostAndVoter(txCtx, postID, int64(accountID)); err != nil {
-			return err
-		}
-
-		return s.postRepo.RecalculateScore(txCtx, postID)
-	}); err != nil {
+	if err := s.voteRepo.DeleteByPostAndVoter(ctx, postID, int64(accountID)); err != nil {
 		return nil, err
 	}
 
-	// Return updated post (outside transaction — read-only)
+	if err := s.postRepo.RecalculateScore(ctx, postID); err != nil {
+		return nil, err
+	}
+
 	return s.postRepo.FindByIDWithVote(ctx, postID, accountID, suggestions.ReaderTypeUser)
 }
 
@@ -180,6 +171,7 @@ func (s *suggestionsService) CreateComment(ctx context.Context, comment *suggest
 
 	// User-facing comments are always from type "user"
 	comment.AuthorType = suggestions.AuthorTypeUser
+	comment.SetTenantID(tenant.FromContext(ctx))
 
 	// Verify post exists
 	post, err := s.postRepo.FindByID(ctx, comment.PostID)

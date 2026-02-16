@@ -9,6 +9,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -24,7 +25,6 @@ type service struct {
 	timeframeRepo      schedule.TimeframeRepository
 	recurrenceRuleRepo schedule.RecurrenceRuleRepository
 	db                 *bun.DB
-	txHandler          *base.TxHandler
 }
 
 // NewService creates a new schedule service
@@ -39,35 +39,6 @@ func NewService(
 		timeframeRepo:      timeframeRepo,
 		recurrenceRuleRepo: recurrenceRuleRepo,
 		db:                 db,
-		txHandler:          base.NewTxHandler(db),
-	}
-}
-
-// WithTx returns a new service that uses the provided transaction
-func (s *service) WithTx(tx bun.Tx) interface{} {
-	// Get repositories with transaction if they implement the TransactionalRepository interface
-	var dateframeRepo = s.dateframeRepo
-	var timeframeRepo = s.timeframeRepo
-	var recurrenceRuleRepo = s.recurrenceRuleRepo
-
-	// Try to cast repositories to TransactionalRepository and apply the transaction
-	if txRepo, ok := s.dateframeRepo.(base.TransactionalRepository); ok {
-		dateframeRepo = txRepo.WithTx(tx).(schedule.DateframeRepository)
-	}
-	if txRepo, ok := s.timeframeRepo.(base.TransactionalRepository); ok {
-		timeframeRepo = txRepo.WithTx(tx).(schedule.TimeframeRepository)
-	}
-	if txRepo, ok := s.recurrenceRuleRepo.(base.TransactionalRepository); ok {
-		recurrenceRuleRepo = txRepo.WithTx(tx).(schedule.RecurrenceRuleRepository)
-	}
-
-	// Return a new service with the transaction
-	return &service{
-		dateframeRepo:      dateframeRepo,
-		timeframeRepo:      timeframeRepo,
-		recurrenceRuleRepo: recurrenceRuleRepo,
-		db:                 s.db,
-		txHandler:          s.txHandler.WithTx(tx),
 	}
 }
 
@@ -88,6 +59,7 @@ func (s *service) CreateDateframe(ctx context.Context, dateframe *schedule.Datef
 		return &ScheduleError{Op: "create dateframe", Err: err}
 	}
 
+	dateframe.SetTenantID(tenant.FromContext(ctx))
 	if err := s.dateframeRepo.Create(ctx, dateframe); err != nil {
 		return &ScheduleError{Op: "create dateframe", Err: err}
 	}
@@ -170,6 +142,7 @@ func (s *service) CreateTimeframe(ctx context.Context, timeframe *schedule.Timef
 		return &ScheduleError{Op: "create timeframe", Err: err}
 	}
 
+	timeframe.SetTenantID(tenant.FromContext(ctx))
 	if err := s.timeframeRepo.Create(ctx, timeframe); err != nil {
 		return &ScheduleError{Op: "create timeframe", Err: err}
 	}
@@ -251,6 +224,7 @@ func (s *service) CreateRecurrenceRule(ctx context.Context, rule *schedule.Recur
 		return &ScheduleError{Op: "create recurrence rule", Err: err}
 	}
 
+	rule.SetTenantID(tenant.FromContext(ctx))
 	if err := s.recurrenceRuleRepo.Create(ctx, rule); err != nil {
 		return &ScheduleError{Op: "create recurrence rule", Err: err}
 	}

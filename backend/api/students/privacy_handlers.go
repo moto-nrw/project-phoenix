@@ -1,6 +1,7 @@
 package students
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"strings"
@@ -9,6 +10,8 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/uptrace/bun"
 )
 
 // getStudentPrivacyConsent handles getting a student's privacy consent
@@ -118,13 +121,13 @@ func (rs *Resource) updateStudentPrivacyConsent(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	if consent.ID == 0 {
-		err = rs.PrivacyConsentRepo.Create(r.Context(), consent)
-	} else {
-		err = rs.PrivacyConsentRepo.Update(r.Context(), consent)
-	}
-
-	if err != nil {
+	tenantID := tenant.FromContext(r.Context())
+	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		if consent.ID == 0 {
+			return rs.PrivacyConsentRepo.Create(ctx, consent)
+		}
+		return rs.PrivacyConsentRepo.Update(ctx, consent)
+	}); err != nil {
 		renderError(w, r, ErrorInternalServer(err))
 		return
 	}

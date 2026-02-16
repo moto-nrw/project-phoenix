@@ -18,6 +18,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/audit"
 	importModels "github.com/moto-nrw/project-phoenix/models/import"
 	importService "github.com/moto-nrw/project-phoenix/services/import"
+	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/uptrace/bun"
 )
 
 const (
@@ -34,13 +36,15 @@ const (
 type Resource struct {
 	studentImportService *importService.ImportService[importModels.StudentImportRow]
 	auditRepo            audit.DataImportRepository
+	db                   *bun.DB
 }
 
 // NewResource creates a new import resource
-func NewResource(studentImportService *importService.ImportService[importModels.StudentImportRow], auditRepo audit.DataImportRepository) *Resource {
+func NewResource(studentImportService *importService.ImportService[importModels.StudentImportRow], auditRepo audit.DataImportRepository, db *bun.DB) *Resource {
 	return &Resource{
 		studentImportService: studentImportService,
 		auditRepo:            auditRepo,
+		db:                   db,
 	}
 }
 
@@ -56,6 +60,7 @@ func (rs *Resource) Router() chi.Router {
 	r.Group(func(r chi.Router) {
 		r.Use(jwtauth.Verifier(tokenAuth.JwtAuth))
 		r.Use(jwt.Authenticator)
+		r.Use(jwt.TenantMiddleware)
 
 		// Student import endpoints
 		r.Route("/students", func(r chi.Router) {
@@ -283,7 +288,7 @@ func (rs *Resource) previewStudentImport(w http.ResponseWriter, r *http.Request)
 	}
 
 	// GDPR Compliance: Audit log for preview (Article 30)
-	rs.logImportAudit(uploadResult.Filename, result, userID, true)
+	rs.logImportAudit(uploadResult.Filename, result, userID, true, tenant.FromContext(r.Context()))
 
 	common.Respond(w, r, http.StatusOK, result, "Import-Vorschau erfolgreich")
 }
@@ -304,7 +309,6 @@ func (rs *Resource) importStudents(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Run actual import
-	ctx := r.Context()
 	request := importModels.ImportRequest[importModels.StudentImportRow]{
 		Rows:            uploadResult.Rows,
 		Mode:            importModels.ImportModeCreate, // Create-only: duplicates will error
@@ -314,8 +318,13 @@ func (rs *Resource) importStudents(w http.ResponseWriter, r *http.Request) {
 		SkipInvalidRows: true, // Skip invalid rows, import valid ones
 	}
 
-	result, err := rs.studentImportService.Import(ctx, request)
-	if err != nil {
+	tenantID := tenant.FromContext(r.Context())
+	var result *importModels.ImportResult[importModels.StudentImportRow]
+	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		var txErr error
+		result, txErr = rs.studentImportService.Import(ctx, request)
+		return txErr
+	}); err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(fmt.Errorf("import fehlgeschlagen: %s", err.Error())))
 		return
 	}
@@ -328,7 +337,7 @@ func (rs *Resource) importStudents(w http.ResponseWriter, r *http.Request) {
 		slog.String("filename", uploadResult.Filename))
 
 	// GDPR Compliance: Audit log for actual import (Article 30)
-	rs.logImportAudit(uploadResult.Filename, result, userID, false)
+	rs.logImportAudit(uploadResult.Filename, result, userID, false, tenant.FromContext(r.Context()))
 
 	// Build success message
 	message := fmt.Sprintf("Import abgeschlossen: %d erstellt, %d aktualisiert, %d Fehler",
@@ -348,7 +357,7 @@ func getUserIDFromContext(ctx context.Context) (int64, error) {
 }
 
 // logImportAudit creates an audit record for import operations (GDPR compliance)
-func (rs *Resource) logImportAudit(filename string, result *importModels.ImportResult[importModels.StudentImportRow], userID int64, dryRun bool) {
+func (rs *Resource) logImportAudit(filename string, result *importModels.ImportResult[importModels.StudentImportRow], userID int64, dryRun bool, tenantID int64) {
 	go func() {
 		auditCtx := context.Background()
 		auditRecord := &audit.DataImport{
@@ -366,6 +375,7 @@ func (rs *Resource) logImportAudit(filename string, result *importModels.ImportR
 			CompletedAt:  &result.CompletedAt,
 			Metadata:     audit.JSONBMap{},
 		}
+		auditRecord.SetTenantID(tenantID)
 		if err := rs.auditRepo.Create(auditCtx, auditRecord); err != nil {
 			if dryRun {
 				slog.Default().Warn("Failed to create audit log for import", slog.String("error", err.Error()))

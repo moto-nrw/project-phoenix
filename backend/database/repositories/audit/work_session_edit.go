@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 
+	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/models/audit"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/uptrace/bun"
@@ -46,7 +47,7 @@ func (r *WorkSessionEditRepository) CreateBatch(ctx context.Context, edits []*au
 		}
 	}
 
-	_, err := r.db.NewInsert().
+	_, err := base.GetDB(ctx, r.db).NewInsert().
 		Model(&edits).
 		ModelTableExpr(tableWorkSessionEdits).
 		Exec(ctx)
@@ -63,7 +64,7 @@ func (r *WorkSessionEditRepository) CreateBatch(ctx context.Context, edits []*au
 // GetBySessionID returns all edit records for a session, ordered by creation time descending
 func (r *WorkSessionEditRepository) GetBySessionID(ctx context.Context, sessionID int64) ([]*audit.WorkSessionEdit, error) {
 	var edits []*audit.WorkSessionEdit
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&edits).
 		ModelTableExpr(tableWorkSessionEditsAliased).
 		Where(whereSessionIDEquals, sessionID).
@@ -81,7 +82,7 @@ func (r *WorkSessionEditRepository) GetBySessionID(ctx context.Context, sessionI
 
 // CountBySessionID returns the number of edit records for a session
 func (r *WorkSessionEditRepository) CountBySessionID(ctx context.Context, sessionID int64) (int, error) {
-	count, err := r.db.NewSelect().
+	count, err := base.GetDB(ctx, r.db).NewSelect().
 		Model((*audit.WorkSessionEdit)(nil)).
 		ModelTableExpr(tableWorkSessionEditsAliased).
 		Where(whereSessionIDEquals, sessionID).
@@ -108,7 +109,7 @@ func (r *WorkSessionEditRepository) CountBySessionIDs(ctx context.Context, sessi
 	}
 
 	var results []countResult
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		ModelTableExpr(tableWorkSessionEdits).
 		ColumnExpr("session_id").
 		ColumnExpr("COUNT(*) AS count").

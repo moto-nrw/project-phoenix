@@ -25,6 +25,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/services"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -116,6 +117,9 @@ func setupProtectedRouter(t *testing.T) (*testContext, chi.Router) {
 func executeWithAuth(router chi.Router, req *http.Request, claims jwt.AppClaims, perms []string) *httptest.ResponseRecorder {
 	ctx := context.WithValue(req.Context(), jwt.CtxClaims, claims)
 	ctx = context.WithValue(ctx, jwt.CtxPermissions, perms)
+	if claims.TenantID != 0 {
+		ctx = tenant.WithTenantID(ctx, claims.TenantID)
+	}
 	req = req.WithContext(ctx)
 
 	rr := httptest.NewRecorder()
@@ -2179,6 +2183,7 @@ func TestCheckoutStudent_AuthorizedAsRoomSupervisor(t *testing.T) {
 
 	supervisorClaims := jwt.AppClaims{
 		ID:          int(supervisorAccount.ID),
+		TenantID:    1,
 		Sub:         "supervisor@example.com",
 		Permissions: []string{permissions.VisitsUpdate},
 	}
@@ -2224,6 +2229,7 @@ func TestCheckoutStudent_AuthorizedAsGroupTeacher(t *testing.T) {
 
 	teacherClaims := jwt.AppClaims{
 		ID:          int(teacherAccount.ID),
+		TenantID:    1,
 		Sub:         "teacher@example.com",
 		Permissions: []string{permissions.VisitsUpdate},
 	}
@@ -2261,6 +2267,7 @@ func TestCheckoutStudent_AnyStaffCanCheckout(t *testing.T) {
 
 	staffClaims := jwt.AppClaims{
 		ID:          int(staffAccount.ID),
+		TenantID:    1,
 		Sub:         "unrelated@example.com",
 		Permissions: []string{permissions.VisitsUpdate},
 	}
@@ -2369,6 +2376,7 @@ func TestClaimGroup(t *testing.T) {
 
 	staffClaims := jwt.AppClaims{
 		ID:          int(staffAccount.ID),
+		TenantID:    1,
 		Sub:         "claim@example.com",
 		Permissions: []string{permissions.GroupsUpdate},
 	}
@@ -2423,6 +2431,7 @@ func TestGetActiveGroupVisitsWithDisplay(t *testing.T) {
 
 	staffClaims := jwt.AppClaims{
 		ID:          int(staffAccount.ID),
+		TenantID:    1,
 		Sub:         "display@example.com",
 		Permissions: []string{permissions.GroupsRead},
 	}

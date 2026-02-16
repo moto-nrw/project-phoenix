@@ -7,32 +7,19 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // ======== Supervisor Methods ========
 
 // AddSupervisor adds a supervisor to an activity group
 func (s *Service) AddSupervisor(ctx context.Context, groupID int64, staffID int64, isPrimary bool) (*activities.SupervisorPlanned, error) {
-	var result *activities.SupervisorPlanned
-
-	err := s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
-		txService := s.WithTx(tx).(ActivityService)
-
-		supervisor, err := s.addSupervisorInTx(ctx, txService, groupID, staffID, isPrimary)
-		if err != nil {
-			return err
-		}
-
-		result = supervisor
-		return nil
-	})
-
+	supervisor, err := s.addSupervisorInTx(ctx, s, groupID, staffID, isPrimary)
 	if err != nil {
 		return nil, &ActivityError{Op: "add supervisor", Err: err}
 	}
 
-	return result, nil
+	return supervisor, nil
 }
 
 // addSupervisorInTx contains the transaction logic for adding a supervisor
@@ -68,6 +55,7 @@ func (s *Service) addSupervisorInTx(ctx context.Context, txService ActivityServi
 		return nil, err
 	}
 
+	supervisor.SetTenantID(tenant.FromContext(ctx))
 	if err := txService.(*Service).supervisorRepo.Create(ctx, supervisor); err != nil {
 		return nil, &ActivityError{Op: opCreateSupervisor, Err: err}
 	}
@@ -172,42 +160,29 @@ func (s *Service) GetSupervisorsForGroups(ctx context.Context, groupIDs []int64)
 
 // UpdateSupervisor updates a supervisor's details
 func (s *Service) UpdateSupervisor(ctx context.Context, supervisor *activities.SupervisorPlanned) (*activities.SupervisorPlanned, error) {
-	var result *activities.SupervisorPlanned
-
-	err := s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
-		txService := s.WithTx(tx).(ActivityService)
-
-		existingSupervisor, err := s.findExistingSupervisor(ctx, txService, supervisor.ID)
-		if err != nil {
-			return err
-		}
-
-		if err := supervisor.Validate(); err != nil {
-			return &ActivityError{Op: opValidateSupervisor, Err: err}
-		}
-
-		if err := s.handlePrimaryStatusChangeInTx(ctx, txService, supervisor, existingSupervisor); err != nil {
-			return err
-		}
-
-		if err := txService.(*Service).supervisorRepo.Update(ctx, supervisor); err != nil {
-			return &ActivityError{Op: opUpdateSupervisor, Err: err}
-		}
-
-		updatedSupervisor, err := txService.(*Service).supervisorRepo.FindByID(ctx, supervisor.ID)
-		if err != nil {
-			return &ActivityError{Op: "retrieve updated supervisor", Err: err}
-		}
-
-		result = updatedSupervisor
-		return nil
-	})
-
+	existingSupervisor, err := s.findExistingSupervisor(ctx, s, supervisor.ID)
 	if err != nil {
 		return nil, &ActivityError{Op: opUpdateSupervisor, Err: err}
 	}
 
-	return result, nil
+	if err := supervisor.Validate(); err != nil {
+		return nil, &ActivityError{Op: opUpdateSupervisor, Err: err}
+	}
+
+	if err := s.handlePrimaryStatusChangeInTx(ctx, s, supervisor, existingSupervisor); err != nil {
+		return nil, &ActivityError{Op: opUpdateSupervisor, Err: err}
+	}
+
+	if err := s.supervisorRepo.Update(ctx, supervisor); err != nil {
+		return nil, &ActivityError{Op: opUpdateSupervisor, Err: err}
+	}
+
+	updatedSupervisor, err := s.supervisorRepo.FindByID(ctx, supervisor.ID)
+	if err != nil {
+		return nil, &ActivityError{Op: opUpdateSupervisor, Err: err}
+	}
+
+	return updatedSupervisor, nil
 }
 
 // findExistingSupervisor finds and validates that a supervisor exists
@@ -262,29 +237,19 @@ func (s *Service) GetStaffAssignments(ctx context.Context, staffID int64) ([]*ac
 
 // DeleteSupervisor deletes a supervisor
 func (s *Service) DeleteSupervisor(ctx context.Context, id int64) error {
-	err := s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
-		txService := s.WithTx(tx).(ActivityService)
-
-		supervisor, err := txService.(*Service).supervisorRepo.FindByID(ctx, id)
-		if err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
-				return ErrSupervisorNotFound
-			}
-			return &ActivityError{Op: opFindSupervisor, Err: err}
-		}
-
-		if err := s.handlePrimaryDeletionInTx(ctx, txService, supervisor, id); err != nil {
-			return err
-		}
-
-		if err := txService.(*Service).supervisorRepo.Delete(ctx, id); err != nil {
-			return &ActivityError{Op: "delete supervisor record", Err: err}
-		}
-
-		return nil
-	})
-
+	supervisor, err := s.supervisorRepo.FindByID(ctx, id)
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return &ActivityError{Op: opDeleteSupervisor, Err: ErrSupervisorNotFound}
+		}
+		return &ActivityError{Op: opDeleteSupervisor, Err: err}
+	}
+
+	if err := s.handlePrimaryDeletionInTx(ctx, s, supervisor, id); err != nil {
+		return &ActivityError{Op: opDeleteSupervisor, Err: err}
+	}
+
+	if err := s.supervisorRepo.Delete(ctx, id); err != nil {
 		return &ActivityError{Op: opDeleteSupervisor, Err: err}
 	}
 
@@ -327,30 +292,20 @@ func (s *Service) findNewPrimarySupervisor(supervisors []*activities.SupervisorP
 
 // SetPrimarySupervisor sets a supervisor as primary and unsets others
 func (s *Service) SetPrimarySupervisor(ctx context.Context, id int64) error {
-	err := s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
-		txService := s.WithTx(tx).(ActivityService)
-
-		supervisor, err := txService.(*Service).supervisorRepo.FindByID(ctx, id)
-		if err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
-				return ErrSupervisorNotFound
-			}
-			return &ActivityError{Op: opFindSupervisor, Err: err}
-		}
-
-		supervisors, err := txService.(*Service).supervisorRepo.FindByGroupID(ctx, supervisor.GroupID)
-		if err != nil {
-			return &ActivityError{Op: opFindGroupSupervisors, Err: err}
-		}
-
-		if err := s.updateSupervisorPrimaryStatusInTx(ctx, txService, id, supervisors); err != nil {
-			return err
-		}
-
-		return nil
-	})
-
+	supervisor, err := s.supervisorRepo.FindByID(ctx, id)
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return &ActivityError{Op: "set primary supervisor", Err: ErrSupervisorNotFound}
+		}
+		return &ActivityError{Op: "set primary supervisor", Err: err}
+	}
+
+	supervisors, err := s.supervisorRepo.FindByGroupID(ctx, supervisor.GroupID)
+	if err != nil {
+		return &ActivityError{Op: "set primary supervisor", Err: err}
+	}
+
+	if err := s.updateSupervisorPrimaryStatusInTx(ctx, s, id, supervisors); err != nil {
 		return &ActivityError{Op: "set primary supervisor", Err: err}
 	}
 
@@ -381,32 +336,22 @@ func (s *Service) UpdateGroupSupervisors(ctx context.Context, groupID int64, sta
 		return &ActivityError{Op: "UpdateGroupSupervisors", Err: ErrGroupNotFound}
 	}
 
-	err = s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
-		txService := s.WithTx(tx).(ActivityService)
-
-		supervisors, err := txService.(*Service).supervisorRepo.FindByGroupID(ctx, groupID)
-		if err != nil {
-			return &ActivityError{Op: "get current supervisors", Err: err}
-		}
-
-		currentStaffIDs, newStaffIDs := s.buildSupervisorMaps(supervisors, staffIDs)
-
-		if err := s.removeUnwantedSupervisorsInTx(ctx, txService, currentStaffIDs, newStaffIDs, staffIDs); err != nil {
-			return err
-		}
-
-		if err := s.addNewSupervisorsInTx(ctx, txService, groupID, currentStaffIDs, newStaffIDs, staffIDs); err != nil {
-			return err
-		}
-
-		if err := s.ensurePrimarySupervisorInTx(ctx, txService, groupID, staffIDs); err != nil {
-			return err
-		}
-
-		return nil
-	})
-
+	supervisors, err := s.supervisorRepo.FindByGroupID(ctx, groupID)
 	if err != nil {
+		return &ActivityError{Op: "update group supervisors", Err: err}
+	}
+
+	currentStaffIDs, newStaffIDs := s.buildSupervisorMaps(supervisors, staffIDs)
+
+	if err := s.removeUnwantedSupervisorsInTx(ctx, s, currentStaffIDs, newStaffIDs, staffIDs); err != nil {
+		return &ActivityError{Op: "update group supervisors", Err: err}
+	}
+
+	if err := s.addNewSupervisorsInTx(ctx, s, groupID, currentStaffIDs, newStaffIDs, staffIDs); err != nil {
+		return &ActivityError{Op: "update group supervisors", Err: err}
+	}
+
+	if err := s.ensurePrimarySupervisorInTx(ctx, s, groupID, staffIDs); err != nil {
 		return &ActivityError{Op: "update group supervisors", Err: err}
 	}
 
@@ -460,6 +405,7 @@ func (s *Service) addNewSupervisorsInTx(ctx context.Context, txService ActivityS
 				StaffID:   staffID,
 				IsPrimary: isPrimary,
 			}
+			supervisor.SetTenantID(tenant.FromContext(ctx))
 
 			if err := txService.(*Service).supervisorRepo.Create(ctx, supervisor); err != nil {
 				return &ActivityError{Op: opCreateSupervisor, Err: err}

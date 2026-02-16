@@ -44,6 +44,7 @@ var WeekdayNames = map[int]string{
 // StudentPickupSchedule represents a recurring weekly pickup schedule for a student
 type StudentPickupSchedule struct {
 	base.Model `bun:"schema:schedule,table:student_pickup_schedules"`
+	base.TenantModel
 
 	StudentID  int64     `bun:"student_id,notnull" json:"student_id"`
 	Weekday    int       `bun:"weekday,notnull" json:"weekday"`
@@ -53,9 +54,6 @@ type StudentPickupSchedule struct {
 }
 
 func (s *StudentPickupSchedule) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.SelectQuery); ok {
-		q.ModelTableExpr(`schedule.student_pickup_schedules AS "schedule"`)
-	}
 	if q, ok := query.(*bun.UpdateQuery); ok {
 		q.ModelTableExpr(`schedule.student_pickup_schedules AS "schedule"`)
 	}
@@ -116,6 +114,7 @@ func (s *StudentPickupSchedule) GetUpdatedAt() time.Time {
 // StudentPickupException represents a date-specific pickup exception
 type StudentPickupException struct {
 	base.Model `bun:"schema:schedule,table:student_pickup_exceptions"`
+	base.TenantModel
 
 	StudentID     int64      `bun:"student_id,notnull" json:"student_id"`
 	ExceptionDate time.Time  `bun:"exception_date,notnull" json:"exception_date"`
@@ -125,9 +124,6 @@ type StudentPickupException struct {
 }
 
 func (e *StudentPickupException) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.SelectQuery); ok {
-		q.ModelTableExpr(`schedule.student_pickup_exceptions AS "exception"`)
-	}
 	if q, ok := query.(*bun.UpdateQuery); ok {
 		q.ModelTableExpr(`schedule.student_pickup_exceptions AS "exception"`)
 	}
@@ -225,6 +221,7 @@ type StudentPickupExceptionRepository interface {
 // StudentPickupNote represents a date-specific note for a student's pickup
 type StudentPickupNote struct {
 	base.Model `bun:"schema:schedule,table:student_pickup_notes"`
+	base.TenantModel
 
 	StudentID int64     `bun:"student_id,notnull" json:"student_id"`
 	NoteDate  time.Time `bun:"note_date,notnull" json:"note_date"`
@@ -233,9 +230,6 @@ type StudentPickupNote struct {
 }
 
 func (n *StudentPickupNote) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.SelectQuery); ok {
-		q.ModelTableExpr(`schedule.student_pickup_notes AS "student_pickup_note"`)
-	}
 	if q, ok := query.(*bun.UpdateQuery); ok {
 		q.ModelTableExpr(`schedule.student_pickup_notes AS "student_pickup_note"`)
 	}

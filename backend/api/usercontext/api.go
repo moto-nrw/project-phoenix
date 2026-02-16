@@ -22,6 +22,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/services/usercontext"
+	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/uptrace/bun"
 )
 
 // ProfileUpdateRequest represents a profile update request
@@ -43,14 +45,16 @@ type Resource struct {
 	service          usercontext.UserContextService
 	substitutionRepo education.GroupSubstitutionRepository
 	router           chi.Router
+	db               *bun.DB
 }
 
 // NewResource creates a new user context resource
-func NewResource(service usercontext.UserContextService, substitutionRepo education.GroupSubstitutionRepository) *Resource {
+func NewResource(service usercontext.UserContextService, substitutionRepo education.GroupSubstitutionRepository, db *bun.DB) *Resource {
 	r := &Resource{
 		service:          service,
 		substitutionRepo: substitutionRepo,
 		router:           chi.NewRouter(),
+		db:               db,
 	}
 
 	// Create JWT auth instance for middleware
@@ -59,6 +63,7 @@ func NewResource(service usercontext.UserContextService, substitutionRepo educat
 	// Setup routes with proper authentication chain
 	r.router.Use(tokenAuth.Verifier())
 	r.router.Use(jwt.Authenticator)
+	r.router.Use(jwt.TenantMiddleware)
 
 	// User profile endpoints
 	r.router.Get("/", r.getCurrentUser)
@@ -139,9 +144,21 @@ func (res *Resource) updateCurrentProfile(w http.ResponseWriter, r *http.Request
 		updates["bio"] = *req.Bio
 	}
 
+	// Check for authentication before tenant transaction
+	claims := jwt.ClaimsFromCtx(r.Context())
+	if claims.ID == 0 {
+		common.RenderError(w, r, common.ErrorUnauthorized(errors.New("authentication required")))
+		return
+	}
+
 	// Update profile
-	profile, err := res.service.UpdateCurrentProfile(r.Context(), updates)
-	if err != nil {
+	tenantID := tenant.FromContext(r.Context())
+	var profile interface{}
+	if err := tenant.WithTenantTx(r.Context(), res.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		var txErr error
+		profile, txErr = res.service.UpdateCurrentProfile(ctx, updates)
+		return txErr
+	}); err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
@@ -331,8 +348,13 @@ func (res *Resource) uploadAvatar(w http.ResponseWriter, r *http.Request) {
 	}
 
 	avatarURL := fmt.Sprintf("/uploads/avatars/%s", filepath.Base(filePath))
-	updatedProfile, err := res.service.UpdateAvatar(r.Context(), avatarURL)
-	if err != nil {
+	tenantID := tenant.FromContext(r.Context())
+	var updatedProfile interface{}
+	if err := tenant.WithTenantTx(r.Context(), res.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		var txErr error
+		updatedProfile, txErr = res.service.UpdateAvatar(ctx, avatarURL)
+		return txErr
+	}); err != nil {
 		removeFile(filePath)
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
@@ -469,8 +491,13 @@ func (res *Resource) deleteAvatar(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Delete avatar from profile
-	updatedProfile, err := res.service.UpdateAvatar(r.Context(), "")
-	if err != nil {
+	tenantID := tenant.FromContext(r.Context())
+	var updatedProfile interface{}
+	if err := tenant.WithTenantTx(r.Context(), res.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		var txErr error
+		updatedProfile, txErr = res.service.UpdateAvatar(ctx, "")
+		return txErr
+	}); err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}

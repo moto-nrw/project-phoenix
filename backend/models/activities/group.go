@@ -12,7 +12,8 @@ import (
 
 // Group represents an activity group
 type Group struct {
-	base.Model      `bun:"schema:activities,table:groups"`
+	base.Model `bun:"schema:activities,table:groups"`
+	base.TenantModel
 	Name            string `bun:"name,notnull" json:"name"`
 	MaxParticipants int    `bun:"max_participants,notnull" json:"max_participants"`
 	IsOpen          bool   `bun:"is_open,notnull,default:false" json:"is_open"`
@@ -30,9 +31,6 @@ type Group struct {
 }
 
 func (g *Group) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.SelectQuery); ok {
-		q.ModelTableExpr(`activities.groups AS "group"`)
-	}
 	if q, ok := query.(*bun.UpdateQuery); ok {
 		q.ModelTableExpr(`activities.groups AS "group"`)
 	}

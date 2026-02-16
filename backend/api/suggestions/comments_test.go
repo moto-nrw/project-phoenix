@@ -29,7 +29,7 @@ func setupCommentTestRouter(t *testing.T) (*bun.DB, chi.Router) {
 	t.Helper()
 	viper.Set("auth_jwt_secret", "test-jwt-secret-32-chars-minimum")
 	db, serviceFactory := testutil.SetupAPITest(t)
-	resource := apiSuggestions.NewResource(serviceFactory.Suggestions)
+	resource := apiSuggestions.NewResource(serviceFactory.Suggestions, db)
 	router := chi.NewRouter()
 	router.Mount("/suggestions", resource.Router())
 	return db, router

@@ -19,12 +19,17 @@ const errPersonNotFound = "no person found with ID %d"
 
 // unlinkField sets a person's field to NULL and handles common error patterns
 func (r *PersonRepository) unlinkField(ctx context.Context, personID int64, fieldName, opName string) error {
-	result, err := r.db.NewUpdate().
+	query := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*users.Person)(nil)).
 		ModelTableExpr(`users.persons AS "person"`).
 		Set(fieldName+" = NULL").
-		Where(`"person".id = ?`, personID).
-		Exec(ctx)
+		Where(`"person".id = ?`, personID)
+
+	if where, val, ok := base.TenantWhere(ctx, "person"); ok {
+		query = query.Where(where, val)
+	}
+
+	result, err := query.Exec(ctx)
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  opName,
@@ -58,8 +63,10 @@ type PersonRepository struct {
 
 // NewPersonRepository creates a new PersonRepository
 func NewPersonRepository(db *bun.DB) users.PersonRepository {
+	repo := base.NewRepository[*users.Person](db, "users.persons", "Person")
+	repo.TenantScoped = true
 	return &PersonRepository{
-		Repository: base.NewRepository[*users.Person](db, "users.persons", "Person"),
+		Repository: repo,
 		db:         db,
 	}
 }
@@ -70,11 +77,16 @@ func (r *PersonRepository) FindByTagID(ctx context.Context, tagID string) (*user
 	normalizedTagID := normalizeTagID(tagID)
 
 	person := new(users.Person)
-	err := r.db.NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(person).
 		ModelTableExpr(`users.persons AS "person"`).
-		Where(`"person".tag_id = ?`, normalizedTagID).
-		Scan(ctx)
+		Where(`"person".tag_id = ?`, normalizedTagID)
+
+	if where, val, ok := base.TenantWhere(ctx, "person"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.Scan(ctx)
 
 	if err != nil {
 		// Handle "no rows found" as a normal case, not an error
@@ -93,11 +105,16 @@ func (r *PersonRepository) FindByTagID(ctx context.Context, tagID string) (*user
 // FindByAccountID retrieves a person by their account ID
 func (r *PersonRepository) FindByAccountID(ctx context.Context, accountID int64) (*users.Person, error) {
 	person := new(users.Person)
-	err := r.db.NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(person).
 		ModelTableExpr(`users.persons AS "person"`).
-		Where(`"person".account_id = ?`, accountID).
-		Scan(ctx)
+		Where(`"person".account_id = ?`, accountID)
+
+	if where, val, ok := base.TenantWhere(ctx, "person"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.Scan(ctx)
 
 	if err != nil {
 		// Handle "no rows found" as a normal case, not an error
@@ -120,11 +137,16 @@ func (r *PersonRepository) FindByIDs(ctx context.Context, ids []int64) (map[int6
 	}
 
 	var persons []*users.Person
-	err := r.db.NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&persons).
 		ModelTableExpr(`users.persons AS "person"`).
-		Where(`"person".id IN (?)`, bun.In(ids)).
-		Scan(ctx)
+		Where(`"person".id IN (?)`, bun.In(ids))
+
+	if where, val, ok := base.TenantWhere(ctx, "person"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.Scan(ctx)
 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
@@ -144,12 +166,17 @@ func (r *PersonRepository) FindByIDs(ctx context.Context, ids []int64) (map[int6
 
 // LinkToAccount associates a person with an account
 func (r *PersonRepository) LinkToAccount(ctx context.Context, personID int64, accountID int64) error {
-	result, err := r.db.NewUpdate().
+	query := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*users.Person)(nil)).
 		ModelTableExpr(`users.persons AS "person"`).
 		Set("account_id = ?", accountID).
-		Where(`"person".id = ?`, personID).
-		Exec(ctx)
+		Where(`"person".id = ?`, personID)
+
+	if where, val, ok := base.TenantWhere(ctx, "person"); ok {
+		query = query.Where(where, val)
+	}
+
+	result, err := query.Exec(ctx)
 
 	if err != nil {
 		return &modelBase.DatabaseError{
@@ -200,12 +227,17 @@ func (r *PersonRepository) LinkToRFIDCard(ctx context.Context, personID int64, t
 	// Normalize the tag ID to match RFID card format
 	normalizedTagID := normalizeTagID(tagID)
 
-	result, err := r.db.NewUpdate().
+	query := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*users.Person)(nil)).
 		ModelTableExpr(`users.persons AS "person"`).
 		Set("tag_id = ?", normalizedTagID).
-		Where(`"person".id = ?`, personID).
-		Exec(ctx)
+		Where(`"person".id = ?`, personID)
+
+	if where, val, ok := base.TenantWhere(ctx, "person"); ok {
+		query = query.Where(where, val)
+	}
+
+	result, err := query.Exec(ctx)
 
 	if err != nil {
 		return &modelBase.DatabaseError{
@@ -264,25 +296,34 @@ func (r *PersonRepository) Update(ctx context.Context, person *users.Person) err
 	}
 
 	// Explicitly update all person fields (including NULL values)
-	_, err := r.db.NewUpdate().
+	query := base.GetDB(ctx, r.db).NewUpdate().
 		Model(person).
 		ModelTableExpr(`users.persons AS "person"`).
 		Column("first_name", "last_name", "birthday", "tag_id", "account_id").
-		WherePK().
-		Exec(ctx)
+		WherePK()
+
+	if where, val, ok := base.TenantWhere(ctx, "person"); ok {
+		query = query.Where(where, val)
+	}
+
+	result, err := query.Exec(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to update person: %w", err)
 	}
 
-	return nil
+	return base.AssertRowsAffected(result, 1, "update person")
 }
 
 // ListWithOptions retrieves persons matching the provided query options
 func (r *PersonRepository) ListWithOptions(ctx context.Context, options *modelBase.QueryOptions) ([]*users.Person, error) {
 	var persons []*users.Person
-	query := r.db.NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&persons).
 		ModelTableExpr(`users.persons AS "person"`)
+
+	if where, val, ok := base.TenantWhere(ctx, "person"); ok {
+		query = query.Where(where, val)
+	}
 
 	// Apply query options
 	if options != nil {
@@ -313,11 +354,12 @@ func (r *PersonRepository) FindWithAccount(ctx context.Context, id int64) (*user
 		Account: new(modelAuth.Account),
 	}
 
-	err := r.db.NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(result).
 		ModelTableExpr(`users.persons AS "person"`).
 		// Person columns with proper aliasing
 		ColumnExpr(`"person".id AS "person__id", "person".created_at AS "person__created_at", "person".updated_at AS "person__updated_at"`).
+		ColumnExpr(`"person".tenant_id AS "person__tenant_id"`).
 		ColumnExpr(`"person".first_name AS "person__first_name", "person".last_name AS "person__last_name"`).
 		ColumnExpr(`"person".birthday AS "person__birthday"`).
 		ColumnExpr(`"person".tag_id AS "person__tag_id", "person".account_id AS "person__account_id"`).
@@ -328,8 +370,13 @@ func (r *PersonRepository) FindWithAccount(ctx context.Context, id int64) (*user
 		ColumnExpr(`"account".pin_hash AS "account__pin_hash", "account".pin_attempts AS "account__pin_attempts", "account".pin_locked_until AS "account__pin_locked_until"`).
 		// JOIN - Fixed to use auth.accounts directly rather than joining to a table alias "accounts"
 		Join(`LEFT JOIN auth.accounts AS "account" ON ("account".id = "person".account_id)`).
-		Where(`"person".id = ?`, id).
-		Scan(ctx)
+		Where(`"person".id = ?`, id)
+
+	if where, val, ok := base.TenantWhere(ctx, "person"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.Scan(ctx)
 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
@@ -359,11 +406,12 @@ func (r *PersonRepository) FindWithRFIDCard(ctx context.Context, id int64) (*use
 		RFIDCard: new(users.RFIDCard),
 	}
 
-	err := r.db.NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(result).
 		ModelTableExpr(`users.persons AS "person"`).
 		// Person columns with proper aliasing
 		ColumnExpr(`"person".id AS "person__id", "person".created_at AS "person__created_at", "person".updated_at AS "person__updated_at"`).
+		ColumnExpr(`"person".tenant_id AS "person__tenant_id"`).
 		ColumnExpr(`"person".first_name AS "person__first_name", "person".last_name AS "person__last_name"`).
 		ColumnExpr(`"person".tag_id AS "person__tag_id", "person".account_id AS "person__account_id"`).
 		// RFID card columns
@@ -371,8 +419,13 @@ func (r *PersonRepository) FindWithRFIDCard(ctx context.Context, id int64) (*use
 		ColumnExpr(`"rfid_card".is_active AS "rfid_card__is_active", "rfid_card".last_used AS "rfid_card__last_used"`).
 		// JOIN
 		Join(`LEFT JOIN users.rfid_cards AS "rfid_card" ON "rfid_card".id = "person".tag_id`).
-		Where(`"person".id = ?`, id).
-		Scan(ctx)
+		Where(`"person".id = ?`, id)
+
+	if where, val, ok := base.TenantWhere(ctx, "person"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.Scan(ctx)
 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{

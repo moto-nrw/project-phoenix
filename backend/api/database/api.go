@@ -36,6 +36,7 @@ func (rs *Resource) Router() chi.Router {
 	r.Group(func(r chi.Router) {
 		r.Use(tokenAuth.Verifier())
 		r.Use(jwt.Authenticator)
+		r.Use(jwt.TenantMiddleware)
 
 		// Stats endpoint - requires system:manage permission (admin only)
 		r.With(authorize.RequiresPermission("system:manage")).Get("/stats", rs.getStats)

@@ -12,6 +12,7 @@ import (
 // InvitationToken represents an invitation sent to create a new account.
 type InvitationToken struct {
 	base.Model `bun:"schema:auth,table:invitation_tokens"`
+	base.TenantModel
 
 	Email           string     `bun:"email,notnull" json:"email"`
 	Token           string     `bun:"token,notnull" json:"token"`
@@ -41,8 +42,6 @@ func (t *InvitationToken) BeforeAppendModel(query any) error {
 	const tableExpr = `auth.invitation_tokens AS "invitation_token"`
 
 	switch q := query.(type) {
-	case *bun.SelectQuery:
-		q.ModelTableExpr(tableExpr)
 	case *bun.InsertQuery:
 		q.ModelTableExpr(tableExpr)
 	case *bun.UpdateQuery:

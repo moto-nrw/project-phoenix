@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/uptrace/bun"
 )
@@ -20,7 +21,7 @@ func NewDataImportRepository(db *bun.DB) *DataImportRepository {
 
 // Create creates a new data import audit record
 func (r *DataImportRepository) Create(ctx context.Context, dataImport *audit.DataImport) error {
-	_, err := r.db.NewInsert().
+	_, err := base.GetDB(ctx, r.db).NewInsert().
 		Model(dataImport).
 		Exec(ctx)
 	if err != nil {
@@ -32,7 +33,7 @@ func (r *DataImportRepository) Create(ctx context.Context, dataImport *audit.Dat
 // FindByID finds a data import record by ID
 func (r *DataImportRepository) FindByID(ctx context.Context, id int64) (*audit.DataImport, error) {
 	dataImport := &audit.DataImport{}
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(dataImport).
 		Where("id = ?", id).
 		Scan(ctx)
@@ -45,7 +46,7 @@ func (r *DataImportRepository) FindByID(ctx context.Context, id int64) (*audit.D
 // FindByImportedBy finds recent imports by a specific account
 func (r *DataImportRepository) FindByImportedBy(ctx context.Context, accountID int64, limit int) ([]*audit.DataImport, error) {
 	var imports []*audit.DataImport
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&imports).
 		Where("imported_by = ?", accountID).
 		Order(orderByCreatedAtDesc).
@@ -60,7 +61,7 @@ func (r *DataImportRepository) FindByImportedBy(ctx context.Context, accountID i
 // FindByEntityType finds recent imports for a specific entity type
 func (r *DataImportRepository) FindByEntityType(ctx context.Context, entityType string, limit int) ([]*audit.DataImport, error) {
 	var imports []*audit.DataImport
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&imports).
 		Where("entity_type = ?", entityType).
 		Order(orderByCreatedAtDesc).
@@ -75,7 +76,7 @@ func (r *DataImportRepository) FindByEntityType(ctx context.Context, entityType 
 // FindRecent finds the most recent imports
 func (r *DataImportRepository) FindRecent(ctx context.Context, limit int) ([]*audit.DataImport, error) {
 	var imports []*audit.DataImport
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&imports).
 		Order(orderByCreatedAtDesc).
 		Limit(limit).
@@ -89,7 +90,7 @@ func (r *DataImportRepository) FindRecent(ctx context.Context, limit int) ([]*au
 // List lists data imports with optional filters
 func (r *DataImportRepository) List(ctx context.Context, filters map[string]interface{}) ([]*audit.DataImport, error) {
 	var imports []*audit.DataImport
-	query := r.db.NewSelect().Model(&imports)
+	query := base.GetDB(ctx, r.db).NewSelect().Model(&imports)
 
 	// Apply filters
 	if entityType, ok := filters["entity_type"].(string); ok {

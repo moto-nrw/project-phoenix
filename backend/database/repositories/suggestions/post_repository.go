@@ -6,8 +6,10 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/suggestions"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -28,14 +30,6 @@ func NewPostRepository(db *bun.DB) suggestions.PostRepository {
 	return &PostRepository{db: db}
 }
 
-// conn returns the transaction from context if present, otherwise the base DB.
-func (r *PostRepository) conn(ctx context.Context) bun.IDB {
-	if tx, ok := modelBase.TxFromContext(ctx); ok && tx != nil {
-		return tx
-	}
-	return r.db
-}
-
 // Create inserts a new suggestion post
 func (r *PostRepository) Create(ctx context.Context, post *suggestions.Post) error {
 	if post == nil {
@@ -45,7 +39,7 @@ func (r *PostRepository) Create(ctx context.Context, post *suggestions.Post) err
 		return err
 	}
 
-	_, err := r.db.NewInsert().
+	_, err := base.GetDB(ctx, r.db).NewInsert().
 		Model(post).
 		ModelTableExpr(tablePosts).
 		Returning("*").
@@ -59,11 +53,16 @@ func (r *PostRepository) Create(ctx context.Context, post *suggestions.Post) err
 // FindByID retrieves a post by ID (without vote/author info)
 func (r *PostRepository) FindByID(ctx context.Context, id int64) (*suggestions.Post, error) {
 	post := new(suggestions.Post)
-	err := r.db.NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(post).
 		ModelTableExpr(tablePostsAlias).
-		Where(`"post".id = ?`, id).
-		Scan(ctx)
+		Where(`"post".id = ?`, id)
+
+	if where, val, ok := base.TenantWhere(ctx, "post"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.Scan(ctx)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
@@ -79,13 +78,18 @@ func (r *PostRepository) Update(ctx context.Context, post *suggestions.Post) err
 		return fmt.Errorf("post cannot be nil")
 	}
 
-	_, err := r.db.NewUpdate().
+	query := base.GetDB(ctx, r.db).NewUpdate().
 		Model(post).
 		ModelTableExpr(tablePostsAlias).
 		Column("title", "description", "status", "updated_at").
 		WherePK().
-		Returning("*").
-		Exec(ctx)
+		Returning("*")
+
+	if where, val, ok := base.TenantWhere(ctx, "post"); ok {
+		query = query.Where(where, val)
+	}
+
+	_, err := query.Exec(ctx)
 	if err != nil {
 		return &modelBase.DatabaseError{Op: "update post", Err: err}
 	}
@@ -94,10 +98,15 @@ func (r *PostRepository) Update(ctx context.Context, post *suggestions.Post) err
 
 // Delete removes a post by ID
 func (r *PostRepository) Delete(ctx context.Context, id int64) error {
-	_, err := r.db.NewDelete().
+	query := base.GetDB(ctx, r.db).NewDelete().
 		TableExpr(tablePosts).
-		Where("id = ?", id).
-		Exec(ctx)
+		Where("id = ?", id)
+
+	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
+		query = query.Where("tenant_id = ?", tenantID)
+	}
+
+	_, err := query.Exec(ctx)
 	if err != nil {
 		return &modelBase.DatabaseError{Op: "delete post", Err: err}
 	}
@@ -110,7 +119,7 @@ func (r *PostRepository) Delete(ctx context.Context, id int64) error {
 func (r *PostRepository) List(ctx context.Context, accountID int64, readerType string, sortBy string, status string) ([]*suggestions.Post, error) {
 	var posts []*suggestions.Post
 
-	query := r.db.NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		TableExpr(tablePostsAlias).
 		ColumnExpr(`"post".*`).
 		ColumnExpr(`COALESCE(CONCAT(p.first_name, ' ', LEFT(p.last_name, 1), '.'), 'Unbekannt') AS author_name`).
@@ -130,6 +139,10 @@ func (r *PostRepository) List(ctx context.Context, accountID int64, readerType s
 		ColumnExpr(`v.direction AS user_vote`).
 		Join(`LEFT JOIN users.persons AS p ON p.account_id = "post".author_id`).
 		Join(`LEFT JOIN suggestions.votes AS v ON v.post_id = "post".id AND v.voter_id = ?`, accountID)
+
+	if where, val, ok := base.TenantWhere(ctx, "post"); ok {
+		query = query.Where(where, val)
+	}
 
 	if status != "" {
 		query = query.Where(`"post".status = ?`, status)
@@ -163,7 +176,7 @@ func (r *PostRepository) List(ctx context.Context, accountID int64, readerType s
 func (r *PostRepository) FindByIDWithVote(ctx context.Context, id int64, accountID int64, readerType string) (*suggestions.Post, error) {
 	post := new(suggestions.Post)
 
-	err := r.db.NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		TableExpr(tablePostsAlias).
 		ColumnExpr(`"post".*`).
 		ColumnExpr(`COALESCE(CONCAT(p.first_name, ' ', LEFT(p.last_name, 1), '.'), 'Unbekannt') AS author_name`).
@@ -179,8 +192,13 @@ func (r *PostRepository) FindByIDWithVote(ctx context.Context, id int64, account
 		ColumnExpr(`v.direction AS user_vote`).
 		Join(`LEFT JOIN users.persons AS p ON p.account_id = "post".author_id`).
 		Join(`LEFT JOIN suggestions.votes AS v ON v.post_id = "post".id AND v.voter_id = ?`, accountID).
-		Where(`"post".id = ?`, id).
-		Scan(ctx, post)
+		Where(`"post".id = ?`, id)
+
+	if where, val, ok := base.TenantWhere(ctx, "post"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.Scan(ctx, post)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
@@ -192,14 +210,19 @@ func (r *PostRepository) FindByIDWithVote(ctx context.Context, id int64, account
 
 // RecalculateScore updates the denormalized score on a post.
 func (r *PostRepository) RecalculateScore(ctx context.Context, postID int64) error {
-	_, err := r.conn(ctx).NewUpdate().
+	query := base.GetDB(ctx, r.db).NewUpdate().
 		TableExpr(tablePosts).
 		Set(`score = (
 			SELECT COALESCE(SUM(CASE WHEN direction = 'up' THEN 1 WHEN direction = 'down' THEN -1 ELSE 0 END), 0)
 			FROM suggestions.votes WHERE post_id = ?
 		)`, postID).
-		Where("id = ?", postID).
-		Exec(ctx)
+		Where("id = ?", postID)
+
+	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
+		query = query.Where("tenant_id = ?", tenantID)
+	}
+
+	_, err := query.Exec(ctx)
 	if err != nil {
 		return &modelBase.DatabaseError{Op: "recalculate score", Err: err}
 	}

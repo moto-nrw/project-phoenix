@@ -45,6 +45,7 @@ func setupTestContext(t *testing.T) *testContext {
 		svc.Education,
 		svc.UserContext,
 		repoFactory.Student,
+		db,
 	)
 
 	return &testContext{

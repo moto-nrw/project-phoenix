@@ -26,9 +26,6 @@ type Organization struct {
 }
 
 func (o *Organization) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.SelectQuery); ok {
-		q.ModelTableExpr(`platform.organizations AS "organization"`)
-	}
 	if q, ok := query.(*bun.InsertQuery); ok {
 		q.ModelTableExpr(tablePlatformOrganizations)
 	}

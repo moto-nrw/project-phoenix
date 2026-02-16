@@ -10,6 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/base"
 	importModels "github.com/moto-nrw/project-phoenix/models/import"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -323,28 +324,25 @@ func (c *StudentImportConfig) FindExisting(ctx context.Context, row importModels
 
 // Create creates a new student with all related entities
 func (c *StudentImportConfig) Create(ctx context.Context, row importModels.StudentImportRow) (int64, error) {
-	var studentID int64
+	person, err := c.createPersonFromRow(ctx, row)
+	if err != nil {
+		return 0, err
+	}
 
-	err := c.txHandler.RunInTx(ctx, func(txCtx context.Context, tx bun.Tx) error {
-		person, err := c.createPersonFromRow(txCtx, row)
-		if err != nil {
-			return err
-		}
+	student, err := c.createStudentFromRow(ctx, person.ID, row)
+	if err != nil {
+		return 0, err
+	}
 
-		student, err := c.createStudentFromRow(txCtx, person.ID, row)
-		if err != nil {
-			return err
-		}
-		studentID = student.ID
+	if err := c.createGuardianRelationships(ctx, student.ID, row.Guardians); err != nil {
+		return 0, err
+	}
 
-		if err := c.createGuardianRelationships(txCtx, studentID, row.Guardians); err != nil {
-			return err
-		}
+	if err := c.createPrivacyConsentIfNeeded(ctx, student.ID, row); err != nil {
+		return 0, err
+	}
 
-		return c.createPrivacyConsentIfNeeded(txCtx, studentID, row)
-	})
-
-	return studentID, err
+	return student.ID, nil
 }
 
 // createPersonFromRow creates a person from import row
@@ -356,6 +354,7 @@ func (c *StudentImportConfig) createPersonFromRow(ctx context.Context, row impor
 		Birthday:  birthday,
 		TagID:     nil, // RFID cards not supported in CSV import
 	}
+	person.SetTenantID(tenant.FromContext(ctx))
 
 	if err := c.personRepo.Create(ctx, person); err != nil {
 		return nil, fmt.Errorf("create person: %w", err)
@@ -375,6 +374,7 @@ func (c *StudentImportConfig) createStudentFromRow(ctx context.Context, personID
 		HealthInfo:      stringPtr(row.HealthInfo),
 		PickupStatus:    stringPtr(row.PickupStatus),
 	}
+	student.SetTenantID(tenant.FromContext(ctx))
 
 	if err := c.studentRepo.Create(ctx, student); err != nil {
 		return nil, fmt.Errorf("create student: %w", err)
@@ -408,6 +408,7 @@ func (c *StudentImportConfig) createSingleGuardianRelationship(ctx context.Conte
 		IsEmergencyContact: guardianData.IsEmergencyContact,
 		CanPickup:          guardianData.CanPickup,
 	}
+	relationship.SetTenantID(tenant.FromContext(ctx))
 
 	if err := c.relationRepo.Create(ctx, relationship); err != nil {
 		return fmt.Errorf("create relationship %d: %w", index, err)

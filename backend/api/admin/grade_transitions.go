@@ -1,6 +1,7 @@
 package admin
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"strconv"
@@ -14,6 +15,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	educationService "github.com/moto-nrw/project-phoenix/services/education"
+	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/uptrace/bun"
 )
 
 // Constants for error messages and time formatting
@@ -26,12 +29,14 @@ const (
 // GradeTransitionResource handles grade transition API endpoints
 type GradeTransitionResource struct {
 	service educationService.GradeTransitionService
+	db      *bun.DB
 }
 
 // NewGradeTransitionResource creates a new grade transition resource
-func NewGradeTransitionResource(service educationService.GradeTransitionService) *GradeTransitionResource {
+func NewGradeTransitionResource(service educationService.GradeTransitionService, db *bun.DB) *GradeTransitionResource {
 	return &GradeTransitionResource{
 		service: service,
+		db:      db,
 	}
 }
 
@@ -47,6 +52,7 @@ func (rs *GradeTransitionResource) Router() chi.Router {
 	r.Group(func(r chi.Router) {
 		r.Use(tokenAuth.Verifier())
 		r.Use(jwt.Authenticator)
+		r.Use(jwt.TenantMiddleware)
 
 		// Read operations
 		r.With(authorize.RequiresPermission(permissions.GradeTransitionsRead)).
@@ -254,8 +260,13 @@ func (rs *GradeTransitionResource) create(w http.ResponseWriter, r *http.Request
 		})
 	}
 
-	transition, err := rs.service.Create(r.Context(), createReq)
-	if err != nil {
+	tenantID := tenant.FromContext(r.Context())
+	var transition *education.GradeTransition
+	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		var txErr error
+		transition, txErr = rs.service.Create(ctx, createReq)
+		return txErr
+	}); err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
@@ -313,8 +324,13 @@ func (rs *GradeTransitionResource) update(w http.ResponseWriter, r *http.Request
 		}
 	}
 
-	transition, err := rs.service.Update(r.Context(), id, updateReq)
-	if err != nil {
+	tenantID := tenant.FromContext(r.Context())
+	var transition *education.GradeTransition
+	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		var txErr error
+		transition, txErr = rs.service.Update(ctx, id, updateReq)
+		return txErr
+	}); err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
@@ -330,7 +346,10 @@ func (rs *GradeTransitionResource) delete(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	if err := rs.service.Delete(r.Context(), id); err != nil {
+	tenantID := tenant.FromContext(r.Context())
+	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		return rs.service.Delete(ctx, id)
+	}); err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
@@ -371,8 +390,13 @@ func (rs *GradeTransitionResource) apply(w http.ResponseWriter, r *http.Request)
 	}
 	accountID := int64(claims.ID)
 
-	result, err := rs.service.Apply(r.Context(), id, accountID)
-	if err != nil {
+	tenantID := tenant.FromContext(r.Context())
+	var result interface{}
+	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		var txErr error
+		result, txErr = rs.service.Apply(ctx, id, accountID)
+		return txErr
+	}); err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
@@ -396,8 +420,13 @@ func (rs *GradeTransitionResource) revert(w http.ResponseWriter, r *http.Request
 	}
 	accountID := int64(claims.ID)
 
-	result, err := rs.service.Revert(r.Context(), id, accountID)
-	if err != nil {
+	tenantID := tenant.FromContext(r.Context())
+	var result interface{}
+	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		var txErr error
+		result, txErr = rs.service.Revert(ctx, id, accountID)
+		return txErr
+	}); err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}

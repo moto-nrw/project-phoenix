@@ -34,7 +34,7 @@ func NewRoleRepository(db *bun.DB) auth.RoleRepository {
 // FindByName retrieves a role by its name
 func (r *RoleRepository) FindByName(ctx context.Context, name string) (*auth.Role, error) {
 	role := new(auth.Role)
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(role).
 		ModelTableExpr(roleTableAlias).
 		Where("LOWER(role.name) = LOWER(?)", name).
@@ -53,7 +53,7 @@ func (r *RoleRepository) FindByName(ctx context.Context, name string) (*auth.Rol
 // FindByAccountID retrieves all roles assigned to an account
 func (r *RoleRepository) FindByAccountID(ctx context.Context, accountID int64) ([]*auth.Role, error) {
 	var roles []*auth.Role
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&roles).
 		ModelTableExpr(roleTableAlias).
 		Join("JOIN auth.account_roles ar ON ar.role_id = role.id").
@@ -95,7 +95,7 @@ func (r *RoleRepository) RemoveRoleFromAccount(_ context.Context, _ int64, _ int
 // GetRoleWithPermissions retrieves a role with its associated permissions
 func (r *RoleRepository) GetRoleWithPermissions(ctx context.Context, roleID int64) (*auth.Role, error) {
 	role := new(auth.Role)
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(role).
 		ModelTableExpr(roleTableAlias).
 		Where(whereRoleID, roleID).
@@ -110,7 +110,7 @@ func (r *RoleRepository) GetRoleWithPermissions(ctx context.Context, roleID int6
 
 	// Load permissions for the role
 	var permissions []*auth.Permission
-	err = r.db.NewSelect().
+	err = base.GetDB(ctx, r.db).NewSelect().
 		Model(&permissions).
 		ModelTableExpr("auth.permissions AS permission").
 		Join("JOIN auth.role_permissions rp ON rp.permission_id = permission.id").
@@ -154,23 +154,12 @@ func (r *RoleRepository) Update(ctx context.Context, role *auth.Role) error {
 		return err
 	}
 
-	// Get the query builder - detect if we're in a transaction
-	query := r.db.NewUpdate().
+	// Execute the query using GetDB for transaction support
+	_, err := base.GetDB(ctx, r.db).NewUpdate().
 		Model(role).
 		Where(whereRoleID, role.ID).
-		ModelTableExpr(roleTableAlias)
-
-	// Extract transaction from context if it exists
-	if tx, ok := ctx.Value("tx").(*bun.Tx); ok && tx != nil {
-		// Use the transaction if available
-		query = tx.NewUpdate().
-			Model(role).
-			Where(whereRoleID, role.ID).
-			ModelTableExpr(roleTableAlias)
-	}
-
-	// Execute the query
-	_, err := query.Exec(ctx)
+		ModelTableExpr(roleTableAlias).
+		Exec(ctx)
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "update",
@@ -184,7 +173,7 @@ func (r *RoleRepository) Update(ctx context.Context, role *auth.Role) error {
 // List retrieves roles matching the provided filters
 func (r *RoleRepository) List(ctx context.Context, filters map[string]interface{}) ([]*auth.Role, error) {
 	var roles []*auth.Role
-	query := r.db.NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&roles).
 		ModelTableExpr(roleTableAlias)
 

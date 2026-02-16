@@ -70,7 +70,7 @@ var tablesWithNotNullTenantID = []string{
 	"activities.categories",
 	"activities.groups",
 	"activities.schedules",
-	"activities.supervisors_planned",
+	"activities.supervisors",
 	"activities.student_enrollments",
 
 	// active (10 tables)

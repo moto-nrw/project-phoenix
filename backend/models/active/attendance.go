@@ -9,7 +9,8 @@ import (
 
 // Attendance represents attendance tracking for RFID check-ins/outs
 type Attendance struct {
-	base.Model   `bun:"schema:active,table:attendance"`
+	base.Model `bun:"schema:active,table:attendance"`
+	base.TenantModel
 	StudentID    int64      `bun:"student_id,notnull" json:"student_id"`
 	Date         time.Time  `bun:"date,notnull" json:"date"`
 	CheckInTime  time.Time  `bun:"check_in_time,notnull" json:"check_in_time"`

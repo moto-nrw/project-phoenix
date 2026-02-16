@@ -105,8 +105,6 @@ type GuardianWithRelationship struct {
 
 // GuardianService defines operations for managing guardians
 type GuardianService interface {
-	base.TransactionalService
-
 	// CreateGuardian creates a new guardian profile (without account)
 	CreateGuardian(ctx context.Context, req GuardianCreateRequest) (*users.GuardianProfile, error)
 

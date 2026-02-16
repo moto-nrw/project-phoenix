@@ -16,6 +16,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/xuri/excelize/v2"
 )
 
@@ -138,6 +139,7 @@ func (s *workSessionService) CheckIn(ctx context.Context, staffID int64, status 
 		return nil, fmt.Errorf(errInvalidSessionData, err)
 	}
 
+	session.SetTenantID(tenant.FromContext(ctx))
 	if err := s.repo.Create(ctx, session); err != nil {
 		return nil, fmt.Errorf("failed to create work session: %w", err)
 	}
@@ -289,6 +291,7 @@ func (s *workSessionService) StartBreak(ctx context.Context, staffID int64, plan
 	brk.CreatedAt = now
 	brk.UpdatedAt = now
 
+	brk.SetTenantID(tenant.FromContext(ctx))
 	if err := s.breakRepo.Create(ctx, brk); err != nil {
 		return nil, fmt.Errorf("failed to create break: %w", err)
 	}
@@ -443,6 +446,9 @@ func (s *workSessionService) UpdateSession(ctx context.Context, staffID int64, s
 	}
 
 	if len(uc.auditEdits) > 0 {
+		for _, edit := range uc.auditEdits {
+			edit.SetTenantID(tenant.FromContext(ctx))
+		}
 		if err := s.auditRepo.CreateBatch(ctx, uc.auditEdits); err != nil {
 			return nil, fmt.Errorf("failed to create audit entries: %w", err)
 		}

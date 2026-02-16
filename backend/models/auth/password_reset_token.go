@@ -32,9 +32,6 @@ func (t *PasswordResetToken) TableName() string {
 }
 
 func (t *PasswordResetToken) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.SelectQuery); ok {
-		q.ModelTableExpr(tableAuthPasswordResetTokens)
-	}
 	if q, ok := query.(*bun.UpdateQuery); ok {
 		q.ModelTableExpr(tableAuthPasswordResetTokens)
 	}

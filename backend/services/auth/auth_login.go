@@ -13,6 +13,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/userpass"
 	"github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/models/auth"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -29,14 +30,16 @@ func (s *Service) LoginWithAudit(ctx context.Context, email, password, ipAddress
 		return "", "", err
 	}
 
-	// Create refresh token with transaction retry logic
-	token, err := s.createRefreshTokenWithRetry(ctx, account)
+	// Load account metadata first (includes tenant resolution from DB)
+	// so the refresh token gets the correct tenant_id on creation.
+	// Login is a public route — tenant.FromContext(ctx) would return 0.
+	metadata := s.loadAccountMetadata(ctx, account)
+
+	// Create refresh token with resolved tenant ID
+	token, err := s.createRefreshTokenWithRetry(ctx, account, metadata.tenantID)
 	if err != nil {
 		return "", "", err
 	}
-
-	// Load account metadata (roles, permissions, person info)
-	metadata := s.loadAccountMetadata(ctx, account)
 
 	// Build JWT claims from account and metadata
 	appClaims, refreshClaims := s.buildJWTClaims(account, token, metadata, email)
@@ -83,12 +86,12 @@ func (s *Service) verifyPassword(account *auth.Account, password string) error {
 }
 
 // createRefreshTokenWithRetry creates a refresh token with retry logic for concurrent logins
-func (s *Service) createRefreshTokenWithRetry(ctx context.Context, account *auth.Account) (*auth.Token, error) {
+func (s *Service) createRefreshTokenWithRetry(ctx context.Context, account *auth.Account, tenantID int64) (*auth.Token, error) {
 	token := s.newRefreshToken(account.ID)
 
 	maxRetries := 3
 	for attempt := 0; attempt < maxRetries; attempt++ {
-		err := s.persistTokenInTransaction(ctx, account, token)
+		err := s.persistTokenInTransaction(ctx, account, token, tenantID)
 
 		if err == nil {
 			return token, nil
@@ -124,7 +127,11 @@ func (s *Service) newRefreshToken(accountID int64) *auth.Token {
 }
 
 // persistTokenInTransaction saves the token and updates last login in a transaction
-func (s *Service) persistTokenInTransaction(ctx context.Context, account *auth.Account, token *auth.Token) error {
+//
+// Phase 3 deviation: RunInTx retained because this is a public login route (no JWT/tenant context).
+// Handler-level WithTenantTx requires authenticated tenant context, which doesn't exist
+// at login time. Tenant is resolved from DB during the transaction.
+func (s *Service) persistTokenInTransaction(ctx context.Context, account *auth.Account, token *auth.Token, tenantID int64) error {
 	return s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
 		txService := s.WithTx(tx).(*Service)
 
@@ -136,6 +143,9 @@ func (s *Service) persistTokenInTransaction(ctx context.Context, account *auth.A
 				slog.Any("error", err),
 			)
 		}
+
+		// Set tenant ID from DB resolution (not from context — login is a public route)
+		token.SetTenantID(tenantID)
 
 		// Create new token
 		if err := txService.repos.Token.Create(ctx, token); err != nil {
@@ -165,10 +175,12 @@ type accountMetadata struct {
 	firstName      string
 	lastName       string
 	isAdmin        bool
+	tenantID       int64
+	orgID          int64
 }
 
-// loadAccountMetadata loads roles, permissions, and person information
-// Returns partial data with logged warnings if any lookups fail
+// loadAccountMetadata loads roles, permissions, person information, and tenant mapping.
+// Returns partial data with logged warnings if any lookups fail.
 func (s *Service) loadAccountMetadata(ctx context.Context, account *auth.Account) *accountMetadata {
 	s.ensureAccountRolesLoaded(ctx, account)
 
@@ -179,6 +191,7 @@ func (s *Service) loadAccountMetadata(ctx context.Context, account *auth.Account
 	username := s.extractUsername(account)
 	firstName, lastName := s.loadPersonNames(ctx, account.ID)
 	isAdmin := s.checkRoleFlags(roleNames)
+	tenantID, orgID := s.resolveAccountTenant(ctx, account.ID)
 
 	return &accountMetadata{
 		roleNames:      roleNames,
@@ -187,6 +200,8 @@ func (s *Service) loadAccountMetadata(ctx context.Context, account *auth.Account
 		firstName:      firstName,
 		lastName:       lastName,
 		isAdmin:        isAdmin,
+		tenantID:       tenantID,
+		orgID:          orgID,
 	}
 }
 
@@ -288,6 +303,37 @@ func (s *Service) checkRoleFlags(roleNames []string) bool {
 	return false
 }
 
+// resolveAccountTenant resolves the tenant ID and organization ID for an account.
+// In Phase 3, each account has exactly one active tenant (single-school scenario).
+// Returns (0, 0) if no mapping is found (non-fatal, metadata stays partial).
+func (s *Service) resolveAccountTenant(ctx context.Context, accountID int64) (int64, int64) {
+	tenants, err := s.repos.AccountTenant.FindActiveByAccountID(ctx, accountID)
+	if err != nil || len(tenants) == 0 {
+		if err != nil {
+			s.getLogger().Warn("failed to resolve account tenant",
+				slog.Int64("account_id", accountID),
+				slog.Any("error", err),
+			)
+		}
+		return 0, 0
+	}
+
+	// Phase 3: take the first active tenant mapping
+	tenantID := tenants[0].TenantID
+
+	// Look up the school to get the organization ID
+	school, err := s.repos.School.FindByID(ctx, tenantID)
+	if err != nil {
+		s.getLogger().Warn("failed to resolve school for tenant",
+			slog.Int64("tenant_id", tenantID),
+			slog.Any("error", err),
+		)
+		return tenantID, 0
+	}
+
+	return tenantID, school.OrganizationID
+}
+
 // buildJWTClaims constructs JWT claims from account and metadata
 func (s *Service) buildJWTClaims(
 	account *auth.Account,
@@ -304,11 +350,14 @@ func (s *Service) buildJWTClaims(
 		Roles:       metadata.roleNames,
 		Permissions: metadata.permissionStrs,
 		IsAdmin:     metadata.isAdmin,
+		TenantID:    metadata.tenantID,
+		OrgID:       metadata.orgID,
 	}
 
 	refreshClaims := jwt.RefreshClaims{
-		ID:    int(token.ID),
-		Token: token.Token,
+		ID:       int(account.ID),
+		Token:    token.Token,
+		TenantID: metadata.tenantID,
 	}
 
 	return appClaims, refreshClaims
@@ -407,6 +456,10 @@ func (s *Service) createAccountObject(email, username, password string) (*auth.A
 }
 
 // persistAccountWithRole saves account and assigns role in a transaction
+//
+// Phase 3 deviation: RunInTx retained because this is a public registration route (no JWT/tenant context).
+// Handler-level WithTenantTx requires authenticated tenant context, which doesn't exist
+// at registration time. Tenant is resolved from DB during the transaction.
 func (s *Service) persistAccountWithRole(ctx context.Context, account *auth.Account, roleID *int64) error {
 	return s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
 		txService := s.WithTx(tx).(*Service)
@@ -433,11 +486,25 @@ func (s *Service) assignRoleToNewAccount(ctx context.Context, txService *Service
 		return nil
 	}
 
+	// Require tenant context for role assignment. BUN always writes
+	// TenantModel.TenantID (even when 0), so the DB DEFAULT won't apply.
+	// Public routes (Register) have no tenant — skip role creation and
+	// defer it to when the account is mapped to a tenant.
+	tid := tenant.FromContext(ctx)
+	if tid == 0 {
+		s.getLogger().Warn("skipping role assignment — no tenant context",
+			slog.Int64("account_id", accountID),
+			slog.Int64("role_id", targetRoleID),
+		)
+		return nil
+	}
+
 	// Create account role mapping
 	accountRole := &auth.AccountRole{
 		AccountID: accountID,
 		RoleID:    targetRoleID,
 	}
+	accountRole.SetTenantID(tid)
 
 	if err := txService.repos.AccountRole.Create(ctx, accountRole); err != nil {
 		s.getLogger().Error("failed to create account role", "error", err)
@@ -523,7 +590,11 @@ func (s *Service) parseRefreshTokenClaims(refreshTokenStr string) (*jwt.RefreshC
 }
 
 // refreshTokenInTransaction validates and refreshes token in a transaction
-func (s *Service) refreshTokenInTransaction(ctx context.Context, refreshClaims *jwt.RefreshClaims, ipAddress, userAgent string) (*auth.Account, *auth.Token, error) {
+//
+// Phase 3 deviation: RunInTx retained because token refresh is a pre-authentication flow.
+// Handler-level WithTenantTx requires authenticated tenant context, which doesn't exist
+// until the refresh completes. Tenant is resolved from the existing token during the transaction.
+func (s *Service) refreshTokenInTransaction(ctx context.Context, refreshClaims *jwt.RefreshClaims, ipAddress, userAgent string, tenantID int64) (*auth.Account, *auth.Token, error) {
 	var dbToken *auth.Token
 	var account *auth.Account
 	var newToken *auth.Token
@@ -548,8 +619,15 @@ func (s *Service) refreshTokenInTransaction(ctx context.Context, refreshClaims *
 			return err
 		}
 
-		// Create and persist new token
-		newToken, err = s.createAndPersistNewToken(ctx, dbToken, account.ID)
+		// Backward compat: pre-migration tokens have tenantID=0 in their claims.
+		// Resolve from account_tenants so the rotated token gets the correct value.
+		effectiveTenantID := tenantID
+		if effectiveTenantID == 0 {
+			effectiveTenantID, _ = s.resolveAccountTenant(ctx, account.ID)
+		}
+
+		// Create and persist new token with resolved tenant
+		newToken, err = s.createAndPersistNewToken(ctx, dbToken, account.ID, effectiveTenantID)
 		if err != nil {
 			return err
 		}
@@ -624,7 +702,7 @@ func (s *Service) fetchAndValidateAccount(ctx context.Context, accountID int64, 
 }
 
 // createAndPersistNewToken creates new token and deletes old one
-func (s *Service) createAndPersistNewToken(ctx context.Context, oldToken *auth.Token, accountID int64) (*auth.Token, error) {
+func (s *Service) createAndPersistNewToken(ctx context.Context, oldToken *auth.Token, accountID int64, tenantID int64) (*auth.Token, error) {
 	newToken := &auth.Token{
 		Token:      uuid.Must(uuid.NewV4()).String(),
 		AccountID:  accountID,
@@ -638,6 +716,9 @@ func (s *Service) createAndPersistNewToken(ctx context.Context, oldToken *auth.T
 	if err := s.repos.Token.Delete(ctx, oldToken.ID); err != nil {
 		return nil, err
 	}
+
+	// Set tenant ID from refresh claims (not from context — refresh is a public route)
+	newToken.SetTenantID(tenantID)
 
 	if err := s.repos.Token.Create(ctx, newToken); err != nil {
 		return nil, err
@@ -683,8 +764,15 @@ func (s *Service) doRefreshTokenWithAudit(ctx context.Context, refreshTokenStr, 
 		return nil, err
 	}
 
-	// Validate and refresh token in transaction
-	account, newToken, err := s.refreshTokenInTransaction(ctx, refreshClaims, ipAddress, userAgent)
+	// Re-validate tenant access if tenant_id was in the refresh token
+	if refreshClaims.TenantID > 0 {
+		if err := s.validateTenantAccess(ctx, refreshClaims); err != nil {
+			return nil, err
+		}
+	}
+
+	// Validate and refresh token in transaction (pass tenant from old JWT for the new token)
+	account, newToken, err := s.refreshTokenInTransaction(ctx, refreshClaims, ipAddress, userAgent, refreshClaims.TenantID)
 	if err != nil {
 		return nil, err
 	}
@@ -701,6 +789,27 @@ func (s *Service) doRefreshTokenWithAudit(ctx context.Context, refreshTokenStr, 
 		return nil, err
 	}
 	return &refreshResult{accessToken: accessToken, refreshToken: refreshToken}, nil
+}
+
+// validateTenantAccess ensures the account still has active access to the tenant from the refresh token.
+func (s *Service) validateTenantAccess(ctx context.Context, claims *jwt.RefreshClaims) error {
+	exists, err := s.repos.AccountTenant.ExistsByAccountAndTenant(ctx, int64(claims.ID), claims.TenantID)
+	if err != nil {
+		s.getLogger().Warn("failed to validate tenant access during refresh",
+			slog.Int("account_id", claims.ID),
+			slog.Int64("tenant_id", claims.TenantID),
+			slog.Any("error", err),
+		)
+		return &AuthError{Op: "validate tenant access", Err: ErrAccountInactive}
+	}
+	if !exists {
+		s.getLogger().Warn("tenant access revoked, rejecting refresh",
+			slog.Int("account_id", claims.ID),
+			slog.Int64("tenant_id", claims.TenantID),
+		)
+		return &AuthError{Op: "validate tenant access", Err: fmt.Errorf("tenant access revoked")}
+	}
+	return nil
 }
 
 // Logout invalidates a refresh token

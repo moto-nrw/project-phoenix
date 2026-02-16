@@ -46,7 +46,7 @@ func (r *AnnouncementRepository) Create(ctx context.Context, announcement *platf
 // FindByID retrieves an announcement by ID
 func (r *AnnouncementRepository) FindByID(ctx context.Context, id int64) (*platform.Announcement, error) {
 	announcement := new(platform.Announcement)
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		TableExpr(tablePlatformAnnouncements).
 		ColumnExpr("*").
 		Where("id = ?", id).
@@ -86,7 +86,7 @@ func (r *AnnouncementRepository) Delete(ctx context.Context, id int64) error {
 // List retrieves announcements, optionally including inactive ones
 func (r *AnnouncementRepository) List(ctx context.Context, includeInactive bool) ([]*platform.Announcement, error) {
 	var announcements []*platform.Announcement
-	query := r.db.NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		TableExpr(tablePlatformAnnouncements).
 		ColumnExpr("*")
 
@@ -113,7 +113,7 @@ func (r *AnnouncementRepository) ListPublished(ctx context.Context) ([]*platform
 	var announcements []*platform.Announcement
 	now := time.Now()
 
-	err := r.db.NewSelect().
+	err := base.GetDB(ctx, r.db).NewSelect().
 		TableExpr(tablePlatformAnnouncements).
 		ColumnExpr("*").
 		Where("active = true").
@@ -140,7 +140,7 @@ func (r *AnnouncementRepository) ListPublished(ctx context.Context) ([]*platform
 // Publish sets the published_at timestamp to now
 func (r *AnnouncementRepository) Publish(ctx context.Context, id int64) error {
 	now := time.Now()
-	_, err := r.db.NewUpdate().
+	_, err := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*platform.Announcement)(nil)).
 		ModelTableExpr(tablePlatformAnnouncements).
 		Set("published_at = ?", now).
@@ -159,7 +159,7 @@ func (r *AnnouncementRepository) Publish(ctx context.Context, id int64) error {
 
 // Unpublish clears the published_at timestamp
 func (r *AnnouncementRepository) Unpublish(ctx context.Context, id int64) error {
-	_, err := r.db.NewUpdate().
+	_, err := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*platform.Announcement)(nil)).
 		ModelTableExpr(tablePlatformAnnouncements).
 		Set("published_at = NULL").

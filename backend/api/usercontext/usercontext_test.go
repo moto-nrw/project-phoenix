@@ -45,6 +45,7 @@ func setupTestContext(t *testing.T) *testContext {
 	resource := usercontextAPI.NewResource(
 		serviceFactory.UserContext,
 		repoFactory.GroupSubstitution,
+		db,
 	)
 
 	return &testContext{
