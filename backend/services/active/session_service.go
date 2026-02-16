@@ -6,6 +6,8 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/uptrace/bun"
+
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
@@ -162,38 +164,37 @@ func (s *service) StartActivitySessionWithSupervisors(ctx context.Context, activ
 }
 
 // executeSessionStart handles common session start logic: conflict checking, device validation, and room determination
-// Uses PostgreSQL advisory locks to prevent race conditions when multiple requests try to start the same activity concurrently
+// Uses PostgreSQL advisory locks to prevent race conditions when multiple requests try to start the same activity concurrently.
+// Wraps all operations in a transaction (via TxHandler.RunInTx) so the advisory lock is always available.
+// If a transaction already exists in context (e.g. from handler-level WithTenantTx), it is reused.
 func (s *service) executeSessionStart(ctx context.Context, activityID, deviceID int64, roomID *int64, operation string, createSession func(context.Context, int64) (*active.Group, error)) error {
-	// Acquire advisory lock on activity ID to serialize concurrent session starts
-	// This prevents race conditions where two requests both pass conflict check before either creates a session
-	// The lock is automatically released when the transaction commits or rolls back
-	if tx, ok := modelBase.TxFromContext(ctx); ok {
-		if _, err := (*tx).ExecContext(ctx, "SELECT pg_advisory_xact_lock(?)", activityID); err != nil {
+	txHandler := modelBase.NewTxHandler(s.db)
+
+	return txHandler.RunInTx(ctx, func(txCtx context.Context, tx bun.Tx) error {
+		// Acquire advisory lock on activity ID to serialize concurrent session starts
+		// This prevents race conditions where two requests both pass conflict check before either creates a session
+		// The lock is automatically released when the transaction commits or rolls back
+		if _, err := tx.ExecContext(txCtx, "SELECT pg_advisory_xact_lock(?)", activityID); err != nil {
 			return &ActiveError{Op: operation, Err: fmt.Errorf("failed to acquire activity lock: %w", err)}
 		}
-	} else {
-		s.logger.Warn("advisory lock skipped: no transaction in context",
-			"activity_id", activityID,
-			"operation", operation,
-		)
-	}
 
-	// Check for conflicts inside the transaction with the lock held
-	conflictInfo, err := s.CheckActivityConflict(ctx, activityID, deviceID)
-	if err != nil {
-		return &ActiveError{Op: operation, Err: err}
-	}
-	if conflictInfo.HasConflict {
-		return &ActiveError{Op: operation, Err: ErrSessionConflict}
-	}
+		// Check for conflicts inside the transaction with the lock held
+		conflictInfo, err := s.CheckActivityConflict(txCtx, activityID, deviceID)
+		if err != nil {
+			return &ActiveError{Op: operation, Err: err}
+		}
+		if conflictInfo.HasConflict {
+			return &ActiveError{Op: operation, Err: ErrSessionConflict}
+		}
 
-	finalRoomID, err := s.determineSessionRoomID(ctx, activityID, roomID)
-	if err != nil {
+		finalRoomID, err := s.determineSessionRoomID(txCtx, activityID, roomID)
+		if err != nil {
+			return err
+		}
+
+		_, err = createSession(txCtx, finalRoomID)
 		return err
-	}
-
-	_, err = createSession(ctx, finalRoomID)
-	return err
+	})
 }
 
 // createSessionWithMultipleSupervisors creates a new session with multiple supervisors and transfers visits
