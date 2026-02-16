@@ -55,7 +55,7 @@
     "eslint": "^9.39.2",
     "eslint-config-next": "^16.0.0",
     "happy-dom": "^20.5.5",
-    "jsdom": "^27.4.0",
+    "jsdom": "^28.1.0",
     "knip": "^5.83.1",
     "lint-staged": "^16.2.7",
     "postcss": "^8.5.3",
