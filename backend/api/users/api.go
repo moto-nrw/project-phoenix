@@ -9,6 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -39,6 +40,7 @@ func (rs *Resource) Router() chi.Router {
 		r.Use(tokenAuth.Verifier())
 		r.Use(jwt.Authenticator)
 		r.Use(jwt.TenantMiddleware)
+		r.Use(tenant.TenantTxMiddleware(rs.db))
 
 		// Read operations only require users:read permission
 		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/", rs.listPersons)

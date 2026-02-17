@@ -54,6 +54,12 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
+  // Already has tenant prefix — useTenantRouter().push() adds the slug explicitly,
+  // so skip rewriting to avoid double-prefixing (e.g. /school-a/school-a/dashboard).
+  if (pathname.startsWith(`/${tenantSlug}/`) || pathname === `/${tenantSlug}`) {
+    return NextResponse.next();
+  }
+
   // Rewrite: school-a.localhost:3000/dashboard -> internal /school-a/dashboard
   // This lets the [tenant] dynamic segment in the App Router capture the slug.
   const url = request.nextUrl.clone();

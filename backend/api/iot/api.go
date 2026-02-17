@@ -23,6 +23,7 @@ import (
 	feedbackSvc "github.com/moto-nrw/project-phoenix/services/feedback"
 	iotSvc "github.com/moto-nrw/project-phoenix/services/iot"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -105,6 +106,7 @@ func (rs *Resource) Router() chi.Router {
 		r.Use(tokenAuth.Verifier())
 		r.Use(jwt.Authenticator)
 		r.Use(jwt.TenantMiddleware)
+		r.Use(tenant.TenantTxMiddleware(rs.db))
 
 		// Mount devices sub-router (handles device CRUD and admin operations)
 		// All device routes require JWT authentication with IOT permissions

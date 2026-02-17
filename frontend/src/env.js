@@ -17,6 +17,7 @@ export const env = createEnv({
       .default("development"),
     NEXTAUTH_URL: z.url().optional().default("http://localhost:3000"),
     NEXTAUTH_SECRET: z.string().optional(),
+    TENANT_DOMAIN: z.string().default("localhost"),
   },
 
   /**
@@ -29,6 +30,7 @@ export const env = createEnv({
     NEXT_PUBLIC_LOG_LEVEL: z
       .enum(["debug", "info", "warn", "error"])
       .default("info"),
+    NEXT_PUBLIC_TENANT_DOMAIN: z.string().default("localhost"),
   },
 
   /**
@@ -43,8 +45,10 @@ export const env = createEnv({
     NODE_ENV: process.env.NODE_ENV,
     NEXTAUTH_URL: process.env.NEXTAUTH_URL,
     NEXTAUTH_SECRET: process.env.NEXTAUTH_SECRET,
+    TENANT_DOMAIN: process.env.TENANT_DOMAIN,
     NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL,
     NEXT_PUBLIC_LOG_LEVEL: process.env.NEXT_PUBLIC_LOG_LEVEL,
+    NEXT_PUBLIC_TENANT_DOMAIN: process.env.NEXT_PUBLIC_TENANT_DOMAIN,
   },
   /**
    * Run `build` or `dev` with `SKIP_ENV_VALIDATION` to skip env validation. This is especially

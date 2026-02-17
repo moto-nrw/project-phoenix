@@ -55,6 +55,7 @@ func (rs *Resource) Router() chi.Router {
 		r.Use(tokenAuth.Verifier())
 		r.Use(jwt.Authenticator)
 		r.Use(jwt.TenantMiddleware)
+		r.Use(tenant.TenantTxMiddleware(rs.db))
 
 		// All time-tracking endpoints require TimeTrackingOwn permission
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn)).Post("/check-in", rs.checkIn)

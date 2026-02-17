@@ -61,6 +61,7 @@ func (rs *Resource) Router() chi.Router {
 		r.Use(jwtauth.Verifier(tokenAuth.JwtAuth))
 		r.Use(jwt.Authenticator)
 		r.Use(jwt.TenantMiddleware)
+		r.Use(tenant.TenantTxMiddleware(rs.db))
 
 		// Student import endpoints
 		r.Route("/students", func(r chi.Router) {
