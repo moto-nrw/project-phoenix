@@ -561,6 +561,9 @@ export const authConfig = {
     },
   },
   pages: {
+    // "/" works correctly with subdomain routing: on session expiry NextAuth
+    // redirects to school-a.localhost:3000/, the subdomain middleware rewrites
+    // to /school-a/ which resolves to the tenant login page.
     signIn: "/",
   },
   cookies: {

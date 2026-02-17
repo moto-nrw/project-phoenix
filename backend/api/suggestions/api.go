@@ -45,6 +45,7 @@ func (rs *Resource) Router() chi.Router {
 		r.Use(tokenAuth.Verifier())
 		r.Use(jwt.Authenticator)
 		r.Use(jwt.TenantMiddleware)
+		r.Use(tenant.TenantTxMiddleware(rs.db))
 
 		// List and read
 		r.With(authorize.RequiresPermission(permissions.SuggestionsList)).Get("/", rs.listPosts)

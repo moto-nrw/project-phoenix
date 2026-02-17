@@ -65,6 +65,7 @@ func (rs *Resource) Router() chi.Router {
 		r.Use(tokenAuth.Verifier())
 		r.Use(jwt.Authenticator)
 		r.Use(jwt.TenantMiddleware)
+		r.Use(tenant.TenantTxMiddleware(rs.db))
 
 		// Basic Activity Group operations (Read) - All authenticated users can read
 		r.Get("/", rs.listActivities)
