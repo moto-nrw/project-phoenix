@@ -28,15 +28,23 @@ function extractTenantSlug(host: string): string | null {
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Skip paths that must not be rewritten:
+  // Skip paths that must not be rewritten for tenant routing:
   // - /api/* : Next.js API route handlers (tenant comes from JWT, not URL)
-  // - /operator/* : Operator dashboard (no tenant prefix)
   // - /_next/* : Next.js internals
-  if (
-    pathname.startsWith("/api") ||
-    pathname.startsWith("/operator") ||
-    pathname.startsWith("/_next")
-  ) {
+  if (pathname.startsWith("/api") || pathname.startsWith("/_next")) {
+    return NextResponse.next();
+  }
+
+  // Operator dashboard auth guard (merged from proxy.ts — Next.js 16 forbids
+  // having both middleware.ts and proxy.ts). Protect all /operator/* routes
+  // except /operator/login by requiring the operator session cookie.
+  if (pathname.startsWith("/operator")) {
+    if (
+      !pathname.startsWith("/operator/login") &&
+      !request.cookies.get("phoenix-operator-token")?.value
+    ) {
+      return NextResponse.redirect(new URL("/operator/login", request.url));
+    }
     return NextResponse.next();
   }
 
