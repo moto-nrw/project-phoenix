@@ -149,7 +149,6 @@ func (s *Seeder) seedSchoolBData(ctx context.Context) error {
 	}
 
 	var staffPersonIDs []int64
-	var staffAccountIDs []int64
 	for _, sd := range staffData {
 		var personID int64
 		err := s.tx.NewRaw(`
@@ -173,8 +172,6 @@ func (s *Seeder) seedSchoolBData(ctx context.Context) error {
 		if err != nil {
 			return fmt.Errorf("failed to create school-b account %s: %w", sd.email, err)
 		}
-		staffAccountIDs = append(staffAccountIDs, accountID)
-
 		// Link person to account
 		_, err = s.tx.NewRaw(`
 			UPDATE users.persons SET account_id = ? WHERE id = ?
@@ -207,22 +204,18 @@ func (s *Seeder) seedSchoolBData(ctx context.Context) error {
 	}
 
 	// --- Staff records ---
-	var staffIDs []int64
 	for i, personID := range staffPersonIDs {
-		var staffID int64
 		notes := "Betreuungskraft OGS"
 		if i == 0 {
 			notes = "Klassenleitung"
 		}
-		err := s.tx.NewRaw(`
+		_, err := s.tx.NewRaw(`
 			INSERT INTO users.staff (person_id, staff_notes, tenant_id, created_at, updated_at)
 			VALUES (?, ?, ?, ?, ?)
-			RETURNING id
-		`, personID, notes, tenantID, now, now).Scan(ctx, &staffID)
+		`, personID, notes, tenantID, now, now).Exec(ctx)
 		if err != nil {
 			return fmt.Errorf("failed to create school-b staff: %w", err)
 		}
-		staffIDs = append(staffIDs, staffID)
 	}
 
 	// --- Education group (one class) ---

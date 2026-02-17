@@ -149,8 +149,6 @@ var compositeFKSpecs = []compositeFKSpec{
 		newFKName: "fk_activity_groups_room_tenant", onDelete: "SET NULL"},
 	{sourceTable: "active.groups", sourceColumn: "room_id", targetTable: "facilities.rooms",
 		newFKName: "fk_active_groups_room_tenant", onDelete: "RESTRICT"},
-	{sourceTable: "active.visits", sourceColumn: "room_id", targetTable: "facilities.rooms",
-		newFKName: "fk_visits_room_tenant", onDelete: "CASCADE"},
 
 	// ─── FKs TO activities.categories ───
 	{sourceTable: "activities.groups", sourceColumn: "category_id", targetTable: "activities.categories",
