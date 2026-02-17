@@ -82,6 +82,9 @@ services:
       NEXT_TELEMETRY_DISABLED: ${NEXT_TELEMETRY_DISABLED:-"1"}
       # Frontend structured logging level (debug, info, warn, error)
       NEXT_PUBLIC_LOG_LEVEL: ${NEXT_PUBLIC_LOG_LEVEL:-info}
+      # Multi-tenancy: base domain for subdomain routing
+      TENANT_DOMAIN: ${TENANT_DOMAIN:-localhost}
+      NEXT_PUBLIC_TENANT_DOMAIN: ${NEXT_PUBLIC_TENANT_DOMAIN:-localhost}
     depends_on:
       - server
     volumes:

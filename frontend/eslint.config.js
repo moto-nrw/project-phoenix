@@ -39,6 +39,21 @@ const eslintConfig = [
         { argsIgnorePattern: "^_" },
       ],
       "@typescript-eslint/require-await": "off",
+      // Multi-tenancy: prefer useTenantRouter() over raw useRouter() in tenant-scoped code.
+      // Operator pages may disable this inline where useRouter is correct.
+      "no-restricted-imports": [
+        "warn",
+        {
+          paths: [
+            {
+              name: "next/navigation",
+              importNames: ["useRouter"],
+              message:
+                "Use useTenantRouter() from ~/lib/tenant-router instead. Raw useRouter() does not prefix routes with the tenant slug.",
+            },
+          ],
+        },
+      ],
       "@typescript-eslint/no-misused-promises": [
         "error",
         { checksVoidReturn: { attributes: false } },

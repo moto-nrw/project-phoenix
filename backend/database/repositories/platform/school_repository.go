@@ -48,6 +48,20 @@ func (r *SchoolRepository) FindBySlug(ctx context.Context, slug string) (*platfo
 	return school, nil
 }
 
+// FindBySubdomain returns a school by its subdomain.
+func (r *SchoolRepository) FindBySubdomain(ctx context.Context, subdomain string) (*platform.School, error) {
+	school := new(platform.School)
+	err := base.GetDB(ctx, r.db).NewSelect().
+		Model(school).
+		ModelTableExpr(schoolTableAlias).
+		Where(`"school".subdomain = ?`, subdomain).
+		Scan(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return school, nil
+}
+
 // ListActive returns all active schools.
 func (r *SchoolRepository) ListActive(ctx context.Context) ([]platform.School, error) {
 	var schools []platform.School

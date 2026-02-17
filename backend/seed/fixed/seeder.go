@@ -26,6 +26,11 @@ func NewSeeder(tx bun.Tx, verbose bool) *Seeder {
 
 // SeedAll creates all fixed data in the correct order
 func (s *Seeder) SeedAll(ctx context.Context) (*Result, error) {
+	// 0. Platform: organization + schools (must exist before any tenant-scoped data)
+	if err := s.seedPlatform(ctx); err != nil {
+		return nil, fmt.Errorf("failed to seed platform: %w", err)
+	}
+
 	// 1. Facilities (no dependencies)
 	if err := s.seedRooms(ctx); err != nil {
 		return nil, fmt.Errorf("failed to seed rooms: %w", err)
@@ -129,6 +134,16 @@ func (s *Seeder) SeedAll(ctx context.Context) (*Result, error) {
 	// 18. Suggestion posts with votes
 	if err := s.seedSuggestions(ctx); err != nil {
 		return nil, fmt.Errorf("failed to seed suggestions: %w", err)
+	}
+
+	// 19. Account-tenant mappings (depends on all accounts being created)
+	if err := s.seedAccountTenants(ctx); err != nil {
+		return nil, fmt.Errorf("failed to seed account-tenant mappings: %w", err)
+	}
+
+	// 20. School-B minimal data (second tenant for isolation testing)
+	if err := s.seedSchoolBData(ctx); err != nil {
+		return nil, fmt.Errorf("failed to seed school-b data: %w", err)
 	}
 
 	if s.verbose {

@@ -20,6 +20,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	authModel "github.com/moto-nrw/project-phoenix/models/auth"
+	"github.com/moto-nrw/project-phoenix/models/platform"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 )
 
@@ -40,13 +41,15 @@ const (
 type Resource struct {
 	AuthService       authService.AuthService
 	InvitationService authService.InvitationService
+	SchoolRepo        platform.SchoolRepository
 }
 
 // NewResource creates a new auth resource
-func NewResource(authService authService.AuthService, invitationService authService.InvitationService) *Resource {
+func NewResource(authService authService.AuthService, invitationService authService.InvitationService, schoolRepo platform.SchoolRepository) *Resource {
 	return &Resource{
 		AuthService:       authService,
 		InvitationService: invitationService,
+		SchoolRepo:        schoolRepo,
 	}
 }
 
@@ -65,6 +68,7 @@ func (rs *Resource) Router() chi.Router {
 	r.Post("/password-reset/confirm", rs.resetPassword)
 	r.Get("/invitations/{token}", rs.validateInvitation)
 	r.Post("/invitations/{token}/accept", rs.acceptInvitation)
+	r.Get("/tenant/resolve", rs.resolveTenant)
 
 	// Protected routes that require refresh token
 	r.Group(func(r chi.Router) {
@@ -79,6 +83,9 @@ func (rs *Resource) Router() chi.Router {
 		r.Use(jwtauth.Verifier(tokenAuth.JwtAuth))
 		r.Use(jwt.Authenticator)
 		r.Use(jwt.TenantMiddleware)
+
+		// Tenant switching
+		r.Post("/switch-tenant", rs.switchTenant)
 
 		// Current user routes
 		r.Get("/account", rs.getAccount)
@@ -184,10 +191,102 @@ func (rs *Resource) Router() chi.Router {
 	return r
 }
 
+// TenantResolveResponse represents the public tenant info returned by resolve
+type TenantResolveResponse struct {
+	TenantID  int64  `json:"tenant_id"`
+	Slug      string `json:"slug"`
+	Name      string `json:"name"`
+	Subdomain string `json:"subdomain"`
+}
+
+// resolveTenant handles GET /auth/tenant/resolve?slug={slug}
+func (rs *Resource) resolveTenant(w http.ResponseWriter, r *http.Request) {
+	slug := strings.TrimSpace(r.URL.Query().Get("slug"))
+	if slug == "" {
+		common.RenderError(w, r, ErrorInvalidRequest(errors.New("slug query parameter is required")))
+		return
+	}
+
+	school, err := rs.SchoolRepo.FindBySubdomain(r.Context(), slug)
+	if err != nil {
+		common.RenderError(w, r, ErrorNotFound(errors.New("tenant not found")))
+		return
+	}
+
+	if !school.Active {
+		common.RenderError(w, r, ErrorNotFound(errors.New("tenant not found")))
+		return
+	}
+
+	resp := &TenantResolveResponse{
+		TenantID:  school.ID,
+		Slug:      school.Slug,
+		Name:      school.Name,
+		Subdomain: school.Subdomain,
+	}
+
+	common.Respond(w, r, http.StatusOK, resp, "Tenant resolved successfully")
+}
+
+// SwitchTenantRequest represents the switch-tenant request payload
+type SwitchTenantRequest struct {
+	TenantSlug string `json:"tenant_slug"`
+}
+
+// Bind validates the switch-tenant request
+func (req *SwitchTenantRequest) Bind(_ *http.Request) error {
+	req.TenantSlug = strings.TrimSpace(req.TenantSlug)
+
+	return validation.ValidateStruct(req,
+		validation.Field(&req.TenantSlug, validation.Required),
+	)
+}
+
+// switchTenant handles POST /auth/switch-tenant
+func (rs *Resource) switchTenant(w http.ResponseWriter, r *http.Request) {
+	req := &SwitchTenantRequest{}
+	if err := render.Bind(r, req); err != nil {
+		common.RenderError(w, r, ErrorInvalidRequest(err))
+		return
+	}
+
+	// Get account ID from JWT claims
+	claims := jwt.ClaimsFromCtx(r.Context())
+
+	accessToken, refreshToken, err := rs.AuthService.SwitchTenant(r.Context(), int64(claims.ID), req.TenantSlug)
+	if err != nil {
+		var authErr *authService.AuthError
+		if errors.As(err, &authErr) {
+			switch {
+			case errors.Is(authErr.Err, authService.ErrAccountNotFound):
+				common.RenderError(w, r, ErrorUnauthorized(authService.ErrAccountNotFound))
+			case errors.Is(authErr.Err, authService.ErrAccountInactive):
+				common.RenderError(w, r, ErrorUnauthorized(authService.ErrAccountInactive))
+			case errors.Is(authErr.Err, authService.ErrTenantNotFound):
+				common.RenderError(w, r, ErrorNotFound(authService.ErrTenantNotFound))
+			case errors.Is(authErr.Err, authService.ErrTenantAccessDenied):
+				common.RenderError(w, r, ErrorUnauthorized(authService.ErrTenantAccessDenied))
+			default:
+				common.RenderError(w, r, ErrorInternalServer(err))
+			}
+			return
+		}
+		common.RenderError(w, r, ErrorInternalServer(err))
+		return
+	}
+
+	// Return tokens in the same format as login
+	render.JSON(w, r, TokenResponse{
+		AccessToken:  accessToken,
+		RefreshToken: refreshToken,
+	})
+}
+
 // LoginRequest represents the login request payload
 type LoginRequest struct {
-	Email    string `json:"email"`
-	Password string `json:"password"`
+	Email      string `json:"email"`
+	Password   string `json:"password"`
+	TenantSlug string `json:"tenant_slug,omitempty"`
 }
 
 // Bind validates the login request
@@ -218,7 +317,7 @@ func (rs *Resource) login(w http.ResponseWriter, r *http.Request) {
 	ipAddress := getClientIP(r)
 	userAgent := r.Header.Get(headerUserAgent)
 
-	accessToken, refreshToken, err := rs.AuthService.LoginWithAudit(r.Context(), req.Email, req.Password, ipAddress, userAgent)
+	accessToken, refreshToken, err := rs.AuthService.LoginWithAudit(r.Context(), req.Email, req.Password, ipAddress, userAgent, req.TenantSlug)
 	if err != nil {
 		var authErr *authService.AuthError
 		if errors.As(err, &authErr) {
@@ -229,6 +328,10 @@ func (rs *Resource) login(w http.ResponseWriter, r *http.Request) {
 				common.RenderError(w, r, ErrorUnauthorized(authService.ErrInvalidCredentials)) // Mask the specific error
 			case errors.Is(authErr.Err, authService.ErrAccountInactive):
 				common.RenderError(w, r, ErrorUnauthorized(authService.ErrAccountInactive))
+			case errors.Is(authErr.Err, authService.ErrTenantNotFound):
+				common.RenderError(w, r, ErrorNotFound(authService.ErrTenantNotFound))
+			case errors.Is(authErr.Err, authService.ErrTenantAccessDenied):
+				common.RenderError(w, r, ErrorUnauthorized(authService.ErrTenantAccessDenied))
 			default:
 				common.RenderError(w, r, ErrorInternalServer(err))
 			}
@@ -1962,4 +2065,14 @@ func (rs *Resource) DeactivateParentAccountHandler() http.HandlerFunc {
 // ListParentAccountsHandler returns the listParentAccounts handler for testing
 func (rs *Resource) ListParentAccountsHandler() http.HandlerFunc {
 	return rs.listParentAccounts
+}
+
+// ResolveTenantHandler returns the resolveTenant handler for testing
+func (rs *Resource) ResolveTenantHandler() http.HandlerFunc {
+	return rs.resolveTenant
+}
+
+// SwitchTenantHandler returns the switchTenant handler for testing
+func (rs *Resource) SwitchTenantHandler() http.HandlerFunc {
+	return rs.switchTenant
 }

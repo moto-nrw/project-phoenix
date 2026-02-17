@@ -1,13 +1,13 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useTenantRouter } from "~/lib/tenant-router";
 
 /**
  * Mobile-optimized back button component
  * Only visible on mobile (breadcrumb handles desktop navigation)
  */
 export function BackButton({ referrer }: Readonly<{ referrer: string }>) {
-  const router = useRouter();
+  const router = useTenantRouter();
 
   return (
     <button

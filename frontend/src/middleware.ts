@@ -1,0 +1,73 @@
+import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
+
+/**
+ * Subdomain-based tenant routing middleware.
+ *
+ * Extracts the tenant slug from the subdomain (e.g., school-a.localhost:3000 -> "school-a")
+ * and rewrites the request to the /[tenant]/... path segment so Next.js App Router can
+ * resolve it via the dynamic [tenant] route.
+ *
+ * Stateless: no DB calls, no auth checks. The [tenant]/layout.tsx validates the slug.
+ */
+
+const TENANT_DOMAIN = process.env.TENANT_DOMAIN ?? "localhost";
+
+function extractTenantSlug(host: string): string | null {
+  // Strip port (e.g., "school-a.localhost:3000" -> "school-a.localhost")
+  const hostname = host.split(":")[0] ?? "";
+
+  // Check if hostname has a subdomain under TENANT_DOMAIN
+  if (hostname !== TENANT_DOMAIN && hostname.endsWith(`.${TENANT_DOMAIN}`)) {
+    return hostname.slice(0, -(TENANT_DOMAIN.length + 1));
+  }
+
+  return null;
+}
+
+export function middleware(request: NextRequest) {
+  const { pathname } = request.nextUrl;
+
+  // Skip paths that must not be rewritten:
+  // - /api/* : Next.js API route handlers (tenant comes from JWT, not URL)
+  // - /operator/* : Operator dashboard (no tenant prefix)
+  // - /_next/* : Next.js internals
+  if (
+    pathname.startsWith("/api") ||
+    pathname.startsWith("/operator") ||
+    pathname.startsWith("/_next")
+  ) {
+    return NextResponse.next();
+  }
+
+  const host = request.headers.get("host") ?? "";
+  const tenantSlug = extractTenantSlug(host);
+
+  // No subdomain (bare domain) — pass through without rewrite.
+  // The root app/page.tsx can handle tenant selection or redirect.
+  if (!tenantSlug) {
+    return NextResponse.next();
+  }
+
+  // "operator" subdomain routes to operator dashboard without tenant rewrite
+  if (tenantSlug === "operator") {
+    return NextResponse.next();
+  }
+
+  // Rewrite: school-a.localhost:3000/dashboard -> internal /school-a/dashboard
+  // This lets the [tenant] dynamic segment in the App Router capture the slug.
+  const url = request.nextUrl.clone();
+  url.pathname = `/${tenantSlug}${pathname}`;
+  return NextResponse.rewrite(url);
+}
+
+export const config = {
+  matcher: [
+    /*
+     * Match all paths except static assets:
+     * - _next/static, _next/image (Next.js built-in)
+     * - Static files by extension (svg, png, jpg, ico, etc.)
+     */
+    "/((?!_next/static|_next/image|favicon\\.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|webmanifest)$).*)",
+  ],
+};
