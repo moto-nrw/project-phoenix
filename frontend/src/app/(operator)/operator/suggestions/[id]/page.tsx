@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
+// eslint-disable-next-line no-restricted-imports -- operator routes are not tenant-scoped
 import { useParams, useRouter } from "next/navigation";
 import useSWR from "swr";
 import { ThumbsUp, ThumbsDown } from "lucide-react";

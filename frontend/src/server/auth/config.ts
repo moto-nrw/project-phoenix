@@ -20,6 +20,10 @@ interface JwtPayload {
   email?: string;
   roles?: string[];
   is_admin?: boolean;
+  // Multi-tenancy fields
+  tenant_id?: number;
+  org_id?: number;
+  scope?: string;
 }
 
 /**
@@ -90,6 +94,9 @@ function buildAuthUser(
     roles: roles,
     firstName: payload.first_name,
     isAdmin: payload.is_admin ?? false,
+    tenantId: payload.tenant_id,
+    orgId: payload.org_id,
+    scope: payload.scope,
   };
 }
 
@@ -99,19 +106,28 @@ function buildAuthUser(
 async function performLogin(
   email: string,
   password: string,
+  tenantSlug: string,
   isDev: boolean,
 ): Promise<{ access_token: string; refresh_token: string } | null> {
   const apiUrl = getServerApiUrl();
 
   if (isDev) {
-    logger.debug("attempting login", { api_url: `${apiUrl}/auth/login` });
+    logger.debug("attempting login", {
+      api_url: `${apiUrl}/auth/login`,
+      tenant_slug: tenantSlug,
+    });
   }
 
   try {
+    const body: Record<string, string> = { email, password };
+    if (tenantSlug) {
+      body.tenant_slug = tenantSlug;
+    }
+
     const response = await fetch(`${apiUrl}/auth/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify(body),
     });
 
     if (isDev) {
@@ -159,6 +175,9 @@ declare module "next-auth" {
       roles?: string[];
       firstName?: string;
       isAdmin?: boolean;
+      tenantId?: number;
+      orgId?: number;
+      scope?: string;
     } & DefaultSession["user"];
     error?: "RefreshTokenExpired" | "RefreshTokenError";
   }
@@ -169,6 +188,9 @@ declare module "next-auth" {
     roles?: string[];
     firstName?: string;
     isAdmin?: boolean;
+    tenantId?: number;
+    orgId?: number;
+    scope?: string;
   }
 
   interface JWT {
@@ -178,6 +200,9 @@ declare module "next-auth" {
     roles?: string[];
     firstName?: string;
     isAdmin?: boolean;
+    tenantId?: number;
+    orgId?: number;
+    scope?: string;
     tokenExpiry?: number;
     refreshTokenExpiry?: number;
     error?: "RefreshTokenExpired" | "RefreshTokenError";
@@ -235,6 +260,7 @@ export const authConfig = {
       credentials: {
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
+        tenantSlug: { label: "Tenant Slug", type: "text" },
         internalRefresh: { label: "Internal Refresh", type: "text" },
         token: { label: "Token", type: "text" },
         refreshToken: { label: "Refresh Token", type: "text" },
@@ -266,6 +292,7 @@ export const authConfig = {
         const loginResult = await performLogin(
           creds.email,
           creds.password,
+          creds.tenantSlug ?? "",
           isDev,
         );
         if (!loginResult) return null;
@@ -334,6 +361,9 @@ export const authConfig = {
         token.roles = user.roles;
         token.firstName = user.firstName;
         token.isAdmin = user.isAdmin;
+        token.tenantId = user.tenantId;
+        token.orgId = user.orgId;
+        token.scope = user.scope;
         // Store token expiry from environment
         token.tokenExpiry = Date.now() + accessTokenExpiry;
         // Store refresh token expiry (matching backend)
@@ -523,12 +553,52 @@ export const authConfig = {
           roles: token.roles as string[],
           firstName: token.firstName as string,
           isAdmin: (token.isAdmin as boolean) ?? false,
+          tenantId: token.tenantId as number | undefined,
+          orgId: token.orgId as number | undefined,
+          scope: token.scope as string | undefined,
         },
       };
     },
   },
   pages: {
     signIn: "/",
+  },
+  cookies: {
+    // Set cookie domain to .{TENANT_DOMAIN} so cookies are shared across subdomains.
+    // This allows school-a.localhost and school-b.localhost to share the same session.
+    ...(process.env.TENANT_DOMAIN && process.env.TENANT_DOMAIN !== "localhost"
+      ? {
+          sessionToken: {
+            name: "next-auth.session-token",
+            options: {
+              httpOnly: true,
+              sameSite: "lax" as const,
+              path: "/",
+              domain: `.${process.env.TENANT_DOMAIN}`,
+              secure: process.env.NODE_ENV === "production",
+            },
+          },
+          callbackUrl: {
+            name: "next-auth.callback-url",
+            options: {
+              sameSite: "lax" as const,
+              path: "/",
+              domain: `.${process.env.TENANT_DOMAIN}`,
+              secure: process.env.NODE_ENV === "production",
+            },
+          },
+          csrfToken: {
+            name: "next-auth.csrf-token",
+            options: {
+              httpOnly: true,
+              sameSite: "lax" as const,
+              path: "/",
+              domain: `.${process.env.TENANT_DOMAIN}`,
+              secure: process.env.NODE_ENV === "production",
+            },
+          },
+        }
+      : {}),
   },
   session: {
     strategy: "jwt",

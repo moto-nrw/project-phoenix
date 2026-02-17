@@ -19,11 +19,13 @@ import (
 
 // Login authenticates a user and returns access and refresh tokens
 func (s *Service) Login(ctx context.Context, email, password string) (string, string, error) {
-	return s.LoginWithAudit(ctx, email, password, "", "")
+	return s.LoginWithAudit(ctx, email, password, "", "", "")
 }
 
-// LoginWithAudit authenticates a user and returns access and refresh tokens with audit logging
-func (s *Service) LoginWithAudit(ctx context.Context, email, password, ipAddress, userAgent string) (string, string, error) {
+// LoginWithAudit authenticates a user and returns access and refresh tokens with audit logging.
+// tenantSlug is optional: when non-empty the account is resolved to the matching tenant;
+// when empty the first active tenant mapping is used (Phase 3 fallback).
+func (s *Service) LoginWithAudit(ctx context.Context, email, password, ipAddress, userAgent, tenantSlug string) (string, string, error) {
 	// Validate credentials and get account
 	account, err := s.validateLoginCredentials(ctx, email, password, ipAddress, userAgent)
 	if err != nil {
@@ -33,7 +35,10 @@ func (s *Service) LoginWithAudit(ctx context.Context, email, password, ipAddress
 	// Load account metadata first (includes tenant resolution from DB)
 	// so the refresh token gets the correct tenant_id on creation.
 	// Login is a public route — tenant.FromContext(ctx) would return 0.
-	metadata := s.loadAccountMetadata(ctx, account)
+	metadata, err := s.loadAccountMetadata(ctx, account, tenantSlug)
+	if err != nil {
+		return "", "", err
+	}
 
 	// Create refresh token with resolved tenant ID
 	token, err := s.createRefreshTokenWithRetry(ctx, account, metadata.tenantID)
@@ -180,8 +185,11 @@ type accountMetadata struct {
 }
 
 // loadAccountMetadata loads roles, permissions, person information, and tenant mapping.
+// tenantSlug is optional: when non-empty the account is resolved to the matching tenant.
 // Returns partial data with logged warnings if any lookups fail.
-func (s *Service) loadAccountMetadata(ctx context.Context, account *auth.Account) *accountMetadata {
+// Returns an error only when tenantSlug is provided but resolution fails (tenant not found
+// or account not mapped to that tenant).
+func (s *Service) loadAccountMetadata(ctx context.Context, account *auth.Account, tenantSlug string) (*accountMetadata, error) {
 	s.ensureAccountRolesLoaded(ctx, account)
 
 	permissions := s.loadAccountPermissions(ctx, account.ID)
@@ -191,7 +199,10 @@ func (s *Service) loadAccountMetadata(ctx context.Context, account *auth.Account
 	username := s.extractUsername(account)
 	firstName, lastName := s.loadPersonNames(ctx, account.ID)
 	isAdmin := s.checkRoleFlags(roleNames)
-	tenantID, orgID := s.resolveAccountTenant(ctx, account.ID)
+	tenantID, orgID, err := s.resolveAccountTenant(ctx, account.ID, tenantSlug)
+	if err != nil {
+		return nil, err
+	}
 
 	return &accountMetadata{
 		roleNames:      roleNames,
@@ -202,7 +213,7 @@ func (s *Service) loadAccountMetadata(ctx context.Context, account *auth.Account
 		isAdmin:        isAdmin,
 		tenantID:       tenantID,
 		orgID:          orgID,
-	}
+	}, nil
 }
 
 // ensureAccountRolesLoaded loads account roles if not already loaded
@@ -304,9 +315,67 @@ func (s *Service) checkRoleFlags(roleNames []string) bool {
 }
 
 // resolveAccountTenant resolves the tenant ID and organization ID for an account.
-// In Phase 3, each account has exactly one active tenant (single-school scenario).
-// Returns (0, 0) if no mapping is found (non-fatal, metadata stays partial).
-func (s *Service) resolveAccountTenant(ctx context.Context, accountID int64) (int64, int64) {
+// When tenantSlug is non-empty the school is looked up by subdomain and verified
+// against the account's active tenant mappings. When empty, the first active
+// mapping is used (Phase 3 fallback).
+// Returns a non-nil error only when tenantSlug is provided but resolution fails.
+func (s *Service) resolveAccountTenant(ctx context.Context, accountID int64, tenantSlug string) (int64, int64, error) {
+	if tenantSlug != "" {
+		return s.resolveAccountTenantBySlug(ctx, accountID, tenantSlug)
+	}
+
+	return s.resolveAccountTenantDefault(ctx, accountID)
+}
+
+// resolveAccountTenantBySlug resolves tenant by subdomain slug, then verifies
+// the account has an active mapping to that tenant.
+func (s *Service) resolveAccountTenantBySlug(ctx context.Context, accountID int64, tenantSlug string) (int64, int64, error) {
+	// Look up the school by subdomain
+	school, err := s.repos.School.FindBySubdomain(ctx, tenantSlug)
+	if err != nil {
+		s.getLogger().Warn("tenant slug not found",
+			slog.Int64("account_id", accountID),
+			slog.String("tenant_slug", tenantSlug),
+			slog.Any("error", err),
+		)
+		return 0, 0, &AuthError{Op: "resolve tenant", Err: ErrTenantNotFound}
+	}
+
+	if !school.Active {
+		s.getLogger().Warn("tenant is inactive",
+			slog.Int64("account_id", accountID),
+			slog.String("tenant_slug", tenantSlug),
+			slog.Int64("tenant_id", school.ID),
+		)
+		return 0, 0, &AuthError{Op: "resolve tenant", Err: ErrTenantNotFound}
+	}
+
+	// Verify the account has an active mapping to this tenant
+	exists, err := s.repos.AccountTenant.ExistsByAccountAndTenant(ctx, accountID, school.ID)
+	if err != nil {
+		s.getLogger().Warn("failed to verify account tenant mapping",
+			slog.Int64("account_id", accountID),
+			slog.Int64("tenant_id", school.ID),
+			slog.Any("error", err),
+		)
+		return 0, 0, &AuthError{Op: "resolve tenant", Err: ErrTenantAccessDenied}
+	}
+
+	if !exists {
+		s.getLogger().Warn("account does not have access to requested tenant",
+			slog.Int64("account_id", accountID),
+			slog.Int64("tenant_id", school.ID),
+			slog.String("tenant_slug", tenantSlug),
+		)
+		return 0, 0, &AuthError{Op: "resolve tenant", Err: ErrTenantAccessDenied}
+	}
+
+	return school.ID, school.OrganizationID, nil
+}
+
+// resolveAccountTenantDefault resolves the tenant using the first active mapping
+// (Phase 3 fallback). Returns (0, 0, nil) if no mapping is found (non-fatal).
+func (s *Service) resolveAccountTenantDefault(ctx context.Context, accountID int64) (int64, int64, error) {
 	tenants, err := s.repos.AccountTenant.FindActiveByAccountID(ctx, accountID)
 	if err != nil || len(tenants) == 0 {
 		if err != nil {
@@ -315,10 +384,10 @@ func (s *Service) resolveAccountTenant(ctx context.Context, accountID int64) (in
 				slog.Any("error", err),
 			)
 		}
-		return 0, 0
+		return 0, 0, nil
 	}
 
-	// Phase 3: take the first active tenant mapping
+	// Phase 3 fallback: take the first active tenant mapping
 	tenantID := tenants[0].TenantID
 
 	// Look up the school to get the organization ID
@@ -328,10 +397,10 @@ func (s *Service) resolveAccountTenant(ctx context.Context, accountID int64) (in
 			slog.Int64("tenant_id", tenantID),
 			slog.Any("error", err),
 		)
-		return tenantID, 0
+		return tenantID, 0, nil
 	}
 
-	return tenantID, school.OrganizationID
+	return tenantID, school.OrganizationID, nil
 }
 
 // buildJWTClaims constructs JWT claims from account and metadata
@@ -623,7 +692,7 @@ func (s *Service) refreshTokenInTransaction(ctx context.Context, refreshClaims *
 		// Resolve from account_tenants so the rotated token gets the correct value.
 		effectiveTenantID := tenantID
 		if effectiveTenantID == 0 {
-			effectiveTenantID, _ = s.resolveAccountTenant(ctx, account.ID)
+			effectiveTenantID, _, _ = s.resolveAccountTenant(ctx, account.ID, "")
 		}
 
 		// Create and persist new token with resolved tenant
@@ -778,7 +847,11 @@ func (s *Service) doRefreshTokenWithAudit(ctx context.Context, refreshTokenStr, 
 	}
 
 	// Load account metadata (roles, permissions, person info)
-	metadata := s.loadAccountMetadata(ctx, account)
+	// Refresh flow uses no tenant slug — tenant is carried over from the existing token.
+	metadata, err := s.loadAccountMetadata(ctx, account, "")
+	if err != nil {
+		return nil, err
+	}
 
 	// Build JWT claims from account and metadata
 	appClaims, newRefreshClaims := s.buildJWTClaims(account, newToken, metadata, account.Email)

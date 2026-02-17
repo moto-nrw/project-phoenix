@@ -3,7 +3,8 @@
 
 import { Suspense, useCallback, useEffect } from "react";
 import Link from "next/link";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
+import { useTenantRouter } from "~/lib/tenant-router";
 import { useSession } from "next-auth/react";
 import { useSupervision } from "~/lib/supervision-context";
 import { useShellAuth } from "~/lib/shell-auth-context";
@@ -208,7 +209,7 @@ interface SidebarProps {
 function SidebarContent({ className = "" }: SidebarProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const router = useRouter();
+  const router = useTenantRouter();
   const { data: session } = useSession();
   const { mode } = useShellAuth();
 

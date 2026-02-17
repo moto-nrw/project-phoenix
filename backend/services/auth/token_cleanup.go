@@ -76,7 +76,7 @@ func (s *Service) logAuthEvent(ctx context.Context, accountID int64, eventType s
 	// Resolve from account_tenants so audit events get the correct tenant.
 	tenantID := tenant.FromContext(ctx)
 	if tenantID == 0 && accountID > 0 {
-		tenantID, _ = s.resolveAccountTenant(ctx, accountID)
+		tenantID, _, _ = s.resolveAccountTenant(ctx, accountID, "")
 	}
 	if tenantID > 0 {
 		event.SetTenantID(tenantID)

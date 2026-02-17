@@ -9,6 +9,7 @@ import React, {
   useMemo,
   useRef,
 } from "react";
+// eslint-disable-next-line no-restricted-imports -- operator routes are not tenant-scoped
 import { useRouter, usePathname } from "next/navigation";
 import { createLogger } from "~/lib/logger";
 

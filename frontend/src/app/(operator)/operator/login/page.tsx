@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+// eslint-disable-next-line no-restricted-imports -- operator routes are not tenant-scoped
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { Input, Alert, HelpButton } from "~/components/ui";

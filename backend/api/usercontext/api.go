@@ -340,15 +340,15 @@ func (res *Resource) uploadAvatar(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	filePath, err := res.saveAvatarFile(file, header, contentType, user.ID)
+	tenantID := tenant.FromContext(r.Context())
+	filePath, err := res.saveAvatarFile(file, header, contentType, user.ID, tenantID)
 	if err != nil {
 		render.Status(r, http.StatusInternalServerError)
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
-	avatarURL := fmt.Sprintf("/uploads/avatars/%s", filepath.Base(filePath))
-	tenantID := tenant.FromContext(r.Context())
+	avatarURL := fmt.Sprintf("/uploads/avatars/%d/%s", tenantID, filepath.Base(filePath))
 	var updatedProfile interface{}
 	if err := tenant.WithTenantTx(r.Context(), res.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		var txErr error
@@ -404,7 +404,7 @@ func detectAndValidateContentType(file io.ReadSeeker) (string, error) {
 }
 
 // saveAvatarFile saves the uploaded file and returns the file path
-func (res *Resource) saveAvatarFile(file io.Reader, header *multipart.FileHeader, contentType string, userID int64) (string, error) {
+func (res *Resource) saveAvatarFile(file io.Reader, header *multipart.FileHeader, contentType string, userID, tenantID int64) (string, error) {
 	fileExt := getFileExtension(header.Filename, contentType)
 	randomStr, err := generateRandomString(8)
 	if err != nil {
@@ -412,9 +412,10 @@ func (res *Resource) saveAvatarFile(file io.Reader, header *multipart.FileHeader
 	}
 
 	filename := fmt.Sprintf("%d_%s%s", userID, randomStr, fileExt)
-	filePath := filepath.Join(avatarDir, filename)
+	tenantDir := filepath.Join(avatarDir, fmt.Sprintf("%d", tenantID))
+	filePath := filepath.Join(tenantDir, filename)
 
-	if os.MkdirAll(avatarDir, 0755) != nil {
+	if os.MkdirAll(tenantDir, 0755) != nil {
 		return "", errors.New("failed to create upload directory")
 	}
 
@@ -534,9 +535,10 @@ func (res *Resource) serveAvatar(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Construct and validate file path
-	filePath, err := validateAvatarPath(filename)
-	if err != nil {
-		common.RenderError(w, r, err)
+	tenantID := tenant.FromContext(r.Context())
+	filePath, rendErr := validateAvatarPath(filename, tenantID)
+	if rendErr != nil {
+		common.RenderError(w, r, rendErr)
 		return
 	}
 
@@ -565,25 +567,38 @@ func (res *Resource) validateAvatarAccess(r *http.Request, filename string) rend
 	return nil
 }
 
-// validateAvatarPath validates the file path is within the avatar directory
-func validateAvatarPath(filename string) (string, render.Renderer) {
-	filePath := filepath.Join(avatarDir, filename)
-
-	absPath, err := filepath.Abs(filePath)
-	if err != nil {
-		return "", common.ErrorInternalServer(errors.New("failed to process path"))
-	}
-
+// validateAvatarPath validates the file path is within the avatar directory.
+// It checks for the file in the tenant-namespaced subdirectory first, falling
+// back to the flat directory for avatars uploaded before tenant namespacing.
+func validateAvatarPath(filename string, tenantID int64) (string, render.Renderer) {
 	absAvatarDir, err := filepath.Abs(avatarDir)
 	if err != nil {
 		return "", common.ErrorInternalServer(errors.New("failed to process avatar directory"))
 	}
 
+	// Try tenant-namespaced path first
+	tenantPath := filepath.Join(avatarDir, fmt.Sprintf("%d", tenantID), filename)
+	absPath, err := filepath.Abs(tenantPath)
+	if err != nil {
+		return "", common.ErrorInternalServer(errors.New("failed to process path"))
+	}
+	if strings.HasPrefix(absPath, absAvatarDir) {
+		if _, statErr := os.Stat(tenantPath); statErr == nil {
+			return tenantPath, nil
+		}
+	}
+
+	// Fall back to legacy flat path (pre-tenant-namespacing)
+	flatPath := filepath.Join(avatarDir, filename)
+	absPath, err = filepath.Abs(flatPath)
+	if err != nil {
+		return "", common.ErrorInternalServer(errors.New("failed to process path"))
+	}
 	if !strings.HasPrefix(absPath, absAvatarDir) {
 		return "", common.ErrorForbidden(errors.New("invalid path"))
 	}
 
-	return filePath, nil
+	return flatPath, nil
 }
 
 // serveAvatarFile opens and serves the avatar file

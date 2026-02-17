@@ -10,23 +10,43 @@ let cached: {
 } | null = null;
 let inflight: Promise<Awaited<ReturnType<typeof getSession>>> | null = null;
 
+// Track the tenant ID of the cached session.
+// When the user switches tenants, the new session will have a different tenant_id,
+// which automatically invalidates the stale cache entry.
+let cachedTenantId: number | undefined;
+
 const TTL_MS = 10_000; // 10 second cache window
 
 /**
  * Invalidate the cached session so the next call fetches a fresh one.
- * Call this after a successful token refresh so stale tokens aren't reused.
+ * Call this after a successful token refresh or tenant switch so stale tokens aren't reused.
  */
 export function clearSessionCache() {
   cached = null;
+  cachedTenantId = undefined;
 }
 
 export async function getCachedSession() {
   const now = Date.now();
-  if (cached && now < cached.expiry) return cached.session;
+  if (cached && now < cached.expiry) {
+    // Verify the cached session still belongs to the same tenant.
+    // After a tenant switch, the session's tenant_id changes, so a cache miss
+    // forces a fresh getSession() with the updated JWT.
+    const sessionTenantId = (
+      cached.session?.user as { tenantId?: number } | undefined
+    )?.tenantId;
+    if (sessionTenantId === cachedTenantId) {
+      return cached.session;
+    }
+    // Tenant changed — invalidate
+    cached = null;
+  }
   if (inflight) return inflight;
 
   inflight = getSession()
     .then((session) => {
+      cachedTenantId = (session?.user as { tenantId?: number } | undefined)
+        ?.tenantId;
       cached = { session, expiry: Date.now() + TTL_MS };
       return session;
     })

@@ -171,10 +171,12 @@ func (s *service) executeSessionStart(ctx context.Context, activityID, deviceID 
 	txHandler := modelBase.NewTxHandler(s.db)
 
 	return txHandler.RunInTx(ctx, func(txCtx context.Context, tx bun.Tx) error {
-		// Acquire advisory lock on activity ID to serialize concurrent session starts
+		// Acquire advisory lock on (tenant_id, activity_id) to serialize concurrent session starts
 		// This prevents race conditions where two requests both pass conflict check before either creates a session
+		// Using two-argument form ensures locks are scoped per tenant and cannot collide across tenants
 		// The lock is automatically released when the transaction commits or rolls back
-		if _, err := tx.ExecContext(txCtx, "SELECT pg_advisory_xact_lock(?)", activityID); err != nil {
+		tenantID := tenant.FromContext(txCtx)
+		if _, err := tx.ExecContext(txCtx, "SELECT pg_advisory_xact_lock(?, ?)", tenantID, activityID); err != nil {
 			return &ActiveError{Op: operation, Err: fmt.Errorf("failed to acquire activity lock: %w", err)}
 		}
 
