@@ -329,7 +329,7 @@ func TestActivityService_UpdateGroup(t *testing.T) {
 		group.MaxParticipants = 50
 
 		// ACT - use creator's staff ID and give manage permission for test
-		result, err := service.UpdateGroup(ctx, group, group.CreatedBy, true)
+		result, err := service.UpdateGroup(ctx, group, *group.CreatedBy, true)
 
 		// ASSERT
 		require.NoError(t, err)
@@ -350,7 +350,7 @@ func TestActivityService_DeleteGroup(t *testing.T) {
 		group := testpkg.CreateTestActivityGroup(t, db, "to-delete-grp")
 
 		// ACT - use creator's staff ID and give manage permission for test
-		err := service.DeleteGroup(ctx, group.ID, group.CreatedBy, true)
+		err := service.DeleteGroup(ctx, group.ID, *group.CreatedBy, true)
 
 		// ASSERT
 		require.NoError(t, err)
@@ -864,7 +864,7 @@ func TestActivityService_CreateGroup(t *testing.T) {
 			MaxParticipants: 20,
 			IsOpen:          true,
 			CategoryID:      category.ID,
-			CreatedBy:       staff.ID,
+			CreatedBy:       &staff.ID,
 		}
 
 		// ACT
@@ -891,7 +891,7 @@ func TestActivityService_CreateGroup(t *testing.T) {
 			MaxParticipants: 15,
 			IsOpen:          false,
 			CategoryID:      category.ID,
-			CreatedBy:       staff.ID,
+			CreatedBy:       &staff.ID,
 		}
 
 		// ACT
@@ -919,7 +919,7 @@ func TestActivityService_CreateGroup(t *testing.T) {
 			Name:            "Invalid Category Group",
 			MaxParticipants: 10,
 			CategoryID:      99999999, // nonexistent
-			CreatedBy:       staff.ID,
+			CreatedBy:       &staff.ID,
 		}
 
 		// ACT
@@ -1353,7 +1353,7 @@ func TestActivityService_CreateGroup_WithSchedules(t *testing.T) {
 			MaxParticipants: 25,
 			IsOpen:          true,
 			CategoryID:      category.ID,
-			CreatedBy:       staff.ID,
+			CreatedBy:       &staff.ID,
 		}
 
 		schedules := []*activitiesModels.Schedule{
@@ -1524,7 +1524,7 @@ func TestActivityService_DeleteGroup_WithEnrollments(t *testing.T) {
 		require.NoError(t, err)
 
 		// ACT - delete group (using creator's staff ID with manage permission for test)
-		err = service.DeleteGroup(ctx, group.ID, group.CreatedBy, true)
+		err = service.DeleteGroup(ctx, group.ID, *group.CreatedBy, true)
 
 		// ASSERT
 		require.NoError(t, err)
@@ -1967,7 +1967,7 @@ func TestActivityService_CreateGroup_WithCategoryValidation(t *testing.T) {
 			Name:            "Test Group",
 			CategoryID:      99999999, // nonexistent
 			MaxParticipants: 10,
-			CreatedBy:       staff.ID,
+			CreatedBy:       &staff.ID,
 		}
 
 		// ACT
@@ -2208,7 +2208,7 @@ func TestActivityService_CreateGroup_ValidationError(t *testing.T) {
 			Name:            "", // Invalid: empty
 			CategoryID:      1,
 			MaxParticipants: 10,
-			CreatedBy:       staff.ID,
+			CreatedBy:       &staff.ID,
 		}
 
 		// ACT
@@ -2239,7 +2239,7 @@ func TestActivityService_UpdateGroup_ValidationError(t *testing.T) {
 		grp.Name = "" // Invalid: empty name
 
 		// ACT
-		result, err := service.UpdateGroup(ctx, grp, grp.CreatedBy, true)
+		result, err := service.UpdateGroup(ctx, grp, *grp.CreatedBy, true)
 
 		// ASSERT
 		require.Error(t, err)
@@ -2405,7 +2405,7 @@ func TestActivityService_CreateGroup_InvalidSupervisor(t *testing.T) {
 			Name:            "Test Group Invalid Sup",
 			CategoryID:      category.ID,
 			MaxParticipants: 20,
-			CreatedBy:       staff.ID,
+			CreatedBy:       &staff.ID,
 		}
 
 		// ACT - non-existent staff ID
@@ -2434,7 +2434,7 @@ func TestActivityService_CreateGroup_InvalidScheduleWeekday(t *testing.T) {
 			Name:            "Test Group Invalid Sched",
 			CategoryID:      category.ID,
 			MaxParticipants: 20,
-			CreatedBy:       staff.ID,
+			CreatedBy:       &staff.ID,
 		}
 
 		// Invalid weekday (should be 0-6)
@@ -2469,7 +2469,7 @@ func TestActivityService_DeleteGroup_CascadesSupervisors(t *testing.T) {
 		supervisorID := supervisor.ID
 
 		// ACT - delete group (using creator's staff ID with manage permission)
-		err = service.DeleteGroup(ctx, group.ID, group.CreatedBy, true)
+		err = service.DeleteGroup(ctx, group.ID, *group.CreatedBy, true)
 
 		// ASSERT
 		require.NoError(t, err)
@@ -2500,7 +2500,7 @@ func TestActivityService_DeleteGroup_CascadesSchedules(t *testing.T) {
 		scheduleID := created.ID
 
 		// ACT - delete group (using creator's staff ID with manage permission)
-		err = service.DeleteGroup(ctx, group.ID, group.CreatedBy, true)
+		err = service.DeleteGroup(ctx, group.ID, *group.CreatedBy, true)
 
 		// ASSERT
 		require.NoError(t, err)
@@ -2597,7 +2597,7 @@ func TestActivityService_UpdateGroup_Success(t *testing.T) {
 		group.Name = "Updated Group Name"
 
 		// ACT (using creator's staff ID with manage permission)
-		result, err := service.UpdateGroup(ctx, group, group.CreatedBy, true)
+		result, err := service.UpdateGroup(ctx, group, *group.CreatedBy, true)
 
 		// ASSERT
 		require.NoError(t, err)
@@ -2621,7 +2621,7 @@ func TestActivityService_CreateGroup_InvalidCategoryID(t *testing.T) {
 			Name:            "Test Group Invalid Cat",
 			CategoryID:      99999999, // Non-existent
 			MaxParticipants: 20,
-			CreatedBy:       staff.ID,
+			CreatedBy:       &staff.ID,
 		}
 
 		// ACT
@@ -2975,7 +2975,7 @@ func TestActivityService_CanModifyActivity_AdminBypassesOwnership(t *testing.T) 
 		Name:            "Admin Test Activity",
 		MaxParticipants: 10,
 		CategoryID:      category.ID,
-		CreatedBy:       staff.ID,
+		CreatedBy:       &staff.ID,
 	}
 	created, err := service.CreateGroup(ctx, group, []int64{staff.ID}, nil)
 	require.NoError(t, err)
@@ -3007,7 +3007,7 @@ func TestActivityService_CanModifyActivity_CreatorCanModify(t *testing.T) {
 		Name:            "Creator Test Activity",
 		MaxParticipants: 10,
 		CategoryID:      category.ID,
-		CreatedBy:       staff.ID,
+		CreatedBy:       &staff.ID,
 	}
 	created, err := service.CreateGroup(ctx, group, []int64{staff.ID}, nil)
 	require.NoError(t, err)
@@ -3040,7 +3040,7 @@ func TestActivityService_CanModifyActivity_SupervisorCanModify(t *testing.T) {
 		Name:            "Supervisor Test Activity",
 		MaxParticipants: 10,
 		CategoryID:      category.ID,
-		CreatedBy:       creator.ID,
+		CreatedBy:       &creator.ID,
 	}
 	created, err := service.CreateGroup(ctx, group, []int64{creator.ID, supervisor.ID}, nil)
 	require.NoError(t, err)
@@ -3072,7 +3072,7 @@ func TestActivityService_CanModifyActivity_NonOwnerCannotModify(t *testing.T) {
 		Name:            "Non-Owner Test Activity",
 		MaxParticipants: 10,
 		CategoryID:      category.ID,
-		CreatedBy:       creator.ID,
+		CreatedBy:       &creator.ID,
 	}
 	created, err := service.CreateGroup(ctx, group, []int64{creator.ID}, nil)
 	require.NoError(t, err)
@@ -3121,7 +3121,7 @@ func TestActivityService_UpdateGroup_OwnershipEnforced(t *testing.T) {
 		Name:            "Update Owner Test",
 		MaxParticipants: 10,
 		CategoryID:      category.ID,
-		CreatedBy:       creator.ID,
+		CreatedBy:       &creator.ID,
 	}
 	created, err := service.CreateGroup(ctx, group, []int64{creator.ID}, nil)
 	require.NoError(t, err)
@@ -3154,7 +3154,7 @@ func TestActivityService_DeleteGroup_OwnershipEnforced(t *testing.T) {
 		Name:            "Delete Owner Test",
 		MaxParticipants: 10,
 		CategoryID:      category.ID,
-		CreatedBy:       creator.ID,
+		CreatedBy:       &creator.ID,
 	}
 	created, err := service.CreateGroup(ctx, group, []int64{creator.ID}, nil)
 	require.NoError(t, err)

@@ -127,7 +127,7 @@ type ActivityResponse struct {
 	IsOpen          bool                 `json:"is_open"`
 	CategoryID      int64                `json:"category_id"`
 	PlannedRoomID   *int64               `json:"planned_room_id,omitempty"`
-	CreatedBy       int64                `json:"created_by"`
+	CreatedBy       *int64               `json:"created_by"`
 	CreatedByName   string               `json:"created_by_name,omitempty"`
 	Category        *CategoryResponse    `json:"category,omitempty"`
 	SupervisorID    *int64               `json:"supervisor_id,omitempty"`  // Primary supervisor
@@ -922,7 +922,7 @@ func (rs *Resource) createActivity(w http.ResponseWriter, r *http.Request) {
 		IsOpen:          req.IsOpen,
 		CategoryID:      req.CategoryID,
 		PlannedRoomID:   req.PlannedRoomID,
-		CreatedBy:       staffID,
+		CreatedBy:       &staffID,
 	}
 
 	// Prepare schedules
@@ -995,7 +995,7 @@ func (rs *Resource) quickCreateActivity(w http.ResponseWriter, r *http.Request) 
 		IsOpen:          true, // Default to true for quick-create
 		CategoryID:      req.CategoryID,
 		PlannedRoomID:   req.RoomID,
-		CreatedBy:       staff.ID,
+		CreatedBy:       &staff.ID,
 	}
 
 	// Auto-assign creator as primary supervisor

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/constants"
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/base"
@@ -137,20 +136,13 @@ func (rs *Resource) wcActivityGroup(ctx context.Context) (*activities.Group, err
 		return nil, fmt.Errorf("failed to ensure WC category: %w", err)
 	}
 
-	// Step 3: Create the WC activity group
-	// Get staff ID from device authentication context - required for created_by FK
-	staffCtx := device.StaffFromCtx(ctx)
-	if staffCtx == nil {
-		return nil, fmt.Errorf("WC activity auto-create requires staff context (scan staff RFID first)")
-	}
-
+	// Step 3: Create the WC activity group (created_by is NULL = system-created)
 	newActivity := &activities.Group{
 		Name:            constants.WCActivityName,
 		MaxParticipants: constants.WCMaxParticipants,
 		IsOpen:          true, // Open activity - anyone can join
 		CategoryID:      category.ID,
 		PlannedRoomID:   &room.ID,
-		CreatedBy:       staffCtx.ID,
 	}
 
 	// CreateGroup requires supervisorIDs and schedules - pass empty slices for auto-created activity
