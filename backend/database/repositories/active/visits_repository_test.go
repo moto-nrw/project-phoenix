@@ -527,8 +527,8 @@ func TestVisitRepository_DeleteExpiredVisits(t *testing.T) {
 
 		var visitID int64
 		err := db.NewRaw(`
-			INSERT INTO active.visits (student_id, active_group_id, entry_time, exit_time, created_at, updated_at)
-			VALUES (?, ?, ?, ?, ?, ?)
+			INSERT INTO active.visits (student_id, active_group_id, entry_time, exit_time, created_at, updated_at, tenant_id)
+			VALUES (?, ?, ?, ?, ?, ?, 1)
 			RETURNING id
 		`, data.Student1.ID, data.ActiveGroup.ID, entryTime, exitTime, createdAt, now).
 			Scan(ctx, &visitID)
@@ -580,8 +580,8 @@ func TestVisitRepository_DeleteVisitsBeforeDate(t *testing.T) {
 
 		var visitID int64
 		err := db.NewRaw(`
-			INSERT INTO active.visits (student_id, active_group_id, entry_time, exit_time, created_at, updated_at)
-			VALUES (?, ?, ?, ?, ?, ?)
+			INSERT INTO active.visits (student_id, active_group_id, entry_time, exit_time, created_at, updated_at, tenant_id)
+			VALUES (?, ?, ?, ?, ?, ?, 1)
 			RETURNING id
 		`, data.Student1.ID, data.ActiveGroup.ID, entryTime, exitTime, createdAt, now).
 			Scan(ctx, &visitID)
@@ -678,8 +678,8 @@ func TestVisitRepository_TransferVisitsFromRecentSessions(t *testing.T) {
 		now := time.Now()
 		var oldGroupID int64
 		err := db.NewRaw(`
-			INSERT INTO active.groups (start_time, last_activity, end_time, timeout_minutes, group_id, device_id, room_id, created_at, updated_at)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+			INSERT INTO active.groups (start_time, last_activity, end_time, timeout_minutes, group_id, device_id, room_id, created_at, updated_at, tenant_id)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
 			RETURNING id
 		`, now.Add(-3*time.Hour), now.Add(-3*time.Hour), now.Add(-2*time.Hour), 30, data.ActivityGroup, device.ID, data.Room, now.Add(-3*time.Hour), now).
 			Scan(ctx, &oldGroupID)
@@ -732,8 +732,8 @@ func TestVisitRepository_GetVisitRetentionStats(t *testing.T) {
 
 		// Create privacy consent with short retention using raw SQL
 		_, err := db.NewRaw(`
-			INSERT INTO users.privacy_consents (student_id, policy_version, accepted, renewal_required, data_retention_days, created_at, updated_at)
-			VALUES (?, 'v1.0', true, false, 7, NOW(), NOW())
+			INSERT INTO users.privacy_consents (student_id, policy_version, accepted, renewal_required, data_retention_days, tenant_id, created_at, updated_at)
+			VALUES (?, 'v1.0', true, false, 7, 1, NOW(), NOW())
 		`, student.ID).Exec(ctx)
 		require.NoError(t, err)
 		defer func() {
@@ -748,8 +748,8 @@ func TestVisitRepository_GetVisitRetentionStats(t *testing.T) {
 
 		var visitID int64
 		err = db.NewRaw(`
-			INSERT INTO active.visits (student_id, active_group_id, entry_time, exit_time, created_at, updated_at)
-			VALUES (?, ?, ?, ?, ?, ?)
+			INSERT INTO active.visits (student_id, active_group_id, entry_time, exit_time, created_at, updated_at, tenant_id)
+			VALUES (?, ?, ?, ?, ?, ?, 1)
 			RETURNING id
 		`, student.ID, data.ActiveGroup.ID, entryTime, exitTime, createdAt, now).
 			Scan(ctx, &visitID)
@@ -784,8 +784,8 @@ func TestVisitRepository_CountExpiredVisits(t *testing.T) {
 
 		// Create privacy consent with short retention using raw SQL
 		_, err := db.NewRaw(`
-			INSERT INTO users.privacy_consents (student_id, policy_version, accepted, renewal_required, data_retention_days, created_at, updated_at)
-			VALUES (?, 'v1.0', true, false, 7, NOW(), NOW())
+			INSERT INTO users.privacy_consents (student_id, policy_version, accepted, renewal_required, data_retention_days, tenant_id, created_at, updated_at)
+			VALUES (?, 'v1.0', true, false, 7, 1, NOW(), NOW())
 		`, student.ID).Exec(ctx)
 		require.NoError(t, err)
 		defer func() {
@@ -800,8 +800,8 @@ func TestVisitRepository_CountExpiredVisits(t *testing.T) {
 
 		var visitID int64
 		err = db.NewRaw(`
-			INSERT INTO active.visits (student_id, active_group_id, entry_time, exit_time, created_at, updated_at)
-			VALUES (?, ?, ?, ?, ?, ?)
+			INSERT INTO active.visits (student_id, active_group_id, entry_time, exit_time, created_at, updated_at, tenant_id)
+			VALUES (?, ?, ?, ?, ?, ?, 1)
 			RETURNING id
 		`, student.ID, data.ActiveGroup.ID, entryTime, exitTime, createdAt, now).
 			Scan(ctx, &visitID)

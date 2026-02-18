@@ -111,6 +111,10 @@ For CI, set TEST_DB_DSN as an environment variable.`)
 	db, err := database.DBConn()
 	require.NoError(t, err, "Failed to connect to test database")
 
+	// Ensure the default tenant (school ID 1) exists in platform.schools.
+	// All fixtures use tenant_id=1, which requires a FK target row.
+	EnsureTestTenant(t, db, 1)
+
 	// Ensure default fallback room exists (ID 1).
 	// session_service.go:determineRoomIDWithStrategy uses hardcoded fallback to room 1
 	// when no room is specified and no planned room exists.

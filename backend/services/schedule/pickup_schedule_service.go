@@ -165,6 +165,7 @@ func (s *pickupScheduleService) UpsertBulkStudentPickupSchedules(ctx context.Con
 		if err := sched.Validate(); err != nil {
 			return &ScheduleError{Op: opUpsertBulkStudentPickupSchedules, Err: fmt.Errorf("invalid schedule for weekday %d: %w", sched.Weekday, err)}
 		}
+		sched.SetTenantID(tenant.FromContext(ctx))
 
 		_, err := db.NewInsert().
 			Model(sched).

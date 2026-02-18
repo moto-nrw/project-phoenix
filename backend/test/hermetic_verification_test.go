@@ -141,6 +141,7 @@ func checkHardcodedIDs(t *testing.T, root string) []string {
 		"invitation_service_test.go",         // Uses mocks
 		"password_reset_integration_test.go", // Uses mocks (sqlmock + stubs)
 		"handlers_unit_test.go",              // Unit tests for converters (no DB)
+		"http_middleware_test.go",            // Uses nil *bun.DB for unit testing middleware
 	}
 
 	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {

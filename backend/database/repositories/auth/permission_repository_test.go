@@ -273,7 +273,7 @@ func TestPermissionRepository_FindByAccountID(t *testing.T) {
 
 		// Assign role to account
 		_, err := db.ExecContext(ctx,
-			"INSERT INTO auth.account_roles (account_id, role_id) VALUES (?, ?)",
+			"INSERT INTO auth.account_roles (account_id, role_id, tenant_id) VALUES (?, ?, 1)",
 			account.ID, role.ID)
 		require.NoError(t, err)
 
@@ -323,7 +323,7 @@ func TestPermissionRepository_FindDirectByAccountID(t *testing.T) {
 
 		// Assign permission directly to account (granted=true)
 		_, err := db.ExecContext(ctx,
-			"INSERT INTO auth.account_permissions (account_id, permission_id, granted) VALUES (?, ?, ?)",
+			"INSERT INTO auth.account_permissions (account_id, permission_id, granted, tenant_id) VALUES (?, ?, ?, 1)",
 			account.ID, permission.ID, true)
 		require.NoError(t, err)
 
