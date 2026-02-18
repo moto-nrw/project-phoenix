@@ -11,7 +11,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -112,7 +111,7 @@ func TestListActivities_Success(t *testing.T) {
 	defer cleanupActivity(t, ctx.db, activity.ID)
 	defer cleanupCategory(t, ctx.db, activity.CategoryID)
 
-	router := chi.NewRouter()
+	router := testutil.NewTenantRouter(ctx.db)
 	router.Get("/activities", ctx.resource.ListActivitiesHandler())
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/activities", nil,
@@ -137,7 +136,7 @@ func TestListActivities_WithCategoryFilter(t *testing.T) {
 	defer cleanupActivity(t, ctx.db, activity.ID)
 	defer cleanupCategory(t, ctx.db, activity.CategoryID)
 
-	router := chi.NewRouter()
+	router := testutil.NewTenantRouter(ctx.db)
 	router.Get("/activities", ctx.resource.ListActivitiesHandler())
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/activities?category_id=%d", activity.CategoryID), nil,
@@ -157,7 +156,7 @@ func TestGetActivity_Success(t *testing.T) {
 	defer cleanupActivity(t, ctx.db, activity.ID)
 	defer cleanupCategory(t, ctx.db, activity.CategoryID)
 
-	router := chi.NewRouter()
+	router := testutil.NewTenantRouter(ctx.db)
 	router.Get("/activities/{id}", ctx.resource.GetActivityHandler())
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/activities/%d", activity.ID), nil,
@@ -178,7 +177,7 @@ func TestGetActivity_NotFound(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	router := chi.NewRouter()
+	router := testutil.NewTenantRouter(ctx.db)
 	router.Get("/activities/{id}", ctx.resource.GetActivityHandler())
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/activities/99999", nil,
@@ -194,7 +193,7 @@ func TestGetActivity_InvalidID(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	router := chi.NewRouter()
+	router := testutil.NewTenantRouter(ctx.db)
 	router.Get("/activities/{id}", ctx.resource.GetActivityHandler())
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/activities/invalid", nil,
@@ -217,7 +216,7 @@ func TestCreateActivity_Success(t *testing.T) {
 	category := testpkg.CreateTestActivityCategory(t, ctx.db, fmt.Sprintf("CreateTest-%d", time.Now().UnixNano()))
 	defer cleanupCategory(t, ctx.db, category.ID)
 
-	router := chi.NewRouter()
+	router := testutil.NewTenantRouter(ctx.db)
 	router.Post("/activities", ctx.resource.CreateActivityHandler())
 
 	body := map[string]interface{}{
@@ -253,7 +252,7 @@ func TestCreateActivity_BadRequest_MissingName(t *testing.T) {
 	category := testpkg.CreateTestActivityCategory(t, ctx.db, fmt.Sprintf("BadReq-%d", time.Now().UnixNano()))
 	defer cleanupCategory(t, ctx.db, category.ID)
 
-	router := chi.NewRouter()
+	router := testutil.NewTenantRouter(ctx.db)
 	router.Post("/activities", ctx.resource.CreateActivityHandler())
 
 	body := map[string]interface{}{
@@ -275,7 +274,7 @@ func TestCreateActivity_BadRequest_MissingCategoryID(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	router := chi.NewRouter()
+	router := testutil.NewTenantRouter(ctx.db)
 	router.Post("/activities", ctx.resource.CreateActivityHandler())
 
 	body := map[string]interface{}{
@@ -300,7 +299,7 @@ func TestCreateActivity_BadRequest_ZeroParticipants(t *testing.T) {
 	category := testpkg.CreateTestActivityCategory(t, ctx.db, fmt.Sprintf("ZeroP-%d", time.Now().UnixNano()))
 	defer cleanupCategory(t, ctx.db, category.ID)
 
-	router := chi.NewRouter()
+	router := testutil.NewTenantRouter(ctx.db)
 	router.Post("/activities", ctx.resource.CreateActivityHandler())
 
 	body := map[string]interface{}{
@@ -329,7 +328,7 @@ func TestUpdateActivity_Success(t *testing.T) {
 	defer cleanupActivity(t, ctx.db, activity.ID)
 	defer cleanupCategory(t, ctx.db, activity.CategoryID)
 
-	router := chi.NewRouter()
+	router := testutil.NewTenantRouter(ctx.db)
 	router.Put("/activities/{id}", ctx.resource.UpdateActivityHandler())
 
 	body := map[string]interface{}{
@@ -361,7 +360,7 @@ func TestUpdateActivity_NotFound(t *testing.T) {
 	category := testpkg.CreateTestActivityCategory(t, ctx.db, fmt.Sprintf("NotFound-%d", time.Now().UnixNano()))
 	defer cleanupCategory(t, ctx.db, category.ID)
 
-	router := chi.NewRouter()
+	router := testutil.NewTenantRouter(ctx.db)
 	router.Put("/activities/{id}", ctx.resource.UpdateActivityHandler())
 
 	body := map[string]interface{}{
@@ -390,7 +389,7 @@ func TestDeleteActivity_Success(t *testing.T) {
 	categoryID := activity.CategoryID
 	defer cleanupCategory(t, ctx.db, categoryID)
 
-	router := chi.NewRouter()
+	router := testutil.NewTenantRouter(ctx.db)
 	router.Delete("/activities/{id}", ctx.resource.DeleteActivityHandler())
 
 	// Use admin claims + permissions which have full access and bypass ownership checks
@@ -411,7 +410,7 @@ func TestDeleteActivity_NonExistent_ReturnsSuccess(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	router := chi.NewRouter()
+	router := testutil.NewTenantRouter(ctx.db)
 	router.Delete("/activities/{id}", ctx.resource.DeleteActivityHandler())
 
 	// Use admin claims + permissions
@@ -430,7 +429,7 @@ func TestDeleteActivity_InvalidID(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	router := chi.NewRouter()
+	router := testutil.NewTenantRouter(ctx.db)
 	router.Delete("/activities/{id}", ctx.resource.DeleteActivityHandler())
 
 	req := testutil.NewAuthenticatedRequest(t, "DELETE", "/activities/invalid", nil,
@@ -453,7 +452,7 @@ func TestListCategories_Success(t *testing.T) {
 	category := testpkg.CreateTestActivityCategory(t, ctx.db, fmt.Sprintf("TestCat-%d", time.Now().UnixNano()))
 	defer cleanupCategory(t, ctx.db, category.ID)
 
-	router := chi.NewRouter()
+	router := testutil.NewTenantRouter(ctx.db)
 	router.Get("/activities/categories", ctx.resource.ListCategoriesHandler())
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/activities/categories", nil,
@@ -474,7 +473,7 @@ func TestGetTimespans_Success(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	router := chi.NewRouter()
+	router := testutil.NewTenantRouter(ctx.db)
 	router.Get("/activities/timespans", ctx.resource.GetTimespansHandler())
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/activities/timespans", nil,
@@ -502,7 +501,7 @@ func TestGetActivitySchedules_Success(t *testing.T) {
 	defer cleanupActivity(t, ctx.db, activity.ID)
 	defer cleanupCategory(t, ctx.db, activity.CategoryID)
 
-	router := chi.NewRouter()
+	router := testutil.NewTenantRouter(ctx.db)
 	router.Get("/activities/{id}/schedules", ctx.resource.GetActivitySchedulesHandler())
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/activities/%d/schedules", activity.ID), nil,
@@ -522,7 +521,7 @@ func TestCreateActivitySchedule_Success(t *testing.T) {
 	defer cleanupActivity(t, ctx.db, activity.ID)
 	defer cleanupCategory(t, ctx.db, activity.CategoryID)
 
-	router := chi.NewRouter()
+	router := testutil.NewTenantRouter(ctx.db)
 	router.Post("/activities/{id}/schedules", ctx.resource.CreateActivityScheduleHandler())
 
 	body := map[string]interface{}{
@@ -546,7 +545,7 @@ func TestCreateActivitySchedule_BadRequest_InvalidWeekday(t *testing.T) {
 	defer cleanupActivity(t, ctx.db, activity.ID)
 	defer cleanupCategory(t, ctx.db, activity.CategoryID)
 
-	router := chi.NewRouter()
+	router := testutil.NewTenantRouter(ctx.db)
 	router.Post("/activities/{id}/schedules", ctx.resource.CreateActivityScheduleHandler())
 
 	body := map[string]interface{}{
@@ -566,7 +565,7 @@ func TestGetAvailableTimeSlots_Success(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	router := chi.NewRouter()
+	router := testutil.NewTenantRouter(ctx.db)
 	router.Get("/activities/schedules/available", ctx.resource.GetAvailableTimeSlotsHandler())
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/activities/schedules/available", nil,
@@ -582,7 +581,7 @@ func TestGetAvailableTimeSlots_BadRequest_InvalidWeekday(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	router := chi.NewRouter()
+	router := testutil.NewTenantRouter(ctx.db)
 	router.Get("/activities/schedules/available", ctx.resource.GetAvailableTimeSlotsHandler())
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/activities/schedules/available?weekday=invalid", nil,
@@ -606,7 +605,7 @@ func TestGetActivitySupervisors_Success(t *testing.T) {
 	defer cleanupActivity(t, ctx.db, activity.ID)
 	defer cleanupCategory(t, ctx.db, activity.CategoryID)
 
-	router := chi.NewRouter()
+	router := testutil.NewTenantRouter(ctx.db)
 	router.Get("/activities/{id}/supervisors", ctx.resource.GetActivitySupervisorsHandler())
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/activities/%d/supervisors", activity.ID), nil,
@@ -629,7 +628,7 @@ func TestAssignSupervisor_Success(t *testing.T) {
 	staff := testpkg.CreateTestStaff(t, ctx.db, "Supervisor", "Test")
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, staff.ID)
 
-	router := chi.NewRouter()
+	router := testutil.NewTenantRouter(ctx.db)
 	router.Post("/activities/{id}/supervisors", ctx.resource.AssignSupervisorHandler())
 
 	body := map[string]interface{}{
@@ -654,7 +653,7 @@ func TestAssignSupervisor_BadRequest_MissingStaffID(t *testing.T) {
 	defer cleanupActivity(t, ctx.db, activity.ID)
 	defer cleanupCategory(t, ctx.db, activity.CategoryID)
 
-	router := chi.NewRouter()
+	router := testutil.NewTenantRouter(ctx.db)
 	router.Post("/activities/{id}/supervisors", ctx.resource.AssignSupervisorHandler())
 
 	body := map[string]interface{}{
@@ -677,7 +676,7 @@ func TestGetAvailableSupervisors_Success(t *testing.T) {
 	staff := testpkg.CreateTestStaff(t, ctx.db, "Available", "Supervisor")
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, staff.ID)
 
-	router := chi.NewRouter()
+	router := testutil.NewTenantRouter(ctx.db)
 	router.Get("/activities/supervisors/available", ctx.resource.GetAvailableSupervisorsHandler())
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/activities/supervisors/available", nil,
@@ -705,7 +704,7 @@ func TestGetActivityStudents_Success(t *testing.T) {
 	defer cleanupActivity(t, ctx.db, activity.ID)
 	defer cleanupCategory(t, ctx.db, activity.CategoryID)
 
-	router := chi.NewRouter()
+	router := testutil.NewTenantRouter(ctx.db)
 	router.Get("/activities/{id}/students", ctx.resource.GetActivityStudentsHandler())
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/activities/%d/students", activity.ID), nil,
@@ -728,7 +727,7 @@ func TestEnrollStudent_Success(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, ctx.db, "Enroll", "Student", "1a")
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
 
-	router := chi.NewRouter()
+	router := testutil.NewTenantRouter(ctx.db)
 	router.Post("/activities/{id}/students/{studentId}", ctx.resource.EnrollStudentHandler())
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/activities/%d/students/%d", activity.ID, student.ID), nil,
@@ -751,7 +750,7 @@ func TestEnrollStudent_Conflict_AlreadyEnrolled(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, ctx.db, "Dup", "Enroll", "1a")
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
 
-	router := chi.NewRouter()
+	router := testutil.NewTenantRouter(ctx.db)
 	router.Post("/activities/{id}/students/{studentId}", ctx.resource.EnrollStudentHandler())
 
 	// First enrollment
@@ -777,7 +776,7 @@ func TestGetStudentEnrollments_Success(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, ctx.db, "GetEnroll", "Student", "1a")
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
 
-	router := chi.NewRouter()
+	router := testutil.NewTenantRouter(ctx.db)
 	router.Get("/activities/students/{studentId}", ctx.resource.GetStudentEnrollmentsHandler())
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/activities/students/%d", student.ID), nil,
@@ -796,7 +795,7 @@ func TestGetAvailableActivities_Success(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, ctx.db, "Available", "Student", "1a")
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
 
-	router := chi.NewRouter()
+	router := testutil.NewTenantRouter(ctx.db)
 	router.Get("/activities/students/{studentId}/available", ctx.resource.GetAvailableActivitiesHandler())
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/activities/students/%d/available", student.ID), nil,
@@ -820,7 +819,7 @@ func TestUnenrollStudent_Success(t *testing.T) {
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
 
 	// First enroll the student
-	enrollRouter := chi.NewRouter()
+	enrollRouter := testutil.NewTenantRouter(ctx.db)
 	enrollRouter.Post("/activities/{id}/students/{studentId}", ctx.resource.EnrollStudentHandler())
 	enrollReq := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/activities/%d/students/%d", activity.ID, student.ID), nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
@@ -829,7 +828,7 @@ func TestUnenrollStudent_Success(t *testing.T) {
 	require.Equal(t, http.StatusOK, enrollRr.Code, "Enrollment failed: %s", enrollRr.Body.String())
 
 	// Now unenroll
-	router := chi.NewRouter()
+	router := testutil.NewTenantRouter(ctx.db)
 	router.Delete("/activities/{id}/students/{studentId}", ctx.resource.UnenrollStudentHandler())
 
 	req := testutil.NewAuthenticatedRequest(t, "DELETE", fmt.Sprintf("/activities/%d/students/%d", activity.ID, student.ID), nil,
@@ -852,7 +851,7 @@ func TestUnenrollStudent_NotFound(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, ctx.db, "NotEnrolled", "Student", "1a")
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
 
-	router := chi.NewRouter()
+	router := testutil.NewTenantRouter(ctx.db)
 	router.Delete("/activities/{id}/students/{studentId}", ctx.resource.UnenrollStudentHandler())
 
 	req := testutil.NewAuthenticatedRequest(t, "DELETE", fmt.Sprintf("/activities/%d/students/%d", activity.ID, student.ID), nil,
@@ -876,7 +875,7 @@ func TestBatchEnrollment_Success(t *testing.T) {
 	student2 := testpkg.CreateTestStudent(t, ctx.db, "Batch", "Student2", "1b")
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, student1.ID, student2.ID)
 
-	router := chi.NewRouter()
+	router := testutil.NewTenantRouter(ctx.db)
 	router.Put("/activities/{id}/students", ctx.resource.UpdateGroupEnrollmentsHandler())
 
 	body := map[string]interface{}{
@@ -900,7 +899,7 @@ func TestBatchEnrollment_BadRequest_MissingStudentIDs(t *testing.T) {
 	defer cleanupActivity(t, ctx.db, activity.ID)
 	defer cleanupCategory(t, ctx.db, activity.CategoryID)
 
-	router := chi.NewRouter()
+	router := testutil.NewTenantRouter(ctx.db)
 	router.Put("/activities/{id}/students", ctx.resource.UpdateGroupEnrollmentsHandler())
 
 	body := map[string]interface{}{}
@@ -929,7 +928,7 @@ func TestQuickCreateActivity_Success(t *testing.T) {
 	category := testpkg.CreateTestActivityCategory(t, ctx.db, fmt.Sprintf("QuickCreate-%d", time.Now().UnixNano()))
 	defer cleanupCategory(t, ctx.db, category.ID)
 
-	router := chi.NewRouter()
+	router := testutil.NewTenantRouter(ctx.db)
 	router.Post("/activities/quick-create", ctx.resource.QuickCreateActivityHandler())
 
 	body := map[string]interface{}{
@@ -964,7 +963,7 @@ func TestQuickCreateActivity_BadRequest_MissingName(t *testing.T) {
 	category := testpkg.CreateTestActivityCategory(t, ctx.db, fmt.Sprintf("QuickBad-%d", time.Now().UnixNano()))
 	defer cleanupCategory(t, ctx.db, category.ID)
 
-	router := chi.NewRouter()
+	router := testutil.NewTenantRouter(ctx.db)
 	router.Post("/activities/quick-create", ctx.resource.QuickCreateActivityHandler())
 
 	body := map[string]interface{}{
@@ -985,7 +984,7 @@ func TestQuickCreateActivity_BadRequest_MissingCategoryID(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	router := chi.NewRouter()
+	router := testutil.NewTenantRouter(ctx.db)
 	router.Post("/activities/quick-create", ctx.resource.QuickCreateActivityHandler())
 
 	body := map[string]interface{}{
@@ -1020,11 +1019,11 @@ func TestGetActivitySchedule_Success(t *testing.T) {
 		ActivityGroupID: activity.ID,
 		Weekday:         1, // Monday
 	}
-	schedule, err := actSvc.AddSchedule(context.Background(), activity.ID, schedData)
+	schedule, err := actSvc.AddSchedule(testutil.TenantContext(1), activity.ID, schedData)
 	require.NoError(t, err)
 	require.NotNil(t, schedule)
 
-	router := chi.NewRouter()
+	router := testutil.NewTenantRouter(ctx.db)
 	router.Get("/activities/{id}/schedules/{scheduleId}", ctx.resource.GetActivityScheduleHandler())
 
 	req := testutil.NewAuthenticatedRequest(t, "GET",
@@ -1045,7 +1044,7 @@ func TestGetActivitySchedule_NotFound(t *testing.T) {
 	defer cleanupActivity(t, ctx.db, activity.ID)
 	defer cleanupCategory(t, ctx.db, activity.CategoryID)
 
-	router := chi.NewRouter()
+	router := testutil.NewTenantRouter(ctx.db)
 	router.Get("/activities/{id}/schedules/{scheduleId}", ctx.resource.GetActivityScheduleHandler())
 
 	req := testutil.NewAuthenticatedRequest(t, "GET",
@@ -1072,10 +1071,10 @@ func TestUpdateActivitySchedule_Success(t *testing.T) {
 		ActivityGroupID: activity.ID,
 		Weekday:         1, // Monday
 	}
-	schedule, err := actSvc.AddSchedule(context.Background(), activity.ID, schedData)
+	schedule, err := actSvc.AddSchedule(testutil.TenantContext(1), activity.ID, schedData)
 	require.NoError(t, err)
 
-	router := chi.NewRouter()
+	router := testutil.NewTenantRouter(ctx.db)
 	router.Put("/activities/{id}/schedules/{scheduleId}", ctx.resource.UpdateActivityScheduleHandler())
 
 	body := map[string]interface{}{
@@ -1100,7 +1099,7 @@ func TestUpdateActivitySchedule_NotFound(t *testing.T) {
 	defer cleanupActivity(t, ctx.db, activity.ID)
 	defer cleanupCategory(t, ctx.db, activity.CategoryID)
 
-	router := chi.NewRouter()
+	router := testutil.NewTenantRouter(ctx.db)
 	router.Put("/activities/{id}/schedules/{scheduleId}", ctx.resource.UpdateActivityScheduleHandler())
 
 	body := map[string]interface{}{
@@ -1131,10 +1130,10 @@ func TestDeleteActivitySchedule_Success(t *testing.T) {
 		ActivityGroupID: activity.ID,
 		Weekday:         1, // Monday
 	}
-	schedule, err := actSvc.AddSchedule(context.Background(), activity.ID, schedData)
+	schedule, err := actSvc.AddSchedule(testutil.TenantContext(1), activity.ID, schedData)
 	require.NoError(t, err)
 
-	router := chi.NewRouter()
+	router := testutil.NewTenantRouter(ctx.db)
 	router.Delete("/activities/{id}/schedules/{scheduleId}", ctx.resource.DeleteActivityScheduleHandler())
 
 	req := testutil.NewAuthenticatedRequest(t, "DELETE",
@@ -1157,7 +1156,7 @@ func TestDeleteActivitySchedule_NotFound(t *testing.T) {
 	defer cleanupActivity(t, ctx.db, activity.ID)
 	defer cleanupCategory(t, ctx.db, activity.CategoryID)
 
-	router := chi.NewRouter()
+	router := testutil.NewTenantRouter(ctx.db)
 	router.Delete("/activities/{id}/schedules/{scheduleId}", ctx.resource.DeleteActivityScheduleHandler())
 
 	req := testutil.NewAuthenticatedRequest(t, "DELETE",
@@ -1186,11 +1185,11 @@ func TestUpdateSupervisorRole_Success(t *testing.T) {
 
 	// Assign supervisor first - get the supervisor record
 	actSvc := ctx.services.Activities
-	supervisor, err := actSvc.AddSupervisor(context.Background(), activity.ID, staff.ID, false) // false = not primary
+	supervisor, err := actSvc.AddSupervisor(testutil.TenantContext(1), activity.ID, staff.ID, false) // false = not primary
 	require.NoError(t, err)
 	require.NotNil(t, supervisor)
 
-	router := chi.NewRouter()
+	router := testutil.NewTenantRouter(ctx.db)
 	router.Put("/activities/{id}/supervisors/{supervisorId}", ctx.resource.UpdateSupervisorRoleHandler())
 
 	body := map[string]interface{}{
@@ -1215,7 +1214,7 @@ func TestUpdateSupervisorRole_NotFound(t *testing.T) {
 	defer cleanupActivity(t, ctx.db, activity.ID)
 	defer cleanupCategory(t, ctx.db, activity.CategoryID)
 
-	router := chi.NewRouter()
+	router := testutil.NewTenantRouter(ctx.db)
 	router.Put("/activities/{id}/supervisors/{supervisorId}", ctx.resource.UpdateSupervisorRoleHandler())
 
 	body := map[string]interface{}{
@@ -1244,11 +1243,11 @@ func TestRemoveSupervisor_Success(t *testing.T) {
 
 	// Assign supervisor first - get the supervisor record
 	actSvc := ctx.services.Activities
-	supervisor, err := actSvc.AddSupervisor(context.Background(), activity.ID, staff.ID, false) // false = not primary
+	supervisor, err := actSvc.AddSupervisor(testutil.TenantContext(1), activity.ID, staff.ID, false) // false = not primary
 	require.NoError(t, err)
 	require.NotNil(t, supervisor)
 
-	router := chi.NewRouter()
+	router := testutil.NewTenantRouter(ctx.db)
 	router.Delete("/activities/{id}/supervisors/{supervisorId}", ctx.resource.RemoveSupervisorHandler())
 
 	req := testutil.NewAuthenticatedRequest(t, "DELETE",
@@ -1271,7 +1270,7 @@ func TestRemoveSupervisor_NotFound(t *testing.T) {
 	defer cleanupActivity(t, ctx.db, activity.ID)
 	defer cleanupCategory(t, ctx.db, activity.CategoryID)
 
-	router := chi.NewRouter()
+	router := testutil.NewTenantRouter(ctx.db)
 	router.Delete("/activities/{id}/supervisors/{supervisorId}", ctx.resource.RemoveSupervisorHandler())
 
 	req := testutil.NewAuthenticatedRequest(t, "DELETE",

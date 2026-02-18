@@ -276,6 +276,8 @@ func (r *AccountPermissionRepository) Create(ctx context.Context, accountPermiss
 		return err
 	}
 
+	base.EnsureTenantID(ctx, accountPermission)
+
 	_, err := base.GetDB(ctx, r.db).NewInsert().
 		Model(accountPermission).
 		ModelTableExpr(accountPermissionTable).

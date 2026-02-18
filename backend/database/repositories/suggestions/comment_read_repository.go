@@ -33,6 +33,8 @@ func (r *CommentReadRepository) Upsert(ctx context.Context, accountID, postID in
 		LastReadAt: time.Now(),
 	}
 
+	base.EnsureTenantID(ctx, cr)
+
 	_, err := base.GetDB(ctx, r.db).NewInsert().
 		Model(cr).
 		On("CONFLICT (account_id, post_id, reader_type) DO UPDATE").

@@ -4,7 +4,7 @@ package base
 // Platform models (organizations, operators) do NOT embed this.
 // In Phase 1, this struct is created but not yet embedded into existing models.
 type TenantModel struct {
-	TenantID int64 `bun:"tenant_id,notnull,default:1" json:"tenant_id"`
+	TenantID int64 `bun:"tenant_id,notnull" json:"tenant_id"`
 }
 
 // GetTenantID returns the tenant ID.

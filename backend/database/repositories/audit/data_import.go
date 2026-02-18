@@ -21,6 +21,8 @@ func NewDataImportRepository(db *bun.DB) *DataImportRepository {
 
 // Create creates a new data import audit record
 func (r *DataImportRepository) Create(ctx context.Context, dataImport *audit.DataImport) error {
+	base.EnsureTenantID(ctx, dataImport)
+
 	_, err := base.GetDB(ctx, r.db).NewInsert().
 		Model(dataImport).
 		Exec(ctx)

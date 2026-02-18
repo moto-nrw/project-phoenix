@@ -46,6 +46,8 @@ func (r *GradeTransitionRepository) Create(ctx context.Context, t *education.Gra
 		return err
 	}
 
+	base.EnsureTenantID(ctx, t)
+
 	_, err := base.GetDB(ctx, r.db).NewInsert().
 		Model(t).
 		ModelTableExpr(tableGradeTransitions).
@@ -270,6 +272,8 @@ func (r *GradeTransitionRepository) CreateMapping(ctx context.Context, m *educat
 		return err
 	}
 
+	base.EnsureTenantID(ctx, m)
+
 	_, err := base.GetDB(ctx, r.db).NewInsert().
 		Model(m).
 		ModelTableExpr(tableGradeTransitionMappings).
@@ -295,6 +299,7 @@ func (r *GradeTransitionRepository) CreateMappings(ctx context.Context, mappings
 		if err := m.Validate(); err != nil {
 			return err
 		}
+		base.EnsureTenantID(ctx, m)
 	}
 
 	_, err := base.GetDB(ctx, r.db).NewInsert().
@@ -367,6 +372,8 @@ func (r *GradeTransitionRepository) CreateHistory(ctx context.Context, h *educat
 		return err
 	}
 
+	base.EnsureTenantID(ctx, h)
+
 	_, err := base.GetDB(ctx, r.db).NewInsert().
 		Model(h).
 		ModelTableExpr(tableGradeTransitionHistory).
@@ -392,6 +399,7 @@ func (r *GradeTransitionRepository) CreateHistoryBatch(ctx context.Context, hist
 		if err := h.Validate(); err != nil {
 			return err
 		}
+		base.EnsureTenantID(ctx, h)
 	}
 
 	_, err := base.GetDB(ctx, r.db).NewInsert().

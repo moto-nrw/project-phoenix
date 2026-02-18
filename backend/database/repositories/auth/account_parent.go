@@ -208,6 +208,8 @@ func (r *AccountParentRepository) Create(ctx context.Context, account *auth.Acco
 		return err
 	}
 
+	base.EnsureTenantID(ctx, account)
+
 	_, err := base.GetDB(ctx, r.db).NewInsert().
 		Model(account).
 		ModelTableExpr(accountParentTable).

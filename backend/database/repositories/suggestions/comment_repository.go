@@ -39,6 +39,8 @@ func (r *CommentRepository) Create(ctx context.Context, comment *suggestions.Com
 		return err
 	}
 
+	base.EnsureTenantID(ctx, comment)
+
 	_, err := base.GetDB(ctx, r.db).NewInsert().
 		Model(comment).
 		ModelTableExpr(tableSuggestionsComments).

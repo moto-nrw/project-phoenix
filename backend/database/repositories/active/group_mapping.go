@@ -118,6 +118,8 @@ func (r *GroupMappingRepository) AddGroupToCombination(ctx context.Context, comb
 		return err
 	}
 
+	base.EnsureTenantID(ctx, mapping)
+
 	_, err = base.GetDB(ctx, r.db).NewInsert().
 		Model(mapping).
 		ModelTableExpr(tableActiveGroupMappings).

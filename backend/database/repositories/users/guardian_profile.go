@@ -34,6 +34,8 @@ func (r *GuardianProfileRepository) Create(ctx context.Context, profile *users.G
 		return fmt.Errorf("validation failed: %w", err)
 	}
 
+	repoBase.EnsureTenantID(ctx, profile)
+
 	// Get the database connection (or transaction if in context)
 	var db bun.IDB = r.db
 	if tx, ok := base.TxFromContext(ctx); ok && tx != nil {
