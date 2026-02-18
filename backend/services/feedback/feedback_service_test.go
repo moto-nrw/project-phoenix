@@ -42,6 +42,7 @@ func createTestFeedbackEntry(t *testing.T, db *bun.DB, studentID int64, value st
 		StudentID:       studentID,
 		IsMensaFeedback: false,
 	}
+	entry.SetTenantID(1)
 
 	err := db.NewInsert().
 		Model(entry).

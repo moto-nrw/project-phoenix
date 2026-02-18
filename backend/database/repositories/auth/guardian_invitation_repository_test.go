@@ -249,13 +249,15 @@ func TestGuardianInvitationRepository_FindExpired(t *testing.T) {
 
 		// Create an expired invitation - bypass validation by inserting directly
 		token := uuid.Must(uuid.NewV4()).String()
+		expiredInvitation := &auth.GuardianInvitation{
+			GuardianProfileID: guardian.ID,
+			Token:             token,
+			ExpiresAt:         time.Now().Add(-1 * time.Hour), // Expired 1 hour ago
+			CreatedBy:         1,
+		}
+		expiredInvitation.SetTenantID(1)
 		_, err := db.NewInsert().
-			Model(&auth.GuardianInvitation{
-				GuardianProfileID: guardian.ID,
-				Token:             token,
-				ExpiresAt:         time.Now().Add(-1 * time.Hour), // Expired 1 hour ago
-				CreatedBy:         1,
-			}).
+			Model(expiredInvitation).
 			ModelTableExpr(`auth.guardian_invitations`).
 			Exec(ctx)
 		require.NoError(t, err)
@@ -390,13 +392,15 @@ func TestGuardianInvitationRepository_DeleteExpired(t *testing.T) {
 
 		// Create an expired invitation - bypass validation by inserting directly
 		token := uuid.Must(uuid.NewV4()).String()
+		expiredInvitation := &auth.GuardianInvitation{
+			GuardianProfileID: guardian.ID,
+			Token:             token,
+			ExpiresAt:         time.Now().Add(-1 * time.Hour), // Expired
+			CreatedBy:         1,
+		}
+		expiredInvitation.SetTenantID(1)
 		_, err := db.NewInsert().
-			Model(&auth.GuardianInvitation{
-				GuardianProfileID: guardian.ID,
-				Token:             token,
-				ExpiresAt:         time.Now().Add(-1 * time.Hour), // Expired
-				CreatedBy:         1,
-			}).
+			Model(expiredInvitation).
 			ModelTableExpr(`auth.guardian_invitations`).
 			Exec(ctx)
 		require.NoError(t, err)

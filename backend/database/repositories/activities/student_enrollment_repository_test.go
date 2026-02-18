@@ -28,6 +28,7 @@ func createEnrollment(t *testing.T, db *bun.DB, studentID, groupID int64, enroll
 		EnrollmentDate:   enrollmentDate,
 		AttendanceStatus: status,
 	}
+	enrollment.SetTenantID(1)
 
 	err := db.NewInsert().
 		Model(enrollment).

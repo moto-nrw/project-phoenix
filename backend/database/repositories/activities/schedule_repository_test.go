@@ -25,6 +25,7 @@ func createSchedule(t *testing.T, db *bun.DB, groupID int64, weekday int, timefr
 		Weekday:         weekday,
 		TimeframeID:     timeframeID,
 	}
+	schedule.SetTenantID(1)
 
 	err := db.NewInsert().
 		Model(schedule).

@@ -992,12 +992,14 @@ func TestActiveGroupRepository_FindWithVisits(t *testing.T) {
 		defer cleanupActiveGroupRecords(t, db, group.ID)
 
 		// Create a visit for this group using ModelTableExpr
+		visit := &active.Visit{
+			StudentID:     student.ID,
+			ActiveGroupID: group.ID,
+			EntryTime:     now,
+		}
+		visit.SetTenantID(1)
 		_, err = db.NewInsert().
-			Model(&active.Visit{
-				StudentID:     student.ID,
-				ActiveGroupID: group.ID,
-				EntryTime:     now,
-			}).
+			Model(visit).
 			ModelTableExpr("active.visits").
 			Exec(ctx)
 		require.NoError(t, err)
@@ -1043,13 +1045,15 @@ func TestActiveGroupRepository_FindWithSupervisors(t *testing.T) {
 		defer cleanupActiveGroupRecords(t, db, group.ID)
 
 		// Create a supervisor for this group using ModelTableExpr
+		groupSup := &active.GroupSupervisor{
+			GroupID:   group.ID,
+			StaffID:   staff.ID,
+			Role:      "supervisor",
+			StartDate: now,
+		}
+		groupSup.SetTenantID(1)
 		_, err = db.NewInsert().
-			Model(&active.GroupSupervisor{
-				GroupID:   group.ID,
-				StaffID:   staff.ID,
-				Role:      "supervisor",
-				StartDate: now,
-			}).
+			Model(groupSup).
 			ModelTableExpr("active.group_supervisors").
 			Exec(ctx)
 		require.NoError(t, err)

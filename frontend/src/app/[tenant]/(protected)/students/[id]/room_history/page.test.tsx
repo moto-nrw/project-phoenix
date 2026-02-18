@@ -133,7 +133,9 @@ describe("StudentRoomHistoryPage", () => {
 
     fireEvent.click(screen.getByText("Zurück zum Schülerprofil"));
 
-    expect(mockPush).toHaveBeenCalledWith("/test-tenant/students/1?from=/students/search");
+    expect(mockPush).toHaveBeenCalledWith(
+      "/test-tenant/students/1?from=/students/search",
+    );
   });
 
   it("displays room history entries", async () => {

@@ -47,6 +47,7 @@ func createTestPersonGuardian(t *testing.T, db *bun.DB, personID, guardianAccoun
 		IsPrimary:         isPrimary,
 		Permissions:       "{}",
 	}
+	pg.SetTenantID(1)
 
 	err := db.NewInsert().
 		Model(pg).

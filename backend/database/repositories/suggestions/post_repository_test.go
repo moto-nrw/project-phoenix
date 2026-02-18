@@ -27,6 +27,8 @@ func createTestPost(t *testing.T, db *bun.DB, accountID int64, title, descriptio
 		Score:       0,
 	}
 
+	post.SetTenantID(1)
+
 	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 5*time.Second)
 	defer cancel()
 
@@ -49,6 +51,8 @@ func createTestVote(t *testing.T, db *bun.DB, postID, voterID int64, direction s
 		VoterID:   voterID,
 		Direction: direction,
 	}
+
+	vote.SetTenantID(1)
 
 	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 5*time.Second)
 	defer cancel()

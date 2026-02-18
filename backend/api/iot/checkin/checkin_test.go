@@ -1447,6 +1447,7 @@ func TestDeviceCheckin_RoomCapacityExceeded(t *testing.T) {
 		Building: "Test Building",
 		Capacity: intPtr(1),
 	}
+	capacityRoom.SetTenantID(1)
 	err := ctx.db.NewInsert().
 		Model(capacityRoom).
 		ModelTableExpr("facilities.rooms").
@@ -1625,6 +1626,7 @@ func TestDeviceCheckin_ActivityCapacityExceeded(t *testing.T) {
 		CategoryID:      category.ID,
 		CreatedBy:       &creatorStaff.ID,
 	}
+	activityGroup.SetTenantID(1)
 	err := ctx.db.NewInsert().
 		Model(activityGroup).
 		ModelTableExpr(`activities.groups AS "group"`).

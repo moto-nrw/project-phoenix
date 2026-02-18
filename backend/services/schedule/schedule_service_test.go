@@ -46,6 +46,7 @@ func createTestDateframe(t *testing.T, db *bun.DB, name string, startDate, endDa
 		EndDate:     endDate,
 		Description: "Test dateframe: " + name,
 	}
+	df.SetTenantID(1)
 
 	err := db.NewInsert().
 		Model(df).
@@ -69,6 +70,7 @@ func createTestTimeframe(t *testing.T, db *bun.DB, startTime time.Time, endTime 
 		IsActive:    isActive,
 		Description: "Test timeframe",
 	}
+	tf.SetTenantID(1)
 
 	err := db.NewInsert().
 		Model(tf).
@@ -90,6 +92,7 @@ func createTestRecurrenceRule(t *testing.T, db *bun.DB, frequency string, interv
 		Frequency:     frequency,
 		IntervalCount: intervalCount,
 	}
+	rr.SetTenantID(1)
 
 	err := db.NewInsert().
 		Model(rr).
