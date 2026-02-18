@@ -5,7 +5,6 @@
 package activities_test
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 	"testing"
@@ -53,7 +52,7 @@ func setupTestContext(t *testing.T) *testContext {
 // cleanupActivity cleans up an activity and its related records
 func cleanupActivity(t *testing.T, db *bun.DB, activityID int64) {
 	t.Helper()
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// Delete enrollments (actual table name is student_enrollments)
 	_, _ = db.NewDelete().
@@ -83,7 +82,7 @@ func cleanupActivity(t *testing.T, db *bun.DB, activityID int64) {
 // cleanupCategory cleans up a category and any groups referencing it
 func cleanupCategory(t *testing.T, db *bun.DB, categoryID int64) {
 	t.Helper()
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// First delete any groups that reference this category (FK constraint)
 	_, _ = db.NewDelete().

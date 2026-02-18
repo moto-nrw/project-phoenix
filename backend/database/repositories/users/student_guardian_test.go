@@ -1,7 +1,6 @@
 package users_test
 
 import (
-	"context"
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
@@ -20,7 +19,7 @@ import (
 func createTestStudentGuardian(t *testing.T, db *bun.DB, studentID, guardianProfileID int64, relType string, isPrimary bool) *users.StudentGuardian {
 	t.Helper()
 
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 	sg := &users.StudentGuardian{
 		StudentID:          studentID,
 		GuardianProfileID:  guardianProfileID,
@@ -55,7 +54,7 @@ func TestStudentGuardianRepository_FindByStudentID_Success(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).StudentGuardian
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// Create dependencies
 	student := testpkg.CreateTestStudent(t, db, "Guardian", "Student", "1a")
@@ -85,7 +84,7 @@ func TestStudentGuardianRepository_FindByStudentID_Empty(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).StudentGuardian
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// Create student with no guardians
 	student := testpkg.CreateTestStudent(t, db, "NoGuardian", "Student", "1b")
@@ -108,7 +107,7 @@ func TestStudentGuardianRepository_FindByGuardianProfileID_Success(t *testing.T)
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).StudentGuardian
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// Create dependencies
 	student1 := testpkg.CreateTestStudent(t, db, "Multi1", "Student", "2a")
@@ -142,7 +141,7 @@ func TestStudentGuardianRepository_FindPrimaryByStudentID_Success(t *testing.T) 
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).StudentGuardian
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// Create dependencies
 	student := testpkg.CreateTestStudent(t, db, "Primary", "Student", "3a")
@@ -169,7 +168,7 @@ func TestStudentGuardianRepository_FindPrimaryByStudentID_NoPrimary(t *testing.T
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).StudentGuardian
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// Create student with no guardians
 	student := testpkg.CreateTestStudent(t, db, "NoPrimary", "Student", "3b")
@@ -191,7 +190,7 @@ func TestStudentGuardianRepository_FindEmergencyContactsByStudentID_Success(t *t
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).StudentGuardian
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// Create dependencies
 	student := testpkg.CreateTestStudent(t, db, "Emergency", "Student", "4a")
@@ -237,7 +236,7 @@ func TestStudentGuardianRepository_FindPickupAuthoritiesByStudentID_Success(t *t
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).StudentGuardian
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// Create dependencies
 	student := testpkg.CreateTestStudent(t, db, "Pickup", "Student", "5a")
@@ -283,7 +282,7 @@ func TestStudentGuardianRepository_SetPrimary_Success(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).StudentGuardian
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// Create dependencies
 	student := testpkg.CreateTestStudent(t, db, "SetPrimary", "Student", "6a")
@@ -324,7 +323,7 @@ func TestStudentGuardianRepository_SetEmergencyContact_Success(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).StudentGuardian
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// Create dependencies
 	student := testpkg.CreateTestStudent(t, db, "SetEmergency", "Student", "7a")
@@ -364,7 +363,7 @@ func TestStudentGuardianRepository_SetCanPickup_Success(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).StudentGuardian
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// Create dependencies
 	student := testpkg.CreateTestStudent(t, db, "SetPickup", "Student", "8a")
@@ -399,7 +398,7 @@ func TestStudentGuardianRepository_UpdatePermissions_ValidJSON(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).StudentGuardian
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// Create dependencies
 	student := testpkg.CreateTestStudent(t, db, "Permissions", "Student", "9a")
@@ -438,7 +437,7 @@ func TestStudentGuardianRepository_UpdatePermissions_InvalidJSON(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).StudentGuardian
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// Create dependencies
 	student := testpkg.CreateTestStudent(t, db, "InvalidJSON", "Student", "9b")
@@ -467,7 +466,7 @@ func TestStudentGuardianRepository_Create_Success(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).StudentGuardian
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// Create dependencies
 	student := testpkg.CreateTestStudent(t, db, "CreateSG", "Student", "10a")
@@ -502,7 +501,7 @@ func TestStudentGuardianRepository_Create_NilReturnsError(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).StudentGuardian
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// ACT
 	err := repo.Create(ctx, nil)
@@ -517,7 +516,7 @@ func TestStudentGuardianRepository_Create_ValidationError(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).StudentGuardian
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// ACT - Create with invalid data
 	sg := &users.StudentGuardian{
@@ -540,7 +539,7 @@ func TestStudentGuardianRepository_FindByRelationshipType_Success(t *testing.T) 
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).StudentGuardian
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// Create dependencies
 	student := testpkg.CreateTestStudent(t, db, "RelType", "Student", "12a")
@@ -574,7 +573,7 @@ func TestStudentGuardianRepository_List_WithFilters(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).StudentGuardian
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// Create dependencies
 	student := testpkg.CreateTestStudent(t, db, "ListTest", "Student", "13a")

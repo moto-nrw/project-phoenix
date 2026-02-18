@@ -1,7 +1,6 @@
 package audit_test
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -21,7 +20,7 @@ func TestDataImportRepository_Create(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).DataImport
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// Create a test account for the imported_by FK
 	account := testpkg.CreateTestAccount(t, db, "import_test@example.com")
@@ -105,7 +104,7 @@ func TestDataImportRepository_FindByID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).DataImport
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	account := testpkg.CreateTestAccount(t, db, "find_import@example.com")
 	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
@@ -146,7 +145,7 @@ func TestDataImportRepository_FindByImportedBy(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).DataImport
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	account1 := testpkg.CreateTestAccount(t, db, "importer1@example.com")
 	account2 := testpkg.CreateTestAccount(t, db, "importer2@example.com")
@@ -227,7 +226,7 @@ func TestDataImportRepository_FindByEntityType(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).DataImport
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	account := testpkg.CreateTestAccount(t, db, "entity_type@example.com")
 	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
@@ -280,7 +279,7 @@ func TestDataImportRepository_FindRecent(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).DataImport
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	account := testpkg.CreateTestAccount(t, db, "recent@example.com")
 	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
@@ -329,7 +328,7 @@ func TestDataImportRepository_List(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).DataImport
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	account := testpkg.CreateTestAccount(t, db, "list_import@example.com")
 	defer testpkg.CleanupAuthFixtures(t, db, account.ID)

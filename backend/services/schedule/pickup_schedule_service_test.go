@@ -1,7 +1,6 @@
 package schedule_test
 
 import (
-	"context"
 	"fmt"
 	"log/slog"
 	"testing"
@@ -41,7 +40,7 @@ func TestPickupScheduleService_GetStudentPickupSchedules(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupPickupScheduleService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns all schedules for student", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
@@ -77,7 +76,7 @@ func TestPickupScheduleService_GetStudentPickupScheduleForWeekday(t *testing.T) 
 	defer func() { _ = db.Close() }()
 
 	service := setupPickupScheduleService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns schedule for specific weekday", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
@@ -113,7 +112,7 @@ func TestPickupScheduleService_UpsertStudentPickupSchedule(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupPickupScheduleService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("creates new schedule", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
@@ -175,7 +174,7 @@ func TestPickupScheduleService_UpsertBulkStudentPickupSchedules(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupPickupScheduleService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("creates multiple schedules in transaction", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
@@ -246,7 +245,7 @@ func TestPickupScheduleService_DeleteStudentPickupSchedule(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupPickupScheduleService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("deletes schedule by ID", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
@@ -276,7 +275,7 @@ func TestPickupScheduleService_DeleteAllStudentPickupSchedules(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupPickupScheduleService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("deletes all schedules for student", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
@@ -312,7 +311,7 @@ func TestPickupScheduleService_CreateStudentPickupException(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupPickupScheduleService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("creates exception successfully", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
@@ -378,7 +377,7 @@ func TestPickupScheduleService_GetStudentPickupExceptions(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupPickupScheduleService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns all exceptions for student", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
@@ -409,7 +408,7 @@ func TestPickupScheduleService_GetUpcomingStudentPickupExceptions(t *testing.T) 
 	defer func() { _ = db.Close() }()
 
 	service := setupPickupScheduleService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns only upcoming exceptions", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
@@ -455,7 +454,7 @@ func TestPickupScheduleService_UpdateStudentPickupException(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupPickupScheduleService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("updates exception successfully", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
@@ -488,7 +487,7 @@ func TestPickupScheduleService_DeleteStudentPickupException(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupPickupScheduleService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("deletes exception by ID", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
@@ -518,7 +517,7 @@ func TestPickupScheduleService_DeleteAllStudentPickupExceptions(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupPickupScheduleService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("deletes all exceptions for student", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
@@ -556,7 +555,7 @@ func TestPickupScheduleService_GetStudentPickupData(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupPickupScheduleService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns combined schedule and exception data", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
@@ -593,7 +592,7 @@ func TestPickupScheduleService_GetEffectivePickupTimeForDate(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupPickupScheduleService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns exception when present", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
@@ -733,7 +732,7 @@ func TestPickupScheduleService_GetBulkEffectivePickupTimesForDate(t *testing.T) 
 	defer func() { _ = db.Close() }()
 
 	service := setupPickupScheduleService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns effective times for multiple students", func(t *testing.T) {
 		student1 := testpkg.CreateTestStudent(t, db, "Student", "One", "1a")
@@ -852,7 +851,7 @@ func TestPickupScheduleService_CreateStudentPickupNote(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupPickupScheduleService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("creates note successfully", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
@@ -907,7 +906,7 @@ func TestPickupScheduleService_GetStudentPickupNoteByID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupPickupScheduleService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns note by ID", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
@@ -936,7 +935,7 @@ func TestPickupScheduleService_GetStudentPickupNotes(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupPickupScheduleService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns all notes for student", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
@@ -973,7 +972,7 @@ func TestPickupScheduleService_GetStudentPickupNotesForDate(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupPickupScheduleService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns notes for specific date", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
@@ -1016,7 +1015,7 @@ func TestPickupScheduleService_UpdateStudentPickupNote(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupPickupScheduleService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("updates note successfully", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
@@ -1062,7 +1061,7 @@ func TestPickupScheduleService_DeleteStudentPickupNote(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupPickupScheduleService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("deletes note by ID", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
@@ -1092,7 +1091,7 @@ func TestPickupScheduleService_DeleteAllStudentPickupNotes(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupPickupScheduleService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("deletes all notes for student", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")

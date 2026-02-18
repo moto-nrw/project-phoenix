@@ -1,7 +1,6 @@
 package education_test
 
 import (
-	"context"
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
@@ -27,7 +26,7 @@ func cleanupGroupTeacherRecords(t *testing.T, db *bun.DB, ids ...int64) {
 // cleanupTeacherChain cleans up teacher -> staff -> person chain
 func cleanupTeacherChain(t *testing.T, db *bun.DB, teacherID int64) {
 	t.Helper()
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// Get staff ID
 	var staffID int64
@@ -69,7 +68,7 @@ func TestGroupTeacherRepository_Create(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GroupTeacher
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("creates group-teacher assignment", func(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, db, "GTCreate")
@@ -95,7 +94,7 @@ func TestGroupTeacherRepository_FindByID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GroupTeacher
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds existing assignment", func(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, db, "GTFindByID")
@@ -124,7 +123,7 @@ func TestGroupTeacherRepository_Update(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GroupTeacher
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("updates group-teacher assignment", func(t *testing.T) {
 		group1 := testpkg.CreateTestEducationGroup(t, db, "GTUpdate1")
@@ -152,7 +151,7 @@ func TestGroupTeacherRepository_Delete(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GroupTeacher
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("deletes existing assignment", func(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, db, "GTDelete")
@@ -179,7 +178,7 @@ func TestGroupTeacherRepository_List(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GroupTeacher
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("lists all assignments", func(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, db, "GTList")
@@ -201,7 +200,7 @@ func TestGroupTeacherRepository_FindByGroup(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GroupTeacher
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds assignments by group ID", func(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, db, "GTByGroup")
@@ -241,7 +240,7 @@ func TestGroupTeacherRepository_FindByTeacher(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GroupTeacher
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds assignments by teacher ID", func(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, db, "GTByTeacher")
@@ -285,7 +284,7 @@ func TestGroupTeacherRepository_Create_Validation(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GroupTeacher
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns error for nil assignment", func(t *testing.T) {
 		err := repo.Create(ctx, nil)
@@ -325,7 +324,7 @@ func TestGroupTeacherRepository_Update_Validation(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GroupTeacher
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns error for nil assignment", func(t *testing.T) {
 		err := repo.Update(ctx, nil)
@@ -339,7 +338,7 @@ func TestGroupTeacherRepository_List_WithFilters(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GroupTeacher
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("filters by group_id", func(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, db, "GTListFilter")

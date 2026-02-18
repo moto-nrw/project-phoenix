@@ -18,7 +18,7 @@ func TestAnnouncementRepository_Create(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := platform.NewAnnouncementRepository(db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// Create test operator for announcement creator
 	operator := createTestOperator(t, db, "test@example.com", "Test Operator")
@@ -86,7 +86,7 @@ func TestAnnouncementRepository_FindByID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := platform.NewAnnouncementRepository(db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	operator := createTestOperator(t, db, "test@example.com", "Test Operator")
 	defer cleanupTestOperator(t, db, operator.ID)
@@ -114,7 +114,7 @@ func TestAnnouncementRepository_Update(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := platform.NewAnnouncementRepository(db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	operator := createTestOperator(t, db, "test@example.com", "Test Operator")
 	defer cleanupTestOperator(t, db, operator.ID)
@@ -156,7 +156,7 @@ func TestAnnouncementRepository_Delete(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := platform.NewAnnouncementRepository(db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	operator := createTestOperator(t, db, "test@example.com", "Test Operator")
 	defer cleanupTestOperator(t, db, operator.ID)
@@ -177,7 +177,7 @@ func TestAnnouncementRepository_List(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := platform.NewAnnouncementRepository(db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	operator := createTestOperator(t, db, "test@example.com", "Test Operator")
 	defer cleanupTestOperator(t, db, operator.ID)
@@ -233,7 +233,7 @@ func TestAnnouncementRepository_ListPublished(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := platform.NewAnnouncementRepository(db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	operator := createTestOperator(t, db, "test@example.com", "Test Operator")
 	defer cleanupTestOperator(t, db, operator.ID)
@@ -289,7 +289,7 @@ func TestAnnouncementRepository_Publish(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := platform.NewAnnouncementRepository(db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	operator := createTestOperator(t, db, "test@example.com", "Test Operator")
 	defer cleanupTestOperator(t, db, operator.ID)
@@ -315,7 +315,7 @@ func TestAnnouncementRepository_Unpublish(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := platform.NewAnnouncementRepository(db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	operator := createTestOperator(t, db, "test@example.com", "Test Operator")
 	defer cleanupTestOperator(t, db, operator.ID)
@@ -349,7 +349,7 @@ func createTestOperator(t *testing.T, db *bun.DB, email, displayName string) *pl
 		Active:       true,
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 5*time.Second)
 	defer cancel()
 
 	_, err := db.NewInsert().
@@ -382,7 +382,7 @@ func createTestAnnouncement(t *testing.T, db *bun.DB, title string, createdBy in
 		TargetRoles: []string{"all"},
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 5*time.Second)
 	defer cancel()
 
 	err := db.NewInsert().
@@ -397,7 +397,7 @@ func createTestAnnouncement(t *testing.T, db *bun.DB, title string, createdBy in
 func cleanupTestOperator(t *testing.T, db *bun.DB, operatorID int64) {
 	t.Helper()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 5*time.Second)
 	defer cancel()
 
 	_, err := db.NewDelete().
@@ -413,7 +413,7 @@ func cleanupTestOperator(t *testing.T, db *bun.DB, operatorID int64) {
 func cleanupTestAnnouncement(t *testing.T, db *bun.DB, announcementID int64) {
 	t.Helper()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 5*time.Second)
 	defer cancel()
 
 	_, err := db.NewDelete().

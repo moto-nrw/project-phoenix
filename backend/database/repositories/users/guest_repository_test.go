@@ -1,7 +1,6 @@
 package users_test
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -25,7 +24,7 @@ func TestGuestRepository_Create(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Guest
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("creates guest with valid data", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Guest", "Create")
@@ -135,7 +134,7 @@ func TestGuestRepository_FindByID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Guest
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds existing guest", func(t *testing.T) {
 		guest := testpkg.CreateTestGuest(t, db, "FindByID")
@@ -159,7 +158,7 @@ func TestGuestRepository_FindByStaffID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Guest
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds guest by staff ID", func(t *testing.T) {
 		guest := testpkg.CreateTestGuest(t, db, "FindByStaff")
@@ -183,7 +182,7 @@ func TestGuestRepository_Update(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Guest
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("updates guest", func(t *testing.T) {
 		guest := testpkg.CreateTestGuest(t, db, "Update")
@@ -214,7 +213,7 @@ func TestGuestRepository_Delete(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Guest
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("deletes existing guest", func(t *testing.T) {
 		guest := testpkg.CreateTestGuest(t, db, "Delete")
@@ -239,7 +238,7 @@ func TestGuestRepository_FindByOrganization(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Guest
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds guests by organization", func(t *testing.T) {
 		guest := testpkg.CreateTestGuest(t, db, "OrgSearch")
@@ -283,7 +282,7 @@ func TestGuestRepository_FindByExpertise(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Guest
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds guests by expertise", func(t *testing.T) {
 		guest := testpkg.CreateTestGuest(t, db, "ExpSearch")
@@ -321,7 +320,7 @@ func TestGuestRepository_FindActive(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Guest
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds active guests with no date range", func(t *testing.T) {
 		guest := testpkg.CreateTestGuest(t, db, "ActiveNoDate")
@@ -369,7 +368,7 @@ func TestGuestRepository_SetDateRange(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Guest
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("sets date range for guest", func(t *testing.T) {
 		guest := testpkg.CreateTestGuest(t, db, "SetDates")
@@ -398,7 +397,7 @@ func TestGuestRepository_List(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Guest
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("lists guests with organization filter", func(t *testing.T) {
 		guest := testpkg.CreateTestGuest(t, db, "ListOrg")

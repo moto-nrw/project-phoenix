@@ -86,7 +86,7 @@ func TestGetStudentAttendanceStatus_NotCheckedIn(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// ARRANGE: Create a student (but NO attendance record)
 	student := testpkg.CreateTestStudent(t, db, "NotCheckedIn", "Student", "2a")
@@ -115,7 +115,7 @@ func TestGetStudentAttendanceStatus_CheckedIn(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// ARRANGE: Create fixtures
 	student := testpkg.CreateTestStudent(t, db, "CheckedIn", "Student", "2b")
@@ -145,7 +145,7 @@ func TestGetStudentAttendanceStatus_CheckedOut(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// ARRANGE: Create fixtures
 	student := testpkg.CreateTestStudent(t, db, "CheckedOut", "Student", "2c")
@@ -176,7 +176,7 @@ func TestGetStudentsAttendanceStatuses(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// ARRANGE: Create three students with different attendance states
 	studentNotCheckedIn := testpkg.CreateTestStudent(t, db, "NotIn", "Student1", "3a")
@@ -235,7 +235,7 @@ func TestGetStudentsAttendanceStatuses_EmptyInput(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// ACT: Get statuses with empty input
 	statuses, err := service.GetStudentsAttendanceStatuses(ctx, []int64{})
@@ -255,7 +255,7 @@ func TestToggleStudentAttendance_CheckIn(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// ARRANGE: Create a student (not checked in)
 	student := testpkg.CreateTestStudent(t, db, "Toggle", "CheckIn", "4a")
@@ -282,7 +282,7 @@ func TestToggleStudentAttendance_CheckOut(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// ARRANGE: Create a student and check them in first
 	student := testpkg.CreateTestStudent(t, db, "Toggle", "CheckOut", "4b")
@@ -312,7 +312,7 @@ func TestToggleStudentAttendance_CheckOutWithZeroStaffID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// ARRANGE: Create a student and check them in
 	student := testpkg.CreateTestStudent(t, db, "ZeroStaff", "Checkout", "4z")
@@ -347,7 +347,7 @@ func TestToggleStudentAttendance_ReCheckIn(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// ARRANGE: Create a student who was checked in and then checked out
 	student := testpkg.CreateTestStudent(t, db, "Toggle", "ReCheckIn", "4c")
@@ -381,7 +381,7 @@ func TestToggleStudentAttendance_WebAuthorizationPath(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("web authorization fails when staff has no access to student", func(t *testing.T) {
 		// ARRANGE: Create student and staff with NO relationship
@@ -405,7 +405,7 @@ func TestCheckTeacherStudentAccess(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns false for staff without teacher record", func(t *testing.T) {
 		// ARRANGE: Create student and staff (staff is not a teacher)
@@ -478,7 +478,7 @@ func TestGetUnclaimedActiveGroups(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns unclaimed groups without error", func(t *testing.T) {
 		// ARRANGE: Create an active group without supervisors
@@ -511,7 +511,7 @@ func TestClaimActiveGroup(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("claims group successfully", func(t *testing.T) {
 		// ARRANGE
@@ -611,7 +611,7 @@ func TestCheckRoomSupervisorAccess(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("staff supervising student's room can toggle attendance", func(t *testing.T) {
 		// ARRANGE: Create fixtures
@@ -685,7 +685,7 @@ func TestToggleStudentAttendance_IoTDevice(t *testing.T) {
 		testpkg.CreateTestGroupSupervisor(t, db, staff.ID, activeGroup.ID, "supervisor")
 
 		// Create IoT device context using device package constants
-		ctx := context.WithValue(context.Background(), device.CtxIsIoTDevice, true)
+		ctx := context.WithValue(testpkg.TenantContext(1), device.CtxIsIoTDevice, true)
 		ctx = context.WithValue(ctx, device.CtxDevice, testDevice)
 
 		// ACT: Toggle attendance (check-in)
@@ -704,7 +704,7 @@ func TestToggleStudentAttendance_IoTDevice(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, db, testDevice.ID, student.ID)
 
 		// Create IoT device context using device package constants
-		ctx := context.WithValue(context.Background(), device.CtxIsIoTDevice, true)
+		ctx := context.WithValue(testpkg.TenantContext(1), device.CtxIsIoTDevice, true)
 		ctx = context.WithValue(ctx, device.CtxDevice, testDevice)
 
 		// ACT: Toggle attendance
@@ -721,7 +721,7 @@ func TestGetStudentAttendanceStatus_WithStaffNames(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns staff names for check-in and check-out", func(t *testing.T) {
 		// ARRANGE: Create fixtures with staff that has a person record

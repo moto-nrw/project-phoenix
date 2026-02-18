@@ -1,7 +1,6 @@
 package activities_test
 
 import (
-	"context"
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
@@ -20,7 +19,7 @@ import (
 func createSchedule(t *testing.T, db *bun.DB, groupID int64, weekday int, timeframeID *int64) *activities.Schedule {
 	t.Helper()
 
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 	schedule := &activities.Schedule{
 		ActivityGroupID: groupID,
 		Weekday:         weekday,
@@ -45,7 +44,7 @@ func TestScheduleRepository_Create(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActivitySchedule
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("creates schedule with valid data", func(t *testing.T) {
 		group := testpkg.CreateTestActivityGroup(t, db, "ScheduleGroup")
@@ -89,7 +88,7 @@ func TestScheduleRepository_Create_WithNil(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActivitySchedule
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns error when schedule is nil", func(t *testing.T) {
 		err := repo.Create(ctx, nil)
@@ -103,7 +102,7 @@ func TestScheduleRepository_FindByID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActivitySchedule
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds existing schedule", func(t *testing.T) {
 		group := testpkg.CreateTestActivityGroup(t, db, "FindByID")
@@ -130,7 +129,7 @@ func TestScheduleRepository_Update(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActivitySchedule
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("updates schedule weekday", func(t *testing.T) {
 		group := testpkg.CreateTestActivityGroup(t, db, "Update")
@@ -155,7 +154,7 @@ func TestScheduleRepository_Update_WithNil(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActivitySchedule
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns error when schedule is nil", func(t *testing.T) {
 		err := repo.Update(ctx, nil)
@@ -169,7 +168,7 @@ func TestScheduleRepository_Delete(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActivitySchedule
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("deletes existing schedule", func(t *testing.T) {
 		group := testpkg.CreateTestActivityGroup(t, db, "Delete")
@@ -196,7 +195,7 @@ func TestScheduleRepository_List(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActivitySchedule
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("lists all schedules", func(t *testing.T) {
 		group := testpkg.CreateTestActivityGroup(t, db, "List")
@@ -217,7 +216,7 @@ func TestScheduleRepository_FindByGroupID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActivitySchedule
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds schedules for a specific group", func(t *testing.T) {
 		group := testpkg.CreateTestActivityGroup(t, db, "GroupSchedules")
@@ -258,7 +257,7 @@ func TestScheduleRepository_FindByWeekday(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActivitySchedule
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds schedules for a specific weekday", func(t *testing.T) {
 		group := testpkg.CreateTestActivityGroup(t, db, "WeekdaySchedules")
@@ -296,7 +295,7 @@ func TestScheduleRepository_FindByTimeframeID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActivitySchedule
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns empty for timeframe with no schedules", func(t *testing.T) {
 		// Use a non-existent timeframe ID (high value unlikely to exist)
@@ -346,7 +345,7 @@ func TestScheduleRepository_Delete_NonExistent(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActivitySchedule
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("does not error when deleting non-existent schedule", func(t *testing.T) {
 		err := repo.Delete(ctx, int64(999999))

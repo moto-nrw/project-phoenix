@@ -1,7 +1,6 @@
 package users_test
 
 import (
-	"context"
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
@@ -23,7 +22,7 @@ func cleanupStaffRecords(t *testing.T, db *bun.DB, staffIDs ...int64) {
 		return
 	}
 
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// Get person IDs before deleting staff
 	var personIDs []int64
@@ -66,7 +65,7 @@ func TestStaffRepository_Create(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Staff
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("creates staff member with valid data", func(t *testing.T) {
 		person := testpkg.CreateTestPerson(t, db, "Staff", "Create")
@@ -131,7 +130,7 @@ func TestStaffRepository_FindByID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Staff
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds existing staff member", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "FindByID", "Test")
@@ -155,7 +154,7 @@ func TestStaffRepository_FindByPersonID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Staff
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds staff by person ID", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "FindByPerson", "Test")
@@ -178,7 +177,7 @@ func TestStaffRepository_Update(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Staff
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("updates staff notes", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Update", "Test")
@@ -206,7 +205,7 @@ func TestStaffRepository_Delete(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Staff
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("deletes existing staff member", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Delete", "Test")
@@ -236,7 +235,7 @@ func TestStaffRepository_List(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Staff
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("lists all staff with no filters", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "List", "Test")
@@ -269,7 +268,7 @@ func TestStaffRepository_FindWithPerson(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Staff
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds staff with person loaded", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "WithPerson", "Loaded")
@@ -297,7 +296,7 @@ func TestStaffRepository_UpdateNotes(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Staff
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("updates staff notes", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "UpdateNotes", "Test")
@@ -322,7 +321,7 @@ func TestStaffRepository_ListAllWithPerson(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Staff
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns all staff with person data", func(t *testing.T) {
 		// Create multiple staff members

@@ -1,7 +1,6 @@
 package audit_test
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -21,7 +20,7 @@ func TestDataDeletionRepository_Create(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).DataDeletion
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// Create a test student for FK reference
 	student := testpkg.CreateTestStudent(t, db, "Deletion", "Student", "1a")
@@ -88,7 +87,7 @@ func TestDataDeletionRepository_FindByID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).DataDeletion
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	student := testpkg.CreateTestStudent(t, db, "Find", "Student", "2a")
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
@@ -125,7 +124,7 @@ func TestDataDeletionRepository_FindByStudentID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).DataDeletion
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	student1 := testpkg.CreateTestStudent(t, db, "Student", "One", "3a")
 	student2 := testpkg.CreateTestStudent(t, db, "Student", "Two", "3b")
@@ -159,7 +158,7 @@ func TestDataDeletionRepository_FindByDateRange(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).DataDeletion
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	student := testpkg.CreateTestStudent(t, db, "Range", "Student", "4a")
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
@@ -192,7 +191,7 @@ func TestDataDeletionRepository_FindByType(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).DataDeletion
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	student := testpkg.CreateTestStudent(t, db, "Type", "Student", "5a")
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
@@ -230,7 +229,7 @@ func TestDataDeletionRepository_GetDeletionStats(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).DataDeletion
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	student1 := testpkg.CreateTestStudent(t, db, "Stats", "One", "6a")
 	student2 := testpkg.CreateTestStudent(t, db, "Stats", "Two", "6b")
@@ -267,7 +266,7 @@ func TestDataDeletionRepository_CountByType(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).DataDeletion
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	student := testpkg.CreateTestStudent(t, db, "Count", "Student", "7a")
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
@@ -295,7 +294,7 @@ func TestDataDeletionRepository_List(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).DataDeletion
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	student := testpkg.CreateTestStudent(t, db, "List", "Student", "8a")
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID)

@@ -10,7 +10,6 @@
 package active_test
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -30,7 +29,7 @@ func TestUpdateSessionActivity(t *testing.T) {
 	}()
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("successful activity update", func(t *testing.T) {
 		// ARRANGE: Create test fixtures
@@ -108,7 +107,7 @@ func TestValidateSessionTimeout(t *testing.T) {
 	}()
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("valid timeout - session is timed out", func(t *testing.T) {
 		// ARRANGE: Create test fixtures
@@ -226,7 +225,7 @@ func TestGetSessionTimeoutInfo(t *testing.T) {
 	}()
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("successful timeout info retrieval", func(t *testing.T) {
 		// ARRANGE: Create test fixtures

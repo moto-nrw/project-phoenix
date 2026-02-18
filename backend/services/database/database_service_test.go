@@ -33,7 +33,7 @@ func contextWithPermissions(userID int, perms ...string) context.Context {
 		TenantID:    1,
 		Permissions: perms,
 	}
-	return context.WithValue(context.Background(), jwt.CtxClaims, claims)
+	return context.WithValue(testpkg.TenantContext(1), jwt.CtxClaims, claims)
 }
 
 // ============================================================================
@@ -255,7 +255,7 @@ func TestDatabaseService_GetStats(t *testing.T) {
 
 	t.Run("works with empty context", func(t *testing.T) {
 		// ARRANGE - Empty context without claims
-		ctx := context.Background()
+		ctx := testpkg.TenantContext(1)
 
 		// ACT
 		result, err := service.GetStats(ctx)

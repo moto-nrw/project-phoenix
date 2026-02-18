@@ -2,7 +2,6 @@
 package active_test
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -20,7 +19,7 @@ func TestGetActiveGroupsCount(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns count of active groups", func(t *testing.T) {
 		// ARRANGE: Create an active group (no end time)
@@ -71,7 +70,7 @@ func TestGetTotalVisitsCount(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns total visit count", func(t *testing.T) {
 		// ARRANGE
@@ -103,7 +102,7 @@ func TestGetActiveVisitsCount(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("counts only active visits", func(t *testing.T) {
 		// ARRANGE
@@ -140,7 +139,7 @@ func TestGetRoomUtilization(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns utilization ratio for room with capacity", func(t *testing.T) {
 		// ARRANGE: Create room with capacity
@@ -226,7 +225,7 @@ func TestGetStudentAttendanceRate(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns 1.0 for student with active visit", func(t *testing.T) {
 		// ARRANGE
@@ -292,7 +291,7 @@ func TestGetDashboardAnalytics(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns dashboard analytics without error", func(t *testing.T) {
 		// ACT

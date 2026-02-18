@@ -8,7 +8,6 @@
 package active_test
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -25,7 +24,7 @@ func TestAttendanceRepository_GetTodayByStudentIDs(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 	repo := activeRepo.NewAttendanceRepository(db)
 
 	t.Run("returns latest attendance per student with deduplication", func(t *testing.T) {
@@ -102,7 +101,7 @@ func TestVisitRepository_GetCurrentByStudentIDs(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 	repo := activeRepo.NewVisitRepository(db)
 
 	t.Run("returns current visits for students", func(t *testing.T) {
@@ -183,7 +182,7 @@ func TestGroupRepository_FindByIDs(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 	repo := activeRepo.NewGroupRepository(db)
 
 	t.Run("returns groups with room relations", func(t *testing.T) {

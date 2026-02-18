@@ -1,7 +1,6 @@
 package users_test
 
 import (
-	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -26,7 +25,7 @@ func cleanupTeacherStaffRecords(t *testing.T, db *bun.DB, staffIDs ...int64) {
 		return
 	}
 
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	var personIDs []int64
 	err := db.NewSelect().
@@ -60,7 +59,7 @@ func cleanupTeacherStaffRecords(t *testing.T, db *bun.DB, staffIDs ...int64) {
 // cleanupTeacherEducationData removes education groups and group-teacher assignments
 func cleanupTeacherEducationData(t *testing.T, db *bun.DB, groupIDs []int64) {
 	t.Helper()
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	if len(groupIDs) > 0 {
 		_, err := db.NewDelete().
@@ -88,7 +87,7 @@ func cleanupTeacherRecords(t *testing.T, db *bun.DB, teacherIDs ...int64) {
 		return
 	}
 
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// Get staff IDs before deleting teachers
 	var staffIDs []int64
@@ -151,7 +150,7 @@ func TestTeacherRepository_Create(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Teacher
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("creates teacher with valid data", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Teacher", "Create")
@@ -221,7 +220,7 @@ func TestTeacherRepository_FindByID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Teacher
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds existing teacher", func(t *testing.T) {
 		teacher := testpkg.CreateTestTeacher(t, db, "FindByID", "Teacher")
@@ -244,7 +243,7 @@ func TestTeacherRepository_FindByStaffID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Teacher
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds teacher by staff ID", func(t *testing.T) {
 		teacher := testpkg.CreateTestTeacher(t, db, "FindByStaff", "Teacher")
@@ -268,7 +267,7 @@ func TestTeacherRepository_FindByStaffIDs(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Teacher
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds multiple teachers by staff IDs", func(t *testing.T) {
 		teacher1 := testpkg.CreateTestTeacher(t, db, "FindByIDs1", "Teacher")
@@ -311,7 +310,7 @@ func TestTeacherRepository_Update(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Teacher
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("updates teacher specialization", func(t *testing.T) {
 		teacher := testpkg.CreateTestTeacher(t, db, "Update", "Teacher")
@@ -339,7 +338,7 @@ func TestTeacherRepository_Delete(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Teacher
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("deletes existing teacher", func(t *testing.T) {
 		teacher := testpkg.CreateTestTeacher(t, db, "Delete", "Teacher")
@@ -366,7 +365,7 @@ func TestTeacherRepository_FindBySpecialization(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Teacher
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds teachers by specialization (case-insensitive)", func(t *testing.T) {
 		// Create teacher with unique specialization
@@ -396,7 +395,7 @@ func TestTeacherRepository_List(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Teacher
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("lists all teachers with no filters", func(t *testing.T) {
 		teacher := testpkg.CreateTestTeacher(t, db, "List", "Teacher")
@@ -425,7 +424,7 @@ func TestTeacherRepository_FindByGroupID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Teacher
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds teachers assigned to education group", func(t *testing.T) {
 		// Create education group
@@ -473,7 +472,7 @@ func TestTeacherRepository_FindWithStaffAndPerson(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Teacher
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds teacher with staff and person loaded", func(t *testing.T) {
 		teacher := testpkg.CreateTestTeacher(t, db, "WithStaff", "Person")
@@ -498,7 +497,7 @@ func TestTeacherRepository_ListAllWithStaffAndPerson(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Teacher
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns all teachers with staff and person data", func(t *testing.T) {
 		// Create multiple teachers
@@ -575,7 +574,7 @@ func TestTeacherRepository_ListWithStringFilters(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Teacher
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("filters teachers by specialization_like", func(t *testing.T) {
 		// Create teacher with unique specialization
@@ -641,7 +640,7 @@ func TestTeacherRepository_UpdateQualifications(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Teacher
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("updates teacher qualifications", func(t *testing.T) {
 		teacher := testpkg.CreateTestTeacher(t, db, "Update", "Qualifications")

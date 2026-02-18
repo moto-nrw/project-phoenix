@@ -1,7 +1,6 @@
 package students_test
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 	"testing"
@@ -622,7 +621,7 @@ func TestUpdateStudent_PersonFields(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		// First set guardian fields
-		ctx := context.Background()
+		ctx := testpkg.TenantContext(1)
 		_, err := tc.db.ExecContext(ctx,
 			"UPDATE users.students SET guardian_name = ?, guardian_email = ? WHERE id = ?",
 			"Parent Name", "parent@test.com", student.ID)
@@ -884,7 +883,7 @@ func TestUpdateStudent_AllPersonFields(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		// First set sick status
-		ctx := context.Background()
+		ctx := testpkg.TenantContext(1)
 		_, err := tc.db.ExecContext(ctx, "UPDATE users.students SET sick = true WHERE id = ?", student.ID)
 		require.NoError(t, err)
 

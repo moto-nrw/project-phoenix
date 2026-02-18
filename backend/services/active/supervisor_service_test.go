@@ -23,7 +23,7 @@ func TestActiveService_GetGroupSupervisor(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns supervisor when found", func(t *testing.T) {
 		// ARRANGE
@@ -83,7 +83,7 @@ func TestActiveService_CreateGroupSupervisor(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("creates supervisor successfully", func(t *testing.T) {
 		// ARRANGE
@@ -148,7 +148,7 @@ func TestActiveService_UpdateGroupSupervisor(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("updates supervisor successfully", func(t *testing.T) {
 		// ARRANGE
@@ -214,7 +214,7 @@ func TestActiveService_DeleteGroupSupervisor(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("deletes supervisor successfully", func(t *testing.T) {
 		// ARRANGE
@@ -271,7 +271,7 @@ func TestActiveService_ListGroupSupervisors(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns supervisors with no options", func(t *testing.T) {
 		// ARRANGE
@@ -324,7 +324,7 @@ func TestActiveService_FindSupervisorsByStaffID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns supervisors for staff", func(t *testing.T) {
 		// ARRANGE
@@ -380,7 +380,7 @@ func TestActiveService_FindSupervisorsByActiveGroupID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns supervisors for active group", func(t *testing.T) {
 		// ARRANGE
@@ -438,7 +438,7 @@ func TestActiveService_FindSupervisorsByActiveGroupIDs(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns supervisors for multiple groups", func(t *testing.T) {
 		// ARRANGE
@@ -486,7 +486,7 @@ func TestActiveService_EndSupervision(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("ends supervision successfully", func(t *testing.T) {
 		// ARRANGE
@@ -551,7 +551,7 @@ func TestActiveService_GetStaffActiveSupervisions(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns active supervisions for staff", func(t *testing.T) {
 		// ARRANGE
@@ -607,7 +607,7 @@ func TestActiveService_UpdateActiveGroupSupervisors(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("updates supervisors for group", func(t *testing.T) {
 		// ARRANGE

@@ -54,7 +54,7 @@ func TestCleanupStaleAttendance_NoStaleRecords(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	cleanupService := setupCleanupService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// ACT: Run cleanup when there are no stale records
 	result, err := cleanupService.CleanupStaleAttendance(ctx)
@@ -75,7 +75,7 @@ func TestCleanupStaleAttendance_ClosesStaleRecords(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	cleanupService := setupCleanupService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// ARRANGE: Create fixtures for stale attendance
 	student := testpkg.CreateTestStudent(t, db, "Stale", "Attendance", "5a")
@@ -122,7 +122,7 @@ func TestPreviewAttendanceCleanup_NoStaleRecords(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	cleanupService := setupCleanupService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// ACT: Preview cleanup when there are no stale records
 	preview, err := cleanupService.PreviewAttendanceCleanup(ctx)
@@ -142,7 +142,7 @@ func TestPreviewAttendanceCleanup_ShowsStaleRecords(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	cleanupService := setupCleanupService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// ARRANGE: Create fixtures for stale attendance
 	student := testpkg.CreateTestStudent(t, db, "Preview", "Stale", "5b")
@@ -188,7 +188,7 @@ func TestGetRetentionStatistics_EmptyDatabase(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	cleanupService := setupCleanupService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// ACT: Get statistics when there may be no expired visits
 	stats, err := cleanupService.GetRetentionStatistics(ctx)
@@ -206,7 +206,7 @@ func TestGetRetentionStatistics_WithData(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	cleanupService := setupCleanupService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// ARRANGE: Create fixtures for expired visits
 	student := testpkg.CreateTestStudent(t, db, "Stats", "Test", "6d")
@@ -279,7 +279,7 @@ func TestPreviewCleanup_EmptyDatabase(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	cleanupService := setupCleanupService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// ACT: Preview cleanup
 	preview, err := cleanupService.PreviewCleanup(ctx)
@@ -301,7 +301,7 @@ func TestCleanupExpiredVisits_NoExpiredVisits(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	cleanupService := setupCleanupService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// ACT: Run cleanup when there are no expired visits
 	result, err := cleanupService.CleanupExpiredVisits(ctx)
@@ -322,7 +322,7 @@ func TestCleanupExpiredVisits_WithExpiredData(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	cleanupService := setupCleanupService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// ARRANGE: Create fixtures for expired visits
 	student := testpkg.CreateTestStudent(t, db, "Batch", "Cleanup", "6c")
@@ -397,7 +397,7 @@ func TestCleanupVisitsForStudent_NoConsent(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	cleanupService := setupCleanupService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// ARRANGE: Create a student without privacy consent
 	student := testpkg.CreateTestStudent(t, db, "NoConsent", "Student", "6a")
@@ -418,7 +418,7 @@ func TestCleanupVisitsForStudent_WithConsent(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	cleanupService := setupCleanupService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// ARRANGE: Create a student and add privacy consent
 	consent := testpkg.CreateTestPrivacyConsent(t, db, "WithConsent")
@@ -439,7 +439,7 @@ func TestCleanupVisitsForStudent_WithExpiredVisits(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	cleanupService := setupCleanupService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// ARRANGE: Create fixtures for expired visits
 	student := testpkg.CreateTestStudent(t, db, "Expired", "Visits", "6b")
@@ -639,7 +639,7 @@ func TestCleanupStaleAttendance_CheckInAfterEndOfDay(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	cleanupService := setupCleanupService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// ARRANGE: Create fixtures
 	student := testpkg.CreateTestStudent(t, db, "Late", "CheckIn", "5c")
@@ -703,7 +703,7 @@ func TestPreviewSupervisorCleanup_NoStaleRecords(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	cleanupService := setupCleanupService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// ACT: Preview cleanup when there are no stale supervisor records
 	preview, err := cleanupService.PreviewSupervisorCleanup(ctx)
@@ -728,7 +728,7 @@ func TestCleanupStaleSupervisors_ClosesStaleRecords(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	cleanupService := setupCleanupService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// ARRANGE: Create fixtures for stale supervisor
 	staff := testpkg.CreateTestStaff(t, db, "Supervisor", "Staff")
