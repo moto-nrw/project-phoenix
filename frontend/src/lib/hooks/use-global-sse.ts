@@ -74,6 +74,19 @@ export function useGlobalSSE(): SSEHookState {
           scope: "supervision_visits",
         });
       });
+
+      // Invalidate OGS group student caches (ogs-students-{groupId})
+      // so the "Meine Gruppe" page picks up location changes (e.g. Zuhause)
+      mutate(
+        (key) => typeof key === "string" && key.startsWith("ogs-students-"),
+        undefined,
+        { revalidate: true },
+      ).catch((err) => {
+        logger.debug("swr_revalidation_failed", {
+          error: err instanceof Error ? err.message : String(err),
+          scope: "ogs_students",
+        });
+      });
     }
 
     // Invalidate specific student detail caches
