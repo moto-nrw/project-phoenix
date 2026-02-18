@@ -104,6 +104,7 @@ type Service interface {
 	GetStudentsAttendanceStatuses(ctx context.Context, studentIDs []int64) (map[int64]*AttendanceStatus, error)
 	ToggleStudentAttendance(ctx context.Context, studentID, staffID, deviceID int64, skipAuthCheck bool) (*AttendanceResult, error)
 	CheckTeacherStudentAccess(ctx context.Context, teacherID, studentID int64) (bool, error)
+	BroadcastDailyCheckout(ctx context.Context, studentID int64)
 
 	// Unclaimed groups management (deviceless claiming)
 	GetUnclaimedActiveGroups(ctx context.Context) ([]*active.Group, error)
