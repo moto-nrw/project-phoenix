@@ -280,7 +280,7 @@ func (s *schulhofService) EnsureInfrastructure(ctx context.Context, createdBy in
 		IsOpen:          true, // Open activity - anyone can join
 		CategoryID:      category.ID,
 		PlannedRoomID:   &room.ID,
-		CreatedBy:       createdBy,
+		CreatedBy:       &createdBy,
 	}
 
 	createdActivity, err := s.activityService.CreateGroup(ctx, newActivity, []int64{}, []*activityModels.Schedule{})

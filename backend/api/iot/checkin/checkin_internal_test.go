@@ -1127,3 +1127,49 @@ func TestSchulhofActivityGroup_FindsExisting(t *testing.T) {
 
 	assert.Equal(t, group1.ID, group2.ID, "Should return same activity group, not create duplicate")
 }
+
+// =============================================================================
+// NO STAFF CONTEXT TESTS: system-created auto-create paths (created_by = NULL)
+// =============================================================================
+
+// TestWcActivityGroup_NoStaffContext verifies that wcActivityGroup succeeds
+// without any staff in the context (created_by = NULL = system-created).
+func TestWcActivityGroup_NoStaffContext(t *testing.T) {
+	tc := setupInternalTestResource(t)
+	defer func() { _ = tc.db.Close() }()
+
+	cleanupWCTestArtifacts(t, tc)
+	defer cleanupWCTestArtifacts(t, tc)
+
+	// No staff context — plain background context
+	ctx := context.Background()
+
+	group, err := tc.rs.wcActivityGroup(ctx)
+
+	require.NoError(t, err, "wcActivityGroup should succeed without staff context")
+	require.NotNil(t, group, "wcActivityGroup should return an activity group")
+	assert.Equal(t, constants.WCActivityName, group.Name)
+	assert.NotZero(t, group.ID)
+	assert.Nil(t, group.CreatedBy, "system-created WC group should have NULL created_by")
+}
+
+// TestSchulhofActivityGroup_NoStaffContext verifies that schulhofActivityGroup succeeds
+// without any staff in the context (created_by = NULL = system-created).
+func TestSchulhofActivityGroup_NoStaffContext(t *testing.T) {
+	tc := setupInternalTestResource(t)
+	defer func() { _ = tc.db.Close() }()
+
+	cleanupSchulhofTestArtifacts(t, tc)
+	defer cleanupSchulhofTestArtifacts(t, tc)
+
+	// No staff context — plain background context
+	ctx := context.Background()
+
+	group, err := tc.rs.schulhofActivityGroup(ctx)
+
+	require.NoError(t, err, "schulhofActivityGroup should succeed without staff context")
+	require.NotNil(t, group, "schulhofActivityGroup should return an activity group")
+	assert.Equal(t, constants.SchulhofActivityName, group.Name)
+	assert.NotZero(t, group.ID)
+	assert.Nil(t, group.CreatedBy, "system-created Schulhof group should have NULL created_by")
+}

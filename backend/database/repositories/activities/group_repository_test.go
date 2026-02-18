@@ -36,7 +36,7 @@ func TestActivityGroupRepository_Create(t *testing.T) {
 			CategoryID:      category.ID,
 			MaxParticipants: 20,
 			IsOpen:          true,
-			CreatedBy:       staff.ID,
+			CreatedBy:       &staff.ID,
 		}
 
 		err := repo.Create(ctx, group)
@@ -57,7 +57,7 @@ func TestActivityGroupRepository_Create(t *testing.T) {
 			CategoryID:      category.ID,
 			MaxParticipants: 15,
 			IsOpen:          false,
-			CreatedBy:       staff.ID,
+			CreatedBy:       &staff.ID,
 		}
 
 		err := repo.Create(ctx, group)

@@ -16,6 +16,7 @@ import (
 
 	checkinAPI "github.com/moto-nrw/project-phoenix/api/iot/checkin"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/models/iot"
@@ -1612,7 +1613,7 @@ func TestDeviceCheckin_ActivityCapacityExceeded(t *testing.T) {
 		MaxParticipants: 1, // Only 1 participant allowed
 		IsOpen:          true,
 		CategoryID:      category.ID,
-		CreatedBy:       creatorStaff.ID,
+		CreatedBy:       &creatorStaff.ID,
 	}
 	err := ctx.db.NewInsert().
 		Model(activityGroup).
@@ -2074,11 +2075,14 @@ func TestDeviceCheckin_WCCheckoutFromWC(t *testing.T) {
 	assert.Equal(t, "checked_out", checkoutData["action"])
 }
 
-// TestDeviceCheckin_WCAutoCreateWithoutStaff verifies that attempting WC checkin
-// without staff context returns a 500 error because WC activity auto-creation
-// requires staff context (the created_by FK constraint).
-// Covers: wc.go:143-145 (staff nil check) + workflow.go:605-614 (WC error handling
-// with "staff context" string detection).
+// TestDeviceCheckin_WCAutoCreateWithoutStaff verifies that WC checkin succeeds
+// when the request has no staff context (no staff PIN scanned at the WC reader).
+// The WC activity group is auto-created with created_by = NULL (nullable after our migration).
+//
+// Pre-condition: In production a student can only be at WC after first checking
+// into a normal room with staff present — that earlier check-in creates the
+// attendance record. We insert the record directly to satisfy that invariant
+// without needing a full two-step checkin/checkout flow.
 func TestDeviceCheckin_WCAutoCreateWithoutStaff(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
@@ -2097,6 +2101,21 @@ func TestDeviceCheckin_WCAutoCreateWithoutStaff(t *testing.T) {
 	room := createWCRoom(t, ctx.db)
 	defer cleanupWCInfrastructure(t, ctx.db, room.ID)
 
+	// Pre-condition: simulate prior morning check-in (with staff) by inserting the
+	// attendance record directly. In production this record always exists before a
+	// student reaches the WC reader.
+	setupStaff := testpkg.CreateTestStaff(t, ctx.db, "SetupStaff", "WCNoStaff")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, setupStaff.ID)
+	today := timezone.Today() // Berlin date — matches FindByStudentAndDate's timezone.DateOf()
+	var attendanceID int64
+	err := ctx.db.NewRaw(
+		`INSERT INTO active.attendance (student_id, date, check_in_time, checked_in_by, device_id)
+		 VALUES (?, ?, ?, ?, ?) RETURNING id`,
+		student.ID, today, today.Add(8*time.Hour), setupStaff.ID, device.ID,
+	).Scan(context.Background(), &attendanceID)
+	require.NoError(t, err, "test setup: failed to insert attendance record")
+	defer func() { testpkg.CleanupTableRecords(t, ctx.db, "active.attendance", attendanceID) }()
+
 	router := chi.NewRouter()
 	router.Post("/checkin/checkin", ctx.resource.DeviceCheckinHandler())
 
@@ -2106,22 +2125,77 @@ func TestDeviceCheckin_WCAutoCreateWithoutStaff(t *testing.T) {
 		"room_id":      room.ID,
 	}
 
-	// Deliberately omit WithStaffContext to trigger the staff nil check
+	// No staff context — simulates a student scanning at the WC reader without a PIN.
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/checkin", body,
 		testutil.WithDeviceContext(createTestDeviceContext(device)),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
 
-	// Should return 500 because WC activity auto-create requires staff context
-	assert.Equal(t, http.StatusInternalServerError, rr.Code,
-		"Expected 500 when WC auto-create has no staff context. Body: %s", rr.Body.String())
+	// The WC activity group is auto-created with created_by = NULL.
+	assert.Equal(t, http.StatusOK, rr.Code,
+		"Expected 200 when WC auto-create has no staff context. Body: %s", rr.Body.String())
+}
 
-	// Verify the error message mentions staff context
-	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
-	errMsg, ok := response["error"].(string)
-	assert.True(t, ok, "Response should have error field")
-	assert.Contains(t, errMsg, "staff context", "Error should mention staff context requirement")
+// TestDeviceCheckin_SchulhofAutoCreateWithoutStaff verifies that Schulhof checkin
+// succeeds when the request has no staff context (no staff PIN scanned).
+// The Schulhof activity group is auto-created with created_by = NULL (nullable after
+// our migration).
+//
+// Pre-condition: same as WC — students reach Schulhof only after a prior check-in
+// with staff that created today's attendance record. We insert it directly here.
+func TestDeviceCheckin_SchulhofAutoCreateWithoutStaff(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	device := testpkg.CreateTestDevice(t, ctx.db, "schulhof-no-staff")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
+
+	student := testpkg.CreateTestStudent(t, ctx.db, "SchulhofNoStaff", "Student", "1b")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
+
+	tagID := fmt.Sprintf("SHNS%d", time.Now().UnixNano())
+	card := testpkg.CreateTestRFIDCard(t, ctx.db, tagID)
+	defer testpkg.CleanupRFIDCards(t, ctx.db, card.ID)
+	testpkg.LinkRFIDToStudent(t, ctx.db, student.PersonID, card.ID)
+
+	room := createSchulhofRoom(t, ctx.db)
+	defer cleanupSchulhofInfrastructure(t, ctx.db, room.ID)
+
+	// Pre-condition: simulate prior morning check-in (with staff) by inserting the
+	// attendance record directly. In production this record always exists before a
+	// student reaches the Schulhof reader.
+	setupStaff := testpkg.CreateTestStaff(t, ctx.db, "SetupStaff", "SchulhofNoStaff")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, setupStaff.ID)
+	today := timezone.Today() // Berlin date — matches FindByStudentAndDate's timezone.DateOf()
+	var attendanceID int64
+	err := ctx.db.NewRaw(
+		`INSERT INTO active.attendance (student_id, date, check_in_time, checked_in_by, device_id)
+		 VALUES (?, ?, ?, ?, ?) RETURNING id`,
+		student.ID, today, today.Add(8*time.Hour), setupStaff.ID, device.ID,
+	).Scan(context.Background(), &attendanceID)
+	require.NoError(t, err, "test setup: failed to insert attendance record")
+	defer func() { testpkg.CleanupTableRecords(t, ctx.db, "active.attendance", attendanceID) }()
+
+	router := chi.NewRouter()
+	router.Post("/checkin/checkin", ctx.resource.DeviceCheckinHandler())
+
+	body := map[string]interface{}{
+		"student_rfid": card.ID,
+		"action":       "checkin",
+		"room_id":      room.ID,
+	}
+
+	// No staff context — simulates a student scanning at the Schulhof reader without a PIN.
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin/checkin", body,
+		testutil.WithDeviceContext(createTestDeviceContext(device)),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	// The Schulhof activity group is auto-created with created_by = NULL.
+	assert.Equal(t, http.StatusOK, rr.Code,
+		"Expected 200 when Schulhof auto-create has no staff context. Body: %s", rr.Body.String())
 }
 
 func TestDeviceCheckin_SchulhofAutoCreateIdempotent(t *testing.T) {
