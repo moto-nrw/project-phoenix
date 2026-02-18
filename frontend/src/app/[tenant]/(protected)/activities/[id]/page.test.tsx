@@ -277,7 +277,7 @@ describe("ActivityDetailPage", () => {
     });
 
     fireEvent.click(screen.getByText("Zurück zur Übersicht"));
-    expect(mockPush).toHaveBeenCalledWith("/activities");
+    expect(mockPush).toHaveBeenCalledWith("/test-tenant/activities");
   });
 
   it("displays empty students message when no students enrolled", async () => {
@@ -329,7 +329,7 @@ describe("ActivityDetailPage", () => {
 
     fireEvent.click(screen.getByText("Schüler hinzufügen"));
     expect(mockPush).toHaveBeenCalledWith(
-      "/database/activities/1/add-students",
+      "/test-tenant/database/activities/1/add-students",
     );
   });
 
@@ -341,7 +341,7 @@ describe("ActivityDetailPage", () => {
     });
 
     fireEvent.click(screen.getByText("Peter Müller"));
-    expect(mockPush).toHaveBeenCalledWith("/students/s-1?from=/activities/1");
+    expect(mockPush).toHaveBeenCalledWith("/test-tenant/students/s-1?from=/activities/1");
   });
 
   it("handles enrolled students fetch failure gracefully", async () => {

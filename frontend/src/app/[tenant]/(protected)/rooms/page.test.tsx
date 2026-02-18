@@ -171,7 +171,7 @@ describe("RoomsPage", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /Raum 101/i }));
 
-    expect(mockPush).toHaveBeenCalledWith("/rooms/1");
+    expect(mockPush).toHaveBeenCalledWith("/test-tenant/rooms/1");
   });
 
   it("shows error message when rooms fetch fails", () => {

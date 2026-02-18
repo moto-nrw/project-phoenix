@@ -244,6 +244,7 @@ describe("HomePage (Login)", () => {
         email: "test@example.com",
         password: "password123",
         redirect: false,
+        tenantSlug: "test-tenant",
       });
     });
   });

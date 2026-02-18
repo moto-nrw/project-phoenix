@@ -223,7 +223,7 @@ describe("CombinedGroupDetailPage", () => {
     });
 
     fireEvent.click(screen.getByText("Zurück zur Übersicht"));
-    expect(mockPush).toHaveBeenCalledWith("/database/groups/combined");
+    expect(mockPush).toHaveBeenCalledWith("/test-tenant/database/groups/combined");
   });
 
   it("shows no groups message when group list is empty", async () => {
@@ -478,7 +478,7 @@ describe("CombinedGroupDetailPage", () => {
 
     await waitFor(() => {
       expect(mockDeleteCombinedGroup).toHaveBeenCalledWith("1");
-      expect(mockPush).toHaveBeenCalledWith("/database/groups/combined");
+      expect(mockPush).toHaveBeenCalledWith("/test-tenant/database/groups/combined");
     });
   });
 

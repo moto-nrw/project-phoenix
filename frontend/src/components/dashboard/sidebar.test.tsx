@@ -555,7 +555,7 @@ describe("Sidebar", () => {
       const groupHeader = screen.getByText("Meine Gruppe");
       fireEvent.click(groupHeader);
 
-      expect(mockRouterPush).toHaveBeenCalledWith("/ogs-groups?group=1");
+      expect(mockRouterPush).toHaveBeenCalledWith("/test-tenant/ogs-groups?group=1");
     });
 
     it("navigates to ogs-groups without group param when no groups", () => {
@@ -575,7 +575,7 @@ describe("Sidebar", () => {
       const groupHeader = screen.getByText("Meine Gruppe");
       fireEvent.click(groupHeader);
 
-      expect(mockRouterPush).toHaveBeenCalledWith("/ogs-groups");
+      expect(mockRouterPush).toHaveBeenCalledWith("/test-tenant/ogs-groups");
     });
 
     it("navigates to active-supervisions when supervisions toggle clicked from another page", () => {
@@ -596,7 +596,7 @@ describe("Sidebar", () => {
       fireEvent.click(supervisionHeader);
 
       expect(mockRouterPush).toHaveBeenCalledWith(
-        "/active-supervisions?room=10",
+        "/test-tenant/active-supervisions?room=10",
       );
     });
 
@@ -617,7 +617,7 @@ describe("Sidebar", () => {
       const supervisionHeader = screen.getByText("Aktuelle Aufsicht");
       fireEvent.click(supervisionHeader);
 
-      expect(mockRouterPush).toHaveBeenCalledWith("/active-supervisions");
+      expect(mockRouterPush).toHaveBeenCalledWith("/test-tenant/active-supervisions");
     });
 
     it("navigates to database hub when database toggle clicked from another page", () => {
@@ -630,7 +630,7 @@ describe("Sidebar", () => {
       const databaseHeader = screen.getByText("Datenverwaltung");
       fireEvent.click(databaseHeader);
 
-      expect(mockRouterPush).toHaveBeenCalledWith("/database");
+      expect(mockRouterPush).toHaveBeenCalledWith("/test-tenant/database");
     });
 
     it("navigates back to database hub when on a database sub-page", () => {
@@ -643,7 +643,7 @@ describe("Sidebar", () => {
       const databaseHeader = screen.getByText("Datenverwaltung");
       fireEvent.click(databaseHeader);
 
-      expect(mockRouterPush).toHaveBeenCalledWith("/database");
+      expect(mockRouterPush).toHaveBeenCalledWith("/test-tenant/database");
     });
 
     it("does not navigate when toggling database on hub page", () => {
@@ -1101,7 +1101,7 @@ describe("Sidebar", () => {
       const groupHeader = screen.getByText("Meine Gruppen");
       fireEvent.click(groupHeader);
 
-      expect(mockRouterPush).toHaveBeenCalledWith("/ogs-groups?group=2");
+      expect(mockRouterPush).toHaveBeenCalledWith("/test-tenant/ogs-groups?group=2");
     });
 
     it("navigates to saved room from localStorage when toggling supervisions", () => {
@@ -1134,7 +1134,7 @@ describe("Sidebar", () => {
       fireEvent.click(supervisionHeader);
 
       expect(mockRouterPush).toHaveBeenCalledWith(
-        "/active-supervisions?room=20",
+        "/test-tenant/active-supervisions?room=20",
       );
     });
 
@@ -1167,7 +1167,7 @@ describe("Sidebar", () => {
       const groupHeader = screen.getByText("Meine Gruppen");
       fireEvent.click(groupHeader);
 
-      expect(mockRouterPush).toHaveBeenCalledWith("/ogs-groups?group=1");
+      expect(mockRouterPush).toHaveBeenCalledWith("/test-tenant/ogs-groups?group=1");
     });
 
     it("falls back to first room when saved room not found", () => {
@@ -1200,7 +1200,7 @@ describe("Sidebar", () => {
       fireEvent.click(supervisionHeader);
 
       expect(mockRouterPush).toHaveBeenCalledWith(
-        "/active-supervisions?room=10",
+        "/test-tenant/active-supervisions?room=10",
       );
     });
   });
