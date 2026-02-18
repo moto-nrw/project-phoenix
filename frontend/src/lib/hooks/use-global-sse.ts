@@ -76,6 +76,26 @@ export function useGlobalSSE(): SSEHookState {
       });
     }
 
+    // Invalidate OGS group student caches (ogs-students-{groupId})
+    // so the "Meine Gruppe" page picks up location changes (e.g. Zuhause).
+    // Triggered by pendingGroupIds (room-level events) OR pendingStudentIds
+    // (daily checkout sends student_checkout without an active_group_id).
+    if (
+      pendingGroupIds.current.size > 0 ||
+      pendingStudentIds.current.size > 0
+    ) {
+      mutate(
+        (key) => typeof key === "string" && key.startsWith("ogs-students-"),
+        undefined,
+        { revalidate: true },
+      ).catch((err) => {
+        logger.debug("swr_revalidation_failed", {
+          error: err instanceof Error ? err.message : String(err),
+          scope: "ogs_students",
+        });
+      });
+    }
+
     // Invalidate specific student detail caches
     for (const studentId of pendingStudentIds.current) {
       mutate(`student-detail-${studentId}`).catch((err) => {
@@ -87,7 +107,11 @@ export function useGlobalSSE(): SSEHookState {
     }
 
     // Invalidate dashboard (student counts changed) — single broad invalidation
-    if (pendingGroupIds.current.size > 0 || hasPendingActivityEvent.current) {
+    if (
+      pendingGroupIds.current.size > 0 ||
+      pendingStudentIds.current.size > 0 ||
+      hasPendingActivityEvent.current
+    ) {
       mutate(
         (key) =>
           typeof key === "string" &&

@@ -238,6 +238,9 @@ func (rs *Resource) handleDailyCheckout(w http.ResponseWriter, r *http.Request, 
 				iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(err))
 				return
 			}
+
+			// Broadcast SSE event so the OGS Groups page updates in real time
+			rs.ActiveService.BroadcastDailyCheckout(r.Context(), student.ID)
 		}
 	}
 
