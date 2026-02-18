@@ -56,19 +56,31 @@ API_URL=                                    # Server-side API URL (optional, see
 SKIP_ENV_VALIDATION=true                    # Set for Docker builds
 ```
 
-### API URL: Server-Side vs Client-Side
+## API URL: Server-Side vs Client-Side
 
-| Variable | Context | Purpose |
-|----------|---------|---------|
-| `NEXT_PUBLIC_API_URL` | **Client** (browser Axios) | Must be reachable from the user's browser |
-| `API_URL` | **Server** (API routes, auth, SSE) | Internal Docker network in production |
+| Variable | Scope | Default | Purpose |
+|----------|-------|---------|---------|
+| `NEXT_PUBLIC_API_URL` | Client + Server | `http://localhost:8080` | Browser-accessible backend URL, axios `baseURL` |
+| `API_URL` | Server only | *(none)* | Internal Docker network URL (`http://server:8080`) |
 
-- **Helper:** `getServerApiUrl()` from `~/lib/server-api-url` → returns `API_URL ?? NEXT_PUBLIC_API_URL`
-- **Server-only files** (API route handlers, auth config, token-refresh, SSE proxy, `api-helpers.ts`) must use `getServerApiUrl()`
-- **Mixed client/server files** (`lib/api.ts`, `lib/active-service.ts`, `lib/activity-api.ts`, `lib/student-api.ts`, `lib/usercontext-api.ts`, `lib/auth-service.ts`) must use `env.NEXT_PUBLIC_API_URL` — importing `getServerApiUrl()` in these files causes t3-env to throw "Attempted to access a server-side environment variable on the client"
-- **Axios `baseURL`** in `lib/api.ts` uses `env.NEXT_PUBLIC_API_URL` (client-side only)
-- **Local dev:** `API_URL` unset → falls back to `NEXT_PUBLIC_API_URL` (localhost:8080)
-- **Docker:** `API_URL=http://server:8080` → server calls stay inside Docker network
+**`getServerApiUrl()`** (`lib/server-api-url.ts`): Returns `API_URL ?? NEXT_PUBLIC_API_URL`. Used by all route handlers.
+
+**Local dev**: Only `NEXT_PUBLIC_API_URL` needed (defaults to `http://localhost:8080`).
+**Docker**: `API_URL=http://server:8080` (hardcoded, internal network). `NEXT_PUBLIC_API_URL` comes from root `.env`.
+
+### Dynamic Import Gotcha (t3-env)
+
+`getServerApiUrl` MUST be dynamically imported in files that could be included in client-side bundles:
+
+```typescript
+// CORRECT — dynamic import keeps server env out of client bundle
+const { getServerApiUrl } = await import("~/lib/server-api-url");
+
+// WRONG — static import pulls server env into client bundle
+import { getServerApiUrl } from "~/lib/server-api-url";
+```
+
+Both `api-helpers.ts` and `operator/route-wrapper.ts` use this pattern. The same applies to any server-only import (`auth`, `refreshSessionTokensOnServer`, etc.).
 
 ## Code Architecture
 
@@ -512,27 +524,98 @@ The frontend proxies all API calls through Next.js route handlers to the Go back
 6. Always run `pnpm run check` before committing
 7. Handle errors gracefully with user feedback
 
-## Testing
+---
 
-Currently, the project does not have testing infrastructure set up. When adding tests:
-- Consider React Testing Library for component tests
-- Use MSW (Mock Service Worker) for API mocking
-- Add test scripts to package.json
-- Configure Jest or Vitest as test runner
+## Frontend Logging: Use Structured Logger Only (MANDATORY)
 
-## Performance Considerations
+**ABSOLUTE RULE: All frontend TypeScript/React code MUST use `createLogger` from `~/lib/logger` for logging. NEVER use bare `console.log`, `console.error`, `console.warn`, or `console.info`.**
 
-- Use React 19's built-in optimizations (automatic batching, transitions)
-- Implement proper loading states with Suspense
-- Lazy load heavy components with dynamic imports
-- Use proper cache headers for API responses
-- Implement pagination for large lists
+This project uses a structured logging system that mirrors the backend `slog` architecture, enabling Grafana/Loki observability across the full stack. Use the `frontend-structured-logging` skill for detailed usage instructions.
 
-## Security Best Practices
+### Rules
 
-- Never expose JWT tokens in client-side code
-- Use HTTP-only cookies for auth tokens when possible
-- Validate all user inputs on both frontend and backend
-- Sanitize data before rendering to prevent XSS
-- Use environment variables for sensitive configuration
-- Never commit `.env.local` file
+#### ALWAYS: Import and create a scoped logger
+```typescript
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "MyComponentName" });
+```
+
+#### ALWAYS: Use snake_case event names as the first argument
+```typescript
+// CORRECT
+logger.error("profile_save_failed", { error: err.message });
+logger.warn("no permission to view group", { group_id: roomId });
+logger.info("students loaded", { count: 25, group_id: "123" });
+logger.debug("SWR fetch complete", { duration_ms: 42 });
+
+// WRONG - human-readable sentences
+logger.error("Failed to save profile", { error: err.message });
+console.error("Failed to save profile:", err);
+```
+
+#### ALWAYS: Extract error messages, never pass raw Error objects
+```typescript
+// CORRECT
+} catch (error) {
+  logger.error("fetch_failed", {
+    error: error instanceof Error ? error.message : String(error),
+  });
+}
+
+// WRONG - passing raw Error object
+} catch (error) {
+  logger.error("fetch_failed", { error });
+  console.error("fetch_failed:", error);
+}
+```
+
+#### NEVER: Use bare console.* in production code
+```typescript
+// FORBIDDEN
+console.log("something happened");
+console.error("Failed to fetch:", error);
+console.warn("Missing data");
+console.info("User logged in");
+```
+
+#### Component Naming Convention
+
+| File Type | Component Name Pattern | Example |
+|-----------|----------------------|---------|
+| Page component | `{PageName}Page` | `createLogger({ component: "SettingsPage" })` |
+| API route handler | `{Domain}{Action}Route` | `createLogger({ component: "AuthLoginRoute" })` |
+| React hook | `use{HookName}` | `createLogger({ component: "useOperatorSuggestionsUnread" })` |
+| Context provider | `{Name}Context` | `createLogger({ component: "OperatorAuthContext" })` |
+| UI component | `{ComponentName}` | `createLogger({ component: "AnnouncementModal" })` |
+
+#### Log Level Guidelines
+
+| Level | When to use | Example |
+|-------|------------|---------|
+| `debug` | Verbose development info, performance timing | `logger.debug("SWR fetch complete", { duration_ms: 42 })` |
+| `info` | Normal operations worth tracking | `logger.info("students loaded", { count: 25 })` |
+| `warn` | Recoverable issues, degraded behavior | `logger.warn("no permission to view group", { group_id })` |
+| `error` | Failures in catch blocks | `logger.error("fetch_failed", { error: err.message })` |
+
+#### Testing
+
+The logger is globally mocked in `frontend/src/test/setup.ts`. The mock passes through to `console.*`, so tests can spy on `console.error` to assert logging:
+
+```typescript
+const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+
+// ... trigger error ...
+
+expect(consoleError).toHaveBeenCalledWith("event_name", {
+  error: "Expected error message",
+});
+consoleError.mockRestore();
+```
+
+#### Exceptions
+
+The ONLY files allowed to use raw `console.*`:
+- `src/lib/logger.ts` — The logger implementation itself
+- `src/test/setup.ts` — Global test mock pass-through
+- `src/app/api/logs/route.ts` — Log shipping endpoint (writes JSON to stdout)

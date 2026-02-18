@@ -60,6 +60,7 @@ type Service interface {
 	FindCombinedGroupsByTimeRange(ctx context.Context, start, end time.Time) ([]*active.CombinedGroup, error)
 	EndCombinedGroup(ctx context.Context, id int64) error
 	GetCombinedGroupWithGroups(ctx context.Context, id int64) (*active.CombinedGroup, error)
+	CreateCombinedGroupWithGroups(ctx context.Context, group *active.CombinedGroup, groupIDs []int64) error
 
 	// Group Mapping operations
 	AddGroupToCombination(ctx context.Context, combinedGroupID, activeGroupID int64) error

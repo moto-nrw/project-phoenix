@@ -14,7 +14,6 @@ on:
       - '.github/workflows/build.yml'
       - '!**.md'
       - '!docs/**'
-      - '!bruno/**'
       - '!.vscode/**'
 
   # Demo: Build and deploy when PR with 'deploy-demo' label is merged
@@ -164,7 +163,7 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
 
       - name: Build and push backend
-        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
         with:
           context: ./backend
           file: ./backend/Dockerfile
@@ -238,7 +237,7 @@ jobs:
           fi
 
       - name: Build and push frontend
-        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
         with:
           context: ./frontend
           file: ./frontend/Dockerfile.prod

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/go-chi/render"
@@ -14,6 +15,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/constants"
 	"github.com/moto-nrw/project-phoenix/models/active"
+	"github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/models/iot"
 	"github.com/moto-nrw/project-phoenix/models/users"
@@ -552,8 +554,8 @@ func (rs *Resource) findOrCreateActiveGroupForRoom(ctx context.Context, w http.R
 		return rs.useExistingActiveGroup(ctx, activeGroups, roomID)
 	}
 
-	// No active groups - check if this is Schulhof
-	return rs.createSchulhofActiveGroupIfNeeded(ctx, w, r, roomID)
+	// No active groups - check if this is a special room (Schulhof, WC)
+	return rs.createSpecialRoomActiveGroupIfNeeded(ctx, w, r, roomID)
 }
 
 // useExistingActiveGroup uses an existing active group in the room
@@ -569,10 +571,10 @@ func (rs *Resource) useExistingActiveGroup(ctx context.Context, activeGroups []*
 	return activeGroupID, roomName, nil
 }
 
-// createSchulhofActiveGroupIfNeeded creates a Schulhof active group if the room is Schulhof
-func (rs *Resource) createSchulhofActiveGroupIfNeeded(ctx context.Context, w http.ResponseWriter, r *http.Request, roomID int64) (int64, string, error) {
+// createSpecialRoomActiveGroupIfNeeded creates an active group if the room is a special room (Schulhof, WC)
+func (rs *Resource) createSpecialRoomActiveGroupIfNeeded(ctx context.Context, w http.ResponseWriter, r *http.Request, roomID int64) (int64, string, error) {
 	room, err := rs.FacilityService.GetRoom(ctx, roomID)
-	if err != nil || room == nil || room.Name != constants.SchulhofRoomName {
+	if err != nil || room == nil {
 		rs.getLogger().WarnContext(ctx, "no active groups found in room",
 			slog.Int64("room_id", roomID),
 		)
@@ -580,35 +582,71 @@ func (rs *Resource) createSchulhofActiveGroupIfNeeded(ctx context.Context, w htt
 		return 0, "", errors.New("no active groups in specified room")
 	}
 
-	rs.getLogger().InfoContext(ctx, "auto-creating Schulhof active group",
-		slog.Int64("room_id", roomID),
-	)
-
-	schulhofActivity, err := rs.schulhofActivityGroup(ctx)
-	if err != nil {
-		rs.getLogger().ErrorContext(ctx, "failed to find Schulhof activity",
-			slog.String("error", err.Error()),
+	// Determine which activity group to use based on room name
+	var activityGroup *activities.Group
+	switch room.Name {
+	case constants.SchulhofRoomName:
+		rs.getLogger().InfoContext(ctx, "auto-creating Schulhof active group",
+			slog.Int64("room_id", roomID),
 		)
-		iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(errors.New("schulhof activity not configured")))
-		return 0, "", err
+		activityGroup, err = rs.schulhofActivityGroup(ctx)
+		if err != nil {
+			rs.getLogger().ErrorContext(ctx, "failed to find Schulhof activity",
+				slog.String("error", err.Error()),
+			)
+			iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(errors.New("schulhof activity not configured")))
+			return 0, "", err
+		}
+	case constants.WCRoomName:
+		rs.getLogger().InfoContext(ctx, "auto-creating WC active group",
+			slog.Int64("room_id", roomID),
+		)
+		activityGroup, err = rs.wcActivityGroup(ctx)
+		if err != nil {
+			rs.getLogger().ErrorContext(ctx, "failed to find WC activity",
+				slog.String("error", err.Error()),
+			)
+			errMsg := "WC activity not configured"
+			if strings.Contains(err.Error(), "staff context") {
+				errMsg = "WC activity auto-create requires staff context"
+			}
+			iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(errors.New(errMsg)))
+			return 0, "", err
+		}
+	default:
+		rs.getLogger().WarnContext(ctx, "no active groups found in room",
+			slog.Int64("room_id", roomID),
+			slog.String("room_name", room.Name),
+		)
+		iotCommon.RenderError(w, r, iotCommon.ErrorNotFound(errors.New("no active groups in specified room")))
+		return 0, "", errors.New("no active groups in specified room")
 	}
 
 	newActiveGroup := &active.Group{
-		GroupID:      schulhofActivity.ID,
+		GroupID:      activityGroup.ID,
 		RoomID:       roomID,
 		StartTime:    time.Now(),
 		LastActivity: time.Now(),
 	}
 
 	if err := rs.ActiveService.CreateActiveGroup(ctx, newActiveGroup); err != nil {
-		rs.getLogger().ErrorContext(ctx, "failed to create Schulhof active group",
+		rs.getLogger().ErrorContext(ctx, "failed to create active group for special room",
+			slog.String("room_name", room.Name),
 			slog.String("error", err.Error()),
 		)
-		iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(errors.New("failed to create Schulhof session")))
+		switch room.Name {
+		case constants.SchulhofRoomName:
+			iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(errors.New("failed to create Schulhof session")))
+		case constants.WCRoomName:
+			iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(errors.New("failed to create WC session")))
+		default:
+			iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(errors.New("failed to create session")))
+		}
 		return 0, "", err
 	}
 
-	rs.getLogger().InfoContext(ctx, "auto-created Schulhof active group",
+	rs.getLogger().InfoContext(ctx, "auto-created active group for special room",
+		slog.String("room_name", room.Name),
 		slog.Int64("active_group_id", newActiveGroup.ID),
 	)
 	return newActiveGroup.ID, room.Name, nil

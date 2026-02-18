@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/constants"
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/base"
@@ -38,6 +37,11 @@ func (rs *Resource) ensureSchulhofRoom(ctx context.Context) (*facilities.Room, e
 	}
 
 	if err := rs.FacilityService.CreateRoom(ctx, newRoom); err != nil {
+		// Retry: concurrent request may have created it
+		room, retryErr := rs.FacilityService.FindRoomByName(ctx, constants.SchulhofRoomName)
+		if retryErr == nil && room != nil {
+			return room, nil
+		}
 		return nil, fmt.Errorf("failed to auto-create Schulhof room: %w", err)
 	}
 
@@ -75,6 +79,15 @@ func (rs *Resource) ensureSchulhofCategory(ctx context.Context) (*activities.Cat
 
 	createdCategory, err := rs.ActivitiesService.CreateCategory(ctx, newCategory)
 	if err != nil {
+		// Retry: concurrent request may have created it
+		retryCategories, retryErr := rs.ActivitiesService.ListCategories(ctx)
+		if retryErr == nil {
+			for _, cat := range retryCategories {
+				if cat.Name == constants.SchulhofCategoryName {
+					return cat, nil
+				}
+			}
+		}
 		return nil, fmt.Errorf("failed to auto-create Schulhof category: %w", err)
 	}
 
@@ -124,25 +137,27 @@ func (rs *Resource) schulhofActivityGroup(ctx context.Context) (*activities.Grou
 		return nil, fmt.Errorf("failed to ensure Schulhof category: %w", err)
 	}
 
-	// Step 3: Create the Schulhof activity group
-	// Get staff ID from device authentication context - required for created_by FK
-	staffCtx := device.StaffFromCtx(ctx)
-	if staffCtx == nil {
-		return nil, fmt.Errorf("schulhof activity auto-create requires staff context (scan staff RFID first)")
-	}
-
+	// Step 3: Create the Schulhof activity group (created_by is NULL = system-created)
 	newActivity := &activities.Group{
 		Name:            constants.SchulhofActivityName,
 		MaxParticipants: constants.SchulhofMaxParticipants,
 		IsOpen:          true, // Open activity - anyone can join
 		CategoryID:      category.ID,
 		PlannedRoomID:   &room.ID,
-		CreatedBy:       staffCtx.ID,
 	}
 
 	// CreateGroup requires supervisorIDs and schedules - pass empty slices for auto-created activity
 	createdActivity, err := rs.ActivitiesService.CreateGroup(ctx, newActivity, []int64{}, []*activities.Schedule{})
 	if err != nil {
+		// Retry: concurrent request may have created it
+		retryOptions := base.NewQueryOptions()
+		retryFilter := base.NewFilter()
+		retryFilter.Equal("name", constants.SchulhofActivityName)
+		retryOptions.Filter = retryFilter
+		retryGroups, retryErr := rs.ActivitiesService.ListGroups(ctx, retryOptions)
+		if retryErr == nil && len(retryGroups) > 0 {
+			return retryGroups[0], nil
+		}
 		return nil, fmt.Errorf("failed to auto-create Schulhof activity: %w", err)
 	}
 

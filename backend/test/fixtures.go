@@ -95,7 +95,7 @@ func CreateTestActivityGroup(tb testing.TB, db *bun.DB, name string) *activities
 		MaxParticipants: 20,
 		IsOpen:          true,
 		CategoryID:      category.ID,
-		CreatedBy:       staff.ID,
+		CreatedBy:       &staff.ID,
 	}
 
 	err := db.NewInsert().

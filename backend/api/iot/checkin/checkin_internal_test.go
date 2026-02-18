@@ -1,10 +1,11 @@
-// Package checkin internal tests for pure helper functions.
-// These tests verify logic that doesn't require database access.
+// Package checkin internal tests for helper functions and auto-create paths.
+// Pure helper tests don't need DB; auto-create tests use real database via testutil.
 package checkin
 
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -14,11 +15,16 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 
+	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/auth/device"
+	"github.com/moto-nrw/project-phoenix/constants"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 // =============================================================================
@@ -765,4 +771,405 @@ func TestCheckinResult_AllFields(t *testing.T) {
 	assert.Equal(t, "Gewechselt!", result.GreetingMsg)
 	assert.True(t, result.DailyCheckoutAvailable)
 	assert.Equal(t, &activeStudents, result.ActiveStudents)
+}
+
+// =============================================================================
+// INTERNAL DB-BACKED TESTS: WC auto-create paths
+// =============================================================================
+
+// internalTestContext holds shared dependencies for internal DB-backed tests.
+type internalTestContext struct {
+	rs *Resource
+	db *bun.DB
+}
+
+// setupInternalTestResource creates a Resource with real database services
+// for internal unit tests that exercise auto-create code paths.
+func setupInternalTestResource(t *testing.T) *internalTestContext {
+	t.Helper()
+
+	db, svc := testutil.SetupAPITest(t)
+
+	rs := &Resource{
+		IoTService:        svc.IoT,
+		UsersService:      svc.Users,
+		ActiveService:     svc.Active,
+		FacilityService:   svc.Facilities,
+		ActivitiesService: svc.Activities,
+		EducationService:  svc.Education,
+		logger:            slog.Default(),
+	}
+
+	return &internalTestContext{rs: rs, db: db}
+}
+
+// cleanupWCTestArtifacts removes WC infrastructure created by auto-create tests.
+func cleanupWCTestArtifacts(t *testing.T, tc *internalTestContext) {
+	t.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	stmts := []string{
+		fmt.Sprintf(`DELETE FROM active.attendance WHERE visit_id IN (SELECT v.id FROM active.visits v JOIN active.groups ag ON ag.id = v.active_group_id JOIN facilities.rooms r ON r.id = ag.room_id WHERE r.name = '%s')`, constants.WCRoomName),
+		fmt.Sprintf(`DELETE FROM active.visits WHERE active_group_id IN (SELECT ag.id FROM active.groups ag JOIN facilities.rooms r ON r.id = ag.room_id WHERE r.name = '%s')`, constants.WCRoomName),
+		fmt.Sprintf(`DELETE FROM active.group_supervisors WHERE group_id IN (SELECT ag.id FROM active.groups ag JOIN facilities.rooms r ON r.id = ag.room_id WHERE r.name = '%s')`, constants.WCRoomName),
+		fmt.Sprintf(`DELETE FROM active.groups WHERE room_id IN (SELECT id FROM facilities.rooms WHERE name = '%s')`, constants.WCRoomName),
+		fmt.Sprintf(`DELETE FROM activities.schedules WHERE group_id IN (SELECT id FROM activities.groups WHERE name = '%s')`, constants.WCActivityName),
+		fmt.Sprintf(`DELETE FROM activities.student_enrollments WHERE group_id IN (SELECT id FROM activities.groups WHERE name = '%s')`, constants.WCActivityName),
+		fmt.Sprintf(`DELETE FROM activities.groups WHERE name = '%s'`, constants.WCActivityName),
+		fmt.Sprintf(`DELETE FROM activities.categories WHERE name = '%s'`, constants.WCCategoryName),
+		fmt.Sprintf(`DELETE FROM facilities.rooms WHERE name = '%s'`, constants.WCRoomName),
+	}
+	for _, stmt := range stmts {
+		_, _ = tc.db.ExecContext(ctx, stmt)
+	}
+}
+
+// cleanupSchulhofTestArtifacts removes Schulhof infrastructure created by auto-create tests.
+func cleanupSchulhofTestArtifacts(t *testing.T, tc *internalTestContext) {
+	t.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	stmts := []string{
+		fmt.Sprintf(`DELETE FROM active.attendance WHERE visit_id IN (SELECT v.id FROM active.visits v JOIN active.groups ag ON ag.id = v.active_group_id JOIN facilities.rooms r ON r.id = ag.room_id WHERE r.name = '%s')`, constants.SchulhofRoomName),
+		fmt.Sprintf(`DELETE FROM active.visits WHERE active_group_id IN (SELECT ag.id FROM active.groups ag JOIN facilities.rooms r ON r.id = ag.room_id WHERE r.name = '%s')`, constants.SchulhofRoomName),
+		fmt.Sprintf(`DELETE FROM active.group_supervisors WHERE group_id IN (SELECT ag.id FROM active.groups ag JOIN facilities.rooms r ON r.id = ag.room_id WHERE r.name = '%s')`, constants.SchulhofRoomName),
+		fmt.Sprintf(`DELETE FROM active.groups WHERE room_id IN (SELECT id FROM facilities.rooms WHERE name = '%s')`, constants.SchulhofRoomName),
+		fmt.Sprintf(`DELETE FROM activities.schedules WHERE group_id IN (SELECT id FROM activities.groups WHERE name = '%s')`, constants.SchulhofActivityName),
+		fmt.Sprintf(`DELETE FROM activities.student_enrollments WHERE group_id IN (SELECT id FROM activities.groups WHERE name = '%s')`, constants.SchulhofActivityName),
+		fmt.Sprintf(`DELETE FROM activities.groups WHERE name = '%s'`, constants.SchulhofActivityName),
+		fmt.Sprintf(`DELETE FROM activities.categories WHERE name = '%s'`, constants.SchulhofCategoryName),
+		fmt.Sprintf(`DELETE FROM facilities.rooms WHERE name = '%s'`, constants.SchulhofRoomName),
+	}
+	for _, stmt := range stmts {
+		_, _ = tc.db.ExecContext(ctx, stmt)
+	}
+}
+
+// TestEnsureWCRoom_AutoCreatesWhenNotFound verifies that ensureWCRoom creates
+// a new WC room when none exists in the database.
+func TestEnsureWCRoom_AutoCreatesWhenNotFound(t *testing.T) {
+	tc := setupInternalTestResource(t)
+	defer func() { _ = tc.db.Close() }()
+
+	// Clean up any pre-existing WC infrastructure (from seed data)
+	cleanupWCTestArtifacts(t, tc)
+	defer cleanupWCTestArtifacts(t, tc)
+
+	ctx := context.Background()
+	room, err := tc.rs.ensureWCRoom(ctx)
+
+	require.NoError(t, err, "ensureWCRoom should not return error")
+	require.NotNil(t, room, "ensureWCRoom should return a room")
+	assert.Equal(t, constants.WCRoomName, room.Name)
+	assert.NotZero(t, room.ID, "Room should have a valid ID after creation")
+}
+
+// TestEnsureWCRoom_FindsExistingRoom verifies that ensureWCRoom returns
+// an existing WC room without creating a duplicate.
+func TestEnsureWCRoom_FindsExistingRoom(t *testing.T) {
+	tc := setupInternalTestResource(t)
+	defer func() { _ = tc.db.Close() }()
+
+	cleanupWCTestArtifacts(t, tc)
+	defer cleanupWCTestArtifacts(t, tc)
+
+	ctx := context.Background()
+
+	// Create WC room first
+	room1, err := tc.rs.ensureWCRoom(ctx)
+	require.NoError(t, err)
+	require.NotNil(t, room1)
+
+	// Call again - should find existing room
+	room2, err := tc.rs.ensureWCRoom(ctx)
+	require.NoError(t, err)
+	require.NotNil(t, room2)
+
+	assert.Equal(t, room1.ID, room2.ID, "Should return same room, not create duplicate")
+}
+
+// TestEnsureWCCategory_AutoCreatesWhenNotFound verifies that ensureWCCategory
+// creates a new WC category when none exists.
+func TestEnsureWCCategory_AutoCreatesWhenNotFound(t *testing.T) {
+	tc := setupInternalTestResource(t)
+	defer func() { _ = tc.db.Close() }()
+
+	cleanupWCTestArtifacts(t, tc)
+	defer cleanupWCTestArtifacts(t, tc)
+
+	ctx := context.Background()
+	category, err := tc.rs.ensureWCCategory(ctx)
+
+	require.NoError(t, err, "ensureWCCategory should not return error")
+	require.NotNil(t, category, "ensureWCCategory should return a category")
+	assert.Equal(t, constants.WCCategoryName, category.Name)
+	assert.NotZero(t, category.ID)
+}
+
+// TestEnsureWCCategory_FindsExistingCategory verifies that ensureWCCategory
+// returns an existing WC category without creating a duplicate.
+func TestEnsureWCCategory_FindsExistingCategory(t *testing.T) {
+	tc := setupInternalTestResource(t)
+	defer func() { _ = tc.db.Close() }()
+
+	cleanupWCTestArtifacts(t, tc)
+	defer cleanupWCTestArtifacts(t, tc)
+
+	ctx := context.Background()
+
+	// Create category first
+	cat1, err := tc.rs.ensureWCCategory(ctx)
+	require.NoError(t, err)
+	require.NotNil(t, cat1)
+
+	// Call again - should find existing
+	cat2, err := tc.rs.ensureWCCategory(ctx)
+	require.NoError(t, err)
+	require.NotNil(t, cat2)
+
+	assert.Equal(t, cat1.ID, cat2.ID, "Should return same category, not create duplicate")
+}
+
+// TestWcActivityGroup_FullAutoCreate verifies that wcActivityGroup creates
+// the full WC infrastructure (room, category, activity) when nothing exists.
+func TestWcActivityGroup_FullAutoCreate(t *testing.T) {
+	tc := setupInternalTestResource(t)
+	defer func() { _ = tc.db.Close() }()
+
+	cleanupWCTestArtifacts(t, tc)
+	defer cleanupWCTestArtifacts(t, tc)
+
+	// Create staff for the created_by FK constraint
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	staff := testpkg.CreateTestStaff(t, db, "WCInternal", "Staff")
+	defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
+
+	// Set staff context
+	ctx := context.WithValue(context.Background(), device.CtxStaff, staff)
+
+	group, err := tc.rs.wcActivityGroup(ctx)
+
+	require.NoError(t, err, "wcActivityGroup should not return error")
+	require.NotNil(t, group, "wcActivityGroup should return an activity group")
+	assert.Equal(t, constants.WCActivityName, group.Name)
+	assert.NotZero(t, group.ID)
+}
+
+// TestWcActivityGroup_FindsExisting verifies that wcActivityGroup returns
+// an existing WC activity without creating duplicates.
+func TestWcActivityGroup_FindsExisting(t *testing.T) {
+	tc := setupInternalTestResource(t)
+	defer func() { _ = tc.db.Close() }()
+
+	cleanupWCTestArtifacts(t, tc)
+	defer cleanupWCTestArtifacts(t, tc)
+
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	staff := testpkg.CreateTestStaff(t, db, "WCExist", "Staff")
+	defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
+
+	ctx := context.WithValue(context.Background(), device.CtxStaff, staff)
+
+	// First call - creates everything
+	group1, err := tc.rs.wcActivityGroup(ctx)
+	require.NoError(t, err)
+	require.NotNil(t, group1)
+
+	// Second call - should find existing
+	group2, err := tc.rs.wcActivityGroup(ctx)
+	require.NoError(t, err)
+	require.NotNil(t, group2)
+
+	assert.Equal(t, group1.ID, group2.ID, "Should return same activity group, not create duplicate")
+}
+
+// =============================================================================
+// INTERNAL DB-BACKED TESTS: Schulhof auto-create paths
+// =============================================================================
+
+// TestEnsureSchulhofRoom_AutoCreatesWhenNotFound verifies that ensureSchulhofRoom
+// creates a new Schulhof room when none exists in the database.
+func TestEnsureSchulhofRoom_AutoCreatesWhenNotFound(t *testing.T) {
+	tc := setupInternalTestResource(t)
+	defer func() { _ = tc.db.Close() }()
+
+	cleanupSchulhofTestArtifacts(t, tc)
+	defer cleanupSchulhofTestArtifacts(t, tc)
+
+	ctx := context.Background()
+	room, err := tc.rs.ensureSchulhofRoom(ctx)
+
+	require.NoError(t, err, "ensureSchulhofRoom should not return error")
+	require.NotNil(t, room, "ensureSchulhofRoom should return a room")
+	assert.Equal(t, constants.SchulhofRoomName, room.Name)
+	assert.NotZero(t, room.ID)
+}
+
+// TestEnsureSchulhofRoom_FindsExistingRoom verifies that ensureSchulhofRoom
+// returns an existing Schulhof room without creating a duplicate.
+func TestEnsureSchulhofRoom_FindsExistingRoom(t *testing.T) {
+	tc := setupInternalTestResource(t)
+	defer func() { _ = tc.db.Close() }()
+
+	cleanupSchulhofTestArtifacts(t, tc)
+	defer cleanupSchulhofTestArtifacts(t, tc)
+
+	ctx := context.Background()
+
+	room1, err := tc.rs.ensureSchulhofRoom(ctx)
+	require.NoError(t, err)
+	require.NotNil(t, room1)
+
+	room2, err := tc.rs.ensureSchulhofRoom(ctx)
+	require.NoError(t, err)
+	require.NotNil(t, room2)
+
+	assert.Equal(t, room1.ID, room2.ID, "Should return same room, not create duplicate")
+}
+
+// TestEnsureSchulhofCategory_AutoCreatesWhenNotFound verifies that ensureSchulhofCategory
+// creates a new Schulhof category when none exists.
+func TestEnsureSchulhofCategory_AutoCreatesWhenNotFound(t *testing.T) {
+	tc := setupInternalTestResource(t)
+	defer func() { _ = tc.db.Close() }()
+
+	cleanupSchulhofTestArtifacts(t, tc)
+	defer cleanupSchulhofTestArtifacts(t, tc)
+
+	ctx := context.Background()
+	category, err := tc.rs.ensureSchulhofCategory(ctx)
+
+	require.NoError(t, err, "ensureSchulhofCategory should not return error")
+	require.NotNil(t, category, "ensureSchulhofCategory should return a category")
+	assert.Equal(t, constants.SchulhofCategoryName, category.Name)
+	assert.NotZero(t, category.ID)
+}
+
+// TestEnsureSchulhofCategory_FindsExistingCategory verifies that ensureSchulhofCategory
+// returns an existing Schulhof category without creating a duplicate.
+func TestEnsureSchulhofCategory_FindsExistingCategory(t *testing.T) {
+	tc := setupInternalTestResource(t)
+	defer func() { _ = tc.db.Close() }()
+
+	cleanupSchulhofTestArtifacts(t, tc)
+	defer cleanupSchulhofTestArtifacts(t, tc)
+
+	ctx := context.Background()
+
+	cat1, err := tc.rs.ensureSchulhofCategory(ctx)
+	require.NoError(t, err)
+	require.NotNil(t, cat1)
+
+	cat2, err := tc.rs.ensureSchulhofCategory(ctx)
+	require.NoError(t, err)
+	require.NotNil(t, cat2)
+
+	assert.Equal(t, cat1.ID, cat2.ID, "Should return same category, not create duplicate")
+}
+
+// TestSchulhofActivityGroup_FullAutoCreate verifies that schulhofActivityGroup creates
+// the full Schulhof infrastructure (room, category, activity) when nothing exists.
+func TestSchulhofActivityGroup_FullAutoCreate(t *testing.T) {
+	tc := setupInternalTestResource(t)
+	defer func() { _ = tc.db.Close() }()
+
+	cleanupSchulhofTestArtifacts(t, tc)
+	defer cleanupSchulhofTestArtifacts(t, tc)
+
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	staff := testpkg.CreateTestStaff(t, db, "SchulhofInt", "Staff")
+	defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
+
+	ctx := context.WithValue(context.Background(), device.CtxStaff, staff)
+
+	group, err := tc.rs.schulhofActivityGroup(ctx)
+
+	require.NoError(t, err, "schulhofActivityGroup should not return error")
+	require.NotNil(t, group, "schulhofActivityGroup should return an activity group")
+	assert.Equal(t, constants.SchulhofActivityName, group.Name)
+	assert.NotZero(t, group.ID)
+}
+
+// TestSchulhofActivityGroup_FindsExisting verifies that schulhofActivityGroup
+// returns an existing Schulhof activity without creating duplicates.
+func TestSchulhofActivityGroup_FindsExisting(t *testing.T) {
+	tc := setupInternalTestResource(t)
+	defer func() { _ = tc.db.Close() }()
+
+	cleanupSchulhofTestArtifacts(t, tc)
+	defer cleanupSchulhofTestArtifacts(t, tc)
+
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	staff := testpkg.CreateTestStaff(t, db, "SchulhofExist", "Staff")
+	defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
+
+	ctx := context.WithValue(context.Background(), device.CtxStaff, staff)
+
+	group1, err := tc.rs.schulhofActivityGroup(ctx)
+	require.NoError(t, err)
+	require.NotNil(t, group1)
+
+	group2, err := tc.rs.schulhofActivityGroup(ctx)
+	require.NoError(t, err)
+	require.NotNil(t, group2)
+
+	assert.Equal(t, group1.ID, group2.ID, "Should return same activity group, not create duplicate")
+}
+
+// =============================================================================
+// NO STAFF CONTEXT TESTS: system-created auto-create paths (created_by = NULL)
+// =============================================================================
+
+// TestWcActivityGroup_NoStaffContext verifies that wcActivityGroup succeeds
+// without any staff in the context (created_by = NULL = system-created).
+func TestWcActivityGroup_NoStaffContext(t *testing.T) {
+	tc := setupInternalTestResource(t)
+	defer func() { _ = tc.db.Close() }()
+
+	cleanupWCTestArtifacts(t, tc)
+	defer cleanupWCTestArtifacts(t, tc)
+
+	// No staff context — plain background context
+	ctx := context.Background()
+
+	group, err := tc.rs.wcActivityGroup(ctx)
+
+	require.NoError(t, err, "wcActivityGroup should succeed without staff context")
+	require.NotNil(t, group, "wcActivityGroup should return an activity group")
+	assert.Equal(t, constants.WCActivityName, group.Name)
+	assert.NotZero(t, group.ID)
+	assert.Nil(t, group.CreatedBy, "system-created WC group should have NULL created_by")
+}
+
+// TestSchulhofActivityGroup_NoStaffContext verifies that schulhofActivityGroup succeeds
+// without any staff in the context (created_by = NULL = system-created).
+func TestSchulhofActivityGroup_NoStaffContext(t *testing.T) {
+	tc := setupInternalTestResource(t)
+	defer func() { _ = tc.db.Close() }()
+
+	cleanupSchulhofTestArtifacts(t, tc)
+	defer cleanupSchulhofTestArtifacts(t, tc)
+
+	// No staff context — plain background context
+	ctx := context.Background()
+
+	group, err := tc.rs.schulhofActivityGroup(ctx)
+
+	require.NoError(t, err, "schulhofActivityGroup should succeed without staff context")
+	require.NotNil(t, group, "schulhofActivityGroup should return an activity group")
+	assert.Equal(t, constants.SchulhofActivityName, group.Name)
+	assert.NotZero(t, group.ID)
+	assert.Nil(t, group.CreatedBy, "system-created Schulhof group should have NULL created_by")
 }

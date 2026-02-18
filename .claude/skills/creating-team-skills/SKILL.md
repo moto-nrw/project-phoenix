@@ -55,7 +55,7 @@ Transform specific solution into general technique:
 |----------|-------------|
 | "Fixed login page tab order" | "Form keyboard navigation optimization" |
 | "Used BUN ORM with quoted aliases" | "ORM query patterns for complex joins" |
-| "Set up Bruno API tests" | "API testing workflow" |
+| "Set up integration test fixtures" | "Database test fixture patterns" |
 
 **Questions to ask:**
 - Would this apply to other projects/frameworks?
