@@ -39,6 +39,8 @@ func (r *PostRepository) Create(ctx context.Context, post *suggestions.Post) err
 		return err
 	}
 
+	base.EnsureTenantID(ctx, post)
+
 	_, err := base.GetDB(ctx, r.db).NewInsert().
 		Model(post).
 		ModelTableExpr(tablePosts).

@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/render"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -63,8 +62,7 @@ func setupProtectedRouter(t *testing.T) (*testContext, chi.Router) {
 
 	tc := setupTestContext(t)
 
-	router := chi.NewRouter()
-	router.Use(render.SetContentType(render.ContentTypeJSON))
+	router := testutil.NewTenantRouter(tc.db)
 
 	// Mount routes without JWT middleware for testing
 	// We'll set context values directly in tests
@@ -133,8 +131,7 @@ func setupExtendedProtectedRouter(t *testing.T) (*testContext, chi.Router) {
 
 	tc := setupTestContext(t)
 
-	router := chi.NewRouter()
-	router.Use(render.SetContentType(render.ContentTypeJSON))
+	router := testutil.NewTenantRouter(tc.db)
 
 	router.Route("/active", func(r chi.Router) {
 		// Active Groups (same as setupProtectedRouter)
@@ -2055,8 +2052,7 @@ func setupCheckoutRouter(t *testing.T) (*testContext, chi.Router) {
 
 	tc := setupTestContext(t)
 
-	router := chi.NewRouter()
-	router.Use(render.SetContentType(render.ContentTypeJSON))
+	router := testutil.NewTenantRouter(tc.db)
 
 	router.Route("/active", func(r chi.Router) {
 		r.Route("/visits", func(r chi.Router) {
@@ -2292,8 +2288,7 @@ func setupFullCoverageRouter(t *testing.T) (*testContext, chi.Router) {
 
 	tc := setupTestContext(t)
 
-	router := chi.NewRouter()
-	router.Use(render.SetContentType(render.ContentTypeJSON))
+	router := testutil.NewTenantRouter(tc.db)
 
 	router.Route("/active", func(r chi.Router) {
 		// Groups with full routes

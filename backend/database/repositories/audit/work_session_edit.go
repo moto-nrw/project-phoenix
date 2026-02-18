@@ -45,6 +45,7 @@ func (r *WorkSessionEditRepository) CreateBatch(ctx context.Context, edits []*au
 				Err: err,
 			}
 		}
+		base.EnsureTenantID(ctx, edit)
 	}
 
 	_, err := base.GetDB(ctx, r.db).NewInsert().

@@ -1931,6 +1931,25 @@ func EnsureTestTenant(tb testing.TB, db *bun.DB, tenantID int64) {
 	require.NoError(tb, err, "Failed to ensure test school")
 }
 
+// EnsureAccountTenant creates an active account_tenants mapping so that
+// resolveAccountTenantDefault can find a tenant for the account during login.
+// Uses ON CONFLICT DO NOTHING so it is safe to call multiple times.
+func EnsureAccountTenant(tb testing.TB, db *bun.DB, accountID, tenantID int64) {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	EnsureTestTenant(tb, db, tenantID)
+
+	_, err := db.ExecContext(ctx, `
+		INSERT INTO auth.account_tenants (account_id, tenant_id, status, created_at, updated_at)
+		VALUES (?, ?, 'active', NOW(), NOW())
+		ON CONFLICT (account_id, tenant_id) DO NOTHING`,
+		accountID, tenantID)
+	require.NoError(tb, err, "Failed to ensure account tenant mapping")
+}
+
 // CreateTestPersonForTenant creates a person belonging to a specific tenant.
 func CreateTestPersonForTenant(tb testing.TB, db *bun.DB, tenantID int64, firstName, lastName string) *users.Person {
 	tb.Helper()

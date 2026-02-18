@@ -139,6 +139,8 @@ func (r *StudentPickupScheduleRepository) UpsertSchedule(ctx context.Context, s 
 		return err
 	}
 
+	base.EnsureTenantID(ctx, s)
+
 	_, err := base.GetDB(ctx, r.db).NewInsert().
 		Model(s).
 		ModelTableExpr(tablePickupSchedules).

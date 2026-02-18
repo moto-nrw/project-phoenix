@@ -40,6 +40,7 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/render"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -207,6 +208,22 @@ func NewMultipartRequest(t *testing.T, method, target string, fieldName, fileNam
 	}
 
 	return req
+}
+
+// NewTenantRouter creates a chi.Router pre-configured with TenantTxMiddleware.
+// Use this in integration tests instead of chi.NewRouter() to match production
+// middleware behavior (RLS enforcement via SET LOCAL ROLE + set_config).
+func NewTenantRouter(db *bun.DB) chi.Router {
+	router := chi.NewRouter()
+	router.Use(render.SetContentType(render.ContentTypeJSON))
+	router.Use(tenant.TenantTxMiddleware(db))
+	return router
+}
+
+// TenantContext returns a context with tenant_id set.
+// Use this when calling service methods directly in test setup (not through HTTP handlers).
+func TenantContext(tenantID int64) context.Context {
+	return tenant.WithTenantID(context.Background(), tenantID)
 }
 
 // ExecuteRequest executes an HTTP request against a Chi router and returns the response recorder.

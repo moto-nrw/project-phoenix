@@ -118,6 +118,8 @@ func (r *AccountRoleRepository) Create(ctx context.Context, accountRole *auth.Ac
 		return err
 	}
 
+	base.EnsureTenantID(ctx, accountRole)
+
 	_, err := base.GetDB(ctx, r.db).NewInsert().
 		Model(accountRole).
 		ModelTableExpr(accountRoleTable).

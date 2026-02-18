@@ -34,6 +34,8 @@ func (r *GuardianPhoneNumberRepository) Create(ctx context.Context, phone *users
 		return fmt.Errorf("validation failed: %w", err)
 	}
 
+	repoBase.EnsureTenantID(ctx, phone)
+
 	// Get the database connection (or transaction if in context)
 	var db bun.IDB = r.db
 	if tx, ok := modelBase.TxFromContext(ctx); ok && tx != nil {

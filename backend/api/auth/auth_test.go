@@ -17,7 +17,6 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/render"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -72,8 +71,7 @@ func setupPublicRouterWithDB(t *testing.T) (*bun.DB, chi.Router) {
 
 	tc := setupTestContext(t)
 
-	router := chi.NewRouter()
-	router.Use(render.SetContentType(render.ContentTypeJSON))
+	router := testutil.NewTenantRouter(tc.db)
 	router.Mount("/auth", tc.resource.Router())
 
 	return tc.db, router
@@ -86,8 +84,7 @@ func setupProtectedRouter(t *testing.T) (*testContext, chi.Router) {
 
 	tc := setupTestContext(t)
 
-	router := chi.NewRouter()
-	router.Use(render.SetContentType(render.ContentTypeJSON))
+	router := testutil.NewTenantRouter(tc.db)
 
 	// Mount routes without JWT middleware for testing
 	// We'll set context values directly in tests
@@ -142,8 +139,7 @@ func setupExtendedProtectedRouter(t *testing.T) (*testContext, chi.Router) {
 
 	tc := setupTestContext(t)
 
-	router := chi.NewRouter()
-	router.Use(render.SetContentType(render.ContentTypeJSON))
+	router := testutil.NewTenantRouter(tc.db)
 
 	// Mount routes without JWT middleware for testing
 	router.Route("/auth", func(r chi.Router) {
@@ -313,14 +309,14 @@ func cleanupPermissionRecords(t *testing.T, db *bun.DB, permissionIDs ...int64) 
 func TestLogin(t *testing.T) {
 	tc := setupTestContext(t)
 
-	router := chi.NewRouter()
-	router.Use(render.SetContentType(render.ContentTypeJSON))
+	router := testutil.NewTenantRouter(tc.db)
 	router.Mount("/auth", tc.resource.Router())
 
 	// Create a fresh test account to avoid stale tokens from seed data
 	testEmail := fmt.Sprintf("logintest-%d@example.com", time.Now().UnixNano())
 	testPassword := "Test1234%"
 	account := testpkg.CreateTestAccountWithPassword(t, tc.db, testEmail, testPassword)
+	testpkg.EnsureAccountTenant(t, tc.db, account.ID, 1)
 
 	t.Run("success with valid credentials", func(t *testing.T) {
 		body := map[string]string{
@@ -366,6 +362,7 @@ func TestLogin(t *testing.T) {
 	t.Cleanup(func() {
 		ctx := context.Background()
 		_, _ = tc.db.NewDelete().TableExpr("auth.tokens").Where("account_id = ?", account.ID).Exec(ctx)
+		_, _ = tc.db.NewDelete().TableExpr("auth.account_tenants").Where("account_id = ?", account.ID).Exec(ctx)
 		_, _ = tc.db.NewDelete().TableExpr("auth.accounts").Where("id = ?", account.ID).Exec(ctx)
 	})
 
@@ -1607,8 +1604,7 @@ func setupRefreshTokenRouter(t *testing.T) (*testContext, chi.Router) {
 
 	tc := setupTestContext(t)
 
-	router := chi.NewRouter()
-	router.Use(render.SetContentType(render.ContentTypeJSON))
+	router := testutil.NewTenantRouter(tc.db)
 
 	// Use the full public router for refresh/logout
 	// These routes require JWT middleware which we bypass via context

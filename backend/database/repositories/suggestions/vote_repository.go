@@ -31,6 +31,8 @@ func (r *VoteRepository) Upsert(ctx context.Context, vote *suggestions.Vote) err
 		return err
 	}
 
+	base.EnsureTenantID(ctx, vote)
+
 	_, err := base.GetDB(ctx, r.db).NewInsert().
 		Model(vote).
 		ModelTableExpr(tableVotes).

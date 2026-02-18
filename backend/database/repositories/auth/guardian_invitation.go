@@ -33,6 +33,8 @@ func (r *GuardianInvitationRepository) Create(ctx context.Context, invitation *a
 		return fmt.Errorf("validation failed: %w", err)
 	}
 
+	base.EnsureTenantID(ctx, invitation)
+
 	_, err := base.GetDB(ctx, r.db).NewInsert().
 		Model(invitation).
 		ModelTableExpr(`auth.guardian_invitations AS "guardian_invitation"`).
