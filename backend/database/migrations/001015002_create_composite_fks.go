@@ -177,7 +177,7 @@ var compositeFKSpecs = []compositeFKSpec{
 		newFKName: "fk_group_mappings_combined_group_tenant", onDelete: "CASCADE"},
 
 	// ─── FKs TO active.work_sessions ───
-	{sourceTable: "active.work_session_breaks", sourceColumn: "work_session_id", targetTable: "active.work_sessions",
+	{sourceTable: "active.work_session_breaks", sourceColumn: "session_id", targetTable: "active.work_sessions",
 		newFKName: "fk_work_breaks_session_tenant", onDelete: "CASCADE"},
 	{sourceTable: "audit.work_session_edits", sourceColumn: "work_session_id", targetTable: "active.work_sessions",
 		newFKName: "fk_session_edits_session_tenant", onDelete: "CASCADE"},

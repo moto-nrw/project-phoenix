@@ -330,7 +330,7 @@ describe("RoomDetailPage", () => {
     });
 
     fireEvent.click(screen.getByText("Zurück"));
-    expect(mockPush).toHaveBeenCalledWith("/rooms");
+    expect(mockPush).toHaveBeenCalledWith("/test-tenant/rooms");
   });
 
   it("displays building and floor information", async () => {

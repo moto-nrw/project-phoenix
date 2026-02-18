@@ -103,7 +103,7 @@ describe("NewCombinedGroupPage", () => {
         is_active: true,
         access_policy: "manual",
       });
-      expect(mockPush).toHaveBeenCalledWith("/database/groups/combined");
+      expect(mockPush).toHaveBeenCalledWith("/test-tenant/database/groups/combined");
     });
   });
 

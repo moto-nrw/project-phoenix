@@ -151,7 +151,7 @@ describe("DashboardPage", () => {
     render(<DashboardPage />);
 
     await waitFor(() => {
-      expect(mockReplace).toHaveBeenCalledWith("/ogs-groups");
+      expect(mockReplace).toHaveBeenCalledWith("/test-tenant/ogs-groups");
     });
   });
 
@@ -263,7 +263,7 @@ describe("DashboardPage", () => {
     render(<DashboardPage />);
 
     await waitFor(() => {
-      expect(mockPush).toHaveBeenCalledWith("/");
+      expect(mockPush).toHaveBeenCalledWith("/test-tenant/");
     });
   });
 
@@ -277,7 +277,7 @@ describe("DashboardPage", () => {
     render(<DashboardPage />);
 
     await waitFor(() => {
-      expect(mockPush).toHaveBeenCalledWith("/");
+      expect(mockPush).toHaveBeenCalledWith("/test-tenant/");
     });
   });
 });

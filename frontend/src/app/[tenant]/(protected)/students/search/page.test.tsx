@@ -578,7 +578,7 @@ describe("StudentSearchPage", () => {
 
       await waitFor(() => {
         expect(mockPush).toHaveBeenCalledWith(
-          "/students/1?from=/students/search",
+          "/test-tenant/students/1?from=/students/search",
         );
       });
     });
@@ -861,7 +861,7 @@ describe("StudentSearchPage", () => {
       render(<StudentSearchPage />);
 
       // P1 FIX: Should redirect to home page, NOT show empty state or error message
-      expect(mockPush).toHaveBeenCalledWith("/");
+      expect(mockPush).toHaveBeenCalledWith("/test-tenant/");
     });
 
     it("shows loading state during auth check (no empty state flash)", async () => {
@@ -917,7 +917,7 @@ describe("StudentSearchPage", () => {
       });
 
       // Should NOT have redirected to home
-      expect(mockPush).not.toHaveBeenCalledWith("/");
+      expect(mockPush).not.toHaveBeenCalledWith("/test-tenant/");
     });
   });
 

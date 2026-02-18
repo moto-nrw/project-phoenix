@@ -743,7 +743,7 @@ describe("TeachersPage", () => {
 
       // Verify navigation to /invitations
       await waitFor(() => {
-        expect(mockPush).toHaveBeenCalledWith("/invitations");
+        expect(mockPush).toHaveBeenCalledWith("/test-tenant/invitations");
       });
     });
   });

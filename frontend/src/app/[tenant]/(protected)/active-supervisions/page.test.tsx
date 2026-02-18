@@ -3796,7 +3796,7 @@ describe("Unauthenticated redirect coverage", () => {
     render(<MeinRaumPage />);
 
     await waitFor(() => {
-      expect(mockPush).toHaveBeenCalledWith("/");
+      expect(mockPush).toHaveBeenCalledWith("/test-tenant/");
     });
   });
 });
@@ -7111,7 +7111,7 @@ describe("Schulhof tab onTabChange callback", () => {
     // Should have called router.push with schulhof URL
     await waitFor(() => {
       expect(mockPush).toHaveBeenCalledWith(
-        "/active-supervisions?room=schulhof",
+        "/test-tenant/active-supervisions?room=schulhof",
       );
     });
 
@@ -7182,7 +7182,7 @@ describe("Schulhof tab onTabChange callback", () => {
     // Should push to schulhof URL
     await waitFor(() => {
       expect(mockPush).toHaveBeenCalledWith(
-        "/active-supervisions?room=schulhof",
+        "/test-tenant/active-supervisions?room=schulhof",
       );
     });
 
@@ -7253,7 +7253,7 @@ describe("Schulhof tab onTabChange callback", () => {
 
     // Should have called router.push with room URL
     await waitFor(() => {
-      expect(mockPush).toHaveBeenCalledWith("/active-supervisions?room=r1");
+      expect(mockPush).toHaveBeenCalledWith("/test-tenant/active-supervisions?room=r1");
     });
 
     // Should have called loadRoomVisits for the room

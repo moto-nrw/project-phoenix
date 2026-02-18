@@ -518,7 +518,7 @@ describe("StudentDetailPage", () => {
       const backButton = screen.getByRole("button", { name: /zurück/i });
       fireEvent.click(backButton);
 
-      expect(mockPush).toHaveBeenCalledWith("/students/search");
+      expect(mockPush).toHaveBeenCalledWith("/test-tenant/students/search");
     });
   });
 
