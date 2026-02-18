@@ -304,6 +304,97 @@ describe("useGlobalSSE", () => {
       expect(supervisionCall).toBeUndefined();
     });
 
+    it("handles mutate rejection for ogs-students gracefully", async () => {
+      // Make mutate reject to exercise the .catch() error handler
+      vi.mocked(mutate).mockRejectedValue(new Error("SWR error"));
+
+      const consoleSpy = vi
+        .spyOn(console, "debug")
+        .mockImplementation(() => undefined);
+
+      renderHook(() => useGlobalSSE());
+
+      const onMessage = vi.mocked(useSSE).mock.calls[0]?.[1]?.onMessage;
+
+      // Daily checkout: has student_id but empty active_group_id
+      onMessage?.({
+        type: "student_checkout",
+        active_group_id: "",
+        data: { student_id: "42" },
+        timestamp: new Date().toISOString(),
+      });
+
+      vi.advanceTimersByTime(500);
+
+      // Flush microtask queue so .catch() handlers execute
+      await vi.runAllTimersAsync();
+
+      expect(consoleSpy).toHaveBeenCalledWith(
+        "swr_revalidation_failed",
+        expect.objectContaining({ scope: "ogs_students" }),
+      );
+
+      consoleSpy.mockRestore();
+    });
+
+    it("handles mutate rejection for student-detail gracefully", async () => {
+      vi.mocked(mutate).mockRejectedValue(new Error("SWR error"));
+
+      const consoleSpy = vi
+        .spyOn(console, "debug")
+        .mockImplementation(() => undefined);
+
+      renderHook(() => useGlobalSSE());
+
+      const onMessage = vi.mocked(useSSE).mock.calls[0]?.[1]?.onMessage;
+
+      onMessage?.({
+        type: "student_checkout",
+        active_group_id: "",
+        data: { student_id: "42" },
+        timestamp: new Date().toISOString(),
+      });
+
+      vi.advanceTimersByTime(500);
+      await vi.runAllTimersAsync();
+
+      expect(consoleSpy).toHaveBeenCalledWith(
+        "swr_revalidation_failed",
+        expect.objectContaining({ scope: "student_detail" }),
+      );
+
+      consoleSpy.mockRestore();
+    });
+
+    it("handles mutate rejection for dashboard gracefully", async () => {
+      vi.mocked(mutate).mockRejectedValue(new Error("SWR error"));
+
+      const consoleSpy = vi
+        .spyOn(console, "debug")
+        .mockImplementation(() => undefined);
+
+      renderHook(() => useGlobalSSE());
+
+      const onMessage = vi.mocked(useSSE).mock.calls[0]?.[1]?.onMessage;
+
+      onMessage?.({
+        type: "student_checkout",
+        active_group_id: "",
+        data: { student_id: "42" },
+        timestamp: new Date().toISOString(),
+      });
+
+      vi.advanceTimersByTime(500);
+      await vi.runAllTimersAsync();
+
+      expect(consoleSpy).toHaveBeenCalledWith(
+        "swr_revalidation_failed",
+        expect.objectContaining({ scope: "dashboard" }),
+      );
+
+      consoleSpy.mockRestore();
+    });
+
     it("silently ignores unknown event types without invalidating caches", () => {
       renderHook(() => useGlobalSSE());
 

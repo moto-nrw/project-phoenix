@@ -27,6 +27,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
+	activeService "github.com/moto-nrw/project-phoenix/services/active"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -830,4 +831,17 @@ func TestBroadcastDailyCheckout_StudentWithEducationGroup(t *testing.T) {
 	service.BroadcastDailyCheckout(ctx, student.ID)
 
 	// ASSERT: No panic, no error — fire-and-forget broadcast completed
+}
+
+// TestBroadcastDailyCheckout_NilBroadcaster tests the nil-broadcaster early-return guard.
+// When the service is constructed without a broadcaster, BroadcastDailyCheckout should
+// return immediately without panicking or accessing any repository.
+func TestBroadcastDailyCheckout_NilBroadcaster(t *testing.T) {
+	// ARRANGE: Construct service with all nil deps — no broadcaster
+	svc := activeService.NewService(activeService.ServiceDependencies{})
+
+	// ACT: Should hit the `if s.broadcaster == nil { return }` guard and exit safely
+	assert.NotPanics(t, func() {
+		svc.BroadcastDailyCheckout(context.Background(), 12345)
+	})
 }
