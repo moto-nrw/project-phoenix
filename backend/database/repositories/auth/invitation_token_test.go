@@ -1,7 +1,6 @@
 package auth_test
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -22,7 +21,7 @@ import (
 func createTestInvitationToken(t *testing.T, db *bun.DB, email string, roleID, createdBy int64, expiresAt time.Time) *auth.InvitationToken {
 	t.Helper()
 
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 	token := &auth.InvitationToken{
 		Email:     email,
 		Token:     uuid.Must(uuid.NewV4()).String(),
@@ -56,7 +55,7 @@ func TestInvitationTokenRepository_FindByToken_Success(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).InvitationToken
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// Create dependencies
 	role := testpkg.CreateTestRole(t, db, "invite-test-role")
@@ -84,7 +83,7 @@ func TestInvitationTokenRepository_FindByToken_NotFound(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).InvitationToken
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// ACT
 	_, err := repo.FindByToken(ctx, "nonexistent-token")
@@ -102,7 +101,7 @@ func TestInvitationTokenRepository_FindByID_Success(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).InvitationToken
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// Create dependencies
 	role := testpkg.CreateTestRole(t, db, "invite-by-id-role")
@@ -129,7 +128,7 @@ func TestInvitationTokenRepository_FindByID_NotFound(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).InvitationToken
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// ACT
 	_, err := repo.FindByID(ctx, int64(999999))
@@ -147,7 +146,7 @@ func TestInvitationTokenRepository_FindValidByToken_Valid(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).InvitationToken
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// Create dependencies
 	role := testpkg.CreateTestRole(t, db, "valid-token-role")
@@ -174,7 +173,7 @@ func TestInvitationTokenRepository_FindValidByToken_Expired(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).InvitationToken
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// Create dependencies
 	role := testpkg.CreateTestRole(t, db, "expired-token-role")
@@ -206,7 +205,7 @@ func TestInvitationTokenRepository_FindValidByToken_Used(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).InvitationToken
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// Create dependencies
 	role := testpkg.CreateTestRole(t, db, "used-token-role")
@@ -243,7 +242,7 @@ func TestInvitationTokenRepository_FindByEmail_Success(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).InvitationToken
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// Create dependencies
 	role := testpkg.CreateTestRole(t, db, "email-search-role")
@@ -271,7 +270,7 @@ func TestInvitationTokenRepository_FindByEmail_CaseInsensitive(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).InvitationToken
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// Create dependencies
 	role := testpkg.CreateTestRole(t, db, "case-insensitive-role")
@@ -301,7 +300,7 @@ func TestInvitationTokenRepository_MarkAsUsed_Success(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).InvitationToken
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// Create dependencies
 	role := testpkg.CreateTestRole(t, db, "mark-used-role")
@@ -335,7 +334,7 @@ func TestInvitationTokenRepository_InvalidateByEmail_Success(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).InvitationToken
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// Create dependencies
 	role := testpkg.CreateTestRole(t, db, "invalidate-role")
@@ -373,7 +372,7 @@ func TestInvitationTokenRepository_DeleteExpired_Success(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).InvitationToken
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// Create dependencies
 	role := testpkg.CreateTestRole(t, db, "delete-expired-role")
@@ -422,7 +421,7 @@ func TestInvitationTokenRepository_List_NoFilters(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).InvitationToken
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// Create dependencies
 	role := testpkg.CreateTestRole(t, db, "list-role")
@@ -448,7 +447,7 @@ func TestInvitationTokenRepository_List_WithEmailFilter(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).InvitationToken
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// Create dependencies
 	role := testpkg.CreateTestRole(t, db, "list-email-role")
@@ -480,7 +479,7 @@ func TestInvitationTokenRepository_List_WithPendingFilter(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).InvitationToken
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// Create dependencies
 	role := testpkg.CreateTestRole(t, db, "pending-filter-role")
@@ -515,7 +514,7 @@ func TestInvitationTokenRepository_UpdateDeliveryResult_Success(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).InvitationToken
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// Create dependencies
 	role := testpkg.CreateTestRole(t, db, "delivery-result-role")
@@ -548,7 +547,7 @@ func TestInvitationTokenRepository_UpdateDeliveryResult_WithError(t *testing.T) 
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).InvitationToken
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// Create dependencies
 	role := testpkg.CreateTestRole(t, db, "delivery-error-role")
@@ -585,7 +584,7 @@ func TestInvitationTokenRepository_Update_Success(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).InvitationToken
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// Create dependencies
 	role := testpkg.CreateTestRole(t, db, "update-role")
@@ -620,7 +619,7 @@ func TestInvitationTokenRepository_Update_NilReturnsError(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).InvitationToken
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// ACT
 	err := repo.Update(ctx, nil)

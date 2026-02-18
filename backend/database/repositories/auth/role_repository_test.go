@@ -1,7 +1,6 @@
 package auth_test
 
 import (
-	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -25,7 +24,7 @@ func cleanupRoleRecords(t *testing.T, db *bun.DB, roleIDs ...int64) {
 		return
 	}
 
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// First remove any role-permission mappings
 	_, _ = db.NewDelete().
@@ -56,7 +55,7 @@ func cleanupAccountRecords(t *testing.T, db *bun.DB, accountIDs ...int64) {
 		return
 	}
 
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// Remove account-role mappings first
 	_, _ = db.NewDelete().
@@ -95,7 +94,7 @@ func TestRoleRepository_Create(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Role
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("creates role with valid data", func(t *testing.T) {
 		uniqueName := fmt.Sprintf("TestRole-%d", time.Now().UnixNano())
@@ -133,7 +132,7 @@ func TestRoleRepository_FindByID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Role
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds existing role", func(t *testing.T) {
 		role := testpkg.CreateTestRole(t, db, "FindByID")
@@ -156,7 +155,7 @@ func TestRoleRepository_FindByName(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Role
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds role by exact name", func(t *testing.T) {
 		role := testpkg.CreateTestRole(t, db, "FindByName")
@@ -178,7 +177,7 @@ func TestRoleRepository_Update(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Role
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("updates role description", func(t *testing.T) {
 		role := testpkg.CreateTestRole(t, db, "Update")
@@ -199,7 +198,7 @@ func TestRoleRepository_Delete(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Role
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("deletes existing role", func(t *testing.T) {
 		role := testpkg.CreateTestRole(t, db, "Delete")
@@ -221,7 +220,7 @@ func TestRoleRepository_List(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Role
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("lists all roles", func(t *testing.T) {
 		role := testpkg.CreateTestRole(t, db, "List")
@@ -238,7 +237,7 @@ func TestRoleRepository_FindByAccountID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Role
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds roles assigned to account", func(t *testing.T) {
 		// Create account and role
@@ -291,7 +290,7 @@ func TestRoleRepository_AssignRoleToAccount(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Role
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("deprecated method returns error", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "assign")
@@ -310,7 +309,7 @@ func TestRoleRepository_RemoveRoleFromAccount(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Role
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("deprecated method returns error", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "remove")
@@ -329,7 +328,7 @@ func TestRoleRepository_GetRoleWithPermissions(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Role
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("gets role with empty permissions", func(t *testing.T) {
 		role := testpkg.CreateTestRole(t, db, "WithPerms")

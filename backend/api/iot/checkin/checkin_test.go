@@ -1063,7 +1063,7 @@ func TestDeviceCheckin_CheckoutWithoutActiveVisit(t *testing.T) {
 func cleanupSchulhofInfrastructure(t *testing.T, db *bun.DB, roomID int64) {
 	t.Helper()
 
-	dbCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	dbCtx, cancel := context.WithTimeout(testpkg.TenantContext(1), 10*time.Second)
 	defer cancel()
 
 	// Delete in FK-safe order: child tables first, then parents.
@@ -1092,7 +1092,7 @@ func cleanupSchulhofInfrastructure(t *testing.T, db *bun.DB, roomID int64) {
 func createSchulhofRoom(t *testing.T, db *bun.DB) *facilities.Room {
 	t.Helper()
 
-	dbCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	dbCtx, cancel := context.WithTimeout(testpkg.TenantContext(1), 10*time.Second)
 	defer cancel()
 
 	// Clean up any pre-existing Schulhof room and its infrastructure (from seed data or prior tests)

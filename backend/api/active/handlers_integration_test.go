@@ -1281,7 +1281,7 @@ func setupSupervisorsCRUDRouter(t *testing.T) (*testContext, chi.Router) {
 func createTestCombinedGroup(t *testing.T, db *bun.DB) *active.CombinedGroup {
 	t.Helper()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 5*time.Second)
 	defer cancel()
 
 	combinedGroup := &active.CombinedGroup{
@@ -1302,7 +1302,7 @@ func createTestCombinedGroup(t *testing.T, db *bun.DB) *active.CombinedGroup {
 func cleanupCombinedGroup(t *testing.T, db *bun.DB, id int64) {
 	t.Helper()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 5*time.Second)
 	defer cancel()
 
 	// First delete any mappings
@@ -1327,7 +1327,7 @@ func cleanupCombinedGroup(t *testing.T, db *bun.DB, id int64) {
 func createTestGroupMapping(t *testing.T, db *bun.DB, activeGroupID, combinedGroupID int64) *active.GroupMapping {
 	t.Helper()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 5*time.Second)
 	defer cancel()
 
 	mapping := &active.GroupMapping{
@@ -1349,7 +1349,7 @@ func createTestGroupMapping(t *testing.T, db *bun.DB, activeGroupID, combinedGro
 func cleanupGroupMapping(t *testing.T, db *bun.DB, id int64) {
 	t.Helper()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 5*time.Second)
 	defer cancel()
 
 	_, err := db.NewDelete().

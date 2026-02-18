@@ -2,7 +2,6 @@
 package active_test
 
 import (
-	"context"
 	"log/slog"
 	"testing"
 
@@ -33,7 +32,7 @@ func TestSessionStartWithRoomConflict(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := buildSessionEdgeCaseService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("fails when room has existing session", func(t *testing.T) {
 		// ARRANGE: Create first session in a room
@@ -70,7 +69,7 @@ func TestForceStartOverridesExistingSession(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := buildSessionEdgeCaseService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("force start ends existing device session", func(t *testing.T) {
 		// ARRANGE: Create first session
@@ -105,7 +104,7 @@ func TestForceStartWithSupervisors(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := buildSessionEdgeCaseService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("force start with multiple supervisors", func(t *testing.T) {
 		// ARRANGE
@@ -152,7 +151,7 @@ func TestUpdateActiveGroupSupervisors(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := buildSessionEdgeCaseService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("replaces supervisors successfully", func(t *testing.T) {
 		// ARRANGE
@@ -244,7 +243,7 @@ func TestStartActivitySessionWithSupervisors_EdgeCases(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := buildSessionEdgeCaseService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("starts session with multiple supervisors", func(t *testing.T) {
 		// ARRANGE
@@ -309,7 +308,7 @@ func TestCheckActivityConflict(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := buildSessionEdgeCaseService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("no conflict for new activity", func(t *testing.T) {
 		// ARRANGE

@@ -9,6 +9,7 @@ import (
 
 	"github.com/joho/godotenv"
 	"github.com/moto-nrw/project-phoenix/database"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -208,6 +209,18 @@ func CleanupRateLimitsByEmail(tb testing.TB, db *bun.DB, emails ...string) {
 	if err != nil {
 		tb.Logf("Warning: failed to cleanup auth.password_reset_rate_limits: %v", err)
 	}
+}
+
+// ============================================================================
+// Context Helpers
+// ============================================================================
+
+// TenantContext returns a context with tenant_id set.
+// Use this in service and repository tests that call methods requiring tenant context.
+// Without tenant context, EnsureTenantID silently leaves tenant_id=0, which violates
+// FK constraints on tenant-scoped tables.
+func TenantContext(tenantID int64) context.Context {
+	return tenant.WithTenantID(context.Background(), tenantID)
 }
 
 // ============================================================================

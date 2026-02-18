@@ -35,7 +35,6 @@
 package active_test
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -59,7 +58,7 @@ func TestEndDailySessionsVisitLookupFailure(t *testing.T) {
 	}()
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// ARRANGE: Create real test fixtures
 	activityGroup := testpkg.CreateTestActivityGroup(t, db, "Cleanup Test Activity 1")
@@ -136,7 +135,7 @@ func TestEndDailySessionsConsistency(t *testing.T) {
 	}()
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// ARRANGE: Create real test fixtures for multiple sessions
 	// Use SEPARATE devices to avoid ForceStart ending session1 prematurely

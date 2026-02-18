@@ -2,7 +2,6 @@
 package users_test
 
 import (
-	"context"
 	"fmt"
 	"log/slog"
 	"testing"
@@ -44,7 +43,7 @@ func TestGuardianService_CreateGuardian(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupGuardianService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("creates guardian successfully", func(t *testing.T) {
 		// ARRANGE - use unique email to avoid collisions
@@ -128,7 +127,7 @@ func TestGuardianService_GetGuardianByID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupGuardianService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns guardian when found", func(t *testing.T) {
 		// ARRANGE
@@ -166,7 +165,7 @@ func TestGuardianService_GetGuardianByEmail(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupGuardianService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns guardian when found by email", func(t *testing.T) {
 		// ARRANGE
@@ -204,7 +203,7 @@ func TestGuardianService_UpdateGuardian(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupGuardianService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("updates guardian successfully", func(t *testing.T) {
 		// ARRANGE
@@ -258,7 +257,7 @@ func TestGuardianService_DeleteGuardian(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupGuardianService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("deletes guardian successfully", func(t *testing.T) {
 		// ARRANGE
@@ -286,7 +285,7 @@ func TestGuardianService_LinkGuardianToStudent(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupGuardianService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("links guardian to student successfully", func(t *testing.T) {
 		// ARRANGE
@@ -366,7 +365,7 @@ func TestGuardianService_GetStudentGuardians(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupGuardianService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns guardians for student", func(t *testing.T) {
 		// ARRANGE
@@ -416,7 +415,7 @@ func TestGuardianService_GetGuardianStudents(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupGuardianService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns students for guardian", func(t *testing.T) {
 		// ARRANGE
@@ -465,7 +464,7 @@ func TestGuardianService_GetStudentGuardianRelationship(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupGuardianService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns relationship by ID", func(t *testing.T) {
 		// ARRANGE
@@ -510,7 +509,7 @@ func TestGuardianService_UpdateStudentGuardianRelationship(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupGuardianService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("updates relationship successfully", func(t *testing.T) {
 		// ARRANGE
@@ -559,7 +558,7 @@ func TestGuardianService_RemoveGuardianFromStudent(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupGuardianService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("removes guardian from student", func(t *testing.T) {
 		// ARRANGE
@@ -610,7 +609,7 @@ func TestGuardianService_ListGuardians(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupGuardianService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns list of guardians", func(t *testing.T) {
 		// ARRANGE
@@ -636,7 +635,7 @@ func TestGuardianService_GetGuardiansWithoutAccount(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupGuardianService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns guardians without accounts", func(t *testing.T) {
 		// ARRANGE
@@ -670,7 +669,7 @@ func TestGuardianService_GetInvitableGuardians(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupGuardianService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns invitable guardians", func(t *testing.T) {
 		// ARRANGE - create guardian with email (invitable)
@@ -697,7 +696,7 @@ func TestGuardianService_GetPendingInvitations(t *testing.T) {
 
 	mailer := testpkg.NewCapturingMailer()
 	service := setupGuardianServiceWithMailer(db, mailer)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns pending invitations after creating one", func(t *testing.T) {
 		// ARRANGE - create a pending invitation
@@ -747,7 +746,7 @@ func TestGuardianService_CleanupExpiredInvitations(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupGuardianService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("cleans up expired invitations", func(t *testing.T) {
 		// ACT
@@ -797,7 +796,7 @@ func TestGuardianService_SendInvitation_SendsEmail(t *testing.T) {
 
 	mailer := testpkg.NewCapturingMailer()
 	service := setupGuardianServiceWithMailer(db, mailer)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("sends invitation email to guardian", func(t *testing.T) {
 		// ARRANGE - create guardian with email
@@ -845,7 +844,7 @@ func TestGuardianService_SendInvitation_GuardianNotFound(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupGuardianService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns error for nonexistent guardian", func(t *testing.T) {
 		// ACT
@@ -866,7 +865,7 @@ func TestGuardianService_SendInvitation_NoEmail(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupGuardianService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns error when guardian has no email", func(t *testing.T) {
 		// ARRANGE - create guardian without email (phone numbers are added separately)
@@ -898,7 +897,7 @@ func TestGuardianService_SendInvitation_DuplicatePending(t *testing.T) {
 
 	mailer := testpkg.NewCapturingMailer()
 	service := setupGuardianServiceWithMailer(db, mailer)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns error when guardian has pending invitation", func(t *testing.T) {
 		// ARRANGE - create guardian
@@ -946,7 +945,7 @@ func TestGuardianService_CreateGuardianWithInvitation_Success(t *testing.T) {
 
 	mailer := testpkg.NewCapturingMailer()
 	service := setupGuardianServiceWithMailer(db, mailer)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("creates guardian and sends invitation in one transaction", func(t *testing.T) {
 		// ARRANGE
@@ -990,7 +989,7 @@ func TestGuardianService_CreateGuardianWithInvitation_NoEmail(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupGuardianService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns error when email not provided", func(t *testing.T) {
 		// ARRANGE - no email
@@ -1016,7 +1015,7 @@ func TestGuardianService_CreateGuardianWithInvitation_ExistingAccount(t *testing
 
 	mailer := testpkg.NewCapturingMailer()
 	service := setupGuardianServiceWithMailer(db, mailer)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns error when guardian already has account", func(t *testing.T) {
 		// ARRANGE - create guardian, send invitation, accept it first
@@ -1063,7 +1062,7 @@ func TestGuardianService_ValidateInvitation_Success(t *testing.T) {
 
 	mailer := testpkg.NewCapturingMailer()
 	service := setupGuardianServiceWithMailer(db, mailer)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("validates invitation and returns guardian info", func(t *testing.T) {
 		// ARRANGE
@@ -1100,7 +1099,7 @@ func TestGuardianService_ValidateInvitation_NotFound(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupGuardianService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns error for invalid token", func(t *testing.T) {
 		// ACT
@@ -1119,7 +1118,7 @@ func TestGuardianService_ValidateInvitation_AlreadyAccepted(t *testing.T) {
 
 	mailer := testpkg.NewCapturingMailer()
 	service := setupGuardianServiceWithMailer(db, mailer)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns error for already accepted invitation", func(t *testing.T) {
 		// ARRANGE
@@ -1166,7 +1165,7 @@ func TestGuardianService_AcceptInvitation_Success(t *testing.T) {
 
 	mailer := testpkg.NewCapturingMailer()
 	service := setupGuardianServiceWithMailer(db, mailer)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("creates account and links to guardian", func(t *testing.T) {
 		// ARRANGE
@@ -1211,7 +1210,7 @@ func TestGuardianService_AcceptInvitation_PasswordMismatch(t *testing.T) {
 
 	mailer := testpkg.NewCapturingMailer()
 	service := setupGuardianServiceWithMailer(db, mailer)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns error when passwords do not match", func(t *testing.T) {
 		// ARRANGE
@@ -1250,7 +1249,7 @@ func TestGuardianService_AcceptInvitation_WeakPassword(t *testing.T) {
 
 	mailer := testpkg.NewCapturingMailer()
 	service := setupGuardianServiceWithMailer(db, mailer)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns error for weak password", func(t *testing.T) {
 		// ARRANGE
@@ -1288,7 +1287,7 @@ func TestGuardianService_AcceptInvitation_InvalidToken(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupGuardianService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns error for invalid token", func(t *testing.T) {
 		// ACT
@@ -1311,7 +1310,7 @@ func TestGuardianService_AcceptInvitation_AlreadyAccepted(t *testing.T) {
 
 	mailer := testpkg.NewCapturingMailer()
 	service := setupGuardianServiceWithMailer(db, mailer)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns error when invitation already accepted", func(t *testing.T) {
 		// ARRANGE
@@ -1361,7 +1360,7 @@ func TestGuardianService_AddPhoneNumber_Success(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupGuardianService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("adds first phone number as primary by default", func(t *testing.T) {
 		// ARRANGE
@@ -1477,7 +1476,7 @@ func TestGuardianService_AddPhoneNumber_Errors(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupGuardianService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns error when guardian not found", func(t *testing.T) {
 		// ARRANGE
@@ -1505,7 +1504,7 @@ func TestGuardianService_UpdatePhoneNumber_Success(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupGuardianService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("updates phone number fields", func(t *testing.T) {
 		// ARRANGE
@@ -1643,7 +1642,7 @@ func TestGuardianService_UpdatePhoneNumber_Errors(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupGuardianService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns error when phone not found", func(t *testing.T) {
 		// ARRANGE
@@ -1670,7 +1669,7 @@ func TestGuardianService_DeletePhoneNumber_Success(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupGuardianService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("deletes non-primary phone", func(t *testing.T) {
 		// ARRANGE
@@ -1770,7 +1769,7 @@ func TestGuardianService_DeletePhoneNumber_Errors(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupGuardianService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns error when phone not found", func(t *testing.T) {
 		// ACT
@@ -1791,7 +1790,7 @@ func TestGuardianService_SetPrimaryPhone_Success(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupGuardianService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("sets phone as primary", func(t *testing.T) {
 		// ARRANGE
@@ -1833,7 +1832,7 @@ func TestGuardianService_SetPrimaryPhone_Errors(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupGuardianService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns error when phone not found", func(t *testing.T) {
 		// ACT
@@ -1854,7 +1853,7 @@ func TestGuardianService_GetGuardianPhoneNumbers_Success(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupGuardianService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns all phone numbers sorted by priority", func(t *testing.T) {
 		// ARRANGE
@@ -1920,7 +1919,7 @@ func TestGuardianService_GetPhoneNumberByID_Success(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupGuardianService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns phone number by ID", func(t *testing.T) {
 		// ARRANGE
@@ -1953,7 +1952,7 @@ func TestGuardianService_GetPhoneNumberByID_Errors(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupGuardianService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns error when phone not found", func(t *testing.T) {
 		// ACT

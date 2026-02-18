@@ -28,7 +28,7 @@ func cleanupAccountPermission(t *testing.T, db *bun.DB, accountID, permissionID 
 // cleanupPermissionByID removes a permission by ID.
 func cleanupPermissionByID(t *testing.T, db *bun.DB, permissionID int64) {
 	t.Helper()
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// First clean up any account_permissions referencing this permission
 	_, _ = db.NewDelete().
@@ -61,7 +61,7 @@ func TestAccountPermissionRepository_Create(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).AccountPermission
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("creates account permission mapping", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "perm_create")
@@ -94,7 +94,7 @@ func TestAccountPermissionRepository_FindByAccountID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).AccountPermission
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds permissions by account ID", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "find_by_acc")
@@ -131,7 +131,7 @@ func TestAccountPermissionRepository_FindByPermissionID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).AccountPermission
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds accounts by permission ID", func(t *testing.T) {
 		account1 := testpkg.CreateTestAccount(t, db, "find_by_perm1")
@@ -159,7 +159,7 @@ func TestAccountPermissionRepository_FindByAccountAndPermission(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).AccountPermission
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds specific account-permission mapping", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "find_specific")
@@ -194,7 +194,7 @@ func TestAccountPermissionRepository_GrantPermission(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).AccountPermission
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 	ctx = tenant.WithTenantID(ctx, 1)
 
 	t.Run("grants new permission", func(t *testing.T) {
@@ -238,7 +238,7 @@ func TestAccountPermissionRepository_DenyPermission(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).AccountPermission
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 	ctx = tenant.WithTenantID(ctx, 1)
 
 	t.Run("denies new permission", func(t *testing.T) {
@@ -282,7 +282,7 @@ func TestAccountPermissionRepository_RemovePermission(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).AccountPermission
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("removes existing permission", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "remove_perm")
@@ -322,7 +322,7 @@ func TestAccountPermissionRepository_Update(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).AccountPermission
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("updates account permission granted status", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "update_ap")
@@ -366,7 +366,7 @@ func TestAccountPermissionRepository_List(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).AccountPermission
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("lists all account permissions", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "list_ap")
@@ -432,7 +432,7 @@ func TestAccountPermissionRepository_DeleteByPermissionID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).AccountPermission
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("deletes all account permissions for a permission", func(t *testing.T) {
 		account1 := testpkg.CreateTestAccount(t, db, "del_by_perm1")
@@ -474,7 +474,7 @@ func TestAccountPermissionRepository_FindAccountPermissionsWithDetails(t *testin
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).AccountPermission
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds permissions with account and permission details", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "with_details")

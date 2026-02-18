@@ -1,7 +1,6 @@
 package auth_test
 
 import (
-	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -25,7 +24,7 @@ func cleanupPermissionRecords(t *testing.T, db *bun.DB, permissionIDs ...int64) 
 		return
 	}
 
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// First remove any role-permission mappings
 	_, _ = db.NewDelete().
@@ -58,7 +57,7 @@ func TestPermissionRepository_Create(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Permission
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("creates permission with valid data", func(t *testing.T) {
 		uniqueName := fmt.Sprintf("test_permission_%d", time.Now().UnixNano())
@@ -98,7 +97,7 @@ func TestPermissionRepository_FindByID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Permission
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds existing permission", func(t *testing.T) {
 		permission := testpkg.CreateTestPermission(t, db, "FindByID", "resource", "read")
@@ -121,7 +120,7 @@ func TestPermissionRepository_FindByName(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Permission
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds permission by exact name", func(t *testing.T) {
 		permission := testpkg.CreateTestPermission(t, db, "FindByName", "resource", "read")
@@ -143,7 +142,7 @@ func TestPermissionRepository_FindByResourceAction(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Permission
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds permission by resource and action", func(t *testing.T) {
 		permission := testpkg.CreateTestPermission(t, db, "ByResourceAction", "test_resource", "read")
@@ -166,7 +165,7 @@ func TestPermissionRepository_Update(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Permission
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("updates permission description", func(t *testing.T) {
 		permission := testpkg.CreateTestPermission(t, db, "Update", "resource", "read")
@@ -187,7 +186,7 @@ func TestPermissionRepository_Delete(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Permission
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("deletes existing permission", func(t *testing.T) {
 		permission := testpkg.CreateTestPermission(t, db, "Delete", "resource", "read")
@@ -209,7 +208,7 @@ func TestPermissionRepository_List(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Permission
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("lists all permissions", func(t *testing.T) {
 		permission := testpkg.CreateTestPermission(t, db, "List", "resource", "read")
@@ -226,7 +225,7 @@ func TestPermissionRepository_FindByRoleID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Permission
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds permissions assigned to role", func(t *testing.T) {
 		role := testpkg.CreateTestRole(t, db, "PermRole")
@@ -261,7 +260,7 @@ func TestPermissionRepository_FindByAccountID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Permission
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds permissions for account via role", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "permacc")
@@ -313,7 +312,7 @@ func TestPermissionRepository_FindDirectByAccountID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Permission
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds directly assigned permissions only", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "directperm")
@@ -355,7 +354,7 @@ func TestPermissionRepository_AssignPermissionToRole(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Permission
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("assigns permission to role", func(t *testing.T) {
 		role := testpkg.CreateTestRole(t, db, "AssignPerm")
@@ -378,7 +377,7 @@ func TestPermissionRepository_RemovePermissionFromRole(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Permission
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("removes permission from role", func(t *testing.T) {
 		role := testpkg.CreateTestRole(t, db, "RemovePerm")

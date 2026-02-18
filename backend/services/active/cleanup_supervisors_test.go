@@ -4,7 +4,6 @@
 package active_test
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -31,7 +30,7 @@ func TestCleanupStaleSupervisors_NoStaleRecords(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	cleanupService := setupCleanupService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// ACT: Run cleanup when there are no stale records
 	result, err := cleanupService.CleanupStaleSupervisors(ctx)
@@ -52,7 +51,7 @@ func TestCleanupStaleSupervisors_ClosesYesterdayRecords(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	cleanupService := setupCleanupService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// ARRANGE: Create fixtures
 	staff := testpkg.CreateTestStaff(t, db, "Stale", "Supervisor")
@@ -108,7 +107,7 @@ func TestCleanupStaleSupervisors_IgnoresTodayRecords(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	cleanupService := setupCleanupService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// ARRANGE: Create fixtures
 	staff := testpkg.CreateTestStaff(t, db, "Today", "Supervisor")
@@ -157,7 +156,7 @@ func TestCleanupStaleSupervisors_SucceedsEvenWithAuditError(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	cleanupService := setupCleanupService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// ARRANGE: Create fixtures with a stale record
 	staff := testpkg.CreateTestStaff(t, db, "Audit", "Supervisor")
@@ -214,7 +213,7 @@ func TestPreviewSupervisorCleanup(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	cleanupService := setupCleanupService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// ARRANGE: Create fixtures with a stale record
 	staff := testpkg.CreateTestStaff(t, db, "Preview", "Supervisor")

@@ -1,7 +1,6 @@
 package activities_test
 
 import (
-	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -22,7 +21,7 @@ func TestCategoryRepository_Create(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActivityCategory
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("creates category with valid data", func(t *testing.T) {
 		uniqueName := fmt.Sprintf("TestCategory-%d", time.Now().UnixNano())
@@ -44,7 +43,7 @@ func TestCategoryRepository_FindByID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActivityCategory
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds existing category", func(t *testing.T) {
 		category := testpkg.CreateTestActivityCategory(t, db, "FindByID")
@@ -67,7 +66,7 @@ func TestCategoryRepository_FindByName(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActivityCategory
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds category by exact name", func(t *testing.T) {
 		category := testpkg.CreateTestActivityCategory(t, db, "FindByName")
@@ -89,7 +88,7 @@ func TestCategoryRepository_Update(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActivityCategory
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("updates category description", func(t *testing.T) {
 		category := testpkg.CreateTestActivityCategory(t, db, "Update")
@@ -110,7 +109,7 @@ func TestCategoryRepository_Delete(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActivityCategory
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("deletes existing category", func(t *testing.T) {
 		category := testpkg.CreateTestActivityCategory(t, db, "Delete")
@@ -132,7 +131,7 @@ func TestCategoryRepository_List(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActivityCategory
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("lists all categories", func(t *testing.T) {
 		category := testpkg.CreateTestActivityCategory(t, db, "List")
@@ -149,7 +148,7 @@ func TestCategoryRepository_ListAll(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActivityCategory
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("lists all categories without filters", func(t *testing.T) {
 		category := testpkg.CreateTestActivityCategory(t, db, "ListAll")
@@ -179,7 +178,7 @@ func TestCategoryRepository_Create_WithNil(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActivityCategory
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns error when category is nil", func(t *testing.T) {
 		err := repo.Create(ctx, nil)
@@ -193,7 +192,7 @@ func TestCategoryRepository_Update_WithNil(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActivityCategory
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns error when category is nil", func(t *testing.T) {
 		err := repo.Update(ctx, nil)
@@ -207,7 +206,7 @@ func TestCategoryRepository_Delete_NonExistent(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActivityCategory
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("does not error when deleting non-existent category", func(t *testing.T) {
 		err := repo.Delete(ctx, int64(999999))

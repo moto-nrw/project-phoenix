@@ -46,7 +46,7 @@ func contextWithClaims(userID int) context.Context {
 		ID:       userID,
 		TenantID: 1,
 	}
-	return context.WithValue(context.Background(), jwt.CtxClaims, claims)
+	return context.WithValue(testpkg.TenantContext(1), jwt.CtxClaims, claims)
 }
 
 // ============================================================================

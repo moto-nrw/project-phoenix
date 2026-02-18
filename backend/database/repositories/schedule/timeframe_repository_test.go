@@ -1,7 +1,6 @@
 package schedule_test
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -21,7 +20,7 @@ func TestTimeframeRepository_Create(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Timeframe
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("creates timeframe with valid data", func(t *testing.T) {
 		now := time.Now()
@@ -68,7 +67,7 @@ func TestTimeframeRepository_FindByID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Timeframe
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds existing timeframe", func(t *testing.T) {
 		now := time.Now()
@@ -98,7 +97,7 @@ func TestTimeframeRepository_Update(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Timeframe
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("updates timeframe", func(t *testing.T) {
 		now := time.Now()
@@ -128,7 +127,7 @@ func TestTimeframeRepository_Delete(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Timeframe
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("deletes existing timeframe", func(t *testing.T) {
 		now := time.Now()
@@ -157,7 +156,7 @@ func TestTimeframeRepository_List(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Timeframe
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("lists all timeframes", func(t *testing.T) {
 		now := time.Now()
@@ -181,7 +180,7 @@ func TestTimeframeRepository_FindActive(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Timeframe
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds only active timeframes", func(t *testing.T) {
 		now := time.Now()
@@ -227,7 +226,7 @@ func TestTimeframeRepository_FindByTimeRange(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Timeframe
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds timeframes overlapping with range", func(t *testing.T) {
 		now := time.Now()
@@ -266,7 +265,7 @@ func TestTimeframeRepository_FindByDescription(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).Timeframe
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds timeframes by description", func(t *testing.T) {
 		now := time.Now()

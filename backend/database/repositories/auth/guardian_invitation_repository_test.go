@@ -1,7 +1,6 @@
 package auth_test
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -22,7 +21,7 @@ func TestGuardianInvitationRepository_Create(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GuardianInvitation
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("creates invitation with valid data", func(t *testing.T) {
 		// Create a guardian profile first
@@ -60,7 +59,7 @@ func TestGuardianInvitationRepository_FindByID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GuardianInvitation
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds existing invitation", func(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "FindByID")
@@ -94,7 +93,7 @@ func TestGuardianInvitationRepository_FindByToken(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GuardianInvitation
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds invitation by token", func(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "FindByToken")
@@ -129,7 +128,7 @@ func TestGuardianInvitationRepository_Update(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GuardianInvitation
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("updates existing invitation", func(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "Update")
@@ -180,7 +179,7 @@ func TestGuardianInvitationRepository_FindByGuardianProfileID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GuardianInvitation
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds invitations by guardian profile ID", func(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "FindByProfile")
@@ -213,7 +212,7 @@ func TestGuardianInvitationRepository_FindPending(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GuardianInvitation
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds pending invitations", func(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "FindPending")
@@ -242,7 +241,7 @@ func TestGuardianInvitationRepository_FindExpired(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GuardianInvitation
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds expired invitations", func(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "FindExpired")
@@ -282,7 +281,7 @@ func TestGuardianInvitationRepository_MarkAsAccepted(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GuardianInvitation
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("marks invitation as accepted", func(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "MarkAccepted")
@@ -319,7 +318,7 @@ func TestGuardianInvitationRepository_UpdateEmailStatus(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GuardianInvitation
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("updates email status", func(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "EmailStatus")
@@ -383,7 +382,7 @@ func TestGuardianInvitationRepository_DeleteExpired(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GuardianInvitation
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("deletes expired invitations", func(t *testing.T) {
 		guardian := testpkg.CreateTestGuardianProfile(t, db, "DeleteExpired")
@@ -427,7 +426,7 @@ func TestGuardianInvitationRepository_Count(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GuardianInvitation
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("counts invitations", func(t *testing.T) {
 		count, err := repo.Count(ctx)

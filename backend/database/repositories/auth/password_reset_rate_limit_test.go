@@ -1,7 +1,6 @@
 package auth_test
 
 import (
-	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -24,7 +23,7 @@ func cleanupRateLimitRecords(t *testing.T, db *bun.DB, emails ...string) {
 		return
 	}
 
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 	_, err := db.NewDelete().
 		TableExpr("auth.password_reset_rate_limits").
 		Where("email IN (?)", bun.In(emails)).
@@ -43,7 +42,7 @@ func TestPasswordResetRateLimitRepository_CheckRateLimit_NoRecord(t *testing.T) 
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).PasswordResetRateLimit
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// Use unique email to avoid conflicts
 	email := fmt.Sprintf("no-record-%d@example.com", time.Now().UnixNano())
@@ -63,7 +62,7 @@ func TestPasswordResetRateLimitRepository_CheckRateLimit_ExistingRecord(t *testi
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).PasswordResetRateLimit
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// Create a rate limit record
 	email := fmt.Sprintf("existing-%d@example.com", time.Now().UnixNano())
@@ -92,7 +91,7 @@ func TestPasswordResetRateLimitRepository_IncrementAttempts_FirstAttempt(t *test
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).PasswordResetRateLimit
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	email := fmt.Sprintf("first-attempt-%d@example.com", time.Now().UnixNano())
 	defer cleanupRateLimitRecords(t, db, email)
@@ -112,7 +111,7 @@ func TestPasswordResetRateLimitRepository_IncrementAttempts_MultipleAttempts(t *
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).PasswordResetRateLimit
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	email := fmt.Sprintf("multi-attempt-%d@example.com", time.Now().UnixNano())
 	defer cleanupRateLimitRecords(t, db, email)
@@ -141,7 +140,7 @@ func TestPasswordResetRateLimitRepository_IncrementAttempts_WindowReset(t *testi
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).PasswordResetRateLimit
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	email := fmt.Sprintf("window-reset-%d@example.com", time.Now().UnixNano())
 	defer cleanupRateLimitRecords(t, db, email)
@@ -173,7 +172,7 @@ func TestPasswordResetRateLimitRepository_CleanupExpired_Success(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).PasswordResetRateLimit
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// Create an old record using raw SQL
 	expiredEmail := fmt.Sprintf("expired-%d@example.com", time.Now().UnixNano())
@@ -215,7 +214,7 @@ func TestPasswordResetRateLimitRepository_CleanupExpired_NoExpiredRecords(t *tes
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).PasswordResetRateLimit
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// Create only a recent record
 	recentEmail := fmt.Sprintf("only-recent-%d@example.com", time.Now().UnixNano())
@@ -246,7 +245,7 @@ func TestPasswordResetRateLimitRepository_RateLimitFlow(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).PasswordResetRateLimit
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	email := fmt.Sprintf("full-flow-%d@example.com", time.Now().UnixNano())
 	defer cleanupRateLimitRecords(t, db, email)

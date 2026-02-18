@@ -1,7 +1,6 @@
 package activities_test
 
 import (
-	"context"
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
@@ -20,7 +19,7 @@ import (
 func createSupervisor(t *testing.T, db *bun.DB, staffID, groupID int64, isPrimary bool) *activities.SupervisorPlanned {
 	t.Helper()
 
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 	supervisor := &activities.SupervisorPlanned{
 		StaffID:   staffID,
 		GroupID:   groupID,
@@ -45,7 +44,7 @@ func TestSupervisorPlannedRepository_Create(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActivitySupervisor
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("creates supervisor with valid data", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Supervisor", "Test")
@@ -91,7 +90,7 @@ func TestSupervisorPlannedRepository_Create_WithNil(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActivitySupervisor
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns error when supervisor is nil", func(t *testing.T) {
 		err := repo.Create(ctx, nil)
@@ -105,7 +104,7 @@ func TestSupervisorPlannedRepository_FindByID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActivitySupervisor
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds existing supervisor", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Find", "Test")
@@ -133,7 +132,7 @@ func TestSupervisorPlannedRepository_Update(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActivitySupervisor
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("updates supervisor primary status", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Update", "Test")
@@ -159,7 +158,7 @@ func TestSupervisorPlannedRepository_Update_WithNil(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActivitySupervisor
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("returns error when supervisor is nil", func(t *testing.T) {
 		err := repo.Update(ctx, nil)
@@ -173,7 +172,7 @@ func TestSupervisorPlannedRepository_Delete(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActivitySupervisor
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("deletes existing supervisor", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Delete", "Test")
@@ -201,7 +200,7 @@ func TestSupervisorPlannedRepository_List(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActivitySupervisor
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("lists all supervisors", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "List", "Test")
@@ -225,7 +224,7 @@ func TestSupervisorPlannedRepository_FindByStaffID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActivitySupervisor
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds supervisors by staff ID", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Staff", "MultiGroup")
@@ -268,7 +267,7 @@ func TestSupervisorPlannedRepository_FindByGroupID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActivitySupervisor
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds supervisors by group ID with loaded relations", func(t *testing.T) {
 		staff1 := testpkg.CreateTestStaff(t, db, "Staff", "One")
@@ -323,7 +322,7 @@ func TestSupervisorPlannedRepository_FindByGroupIDs(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActivitySupervisor
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds supervisors for multiple groups", func(t *testing.T) {
 		staff1 := testpkg.CreateTestStaff(t, db, "Multi1", "Staff")
@@ -375,7 +374,7 @@ func TestSupervisorPlannedRepository_FindPrimaryByGroupID(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActivitySupervisor
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("finds primary supervisor for a group", func(t *testing.T) {
 		staff1 := testpkg.CreateTestStaff(t, db, "Primary", "Supervisor")
@@ -419,7 +418,7 @@ func TestSupervisorPlannedRepository_SetPrimary(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActivitySupervisor
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("sets supervisor as primary", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "SetPrimary", "Test")
@@ -448,7 +447,7 @@ func TestSupervisorPlannedRepository_Delete_NonExistent(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActivitySupervisor
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	t.Run("does not error when deleting non-existent supervisor", func(t *testing.T) {
 		err := repo.Delete(ctx, int64(999999))

@@ -1,7 +1,6 @@
 package students_test
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 	"testing"
@@ -125,7 +124,7 @@ func TestStudentResponse_FullAccess(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		// Update student with additional fields using raw SQL - use ? placeholders
-		ctx := context.Background()
+		ctx := testpkg.TenantContext(1)
 		_, err := tc.db.ExecContext(ctx,
 			"UPDATE users.students SET guardian_email = ?, guardian_phone = ?, extra_info = ? WHERE id = ?",
 			"guardian@example.com", "+49123456789", "Important notes", student.ID)

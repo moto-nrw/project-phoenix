@@ -247,7 +247,7 @@ func cleanupRoleRecords(t *testing.T, db *bun.DB, roleIDs ...int64) {
 		return
 	}
 
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// Remove role-permission mappings
 	_, _ = db.NewDelete().
@@ -278,7 +278,7 @@ func cleanupPermissionRecords(t *testing.T, db *bun.DB, permissionIDs ...int64) 
 		return
 	}
 
-	ctx := context.Background()
+	ctx := testpkg.TenantContext(1)
 
 	// Remove role-permission mappings
 	_, _ = db.NewDelete().
@@ -361,7 +361,7 @@ func TestLogin(t *testing.T) {
 
 	// Cleanup test account
 	t.Cleanup(func() {
-		ctx := context.Background()
+		ctx := testpkg.TenantContext(1)
 		_, _ = tc.db.NewDelete().TableExpr("auth.tokens").Where("account_id = ?", account.ID).Exec(ctx)
 		_, _ = tc.db.NewDelete().TableExpr("auth.account_tenants").Where("account_id = ?", account.ID).Exec(ctx)
 		_, _ = tc.db.NewDelete().TableExpr("auth.accounts").Where("id = ?", account.ID).Exec(ctx)
