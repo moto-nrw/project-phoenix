@@ -269,6 +269,7 @@ func TestActivityService_ListGroupsWithOccupancy(t *testing.T) {
 			GroupID:        group1.ID,
 			RoomID:         room.ID,
 		}
+		activeGroup.SetTenantID(1)
 		err := db.NewInsert().
 			Model(activeGroup).
 			ModelTableExpr(`active.groups AS "active_group"`).

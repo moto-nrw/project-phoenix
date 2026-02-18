@@ -88,6 +88,7 @@ func TestRepository_FindByID(t *testing.T) {
 		Description: "Test setting for FindByID",
 		Category:    "test",
 	}
+	setting.SetTenantID(1)
 	_, err := db.NewInsert().Model(setting).ModelTableExpr("config.settings").Exec(ctx)
 	require.NoError(t, err)
 
@@ -132,6 +133,7 @@ func TestRepository_Update(t *testing.T) {
 		Description: "Test setting for Update",
 		Category:    "test",
 	}
+	setting.SetTenantID(1)
 	_, err := db.NewInsert().Model(setting).ModelTableExpr("config.settings").Exec(ctx)
 	require.NoError(t, err)
 	require.NotZero(t, setting.ID)
@@ -184,6 +186,7 @@ func TestRepository_Delete(t *testing.T) {
 		Description: "Test setting for Delete",
 		Category:    "test",
 	}
+	setting.SetTenantID(1)
 	_, err := db.NewInsert().Model(setting).ModelTableExpr("config.settings").Exec(ctx)
 	require.NoError(t, err)
 
@@ -215,6 +218,7 @@ func TestRepository_List(t *testing.T) {
 		{Key: "test_base_list_2", Value: "v2", Description: "Test 2", Category: "base_test"},
 	}
 	for _, s := range settings {
+		s.SetTenantID(1)
 		_, err := db.NewInsert().Model(s).ModelTableExpr("config.settings").Exec(ctx)
 		require.NoError(t, err)
 	}
@@ -260,6 +264,7 @@ func TestRepository_Count(t *testing.T) {
 		{Key: "test_base_count_3", Value: "v3", Description: "Test 3", Category: "count_test"},
 	}
 	for _, s := range settings {
+		s.SetTenantID(1)
 		_, err := db.NewInsert().Model(s).ModelTableExpr("config.settings").Exec(ctx)
 		require.NoError(t, err)
 	}
@@ -316,6 +321,7 @@ func TestRepository_Transaction(t *testing.T) {
 			Description: "Test setting for Transaction",
 			Category:    "test",
 		}
+		setting.SetTenantID(1)
 		_, err := tx.NewInsert().Model(setting).ModelTableExpr("config.settings").Exec(ctx)
 		if err != nil {
 			return err
@@ -344,6 +350,7 @@ func TestRepository_Transaction_Rollback(t *testing.T) {
 			Description: "Test setting for Transaction rollback",
 			Category:    "test",
 		}
+		setting.SetTenantID(1)
 		_, err := tx.NewInsert().Model(setting).ModelTableExpr("config.settings").Exec(ctx)
 		if err != nil {
 			return err

@@ -7253,7 +7253,9 @@ describe("Schulhof tab onTabChange callback", () => {
 
     // Should have called router.push with room URL
     await waitFor(() => {
-      expect(mockPush).toHaveBeenCalledWith("/test-tenant/active-supervisions?room=r1");
+      expect(mockPush).toHaveBeenCalledWith(
+        "/test-tenant/active-supervisions?room=r1",
+      );
     });
 
     // Should have called loadRoomVisits for the room

@@ -341,7 +341,9 @@ describe("ActivityDetailPage", () => {
     });
 
     fireEvent.click(screen.getByText("Peter Müller"));
-    expect(mockPush).toHaveBeenCalledWith("/test-tenant/students/s-1?from=/activities/1");
+    expect(mockPush).toHaveBeenCalledWith(
+      "/test-tenant/students/s-1?from=/activities/1",
+    );
   });
 
   it("handles enrolled students fetch failure gracefully", async () => {

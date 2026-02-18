@@ -271,22 +271,26 @@ func TestGetSessionTimeoutInfo(t *testing.T) {
 		// Insert visits directly into database (bypasses attendance creation logic)
 		// This is acceptable for testing GetSessionTimeoutInfo since we're testing
 		// the timeout info retrieval, not the visit creation business logic
+		visit1 := &active.Visit{
+			StudentID:     student1.ID,
+			ActiveGroupID: session.ID,
+			EntryTime:     time.Now(),
+		}
+		visit1.SetTenantID(1)
 		_, err = db.NewInsert().
-			Model(&active.Visit{
-				StudentID:     student1.ID,
-				ActiveGroupID: session.ID,
-				EntryTime:     time.Now(),
-			}).
+			Model(visit1).
 			ModelTableExpr("active.visits").
 			Exec(ctx)
 		require.NoError(t, err)
 
+		visit2 := &active.Visit{
+			StudentID:     student2.ID,
+			ActiveGroupID: session.ID,
+			EntryTime:     time.Now(),
+		}
+		visit2.SetTenantID(1)
 		_, err = db.NewInsert().
-			Model(&active.Visit{
-				StudentID:     student2.ID,
-				ActiveGroupID: session.ID,
-				EntryTime:     time.Now(),
-			}).
+			Model(visit2).
 			ModelTableExpr("active.visits").
 			Exec(ctx)
 		require.NoError(t, err)

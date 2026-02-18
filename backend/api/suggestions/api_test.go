@@ -60,6 +60,8 @@ func createTestPost(t *testing.T, db *bun.DB, accountID int64, title, desc strin
 		Score:       0,
 	}
 
+	post.SetTenantID(1)
+
 	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 5*time.Second)
 	defer cancel()
 

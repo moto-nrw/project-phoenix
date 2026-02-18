@@ -25,6 +25,7 @@ func createSupervisor(t *testing.T, db *bun.DB, staffID, groupID int64, isPrimar
 		GroupID:   groupID,
 		IsPrimary: isPrimary,
 	}
+	supervisor.SetTenantID(1)
 
 	err := db.NewInsert().
 		Model(supervisor).

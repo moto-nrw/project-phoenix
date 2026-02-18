@@ -168,6 +168,7 @@ func createAttendanceWithCheckout(t *testing.T, db *bun.DB, studentID, staffID, 
 		CheckedOutBy: &checkedOutBy,
 		DeviceID:     deviceID,
 	}
+	attendance.SetTenantID(1)
 
 	_, err := db.NewInsert().
 		Model(attendance).

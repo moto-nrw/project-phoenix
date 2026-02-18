@@ -108,9 +108,14 @@ func WithClaims(claims jwt.AppClaims) RequestOption {
 
 // WithDeviceContext adds an IoT device to the request context.
 // This is used for testing device-authenticated endpoints.
+// Also injects the device's tenant_id so TenantTxMiddleware can create
+// a tenant-scoped transaction (mirrors production device auth middleware).
 func WithDeviceContext(d *iot.Device) RequestOption {
 	return func(req *http.Request) {
 		ctx := context.WithValue(req.Context(), device.CtxDevice, d)
+		if tid := d.GetTenantID(); tid != 0 {
+			ctx = tenant.WithTenantID(ctx, tid)
+		}
 		*req = *req.WithContext(ctx)
 	}
 }

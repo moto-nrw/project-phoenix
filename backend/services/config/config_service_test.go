@@ -43,6 +43,7 @@ func createTestSetting(t *testing.T, db *bun.DB, key, value, category string) *c
 		Category:    category,
 		Description: "Test setting: " + key,
 	}
+	setting.SetTenantID(1)
 
 	err := db.NewInsert().
 		Model(setting).
@@ -89,6 +90,7 @@ func createTestSettingWithExactKey(t *testing.T, db *bun.DB, key, value, categor
 		Category:    category,
 		Description: "Test setting: " + key,
 	}
+	setting.SetTenantID(1)
 
 	err := db.NewInsert().
 		Model(setting).

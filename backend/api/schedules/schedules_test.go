@@ -91,6 +91,8 @@ func TestGetCurrentDateframe_Success(t *testing.T) {
 		Name:      fmt.Sprintf("Current Dateframe %d", time.Now().UnixNano()),
 	}
 
+	dateframe.SetTenantID(1)
+
 	_, err := ctx.db.NewInsert().
 		Model(dateframe).
 		ModelTableExpr("schedule.dateframes").

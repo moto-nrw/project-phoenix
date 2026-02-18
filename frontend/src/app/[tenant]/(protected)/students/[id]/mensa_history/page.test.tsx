@@ -188,7 +188,9 @@ describe("StudentMensaHistoryPage", () => {
 
     fireEvent.click(screen.getByText("Zurück zum Schülerprofil"));
 
-    expect(mockPush).toHaveBeenCalledWith("/test-tenant/students/1?from=/students/search");
+    expect(mockPush).toHaveBeenCalledWith(
+      "/test-tenant/students/1?from=/students/search",
+    );
   });
 
   it("displays student initials in header", async () => {

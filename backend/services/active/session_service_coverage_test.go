@@ -295,6 +295,7 @@ func TestEndDailySessions_WithOrphanedSupervisors(t *testing.T) {
 			"role":       "supervisor",
 			"start_date": yesterday,
 			"end_date":   nil, // Orphaned - no end date
+			"tenant_id":  int64(1),
 		}).
 		Exec(ctx)
 	require.NoError(t, err)

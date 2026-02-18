@@ -274,21 +274,25 @@ func TestActivityGroupRepository_FindWithEnrollmentCounts(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, db, student2.ID, 0, 0, 0, 0)
 
 		// Add enrollments directly
+		enrollment1 := &activities.StudentEnrollment{
+			StudentID:       student1.ID,
+			ActivityGroupID: group.ID,
+			EnrollmentDate:  time.Now(),
+		}
+		enrollment1.SetTenantID(1)
 		_, _ = db.NewInsert().
-			Model(&activities.StudentEnrollment{
-				StudentID:       student1.ID,
-				ActivityGroupID: group.ID,
-				EnrollmentDate:  time.Now(),
-			}).
+			Model(enrollment1).
 			ModelTableExpr(`activities.student_enrollments`).
 			Exec(ctx)
 
+		enrollment2 := &activities.StudentEnrollment{
+			StudentID:       student2.ID,
+			ActivityGroupID: group.ID,
+			EnrollmentDate:  time.Now(),
+		}
+		enrollment2.SetTenantID(1)
 		_, _ = db.NewInsert().
-			Model(&activities.StudentEnrollment{
-				StudentID:       student2.ID,
-				ActivityGroupID: group.ID,
-				EnrollmentDate:  time.Now(),
-			}).
+			Model(enrollment2).
 			ModelTableExpr(`activities.student_enrollments`).
 			Exec(ctx)
 
@@ -329,12 +333,14 @@ func TestActivityGroupRepository_FindWithSupervisors(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID, 0, 0, 0)
 
 		// Add a supervisor
+		sup := &activities.SupervisorPlanned{
+			GroupID:   group.ID,
+			StaffID:   staff.ID,
+			IsPrimary: true,
+		}
+		sup.SetTenantID(1)
 		_, _ = db.NewInsert().
-			Model(&activities.SupervisorPlanned{
-				GroupID:   group.ID,
-				StaffID:   staff.ID,
-				IsPrimary: true,
-			}).
+			Model(sup).
 			ModelTableExpr(`activities.supervisors`).
 			Exec(ctx)
 
@@ -394,12 +400,14 @@ func TestActivityGroupRepository_FindByStaffSupervisor(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID, 0, 0, 0)
 
 		// Add supervisor assignment
+		sup := &activities.SupervisorPlanned{
+			GroupID:   group.ID,
+			StaffID:   staff.ID,
+			IsPrimary: true,
+		}
+		sup.SetTenantID(1)
 		_, _ = db.NewInsert().
-			Model(&activities.SupervisorPlanned{
-				GroupID:   group.ID,
-				StaffID:   staff.ID,
-				IsPrimary: true,
-			}).
+			Model(sup).
 			ModelTableExpr(`activities.supervisors`).
 			Exec(ctx)
 
@@ -443,12 +451,14 @@ func TestActivityGroupRepository_FindByStaffSupervisorToday(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID, 0, 0, 0)
 
 		// Add supervisor assignment
+		sup := &activities.SupervisorPlanned{
+			GroupID:   group.ID,
+			StaffID:   staff.ID,
+			IsPrimary: true,
+		}
+		sup.SetTenantID(1)
 		_, _ = db.NewInsert().
-			Model(&activities.SupervisorPlanned{
-				GroupID:   group.ID,
-				StaffID:   staff.ID,
-				IsPrimary: true,
-			}).
+			Model(sup).
 			ModelTableExpr(`activities.supervisors`).
 			Exec(ctx)
 

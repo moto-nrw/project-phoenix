@@ -29,6 +29,7 @@ func createTestStudentGuardian(t *testing.T, db *bun.DB, studentID, guardianProf
 		CanPickup:          true,
 		Permissions:        map[string]interface{}{},
 	}
+	sg.SetTenantID(1)
 
 	_, err := db.NewInsert().
 		Model(sg).
@@ -208,6 +209,7 @@ func TestStudentGuardianRepository_FindEmergencyContactsByStudentID_Success(t *t
 		CanPickup:          true,
 		Permissions:        map[string]interface{}{},
 	}
+	sgEmergency.SetTenantID(1)
 	_, err := db.NewInsert().Model(sgEmergency).ModelTableExpr(`users.students_guardians`).Exec(ctx)
 	require.NoError(t, err)
 
@@ -257,6 +259,7 @@ func TestStudentGuardianRepository_FindPickupAuthoritiesByStudentID_Success(t *t
 		CanPickup:          false,
 		Permissions:        map[string]interface{}{},
 	}
+	sgNoPickup.SetTenantID(1)
 	_, err := db.NewInsert().Model(sgNoPickup).ModelTableExpr(`users.students_guardians`).Exec(ctx)
 	require.NoError(t, err)
 	defer cleanupStudentGuardians(t, db, sgPickup.ID, sgNoPickup.ID)
@@ -590,6 +593,7 @@ func TestStudentGuardianRepository_List_WithFilters(t *testing.T) {
 		CanPickup:          true,
 		Permissions:        map[string]interface{}{},
 	}
+	sg.SetTenantID(1)
 	_, err := db.NewInsert().Model(sg).ModelTableExpr(`users.students_guardians`).Exec(ctx)
 	require.NoError(t, err)
 	defer cleanupStudentGuardians(t, db, sg.ID)

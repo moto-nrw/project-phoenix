@@ -27,6 +27,8 @@ func createTestComment(t *testing.T, db *bun.DB, postID, authorID int64, content
 		Content:    content,
 	}
 
+	comment.SetTenantID(1)
+
 	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 5*time.Second)
 	defer cancel()
 
