@@ -204,6 +204,106 @@ describe("useGlobalSSE", () => {
       expect(mutate).toHaveBeenCalled();
     });
 
+    it("student_checkout without active_group_id invalidates ogs-students caches", () => {
+      renderHook(() => useGlobalSSE());
+
+      const onMessage = vi.mocked(useSSE).mock.calls[0]?.[1]?.onMessage;
+
+      // Daily checkout: has student_id but NO active_group_id
+      onMessage?.({
+        type: "student_checkout",
+        active_group_id: "",
+        data: { student_id: "42" },
+        timestamp: new Date().toISOString(),
+      });
+
+      vi.advanceTimersByTime(500);
+
+      // Find the mutate call with the ogs-students matcher
+      const mutateCalls = vi.mocked(mutate).mock.calls;
+      const ogsStudentCall = mutateCalls.find((call) => {
+        const matcher = call[0];
+        return (
+          typeof matcher === "function" &&
+          (matcher as (key: string) => boolean)("ogs-students-5")
+        );
+      });
+      expect(ogsStudentCall).toBeDefined();
+    });
+
+    it("student_checkout without active_group_id invalidates dashboard caches", () => {
+      renderHook(() => useGlobalSSE());
+
+      const onMessage = vi.mocked(useSSE).mock.calls[0]?.[1]?.onMessage;
+
+      onMessage?.({
+        type: "student_checkout",
+        active_group_id: "",
+        data: { student_id: "42" },
+        timestamp: new Date().toISOString(),
+      });
+
+      vi.advanceTimersByTime(500);
+
+      const mutateCalls = vi.mocked(mutate).mock.calls;
+      const dashboardCall = mutateCalls.find((call) => {
+        const matcher = call[0];
+        return (
+          typeof matcher === "function" &&
+          (matcher as (key: string) => boolean)("active-supervision-dashboard")
+        );
+      });
+      expect(dashboardCall).toBeDefined();
+    });
+
+    it("student_checkout without active_group_id invalidates student-detail cache", () => {
+      renderHook(() => useGlobalSSE());
+
+      const onMessage = vi.mocked(useSSE).mock.calls[0]?.[1]?.onMessage;
+
+      onMessage?.({
+        type: "student_checkout",
+        active_group_id: "",
+        data: { student_id: "42" },
+        timestamp: new Date().toISOString(),
+      });
+
+      vi.advanceTimersByTime(500);
+
+      const mutateCalls = vi.mocked(mutate).mock.calls;
+      const studentDetailCall = mutateCalls.find((call) => {
+        return call[0] === "student-detail-42";
+      });
+      expect(studentDetailCall).toBeDefined();
+    });
+
+    it("student_checkout without active_group_id does NOT invalidate supervision-visits", () => {
+      renderHook(() => useGlobalSSE());
+
+      const onMessage = vi.mocked(useSSE).mock.calls[0]?.[1]?.onMessage;
+
+      // Daily checkout: no active_group_id means pendingGroupIds stays empty
+      onMessage?.({
+        type: "student_checkout",
+        active_group_id: "",
+        data: { student_id: "42" },
+        timestamp: new Date().toISOString(),
+      });
+
+      vi.advanceTimersByTime(500);
+
+      // supervision-visits should NOT be invalidated (requires pendingGroupIds)
+      const mutateCalls = vi.mocked(mutate).mock.calls;
+      const supervisionCall = mutateCalls.find((call) => {
+        const matcher = call[0];
+        return (
+          typeof matcher === "function" &&
+          (matcher as (key: string) => boolean)("supervision-visits-999")
+        );
+      });
+      expect(supervisionCall).toBeUndefined();
+    });
+
     it("silently ignores unknown event types without invalidating caches", () => {
       renderHook(() => useGlobalSSE());
 
