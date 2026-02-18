@@ -88,8 +88,8 @@ func TestCleanupStaleAttendance_ClosesStaleRecords(t *testing.T) {
 
 	var attendanceID int64
 	err := db.NewRaw(`
-		INSERT INTO active.attendance (student_id, date, check_in_time, checked_in_by, device_id)
-		VALUES (?, ?, ?, ?, ?)
+		INSERT INTO active.attendance (student_id, date, check_in_time, checked_in_by, device_id, tenant_id)
+		VALUES (?, ?, ?, ?, ?, 1)
 		RETURNING id
 	`, student.ID, yesterday, checkInTime, staff.ID, device.ID).Scan(ctx, &attendanceID)
 	require.NoError(t, err, "Failed to create stale attendance record")
@@ -155,8 +155,8 @@ func TestPreviewAttendanceCleanup_ShowsStaleRecords(t *testing.T) {
 
 	var attendanceID int64
 	err := db.NewRaw(`
-		INSERT INTO active.attendance (student_id, date, check_in_time, checked_in_by, device_id)
-		VALUES (?, ?, ?, ?, ?)
+		INSERT INTO active.attendance (student_id, date, check_in_time, checked_in_by, device_id, tenant_id)
+		VALUES (?, ?, ?, ?, ?, 1)
 		RETURNING id
 	`, student.ID, twoDaysAgo, checkInTime, staff.ID, device.ID).Scan(ctx, &attendanceID)
 	require.NoError(t, err, "Failed to create stale attendance record")
@@ -233,6 +233,7 @@ func TestGetRetentionStatistics_WithData(t *testing.T) {
 			"renewal_required":    false,
 			"data_retention_days": retentionDays,
 			"created_at":          now,
+			"tenant_id":           int64(1),
 		}).
 		Exec(ctx)
 	require.NoError(t, err, "Failed to create privacy consent")
@@ -247,8 +248,8 @@ func TestGetRetentionStatistics_WithData(t *testing.T) {
 
 	var visitID int64
 	err = db.NewRaw(`
-		INSERT INTO active.visits (student_id, active_group_id, entry_time, exit_time, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?)
+		INSERT INTO active.visits (student_id, active_group_id, entry_time, exit_time, created_at, updated_at, tenant_id)
+		VALUES (?, ?, ?, ?, ?, ?, 1)
 		RETURNING id
 	`, student.ID, activeGroup.ID, oldTime, exitTime, oldTime, oldTime).Scan(ctx, &visitID)
 	require.NoError(t, err, "Failed to create old visit")
@@ -348,6 +349,7 @@ func TestCleanupExpiredVisits_WithExpiredData(t *testing.T) {
 			"renewal_required":    false,
 			"data_retention_days": retentionDays,
 			"created_at":          now,
+			"tenant_id":           int64(1),
 		}).
 		Exec(ctx)
 	require.NoError(t, err, "Failed to create privacy consent")
@@ -362,8 +364,8 @@ func TestCleanupExpiredVisits_WithExpiredData(t *testing.T) {
 
 	var visitID int64
 	err = db.NewRaw(`
-		INSERT INTO active.visits (student_id, active_group_id, entry_time, exit_time, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?)
+		INSERT INTO active.visits (student_id, active_group_id, entry_time, exit_time, created_at, updated_at, tenant_id)
+		VALUES (?, ?, ?, ?, ?, ?, 1)
 		RETURNING id
 	`, student.ID, activeGroup.ID, oldTime, exitTime, oldTime, oldTime).Scan(ctx, &visitID)
 	require.NoError(t, err, "Failed to create old visit")
@@ -464,6 +466,7 @@ func TestCleanupVisitsForStudent_WithExpiredVisits(t *testing.T) {
 			"renewal_required":    false,
 			"data_retention_days": retentionDays,
 			"created_at":          now,
+			"tenant_id":           int64(1),
 		}).
 		Exec(ctx)
 	require.NoError(t, err, "Failed to create privacy consent")
@@ -478,8 +481,8 @@ func TestCleanupVisitsForStudent_WithExpiredVisits(t *testing.T) {
 
 	var visitID int64
 	err = db.NewRaw(`
-		INSERT INTO active.visits (student_id, active_group_id, entry_time, exit_time, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?)
+		INSERT INTO active.visits (student_id, active_group_id, entry_time, exit_time, created_at, updated_at, tenant_id)
+		VALUES (?, ?, ?, ?, ?, ?, 1)
 		RETURNING id
 	`, student.ID, activeGroup.ID, oldTime, exitTime, oldTime, oldTime).Scan(ctx, &visitID)
 	require.NoError(t, err, "Failed to create old visit")
@@ -651,8 +654,8 @@ func TestCleanupStaleAttendance_CheckInAfterEndOfDay(t *testing.T) {
 
 	var attendanceID int64
 	err := db.NewRaw(`
-		INSERT INTO active.attendance (student_id, date, check_in_time, checked_in_by, device_id)
-		VALUES (?, ?, ?, ?, ?)
+		INSERT INTO active.attendance (student_id, date, check_in_time, checked_in_by, device_id, tenant_id)
+		VALUES (?, ?, ?, ?, ?, 1)
 		RETURNING id
 	`, student.ID, twoDaysAgo, checkInTime, staff.ID, device.ID).Scan(ctx, &attendanceID)
 	require.NoError(t, err, "Failed to create attendance record with late check-in")
@@ -738,8 +741,8 @@ func TestCleanupStaleSupervisors_ClosesStaleRecords(t *testing.T) {
 
 	var supervisorID int64
 	err := db.NewRaw(`
-		INSERT INTO active.group_supervisors (staff_id, group_id, role, start_date)
-		VALUES (?, ?, ?, ?)
+		INSERT INTO active.group_supervisors (staff_id, group_id, role, start_date, tenant_id)
+		VALUES (?, ?, ?, ?, 1)
 		RETURNING id
 	`, staff.ID, activeGroup.ID, "supervisor", yesterday).Scan(ctx, &supervisorID)
 	require.NoError(t, err, "Failed to create stale supervisor record")

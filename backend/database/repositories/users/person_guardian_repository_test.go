@@ -28,8 +28,8 @@ func createTestParentAccount(t *testing.T, db *bun.DB, emailPrefix string) int64
 
 	var id int64
 	err := db.NewRaw(
-		`INSERT INTO auth.accounts_parents (email, active, created_at, updated_at)
-		 VALUES (?, ?, NOW(), NOW()) RETURNING id`,
+		`INSERT INTO auth.accounts_parents (email, active, tenant_id, created_at, updated_at)
+		 VALUES (?, ?, 1, NOW(), NOW()) RETURNING id`,
 		uniqueEmail, true).Scan(ctx, &id)
 	require.NoError(t, err, "Failed to create test parent account")
 

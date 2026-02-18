@@ -229,7 +229,7 @@ func TestAccountRepository_FindByRole(t *testing.T) {
 
 		// Assign role to account
 		_, err := db.ExecContext(ctx,
-			"INSERT INTO auth.account_roles (account_id, role_id) VALUES (?, ?)",
+			"INSERT INTO auth.account_roles (account_id, role_id, tenant_id) VALUES (?, ?, 1)",
 			account.ID, role.ID)
 		require.NoError(t, err)
 
@@ -255,7 +255,7 @@ func TestAccountRepository_FindByRole(t *testing.T) {
 		defer cleanupRoleRecords(t, db, role.ID)
 
 		_, err := db.ExecContext(ctx,
-			"INSERT INTO auth.account_roles (account_id, role_id) VALUES (?, ?)",
+			"INSERT INTO auth.account_roles (account_id, role_id, tenant_id) VALUES (?, ?, 1)",
 			account.ID, role.ID)
 		require.NoError(t, err)
 
@@ -351,7 +351,7 @@ func TestAccountRepository_FindAccountsWithRolesAndPermissions(t *testing.T) {
 
 		// Assign role to account
 		_, err := db.ExecContext(ctx,
-			"INSERT INTO auth.account_roles (account_id, role_id) VALUES (?, ?)",
+			"INSERT INTO auth.account_roles (account_id, role_id, tenant_id) VALUES (?, ?, 1)",
 			account.ID, role.ID)
 		require.NoError(t, err)
 
@@ -474,7 +474,7 @@ func TestAccountRepository_ListWithFilters(t *testing.T) {
 
 		// Assign role to account
 		_, err := db.ExecContext(ctx,
-			"INSERT INTO auth.account_roles (account_id, role_id) VALUES (?, ?)",
+			"INSERT INTO auth.account_roles (account_id, role_id, tenant_id) VALUES (?, ?, 1)",
 			account.ID, role.ID)
 		require.NoError(t, err)
 

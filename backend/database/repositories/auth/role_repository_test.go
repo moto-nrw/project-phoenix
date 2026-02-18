@@ -249,7 +249,7 @@ func TestRoleRepository_FindByAccountID(t *testing.T) {
 
 		// Assign role to account using direct DB insert (repo method deprecated)
 		_, err := db.ExecContext(ctx,
-			"INSERT INTO auth.account_roles (account_id, role_id) VALUES (?, ?)",
+			"INSERT INTO auth.account_roles (account_id, role_id, tenant_id) VALUES (?, ?, 1)",
 			account.ID, role.ID)
 		require.NoError(t, err)
 

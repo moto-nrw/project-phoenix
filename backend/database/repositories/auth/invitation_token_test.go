@@ -30,6 +30,7 @@ func createTestInvitationToken(t *testing.T, db *bun.DB, email string, roleID, c
 		CreatedBy: createdBy,
 		ExpiresAt: expiresAt,
 	}
+	token.SetTenantID(1)
 
 	_, err := db.NewInsert().
 		Model(token).
@@ -185,8 +186,8 @@ func TestInvitationTokenRepository_FindValidByToken_Expired(t *testing.T) {
 	token := uuid.Must(uuid.NewV4()).String()
 	var invitationID int64
 	err := db.NewRaw(`
-		INSERT INTO auth.invitation_tokens (email, token, role_id, created_by, expires_at)
-		VALUES (?, ?, ?, ?, ?)
+		INSERT INTO auth.invitation_tokens (email, token, role_id, created_by, expires_at, tenant_id)
+		VALUES (?, ?, ?, ?, ?, 1)
 		RETURNING id
 	`, "expired@example.com", token, role.ID, creator.ID, time.Now().Add(-1*time.Hour)).
 		Scan(ctx, &invitationID)
@@ -218,8 +219,8 @@ func TestInvitationTokenRepository_FindValidByToken_Used(t *testing.T) {
 	usedAt := time.Now()
 	var invitationID int64
 	err := db.NewRaw(`
-		INSERT INTO auth.invitation_tokens (email, token, role_id, created_by, expires_at, used_at)
-		VALUES (?, ?, ?, ?, ?, ?)
+		INSERT INTO auth.invitation_tokens (email, token, role_id, created_by, expires_at, used_at, tenant_id)
+		VALUES (?, ?, ?, ?, ?, ?, 1)
 		RETURNING id
 	`, "used@example.com", token, role.ID, creator.ID, time.Now().Add(48*time.Hour), usedAt).
 		Scan(ctx, &invitationID)
@@ -384,8 +385,8 @@ func TestInvitationTokenRepository_DeleteExpired_Success(t *testing.T) {
 	token := uuid.Must(uuid.NewV4()).String()
 	var expiredID int64
 	err := db.NewRaw(`
-		INSERT INTO auth.invitation_tokens (email, token, role_id, created_by, expires_at)
-		VALUES (?, ?, ?, ?, ?)
+		INSERT INTO auth.invitation_tokens (email, token, role_id, created_by, expires_at, tenant_id)
+		VALUES (?, ?, ?, ?, ?, 1)
 		RETURNING id
 	`, "expired-delete@example.com", token, role.ID, creator.ID, time.Now().Add(-1*time.Hour)).
 		Scan(ctx, &expiredID)

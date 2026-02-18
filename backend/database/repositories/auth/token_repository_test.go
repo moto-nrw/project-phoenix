@@ -233,8 +233,8 @@ func TestTokenRepository_DeleteExpiredTokens(t *testing.T) {
 		expiredTokenStr := uuid.Must(uuid.NewV4()).String()
 		var expiredTokenID int64
 		err := db.NewRaw(`
-			INSERT INTO auth.tokens (account_id, token, expiry, mobile, family_id)
-			VALUES (?, ?, ?, false, ?)
+			INSERT INTO auth.tokens (account_id, token, expiry, mobile, family_id, tenant_id)
+			VALUES (?, ?, ?, false, ?, 1)
 			RETURNING id
 		`, account.ID, expiredTokenStr, time.Now().Add(-time.Hour), uuid.Must(uuid.NewV4()).String()).
 			Scan(ctx, &expiredTokenID)
@@ -496,8 +496,8 @@ func TestTokenRepository_FindValidTokens(t *testing.T) {
 		expiredTokenStr := uuid.Must(uuid.NewV4()).String()
 		var expiredTokenID int64
 		err := db.NewRaw(`
-			INSERT INTO auth.tokens (account_id, token, expiry, mobile, family_id)
-			VALUES (?, ?, ?, false, ?)
+			INSERT INTO auth.tokens (account_id, token, expiry, mobile, family_id, tenant_id)
+			VALUES (?, ?, ?, false, ?, 1)
 			RETURNING id
 		`, account.ID, expiredTokenStr, time.Now().Add(-time.Hour), uuid.Must(uuid.NewV4()).String()).
 			Scan(ctx, &expiredTokenID)
