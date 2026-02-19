@@ -4,12 +4,20 @@
  * to validate and fetch tenant metadata.
  */
 
+export interface TenantSettings {
+  logoUrl?: string;
+  primaryColor?: string;
+  [key: string]: unknown;
+}
+
 export interface TenantInfo {
   tenantId: number;
   slug: string;
   name: string;
   subdomain: string;
+  organizationId: number;
   organizationName: string;
+  settings: TenantSettings;
 }
 
 interface TenantResolveResponse {
@@ -17,7 +25,9 @@ interface TenantResolveResponse {
   slug: string;
   name: string;
   subdomain: string;
+  organization_id: number;
   organization_name: string;
+  settings: TenantSettings;
 }
 
 /**
@@ -40,7 +50,9 @@ export async function resolveTenant(slug: string): Promise<TenantInfo | null> {
       slug: data.slug,
       name: data.name,
       subdomain: data.subdomain,
+      organizationId: data.organization_id,
       organizationName: data.organization_name,
+      settings: data.settings ?? {},
     };
   } catch {
     return null;

@@ -1,13 +1,15 @@
 import { notFound } from "next/navigation";
 import { TenantProvider } from "~/components/tenant/tenant-provider";
-import type { TenantInfo } from "~/lib/tenant-api";
+import type { TenantInfo, TenantSettings } from "~/lib/tenant-api";
 
 interface TenantResolveResponse {
   tenant_id: number;
   slug: string;
   name: string;
   subdomain: string;
+  organization_id: number;
   organization_name: string;
+  settings: TenantSettings;
 }
 
 /**
@@ -30,7 +32,9 @@ async function fetchTenantInfo(slug: string): Promise<TenantInfo | null> {
       slug: data.slug,
       name: data.name,
       subdomain: data.subdomain,
+      organizationId: data.organization_id,
       organizationName: data.organization_name,
+      settings: data.settings ?? {},
     };
   } catch {
     return null;

@@ -2,6 +2,7 @@ package auth
 
 import (
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"log/slog"
 	"net"
@@ -193,10 +194,13 @@ func (rs *Resource) Router() chi.Router {
 
 // TenantResolveResponse represents the public tenant info returned by resolve
 type TenantResolveResponse struct {
-	TenantID  int64  `json:"tenant_id"`
-	Slug      string `json:"slug"`
-	Name      string `json:"name"`
-	Subdomain string `json:"subdomain"`
+	TenantID         int64           `json:"tenant_id"`
+	Slug             string          `json:"slug"`
+	Name             string          `json:"name"`
+	Subdomain        string          `json:"subdomain"`
+	OrganizationID   int64           `json:"organization_id"`
+	OrganizationName string          `json:"organization_name"`
+	Settings         json.RawMessage `json:"settings"`
 }
 
 // resolveTenant handles GET /auth/tenant/resolve?slug={slug}
@@ -218,11 +222,25 @@ func (rs *Resource) resolveTenant(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Parse settings JSON; fall back to empty object on invalid data
+	settings := json.RawMessage(school.Settings)
+	if !json.Valid(settings) {
+		settings = json.RawMessage(`{}`)
+	}
+
+	var orgName string
+	if school.Organization != nil {
+		orgName = school.Organization.Name
+	}
+
 	resp := &TenantResolveResponse{
-		TenantID:  school.ID,
-		Slug:      school.Slug,
-		Name:      school.Name,
-		Subdomain: school.Subdomain,
+		TenantID:         school.ID,
+		Slug:             school.Slug,
+		Name:             school.Name,
+		Subdomain:        school.Subdomain,
+		OrganizationID:   school.OrganizationID,
+		OrganizationName: orgName,
+		Settings:         settings,
 	}
 
 	common.Respond(w, r, http.StatusOK, resp, "Tenant resolved successfully")

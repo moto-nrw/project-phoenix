@@ -48,12 +48,13 @@ func (r *SchoolRepository) FindBySlug(ctx context.Context, slug string) (*platfo
 	return school, nil
 }
 
-// FindBySubdomain returns a school by its subdomain.
+// FindBySubdomain returns a school by its subdomain, preloading the Organization relation.
 func (r *SchoolRepository) FindBySubdomain(ctx context.Context, subdomain string) (*platform.School, error) {
 	school := new(platform.School)
 	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(school).
 		ModelTableExpr(schoolTableAlias).
+		Relation("Organization").
 		Where(`"school".subdomain = ?`, subdomain).
 		Scan(ctx)
 	if err != nil {
