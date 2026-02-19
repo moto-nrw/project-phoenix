@@ -85,6 +85,40 @@ export function OperatorAuthProvider({
     void checkAuth();
   }, []);
 
+  // Proactive token refresh: poll every 4 minutes while authenticated
+  useEffect(() => {
+    if (!operator) return;
+
+    const REFRESH_INTERVAL_MS = 4 * 60 * 1000; // 4 minutes
+
+    const refreshTokens = async () => {
+      try {
+        const response = await fetch("/api/operator/refresh", {
+          method: "POST",
+        });
+        if (!response.ok) {
+          logger.warn("operator_token_refresh_failed", {
+            status: response.status,
+          });
+          // On 401 the refresh token itself is expired — force logout
+          if (response.status === 401) {
+            setOperator(null);
+          }
+        }
+      } catch (error) {
+        logger.error("operator_token_refresh_error", {
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    };
+
+    const intervalId = setInterval(() => {
+      void refreshTokens();
+    }, REFRESH_INTERVAL_MS);
+
+    return () => clearInterval(intervalId);
+  }, [operator]);
+
   // Redirect to login when auth check completes and user is not authenticated
   useEffect(() => {
     if (!isLoading && !operator && pathname !== "/operator/login") {

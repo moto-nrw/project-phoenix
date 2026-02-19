@@ -33,6 +33,10 @@ func (m *mockOperatorAuthService) Login(ctx context.Context, email, password str
 	return "", "", nil, nil
 }
 
+func (m *mockOperatorAuthService) RefreshToken(_ context.Context, _ int64) (string, string, error) {
+	return "", "", nil
+}
+
 func (m *mockOperatorAuthService) ValidateOperator(ctx context.Context, email, password string) (*platform.Operator, error) {
 	return nil, nil
 }

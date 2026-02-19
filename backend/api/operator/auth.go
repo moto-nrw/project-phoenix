@@ -4,8 +4,10 @@ import (
 	"net"
 	"net/http"
 
+	"github.com/go-chi/jwtauth/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
+	jwtPkg "github.com/moto-nrw/project-phoenix/auth/jwt"
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 )
 
@@ -79,6 +81,43 @@ func (rs *AuthResource) Login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	common.Respond(w, r, http.StatusOK, response, "Login successful")
+}
+
+// RefreshTokenResponse represents the refresh token response
+type RefreshTokenResponse struct {
+	AccessToken  string `json:"access_token"`
+	RefreshToken string `json:"refresh_token"`
+}
+
+// RefreshToken handles operator token refresh
+func (rs *AuthResource) RefreshToken(w http.ResponseWriter, r *http.Request) {
+	// Extract operator ID from the refresh token claims (set by AuthenticateRefreshJWT middleware)
+	tokenStr := r.Context().Value(jwtPkg.CtxRefreshToken)
+	if tokenStr == nil || tokenStr.(string) == "" {
+		common.RenderError(w, r, ErrUnauthorized())
+		return
+	}
+
+	// Parse the refresh claims to get the operator ID
+	var claims jwtPkg.RefreshClaims
+	_, rawClaims, _ := jwtauth.FromContext(r.Context())
+	if err := claims.ParseClaims(rawClaims); err != nil {
+		common.RenderError(w, r, ErrUnauthorized())
+		return
+	}
+
+	accessToken, refreshToken, err := rs.authService.RefreshToken(r.Context(), int64(claims.ID))
+	if err != nil {
+		common.RenderError(w, r, AuthErrorRenderer(err))
+		return
+	}
+
+	response := &RefreshTokenResponse{
+		AccessToken:  accessToken,
+		RefreshToken: refreshToken,
+	}
+
+	common.Respond(w, r, http.StatusOK, response, "Token refreshed")
 }
 
 // getClientIP extracts the client IP from the request

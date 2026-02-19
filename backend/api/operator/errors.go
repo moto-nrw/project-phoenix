@@ -27,6 +27,15 @@ func ErrInvalidCredentials() render.Renderer {
 	}
 }
 
+// ErrUnauthorized creates an unauthorized error response for invalid/expired tokens
+func ErrUnauthorized() render.Renderer {
+	return &ErrResponse{
+		HTTPStatusCode: http.StatusUnauthorized,
+		StatusText:     "error",
+		ErrorText:      "Unauthorized",
+	}
+}
+
 // ErrNotFound creates a not found error response
 func ErrNotFound(message string) render.Renderer {
 	return &ErrResponse{
