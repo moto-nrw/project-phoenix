@@ -71,6 +71,68 @@ describe("OperatorAuthProvider", () => {
       expect(result.current.operator).toBeNull();
     });
 
+    it("recovers session via refresh when access token is expired on mount", async () => {
+      // /me returns 401 (access token expired)
+      mockFetch.mockResolvedValueOnce({ ok: false, status: 401 });
+      // refresh succeeds
+      mockFetch.mockResolvedValueOnce({ ok: true });
+      // retry /me succeeds with fresh access token
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          id: "1",
+          displayName: "Recovered User",
+          email: "recovered@example.com",
+        }),
+      });
+
+      const { result } = renderHook(() => useOperatorAuth(), { wrapper });
+
+      await waitFor(() => {
+        expect(result.current.isLoading).toBe(false);
+      });
+
+      expect(result.current.isAuthenticated).toBe(true);
+      expect(result.current.operator?.displayName).toBe("Recovered User");
+      expect(mockFetch).toHaveBeenCalledWith("/api/operator/refresh", {
+        method: "POST",
+      });
+    });
+
+    it("clears operator when both access token and refresh token are expired on mount", async () => {
+      // /me returns 401
+      mockFetch.mockResolvedValueOnce({ ok: false, status: 401 });
+      // refresh also fails
+      mockFetch.mockResolvedValueOnce({ ok: false, status: 401 });
+
+      const { result } = renderHook(() => useOperatorAuth(), { wrapper });
+
+      await waitFor(() => {
+        expect(result.current.isLoading).toBe(false);
+      });
+
+      expect(result.current.isAuthenticated).toBe(false);
+      expect(result.current.operator).toBeNull();
+    });
+
+    it("clears operator when refresh succeeds but retry /me still fails", async () => {
+      // /me returns 401
+      mockFetch.mockResolvedValueOnce({ ok: false, status: 401 });
+      // refresh succeeds
+      mockFetch.mockResolvedValueOnce({ ok: true });
+      // retry /me still fails (e.g. backend issue)
+      mockFetch.mockResolvedValueOnce({ ok: false, status: 500 });
+
+      const { result } = renderHook(() => useOperatorAuth(), { wrapper });
+
+      await waitFor(() => {
+        expect(result.current.isLoading).toBe(false);
+      });
+
+      expect(result.current.isAuthenticated).toBe(false);
+      expect(result.current.operator).toBeNull();
+    });
+
     it("handles network errors during auth check", async () => {
       const consoleErrorSpy = vi
         .spyOn(console, "error")
@@ -416,6 +478,84 @@ describe("OperatorAuthProvider", () => {
       await waitFor(() => {
         expect(result.current.operator).toBeNull();
       });
+    });
+
+    it("does not force logout on 5xx refresh response", async () => {
+      const consoleWarnSpy = vi
+        .spyOn(console, "warn")
+        .mockImplementation(() => {
+          // noop
+        });
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          id: "1",
+          displayName: "Test",
+          email: "test@example.com",
+        }),
+      });
+
+      const { result } = renderHook(() => useOperatorAuth(), { wrapper });
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      await waitFor(() => {
+        expect(result.current.isAuthenticated).toBe(true);
+      });
+
+      // Mock refresh returning 500 (transient server error)
+      mockFetch.mockResolvedValue({ ok: false, status: 500 });
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(4 * 60 * 1000);
+      });
+
+      // Operator should still be authenticated — 5xx is transient
+      expect(result.current.isAuthenticated).toBe(true);
+      expect(result.current.operator?.displayName).toBe("Test");
+
+      consoleWarnSpy.mockRestore();
+    });
+
+    it("forces logout on 403 refresh response (operator deactivated)", async () => {
+      const consoleWarnSpy = vi
+        .spyOn(console, "warn")
+        .mockImplementation(() => {
+          // noop
+        });
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          id: "1",
+          displayName: "Test",
+          email: "test@example.com",
+        }),
+      });
+
+      const { result } = renderHook(() => useOperatorAuth(), { wrapper });
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      await waitFor(() => {
+        expect(result.current.isAuthenticated).toBe(true);
+      });
+
+      // Mock refresh returning 403 (operator deactivated)
+      mockFetch.mockResolvedValue({ ok: false, status: 403 });
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(4 * 60 * 1000);
+      });
+
+      await waitFor(() => {
+        expect(result.current.operator).toBeNull();
+      });
+
+      consoleWarnSpy.mockRestore();
     });
 
     it("logs error on refresh network failure", async () => {

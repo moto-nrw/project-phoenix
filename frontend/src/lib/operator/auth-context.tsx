@@ -69,9 +69,26 @@ export function OperatorAuthProvider({
         if (response.ok) {
           const data = (await response.json()) as SessionResponse;
           setOperator(data);
-        } else {
-          setOperator(null);
+          return;
         }
+
+        // Access token expired — attempt refresh before giving up
+        if (response.status === 401) {
+          const refreshResponse = await fetch("/api/operator/refresh", {
+            method: "POST",
+          });
+          if (refreshResponse.ok) {
+            // Refresh succeeded — retry the profile fetch with new token
+            const retryResponse = await fetch("/api/operator/me");
+            if (retryResponse.ok) {
+              const data = (await retryResponse.json()) as SessionResponse;
+              setOperator(data);
+              return;
+            }
+          }
+        }
+
+        setOperator(null);
       } catch (error) {
         logger.error("operator_auth_check_failed", {
           error: error instanceof Error ? error.message : String(error),
@@ -100,9 +117,12 @@ export function OperatorAuthProvider({
           logger.warn("operator_token_refresh_failed", {
             status: response.status,
           });
-          // Any non-200 means the refresh token is invalid, expired,
-          // or the operator was deactivated (403) — force logout
-          setOperator(null);
+          // Only force logout when the token is genuinely invalid (401)
+          // or the operator was deactivated (403). Transient server
+          // errors (5xx) should be silently retried on the next cycle.
+          if (response.status === 401 || response.status === 403) {
+            setOperator(null);
+          }
         }
       } catch (error) {
         logger.error("operator_token_refresh_error", {
