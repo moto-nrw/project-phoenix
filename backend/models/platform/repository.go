@@ -64,6 +64,7 @@ type SchoolRepository interface {
 	FindBySlug(ctx context.Context, slug string) (*School, error)
 	FindBySubdomain(ctx context.Context, subdomain string) (*School, error)
 	ListActive(ctx context.Context) ([]School, error)
+	FindActiveByAccountID(ctx context.Context, accountID int64) ([]School, error)
 }
 
 // OperatorAuditLogRepository defines operations for the audit log

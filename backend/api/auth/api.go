@@ -90,6 +90,7 @@ func (rs *Resource) Router() chi.Router {
 
 		// Current user routes
 		r.Get("/account", rs.getAccount)
+		r.Get("/account/tenants", rs.listAccountTenants)
 
 		// Password change - users can change their own password without special permissions
 		r.Post("/password", rs.changePassword)
@@ -298,6 +299,45 @@ func (rs *Resource) switchTenant(w http.ResponseWriter, r *http.Request) {
 		AccessToken:  accessToken,
 		RefreshToken: refreshToken,
 	})
+}
+
+// AccountTenantResponse represents a tenant available to the authenticated user
+type AccountTenantResponse struct {
+	TenantID         int64  `json:"tenant_id"`
+	Slug             string `json:"slug"`
+	Name             string `json:"name"`
+	Subdomain        string `json:"subdomain"`
+	OrganizationID   int64  `json:"organization_id"`
+	OrganizationName string `json:"organization_name"`
+}
+
+// listAccountTenants handles GET /auth/account/tenants
+func (rs *Resource) listAccountTenants(w http.ResponseWriter, r *http.Request) {
+	claims := jwt.ClaimsFromCtx(r.Context())
+
+	schools, err := rs.SchoolRepo.FindActiveByAccountID(r.Context(), int64(claims.ID))
+	if err != nil {
+		common.RenderError(w, r, ErrorInternalServer(err))
+		return
+	}
+
+	responses := make([]AccountTenantResponse, 0, len(schools))
+	for _, school := range schools {
+		var orgName string
+		if school.Organization != nil {
+			orgName = school.Organization.Name
+		}
+		responses = append(responses, AccountTenantResponse{
+			TenantID:         school.ID,
+			Slug:             school.Slug,
+			Name:             school.Name,
+			Subdomain:        school.Subdomain,
+			OrganizationID:   school.OrganizationID,
+			OrganizationName: orgName,
+		})
+	}
+
+	common.Respond(w, r, http.StatusOK, responses, "Account tenants retrieved successfully")
 }
 
 // LoginRequest represents the login request payload
@@ -2116,4 +2156,9 @@ func (rs *Resource) ResolveTenantHandler() http.HandlerFunc {
 // SwitchTenantHandler returns the switchTenant handler for testing
 func (rs *Resource) SwitchTenantHandler() http.HandlerFunc {
 	return rs.switchTenant
+}
+
+// ListAccountTenantsHandler returns the listAccountTenants handler for testing
+func (rs *Resource) ListAccountTenantsHandler() http.HandlerFunc {
+	return rs.listAccountTenants
 }

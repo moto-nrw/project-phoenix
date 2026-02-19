@@ -53,39 +53,39 @@ func (rs *GradeTransitionResource) Router() chi.Router {
 		r.Use(tokenAuth.Verifier())
 		r.Use(jwt.Authenticator)
 		r.Use(jwt.TenantMiddleware)
-		r.Use(tenant.TenantTxMiddleware(rs.db))
+		withTx := tenant.TenantTxMiddleware(rs.db)
 
 		// Read operations
-		r.With(authorize.RequiresPermission(permissions.GradeTransitionsRead)).
+		r.With(authorize.RequiresPermission(permissions.GradeTransitionsRead), withTx).
 			Get("/", rs.list)
-		r.With(authorize.RequiresPermission(permissions.GradeTransitionsRead)).
+		r.With(authorize.RequiresPermission(permissions.GradeTransitionsRead), withTx).
 			Get("/classes", rs.getDistinctClasses)
-		r.With(authorize.RequiresPermission(permissions.GradeTransitionsRead)).
+		r.With(authorize.RequiresPermission(permissions.GradeTransitionsRead), withTx).
 			Get("/suggest", rs.suggestMappings)
 
 		// Create operations
-		r.With(authorize.RequiresPermission(permissions.GradeTransitionsCreate)).
+		r.With(authorize.RequiresPermission(permissions.GradeTransitionsCreate), withTx).
 			Post("/", rs.create)
 
 		// Individual transition routes
 		r.Route("/{id}", func(r chi.Router) {
-			r.With(authorize.RequiresPermission(permissions.GradeTransitionsRead)).
+			r.With(authorize.RequiresPermission(permissions.GradeTransitionsRead), withTx).
 				Get("/", rs.getByID)
-			r.With(authorize.RequiresPermission(permissions.GradeTransitionsRead)).
+			r.With(authorize.RequiresPermission(permissions.GradeTransitionsRead), withTx).
 				Get("/preview", rs.preview)
-			r.With(authorize.RequiresPermission(permissions.GradeTransitionsRead)).
+			r.With(authorize.RequiresPermission(permissions.GradeTransitionsRead), withTx).
 				Get("/history", rs.getHistory)
 
-			r.With(authorize.RequiresPermission(permissions.GradeTransitionsUpdate)).
+			r.With(authorize.RequiresPermission(permissions.GradeTransitionsUpdate), withTx).
 				Put("/", rs.update)
 
-			r.With(authorize.RequiresPermission(permissions.GradeTransitionsDelete)).
+			r.With(authorize.RequiresPermission(permissions.GradeTransitionsDelete), withTx).
 				Delete("/", rs.delete)
 
-			r.With(authorize.RequiresPermission(permissions.GradeTransitionsApply)).
+			r.With(authorize.RequiresPermission(permissions.GradeTransitionsApply), withTx).
 				Post("/apply", rs.apply)
 
-			r.With(authorize.RequiresPermission(permissions.GradeTransitionsApply)).
+			r.With(authorize.RequiresPermission(permissions.GradeTransitionsApply), withTx).
 				Post("/revert", rs.revert)
 		})
 	})

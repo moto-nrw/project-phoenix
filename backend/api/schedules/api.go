@@ -61,54 +61,54 @@ func (rs *Resource) Router() chi.Router {
 		r.Use(tokenAuth.Verifier())
 		r.Use(jwt.Authenticator)
 		r.Use(jwt.TenantMiddleware)
-		r.Use(tenant.TenantTxMiddleware(rs.db))
+		withTx := tenant.TenantTxMiddleware(rs.db)
 
 		// Current dateframe endpoint - requires schedules:read permission
-		r.With(authorize.RequiresPermission(permissions.SchedulesRead)).Get("/current-dateframe", rs.getCurrentDateframe)
+		r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).Get("/current-dateframe", rs.getCurrentDateframe)
 
 		// Dateframe endpoints
 		r.Route("/dateframes", func(r chi.Router) {
-			r.With(authorize.RequiresPermission(permissions.ActivitiesRead)).Get("/", rs.listDateframes)
-			r.With(authorize.RequiresPermission(permissions.ActivitiesRead)).Get("/{id}", rs.getDateframe)
-			r.With(authorize.RequiresPermission(permissions.ActivitiesCreate)).Post("/", rs.createDateframe)
-			r.With(authorize.RequiresPermission(permissions.ActivitiesUpdate)).Put("/{id}", rs.updateDateframe)
-			r.With(authorize.RequiresPermission(permissions.ActivitiesDelete)).Delete("/{id}", rs.deleteDateframe)
+			r.With(authorize.RequiresPermission(permissions.ActivitiesRead), withTx).Get("/", rs.listDateframes)
+			r.With(authorize.RequiresPermission(permissions.ActivitiesRead), withTx).Get("/{id}", rs.getDateframe)
+			r.With(authorize.RequiresPermission(permissions.ActivitiesCreate), withTx).Post("/", rs.createDateframe)
+			r.With(authorize.RequiresPermission(permissions.ActivitiesUpdate), withTx).Put("/{id}", rs.updateDateframe)
+			r.With(authorize.RequiresPermission(permissions.ActivitiesDelete), withTx).Delete("/{id}", rs.deleteDateframe)
 
 			// Special dateframe queries
-			r.With(authorize.RequiresPermission(permissions.ActivitiesRead)).Get("/by-date", rs.getDateframesByDate)
-			r.With(authorize.RequiresPermission(permissions.ActivitiesRead)).Get("/overlapping", rs.getOverlappingDateframes)
+			r.With(authorize.RequiresPermission(permissions.ActivitiesRead), withTx).Get("/by-date", rs.getDateframesByDate)
+			r.With(authorize.RequiresPermission(permissions.ActivitiesRead), withTx).Get("/overlapping", rs.getOverlappingDateframes)
 		})
 
 		// Timeframe endpoints
 		r.Route("/timeframes", func(r chi.Router) {
-			r.With(authorize.RequiresPermission(permissions.ActivitiesRead)).Get("/", rs.listTimeframes)
-			r.With(authorize.RequiresPermission(permissions.ActivitiesRead)).Get("/{id}", rs.getTimeframe)
-			r.With(authorize.RequiresPermission(permissions.ActivitiesCreate)).Post("/", rs.createTimeframe)
-			r.With(authorize.RequiresPermission(permissions.ActivitiesUpdate)).Put("/{id}", rs.updateTimeframe)
-			r.With(authorize.RequiresPermission(permissions.ActivitiesDelete)).Delete("/{id}", rs.deleteTimeframe)
+			r.With(authorize.RequiresPermission(permissions.ActivitiesRead), withTx).Get("/", rs.listTimeframes)
+			r.With(authorize.RequiresPermission(permissions.ActivitiesRead), withTx).Get("/{id}", rs.getTimeframe)
+			r.With(authorize.RequiresPermission(permissions.ActivitiesCreate), withTx).Post("/", rs.createTimeframe)
+			r.With(authorize.RequiresPermission(permissions.ActivitiesUpdate), withTx).Put("/{id}", rs.updateTimeframe)
+			r.With(authorize.RequiresPermission(permissions.ActivitiesDelete), withTx).Delete("/{id}", rs.deleteTimeframe)
 
 			// Special timeframe queries
-			r.With(authorize.RequiresPermission(permissions.ActivitiesRead)).Get("/active", rs.getActiveTimeframes)
-			r.With(authorize.RequiresPermission(permissions.ActivitiesRead)).Get("/by-range", rs.getTimeframesByRange)
+			r.With(authorize.RequiresPermission(permissions.ActivitiesRead), withTx).Get("/active", rs.getActiveTimeframes)
+			r.With(authorize.RequiresPermission(permissions.ActivitiesRead), withTx).Get("/by-range", rs.getTimeframesByRange)
 		})
 
 		// Recurrence rule endpoints
 		r.Route("/recurrence-rules", func(r chi.Router) {
-			r.With(authorize.RequiresPermission(permissions.ActivitiesRead)).Get("/", rs.listRecurrenceRules)
-			r.With(authorize.RequiresPermission(permissions.ActivitiesRead)).Get("/{id}", rs.getRecurrenceRule)
-			r.With(authorize.RequiresPermission(permissions.ActivitiesCreate)).Post("/", rs.createRecurrenceRule)
-			r.With(authorize.RequiresPermission(permissions.ActivitiesUpdate)).Put("/{id}", rs.updateRecurrenceRule)
-			r.With(authorize.RequiresPermission(permissions.ActivitiesDelete)).Delete("/{id}", rs.deleteRecurrenceRule)
+			r.With(authorize.RequiresPermission(permissions.ActivitiesRead), withTx).Get("/", rs.listRecurrenceRules)
+			r.With(authorize.RequiresPermission(permissions.ActivitiesRead), withTx).Get("/{id}", rs.getRecurrenceRule)
+			r.With(authorize.RequiresPermission(permissions.ActivitiesCreate), withTx).Post("/", rs.createRecurrenceRule)
+			r.With(authorize.RequiresPermission(permissions.ActivitiesUpdate), withTx).Put("/{id}", rs.updateRecurrenceRule)
+			r.With(authorize.RequiresPermission(permissions.ActivitiesDelete), withTx).Delete("/{id}", rs.deleteRecurrenceRule)
 
 			// Special recurrence rule queries and operations
-			r.With(authorize.RequiresPermission(permissions.ActivitiesRead)).Get("/by-frequency", rs.getRecurrenceRulesByFrequency)
-			r.With(authorize.RequiresPermission(permissions.ActivitiesRead)).Get("/by-weekday", rs.getRecurrenceRulesByWeekday)
-			r.With(authorize.RequiresPermission(permissions.ActivitiesRead)).Post("/{id}/generate-events", rs.generateEvents)
+			r.With(authorize.RequiresPermission(permissions.ActivitiesRead), withTx).Get("/by-frequency", rs.getRecurrenceRulesByFrequency)
+			r.With(authorize.RequiresPermission(permissions.ActivitiesRead), withTx).Get("/by-weekday", rs.getRecurrenceRulesByWeekday)
+			r.With(authorize.RequiresPermission(permissions.ActivitiesRead), withTx).Post("/{id}/generate-events", rs.generateEvents)
 		})
 
 		// Advanced scheduling operations
-		r.With(authorize.RequiresPermission(permissions.ActivitiesRead)).Post("/check-conflict", rs.checkConflict)
-		r.With(authorize.RequiresPermission(permissions.ActivitiesRead)).Post("/find-available-slots", rs.findAvailableSlots)
+		r.With(authorize.RequiresPermission(permissions.ActivitiesRead), withTx).Post("/check-conflict", rs.checkConflict)
+		r.With(authorize.RequiresPermission(permissions.ActivitiesRead), withTx).Post("/find-available-slots", rs.findAvailableSlots)
 	})
 
 	return r

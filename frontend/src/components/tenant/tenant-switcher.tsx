@@ -1,0 +1,183 @@
+"use client";
+
+import { useState, useEffect, useRef, useCallback } from "react";
+import { signIn } from "next-auth/react";
+import { mutate } from "~/lib/swr";
+import { clearSessionCache } from "~/lib/session-cache";
+import {
+  listAvailableTenants,
+  switchTenant,
+  type TenantInfo,
+} from "~/lib/tenant-api";
+import { useTenantSlugSafe } from "~/components/tenant/tenant-provider";
+import { createLogger } from "~/lib/logger";
+import { env } from "~/env";
+
+const logger = createLogger({ component: "TenantSwitcher" });
+
+/**
+ * Dropdown component that lets users switch between tenants they have access to.
+ * Only renders when the user has more than one available tenant.
+ *
+ * Switch flow (per spec 04-frontend.md):
+ * 1. Call switchTenant(slug) to get new JWT tokens
+ * 2. Update NextAuth session via signIn("credentials", { internalRefresh: true })
+ * 3. Clear SWR cache to prevent stale cross-tenant data
+ * 4. Clear session cache for fresh token resolution
+ * 5. Hard-navigate to new tenant URL
+ */
+export function TenantSwitcher() {
+  const [tenants, setTenants] = useState<TenantInfo[]>([]);
+  const [isOpen, setIsOpen] = useState(false);
+  const [isSwitching, setIsSwitching] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const currentSlug = useTenantSlugSafe();
+
+  // Fetch available tenants on mount
+  useEffect(() => {
+    listAvailableTenants()
+      .then(setTenants)
+      .catch((err: unknown) => {
+        logger.error("list_tenants_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+      });
+  }, []);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(e.target as Node)
+      ) {
+        setIsOpen(false);
+      }
+    }
+    if (isOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [isOpen]);
+
+  const handleSwitch = useCallback(
+    async (targetTenant: TenantInfo) => {
+      if (isSwitching) return;
+      setIsSwitching(true);
+      setIsOpen(false);
+
+      try {
+        // 1. Get new tokens for the target tenant
+        const tokens = await switchTenant(targetTenant.slug);
+
+        // 2. Update NextAuth session with the new tokens
+        await signIn("credentials", {
+          redirect: false,
+          internalRefresh: true,
+          token: tokens.access_token,
+          refreshToken: tokens.refresh_token,
+        });
+
+        // 3. Clear SWR cache to prevent stale cross-tenant data
+        await mutate(() => true, undefined, { revalidate: false });
+
+        // 4. Clear session cache for fresh token resolution
+        clearSessionCache();
+
+        logger.info("tenant_switched", {
+          from_slug: currentSlug ?? "unknown",
+          to_slug: targetTenant.slug,
+        });
+
+        // 5. Hard-navigate to the new tenant URL
+        const tenantDomain = env.NEXT_PUBLIC_TENANT_DOMAIN;
+        if (tenantDomain && tenantDomain !== "localhost") {
+          // Production: subdomain-based routing
+          window.location.href = `https://${targetTenant.subdomain}.${tenantDomain}/dashboard`;
+        } else {
+          // Development: path-based routing
+          window.location.href = `/${targetTenant.slug}/dashboard`;
+        }
+      } catch (err) {
+        logger.error("tenant_switch_failed", {
+          error: err instanceof Error ? err.message : String(err),
+          target_slug: targetTenant.slug,
+        });
+        setIsSwitching(false);
+      }
+    },
+    [isSwitching, currentSlug],
+  );
+
+  // Only render when user has multiple tenants
+  if (tenants.length <= 1) {
+    return null;
+  }
+
+  const currentTenant = tenants.find((t) => t.slug === currentSlug);
+  const otherTenants = tenants.filter((t) => t.slug !== currentSlug);
+
+  // Group other tenants by organization
+  const grouped = new Map<string, TenantInfo[]>();
+  for (const t of otherTenants) {
+    const orgName = t.organizationName || "Andere";
+    const existing = grouped.get(orgName) ?? [];
+    existing.push(t);
+    grouped.set(orgName, existing);
+  }
+
+  return (
+    <div ref={dropdownRef} className="relative">
+      {/* Trigger button */}
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        disabled={isSwitching}
+        className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100 disabled:opacity-50"
+      >
+        <span className="max-w-[140px] truncate">
+          {currentTenant?.name ?? currentSlug}
+        </span>
+        <svg
+          className={`h-4 w-4 shrink-0 text-gray-400 transition-transform ${isOpen ? "rotate-180" : ""}`}
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M19 9l-7 7-7-7"
+          />
+        </svg>
+      </button>
+
+      {/* Dropdown menu */}
+      {isOpen && (
+        <div className="absolute right-0 z-50 mt-1 w-64 rounded-lg border border-gray-200 bg-white py-1 shadow-lg">
+          {[...grouped.entries()].map(([orgName, orgTenants]) => (
+            <div key={orgName}>
+              {grouped.size > 1 && (
+                <div className="px-3 py-1.5 text-xs font-semibold tracking-wider text-gray-400 uppercase">
+                  {orgName}
+                </div>
+              )}
+              {orgTenants.map((t) => (
+                <button
+                  key={t.tenantId}
+                  type="button"
+                  onClick={() => void handleSwitch(t)}
+                  disabled={isSwitching}
+                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                >
+                  <span className="truncate">{t.name}</span>
+                </button>
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}

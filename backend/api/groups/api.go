@@ -84,20 +84,20 @@ func (rs *Resource) Router() chi.Router {
 		r.Use(tokenAuth.Verifier())
 		r.Use(jwt.Authenticator)
 		r.Use(jwt.TenantMiddleware)
-		r.Use(tenant.TenantTxMiddleware(rs.db))
+		withTx := tenant.TenantTxMiddleware(rs.db)
 
 		// Read operations only require groups:read permission
-		r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/", rs.listGroups)
-		r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/{id}", rs.getGroup)
-		r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/{id}/students", rs.getGroupStudents)
-		r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/{id}/supervisors", rs.getGroupSupervisors)
-		r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/{id}/students/room-status", rs.getGroupStudentsRoomStatus)
-		r.With(authorize.RequiresPermission(permissions.GroupsRead)).Get("/{id}/substitutions", rs.getGroupSubstitutions)
+		r.With(authorize.RequiresPermission(permissions.GroupsRead), withTx).Get("/", rs.listGroups)
+		r.With(authorize.RequiresPermission(permissions.GroupsRead), withTx).Get("/{id}", rs.getGroup)
+		r.With(authorize.RequiresPermission(permissions.GroupsRead), withTx).Get("/{id}/students", rs.getGroupStudents)
+		r.With(authorize.RequiresPermission(permissions.GroupsRead), withTx).Get("/{id}/supervisors", rs.getGroupSupervisors)
+		r.With(authorize.RequiresPermission(permissions.GroupsRead), withTx).Get("/{id}/students/room-status", rs.getGroupStudentsRoomStatus)
+		r.With(authorize.RequiresPermission(permissions.GroupsRead), withTx).Get("/{id}/substitutions", rs.getGroupSubstitutions)
 
 		// Write operations require groups:create, groups:update, or groups:delete permission
-		r.With(authorize.RequiresPermission(permissions.GroupsCreate)).Post("/", rs.createGroup)
-		r.With(authorize.RequiresPermission(permissions.GroupsUpdate)).Put("/{id}", rs.updateGroup)
-		r.With(authorize.RequiresPermission(permissions.GroupsDelete)).Delete("/{id}", rs.deleteGroup)
+		r.With(authorize.RequiresPermission(permissions.GroupsCreate), withTx).Post("/", rs.createGroup)
+		r.With(authorize.RequiresPermission(permissions.GroupsUpdate), withTx).Put("/{id}", rs.updateGroup)
+		r.With(authorize.RequiresPermission(permissions.GroupsDelete), withTx).Delete("/{id}", rs.deleteGroup)
 
 		// Group transfer operations - Self-service feature for group leaders
 		//
@@ -115,6 +115,7 @@ func (rs *Resource) Router() chi.Router {
 		// - Transfers: regular_staff_id IS NULL (additional access)
 		// - Substitutions: regular_staff_id IS NOT NULL (person replacement)
 		r.Route("/{id}/transfer", func(r chi.Router) {
+			r.Use(withTx)
 			r.Post("/", rs.transferGroup)
 			r.Delete("/{substitutionId}", rs.cancelSpecificTransfer)
 		})

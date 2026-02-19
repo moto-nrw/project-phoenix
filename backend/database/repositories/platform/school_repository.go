@@ -77,3 +77,22 @@ func (r *SchoolRepository) ListActive(ctx context.Context) ([]platform.School, e
 	}
 	return schools, nil
 }
+
+// FindActiveByAccountID returns all active schools the given account has access to.
+func (r *SchoolRepository) FindActiveByAccountID(ctx context.Context, accountID int64) ([]platform.School, error) {
+	var schools []platform.School
+	err := base.GetDB(ctx, r.db).NewSelect().
+		Model(&schools).
+		ModelTableExpr(schoolTableAlias).
+		Relation("Organization").
+		Join(`INNER JOIN auth.account_tenants AS "at" ON "at".tenant_id = "school".id`).
+		Where(`"at".account_id = ?`, accountID).
+		Where(`"at".status = ?`, "active").
+		Where(`"school".active = true`).
+		OrderExpr(`"school".name ASC`).
+		Scan(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return schools, nil
+}

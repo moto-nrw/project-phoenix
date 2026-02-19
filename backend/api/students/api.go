@@ -91,43 +91,43 @@ func (rs *Resource) Router() chi.Router {
 		r.Use(tokenAuth.Verifier())
 		r.Use(jwt.Authenticator)
 		r.Use(jwt.TenantMiddleware)
-		r.Use(tenant.TenantTxMiddleware(rs.db))
+		withTx := tenant.TenantTxMiddleware(rs.db)
 
 		// Routes requiring users:read permission
-		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/", rs.listStudents)
-		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/{id}", rs.getStudent)
-		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/{id}/in-group-room", rs.getStudentInGroupRoom)
-		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/{id}/current-location", rs.getStudentCurrentLocation)
-		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/{id}/current-visit", rs.getStudentCurrentVisit)
-		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/{id}/visit-history", rs.getStudentVisitHistory)
+		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/", rs.listStudents)
+		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}", rs.getStudent)
+		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/in-group-room", rs.getStudentInGroupRoom)
+		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/current-location", rs.getStudentCurrentLocation)
+		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/current-visit", rs.getStudentCurrentVisit)
+		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/visit-history", rs.getStudentVisitHistory)
 
 		// Routes requiring users:create permission
-		r.With(authorize.RequiresPermission(permissions.UsersCreate)).Post("/", rs.createStudent)
+		r.With(authorize.RequiresPermission(permissions.UsersCreate), withTx).Post("/", rs.createStudent)
 
 		// Routes requiring users:update permission
-		r.With(authorize.RequiresPermission(permissions.UsersUpdate)).Put("/{id}", rs.updateStudent)
+		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Put("/{id}", rs.updateStudent)
 
 		// Routes requiring users:delete permission
-		r.With(authorize.RequiresPermission(permissions.UsersDelete)).Delete("/{id}", rs.deleteStudent)
+		r.With(authorize.RequiresPermission(permissions.UsersDelete), withTx).Delete("/{id}", rs.deleteStudent)
 
 		// Privacy consent routes
-		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/{id}/privacy-consent", rs.getStudentPrivacyConsent)
-		r.With(authorize.RequiresPermission(permissions.UsersUpdate)).Put("/{id}/privacy-consent", rs.updateStudentPrivacyConsent)
+		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/privacy-consent", rs.getStudentPrivacyConsent)
+		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Put("/{id}/privacy-consent", rs.updateStudentPrivacyConsent)
 
 		// Pickup schedule routes (full access required - checked in handlers)
-		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/{id}/pickup-schedules", rs.getStudentPickupSchedules)
-		r.With(authorize.RequiresPermission(permissions.UsersUpdate)).Put("/{id}/pickup-schedules", rs.updateStudentPickupSchedules)
-		r.With(authorize.RequiresPermission(permissions.UsersUpdate)).Post("/{id}/pickup-exceptions", rs.createStudentPickupException)
-		r.With(authorize.RequiresPermission(permissions.UsersUpdate)).Put("/{id}/pickup-exceptions/{exceptionId}", rs.updateStudentPickupException)
-		r.With(authorize.RequiresPermission(permissions.UsersUpdate)).Delete("/{id}/pickup-exceptions/{exceptionId}", rs.deleteStudentPickupException)
+		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/pickup-schedules", rs.getStudentPickupSchedules)
+		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Put("/{id}/pickup-schedules", rs.updateStudentPickupSchedules)
+		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Post("/{id}/pickup-exceptions", rs.createStudentPickupException)
+		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Put("/{id}/pickup-exceptions/{exceptionId}", rs.updateStudentPickupException)
+		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Delete("/{id}/pickup-exceptions/{exceptionId}", rs.deleteStudentPickupException)
 
 		// Pickup note routes (full access required - checked in handlers)
-		r.With(authorize.RequiresPermission(permissions.UsersUpdate)).Post("/{id}/pickup-notes", rs.createStudentPickupNote)
-		r.With(authorize.RequiresPermission(permissions.UsersUpdate)).Put("/{id}/pickup-notes/{noteId}", rs.updateStudentPickupNote)
-		r.With(authorize.RequiresPermission(permissions.UsersUpdate)).Delete("/{id}/pickup-notes/{noteId}", rs.deleteStudentPickupNote)
+		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Post("/{id}/pickup-notes", rs.createStudentPickupNote)
+		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Put("/{id}/pickup-notes/{noteId}", rs.updateStudentPickupNote)
+		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Delete("/{id}/pickup-notes/{noteId}", rs.deleteStudentPickupNote)
 
 		// Bulk pickup times endpoint (returns pickup times for multiple students)
-		r.With(authorize.RequiresPermission(permissions.UsersRead)).Post("/pickup-times/bulk", rs.getBulkPickupTimes)
+		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Post("/pickup-times/bulk", rs.getBulkPickupTimes)
 	})
 
 	// Device-authenticated routes for RFID devices

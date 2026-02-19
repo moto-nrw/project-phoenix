@@ -218,6 +218,11 @@ func NewMultipartRequest(t *testing.T, method, target string, fieldName, fileNam
 // NewTenantRouter creates a chi.Router pre-configured with TenantTxMiddleware.
 // Use this in integration tests instead of chi.NewRouter() to match production
 // middleware behavior (RLS enforcement via SET LOCAL ROLE + set_config).
+//
+// NOTE: Production routers apply TenantTxMiddleware per-route (via .With(withTx))
+// so that permission checks reject unauthorized requests before a DB transaction
+// is opened. Tests keep group-level r.Use() for simplicity since test helpers
+// control their own request context and don't have the same connection-waste concern.
 func NewTenantRouter(db *bun.DB) chi.Router {
 	router := chi.NewRouter()
 	router.Use(render.SetContentType(render.ContentTypeJSON))
