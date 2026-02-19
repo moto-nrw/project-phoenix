@@ -100,4 +100,38 @@ describe("POST /api/operator/refresh", () => {
     const json = (await response.json()) as { error?: string };
     expect(json.error).toBe("Token refresh failed");
   });
+
+  it("returns expiresAt from access token JWT", async () => {
+    const exp = 1700000000;
+    const header = Buffer.from(
+      JSON.stringify({ alg: "HS256", typ: "JWT" }),
+    ).toString("base64url");
+    const payload = Buffer.from(JSON.stringify({ sub: "op-1", exp })).toString(
+      "base64url",
+    );
+    const fakeJwt = `${header}.${payload}.fake-sig`;
+
+    mockGetRefreshToken.mockResolvedValue("old-refresh-token");
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        status: "success",
+        data: {
+          access_token: fakeJwt,
+          refresh_token: "new-refresh-token",
+        },
+        message: "Token refreshed",
+      }),
+    });
+
+    const response = await POST();
+
+    expect(response.status).toBe(200);
+    const json = (await response.json()) as {
+      success?: boolean;
+      expiresAt?: number;
+    };
+    expect(json.success).toBe(true);
+    expect(json.expiresAt).toBe(exp * 1000);
+  });
 });

@@ -7,11 +7,15 @@ import React, {
   useState,
   useCallback,
   useMemo,
+  useRef,
 } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "OperatorAuthContext" });
+
+const CHECK_INTERVAL_MS = 30_000; // check every 30s
+const REFRESH_BUFFER_MS = 5 * 60 * 1000; // 5 min before expiry
 
 interface Operator {
   id: string;
@@ -41,6 +45,12 @@ interface LoginResponse {
     displayName: string;
     email: string;
   };
+  expiresAt?: number | null;
+}
+
+interface RefreshResponse {
+  success: boolean;
+  expiresAt?: number | null;
 }
 
 interface ErrorResponse {
@@ -60,6 +70,7 @@ export function OperatorAuthProvider({
   const pathname = usePathname();
   const [operator, setOperator] = useState<Operator | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const tokenExpiresAtRef = useRef<number | null>(null);
 
   // Check authentication status on mount
   useEffect(() => {
@@ -69,6 +80,8 @@ export function OperatorAuthProvider({
         if (response.ok) {
           const data = (await response.json()) as SessionResponse;
           setOperator(data);
+          // No expiry from /me — set conservative default to trigger refresh soon
+          tokenExpiresAtRef.current = Date.now() + 5 * 60 * 1000;
           return;
         }
 
@@ -78,6 +91,20 @@ export function OperatorAuthProvider({
             method: "POST",
           });
           if (refreshResponse.ok) {
+            // Capture expiresAt from refresh response
+            try {
+              if (typeof refreshResponse.json === "function") {
+                const refreshData =
+                  (await refreshResponse.json()) as RefreshResponse;
+                if (refreshData.expiresAt) {
+                  tokenExpiresAtRef.current = refreshData.expiresAt;
+                }
+              }
+            } catch {
+              // Fallback: use conservative default
+              tokenExpiresAtRef.current = Date.now() + 5 * 60 * 1000;
+            }
+
             // Refresh succeeded — retry the profile fetch with new token
             const retryResponse = await fetch("/api/operator/me");
             if (retryResponse.ok) {
@@ -102,13 +129,18 @@ export function OperatorAuthProvider({
     void checkAuth();
   }, []);
 
-  // Proactive token refresh: poll every 4 minutes while authenticated
+  // Expiry-aware proactive token refresh
   useEffect(() => {
     if (!operator) return;
 
-    const REFRESH_INTERVAL_MS = 4 * 60 * 1000; // 4 minutes
-
     const refreshTokens = async () => {
+      const expiresAt = tokenExpiresAtRef.current;
+
+      // Only refresh when within the buffer window
+      if (expiresAt && Date.now() < expiresAt - REFRESH_BUFFER_MS) {
+        return;
+      }
+
       try {
         const response = await fetch("/api/operator/refresh", {
           method: "POST",
@@ -123,6 +155,20 @@ export function OperatorAuthProvider({
           if (response.status === 401 || response.status === 403) {
             setOperator(null);
           }
+          return;
+        }
+
+        // Update expiry from refresh response
+        try {
+          if (typeof response.json === "function") {
+            const data = (await response.json()) as RefreshResponse;
+            if (data.expiresAt) {
+              tokenExpiresAtRef.current = data.expiresAt;
+            }
+          }
+        } catch {
+          // Fallback: use conservative default
+          tokenExpiresAtRef.current = Date.now() + 5 * 60 * 1000;
         }
       } catch (error) {
         logger.error("operator_token_refresh_error", {
@@ -133,7 +179,7 @@ export function OperatorAuthProvider({
 
     const intervalId = setInterval(() => {
       void refreshTokens();
-    }, REFRESH_INTERVAL_MS);
+    }, CHECK_INTERVAL_MS);
 
     return () => clearInterval(intervalId);
   }, [operator]);
@@ -160,6 +206,9 @@ export function OperatorAuthProvider({
 
       const data = (await response.json()) as LoginResponse;
       setOperator(data.operator);
+      if (data.expiresAt) {
+        tokenExpiresAtRef.current = data.expiresAt;
+      }
       router.push("/operator/suggestions");
     },
     [router],
@@ -178,6 +227,7 @@ export function OperatorAuthProvider({
       });
     } finally {
       setOperator(null);
+      tokenExpiresAtRef.current = null;
       router.push("/operator/login");
     }
   }, [router]);

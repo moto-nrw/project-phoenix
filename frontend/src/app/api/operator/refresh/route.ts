@@ -3,6 +3,7 @@ import {
   getOperatorRefreshToken,
   setOperatorTokens,
 } from "~/lib/operator/cookies";
+import { extractJwtExpiry } from "~/lib/operator/jwt-utils";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "OperatorRefreshRoute" });
@@ -49,7 +50,12 @@ export async function POST() {
 
     await setOperatorTokens(data.access_token, data.refresh_token);
 
-    return NextResponse.json({ success: true });
+    const expiresAt = extractJwtExpiry(data.access_token);
+
+    return NextResponse.json({
+      success: true,
+      ...(expiresAt !== null && { expiresAt }),
+    });
   } catch (error) {
     logger.error("operator_refresh_error", {
       error: error instanceof Error ? error.message : String(error),

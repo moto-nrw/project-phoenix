@@ -631,5 +631,97 @@ describe("OperatorAuthProvider", () => {
       );
       expect(refreshCalls).toHaveLength(0);
     });
+
+    it("refreshes proactively when within expiry buffer window", async () => {
+      // Initial auth check succeeds
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          id: "1",
+          displayName: "Test",
+          email: "test@example.com",
+        }),
+      });
+
+      const { result } = renderHook(() => useOperatorAuth(), { wrapper });
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      await waitFor(() => {
+        expect(result.current.isAuthenticated).toBe(true);
+      });
+
+      // Mount sets conservative default (5 min from now), which is within
+      // the 5-min refresh buffer — so refresh should fire on first check
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: async () => ({ success: true, expiresAt: null }),
+      });
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(30_000);
+      });
+
+      const refreshCalls = mockFetch.mock.calls.filter(
+        (call) => call[0] === "/api/operator/refresh",
+      );
+      expect(refreshCalls.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it("does not refresh when token expiry is far in the future", async () => {
+      // Initial auth check succeeds
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          id: "1",
+          displayName: "Test",
+          email: "test@example.com",
+        }),
+      });
+
+      const { result } = renderHook(() => useOperatorAuth(), { wrapper });
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      await waitFor(() => {
+        expect(result.current.isAuthenticated).toBe(true);
+      });
+
+      mockFetch.mockClear();
+
+      // The conservative default is 5 min — but advance only 30s.
+      // Since 5 min minus 5 min buffer = fires immediately (Date.now() >= expiresAt - buffer).
+      // To test "far in the future", we need the token to have a long expiry.
+      // Unfortunately we can't set tokenExpiresAtRef from outside.
+      // Instead, we test that after a successful refresh returns a far-future expiry,
+      // the next check interval does NOT trigger another refresh.
+
+      // First refresh fires (within buffer of conservative default)
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          success: true,
+          expiresAt: Date.now() + 60 * 60 * 1000, // 1 hour from now
+        }),
+      });
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(30_000);
+      });
+
+      mockFetch.mockClear();
+
+      // Next interval: should NOT refresh since expiry is 1 hour away
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(30_000);
+      });
+
+      const refreshCalls = mockFetch.mock.calls.filter(
+        (call) => call[0] === "/api/operator/refresh",
+      );
+      expect(refreshCalls).toHaveLength(0);
+    });
   });
 });
