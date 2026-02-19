@@ -686,9 +686,16 @@ func (s *Service) ValidateToken(ctx context.Context, tokenString string) (*auth.
 		return nil, &AuthError{Op: "validate token", Err: ErrAccountInactive}
 	}
 
-	// Load roles and permissions if not already loaded
-	s.ensureAccountRolesLoaded(ctx, account)
-	s.ensureAccountPermissionsLoaded(ctx, account)
+	// Load roles and permissions scoped to the JWT's tenant (D13 revision:
+	// never load cross-tenant roles/permissions, even in secondary paths).
+	if appClaims.TenantID > 0 {
+		s.ensureAccountRolesLoadedForTenant(ctx, account, appClaims.TenantID)
+		permissions := s.loadAccountPermissionsForTenant(ctx, account.ID, appClaims.TenantID)
+		account.Permissions = permissions
+	} else {
+		s.ensureAccountRolesLoaded(ctx, account)
+		s.ensureAccountPermissionsLoaded(ctx, account)
+	}
 
 	return account, nil
 }
