@@ -45,30 +45,30 @@ func (rs *Resource) Router() chi.Router {
 		r.Use(tokenAuth.Verifier())
 		r.Use(jwt.Authenticator)
 		r.Use(jwt.TenantMiddleware)
-		r.Use(tenant.TenantTxMiddleware(rs.db))
+		withTx := tenant.TenantTxMiddleware(rs.db)
 
 		// List and read
-		r.With(authorize.RequiresPermission(permissions.SuggestionsList)).Get("/", rs.listPosts)
-		r.With(authorize.RequiresPermission(permissions.SuggestionsList)).Get("/unread-count", rs.getUnreadCount)
-		r.With(authorize.RequiresPermission(permissions.SuggestionsRead)).Get("/{id}", rs.getPost)
+		r.With(authorize.RequiresPermission(permissions.SuggestionsList), withTx).Get("/", rs.listPosts)
+		r.With(authorize.RequiresPermission(permissions.SuggestionsList), withTx).Get("/unread-count", rs.getUnreadCount)
+		r.With(authorize.RequiresPermission(permissions.SuggestionsRead), withTx).Get("/{id}", rs.getPost)
 
 		// Create
-		r.With(authorize.RequiresPermission(permissions.SuggestionsCreate)).Post("/", rs.createPost)
+		r.With(authorize.RequiresPermission(permissions.SuggestionsCreate), withTx).Post("/", rs.createPost)
 
 		// Update and delete (ownership enforced in service layer)
-		r.With(authorize.RequiresPermission(permissions.SuggestionsUpdate)).Put("/{id}", rs.updatePost)
-		r.With(authorize.RequiresPermission(permissions.SuggestionsDelete)).Delete("/{id}", rs.deletePost)
+		r.With(authorize.RequiresPermission(permissions.SuggestionsUpdate), withTx).Put("/{id}", rs.updatePost)
+		r.With(authorize.RequiresPermission(permissions.SuggestionsDelete), withTx).Delete("/{id}", rs.deletePost)
 
 		// Voting
-		r.With(authorize.RequiresPermission(permissions.SuggestionsCreate)).Post("/{id}/vote", rs.vote)
-		r.With(authorize.RequiresPermission(permissions.SuggestionsCreate)).Delete("/{id}/vote", rs.removeVote)
+		r.With(authorize.RequiresPermission(permissions.SuggestionsCreate), withTx).Post("/{id}/vote", rs.vote)
+		r.With(authorize.RequiresPermission(permissions.SuggestionsCreate), withTx).Delete("/{id}/vote", rs.removeVote)
 
 		// Comments
 		r.Route("/{id}/comments", func(r chi.Router) {
-			r.With(authorize.RequiresPermission(permissions.SuggestionsRead)).Get("/", rs.listComments)
-			r.With(authorize.RequiresPermission(permissions.SuggestionsCreate)).Post("/", rs.createComment)
-			r.With(authorize.RequiresPermission(permissions.SuggestionsCreate)).Post("/read", rs.markCommentsRead)
-			r.With(authorize.RequiresPermission(permissions.SuggestionsDelete)).Delete("/{commentId}", rs.deleteComment)
+			r.With(authorize.RequiresPermission(permissions.SuggestionsRead), withTx).Get("/", rs.listComments)
+			r.With(authorize.RequiresPermission(permissions.SuggestionsCreate), withTx).Post("/", rs.createComment)
+			r.With(authorize.RequiresPermission(permissions.SuggestionsCreate), withTx).Post("/read", rs.markCommentsRead)
+			r.With(authorize.RequiresPermission(permissions.SuggestionsDelete), withTx).Delete("/{commentId}", rs.deleteComment)
 		})
 	})
 

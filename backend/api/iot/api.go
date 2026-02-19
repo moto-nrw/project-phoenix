@@ -106,12 +106,12 @@ func (rs *Resource) Router() chi.Router {
 		r.Use(tokenAuth.Verifier())
 		r.Use(jwt.Authenticator)
 		r.Use(jwt.TenantMiddleware)
-		r.Use(tenant.TenantTxMiddleware(rs.db))
+		withTx := tenant.TenantTxMiddleware(rs.db)
 
 		// Mount devices sub-router (handles device CRUD and admin operations)
 		// All device routes require JWT authentication with IOT permissions
 		devicesResource := devices.NewResource(rs.IoTService)
-		r.Mount("/", devicesResource.Router())
+		r.With(withTx).Mount("/", devicesResource.Router())
 	})
 
 	// Device-only authenticated routes (API key only, no PIN required)

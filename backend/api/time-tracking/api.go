@@ -55,32 +55,32 @@ func (rs *Resource) Router() chi.Router {
 		r.Use(tokenAuth.Verifier())
 		r.Use(jwt.Authenticator)
 		r.Use(jwt.TenantMiddleware)
-		r.Use(tenant.TenantTxMiddleware(rs.db))
+		withTx := tenant.TenantTxMiddleware(rs.db)
 
 		// All time-tracking endpoints require TimeTrackingOwn permission
-		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn)).Post("/check-in", rs.checkIn)
-		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn)).Post("/check-out", rs.checkOut)
-		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn)).Get("/current", rs.getCurrent)
-		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn)).Get("/history", rs.getHistory)
-		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn)).Put("/{id}", rs.updateSession)
-		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn)).Get("/{id}/edits", rs.getSessionEdits)
+		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn), withTx).Post("/check-in", rs.checkIn)
+		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn), withTx).Post("/check-out", rs.checkOut)
+		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn), withTx).Get("/current", rs.getCurrent)
+		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn), withTx).Get("/history", rs.getHistory)
+		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn), withTx).Put("/{id}", rs.updateSession)
+		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn), withTx).Get("/{id}/edits", rs.getSessionEdits)
 
 		// Break management
-		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn)).Post("/break/start", rs.startBreak)
-		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn)).Post("/break/end", rs.endBreak)
-		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn)).Get("/breaks/{sessionId}", rs.getBreaks)
+		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn), withTx).Post("/break/start", rs.startBreak)
+		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn), withTx).Post("/break/end", rs.endBreak)
+		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn), withTx).Get("/breaks/{sessionId}", rs.getBreaks)
 
 		// Export
-		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn)).Get("/export", rs.exportSessions)
+		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn), withTx).Get("/export", rs.exportSessions)
 
 		// Absence management
-		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn)).Get("/absences", rs.listAbsences)
-		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn)).Post("/absences", rs.createAbsence)
-		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn)).Put("/absences/{id}", rs.updateAbsence)
-		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn)).Delete("/absences/{id}", rs.deleteAbsence)
+		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn), withTx).Get("/absences", rs.listAbsences)
+		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn), withTx).Post("/absences", rs.createAbsence)
+		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn), withTx).Put("/absences/{id}", rs.updateAbsence)
+		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn), withTx).Delete("/absences/{id}", rs.deleteAbsence)
 
 		// Presence map - for internal use by staff page
-		r.With(authorize.RequiresPermission(permissions.UsersRead)).Get("/presence-map", rs.getPresenceMap)
+		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/presence-map", rs.getPresenceMap)
 	})
 
 	return r

@@ -64,30 +64,30 @@ func NewResource(service usercontext.UserContextService, substitutionRepo educat
 	r.router.Use(tokenAuth.Verifier())
 	r.router.Use(jwt.Authenticator)
 	r.router.Use(jwt.TenantMiddleware)
-	r.router.Use(tenant.TenantTxMiddleware(r.db))
+	withTx := tenant.TenantTxMiddleware(r.db)
 
 	// User profile endpoints
-	r.router.Get("/", r.getCurrentUser)
-	r.router.Get("/profile", r.getCurrentProfile)
-	r.router.Put("/profile", r.updateCurrentProfile)
-	r.router.Post("/profile/avatar", r.uploadAvatar)
-	r.router.Delete("/profile/avatar", r.deleteAvatar)
-	r.router.Get("/profile/avatar/{filename}", r.serveAvatar)
-	r.router.Get("/staff", r.getCurrentStaff)
-	r.router.Get("/teacher", r.getCurrentTeacher)
+	r.router.With(withTx).Get("/", r.getCurrentUser)
+	r.router.With(withTx).Get("/profile", r.getCurrentProfile)
+	r.router.With(withTx).Put("/profile", r.updateCurrentProfile)
+	r.router.With(withTx).Post("/profile/avatar", r.uploadAvatar)
+	r.router.With(withTx).Delete("/profile/avatar", r.deleteAvatar)
+	r.router.With(withTx).Get("/profile/avatar/{filename}", r.serveAvatar)
+	r.router.With(withTx).Get("/staff", r.getCurrentStaff)
+	r.router.With(withTx).Get("/teacher", r.getCurrentTeacher)
 
 	// Group endpoints - authenticated users can access their own groups
 	r.router.Route("/groups", func(router chi.Router) {
 		// No additional permissions needed - users can always access their own data
-		router.Get("/", r.getMyGroups)
-		router.Get("/activity", r.getMyActivityGroups)
-		router.Get("/active", r.getMyActiveGroups)
-		router.Get("/supervised", r.getMySupervisedGroups)
+		router.With(withTx).Get("/", r.getMyGroups)
+		router.With(withTx).Get("/activity", r.getMyActivityGroups)
+		router.With(withTx).Get("/active", r.getMyActiveGroups)
+		router.With(withTx).Get("/supervised", r.getMySupervisedGroups)
 
 		// Group details (requires group ID)
 		router.Route("/{groupID}", func(router chi.Router) {
-			router.Get("/students", r.getGroupStudents)
-			router.Get("/visits", r.getGroupVisits)
+			router.With(withTx).Get("/students", r.getGroupStudents)
+			router.With(withTx).Get("/visits", r.getGroupVisits)
 		})
 	})
 

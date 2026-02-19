@@ -65,42 +65,42 @@ func (rs *Resource) Router() chi.Router {
 		r.Use(tokenAuth.Verifier())
 		r.Use(jwt.Authenticator)
 		r.Use(jwt.TenantMiddleware)
-		r.Use(tenant.TenantTxMiddleware(rs.db))
+		withTx := tenant.TenantTxMiddleware(rs.db)
 
 		// Basic Activity Group operations (Read) - All authenticated users can read
-		r.Get("/", rs.listActivities)
-		r.Get("/{id}", rs.getActivity)
-		r.Get("/categories", rs.listCategories)
-		r.Get("/timespans", rs.getTimespans)
+		r.With(withTx).Get("/", rs.listActivities)
+		r.With(withTx).Get("/{id}", rs.getActivity)
+		r.With(withTx).Get("/categories", rs.listCategories)
+		r.With(withTx).Get("/timespans", rs.getTimespans)
 
 		// Basic Activity Group operations (Write) - All authenticated users can create/update/delete
-		r.Post("/", rs.createActivity)
-		r.Post("/quick-create", rs.quickCreateActivity)
-		r.Put("/{id}", rs.updateActivity)
-		r.Delete("/{id}", rs.deleteActivity)
+		r.With(withTx).Post("/", rs.createActivity)
+		r.With(withTx).Post("/quick-create", rs.quickCreateActivity)
+		r.With(withTx).Put("/{id}", rs.updateActivity)
+		r.With(withTx).Delete("/{id}", rs.deleteActivity)
 
 		// Schedule Management - All authenticated users can manage schedules
-		r.Get("/{id}/schedules", rs.getActivitySchedules)
-		r.Get(routeScheduleByID, rs.getActivitySchedule)
-		r.Get("/schedules/available", rs.getAvailableTimeSlots)
-		r.Post("/{id}/schedules", rs.createActivitySchedule)
-		r.Put(routeScheduleByID, rs.updateActivitySchedule)
-		r.Delete(routeScheduleByID, rs.deleteActivitySchedule)
+		r.With(withTx).Get("/{id}/schedules", rs.getActivitySchedules)
+		r.With(withTx).Get(routeScheduleByID, rs.getActivitySchedule)
+		r.With(withTx).Get("/schedules/available", rs.getAvailableTimeSlots)
+		r.With(withTx).Post("/{id}/schedules", rs.createActivitySchedule)
+		r.With(withTx).Put(routeScheduleByID, rs.updateActivitySchedule)
+		r.With(withTx).Delete(routeScheduleByID, rs.deleteActivitySchedule)
 
 		// Supervisor Assignment - All authenticated users can manage supervisors
-		r.Get("/{id}/supervisors", rs.getActivitySupervisors)
-		r.Get("/supervisors/available", rs.getAvailableSupervisors)
-		r.Post("/{id}/supervisors", rs.assignSupervisor)
-		r.Put("/{id}/supervisors/{supervisorId}", rs.updateSupervisorRole)
-		r.Delete("/{id}/supervisors/{supervisorId}", rs.removeSupervisor)
+		r.With(withTx).Get("/{id}/supervisors", rs.getActivitySupervisors)
+		r.With(withTx).Get("/supervisors/available", rs.getAvailableSupervisors)
+		r.With(withTx).Post("/{id}/supervisors", rs.assignSupervisor)
+		r.With(withTx).Put("/{id}/supervisors/{supervisorId}", rs.updateSupervisorRole)
+		r.With(withTx).Delete("/{id}/supervisors/{supervisorId}", rs.removeSupervisor)
 
 		// Student Enrollment - All authenticated users can manage enrollments
-		r.Get("/{id}/students", rs.getActivityStudents)
-		r.Get("/students/{studentId}", rs.getStudentEnrollments)
-		r.Get("/students/{studentId}/available", rs.getAvailableActivities)
-		r.Post("/{id}/students/{studentId}", rs.enrollStudent)
-		r.Delete("/{id}/students/{studentId}", rs.unenrollStudent)
-		r.Put("/{id}/students", rs.updateGroupEnrollments)
+		r.With(withTx).Get("/{id}/students", rs.getActivityStudents)
+		r.With(withTx).Get("/students/{studentId}", rs.getStudentEnrollments)
+		r.With(withTx).Get("/students/{studentId}/available", rs.getAvailableActivities)
+		r.With(withTx).Post("/{id}/students/{studentId}", rs.enrollStudent)
+		r.With(withTx).Delete("/{id}/students/{studentId}", rs.unenrollStudent)
+		r.With(withTx).Put("/{id}/students", rs.updateGroupEnrollments)
 	})
 
 	return r
