@@ -42,6 +42,10 @@ vi.mock("@/lib/help-content", () => ({
   getHelpContent: () => ({ title: "Help Title", content: "Help Content" }),
 }));
 
+vi.mock("~/components/tenant/tenant-switcher", () => ({
+  TenantSwitcher: () => <div data-testid="tenant-switcher">Tenant</div>,
+}));
+
 vi.mock("~/components/ui/logout-modal", () => ({
   LogoutModal: ({ isOpen }: { isOpen: boolean }) =>
     isOpen ? <div data-testid="logout-modal">Logout Modal</div> : null,
