@@ -12,20 +12,10 @@
 
 "use client";
 
-import { useContext } from "react";
 import useSWR, { type SWRConfiguration, type SWRResponse } from "swr";
 import { useSession } from "next-auth/react";
 import { swrConfig, immutableConfig } from "./config";
-import { TenantContext } from "~/components/tenant/tenant-provider";
-
-/**
- * Returns the current tenant slug from context, or null if outside a TenantProvider.
- * Uses useContext directly (instead of useTenant()) to avoid throwing on missing context.
- */
-function useTenantSlugSafe(): string | null {
-  const ctx = useContext(TenantContext);
-  return ctx?.tenantSlug ?? null;
-}
+import { useTenantSlugSafe } from "~/components/tenant/tenant-provider";
 
 /**
  * Prefix a cache key with the tenant slug for cross-tenant cache isolation.

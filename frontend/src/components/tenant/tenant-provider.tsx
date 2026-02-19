@@ -10,12 +10,7 @@ interface TenantContextValue {
   tenant: TenantInfo | null;
 }
 
-/**
- * Exported for direct useContext() access in hooks that need to be safe outside
- * a TenantProvider (e.g., SWR hooks used in both tenant and operator routes).
- * Prefer useTenant() for components that are always within [tenant] routes.
- */
-export const TenantContext = createContext<TenantContextValue | null>(null);
+const TenantContext = createContext<TenantContextValue | null>(null);
 
 /**
  * Provides tenant context to all child components within the [tenant] route segment.
@@ -49,4 +44,14 @@ export function useTenant(): TenantContextValue {
     );
   }
   return ctx;
+}
+
+/**
+ * Returns the current tenant slug, or null if outside a TenantProvider.
+ * Safe to call from any component — never throws. Used by SWR hooks to
+ * prefix cache keys for cross-tenant isolation without requiring a TenantProvider.
+ */
+export function useTenantSlugSafe(): string | null {
+  const ctx = useContext(TenantContext);
+  return ctx?.tenantSlug ?? null;
 }

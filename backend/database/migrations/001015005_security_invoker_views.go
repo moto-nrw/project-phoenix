@@ -26,8 +26,13 @@ func init() {
 			// Recreate expired_privacy_consents view with security_invoker = true.
 			// Without this, the view executes as its owner and bypasses RLS policies,
 			// exposing data from ALL tenants regardless of the current session's tenant_id.
+			//
+			// We must DROP first because pc.* now includes tenant_id (added by
+			// Phase 4 migrations), which changes the column list. CREATE OR REPLACE
+			// cannot alter existing column names/order.
 			_, err := db.ExecContext(ctx, `
-				CREATE OR REPLACE VIEW users.expired_privacy_consents
+				DROP VIEW IF EXISTS users.expired_privacy_consents;
+				CREATE VIEW users.expired_privacy_consents
 				WITH (security_invoker = true) AS
 				SELECT
 					pc.*,
@@ -53,7 +58,8 @@ func init() {
 
 			// Recreate view without security_invoker (back to default SECURITY DEFINER)
 			_, err := db.ExecContext(ctx, `
-				CREATE OR REPLACE VIEW users.expired_privacy_consents AS
+				DROP VIEW IF EXISTS users.expired_privacy_consents;
+				CREATE VIEW users.expired_privacy_consents AS
 				SELECT
 					pc.*,
 					s.person_id,
