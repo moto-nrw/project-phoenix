@@ -46,5 +46,5 @@ func (s *Service) SwitchTenant(ctx context.Context, accountID int64, tenantSlug 
 		slog.Int64("new_tenant_id", metadata.tenantID),
 	)
 
-	return s.generateAndLogTokens(ctx, account.ID, appClaims, refreshClaims, "", "", audit.EventTypeLogin)
+	return s.generateAndLogTokens(ctx, account.ID, appClaims, refreshClaims, "", "", audit.EventTypeTenantSwitch)
 }

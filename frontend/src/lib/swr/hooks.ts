@@ -1,21 +1,51 @@
 /**
- * Custom SWR Hooks with Authentication Integration
+ * Custom SWR Hooks with Authentication and Tenant Integration
  *
- * These hooks wrap SWR with NextAuth session awareness,
- * ensuring requests only fire when the user is authenticated.
+ * These hooks wrap SWR with NextAuth session awareness and tenant-scoped
+ * cache keys, ensuring requests only fire when the user is authenticated
+ * and cache is isolated per tenant.
+ *
+ * All hooks automatically prefix cache keys with the tenant slug when
+ * used inside a TenantProvider (e.g., `school-a:students-list`).
+ * Outside a TenantProvider (e.g., operator dashboard), keys are unchanged.
  */
 
 "use client";
 
+import { useContext } from "react";
 import useSWR, { type SWRConfiguration, type SWRResponse } from "swr";
 import { useSession } from "next-auth/react";
 import { swrConfig, immutableConfig } from "./config";
+import { TenantContext } from "~/components/tenant/tenant-provider";
 
 /**
- * SWR hook with authentication integration.
+ * Returns the current tenant slug from context, or null if outside a TenantProvider.
+ * Uses useContext directly (instead of useTenant()) to avoid throwing on missing context.
+ */
+function useTenantSlugSafe(): string | null {
+  const ctx = useContext(TenantContext);
+  return ctx?.tenantSlug ?? null;
+}
+
+/**
+ * Prefix a cache key with the tenant slug for cross-tenant cache isolation.
+ * Returns the key unchanged when no tenant context is available (e.g., operator dashboard).
+ */
+function tenantKey(
+  key: string | null,
+  tenantSlug: string | null,
+): string | null {
+  if (key === null) return null;
+  if (tenantSlug) return `${tenantSlug}:${key}`;
+  return key;
+}
+
+/**
+ * SWR hook with authentication and tenant cache isolation.
  *
  * Only fetches data when the user is authenticated (has a valid token).
- * Uses the existing service layer functions as fetchers.
+ * Cache keys are automatically prefixed with the tenant slug to prevent
+ * cross-tenant data leaks when switching tenants.
  *
  * @example
  * ```tsx
@@ -35,6 +65,7 @@ export function useSWRAuth<T, E = Error>(
   options?: SWRConfiguration<T, E>,
 ): SWRResponse<T, E> {
   const { data: session, status } = useSession();
+  const slug = useTenantSlugSafe();
 
   // Determine if we should fetch:
   // - key must be non-null
@@ -43,7 +74,7 @@ export function useSWRAuth<T, E = Error>(
   const shouldFetch =
     key !== null && status !== "loading" && !!session?.user?.token;
 
-  return useSWR<T, E>(shouldFetch ? key : null, fetcher, {
+  return useSWR<T, E>(shouldFetch ? tenantKey(key, slug) : null, fetcher, {
     ...swrConfig,
     ...options,
   });
@@ -77,7 +108,7 @@ export function useImmutableSWR<T, E = Error>(
  * SWR hook for data that depends on a parameter.
  *
  * Automatically generates a cache key that includes the parameter,
- * ensuring proper cache isolation per entity.
+ * ensuring proper cache isolation per entity and per tenant.
  *
  * @example
  * ```tsx
@@ -100,12 +131,13 @@ export function useSWRWithId<T, E = Error>(
   options?: SWRConfiguration<T, E>,
 ): SWRResponse<T, E> {
   const { data: session, status } = useSession();
+  const slug = useTenantSlugSafe();
 
   const shouldFetch =
     id != null && status !== "loading" && !!session?.user?.token;
 
   return useSWR<T, E>(
-    shouldFetch ? `${baseKey}-${id}` : null,
+    shouldFetch ? tenantKey(`${baseKey}-${id}`, slug) : null,
     () => fetcher(id!),
     {
       ...swrConfig,

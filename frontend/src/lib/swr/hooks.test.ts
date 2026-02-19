@@ -12,6 +12,18 @@ vi.mock("swr", () => ({
   default: vi.fn(),
 }));
 
+// Mock tenant provider — tests run outside a TenantProvider, so TenantContext returns null.
+vi.mock("~/components/tenant/tenant-provider", async () => {
+  const react = await import("react");
+  return {
+    TenantContext: react.createContext(null),
+    TenantProvider: ({ children }: { children: React.ReactNode }) => children,
+    useTenant: () => {
+      throw new Error("useTenant called outside TenantProvider");
+    },
+  };
+});
+
 // Import mocked modules
 import { useSession } from "next-auth/react";
 import useSWR from "swr";

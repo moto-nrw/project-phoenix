@@ -29,6 +29,7 @@ const (
 	EventTypeTokenExpired  = "token_expired"
 	EventTypePasswordReset = "password_reset"
 	EventTypeAccountLocked = "account_locked"
+	EventTypeTenantSwitch  = "tenant_switch"
 )
 
 // TableName returns the database table name
@@ -49,7 +50,8 @@ func (ae *AuthEvent) Validate() error {
 	// Validate event type
 	switch ae.EventType {
 	case EventTypeLogin, EventTypeLogout, EventTypeTokenRefresh,
-		EventTypeTokenExpired, EventTypePasswordReset, EventTypeAccountLocked:
+		EventTypeTokenExpired, EventTypePasswordReset, EventTypeAccountLocked,
+		EventTypeTenantSwitch:
 		// Valid types
 	default:
 		return errors.New("invalid event type")

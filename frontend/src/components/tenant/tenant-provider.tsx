@@ -10,7 +10,12 @@ interface TenantContextValue {
   tenant: TenantInfo | null;
 }
 
-const TenantContext = createContext<TenantContextValue | null>(null);
+/**
+ * Exported for direct useContext() access in hooks that need to be safe outside
+ * a TenantProvider (e.g., SWR hooks used in both tenant and operator routes).
+ * Prefer useTenant() for components that are always within [tenant] routes.
+ */
+export const TenantContext = createContext<TenantContextValue | null>(null);
 
 /**
  * Provides tenant context to all child components within the [tenant] route segment.
