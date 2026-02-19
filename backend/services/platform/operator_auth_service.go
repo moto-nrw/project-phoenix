@@ -19,6 +19,9 @@ type OperatorAuthService interface {
 	// Login authenticates an operator and returns JWT tokens
 	Login(ctx context.Context, email, password string, clientIP net.IP) (accessToken, refreshToken string, operator *platform.Operator, err error)
 
+	// RefreshToken validates the operator is still active and issues a new token pair
+	RefreshToken(ctx context.Context, operatorID int64) (accessToken, refreshToken string, err error)
+
 	// ValidateOperator validates an operator's credentials without generating tokens
 	ValidateOperator(ctx context.Context, email, password string) (*platform.Operator, error)
 
@@ -146,6 +149,45 @@ func (s *operatorAuthService) Login(ctx context.Context, email, password string,
 	}
 
 	return accessToken, refreshToken, operator, nil
+}
+
+// RefreshToken validates the operator is still active and issues a new JWT token pair.
+// No DB token table is involved — it verifies the operator exists and is active, then generates fresh tokens.
+func (s *operatorAuthService) RefreshToken(ctx context.Context, operatorID int64) (string, string, error) {
+	operator, err := s.operatorRepo.FindByID(ctx, operatorID)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to find operator: %w", err)
+	}
+	if operator == nil {
+		return "", "", &OperatorNotFoundError{OperatorID: operatorID}
+	}
+	if !operator.Active {
+		return "", "", &OperatorInactiveError{OperatorID: operatorID}
+	}
+
+	accessClaims := jwt.AppClaims{
+		ID:          int(operator.ID),
+		Sub:         fmt.Sprintf("operator:%d", operator.ID),
+		Username:    operator.Email,
+		FirstName:   operator.DisplayName,
+		LastName:    "",
+		Roles:       []string{"operator"},
+		Permissions: []string{},
+		IsAdmin:     false,
+		Scope:       "platform",
+	}
+
+	refreshClaims := jwt.RefreshClaims{
+		ID:    int(operator.ID),
+		Token: fmt.Sprintf("operator-refresh-%d", operator.ID),
+	}
+
+	accessToken, refreshToken, err := s.tokenAuth.GenTokenPair(accessClaims, refreshClaims)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to generate tokens: %w", err)
+	}
+
+	return accessToken, refreshToken, nil
 }
 
 // ValidateOperator validates an operator's credentials without generating tokens
