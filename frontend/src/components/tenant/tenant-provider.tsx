@@ -50,6 +50,7 @@ export function useTenant(): TenantContextValue {
  * Returns the current tenant slug, or null if outside a TenantProvider.
  * Safe to call from any component — never throws. Used by SWR hooks to
  * prefix cache keys for cross-tenant isolation without requiring a TenantProvider.
+ * @public
  */
 export function useTenantSlugSafe(): string | null {
   const ctx = useContext(TenantContext);

@@ -270,20 +270,6 @@ func (s *Service) ensureAccountRolesLoadedForTenant(ctx context.Context, account
 	}
 }
 
-// loadAccountPermissions retrieves permissions for the account.
-// Uses context-based tenant filtering (for authenticated requests).
-func (s *Service) loadAccountPermissions(ctx context.Context, accountID int64) []*auth.Permission {
-	permissions, err := s.getAccountPermissions(ctx, accountID)
-	if err != nil {
-		s.getLogger().Warn("failed to load permissions",
-			slog.Int64("account_id", accountID),
-			slog.Any("error", err),
-		)
-		return []*auth.Permission{}
-	}
-	return permissions
-}
-
 // loadAccountPermissionsForTenant retrieves permissions scoped to a specific tenant.
 // Used during login/switch flows where no tenant context exists yet (D13 §6.1 step 7).
 func (s *Service) loadAccountPermissionsForTenant(ctx context.Context, accountID int64, tenantID int64) []*auth.Permission {
