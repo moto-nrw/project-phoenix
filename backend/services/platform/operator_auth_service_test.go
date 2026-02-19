@@ -886,3 +886,114 @@ func TestOperatorAuthService_Login_AuditLogError(t *testing.T) {
 	assert.NotEmpty(t, refreshToken)
 	assert.NotNil(t, operator)
 }
+
+func TestOperatorAuthService_RefreshToken_Success(t *testing.T) {
+	oldSecret := viper.GetString("auth_jwt_secret")
+	viper.Set("auth_jwt_secret", "test-secret-key-for-jwt-tokens-that-is-long-enough")
+	defer viper.Set("auth_jwt_secret", oldSecret)
+
+	ctx := context.Background()
+	operatorRepo := &mockOperatorRepo{
+		findByIDFn: func(ctx context.Context, id int64) (*platform.Operator, error) {
+			return &platform.Operator{
+				Model: base.Model{
+					ID: 42,
+				},
+				Email:       "operator@example.com",
+				DisplayName: "Test Operator",
+				Active:      true,
+			}, nil
+		},
+	}
+	auditLogRepo := &mockAuditLogRepoShared{}
+
+	service, err := platformSvc.NewOperatorAuthService(platformSvc.OperatorAuthServiceConfig{
+		OperatorRepo: operatorRepo,
+		AuditLogRepo: auditLogRepo,
+		DB:           &bun.DB{},
+		Logger:       slog.Default(),
+	})
+	require.NoError(t, err)
+
+	accessToken, refreshToken, err := service.RefreshToken(ctx, 42)
+	require.NoError(t, err)
+	assert.NotEmpty(t, accessToken)
+	assert.NotEmpty(t, refreshToken)
+}
+
+func TestOperatorAuthService_RefreshToken_OperatorNotFound(t *testing.T) {
+	ctx := context.Background()
+	operatorRepo := &mockOperatorRepo{
+		findByIDFn: func(ctx context.Context, id int64) (*platform.Operator, error) {
+			return nil, nil
+		},
+	}
+	auditLogRepo := &mockAuditLogRepoShared{}
+
+	service, err := platformSvc.NewOperatorAuthService(platformSvc.OperatorAuthServiceConfig{
+		OperatorRepo: operatorRepo,
+		AuditLogRepo: auditLogRepo,
+		DB:           &bun.DB{},
+		Logger:       slog.Default(),
+	})
+	require.NoError(t, err)
+
+	_, _, err = service.RefreshToken(ctx, 999)
+	require.Error(t, err)
+	assert.IsType(t, &platformSvc.OperatorNotFoundError{}, err)
+}
+
+func TestOperatorAuthService_RefreshToken_InactiveOperator(t *testing.T) {
+	oldSecret := viper.GetString("auth_jwt_secret")
+	viper.Set("auth_jwt_secret", "test-secret-key-for-jwt-tokens-that-is-long-enough")
+	defer viper.Set("auth_jwt_secret", oldSecret)
+
+	ctx := context.Background()
+	operatorRepo := &mockOperatorRepo{
+		findByIDFn: func(ctx context.Context, id int64) (*platform.Operator, error) {
+			return &platform.Operator{
+				Model: base.Model{
+					ID: 1,
+				},
+				Email:       "operator@example.com",
+				DisplayName: "Inactive Operator",
+				Active:      false,
+			}, nil
+		},
+	}
+	auditLogRepo := &mockAuditLogRepoShared{}
+
+	service, err := platformSvc.NewOperatorAuthService(platformSvc.OperatorAuthServiceConfig{
+		OperatorRepo: operatorRepo,
+		AuditLogRepo: auditLogRepo,
+		DB:           &bun.DB{},
+		Logger:       slog.Default(),
+	})
+	require.NoError(t, err)
+
+	_, _, err = service.RefreshToken(ctx, 1)
+	require.Error(t, err)
+	assert.IsType(t, &platformSvc.OperatorInactiveError{}, err)
+}
+
+func TestOperatorAuthService_RefreshToken_RepositoryError(t *testing.T) {
+	ctx := context.Background()
+	operatorRepo := &mockOperatorRepo{
+		findByIDFn: func(ctx context.Context, id int64) (*platform.Operator, error) {
+			return nil, fmt.Errorf("database error")
+		},
+	}
+	auditLogRepo := &mockAuditLogRepoShared{}
+
+	service, err := platformSvc.NewOperatorAuthService(platformSvc.OperatorAuthServiceConfig{
+		OperatorRepo: operatorRepo,
+		AuditLogRepo: auditLogRepo,
+		DB:           &bun.DB{},
+		Logger:       slog.Default(),
+	})
+	require.NoError(t, err)
+
+	_, _, err = service.RefreshToken(ctx, 1)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to find operator")
+}

@@ -10,10 +10,12 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/go-chi/jwtauth/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api/operator"
+	jwtPkg "github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/models/platform"
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 )
@@ -21,6 +23,7 @@ import (
 // Mock OperatorAuthService
 type mockOperatorAuthService struct {
 	loginFn          func(ctx context.Context, email, password string, clientIP net.IP) (string, string, *platform.Operator, error)
+	refreshTokenFn   func(ctx context.Context, operatorID int64) (string, string, error)
 	getOperatorFn    func(ctx context.Context, id int64) (*platform.Operator, error)
 	updateProfileFn  func(ctx context.Context, operatorID int64, displayName string) (*platform.Operator, error)
 	changePasswordFn func(ctx context.Context, operatorID int64, currentPassword, newPassword string) error
@@ -33,7 +36,10 @@ func (m *mockOperatorAuthService) Login(ctx context.Context, email, password str
 	return "", "", nil, nil
 }
 
-func (m *mockOperatorAuthService) RefreshToken(_ context.Context, _ int64) (string, string, error) {
+func (m *mockOperatorAuthService) RefreshToken(ctx context.Context, operatorID int64) (string, string, error) {
+	if m.refreshTokenFn != nil {
+		return m.refreshTokenFn(ctx, operatorID)
+	}
 	return "", "", nil
 }
 
@@ -315,4 +321,104 @@ func TestLoginRequest_Bind(t *testing.T) {
 
 	err := loginReq.Bind(req)
 	assert.NoError(t, err)
+}
+
+func TestRefreshToken_Success(t *testing.T) {
+	mockService := &mockOperatorAuthService{
+		refreshTokenFn: func(ctx context.Context, operatorID int64) (string, string, error) {
+			assert.Equal(t, int64(42), operatorID)
+			return "new-access-token", "new-refresh-token", nil
+		},
+	}
+
+	resource := operator.NewAuthResource(mockService)
+
+	// Create a real token with claims
+	tokenAuth := jwtauth.New("HS256", []byte("test-secret"), nil)
+	_, tokenString, _ := tokenAuth.Encode(map[string]interface{}{
+		"id":    float64(42),
+		"token": "operator-refresh-42",
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/auth/refresh", nil)
+
+	// Set CtxRefreshToken in context
+	ctx := context.WithValue(req.Context(), jwtPkg.CtxRefreshToken, tokenString)
+
+	// Set jwtauth context with parsed token
+	token, _ := jwtauth.VerifyToken(tokenAuth, tokenString)
+	ctx = jwtauth.NewContext(ctx, token, nil)
+
+	req = req.WithContext(ctx)
+	rr := httptest.NewRecorder()
+
+	resource.RefreshToken(rr, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code)
+
+	var response map[string]interface{}
+	err := json.Unmarshal(rr.Body.Bytes(), &response)
+	require.NoError(t, err)
+	assert.Equal(t, "success", response["status"])
+	data := response["data"].(map[string]interface{})
+	assert.Equal(t, "new-access-token", data["access_token"])
+	assert.Equal(t, "new-refresh-token", data["refresh_token"])
+}
+
+func TestRefreshToken_MissingTokenContext(t *testing.T) {
+	mockService := &mockOperatorAuthService{}
+	resource := operator.NewAuthResource(mockService)
+
+	req := httptest.NewRequest(http.MethodPost, "/auth/refresh", nil)
+	rr := httptest.NewRecorder()
+
+	resource.RefreshToken(rr, req)
+
+	assert.Equal(t, http.StatusUnauthorized, rr.Code)
+	assert.Contains(t, rr.Body.String(), "Unauthorized")
+}
+
+func TestRefreshToken_InvalidClaims(t *testing.T) {
+	mockService := &mockOperatorAuthService{}
+	resource := operator.NewAuthResource(mockService)
+
+	req := httptest.NewRequest(http.MethodPost, "/auth/refresh", nil)
+	ctx := context.WithValue(req.Context(), jwtPkg.CtxRefreshToken, "some-token-string")
+	req = req.WithContext(ctx)
+	rr := httptest.NewRecorder()
+
+	resource.RefreshToken(rr, req)
+
+	assert.Equal(t, http.StatusUnauthorized, rr.Code)
+	assert.Contains(t, rr.Body.String(), "Unauthorized")
+}
+
+func TestRefreshToken_ServiceError(t *testing.T) {
+	mockService := &mockOperatorAuthService{
+		refreshTokenFn: func(ctx context.Context, operatorID int64) (string, string, error) {
+			return "", "", &platformSvc.OperatorInactiveError{}
+		},
+	}
+
+	resource := operator.NewAuthResource(mockService)
+
+	tokenAuth := jwtauth.New("HS256", []byte("test-secret"), nil)
+	_, tokenString, _ := tokenAuth.Encode(map[string]interface{}{
+		"id":    float64(42),
+		"token": "operator-refresh-42",
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/auth/refresh", nil)
+	ctx := context.WithValue(req.Context(), jwtPkg.CtxRefreshToken, tokenString)
+
+	token, _ := jwtauth.VerifyToken(tokenAuth, tokenString)
+	ctx = jwtauth.NewContext(ctx, token, nil)
+
+	req = req.WithContext(ctx)
+	rr := httptest.NewRecorder()
+
+	resource.RefreshToken(rr, req)
+
+	assert.Equal(t, http.StatusForbidden, rr.Code)
+	assert.Contains(t, rr.Body.String(), "Operator account is inactive")
 }
