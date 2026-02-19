@@ -100,10 +100,9 @@ export function OperatorAuthProvider({
           logger.warn("operator_token_refresh_failed", {
             status: response.status,
           });
-          // On 401 the refresh token itself is expired — force logout
-          if (response.status === 401) {
-            setOperator(null);
-          }
+          // Any non-200 means the refresh token is invalid, expired,
+          // or the operator was deactivated (403) — force logout
+          setOperator(null);
         }
       } catch (error) {
         logger.error("operator_token_refresh_error", {

@@ -3,6 +3,7 @@ package operator
 import (
 	"net"
 	"net/http"
+	"strings"
 
 	"github.com/go-chi/jwtauth/v5"
 	"github.com/go-chi/render"
@@ -91,9 +92,9 @@ type RefreshTokenResponse struct {
 
 // RefreshToken handles operator token refresh
 func (rs *AuthResource) RefreshToken(w http.ResponseWriter, r *http.Request) {
-	// Extract operator ID from the refresh token claims (set by AuthenticateRefreshJWT middleware)
-	tokenStr := r.Context().Value(jwtPkg.CtxRefreshToken)
-	if tokenStr == nil || tokenStr.(string) == "" {
+	// Extract refresh token string from context (set by AuthenticateRefreshJWT middleware)
+	tokenStr := jwtPkg.RefreshTokenFromCtx(r.Context())
+	if tokenStr == "" {
 		common.RenderError(w, r, ErrUnauthorized())
 		return
 	}
@@ -102,6 +103,12 @@ func (rs *AuthResource) RefreshToken(w http.ResponseWriter, r *http.Request) {
 	var claims jwtPkg.RefreshClaims
 	_, rawClaims, _ := jwtauth.FromContext(r.Context())
 	if err := claims.ParseClaims(rawClaims); err != nil {
+		common.RenderError(w, r, ErrUnauthorized())
+		return
+	}
+
+	// Verify this is an operator-scoped refresh token, not a tenant/user token
+	if !strings.HasPrefix(claims.Token, "operator-refresh-") {
 		common.RenderError(w, r, ErrUnauthorized())
 		return
 	}
