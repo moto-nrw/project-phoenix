@@ -18,97 +18,50 @@ import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "OperatorRouteWrapper" });
 
-// --- Singleflight dedup for concurrent refreshes (Fix 1) ---
-let activeRefreshPromise: Promise<string | null> | null = null;
-let refreshCache: { accessToken: string; expiresAt: number } | null = null;
-const REFRESH_CACHE_TTL_MS = 10_000;
-
-// --- Request queue for 401 handling (Fix 2) ---
-let isRefreshing = false;
-let lastRefreshedToken: string | null = null;
-let refreshSubscribers: {
-  resolve: (token: string) => void;
-  reject: (error: Error) => void;
-}[] = [];
-
-function onTokenRefreshed(token: string): void {
-  lastRefreshedToken = token;
-  refreshSubscribers.forEach((subscriber) => subscriber.resolve(token));
-  refreshSubscribers = [];
-}
-
-function onTokenRefreshFailed(error: Error): void {
-  refreshSubscribers.forEach((subscriber) => subscriber.reject(error));
-  refreshSubscribers = [];
-}
-
-/** @internal Reset module-level refresh state (test isolation only) */
-export function _resetRefreshState(): void {
-  activeRefreshPromise = null;
-  refreshCache = null;
-  isRefreshing = false;
-  lastRefreshedToken = null;
-  refreshSubscribers = [];
-}
-
+/**
+ * Attempt a token refresh using the current request's cookies.
+ *
+ * This is intentionally stateless — no module-level caching or queuing.
+ * Unlike the client-side user/admin flow (where module globals are scoped
+ * to a single browser tab), this code runs server-side in a shared Node.js
+ * process. Shared mutable state would leak one operator's refreshed token
+ * into another operator's retry, causing cross-user session bleed.
+ *
+ * With only 2-3 concurrent operators the backend can absorb duplicate
+ * refresh calls without issue.
+ */
 async function attemptTokenRefresh(): Promise<string | null> {
-  // Check cache first — a recent refresh may have already completed
-  if (refreshCache && Date.now() < refreshCache.expiresAt) {
-    return refreshCache.accessToken;
-  }
-
-  // Join in-flight refresh if one exists
-  if (activeRefreshPromise) {
-    return activeRefreshPromise;
-  }
-
-  // Start new refresh and share via module-level promise
-  activeRefreshPromise = (async (): Promise<string | null> => {
-    try {
-      const refreshToken = await getOperatorRefreshToken();
-      if (!refreshToken) return null;
-
-      const { getServerApiUrl } = await import("~/lib/server-api-url");
-      const url = `${getServerApiUrl()}/operator/auth/refresh`;
-
-      const response = await fetch(url, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${refreshToken}`,
-          "Content-Type": "application/json",
-        },
-      });
-
-      if (!response.ok) return null;
-
-      const envelope = (await response.json()) as {
-        data: { access_token: string; refresh_token: string };
-      };
-      await setOperatorTokens(
-        envelope.data.access_token,
-        envelope.data.refresh_token,
-      );
-      return envelope.data.access_token;
-    } catch (error) {
-      logger.warn("operator_transparent_refresh_failed", {
-        error: error instanceof Error ? error.message : String(error),
-      });
-      return null;
-    }
-  })();
-
   try {
-    const result = await activeRefreshPromise;
-    // Cache result for late arrivals
-    if (result) {
-      refreshCache = {
-        accessToken: result,
-        expiresAt: Date.now() + REFRESH_CACHE_TTL_MS,
-      };
-    }
-    return result;
-  } finally {
-    activeRefreshPromise = null;
+    const refreshToken = await getOperatorRefreshToken();
+    if (!refreshToken) return null;
+
+    const { getServerApiUrl } = await import("~/lib/server-api-url");
+    const url = `${getServerApiUrl()}/operator/auth/refresh`;
+
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${refreshToken}`,
+        "Content-Type": "application/json",
+      },
+      signal: AbortSignal.timeout(5_000),
+    });
+
+    if (!response.ok) return null;
+
+    const envelope = (await response.json()) as {
+      data: { access_token: string; refresh_token: string };
+    };
+    await setOperatorTokens(
+      envelope.data.access_token,
+      envelope.data.refresh_token,
+    );
+    return envelope.data.access_token;
+  } catch (error) {
+    logger.warn("operator_transparent_refresh_failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return null;
   }
 }
 
@@ -131,83 +84,23 @@ async function operatorServerFetch<T>(
 
   // On 401, attempt a transparent refresh and retry once
   if (response.status === 401) {
-    // Queue request if refresh is already in progress
-    if (isRefreshing) {
-      return new Promise<T>((resolve, reject) => {
-        refreshSubscribers.push({
-          resolve: (newToken: string) => {
-            fetch(url, {
-              method: options.method,
-              headers: {
-                Authorization: `Bearer ${newToken}`,
-                "Content-Type": "application/json",
-              },
-              body: options.body ? JSON.stringify(options.body) : undefined,
-            })
-              .then((retryResponse) => {
-                if (!retryResponse.ok) {
-                  retryResponse
-                    .text()
-                    .then((errorText) => {
-                      reject(
-                        new Error(
-                          `API error (${retryResponse.status}): ${errorText}`,
-                        ),
-                      );
-                    })
-                    .catch(reject);
-                  return;
-                }
-                resolve(parseResponse<T>(retryResponse));
-              })
-              .catch(reject);
-          },
-          reject: (error: Error) => {
-            reject(error);
-          },
-        });
+    const newToken = await attemptTokenRefresh();
+    if (newToken) {
+      const retryResponse = await fetch(url, {
+        method: options.method,
+        headers: {
+          Authorization: `Bearer ${newToken}`,
+          "Content-Type": "application/json",
+        },
+        body: options.body ? JSON.stringify(options.body) : undefined,
       });
-    }
 
-    isRefreshing = true;
-    lastRefreshedToken = null;
-
-    try {
-      const newToken = await attemptTokenRefresh();
-      if (newToken) {
-        onTokenRefreshed(newToken);
-
-        const retryResponse = await fetch(url, {
-          method: options.method,
-          headers: {
-            Authorization: `Bearer ${newToken}`,
-            "Content-Type": "application/json",
-          },
-          body: options.body ? JSON.stringify(options.body) : undefined,
-        });
-
-        if (!retryResponse.ok) {
-          const errorText = await retryResponse.text();
-          throw new Error(`API error (${retryResponse.status}): ${errorText}`);
-        }
-
-        return parseResponse<T>(retryResponse);
+      if (!retryResponse.ok) {
+        const errorText = await retryResponse.text();
+        throw new Error(`API error (${retryResponse.status}): ${errorText}`);
       }
 
-      onTokenRefreshFailed(
-        new Error(`API error (${response.status}): Unauthorized`),
-      );
-    } finally {
-      isRefreshing = false;
-      // Handle late arrivals queued after onTokenRefreshed but before finally
-      if (refreshSubscribers.length > 0) {
-        if (lastRefreshedToken) {
-          onTokenRefreshed(lastRefreshedToken);
-        } else {
-          onTokenRefreshFailed(new Error("Token refresh failed"));
-        }
-      }
-      lastRefreshedToken = null;
+      return parseResponse<T>(retryResponse);
     }
   }
 

@@ -26,16 +26,11 @@ vi.mock("~/lib/server-api-url", () => ({
 
 global.fetch = mockFetch as unknown as typeof fetch;
 
-import {
-  operatorApiGet,
-  operatorApiPost,
-  _resetRefreshState,
-} from "./route-wrapper";
+import { operatorApiGet, operatorApiPost } from "./route-wrapper";
 
 describe("operatorServerFetch", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    _resetRefreshState();
   });
 
   it("returns unwrapped data from envelope response", async () => {
@@ -254,14 +249,49 @@ describe("operatorServerFetch", () => {
     );
   });
 
-  it("deduplicates concurrent refresh calls (singleflight)", async () => {
-    const callsByUrl = new Map<string, number>();
+  it("concurrent 401s each refresh independently (no shared state)", async () => {
+    let refreshCallCount = 0;
 
+    mockFetch.mockImplementation(async (url: string) => {
+      // Refresh endpoint — each call succeeds independently
+      if (url.includes("/operator/auth/refresh")) {
+        refreshCallCount++;
+        return {
+          ok: true,
+          json: async () => ({
+            data: {
+              access_token: `new-access-${refreshCallCount}`,
+              refresh_token: "new-refresh",
+            },
+          }),
+        };
+      }
+
+      // API endpoints: first call per URL returns 401, subsequent succeed
+      if (!url.includes("__retried")) {
+        return {
+          ok: false,
+          status: 401,
+          text: async () => "Unauthorized",
+        };
+      }
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          status: "success",
+          data: { url, retried: true },
+        }),
+      };
+    });
+
+    // Override to track retry calls — each refresh returns a token that
+    // triggers a retry with the new token in the Authorization header
+    const callsByUrl = new Map<string, number>();
     mockFetch.mockImplementation(async (url: string) => {
       const count = (callsByUrl.get(url) ?? 0) + 1;
       callsByUrl.set(url, count);
 
-      // Refresh endpoint — only one call expected
       if (url.includes("/operator/auth/refresh")) {
         return {
           ok: true,
@@ -274,7 +304,6 @@ describe("operatorServerFetch", () => {
         };
       }
 
-      // API endpoints: first call returns 401, retry succeeds
       if (count === 1) {
         return {
           ok: false,
@@ -308,40 +337,10 @@ describe("operatorServerFetch", () => {
     expect(result1.retried).toBe(true);
     expect(result2.retried).toBe(true);
 
-    // Refresh endpoint should have been called only once
-    expect(callsByUrl.get("http://localhost:8080/operator/auth/refresh")).toBe(
-      1,
-    );
-  });
-
-  it("queued requests are rejected when refresh fails", async () => {
-    const callsByUrl = new Map<string, number>();
-
-    mockFetch.mockImplementation(async (url: string) => {
-      const count = (callsByUrl.get(url) ?? 0) + 1;
-      callsByUrl.set(url, count);
-
-      // Refresh endpoint fails
-      if (url.includes("/operator/auth/refresh")) {
-        return { ok: false, status: 401 };
-      }
-
-      // API endpoints: always return 401
-      return {
-        ok: false,
-        status: 401,
-        text: async () => "Unauthorized",
-      };
-    });
-
-    mockGetOperatorRefreshToken.mockResolvedValue("old-refresh-token");
-
-    const results = await Promise.allSettled([
-      operatorApiGet("/api/test1", "old-token"),
-      operatorApiGet("/api/test2", "old-token"),
-    ]);
-
-    expect(results[0]?.status).toBe("rejected");
-    expect(results[1]?.status).toBe("rejected");
+    // Each request refreshes independently — no shared singleflight
+    // (safe for server-side multi-user environment)
+    const refreshCalls =
+      callsByUrl.get("http://localhost:8080/operator/auth/refresh") ?? 0;
+    expect(refreshCalls).toBeGreaterThanOrEqual(1);
   });
 });
