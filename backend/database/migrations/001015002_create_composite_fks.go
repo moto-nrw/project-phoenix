@@ -89,6 +89,12 @@ var compositeFKSpecs = []compositeFKSpec{
 		newFKName: "fk_pickup_schedules_created_by_tenant", onDelete: ""},
 	{sourceTable: "schedule.student_pickup_exceptions", sourceColumn: "created_by", targetTable: "users.staff",
 		newFKName: "fk_pickup_exceptions_created_by_tenant", onDelete: ""},
+	{sourceTable: "active.scheduled_checkouts", sourceColumn: "scheduled_by", targetTable: "users.staff",
+		newFKName: "fk_scheduled_checkouts_scheduled_by_tenant", onDelete: "RESTRICT"},
+	{sourceTable: "active.scheduled_checkouts", sourceColumn: "cancelled_by", targetTable: "users.staff",
+		newFKName: "fk_scheduled_checkouts_cancelled_by_tenant", onDelete: "SET NULL"},
+	{sourceTable: "schedule.student_pickup_notes", sourceColumn: "created_by", targetTable: "users.staff",
+		newFKName: "fk_pickup_notes_created_by_tenant", onDelete: ""},
 
 	// ─── FKs TO users.students ───
 	{sourceTable: "users.students_guardians", sourceColumn: "student_id", targetTable: "users.students",

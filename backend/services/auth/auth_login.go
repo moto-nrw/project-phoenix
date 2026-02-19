@@ -182,6 +182,7 @@ type accountMetadata struct {
 	isAdmin        bool
 	tenantID       int64
 	orgID          int64
+	scope          string
 }
 
 // loadAccountMetadata loads roles, permissions, person information, and tenant mapping.
@@ -189,20 +190,27 @@ type accountMetadata struct {
 // Returns partial data with logged warnings if any lookups fail.
 // Returns an error only when tenantSlug is provided but resolution fails (tenant not found
 // or account not mapped to that tenant).
+//
+// D13 revision: tenant is resolved FIRST so that roles and permissions can be scoped to
+// the resolved tenant, preventing cross-tenant privilege leakage in JWT tokens.
 func (s *Service) loadAccountMetadata(ctx context.Context, account *auth.Account, tenantSlug string) (*accountMetadata, error) {
-	s.ensureAccountRolesLoaded(ctx, account)
+	// Step 1: Resolve tenant FIRST — roles/permissions depend on the target tenant.
+	tenantID, orgID, err := s.resolveAccountTenant(ctx, account.ID, tenantSlug)
+	if err != nil {
+		return nil, err
+	}
 
-	permissions := s.loadAccountPermissions(ctx, account.ID)
+	// Step 2: Load roles scoped to the resolved tenant (D13 §6.1 step 6).
+	s.ensureAccountRolesLoadedForTenant(ctx, account, tenantID)
+
+	// Step 3: Load permissions scoped to the resolved tenant (D13 §6.1 step 7).
+	permissions := s.loadAccountPermissionsForTenant(ctx, account.ID, tenantID)
 	roleNames := s.extractRoleNames(account.Roles)
 	permissionStrs := s.extractPermissionNames(permissions)
 
 	username := s.extractUsername(account)
 	firstName, lastName := s.loadPersonNames(ctx, account.ID)
 	isAdmin := s.checkRoleFlags(roleNames)
-	tenantID, orgID, err := s.resolveAccountTenant(ctx, account.ID, tenantSlug)
-	if err != nil {
-		return nil, err
-	}
 
 	return &accountMetadata{
 		roleNames:      roleNames,
@@ -216,7 +224,8 @@ func (s *Service) loadAccountMetadata(ctx context.Context, account *auth.Account
 	}, nil
 }
 
-// ensureAccountRolesLoaded loads account roles if not already loaded
+// ensureAccountRolesLoaded loads account roles if not already loaded.
+// Uses context-based tenant filtering (for authenticated requests).
 func (s *Service) ensureAccountRolesLoaded(ctx context.Context, account *auth.Account) {
 	if len(account.Roles) > 0 {
 		return
@@ -238,12 +247,51 @@ func (s *Service) ensureAccountRolesLoaded(ctx context.Context, account *auth.Ac
 	}
 }
 
-// loadAccountPermissions retrieves permissions for the account
+// ensureAccountRolesLoadedForTenant loads account roles scoped to a specific tenant.
+// Used during login/switch flows where no tenant context exists yet (D13 §6.1 step 6).
+func (s *Service) ensureAccountRolesLoadedForTenant(ctx context.Context, account *auth.Account, tenantID int64) {
+	// Clear any previously loaded roles to ensure fresh tenant-scoped loading
+	account.Roles = nil
+
+	accountRoles, err := s.repos.AccountRole.FindByAccountIDForTenant(ctx, account.ID, tenantID)
+	if err != nil {
+		s.getLogger().Warn("failed to load tenant-scoped roles",
+			slog.Int64("account_id", account.ID),
+			slog.Int64("tenant_id", tenantID),
+			slog.Any("error", err),
+		)
+		return
+	}
+
+	for _, ar := range accountRoles {
+		if ar.Role != nil {
+			account.Roles = append(account.Roles, ar.Role)
+		}
+	}
+}
+
+// loadAccountPermissions retrieves permissions for the account.
+// Uses context-based tenant filtering (for authenticated requests).
 func (s *Service) loadAccountPermissions(ctx context.Context, accountID int64) []*auth.Permission {
 	permissions, err := s.getAccountPermissions(ctx, accountID)
 	if err != nil {
 		s.getLogger().Warn("failed to load permissions",
 			slog.Int64("account_id", accountID),
+			slog.Any("error", err),
+		)
+		return []*auth.Permission{}
+	}
+	return permissions
+}
+
+// loadAccountPermissionsForTenant retrieves permissions scoped to a specific tenant.
+// Used during login/switch flows where no tenant context exists yet (D13 §6.1 step 7).
+func (s *Service) loadAccountPermissionsForTenant(ctx context.Context, accountID int64, tenantID int64) []*auth.Permission {
+	permissions, err := s.repos.Permission.FindByAccountIDForTenant(ctx, accountID, tenantID)
+	if err != nil {
+		s.getLogger().Warn("failed to load tenant-scoped permissions",
+			slog.Int64("account_id", accountID),
+			slog.Int64("tenant_id", tenantID),
 			slog.Any("error", err),
 		)
 		return []*auth.Permission{}
@@ -328,7 +376,12 @@ func (s *Service) resolveAccountTenant(ctx context.Context, accountID int64, ten
 }
 
 // resolveAccountTenantBySlug resolves tenant by subdomain slug, then verifies
-// the account has an active mapping to that tenant.
+// the account has access to that tenant.
+//
+// Access check depends on the caller's scope (spec §6.3):
+//   - Normal scope (""): check account_tenants for explicit mapping
+//   - Org scope ("org"): check school.organization_id matches the caller's org_id
+//     (Träger-Büro auto-access to all schools in their organization)
 func (s *Service) resolveAccountTenantBySlug(ctx context.Context, accountID int64, tenantSlug string) (int64, int64, error) {
 	// Look up the school by subdomain
 	school, err := s.repos.School.FindBySubdomain(ctx, tenantSlug)
@@ -350,7 +403,25 @@ func (s *Service) resolveAccountTenantBySlug(ctx context.Context, accountID int6
 		return 0, 0, &AuthError{Op: "resolve tenant", Err: ErrTenantNotFound}
 	}
 
-	// Verify the account has an active mapping to this tenant
+	// Org-scope check (§6.3): Träger-Büro users access any school in their org
+	// without needing an explicit account_tenants entry.
+	callerScope := tenant.ScopeFromContext(ctx)
+	callerOrgID := tenant.OrgFromContext(ctx)
+
+	if callerScope == tenant.ScopeOrg && callerOrgID > 0 {
+		if school.OrganizationID == callerOrgID {
+			return school.ID, school.OrganizationID, nil
+		}
+		s.getLogger().Warn("org-scope account tried to access school outside their organization",
+			slog.Int64("account_id", accountID),
+			slog.Int64("school_org_id", school.OrganizationID),
+			slog.Int64("caller_org_id", callerOrgID),
+			slog.String("tenant_slug", tenantSlug),
+		)
+		return 0, 0, &AuthError{Op: "resolve tenant", Err: ErrTenantAccessDenied}
+	}
+
+	// Normal scope: verify the account has an explicit active mapping to this tenant
 	exists, err := s.repos.AccountTenant.ExistsByAccountAndTenant(ctx, accountID, school.ID)
 	if err != nil {
 		s.getLogger().Warn("failed to verify account tenant mapping",
@@ -419,6 +490,7 @@ func (s *Service) buildJWTClaims(
 		Roles:       metadata.roleNames,
 		Permissions: metadata.permissionStrs,
 		IsAdmin:     metadata.isAdmin,
+		Scope:       metadata.scope,
 		TenantID:    metadata.tenantID,
 		OrgID:       metadata.orgID,
 	}

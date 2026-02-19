@@ -13,13 +13,23 @@ import type { NextRequest } from "next/server";
 
 const TENANT_DOMAIN = process.env.TENANT_DOMAIN ?? "localhost";
 
+/** Subdomains reserved for infrastructure — never treated as tenant slugs. */
+const RESERVED_SUBDOMAINS = new Set(["www", "api", "admin", "operator", "app"]);
+
 function extractTenantSlug(host: string): string | null {
   // Strip port (e.g., "school-a.localhost:3000" -> "school-a.localhost")
   const hostname = host.split(":")[0] ?? "";
 
   // Check if hostname has a subdomain under TENANT_DOMAIN
   if (hostname !== TENANT_DOMAIN && hostname.endsWith(`.${TENANT_DOMAIN}`)) {
-    return hostname.slice(0, -(TENANT_DOMAIN.length + 1));
+    const slug = hostname.slice(0, -(TENANT_DOMAIN.length + 1));
+
+    // Block reserved subdomains from tenant resolution
+    if (RESERVED_SUBDOMAINS.has(slug)) {
+      return null;
+    }
+
+    return slug;
   }
 
   return null;

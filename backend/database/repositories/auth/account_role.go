@@ -59,6 +59,36 @@ func (r *AccountRoleRepository) FindByAccountID(ctx context.Context, accountID i
 	return accountRoles, nil
 }
 
+// FindByAccountIDForTenant retrieves account-role mappings for an account scoped to a specific tenant.
+// tenantID > 0: filter by that tenant (login/switch flows where no context tenant exists).
+// tenantID == 0: fall back to context-based filtering via TenantWhere.
+func (r *AccountRoleRepository) FindByAccountIDForTenant(ctx context.Context, accountID int64, tenantID int64) ([]*auth.AccountRole, error) {
+	var accountRoles []*auth.AccountRole
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model(&accountRoles).
+		ModelTableExpr(accountRoleTableAlias).
+		Join(`LEFT JOIN auth.roles AS "role" ON "role".id = "account_role".role_id`).
+		ColumnExpr(`"account_role".*`).
+		ColumnExpr(`"role".id AS "role__id", "role".created_at AS "role__created_at", "role".updated_at AS "role__updated_at", "role".name AS "role__name", "role".description AS "role__description"`).
+		Where(`"account_role".account_id = ?`, accountID)
+
+	if tenantID > 0 {
+		query = query.Where(`"account_role".tenant_id = ?`, tenantID)
+	} else if where, val, ok := base.TenantWhere(ctx, "account_role"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.Scan(ctx)
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find by account ID for tenant",
+			Err: err,
+		}
+	}
+
+	return accountRoles, nil
+}
+
 // FindByRoleID retrieves all account-role mappings for a role
 func (r *AccountRoleRepository) FindByRoleID(ctx context.Context, roleID int64) ([]*auth.AccountRole, error) {
 	var accountRoles []*auth.AccountRole
