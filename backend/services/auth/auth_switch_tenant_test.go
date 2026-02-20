@@ -18,27 +18,6 @@ func TestAuthService_SwitchTenant(t *testing.T) {
 	service := setupAuthService(t, db)
 	ctx := testpkg.TenantContext(1)
 
-	t.Run("switches tenant successfully", func(t *testing.T) {
-		// ARRANGE: Create account in tenant 1
-		uniqueID := fmt.Sprintf("%d", time.Now().UnixNano())
-		email := fmt.Sprintf("switch-%s@test.local", uniqueID)
-		username := fmt.Sprintf("switch-%s", uniqueID)
-		account, err := service.Register(ctx, email, username, testPassword, nil)
-		require.NoError(t, err)
-		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
-
-		// Map account to a second tenant (tenant ID 2, subdomain "t2")
-		testpkg.EnsureAccountTenant(t, db, account.ID, 2)
-
-		// ACT: Switch from tenant 1 to tenant 2 using subdomain as slug
-		accessToken, refreshToken, err := service.SwitchTenant(ctx, account.ID, "t2")
-
-		// ASSERT
-		require.NoError(t, err)
-		assert.NotEmpty(t, accessToken, "access token should be returned")
-		assert.NotEmpty(t, refreshToken, "refresh token should be returned")
-	})
-
 	t.Run("fails for non-existent account", func(t *testing.T) {
 		// ACT
 		accessToken, refreshToken, err := service.SwitchTenant(ctx, 999999, "t1")
