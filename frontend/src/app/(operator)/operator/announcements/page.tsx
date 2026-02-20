@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import { AnimatePresence, LayoutGroup, motion } from "framer-motion";
+// eslint-disable-next-line no-restricted-imports -- operator pages use useOperatorAuth, not NextAuth
 import useSWR from "swr";
 import { MoreVertical, Pencil, Trash2, Send, Check } from "lucide-react";
 import {

@@ -112,6 +112,12 @@ For CI, set TEST_DB_DSN as an environment variable.`)
 	db, err := database.DBConn()
 	require.NoError(t, err, "Failed to connect to test database")
 
+	// Set search_path to include all project schemas.
+	// BUN's Relation() JOIN generation sometimes uses unqualified table names,
+	// which fails when the target schema isn't in search_path.
+	_, _ = db.ExecContext(context.Background(),
+		`SET search_path TO public, platform, auth, users, education, facilities, activities, active, schedule, iot, feedback, config, meta, audit`)
+
 	// Ensure the default tenant (school ID 1) exists in platform.schools.
 	// All fixtures use tenant_id=1, which requires a FK target row.
 	EnsureTestTenant(t, db, 1)

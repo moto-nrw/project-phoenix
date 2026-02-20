@@ -1931,6 +1931,18 @@ func EnsureTestTenant(tb testing.TB, db *bun.DB, tenantID int64) {
 	require.NoError(tb, err, "Failed to ensure test school")
 }
 
+// MapAccountToTenant creates an active account_tenants mapping without
+// ensuring the tenant infrastructure (organization/school) exists first.
+// Use this when the tenant has already been ensured via EnsureTestTenant.
+func MapAccountToTenant(t *testing.T, db *bun.DB, accountID, tenantID int64) {
+	t.Helper()
+	_, err := db.ExecContext(context.Background(),
+		`INSERT INTO auth.account_tenants (account_id, tenant_id, status, created_at, updated_at)
+		 VALUES (?, ?, 'active', NOW(), NOW())
+		 ON CONFLICT (account_id, tenant_id) DO NOTHING`, accountID, tenantID)
+	require.NoError(t, err)
+}
+
 // EnsureAccountTenant creates an active account_tenants mapping so that
 // resolveAccountTenantDefault can find a tenant for the account during login.
 // Uses ON CONFLICT DO NOTHING so it is safe to call multiple times.

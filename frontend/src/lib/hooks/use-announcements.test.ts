@@ -19,6 +19,7 @@ vi.mock("next/navigation", () => ({
 vi.mock("swr");
 
 import { useAnnouncements } from "./use-announcements";
+// eslint-disable-next-line no-restricted-imports -- test mock at module boundary
 import useSWR from "swr";
 
 interface UnreadAnnouncement {

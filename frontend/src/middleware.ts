@@ -11,6 +11,25 @@ import type { NextRequest } from "next/server";
  * Stateless: no DB calls, no auth checks. The [tenant]/layout.tsx validates the slug.
  */
 
+const CSP_HEADER = [
+  "default-src 'self'",
+  "script-src 'self' 'unsafe-inline'",
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data: blob:",
+  "connect-src 'self'",
+  "frame-ancestors 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+].join("; ");
+
+/** Attach security headers (CSP, X-Content-Type-Options, X-Frame-Options) to a response. */
+function withSecurityHeaders(response: NextResponse): NextResponse {
+  response.headers.set("Content-Security-Policy", CSP_HEADER);
+  response.headers.set("X-Content-Type-Options", "nosniff");
+  response.headers.set("X-Frame-Options", "DENY");
+  return response;
+}
+
 const TENANT_DOMAIN = process.env.TENANT_DOMAIN ?? "localhost";
 
 /** Subdomains reserved for infrastructure — never treated as tenant slugs. */
@@ -38,11 +57,13 @@ function extractTenantSlug(host: string): string | null {
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Skip paths that must not be rewritten for tenant routing:
-  // - /api/* : Next.js API route handlers (tenant comes from JWT, not URL)
-  // - /_next/* : Next.js internals
-  if (pathname.startsWith("/api") || pathname.startsWith("/_next")) {
+  // /api/* — Next.js API proxy routes; still attach security headers.
+  // /_next/* — Next.js internals; skip entirely (static assets).
+  if (pathname.startsWith("/_next")) {
     return NextResponse.next();
+  }
+  if (pathname.startsWith("/api")) {
+    return withSecurityHeaders(NextResponse.next());
   }
 
   // Operator dashboard auth guard (merged from proxy.ts — Next.js 16 forbids
@@ -55,7 +76,7 @@ export function middleware(request: NextRequest) {
     ) {
       return NextResponse.redirect(new URL("/operator/login", request.url));
     }
-    return NextResponse.next();
+    return withSecurityHeaders(NextResponse.next());
   }
 
   const host = request.headers.get("host") ?? "";
@@ -64,25 +85,25 @@ export function middleware(request: NextRequest) {
   // No subdomain (bare domain) — pass through without rewrite.
   // The root app/page.tsx can handle tenant selection or redirect.
   if (!tenantSlug) {
-    return NextResponse.next();
+    return withSecurityHeaders(NextResponse.next());
   }
 
   // "operator" subdomain routes to operator dashboard without tenant rewrite
   if (tenantSlug === "operator") {
-    return NextResponse.next();
+    return withSecurityHeaders(NextResponse.next());
   }
 
   // Already has tenant prefix — useTenantRouter().push() adds the slug explicitly,
   // so skip rewriting to avoid double-prefixing (e.g. /school-a/school-a/dashboard).
   if (pathname.startsWith(`/${tenantSlug}/`) || pathname === `/${tenantSlug}`) {
-    return NextResponse.next();
+    return withSecurityHeaders(NextResponse.next());
   }
 
   // Rewrite: school-a.localhost:3000/dashboard -> internal /school-a/dashboard
   // This lets the [tenant] dynamic segment in the App Router capture the slug.
   const url = request.nextUrl.clone();
   url.pathname = `/${tenantSlug}${pathname}`;
-  return NextResponse.rewrite(url);
+  return withSecurityHeaders(NextResponse.rewrite(url));
 }
 
 export const config = {

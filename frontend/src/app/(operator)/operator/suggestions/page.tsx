@@ -3,6 +3,7 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { AnimatePresence, LayoutGroup, motion } from "framer-motion";
 import { ThumbsUp, ThumbsDown } from "lucide-react";
+// eslint-disable-next-line no-restricted-imports -- operator pages use useOperatorAuth, not NextAuth
 import useSWR from "swr";
 import {
   PageHeaderWithSearch,

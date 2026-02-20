@@ -98,4 +98,26 @@ func TestAuthService_SwitchTenant(t *testing.T) {
 		assert.Empty(t, accessToken)
 		assert.Empty(t, refreshToken)
 	})
+
+	t.Run("switches tenant successfully", func(t *testing.T) {
+		// ARRANGE: Create account mapped to tenant 1, then switch to tenant 2
+		uniqueID := fmt.Sprintf("%d", time.Now().UnixNano())
+		email := fmt.Sprintf("switch-%s@test.local", uniqueID)
+		username := fmt.Sprintf("switch-%s", uniqueID)
+		account, err := service.Register(ctx, email, username, testPassword, nil)
+		require.NoError(t, err)
+		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+		// Map account to tenant 2
+		testpkg.EnsureTestTenant(t, db, 2)
+		testpkg.MapAccountToTenant(t, db, account.ID, 2)
+
+		// ACT
+		accessToken, refreshToken, err := service.SwitchTenant(ctx, account.ID, "t2")
+
+		// ASSERT
+		require.NoError(t, err)
+		assert.NotEmpty(t, accessToken)
+		assert.NotEmpty(t, refreshToken)
+	})
 }
