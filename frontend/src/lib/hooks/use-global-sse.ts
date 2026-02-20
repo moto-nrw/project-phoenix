@@ -189,9 +189,12 @@ export function useGlobalSSE(): SSEHookState {
     [scheduleFlush],
   );
 
-  // Use the underlying SSE hook with global event handler
+  // Use the underlying SSE hook with global event handler.
+  // reconnectKey ensures the EventSource tears down and reconnects with a
+  // fresh JWT whenever the user switches tenant.
   return useSSE("/api/sse/events", {
     onMessage: handleSSEEvent,
     enabled: isAuthenticated,
+    reconnectKey: session?.user?.tenantId,
   });
 }
