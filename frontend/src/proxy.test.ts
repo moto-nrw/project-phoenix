@@ -3,10 +3,17 @@ import type { NextRequest } from "next/server";
 import { middleware } from "./middleware";
 
 // Use vi.hoisted for mock values referenced in vi.mock
-const { mockNext, mockRedirect } = vi.hoisted(() => ({
-  mockNext: vi.fn(() => ({ status: 200, type: "next" })),
-  mockRedirect: vi.fn((url: URL) => ({ status: 307, url, type: "redirect" })),
-}));
+const { mockNext, mockRedirect } = vi.hoisted(() => {
+  const mockHeaders = () => ({ set: vi.fn(), get: vi.fn(), has: vi.fn() });
+  return {
+    mockNext: vi.fn(() => ({
+      status: 200,
+      type: "next",
+      headers: mockHeaders(),
+    })),
+    mockRedirect: vi.fn((url: URL) => ({ status: 307, url, type: "redirect" })),
+  };
+});
 
 vi.mock("next/server", async (importOriginal) => {
   const actual = await importOriginal<Record<string, unknown>>();
@@ -15,7 +22,12 @@ vi.mock("next/server", async (importOriginal) => {
     NextResponse: {
       next: mockNext,
       redirect: mockRedirect,
-      rewrite: vi.fn((url: URL) => ({ status: 200, url, type: "rewrite" })),
+      rewrite: vi.fn((url: URL) => ({
+        status: 200,
+        url,
+        type: "rewrite",
+        headers: { set: vi.fn(), get: vi.fn(), has: vi.fn() },
+      })),
     },
   };
 });
