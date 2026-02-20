@@ -107,6 +107,9 @@ type Service interface {
 	// Unclaimed groups management (deviceless claiming)
 	GetUnclaimedActiveGroups(ctx context.Context) ([]*active.Group, error)
 	ClaimActiveGroup(ctx context.Context, groupID, staffID int64, role string) (*active.GroupSupervisor, error)
+
+	// Cross-tenant student visibility (Ferienbetreuung / holiday care)
+	GetCrossTenantStudents(ctx context.Context, hostingTenantID int64) ([]active.CrossTenantStudent, error)
 }
 
 // DashboardAnalytics represents aggregated analytics for dashboard

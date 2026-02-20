@@ -2302,6 +2302,30 @@ func CreateTestActiveGroupForTenant(tb testing.TB, db *bun.DB, tenantID int64) *
 	return activeGroup
 }
 
+// CreateTestVisitForTenant creates a visit belonging to a specific tenant.
+func CreateTestVisitForTenant(tb testing.TB, db *bun.DB, tenantID int64, studentID, activeGroupID int64, entryTime time.Time, exitTime *time.Time) *active.Visit {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	visit := &active.Visit{
+		StudentID:     studentID,
+		ActiveGroupID: activeGroupID,
+		EntryTime:     entryTime,
+		ExitTime:      exitTime,
+	}
+	visit.SetTenantID(tenantID)
+
+	err := db.NewInsert().
+		Model(visit).
+		ModelTableExpr(`active.visits`).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to create test visit for tenant")
+
+	return visit
+}
+
 // CreateTestSuggestionPostForTenant creates a suggestion post belonging to a specific tenant.
 func CreateTestSuggestionPostForTenant(tb testing.TB, db *bun.DB, tenantID int64, accountID int64) *suggestions.Post {
 	tb.Helper()

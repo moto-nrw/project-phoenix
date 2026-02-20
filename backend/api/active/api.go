@@ -157,6 +157,9 @@ func (rs *Resource) Router() chi.Router {
 			r.With(authorize.RequiresPermission(permissions.GroupsRead), withTx).Get("/dashboard", rs.getDashboardAnalytics)
 		})
 
+		// Cross-tenant students (Ferienbetreuung / holiday care)
+		r.With(authorize.RequiresPermission(permissions.GroupsRead), withTx).Get("/cross-tenant-students", rs.getCrossTenantStudents)
+
 		// Schulhof (schoolyard) - permanent outdoor supervision area
 		r.Route("/schulhof", func(r chi.Router) {
 			schulhofResource := NewSchulhofResource(rs.SchulhofService, rs.UserContextService)

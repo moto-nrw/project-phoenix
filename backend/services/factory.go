@@ -13,6 +13,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/policies"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	activeRepo "github.com/moto-nrw/project-phoenix/database/repositories/active"
 	"github.com/moto-nrw/project-phoenix/email"
 	importModels "github.com/moto-nrw/project-phoenix/models/import"
 	"github.com/moto-nrw/project-phoenix/realtime"
@@ -190,6 +191,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		CombinedGroupRepo:  repos.CombinedGroup,
 		GroupMappingRepo:   repos.GroupMapping,
 		AttendanceRepo:     repos.Attendance,
+		CrossTenantRepo:    activeRepo.NewCrossTenantRepository(db),
 		StudentRepo:        repos.Student,
 		PersonRepo:         repos.Person,
 		TeacherRepo:        repos.Teacher,
