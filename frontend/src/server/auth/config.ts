@@ -438,6 +438,17 @@ export const authConfig = {
           token.refreshTokenExpiry = Date.now() + refreshTokenExpiry;
           token.error = undefined;
           token.needsRefresh = undefined;
+          // Sync tenant/role fields from refreshed JWT
+          const cachedPayload = parseJwtPayload(
+            refreshCache.result.access_token,
+          );
+          if (cachedPayload) {
+            token.tenantId = cachedPayload.tenant_id;
+            token.orgId = cachedPayload.org_id;
+            token.roles = cachedPayload.roles ?? [];
+            token.isAdmin = cachedPayload.is_admin ?? false;
+            token.scope = cachedPayload.scope;
+          }
           logger.info("proactive_token_refresh_deduplicated");
           return token;
         }
@@ -452,6 +463,15 @@ export const authConfig = {
             token.refreshTokenExpiry = Date.now() + refreshTokenExpiry;
             token.error = undefined;
             token.needsRefresh = undefined;
+            // Sync tenant/role fields from refreshed JWT
+            const inflightPayload = parseJwtPayload(result.access_token);
+            if (inflightPayload) {
+              token.tenantId = inflightPayload.tenant_id;
+              token.orgId = inflightPayload.org_id;
+              token.roles = inflightPayload.roles ?? [];
+              token.isAdmin = inflightPayload.is_admin ?? false;
+              token.scope = inflightPayload.scope;
+            }
             logger.info("proactive_token_refresh_succeeded");
           } else if (now > tokenExpiry) {
             token.error = "RefreshTokenError";
@@ -508,6 +528,15 @@ export const authConfig = {
           token.refreshTokenExpiry = Date.now() + refreshTokenExpiry;
           token.error = undefined;
           token.needsRefresh = undefined;
+          // Sync tenant/role fields from refreshed JWT
+          const refreshedPayload = parseJwtPayload(result.access_token);
+          if (refreshedPayload) {
+            token.tenantId = refreshedPayload.tenant_id;
+            token.orgId = refreshedPayload.org_id;
+            token.roles = refreshedPayload.roles ?? [];
+            token.isAdmin = refreshedPayload.is_admin ?? false;
+            token.scope = refreshedPayload.scope;
+          }
           logger.info("proactive_token_refresh_succeeded");
         } else if (now > tokenExpiry) {
           token.error = "RefreshTokenError";
