@@ -45,6 +45,7 @@ vi.mock("~/components/tenant/tenant-provider", () => ({
     tenantSlug: "test-tenant",
     tenant: null,
   })),
+  useTenantSlugSafe: vi.fn(() => "test-tenant"),
   TenantProvider: ({
     children,
   }: {
