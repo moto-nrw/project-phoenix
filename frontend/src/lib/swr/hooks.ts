@@ -12,6 +12,7 @@
 
 "use client";
 
+// eslint-disable-next-line no-restricted-imports -- this IS the tenant-aware wrapper
 import useSWR, { type SWRConfiguration, type SWRResponse } from "swr";
 import { useSession } from "next-auth/react";
 import { swrConfig, immutableConfig } from "./config";

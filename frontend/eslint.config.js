@@ -51,6 +51,12 @@ const eslintConfig = [
               message:
                 "Use useTenantRouter() from ~/lib/tenant-router instead. Raw useRouter() does not prefix routes with the tenant slug.",
             },
+            {
+              name: "swr",
+              importNames: ["default"],
+              message:
+                "Use useSWRAuth() from ~/lib/swr instead. Raw useSWR() does not prefix cache keys with the tenant slug. Operator pages may disable this inline.",
+            },
           ],
         },
       ],

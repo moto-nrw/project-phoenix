@@ -1,0 +1,20 @@
+meta {
+  name: List Account Tenants
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{base_url}}/api/auth/account/tenants
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{access_token}}
+}
+
+assert {
+  res.status: eq 200
+  res.body: isArray
+}

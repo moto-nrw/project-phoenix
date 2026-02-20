@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
+// eslint-disable-next-line no-restricted-imports -- platform-scoped announcements, not tenant-scoped
 import useSWR from "swr";
 import { authFetch } from "~/lib/api-helpers";
 
