@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { TenantProvider } from "~/components/tenant/tenant-provider";
+import { TenantGuard } from "~/components/tenant/tenant-guard";
 import type { TenantInfo, TenantSettings } from "~/lib/tenant-api";
 
 interface TenantResolveResponse {
@@ -63,7 +64,7 @@ export default async function TenantLayout({
 
   return (
     <TenantProvider tenantSlug={tenantSlug} tenant={tenant}>
-      {children}
+      <TenantGuard>{children}</TenantGuard>
     </TenantProvider>
   );
 }
