@@ -360,7 +360,7 @@ func (s *service) BroadcastDailyCheckout(ctx context.Context, studentID int64) {
 	)
 
 	// Broadcast to educational (OGS) group topic so the "Meine Gruppe" page updates
-	s.broadcastToEducationalGroup(studentRec, event)
+	s.broadcastToEducationalGroup(ctx, studentRec, event)
 }
 
 // ======== Unclaimed Groups Management (Deviceless Claiming) ========
