@@ -405,6 +405,11 @@ func loginAsAdmin(t *testing.T, db *bun.DB, router chi.Router) (token string, va
 	t.Helper()
 	ctx := context.Background()
 
+	// Belt-and-suspenders: ensure FK target row for tenant_id=1 exists.
+	// SetupTestDB already calls EnsureTestTenant, but parallel test packages
+	// sharing the same database may interfere.
+	testpkg.EnsureTestTenant(t, db, 1)
+
 	// 1. Create admin account with known password
 	adminEmail := fmt.Sprintf("registeradmin_%d@example.com", time.Now().UnixNano())
 	adminPassword := "AdminPass123!"
@@ -416,6 +421,7 @@ func loginAsAdmin(t *testing.T, db *bun.DB, router chi.Router) (token string, va
 		AccountID: adminAccount.ID,
 		RoleID:    adminRole.ID,
 	}
+	accountRole.SetTenantID(1)
 	_, err := db.NewInsert().Model(accountRole).ModelTableExpr("auth.account_roles").Exec(ctx)
 	require.NoError(t, err, "Failed to assign admin role")
 

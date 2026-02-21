@@ -1855,7 +1855,7 @@ func cleanupWCInfrastructure(t *testing.T, db *bun.DB, roomID int64) {
 func createWCRoom(t *testing.T, db *bun.DB) *facilities.Room {
 	t.Helper()
 
-	dbCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	dbCtx, cancel := context.WithTimeout(testpkg.TenantContext(1), 10*time.Second)
 	defer cancel()
 
 	// Clean up any pre-existing WC room and its infrastructure (from seed data or prior tests)
@@ -1884,12 +1884,23 @@ func createWCRoom(t *testing.T, db *bun.DB) *facilities.Room {
 		Name:     "WC",
 		Building: "Test Building",
 	}
+	room.SetTenantID(1)
 
-	err = db.NewInsert().
+	_, err = db.NewInsert().
 		Model(room).
 		ModelTableExpr("facilities.rooms").
+		On("CONFLICT (tenant_id, name) DO NOTHING").
+		Exec(dbCtx)
+	require.NoError(t, err, "Failed to ensure WC room")
+
+	// Fetch the actual room (either just created or existing)
+	err = db.NewSelect().
+		Model(room).
+		ModelTableExpr(`facilities.rooms AS "room"`).
+		Where(`"room".name = ?`, "WC").
+		Where(`"room".tenant_id = ?`, 1).
 		Scan(dbCtx)
-	require.NoError(t, err, "Failed to create WC room")
+	require.NoError(t, err, "Failed to fetch WC room")
 
 	return room
 }
