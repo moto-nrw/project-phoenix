@@ -415,6 +415,9 @@ func loginAsAdmin(t *testing.T, db *bun.DB, router chi.Router) (token string, va
 	adminPassword := "AdminPass123!"
 	adminAccount := testpkg.CreateTestAccountWithPassword(t, db, adminEmail, adminPassword)
 
+	// Map account to tenant 1 so Login can resolve the tenant for JWT/token creation
+	testpkg.EnsureAccountTenant(t, db, adminAccount.ID, 1)
+
 	// 2. Get or create "admin" role and assign it
 	adminRole := testpkg.GetOrCreateTestRole(t, db, "admin")
 	accountRole := &authModel.AccountRole{
@@ -635,6 +638,7 @@ func TestRegisterRequiresAdminAuth(t *testing.T) {
 		userEmail := fmt.Sprintf("nonadmin_%d@example.com", time.Now().UnixNano())
 		userPassword := "UserPass123!"
 		userAccount := testpkg.CreateTestAccountWithPassword(t, db, userEmail, userPassword)
+		testpkg.EnsureAccountTenant(t, db, userAccount.ID, 1)
 
 		// Assign a "user" role (not admin)
 		userRole := testpkg.GetOrCreateTestRole(t, db, "user")
@@ -643,6 +647,7 @@ func TestRegisterRequiresAdminAuth(t *testing.T) {
 			AccountID: userAccount.ID,
 			RoleID:    userRole.ID,
 		}
+		userAccountRole.SetTenantID(1)
 		_, err := db.NewInsert().Model(userAccountRole).ModelTableExpr("auth.account_roles").Exec(ctx)
 		require.NoError(t, err)
 

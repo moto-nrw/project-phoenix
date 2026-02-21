@@ -2132,8 +2132,8 @@ func TestDeviceCheckin_WCAutoCreateWithoutStaff(t *testing.T) {
 	today := timezone.Today() // Berlin date — matches FindByStudentAndDate's timezone.DateOf()
 	var attendanceID int64
 	err := ctx.db.NewRaw(
-		`INSERT INTO active.attendance (student_id, date, check_in_time, checked_in_by, device_id)
-		 VALUES (?, ?, ?, ?, ?) RETURNING id`,
+		`INSERT INTO active.attendance (student_id, date, check_in_time, checked_in_by, device_id, tenant_id)
+		 VALUES (?, ?, ?, ?, ?, 1) RETURNING id`,
 		student.ID, today, today.Add(8*time.Hour), setupStaff.ID, device.ID,
 	).Scan(context.Background(), &attendanceID)
 	require.NoError(t, err, "test setup: failed to insert attendance record")
@@ -2193,8 +2193,8 @@ func TestDeviceCheckin_SchulhofAutoCreateWithoutStaff(t *testing.T) {
 	today := timezone.Today() // Berlin date — matches FindByStudentAndDate's timezone.DateOf()
 	var attendanceID int64
 	err := ctx.db.NewRaw(
-		`INSERT INTO active.attendance (student_id, date, check_in_time, checked_in_by, device_id)
-		 VALUES (?, ?, ?, ?, ?) RETURNING id`,
+		`INSERT INTO active.attendance (student_id, date, check_in_time, checked_in_by, device_id, tenant_id)
+		 VALUES (?, ?, ?, ?, ?, 1) RETURNING id`,
 		student.ID, today, today.Add(8*time.Hour), setupStaff.ID, device.ID,
 	).Scan(context.Background(), &attendanceID)
 	require.NoError(t, err, "test setup: failed to insert attendance record")
